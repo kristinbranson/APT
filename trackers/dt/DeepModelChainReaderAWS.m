@@ -12,6 +12,10 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
       obj.awsec2 = backEnd.awsec2; % awsec2 is specified and so .instanceID is immutable
     end
     
+    function  tf = getModelIsRemote(obj)
+      tf = true;
+    end
+    
     function maxiter = getMostRecentModel(obj,dmc)
       % maxiter is nan if something bad happened or if DNE
       

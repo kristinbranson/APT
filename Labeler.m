@@ -112,7 +112,7 @@ classdef Labeler < handle
   properties (SetObservable)
     projname              % init: PN
     projFSInfo;           % filesystem info
-    projTempDir;                % temp dir name to save the raw label file
+    projTempDir;          % temp dir name to save the raw label file
   end
   properties (SetAccess=private)
     projMacros = struct(); % scalar struct, filesys macros. init: PN
@@ -1668,10 +1668,7 @@ classdef Labeler < handle
       if 1
         rawLblFile = obj.projGetRawLblFile();
         save(rawLblFile,'-mat','-struct','s');
-        success = obj.projBundleSave(fname);
-        if ~success
-          error('Could not bundle the label file %s',fname);
-        end
+        obj.projBundleSave(fname);
       else
         save(fname,'-mat','-struct','s');
       end
@@ -2179,78 +2176,86 @@ classdef Labeler < handle
       end
     end
     
-    function [rawLblFile,tname] = projGetRawLblFile(obj) % throws
-      tname = obj.projGetEnsureTempDir();
-      rawLblFile = fullfile(tname,obj.DEFAULT_RAW_LABEL_FILENAME);
+    function [rawLblFile,projtempdir] = projGetRawLblFile(obj) % throws
+      projtempdir = obj.projGetEnsureTempDir();
+      rawLblFile = fullfile(projtempdir,obj.DEFAULT_RAW_LABEL_FILENAME);
     end
     
-    function [success] = projBundleSave(obj,outFile)
+    function projBundleSave(obj,outFile,varargin) % throws 
       % bundle contents of projTempDir into outFile
-      success = false;
-      [rawLblFile,tname] = obj.projGetRawLblFile();
+      %
+      % throws on err, hopefully cleans up after itself (projtempdir) 
+      % regardless. unless the error is thrown from the cleanup! haha um.
+      
+      verbose = myparse(varargin,...
+        'verbose',1 ...
+      );
+      
+      oc = onCleanup(@() obj.clearTempDir()); % clean up tempdir on all exits 
+
+      [rawLblFile,projtempdir] = obj.projGetRawLblFile();
       if ~exist(rawLblFile,'file')
         error('Raw label file %s does not exist. Could not create bundled label file.',...
           rawLblFile);
       end
+      
+      % This will contain all projtempdir artifacts to be tarred
       allModelFiles = {rawLblFile};
       
       % find the model files and then bundle them into the tar directory.
       % but since there isn't much in way of relative path support in
       % matlabs tar/zip functions, we will also have to copy them first the
       % temp directory. sigh.
-      if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-        % a lot of unnecessary moving around is to maintain the directory
-        % structure - MK 20190204
-        for ndx = 1:numel(obj.tracker.trnLastDMC)
-          dm = obj.tracker.trnLastDMC(ndx);
-          modelFile = dm.trainCurrModelLnx;
-          [dd,ff,~] = fileparts(modelFile);
-          modelFile = fullfile(dd,ff);
-          allFiles = dir([modelFile '*']);
-          modelFiles = {allFiles(:).name};
-          modelFiles = cellfun(@(x) fullfile(dd,x), modelFiles,'UniformOutput',false);        
-          modelFiles{end+1} = dm.trainDataLnx; %#ok<AGROW>
-          ckptFile = fullfile(dd,'deepnet_ckpt') ;
-          if exist(ckptFile,'file')
-            modelFiles{end+1} = ckptFile;%#ok<AGROW>
-          end
-          rawDataFile = fullfile(dd,'traindata');
-          if exist(rawDataFile,'file')
-            modelFiles{end+1} = rawDataFile;%#ok<AGROW>
-          end
-          tdir = strrep(dm.dirModelChainLnx, dm.rootDir, tname);
-          if ~exist(tdir,'dir')
-            [success,message,messageid] = mkdir(tdir);
-            if ~success
-              error('Could not bundle models into label file %s',message);
+      
+      for iTrker = 1:numel(obj.trackersAll)
+        tObj = obj.trackersAll{iTrker};
+        if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)
+          % a lot of unnecessary moving around is to maintain the directory
+          % structure - MK 20190204
+          
+          dmc = tObj.trnLastDMC;
+        
+          for ndx = 1:numel(dmc)
+            dm = dmc(ndx);
+            tfsucc = dm.updateCurrInfo();
+            if ~tfsucc
+              warningNoTrace('Failed to update model iteration for model with net type %s.',...
+                char(dm.netType));
             end
-          end
-          for mndx = 1:numel(modelFiles)
-            [success,message,messageid] = copyfile(modelFiles{mndx},tdir);
-            if ~success
-              error('Could not bundle models into label file %s',message);
+            
+            if dm.isRemote
+              fprintf(2,'TODO REMOTE DMC XXX\n');
             end
-            [~,curF,curE] = fileparts(modelFiles{mndx});
-            allModelFiles{end+1} = fullfile(tdir,[curF curE]);%#ok<AGROW>
+            
+            if verbose>0 && ndx==1
+              fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
+                dm.netType,dm.rootDir);
+            end
+            
+            modelFiles = dm.findModelGlobs();
+            modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
+            for mndx = 1:numel(modelFiles)
+              copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+              % for a given tracker, multiple DMCs this could re-copy 
+              % proj-level artifacts like stripped lbls
+              if verbose>1
+                fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+              end
+            end           
+            allModelFiles = [allModelFiles; modelFilesDst]; %#ok<AGROW>
           end
         end
-        strippedLblFile = obj.tracker.trnLastDMC.lblStrippedLnx;          
-        destStripped = strrep(strippedLblFile,dm.rootDir,tname);
-        [success,msg,~] = copyfile(strippedLblFile,destStripped);
-        if ~success
-          error('Could not bundle models into label file %s',msg);
-        end
-        allModelFiles{end+1} = destStripped;
       end
-      allModelFiles = cellfun(@(x) strrep(x,[tname filesep],''),allModelFiles,'UniformOutput',false);
-      tar([outFile '.tar'],allModelFiles,tname);
+      
+      allModelFiles = cellfun(@(x) regexprep(x,[projtempdir filesep],''),...
+        allModelFiles,'UniformOutput',false); % XXX filesep
+      tar([outFile '.tar'],allModelFiles,projtempdir);
       movefile([outFile '.tar'],outFile); 
       % matlab by default adds the .tar. So save it to tar
       % and then move it.
-      success = obj.clearTempDir();
     end
     
-    function success = clearTempDir(obj)
+    function clearTempDir(obj) % throws
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if ~success
         error('Could not clear the temp directory %s',message);

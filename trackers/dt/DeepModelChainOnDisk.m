@@ -55,6 +55,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     aptRepoSnapshotName
     
     trainModelGlob
+    
+    isRemote
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -176,7 +178,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function v = get.aptRepoSnapshotName(obj)
       v = sprintf('%s_%s.aptsnapshot',obj.modelChainID,obj.trainID);
-    end      
+    end
+    function v = get.isRemote(obj)
+      v = obj.reader.getModelIsRemote();
+    end
   end
   methods
     function obj = DeepModelChainOnDisk(varargin)
@@ -203,19 +208,39 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
       end
     end
-    function g = keepGlobsLnx(obj)
+    function lsProjDir(obj)
+      ls('-al',obj.dirProjLnx);
+    end
+    function lsModelChainDir(obj)
+      ls('-al',obj.dirModelChainLnx);
+    end
+    function g = modelGlobsLnx(obj)
       % filesys paths/globs of important parts/stuff to keep
       
       g = { ...
         [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl
         [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
         [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterCurr)]; ... % latest iter 
-        [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... 
-        [obj.dirModelChainLnx '/' 'splitdata.json']; ...
+        [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... % [obj.dirModelChainLnx '/' 'splitdata.json']; ...
         [obj.dirModelChainLnx '/' 'traindata*']; ...
         };
     end
-    
+    function mdlFiles = findModelGlobs(obj)
+      globs = obj.modelGlobsLnx;
+      mdlFiles = cell(0,1);
+      for g = globs(:)',g=g{1};
+        if contains(g,'*')
+          gP = fileparts(g);
+          dd = dir(g);
+          mdlFilesNew = {dd.name}';
+          mdlFilesNew = cellfun(@(x) fullfile(gP,x),mdlFilesNew,'uni',0);
+          mdlFiles = [mdlFiles; mdlFilesNew];
+        elseif exist(g,'file')>0
+          mdlFiles{end+1,1} = g;
+        end
+      end      
+    end
+                 
     function tfSuccess = updateCurrInfo(obj)
       % Update .iterCurr by probing filesys
       

@@ -1,5 +1,6 @@
 classdef DeepModelChainReader < handle
   methods (Abstract)
+    tf = getModelIsRemote(obj)
     maxiter = getMostRecentModel(obj,dmc)
   end
   methods (Static)

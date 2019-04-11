@@ -1,5 +1,8 @@
 classdef DeepModelChainReaderLocal < DeepModelChainReader
   methods
+    function  tf = getModelIsRemote(obj)
+      tf = false;
+    end
     function maxiter = getMostRecentModel(obj,dmc)
       maxiter = nan;
       
