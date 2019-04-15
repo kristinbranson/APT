@@ -12,6 +12,7 @@ classdef SparseLabelArray
           v = x(i);
         case 'ts'
           i = find(~isinf(x));
+          
           v = x(i);
         case 'log'
           i = find(x);
