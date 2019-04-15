@@ -4229,10 +4229,6 @@ classdef DeepTracker < LabelTracker
       % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
       %          size(tblTrkRes.pTrk,2)==npttrk*d
 
-%       if obj.lObj.nview>1
-%         error('Currently unsupported for multiview projects.');
-%       end
-      
       m = obj.movIdx2trkfile;
       
       if m.isempty
@@ -4261,6 +4257,8 @@ classdef DeepTracker < LabelTracker
             error('Trkfiles differ in tracked points .pTrkiPt.');
           end
           tbl = trk{i,1}.tableform;
+          tblmov = table(repmat(mIdxs(i),height(tbl),1),'VariableNames',{'mov'});
+          tbl = [tblmov tbl];
           tblTrkRes = [tblTrkRes;tbl]; %#ok<AGROW>
         end         
       end

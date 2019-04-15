@@ -45,7 +45,15 @@ function result = ReadYaml(filename, nosuchfileaction, makeords, treatasdata, di
     end; 
 
     
-    ry = ReadYamlRaw(filename, 0, nosuchfileaction, treatasdata);
+    warnst = warning('off','MATLAB:javaclasspath:jarAlreadySpecified');
+    try
+      ry = ReadYamlRaw(filename, 0, nosuchfileaction, treatasdata);
+    catch ME
+      warning(warnst);
+      ME.rethrow();
+    end
+    warning(warnst);
+      
     ry = deflateimports(ry);
     if iscell(ry) && ...
         length(ry) == 1 && ...
