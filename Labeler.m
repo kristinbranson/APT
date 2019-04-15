@@ -1959,32 +1959,39 @@ classdef Labeler < handle
       
       %MK 20190204 copy models to cache dir for bundled label file.
       % reset movIdx2trkfile.
-      if 0
-        fprintf(2,'TODO');
-        [succ,newCacheDir] = obj.projCopyModelsToCache(obj.trackDLParams.CacheDir);
-        if ~succ
-          % XXX
-          fprintf(2,'TODO');
-        end
-        if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
-          obj.trackDLParams.CacheDir = newCacheDir;
-          for ndx = 1:numel(obj.tracker.trnLastDMC)
-            obj.tracker.trnLastDMC(ndx).rootDir = newCacheDir;
-          end
-          for ndx = 1:numel(obj.trackersAll)
-              if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
-                  obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
+      if 1
+        [succ,newCacheDir] = obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
+        if succ
+          if ~strcmp(newCacheDir, obj.trackDLParams.Saving.CacheDir)
+            obj.trackDLParams.Saving.CacheDir = newCacheDir;
+            tAll = obj.trackersAll;
+            for iTrker = 1:numel(tAll)
+              tObj = tAll{iTrker};
+              if isa(tObj,'DeepTracker')
+                dmc = tObj.trnLastDMC;
+                for ndx = 1:numel(dmc)
+                  if ~dmc.isRemote
+                    dmc(ndx).rootDir = newCacheDir;
+                  else
+                    % remote DMCODs unchanged
+                  end
+                end
+                
+                tObj.trackResInit();               
               end
+              % We save the stripped label file. If not, uncomment following to
+              % regenerate it. But the regenerated could be different than the
+              % original.
+              %         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
+              %           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
+              %             s = obj.tracker.trnCreateStrippedLbl();
+              %             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
+              %           end
+              %         end
+            end
           end
-          % We save the stripped label file. If not, uncomment following to
-          % regenerate it. But the regenerated could be different than the
-          % original.
-  %         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-  %           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
-  %             s = obj.tracker.trnCreateStrippedLbl();
-  %             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
-  %           end
-  %         end
+        else
+          % warns already thrown
         end
         obj.clearTempDir(); % clear the temp directory.
       end
@@ -2793,13 +2800,17 @@ classdef Labeler < handle
           end
         end
         if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
-          assert(all(strcmp(s.trackerData{i}.trnName,...
-                            {s.trackerData{i}.trnLastDMC.modelChainID})));
+          if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
+            assert(all(strcmp(s.trackerData{i}.trnName,...
+                              {s.trackerData{i}.trnLastDMC.modelChainID})));
+          end
           s.trackerData{i} = rmfield(s.trackerData{i},'trnName');
         end
         if isfield(s.trackerData{i},'trnNameLbl') && ~isempty(s.trackerData{i}.trnNameLbl)
-          assert(all(strcmp(s.trackerData{i}.trnNameLbl,...
-                            {s.trackerData{i}.trnLastDMC.trainID})));
+          if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
+            assert(all(strcmp(s.trackerData{i}.trnNameLbl,...
+                              {s.trackerData{i}.trnLastDMC.trainID})));
+          end
           s.trackerData{i} = rmfield(s.trackerData{i},'trnNameLbl');
         end
       end

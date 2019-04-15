@@ -81,7 +81,7 @@ classdef DeepTracker < LabelTracker
     trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
       % to generate heatmaps on disk
    
-    trkSysInfo % [nview] transient, unmanageed. struct array of info used 
+    trkSysInfo % [nview] transient, unmanaged. struct array of info used 
     % for current or most recent tracking codegen/system call. currently 
     % only used for debugging, printing logfiles etc.
     
