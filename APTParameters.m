@@ -21,7 +21,8 @@ classdef APTParameters
       
       nettypes = enumeration('DLNetType');
       tPrmDeepNets = ...
-        arrayfun(@(x)parseConfigYaml(fullfile(APT.Root,'trackers','dt',x.paramFileShort)),nettypes);
+        arrayfun(@(x)parseConfigYaml(fullfile(APT.getRoot,'trackers','dt',x.paramFileShort)),nettypes,'uni',0);
+      tPrmDeepNets = cat(1,tPrmDeepNets{:});
       tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);
       
       tPrmDT.Children.Children = [tPrmDT.Children.Children; tPrmDeepNetsChildren];
@@ -59,7 +60,8 @@ classdef APTParameters
     
     function dlNetTypes = getDLNetTypes
       mc = ?DLNetType;
-      dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name});
+      dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name},'uni',0);
+      dlNetTypes = cat(2,dlNetTypes{:});
     end
     
     function dlNetTypesPretty = getDLNetTypesPretty
@@ -86,7 +88,7 @@ classdef APTParameters
       sPrmDTcommon = sPrm.ROOT.DeepTrack;
     end
     function sPrmDTspecific = defaultParamsStructDT(nettype)
-      prmFile = fullfile(APT.Root,'trackers','dt',nettype.paramFileShort);
+      prmFile = fullfile(APT.getRoot,'trackers','dt',nettype.paramFileShort);
       tPrm = parseConfigYaml(prmFile);
       sPrmDTspecific = tPrm.structize();
       sPrmDTspecific = sPrmDTspecific.ROOT;
@@ -454,23 +456,23 @@ classdef APTParameters
 end
 
 function preprocessParamFile = lclInitPreprocessParameterFile()
-aptroot = APT.Root;
+aptroot = APT.getRoot;
 preprocessParamFile = fullfile(aptroot,'params_preprocess.yaml');
 end
 function trackParamFile = lclInitTrackParameterFile()
-aptroot = APT.Root;
+aptroot = APT.getRoot;
 trackParamFile = fullfile(aptroot,'params_track.yaml');
 end
 function cprParamFile = lclInitCPRParameterFile()
-aptroot = APT.Root;
+aptroot = APT.getRoot;
 cprParamFile = fullfile(aptroot,'trackers','cpr','params_cpr.yaml');
 %cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
 end
 function dtParamFile = lclInitDeepTrackParameterFile()
-aptroot = APT.Root;
+aptroot = APT.getRoot;
 dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
 end
 function pFile = lclInitPostProcessParameterFile()
-aptroot = APT.Root;
+aptroot = APT.getRoot;
 pFile = fullfile(aptroot,'params_postprocess.yaml');
 end

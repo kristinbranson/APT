@@ -1831,6 +1831,16 @@ classdef Labeler < handle
       s = load(tlbl,'-mat');
 %       s = load(fname,'-mat');  
 
+      if 0 % AL_BUNDLESAVE_EARLYMERGE
+        % MK 20190204. Use Unbundling instead of loading.
+        % Model files are copied to cache dir later.
+        [success, tlbl] = obj.unbundleLoad(fname);
+        if ~success, error('Could not unbundle the label file %s',fname); end
+        s = load(tlbl,'-mat');
+      else
+        s = load(fname,'-mat');
+      end
+
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
       end
@@ -2971,7 +2981,7 @@ classdef Labeler < handle
       end
       
       % KB 20190331: adding in post-processing parameters if missing
-      if ~isfield(s.trackParams.ROOT,'PostProcess'),
+      if ~isempty(s.trackParams) && ~isfield(s.trackParams.ROOT,'PostProcess'),
         dfltParams = APTParameters.defaultParamsStruct;
         s.trackParams.ROOT.PostProcess = dfltParams.PostProcess;
       end
@@ -2983,7 +2993,7 @@ classdef Labeler < handle
           continue;
         end
         if ~isfield(s.trackerData{i},'sPrmAll') || isempty(s.trackerData{i}.sPrmAll),
-          s.trackerData{i}.sPrmAll = s.trackParams;
+          s.trackerData{i}.sPrmAll = s.trackParams; % Could be [] for legacy projs
         end
         if isfield(s.trackerData{i},'sPrm') && ~isempty(s.trackerData{i}.sPrm),
           if strcmp(s.trackerClass{i}{1},'CPRLabelTracker'),
@@ -2996,7 +3006,8 @@ classdef Labeler < handle
         end
         
         % KB 20190331: adding in post-processing parameters if missing
-        if ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
+        if ~isempty(s.trackerData{i}.sPrmAll) && ...
+    	     ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
           s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
         end          
       end
