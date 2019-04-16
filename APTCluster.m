@@ -218,6 +218,28 @@ switch action
     outfile = fullfile(outDir,[outfileBase '.mat']);    
     fprintf('APTCluster: saving results: %s\n',outfile);
     save(outfile,'-mat','-struct','savestuff');
+    
+  case 'gtcompute'
+    varargin = varargin(3:end);
+    [outDir] = ...
+      myparse(varargin,...
+      'outDir',''... (opt) location to place xv output. Defaults to lblfile path
+      );
+    
+    lObj.projLoad(lblFile);
+    tGT = lObj.gtComputeGTPerformance(); %#ok<NASGU>
+    
+    [lblFileP,lblFileS,~] = fileparts(lblFile);
+    outfile = [lblFileS '_gtcomputed_' datestr(now,'yyyymmddTHHMMSS') '.mat'];
+    
+    if isempty(outDir)
+      outDir = lblFileP;
+    end
+    outfile = fullfile(outDir,outfile);
+    
+    fprintf('APTCluster: saving GT results: %s\n',outfile);
+    save(outfile,'-mat','tGT');
+    
   otherwise
     error('APTCluster:action','Unrecognized action ''%s''.',action);
 end

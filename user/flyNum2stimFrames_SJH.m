@@ -31,7 +31,8 @@ function [stimulusOnOff,stimulusCase] = flyNum2stimFrames_SJH(flynum)
 % 100-132 stimulusCase =0; %LEDbursts_10sTrial_0.3sPulse_1pulsesInBursts_1sIBI
 % 133-157 stimulusCase= 1; %LEDbursts_10sTrial_0.001sPulse_150pulsesInBursts_1sIBI
 % 158-628 stimulusCase =0; %LEDbursts_10sTrial_0.3sPulse_1pulsesInBursts_1sIBI
-% >=629   stimulusCase =3;
+% 629-1631   stimulusCase =3; photron_LEDbursts(12,0.3,0.3,1,1.2)
+% 1632+ stimulusCase =7;  DAQ altered for panels photron_LEDbursts(12,0.3,0.3,1,1.2,0/1)
 
 if flynum <=18
     stimulusCase = 6;
@@ -49,8 +50,10 @@ elseif (flynum>=133) && (flynum<=157)
     stimulusCase =1;
 elseif (flynum>=158) && (flynum<=628)
     stimulusCase =0;
-elseif flynum>=629
+elseif (flynum>=629) && (flynum<=1631)
     stimulusCase =3;
+elseif flynum>=1632
+    stimulusCase =7;
 else
     error('Fly number not recognized or not in my list')
 end
@@ -107,7 +110,7 @@ elseif  stimulusCase ==3 %fly numbers 629 and up using photron_LEDbursts(12,0.3,
     stimulusOnOff(5,:) = [1052 1090];
     stimulusOnOff(6,:) = [1278 1316];
     
-elseif stimulusCase ==4 %LEDbursts_8sTrial_0.5sPulse_1pulsesInBursts_0.7sIBI_
+elseif stimulusCase == 4 %LEDbursts_8sTrial_0.5sPulse_1pulsesInBursts_0.7sIBI_
     % 252 frms stimmed
     stimulusOnOff(1,:) = [86,148];
     stimulusOnOff(2,:) = [299,361];
@@ -121,6 +124,16 @@ elseif stimulusCase == 5 %LEDbursts_2.4sTrial_1sPulse_1pulsesInBursts_0.3sIBI
 elseif stimulusCase == 6%LEDbursts_1sTrial_0.3sPulse_1pulsesInBursts_0.3sIBI
     % 38 frms stimmed
     stimulusOnOff=[36,73];
+    
+        
+elseif stimulusCase ==7 %Stephen's stimulusCase = 4.  flynum>=1632 DAQ altered for panels photron_LEDbursts(12,0.3,0.3,1,1.2,0/1)
+    
+    stimulusOnOff(1,:) =     [139     177];
+    stimulusOnOff(2,:) =     [364     402];
+    stimulusOnOff(3,:) =     [589     627];
+    stimulusOnOff(4,:) =     [814     852];
+    stimulusOnOff(5,:) =     [1039	1077];
+    stimulusOnOff(6,:) =     [1264	1302];
     
 else
 error('Stimulus timing not properly specified')

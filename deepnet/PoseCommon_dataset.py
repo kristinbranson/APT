@@ -223,6 +223,17 @@ class PoseCommon(object):
         return latest_model_file       
 
 
+    def model_files(self):
+        if not os.path.exists(self.ckpt_file):
+            return None
+        grr = os.path.split(self.ckpt_file)
+        latest_ckpt = tf.train.get_checkpoint_state(grr[0], grr[1])
+        latest_model_file = latest_ckpt.model_checkpoint_path
+        import glob
+        all_model_files = glob.glob(latest_model_file + '.*')
+        all_model_files.extend([self.ckpt_file, self.saver['train_data_file'], self.saver['train_data_file'] + '.json'])
+        return all_model_files
+
     def save(self, sess, step):
         saver = self.saver
         out_file = saver['out_file'].replace('\\', '/')
@@ -311,6 +322,7 @@ class PoseCommon(object):
     def fd_val(self):
         self.fd[self.ph['phase_train']] = False
         self.fd[self.ph['is_train']] = False
+
 
     def create_datasets(self):
 

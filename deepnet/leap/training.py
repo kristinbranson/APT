@@ -542,6 +542,15 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
 
     return pred_fn, close_fn, latest_model_file
 
+
+def model_files(conf, name):
+    latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
+    if latest_model_file is None:
+        return None
+    traindata_file = PoseTools.get_train_data_file(conf,name)
+    return [latest_model_file, traindata_file + '.json']
+
+
 if __name__ == "__main__":
     # Turn interactive plotting off
     # plt.ioff()
