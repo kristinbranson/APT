@@ -31,14 +31,15 @@ function [stimulusOnOff,stimulusCase] = flyNum2stimFrames_SJH(flynum)
 % 100-132 stimulusCase =0; %LEDbursts_10sTrial_0.3sPulse_1pulsesInBursts_1sIBI
 % 133-157 stimulusCase= 1; %LEDbursts_10sTrial_0.001sPulse_150pulsesInBursts_1sIBI
 % 158-628 stimulusCase =0; %LEDbursts_10sTrial_0.3sPulse_1pulsesInBursts_1sIBI
-% >=629   stimulusCase =3;
+% 629-1631   stimulusCase =3; photron_LEDbursts(12,0.3,0.3,1,1.2)
+% 1632+ stimulusCase =4;  DAQ altered for panels photron_LEDbursts(12,0.3,0.3,1,1.2,0/1)
 
 if flynum <=18
-    stimulusCase = 6;
+    stimulusCase = -6;
 elseif (flynum>=19) && (flynum<=39)
-    stimulusCase =5;
+    stimulusCase =-5;
 elseif (flynum>=40) && (flynum<=87)
-    stimulusCase =4;
+    stimulusCase =-4;
 elseif (flynum>=80) && (flynum<=88)
     error('Fly numbers 80-88 are used twice.  Specify stimulus times manually')
 elseif (flynum>=89) && (flynum<=99)
@@ -49,8 +50,10 @@ elseif (flynum>=133) && (flynum<=157)
     stimulusCase =1;
 elseif (flynum>=158) && (flynum<=628)
     stimulusCase =0;
-elseif flynum>=629
+elseif (flynum>=629) && (flynum<=1631)
     stimulusCase =3;
+elseif flynum>=1632
+    stimulusCase =4;
 else
     error('Fly number not recognized or not in my list')
 end
@@ -107,18 +110,27 @@ elseif  stimulusCase ==3 %fly numbers 629 and up using photron_LEDbursts(12,0.3,
     stimulusOnOff(5,:) = [1052 1090];
     stimulusOnOff(6,:) = [1278 1316];
     
-elseif stimulusCase ==4 %LEDbursts_8sTrial_0.5sPulse_1pulsesInBursts_0.7sIBI_
+elseif stimulusCase ==4 %flynum>=1632 DAQ altered for panels photron_LEDbursts(12,0.3,0.3,1,1.2,0/1)
+    
+    stimulusOnOff(1,:) =     [139     177];
+    stimulusOnOff(2,:) =     [364     402];
+    stimulusOnOff(3,:) =     [589     627];
+    stimulusOnOff(4,:) =     [814     852];
+    stimulusOnOff(5,:) =     [1039	1077];
+    stimulusOnOff(6,:) =     [1264	1302];
+    
+elseif stimulusCase == -4 %LEDbursts_8sTrial_0.5sPulse_1pulsesInBursts_0.7sIBI_
     % 252 frms stimmed
     stimulusOnOff(1,:) = [86,148];
     stimulusOnOff(2,:) = [299,361];
     stimulusOnOff(3,:) = [511,573];
     stimulusOnOff(4,:) = [724,786];
     
-elseif stimulusCase == 5 %LEDbursts_2.4sTrial_1sPulse_1pulsesInBursts_0.3sIBI
+elseif stimulusCase == -5 %LEDbursts_2.4sTrial_1sPulse_1pulsesInBursts_0.3sIBI
     % 125 frms stimmed
     stimulusOnOff=[37,161];
     
-elseif stimulusCase == 6%LEDbursts_1sTrial_0.3sPulse_1pulsesInBursts_0.3sIBI
+elseif stimulusCase == -6%LEDbursts_1sTrial_0.3sPulse_1pulsesInBursts_0.3sIBI
     % 38 frms stimmed
     stimulusOnOff=[36,73];
     
