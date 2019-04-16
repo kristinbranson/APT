@@ -303,7 +303,7 @@ def get_testing_model(br1=38,br2=19):
 #----------------------
 
 
-def create_affinity_labels(locs, imsz, graph):
+def create_affinity_labels(locs, imsz, graph,scale=1):
     """
     Create/return part affinity fields
 
@@ -327,15 +327,20 @@ def create_affinity_labels(locs, imsz, graph):
 
             dx = (end_x - start_x)/ll/2
             dy = (end_y - start_y)/ll/2
-            xx = np.round(np.linspace(start_x,end_x,6000))
-            yy = np.round(np.linspace(start_y,end_y,6000))
-            zz = np.stack([xx,yy])
-            xx = np.round(np.linspace(start_x+dy,end_x+dy,6000))
-            yy = np.round(np.linspace(start_y-dx,end_y-dx,6000))
-            zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
-            xx = np.round(np.linspace(start_x-dy,end_x-dy,6000))
-            yy = np.round(np.linspace(start_y+dx,end_y+dx,6000))
-            zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
+            zz = None
+            for delta in np.arange(-scale,scale,0.25):
+                # xx = np.round(np.linspace(start_x,end_x,6000))
+                # yy = np.round(np.linspace(start_y,end_y,6000))
+                # zz = np.stack([xx,yy])
+                xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,6000))
+                yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,6000))
+                if zz is None:
+                    zz = np.stack([xx,yy])
+                else:
+                    zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
+                # xx = np.round(np.linspace(start_x-dy,end_x-dy,6000))
+                # yy = np.round(np.linspace(start_y+dx,end_y+dx,6000))
+                # zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
             # zz now has all the pixels that are along the line.
             zz = np.unique(zz,axis=1)
             # zz now has all the unique pixels that are along the line with thickness 1.
@@ -349,7 +354,7 @@ def create_affinity_labels(locs, imsz, graph):
 
     return out
 
-def create_label_images(locs, imsz):
+def create_label_images(locs, imsz,scale=1):
     n_out = locs.shape[1]
     n_ex = locs.shape[0]
     out = np.zeros([n_ex,imsz[0],imsz[1],n_out])
@@ -359,7 +364,7 @@ def create_label_images(locs, imsz):
             x = x-locs[cur,ndx,0]
             y = y - locs[cur,ndx,1]
             dd = np.sqrt(x**2+y**2)
-            out[cur,:,:,ndx] = stats.norm.pdf(dd)/stats.norm.pdf(0)
+            out[cur,:,:,ndx] = stats.norm.pdf(dd,scale=scale)/stats.norm.pdf(0,scale=scale)
     out[out<0.05] = 0.
     return  out
 
@@ -445,12 +450,12 @@ class DataIteratorTF(object):
         ims, locs = PoseTools.preprocess_ims(ims, locs, self.conf,
                                             self.distort, self.conf.op_rescale)
 
-        label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz)
+        label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz,self.conf.label_blur_rad)
 #        label_ims = PoseTools.create_label_images(locs/self.conf.op_label_scale, mask_sz,1,2)
         label_ims = np.clip(label_ims,0,1)
 
         affinity_ims = create_affinity_labels(locs/self.conf.op_label_scale,
-                                              mask_sz, self.conf.op_affinity_graph)
+                                              mask_sz, self.conf.op_affinity_graph,self.conf.label_blur_rad)
 
 
         return [ims, mask_im1, mask_im2], \

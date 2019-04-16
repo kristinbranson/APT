@@ -1047,7 +1047,7 @@ def create_cv_split_files(conf, n_splits=3):
                     splits[cur_fold].extend(mov_info[ndx][mndx:mndx + 1])
                     per_fold[cur_fold] += 1
         else:
-            raise ValueError('splitType has to be either movie trx or frames')
+            raise ValueError('splitType has to be either movie trx or frame')
 
         imbalance = (per_fold.max() - per_fold.min()) > float(lbls_per_fold) / 3
         if not imbalance:
@@ -1212,7 +1212,14 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet'):
     elif model_type == 'deeplabcut':
         pred_fn, close_fn, model_file = deepcut.train.get_pred_fn(conf, model_file,name=name)
     else:
-        raise ValueError('Undefined type of model')
+        try:
+            module_name = 'Pose_{}'.format(model_type)
+            pose_module = __import__(module_name)
+            tf.reset_default_graph()
+            self = getattr(pose_module, module_name)(conf)
+            pred_fn, close_fn, model_file = self.get_pred_fn(model_file)
+        except ImportError:
+            raise ImportError('Undefined type of network')
 
     return pred_fn, close_fn, model_file
 
@@ -1375,7 +1382,13 @@ def check_train_db(model_type, conf, out_file):
         print('Checking db from {}'.format(db_file))
         read_fn, n = deepcut.train.get_read_fn(conf, db_file)
     else:
-        raise ValueError('Undefined model type')
+        db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+        print('Checking db from {}'.format(db_file))
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        n = tf_iterator.N
+        # raise ValueError('Undefined model type')
 
     n_out = 50
     samples = np.linspace(0, n - 1, n_out).astype('int')
@@ -1805,6 +1818,15 @@ def train(lblfile, nviews, name, args):
                 if args.use_defaults:
                     deepcut.train.set_deepcut_defaults(conf)
                 train_deepcut(conf,args, split_file=split_file)
+            else:
+                if not args.skip_db:
+                    create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+                module_name = 'Pose_{}'.format(net_type)
+                pose_module = __import__(module_name)
+                tf.reset_default_graph()
+                self = getattr(pose_module, module_name)(conf)
+                self.train_wrapper(restore=restore)
+
         except tf.errors.InternalError as e:
             logging.exception(
                 'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')

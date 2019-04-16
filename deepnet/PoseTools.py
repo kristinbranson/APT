@@ -500,6 +500,58 @@ def create_label_images(locs, im_sz, scale, blur_rad):
     return label_ims
 
 
+def create_affinity_labels(locs, im_sz, graph, scale, blur_rad):
+    """
+    Create/return part affinity fields
+    locs: (nbatch x npts x 2)
+    graph: is an array of 2-element tuple
+    scale: How much the PAF should be downsampled as compared to input image.
+    blur_rad is the thickness of the PAF.
+    """
+
+    n_out = len(graph)
+    n_ex = locs.shape[0]
+
+    sz0 = int(im_sz[0] // scale)
+    sz1 = int(im_sz[1] // scale)
+
+    out = np.zeros((len(locs), sz0, sz1, n_out*2))
+
+    for cur in range(n_ex):
+        for ndx, e in enumerate(graph):
+            start_x, start_y = locs[cur,e[0],:]
+            end_x, end_y = locs[cur,e[1],:]
+            ll = np.sqrt( (start_x-end_x)**2 + (start_y-end_y)**2)
+
+            if ll==0:
+                # Can occur if start/end labels identical
+                # Don't update out/PAF
+                continue
+
+            dx = (end_x - start_x)/ll/2
+            dy = (end_y - start_y)/ll/2
+            zz = None
+            for delta in np.arange(-blur_rad,blur_rad,0.25):
+                xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,6000))
+                yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,6000))
+                if zz is None:
+                    zz = np.stack([xx,yy])
+                else:
+                    zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
+            # zz now has all the pixels that are along the line.
+            zz = np.unique(zz,axis=1)
+            # zz now has all the unique pixels that are along the line with thickness blur_rad.
+            dx = (end_x - start_x) / ll
+            dy = (end_y - start_y) / ll
+            for x,y in zz.T:
+                if x >= out.shape[2] or y >= out.shape[1]:
+                    continue
+                out[cur,int(y),int(x),ndx*2] = dx
+                out[cur,int(y),int(x),ndx*2+1] = dy
+
+    return out
+
+
 def create_reg_label_images(locs, im_sz, scale, blur_rad):
     n_classes = len(locs[0])
     sz0 = int(math.ceil(old_div(float(im_sz[0]), scale)))
@@ -882,6 +934,16 @@ def crop_to_size(img, sz):
 
 
 def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
+    '''
+
+    :param ims: Input image. It is converted to uint8 before applying the transformations. Size: B x H x W x C
+    :param in_locs: 2D Location as B x N x 2
+    :param conf: config object
+    :param distort: To augment or not
+    :param scale: How much to downsample the input image
+    :param group_sz:
+    :return:
+    '''
 #    assert ims.dtype == 'uint8', 'Preprocessing only work on uint8 images'
     locs = in_locs.copy()
     cur_im = ims.copy()
@@ -1015,7 +1077,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60):
     bsub_script = os.path.join(dir, 'opt_' + name + '_bsub.sh')
     with open(sing_script, 'w') as f:
         f.write('#!/bin/bash\n')
-        f.write('bjobs -uall -m `hostname -s`\n')
+        # f.write('bjobs -uall -m `hostname -s`\n')
         f.write('. /opt/venv/bin/activate\n')
         f.write('cd /groups/branson/home/kabram/bransonlab/APT/deepnet\n')
         f.write('numCores2use={} \n'.format(2))
