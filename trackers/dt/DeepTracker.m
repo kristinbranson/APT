@@ -429,6 +429,13 @@ classdef DeepTracker < LabelTracker
         rdrObj = DeepModelChainReaderLocal();
         [s.trnLastDMC.reader] = deal(rdrObj);
       end
+      
+      % 20190415
+      % remove .movIdx2trkfile for now, with bundle-save we don't save
+      % DeepTracker-stored tracking results
+      if isfield(s,'movIdx2trkfile')
+        s = rmfield(s,'movIdx2trkfile');
+      end
     end
   end
   
@@ -894,7 +901,7 @@ classdef DeepTracker < LabelTracker
         
         if isParamChangeLbler
           if ~isParamChange
-            assert(obj.trnNetType==DLNetType.openpose);
+            assert(obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.leap);
           end
           infos{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.prettyString);
         end        

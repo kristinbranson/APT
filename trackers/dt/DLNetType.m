@@ -16,5 +16,41 @@ classdef DLNetType
       obj.paramFileShort = pfile;
     end
   end
+  
+  methods (Static)
+    function g = modelGlobs(net,iterCurr)
+      % net specific model globs in modelChainDir
+      %
+      % Future design unclear
+      
+      if ischar(net)
+        net = DLNetType.(net);
+      end
+      
+      switch net
+        case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
+          
+          g = { ...
+            sprintf('deepnet-%d.*',iterCurr) % latest iter
+            'deepnet_ckpt' % 'splitdata.json'
+            'traindata*'
+            };
+         
+        case DLNetType.openpose
+          % TODO
+          g = cell(0,1);
+          
+        case DLNetType.leap
+          g = { ...
+            sprintf('deepnet-%d',iterCurr) % latest iter
+            'initial_model.h5'
+            'leap_train.h5'
+            'traindata*'
+            'training_info.mat'
+            };
+          
+      end
+    end    
+  end
 end
     

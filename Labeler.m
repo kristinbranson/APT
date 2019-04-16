@@ -156,6 +156,7 @@ classdef Labeler < handle
     % props.
     projPrefs; % init: C
     
+    projVerbose = 0; % transient, unmanaged
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -1968,23 +1969,29 @@ classdef Labeler < handle
       if 1
         [succ,newCacheDir] = obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
         if succ
-          if ~strcmp(newCacheDir, obj.trackDLParams.Saving.CacheDir)
-            obj.trackDLParams.Saving.CacheDir = newCacheDir;
-            tAll = obj.trackersAll;
-            for iTrker = 1:numel(tAll)
-              tObj = tAll{iTrker};
-              if isa(tObj,'DeepTracker')
-                dmc = tObj.trnLastDMC;
-                for ndx = 1:numel(dmc)
-                  if ~dmc.isRemote
-                    dmc(ndx).rootDir = newCacheDir;
-                  else
-                    % remote DMCODs unchanged
-                  end
+          %if ~strcmp(newCacheDir, obj.trackDLParams.Saving.CacheDir)
+          % obj.trackDLParams can differ from parameters stored in tracker
+          % objects; in particular, the top-level CacheDir can differ from 
+          % tracker object DMC rootdirs.
+          
+          % Note, projCopyModelsToCache currently always clears any 
+          % tracking results.
+          obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = newCacheDir;
+          tAll = obj.trackersAll;
+          for iTrker = 1:numel(tAll)
+            tObj = tAll{iTrker};
+            if isa(tObj,'DeepTracker')
+              dmc = tObj.trnLastDMC;
+              for ndx = 1:numel(dmc)
+                if ~dmc(ndx).isRemote
+                  dmc(ndx).rootDir = newCacheDir;
+                else
+                  % remote DMCODs unchanged
                 end
-                
-                tObj.trackResInit();               
               end
+              
+              %tObj.trackResInit();
+            end
               % We save the stripped label file. If not, uncomment following to
               % regenerate it. But the regenerated could be different than the
               % original.
@@ -1994,7 +2001,7 @@ classdef Labeler < handle
               %             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
               %           end
               %         end
-            end
+            %end
           end
         else
           % warns already thrown
@@ -2133,7 +2140,9 @@ classdef Labeler < handle
       [rawLblFile,tname] = obj.projGetRawLblFile(); % throws; this fcn has mix of throws/warns
       
       try
+        fprintf('Untarring project into %s\n',tname);
         untar(fname,tname);
+        fprintf('... done with untar.\n');
       catch ME
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
           warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',fname);
@@ -2182,9 +2191,17 @@ classdef Labeler < handle
             outdir,message);
         end
       end
-      [success,message,~] = copyfile(tCacheDir,outdir); % Overwrites any existing contents
+      
+      [success,message] = rmdir(outdir,'s');
+      fprintf(1,'Cleaning %s\n',outdir);
       if ~success
-        warningNoTrace('Could not copy model files to local cache dir %s',cacheDir);
+        warningNoTrace('Could not clean local cache dir %s:',outdir);
+        warningNoTrace(message);        
+      end
+      fprintf(1,'Copying %s->%s\n',tCacheDir,outdir);
+      [success,message,~] = copyfile(tCacheDir,outdir);
+      if ~success
+        warningNoTrace('Could not copy model files to local cache dir %s',outdir);
         warningNoTrace(message);
       end
     end
@@ -2201,7 +2218,7 @@ classdef Labeler < handle
       % regardless. unless the error is thrown from the cleanup! haha um.
       
       verbose = myparse(varargin,...
-        'verbose',1 ...
+        'verbose',obj.projVerbose ...
       );
       
       % Intentionally don't always cleanup tempdir for now 
@@ -2262,9 +2279,12 @@ classdef Labeler < handle
       end
       
       allModelFiles = cellfun(@(x) regexprep(x,[projtempdir filesep],''),...
-        allModelFiles,'UniformOutput',false); % XXX filesep
+        allModelFiles,'UniformOutput',false); % XXX filesep win
+      fprintf(1,'Tarring model files into %s\n',projtempdir);
       tar([outFile '.tar'],allModelFiles,projtempdir);
       movefile([outFile '.tar'],outFile); 
+      fprintf(1,'Project saved to %s\n',outFile);
+
       % matlab by default adds the .tar. So save it to tar
       % and then move it.
       

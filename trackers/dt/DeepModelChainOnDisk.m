@@ -217,13 +217,15 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function g = modelGlobsLnx(obj)
       % filesys paths/globs of important parts/stuff to keep
       
+      dmcl = obj.dirModelChainLnx;
+      gnetspecific = DLNetType.modelGlobs(obj.netType,obj.iterCurr);
+      gnetspecific = cellfun(@(x)[dmcl '/' x],gnetspecific,'uni',0);
+      
       g = { ...
         [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl
-        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
-        [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterCurr)]; ... % latest iter 
-        [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... % [obj.dirModelChainLnx '/' 'splitdata.json']; ...
-        [obj.dirModelChainLnx '/' 'traindata*']; ...
+        [dmcl '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
         };
+      g = [g;gnetspecific(:)];
     end
     function mdlFiles = findModelGlobs(obj)
       globs = obj.modelGlobsLnx;
