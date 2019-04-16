@@ -1666,9 +1666,15 @@ classdef Labeler < handle
       s = obj.projGetSaveStruct();
       
       if 1
-        rawLblFile = obj.projGetRawLblFile();
-        save(rawLblFile,'-mat','-struct','s');
-        obj.projBundleSave(fname);
+        try
+          rawLblFile = obj.projGetRawLblFile();
+          save(rawLblFile,'-mat','-struct','s');
+          obj.projBundleSave(fname);
+        catch ME
+          save(fname,'-mat','-struct','s');
+          warningNoTrace('Saved raw project file %s. Error caught during bundled project save: %s\n',...
+            fname,ME.message);          
+        end
       else
         save(fname,'-mat','-struct','s');
       end
@@ -1830,16 +1836,6 @@ classdef Labeler < handle
       if ~success, error('Could not unbundle the label file %s',fname); end
       s = load(tlbl,'-mat');
 %       s = load(fname,'-mat');  
-
-      if 0 % AL_BUNDLESAVE_EARLYMERGE
-        % MK 20190204. Use Unbundling instead of loading.
-        % Model files are copied to cache dir later.
-        [success, tlbl] = obj.unbundleLoad(fname);
-        if ~success, error('Could not unbundle the label file %s',fname); end
-        s = load(tlbl,'-mat');
-      else
-        s = load(fname,'-mat');
-      end
 
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
@@ -2169,7 +2165,7 @@ classdef Labeler < handle
       end
       if ~exist(cacheDir,'dir')
 %         [success,message,messageid] = mkdir(cacheDir);
-        uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir','Cache Dir'));
+        uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir.','Cache Dir'));
         newCacheDir = uigetdir('','Select cache dir');
         if newCacheDir == 0
           warningNoTrace('No local cache dir selected. Could not restore model files. Saved models will not be available for use');
@@ -2208,7 +2204,8 @@ classdef Labeler < handle
         'verbose',1 ...
       );
       
-      oc = onCleanup(@() obj.clearTempDir()); % clean up tempdir on all exits 
+      % Intentionally don't always cleanup tempdir for now 
+      %oc = onCleanup(@() obj.clearTempDir()); % clean up tempdir on all exits 
 
       [rawLblFile,projtempdir] = obj.projGetRawLblFile();
       if ~exist(rawLblFile,'file')
@@ -2270,6 +2267,8 @@ classdef Labeler < handle
       movefile([outFile '.tar'],outFile); 
       % matlab by default adds the .tar. So save it to tar
       % and then move it.
+      
+      obj.clearTempDir();
     end
     
     function clearTempDir(obj) % throws

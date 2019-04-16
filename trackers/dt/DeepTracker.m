@@ -208,6 +208,17 @@ classdef DeepTracker < LabelTracker
   
   %% Params
   methods
+    
+    % AL 20190415. Note on DeepTrack.Saving.CacheDir
+    % Currently nothing never refers to
+    % DeepTrackerObj.sPrmAll.Saving.CacheDir. Instead, only lObj.DLCacheDir
+    % and DeepTrackerObj.trnLastDMC(iview).rootDir are used. 
+    %
+    % - (re)train time: DeepTrackerObj uses lObj.DLCacheDir and sets 
+    % .trnLastDMC(:).rootDir to this location.
+    % - track time: currently we assert that lObj.DLCacheDir matches the
+    % .rootDir of any local DMCs to be used
+    
     function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
         didParamsChange(obj,sPrmAll) % obj const
       
@@ -1964,6 +1975,11 @@ classdef DeepTracker < LabelTracker
       end
       
       dmc = obj.trnLastDMC;
+      
+      % Could check here that for local dmcs, dmc.rootDir matches
+      % obj.lObj.DLCacheDir (as in canTrack()). However the assertion that
+      % the local stripped lbl exists probably suffices
+      
       dmcLcl = dmc.copy();
       [dmcLcl.rootDir] = deal(obj.lObj.DLCacheDir);
       dlLblFileLcl = unique({dmcLcl.lblStrippedLnx});
@@ -2219,8 +2235,15 @@ classdef DeepTracker < LabelTracker
         reason = 'Cache directory not set.';
         return;
       end
-      
+            
       dmc = obj.trnLastDMC;
+      for i=1:numel(dmc)
+        if ~dmc(i).isRemote && ~strcmp(dmc(i).rootDir,cacheDir)
+          reason = 'Cache directory has changed since training.';
+          return;
+        end
+      end      
+      
       dmcLcl = dmc.copy();
       [dmcLcl.rootDir] = deal(cacheDir);
       dlLblFileLcl = unique({dmcLcl.lblStrippedLnx});
