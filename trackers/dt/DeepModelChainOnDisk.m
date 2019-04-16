@@ -252,7 +252,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       tfSuccess = ~isnan(maxiter);
       
       if maxiter>obj.iterFinal
-        warningNoTrace('Current model iteration exceeds specified maximum/target iteration.');
+        warningNoTrace('Current model iteration (%d) exceeds specified maximum/target iteration (%d).',...
+          maxiter,obj.iterFinal);
       end
     end
     

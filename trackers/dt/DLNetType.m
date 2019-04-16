@@ -37,9 +37,11 @@ classdef DLNetType
             };
          
         case DLNetType.openpose
-          % TODO
-          g = cell(0,1);
-          
+          g = { ...
+            sprintf('deepnet-%d',iterCurr) % latest iter
+            'traindata*'
+            };
+
         case DLNetType.leap
           g = { ...
             sprintf('deepnet-%d',iterCurr) % latest iter
