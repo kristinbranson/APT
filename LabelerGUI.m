@@ -1997,16 +1997,14 @@ assert(be.type==DLBackEnd.AWS);
 
 aws = be.awsec2;
 if ~isempty(aws)
-  tfsucc = aws.respecifyInstance();
+  [tfsucc,instanceID,pemFile] = aws.respecifyInstance();
 else
   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
-  if tfsucc
-    aws = AWSec2(pemFile,'instanceID',instanceID);
-    be.awsec2 = aws;
-  end
 end
 
 if tfsucc
+  aws = AWSec2(pemFile,'instanceID',instanceID);
+  be.awsec2 = aws;
   %aws.checkInstanceRunning('throwErrs',false);
   lObj.trackSetDLBackend(be);
 end
