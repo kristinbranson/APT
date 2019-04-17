@@ -45,8 +45,7 @@ classdef DLNetType
         case DLNetType.leap
           g = { ...
             sprintf('deepnet-%d',iterCurr) % latest iter
-            'initial_model.h5'
-            'leap_train.h5'
+            'initial_model.h5' %            'leap_train.h5'
             'traindata*'
             'training_info.mat'
             };
