@@ -25,11 +25,11 @@ import math
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
     def __init__(self, conf, name='unet_resnet'):
-        conf.use_pretrained_weights = True
         self.conf = conf
         self.out_scale = 1.
         self.resnet_source = self.conf.get('mdn_resnet_source','slim')
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
+        conf.use_pretrained_weights = True
 
         if self.resnet_source == 'official_tf':
             url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
