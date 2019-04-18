@@ -408,7 +408,7 @@ class PoseCommon(object):
             self.init_td()
             for dep_net in self.dep_nets:
                 dep_net.init_restore_net(sess)
-            if self.conf.use_pretrained_weights:
+            if self.conf.use_pretrained_weights and self.pretrained_weights is not None:
                 self.restore_pretrained(sess)
         else:
             saver['saver'].restore(sess, latest_ckpt.model_checkpoint_path)
@@ -444,7 +444,7 @@ class PoseCommon(object):
         logging.debug('\n'.join(c_names))
         logging.debug("-- Not Loading from pretrained --")
         logging.debug('\n'.join(r_names))
-        logging.debug('Restoring pretrained resnet weights form {}'.format(model_file))
+        logging.info('Restoring pretrained resnet weights from {}'.format(model_file))
         # common_vars = [i for i in common_vars if i not in rem_locs]
         pretrained_saver = tf.train.Saver(var_list=common_vars)
         pretrained_saver.restore(sess, model_file)

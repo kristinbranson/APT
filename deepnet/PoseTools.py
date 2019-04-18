@@ -1098,3 +1098,5 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60):
     print(cmd)
 
 
+def read_h5_str(in_obj):
+    return u''.join(chr(c) for c in in_obj)

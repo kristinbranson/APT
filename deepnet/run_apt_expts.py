@@ -31,6 +31,7 @@ op_af_graph = None
 gt_lbl = None
 nviews = None
 proj_name = None
+trn_flies = None
 
 cache_dir = '/nrs/branson/mayank/apt_cache'
 all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose']
@@ -40,8 +41,23 @@ sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
 n_splits = 3
 
 
+common_conf = {}
+common_conf['rrange'] = 10
+common_conf['trange'] = 5
+common_conf['brange'] = 0.1
+common_conf['crange'] = 0.1
+common_conf['mdn_use_unet_loss'] = True
+common_conf['dl_steps'] = 40000
+common_conf['decay_steps'] = 20000
+common_conf['save_step'] = 5000
+common_conf['batch_size'] = 8
+common_conf['normalize_img_mean'] = False
+common_conf['adjust_contrast'] = False
+common_conf['maxckpt'] = 20
+
+
 def setup(data_type_in,gpu_device):
-    global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name
+    global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies
     data_type = data_type_in
     os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(gpu_device)
 
@@ -55,6 +71,9 @@ def setup(data_type_in,gpu_device):
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
         gt_lbl = lbl_file
         op_af_graph = '\(0,1\),\(0,2\),\(2,3\),\(1,3\),\(0,4\),\(1,4\)'
+        trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
+        trn_flies = trn_flies[::2]
+
     elif data_type == 'roian':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl'
         op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(1,2\),\(1,3\),\(2,3\)'
@@ -104,7 +123,7 @@ def run_jobs(cmd_name,cur_cmd,redo=False):
 
 def get_tstr(tin):
     if np.isnan(tin):
-        return '0000000'
+        return ' -------- '
     else:
         return time.strftime('%m/%d %H:%M',time.localtime(tin))
 
@@ -168,7 +187,6 @@ def plot_results(data_in,ylim=None,xlim=None):
     ax[-1].legend(leg)
 
 
-
 def save_mat(out_exp,out_file):
     import hdf5storage
     out_arr = {}
@@ -188,12 +206,48 @@ def save_mat(out_exp,out_file):
         out_arr[unicode(k)] = all_dd
     hdf5storage.savemat(out_file,out_arr,truncate_existing=True)
 
-##     ##################        CREATE DBS
+
+def run_trainining(exp_name,train_type,view,run_type):
+
+    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
+    end_cmd = 'train -skip_db -use_cache'
+    cmd_opts = {}
+    cmd_opts['type'] = train_type
+    cmd_opts['view'] = view + 1
+    conf_opts = common_conf.copy()
+    # conf_opts.update(other_conf[conf_id])
+    conf_opts['save_step'] = conf_opts['dl_steps'] / 10
+    if data_type in ['brit0' ,'brit1']:
+        if train_type == 'unet':
+            conf_opts['batch_size'] = 2
+        else:
+            conf_opts['batch_size'] = 4
+    if op_af_graph is not None:
+        conf_opts['op_affinity_graph'] = op_af_graph
+
+    if len(conf_opts) > 0:
+        conf_str = ' -conf_params'
+        for k in conf_opts.keys():
+            conf_str = '{} {} {} '.format(conf_str, k, conf_opts[k])
+    else:
+        conf_str = ''
+
+    opt_str = ''
+    for k in cmd_opts.keys():
+        opt_str = '{} -{} {} '.format(opt_str, k, cmd_opts[k])
+
+    cur_cmd = common_cmd + conf_str + opt_str + end_cmd
+    cmd_name = '{}_view{}_{}_{}'.format(data_type, view, exp_name, train_type)
+    if run_type == 'submit':
+        print cur_cmd
+        print
+        run_jobs(cmd_name, cur_cmd)
+    elif run_type == 'status':
+        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        check_train_status(cmd_name, conf.cachedir)
 
 
-## normal dbs - FULL
 
-# assert False,'Are you sure?'
 def create_normal_dbs():
     exp_name = 'apt_expt'
     assert gt_lbl is not None
@@ -287,7 +341,7 @@ def create_incremental_dbs():
 
 ## create invidual animals dbs
 
-def create_individual_animal_db():
+def create_individual_animal_db_alice():
     import multiResData
     import random
     import json
@@ -370,6 +424,7 @@ def create_individual_animal_db():
     exp_name = 'single_vs_many_fly2'
     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
     conf.splitType = 'predefined'
+
     envs = multiResData.create_envs(conf, split=True)
     out_fns = [lambda data: envs[0].write(apt.tf_serialize(data)),
                lambda data: envs[1].write(apt.tf_serialize(data))]
@@ -392,30 +447,74 @@ def create_individual_animal_db():
     envs[1].close()
 
 
+def create_run_individual_animal_dbs_stephen(run_type='status'):
 
-##
+    info_file = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190416.mat'
+    import multiResData
+    import random
+    import json
+
+    data_info = h5py.File(info_file,'r')
+    assert data_type == 'stephen'
+    assert trn_flies is not None
+    train_type = 'mdn'
+    n_sel = 50
+
+    conf = apt.create_conf(lbl_file,0,'dummy',cache_dir,train_type)
+    lbl_movies, _ = multiResData.find_local_dirs(conf)
+    in_movies = [PoseTools.read_h5_str(data_info[k]) for k in data_info['trnmovies'][0,:]]
+    assert lbl_movies == in_movies
+
+    fly_ids = data_info['trnmidx2flyid'].value.astype('int')
+    label_info = get_label_info(conf)
+
+    for cur_fly in trn_flies:
+        cur_fly_movies = [ix for ix,j in enumerate(fly_ids[0,:]) if j==cur_fly]
+        fly_train_info = [j for j in label_info if j[0] in cur_fly_movies]
+        assert len(fly_train_info) > 50
+        sel_train = random.sample(fly_train_info,n_sel)
+        sel_val = list(set(label_info)-set(sel_train))
+        assert len(label_info) == len(sel_train) + len(sel_val)
+
+        cur_split = [sel_train,sel_val]
+        exp_name = 'train_fly_{}'.format(cur_fly)
+        cur_split_file = os.path.join(cache_dir,proj_name,exp_name) + '.json'
+        assert not os.path.exists(cur_split_file)
+        with open(cur_split_file,'w') as f:
+            json.dump(cur_split,f)
+
+        # create the dbs
+        for view in range(nviews):
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            conf.splitType = 'predefined'
+            apt.create_tfrecord(conf, split=True, split_file=cur_split_file, use_cache=True)
+            run_trainining(exp_name,train_type,view,run_type)
+
+    # one experiment with random labels
+    sel_train = random.sample(label_info,n_sel)
+    sel_val = list(set(label_info)-set(sel_train))
+    assert len(label_info) == len(sel_train) + len(sel_val)
+
+    cur_split = [sel_train,sel_val]
+    exp_name = 'train_fly_random'
+    cur_split_file = os.path.join(cache_dir,proj_name,exp_name)
+    assert not os.path.exists(cur_split_file)
+    with open(cur_split_file,'w') as f:
+        json.dump(cur_split,f)
+
+    # create the dbs
+    for view in range(nviews):
+        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        conf.splitType = 'predefined'
+        apt.create_tfrecord(conf, split=True, split_file=cur_split_file, use_cache=True)
+        run_trainining(exp_name,train_type,view,run_type)
 
 
-##  ###################              RUNNING TRAINING
 
 
-## NORMAL TRAINING  ---- TRAINING ----
+def run_normal_training(run_type = 'status'):
 
-def run_normal_training():
-# assert False,'Are you sure?'
-    run_type = 'submit'
-
-    common_conf = {}
-    common_conf['rrange'] = 10
-    common_conf['trange'] = 5
-    common_conf['mdn_use_unet_loss'] = True
     common_conf['dl_steps'] = 100000
-    common_conf['decay_steps'] = 20000
-    common_conf['save_step'] = 5000
-    common_conf['batch_size'] = 8
-    common_conf['normalize_img_mean'] = False
-    common_conf['maxckpt'] = 20
-    cache_dir = '/nrs/branson/mayank/apt_cache'
 
     for view in range(nviews):
 
@@ -462,14 +561,7 @@ def run_normal_training():
 def run_cv_training(run_type='status'):
 
     common_conf = {}
-    common_conf['rrange'] = 10
-    common_conf['trange'] = 5
-    common_conf['mdn_use_unet_loss'] = True
-    common_conf['dl_steps'] = 100000
-    common_conf['decay_steps'] = 20000
-    common_conf['save_step'] = 5000
-    common_conf['batch_size'] = 8
-    common_conf['maxckpt'] = 20
+    common_conf['dl_steps'] = 40000
 
     assert gt_lbl is None
     for view in range(nviews):
@@ -530,15 +622,7 @@ def run_dlc_augment_training(run_type = 'status'):
     # run_type = 'submit'; redo = False
     # gpu_model = 'TeslaV100_SXM2_32GB'
     train_type = 'deeplabcut'
-    common_conf = {}
-    common_conf['rrange'] = 10
-    common_conf['trange'] = 5
-    common_conf['mdn_use_unet_loss'] = True
     common_conf['dl_steps'] = 100000
-    common_conf['decay_steps'] = 20000
-    common_conf['save_step'] = 5000
-    common_conf['batch_size'] = 8
-    common_conf['maxckpt'] = 20
 
     other_conf = [{'dlc_augment':True},{'dlc_augment':False,'dl_steps':300000}]
     cmd_str = ['dlc_aug','dlc_noaug']
@@ -584,20 +668,8 @@ def run_dlc_augment_training(run_type = 'status'):
                 check_train_status(cmd_name,conf.cachedir,cmd_str[conf_id])
 
 
-
-## INCREMENTAL TRAINING ---- TRAINING ----
-
 def run_incremental_training(run_type='status'):
-    common_conf = {}
-    common_conf['rrange'] = 10
-    common_conf['trange'] = 5
-    common_conf['mdn_use_unet_loss'] = True
-    common_conf['dl_steps'] = 100000
-    common_conf['decay_steps'] = 20000
-    common_conf['save_step'] = 5000
-    common_conf['batch_size'] = 8
-    common_conf['maxckpt'] = 20
-
+    # Expt where we find out how training error changes with amount of training data
 
     n_rounds = 8
     info = []
@@ -657,15 +729,6 @@ def run_single_animal_training(run_type = 'status'):
 
     gpu_model = 'GeForceRTX2080Ti'
     sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
-    common_conf = {}
-    common_conf['rrange'] = 10
-    common_conf['trange'] = 5
-    common_conf['mdn_use_unet_loss'] = True
-    common_conf['dl_steps'] = 60000
-    common_conf['decay_steps'] = 20000
-    common_conf['save_step'] = 5000
-    common_conf['batch_size'] = 8
-    common_conf['maxckpt'] = 20
 
     exp_names = ['single_vs_many_fly1', 'single_vs_many_fly2', 'single_vs_many_other']
 
@@ -717,15 +780,7 @@ def create_gt_db():
         apt.create_tfrecord(conf,False,None,False,True,[gt_file])
 
 
-
-
-
-
-
 ## ######################  RESULTS
-
-
-
 
 
 def get_normal_results():
@@ -1259,54 +1314,6 @@ def run_active_learning(round_num,add_type='active'):
 
 
 
-
-def run_trainining(exp_name,train_type,view,run_type,dl_steps=60000):
-    common_conf = {}
-    common_conf['rrange'] = 10
-    common_conf['trange'] = 5
-    common_conf['mdn_use_unet_loss'] = True
-    common_conf['dl_steps'] = dl_steps
-    common_conf['decay_steps'] = 20000
-    common_conf['save_step'] = 5000
-    common_conf['batch_size'] = 8
-    common_conf['maxckpt'] = 20
-
-    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
-    end_cmd = 'train -skip_db -use_cache'
-    cmd_opts = {}
-    cmd_opts['type'] = train_type
-    cmd_opts['view'] = view + 1
-    conf_opts = common_conf.copy()
-    # conf_opts.update(other_conf[conf_id])
-    conf_opts['save_step'] = conf_opts['dl_steps'] / 10
-    if data_type in ['brit0' ,'brit1']:
-        if train_type == 'unet':
-            conf_opts['batch_size'] = 2
-        else:
-            conf_opts['batch_size'] = 4
-    if op_af_graph is not None:
-        conf_opts['op_affinity_graph'] = op_af_graph
-
-    if len(conf_opts) > 0:
-        conf_str = ' -conf_params'
-        for k in conf_opts.keys():
-            conf_str = '{} {} {} '.format(conf_str, k, conf_opts[k])
-    else:
-        conf_str = ''
-
-    opt_str = ''
-    for k in cmd_opts.keys():
-        opt_str = '{} -{} {} '.format(opt_str, k, cmd_opts[k])
-
-    cur_cmd = common_cmd + conf_str + opt_str + end_cmd
-    cmd_name = '{}_view{}_{}_{}'.format(data_type, view, exp_name, train_type)
-    if run_type == 'submit':
-        print cur_cmd
-        print
-        run_jobs(cmd_name, cur_cmd)
-    elif run_type == 'status':
-        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-        check_train_status(cmd_name, conf.cachedir)
 
 
 

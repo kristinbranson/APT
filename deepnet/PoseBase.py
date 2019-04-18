@@ -24,13 +24,12 @@ class PoseBase(PoseCommon):
         - train function.
         - get_pred_fn function
 
-    To use pretrained weights, set the self.conf.use_pretrained_weights to True, and put the location of the pretrained weights to self.pretrained_weights. For eg, add the following lines to your __init__ function (udpate resnet_v1_50.ckpt to the appropriate pretrained model):
-
-        self.conf.use_pretrained_weights = True
+    To use pretrained weights, put the location of the pretrained weights in self.pretrained_weights. by modifying the line self.pretrained_weights = None in __init__ function
+        (Eg:
         script_dir = os.path.dirname(os.path.realpath(__file__))
         wt_dir = os.path.join(script_dir, 'pretrained')
         self.pretrained_weights =  os.path.join(wt_dir,'resnet_v1_50.ckpt')
-
+        )
     '''
 
 
@@ -51,6 +50,8 @@ class PoseBase(PoseCommon):
 
         PoseCommon.__init__(self, conf,name='deepnet')
         self.hmaps_downsample = hmaps_downsample
+        self.conf.use_pretrained_weights = True
+        self.pretrained_weights = None
 
     def get_var_list(self):
         return tf.global_variables()
