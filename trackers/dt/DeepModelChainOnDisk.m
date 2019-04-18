@@ -1,6 +1,11 @@
 classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   % DMCOD understands the filesystem structure of a deep model. This same
-  % structure is used both remotely and locally.
+  % structure is used on both remote and local filesystems.
+  %
+  % DMCOD does know whether the model is on a local or remote filesystem 
+  % via the .reader property. The .reader object is a delegate that knows 
+  % how to actually read the (possibly remote) filesystem. This works fine 
+  % for now future design unclear.
   
   properties
     rootDir % root/parent "Models" dir
@@ -209,10 +214,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
     function lsProjDir(obj)
-      ls('-al',obj.dirProjLnx);
+      obj.reader.lsProjDir(obj);
     end
     function lsModelChainDir(obj)
-      ls('-al',obj.dirModelChainLnx);
+      obj.reader.lsModelChainDir(obj);
     end
     function g = modelGlobsLnx(obj)
       % filesys paths/globs of important parts/stuff to keep
@@ -227,18 +232,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         };
       g = [g;gnetspecific(:)];
     end
-    function mdlFiles = findModelGlobs(obj)
+    function mdlFiles = findModelGlobsLocal(obj)
+      % Return all key/to-be-saved model files
+      %
+      % mdlFiles: column cellvec full paths
+      
       globs = obj.modelGlobsLnx;
       mdlFiles = cell(0,1);
-      for g = globs(:)',g=g{1};
+      for g = globs(:)',g=g{1}; %#ok<FXSET>
         if contains(g,'*')
           gP = fileparts(g);
           dd = dir(g);
           mdlFilesNew = {dd.name}';
           mdlFilesNew = cellfun(@(x) fullfile(gP,x),mdlFilesNew,'uni',0);
-          mdlFiles = [mdlFiles; mdlFilesNew];
+          mdlFiles = [mdlFiles; mdlFilesNew]; %#ok<AGROW>
         elseif exist(g,'file')>0
-          mdlFiles{end+1,1} = g;
+          mdlFiles{end+1,1} = g; %#ok<AGROW>
         end
       end      
     end
@@ -266,10 +275,108 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     
     % whether training has actually started
-    function tf = isPartiallyTrained(obj)
+    function tf = isPartiallyTrained(obj)      
+      tf = ~isempty(obj.iterCurr);      
+    end
+    
+    function mirror2remoteAws(obj,aws)
+      % Take a local DMC and mirror/upload it to the AWS instance aws; 
+      % update .rootDir, .reader appropriately to point to model on remote 
+      % disk.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the remote aws instance.
+      %
+      % PostConditions: 
+      % - remote cachedir mirrors this model for key model files; "extra"
+      % remote files not removed; identities of existing files not
+      % confirmed but naming/immutability of DL artifacts makes this seem
+      % safe
+      % - .rootDir updated to remote cacheloc
+      % - .reader update to AWS reader
       
-      tf = ~isempty(obj.iterCurr);
+      assert(isscalar(obj));
       
+      assert(~obj.isRemote,'Model must be local in order to mirror/upload.');
+      
+      succ = obj.updateCurrInfo;
+      if ~succ
+        error('Failed to determine latest model iteration in %s.',...
+          obj.dirModelChainLnx);
+      end
+      fprintf('Current model iteration is %d.\n',obj.iterCurr);
+     
+      aws.checkInstanceRunning(); % harderrs if instance isn't running
+      
+      mdlFiles = obj.findModelGlobsLocal();
+      mdlFilesRemote = regexprep(mdlFiles,obj.rootDir,...
+                                 DeepTracker.RemoteAWSCacheDir);
+      mdlFilesRemote = FSPath.standardPath(mdlFilesRemote);
+      nMdlFiles = numel(mdlFiles);
+      netstr = char(obj.netType.prettyString);
+      fprintf(1,'Upload/mirror %d model files for net %s.\',nMdlFiles,netstr);
+      descstr = sprintf('Model file: %s',netstr);
+      for i=1:nMdlFiles
+        src = mdlFiles{i};
+        dst = mdlFilesRemote{i};
+        % We just use scpUploadOrVerify which does not confirm the identity
+        % of file if it already exists. These model files should be
+        % immutable once created and their naming (underneath timestamped
+        % modelchainIDs etc) should be pretty/totally unique. 
+        %
+        % Only situation that might cause problems are augmentedtrains but
+        % let's not worry about that for now.
+        aws.scpUploadOrVerify(src,dst,descstr,'destRelative',false); % throws
+      end
+      
+      % if we made it here, upload successful
+      
+      obj.rootDir = DeepTracker.RemoteAWSCacheDir;
+      obj.reader = DeepModelChainReaderAWS(aws);
+    end
+    
+    function mirrorFromRemoteAws(obj,aws,cacheDirLocal)
+      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
+      % instance to local cache.
+      %
+      % update .rootDir, .reader appropriately to point to model in local
+      % cache.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the local cache.
+      
+      assert(isscalar(obj));
+      
+      assert(obj.isRemote,'Model must be remote in order to mirror/download.');
+      
+      succ = obj.updateCurrInfo;
+      if ~succ
+        error('Failed to determine latest model iteration in %s.',...
+          obj.dirModelChainLnx);
+      end
+      fprintf('Current model iteration is %d.\n',obj.iterCurr);
+     
+      aws.checkInstanceRunning(); % harderrs if instance isn't running
+            
+      mdlFilesRemote = aws.remoteGlob(obj.modelGlobsLnx);
+      cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
+      mdlFilesLcl = regexprep(mdlFilesRemote,obj.rootDir,cacheDirLocalEscd);
+      nMdlFiles = numel(mdlFilesRemote);
+      netstr = char(obj.netType.prettyString);
+      fprintf(1,'Download/mirror %d model files for net %s.\',nMdlFiles,netstr);
+      for i=1:nMdlFiles
+        fsrc = mdlFilesRemote{i};
+        fdst = mdlFilesLcl{i};
+        % See comment in mirror2RemoteAws regarding not confirming ID of
+        % files-that-already-exist
+        aws.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
+          'sysCmdArgs',{'dispcmd' true 'failbehavior' 'err'}); % throws
+      end
+      
+      % if we made it here, download successful
+      
+      obj.rootDir = cacheDirLocal;
+      obj.reader = DeepModelChainReaderLocal();
     end
        
   end

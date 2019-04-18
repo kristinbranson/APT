@@ -20,5 +20,11 @@ classdef DeepModelChainReaderLocal < DeepModelChainReader
         end
       end
     end
+    function lsProjDir(obj,dmc)
+      ls('-al',dmc.dirProjLnx);
+    end
+    function lsModelChainDir(obj,dmc)
+      ls('-al',dmc.dirModelChainLnx);
+    end
   end
 end

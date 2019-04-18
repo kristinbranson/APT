@@ -8,7 +8,7 @@ classdef DeepTracker < LabelTracker
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrmAll' 'containerBindPaths' ...
       'trnNetType' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'}; 
-    RemoteAWSCacheDir = '/home/ubuntu';
+    RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
     jrchost = 'login1.int.janelia.org';
     jrcprefix = 'source /etc/profile';
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
@@ -67,6 +67,59 @@ classdef DeepTracker < LabelTracker
     trnNameLbl
   end
   properties
+    % Notes on trnLastDMC.
+    %
+    % This prop represents the "most recently trained model" for this
+    % tracker obj. In many/most workflows the APT UI and backend share a
+    % local filesystem and this most recent model lives on this local 
+    % filesystem.
+    %
+    % In some cases, training and tracking occurs remotely relative to the 
+    % APT frontend. In this case, there are two relevant filesystems: the 
+    % local one available to APT, and the remote one available to the 
+    % backend. At various points in a training/tracking workflow, trained 
+    % models will exist on BOTH filesystems:
+    %
+    % * At project load, an existing model might be untarred locally, or 
+    % there might be no existing model for a new project.
+    % * At train time, a new model model is generated remotely.
+    % * At retrain-, augmentedtrain-, or track-time, the local model will 
+    % first be uploaded to the remote filesys if necessary.
+    % * At project save time, remote models will be downloaded locally
+    % before tarring into the project.
+    %
+    % With regards to this issue, our invariant for .trnLastDMC is that 
+    %
+    %   .trnLastDMC contains the most recently updated model for the 
+    %   tracker, with the .reader property correctly indicating the 
+    %   filesystem location of that model. This model is the one that
+    %   should be used for inference, saved to projects, etc. Let's call it
+    %   the "latest model" (for this tracker).
+    %
+    % * At project load, all .trnLastDMCs will point to the local
+    % filesystem/cache.
+    % * When a remote fresh train is spawned, .trnLastDMC is immediately 
+    % set to the remote location. Even if the train fails or is killed
+    % early, whatever is there remotely is still the latest model.
+    % * If a remote track is spawned and the latest model is local, it is
+    % uploaded first so the track can occur. The moment this upload 
+    % completes, the latest model is moved/set to the remote location.
+    % * For now we punt on retrains/augmentedtrains. These pose an issue in
+    % that depending on the result of the remote train, the latest model
+    % may remain local (eg if the remote train fails, maybe). Maybe the 
+    % rule is as simple as "the remote model becomes the latest model if 
+    % training completes successfully" but I am not sure. Skip it for now.
+    % * At project save-time, the latest model (whereever it may be) is
+    % tarred into the project. If the latest model is remote, then it is
+    % downloaded first. This download does not update the latest model
+    % pointer as the user may continue using the remote/latest model for 
+    % tracking.
+    %
+    % So for now, for the AWS backend, the latest model may start locally, 
+    % but once a train or track operation occurs, it will be remote from
+    % that point onwards. Conceptually a user could switch backends to
+    % local and that would allow the movie to "move back down" but we're
+    % not going to worry about that for now.
     trnLastDMC % [nview] Last DeepModelChainOnDisk(s), set during training
     trnTblP % transient, unmanaged. Training rows for last retrain
     
@@ -1035,7 +1088,7 @@ classdef DeepTracker < LabelTracker
       trnCmdType = trnType;
       
       if tfGenNewStrippedLbl
-        s = obj.trnCreateStrippedLbl(backEnd,'wbObj',wbObj);
+        s = obj.trnCreateStrippedLbl('wbObj',wbObj);
         % store nLabels in dmc
         dmc.nLabels = s.nLabels;
         
@@ -1223,7 +1276,7 @@ classdef DeepTracker < LabelTracker
         save(dlLblFileLcl,'-struct','s','-append');
         fprintf('Reusing cached lbl file %s\n',dlLblFileLcl);
       else
-        s = obj.trnCreateStrippedLbl(backEnd,'ppdata',ppdata,'sPrmAll',sPrmAll);
+        s = obj.trnCreateStrippedLbl('ppdata',ppdata,'sPrmAll',sPrmAll);
         ID = datestr(now,'yyyymmddTHHMMSS');
         dataAugDir = fullfile(cacheDir,'DataAug',ID);
         if ~exist(dataAugDir,'dir'),
@@ -1541,7 +1594,7 @@ classdef DeepTracker < LabelTracker
                             trnType==DLTrainType.RestartAug;
                           
       if tfGenNewStrippedLbl        
-        s = obj.trnCreateStrippedLbl(backend,'awsTrxUpload',true,'wbObj',wbObj); %#ok<NASGU>
+        s = obj.trnCreateStrippedLbl('awsRemote',true,'wbObj',wbObj); 
 		% store nLabels in DMC
         dmc.nLabels = s.nLabels;
         
@@ -1647,15 +1700,15 @@ classdef DeepTracker < LabelTracker
       [~,ppdata] = ppdb.add(tblP,obj.lObj,'prmpp',ppPrms,'computeOnly',true);
     end
         
-    function s = trnCreateStrippedLbl(obj,backEnd,varargin)
+    function s = trnCreateStrippedLbl(obj,varargin)
       % 
       % - Mutates .trnTblP
       % - can update .lObj.ppdb
       % - Uploads trxs via AWS (maybe obsolete now)
       % - Can throw
       
-      [awsTrxUpload,wbObj,ppdata,sPrmAll] = myparse(varargin,...
-        'awsTrxUpload',false,...
+      [awsRemote,wbObj,ppdata,sPrmAll] = myparse(varargin,...
+        'awsRemote',false,...
         'wbObj',[],...
         'ppdata',[],...
         'sPrmAll',[]...
@@ -1675,11 +1728,8 @@ classdef DeepTracker < LabelTracker
       
       % for images, deepnet will use preProcData; trx files however need
       % to be uploaded
-      
-      
-      tftrx = obj.lObj.hasTrx;
             
-      if awsTrxUpload && tftrx
+      if awsRemote 
         % 1. The moviefiles in s should be not be used; deepnet should be
         % reading images directly from .preProcData_I. Fill s.movieFilesAll
         % with jibber as an assert.
@@ -1689,32 +1739,37 @@ classdef DeepTracker < LabelTracker
         %      upload it and replace all appropriate rows of s.trxFilesAll.
         %   b. For all other rows of s.trxFilesAll, we replace with jibber
         %      as an assert.
-                
-        fprintf(2,'AWS trx upload no longer necessary.\n');
-        aws = backEnd.awsec2;
-        aws.ensureRemoteDir('data','descstr','data');
+
+        % Originally we uploaded trxfiles but this is no longer nec since
+        % training relies on the cache which is now pre-rotated etc etc
         
-        iMovTrn = unique(tblPTrn.mov); % must be regular mov, not GT
-        
-        assert(obj.nview==1,'Single-view only');
+%         aws = backEnd.awsec2;
+%         aws.ensureRemoteDir('data','descstr','data');
+%         
+%         iMovTrn = unique(tblPTrn.mov); % must be regular mov, not GT
+
+        tftrx = obj.lObj.hasTrx;      
+        assert(obj.nview==1,'Single-view only');      
         IVIEW = 1;
         nmov = size(s.trxFilesAll,1);
         for iMov=1:nmov
-          s.movieFilesAll{iMov,IVIEW} = '__UNUSED__';
-          
-          if any(iMov==iMovTrn)
-            trxLclAbs = s.trxFilesAll{iMov,IVIEW};
-            trxsha = DeepTracker.getSHA(trxLclAbs);
-            trxRemoteRel = ['data/' trxsha];
-            trxRemoteAbs = ['/home/ubuntu/' trxRemoteRel];
-            aws.scpUploadOrVerify(trxLclAbs,trxRemoteRel,'trxfile'); % throws
-            
-            s.trxFilesAll{iMov,IVIEW} = trxRemoteAbs;
-          else
+          s.movieFilesAll{iMov,IVIEW} = '__UNUSED__';        
+          if tftrx
             s.trxFilesAll{iMov,IVIEW} = '__UNUSED__';
-          end          
+          end
+%           if any(iMov==iMovTrn)
+%             trxLclAbs = s.trxFilesAll{iMov,IVIEW};
+%             trxsha = DeepTracker.getSHA(trxLclAbs);
+%             trxRemoteRel = ['data/' trxsha];
+%             trxRemoteAbs = ['/home/ubuntu/' trxRemoteRel];
+%             aws.scpUploadOrVerify(trxLclAbs,trxRemoteRel,'trxfile'); % throws
+%             
+%             s.trxFilesAll{iMov,IVIEW} = trxRemoteAbs;
+%           else
+%             s.trxFilesAll{iMov,IVIEW} = '__UNUSED__';
+%           end          
         end
-      end      
+      end
     end
     
 %     function trnCompleteCbkAWS(obj,res)      
@@ -1734,63 +1789,6 @@ classdef DeepTracker < LabelTracker
 %           aws.scpDownload(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs);
 %         end
 %     end
-
-    function trnAWSDownloadModel(obj) 
-      % Downloads/mirrors most recent model(s) available for .trnLastDMC to
-      % local disc.
-      %
-      % Important: this can take a while as model files are large. So don't
-      % call this eg during a train while intermediate models are being
-      % "rolling-cleaned-out". Stuff might get deleted while download is
-      % occurring.
-      
-      obj.updateLastDMCsCurrInfo();
-
-      nvw = obj.lObj.nview;
-      trnID = obj.trnName;
-      cacheDirLocal = obj.lObj.DLCacheDir;
-      backend = obj.lObj.trackDLBackEnd;
-      aws = backend.awsec2;
-      dmcs = obj.trnLastDMC;
-            
-      if isempty(trnID)
-        error('Model has not been trained.');
-      end
-      
-      assert(~isempty(cacheDirLocal),'CacheDir is unset/empty.');
-      
-      if isempty(aws)
-        error('AWSec2 object not set.');
-      end
-      aws.checkInstanceRunning(); % harderrs if instance isn't running
-      
-      assert(numel(dmcs)==nvw);
-      for ivw=1:nvw
-        dmc = dmcs(ivw);
-        if nvw==1
-          fprintf('Current model iteration is %d.\n',dmc.iterCurr);
-        else
-          fprintf('Current model iteration (view %d) is %d.\n',ivw,dmc.iterCurr);
-        end
-
-        mdlFilesRemote = aws.remoteGlob(dmc.keepGlobsLnx);
-        disp(mdlFilesRemote);
-        mdlFilesRemote = setdiff(mdlFilesRemote,{dmc.lblStrippedLnx}); % don't download/mirror this
-        cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
-        mdlFilesLcl = regexprep(mdlFilesRemote,dmc.rootDir,cacheDirLocalEscd);
-        nfiles = numel(mdlFilesRemote);
-        fprintf(1,'Downloading %d model files.\n',nfiles);
-        for ifile=1:nfiles
-          fsrc = mdlFilesRemote{ifile};
-          fdst = mdlFilesLcl{ifile};
-          if exist(fdst,'file')>0
-            warningNoTrace('Local file ''%s'' exists. OVERWRITING.',fdst);
-          end
-          aws.scpDownloadEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'dispcmd' true 'failbehavior' 'warn'});
-        end
-      end
-    end
     
   end
   
@@ -2999,7 +2997,7 @@ classdef DeepTracker < LabelTracker
         for ivw=1:numel(res)
           trkLcl = trkfilesLocal{ivw};
           trkRmt = res(ivw).trkfile;
-          aws.scpDownload(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs);
+          aws.scpDownloadOrVerify(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
         end
         
         obj.trkPostProcIfNec(mIdx,trkfilesLocal);

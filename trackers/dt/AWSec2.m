@@ -76,7 +76,7 @@ classdef AWSec2 < handle
     end
     
   end
-        % NOTE: for now, lifecycle of obj is not tied at all to the actual
+      % NOTE: for now, lifecycle of obj is not tied at all to the actual
       % instance-in-the-cloud
 
   methods
@@ -148,7 +148,7 @@ classdef AWSec2 < handle
       state = json.Reservations.Instances.State.Name;      
     end
     
-    function [tfsucc,instanceID,pemFile] = respecifyInstance(obj)      
+    function [tfsucc,instanceID,pemFile] = respecifyInstance(obj)
       [tfsucc,instanceID,pemFile] = ...
         obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
     end
@@ -326,17 +326,27 @@ classdef AWSec2 < handle
       end
     end
  
-    function tfsucc = scpDownload(obj,srcAbs,dstAbs,varargin)
-      % overwrites with no regard for anything
+    % FUTURE: use rsync if avail. win10 can ask users to setup WSL
+    
+    function tfsucc = scpDownloadOrVerify(obj,srcAbs,dstAbs,varargin)
+      % If dstAbs already exists, does NOT check identity of file against
+      % dstAbs. In many cases, naming/immutability of files (with paths)
+      % means this is OK.
       
       sysCmdArgs = myparse(varargin,...
         'sysCmdArgs',{});
-      cmd = AWSec2.scpDownloadCmd(obj.pem,obj.instanceIP,srcAbs,dstAbs,...
-        'scpcmd',obj.scpCmd);
-      tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
+      
+      if exist(dstAbs,'file')>0
+        fprintf('File %s exists, not downloading.\n',dstAbs);
+        tfsucc = true;
+      else
+        cmd = AWSec2.scpDownloadCmd(obj.pem,obj.instanceIP,srcAbs,dstAbs,...
+          'scpcmd',obj.scpCmd);
+        tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
+      end
     end
     
-    function tfsucc = scpDownloadEnsureDir(obj,srcAbs,dstAbs,varargin)
+    function tfsucc = scpDownloadOrVerifyEnsureDir(obj,srcAbs,dstAbs,varargin)
       dirLcl = fileparts(dstAbs);
       if exist(dirLcl,'dir')==0
         [tfsucc,msg] = mkdir(dirLcl);
@@ -345,7 +355,7 @@ classdef AWSec2 < handle
           return;
         end
       end
-      tfsucc = obj.scpDownload(srcAbs,dstAbs,varargin{:});
+      tfsucc = obj.scpDownloadOrVerify(srcAbs,dstAbs,varargin{:});
     end
  
     function tfsucc = scpUpload(obj,file,dest,varargin)
@@ -450,6 +460,20 @@ classdef AWSec2 < handle
         % warning thrown etc per failbehavior
         s = '';
       end
+    end
+    
+    function remoteLS(obj,remoteDir,varargin)
+      [dispcmd,failbehavior] = myparse(varargin,...
+        'dispcmd',false,...
+        'failbehavior','warn'...
+        );
+      
+      cmdremote = sprintf('ls -lh %s',remoteDir);
+      [~,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,...
+        'failbehavior',failbehavior);
+      
+      disp(res);
+      % warning thrown etc per failbehavior
     end
     
     function remoteDirFull = ensureRemoteDir(obj,remoteDir,varargin)

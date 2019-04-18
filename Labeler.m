@@ -2263,7 +2263,7 @@ classdef Labeler < handle
                 dm.netType,dm.rootDir);
             end
             
-            modelFiles = dm.findModelGlobs();
+            modelFiles = dm.findModelGlobsLocal();
             modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
             for mndx = 1:numel(modelFiles)
               copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
@@ -2818,10 +2818,11 @@ classdef Labeler < handle
       for i = 1:numel(s.trackerData),
         if isfield(s.trackerData{i},'trnLastDMC'),
           for j = 1:numel(s.trackerData{i}.trnLastDMC),
-            if isempty(s.trackerData{i}.trnLastDMC(j).nLabels),
+            dmc = s.trackerData{i}.trnLastDMC(j);
+            if isempty(dmc.nLabels) && ~dmc.isRemote
               try
                 fprintf('Modernize: Reading nLabels for deep tracker\n');
-                s.trackerData{i}.trnLastDMC(j).readNLabels();
+                dmc.readNLabels();
               catch ME
                 warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
               end
