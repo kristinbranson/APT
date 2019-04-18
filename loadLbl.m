@@ -16,3 +16,9 @@ end
 
 lbl = load(rawLblFile,'-mat');
 
+[success, message, ~] = rmdir(tname,'s');
+if ~success
+  error('Could not clear the temp directory %s\n',message);
+else
+  fprintf('Cleared out temp directory %s\n',tname);
+end

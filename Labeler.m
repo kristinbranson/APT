@@ -2294,7 +2294,7 @@ classdef Labeler < handle
     function clearTempDir(obj) % throws
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if ~success
-        error('Could not clear the temp directory %s',message);
+        warning('Could not clear the temp directory %s',message);
       end
       [success, message, ~] = mkdir(obj.projTempDir);
       if ~success
