@@ -452,7 +452,7 @@ class PoseCommon(object):
         logging.debug('\n'.join(c_names))
         logging.debug("-- Not Loading from pretrained --")
         logging.debug('\n'.join(r_names))
-        logging.debug('Restoring pretrained resnet weights form {}'.format(model_file))
+        logging.info('Restoring pretrained resnet weights form {}'.format(model_file))
         # common_vars = [i for i in common_vars if i not in rem_locs]
         pretrained_saver = tf.train.Saver(var_list=common_vars)
         pretrained_saver.restore(sess, model_file)
