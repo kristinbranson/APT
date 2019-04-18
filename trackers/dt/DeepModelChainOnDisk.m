@@ -230,7 +230,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function mdlFiles = findModelGlobs(obj)
       globs = obj.modelGlobsLnx;
       mdlFiles = cell(0,1);
-      for g = globs(:)',g=g{1};
+      for g = globs(:)',g=g{1}; %#ok<FXSET>
         if contains(g,'*')
           gP = fileparts(g);
           dd = dir(g);

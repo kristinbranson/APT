@@ -2278,8 +2278,9 @@ classdef Labeler < handle
         end
       end
       
-      allModelFiles = cellfun(@(x) regexprep(x,[projtempdir filesep],''),...
-        allModelFiles,'UniformOutput',false); % XXX filesep win
+      pat = [regexprep(projtempdir,'\\','\\\\') '[/\\]'];
+      allModelFiles = cellfun(@(x) regexprep(x,pat,''),...
+        allModelFiles,'UniformOutput',false);
       fprintf(1,'Tarring model files into %s\n',projtempdir);
       tar([outFile '.tar'],allModelFiles,projtempdir);
       movefile([outFile '.tar'],outFile); 
