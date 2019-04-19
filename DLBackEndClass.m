@@ -1,14 +1,25 @@
 classdef DLBackEndClass < handle
-  % Placeholder class, future design unclear
+  % Design unclear but good chance this is a thing
+  %
+  % This thing (maybe) specifies a physical machine/server along with a 
+  % DLBackEnd:
+  % * DLNetType: what DL net is run
+  % * DLBackEndClass: where/how DL was run
+  %
+  % TODO: this should be named 'DLBackEnd' and 'DLBackEnd' should be called
+  % 'DLBackEndType' or something.
   
   properties
     type  % scalar DLBackEnd
-    awsec2 % used only for type==AWS
     
     % scalar logical. if true, backend runs code in APT.Root/deepnet. This
     % path must be visible in the backend or else.
+    %
+    % Conceptually this could be an arbitrary loc.
     deepnetrunlocal = true; 
-  end
+    
+    awsec2 % used only for type==AWS
+  end    
  
   methods
     
@@ -40,8 +51,7 @@ classdef DLBackEndClass < handle
       end
     end
     
-    function s = prettyName(obj)
-      
+    function s = prettyName(obj)      
       switch obj.type,
         case DLBackEnd.Bsub,
           s = 'JRC Cluster';
@@ -51,7 +61,10 @@ classdef DLBackEndClass < handle
           s = char(obj.type);
       end
     end
- 
+    
+%     function tf = filesysAreCompatible(obj,obj2)
+%       assert(isscalar(obj) && isscalar(obj2));
+%     end
   end
   
 end

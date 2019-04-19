@@ -112,7 +112,7 @@ classdef Labeler < handle
   properties (SetObservable)
     projname              % init: PN
     projFSInfo;           % filesystem info
-    tname;                % temp dir name to save the raw label file
+    projTempDir;          % temp dir name to save the raw label file
   end
   properties (SetAccess=private)
     projMacros = struct(); % scalar struct, filesys macros. init: PN
@@ -156,6 +156,7 @@ classdef Labeler < handle
     % props.
     projPrefs; % init: C
     
+    projVerbose = 0; % transient, unmanaged
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -1665,15 +1666,19 @@ classdef Labeler < handle
     function projSaveRaw(obj,fname)
       s = obj.projGetSaveStruct();
       
-      if 0 % AL_BUNDLESAVE_EARLYMERGE
-        rawLblFile = obj.getRawLblFile();
-        save(rawLblFile,'-mat','-struct','s');
-        success = obj.bundleSave(fname);
-        if ~success, error('Could not bundle the label file %s',fname); end
+      if 1
+        try
+          rawLblFile = obj.projGetRawLblFile();
+          save(rawLblFile,'-mat','-struct','s');
+          obj.projBundleSave(fname);
+        catch ME
+          save(fname,'-mat','-struct','s');
+          warningNoTrace('Saved raw project file %s. Error caught during bundled project save: %s\n',...
+            fname,ME.message);          
+        end
       else
         save(fname,'-mat','-struct','s');
-      end      
-      
+      end
       obj.labeledposNeedsSave = false;
       obj.needsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
@@ -1825,16 +1830,13 @@ classdef Labeler < handle
           % the only possibility is that it is already a fullpath
         end
       end
-
-      if 0 % AL_BUNDLESAVE_EARLYMERGE
-        % MK 20190204. Use Unbundling instead of loading.
-        % Model files are copied to cache dir later.
-        [success, tlbl] = obj.unbundleLoad(fname);
-        if ~success, error('Could not unbundle the label file %s',fname); end
-        s = load(tlbl,'-mat');
-      else
-        s = load(fname,'-mat');
-      end
+      
+      % MK 20190204. Use Unbundling instead of loading.
+      % Model files are copied to cache dir later.
+      [success, tlbl] = obj.projUnbundleLoad(fname);
+      if ~success, error('Could not unbundle the label file %s',fname); end
+      s = load(tlbl,'-mat');
+%       s = load(fname,'-mat');  
 
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
@@ -1962,34 +1964,9 @@ classdef Labeler < handle
       end
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
-      if 0 % AL_BUNDLESAVE_EARLYMERGE
-
-        %MK 20190204 copy models to cache dir for bundled label file.
-        % reset movIdx2trkfile.
-        newCacheDir = obj.copyModelsToCache(obj.trackDLParams.CacheDir);
-        if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
-          obj.trackDLParams.CacheDir = newCacheDir;
-          for ndx = 1:numel(obj.tracker.trnLastDMC)
-            obj.tracker.trnLastDMC(ndx).rootDir = newCacheDir;
-          end
-          for ndx = 1:numel(obj.trackersAll)
-            if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
-              obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
-            end
-          end
-          % We save the stripped label file. If not, uncomment following to
-          % regenerate it. But the regenerated could be different than the
-          % original.
-          %         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-          %           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
-          %             s = obj.tracker.trnCreateStrippedLbl();
-          %             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
-          %           end
-          %         end
-        end
-        obj.clearTempDir(); % clear the temp directory.
-
-      end
+      %MK 20190204 copy models to cache dir for bundled label file.
+      obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
+      obj.clearTempDir(); 
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -2016,7 +1993,7 @@ classdef Labeler < handle
         end
       end
        
-      [success, tlbl] = obj.unbundleLoad(fname);
+      [success, tlbl] = obj.projUnbundleLoad(fname);
       if ~success, error('Could not unbundle the label file %s',fname); end
       s = load(tlbl,'-mat');
       obj.clearTempDir();
@@ -2077,13 +2054,13 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
       obj.projFSInfo = ProjectFSInfo('imported',fname);
       
-      % XXX prob would need .preProcInit() here
+      % TODO prob would need .preProcInit() here
       
       if ~isempty(obj.tracker)
         warning('Labeler:projImport','Re-initting tracker.');
         obj.tracker.init();
       end
-      % xxx .trackerDeep
+      % TODO .trackerDeep
     end
     
     function projAssignProjNameFromProjFileIfAppropriate(obj)
@@ -2093,29 +2070,44 @@ classdef Labeler < handle
       end
     end
     
-        % Functions to handle bundled label files
-        % MK 20190201
-    function [success, rawLblFile] = unbundleLoad(obj, fname)
-      % Unbundles the lbl file if it unbundleis a tar bundle.
-      % Return the path to untarred label file.
-      % MK 20190201
-      tname = tempname;
-      obj.tname = tname;
-      [success, message, ~] = mkdir(tname);
-      if ~success
-        warning('Could not create temp directory %s for unbundling: %s',tname, message);
-        return
+    % Functions to handle bundled label files
+    % MK 20190201
+    function tname = projGetEnsureTempDir(obj) % throws
+      % tname: project tempdir, assigned to .projTempDir. Guaranteed to
+      % exist, contents not guaranteed in any way
+      
+      if isempty(obj.projTempDir)
+        obj.projTempDir = tempname;
       end
-      rawLblFile = fullfile(tname, obj.DEFAULT_RAW_LABEL_FILENAME);
+      tname = obj.projTempDir;
+      if exist(tname,'dir')==0
+        [success,message,~] = mkdir(tname);
+        if ~success
+          error('Could not create temp directory %s: %s',tname,message);
+        end        
+      end      
+    end
+    
+    function [success,rawLblFile] = projUnbundleLoad(obj,fname) % throws
+      % Unbundles the lbl file if it is a tar bundle.
+      %
+      % fname: fullpath to projectfile, either tarred/bundled or untarred
+      %
+      % rawLblFile: path to untarred label file in projTempDir
+      % MK 20190201
+      
+      [rawLblFile,tname] = obj.projGetRawLblFile(); % throws; this fcn has mix of throws/warns
       
       try
+        fprintf('Untarring project into %s\n',tname);
         untar(fname,tname);
+        fprintf('... done with untar.\n');
       catch ME
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
-          warning('Label file %s is not bundled. Using it in raw mat format',fname);
-          [success, message, ~] = copyfile(fname, rawLblFile);
+          warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',fname);
+          [success,message,~] = copyfile(fname,rawLblFile);
           if ~success
-            warning('Could not copy lbl files for bundling: %s',message)         
+            warningNoTrace('Could not copy lbl files for bundling: %s',message);
           end
           return;
         end
@@ -2124,121 +2116,229 @@ classdef Labeler < handle
         warning('Could not find raw label file in the bundled label file %s',fname);
         success = false;
         return;
-      end   
+      end
       success = true;
     end
     
-    function cacheDir = copyModelsToCache(obj,cacheDir)
-      % copies the unbundled model file to cacheDir. 
+    function projCopyModelsToCache(obj,cacheDir)
+      % copies the unbundled model file from the projTempDir to cacheDir. 
       % If cacheDir doesn't exist asks user for new one.
-      % assumes tname is set
+      % 
+      % Preconds: 
+      %   - .projTempDir must be set
+      %   - bundled project untarred into .projTempDir
+      %   - .trackersAll has been set/loaded, ie 
+      %       .trackersAll{iDLTrker}.trnLastDMC(ivw) corresponds precisely 
+      %       to unbundled contents in .projTempDir (.rootDir may not be
+      %       correctly specified)
+      %
+      % Postconds:
+      % If success:
+      %   - .trackParams.ROOT.DeepTrack.Saving.CacheDir possibly updated
+      %   - .trackersAll{iDLTrker}.trnLastDMC(ivw).rootDir possibly updated
+      %   - models in .projTempDir copied into new CacheDir
+      %
+      % If failure, maybe nothing happened; project pretty unusable for
+      % tracking
+
       success = false;
-      tCacheDir = fullfile(obj.tname,obj.projname);
+      
+      % Check for exploded cache in tempdir
+      tCacheDir = fullfile(obj.projTempDir,obj.projname);
       if ~exist(tCacheDir,'dir')
-        warning('Could not find model data for %s in the temp directory %s. Not copying the model files',obj.projname,obj.tname);
+        warningNoTrace('Could not find model data for %s in the temp directory %s. Not copying the model files',...
+          obj.projname,obj.projTempDir);
         return;
       end
+      
+      % Check that cachedir exists; if not create a new one (eg if project
+      % opened in new filesys)
       if ~exist(cacheDir,'dir')
-%         [success,message,messageid] = mkdir(cacheDir);
-        uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir','Cache Dir'));
+        uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir.','Cache Dir'));
         newCacheDir = uigetdir('','Select cache dir');
         if newCacheDir == 0
-          warning('No local cache dir selected. Could not restore the model files. Saved models will not be available for use');
-          return
+          warningNoTrace('No local cache dir selected. Could not restore model files. Saved models will not be available for use');
+          return;
         else
           cacheDir = newCacheDir;
         end
       end
+      
+      % Update/set all DMC.rootDirs to cacheDir
+      % 
+      % Bundle/DMC/modelChain notes 20190419. See also issue #285
+      % Current DMC unbundling philosophy
+      % - Upon unbundling, we do not generate a new modelChainID. Multiple
+      % APTs can all be using/pointing at a single modelChainDir (subdir
+      % within a cache)
+      %   * Restarts currently unsafe due to #285
+      % - If a user never restarts, modelChain artifacts are *immutable*
+      % and effetively read-only. Therefore it is OK if multiple APTs point 
+      % to a single modelChainDir.
+      % - "partial tracking" results live in <modelChain>/trk. These just
+      % accumulate over time as APT instances track with the modelChain.
+      % These are timestamped and should have effectively unique IDs. On
+      % project load, DeepTracker trkfiles pointers/caches are cleared so
+      % that the user does not see previous tracking results.
+      %   * Trkfiles may not be immutable depending on how 3D 
+      % postprocessing develops. This is prob moot if partial tracking is 
+      % never retained.
+      %
+      tAll = obj.trackersAll;
+      for iTrker = 1:numel(tAll)
+        tObj = tAll{iTrker};
+        if isa(tObj,'DeepTracker')
+          dmc = tObj.trnLastDMC;
+          for ivw = 1:numel(dmc)
+            if ~dmc(ivw).isRemote
+              dmc(ivw).rootDir = cacheDir;
+              
+              % This was a mistake as APT#2 could clear the partial 
+              % trkfiles used by APT#1
+%               mcDir = dmc(ivw).dirModelChainLnx;
+%               if exist(mcDir,'dir')>0
+%                 fprintf(1,'Cleaning %s\n',mcDir);
+%                 [success,message] = rmdir(mcDir,'s');
+%                 if ~success
+%                   warningNoTrace('Could not clean local modelChain cache dir %s:',mcDir);
+%                   warningNoTrace(message);
+%                   
+%                   % Nonfatal dont return
+%                 end
+%               end
+            else
+              warningNoTrace('Unexpected remote DMC detected for net %s, view %d.',...
+                tObj.trnNetType.prettyStr,ivw);
+              % At save-time we should be updating DMCs to local
+              
+              % Don't update dmc(ivw).rootDir
+              
+              % Nonfatal dont return
+            end
+          end
+          
+          % Don't retrain any previous tracking results          
+          tObj.clearTrackingResults();
+        end
+      end
+      
       outdir = fullfile(cacheDir,obj.projname);
       if ~exist(outdir,'dir')
         [success,message,~] = mkdir(outdir);
         if ~success
-          error('Could not create directory %s in the cache. Not copying the model files: %s',outdir,message);
+          warningNoTrace('Could not create directory %s in the cache. Could not restore model files. Saved models will not be available for use: %s',...
+            outdir,message);
         end
       end
-      [success, message, ~] = copyfile(tCacheDir, outdir);
+
+      % copy top-level projdir. This leaves existing files (other
+      % modelchaindirs etc) intact
+      fprintf(1,'Copying %s->%s\n',tCacheDir,outdir);
+      [success,message,~] = copyfile(tCacheDir,outdir);
       if ~success
-        warning('Could not copy model files to local cache dir %s',cacheDir);
-        warning(message);
+        warningNoTrace('Could not copy model files to local cache dir %s',outdir);
+        warningNoTrace(message);
+      end
+      
+      if success
+        obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = cacheDir;
+      else
+        % Proj is going to be pretty hosed but they can view labels etc
       end
     end
     
-    function rawLblFile = getRawLblFile(obj)
-      tname = obj.tname;
-      rawLblFile = fullfile(tname, obj.DEFAULT_RAW_LABEL_FILENAME);
+    function [rawLblFile,projtempdir] = projGetRawLblFile(obj) % throws
+      projtempdir = obj.projGetEnsureTempDir();
+      rawLblFile = fullfile(projtempdir,obj.DEFAULT_RAW_LABEL_FILENAME);
     end
     
-    function [success] = bundleSave(obj, outFile)
-      success = false;
-      tname = obj.tname;
-      rawLblFile = fullfile(tname, obj.DEFAULT_RAW_LABEL_FILENAME);
+    function projBundleSave(obj,outFile,varargin) % throws 
+      % bundle contents of projTempDir into outFile
+      %
+      % throws on err, hopefully cleans up after itself (projtempdir) 
+      % regardless. unless the error is thrown from the cleanup! haha um.
+      
+      verbose = myparse(varargin,...
+        'verbose',obj.projVerbose ...
+      );
+      
+      % Intentionally don't always cleanup tempdir for now 
+      %oc = onCleanup(@() obj.clearTempDir()); % clean up tempdir on all exits 
+
+      [rawLblFile,projtempdir] = obj.projGetRawLblFile();
       if ~exist(rawLblFile,'file')
-        error('Raw label file %s does not exist. Could not create bundled label file',rawLblFile);
-      end     
+        error('Raw label file %s does not exist. Could not create bundled label file.',...
+          rawLblFile);
+      end
+      
+      % This will contain all projtempdir artifacts to be tarred
       allModelFiles = {rawLblFile};
       
       % find the model files and then bundle them into the tar directory.
       % but since there isn't much in way of relative path support in
       % matlabs tar/zip functions, we will also have to copy them first the
       % temp directory. sigh.
-      if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-        % a lot of unnecessary moving around is to maintain the directory
-        % structure - MK 20190204
-        for ndx = 1:numel(obj.tracker.trnLastDMC)
-          dm = obj.tracker.trnLastDMC(ndx);
-          modelFile = dm.trainCurrIndexLnx;
-          [dd,ff,~] = fileparts(modelFile);
-          modelFile = fullfile(dd,ff);
-          allFiles = dir([modelFile '*']);
-          modelFiles = {allFiles(:).name};
-          modelFiles = cellfun(@(x) fullfile(dd,x), modelFiles,'UniformOutput',false);        
-          modelFiles{end+1} = dm.trainDataLnx; %#ok<AGROW>
-          ckptFile = fullfile(dd,'deepnet_ckpt') ;
-          if exist(ckptFile,'file')
-            modelFiles{end+1} = ckptFile;%#ok<AGROW>
-          end
-          rawDataFile = fullfile(dd,'traindata');
-          if exist(rawDataFile,'file')
-            modelFiles{end+1} = rawDataFile;%#ok<AGROW>
-          end
-          tdir = strrep(dm.dirModelChainLnx, dm.rootDir, tname);
-          if ~exist(tdir,'dir')
-            [success,message,messageid] = mkdir(tdir);
-            if ~success
-              error('Could not bundle models into label file %s',message);
+      
+      for iTrker = 1:numel(obj.trackersAll)
+        tObj = obj.trackersAll{iTrker};
+        if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)
+          % a lot of unnecessary moving around is to maintain the directory
+          % structure - MK 20190204
+          
+          dmc = tObj.trnLastDMC;
+        
+          for ndx = 1:numel(dmc)
+            dm = dmc(ndx);
+            tfsucc = dm.updateCurrInfo();
+            if ~tfsucc
+              warningNoTrace('Failed to update model iteration for model with net type %s.',...
+                char(dm.netType));
             end
-          end
-          for mndx = 1:numel(modelFiles)
-            [success,message,messageid] = copyfile(modelFiles{mndx},tdir);
-            if ~success
-              error('Could not bundle models into label file %s',message);
+            
+            if dm.isRemote
+              fprintf(2,'TODO REMOTE DMC XXX\n');
             end
-            [~,curF,curE] = fileparts(modelFiles{mndx});
-            allModelFiles{end+1} = fullfile(tdir,[curF curE]);%#ok<AGROW>
+            
+            if verbose>0 && ndx==1
+              fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
+                dm.netType,dm.rootDir);
+            end
+            
+            modelFiles = dm.findModelGlobs();
+            modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
+            for mndx = 1:numel(modelFiles)
+              copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+              % for a given tracker, multiple DMCs this could re-copy 
+              % proj-level artifacts like stripped lbls
+              if verbose>1
+                fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+              end
+            end           
+            allModelFiles = [allModelFiles; modelFilesDst]; %#ok<AGROW>
           end
         end
-        strippedLblFile = obj.tracker.trnLastDMC.lblStrippedLnx;          
-        destStripped = strrep(strippedLblFile,dm.rootDir,tname);
-        [success,msg,~] = copyfile(strippedLblFile,destStripped);
-        if ~success
-          error('Could not bundle models into label file %s',msg);
-        end
-        allModelFiles{end+1} = destStripped;
       end
-      allModelFiles = cellfun(@(x) strrep(x,[tname filesep],''),allModelFiles,'UniformOutput',false);
-      tar([outFile '.tar'],allModelFiles,tname);
+      
+      pat = [regexprep(projtempdir,'\\','\\\\') '[/\\]'];
+      allModelFiles = cellfun(@(x) regexprep(x,pat,''),...
+        allModelFiles,'UniformOutput',false);
+      fprintf(1,'Tarring model files into %s\n',projtempdir);
+      tar([outFile '.tar'],allModelFiles,projtempdir);
       movefile([outFile '.tar'],outFile); 
+      fprintf(1,'Project saved to %s\n',outFile);
+
       % matlab by default adds the .tar. So save it to tar
       % and then move it.
-      success = obj.clearTempDir();
+      
+      obj.clearTempDir();
     end
     
-    function success = clearTempDir(obj)
-      [success, message, ~] = rmdir(obj.tname,'s');
+    function clearTempDir(obj) % throws
+      [success, message, ~] = rmdir(obj.projTempDir,'s');
       if ~success
-        error('Could not clear the temp directory %s',message);
+        warning('Could not clear the temp directory %s',message);
       end
-      [success, message, ~] = mkdir(obj.tname);
+      [success, message, ~] = mkdir(obj.projTempDir);
       if ~success
         error('Could not clear the temp directory %s',message);
       end
@@ -2756,6 +2856,7 @@ classdef Labeler < handle
       end
       
       % 20190207: added nLabels to dmc
+      % 20190404: remove .trnName, .trnNameLbl as these dup DMC
       for i = 1:numel(s.trackerData),
         if isfield(s.trackerData{i},'trnLastDMC'),
           for j = 1:numel(s.trackerData{i}.trnLastDMC),
@@ -2768,6 +2869,20 @@ classdef Labeler < handle
               end
             end
           end
+        end
+        if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
+          if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
+            assert(all(strcmp(s.trackerData{i}.trnName,...
+                              {s.trackerData{i}.trnLastDMC.modelChainID})));
+          end
+          s.trackerData{i} = rmfield(s.trackerData{i},'trnName');
+        end
+        if isfield(s.trackerData{i},'trnNameLbl') && ~isempty(s.trackerData{i}.trnNameLbl)
+          if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
+            assert(all(strcmp(s.trackerData{i}.trnNameLbl,...
+                              {s.trackerData{i}.trnLastDMC.trainID})));
+          end
+          s.trackerData{i} = rmfield(s.trackerData{i},'trnNameLbl');
         end
       end
       
@@ -2903,8 +3018,6 @@ classdef Labeler < handle
             warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
             for iTrker=1:numel(s.trackerData)
               if strcmp(s.trackerClass{iTrker}{1},'DeepTracker') && ~isempty(s.trackerData{iTrker})
-                s.trackerData{iTrker}.trnName = '';
-                s.trackerData{iTrker}.trnNameLbl = '';
                 s.trackerData{iTrker}.trnLastDMC = [];
                 s.trackerData{iTrker}.movIdx2trkfile = containers.Map('keytype','int32','valuetype','any');
                 warningNoTrace('Cleared Deep Learning tracker of type ''%s''.',char(s.trackerData{iTrker}.trnNetType));
@@ -2957,7 +3070,7 @@ classdef Labeler < handle
         if ~isempty(s.trackerData{i}.sPrmAll) && ...
     	     ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
           s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
-        end
+        end          
       end
       
       if isfield(s,'preProcParams'),

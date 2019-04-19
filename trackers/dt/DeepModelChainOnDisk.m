@@ -1,4 +1,4 @@
-classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
+classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   % DMCOD understands the filesystem structure of a deep model. This same
   % structure is used both remotely and locally.
   
@@ -21,9 +21,11 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
     nLabels % number of labels used to train
-    %backEnd % back-end info (bsub, docker, aws)
     
-    aptRootUser % (optional) external/user APT code checkout root
+    reader % scalar DeepModelChainReader. used to update the itercurr; 
+      % knows how to read the (possibly remote) filesys etc
+      
+    %aptRootUser % (optional) external/user APT code checkout root    
   end
   properties (Dependent)
     dirProjLnx
@@ -53,6 +55,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     aptRepoSnapshotName
     
     trainModelGlob
+    
+    isRemote
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -174,7 +178,10 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.aptRepoSnapshotName(obj)
       v = sprintf('%s_%s.aptsnapshot',obj.modelChainID,obj.trainID);
-    end      
+    end
+    function v = get.isRemote(obj)
+      v = obj.reader.getModelIsRemote();
+    end
   end
   methods
     function obj = DeepModelChainOnDisk(varargin)
@@ -201,60 +208,52 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         end
       end
     end
-    function g = keepGlobsLnx(obj)
+    function lsProjDir(obj)
+      ls('-al',obj.dirProjLnx);
+    end
+    function lsModelChainDir(obj)
+      ls('-al',obj.dirModelChainLnx);
+    end
+    function g = modelGlobsLnx(obj)
       % filesys paths/globs of important parts/stuff to keep
+      
+      dmcl = obj.dirModelChainLnx;
+      gnetspecific = DLNetType.modelGlobs(obj.netType,obj.iterCurr);
+      gnetspecific = cellfun(@(x)[dmcl '/' x],gnetspecific,'uni',0);
       
       g = { ...
         [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl
-        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
-        [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterCurr)]; ... % latest iter 
-        [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... 
-        [obj.dirModelChainLnx '/' 'splitdata.json']; ...
-        [obj.dirModelChainLnx '/' 'traindata*']; ...
+        [dmcl '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
         };
+      g = [g;gnetspecific(:)];
     end
-    
-    function tfSuccess = updateCurrInfo(obj,varargin)
-      [getMostRecentModelMeth,getMostRecentModelMethArgs] = ...
-        myparse(varargin,...
-        'getMostRecentModelMeth','getMostRecentModelLocalLnx',...
-        'getMostRecentModelMethArgs',{}...
-        );
+    function mdlFiles = findModelGlobs(obj)
+      globs = obj.modelGlobsLnx;
+      mdlFiles = cell(0,1);
+      for g = globs(:)',g=g{1}; %#ok<FXSET>
+        if contains(g,'*')
+          gP = fileparts(g);
+          dd = dir(g);
+          mdlFilesNew = {dd.name}';
+          mdlFilesNew = cellfun(@(x) fullfile(gP,x),mdlFilesNew,'uni',0);
+          mdlFiles = [mdlFiles; mdlFilesNew];
+        elseif exist(g,'file')>0
+          mdlFiles{end+1,1} = g;
+        end
+      end      
+    end
+                 
+    function tfSuccess = updateCurrInfo(obj)
+      % Update .iterCurr by probing filesys
       
-      maxiter = feval(getMostRecentModelMeth,obj,getMostRecentModelMethArgs{:});
+      assert(isscalar(obj));
+      maxiter = obj.reader.getMostRecentModel(obj);
       obj.iterCurr = maxiter;
       tfSuccess = ~isnan(maxiter);
-    end
-    
-    function maxiter = getMostRecentModelLocalLnx(obj,varargin)
-      maxiter = nan;
-      %filepath = '';
       
-      modelglob = obj.trainModelGlob;
-      modelfiles = mydir(fullfile(obj.dirModelChainLnx,modelglob));
-      if isempty(modelfiles),
-        return;
-      end
-      
-      maxiter = -1;
-      for i = 1:numel(modelfiles),
-        iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
-        if iter > maxiter,
-          maxiter = iter;
-          %filepath = modelfiles{i};
-        end
-      end
-    end
-    
-    function maxiter = getMostRecentModelAWS(obj,aws)
-      % maxiter is nan if something bad happened or if DNE
-      
-      fspollargs = {'mostrecentmodel' obj.dirModelChainLnx};
-      [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
-      if tfsucc
-        maxiter = str2double(res{1}); % includes 'DNE'->nan
-      else
-        maxiter = nan;
+      if maxiter>obj.iterFinal
+        warningNoTrace('Current model iteration (%d) exceeds specified maximum/target iteration (%d).',...
+          maxiter,obj.iterFinal);
       end
     end
     
@@ -274,6 +273,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
        
   end
+  
   
   methods (Static)
     

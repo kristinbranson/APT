@@ -25,11 +25,11 @@ import math
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
     def __init__(self, conf, name='unet_resnet'):
-        conf.use_pretrained_weights = True
         self.conf = conf
         self.out_scale = 1.
         self.resnet_source = self.conf.get('mdn_resnet_source','slim')
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
+        conf.use_pretrained_weights = True
 
         if self.resnet_source == 'official_tf':
             url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
@@ -205,13 +205,13 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def __init__(self, conf, name='umdn_resnet',pad_input=False):
-        conf.use_pretrained_weights = True
 #        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         # self.resnet_source = 'official_tf'
         self.resnet_source = self.conf.get('mdn_resnet_source','slim')
         self.offset = float(self.conf.get('mdn_slim_output_stride',32))
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input)
+        conf.use_pretrained_weights = True
         self.dep_nets = []
         self.max_dist = 30
         self.min_dist = 5
