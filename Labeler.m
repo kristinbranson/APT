@@ -1965,8 +1965,8 @@ classdef Labeler < handle
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       %MK 20190204 copy models to cache dir for bundled label file.
-      obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
-      obj.clearTempDir(); 
+      obj.projCopyModelsToCache(obj.projTempDir);
+      %obj.clearTempDir(); 
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -2077,7 +2077,7 @@ classdef Labeler < handle
       % exist, contents not guaranteed in any way
       
       if isempty(obj.projTempDir)
-        obj.projTempDir = tempname;
+        obj.projTempDir = tempname(APT.getdlcache);
       end
       tname = obj.projTempDir;
       if exist(tname,'dir')==0
@@ -2151,18 +2151,20 @@ classdef Labeler < handle
         return;
       end
       
-      % Check that cachedir exists; if not create a new one (eg if project
-      % opened in new filesys)
-      if ~exist(cacheDir,'dir')
-        uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir.','Cache Dir'));
-        newCacheDir = uigetdir('','Select cache dir');
-        if newCacheDir == 0
-          warningNoTrace('No local cache dir selected. Could not restore model files. Saved models will not be available for use');
-          return;
-        else
-          cacheDir = newCacheDir;
-        end
-      end
+      assert(strcmp(cacheDir,obj.projTempDir) && exist(cacheDir,'dir')>0);
+      
+%       % Check that cachedir exists; if not create a new one (eg if project
+%       % opened in new filesys)
+%       if ~exist(cacheDir,'dir')
+%         uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir.','Cache Dir'));
+%         newCacheDir = uigetdir('','Select cache dir');
+%         if newCacheDir == 0
+%           warningNoTrace('No local cache dir selected. Could not restore model files. Saved models will not be available for use');
+%           return;
+%         else
+%           cacheDir = newCacheDir;
+%         end
+%       end
       
       % Update/set all DMC.rootDirs to cacheDir
       % 
@@ -2222,29 +2224,25 @@ classdef Labeler < handle
         end
       end
       
-      outdir = fullfile(cacheDir,obj.projname);
-      if ~exist(outdir,'dir')
-        [success,message,~] = mkdir(outdir);
-        if ~success
-          warningNoTrace('Could not create directory %s in the cache. Could not restore model files. Saved models will not be available for use: %s',...
-            outdir,message);
-        end
-      end
+%       outdir = fullfile(cacheDir,obj.projname);
+%       if ~exist(outdir,'dir')
+%         [success,message,~] = mkdir(outdir);
+%         if ~success
+%           warningNoTrace('Could not create directory %s in the cache. Could not restore model files. Saved models will not be available for use: %s',...
+%             outdir,message);
+%         end
+%       end
+% 
+%       % copy top-level projdir. This leaves existing files (other
+%       % modelchaindirs etc) intact
+%       fprintf(1,'Copying %s->%s\n',tCacheDir,outdir);
+%       [success,message,~] = copyfile(tCacheDir,outdir);
+%       if ~success
+%         warningNoTrace('Could not copy model files to local cache dir %s',outdir);
+%         warningNoTrace(message);
+%       end
 
-      % copy top-level projdir. This leaves existing files (other
-      % modelchaindirs etc) intact
-      fprintf(1,'Copying %s->%s\n',tCacheDir,outdir);
-      [success,message,~] = copyfile(tCacheDir,outdir);
-      if ~success
-        warningNoTrace('Could not copy model files to local cache dir %s',outdir);
-        warningNoTrace(message);
-      end
-      
-      if success
-        obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = cacheDir;
-      else
-        % Proj is going to be pretty hosed but they can view labels etc
-      end
+      obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = cacheDir;      
     end
     
     function [rawLblFile,projtempdir] = projGetRawLblFile(obj) % throws
@@ -2305,16 +2303,17 @@ classdef Labeler < handle
             end
             
             modelFiles = dm.findModelGlobs();
-            modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
+            assert(strcmp(dm.rootDir,projtempdir));
+%             modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
             for mndx = 1:numel(modelFiles)
-              copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-              % for a given tracker, multiple DMCs this could re-copy 
-              % proj-level artifacts like stripped lbls
+%               copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+%               % for a given tracker, multiple DMCs this could re-copy 
+%               % proj-level artifacts like stripped lbls
               if verbose>1
-                fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+                fprintf(1,'  %s\n',modelFiles{mndx});
               end
             end           
-            allModelFiles = [allModelFiles; modelFilesDst]; %#ok<AGROW>
+            allModelFiles = [allModelFiles; modelFiles(:)]; %#ok<AGROW>
           end
         end
       end
@@ -2322,7 +2321,7 @@ classdef Labeler < handle
       pat = [regexprep(projtempdir,'\\','\\\\') '[/\\]'];
       allModelFiles = cellfun(@(x) regexprep(x,pat,''),...
         allModelFiles,'UniformOutput',false);
-      fprintf(1,'Tarring model files into %s\n',projtempdir);
+      fprintf(1,'Tarring %d model files into %s\n',numel(allModelFiles),projtempdir);
       tar([outFile '.tar'],allModelFiles,projtempdir);
       movefile([outFile '.tar'],outFile); 
       fprintf(1,'Project saved to %s\n',outFile);

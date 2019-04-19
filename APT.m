@@ -203,6 +203,18 @@ classdef APT
 %       end
     end
     
+    function cacheDir = getdlcache()
+      if ispc
+        userDir = winqueryreg('HKEY_CURRENT_USER',...
+          ['Software\Microsoft\Windows\CurrentVersion\' ...
+          'Explorer\Shell Folders'],'Personal');
+      else
+        userDir = char(java.lang.System.getProperty('user.home'));
+      end
+      
+      cacheDir = fullfile(userDir,'.apt');
+    end
+    
     function s = codesnapshot
       % This method assumes that the user has set their path using
       % APT.setpath (so that the Manifest correclty reflects
