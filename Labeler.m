@@ -1965,49 +1965,8 @@ classdef Labeler < handle
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       %MK 20190204 copy models to cache dir for bundled label file.
-      % reset movIdx2trkfile.
-      if 1
-        [succ,newCacheDir] = obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
-        if succ
-          %if ~strcmp(newCacheDir, obj.trackDLParams.Saving.CacheDir)
-          % obj.trackDLParams can differ from parameters stored in tracker
-          % objects; in particular, the top-level CacheDir can differ from 
-          % tracker object DMC rootdirs.
-          
-          % Note, projCopyModelsToCache currently always clears any 
-          % tracking results.
-          obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = newCacheDir;
-          tAll = obj.trackersAll;
-          for iTrker = 1:numel(tAll)
-            tObj = tAll{iTrker};
-            if isa(tObj,'DeepTracker')
-              dmc = tObj.trnLastDMC;
-              for ndx = 1:numel(dmc)
-                if ~dmc(ndx).isRemote
-                  dmc(ndx).rootDir = newCacheDir;
-                else
-                  % remote DMCODs unchanged
-                end
-              end
-              
-              %tObj.trackResInit();
-            end
-              % We save the stripped label file. If not, uncomment following to
-              % regenerate it. But the regenerated could be different than the
-              % original.
-              %         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-              %           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
-              %             s = obj.tracker.trnCreateStrippedLbl();
-              %             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
-              %           end
-              %         end
-            %end
-          end
-        else
-          % warns already thrown
-        end
-        obj.clearTempDir(); % clear the temp directory.
-      end
+      obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
+      obj.clearTempDir(); 
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -2161,19 +2120,40 @@ classdef Labeler < handle
       success = true;
     end
     
-    function [success,cacheDir] = projCopyModelsToCache(obj,cacheDir)
+    function projCopyModelsToCache(obj,cacheDir)
       % copies the unbundled model file from the projTempDir to cacheDir. 
       % If cacheDir doesn't exist asks user for new one.
-      % assumes .projTempDir is set
+      % 
+      % Preconds: 
+      %   - .projTempDir must be set
+      %   - bundled project untarred into .projTempDir
+      %   - .trackersAll has been set/loaded, ie 
+      %       .trackersAll{iDLTrker}.trnLastDMC(ivw) corresponds precisely 
+      %       to unbundled contents in .projTempDir (.rootDir may not be
+      %       correctly specified)
+      %
+      % Postconds:
+      % If success:
+      %   - .trackParams.ROOT.DeepTrack.Saving.CacheDir possibly updated
+      %   - .trackersAll{iDLTrker}.trnLastDMC(ivw).rootDir possibly updated
+      %   - models in .projTempDir copied into new CacheDir
+      %
+      % If failure, maybe nothing happened; project pretty unusable for
+      % tracking
+
       success = false;
+      
+      % Check for exploded cache in tempdir
       tCacheDir = fullfile(obj.projTempDir,obj.projname);
       if ~exist(tCacheDir,'dir')
         warningNoTrace('Could not find model data for %s in the temp directory %s. Not copying the model files',...
           obj.projname,obj.projTempDir);
         return;
       end
+      
+      % Check that cachedir exists; if not create a new one (eg if project
+      % opened in new filesys)
       if ~exist(cacheDir,'dir')
-%         [success,message,messageid] = mkdir(cacheDir);
         uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir.','Cache Dir'));
         newCacheDir = uigetdir('','Select cache dir');
         if newCacheDir == 0
@@ -2183,6 +2163,65 @@ classdef Labeler < handle
           cacheDir = newCacheDir;
         end
       end
+      
+      % Update/set all DMC.rootDirs to cacheDir
+      % 
+      % Bundle/DMC/modelChain notes 20190419. See also issue #285
+      % Current DMC unbundling philosophy
+      % - Upon unbundling, we do not generate a new modelChainID. Multiple
+      % APTs can all be using/pointing at a single modelChainDir (subdir
+      % within a cache)
+      %   * Restarts currently unsafe due to #285
+      % - If a user never restarts, modelChain artifacts are *immutable*
+      % and effetively read-only. Therefore it is OK if multiple APTs point 
+      % to a single modelChainDir.
+      % - "partial tracking" results live in <modelChain>/trk. These just
+      % accumulate over time as APT instances track with the modelChain.
+      % These are timestamped and should have effectively unique IDs. On
+      % project load, DeepTracker trkfiles pointers/caches are cleared so
+      % that the user does not see previous tracking results.
+      %   * Trkfiles may not be immutable depending on how 3D 
+      % postprocessing develops. This is prob moot if partial tracking is 
+      % never retained.
+      %
+      tAll = obj.trackersAll;
+      for iTrker = 1:numel(tAll)
+        tObj = tAll{iTrker};
+        if isa(tObj,'DeepTracker')
+          dmc = tObj.trnLastDMC;
+          for ivw = 1:numel(dmc)
+            if ~dmc(ivw).isRemote
+              dmc(ivw).rootDir = cacheDir;
+              
+              % This was a mistake as APT#2 could clear the partial 
+              % trkfiles used by APT#1
+%               mcDir = dmc(ivw).dirModelChainLnx;
+%               if exist(mcDir,'dir')>0
+%                 fprintf(1,'Cleaning %s\n',mcDir);
+%                 [success,message] = rmdir(mcDir,'s');
+%                 if ~success
+%                   warningNoTrace('Could not clean local modelChain cache dir %s:',mcDir);
+%                   warningNoTrace(message);
+%                   
+%                   % Nonfatal dont return
+%                 end
+%               end
+            else
+              warningNoTrace('Unexpected remote DMC detected for net %s, view %d.',...
+                tObj.trnNetType.prettyStr,ivw);
+              % At save-time we should be updating DMCs to local
+              
+              % Don't update dmc(ivw).rootDir
+              
+              % Nonfatal dont return
+            end
+          end
+          
+          % Don't retrain any previous tracking results          
+          tObj.clearTrackingResults();
+        end
+      end
+      
       outdir = fullfile(cacheDir,obj.projname);
       if ~exist(outdir,'dir')
         [success,message,~] = mkdir(outdir);
@@ -2191,18 +2230,20 @@ classdef Labeler < handle
             outdir,message);
         end
       end
-      
-      [success,message] = rmdir(outdir,'s');
-      fprintf(1,'Cleaning %s\n',outdir);
-      if ~success
-        warningNoTrace('Could not clean local cache dir %s:',outdir);
-        warningNoTrace(message);        
-      end
+
+      % copy top-level projdir. This leaves existing files (other
+      % modelchaindirs etc) intact
       fprintf(1,'Copying %s->%s\n',tCacheDir,outdir);
       [success,message,~] = copyfile(tCacheDir,outdir);
       if ~success
         warningNoTrace('Could not copy model files to local cache dir %s',outdir);
         warningNoTrace(message);
+      end
+      
+      if success
+        obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = cacheDir;
+      else
+        % Proj is going to be pretty hosed but they can view labels etc
       end
     end
     
