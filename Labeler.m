@@ -2319,8 +2319,9 @@ classdef Labeler < handle
         end
       end
       
-      allModelFiles = cellfun(@(x) regexprep(x,[projtempdir filesep],''),...
-        allModelFiles,'UniformOutput',false); % XXX filesep win
+      pat = [regexprep(projtempdir,'\\','\\\\') '[/\\]'];
+      allModelFiles = cellfun(@(x) regexprep(x,pat,''),...
+        allModelFiles,'UniformOutput',false);
       fprintf(1,'Tarring model files into %s\n',projtempdir);
       tar([outFile '.tar'],allModelFiles,projtempdir);
       movefile([outFile '.tar'],outFile); 
@@ -2335,7 +2336,7 @@ classdef Labeler < handle
     function clearTempDir(obj) % throws
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if ~success
-        error('Could not clear the temp directory %s',message);
+        warning('Could not clear the temp directory %s',message);
       end
       [success, message, ~] = mkdir(obj.projTempDir);
       if ~success
