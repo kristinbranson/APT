@@ -2329,7 +2329,7 @@ classdef Labeler < handle
       % matlab by default adds the .tar. So save it to tar
       % and then move it.
       
-      obj.clearTempDir();
+      %obj.clearTempDir();
     end
     
     function clearTempDir(obj) % throws
