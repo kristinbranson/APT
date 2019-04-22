@@ -28,18 +28,18 @@ classdef APT
     function m = readManifest()
 
       % KB 20190422 - Manifest no longer needed
-      m = struct;
       
-%       fname = fullfile(APT.Root,APT.MANIFESTFILE);
-%       if exist(fname,'file')==0
-%         error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
-%       else
-%         tmp = importdata(fname);
-%         tmp = regexp(tmp,',','split');
-%         tmp = cat(1,tmp{:});
-%         m = cell2struct(tmp(:,2),tmp(:,1));
-%       end
+      fname = fullfile(APT.Root,APT.MANIFESTFILE);
+      if exist(fname,'file')==0
+        m = struct;
+      else
+        tmp = importdata(fname);
+        tmp = regexp(tmp,',','split');
+        tmp = cat(1,tmp{:});
+        m = cell2struct(tmp(:,2),tmp(:,1));
+      end
       
+      % overwrite these fields to default locs if read in from Manifest
       root = APT.Root;
       m.jaaba = fullfile(root,'external','JAABA');
       m.piotr= fullfile(root,'external','PiotrDollarToolbox');

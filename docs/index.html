@@ -54,7 +54,9 @@ strong.regular-font {
 <ul>
 <li><a href="#Download">Download</a></li>
 <li><a href="#Requirements">Requirements</a></li>
+<!--
 <li><a href="#Install">Installation</a></li>
+-->
 <li><a href="#Startup">Start-up</a></li>
 <li><a href="#Setting up a new project">Setting up a new project</a></li>
 <li><a href="#Opening an existing project">Opening an existing project</a></li>
@@ -77,12 +79,14 @@ strong.regular-font {
 
 <p>The <a href="https://github.com/kristinbranson/APT">git repository</a> for APT is hosted on <a href="https://github.com/kristinbranson/APT"><b>Github</b></a>. This software is currently under heavy development, so we recommend using git to <a href="https://help.github.com/en/articles/cloning-a-repository">clone</a> the repository and updating frequently.</p>
 
+<!--
 <p>APT requires the following other code packs; please also download these:
 <ul>
 <li> <a href="https://github.com/kristinbranson/JAABA">JAABA</a>: The Janelia Automatic Animal Behavior Annotator.</li>
 <li> <a href="https://github.com/pdollar/toolbox">Piotr Dollar's Computer Vision Toolbox</a>.
 </ul>
 </p>
+-->
 
 <!-- <p>If you are working with multiple calibrated cameras, you may need calibration software for your rig, e.g <a href="https://www.vision.caltech.edu/bouguetj/calib_doc/"> Caltech camera calibration toolbox </a>
 -->
@@ -106,24 +110,25 @@ strong.regular-font {
 
 <h3>GPU</h3>
 
-<p>All but one of APT's learning algorithms are deep-learning-based, and thus are best trained on systems with <b>GPUs</b>. APT can use any of:
+<p>A <a href="https://lambdalabs.com/blog/best-gpu-tensorflow-2080-ti-vs-v100-vs-titan-v-vs-1080-ti-benchmark">GPU</a> is required to train a deep-learning based tracker. APT can use any of:
 <ul>
 <li>GPUs on your local machine via Docker.</li>
 <li>GPUs on the Amazon Cloud (AWS).</li>
 <li>The Janelia GPU cluster.</li>
 </ul>
-We have trained our classifiers using the following types of GPUs, sorted from best to worst. We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more information about setting up each of these back ends is <a href="#BackEnd">here</a>. 
+We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more information about setting up each of these back ends is <a href="#BackEnd">here</a>. 
 
+<!--
 <hr class="h2-divider">
 
-<h2><a id="Install">Install</a></h2>
+<h2><a id="Install">Installation</a></h2>
 
 In the APT directory, copy Manifest.sample.txt  to Manifest.txt and edit to point to your copy of JAABA and Piotr's toolbox (specify the root directory, which contains the subfolders filehandling/ and misc/, 
 e.g. jaaba, c:\pgms\jaaba
 	piotr, c:\pgms\pdollar_toolbox).
  
 NOTE: In Manifest.sample.txt there is also a path to camera/calibration/toolbox, if you are not using multi-camera it is OK to not include this line.
-
+-->
 
 
 <hr class="h2-divider">
@@ -138,7 +143,7 @@ APT is a MATLAB-based program. To run it:
 </li>
 
 <li> Run <b>StartAPT</b> on the command line to start APT:
-<pre>>> StartAPT; or apt=StartAPT; 
+<pre>>> StartAPT; 
 </pre>
 </li>
 This will open an <a href="images/apt_open_screen.png" target="_blank">initial screen.</a>
