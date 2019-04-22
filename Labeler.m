@@ -6700,9 +6700,25 @@ classdef Labeler < handle
       tfRestrict = ~isempty(tblMFTrestrict);
       
       if useLabels2
-        mfts = MFTSetEnum.AllMovAllLabeled2;
+        if isempty(useTrain)
+          mfts = MFTSetEnum.AllMovAllLabeled2;
+        elseif useTrain
+          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.Labeled2Frm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        else % useGT
+          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.Labeled2Frm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        end
       else
-        mfts = MFTSetEnum.AllMovAllLabeled;
+        if isempty(useTrain)
+          mfts = MFTSetEnum.AllMovAllLabeled;
+        elseif useTrain
+          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.LabeledFrm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);          
+        else % useGT
+          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.LabeledFrm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        end
       end
       tblMF = mfts.getMFTable(obj);
       
