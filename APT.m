@@ -40,6 +40,7 @@ classdef APT
 %         m = cell2struct(tmp(:,2),tmp(:,1));
 %       end
       
+      root = APT.Root;
       m.jaaba = fullfile(root,'external','JAABA');
       m.piotr= fullfile(root,'external','PiotrDollarToolbox');
       m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');
