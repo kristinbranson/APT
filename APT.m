@@ -54,7 +54,7 @@ classdef APT
       if isfield(m,'piotr')
         pdolroot = m.piotr;
       else
-        pdolroot = '';
+        pdolroot = fullfile(root,'external','PiotrDollarToolbox');
       end      
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
