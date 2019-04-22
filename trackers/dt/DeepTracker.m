@@ -474,11 +474,14 @@ classdef DeepTracker < LabelTracker
       
       % 20190405 
       % .trnName, .trnNameLbl removed as they dup .trnLastDMC
-      if any(isfield(s,{'trnName' 'trnNameLbl'}))
-        s = rmfield(s,{'trnName' 'trnNameLbl'});
+      if isfield(s,'trnName')
+        s = rmfield(s,'trnName');
+      end
+      if isfield(s,'trnNameLbl')
+        s = rmfield(s,'trnNameLbl');
       end
       % Add .reader to any .trnLastDMCs; assume local filesys
-      if ~isempty(s.trnLastDMC) && ~isfield(s.trnLastDMC,'reader')
+      if isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC) && ~isfield(s.trnLastDMC,'reader')
         rdrObj = DeepModelChainReaderLocal();
         [s.trnLastDMC.reader] = deal(rdrObj);
       end
