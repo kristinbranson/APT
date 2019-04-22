@@ -59,7 +59,7 @@ classdef APT
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
       else
-        camroot = '';
+        camroot = fullfile(root,'external','CameraCalibrationToolbox');
       end
       
       if isempty(pdolroot)
