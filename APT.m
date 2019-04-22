@@ -26,28 +26,23 @@ classdef APT
     end
     
     function m = readManifest()
-      fname = fullfile(APT.Root,APT.MANIFESTFILE);
-      if exist(fname,'file')==0
-        % KB 20190422 - Manifest no longer needed
-        m = struct;
-        %error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
-      else
-        tmp = importdata(fname);
-        tmp = regexp(tmp,',','split');
-        tmp = cat(1,tmp{:});
-        m = cell2struct(tmp(:,2),tmp(:,1));
-      end
+
+      % KB 20190422 - Manifest no longer needed
+      m = struct;
       
-      % default locations if not read from manifest
-      if ~isfield(m,'jaaba') && ~isfield(m,'jctrax'),
-        m.jaaba = fullfile(root,'external','JAABA');
-      end
-      if ~isfield(m,'piotr')
-        m.piotr= fullfile(root,'external','PiotrDollarToolbox');
-      end      
-      if ~isfield(m,'cameracalib'),
-        m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');
-      end
+%       fname = fullfile(APT.Root,APT.MANIFESTFILE);
+%       if exist(fname,'file')==0
+%         error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
+%       else
+%         tmp = importdata(fname);
+%         tmp = regexp(tmp,',','split');
+%         tmp = cat(1,tmp{:});
+%         m = cell2struct(tmp(:,2),tmp(:,1));
+%       end
+      
+      m.jaaba = fullfile(root,'external','JAABA');
+      m.piotr= fullfile(root,'external','PiotrDollarToolbox');
+      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');
       
     end
   
