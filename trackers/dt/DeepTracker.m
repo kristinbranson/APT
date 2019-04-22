@@ -3644,7 +3644,9 @@ classdef DeepTracker < LabelTracker
         end
       else
         nview = numel(movtrk);
-        assert(~tftrx && ~tftrxids,'Trx not supported for multiple views.');
+        if nview>1
+          assert(~tftrx && ~tftrxids,'Trx not supported for multiple views.');
+        end
       end
       assert(isequal(nview,numel(movtrk),numel(outtrk)));
       if tfmodel

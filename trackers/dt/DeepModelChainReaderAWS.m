@@ -7,7 +7,7 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
   methods
     
     function obj = DeepModelChainReaderAWS(aws)
-      assert(isa(aws,'AWSEc2'));
+      assert(isa(aws,'AWSec2'));
       assert(aws.isSpecified);
       obj.awsec2 = aws; % awsec2 is specified and so .instanceID is immutable
     end
