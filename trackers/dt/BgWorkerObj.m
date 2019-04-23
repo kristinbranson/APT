@@ -53,7 +53,6 @@ classdef BgWorkerObj < handle
     function reset(obj)
       
     end
-
        
     function printLogfiles(obj) % obj const
       logFiles = obj.getLogFiles();

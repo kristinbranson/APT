@@ -2825,15 +2825,18 @@ classdef DeepTracker < LabelTracker
         baseargsaug = [baseargsaug {'trxtrk' {trksysinfo.trxremote} 'trxids' trxids}];
       end
       
-      rootDirRemoteAbs = dmc(1).rootDir;
-      errfileRemoteAbs = trksysinfo(1).errfile;
+      if nvw>1
+        assert(all(strcmp({dmc.rootDir},dmc(1).rootDir)));
+      end
+      rootDirRemoteAbs = dmc(1).rootDir; % common rootDir
+      errfileRemoteAbs = trksysinfo(1).errfile; % multiview: single errfile/logfile
       logfileRemoteAbs = trksysinfo(1).logfile;
       trkfilesRemoteAbs = {trksysinfo.trkfileremote};
-      assert(nvw==1 && ivw==1,'Multiview tracking currently unsupported on AWS.');
+      movfilesRemoteAbs = {trksysinfo.movremote};
       codestr = DeepTracker.trackCodeGenAWS(...
         modelChainID,rootDirRemoteAbs,dlLblFileRemote,errfileRemoteAbs,...
         obj.trnNetType,...
-        {trksysinfo.movremote},trkfilesRemoteAbs,frm0,frm1,baseargsaug);
+        movfilesRemoteAbs,trkfilesRemoteAbs,frm0,frm1,baseargsaug);
       syscmd = aws.sshCmdGeneralLogged(codestr,logfileRemoteAbs);
         
       if obj.dryRunOnly

@@ -37,6 +37,8 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
       dmcs = obj.dmcs;
       for ivw=1:obj.nviews
         
+        % Multiview: errFile and logFile for ivw>1 currently never exist.
+        % which is fine for now
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
         finalmdl = dmc.trainFinalModelLnx;
