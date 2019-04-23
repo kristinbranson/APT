@@ -40,8 +40,23 @@ classdef DLBackEndClass < handle
         [tfexist,tfrunning] = aws.inspectInstance;
         tf = tfrunning;
         if ~tf
-          reason = sprintf('AWS EC2 instance %s is not running.',aws.instanceID);
-          return;
+          qstr = sprintf('AWS EC2 instance %s is not running. Start it?',aws.instanceID);
+          tstr = 'Start AWS EC2';
+          btn = questdlg(qstr,tstr,'Yes','Cancel','Cancel');
+          if isempty(btn)
+            btn = 'Cancel';
+          end
+          switch btn
+            case 'Yes'
+              tf = aws.startInstance();
+              if ~tf
+                reason = sprintf('Could not start AWS EC2 instance %s.',aws.instanceID);
+                return;
+              end
+            otherwise
+              reason = sprintf('AWS EC2 instance %s is not running.',aws.instanceID);
+              return;
+          end
         end
         
         reason = '';

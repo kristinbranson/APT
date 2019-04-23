@@ -30,6 +30,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         'errFile',[],... % char, full path to DL err file
         'errFileExists',[],... % true of errFile exists and has size>0
         'logFile',[],... % char, full path to Bsub logfile
+        'logFileExists',[],... % logical
         'logFileErrLikely',[],... % true if Bsub logfile suggests error
         'killFile',[],... % char, full path to KILL tokfile
         'killFileExists',[]... % true if KILL tokfile found
@@ -48,14 +49,14 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
                 
         % See AWSEC2 convenience meth
         fspollargs = ...
-          sprintf('exists %s exists %s existsNE %s existsNEerr %s exists %s contents %s',...
-            json,finalmdl,errFile,logFile,killFile,json);
+          sprintf('exists %s exists %s existsNE %s existsNE %s existsNEerr %s exists %s contents %s',...
+            json,finalmdl,errFile,logFile,logFile,killFile,json);
         cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollargs);
 
         [tfpollsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
         if tfpollsucc
           reslines = regexp(res,'\n','split');
-          tfpollsucc = iscell(reslines) && numel(reslines)==6+1; % last cell is {0x0 char}
+          tfpollsucc = iscell(reslines) && numel(reslines)==7+1; % last cell is {0x0 char}
         end
           
         sRes(ivw).pollsuccess = tfpollsucc;
@@ -70,11 +71,12 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
           sRes(ivw).jsonPresent = strcmp(reslines{1},'y');
           sRes(ivw).tfComplete = strcmp(reslines{2},'y');
           sRes(ivw).errFileExists = strcmp(reslines{3},'y');
-          sRes(ivw).logFileErrLikely = strcmp(reslines{4},'y');
-          sRes(ivw).killFileExists = strcmp(reslines{5},'y');
+          sRes(ivw).logFileExists = strcmp(reslines{4},'y');
+          sRes(ivw).logFileErrLikely = strcmp(reslines{5},'y');
+          sRes(ivw).killFileExists = strcmp(reslines{6},'y');
           
           if sRes(ivw).jsonPresent
-            trnLog = jsondecode(reslines{6});
+            trnLog = jsondecode(reslines{7});
             lastKnownStep = obj.trnLogLastStep(ivw);
             newStep = trnLog.step(end);
             tfupdate = newStep>lastKnownStep;
@@ -93,6 +95,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
           sRes(ivw).jsonPresent = false;
           sRes(ivw).tfComplete = false;
           sRes(ivw).errFileExists = false;
+          sRes(ivw).logFileExists = false;
           sRes(ivw).logFileErrLikely = false;
           sRes(ivw).killFileExists = false;
         end

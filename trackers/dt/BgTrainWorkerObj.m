@@ -38,6 +38,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
         'errFile',[],... % char, full path to DL err file
         'errFileExists',[],... % true of errFile exists and has size>0
         'logFile',[],... % char, full path to Bsub logfile
+        'logFileExists',[],... % logical 
         'logFileErrLikely',[],... % true if Bsub logfile suggests error
         'killFile',[],... % char, full path to KILL tokfile
         'killFileExists',[]... % true if KILL tokfile found
@@ -60,6 +61,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = obj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).logFile = logFile;
+        sRes(ivw).logFileExists = obj.errFileExistsNonZeroSize(logFile); % ahem good meth name
         sRes(ivw).logFileErrLikely = obj.logFileErrLikely(logFile);
         sRes(ivw).killFile = killFile;
         sRes(ivw).killFileExists = obj.fileExists(killFile);        

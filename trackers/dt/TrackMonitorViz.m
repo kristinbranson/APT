@@ -272,7 +272,7 @@ classdef TrackMonitorViz < handle
         isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
-        isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
+        isLogFile = any([res.logFileExists]);
       end
       
       if ~isempty(res) && isfield(res,'isRunning')
