@@ -1746,31 +1746,9 @@ classdef DeepTracker < LabelTracker
         % Originally we uploaded trxfiles but this is no longer nec since
         % training relies on the cache which is now pre-rotated etc etc
         
-%         aws = backEnd.awsec2;
-%         aws.ensureRemoteDir('data','descstr','data');
-%         
-%         iMovTrn = unique(tblPTrn.mov); % must be regular mov, not GT
-
-        tftrx = obj.lObj.hasTrx;      
-        assert(obj.nview==1,'Single-view only');      
-        IVIEW = 1;
-        nmov = size(s.trxFilesAll,1);
-        for iMov=1:nmov
-          s.movieFilesAll{iMov,IVIEW} = '__UNUSED__';        
-          if tftrx
-            s.trxFilesAll{iMov,IVIEW} = '__UNUSED__';
-          end
-%           if any(iMov==iMovTrn)
-%             trxLclAbs = s.trxFilesAll{iMov,IVIEW};
-%             trxsha = DeepTracker.getSHA(trxLclAbs);
-%             trxRemoteRel = ['data/' trxsha];
-%             trxRemoteAbs = ['/home/ubuntu/' trxRemoteRel];
-%             aws.scpUploadOrVerify(trxLclAbs,trxRemoteRel,'trxfile'); % throws
-%             
-%             s.trxFilesAll{iMov,IVIEW} = trxRemoteAbs;
-%           else
-%             s.trxFilesAll{iMov,IVIEW} = '__UNUSED__';
-%           end          
+        s.movieFilesAll(:) = {'__UNUSED__'};
+        if obj.lObj.hasTrx
+          s.trxFilesAll(:) = {'__UNUSED__'};
         end
       end
     end
@@ -1890,6 +1868,7 @@ classdef DeepTracker < LabelTracker
       end
       
       if obj.bgTrnIsRunning,
+        assert(obj.lObj.trackDLBackEnd.type~=DLBackEnd.AWS);
         obj.updateLastDMCsCurrInfo();
         iterCurr = zeros(size(obj.trnLastDMC));
         for i = 1:numel(obj.trnLastDMC),
@@ -1918,8 +1897,20 @@ classdef DeepTracker < LabelTracker
       % check trained tracker
       if isempty(obj.trnName)
         error('No trained tracker found.');
-      end      
+      end
 
+      dmc = obj.trnLastDMC;
+      backend = obj.lObj.trackDLBackEnd;
+
+      if backend.type==DLBackEnd.AWS
+        aws = backend.awsec2;        
+        for i=1:numel(dmc)
+          if ~dmc(i).isRemote
+            dmc(i).mirror2remoteAws(aws);
+          end
+        end
+      end
+      
       obj.updateTrackerInfo();
       
       % are there tracking results from previous trackers? TODO This can be
@@ -1939,7 +1930,6 @@ classdef DeepTracker < LabelTracker
             tblMFT = [tblMFT;tblMFTRetrack(~ism,:)];
           end
           obj.cleanOutOfDateTrackingResults(isCurr);
-          
         end
         
         % figure out what to track
@@ -1971,8 +1961,7 @@ classdef DeepTracker < LabelTracker
         cropRois = cat(1,cropInfo.roi);
         else
           cropRois = [];
-        end
-        
+        end        
       end
 
       tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
@@ -1981,8 +1970,6 @@ classdef DeepTracker < LabelTracker
       else
         hmapArgs = {};
       end
-      
-      dmc = obj.trnLastDMC;
       
       % Could check here that for local dmcs, dmc.rootDir matches
       % obj.lObj.DLCacheDir (as in canTrack()). However the assertion that
@@ -1995,9 +1982,7 @@ classdef DeepTracker < LabelTracker
       dlLblFileLcl = dlLblFileLcl{1};
       assert(exist(dlLblFileLcl,'file')>0);
       
-      trkBackEnd = obj.lObj.trackDLBackEnd;
-
-      switch trkBackEnd.type
+      switch backend.type
         case DLBackEnd.Bsub,
           if isexternal,
             args = {};
@@ -2005,10 +1990,10 @@ classdef DeepTracker < LabelTracker
               args = {'trxfiles',trxfiles,'targets',targets};
             end
             % this is not going to work for multiple movies. TODO: fix
-            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+            tfSuccess = obj.trkSpawnBsubDocker(backend,[],[],dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,args{:});
           else
-            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+            tfSuccess = obj.trkSpawnBsubDocker(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1);
           end
           if ~tfSuccess,
@@ -2061,10 +2046,10 @@ classdef DeepTracker < LabelTracker
             if obj.lObj.hasTrx,
               args = [args,{'trxfiles',trxfiles,'targets',targets}];
             end
-            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+            tfSuccess = obj.trkSpawnBsubDocker(backend,[],[],dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,'gpuids',gpuids,args{:});
           else
-            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+            tfSuccess = obj.trkSpawnBsubDocker(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});
           end
           if ~tfSuccess,
@@ -2076,7 +2061,7 @@ classdef DeepTracker < LabelTracker
           if isexternal,
             error('Not implemented');
           else
-            obj.trkSpawnAWS(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
+            obj.trkSpawnAWS(backend,mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
           end
         otherwise
           assert(false);
@@ -2740,6 +2725,10 @@ classdef DeepTracker < LabelTracker
       movsfull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
       trxsfull = obj.lObj.getTrxFilesAllFullMovIdx(mIdx);
       tftrx = obj.lObj.hasTrx;
+      if tftrx
+        assert(nvw==1,...
+          'Multiview projects with trajectory (trx) currently unsupported for tracking on AWS.');
+      end
       tfcrop = ~isempty(cropRois);
       if tfcrop
         szassert(cropRois,[nvw 4]);
@@ -2831,14 +2820,16 @@ classdef DeepTracker < LabelTracker
       end
       %baseargsaug = [baseargsaug {'view' ivw}]; %#ok<AGROW> % 1-based OK
       if tftrx
+        assert(nvw==1); 
         trxids = unique(tMFTConc.iTgt); 
-        baseargsaug = [baseargsaug {'trxtrk' {trksysinfo.trkfileremote} 'trxids' trxids}];
+        baseargsaug = [baseargsaug {'trxtrk' {trksysinfo.trxremote} 'trxids' trxids}];
       end
       
       rootDirRemoteAbs = dmc(1).rootDir;
       errfileRemoteAbs = trksysinfo(1).errfile;
       logfileRemoteAbs = trksysinfo(1).logfile;
       trkfilesRemoteAbs = {trksysinfo.trkfileremote};
+      assert(nvw==1 && ivw==1,'Multiview tracking currently unsupported on AWS.');
       codestr = DeepTracker.trackCodeGenAWS(...
         modelChainID,rootDirRemoteAbs,dlLblFileRemote,errfileRemoteAbs,...
         obj.trnNetType,...
@@ -4338,38 +4329,38 @@ classdef DeepTracker < LabelTracker
       if tfHasRes
         obj.trackCurrResLoadFromTrks(trks);
         
-        tfTrx = obj.lObj.hasTrx;
-        
-        trkfilesCurr = obj.trackResGetTrkfiles(mIdx); % [ntrk x nview]
-        ntrkCurr = size(trkfilesCurr,1);
-        for ivw=1:1 % TODO: multiview
-          for itrk=1:ntrkCurr
-            trkfile = trkfilesCurr{itrk,ivw};
-            [trkfileP,trkfileF] = fileparts(trkfile);
-            hmapDirS = [trkfileF '_hmap'];
-            hmapDir = fullfile(trkfileP,hmapDirS);
-            if exist(hmapDir,'dir')>0
-              if tfTrx
-                % Ideally the heatmaps size is related to 
-                % sPrm....TargetCrop.Radius, but they might not have set
-                % that, etc etc
-                hmnr = [];
-                hmnc = [];
-              else
-                hmnr = obj.lObj.movienr;
-                hmnc = obj.lObj.movienc;
-              end
-              obj.trkVizer.heatMapInit(hmapDir,hmnr,hmnc);
-              if ntrkCurr==1
-                fprintf('Found heatmap dir: %s\n',hmapDirS);
-              else                
-                fprintf('Found heatmap dir %s for trkfile %d/%d. Other heatmap dirs (if any) will be ignored.\n',...
-                  hmapDirS,itrk,ntrkCurr);
-              end
-              break;
-            end
-          end
-        end
+%         tfTrx = obj.lObj.hasTrx;
+%         
+%         trkfilesCurr = obj.trackResGetTrkfiles(mIdx); % [ntrk x nview]
+%         ntrkCurr = size(trkfilesCurr,1);
+%         for ivw=1:1 % TODO: multiview
+%           for itrk=1:ntrkCurr
+%             trkfile = trkfilesCurr{itrk,ivw};
+%             [trkfileP,trkfileF] = fileparts(trkfile);
+%             hmapDirS = [trkfileF '_hmap'];
+%             hmapDir = fullfile(trkfileP,hmapDirS);
+%             if exist(hmapDir,'dir')>0
+%               if tfTrx
+%                 % Ideally the heatmaps size is related to 
+%                 % sPrm....TargetCrop.Radius, but they might not have set
+%                 % that, etc etc
+%                 hmnr = [];
+%                 hmnc = [];
+%               else
+%                 hmnr = obj.lObj.movienr;
+%                 hmnc = obj.lObj.movienc;
+%               end
+%               obj.trkVizer.heatMapInit(hmapDir,hmnr,hmnc);
+%               if ntrkCurr==1
+%                 fprintf('Found heatmap dir: %s\n',hmapDirS);
+%               else                
+%                 fprintf('Found heatmap dir %s for trkfile %d/%d. Other heatmap dirs (if any) will be ignored.\n',...
+%                   hmapDirS,itrk,ntrkCurr);
+%               end
+%               break;
+%             end
+%           end
+%         end
       else
         obj.trackCurrResInit();
       end

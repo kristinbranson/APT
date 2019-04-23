@@ -1673,8 +1673,9 @@ classdef Labeler < handle
           obj.projBundleSave(fname);
         catch ME
           save(fname,'-mat','-struct','s');
+          msg = ME.getReport();
           warningNoTrace('Saved raw project file %s. Error caught during bundled project save: %s\n',...
-            fname,ME.message);          
+            fname,msg);          
         end
       else
         save(fname,'-mat','-struct','s');
@@ -2289,32 +2290,39 @@ classdef Labeler < handle
         
           for ndx = 1:numel(dmc)
             dm = dmc(ndx);
-            tfsucc = dm.updateCurrInfo();
-            if ~tfsucc
-              warningNoTrace('Failed to update model iteration for model with net type %s.',...
-                char(dm.netType));
-            end
             
-            if dm.isRemote
-              fprintf(2,'TODO REMOTE DMC XXX\n');
-            end
-            
-            if verbose>0 && ndx==1
-              fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
-                dm.netType,dm.rootDir);
-            end
-            
-            modelFiles = dm.findModelGlobsLocal();
-            modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
-            for mndx = 1:numel(modelFiles)
-              copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-              % for a given tracker, multiple DMCs this could re-copy 
-              % proj-level artifacts like stripped lbls
-              if verbose>1
-                fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+            try
+              tfsucc = dm.updateCurrInfo();
+              if ~tfsucc
+                warningNoTrace('Failed to update model iteration for model with net type %s.',...
+                  char(dm.netType));
               end
-            end           
-            allModelFiles = [allModelFiles; modelFilesDst]; %#ok<AGROW>
+
+              if dm.isRemote
+                cacheDirLocal = obj.trackDLParams.Saving.CacheDir;
+                dm.mirrorFromRemoteAws(cacheDirLocal);
+              end
+
+              if verbose>0 && ndx==1
+                fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
+                  dm.netType,dm.rootDir);
+              end
+
+              modelFiles = dm.findModelGlobsLocal();
+              modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
+              for mndx = 1:numel(modelFiles)
+                copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+                % for a given tracker, multiple DMCs this could re-copy 
+                % proj-level artifacts like stripped lbls
+                if verbose>1
+                  fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+                end
+              end           
+              allModelFiles = [allModelFiles; modelFilesDst]; %#ok<AGROW>
+            catch ME
+              warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be saved for this net type:\n%s',...
+                dm.netType,ME.getReport());
+            end
           end
         end
       end

@@ -10,7 +10,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   properties
     rootDir % root/parent "Models" dir
     projID 
-    netType % scalar DLNetType
+    netType % char(scalar DLNetType) -- (which is dumb, should prob just be scalar DLNetType
     view % 0-based
     modelChainID % unique ID for a training model for (projname,view). 
                  % A model can be trained once, but also train-augmented.
@@ -296,9 +296,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % - .reader update to AWS reader
       
       assert(isscalar(obj));
-      
-      assert(~obj.isRemote,'Model must be local in order to mirror/upload.');
-      
+      assert(~obj.isRemote,'Model must be local in order to mirror/upload.');      
+
       succ = obj.updateCurrInfo;
       if ~succ
         error('Failed to determine latest model iteration in %s.',...
@@ -309,12 +308,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       aws.checkInstanceRunning(); % harderrs if instance isn't running
       
       mdlFiles = obj.findModelGlobsLocal();
-      mdlFilesRemote = regexprep(mdlFiles,obj.rootDir,...
-                                 DeepTracker.RemoteAWSCacheDir);
+      pat = obj.rootDir;
+      pat = regexprep(pat,'\\','\\\\');
+      mdlFilesRemote = regexprep(mdlFiles,pat,DeepTracker.RemoteAWSCacheDir);
       mdlFilesRemote = FSPath.standardPath(mdlFilesRemote);
       nMdlFiles = numel(mdlFiles);
-      netstr = char(obj.netType.prettyString);
-      fprintf(1,'Upload/mirror %d model files for net %s.\',nMdlFiles,netstr);
+      netstr = char(obj.netType); % .netType is already a char I think but should be a DLNetType
+      fprintf(1,'Upload/mirror %d model files for net %s.\n',nMdlFiles,netstr);
       descstr = sprintf('Model file: %s',netstr);
       for i=1:nMdlFiles
         src = mdlFiles{i};
@@ -335,7 +335,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       obj.reader = DeepModelChainReaderAWS(aws);
     end
     
-    function mirrorFromRemoteAws(obj,aws,cacheDirLocal)
+    function mirrorFromRemoteAws(obj,cacheDirLocal)
       % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
       % instance to local cache.
       %
@@ -345,9 +345,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % In practice for the client, this action updates the "latest model"
       % to point to the local cache.
       
-      assert(isscalar(obj));
+      assert(isscalar(obj));      
+      assert(obj.isRemote,'Model must be remote in order to mirror/download.');      
       
-      assert(obj.isRemote,'Model must be remote in order to mirror/download.');
+      aws = obj.reader.awsec2;
       
       succ = obj.updateCurrInfo;
       if ~succ
@@ -362,8 +363,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
       mdlFilesLcl = regexprep(mdlFilesRemote,obj.rootDir,cacheDirLocalEscd);
       nMdlFiles = numel(mdlFilesRemote);
-      netstr = char(obj.netType.prettyString);
-      fprintf(1,'Download/mirror %d model files for net %s.\',nMdlFiles,netstr);
+      netstr = char(obj.netType); % .netType is already a char now
+      fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
       for i=1:nMdlFiles
         fsrc = mdlFilesRemote{i};
         fdst = mdlFilesLcl{i};
