@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<deployment-project plugin="plugin.deploytool" plugin-version="1.0">
+  <configuration target="target.standalone.win" target-name="Windows Standalone Application" name="playfmf" location="C:\Code\JCtrax\filehandling" file="C:\Code\JCtrax\filehandling\playfmf.prj" preferred-package-type="package.type.exe" build-checksum="2234206321" preferred-package-location="C:\Code\JCtrax">
+    <param.project.name>C:\Code\JCtrax\filehandling\playfmf.prj</param.project.name>
+    <param.target.type>Windows Standalone Application</param.target.type>
+    <param.appname>playfmf</param.appname>
+    <param.intermediate>${PROJECT_ROOT}\playfmf\src</param.intermediate>
+    <param.output>${PROJECT_ROOT}\playfmf\distrib</param.output>
+    <param.embed.ctf>true</param.embed.ctf>
+    <param.tbx_on_path>
+      <item>all</item>
+    </param.tbx_on_path>
+    <param.warnings>
+      <warning.fullpath>on</warning.fullpath>
+      <warning.duplicate>on</warning.duplicate>
+      <warning.option.ignored>on</warning.option.ignored>
+      <warning.libname>on</warning.libname>
+      <warning.demo>on</warning.demo>
+    </param.warnings>
+    <param.version>1.0</param.version>
+    <param.user.only.registration>false</param.user.only.registration>
+    <param.c.cpp.options.file />
+    <param.include.dirs />
+    <param.lib.dirs />
+    <param.lib.files />
+    <param.defines />
+    <param.undefines />
+    <param.debug>false</param.debug>
+    <param.share.mcr>false</param.share.mcr>
+    <param.disable.jvm>false</param.disable.jvm>
+    <param.disable.display>false</param.disable.display>
+    <param.create.log>false</param.create.log>
+    <param.log.file />
+    <param.user.defined.mcr.options />
+    <unset>
+      <param.project.name />
+      <param.target.type />
+      <param.appname />
+      <param.intermediate />
+      <param.output />
+      <param.embed.ctf />
+      <param.tbx_on_path />
+      <param.warnings />
+      <param.version />
+      <param.user.only.registration />
+      <param.c.cpp.options.file />
+      <param.include.dirs />
+      <param.lib.dirs />
+      <param.lib.files />
+      <param.defines />
+      <param.undefines />
+      <param.debug />
+      <param.share.mcr />
+      <param.disable.jvm />
+      <param.disable.display />
+      <param.create.log />
+      <param.log.file />
+      <param.user.defined.mcr.options />
+    </unset>
+    <fileset.main>
+      <file>${PROJECT_ROOT}\playfmf.m</file>
+    </fileset.main>
+    <fileset.resources>
+      <file>${PROJECT_ROOT}\parsejpg8.mexa64</file>
+      <file>${PROJECT_ROOT}\parsejpg8.mexglx</file>
+      <file>${PROJECT_ROOT}\parsejpg8.mexmaci</file>
+      <file>${PROJECT_ROOT}\parsejpg8.mexw32</file>
+      <file>${PROJECT_ROOT}\parsejpg8.mexw64</file>
+      <file>${PROJECT_ROOT}\playfmf.fig</file>
+    </fileset.resources>
+    <fileset.package>
+      <file special-file="file.mcr" reference-mode="direct">${MATLAB_ROOT}\toolbox\compiler\deploy\win64\MCRInstaller.exe</file>
+    </fileset.package>
+    <build-deliverables>
+      <file name="playfmf.exe" location="${PROJECT_ROOT}\playfmf\distrib" optional="false">C:\Code\JCtrax\filehandling\playfmf\distrib\playfmf.exe</file>
+      <file name="readme.txt" location="${PROJECT_ROOT}\playfmf\distrib" optional="true">C:\Code\JCtrax\filehandling\playfmf\distrib\readme.txt</file>
+    </build-deliverables>
+    <workflow />
+    <matlab>
+      <root>C:\Program Files\MATLAB\R2012a</root>
+      <path>
+        <directory>${PROJECT_ROOT}\..\misc</directory>
+        <directory>C:\Users\bransonk\Documents\MATLAB</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\demos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\graph2d</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\graph3d</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\graphics</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\plottools</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\scribe</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\specgraph</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\uitools</directory>
+        <directory>${MATLAB_ROOT}\toolbox\local</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\general</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\ops</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\lang</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\elmat</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\randfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\elfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\specfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\matfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\datafun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\polyfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\funfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\sparfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\strfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\iofun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\timefun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\datatypes</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\verctrl</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\codetools</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\helptools</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\winfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\winfun\NET</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\hds</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\guide</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\datamanager</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\optimfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\audiovideo</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\bioinfo</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\biolearning</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\microarray</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\mass_spec</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\proteins</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\biomatrices</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\graphtheory</directory>
+        <directory>${MATLAB_ROOT}\toolbox\bioinfo\biodemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\comparisons</directory>
+        <directory>${MATLAB_ROOT}\toolbox\compiler</directory>
+        <directory>${MATLAB_ROOT}\toolbox\compiler\compilerdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\curvefit\curvefit</directory>
+        <directory>${MATLAB_ROOT}\toolbox\curvefit\splines</directory>
+        <directory>${MATLAB_ROOT}\toolbox\curvefit\cftoolgui</directory>
+        <directory>${MATLAB_ROOT}\toolbox\curvefit\sftoolgui</directory>
+        <directory>${MATLAB_ROOT}\toolbox\curvefit\curvefitdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\daq\daq</directory>
+        <directory>${MATLAB_ROOT}\toolbox\daq\daqguis</directory>
+        <directory>${MATLAB_ROOT}\toolbox\daq\daqdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\database\database</directory>
+        <directory>${MATLAB_ROOT}\toolbox\database\vqb</directory>
+        <directory>${MATLAB_ROOT}\toolbox\database\dbdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\distcomp</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\user</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\mpi</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\parallel</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\parallel\util</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\lang</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\cluster</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\gpu</directory>
+        <directory>${MATLAB_ROOT}\toolbox\distcomp\pctdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\images\colorspaces</directory>
+        <directory>${MATLAB_ROOT}\toolbox\images\images</directory>
+        <directory>${MATLAB_ROOT}\toolbox\images\imuitools</directory>
+        <directory>${MATLAB_ROOT}\toolbox\images\iptformats</directory>
+        <directory>${MATLAB_ROOT}\toolbox\images\iptutils</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\imagesci</directory>
+        <directory>${MATLAB_ROOT}\toolbox\images\imdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\imaq\imaq</directory>
+        <directory>${MATLAB_ROOT}\toolbox\imaq\imaqblks\imaqblks</directory>
+        <directory>${MATLAB_ROOT}\toolbox\imaq\imaqblks\imaqmasks</directory>
+        <directory>${MATLAB_ROOT}\toolbox\imaq\imaqblks\imaqmex</directory>
+        <directory>${MATLAB_ROOT}\toolbox\imaq\imaqdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\instrument</directory>
+        <directory>${MATLAB_ROOT}\toolbox\sam\m3i</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nncontrol</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nndemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nndemos\nndatasets</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnadapt</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nndatafun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnderivative</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nndistance</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nndivision</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nninitlayer</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nninitnetwork</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nninitweight</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnlearn</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnnetfun</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnnetinput</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnnetwork</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnperformance</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnplot</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnprocess</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnsearch</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nntopology</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nntrain</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nntransfer</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnet\nnweight</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnguis</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnobsolete</directory>
+        <directory>${MATLAB_ROOT}\toolbox\nnet\nnutils</directory>
+        <directory>${MATLAB_ROOT}\toolbox\optim\optim</directory>
+        <directory>${MATLAB_ROOT}\toolbox\optim\optimdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\asynciolib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\coder\coder</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\controllib\general</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\controllib\graphics</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\controllib\graphics\utils</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\controllib\graphics\plotoptions</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\dastudio</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\dspblks\dspblks</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\dspblks\dspmex</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\filterdesignlib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\imageslib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\imaqlib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\optimlib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\rptgen</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\siglib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\spcuilib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\statslib</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\testmeaslib\general</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\testmeaslib\graphics</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\testmeaslib\simulink</directory>
+        <directory>${MATLAB_ROOT}\toolbox\signal\signal</directory>
+        <directory>${MATLAB_ROOT}\toolbox\signal\sigtools</directory>
+        <directory>${MATLAB_ROOT}\toolbox\signal\sptoolgui</directory>
+        <directory>${MATLAB_ROOT}\toolbox\signal\sigdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\shared\simulink</directory>
+        <directory>${MATLAB_ROOT}\toolbox\stats\stats</directory>
+        <directory>${MATLAB_ROOT}\toolbox\stats\classreg</directory>
+        <directory>${MATLAB_ROOT}\toolbox\stats\statsdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\symbolic\symbolic</directory>
+        <directory>${MATLAB_ROOT}\toolbox\symbolic\symbolicdemos</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\system</directory>
+        <directory>${MATLAB_ROOT}\toolbox\matlab\timeseries</directory>
+      </path>
+    </matlab>
+    <platform>
+      <unix>false</unix>
+      <mac>false</mac>
+      <windows>true</windows>
+      <win2k>false</win2k>
+      <winxp>false</winxp>
+      <vista>false</vista>
+      <linux>false</linux>
+      <solaris>false</solaris>
+      <osver>6.1</osver>
+      <os32>false</os32>
+      <os64>true</os64>
+      <arch>win64</arch>
+      <matlab>true</matlab>
+    </platform>
+  </configuration>
+</deployment-project>
+

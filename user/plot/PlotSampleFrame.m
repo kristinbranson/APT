@@ -1,10 +1,18 @@
 function hfig = PlotSampleFrame(savefile,varargin)
 
-[deltaT,landmarksPlotTrx] = myparse(varargin,'deltaT',30,'landmarksPlotTrx',[]);
+[deltaT,landmarksPlotTrx,colorsOverride,hfig,lw,ms,lwTrx] = myparse(varargin,'deltaT',30,'landmarksPlotTrx',[],'colorsOverride',[],'hfig',[],'LineWidth',2,'MarkerSize',10,'LineWidthTrx',1);
 
 load(savefile); %#ok<LOAD>
 
-hfig = figure;
+if ~isempty(colorsOverride),
+  colors = colorsOverride;
+end
+
+if isempty(hfig) || ~ishandle(hfig),
+  hfig = figure;
+else
+  figure(hfig);
+end
 nViews = numel(currIm); %#ok<*USENS>
 
 nPts = max(predIdx.pt);
@@ -15,7 +23,7 @@ jx = find(strcmp(imPropNames,'XData'));
 jy = find(strcmp(imPropNames,'YData'));
 for i = 1:nViews,
   imagesc(imProps{i}{jx},imProps{i}{jy},currIm{i},'Parent',hax(i)); %#ok<*IDISVAR>
-  axis(hax(i),'image');
+  axis(hax(i),'image','off');
 %   for j = 1:numel(axPropNames),
 %     hax(i).(axPropNames{j}) = axProps{i}{j};
 %   end
@@ -43,7 +51,7 @@ for jTarg = 1:nTargets,
     y = nan(1,maxt-mint+1);
     y(ism) = xyPredictions(idxtargptd(idx(ism)));
     [iColor,iView] = ind2sub([nPtsPerView,nViews],i);
-    plot(hax(iView),x,y,'-','Color',colors(iColor,:));
+    plot(hax(iView),x,y,'-','Color',colors(iColor,:),'LineWidth',lwTrx);
   end
 end
 
@@ -55,6 +63,6 @@ for iView = 1:nViews,
     iPt = (iView-1)*nPtsPerView+i;
     j1 = find(idxt & predIdx.pt == iPt & predIdx.d == 1);
     j2 = find(idxt & predIdx.pt == iPt & predIdx.d == 2);
-    plot(hax(iView),xyPredictions(j1),xyPredictions(j2),'+','LineWidth',2,'Color',colors(i,:),'MarkerSize',10); %#ok<*NODEF>
+    plot(hax(iView),xyPredictions(j1),xyPredictions(j2),'+','LineWidth',lw,'Color',colors(i,:),'MarkerSize',ms); %#ok<*NODEF>
   end
 end
