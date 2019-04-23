@@ -26,14 +26,25 @@ classdef APT
     end
     
     function m = readManifest()
+
+      % KB 20190422 - Manifest no longer needed
+      
       fname = fullfile(APT.Root,APT.MANIFESTFILE);
       if exist(fname,'file')==0
-        error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
+        m = struct;
+      else
+        tmp = importdata(fname);
+        tmp = regexp(tmp,',','split');
+        tmp = cat(1,tmp{:});
+        m = cell2struct(tmp(:,2),tmp(:,1));
       end
-      tmp = importdata(fname);
-      tmp = regexp(tmp,',','split');
-      tmp = cat(1,tmp{:});
-      m = cell2struct(tmp(:,2),tmp(:,1));
+      
+      % overwrite these fields to default locs if read in from Manifest
+      root = APT.Root;
+      m.jaaba = fullfile(root,'external','JAABA');
+      m.piotr= fullfile(root,'external','PiotrDollarToolbox');
+      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');
+      
     end
   
     function [p,jp] = getpath()
@@ -53,13 +64,9 @@ classdef APT
       end
       if isfield(m,'piotr')
         pdolroot = m.piotr;
-      else
-        pdolroot = '';
       end      
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
-      else
-        camroot = '';
       end
       
       if isempty(pdolroot)
