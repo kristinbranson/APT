@@ -32,10 +32,11 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
     function lsProjDir(obj,dmc)
       obj.awsec2.remoteLS(dmc.dirProjLnx);
     end
-    
     function lsModelChainDir(obj,dmc)
       obj.awsec2.remoteLS(dmc.dirModelChainLnx);
     end
-    
+    function lsTrkDir(obj,dmc)
+      obj.awsec2.remoteLS(dmc.dirTrkOutLnx);
+    end
   end
 end

@@ -219,6 +219,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function lsModelChainDir(obj)
       obj.reader.lsModelChainDir(obj);
     end
+    function lsTrkDir(obj)
+      obj.reader.lsTrkDir(obj);
+    end
     function g = modelGlobsLnx(obj)
       % filesys paths/globs of important parts/stuff to keep
       

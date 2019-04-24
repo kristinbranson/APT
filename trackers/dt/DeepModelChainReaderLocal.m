@@ -26,5 +26,8 @@ classdef DeepModelChainReaderLocal < DeepModelChainReader
     function lsModelChainDir(obj,dmc)
       ls('-al',dmc.dirModelChainLnx);
     end
+    function lsTrkDir(obj,dmc)
+      ls('-al',dmc.dirTrkOutLnx);
+    end
   end
 end

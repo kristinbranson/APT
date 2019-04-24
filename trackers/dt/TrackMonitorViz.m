@@ -366,7 +366,9 @@ classdef TrackMonitorViz < handle
       handles.pushbutton_startstop.Enable = 'off';
       [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       if tfsucc,
-        obj.isKilled = true;
+        
+        % AL: .isKilled set in resultsReceived
+        %obj.isKilled = true;
       else
         warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       end

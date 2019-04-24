@@ -2228,6 +2228,13 @@ classdef DeepTracker < LabelTracker
         reason = 'Cache directory not set.';
         return;
       end
+      
+      backend = obj.lObj.trackDLBackEnd;
+      [tf,reasonbackend] = backend.getReadyTrainTrack();
+      if ~tf
+        reason = reasonbackend;
+        return;
+      end
             
       dmc = obj.trnLastDMC;
       for i=1:numel(dmc)
@@ -2235,7 +2242,7 @@ classdef DeepTracker < LabelTracker
           reason = 'Cache directory has changed since training.';
           return;
         end
-      end      
+      end
       
       dmcLcl = dmc.copy();
       [dmcLcl.rootDir] = deal(cacheDir);
@@ -2895,7 +2902,7 @@ classdef DeepTracker < LabelTracker
           fprintf('Tracking job spawned.\n\n');
 %           fprintf('Tracking job (view %d) spawned.\n\n',ivw);
 
-          pause(1.0); % Hack try to more reliably get PID
+          pause(3.0); % Hack try to more reliably get PID
           aws.getRemotePythonPID();
         
         obj.trkSysInfo = trksysinfo;

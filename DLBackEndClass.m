@@ -27,6 +27,19 @@ classdef DLBackEndClass < handle
       obj.type = ty;
     end
     
+    function delete(obj)
+      if obj.type==DLBackEnd.AWS
+        aws = obj.awsec2;
+        if ~isempty(aws)
+          fprintf(1,'Stopping AWS EC2 instance %s.',aws.instanceID);
+          tfsucc = aws.stopInstance();
+          if ~tfsucc
+            warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
+          end
+        end
+      end
+    end      
+    
     function [tf,reason] = getReadyTrainTrack(obj)
       if obj.type==DLBackEnd.AWS
         aws = obj.awsec2;
@@ -41,7 +54,7 @@ classdef DLBackEndClass < handle
         tf = tfrunning;
         if ~tf
           qstr = sprintf('AWS EC2 instance %s is not running. Start it?',aws.instanceID);
-          tstr = 'Start AWS EC2';
+          tstr = 'Start AWS EC2 instance';
           btn = questdlg(qstr,tstr,'Yes','Cancel','Cancel');
           if isempty(btn)
             btn = 'Cancel';
