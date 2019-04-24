@@ -1,10 +1,18 @@
-function saveLbl(old_bundled_lbl,new_bundled_lbl, new_lbl_obj)
+function saveLbl(old_bundled_lbl,new_bundled_lbl,new_lbl_obj)
 
 tname = tempname;
 mkdir(tname);
 try
   fprintf('Untarring old project %s into %s\n',old_bundled_lbl,tname);
   fnames = untar(old_bundled_lbl,tname);
+  % AL20190424: untar() function output in blatant contradiction with 
+  % M-help
+  ntname = numel(tname);
+  for i=1:numel(fnames)
+    if startsWith(fnames{i},tname)
+      fnames{i} = fnames{i}(ntname+2:end); % skip filesep
+    end
+  end
   fprintf('... done with untar.\n');
   rawLblFile = fullfile(tname,'label_file.lbl');
 catch ME

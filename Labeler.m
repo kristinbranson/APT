@@ -1223,10 +1223,12 @@ classdef Labeler < handle
 %         close(obj.hFig);
 %         obj.hFig = [];
 %       end        
-        if ~isempty(obj.hFig)
-          deleteValidHandles(obj.hFig);
-          obj.hFig=[];
-        end
+      if ~isempty(obj.hFig)
+        deleteValidHandles(obj.hFig);
+        obj.hFig=[];
+      end
+      be = obj.trackDLBackEnd;
+      delete(be);
     end
     
   end
@@ -1673,8 +1675,9 @@ classdef Labeler < handle
           obj.projBundleSave(fname);
         catch ME
           save(fname,'-mat','-struct','s');
+          msg = ME.getReport();
           warningNoTrace('Saved raw project file %s. Error caught during bundled project save: %s\n',...
-            fname,ME.message);          
+            fname,msg);          
         end
       else
         save(fname,'-mat','-struct','s');
@@ -2287,33 +2290,40 @@ classdef Labeler < handle
         
           for ndx = 1:numel(dmc)
             dm = dmc(ndx);
-            tfsucc = dm.updateCurrInfo();
-            if ~tfsucc
-              warningNoTrace('Failed to update model iteration for model with net type %s.',...
-                char(dm.netType));
-            end
             
-            if dm.isRemote
-              fprintf(2,'TODO REMOTE DMC XXX\n');
-            end
-            
-            if verbose>0 && ndx==1
-              fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
-                dm.netType,dm.rootDir);
-            end
-            
-            modelFiles = dm.findModelGlobs();
-            assert(strcmp(dm.rootDir,projtempdir));
-%             modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
-            for mndx = 1:numel(modelFiles)
-%               copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-%               % for a given tracker, multiple DMCs this could re-copy 
-%               % proj-level artifacts like stripped lbls
-              if verbose>1
-                fprintf(1,'  %s\n',modelFiles{mndx});
+            try
+              tfsucc = dm.updateCurrInfo();
+              if ~tfsucc
+                warningNoTrace('Failed to update model iteration for model with net type %s.',...
+                  char(dm.netType));
               end
-            end           
-            allModelFiles = [allModelFiles; modelFiles(:)]; %#ok<AGROW>
+
+              if dm.isRemote
+                cacheDirLocal = obj.trackDLParams.Saving.CacheDir;
+                dm.mirrorFromRemoteAws(cacheDirLocal);
+              end
+
+              if verbose>0 && ndx==1
+                fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
+                  dm.netType,dm.rootDir);
+              end
+
+              modelFiles = dm.findModelGlobsLocal();
+              assert(strcmp(dm.rootDir,projtempdir)); % XXX
+              %modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
+              for mndx = 1:numel(modelFiles)
+                %copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+                % for a given tracker, multiple DMCs this could re-copy 
+                % proj-level artifacts like stripped lbls
+                if verbose>1
+                  fprintf(1,'%s\n',modelFiles{mndx});
+                end
+              end           
+              allModelFiles = [allModelFiles; modelFiles(:)]; %#ok<AGROW>
+            catch ME
+              warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be saved for this net type:\n%s',...
+                dm.netType,ME.getReport());
+            end
           end
         end
       end
@@ -2859,10 +2869,11 @@ classdef Labeler < handle
       for i = 1:numel(s.trackerData),
         if isfield(s.trackerData{i},'trnLastDMC'),
           for j = 1:numel(s.trackerData{i}.trnLastDMC),
-            if isempty(s.trackerData{i}.trnLastDMC(j).nLabels),
+            dmc = s.trackerData{i}.trnLastDMC(j);
+            if isempty(dmc.nLabels) && ~dmc.isRemote
               try
                 fprintf('Modernize: Reading nLabels for deep tracker\n');
-                s.trackerData{i}.trnLastDMC(j).readNLabels();
+                dmc.readNLabels();
               catch ME
                 warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
               end

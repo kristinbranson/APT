@@ -272,7 +272,7 @@ classdef TrackMonitorViz < handle
         isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
-        isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
+        isLogFile = any([res.logFileExists]);
       end
       
       if ~isempty(res) && isfield(res,'isRunning')
@@ -366,7 +366,9 @@ classdef TrackMonitorViz < handle
       handles.pushbutton_startstop.Enable = 'off';
       [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       if tfsucc,
-        obj.isKilled = true;
+        
+        % AL: .isKilled set in resultsReceived
+        %obj.isKilled = true;
       else
         warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       end
