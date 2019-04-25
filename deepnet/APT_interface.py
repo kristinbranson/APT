@@ -23,6 +23,7 @@ from deepcut.train import train as deepcut_train
 import deepcut.train
 import ast
 import tempfile
+import tensorflow as tf
 
 
 def loadmat(filename):
@@ -1760,24 +1761,28 @@ def train_mdn(conf, args, restore,split, split_file=None):
     else:
         self.train_data_name = None
     self.train_umdn(restore=restore)
+    tf.reset_default_graph()
 
 
 def train_leap(conf, args, split, split_file=None):
     if not args.skip_db:
         create_leap_db(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     leap_train(conf,name=args.train_name)
+    tf.reset_default_graph()
 
 
 def train_openpose(conf, args, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     open_pose.training(conf,name=args.train_name)
+    tf.reset_default_graph()
 
 
 def train_deepcut(conf, args, split_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache,split_file=split_file)
     deepcut_train(conf,name=args.train_name)
+    tf.reset_default_graph()
 
 
 def train(lblfile, nviews, name, args):

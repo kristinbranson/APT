@@ -6,10 +6,10 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
   
   methods
     
-    function obj = DeepModelChainReaderAWS(backEnd)      
-      assert(backEnd.type==DLBackEnd.AWS);
-      assert(backEnd.awsec2.isSpecified);
-      obj.awsec2 = backEnd.awsec2; % awsec2 is specified and so .instanceID is immutable
+    function obj = DeepModelChainReaderAWS(aws)
+      assert(isa(aws,'AWSec2'));
+      assert(aws.isSpecified);
+      obj.awsec2 = aws; % awsec2 is specified and so .instanceID is immutable
     end
     
     function  tf = getModelIsRemote(obj)
@@ -29,5 +29,14 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
       end
     end
     
+    function lsProjDir(obj,dmc)
+      obj.awsec2.remoteLS(dmc.dirProjLnx);
+    end
+    function lsModelChainDir(obj,dmc)
+      obj.awsec2.remoteLS(dmc.dirModelChainLnx);
+    end
+    function lsTrkDir(obj,dmc)
+      obj.awsec2.remoteLS(dmc.dirTrkOutLnx);
+    end
   end
 end

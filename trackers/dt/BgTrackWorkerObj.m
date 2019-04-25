@@ -64,6 +64,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       isRunning = num2cell(isRunning);
       
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0);
+      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctLogfiles,'uni',0);
       bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0);
       
       % KB 20190115: also get locations of part track files and timestamps
@@ -97,6 +98,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'errFile',repmat(obj.artfctErrFiles,[1,nViewsPerJob]),... % char, full path to DL err file
         'errFileExists',repmat(tfErrFileErr,[1,nViewsPerJob]),... % true of errFile exists and has size>0
         'logFile',repmat(obj.artfctLogfiles,[1,nViewsPerJob]),... % char, full path to Bsub logfile
+        'logFileExists',repmat(logFilesExist,[1,nViewsPerJob]),...
         'logFileErrLikely',repmat(bsuberrlikely,[1,nViewsPerJob]),... % true if bsub logfile looks like err
         'mIdx',mIdx{1},...
         'iview',num2cell(repmat(1:obj.nviews,[obj.nMovies,1])),...
@@ -109,7 +111,6 @@ classdef BgTrackWorkerObj < BgWorkerObj
     end
     
     function reset(obj)
-      
       
       killFiles = obj.getKillFiles(); %#ok<PROP>
       for i = 1:numel(killFiles), %#ok<PROP>
