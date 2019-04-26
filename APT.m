@@ -42,9 +42,8 @@ classdef APT
       % overwrite these fields to default locs if read in from Manifest
       root = APT.Root;
       m.jaaba = fullfile(root,'external','JAABA');
-      m.piotr= fullfile(root,'external','PiotrDollarToolbox');
-      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');
-      
+      m.piotr = fullfile(root,'external','PiotrDollarToolbox');
+      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');      
     end
   
     function [p,jp] = getpath()
@@ -210,7 +209,7 @@ classdef APT
 %       end
     end
     
-    function cacheDir = getdlcache()
+    function cacheDir = getdlcacheroot()
       if ispc
         userDir = winqueryreg('HKEY_CURRENT_USER',...
           ['Software\Microsoft\Windows\CurrentVersion\' ...
