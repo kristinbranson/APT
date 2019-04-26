@@ -2511,7 +2511,7 @@ classdef DeepTracker < LabelTracker
           
           %trksysinfo(ivw).logfilessh = outfile2;
           
-          mov = cellSelectHelper(movs,ivw);
+          %mov = cellSelectHelper(movs,ivw);
           switch backend.type
             case DLBackEnd.Bsub
               singBind = obj.genContainerMountPath('aptroot',aptroot);
