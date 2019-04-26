@@ -396,6 +396,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     lr_policy = "step"
     gamma = conf.gamma          #0.333
     step_size = conf.decay_steps # 6000 # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
+    save_time = conf.get('save_time',None)
 
     def step_decay(epoch):
         initial_lrate = base_lr
@@ -427,6 +428,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             self.force = False
             self.train_ndx = 0
             self.val_ndx  = 0
+            self.start_time = time()
 
         def on_epoch_end(self, epoch, logs={}):
             step = epoch*conf.display_step
@@ -476,8 +478,13 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             with open(train_data_file, 'wb') as train_data_file:
                 pickle.dump([self.train_info, conf], train_data_file, protocol=2)
 
-            if step % conf.save_step == 0:
-                model.save(os.path.join(run_path,name + '-{}'.format(step)))
+            if conf.save_time is None:
+                if step % conf.save_step == 0:
+                    model.save(os.path.join(run_path,name + '-{}'.format(step)))
+            else:
+                if time() - self.start_time > conf.save_time*60:
+                    self.start_time = time()
+                    model.save(os.path.join(run_path, name + '-{}'.format(step)))
 
     obs = OutputObserver(conf,[train_datagen,val_datagen])
 

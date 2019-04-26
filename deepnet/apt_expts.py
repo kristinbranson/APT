@@ -370,7 +370,7 @@ def train_ours(args):
 def classify_db_all(conf,db_file,model_files,model_type,name='deepnet'):
     cur_out = []
     extra_str = ''
-    if model_type in ['mdn','unet','deeplabcut']:
+    if model_type not in ['leap','openpose']:
         extra_str = '.index'
     # else:
     #     extra_str = '.h5'

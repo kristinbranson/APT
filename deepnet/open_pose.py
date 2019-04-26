@@ -26,6 +26,7 @@ import json
 import tensorflow as tf
 import keras.backend as K
 import logging
+from time import time
 
 # name = 'open_pose'
 
@@ -585,6 +586,7 @@ def training(conf,name='deepnet'):
         for lvl in range(1,3):
             losses['weight_stage{}_L{}'.format(stage,lvl)] = eucl_loss
 
+    save_time = conf.get('save_time',None)
     # lr decay.
     def step_decay(epoch):
         initial_lrate = base_lr
@@ -604,6 +606,7 @@ def training(conf,name='deepnet'):
             self.train_info['val_loss'] = []
             self.config = conf
             self.force = False
+            self.save_start = time()
 
         def on_epoch_end(self, epoch, logs={}):
             step = (epoch+1) * conf.display_step
@@ -644,8 +647,14 @@ def training(conf,name='deepnet'):
             with open(train_data_file, 'wb') as td:
                 pickle.dump([self.train_info, conf], td, protocol=2)
 
-            if step % conf.save_step == 0:
-                model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))
+            if conf.save_time is None:
+                if step % conf.save_step == 0:
+                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))
+            else:
+                if time() - self.save_start > conf.save_time*60:
+                    self.save_start = time()
+                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))
+
 
 
     # configure callbacks
@@ -657,7 +666,8 @@ def training(conf,name='deepnet'):
     callbacks_list = [lrate, obs] #checkpoint,
 
     # sgd optimizer with lr multipliers
-    multisgd = MultiSGD(lr=base_lr, momentum=momentum, decay=0.0, nesterov=False, lr_mult=lr_mult)
+    multisgd = MultiSGD(lr=base_lr, momentum=momentum, decay=0.0, nesterov=False, lr_mult=lr_mult, clipnorm=1.)
+    # Mayank 20190423 - Adding clipnorm so that the loss doesn't go to zero.
 
     # start training
     model.compile(loss=losses, optimizer=multisgd)

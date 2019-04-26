@@ -168,6 +168,7 @@ class PoseCommon(object):
         self.pad_y = 0
         self.pad_x = 0
         self.compute_summary = self.conf.get('compute_summary',False)
+        self.input_sizes = None
 
 
     def get_latest_model_file(self):
@@ -201,7 +202,7 @@ class PoseCommon(object):
         var_list = self.get_var_list()
         saver['saver'] = (tf.train.Saver(var_list=var_list,
                                          max_to_keep=self.conf.maxckpt,
-                                         save_relative_paths=True))
+                                         save_relative_paths=True,pad_step_number=True))
         saver['summary_dir'] = os.path.join(self.conf.cachedir,self.conf.expname + '_' + name + '_log')
         self.saver = saver
 
@@ -226,7 +227,7 @@ class PoseCommon(object):
         saver = self.saver
         out_file = saver['out_file'].replace('\\', '/')
         saver['saver'].save(sess, out_file, global_step=step,
-                            latest_filename=os.path.basename(saver['ckpt_file']))
+                            latest_filename=os.path.basename(saver['ckpt_file']),write_meta_graph=False)
         logging.info('Saved state to %s-%d' % (out_file, step))
 
 
@@ -573,11 +574,13 @@ class PoseCommon(object):
         num_val_rep = self.conf.num_test / self.conf.batch_size + 1
 
         merged = tf.summary.merge_all()
+        save_time = self.conf.get('save_time', None)
         with tf.Session() as sess:
             train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
             start_at = self.init_restore_net(sess, do_restore=restore)
 
             start = time.time()
+            save_start = start
             for step in range(start_at, training_iters + 1):
                 self.train_step(step, sess, learning_rate, training_iters)
                 if step % self.conf.display_step == 0:
@@ -609,8 +612,14 @@ class PoseCommon(object):
                         train_writer.add_summary(summary,step)
 
                     start = end
-                if step % self.conf.save_step == 0:
-                    self.save(sess, step)
+                if self.conf.save_time is None:
+                    if step % self.conf.save_step == 0:
+                        self.save(sess, step)
+                else:
+                    if (time.time() - save_start) > self.conf.save_time*60:
+                        save_start = time.time()
+                        self.save(sess, step)
+
                 if step % self.conf.display_step == 0:
                     self.save_td()
             logging.info("Optimization Finished!")
@@ -659,7 +668,7 @@ class PoseCommon(object):
         cur_dict['step'] = step
         cur_dict['l_rate'] = self.fd[self.ph['learning_rate']]
         self.update_td(cur_dict)
-        if self.net_name is 'deepnet':
+        if self.net_name == 'deepnet':
             train_data_file = os.path.join( self.conf.cachedir,'traindata')
         else:
             train_data_file = os.path.join( self.conf.cachedir, self.name + '_traindata')

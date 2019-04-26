@@ -1100,3 +1100,21 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60):
 
 def read_h5_str(in_obj):
     return u''.join(chr(c) for c in in_obj)
+
+
+def show_result_hist(im,loc,percs):
+    from matplotlib import pyplot as plt
+    cmap = get_cmap(percs.shape[0])
+    f = plt.figure()
+    if im.ndim == 2:
+        plt.imshow(im,'gray')
+    elif im.shape[2] == 1:
+        plt.imshow(im[:,:,0],'gray')
+    else:
+        plt.imshow(im)
+
+    ax = plt.gca()
+    for pt in range(loc.shape[0]):
+        for pp in range(percs.shape[0]):
+            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False)
+            ax.add_patch(c)

@@ -202,6 +202,7 @@ def train(cfg,name='deepnet'):
     ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
 
     start = time.time()
+    save_start = time.time()
     for it in range(max_iter+1):
         current_lr = lr_gen.get_lr(it)
         [_, loss_val] = sess.run([train_op, total_loss], # merged_summaries],
@@ -235,8 +236,14 @@ def train(cfg,name='deepnet'):
             save_td(cfg, train_info,name)
 
         # Save snapshot
-        if (it % cfg.save_step == 0 ) or it == max_iter:
-            saver.save(sess, model_name, global_step=it,
+        if 'save_time' in cfg.keys() and cfg['save_time'] is not None:
+            if (time.time() - save_start) > cfg['save_time']*60:
+                saver.save(sess, model_name, global_step=it,
+                           latest_filename=os.path.basename(ckpt_file))
+                save_start = time.time()
+        else:
+            if (it % cfg.save_step == 0 ) or it == max_iter:
+                saver.save(sess, model_name, global_step=it,
                        latest_filename=os.path.basename(ckpt_file))
 
     coord.request_stop()

@@ -1,23 +1,6 @@
-import APT_interface as apt
-conf = apt.create_conf('/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl', 0,'/nrs/branson/mayank/apt_cache','mdn')
-
-##
-cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name test -cache /nrs/branson/mayank/apt_cache -conf_params decay_steps 20000  save_step 5000  rrange 10  dl_steps 100000  trange 5  batch_size 8  mdn_use_unet_loss True  -type unet train -use_cache'
-import APT_interface as apt
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-apt.main(cmd.split())
-
-
-##
 import run_apt_expts as rae
-rae.setup('alice',0)
-
-rae.run_active_learning(1,'random')
-rae.run_active_learning(1,'active')
-##
-
+rae.setup('larva','')
+rae.cv_train_from_mat(skip_db=False,run_type='status')
 ##
 data_type = 'roian'
 

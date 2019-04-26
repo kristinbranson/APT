@@ -1,4 +1,4 @@
-from PoseCommon_dataset import PoseCommon
+from PoseCommon_dataset import PoseCommon, initialize_remaining_vars
 import PoseTools
 import tensorflow as tf
 import logging
@@ -150,8 +150,7 @@ class PoseBase(PoseCommon):
         return hmap_loss
 
 
-    def train_wrapper(self, restore=False):
-
+    def find_input_sizes(self):
         # Find the number of outputs from preproc function for the tf.py_func using dummpy inputs, which inserts the preprocessing code into the tensorflow dataset pipeline. The size of output of preproc function is also used to set the size of the tf tensors in self.inputs which will be used during create_network.
         conf = self.conf
         b_sz = conf.batch_size
@@ -164,6 +163,20 @@ class PoseBase(PoseCommon):
         dummy_info = np.ones([b_sz,3])
         pp_out = self.preproc_func(dummy_ims,dummy_locs,dummy_info,True)
         self.input_dtypes = [tf.float32,]*len(pp_out)
+        input_sizes = []
+        for i in pp_out:
+            input_sizes.append(i.shape)
+        self.input_sizes = input_sizes
+
+
+    def set_input_sizes(self):
+        # Set the size for the input tensors
+        for ndx, i in enumerate(self.inputs):
+            i.set_shape(self.input_sizes[ndx])
+
+    def train_wrapper(self, restore=False):
+
+        self.find_input_sizes()
 
         def train_pp(ims,locs,info):
             return self.preproc_func(ims,locs,info, True)
@@ -174,10 +187,7 @@ class PoseBase(PoseCommon):
         self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes ))
 
         self.setup_train()
-
-        # Set the size for the input tensors
-        for ndx, i in enumerate(self.inputs):
-            i.set_shape(pp_out[ndx].shape)
+        self.set_input_sizes()
 
         # create the network
         self.setup_network()
@@ -263,3 +273,33 @@ class PoseBase(PoseCommon):
             sess.close()
 
         return pred_fn, close_fn, latest_model_file
+
+
+    def restore_net_common(self, model_file=None):
+        create_network_fn = self.create_network
+        logging.info('--- Loading the model by reconstructing the graph ---')
+        self.find_input_sizes()
+        self.setup_pred()
+        self.pred = create_network_fn()
+        self.create_saver()
+        sess = tf.Session()
+        latest_model_file = self.restore(sess, model_file)
+        initialize_remaining_vars(sess)
+
+        try:
+            self.restore_td()
+        except (AttributeError,IOError):  # If the conf file has been modified
+            logging.warning("Couldn't load the training data")
+            self.init_td()
+
+        for i in self.inputs:
+            self.fd[i] = np.zeros(i.get_shape().as_list())
+
+        return sess, latest_model_file
+
+
+    def create_input_ph(self):
+        # when we want to manually feed in data
+        self.inputs = []
+        for ndx, cur_d in enumerate(self.input_dtypes):
+            self.inputs.append(tf.placeholder(cur_d,self.input_sizes[ndx]))
