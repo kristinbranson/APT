@@ -7,7 +7,7 @@ classdef TrainMonitorViz < handle
     hlinekill % [nviewx2] line handle, killed marker per view
     
     isKilled = false; % scalar, whether training has been halted
-    lastTrainIter = 0; % scalar, last iteration of training
+    lastTrainIter; % [nview] last iteration of training
     
     axisXRange = 2e3; % show last (this many) iterations along x-axis
     
@@ -33,6 +33,9 @@ classdef TrainMonitorViz < handle
         'Show log files'...
         'Show error messages'}});
   end
+  properties (Dependent)
+    nview 
+  end
   
   properties (Constant)
     DEBUG = false;
@@ -43,6 +46,11 @@ classdef TrainMonitorViz < handle
       if TrainMonitorViz.DEBUG,
         fprintf(varargin{:});
       end
+    end
+  end
+  methods
+    function v = get.nview(obj)
+      v = size(obj.hline,1);
     end
   end
   
@@ -95,7 +103,7 @@ classdef TrainMonitorViz < handle
       obj.hlinekill = hkill;
       obj.resLast = [];
       obj.isKilled = false;
-      
+      obj.lastTrainIter = zeros(1,nview);      
     end
     
     function delete(obj)
@@ -136,7 +144,7 @@ classdef TrainMonitorViz < handle
             set(h(ivw,1),'XData',contents.step,'YData',contents.train_loss);
             set(h(ivw,2),'XData',contents.step,'YData',contents.train_dist);
             tfAnyLineUpdate = true;
-            lineUpdateMaxStep(ivw) = max(lineUpdateMaxStep(ivw),contents.step(end));
+            lineUpdateMaxStep(ivw) = contents.step(end);
           end
 
           if res(ivw).killFileExists, 
@@ -177,8 +185,8 @@ classdef TrainMonitorViz < handle
       end
       
       if tfAnyLineUpdate
-        obj.adjustAxes(max(lineUpdateMaxStep));
-        obj.lastTrainIter = lineUpdateMaxStep;
+        obj.lastTrainIter = max(obj.lastTrainIter,lineUpdateMaxStep);
+        obj.adjustAxes(max(obj.lastTrainIter));
         %obj.dtObj.setTrackerInfo('iterCurr',obj.lastTrainIter);
       end
       
@@ -188,7 +196,6 @@ classdef TrainMonitorViz < handle
 
       [tfSucc,msg] = obj.updateAnn(res);
       TrainMonitorViz.debugfprintf('resultsReceived - tfSucc = %d, msg = %s\n',tfSucc,msg);
-
     end
     
     function [tfSucc,status] = updateAnn(obj,res)
@@ -321,7 +328,6 @@ classdef TrainMonitorViz < handle
       
       % Kills and creates new TrainMonitorViz, maybe that's fine
       
-      obj.lastTrainIter = 0;
       obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     end
     

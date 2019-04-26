@@ -17,15 +17,34 @@ classdef APT
   
   methods (Static)
     
+    function p = getRoot()
+      if isdeployed
+        p = ctfroot;
+      else
+        p = fileparts(mfilename('fullpath'));
+      end
+    end
+    
     function m = readManifest()
+
+      % KB 20190422 - Manifest no longer needed
+      
       fname = fullfile(APT.Root,APT.MANIFESTFILE);
       if exist(fname,'file')==0
-        error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
+        m = struct;
+      else
+        tmp = importdata(fname);
+        tmp = regexp(tmp,',','split');
+        tmp = cat(1,tmp{:});
+        m = cell2struct(tmp(:,2),tmp(:,1));
       end
-      tmp = importdata(fname);
-      tmp = regexp(tmp,',','split');
-      tmp = cat(1,tmp{:});
-      m = cell2struct(tmp(:,2),tmp(:,1));
+      
+      % overwrite these fields to default locs if read in from Manifest
+      root = APT.Root;
+      m.jaaba = fullfile(root,'external','JAABA');
+      m.piotr= fullfile(root,'external','PiotrDollarToolbox');
+      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');
+      
     end
   
     function [p,jp] = getpath()
@@ -45,13 +64,9 @@ classdef APT
       end
       if isfield(m,'piotr')
         pdolroot = m.piotr;
-      else
-        pdolroot = '';
       end      
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
-      else
-        camroot = '';
       end
       
       if isempty(pdolroot)
@@ -326,12 +341,19 @@ classdef APT
         '-a',fullfile(aptroot,InfoTimeline.TLPROPFILESTR),...
         '-a',fullfile(aptroot,'params_preprocess.yaml'),...
         '-a',fullfile(aptroot,'params_track.yaml'),...
+        '-a',fullfile(aptroot,'params_postprocess.yaml'),...
+        '-a',fullfile(aptroot,'landmark_features.yaml'),...        
         '-a',fullfile(aptroot,'misc','darkjet.m'),...
         '-a',fullfile(aptroot,'misc','lightjet.m'),...
         '-a',fullfile(cprroot,'params_cpr.yaml'),... %        '-a',fullfile(cprroot,'param.example.yaml'),...
         '-a',fullfile(cprroot,'misc','CPRLabelTracker.m'),...
         '-a',fullfile(cprroot,'misc','CPRBlurPreProc.m'),...
+        '-a',fullfile(dtroot,'params_deeptrack_dlc.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_unet.yaml'),...
         '-a',fullfile(dtroot,'params_deeptrack.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_openpose.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_mdn.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_leap.yaml'),...
         '-a',fullfile(dtroot,'DeepTracker.m'),...        
         '-a',fullfile(aptroot,'LabelerGUI_lnx.fig'),... 
         '-a',fullfile(aptroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'),...

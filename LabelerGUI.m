@@ -55,6 +55,9 @@ KEEP = {'Exploration.Rotate' 'Exploration.Pan' 'Exploration.ZoomOut' ...
   'Exploration.ZoomIn'};
 hh = findall(h,'-not','type','uitoolbar','-property','Tag');
 for h=hh(:)'
+  if ~ishandle(h),
+    continue;
+  end
   if ~any(strcmp(h.Tag,KEEP))
     delete(h);
   end
@@ -1466,7 +1469,9 @@ handles = lObj.gdata;
 cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 EnableControls(handles,'projectloaded');
 % update tracker info when loading in new trackers
-lObj.tracker.updateTrackerInfo();
+if ~isempty(lObj.tracker)
+  lObj.tracker.updateTrackerInfo();
+end
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -1992,16 +1997,14 @@ assert(be.type==DLBackEnd.AWS);
 
 aws = be.awsec2;
 if ~isempty(aws)
-  tfsucc = aws.respecifyInstance();
+  [tfsucc,instanceID,pemFile] = aws.respecifyInstance();
 else
   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
-  if tfsucc
-    aws = AWSec2(pemFile,'instanceID',instanceID);
-    be.awsec2 = aws;
-  end
 end
 
 if tfsucc
+  aws = AWSec2(pemFile,'instanceID',instanceID);
+  be.awsec2 = aws;
   %aws.checkInstanceRunning('throwErrs',false);
   lObj.trackSetDLBackend(be);
 end

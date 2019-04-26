@@ -10,6 +10,7 @@ import json
 import PoseTools
 import math
 import pickle
+import logging
 
 import keras
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback,LearningRateScheduler
@@ -323,14 +324,21 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     data_path = [os.path.join(conf.cachedir, 'leap_train.h5')]
     batch_size = conf.batch_size
     rotate_angle = conf.rrange
-    assert conf.dl_steps % conf.display_step ==0, 'For leap, number of training iterations must be divisible by display step'
+    assert conf.dl_steps % conf.display_step == 0, \
+        'For leap, number of training iterations must be divisible by display step'
     epochs = conf.dl_steps/conf.display_step
-    batches_per_epoch=conf.display_step
+    batches_per_epoch = conf.display_step
     val_batches_per_epoch=10
-    assert conf.save_step % conf.display_step == 0, 'For leap, save steps must be divisible by display steps'
+    assert conf.save_step % conf.display_step == 0, \
+        'For leap, save steps must be divisible by display steps'
     save_step = conf.save_step/conf.display_step
     base_output_path = str(conf.cachedir)
     net_name = conf.leap_net_name
+
+    train_data_file = os.path.join(conf.cachedir, 'traindata')
+    with open(train_data_file, 'wb') as td_file:
+        pickle.dump(conf, td_file, protocol=2)
+    logging.info('Saved config to {}'.format(train_data_file))
 
     box_dset="box"
     confmap_dset="joints" #"confmaps" work with locs rather than heatmaps.
@@ -378,7 +386,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
              "amsgrad": amsgrad, "upsampling_layers": upsampling_layers})
 
     # Save initial network
-    model.save(os.path.join(run_path, "initial_model.h5"))
+    model.save(str(os.path.join(run_path, "initial_model.h5")))
 
     # Data generators/augmentation
     input_layers = model.input_names
@@ -480,11 +488,11 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
 
             if conf.save_time is None:
                 if step % conf.save_step == 0:
-                    model.save(os.path.join(run_path,name + '-{}'.format(step)))
+                    model.save(str(os.path.join(run_path,name + '-{}'.format(step))))
             else:
                 if time() - self.start_time > conf.save_time*60:
                     self.start_time = time()
-                    model.save(os.path.join(run_path, name + '-{}'.format(step)))
+                    model.save(str(os.path.join(run_path, name + '-{}'.format(step))))
 
     obs = OutputObserver(conf,[train_datagen,val_datagen])
 
@@ -516,7 +524,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(os.path.join(run_path, name + '-{}'.format(conf.dl_steps)))
+    model.save(str(os.path.join(run_path, name + '-{}'.format(conf.dl_steps))))
     # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
     obs.on_epoch_end(epochs)
 
@@ -554,6 +562,15 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
     close_fn = K.clear_session
 
     return pred_fn, close_fn, latest_model_file
+
+
+def model_files(conf, name):
+    latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
+    if latest_model_file is None:
+        return None
+    traindata_file = PoseTools.get_train_data_file(conf,name)
+    return [latest_model_file, traindata_file + '.json']
+
 
 if __name__ == "__main__":
     # Turn interactive plotting off

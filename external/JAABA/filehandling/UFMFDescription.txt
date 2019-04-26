@@ -1,0 +1,250 @@
+**Description of Micro Fly Movie Format (UFMF) for Versions 2-4**
+
+Here, we describe our usage of the UFMF file format for background subtraction based compression. The format is slightly more general than is described below. 
+
+File must be binary with little-endian byte order. 
+
+It begins with the HEADER, describing the parameters of the encoding and, importantly, the location of the INDEX in the file. 
+
+This is followed by the main video data, which consists of FRAME CHUNKS and KEYFRAME CHUNKS. Frame and keyframe chunks are interspersed, with keyframe means often being regularly spaced between the regular keyframes (NOT required, though). 
+
+FRAME CHUNKS start with the chunk type identifier 1 and contain compressed data -- the locations of boxes of stored, foreground pixels, and their pixel values. A frame can be reconstructed by taking the background mean stored most recently on or before the current time and replacing the pixels in the stored boxes with the stored pixel values. 
+
+KEYFRAME CHUNKS start with the chunk type 0 and contain, most importantly, the background model means. This mean applies to all frames written after this frame and before the next mean keyframe chunk. 
+
+Usually, the INDEX comes after all the frame data (NOT required, again). The index is a DICTIONARY with fields that can either be another dictionary or an ARRAY of numbers. It is used to describe the locations of the frames and keyframes, as well as their timestamps. 
+
+*HEADER*
+
+Value                                  Data type             N. bytes
+
+The string 'ufmf'                      4 x char              4
+
+Version number                         uint                  4
+
+IndexLoc: Location in file of the      uint64                8
+index, which contains the location 
+of each frame and keyframe in the file.
+This is the offset from the beginning
+of the file, in bytes (the output of 
+ftell). 
+
+MaxHeight: maximum height of any box   ushort                2
+of stored pixels. For fixed-size 
+encodings (version 4 only), this is 
+the fixed height of every box.
+
+MaxWidth: maximum width of any box of  ushort                2
+stored pixels. For fixed-size 
+encodings (version 4 only), this is 
+the fixed width of every box.
+
+*Version 4 only*                       uchar                 1
+IsFixedSize: If 1, then every box is
+expected to be of size 
+MaxHeight x MaxWidth. If 0, then
+boxes are of variable size. The value
+of this variable changes the way
+individual frames are encoded. This 
+field is absent in Versions 1-3. In
+these versions, frames are encoded as
+IsFixedSize = 0. 
+
+CodingLength: length of coding         uchar                 1
+description
+
+Coding: String describing the coding   CodingLength x char   CodingLength
+type used for each pixel. Currently, 
+only 'MONO8' and 'RGB8' are supported. 
+
+*FRAME CHUNK*
+
+The number 1, which designates this    uchar                 1
+as a frame chunk. 
+
+Timestamp: Time the frame was          double                8
+recorded at. 
+
+NPoints: The number of boxes stored    ushort                2
+for this frame. 
+
+If IsFixedSize == 0:
+
+  For i = 1,...,NPoints:
+    
+     Xmin[i]: Left-most point of       ushort                2
+     stored box i (0 is the
+     left-most point in the image). 
+
+     Ymin[i]: Top-most point of        ushort                2
+     stored box i (0 is the
+     top-most point in the image). 
+
+     Width[i]: Width of stored box i.  ushort                2
+     Must be between 1 and MaxWidth. 
+
+     Height[i]: Height of stored box   ushort                2
+     i. Must be between 1 and 
+     MaxHeight. 
+
+     Pixel values[i]: Pixel values     BytesPerPixel(Coding) BytesPerPixel
+     for pixels in stored box i. The    x Width[i]            *Width*Height
+     precise encoding depends on the    x Height[i]
+     "Coding" field.                    x uint8
+     For 'MONO8', it is just the 
+     one-byte pixel intensities in 
+     column-major order (i.e. 
+     [r=1,c=1],...,[r=1,c=Width[i]],...,
+     [r=Height[i],c=1],...,
+     [r=Height[i],c=Width[i]]). 
+     For 'RGB8', it is the one-byte
+     values in color channel (R,G,B), 
+     followed by column, followed by
+     row order (i.e.
+     R[r=1,c=1],G[r=1,c=1],B[r=1,c=1],...
+     B[r=1,c=Width[i]],...
+     B[r=Height[i],c=1],...,
+     B[r=Height[i],c=Width[i]]). 
+
+Else //IsFixedSize==0
+  XMin: Left-most point for all        NPoints x ushort      2*NPoints
+  boxes stored for this frame.
+  YMin: Top-most point for all         NPoints x ushort      2*NPoints
+  boxes stored for this frame.
+  Pixel values: pixel values for all   NPoints x MaxWidth    NPoints*MaxWidth
+  pixels stored in this frame. The      x MaxHeight           * MaxHeight 
+  values are indexed by box number,     x BytesPerPixel       * BytesPerPixel
+  followed by color channel,            x uint8
+  followed by width, followed by 
+  height.
+
+*KEYFRAME CHUNK*
+
+The number 0, which designates this    uchar                 1
+as a keyframe chunk. 
+
+KeyframeTypeLength: length of          uchar                 1
+keyframe string type. 
+
+KeyframeType: String describing the    KeyframeTypeLength    KeyframeTypeLength
+type of keyframe. For background        x char
+means, this will be the string 'mean'. 
+
+DataClass: Single character            char                  1
+abbr describing the class of data 
+stored in this keyframe (see
+struct.pack documentation for list
+of abbreviations). 'd' is for 
+double, 'B' is for uint8. 
+
+ImageWidth: Width of the keyframe.     ushort                2
+
+ImageHeight: Height of the keyframe.   ushort                2
+
+Timestamp: Time the frame was          double                8
+recorded at. 
+
+ImageData: Image data indexed by       ImageWidth            ImageWidth
+color channel, then column, then row.   x ImageHeight         *ImageHeight
+ 	     	       	     	        x BytesPerPixel       *BytesPerPixel
+				        x DataClass           *sizeof(DataClass)
+
+
+*DICTIONARY*
+
+The char 'd', which designates this    char                  1
+as a dictionary chunk.
+
+NKeys: Number of keys in the           uchar                 1
+dictionary. 
+
+For i = 1,...,NKeys:
+  
+  KeyNameLength: Length of the name    ushort                2
+  of this key. 
+
+  KeyName: Name of this key.           KeyNameLength x char  KeyNameLength
+
+  Value: Either another                [Variable]            [Variable]
+  dictionary, in which case the
+  value will start with a 'd', or
+  an array, in which case the value
+  will start with an 'a'. 
+
+*ARRAY*
+
+The char 'a', which designates this    char                  1
+as an array chunk.
+
+DataClass: Single character            char                  1
+abbr describing the class of data 
+stored in this keyframe (see
+struct.pack documentation for list
+of abbreviations). 'd' is for 
+double, 'B' is for uint8, ... 
+
+NBytes: Number of bytes in the array   ulong                 4
+(sizeof(DataClass)*ArrayLength). 
+
+Data: The data in the array.           ArrayLength           ArrayLength 
+					x DataClass	     * sizeof(DataClass)
+
+*INDEX*
+
+index is a DICTIONARY with the keys:
+
+  'frame'
+  'keyframe'
+
+index.frame is a DICTIONARY with the keys:
+
+  'loc'
+  'timestamp'
+
+index.keyframe is a DICTIONARY with the keys:
+
+  'loc'
+  'timestamp'
+
+index.frame.loc is an array containing the locations in the file of 
+the FRAMES, with:
+
+DataClass = 'q' for int64 (okay if something else, but this supports 
+large file sizes and is compatible with Matlab's ftell and Python's 
+file.tell). 
+
+ArrayLength = Number of frames.
+
+Data = Array of locations in the file (offset in bytes from start of 
+file) of the stored frames. 
+
+index.frame.timestamps is an array containing the timestamps of all 
+the FRAMES, with:
+
+DataClass = 'd' for double.
+
+ArrayLength = Number of frames.
+
+Data = Array of all timestamps. 
+
+index.keyframe.loc is an array containing the locations in the file of 
+the KEYFRAMES, with:
+
+DataClass = 'q' for int64 (okay if something else, but this supports 
+large file sizes and is compatible with Matlab's ftell and Python's 
+file.tell). 
+
+ArrayLength = Number of keyframes.
+
+Data = Array of locations in the file (offset in bytes from start of 
+file) of the stored keyframes. 
+
+index.keyframe.timestamps is an array containing the timestamps of all 
+the KEYFRAMES, with:
+
+DataClass = 'd' for double.
+
+ArrayLength = Number of keyframes.
+
+Data = Array of all keyframe timestamps. 
+

@@ -23,6 +23,7 @@ from deepcut.train import train as deepcut_train
 import deepcut.train
 import ast
 import tempfile
+import tensorflow as tf
 
 
 def loadmat(filename):
@@ -237,7 +238,6 @@ def convert_to_orig(base_locs, conf, fnum, cur_trx, crop_loc):
         base_locs_orig[ :, 1] += ylo
     else:
         base_locs_orig = base_locs.copy()
-
     return base_locs_orig
 
 
@@ -252,6 +252,8 @@ def convert_unicode(data):
         return unicode(data)
     elif isinstance(data, collections.Mapping):
         return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data,np.ndarray):
+        return data
     elif isinstance(data, collections.Iterable):
         return type(data)(map(convert_unicode, data))
     else:
@@ -495,9 +497,9 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     except KeyError:
         pass
     try:
-        if isModern:
-            bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
-        else:
+        if isModern and net_type == 'openpose':
+            bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])           
+        else: 
             bb = ''
         graph = []
         if bb:
@@ -1716,6 +1718,31 @@ def get_mdn_pred_fn(conf, model_file=None,name='deepnet'):
     return self.get_pred_fn(model_file)
 
 
+def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
+    if net_type == 'mdn':
+        self = PoseURes.PoseUMDN_resnet(conf, name=name)
+        if name == 'deepnet':
+            self.train_data_name = 'traindata'
+        files = self.model_files()
+    elif net_type == 'unet':
+        self = PoseUNet.PoseUNet(conf, name=name)
+        if name == 'deepnet':
+            self.train_data_name = 'traindata'
+        files = self.model_files()
+    elif net_type == 'leap':
+        files = leap.training.latest_model(conf, name)
+    elif net_type == 'openpose':
+        files = open_pose.latest_model(conf, name)
+    elif net_type == 'deeplabcut':
+        files = deepcut.train.model_files(conf, name)
+    else:
+        assert False, 'Undefined Net Type'
+
+    for f in files:
+        assert os.path.exists(f), 'Model file {} does not exist'.f
+
+    return files
+
 def classify_movie_all(model_type, **kwargs):
     ''' Classify movie wrapper'''
     conf = kwargs['conf']
@@ -1750,24 +1777,28 @@ def train_mdn(conf, args, restore,split, split_file=None):
     else:
         self.train_data_name = None
     self.train_umdn(restore=restore)
+    tf.reset_default_graph()
 
 
 def train_leap(conf, args, split, split_file=None):
     if not args.skip_db:
         create_leap_db(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     leap_train(conf,name=args.train_name)
+    tf.reset_default_graph()
 
 
 def train_openpose(conf, args, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     open_pose.training(conf,name=args.train_name)
+    tf.reset_default_graph()
 
 
 def train_deepcut(conf, args, split_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache,split_file=split_file)
     deepcut_train(conf,name=args.train_name)
+    tf.reset_default_graph()
 
 
 def train(lblfile, nviews, name, args):
@@ -1898,6 +1929,8 @@ def parse_args(argv):
     parser_db = subparsers.add_parser('classify', help='Classify validation data')
     parser_db.add_argument('-out_file',dest='out_file',help='Destination to save the output',required=True)
     parser_db.add_argument('-db_file',dest='db_file',help='Validation data set to classify',default=None)
+
+    parser_model = subparsers.add_parser('model_files', help='prints the list of model files')
 
     print(argv)
     args = parser.parse_args(argv)
@@ -2079,6 +2112,17 @@ def run(args):
             preds, locs = to_mat(A)
             hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list':info},appendmat=False,truncate_existing=True)
 
+    elif args.sub_name == 'model_files':
+        if args.view is None:
+            views = range(nviews)
+        else:
+            views = [args.view]
+
+        m_files = []
+        for view_ndx, view in enumerate(views):
+            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
+            m_files.append(get_latest_model_files(conf,net_type=args.type,name=args.train_name))
+        print(m_files)
 
 def main(argv):
     args = parse_args(argv)

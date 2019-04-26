@@ -1,11 +1,16 @@
-classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
+classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   % DMCOD understands the filesystem structure of a deep model. This same
-  % structure is used both remotely and locally.
+  % structure is used on both remote and local filesystems.
+  %
+  % DMCOD does know whether the model is on a local or remote filesystem 
+  % via the .reader property. The .reader object is a delegate that knows 
+  % how to actually read the (possibly remote) filesystem. This works fine 
+  % for now future design unclear.
   
   properties
     rootDir % root/parent "Models" dir
     projID 
-    netType % scalar DLNetType
+    netType % char(scalar DLNetType) -- (which is dumb, should prob just be scalar DLNetType
     view % 0-based
     modelChainID % unique ID for a training model for (projname,view). 
                  % A model can be trained once, but also train-augmented.
@@ -21,9 +26,11 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
     nLabels % number of labels used to train
-    %backEnd % back-end info (bsub, docker, aws)
     
-    aptRootUser % (optional) external/user APT code checkout root
+    reader % scalar DeepModelChainReader. used to update the itercurr; 
+      % knows how to read the (possibly remote) filesys etc
+      
+    %aptRootUser % (optional) external/user APT code checkout root    
   end
   properties (Dependent)
     dirProjLnx
@@ -53,6 +60,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     aptRepoSnapshotName
     
     trainModelGlob
+    
+    isRemote
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -147,7 +156,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.trainFinalModelName(obj)
       switch obj.netType
-        case DLNetType.openpose
+        case {DLNetType.openpose DLNetType.leap}
           v = sprintf('deepnet-%d',obj.iterFinal);
         otherwise
           v = sprintf('deepnet-%d.index',obj.iterFinal);
@@ -155,7 +164,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end    
     function v = get.trainCurrModelName(obj)
       switch obj.netType
-        case DLNetType.openpose
+        case {DLNetType.openpose DLNetType.leap}
           v = sprintf('deepnet-%d',obj.iterCurr);
         otherwise
           v = sprintf('deepnet-%d.index',obj.iterCurr);
@@ -163,7 +172,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.trainModelGlob(obj)
       switch obj.netType
-        case DLNetType.openpose
+        case {DLNetType.openpose DLNetType.leap}
           v = 'deepnet-*';
         otherwise
           v = 'deepnet-*.index';
@@ -174,7 +183,10 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.aptRepoSnapshotName(obj)
       v = sprintf('%s_%s.aptsnapshot',obj.modelChainID,obj.trainID);
-    end      
+    end
+    function v = get.isRemote(obj)
+      v = obj.reader.getModelIsRemote();
+    end
   end
   methods
     function obj = DeepModelChainOnDisk(varargin)
@@ -201,60 +213,59 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         end
       end
     end
-    function g = keepGlobsLnx(obj)
+    function lsProjDir(obj)
+      obj.reader.lsProjDir(obj);
+    end
+    function lsModelChainDir(obj)
+      obj.reader.lsModelChainDir(obj);
+    end
+    function lsTrkDir(obj)
+      obj.reader.lsTrkDir(obj);
+    end
+    function g = modelGlobsLnx(obj)
       % filesys paths/globs of important parts/stuff to keep
+      
+      dmcl = obj.dirModelChainLnx;
+      gnetspecific = DLNetType.modelGlobs(obj.netType,obj.iterCurr);
+      gnetspecific = cellfun(@(x)[dmcl '/' x],gnetspecific,'uni',0);
       
       g = { ...
         [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl
-        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
-        [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterCurr)]; ... % latest iter 
-        [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... 
-        [obj.dirModelChainLnx '/' 'splitdata.json']; ...
-        [obj.dirModelChainLnx '/' 'traindata*']; ...
+        [dmcl '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
         };
+      g = [g;gnetspecific(:)];
     end
-    
-    function tfSuccess = updateCurrInfo(obj,varargin)
-      [getMostRecentModelMeth,getMostRecentModelMethArgs] = ...
-        myparse(varargin,...
-        'getMostRecentModelMeth','getMostRecentModelLocalLnx',...
-        'getMostRecentModelMethArgs',{}...
-        );
+    function mdlFiles = findModelGlobsLocal(obj)
+      % Return all key/to-be-saved model files
+      %
+      % mdlFiles: column cellvec full paths
       
-      maxiter = feval(getMostRecentModelMeth,obj,getMostRecentModelMethArgs{:});
+      globs = obj.modelGlobsLnx;
+      mdlFiles = cell(0,1);
+      for g = globs(:)',g=g{1}; %#ok<FXSET>
+        if contains(g,'*')
+          gP = fileparts(g);
+          dd = dir(g);
+          mdlFilesNew = {dd.name}';
+          mdlFilesNew = cellfun(@(x) fullfile(gP,x),mdlFilesNew,'uni',0);
+          mdlFiles = [mdlFiles; mdlFilesNew]; %#ok<AGROW>
+        elseif exist(g,'file')>0
+          mdlFiles{end+1,1} = g; %#ok<AGROW>
+        end
+      end      
+    end
+                 
+    function tfSuccess = updateCurrInfo(obj)
+      % Update .iterCurr by probing filesys
+      
+      assert(isscalar(obj));
+      maxiter = obj.reader.getMostRecentModel(obj);
       obj.iterCurr = maxiter;
       tfSuccess = ~isnan(maxiter);
-    end
-    
-    function maxiter = getMostRecentModelLocalLnx(obj,varargin)
-      maxiter = nan;
-      %filepath = '';
       
-      modelglob = obj.trainModelGlob;
-      modelfiles = mydir(fullfile(obj.dirModelChainLnx,modelglob));
-      if isempty(modelfiles),
-        return;
-      end
-      
-      maxiter = -1;
-      for i = 1:numel(modelfiles),
-        iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
-        if iter > maxiter,
-          maxiter = iter;
-          %filepath = modelfiles{i};
-        end
-      end
-    end
-    
-    function maxiter = getMostRecentModelAWS(obj,aws)
-      % maxiter is nan if something bad happened or if DNE
-      
-      fspollargs = {'mostrecentmodel' obj.dirModelChainLnx};
-      [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
-      if tfsucc
-        maxiter = str2double(res{1}); % includes 'DNE'->nan
-      else
-        maxiter = nan;
+      if maxiter>obj.iterFinal
+        warningNoTrace('Current model iteration (%d) exceeds specified maximum/target iteration (%d).',...
+          maxiter,obj.iterFinal);
       end
     end
     
@@ -267,13 +278,113 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     
     % whether training has actually started
-    function tf = isPartiallyTrained(obj)
+    function tf = isPartiallyTrained(obj)      
+      tf = ~isempty(obj.iterCurr);      
+    end
+    
+    function mirror2remoteAws(obj,aws)
+      % Take a local DMC and mirror/upload it to the AWS instance aws; 
+      % update .rootDir, .reader appropriately to point to model on remote 
+      % disk.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the remote aws instance.
+      %
+      % PostConditions: 
+      % - remote cachedir mirrors this model for key model files; "extra"
+      % remote files not removed; identities of existing files not
+      % confirmed but naming/immutability of DL artifacts makes this seem
+      % safe
+      % - .rootDir updated to remote cacheloc
+      % - .reader update to AWS reader
       
-      tf = ~isempty(obj.iterCurr);
+      assert(isscalar(obj));
+      assert(~obj.isRemote,'Model must be local in order to mirror/upload.');      
+
+      succ = obj.updateCurrInfo;
+      if ~succ
+        error('Failed to determine latest model iteration in %s.',...
+          obj.dirModelChainLnx);
+      end
+      fprintf('Current model iteration is %d.\n',obj.iterCurr);
+     
+      aws.checkInstanceRunning(); % harderrs if instance isn't running
       
+      mdlFiles = obj.findModelGlobsLocal();
+      pat = obj.rootDir;
+      pat = regexprep(pat,'\\','\\\\');
+      mdlFilesRemote = regexprep(mdlFiles,pat,DeepTracker.RemoteAWSCacheDir);
+      mdlFilesRemote = FSPath.standardPath(mdlFilesRemote);
+      nMdlFiles = numel(mdlFiles);
+      netstr = char(obj.netType); % .netType is already a char I think but should be a DLNetType
+      fprintf(1,'Upload/mirror %d model files for net %s.\n',nMdlFiles,netstr);
+      descstr = sprintf('Model file: %s',netstr);
+      for i=1:nMdlFiles
+        src = mdlFiles{i};
+        dst = mdlFilesRemote{i};
+        % We just use scpUploadOrVerify which does not confirm the identity
+        % of file if it already exists. These model files should be
+        % immutable once created and their naming (underneath timestamped
+        % modelchainIDs etc) should be pretty/totally unique. 
+        %
+        % Only situation that might cause problems are augmentedtrains but
+        % let's not worry about that for now.
+        aws.scpUploadOrVerify(src,dst,descstr,'destRelative',false); % throws
+      end
+      
+      % if we made it here, upload successful
+      
+      obj.rootDir = DeepTracker.RemoteAWSCacheDir;
+      obj.reader = DeepModelChainReaderAWS(aws);
+    end
+    
+    function mirrorFromRemoteAws(obj,cacheDirLocal)
+      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
+      % instance to local cache.
+      %
+      % update .rootDir, .reader appropriately to point to model in local
+      % cache.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the local cache.
+      
+      assert(isscalar(obj));      
+      assert(obj.isRemote,'Model must be remote in order to mirror/download.');      
+      
+      aws = obj.reader.awsec2;
+      
+      succ = obj.updateCurrInfo;
+      if ~succ
+        error('Failed to determine latest model iteration in %s.',...
+          obj.dirModelChainLnx);
+      end
+      fprintf('Current model iteration is %d.\n',obj.iterCurr);
+     
+      aws.checkInstanceRunning(); % harderrs if instance isn't running
+            
+      mdlFilesRemote = aws.remoteGlob(obj.modelGlobsLnx);
+      cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
+      mdlFilesLcl = regexprep(mdlFilesRemote,obj.rootDir,cacheDirLocalEscd);
+      nMdlFiles = numel(mdlFilesRemote);
+      netstr = char(obj.netType); % .netType is already a char now
+      fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
+      for i=1:nMdlFiles
+        fsrc = mdlFilesRemote{i};
+        fdst = mdlFilesLcl{i};
+        % See comment in mirror2RemoteAws regarding not confirming ID of
+        % files-that-already-exist
+        aws.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
+          'sysCmdArgs',{'dispcmd' true 'failbehavior' 'err'}); % throws
+      end
+      
+      % if we made it here, download successful
+      
+      obj.rootDir = cacheDirLocal;
+      obj.reader = DeepModelChainReaderLocal();
     end
        
   end
+  
   
   methods (Static)
     

@@ -1010,9 +1010,18 @@ def pickle_load(filename):
     return K
 
 
+def get_train_data_file(conf,name):
+    if name == 'deepnet':
+        train_data_file = os.path.join(conf.cachedir, 'traindata')
+    else:
+        train_data_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '_traindata')
+    return train_data_file
+
+
 def get_last_epoch(conf, name):
-    train_data_file = os.path.join(
-        conf.cachedir, conf.expname + '_' + name + '_traindata')
+    train_data_file = get_train_data_file(conf, name)
+    if not os.path.exists(train_data_file):
+        return None
     with open(train_data_file + '.json', 'r') as json_file:
         json_data = json.load(json_file)
     return int(json_data['step'][-1])
@@ -1020,6 +1029,8 @@ def get_last_epoch(conf, name):
 
 def get_latest_model_file_keras(conf, name):
     last_epoch = get_last_epoch(conf, name)
+    if last_epoch is None:
+        return None
     save_epoch = last_epoch
     latest_model_file = os.path.join(conf.cachedir, name + '-{}'.format(save_epoch))
     if not os.path.exists(latest_model_file):
