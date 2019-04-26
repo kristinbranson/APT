@@ -1967,23 +1967,48 @@ classdef Labeler < handle
       end
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
-      %MK 20190204 copy models to cache dir for bundled label file.
-      if wasbundled
-        obj.projUpdateDLCache();
-        % failure here (output arg not checked) is the same as the
-        % following else branch
-      else
-        % DL models should continue to exist per any DMC.rootDir specs
-        %
-        % .DLCacheDir will always return .projTempDir for new trains 
-        % 
-        % This should be the correct behavior for legacy projects opened by
-        % someone-who-has-permissions-into-the-CacheDir. On save, the
-        % project should get bundled properly.
-        %
-        % Note the bizzare side effect that partial tracking results are
-        % retained in this case.
+      if ~wasbundled
+        % DMC.rootDir point to original model locs
+        % Immediately modernize model wrt dl-cache-related invariants
+        % After this branch the model is as good as a bundled load
+        
+        fprintf(1,'\n\n### Raw/unbundled project migration.\n');
+        fprintf(1,'Copying Deep Models into %s.\n',obj.projTempDir);
+        for iTrker = 1:numel(obj.trackersAll)
+          tObj = obj.trackersAll{iTrker};
+          if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
+            dmc = tObj.trnLastDMC;            
+            for ivw = 1:numel(dmc)
+              dm = dmc(ivw);
+              try                
+                if dm.isRemote
+                  warningNoTrace('Net %s, view %d. Remote Model detected. This will not migrated/preserved.',dm.netType,ivw);
+                end
+                
+                if ivw==1
+                  fprintf(1,'Detected model for nettype ''%s'' in %s.\n',...
+                    dm.netType,dm.rootDir);
+                end
+                
+                modelFiles = dm.findModelGlobsLocal();
+                assert(~strcmp(dm.rootDir,obj.projTempDir)); % Possible filesep issues
+                modelFilesDst = strrep(modelFiles,dm.rootDir,obj.projTempDir);
+                for mndx = 1:numel(modelFiles)
+                  copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+                  % for a given tracker, multiple DMCs this could re-copy
+                  % proj-level artifacts like stripped lbls
+                  fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+                end                
+              catch ME
+                warningNoTrace('Nettype ''%s'' (view %d): error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
+                  dm.netType,ivw,ME.getReport());
+              end
+            end
+          end
+        end
       end
+      fprintf(1,'\n\n');
+      obj.projUpdateDLCache(); % this can fail (output arg not checked)
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -2179,8 +2204,6 @@ classdef Labeler < handle
       %       running except possibly for .rootDir specification. 
       %
       % Postconds, success:
-      %   - .trackParams.ROOT.DeepTrack.Saving.CacheDir updated to point to
-      %   .projTempDir
       %   - .trackersAll{iDLTrker}.trnLastDMC(ivw).rootDir updated to point
       %   to .projTempDir 
       %   - any memory of tracking results in DL tracker objs cleared
