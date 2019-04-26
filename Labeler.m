@@ -1983,11 +1983,18 @@ classdef Labeler < handle
               try                
                 if dm.isRemote
                   warningNoTrace('Net %s, view %d. Remote Model detected. This will not migrated/preserved.',dm.netType,ivw);
+                  continue;
                 end
                 
                 if ivw==1
                   fprintf(1,'Detected model for nettype ''%s'' in %s.\n',...
                     dm.netType,dm.rootDir);
+                end
+                
+                tfsucc = dm.updateCurrInfo();
+                if ~tfsucc
+                  warningNoTrace('Failed to update model iteration for model with net type %s.',...
+                    char(dm.netType));
                 end
                 
                 modelFiles = dm.findModelGlobsLocal();
