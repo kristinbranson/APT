@@ -3125,6 +3125,16 @@ classdef Labeler < handle
         s.showSkeleton = false;
       end
       
+      % 20190429 TrkRes
+      if ~isfield(s,'trkRes')
+        nmov = size(s.movieFilesAll,1);
+        nmovGT = size(s.movieFilesAllGT,1);
+        nvw = size(s.movieFilesAll,2);
+        s.trkResIDs = cell(0,1);
+        s.trkRes = cell(nmov,nvw,0);
+        s.trkResGT = cell(nmovGT,nvw,0);
+        s.trkResViz = cell(0,1);
+      end
     end
 
   end 
@@ -3255,6 +3265,7 @@ classdef Labeler < handle
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           obj.(PROPS.VCD){end+1,1} = [];
         end
+        obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
         if ~gt
           obj.labeledposMarked{end+1,1} = false(nlblpts,nfrms,nTgt);
         end
@@ -3414,6 +3425,7 @@ classdef Labeler < handle
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
+      obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
       if ~gt
         obj.labeledposMarked{end+1,1} = false(nLblPts,nFrms,nTgt);
       end
@@ -3555,6 +3567,8 @@ classdef Labeler < handle
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
           obj.(PROPS.VCD)(iMov,:) = [];
         end
+        obj.(PROPS.TRKRES)(iMov,:,:) = [];
+
         obj.isinit = tfOrig;
         
         edata = MoviesRemappedEventData.movieRemovedEventData(...
@@ -3636,6 +3650,7 @@ classdef Labeler < handle
       for f=FLDS2,f=f{1}; %#ok<FXSET>
         obj.(f) = obj.(f)(p,:);
       end
+      obj.trkRes = obj.trkRes(p,:,:);
       
       obj.isinit = tfOrig;
       
@@ -10547,6 +10562,12 @@ classdef Labeler < handle
       obj.trkResViz = cell(0,1);
     end
     
+    function [tf,iTrkRes] = trackResFindID(obj,id)
+      iTrkRes = find(strcmp(obj.trkResIDs,id));
+      assert(isempty(iTrkRes) || isscalar(iTrkRes));
+      tf = ~isempty(iTrkRes);      
+    end
+    
     function iTrkRes = trackResEnsureID(obj,id)
       iTrkRes = find(strcmp(obj.trkResIDs,id));
       if isempty(iTrkRes)
@@ -10621,6 +10642,24 @@ classdef Labeler < handle
       obj.(TRFLD)(iMovs,:,iTR) = trkfileobjs;      
     end
     
+    function trackResSetMarkerCosmetics(obj,id,varargin)
+      [tf,iTR] = obj.trackResFindID(id);
+      if ~tf
+        error('Tracking results ''%s'' not found in project.',id);
+      end
+      tv = obj.trkResViz{iTR};
+      tv.setMarkerCosmetics(varargin);
+    end
+
+    function trackResSetTextCosmetics(obj,id,varargin)
+      [tf,iTR] = obj.trackResFindID(id);
+      if ~tf
+        error('Tracking results ''%s'' not found in project.',id);
+      end
+      tv = obj.trkResViz{iTR};
+      tv.setTextCosmetics(varargin);
+    end
+
   end
    
   %% Video
@@ -12537,7 +12576,13 @@ classdef Labeler < handle
         obj.gdata.axes_curr,ptsPlotInfo);
       
       for i=1:numel(obj.trkResViz)
-        obj.trkResViz{i}.vizInit('postload',true);
+        tv = obj.trkResViz{i};
+        if isempty(tv.lObj)
+          tv.postLoadInit(obj);
+        else
+          tv.vizInit('postload',true);
+        end
+        tv.updateHideVizHideText();
       end
     end
     
@@ -12585,9 +12630,9 @@ classdef Labeler < handle
       [obj.labeledpos2_ptsH.Visible] = deal(onoff);
       [obj.labeledpos2_ptsTxtH.Visible] = deal(onofftxt);
       
-      trvs = obj.trkResViz;
-      cellfun(@(x)x.setHideViz(tfHide),trvs);
-      cellfun(@(x)x.setHideTextLbls(~tfShowTxt),trvs);     
+%       trvs = obj.trkResViz;
+%       cellfun(@(x)x.setHideViz(tfHide),trvs);
+%       cellfun(@(x)x.setHideTextLbls(~tfShowTxt),trvs);     
     end
     
     function labels2VizShow(obj)
