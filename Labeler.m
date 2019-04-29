@@ -1126,9 +1126,9 @@ classdef Labeler < handle
     function v = get.trkResGTaware(obj)
       gt = obj.gtIsGTMode;
       if gt
-        v = obj.trkRes;
-      else
         v = obj.trkResGT;
+      else
+        v = obj.trkRes;
       end
     end
   end
@@ -10552,6 +10552,7 @@ classdef Labeler < handle
       if isempty(iTrkRes)
         handleTagPfix = ['handletag_' id];
         tv = TrackingVisualizer(obj,handleTagPfix);
+        tv.vizInit();
         
         fprintf(1,'Adding new tracking results set ''%s''.',id);
         obj.trkResIDs{end+1,1} = id;
