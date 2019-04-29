@@ -31,7 +31,8 @@ classdef Labeler < handle
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
-      'skeletonEdges','showSkeleton'};
+      'skeletonEdges','showSkeleton'...
+      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
     SAVEPROPS_LPOS = {...
       'labeledpos' 'nan'
       'labeledposGT' 'nan'
@@ -70,7 +71,9 @@ classdef Labeler < handle
              'LPOSTS','labeledposTS',...
              'LPOSTAG','labeledpostag',...
              'LPOS2','labeledpos2',...
-             'VCD','viewCalibrationData'),'gt',...
+             'VCD','viewCalibrationData',...
+             'TRKRES','trkRes'),...
+             'gt',...
       struct('MFA','movieFilesAllGT',...
              'MFAF','movieFilesAllGTFull',...
              'MFAHL','movieFilesAllGTHaveLbls',...
@@ -83,7 +86,8 @@ classdef Labeler < handle
              'LPOSTS','labeledposTSGT',...
              'LPOSTAG','labeledpostagGT',...
              'LPOS2','labeledpos2GT',...
-             'VCD','viewCalibrationDataGT'));
+             'VCD','viewCalibrationDataGT',...
+             'TRKRES','trkResGT'));
   end
   
   events
@@ -476,6 +480,15 @@ classdef Labeler < handle
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
     trackParams; % all tracking parameters
+  end
+  properties
+    trkResIDs % [nTR x 1] cellstr unique IDs
+    trkRes % [nMov x nview x nTR] cell. cell array of TrkFile objs
+    trkResGT % [nMovGT x nview x nTR] cell. etc
+    trkResViz % [nTR x 1] cell. TrackingVisualizer vector
+  end
+  properties (Dependent)
+    trkResGTaware
   end
   
   %% CrossValidation
@@ -1110,7 +1123,14 @@ classdef Labeler < handle
 %       obj.trackParams.ROOT.CPR = CPRParam.old2newCPROnly(prmCpr);
 %       
 %     end
-    
+    function v = get.trkResGTaware(obj)
+      gt = obj.gtIsGTMode;
+      if gt
+        v = obj.trkRes;
+      else
+        v = obj.trkResGT;
+      end
+    end
   end
   
   methods % prop access
@@ -7892,7 +7912,7 @@ classdef Labeler < handle
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.prevAxesLabelsUpdate();
       %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
-      obj.labels2VizUpdate();
+      obj.labels2VizUpdate('dotrkres',true);
       %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo)); 
     end
     
@@ -7901,7 +7921,7 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate();
+      obj.labels2VizUpdate('dotrkres',true);
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -7911,7 +7931,7 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate();
+      obj.labels2VizUpdate('dotrkres',true);
     end
         
   end
@@ -10447,7 +10467,7 @@ classdef Labeler < handle
       tblSumm.nFrmLblTrk(tfNoStats) = 0;
       tblSumm.nFrmLblImported(tfNoStats) = 0;
       tblSumm.nFrmXV(tfNoStats) = 0;
-    end    
+    end  
   end
   methods (Static)
       function [nFrmLbl,nFrmTrk,nFrmImported,...
@@ -10480,40 +10500,7 @@ classdef Labeler < handle
         xvMeanErr = mean(xvErr(hasXV));
       end
       
-%     function trackSaveResults(obj,fname)
-%       tObj = obj.tracker;
-%       if isempty(tObj)
-%         error('Labeler:track','No tracker set.');
-%       end
-%       s = tObj.getSaveToken(); %#ok<NASGU>
-%       
-%       save(fname,'-mat','-struct','s');
-%       obj.projFSInfo = ProjectFSInfo('tracking results saved',fname);
-%       RC.saveprop('lastTrackingResultsFile',fname);
-%     end
-%     
-%     function trackLoadResults(obj,fname)
-%       tObj = obj.tracker;
-%       if isempty(tObj)
-%         error('Labeler:track','No tracker set.');
-%       end
-%       s = load(fname);
-%       tObj.loadSaveToken(s);
-%       
-%       obj.projFSInfo = ProjectFSInfo('tracking results loaded',fname);
-%       RC.saveprop('lastTrackingResultsFile',fname);
-%     end
-          
-%     function [success,fname] = trackSaveResultsAs(obj)
-%       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
-%         'uiputfile','Save tracking results','trackSaveResults');
-%     end
-%     
-%     function [success,fname] = trackLoadResultsAs(obj)
-%       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
-%         'uigetfile','Load tracking results','trackLoadResults');
-%     end
-%     
+ 
 %     function [success,fname] = trackSaveLoadAsHelper(obj,rcprop,uifcn,...
 %         promptstr,rawMeth)
 %       % rcprop: Name of RC property for guessing path
@@ -10546,6 +10533,93 @@ classdef Labeler < handle
 %       end
 %     end
      
+  end
+  
+  methods % TrackRes
+    
+    function trackResInit(obj)
+      obj.trkResIDs = cell(0,1);
+      obj.trkRes = cell(obj.nmovies,obj.nview,0);
+      obj.trkResGT = cell(obj.nmoviesGT,obj.nview,0);
+      for i=1:numel(obj.trkResViz)
+        delete(obj.trkResViz{i});
+      end
+      obj.trkResViz = cell(0,1);
+    end
+    
+    function iTrkRes = trackResEnsureID(obj,id)
+      iTrkRes = find(strcmp(obj.trkResIDs,id));
+      if isempty(iTrkRes)
+        handleTagPfix = ['handletag_' id];
+        tv = TrackingVisualizer(obj,handleTagPfix);
+        
+        fprintf(1,'Adding new tracking results set ''%s''.',id);
+        obj.trkResIDs{end+1,1} = id;
+        obj.trkRes(:,:,end+1) = {[]};
+        obj.trkResGT(:,:,end+1) = {[]};
+        obj.trkResViz{end+1,1} = tv;
+        iTrkRes = numel(obj.trkResIDs);
+      end
+    end
+    
+    function trackResRmID(obj,id)
+      iTR = find(strcmp(obj.trkResIDs,id));
+      if isempty(iTR)
+        error('Tracking results ID ''%s'' not found in project',id);
+      end
+
+      assert(isscalar(iTR));
+      obj.trkResIDs(iTR,:) = [];
+      obj.trkRes(:,:,iTR) = [];
+      obj.trkResGT(:,:,iTR) = [];
+      tv = obj.trkResViz(iTR);
+      delete(tv);
+      obj.trkResViz(iTR,:) = [];
+    end
+    
+    function trackResAddCurrMov(id,trkfiles)
+      if ~obj.hasMovie
+        error('No movie is open.');
+      end
+      mIdx = obj.currMovIdx;
+      obj.trackResAdd(id,mIdx,trkfiles);
+    end
+    
+    function trackResAdd(obj,id,mIdx,trkfiles)
+      % id: trackRes ID
+      % mIdx: [n] MovieIndex vector
+      % trkfiles: [nxnview] cell of trkfile objects or fullpaths
+
+      assert(isa(mIdx,'MovieIndex'));
+      n = numel(mIdx);
+      assert(iscell(trkfiles));
+      szassert(trkfiles,[n obj.nview]);
+      
+      iTR = obj.trackResEnsureID(id);
+      [iMovs,gt] = mIdx.get();
+      if gt
+        TRFLD = 'trkResGT';
+      else
+        TRFLD = 'trkRes';
+      end
+      
+      if iscellstr(trkfiles) || isstring(trkfiles)
+        trkfileobjs = cellfun(@TrkFile.load,trkfiles,'uni',0);
+      else
+        assert(isa(trkfiles{1},'TrkFile'));
+        trkfileobjs = trkfiles;
+      end
+      
+      for iMov = iMovs(:)'
+        v = obj.(TRFLD){iMov,1,iTR};
+        if ~isempty(v)
+          warningNoTrace('Overwriting existing tracking results for ''%s'' at movie index %d.',...
+            id,iMov);
+        end
+      end
+      obj.(TRFLD)(iMovs,:,iTR) = trkfileobjs;      
+    end
+    
   end
    
   %% Video
@@ -12460,9 +12534,16 @@ classdef Labeler < handle
         obj.gdata.axes_curr,ptsPlotInfo);
       obj.genericInitLabelPointViz('lblOtherTgts_ptsH',[],...
         obj.gdata.axes_curr,ptsPlotInfo);
+      
+      for i=1:numel(obj.trkResViz)
+        obj.trkResViz{i}.vizInit('postload',true);
+      end
     end
     
-    function labels2VizUpdate(obj)
+    function labels2VizUpdate(obj,varargin)
+      dotrkres = myparse(varargin,...
+        'dotrkres',false...
+        );
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;      
@@ -12470,13 +12551,42 @@ classdef Labeler < handle
       txtOffset = obj.labelPointsPlotInfo.LblOffset;
       LabelCore.setPtsCoordsStc(lpos2,obj.labeledpos2_ptsH,...
         obj.labeledpos2_ptsTxtH,txtOffset);
+      
+      if dotrkres
+        trkres = obj.trkResGTaware;
+        trvs = obj.trkResViz;
+        nTR = numel(trvs);
+        for iTR=1:nTR
+          if ~isempty(trkres{iMov,1,iTR})
+            tObjsAll = trkres(iMov,:,iTR);
+            trkPs = cellfun(@(x)x.pTrk,tObjsAll,'uni',0);
+            trkP = cat(1,trkPs{:}); % [nlabelpoints x 2 x nfrm x ntgt]
+            trkP = trkP(:,:,frm,iTgt);
+            trv = trvs{iTR};
+            trv.updateTrackRes(trkP);
+                % % From DeepTracker.getPredictionCurrFrame
+                % AL20160502: When changing movies, order of updates to
+                % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
+                % % be updated first, resulting in an OOB currFrame; protect against
+                % % this.
+                % frm = min(frm,size(xyPCM,3));
+                % xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+          end
+        end
+      end
     end
     
     function labels2VizShowHideUpdate(obj)
-      onoff = onIff(~obj.labels2Hide);
-      onofftxt = onIff(~obj.labels2Hide && obj.showPredTxtLbl);
+      tfHide = obj.labels2Hide;
+      tfShowTxt = obj.showPredTxtLbl;
+      onoff = onIff(~tfHide);
+      onofftxt = onIff(~tfHide && tfShowTxt);
       [obj.labeledpos2_ptsH.Visible] = deal(onoff);
       [obj.labeledpos2_ptsTxtH.Visible] = deal(onofftxt);
+      
+      trvs = obj.trkResViz;
+      cellfun(@(x)x.setHideViz(tfHide),trvs);
+      cellfun(@(x)x.setHideTextLbls(~tfShowTxt),trvs);     
     end
     
     function labels2VizShow(obj)

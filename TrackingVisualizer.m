@@ -21,11 +21,13 @@ classdef TrackingVisualizer < handle
   % - no getters, just get the prop
   % - get/loadSaveToken set the stateful prop and forward to trkVizer
 
-  properties
+  properties (Transient)
     lObj % Included only to access the current raw image. Ideally used as little as possible
 
     hIms % [nview] image handles. Owned by Labeler
     hAxs % [nview] axes handles. Owned by Labeler
+  end
+  properties
     ipt2vw % [npts], like Labeler/labeledposIPt2View
     ptClrs % [nptsx3], like Labeler/labeledposIPt2View
     
@@ -35,6 +37,8 @@ classdef TrackingVisualizer < handle
     tfHideTxt % scalar, if true then hide text even if tfHideViz is false
     
     handleTagPfix % char, prefix for handle tags
+  end
+  properties (Transient)
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
     hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
     hXYPrdRedTxt; % [nPts] handle vec, text labels for hXYPrdRed
@@ -57,16 +61,24 @@ classdef TrackingVisualizer < handle
       deleteValidHandles(obj.hXYPrdRedTxt);
       obj.hXYPrdRedTxt = [];
     end
-    function vizInit(obj)
+    function vizInit(obj,varargin)
       % Sets .hXYPrdRed, .hXYPrdRedOther
 
+      postload = myparse(varargin,...
+        'postload',false... % set to true for post-load init
+        );
+      
       obj.deleteGfxHandles();
       
-      ptclrs = obj.lObj.PredictPointColors;      
       npts = numel(obj.ipt2vw);
-      szassert(ptclrs,[npts 3]);
-      obj.ptClrs = ptclrs;
-      obj.txtOffPx = obj.lObj.labelPointsPlotInfo.LblOffset;
+      if postload
+        ptclrs = obj.ptClrs;
+      else
+        ptclrs = obj.lObj.PredictPointColors;
+        obj.ptClrs = ptclrs;
+        obj.txtOffPx = obj.lObj.labelPointsPlotInfo.LblOffset;
+      end
+      szassert(ptclrs,[npts 3]);      
 
       % init .xyVizPlotArgs*
       trackPrefs = obj.lObj.projPrefs.Track;
@@ -163,6 +175,16 @@ classdef TrackingVisualizer < handle
       obj.tfHideViz = false;
             
       obj.handleTagPfix = handleTagPfix;
+    end
+    function postLoadInit(obj,lObj)
+      obj.lObj = lObj;
+      gd = lObj.gdata;
+      obj.hAxs = gd.axes_all;
+      obj.hIms = gd.images_all;
+
+      assert(isequal(obj.ipt2vw,lObj.labeledposIPt2View));
+      
+      obj.vizInit('postload',true);      
     end
     function delete(obj)
       obj.deleteGfxHandles();
