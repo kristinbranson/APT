@@ -10570,6 +10570,15 @@ classdef Labeler < handle
       tf = ~isempty(iTrkRes);      
     end
     
+    function tv = trackResFindTV(obj,id) % throws
+      % Return TrackingVisualizer object for id, or err
+      [tf,iTR] = obj.trackResFindID(id);
+      if ~tf
+        error('Tracking results ''%s'' not found in project.',id);
+      end
+      tv = obj.trkResViz{iTR};
+    end
+    
     function iTrkRes = trackResEnsureID(obj,id)
       iTrkRes = find(strcmp(obj.trkResIDs,id));
       if isempty(iTrkRes)
@@ -10577,7 +10586,7 @@ classdef Labeler < handle
         tv = TrackingVisualizer(obj,handleTagPfix);
         tv.vizInit();
         
-        fprintf(1,'Adding new tracking results set ''%s''.',id);
+        fprintf(1,'Adding new tracking results set ''%s''.\n',id);
         obj.trkResIDs{end+1,1} = id;
         obj.trkRes(:,:,end+1) = {[]};
         obj.trkResGT(:,:,end+1) = {[]};
@@ -10601,7 +10610,7 @@ classdef Labeler < handle
       obj.trkResViz(iTR,:) = [];
     end
     
-    function trackResAddCurrMov(id,trkfiles)
+    function trackResAddCurrMov(obj,id,trkfiles)
       if ~obj.hasMovie
         error('No movie is open.');
       end
@@ -10616,6 +10625,9 @@ classdef Labeler < handle
 
       assert(isa(mIdx,'MovieIndex'));
       n = numel(mIdx);
+      if ischar(trkfiles)
+        trkfiles = cellstr(trkfiles);
+      end
       assert(iscell(trkfiles));
       szassert(trkfiles,[n obj.nview]);
       
@@ -10644,22 +10656,29 @@ classdef Labeler < handle
       obj.(TRFLD)(iMovs,:,iTR) = trkfileobjs;      
     end
     
-    function trackResSetMarkerCosmetics(obj,id,varargin)
-      [tf,iTR] = obj.trackResFindID(id);
-      if ~tf
-        error('Tracking results ''%s'' not found in project.',id);
+    function hlpTrackResSetViz(obj,tvMeth,id,varargin)
+      if isempty(id)
+        cellfun(@(x)x.(tvMeth)(varargin{:}),obj.trkResViz);
+      else
+        tv = obj.trackResFindTV(id); % throws
+        tv.(tvMeth)(varargin{:});
       end
-      tv = obj.trkResViz{iTR};
-      tv.setMarkerCosmetics(varargin);
+    end
+    
+    function trackResSetHideViz(obj,id,tf)
+      obj.hlpTrackResSetViz('setHideViz',id,tf);
+    end
+    
+    function trackResSetHideTextLbls(obj,id,tf)
+      obj.hlpTrackResSetViz('setHideTextLbls',id,tf);
+    end    
+    
+    function trackResSetMarkerCosmetics(obj,id,varargin)
+      obj.hlpTrackResSetViz('setMarkerCosmetics',id,varargin);
     end
 
     function trackResSetTextCosmetics(obj,id,varargin)
-      [tf,iTR] = obj.trackResFindID(id);
-      if ~tf
-        error('Tracking results ''%s'' not found in project.',id);
-      end
-      tv = obj.trkResViz{iTR};
-      tv.setTextCosmetics(varargin);
+      obj.hlpTrackResSetViz('setTextCosmetics',id,varargin);
     end
 
   end

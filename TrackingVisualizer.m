@@ -58,8 +58,10 @@ classdef TrackingVisualizer < handle
   
   methods
     function deleteGfxHandles(obj)
-      deleteValidHandles(obj.hXYPrdRed);
-      obj.hXYPrdRed = [];
+      if ~isstruct(obj.hXYPrdRed) % guard against serialized TVs which have PV structs in .hXYPrdRed
+        deleteValidHandles(obj.hXYPrdRed);
+        obj.hXYPrdRed = [];
+      end
       deleteValidHandles(obj.hXYPrdRedOther);
       obj.hXYPrdRedOther = [];
       deleteValidHandles(obj.hXYPrdRedTxt);
@@ -70,7 +72,7 @@ classdef TrackingVisualizer < handle
 
       postload = myparse(varargin,...
         'postload',false... % set to true for post-load init
-        );
+        );      
       
       obj.deleteGfxHandles();
       
@@ -106,14 +108,14 @@ classdef TrackingVisualizer < handle
       for iPt = 1:npts
         clr = ptclrs(iPt,:);
         iVw = ipt2View(iPt);
-        set = ipt2set(iPt);
+        ptset = ipt2set(iPt);
         hTmp(iPt) = plot(ax(iVw),nan,nan,xyVizPlotArgs{:},...
           'Color',clr,...
           'Tag',sprintf('%s_XYPrdRed_%d',pfix,iPt));
         hTmpOther(iPt) = plot(ax(iVw),nan,nan,xyVizPlotArgs{:},...
           'Color',clr,...
           'Tag',sprintf('%s_XYPrdRedOther_%d',pfix,iPt));
-        hTxt(iPt) = text(nan,nan,num2str(set),'Parent',ax(iVw),...
+        hTxt(iPt) = text(nan,nan,num2str(ptset),'Parent',ax(iVw),...
           'Color',clr,...
           'FontSize',ptsPlotInfo.FontSize,...
           'PickableParts','none',...
@@ -124,7 +126,7 @@ classdef TrackingVisualizer < handle
       obj.hXYPrdRedTxt = hTxt;
       
       if postload && isstruct(hXYPrdRed0) 
-        if numel(hXYPrdRed0)==numel(hTmp)
+        if numel(hXYPrdRed0)==numel(hTmp)          
           arrayfun(@(x,y)set(x,y),hTmp,hXYPrdRed0);
         else
           warningNoTrace('.hXYPrdRed: Number of saved prop-val structs does not match number of line handles.');
@@ -217,6 +219,15 @@ classdef TrackingVisualizer < handle
     function delete(obj)
       obj.deleteGfxHandles();
     end
+    
+    % Save/load strategy. 
+    %
+    % In saveobj we record the cosmetics used for a TrackingVisualizer for 
+    % the .hXYPrdRed line handles by doing a get and saving the resulting 
+    % PVs in .hXYPrdRed.
+    %
+    % Loadobj keeps these PVs in .hXYPrdRed. At postLoadInit->vizInit('postload',true)
+    % time, the PVs are re-set on the .hXYPrdRed line handles.
     function s = saveobj(obj)
       s = struct();
       for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>
@@ -234,6 +245,7 @@ classdef TrackingVisualizer < handle
         for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>
           b.(p) = a.(p);
         end
+        b.hXYPrdRed = a.hXYPrdRed;
       else
         b = a;
       end
