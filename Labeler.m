@@ -2891,7 +2891,9 @@ classdef Labeler < handle
         if isfield(s.trackerData{i},'trnLastDMC'),
           for j = 1:numel(s.trackerData{i}.trnLastDMC),
             dmc = s.trackerData{i}.trnLastDMC(j);
-            if isempty(dmc.nLabels) && ~dmc.isRemote
+            if isempty(dmc.nLabels) && (isempty(dmc.reader) || ~dmc.isRemote)
+              % dmc.reader is empty for legacy projs; which will be assumed 
+              % to be local in DeepTracker/modernizeSaveToken
               try
                 fprintf('Modernize: Reading nLabels for deep tracker\n');
                 dmc.readNLabels();

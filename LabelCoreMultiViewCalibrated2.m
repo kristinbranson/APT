@@ -135,7 +135,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
   end
   
-  methods 
+  methods
     
     function set.numHotKeyPtSet(obj,val)
       obj.numHotKeyPtSet = val;
@@ -954,6 +954,40 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           'XData',x,'YData',y,...
           'Visible','on','Color',hPt1.Color);
       end
+    end
+    
+    function projectionCalcDisp3DPosn(obj)
+      % Calculate/display triangulated 3D coordinates of current working
+      % points (assuming all have been set/adjusted)
+      
+      iWS = obj.iSetWorking;
+      if isnan(iWS)
+        error('No current working pointset.');
+      end
+      
+      ipts = obj.iSet2iPt(iWS,:);
+      tfadj = obj.tfAdjusted(ipts);
+      if ~all(tfadj)
+        error('One or more points in current working pointset have not been set/adjusted.');
+      end
+      
+      axs = obj.hAx;
+      nvw = obj.nView;
+      hPtsWS = obj.hPts(ipts);
+      xs = cell2mat(get(hPtsWS,'XData'));
+      ys = cell2mat(get(hPtsWS,'YData'));
+      xyim = [xs(:) ys(:)]';
+      xyim = reshape(xyim,[2 1 nvw]);
+      
+      crig = obj.pjtCalRig;
+      [X,xyrp,rpe] = crig.triangulate(xyim);
+      
+      fprintf('Pointset %d (labelpoints %s)\n',iWS,mat2str(ipts));
+      for ivw=1:nvw
+        fprintf(' view %d: clicked posn is %s. RP err is %.2f\n',ivw,...
+          mat2str(round(reshape(xyim(:,1,ivw),[1 2]))),rpe(ivw) );
+      end
+      fprintf('3D coordinates are %s\n',mat2str(X,5));
     end
     
     function projectionRefresh(obj)
