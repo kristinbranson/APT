@@ -219,7 +219,7 @@ classdef TrackingVisualizer < handle
     end
     function s = saveobj(obj)
       s = struct();
-      for p=obj.SAVEPROPS,p=p{1}; %#ok<FXSET>
+      for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>
         s.(p) = obj.(p);
       end
       lineprops = obj.LINE_PROPS_COSMETIC_SAVE;
@@ -227,11 +227,11 @@ classdef TrackingVisualizer < handle
       s.hXYPrdRed = cell2struct(vals,lineprops,2);
     end
   end
-  methods
+  methods (Static)
     function b = loadobj(a)
       if isstruct(a)
         b = TrackingVisualizer();
-        for p=obj.SAVEPROPS,p=p{1}; %#ok<FXSET>
+        for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>
           b.(p) = a.(p);
         end
       else
