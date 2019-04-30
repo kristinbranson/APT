@@ -10584,7 +10584,7 @@ classdef Labeler < handle
         tv = TrackingVisualizer(obj,handleTagPfix);
         tv.vizInit();
         
-        fprintf(1,'Adding new tracking results set ''%s''.',id);
+        fprintf(1,'Adding new tracking results set ''%s''.\n',id);
         obj.trkResIDs{end+1,1} = id;
         obj.trkRes(:,:,end+1) = {[]};
         obj.trkResGT(:,:,end+1) = {[]};
@@ -10608,7 +10608,7 @@ classdef Labeler < handle
       obj.trkResViz(iTR,:) = [];
     end
     
-    function trackResAddCurrMov(id,trkfiles)
+    function trackResAddCurrMov(obj,id,trkfiles)
       if ~obj.hasMovie
         error('No movie is open.');
       end
@@ -10623,6 +10623,9 @@ classdef Labeler < handle
 
       assert(isa(mIdx,'MovieIndex'));
       n = numel(mIdx);
+      if ischar(trkfiles)
+        trkfiles = cellstr(trkfiles);
+      end
       assert(iscell(trkfiles));
       szassert(trkfiles,[n obj.nview]);
       
