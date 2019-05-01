@@ -35,6 +35,10 @@ classdef TrkFile < dynamicprops
       for i=1:2:nArg
         prop = varargin{i};
         val = varargin{i+1};
+        if ~isprop(obj,prop)
+          warningNoTrace('Adding TrkFile property ''%s''.',prop);
+          obj.addprop(prop);
+        end         
         obj.(prop) = val;
       end
       
