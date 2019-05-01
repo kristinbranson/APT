@@ -8733,6 +8733,7 @@ classdef Labeler < handle
       end
       
       tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp);
+      
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
@@ -8740,6 +8741,14 @@ classdef Labeler < handle
           'Not including %d partially-labeled rows.',nnan);
       end
       tblP = tblP(~tfnan,:);
+      
+      tfinf = any(isinf(tblP.p),2);
+      ninf = nnz(tfinf);
+      if ninf>0
+        warningNoTrace('Labeler:nanData',...
+          'Not including %d rows with fully-occluded labels.',ninf);
+      end
+      tblP = tblP(~tfinf,:);
     end
     
     % Hist Eq Notes
