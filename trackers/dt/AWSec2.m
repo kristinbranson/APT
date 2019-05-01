@@ -674,13 +674,16 @@ classdef AWSec2 < handle
         dest = ['~/' dest];
       end
       if ispc 
-        file = regexprep(file,'^[cC]:[\\/]+','\');
+        [fileP,fileF,fileE] = fileparts(file);
         % 20190501. scp on windows can be dumb and treats colons ':' as a
         % host specifier etc. there may not be a good way to escape; 
-        % googling says use pscp or other scp impls. However, this hack
-        % may work for C drive 
+        % googling says use pscp or other scp impls. 
+        
+        cmd = sprintf('cd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
+          pem,['./' fileF fileE],ip,dest);
+      else
+        cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
       end
-      cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
     end
 
     function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
