@@ -69,35 +69,35 @@ def setup(data_type_in,gpu_device=None):
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
         op_graph = []
         gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
-        op_af_graph = '\(0,1\),\(0,2\),\(1,2\),\(2,3\),\(1,4\),\(4,7\),\(3,9\),\(7,5\),\(9,5\),\(5,6\),\(7,8\),\(8,12\),\(9,10\),\(10,15\),\(16,3\),\(11,4\),\(14,5\),\(13,5\)'
+        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(20,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
         groups = ['']
     elif data_type == 'stephen':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
         gt_lbl = lbl_file
-        op_af_graph = '\(0,1\),\(0,2\),\(2,3\),\(1,3\),\(0,4\),\(1,4\)'
+        op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
         common_conf['trange'] = 20
 
     elif data_type == 'roian':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl'
-        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(1,2\),\(1,3\),\(2,3\)'
+        op_af_graph = '\(0,1\),\(0,2\),\(0,3\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
         common_conf['rrange'] = 180
         common_conf['trange'] = 5
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
-        op_af_graph = '\(0,3\),\(1,2\),\(4,3\),\(4,2\),\(0,1\),\(2,3\)'
+        op_af_graph = '\(0,4\),\(1,4\),\(2,4\),\(3,4\)'
         cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'brit1':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl'
-        op_af_graph = '\(0,1\),\(1,0\)'
+        op_af_graph = '\(0,1\)'
         cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'brit2':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
-        op_af_graph = '\(0,1\),\(0,2\),\(1,2\)'
+        op_af_graph = '\(2,0\),\(2,1\)'
         cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'romain':
@@ -110,7 +110,8 @@ def setup(data_type_in,gpu_device=None):
     elif data_type == 'larva':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
         cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/LarvaTrainCVInfo20190419.mat'
-        op_af_graph = '(0,1),(1,2),(2,3)'
+        j = tuple(zip(range(27), range(1, 28)))
+        op_af_graph = '{}'.format(j)
         op_af_graph = op_af_graph.replace('(','\(')
         op_af_graph = op_af_graph.replace(')','\)')
         common_conf['trange'] = 20
@@ -296,7 +297,7 @@ def run_trainining(exp_name,train_type,view,run_type):
             conf_opts['batch_size'] = 4
 
     if data_type in ['romain']:
-        if train_type in ['mdn']:
+        if train_type in ['mdn','resnet_unet']:
             conf_opts['batch_size'] = 2
         elif train_type in ['unet']:
             conf_opts['batch_size'] = 1
@@ -1514,7 +1515,7 @@ def run_active_learning(round_num,add_type='active'):
         train_add = [val_info[ss][0].tolist() for ss in sel_ex]
         gg = range(len(ord_dd))
         val_list = list(set(gg)-set(sel_ex))
-        new_val = [val_info[ss][0].tolist() for ss in ord_dd[:-n_add]]
+        new_val = [val_info[ss][0].tolist() for ss in val_list]
         new_train = prev_splits[0] + train_add
         new_splits = [new_train,new_val]
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -1534,7 +1535,7 @@ def run_active_learning(round_num,add_type='active'):
 
 
 
-def get_active_results():
+def get_active_results(num_rounds=8):
 
     assert data_type is 'alice'
     import random
@@ -1548,7 +1549,7 @@ def get_active_results():
     active_exp = {}
     for add_type in ['active','random']:
         afiles = []
-        for round_num in range(8):
+        for round_num in range(num_rounds):
             exp_name = '{}_round{}'.format(add_type,round_num)
 
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)

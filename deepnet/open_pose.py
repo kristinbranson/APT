@@ -10,7 +10,7 @@ from keras.callbacks import LearningRateScheduler, ModelCheckpoint, CSVLogger, T
 from keras.callbacks import Callback
 from keras.applications.vgg19 import VGG19
 from scipy import stats
-from keras.optimizers import Optimizer
+from keras.optimizers import Optimizer, Adam
 from keras import backend as K
 from keras.legacy import interfaces
 
@@ -27,6 +27,8 @@ import tensorflow as tf
 import keras.backend as K
 import logging
 from time import time
+from scipy.ndimage.filters import gaussian_filter
+import cv2
 
 # name = 'open_pose'
 
@@ -314,6 +316,7 @@ def create_affinity_labels(locs, imsz, graph,scale=1):
     n_out = len(graph)
     n_ex = locs.shape[0]
     out = np.zeros([n_ex,imsz[0],imsz[1],n_out*2])
+    n_steps = 2*max(imsz)
 
     for cur in range(n_ex):
         for ndx, e in enumerate(graph):
@@ -333,8 +336,8 @@ def create_affinity_labels(locs, imsz, graph,scale=1):
                 # xx = np.round(np.linspace(start_x,end_x,6000))
                 # yy = np.round(np.linspace(start_y,end_y,6000))
                 # zz = np.stack([xx,yy])
-                xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,6000))
-                yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,6000))
+                xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,n_steps))
+                yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,n_steps))
                 if zz is None:
                     zz = np.stack([xx,yy])
                 else:
@@ -451,12 +454,12 @@ class DataIteratorTF(object):
         ims, locs = PoseTools.preprocess_ims(ims, locs, self.conf,
                                             self.distort, self.conf.op_rescale)
 
-        label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz,self.conf.label_blur_rad)
+        label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz,1) #self.conf.label_blur_rad)
 #        label_ims = PoseTools.create_label_images(locs/self.conf.op_label_scale, mask_sz,1,2)
         label_ims = np.clip(label_ims,0,1)
 
         affinity_ims = create_affinity_labels(locs/self.conf.op_label_scale,
-                                              mask_sz, self.conf.op_affinity_graph,self.conf.label_blur_rad)
+                                              mask_sz, self.conf.op_affinity_graph,1) #self.conf.label_blur_rad)
 
 
         return [ims, mask_im1, mask_im2], \
@@ -666,11 +669,12 @@ def training(conf,name='deepnet'):
     callbacks_list = [lrate, obs] #checkpoint,
 
     # sgd optimizer with lr multipliers
-    multisgd = MultiSGD(lr=base_lr, momentum=momentum, decay=0.0, nesterov=False, lr_mult=lr_mult, clipnorm=1.)
+    # optimizer = MultiSGD(lr=base_lr, momentum=momentum, decay=0.0, nesterov=False, lr_mult=lr_mult)#, clipnorm=1.)
     # Mayank 20190423 - Adding clipnorm so that the loss doesn't go to zero.
+    optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     # start training
-    model.compile(loss=losses, optimizer=multisgd)
+    model.compile(loss=losses, optimizer=optimizer)
 
     #save initial model
     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
@@ -701,6 +705,8 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         latest_model_file = model_file
     logging.info("Loading the weights from {}.. ".format(latest_model_file))
     model.load_weights(latest_model_file)
+    thre1 = conf.get('op_param_hmap_thres',0.05)
+    thre2 = conf.get('op_param_paf_thres',0.05)
 
     def pred_fn(all_f):
         if all_f.shape[3] == 1:
@@ -708,9 +714,18 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         xs, _ = PoseTools.preprocess_ims(
             all_f, in_locs=np.zeros([conf.batch_size, conf.n_classes, 2]), conf=conf,
             distort=False, scale=conf.op_rescale)
-        pred = model.predict(xs)[-1]
-        base_locs = PoseTools.get_pred_locs(pred)
-        base_locs = base_locs * conf.op_rescale * conf.op_label_scale
+        model_preds = model.predict(xs)
+        # all_infered = []
+        # for ex in range(xs.shape[0]):
+        #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
+        #     all_infered.append(infered)
+        pred = model_preds[-1]
+        raw_locs = PoseTools.get_pred_locs(pred)
+        raw_locs = raw_locs * conf.op_rescale * conf.op_label_scale
+        # base_locs = np.array(all_infered)*conf.op_rescale
+        # nanidx = np.isnan(base_locs)
+        # base_locs[nanidx] = raw_locs[nanidx]
+        base_locs = raw_locs
         ret_dict = {}
         ret_dict['locs'] = base_locs
         ret_dict['hmaps'] = pred
@@ -722,10 +737,204 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
     return pred_fn, close_fn, latest_model_file
 
 
+
+def do_inference(hmap, paf, conf, thre1, thre2):
+    all_peaks = []
+    peak_counter = 0
+    limb_seq = conf.op_affinity_graph
+    hmap = cv2.resize(hmap,(0,0),fx=conf.op_label_scale, fy=conf.op_label_scale,interpolation=cv2.INTER_CUBIC)
+    paf = cv2.resize(paf,(0,0),fx=conf.op_label_scale, fy=conf.op_label_scale,interpolation=cv2.INTER_CUBIC)
+
+    for part in range(hmap.shape[-1]):
+        map_ori = hmap[:, :, part]
+        map = map_ori
+        # map = gaussian_filter(map_ori, sigma=3)
+
+        map_left = np.zeros(map.shape)
+        map_left[1:, :] = map[:-1, :]
+        map_right = np.zeros(map.shape)
+        map_right[:-1, :] = map[1:, :]
+        map_up = np.zeros(map.shape)
+        map_up[:, 1:] = map[:, :-1]
+        map_down = np.zeros(map.shape)
+        map_down[:, :-1] = map[:, 1:]
+
+        peaks_binary = np.logical_and.reduce(
+            (map >= map_left, map >= map_right, map >= map_up, map >= map_down, map > thre1))
+        peaks = list(zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]))  # note reverse
+
+        peaks_with_score = [x + (map_ori[x[1], x[0]],) for x in peaks]
+        # if len(peaks_with_score)>2:
+        #    peaks_with_score = sorted(peaks_with_score,key=lambda x:x[2],reverse=True)[:2]
+        #    peaks = peaks_with_score #  taking the first two peaks
+        id = range(peak_counter, peak_counter + len(peaks))
+        peaks_with_score_and_id = [peaks_with_score[i] + (id[i],) for i in range(len(id))]
+
+        all_peaks.append(peaks_with_score_and_id)
+        peak_counter += len(peaks)
+
+    connection_all = []
+    special_k = []
+    mid_num = 8
+
+    for k in range(len(limb_seq)):
+        x_paf = paf[:,:,k*2]
+        y_paf = paf[:,:,k*2+1]
+        # score_mid = paf[:, :, [x for x in limb_seq[k]]]
+        candA = all_peaks[limb_seq[k][0]]
+        candB = all_peaks[limb_seq[k][1]]
+        nA = len(candA)
+        nB = len(candB)
+        indexA, indexB = limb_seq[k]
+        if  nA != 0 and nB != 0:
+            connection_candidate = []
+            for i in range(nA):
+                for j in range(nB):
+                    vec = np.subtract(candB[j][:2], candA[i][:2])
+                    norm = math.sqrt(vec[0] * vec[0] + vec[1] * vec[1])
+                    # failure case when 2 body parts overlaps
+                    if norm == 0:
+                        continue
+                    if norm > max(conf.imsz):
+                        continue
+                    # if limbSeq[k][0]==0 and limbSeq[k][1]==1 and norm < 150:
+                    #   continue
+
+                    vec = np.divide(vec, norm)
+
+                    startend = list(zip(np.linspace(candA[i][0], candB[j][0], num=mid_num), \
+                                        np.linspace(candA[i][1], candB[j][1], num=mid_num)))
+
+                    vec_x = np.array(
+                        [x_paf[int(round(startend[I][1])), int(round(startend[I][0]))] \
+                         for I in range(len(startend))])
+                    vec_y = np.array(
+                        [y_paf[int(round(startend[I][1])), int(round(startend[I][0]))] \
+                         for I in range(len(startend))])
+
+                    score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1])
+                    score_with_dist_prior = sum(score_midpts) / len(score_midpts) # + min( 0.5 * oriImg.shape[0] / norm - 1, 0)
+                    criterion1 = len(np.nonzero(score_midpts > thre2)[0]) > 0.8 * len( score_midpts)
+                    criterion2 = score_with_dist_prior > 0
+                    if criterion1 and criterion2:
+                        connection_candidate.append([i, j, score_with_dist_prior,
+                                                     score_with_dist_prior + candA[i][2] + candB[j][2]])
+
+            connection_candidate = sorted(connection_candidate, key=lambda x: x[2], reverse=True)
+            connection = np.zeros((0, 5))
+            for c in range(len(connection_candidate)):
+                i, j, s = connection_candidate[c][0:3]
+                if (i not in connection[:, 3] and j not in connection[:, 4]):
+                    connection = np.vstack([connection, [candA[i][3], candB[j][3], s, i, j]])
+                    if (len(connection) >= min(nA, nB)):
+                        break
+
+            connection_all.append(connection)
+        else:
+            special_k.append(k)
+            connection_all.append([])
+
+    # last number in each row is the total parts number of that person
+    # the second last number in each row is the score of the overall configuration
+    subset = -1 * np.ones((0, conf.n_classes + 2))
+    candidate = np.array([item for sublist in all_peaks for item in sublist])
+
+    for k in range(len(limb_seq)):
+        if k not in special_k:
+            partAs = connection_all[k][:, 0]
+            partBs = connection_all[k][:, 1]
+            indexA, indexB = np.array(limb_seq[k])
+
+            for i in range(len(connection_all[k])):  # = 1:size(temp,1)
+                found = 0
+                subset_idx = [-1, -1]
+                for j in range(len(subset)):  # 1:size(subset,1):
+                    if subset[j][indexA] == partAs[i] or subset[j][indexB] == partBs[i]:
+                        subset_idx[found] = j
+                        found += 1
+
+                if found == 1:
+                    j = subset_idx[0]
+                    if (subset[j][indexB] != partBs[i]):
+                        subset[j][indexB] = partBs[i]
+                        subset[j][-1] += 1
+                        subset[j][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
+                    elif subset[j][indexA] != partAs[i]:
+                        subset[j][indexA] = partAs[i]
+                        subset[j][-1] += 1
+                        subset[j][-2] += candidate[partAs[i].astype(int), 2] + connection_all[k][i][2]
+
+                elif found == 2:  # if found 2 and disjoint, merge them
+                    j1, j2 = subset_idx
+                    membership = ((subset[j1] >= 0).astype(int) + (subset[j2] >= 0).astype(int))[:-2]
+                    if len(np.nonzero(membership == 2)[0]) == 0:  # merge
+                        subset[j1][:-2] += (subset[j2][:-2] + 1)
+                        subset[j1][-2:] += subset[j2][-2:]
+                        subset[j1][-2] += connection_all[k][i][2]
+                        subset = np.delete(subset, j2, 0)
+                    else:  # as like found == 1
+                        subset[j1][indexB] = partBs[i]
+                        subset[j1][-1] += 1
+                        subset[j1][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
+
+                # if find no partA in the subset, create a new subset
+                elif not found and k < 2:
+                    row = -1 * np.ones(conf.n_classes+2)
+                    row[indexA] = partAs[i]
+                    row[indexB] = partBs[i]
+                    row[-1] = 2
+                    row[-2] = sum(candidate[connection_all[k][i, :2].astype(int), 2]) + \
+                              connection_all[k][i][2]
+                    subset = np.vstack([subset, row])
+
+    # delete some rows of subset which has few parts occur
+    deleteIdx = [];
+    for i in range(len(subset)):
+        if subset[i][-1] < conf.n_classes or subset[i][-2] / subset[i][-1] < 0.4:
+            deleteIdx.append(i)
+    subset = np.delete(subset, deleteIdx, axis=0)
+
+    # canvas = cv2.imread(input_image)  # B,G,R order
+    detections = []
+    parts = {}
+    for i in range(conf.n_classes):  # 17
+        parts[i] = []
+        for j in range(len(all_peaks[i])):
+            a = int(all_peaks[i][j][0])
+            b = int(all_peaks[i][j][1])
+            c = all_peaks[i][j][2]
+            detections.append((a, b, c))
+            parts[i].append((a, b, c))
+    #        cv2.circle(canvas, all_peaks[i][j][0:2], 4, colors[i], thickness=-1)
+
+    # stickwidth = 10 #4
+    # print()
+    mappings = np.ones([conf.n_classes,2])*np.nan
+    if subset.shape[0] < 1:
+        return mappings
+
+    subset = subset[np.argsort(subset[:,-2])] # sort by highest scoring one.
+    for n in range(1):
+        for i in range(conf.n_classes):
+            index = subset[-n-1][i]
+            if index < 0:
+                mappings[i,:] = np.nan
+            else:
+                mappings[i,:] = candidate[index.astype(int), :2]
+            # polygon = cv2.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stickwidth), int(angle), 0,
+            # 360, 1)
+            # cv2.fillConvexPoly(cur_canvas, polygon, colors[i])
+            # canvas = cv2.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+
+    mappings -= conf.op_label_scale/4 # For some reason, cv2.imresize maps (x,y) to (8*x+4,8*y+4). sigh.
+    return mappings
+
+
 def model_files(conf, name):
     latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
     if latest_model_file is None:
         return None
     traindata_file = PoseTools.get_train_data_file(conf, name)
     return [latest_model_file, traindata_file + '.json']
+
 

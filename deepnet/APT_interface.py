@@ -509,6 +509,10 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
                 n1 = int(mm.groups()[0]) - 1
                 n2 = int(mm.groups()[1]) - 1
                 graph.append([n1, n2])
+        nodes = []
+        _ = [nodes.extend(n) for n in graph]
+        assert len(graph) == (conf.n_classes - 1) and len(set(nodes)) == conf.n_classes, 'Affinity Graph for open pose is not a complete tree'
+
         conf.op_affinity_graph = graph
     except KeyError:
         pass

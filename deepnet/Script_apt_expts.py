@@ -20,7 +20,7 @@ rae.run_dlc_augment_training(run_type='submit')
 import run_apt_expts as rae
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum),'')
-    rae.cv_train_britton(skip_db=False, run_type='submit')
+    rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
 
 ## results
 import run_apt_expts as rae
@@ -32,9 +32,10 @@ for britnum in range(3):
 ## Romains experiments
 
 ## CV Training - all views
+
 import run_apt_expts as rae
 rae.setup('romain','')
-rae.cv_train_from_mat(skip_db=False,run_type='submit')
+rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts as rae
@@ -46,11 +47,11 @@ rae.get_cv_results(num_splits=6)
 ## Roain's expts
 import run_apt_expts as rae
 rae.setup('roian','')
-rae.cv_train_from_mat(skip_db=False,run_type='submit')
+rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts as rae
-rae.setup('roian','')
+rae.setup('roian')
 rae.get_cv_results(num_splits=4)
 
 
@@ -58,13 +59,12 @@ rae.get_cv_results(num_splits=4)
 
 import run_apt_expts as rae
 rae.setup('larva','')
-rae.cv_train_from_mat(skip_db=False,run_type='submit')
+rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts as rae
-rae.setup('larva','')
+rae.setup('larva')
 rae.get_cv_results(num_splits=8)
-
 
 
 
@@ -84,7 +84,7 @@ for round in range(8):
 
 ## results
 import run_apt_expts as rae
-rae.setup('alice','0')
+rae.setup('alice')
 rae.get_active_results()
 
 

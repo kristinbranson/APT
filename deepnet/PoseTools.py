@@ -516,7 +516,7 @@ def create_affinity_labels(locs, im_sz, graph, scale, blur_rad):
     sz1 = int(im_sz[1] // scale)
 
     out = np.zeros((len(locs), sz0, sz1, n_out*2))
-
+    n_steps = min(sz0,sz1)*2
     for cur in range(n_ex):
         for ndx, e in enumerate(graph):
             start_x, start_y = locs[cur,e[0],:]
@@ -531,9 +531,9 @@ def create_affinity_labels(locs, im_sz, graph, scale, blur_rad):
             dx = (end_x - start_x)/ll/2
             dy = (end_y - start_y)/ll/2
             zz = None
-            for delta in np.arange(-blur_rad,blur_rad,0.25):
-                xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,6000))
-                yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,6000))
+            for delta in np.arange(-blur_rad/2,blur_rad/2,0.25):
+                xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,n_steps))
+                yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,n_steps))
                 if zz is None:
                     zz = np.stack([xx,yy])
                 else:
