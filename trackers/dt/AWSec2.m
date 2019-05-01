@@ -673,6 +673,13 @@ classdef AWSec2 < handle
       if destRelative
         dest = ['~/' dest];
       end
+      if ispc 
+        file = regexprep(file,'^[cC]:[\\/]+','\');
+        % 20190501. scp on windows can be dumb and treats colons ':' as a
+        % host specifier etc. there may not be a good way to escape; 
+        % googling says use pscp or other scp impls. However, this hack
+        % may work for C drive 
+      end
       cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
     end
 
