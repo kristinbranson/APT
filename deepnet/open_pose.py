@@ -649,11 +649,11 @@ def training(conf,name='deepnet'):
 
             if conf.save_time is None:
                 if step % conf.save_step == 0:
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))
+                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
             else:
                 if time() - self.save_start > conf.save_time*60:
                     self.save_start = time()
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))
+                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
 
 
 
@@ -689,7 +689,7 @@ def training(conf,name='deepnet'):
                         )
 
     # force saving in case the max iter doesn't match the save step.
-    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(max_iter*iterations_per_epoch))))
+    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(max_iter*iterations_per_epoch)))))
     obs.on_epoch_end(max_iter-1)
 
 
