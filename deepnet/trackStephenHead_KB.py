@@ -18,6 +18,8 @@ import numpy as np
 import movies
 import math
 import PoseTools
+import tarfile
+import tempfile
 
 # default_net_name = 'pose_unet_full_20180302'
 default_net_name = 'deepnet'
@@ -46,7 +48,15 @@ defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v94"
 
 def get_crop_locs(lblfile,view,height,width):
     # everything is in matlab indexing
-    bodylbl = apt.loadmat(lblfile)
+    if tarfile.is_tarfile(lbl_file):
+        tar = tarfile.open(mode='r:tar',fileobj=file(lbl_file))
+        tdir = tempfile.mkdtemp()
+        fname = 'label_file.lbl'
+        tar.extract(fname,tdir)
+        bodylbl = apt.loadmat(os.path.join(tdir,fname))
+        tar.close()
+    else:
+        bodylbl = apt.loadmat(lblfile)
     try:
         lsz = np.array(bodylbl['labeledpos']['size'])
         curpts = np.nan * np.ones(lsz).flatten()
