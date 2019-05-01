@@ -705,7 +705,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         latest_model_file = model_file
     logging.info("Loading the weights from {}.. ".format(latest_model_file))
     model.load_weights(latest_model_file)
-    thre1 = conf.get('op_param_hmap_thres',0.05)
+    thre1 = conf.get('op_param_hmap_thres',0.1)
     thre2 = conf.get('op_param_paf_thres',0.05)
 
     def pred_fn(all_f):
@@ -715,16 +715,16 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
             all_f, in_locs=np.zeros([conf.batch_size, conf.n_classes, 2]), conf=conf,
             distort=False, scale=conf.op_rescale)
         model_preds = model.predict(xs)
-        # all_infered = []
-        # for ex in range(xs.shape[0]):
-        #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
-        #     all_infered.append(infered)
+        all_infered = []
+        for ex in range(xs.shape[0]):
+            infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
+            all_infered.append(infered)
         pred = model_preds[-1]
         raw_locs = PoseTools.get_pred_locs(pred)
         raw_locs = raw_locs * conf.op_rescale * conf.op_label_scale
-        # base_locs = np.array(all_infered)*conf.op_rescale
-        # nanidx = np.isnan(base_locs)
-        # base_locs[nanidx] = raw_locs[nanidx]
+        base_locs = np.array(all_infered)*conf.op_rescale
+        nanidx = np.isnan(base_locs)
+        base_locs[nanidx] = raw_locs[nanidx]
         base_locs = raw_locs
         ret_dict = {}
         ret_dict['locs'] = base_locs

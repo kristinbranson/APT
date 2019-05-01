@@ -10,9 +10,19 @@ rae.create_run_individual_animal_dbs_stephen(run_type='status') # use run_type='
 
 ## deeplabcut augment vs no-augment
 import run_apt_expts as rae
-rae.setup('stephen','')
+rae.setup('alice')
 rae.run_dlc_augment_training(run_type='submit')
 
+##
+import run_apt_expts as rae
+rae.setup('alice')
+rae.get_dlc_results()
+
+
+##
+import run_apt_expts as rae
+rae.setup('stephen','')
+rae.run_dlc_augment_training(run_type='submit')
 
 ## Brits experiments
 
@@ -25,7 +35,7 @@ for britnum in range(3):
 ## results
 import run_apt_expts as rae
 for britnum in range(3):
-    rae.setup('brit{}'.format(britnum),'')
+    rae.setup('brit{}'.format(britnum))
     rae.get_cv_results(num_splits=3)
 
 

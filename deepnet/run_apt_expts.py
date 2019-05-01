@@ -69,7 +69,7 @@ def setup(data_type_in,gpu_device=None):
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
         op_graph = []
         gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
-        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(20,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
         groups = ['']
     elif data_type == 'stephen':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
@@ -92,7 +92,7 @@ def setup(data_type_in,gpu_device=None):
         common_conf['trange'] = 20
     elif data_type == 'brit1':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl'
-        op_af_graph = '\(0,1\)'
+        op_af_graph = '\(\(0,1\),\)'
         cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'brit2':
@@ -114,6 +114,7 @@ def setup(data_type_in,gpu_device=None):
         op_af_graph = '{}'.format(j)
         op_af_graph = op_af_graph.replace('(','\(')
         op_af_graph = op_af_graph.replace(')','\)')
+        op_af_graph = op_af_graph.replace(' ','')
         common_conf['trange'] = 20
         common_conf['rrange'] = 180
 
@@ -832,7 +833,7 @@ def run_dlc_augment_training(run_type = 'status'):
 
         for conf_id in range(len(other_conf)):
 
-            common_cmd = 'APT_interface.py {} -name apt_expt -cache {}'.format(lbl_file,cache_dir)
+            common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name,cache_dir)
             end_cmd = 'train -skip_db -use_cache'
             cmd_opts = {}
             cmd_opts['type'] = train_type
@@ -1095,6 +1096,8 @@ def get_dlc_results():
                     old_files = A[1]
                     if not all([i==j for i,j in zip(files,old_files)]):
                         recomp = True
+            else:
+                recomp = True
 
             if recomp:
                 afiles = [f.replace('.index', '') for f in files]

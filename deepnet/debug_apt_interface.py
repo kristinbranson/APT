@@ -1,6 +1,16 @@
 import run_apt_expts as rae
-rae.setup('roian',0)
-rae.get_cv_results(num_splits=4)
+rae.setup('alice')
+rae.get_dlc_results()
+
+
+##
+cmd = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl -name cv_split_0 -cache /nrs/branson/mayank/apt_cache -conf_params brange \(-0.1,0.1\)  op_affinity_graph \((0,1\),\)  batch_size 4  trange 20  decay_steps 20000  crange \(0.9,1.1\)  save_step 4000  rrange 10  adjust_contrast True  mdn_use_unet_loss True  dl_steps 40000  normalize_img_mean False  maxckpt 20  -type openpose  -view 1 train -skip_db -use_cache'
+cmd = cmd.replace('\\','')
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+import APT_interface as apt
+apt.main(cmd.split())
 
 
 ##
@@ -20,13 +30,6 @@ self = Pose_openpose(conf)
 self.train_wrapper()
 
 ##
-cmd = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl -name cv_split_0 -cache /nrs/branson/mayank/apt_cache -conf_params brange \(-0.1,0.1\)  op_affinity_graph \(0,1\),\(0,2\),\(0,3\),\(1,2\),\(1,3\),\(2,3\)  batch_size 8  trange 5  decay_steps 20000  crange \(0.9,1.1\)  save_step 4000  rrange 180  adjust_contrast False  mdn_use_unet_loss True  dl_steps 40000  normalize_img_mean False  maxckpt 20  -type openpose  -view 1 train -skip_db -use_cache'
-cmd = cmd.replace('\\','')
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-import APT_interface as apt
-apt.main(cmd.split())
 
 ##
 import run_apt_expts as rae

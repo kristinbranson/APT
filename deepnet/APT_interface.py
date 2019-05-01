@@ -509,10 +509,6 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
                 n1 = int(mm.groups()[0]) - 1
                 n2 = int(mm.groups()[1]) - 1
                 graph.append([n1, n2])
-        nodes = []
-        _ = [nodes.extend(n) for n in graph]
-        assert len(graph) == (conf.n_classes - 1) and len(set(nodes)) == conf.n_classes, 'Affinity Graph for open pose is not a complete tree'
-
         conf.op_affinity_graph = graph
     except KeyError:
         pass
@@ -558,6 +554,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     if net_type == 'openpose':
         # openpose uses its own normalization
         conf.normalize_img_mean = False
+
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
     elif net_type == 'unet':
@@ -1794,6 +1791,13 @@ def train_leap(conf, args, split, split_file=None):
 def train_openpose(conf, args, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
+
+    nodes = []
+    graph = conf.op_affinity_graph
+    _ = [nodes.extend(n) for n in graph]
+    assert len(graph) == (conf.n_classes - 1) and len(
+        set(nodes)) == conf.n_classes, 'Affinity Graph for open pose is not a complete tree'
+
     open_pose.training(conf,name=args.train_name)
     tf.reset_default_graph()
 
