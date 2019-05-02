@@ -1651,6 +1651,8 @@ classdef Labeler < handle
       obj.gtSuggMFTableLbled = false(0,1);
       obj.gtTblRes = [];
       
+      obj.trackResInit();
+      
       obj.isinit = false;
       
       obj.updateFrameTableComplete();  
