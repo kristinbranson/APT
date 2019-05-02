@@ -1680,7 +1680,7 @@ classdef DeepTracker < LabelTracker
         system(syscmds{1});
         fprintf('Training job spawned.\n\n');
           
-        pause(1.0); % Hack try to more reliably get PID -- still not 100% AL 20190130
+        pause(3.0); % Hack try to more reliably get PID -- still not 100% AL 20190130
         aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
             % remember. Right now there is only one PID per aws so it's ok
         

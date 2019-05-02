@@ -533,6 +533,10 @@ classdef AWSec2 < handle
         cmdremote,logfileremote);
     end
         
+    function tf = canKillRemoteProcess(obj)
+      tf = ~isempty(obj.remotePID) && ~isnan(obj.remotePID);
+    end
+    
     function killRemoteProcess(obj)
       if isempty(obj.remotePID)
         error('Unknown PID for remote process.');
