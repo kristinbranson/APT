@@ -48,8 +48,8 @@ defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v94"
 
 def get_crop_locs(lblfile,view,height,width):
     # everything is in matlab indexing
-    if tarfile.is_tarfile(lbl_file):
-        tar = tarfile.open(mode='r:tar',fileobj=file(lbl_file))
+    if tarfile.is_tarfile(lblfile):
+        tar = tarfile.open(mode='r:tar',fileobj=file(lblfile))
         tdir = tempfile.mkdtemp()
         fname = 'label_file.lbl'
         tar.extract(fname,tdir)
