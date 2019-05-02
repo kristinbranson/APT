@@ -679,13 +679,13 @@ classdef AWSec2 < handle
       end
       if ispc 
         [fileP,fileF,fileE] = fileparts(file);
-        % 20190501. scp on windows can be dumb and treats colons ':' as a
+        % 20190501. scp on windows is dumb and treats colons ':' as a
         % host specifier etc. there may not be a good way to escape; 
         % googling says use pscp or other scp impls. 
         
         fileP = regexprep(fileP,'/','\\');
         fileF = regexprep(fileF,'/','\\');
-        cmd = sprintf('cd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
+        cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
           pem,['.\' fileF fileE],ip,dest);
       else
         cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
