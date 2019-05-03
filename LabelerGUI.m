@@ -1526,9 +1526,13 @@ hAx.CameraTargetMode = 'auto';
 
 function hlpUpdateTblTrxHilite(lObj)
 
-i = find(lObj.currTarget == lObj.tblTrxData(:,1));
-assert(numel(i) == 1);
-lObj.gdata.tblTrx.SelectedRows = i;
+try
+  i = find(lObj.currTarget == lObj.tblTrxData(:,1));
+  assert(numel(i) == 1);
+  lObj.gdata.tblTrx.SelectedRows = i;
+catch ME
+  warningNoTrace('Error caught updating highlight row in Targets Table.');
+end
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
