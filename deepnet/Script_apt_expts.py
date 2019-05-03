@@ -1,39 +1,104 @@
+import run_apt_expts as rae
 
-## Stephen's Experiments
 
-## Single animal vs multiple animal
+## Accuracy over time.
 
 import run_apt_expts as rae
+reload(rae)
+rae.setup('alice')
+rae.run_normal_training() #run_type = 'submit' to actually submit jobs.
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('alice')
+rae.get_normal_results()
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('stephen')
+rae.run_normal_training() #run_type = 'submit' to actually submit jobs.
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('stephen')
+rae.get_normal_results()
+
+
+## Accuracy over training set size
+
+import run_apt_expts as rae
+reload(rae)
+rae.setup('alice')
+# rae.create_incremental_dbs()
+rae.run_incremental_training() #run_type = 'submit' to actually submit jobs.
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('alice')
+rae.get_incremental_results()
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('stephen')
+# rae.create_incremental_dbs()
+rae.run_incremental_training() #run_type = 'submit' to actually submit jobs.
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('stephen')
+rae.get_incremental_results() #run_type = 'submit' to actually submit jobs.
+
+
+## Single animal vs multiple animal for Stephen
+
+import run_apt_expts as rae
+reload(rae)
 rae.setup('stephen','')
 rae.create_run_individual_animal_dbs_stephen(run_type='status') # use run_type='submit' to redo.
 
 
 ## deeplabcut augment vs no-augment
 import run_apt_expts as rae
+reload(rae)
 rae.setup('alice')
-rae.run_dlc_augment_training(run_type='submit')
+rae.run_dlc_augment_training() # run_type='submit'
 
 ##
 import run_apt_expts as rae
+reload(rae)
 rae.setup('alice')
 rae.get_dlc_results()
 
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('stephen')
+rae.run_dlc_augment_training() #run_type='submit'
 
 ##
 import run_apt_expts as rae
-rae.setup('stephen','')
-rae.run_dlc_augment_training(run_type='submit')
+reload(rae)
+rae.setup('stephen')
+rae.get_dlc_results()
 
 ## Brits experiments
 
 ## training
 import run_apt_expts as rae
+reload(rae)
 for britnum in range(3):
-    rae.setup('brit{}'.format(britnum),'')
+    rae.setup('brit{}'.format(britnum))
     rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
 
 ## results
 import run_apt_expts as rae
+reload(rae)
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
     rae.get_cv_results(num_splits=3)
@@ -44,11 +109,13 @@ for britnum in range(3):
 ## CV Training - all views
 
 import run_apt_expts as rae
+reload(rae)
 rae.setup('romain','')
 rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts as rae
+reload(rae)
 rae.setup('romain','')
 rae.get_cv_results(num_splits=6)
 
@@ -56,11 +123,13 @@ rae.get_cv_results(num_splits=6)
 
 ## Roain's expts
 import run_apt_expts as rae
+reload(rae)
 rae.setup('roian','')
 rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts as rae
+reload(rae)
 rae.setup('roian')
 rae.get_cv_results(num_splits=4)
 
@@ -68,11 +137,13 @@ rae.get_cv_results(num_splits=4)
 ## Larva
 
 import run_apt_expts as rae
+reload(rae)
 rae.setup('larva','')
 rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts as rae
+reload(rae)
 rae.setup('larva')
 rae.get_cv_results(num_splits=8)
 
@@ -81,6 +152,7 @@ rae.get_cv_results(num_splits=8)
 ## Active Learning Experiment:
 
 import run_apt_expts as rae
+reload(rae)
 import os
 import time
 rae.setup('alice','')
@@ -94,6 +166,7 @@ for round in range(8):
 
 ## results
 import run_apt_expts as rae
+reload(rae)
 rae.setup('alice')
 rae.get_active_results()
 

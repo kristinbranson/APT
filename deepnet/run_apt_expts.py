@@ -43,6 +43,7 @@ gpu_model = 'GeForceRTX2080Ti'
 sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
 n_splits = 3
 
+dlc_aug_use_round = 0
 
 common_conf = {}
 common_conf['rrange'] = 10
@@ -309,9 +310,14 @@ def run_trainining(exp_name,train_type,view,run_type):
         conf_opts['batch_size'] = 4
         conf_opts['adjust_contrast'] = True
         conf_opts['clahe_grid_size'] = 20
-        if train_type in ['mdn','unet','resnet_unet','leap']:
+        if train_type in ['unet','resnet_unet','leap']:
             conf_opts['rescale'] = 2
             conf_opts['batch_size'] = 2
+        if train_type in ['mdn']:
+            conf_opts['batch_size'] = 2
+            conf_opts['rescale'] = 2
+            conf_opts['mdn_use_unet_loss'] = True
+
         # else:
         #     conf_opts['batch_size'] = 4
 
@@ -485,7 +491,7 @@ def create_cv_dbs():
 
 # assert False,'Are you sure?'
 
-def create_incremental_dbs():
+def create_incremental_dbs(do_split=False):
     import json
     import os
     exp_name = 'db_sz'
@@ -521,9 +527,12 @@ def create_incremental_dbs():
             for tndx in range(len(all_models)):
                 train_type = all_models[tndx]
                 conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-                split_file= os.path.join(conf.cachedir,'splitinfo.json')
-                with open(split_file,'w') as f:
-                    json.dump(splits,f)
+                mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
+                split_file= os.path.join(mdn_conf.cachedir,'splitinfo.json')
+                if do_split:
+                    assert not os.path.exists(split_file)
+                    with open(split_file,'w') as f:
+                        json.dump(splits,f)
 
                 conf.splitType = 'predefined'
                 if train_type == 'deeplabcut':
@@ -826,7 +835,8 @@ def run_dlc_augment_training(run_type = 'status'):
     cmd_str = ['dlc_aug','dlc_noaug']
     cache_dir = '/nrs/branson/mayank/apt_cache'
     # exp_name = 'apt_expt'
-    use_round = 3
+
+    use_round = dlc_aug_use_round
     exp_name = '{}_randsplit_round_{}'.format(data_type,use_round)
 
     for view in range(nviews):
@@ -1056,10 +1066,11 @@ def get_normal_results():
 def get_dlc_results():
     cmd_str = ['dlc_aug','dlc_noaug']
     # exp_name = 'apt_expt'
-    use_round = 3
+    use_round = dlc_aug_use_round
     exp_name = '{}_randsplit_round_{}'.format(data_type,use_round)
 
     train_type = 'deeplabcut'
+    all_view = []
     for view in range(nviews):
         dlc_exp = {}
 
@@ -1109,6 +1120,9 @@ def get_dlc_results():
                 mdn_out = A[0]
 
             dlc_exp[train_name] = mdn_out
+        all_view.append(dlc_exp)
+
+    for dlc_exp in all_view:
         plot_results(dlc_exp)
 
 ## incremental training -- RESULTS ---

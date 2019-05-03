@@ -1,7 +1,25 @@
 import run_apt_expts as rae
-rae.setup('alice')
-rae.get_dlc_results()
+rae.setup('larva')
+rae.get_cv_results(num_splits=8)
 
+
+##
+
+
+from time import time
+import os
+print(os.getpid())
+start = time()
+cmd = '-name apt_expt -view 1 -cache /nrs/branson/mayank/apt_cache -conf_params dl_steps 1000 save_step 5000 -type mdn /groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl track -start_frame 1 -end_frame 5000 -trx /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00020_CsChr_RigB_20150908T133237/registered_trx.mat -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00020_CsChr_RigB_20150908T133237/movie.ufmf -trx_ids 1 -out /groups/branson/home/kabram/temp/t.trk'
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
+import APT_interface as apt
+apt.main(cmd.split())
+
+end = time()
+print(end-start)
 
 ##
 cmd = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl -name cv_split_0 -cache /nrs/branson/mayank/apt_cache -conf_params brange \(-0.1,0.1\)  op_affinity_graph \((0,1\),\)  batch_size 4  trange 20  decay_steps 20000  crange \(0.9,1.1\)  save_step 4000  rrange 10  adjust_contrast True  mdn_use_unet_loss True  dl_steps 40000  normalize_img_mean False  maxckpt 20  -type openpose  -view 1 train -skip_db -use_cache'
