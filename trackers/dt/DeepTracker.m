@@ -2262,8 +2262,27 @@ classdef DeepTracker < LabelTracker
       
       tfSuccess = false;
 
-      [movs,trxfiles,trxids,trkfiles,gpuids,isMultiView] = ...
-        myparse(varargin,'movfiles',{},'trxfiles',{},'targets',[],'trkfiles',{},'gpuids',[],'isMultiView',false);
+      [movs,trxfiles,trxids,trkfiles,isgpu,gpuids,isMultiView] = ...
+        myparse(varargin,...
+        'movfiles',{},...
+        'trxfiles',{},...
+        'targets',[],...
+        'trkfiles',{},...
+        'isgpu',true,...
+        'gpuids',[],...
+        'isMultiView',false);
+      
+      % Prob need some refactor here possibly along with upstream in 
+      % track(). Major branches: isexternal, {bsub x docker}, isMultiView. 
+      %
+      % One idea, first step is to generate "jobs" data structure that
+      % specifies movs/trxs/tgts/etc to be tracked in each job, in some std
+      % format, whether job is to be run on local or remote GPUs. There may
+      % be multiple jobs-specification convenience methods, eg accepting 
+      % either a tblMFT, separate movs/trxfiles/trxids, etc.
+      %
+      % With jobs-specification factored out, maybe then take a jobs-spec 
+      % and a backend, and perform: codegen, job-spawning, monitor launching.
       
       isexternal = ~isempty(movs);
 
@@ -2530,10 +2549,14 @@ classdef DeepTracker < LabelTracker
               
             case DLBackEnd.Docker
               singBind = obj.genContainerMountPath();
-              if isempty(gpuids),
-                dockerargs = {};
+              if isgpu
+                if isempty(gpuids),
+                  dockerargs = {};
+                else
+                  dockerargs = {'gpuid',gpuids(imov,ivwjob)};
+                end
               else
-                dockerargs = {'gpuid',gpuids(imov,ivwjob)};
+                dockerargs = {'isgpu' false 'dockerimg' 'bransonlabapt/apt_docker:latest_cpu'};
               end
               [trksysinfo(imov,ivwjob).codestr,trksysinfo(imov,ivwjob).containerName] = ...
                 DeepTracker.trackCodeGenDocker(...
@@ -3274,32 +3297,80 @@ classdef DeepTracker < LabelTracker
         Bflagsstr,singimg,basecmd);
     end
     
+    function plnx = codeGenPathUpdateWin2LnxContainer(pwin,mntloc)
+      PAT1 = '^(?<drivelet>[a-zA-Z]):\\';
+      REP1 = sprintf('%s/$<drivelet>/',mntloc);
+      PAT2 = '^\\\\(?<server>[^/\\]+)[/\\]';
+      REP2 = sprintf('%s/$<server>/',mntloc);
+      PAT3 = '\\';
+      REP3 = '/';
+      plnx = regexprep(pwin,PAT1,REP1);
+      plnx = regexprep(plnx,PAT2,REP2);
+      plnx = regexprep(plnx,PAT3,REP3);
+    end
+    
     function codestr = codeGenDockerGeneral(basecmd,containerName,varargin)
-      % Take a base command and run it in a sing img
+      % Take a base command and run it in a docker img
+      
       DFLTBINDPATH = {};
-      [bindpath,dockerimg,gpuid,tfDetach] = myparse(varargin,...
-        'bindpath',DFLTBINDPATH,...
-        'dockerimg','bransonlabapt/apt_docker',...
-        'gpuid',0,...
+      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = myparse(varargin,...
+        'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
+        'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
+        'dockerimg','bransonlabapt/apt_docker:latest',... % use :latest_cpu for CPU tracking
+        'isgpu',true,... % set to false for CPU-only
+        'gpuid',0,... % used if isgpu
         'detach',true);
       
-      mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),...
-        bindpath,'uni',0);
+      aptdeepnet = APT.getpathdl;
+
+      tfWinAppLnxContainer = ispc;
+      if tfWinAppLnxContainer
+        % 1. Special treatment for bindpath. src are windows paths, dst are
+        % linux paths inside /mnt.
+        % 2. basecmd massage. All paths in basecmd will be windows paths;
+        % these need to be replaced with the container paths under /mnt.
+        srcbindpath = bindpath;
+        dstbindpath = cellfun(...
+          @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
+          srcbindpath,'uni',0);
+        mountArgs = cellfun(@(x,y)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,y),...
+          srcbindpath,dstbindpath,'uni',0);
+        deepnetrootContainer = ...
+          DeepTracker.codeGenPathUpdateWin2LnxContainer(aptdeepnet,bindMntLocInContainer);
+        userArgs = {};
+        bashCmdQuote = '"';
+      else
+        mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),...
+          bindpath,'uni',0);
+        deepnetrootContainer = aptdeepnet;
+        userArgs = {'--user' '$(id -u)'};
+        bashCmdQuote = '''';
+      end
+      
+      if isgpu
+        nvidiaArgs = {'--runtime nvidia'};
+        cudaEnv = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d;',gpuid);
+      else
+        nvidiaArgs = cell(0,1);
+        cudaEnv = '';        
+      end
       
       homedir = getenv('HOME');
-      aptdeepnet = APT.getpathdl;
       
       if isempty(APT.DOCKER_REMOTE_HOST),
         dockercmd = 'docker';
         dockercmdend = '';
-
       else
         % i'm guessing this cding is nec to deal with automount issues
 %         if isempty(bindpath),
           cdargs = '';
 %         else
 %           cdargs = sprintf('cd %s && ',bindpath{:},aptdeepnet);
-%         end        
+%         end
+        if tfWinAppLnxContainer
+          error('Docker execution on remote host currently unsupported on Windows.');
+          % Might work fine, maybe issue with double-quotes
+        end
         dockercmd = sprintf('ssh -t %s "%sdocker',APT.DOCKER_REMOTE_HOST,cdargs);
         dockercmdend = '"';
       end
@@ -3309,23 +3380,25 @@ classdef DeepTracker < LabelTracker
       else
         detachstr = '-i';
       end
+      
       codestr = [
         {
         dockercmd
         'run'
         detachstr
         sprintf('--name %s',containerName);
-        '--runtime nvidia'
         '--rm'
         };
         mountArgs(:);
+        nvidiaArgs(:);
+        userArgs(:);
         {
-        '--user $(id -u)'
         '-w'
-        aptdeepnet
+        deepnetrootContainer
         dockerimg
-        sprintf('bash -c ''export HOME=%s; export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; cd %s; %s''%s',...
-          homedir,gpuid,aptdeepnet,basecmd,dockercmdend);
+        sprintf('bash -c %sexport HOME=%s; %s cd %s; %s''%s%s',...
+          bashCmdQuote,homedir,cudaEnv,deepnetrootContainer,basecmd,...
+          bashCmdQuote,dockercmdend);
         }
       ];
     
@@ -3609,8 +3682,11 @@ classdef DeepTracker < LabelTracker
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,... % either char or [nviewx1] cellstr
         outtrk,... % either char of [nviewx1] cellstr
-        frm0,frm1,varargin)
-      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file] = myparse(varargin,...
+        frm0,frm1,... % (opt) can be empty. these should prob be in optional P-Vs
+        varargin)
+      
+      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,...
+        updateWinPaths2LnxContainer,lnxContainerMntLoc] = myparse(varargin,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trxfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
@@ -3618,9 +3694,12 @@ classdef DeepTracker < LabelTracker
         'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive). can be [nview x 4] for multiview
         'hmaps',false,...% (opt) if true, generate heatmaps
         'deepnetroot',APT.getpathdl,...
-        'model_file',[]... % can be [nview] cellstr
-        ); 
+        'model_file',[], ... % can be [nview] cellstr
+        'updateWinPaths2LnxContainer',ispc, ... % if true, all paths will be massaged from win->lnx for use in container 
+        'lnxContainerMntLoc','/mnt' ... % used when updateWinPaths2LnxContainer==true
+        );
      
+      tffrm = ~isempty(frm0) && ~isempty(frm1);
       tfcache = ~isempty(cache);
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
@@ -3658,8 +3737,24 @@ classdef DeepTracker < LabelTracker
       end      
             
       assert(~(tftrx && tfcrop));
-
+      
       aptintrf = [deepnetroot '/APT_interface.py'];
+      
+      if updateWinPaths2LnxContainer
+        fcnPathUpdate = @(x)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,lnxContainerMntLoc);
+        aptintrf = fcnPathUpdate(aptintrf);
+
+        movtrk = cellfun(fcnPathUpdate,movtrk,'uni',0);
+        outtrk = cellfun(fcnPathUpdate,outtrk,'uni',0);
+        if tftrx
+          trxtrk = cellfun(fcnPathUpdate,trxtrk,'uni',0);
+        end
+        if tfcache
+          cache = fcnPathUpdate(cache);
+        end
+        errfile = fcnPathUpdate(errfile);
+        dllbl = fcnPathUpdate(dllbl);
+      end
 
       movtrkstr = String.cellstr2DelimList(movtrk,' ');
       outtrkstr = String.cellstr2DelimList(outtrk,' ');
@@ -3670,29 +3765,28 @@ classdef DeepTracker < LabelTracker
         modelfilestr = String.cellstr2DelimList(model_file,' ');
       end
 
-      codestr = sprintf('python %s -name %s',aptintrf,trnID);
+      codestr = {'python' aptintrf '-name' trnID};
       if tfview
-        codestr = [codestr sprintf(' -view %d',view)]; % view: 1-based for APT_interface
+        codestr = [codestr {'-view' num2str(view)}]; % view: 1-based for APT_interface
       end
       if tfcache
-        codestr = [codestr ' -cache ' cache];
+        codestr = [codestr {'-cache' cache}];
       end
-      codestr = [codestr ' -err_file ' errfile];
+      codestr = [codestr {'-err_file' errfile}];
       if tfmodel
-        codestr = sprintf('%s -model_files %s',codestr,modelfilestr);
+        codestr = [codestr {'-model_files' modelfilestr}];
       end
-      codestr = [codestr sprintf(' -type %s %s track -mov %s -out %s',...
-        char(nettype),dllbl,movtrkstr,outtrkstr)];
-      if ~isempty(frm0) && ~isempty(frm1)
-        codestr = [codestr, sprintf(' -start_frame %d -end_frame %d',frm0,frm1)];
+      codestr = [codestr {'-type' char(nettype) dllbl 'track' '-mov' movtrkstr '-out' outtrkstr}];
+      if tffrm
+        codestr = [codestr {'-start_frame' num2str(frm0) '-end_frame' num2str(frm1)}];
       end
       if tftrx
-        codestr = sprintf('%s -trx %s',codestr,trxtrkstr);
+        codestr = [codestr {'-trx' trxtrkstr}];
         if tftrxids
           trxids = num2cell(trxids); % 1-based for APT_interface
           trxidstr = sprintf('%d ',trxids{:});
           trxidstr = trxidstr(1:end-1);
-          codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
+          codestr = [codestr {'-trx_ids' trxidstr}];
         end
       end
       if tfcrop
@@ -3700,11 +3794,13 @@ classdef DeepTracker < LabelTracker
         croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...]
         roistr = mat2str(croproirowvec);
         roistr = roistr(2:end-1);
-        codestr = sprintf('%s -crop_loc %s',codestr,roistr);
+        codestr = [codestr {'-crop_loc' roistr}];
       end
       if hmaps
-        codestr = sprintf('%s -hmaps',codestr);
+        codestr = [codestr {'-hmaps'}];
       end
+      
+      codestr = String.cellstr2DelimList(codestr,' ');
     end
     
     function codestr = dataAugCodeGenSSHBsubSing(ID,dllbl,cache,errfile,netType,outfile,varargin)
