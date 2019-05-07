@@ -467,7 +467,7 @@ classdef DeepTracker < LabelTracker
       sPrm0 = s.sPrmAll;
       if ~isempty(sPrm0)
         s.sPrmAll = structoverlay(sPrmDflt,sPrm0,...
-          'dontWarnUnrecog',false); % to allow removal of obsolete params
+          'dontWarnUnrecog',true); % to allow removal of obsolete params
       else
         s.sPrmAll = sPrmDflt;
       end

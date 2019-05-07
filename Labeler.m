@@ -3108,7 +3108,7 @@ classdef Labeler < handle
       % KB 20190212: reorganized DL parameters -- many specific parameters
       % were moved to common, and organized common parameters. leaf names
       % should all be the same, and unique, so just match leaves
-      s = reorganizeDLParams(s);      
+      s = reorganizeDLParams(s); 
       
       % KB 20190214: all parameters are combined now
       if ~isTrackParams,
@@ -3119,6 +3119,19 @@ classdef Labeler < handle
       if ~isempty(s.trackParams) && ~isfield(s.trackParams.ROOT,'PostProcess'),
         dfltParams = APTParameters.defaultParamsStruct;
         s.trackParams.ROOT.PostProcess = dfltParams.PostProcess;
+      end
+      
+      % AL 20190507: .trackParams modernization
+      % For now only doing .DeepTrack but pattern prob works for all
+      if ~isempty(s.trackParams)
+        prmsDTComDflt = APTParameters.defaultParamsStructDTCommon;
+        fns = fieldnames(prmsDTComDflt);
+        for f=fns(:)',f=f{1}; %#ok<FXSET>
+          % Fields should currently match; later they may not, struct 
+          % should be updated then
+          s.trackParams.ROOT.DeepTrack.(f) = structoverlay(...
+            prmsDTComDflt.(f),s.trackParams.ROOT.DeepTrack.(f),'dontWarnUnrecog',true);
+        end
       end
       
       % KB 20190214: store all parameters in each tracker so that we don't
