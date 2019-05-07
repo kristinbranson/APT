@@ -10945,10 +10945,11 @@ classdef Labeler < handle
       else
         cropInfo = obj.movieFilesAllCropInfo{iMov};
       end
-      for iView=1:obj.nview,
-        obj.movieReader(iView).setCropInfo(cropInfo(iView));
+      if ~isempty(cropInfo), 
+        for iView=1:obj.nview,
+            obj.movieReader(iView).setCropInfo(cropInfo(iView));
+        end
       end
-      
     end
     
     function [whDefault,whMaxAllowed] = cropComputeDfltWidthHeight(obj)
