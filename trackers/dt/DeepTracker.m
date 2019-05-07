@@ -1579,6 +1579,8 @@ classdef DeepTracker < LabelTracker
       end
       DeepTracker.updateAPTRepoExecAWS(aws,args{:});
       
+      nvw = obj.lObj.nview;
+
       % Base DMC, to be further copied/specified per-view
       dmc = DeepModelChainOnDisk(...        
         'rootDir',obj.RemoteAWSCacheDir,...
@@ -1589,6 +1591,7 @@ classdef DeepTracker < LabelTracker
         'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
+        'isMultiView',nvw>1,... % currently all multiview projs train serially
         'reader',DeepModelChainReader.createFromBackEnd(backend)...
         );
       dmcLcl = dmc.copy();
@@ -1648,7 +1651,7 @@ classdef DeepTracker < LabelTracker
         
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
         dmcLcl.restartTS = dmc.restartTS;
-		% read nLabels from stripped lbl file
+        % read nLabels from stripped lbl file
         dmc.readNLabels();        
       end
       dlLblFileRemote = dmc.lblStrippedLnx;
@@ -1659,7 +1662,6 @@ classdef DeepTracker < LabelTracker
       % train
       
       % gen DMCs
-      nvw = obj.lObj.nview;
       for ivw=1:nvw
         if ivw>1
           dmc(ivw) = dmc(1).copy();
@@ -1667,7 +1669,10 @@ classdef DeepTracker < LabelTracker
         dmc(ivw).view = ivw-1; % 0-based
       end
 
-      % codegen        
+      % codegen
+      % Multiview train is currently serial (no -view flag spec'd)
+      % - single logfile
+      % - single errfile
       codestr = obj.trainCodeGenAWS(dmc(1)); % all dmcs identical save for view flag
       logfileRemote = dmc(1).trainLogLnx;
       syscmds = { aws.sshCmdGeneralLogged(codestr,logfileRemote) };
@@ -1678,10 +1683,23 @@ classdef DeepTracker < LabelTracker
         obj.bgTrnStart(backend,dmc);
 
         % spawn training
-        fprintf(1,'%s\n',syscmds{1});
-        system(syscmds{1});
+        syscmdrun = syscmds{1};
+        fprintf(1,'%s\n',syscmdrun);
+        system(syscmdrun);
         fprintf('Training job spawned.\n\n');
-          
+
+        % record local cmdfile
+        cmdfile = dmcLcl.cmdfileLnx;
+        %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
+        [fh,msg] = fopen(cmdfile,'w');
+        if isequal(fh,-1)
+          warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+        else
+          fprintf(fh,'%s\n',syscmdrun);
+          fclose(fh);
+          fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
+        end
+        
         pause(3.0); % Hack try to more reliably get PID -- still not 100% AL 20190130
         aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
             % remember. Right now there is only one PID per aws so it's ok
