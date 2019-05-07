@@ -131,6 +131,8 @@ classdef DeepTracker < LabelTracker
 
     % - Right now you can only have one track running at a time.
     
+    trkDockerCPU = false; % transient, scalar logical. If true and using Docker backend, use CPU for tracking
+    
     trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
       % to generate heatmaps on disk
    
@@ -2025,6 +2027,7 @@ classdef DeepTracker < LabelTracker
 
           isMultiViewTrack = false;
           if isexternal,
+            % TODO: see docker track other branch below
             gpuids = obj.getFreeGPUs(nmovies*nviews);
             if isempty(gpuids),
               warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
@@ -2049,34 +2052,39 @@ classdef DeepTracker < LabelTracker
               nmovies = nMoviesTrack;
             end
           else
-            gpuids = obj.getFreeGPUs(obj.lObj.nview);
-            if isempty(gpuids),
-              % On linux, we couldn't find GPUs
-              % On win, .getFreeGPUs probably didn't play well with Docker
-              % on Windows (ie didnt do the intended query) but anyway we 
-              % currently don't support GPU tracking on this codepath
-              
-              if ispc
-                qstr = 'GPU tracking on Windows currently unsupported. Perform tracking on CPU?';                
-              else
-                qstr = 'No GPUs available with sufficient RAM locally. Perform tracking on CPU?';
-              end
-              tstr = 'GPU Tracking Unavailable';
-              btn = questdlg(qstr,tstr,'Yes','No/Cancel','Yes');
-              if isempty(btn)
-                btn = 'No/Cancel';
-              end
-              switch btn
-                case 'Yes'
-                  isMultiViewTrack = true;
-                case 'No/Cancel'
-                  %warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
-                  return;
-              end
-            elseif numel(gpuids) < obj.lObj.nview,
+            if obj.trkDockerCPU
+              gpuids = [];
               isMultiViewTrack = true;
             else
-              isMultiViewTrack = false;
+              gpuids = obj.getFreeGPUs(obj.lObj.nview);
+              if isempty(gpuids)
+                % On linux, we couldn't find GPUs
+                % On win, .getFreeGPUs probably didn't play well with Docker
+                % on Windows (ie didnt do the intended query) but anyway we
+                % currently don't support GPU tracking on this codepath
+                
+                if ispc
+                  qstr = 'GPU tracking on Windows currently unsupported. Perform tracking on CPU?';
+                else
+                  qstr = 'No GPUs available with sufficient RAM locally. Perform tracking on CPU?';
+                end
+                tstr = 'GPU Tracking Unavailable';
+                btn = questdlg(qstr,tstr,'Yes','No/Cancel','Yes');
+                if isempty(btn)
+                  btn = 'No/Cancel';
+                end
+                switch btn
+                  case 'Yes'
+                    isMultiViewTrack = true;
+                  case 'No/Cancel'
+                    %warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
+                    return;
+                end
+              elseif numel(gpuids) < obj.lObj.nview,
+                isMultiViewTrack = true;
+              else
+                isMultiViewTrack = false;
+              end
             end
           end
           
