@@ -191,6 +191,10 @@ classdef APT
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
+       %MK 20190506 Add stuff to systems path for aws cli
+       if ismac
+        setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
+       end
     end
   
     function tf = matlabPathNotConfigured()
