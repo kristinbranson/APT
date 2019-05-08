@@ -200,13 +200,25 @@ classdef AWSec2 < handle
       end
       
       % AL: see waitforPoll() util
+      % AL: see also aws ec2 wait, which sort of works but seems not
+      % reliably
       starttime = tic;
       tfsucc = false;
       while true,
         [tf,state1] = obj.getInstanceState();
         if tf && strcmpi(state1,'running'),
-          tfsucc = true;
-          break;
+          [tfexist,tfrun] = obj.inspectInstance();
+          if tfexist && tfrun
+            fprintf('... instance is started, waiting for full spin-up\n');
+            % AL: aws ec2 wait instance-status-ok sort of worked, sort of
+            pollCbk = @()obj.cmdInstance('cat /dev/null','dispcmd',true);
+            tfsucc = waitforPoll(pollCbk,iterwaittime,maxwaittime);
+            if tfsucc
+              break;
+            else
+              return;
+            end
+          end
         end
         if toc(starttime) > maxwaittime,
           return;
