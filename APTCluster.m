@@ -262,7 +262,7 @@ tfPPatch = ~isempty(paramPatchFile);
 if tfParam
   sPrm = loadSingleVariableMatfile(paramFile);
   fprintf(1,'Loaded parameters from %s.\n',paramFile);
-  assert(false,'TODO: react');
+  %assert(false,'TODO: react');
   lObj.trackSetParams(sPrm);
   [~,paramFileS,~] = fileparts(paramFile);
   outfileBase = [outfileBase '_' paramFileS];
