@@ -206,7 +206,8 @@ def plot_results(data_in,ylim=None,xlim=None):
     ax = ax.flat
     leg = []
     cc = PoseTools.get_colors(len(data_in))
-    for idx,k in enumerate(data_in.keys()):
+    all_k = data_in.keys()
+    for idx,k in enumerate(all_k):
         mm = []
         mt = []
         for o in data_in[k]:
@@ -230,16 +231,16 @@ def plot_results(data_in,ylim=None,xlim=None):
     ax[-1].legend(leg)
 
 
-def plot_hist(in_exp):
+def plot_hist(in_exp,ps = [50, 75, 90, 95]):
     data_in, ex_im, ex_loc = in_exp
     k = data_in.keys()[0]
     npts = data_in[k][0][0].shape[1]
-    ps = [50, 75, 90, 95]
+
     n_types = len(data_in)
-    nc = int(np.ceil(np.sqrt(n_types)))
-    nr = int(np.ceil(n_types/float(nc)))
-    cmap = PoseTools.get_cmap(len(ps))
-    f, axx = plt.subplots(nr, nc, figsize=(10, 10))
+    nc = n_types # int(np.ceil(np.sqrt(n_types)))
+    nr = 1#int(np.ceil(n_types/float(nc)))
+    cmap = PoseTools.get_cmap(len(ps),'cool')
+    f, axx = plt.subplots(nr, nc, figsize=(12, 8))
     axx = axx.flat
     for idx,k in enumerate(data_in.keys()):
         o = data_in[k][-1]
@@ -259,6 +260,10 @@ def plot_hist(in_exp):
                 c = plt.Circle(ex_loc[pt,:],mm[pp,pt],color=cmap[pp,:],fill=False)
                 ax.add_patch(c)
         ax.set_title(k)
+        ax.axis('off')
+
+    f.tight_layout()
+    return f
 
 
 def save_mat(out_exp,out_file):
@@ -281,7 +286,7 @@ def save_mat(out_exp,out_file):
     hdf5storage.savemat(out_file,out_arr,truncate_existing=True)
 
 
-def run_trainining(exp_name,train_type,view,run_type):
+def run_trainining(exp_name,train_type,view,run_type,**kwargs):
 
     common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
     end_cmd = 'train -skip_db -use_cache'
@@ -291,6 +296,8 @@ def run_trainining(exp_name,train_type,view,run_type):
     conf_opts = common_conf.copy()
     # conf_opts.update(other_conf[conf_id])
     conf_opts['save_step'] = conf_opts['dl_steps'] / 10
+    for k in kwargs.keys():
+        conf_opts[k] = kwargs[k]
     if data_type in ['brit0' ,'brit1','brit2']:
         conf_opts['adjust_contrast'] = True
         if train_type == 'unet':
@@ -317,6 +324,9 @@ def run_trainining(exp_name,train_type,view,run_type):
             conf_opts['batch_size'] = 2
             conf_opts['rescale'] = 2
             conf_opts['mdn_use_unet_loss'] = True
+
+    if data_type == 'stephen':
+        conf_opts['batch_size'] = 4
 
         # else:
         #     conf_opts['batch_size'] = 4
@@ -350,7 +360,7 @@ def run_trainining(exp_name,train_type,view,run_type):
 
 def create_normal_dbs():
     exp_name = 'apt_expt'
-    assert gt_lbl is not None
+    # assert gt_lbl is not None
     for view in range(nviews):
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
@@ -718,48 +728,13 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
 
 def run_normal_training(run_type = 'status'):
 
-    common_conf['dl_steps'] = 100000
+    common_conf['dl_steps'] = 50000
     common_conf['maxckpt'] = 20
     common_conf['save_time'] = 20 # save every 20 min
 
-    for view in range(nviews):
-
-        for train_type in all_models:
-
-            exp_name = 'apt_expt'
-            common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file,exp_name, cache_dir)
-            end_cmd = 'train -skip_db -use_cache'
-            cmd_opts = {}
-            cmd_opts['type'] = train_type
-            cmd_opts['view'] = view + 1
-            conf_opts = common_conf.copy()
-            # conf_opts.update(other_conf[conf_id])
-            conf_opts['save_step'] = conf_opts['dl_steps']/20
-            if data_type == 'stephen':
-                conf_opts['batch_size'] = 4
-            if op_af_graph is not None:
-                conf_opts['op_affinity_graph'] = op_af_graph
-
-            if len(conf_opts) > 0:
-                conf_str = ' -conf_params'
-                for k in conf_opts.keys():
-                    conf_str = '{} {} {} '.format(conf_str,k,conf_opts[k])
-            else:
-                conf_str = ''
-
-            opt_str = ''
-            for k in cmd_opts.keys():
-                opt_str = '{} -{} {} '.format(opt_str,k,cmd_opts[k])
-
-            cur_cmd = common_cmd + conf_str + opt_str + end_cmd
-            cmd_name = '{}_view{}_{}_{}'.format(data_type,view,exp_name, train_type)
-            if run_type == 'submit':
-                print cur_cmd
-                print
-                run_jobs(cmd_name,cur_cmd)
-            elif run_type == 'status':
-                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-                check_train_status(cmd_name,conf.cachedir)
+    for train_type in all_models:
+        for view in range(nviews):
+            run_trainining('apt_expt',train_type,view, run_type)
 
 
 ## CV Training ---- TRAINING ----
@@ -868,7 +843,7 @@ def run_dlc_augment_training(run_type = 'status'):
 
             cur_cmd = common_cmd + conf_str + opt_str + end_cmd
 
-            cmd_name = '{}_view{}_{}'.format(data_type,view,cmd_str[conf_id])
+            cmd_name = '{}_view{}_{}_{}'.format(data_type,view,cmd_str[conf_id],use_round)
             if run_type == 'submit':
                 print cur_cmd
                 print
@@ -1055,11 +1030,16 @@ def get_normal_results():
                 mdn_out = A[0]
 
             out_exp[train_type] = mdn_out
-        all_view.append(out_exp)
+
+        H = multiResData.read_and_decode_without_session(gt_file, conf)
+        ex_im = np.array(H[0][0])[:, :, 0]
+        ex_loc = np.array(H[1][0])
+        all_view.append([out_exp,ex_im,ex_loc])
 
     for ndx,out_exp in enumerate(all_view):
-        plot_results(out_exp)
-        save_mat(out_exp,os.path.join(cache_dir,'{}_view{}_time'.format(data_type,ndx,)))
+        plot_results(out_exp[0])
+        plot_hist(out_exp)
+        save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_time'.format(data_type,ndx,)))
 
 ## DLC AUG vs no aug --- RESULTS -----
 
@@ -1120,10 +1100,17 @@ def get_dlc_results():
                 mdn_out = A[0]
 
             dlc_exp[train_name] = mdn_out
-        all_view.append(dlc_exp)
+        H = multiResData.read_and_decode_without_session(gt_file, conf)
+        ex_im = np.array(H[0][0])[:, :, 0]
+        ex_loc = np.array(H[1][0])
+        all_view.append([dlc_exp,ex_im,ex_loc])
+        # all_view.append(dlc_exp)
 
-    for dlc_exp in all_view:
-        plot_results(dlc_exp)
+    for ndx, dlc_exp in enumerate(all_view):
+        plot_results(dlc_exp[0])
+        plot_hist(dlc_exp,[50,70,80])
+        out_file = os.path.join(cache_dir,'{}_view{}_round{}_dlc'.format(data_type,ndx,use_round))
+        save_mat(dlc_exp[0],out_file)
 
 ## incremental training -- RESULTS ---
 
@@ -1737,3 +1724,52 @@ def get_label_info(conf):
             info.extend(mov_info[ndx][mndx:mndx + 1])
 
     return info
+
+
+def make_movie(movid=0,start_ndx=100, end_ndx=400, trx_ndx=None, out_dir='/groups/branson/home/kabram/temp'):
+
+    lbl = h5py.File(lbl_file, 'r')
+    exp_name = 'apt_expt'
+    train_type = 'mdn'
+
+    for view in range(nviews):
+        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        local_dirs, _ = multiResData.find_local_dirs(conf)
+        info = get_label_info(conf)
+
+        if type(movid) is int:
+            mov = local_dirs[movid]
+        else:
+            mov = movid[view]
+
+        if conf.has_trx_file:
+            tt = apt.read_string(lbl[lbl['trxFilesAll'][0,0]])
+            trx_str = os.path.basename(tt)
+            trx_file = os.path.join(os.path.dirname(mov),trx_str)
+            if trx_ndx is None:
+                trx_ndx = 0
+        else:
+            trx_file = None
+
+        cur_out = '{}_{}_{}to{}_view{}.trk'.format(data_type,mov,start_ndx,end_ndx,view)
+        out_file = os.path.join(out_dir,cur_out)
+
+        if type(lbl[lbl['movieFilesAllCropInfo'][0,0]]) != h5py._hl.dataset.Dataset:
+            crop_loc = PoseTools.get_crop_loc(lbl, mov_ndx, view)
+        else:
+            crop_loc = None
+
+        apt.classify_movie_all(train_type,
+                               conf=conf,
+                               mov_file=mov,
+                               trx_file=trx_file,
+                               out_file=out_file,
+                               start_frame=start_ndx,
+                               end_frame=end_ndx,
+                               trx_ids=[trx_ndx],
+                               crop_loc=crop_loc,
+                               model_file=None,
+                               save_hmaps=False,
+                               train_name='deepnet'
+                               )
+

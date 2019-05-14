@@ -28,8 +28,9 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
         self.conf = conf
         self.out_scale = 1.
         self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        use_pretrained = conf.use_pretrained_weights
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
-        conf.use_pretrained_weights = True
+        conf.use_pretrained_weights = use_pretrained
 
         if self.resnet_source == 'official_tf':
             url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
@@ -841,7 +842,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             mdn_conf = 2*mdn_conf -1 # it should now be between -1 to 1.
 
             if self.conf.mdn_use_unet_loss:
-                unet_locs = PoseTools.get_pred_locs(unet_pred)
+                unet_locs = PoseTools.get_pred_locs(unet_pred)*conf.rescale
                 d = np.sqrt(np.sum((base_locs - unet_locs) ** 2, axis=-1))
                 mdn_unet_locs = base_locs.copy()
                 mdn_unet_locs[d < mdn_unet_dist, :] = unet_locs[d < mdn_unet_dist, :]

@@ -36,10 +36,10 @@ import pickle
 import logging
 
 
-def get_cmap(n_classes):
+def get_cmap(n_classes,map_name='jet'):
     import matplotlib.pyplot as plt
     from matplotlib import cm
-    cmap = cm.get_cmap('jet')
+    cmap = cm.get_cmap(map_name)
     return cmap(np.linspace(0, 1, n_classes))
 
 

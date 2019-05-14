@@ -62,30 +62,55 @@ reload(rae)
 rae.setup('stephen','')
 rae.create_run_individual_animal_dbs_stephen(run_type='status') # use run_type='submit' to redo.
 
+## Results
+
+import run_apt_expts as rae
+reload(rae)
+rae.setup('stephen')
+rae.get_individual_animal_results_stephen()
+
 
 ## deeplabcut augment vs no-augment
 import run_apt_expts as rae
 reload(rae)
 rae.setup('alice')
-rae.run_dlc_augment_training() # run_type='submit'
+for round in range(5):
+    rae.dlc_aug_use_round = round
+    rae.run_dlc_augment_training() # run_type='submit'
 
 ##
 import run_apt_expts as rae
 reload(rae)
 rae.setup('alice')
-rae.get_dlc_results()
+for round in range(5):
+    rae.dlc_aug_use_round = round
+    rae.get_dlc_results()
 
 ##
 import run_apt_expts as rae
 reload(rae)
 rae.setup('stephen')
-rae.run_dlc_augment_training() #run_type='submit'
+for round in range(5):
+    rae.dlc_aug_use_round = round
+    rae.run_dlc_augment_training() #run_type='submit'
 
 ##
 import run_apt_expts as rae
 reload(rae)
 rae.setup('stephen')
-rae.get_dlc_results()
+for round in range(5):
+    rae.dlc_aug_use_round = round
+    rae.get_dlc_results()
+
+## Whole dataset training
+
+import run_apt_expts as rae
+for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
+    reload(rae)
+    rae.setup(data_type)
+    # rae.create_normal_dbs()
+    rae.run_normal_training() #run_type = 'submit') # to actually submit jobs.
+
 
 ## Brits experiments
 

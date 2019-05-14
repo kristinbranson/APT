@@ -207,13 +207,15 @@ class PoseBase(PoseCommon):
         This function trains the network my minimizing the loss function using Adam optimizer along with gradient norm clipping.
         The learning rate schedule is exponential decay: lr = conf.learning_rate*(conf.gamma**(float(cur_step)/conf.decay_steps))
         Override this function to implement a different training function. If you override this, do override the get_pred_fn as well.
-        The train function should save models every self.conf.save_step to self.conf.cachedir. APT expects the model names to follow format used by tf.train.Saver for saving models (e.g. deepnet-10000.index)
+        For saving the models, call self.create_saver() after creating the network but before creating a session to setup the saver. Call self.save(sess, step_no)  every self.conf.save_step to save intermediate models. At the end of training, again call self.save(sess, self.conf.dl_steps) to save the final model. During prediction (get_pred_fn), you can restore the latest model by calling self.create_saver() after creating the network but before creating a session, and then calling self.restore(sess). In most cases, if you use self.create_saver(), then you don't need to override get_pred_fn().
+        If you want to use your own saver, the train function should save models to self.conf.cachedir every self.conf.save_step. Also save a final model at the end of the training with step number self.conf.dl_steps. APT expects the model files to be named 'deepnet-<step_no>' (i.e., follow the format used by tf.train.Saver for saving models e.g. deepnet-10000.index). If you write your own saver, then you'll have to override get_pred_fn() for restoring the model.
         Before each training step call self.fd_train() which will setup the data generator to generate augmented input images in self.inputs from training database during the next call to sess.run. This also sets the self.ph['phase_train'] to True for batch norm. Use self.fd_val() will generate non-augmented inputs from training DB and to set the self.ph['phase_train'] to false for batch norm.
         To view updated training status in APT, call self.update_and_save_td(step,sess) after each training step. Note update_and_save_td uses the output of loss function to find the loss and convert_preds_to_locs function to find the distance between prediction and labeled locations.
         '''
 
         base_lr = self.conf.learning_rate
         PoseCommon.train_quick(self, learning_rate=base_lr,restore=restore)
+
 
 
     def get_pred_fn(self, model_file=None):
@@ -225,6 +227,8 @@ class PoseBase(PoseCommon):
 
         Creates a prediction function that returns the pose prediction as a python array of size [batch_size,n_pts,2].
         This function should creates the network, start a tensorflow session and load the latest model.
+        If you used self.create_saver() for saving the models, you can restore the latest model by calling self.create_saver() after creating the network but before creating a session, and then calling self.restore(sess)
+
 
         '''
 
@@ -276,6 +280,10 @@ class PoseBase(PoseCommon):
 
 
     def restore_net_common(self, model_file=None):
+        '''
+        :param model_file: Model file to restore the network form. If None, use the latest model.
+        This function creates the network, creates the session and load the saved model.
+        '''
         create_network_fn = self.create_network
         logging.info('--- Loading the model by reconstructing the graph ---')
         self.find_input_sizes()

@@ -1,7 +1,7 @@
 import run_apt_expts as rae
-rae.setup('larva')
-rae.get_cv_results(num_splits=8)
-
+reload(rae)
+rae.setup('stephen',0)
+rae.get_individual_animal_results_stephen()
 
 ##
 
