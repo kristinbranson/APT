@@ -10000,7 +10000,9 @@ classdef Labeler < handle
         if obj.hasTrx || obj.cropProjHasCrops
           pGT = tblMFgtTrack.pAbs;
         else
-          tblfldsdonotcontainassert(tblMFgtTrack,'pAbs');
+          if tblfldscontains(tblMFgtTrack,'pAbs')
+            assert(isequal(tblMFgtTrack.p,tblMFgtTrack.pAbs));
+          end
           pGT = tblMFgtTrack.p;
         end
         d = tblTrkRes.pTrk - pGT;
