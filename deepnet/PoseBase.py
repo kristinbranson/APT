@@ -59,10 +59,8 @@ class PoseBase(PoseCommon):
 
     def preproc_func(self, ims, locs, info, distort):
         '''
-        Override this function to change how images are preprocessed and to change how labels are converted into heatmaps. Ensure that the return objects are float32.
+        Override this function to change how images are preprocessed. Ensure that the return objects are float32.
         This function is added into tensorflow dataset pipeline using tf.py_func. The outputs returned by this function are available tf tensors in self.inputs array.
-        You can use PoseTools.create_label_images to generate the target heatmaps.
-        You can use PoseTools.create_affinity_labels to generate the target pose affinity field images.
         :param ims: Input image as B x H x W x C
         :param locs: Labeled part locations as B x N x 2
         :param info: Information about the input as B x 3. (:,0) is the movie number, (:,1) is the frame number and (:,2) is the animal number (if the project has trx).
@@ -73,12 +71,10 @@ class PoseBase(PoseCommon):
         conf = self.conf
         # Scale and augment the training image and labels
         ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
-        hmaps_rescale = self.hmaps_downsample
-        hsz = [ (i // conf.rescale)//hmaps_rescale for i in conf.imsz]
-        # Creates heatmaps by placing gaussians with sigma label_blur_rad at location locs.
-        hmaps = PoseTools.create_label_images(locs/hmaps_rescale, hsz, 1, conf.label_blur_rad)
+        out = self.convert_locs_to_targets(locs)
         # Return the results as float32.
-        return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
+        out_32 = [o.astype('float32') for o in out]
+        return [ims.astype('float32'), locs.astype('float32'), info.astype('float32')] + out_32
 
 
     def setup_network(self):
@@ -88,7 +84,7 @@ class PoseBase(PoseCommon):
         '''
         pred = self.create_network()
         self.pred = pred
-        self.cost = self.loss(self.inputs,pred)
+        self.cost = self.loss(self.inputs[3:],pred)
 
 
     def create_network(self):
@@ -105,6 +101,23 @@ class PoseBase(PoseCommon):
         '''
         assert False, 'This function must be overridden'
         return None
+
+
+    def convert_locs_to_targets(self,locs):
+        '''
+        Override this function to change how labels are converted into target heatmaps.
+        You can use PoseTools.create_label_images to generate the target heatmaps.
+        You can use PoseTools.create_affinity_labels to generate the target part affinity field heatmaps.
+        Return the results as a list. This list will available as the first input to loss function.
+        '''
+
+        conf = self.conf
+        hmaps_rescale = self.hmaps_downsample
+        hsz = [ (i // conf.rescale)//hmaps_rescale for i in conf.imsz]
+        # Creates prediction heatmaps by placing gaussians with sigma label_blur_rad at location locs.
+        hmaps = PoseTools.create_label_images(locs/hmaps_rescale, hsz, 1, conf.label_blur_rad)
+        return [hmaps]
+
 
 
     def convert_preds_to_locs(self, pred):
@@ -138,14 +151,15 @@ class PoseBase(PoseCommon):
         return np.nanmean(tt1)
 
 
-    def loss(self,inputs,pred):
+    def loss(self,targets, pred):
         '''
-        :param inputs: Will have the self.inputs tensors return by preproc_func
+        :param targets: Has the targets (e.g hmaps/pafs) created in convert_locs_to_targets
         :param pred: Has the output of network created in define_network
+                    It'll be a list if networks output was a list.
         :return: The loss function to be optimized.
-        Override this define your own loss function.
+        Override this to define your own loss function.
         '''
-        hmap_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes
+        hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes
 
         return hmap_loss
 
@@ -174,7 +188,11 @@ class PoseBase(PoseCommon):
         for ndx, i in enumerate(self.inputs):
             i.set_shape(self.input_sizes[ndx])
 
+
     def train_wrapper(self, restore=False):
+        '''
+        Sets up the inputs pipeline, the network and the loss function
+        '''
 
         self.find_input_sizes()
 
@@ -255,8 +273,7 @@ class PoseBase(PoseCommon):
             '''
 
             bsize = conf.batch_size
-            xs, locs_in = PoseTools.preprocess_ims(all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=False, scale=self.conf.rescale)
+            xs, locs_in = PoseTools.preprocess_ims(all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf, distort=False, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd_val()

@@ -1038,6 +1038,18 @@ def get_latest_model_file_keras(conf, name):
     if not os.path.exists(latest_model_file):
         save_epoch = int(np.floor(last_epoch/conf.save_step)*conf.save_step)
         latest_model_file = os.path.join(conf.cachedir, name + '-{}'.format(save_epoch))
+        if not os.path.exists(latest_model_file):
+            import glob
+            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(name))
+            files.sort(key=os.path.getmtime)
+            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+            aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
+            aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+            if any([a < 0 for a in aa]):
+                bb = int(np.where(np.array(aa) < 0)[0][-1]) + 1
+                files = files[bb:]
+            latest_model_file = files[-1]
+
     return  latest_model_file
 
 

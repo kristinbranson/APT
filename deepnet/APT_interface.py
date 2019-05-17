@@ -422,12 +422,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.normalize_img_mean = int(read_entry(dt_params['normalize'])) > 0.5
         conf.trx_align_theta = bool(read_entry(lbl['preProcParams']['TargetCrop']['AlignUsingTrxTheta']))
 
-    conf.unet_rescale = scale
-    conf.op_rescale = scale
-    conf.dlc_rescale = scale
-    conf.leap_rescale = scale
-    conf.rescale = conf.unet_rescale
-
+    conf.rescale = scale
 
     ex_mov = multiResData.find_local_dirs(conf)[0][0]
 
@@ -559,6 +554,11 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     #     conf.batch_size = 1
     elif net_type == 'unet':
         conf.use_pretrained_weights = False
+
+    conf.unet_rescale = conf.rescale
+    conf.op_rescale = conf.rescale
+    conf.dlc_rescale = conf.rescale
+    conf.leap_rescale = conf.rescale
 
     return conf
 
@@ -1079,7 +1079,7 @@ def create_cv_split_files(conf, n_splits=3):
 
 def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc):
     bsize = conf.batch_size
-    all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
+    all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
     for cur_t in range(len(to_do_list)):
         cur_entry = to_do_list[cur_t]
         trx_ndx = cur_entry[1]
@@ -1605,7 +1605,7 @@ def classify_movie(conf, pred_fn,
 
     info = {}  # tracking info. Can be empty.
     info[u'model_file'] = model_file
-    modelfilets = model_file + '.meta'
+    modelfilets = model_file + '.index'
     modelfilets = modelfilets if os.path.exists(modelfilets) else model_file
     info[u'trnTS'] = get_matlab_ts(modelfilets)
     info[u'name'] = name
@@ -1757,6 +1757,7 @@ def classify_movie_all(model_type, **kwargs):
     except (IOError, ValueError) as e:
         close_fn()
         logging.exception('Could not track movie')
+    close_fn()
 
 
 def train_unet(conf, args, restore,split, split_file=None):

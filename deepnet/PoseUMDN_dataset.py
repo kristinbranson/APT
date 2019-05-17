@@ -46,7 +46,8 @@ def preproc_func(ims, locs, info, conf, distort, pad_input=False, pad_x=0, pad_y
         tlocs[:,:,0] -= pad_x//2
         tlocs[:,:,1] -= pad_y//2
 
-    hmaps = PoseTools.create_label_images(tlocs, conf.imsz, conf.rescale, conf.label_blur_rad)
+    hsz = [i//conf.rescale for i in conf.imsz]
+    hmaps = PoseTools.create_label_images(tlocs, hsz, 1, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 

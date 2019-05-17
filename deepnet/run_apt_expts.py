@@ -26,6 +26,8 @@ import multiResData
 import multiResData
 import random
 import json
+import tensorflow as tf
+import easydict
 
 data_type = None
 lbl_file = None
@@ -103,7 +105,7 @@ def setup(data_type_in,gpu_device=None):
         common_conf['trange'] = 20
     elif data_type == 'romain':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.lbl'
-        op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14)'
+        op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14),(12,13),(13,14),(14,18),(18,17),(17,16),(16,15)'
         op_af_graph = op_af_graph.replace('(','\(')
         op_af_graph = op_af_graph.replace(')','\)')
         cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/RomainTrainCVInfo20190419.mat'
@@ -118,6 +120,14 @@ def setup(data_type_in,gpu_device=None):
         op_af_graph = op_af_graph.replace(' ','')
         common_conf['trange'] = 20
         common_conf['rrange'] = 180
+
+    elif data_type == 'carsen':
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/carsen_dlstripped_20190501T150134.lbl'
+        common_conf['trange'] = 20
+        op_af_graph = '\(\(0,1\),\)'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/CarsenTrainCVInfo20190514.mat'
+
+
 
     else:
         lbl_file = ''
@@ -231,7 +241,7 @@ def plot_results(data_in,ylim=None,xlim=None):
     ax[-1].legend(leg)
 
 
-def plot_hist(in_exp,ps = [50, 75, 90, 95]):
+def plot_hist(in_exp,ps = [50, 75, 90, 95],cmap=None):
     data_in, ex_im, ex_loc = in_exp
     k = data_in.keys()[0]
     npts = data_in[k][0][0].shape[1]
@@ -239,7 +249,8 @@ def plot_hist(in_exp,ps = [50, 75, 90, 95]):
     n_types = len(data_in)
     nc = n_types # int(np.ceil(np.sqrt(n_types)))
     nr = 1#int(np.ceil(n_types/float(nc)))
-    cmap = PoseTools.get_cmap(len(ps),'cool')
+    if cmap is None:
+        cmap = PoseTools.get_cmap(len(ps),'cool')
     f, axx = plt.subplots(nr, nc, figsize=(12, 8))
     axx = axx.flat
     for idx,k in enumerate(data_in.keys()):
@@ -298,6 +309,7 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
     conf_opts['save_step'] = conf_opts['dl_steps'] / 10
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
+
     if data_type in ['brit0' ,'brit1','brit2']:
         conf_opts['adjust_contrast'] = True
         if train_type == 'unet':
@@ -328,8 +340,17 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
     if data_type == 'stephen':
         conf_opts['batch_size'] = 4
 
-        # else:
-        #     conf_opts['batch_size'] = 4
+    if data_type == 'carsen':
+        if train_type in ['mdn','unet','resnet_unet']:
+            conf_opts['rescale'] = 2.
+        else:
+            conf_opts['rescale'] = 1.
+        conf_opts['adjust_contrast'] = True
+        conf_opts['clahe_grid_size'] = 20
+        if train_type in ['unet']:
+            conf_opts['batch_size'] = 4
+        else:
+            conf_opts['batch_size'] = 8
 
     if op_af_graph is not None:
         conf_opts['op_affinity_graph'] = op_af_graph
@@ -374,7 +395,7 @@ def create_normal_dbs():
 
 
 def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
-    assert data_type in ['romain','larva','roian']
+    assert data_type in ['romain','larva','roian','carsen']
 
     data_info = h5py.File(cv_info_file, 'r')
     cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
@@ -1070,11 +1091,7 @@ def get_dlc_results():
                 bb = int(np.where(np.array(aa) < 0)[0]) + 1
                 files = files[bb:]
 
-            if len(files) > 8:
-                gg = len(files)
-                sel = np.linspace(0, len(files) - 1, 8).astype('int')
-                files = [files[s] for s in sel]
-
+            files = files[-1:]
             out_file = os.path.join(conf.cachedir,train_name + '_results.p')
             recomp = False
             if os.path.exists(out_file):
@@ -1107,8 +1124,8 @@ def get_dlc_results():
         # all_view.append(dlc_exp)
 
     for ndx, dlc_exp in enumerate(all_view):
-        plot_results(dlc_exp[0])
-        plot_hist(dlc_exp,[50,70,80])
+        # plot_results(dlc_exp[0])
+        plot_hist(dlc_exp,[50,70,90,95])
         out_file = os.path.join(cache_dir,'{}_view{}_round{}_dlc'.format(data_type,ndx,use_round))
         save_mat(dlc_exp[0],out_file)
 
@@ -1268,7 +1285,12 @@ def get_cv_results(num_splits=None):
         all_view.append([out_exp,ex_ims,ex_locs])
 
     for ndx,out_exp in enumerate(all_view):
-        plot_hist(out_exp)
+        cmap = np.array([[0.5200,         0,         0],
+                [1.0000,    0.5200,         0],
+                [0.4800,    1.0000,    0.5200],
+                [0,    0.5200,    1.0000],
+                [0,         0,    0.5200]])
+        plot_hist(out_exp,ps=[50,75,90,95,97],cmap=cmap)
         save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_cv'.format(data_type,ndx,)))
 
 
@@ -1726,50 +1748,73 @@ def get_label_info(conf):
     return info
 
 
-def make_movie(movid=0,start_ndx=100, end_ndx=400, trx_ndx=None, out_dir='/groups/branson/home/kabram/temp'):
+def track(movid=0,
+               start_ndx=100,
+               end_ndx=400,
+               trx_ndx=None,
+               out_dir='/nrs/branson/mayank/apt_cache/results_trk/',
+               train_type='mdn',
+               exp_name='apt_expt',
+               model_file=None):
 
     lbl = h5py.File(lbl_file, 'r')
-    exp_name = 'apt_expt'
-    train_type = 'mdn'
 
     for view in range(nviews):
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        tdata = PoseTools.pickle_load(os.path.join(conf.cachedir, 'traindata'))
+        # Use the saved configuration for tracking.
         local_dirs, _ = multiResData.find_local_dirs(conf)
-        info = get_label_info(conf)
+#        info = get_label_info(conf)
 
         if type(movid) is int:
             mov = local_dirs[movid]
+            mov_str = '{}'.format(movid)
         else:
             mov = movid[view]
+            mov_str = os.path.splitext(os.path.basename(mov))[0]
 
         if conf.has_trx_file:
-            tt = apt.read_string(lbl[lbl['trxFilesAll'][0,0]])
-            trx_str = os.path.basename(tt)
-            trx_file = os.path.join(os.path.dirname(mov),trx_str)
+            if type(movid) is int:
+                trx_file = apt.read_string(lbl[lbl['trxFilesAll'][0,movid]])
+            else:
+                tt = apt.read_string(lbl[lbl['trxFilesAll'][0,0]])
+                trx_str = os.path.basename(tt)
+                trx_file = os.path.join(os.path.dirname(mov), trx_str)
+
             if trx_ndx is None:
-                trx_ndx = 0
+                from scipy import io as sio
+                gg = sio.loadmat(trx_file)
+                n_trx = gg['trx'].shape[1]
+                trx_ndx = np.array(range(n_trx))
+
         else:
             trx_file = None
 
-        cur_out = '{}_{}_{}to{}_view{}.trk'.format(data_type,mov,start_ndx,end_ndx,view)
+        cur_out = '{}_mov_{}_from_{}_to_{}_view_{}_{}.trk'.format(data_type,mov_str,start_ndx,end_ndx,view,train_type)
         out_file = os.path.join(out_dir,cur_out)
 
         if type(lbl[lbl['movieFilesAllCropInfo'][0,0]]) != h5py._hl.dataset.Dataset:
-            crop_loc = PoseTools.get_crop_loc(lbl, mov_ndx, view)
+            crop_loc = PoseTools.get_crop_loc(lbl, movid, view)
         else:
             crop_loc = None
 
+        if type(tdata) is easydict.EasyDict:
+            use_conf = tdata
+        else:
+            use_conf = tdata[1]
+
         apt.classify_movie_all(train_type,
-                               conf=conf,
+                               conf=use_conf,
                                mov_file=mov,
                                trx_file=trx_file,
                                out_file=out_file,
                                start_frame=start_ndx,
                                end_frame=end_ndx,
-                               trx_ids=[trx_ndx],
+                               trx_ids=trx_ndx,
                                crop_loc=crop_loc,
-                               model_file=None,
                                save_hmaps=False,
-                               train_name='deepnet'
+                               train_name='deepnet',
+                               model_file=model_file
                                )
+        tf.reset_default_graph()
 

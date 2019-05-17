@@ -1,74 +1,26 @@
+## results
 import run_apt_expts as rae
 reload(rae)
-rae.setup('stephen',0)
-rae.get_individual_animal_results_stephen()
+rae.setup('larva','')
+rae.get_cv_results(num_splits=8)
+
 
 ##
-
-
-from time import time
-import os
-print(os.getpid())
-start = time()
-cmd = '-name apt_expt -view 1 -cache /nrs/branson/mayank/apt_cache -conf_params dl_steps 1000 save_step 5000 -type mdn /groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl track -start_frame 1 -end_frame 5000 -trx /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00020_CsChr_RigB_20150908T133237/registered_trx.mat -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00020_CsChr_RigB_20150908T133237/movie.ufmf -trx_ids 1 -out /groups/branson/home/kabram/temp/t.trk'
-
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
-import APT_interface as apt
-apt.main(cmd.split())
-
-end = time()
-print(end-start)
-
-##
-cmd = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl -name cv_split_0 -cache /nrs/branson/mayank/apt_cache -conf_params brange \(-0.1,0.1\)  op_affinity_graph \((0,1\),\)  batch_size 4  trange 20  decay_steps 20000  crange \(0.9,1.1\)  save_step 4000  rrange 10  adjust_contrast True  mdn_use_unet_loss True  dl_steps 40000  normalize_img_mean False  maxckpt 20  -type openpose  -view 1 train -skip_db -use_cache'
-cmd = cmd.replace('\\','')
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseTools as pt
+import PoseUNet_resnet
 
-import APT_interface as apt
-apt.main(cmd.split())
+a = pt.pickle_load('/nrs/branson/mayank/apt_cache/Test/mdn/view_0/larva_compare/Test_normal_traindata')
+a = pt.pickle_load('/nrs/branson/mayank/apt_cache/Test/mdn/view_0/cv_split_0/traindata')
 
-
-##
-import APT_interface as apt
-from openpose.tf_pose.train_apt import Pose_openpose
-import sys
-sys.path.append('/groups/branson/bransonlab/mayank/APT/deepnet/openpose')
-lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl'
-conf = apt.create_conf(lbl_file,0,'test','/nrs/branson/mayank/apt_cache','openpose1')
-conf.op_affinity_graph = [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]
-conf.normalize_img_mean = False
-
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-self = Pose_openpose(conf)
-self.train_wrapper()
-
-##
-
-##
-import run_apt_expts as rae
-import os
-import time
-rae.setup('alice','')
-round = 4
-rae.run_active_learning(round,'random')
+conf = a[1]
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,name='deepnet')
+self.train_data_name = 'traindata'
+self.train_umdn(True)
 
 
-##
-op_graph = '\(0,1\),\(0,2\),\(1,2\),\(2,3\),\(1,4\),\(4,7\),\(3,9\),\(7,5\),\(9,5\),\(5,6\),\(7,8\),\(8,12\),\(9,10\),\(10,15\),\(16,3\),\(11,4\),\(14,5\),\(13,5\)'
-op_graph = op_graph.replace('\\','')
 
-cmd = '-name apt_expt -view 1 -cache /nrs/branson/mayank/apt_cache -conf_params dl_steps 1000 op_affinity_graph {} save_step 5000 -type openpose /groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl track -start_frame 1 -end_frame 100 -trx /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00020_CsChr_RigB_20150908T133237/registered_trx.mat -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00020_CsChr_RigB_20150908T133237/movie.ufmf -trx_ids 1 -out /groups/branson/home/kabram/temp/t.trk'.format(op_graph)
-
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-import APT_interface as apt
-apt.main(cmd.split())
 
 ##
 data_type = 'roian'

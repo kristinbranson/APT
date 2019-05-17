@@ -29,6 +29,7 @@ import logging
 from time import time
 from scipy.ndimage.filters import gaussian_filter
 import cv2
+import gc
 
 # name = 'open_pose'
 
@@ -732,7 +733,10 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         ret_dict['conf'] = np.max(pred, axis=(1, 2))
         return ret_dict
 
-    close_fn = K.clear_session
+    def close_fn():
+        K.clear_session()
+        # gc.collect()
+        # del model
 
     return pred_fn, close_fn, latest_model_file
 

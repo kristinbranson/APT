@@ -532,7 +532,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     mdn_l = X
                 else:
                     with tf.variable_scope('layer_logits'):
-                        kernel_shape = [1, 1, n_filt_in, n_filt]
+                        if conf.get('mdn_logits_more_channels',False):
+                            kernel_shape = [1, 1, n_filt_in, 3*n_filt]
+                        else:
+                            kernel_shape = [1, 1, n_filt_in, n_filt]
+
                         weights = tf.get_variable("weights", kernel_shape,
                                                   initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                         biases = tf.get_variable("biases", kernel_shape[-1],
@@ -680,6 +684,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         cur_comp = []
         ll = tf.nn.softmax(mdn_logits, axis=1)
 
+        self.softmax_logits = ll
         n_preds = mdn_locs.get_shape().as_list()[1]
         # All gaussians in the mixture have some weight so that all the mixtures try to predict correctly.
         logit_eps = self.conf.mdn_logit_eps_training
@@ -688,7 +693,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # ll now has normalized logits.
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1, :]/locs_offset
-            kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
+            qq = mdn_locs[:,:,cls,:]
+            kk = tf.sqrt(tf.reduce_sum(tf.square(pp - qq), axis=2))
             # kk is the distance between all predictions for point cls from the labels.
             cur_comp.append(kk)
 
@@ -807,7 +813,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
             pred_means, pred_std, pred_weights,pred_dist = pred
             pred_means = pred_means * self.offset
-            pred_weights = PoseUMDN.softmax(pred_weights,axis=1)
+#            pred_weights = PoseUMDN.softmax(pred_weights,axis=1)
 
             osz = [int(i/conf.rescale) for i in self.conf.imsz]
             mdn_pred_out = np.zeros([bsize, osz[0], osz[1], conf.n_classes])

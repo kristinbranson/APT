@@ -551,7 +551,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         pred = np.stack(pred)
         pred = pred[:,:all_f.shape[1],:all_f.shape[2],:]
         base_locs = PoseTools.get_pred_locs(pred)
-        base_locs = base_locs * conf.leap_rescale
+        base_locs = base_locs * conf.rescale
 
         ret_dict = {}
         ret_dict['locs'] = base_locs
