@@ -30,7 +30,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     reader % scalar DeepModelChainReader. used to update the itercurr; 
       % knows how to read the (possibly remote) filesys etc
       
-    filesep % file separator
+    filesep ='/'; % file separator
       
     %aptRootUser % (optional) external/user APT code checkout root    
   end
