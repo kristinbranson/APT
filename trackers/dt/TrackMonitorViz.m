@@ -193,6 +193,8 @@ classdef TrackMonitorViz < handle
                 res(ijob).trkfileNfrmtracked);
             else
               didload = false;
+              warnstate = warning('query','MATLAB:load:variableNotFound');
+              warning('off','MATLAB:load:variableNotFound');
               if isdone,
                 try
                   ptrk = load(res(ijob).trkfile,'pTrk','-mat');
@@ -214,6 +216,7 @@ classdef TrackMonitorViz < handle
                   warning(getReport(ME));
                 end
               end
+              warning(warnstate.state,warnstate.identifier);
             end
             
             if nJobs > 1,

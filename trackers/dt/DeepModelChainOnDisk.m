@@ -358,7 +358,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       assert(obj.isRemote,'Model must be remote in order to mirror/download.');      
       
       aws = obj.reader.awsec2;
-      
+      aws.checkInstanceRunning(); % harderrs if instance isn't running
+     
       succ = obj.updateCurrInfo;
       if ~succ
         error('Failed to determine latest model iteration in %s.',...
@@ -366,7 +367,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
       fprintf('Current model iteration is %d.\n',obj.iterCurr);
      
-      aws.checkInstanceRunning(); % harderrs if instance isn't running
             
       mdlFilesRemote = aws.remoteGlob(obj.modelGlobsLnx);
       cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');

@@ -153,7 +153,11 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
           return;
         end
       end
-      touchcmd = sprintf('touch %s',killtoken);
+      if ispc
+        touchcmd = sprintf('echo . > %s',killtoken);
+      else
+        touchcmd = sprintf('touch %s',killtoken);
+      end
       %touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
       [st,res] = system(touchcmd);
       if st~=0

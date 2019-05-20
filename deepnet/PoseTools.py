@@ -1460,6 +1460,8 @@ def get_last_epoch(conf, name):
 
 
 def get_latest_model_file_keras(conf, name):
+    if name != 'deepnet':
+        name = conf.expname + '_' + name
     last_epoch = get_last_epoch(conf, name)
     if last_epoch is None:
         return None
@@ -1467,7 +1469,7 @@ def get_latest_model_file_keras(conf, name):
     latest_model_file = os.path.join(conf.cachedir, name + '-{}'.format(save_epoch))
     if not os.path.exists(latest_model_file):
         save_epoch = int(np.floor(last_epoch/conf.save_step)*conf.save_step)
-        latest_model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(save_epoch))
+        latest_model_file = os.path.join(conf.cachedir, name + '-{}'.format(save_epoch))
     return  latest_model_file
 
 

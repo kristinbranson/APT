@@ -133,6 +133,8 @@ classdef DeepTracker < LabelTracker
 
     % - Right now you can only have one track running at a time.
     
+    trkDockerCPU = false; % transient, scalar logical. If true and using Docker backend, use CPU for tracking
+    
     trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
       % to generate heatmaps on disk
    
@@ -476,7 +478,7 @@ classdef DeepTracker < LabelTracker
       sPrm0 = s.sPrmAll;
       if ~isempty(sPrm0)
         s.sPrmAll = structoverlay(sPrmDflt,sPrm0,...
-          'dontWarnUnrecog',false); % to allow removal of obsolete params
+          'dontWarnUnrecog',true); % to allow removal of obsolete params
       else
         s.sPrmAll = sPrmDflt;
       end
@@ -523,7 +525,13 @@ classdef DeepTracker < LabelTracker
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
       
+<<<<<<< HEAD
       [dockerimg,minFreeMem,condaEnv] = myparse(varargin,'dockerimg','bransonlabapt/apt_docker','minfreemem',obj.minFreeMem,'condaEnv',obj.condaEnv); %#ok<PROPLC>
+=======
+      [dockerimg,minFreeMem] = myparse(varargin,...
+        'dockerimg','bransonlabapt/apt_docker',...
+        'minfreemem',obj.minFreeMem); %#ok<PROPLC>
+>>>>>>> develop
       
       gpuid = [];
       freemem = 0;
@@ -1636,6 +1644,8 @@ classdef DeepTracker < LabelTracker
       end
       DeepTracker.updateAPTRepoExecAWS(aws,args{:});
       
+      nvw = obj.lObj.nview;
+
       % Base DMC, to be further copied/specified per-view
       dmc = DeepModelChainOnDisk(...        
         'rootDir',obj.RemoteAWSCacheDir,...
@@ -1646,8 +1656,13 @@ classdef DeepTracker < LabelTracker
         'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
+<<<<<<< HEAD
         'reader',DeepModelChainReader.createFromBackEnd(backend),...
         'filesep',obj.filesep...
+=======
+        'isMultiView',nvw>1,... % currently all multiview projs train serially
+        'reader',DeepModelChainReader.createFromBackEnd(backend)...
+>>>>>>> develop
         );
       dmcLcl = dmc.copy();
       dmcLcl.rootDir = obj.lObj.DLCacheDir;
@@ -1706,7 +1721,7 @@ classdef DeepTracker < LabelTracker
         
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
         dmcLcl.restartTS = dmc.restartTS;
-		% read nLabels from stripped lbl file
+        % read nLabels from stripped lbl file
         dmc.readNLabels();        
       end
       dlLblFileRemote = dmc.lblStrippedLnx;
@@ -1717,7 +1732,6 @@ classdef DeepTracker < LabelTracker
       % train
       
       % gen DMCs
-      nvw = obj.lObj.nview;
       for ivw=1:nvw
         if ivw>1
           dmc(ivw) = dmc(1).copy();
@@ -1725,7 +1739,10 @@ classdef DeepTracker < LabelTracker
         dmc(ivw).view = ivw-1; % 0-based
       end
 
-      % codegen        
+      % codegen
+      % Multiview train is currently serial (no -view flag spec'd)
+      % - single logfile
+      % - single errfile
       codestr = obj.trainCodeGenAWS(dmc(1)); % all dmcs identical save for view flag
       logfileRemote = dmc(1).trainLogLnx;
       syscmds = { aws.sshCmdGeneralLogged(codestr,logfileRemote) };
@@ -1736,11 +1753,24 @@ classdef DeepTracker < LabelTracker
         obj.bgTrnStart(backend,dmc);
 
         % spawn training
-        fprintf(1,'%s\n',syscmds{1});
-        system(syscmds{1});
+        syscmdrun = syscmds{1};
+        fprintf(1,'%s\n',syscmdrun);
+        system(syscmdrun);
         fprintf('Training job spawned.\n\n');
-          
-        pause(1.0); % Hack try to more reliably get PID -- still not 100% AL 20190130
+
+        % record local cmdfile
+        cmdfile = dmcLcl.cmdfileLnx;
+        %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
+        [fh,msg] = fopen(cmdfile,'w');
+        if isequal(fh,-1)
+          warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+        else
+          fprintf(fh,'%s\n',syscmdrun);
+          fclose(fh);
+          fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
+        end
+        
+        pause(3.0); % Hack try to more reliably get PID -- still not 100% AL 20190130
         aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
             % remember. Right now there is only one PID per aws so it's ok
         
@@ -2065,6 +2095,7 @@ classdef DeepTracker < LabelTracker
 
           isMultiViewTrack = false;
           if isexternal,
+            % TODO: see docker track other branch below
             gpuids = obj.getFreeGPUs(nmovies*nviews);
             if isempty(gpuids),
               warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
@@ -2089,19 +2120,47 @@ classdef DeepTracker < LabelTracker
               nmovies = nMoviesTrack;
             end
           else
-            gpuids = obj.getFreeGPUs(obj.lObj.nview);
-            if isempty(gpuids),
-              warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
-              return;
-            elseif numel(gpuids) < obj.lObj.nview,
+            if obj.trkDockerCPU
+              gpuids = [];
               isMultiViewTrack = true;
             else
-              isMultiViewTrack = false;
+              gpuids = obj.getFreeGPUs(obj.lObj.nview);
+              if isempty(gpuids)
+                % On linux, we couldn't find GPUs
+                % On win, .getFreeGPUs probably didn't play well with Docker
+                % on Windows (ie didnt do the intended query) but anyway we
+                % currently don't support GPU tracking on this codepath
+                
+                if ispc
+                  qstr = 'GPU tracking on Windows currently unsupported. Perform tracking on CPU?';
+                else
+                  qstr = 'No GPUs available with sufficient RAM locally. Perform tracking on CPU?';
+                end
+                tstr = 'GPU Tracking Unavailable';
+                btn = questdlg(qstr,tstr,'Yes','No/Cancel','Yes');
+                if isempty(btn)
+                  btn = 'No/Cancel';
+                end
+                switch btn
+                  case 'Yes'
+                    isMultiViewTrack = true;
+                  case 'No/Cancel'
+                    %warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
+                    return;
+                end
+              elseif numel(gpuids) < obj.lObj.nview,
+                isMultiViewTrack = true;
+              else
+                isMultiViewTrack = false;
+              end
             end
           end
           
           args = {'isMultiView',isMultiViewTrack};
-
+          if isempty(gpuids)
+            args = [args {'isgpu' false}];
+          end
+          
           if isexternal,
             if obj.lObj.hasTrx,
               args = [args,{'trxfiles',trxfiles,'targets',targets}];
@@ -2322,8 +2381,27 @@ classdef DeepTracker < LabelTracker
       
       tfSuccess = false;
 
-      [movs,trxfiles,trxids,trkfiles,gpuids,isMultiView] = ...
-        myparse(varargin,'movfiles',{},'trxfiles',{},'targets',[],'trkfiles',{},'gpuids',[],'isMultiView',false);
+      [movs,trxfiles,trxids,trkfiles,isgpu,gpuids,isMultiView] = ...
+        myparse(varargin,...
+        'movfiles',{},...
+        'trxfiles',{},...
+        'targets',[],...
+        'trkfiles',{},...
+        'isgpu',true,...
+        'gpuids',[],...
+        'isMultiView',false);
+      
+      % Prob need some refactor here possibly along with upstream in 
+      % track(). Major branches: isexternal, {bsub x docker}, isMultiView. 
+      %
+      % One idea, first step is to generate "jobs" data structure that
+      % specifies movs/trxs/tgts/etc to be tracked in each job, in some std
+      % format, whether job is to be run on local or remote GPUs. There may
+      % be multiple jobs-specification convenience methods, eg accepting 
+      % either a tblMFT, separate movs/trxfiles/trxids, etc.
+      %
+      % With jobs-specification factored out, maybe then take a jobs-spec 
+      % and a backend, and perform: codegen, job-spawning, monitor launching.
       
       isexternal = ~isempty(movs);
 
@@ -2591,10 +2669,18 @@ classdef DeepTracker < LabelTracker
               
             case DLBackEnd.Docker
               singBind = obj.genContainerMountPath();
-              if isempty(gpuids),
-                dockerargs = {};
+              if isgpu
+                if isempty(gpuids),
+                  dockerargs = {};
+                else
+                  dockerargs = {'gpuid',gpuids(imov,ivwjob)};
+                end
               else
-                dockerargs = {'gpuid',gpuids(imov,ivwjob)};
+                dockerargs = {'isgpu' false 'dockerimg' 'bransonlabapt/apt_docker:latest_cpu'};
+              end
+              useLogFlag = ispc;
+              if useLogFlag
+                baseargsaug = [baseargsaug {'log_file' outfile}]; %#ok<AGROW>
               end
               [trksysinfo(imov,ivwjob).codestr,trksysinfo(imov,ivwjob).containerName] = ...
                 DeepTracker.trackCodeGenDocker(...
@@ -2602,6 +2688,7 @@ classdef DeepTracker < LabelTracker
                 mov,trkfile,frm0_curr,frm1_curr,...
                 'baseargs',baseargsaug,'mntPaths',singBind,'containerName',containerName,...
                 'dockerargs',dockerargs);
+<<<<<<< HEAD
               trksysinfo(imov,ivwjob).logcmd = sprintf('%s logs -f %s &> %s &',...
                 obj.dockercmd,trksysinfo(imov,ivwjob).containerName,...
                 outfile);
@@ -2617,6 +2704,15 @@ classdef DeepTracker < LabelTracker
                 'baseargs',[baseargsaug,{'filesep',obj.filesep}],...
                 'outfile',outfile,...
                 'condaargs',condaargs);              
+=======
+              if useLogFlag
+                trksysinfo(imov,ivwjob).logcmd = [];
+              else
+                trksysinfo(imov,ivwjob).logcmd = sprintf('%s logs -f %s &> %s &',...
+                  obj.dockercmd,trksysinfo(imov,ivwjob).containerName,...
+                  outfile);
+              end
+>>>>>>> develop
           end
         end
       end
@@ -2701,11 +2797,15 @@ classdef DeepTracker < LabelTracker
           end
           switch backend.type,
             case DLBackEnd.Docker,
-              [st,res] = system(trksysinfo(imov,ivwjob).logcmd);
-              if st~=0,
-                fprintf(2,'Error logging docker job %s: %s\n',trksysinfo(imov,ivwjob).containerName,res);
-                tfSuccess = false;
-                return;
+              logcmd = trksysinfo(imov,ivwjob).logcmd;
+              if ~isempty(logcmd)
+                [st,res] = system(logcmd);
+                if st~=0,
+                  fprintf(2,'Error logging docker job %s: %s\n',...
+                    trksysinfo(imov,ivwjob).containerName,res);
+                  tfSuccess = false;
+                  return;
+                end
               end
           end
         end
@@ -3357,32 +3457,80 @@ classdef DeepTracker < LabelTracker
         Bflagsstr,singimg,basecmd);
     end
     
+    function plnx = codeGenPathUpdateWin2LnxContainer(pwin,mntloc)
+      PAT1 = '^(?<drivelet>[a-zA-Z]):\\';
+      REP1 = sprintf('%s/$<drivelet>/',mntloc);
+      PAT2 = '^\\\\(?<server>[^/\\]+)[/\\]';
+      REP2 = sprintf('%s/$<server>/',mntloc);
+      PAT3 = '\\';
+      REP3 = '/';
+      plnx = regexprep(pwin,PAT1,REP1);
+      plnx = regexprep(plnx,PAT2,REP2);
+      plnx = regexprep(plnx,PAT3,REP3);
+    end
+    
     function codestr = codeGenDockerGeneral(basecmd,containerName,varargin)
-      % Take a base command and run it in a sing img
+      % Take a base command and run it in a docker img
+      
       DFLTBINDPATH = {};
-      [bindpath,dockerimg,gpuid,tfDetach] = myparse(varargin,...
-        'bindpath',DFLTBINDPATH,...
-        'dockerimg','bransonlabapt/apt_docker',...
-        'gpuid',0,...
+      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = myparse(varargin,...
+        'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
+        'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
+        'dockerimg','bransonlabapt/apt_docker:latest',... % use :latest_cpu for CPU tracking
+        'isgpu',true,... % set to false for CPU-only
+        'gpuid',0,... % used if isgpu
         'detach',true);
       
-      mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),...
-        bindpath,'uni',0);
+      aptdeepnet = APT.getpathdl;
+
+      tfWinAppLnxContainer = ispc;
+      if tfWinAppLnxContainer
+        % 1. Special treatment for bindpath. src are windows paths, dst are
+        % linux paths inside /mnt.
+        % 2. basecmd massage. All paths in basecmd will be windows paths;
+        % these need to be replaced with the container paths under /mnt.
+        srcbindpath = bindpath;
+        dstbindpath = cellfun(...
+          @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
+          srcbindpath,'uni',0);
+        mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
+          srcbindpath,dstbindpath,'uni',0);
+        deepnetrootContainer = ...
+          DeepTracker.codeGenPathUpdateWin2LnxContainer(aptdeepnet,bindMntLocInContainer);
+        userArgs = {};
+        bashCmdQuote = '"';
+      else
+        mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),...
+          bindpath,'uni',0);
+        deepnetrootContainer = aptdeepnet;
+        userArgs = {'--user' '$(id -u)'};
+        bashCmdQuote = '''';
+      end
+      
+      if isgpu
+        nvidiaArgs = {'--runtime nvidia'};
+        cudaEnv = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d;',gpuid);
+      else
+        nvidiaArgs = cell(0,1);
+        cudaEnv = '';        
+      end
       
       homedir = getenv('HOME');
-      aptdeepnet = APT.getpathdl;
       
       if isempty(APT.DOCKER_REMOTE_HOST),
         dockercmd = 'docker';
         dockercmdend = '';
-
       else
         % i'm guessing this cding is nec to deal with automount issues
 %         if isempty(bindpath),
           cdargs = '';
 %         else
 %           cdargs = sprintf('cd %s && ',bindpath{:},aptdeepnet);
-%         end        
+%         end
+        if tfWinAppLnxContainer
+          error('Docker execution on remote host currently unsupported on Windows.');
+          % Might work fine, maybe issue with double-quotes
+        end
         dockercmd = sprintf('ssh -t %s "%sdocker',APT.DOCKER_REMOTE_HOST,cdargs);
         dockercmdend = '"';
       end
@@ -3392,23 +3540,25 @@ classdef DeepTracker < LabelTracker
       else
         detachstr = '-i';
       end
+      
       codestr = [
         {
         dockercmd
         'run'
         detachstr
         sprintf('--name %s',containerName);
-        '--runtime nvidia'
         '--rm'
         };
         mountArgs(:);
+        nvidiaArgs(:);
+        userArgs(:);
         {
-        '--user $(id -u)'
         '-w'
-        aptdeepnet
+        deepnetrootContainer
         dockerimg
-        sprintf('bash -c ''export HOME=%s; export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; cd %s; %s''%s',...
-          homedir,gpuid,aptdeepnet,basecmd,dockercmdend);
+        sprintf('bash -c %sexport HOME=%s; %s cd %s; %s%s%s',...
+          bashCmdQuote,homedir,cudaEnv,deepnetrootContainer,basecmd,...
+          bashCmdQuote,dockercmdend);
         }
       ];
     
@@ -3736,8 +3886,16 @@ classdef DeepTracker < LabelTracker
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,... % either char or [nviewx1] cellstr
         outtrk,... % either char of [nviewx1] cellstr
+<<<<<<< HEAD
         frm0,frm1,varargin)
       [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,fs] = myparse(varargin,...
+=======
+        frm0,frm1,... % (opt) can be empty. these should prob be in optional P-Vs
+        varargin)
+      
+      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
+        updateWinPaths2LnxContainer,lnxContainerMntLoc] = myparse(varargin,...
+>>>>>>> develop
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trxfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
@@ -3745,16 +3903,26 @@ classdef DeepTracker < LabelTracker
         'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive). can be [nview x 4] for multiview
         'hmaps',false,...% (opt) if true, generate heatmaps
         'deepnetroot',APT.getpathdl,...
+<<<<<<< HEAD
         'model_file',[],... % can be [nview] cellstr
         'filesep','/'...
         ); 
+=======
+        'model_file',[], ... % can be [nview] cellstr
+        'log_file',[],... (opt)
+        'updateWinPaths2LnxContainer',ispc, ... % if true, all paths will be massaged from win->lnx for use in container 
+        'lnxContainerMntLoc','/mnt' ... % used when updateWinPaths2LnxContainer==true
+        );
+>>>>>>> develop
      
+      tffrm = ~isempty(frm0) && ~isempty(frm1);
       tfcache = ~isempty(cache);
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
       tfview = ~isempty(view);
       tfcrop = ~isempty(croproi);
       tfmodel = ~isempty(model_file);
+      tflog = ~isempty(log_file);
       
       movtrk = cellstr(movtrk);
       outtrk = cellstr(outtrk);
@@ -3786,8 +3954,35 @@ classdef DeepTracker < LabelTracker
       end      
             
       assert(~(tftrx && tfcrop));
+<<<<<<< HEAD
 
       aptintrf = [deepnetroot fs 'APT_interface.py'];
+=======
+      
+      aptintrf = [deepnetroot '/APT_interface.py'];
+      
+      if updateWinPaths2LnxContainer
+        fcnPathUpdate = @(x)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,lnxContainerMntLoc);
+        aptintrf = fcnPathUpdate(aptintrf);
+
+        movtrk = cellfun(fcnPathUpdate,movtrk,'uni',0);
+        outtrk = cellfun(fcnPathUpdate,outtrk,'uni',0);
+        if tftrx
+          trxtrk = cellfun(fcnPathUpdate,trxtrk,'uni',0);
+        end
+        if tfmodel
+          model_file = cellfun(fcnPathUpdate,model_file,'uni',0);
+        end
+        if tflog
+          log_file = fcnPathUpdate(log_file);
+        end
+        if tfcache
+          cache = fcnPathUpdate(cache);
+        end
+        errfile = fcnPathUpdate(errfile);
+        dllbl = fcnPathUpdate(dllbl);
+      end
+>>>>>>> develop
 
       movtrkstr = String.cellstr2DelimList(movtrk,' ');
       outtrkstr = String.cellstr2DelimList(outtrk,' ');
@@ -3798,29 +3993,31 @@ classdef DeepTracker < LabelTracker
         modelfilestr = String.cellstr2DelimList(model_file,' ');
       end
 
-      codestr = sprintf('python %s -name %s',aptintrf,trnID);
+      codestr = {'python' aptintrf '-name' trnID};
       if tfview
-        codestr = [codestr sprintf(' -view %d',view)]; % view: 1-based for APT_interface
+        codestr = [codestr {'-view' num2str(view)}]; % view: 1-based for APT_interface
       end
       if tfcache
-        codestr = [codestr ' -cache ' cache];
+        codestr = [codestr {'-cache' cache}];
       end
-      codestr = [codestr ' -err_file ' errfile];
+      codestr = [codestr {'-err_file' errfile}];
       if tfmodel
-        codestr = sprintf('%s -model_files %s',codestr,modelfilestr);
+        codestr = [codestr {'-model_files' modelfilestr}];
       end
-      codestr = [codestr sprintf(' -type %s %s track -mov %s -out %s',...
-        char(nettype),dllbl,movtrkstr,outtrkstr)];
-      if ~isempty(frm0) && ~isempty(frm1)
-        codestr = [codestr, sprintf(' -start_frame %d -end_frame %d',frm0,frm1)];
+      if tflog
+        codestr = [codestr {'-log_file' log_file}];
+      end
+      codestr = [codestr {'-type' char(nettype) dllbl 'track' '-mov' movtrkstr '-out' outtrkstr}];
+      if tffrm
+        codestr = [codestr {'-start_frame' num2str(frm0) '-end_frame' num2str(frm1)}];
       end
       if tftrx
-        codestr = sprintf('%s -trx %s',codestr,trxtrkstr);
+        codestr = [codestr {'-trx' trxtrkstr}];
         if tftrxids
           trxids = num2cell(trxids); % 1-based for APT_interface
           trxidstr = sprintf('%d ',trxids{:});
           trxidstr = trxidstr(1:end-1);
-          codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
+          codestr = [codestr {'-trx_ids' trxidstr}];
         end
       end
       if tfcrop
@@ -3828,11 +4025,13 @@ classdef DeepTracker < LabelTracker
         croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...]
         roistr = mat2str(croproirowvec);
         roistr = roistr(2:end-1);
-        codestr = sprintf('%s -crop_loc %s',codestr,roistr);
+        codestr = [codestr {'-crop_loc' roistr}];
       end
       if hmaps
-        codestr = sprintf('%s -hmaps',codestr);
+        codestr = [codestr {'-hmaps'}];
       end
+      
+      codestr = String.cellstr2DelimList(codestr,' ');
     end
     
     function codestr = dataAugCodeGenSSHBsubSing(ID,dllbl,cache,errfile,netType,outfile,varargin)
@@ -3942,7 +4141,7 @@ classdef DeepTracker < LabelTracker
           [~,containerName] = fileparts(outtrk);
         end
       end
-
+      
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
         'bindpath',mntPaths,dockerargs{:});
     end

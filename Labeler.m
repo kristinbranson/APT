@@ -31,7 +31,8 @@ classdef Labeler < handle
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
-      'skeletonEdges','showSkeleton'};
+      'skeletonEdges','showSkeleton'...
+      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
     SAVEPROPS_LPOS = {...
       'labeledpos' 'nan'
       'labeledposGT' 'nan'
@@ -70,7 +71,9 @@ classdef Labeler < handle
              'LPOSTS','labeledposTS',...
              'LPOSTAG','labeledpostag',...
              'LPOS2','labeledpos2',...
-             'VCD','viewCalibrationData'),'gt',...
+             'VCD','viewCalibrationData',...
+             'TRKRES','trkRes'),...
+             'gt',...
       struct('MFA','movieFilesAllGT',...
              'MFAF','movieFilesAllGTFull',...
              'MFAHL','movieFilesAllGTHaveLbls',...
@@ -83,7 +86,8 @@ classdef Labeler < handle
              'LPOSTS','labeledposTSGT',...
              'LPOSTAG','labeledpostagGT',...
              'LPOS2','labeledpos2GT',...
-             'VCD','viewCalibrationDataGT'));
+             'VCD','viewCalibrationDataGT',...
+             'TRKRES','trkResGT'));
   end
   
   events
@@ -476,6 +480,15 @@ classdef Labeler < handle
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
     trackParams; % all tracking parameters
+  end
+  properties
+    trkResIDs % [nTR x 1] cellstr unique IDs
+    trkRes % [nMov x nview x nTR] cell. cell array of TrkFile objs
+    trkResGT % [nMovGT x nview x nTR] cell. etc
+    trkResViz % [nTR x 1] cell. TrackingVisualizer vector
+  end
+  properties (Dependent)
+    trkResGTaware
   end
   
   %% CrossValidation
@@ -1080,15 +1093,15 @@ classdef Labeler < handle
 
     end
     
-    function v = get.DLCacheDir(obj)
-      
-      if isempty(obj.trackParams),
-        v = '';
-      else
-        v = APTParameters.all2DLCacheDir(obj.trackParams);
-      end
-      
-      
+    function v = get.DLCacheDir(obj)      
+      % AL 20190425 bundle. .DLCacheDir is immutable during a Session and 
+      % always equal to .projTempDir
+      v = obj.projTempDir;
+%       if isempty(obj.trackParams),
+%         v = '';
+%       else
+%         v = APTParameters.all2DLCacheDir(obj.trackParams);
+%       end
     end
     
     function v = get.cprParams(obj)
@@ -1110,7 +1123,14 @@ classdef Labeler < handle
 %       obj.trackParams.ROOT.CPR = CPRParam.old2newCPROnly(prmCpr);
 %       
 %     end
-    
+    function v = get.trkResGTaware(obj)
+      gt = obj.gtIsGTMode;
+      if gt
+        v = obj.trkResGT;
+      else
+        v = obj.trkRes;
+      end
+    end
   end
   
   methods % prop access
@@ -1253,7 +1273,7 @@ classdef Labeler < handle
     
       isinit0 = obj.isinit;
       obj.isinit = true;
-      
+            
       % Views
       obj.nview = cfg.NumViews;
       if isempty(cfg.ViewNames)
@@ -1596,6 +1616,7 @@ classdef Labeler < handle
 
       obj.projname = name;
       obj.projFSInfo = [];
+      obj.projGetEnsureTempDir('cleartmp',true);
       obj.movieFilesAll = cell(0,obj.nview);
       obj.movieFilesAllGT = cell(0,obj.nview);
       obj.movieFilesAllHaveLbls = false(0,1);
@@ -1629,6 +1650,8 @@ classdef Labeler < handle
       obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
       obj.gtSuggMFTableLbled = false(0,1);
       obj.gtTblRes = [];
+      
+      obj.trackResInit();
       
       obj.isinit = false;
       
@@ -1835,8 +1858,7 @@ classdef Labeler < handle
       end
       
       % MK 20190204. Use Unbundling instead of loading.
-      % Model files are copied to cache dir later.
-      [success, tlbl] = obj.projUnbundleLoad(fname);
+      [success,tlbl,wasbundled] = obj.projUnbundleLoad(fname);
       if ~success, error('Could not unbundle the label file %s',fname); end
       s = load(tlbl,'-mat');
 %       s = load(fname,'-mat');  
@@ -1967,13 +1989,55 @@ classdef Labeler < handle
       end
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
-      %MK 20190204 copy models to cache dir for bundled label file.
-      % KB 20190425 - this was broken if no training had occurred before
-      % saving
-      if ~isempty(obj.trackDLParams)
-        obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
+      if ~wasbundled
+        % DMC.rootDir point to original model locs
+        % Immediately modernize model wrt dl-cache-related invariants
+        % After this branch the model is as good as a bundled load
+        
+        fprintf(1,'\n\n### Raw/unbundled project migration.\n');
+        fprintf(1,'Copying Deep Models into %s.\n',obj.projTempDir);
+        for iTrker = 1:numel(obj.trackersAll)
+          tObj = obj.trackersAll{iTrker};
+          if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
+            dmc = tObj.trnLastDMC;            
+            for ivw = 1:numel(dmc)
+              dm = dmc(ivw);
+              try                
+                if dm.isRemote
+                  warningNoTrace('Net %s, view %d. Remote Model detected. This will not migrated/preserved.',dm.netType,ivw);
+                  continue;
+                end
+                
+                if ivw==1
+                  fprintf(1,'Detected model for nettype ''%s'' in %s.\n',...
+                    dm.netType,dm.rootDir);
+                end
+                
+                tfsucc = dm.updateCurrInfo();
+                if ~tfsucc
+                  warningNoTrace('Failed to update model iteration for model with net type %s.',...
+                    char(dm.netType));
+                end
+                
+                modelFiles = dm.findModelGlobsLocal();
+                assert(~strcmp(dm.rootDir,obj.projTempDir)); % Possible filesep issues
+                modelFilesDst = strrep(modelFiles,dm.rootDir,obj.projTempDir);
+                for mndx = 1:numel(modelFiles)
+                  copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+                  % for a given tracker, multiple DMCs this could re-copy
+                  % proj-level artifacts like stripped lbls
+                  fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+                end                
+              catch ME
+                warningNoTrace('Nettype ''%s'' (view %d): error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
+                  dm.netType,ivw,ME.getReport());
+              end
+            end
+          end
+        end
       end
-      obj.clearTempDir(); 
+      fprintf(1,'\n\n');
+      obj.projUpdateDLCache(); % this can fail (output arg not checked)
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -2003,7 +2067,7 @@ classdef Labeler < handle
       [success, tlbl] = obj.projUnbundleLoad(fname);
       if ~success, error('Could not unbundle the label file %s',fname); end
       s = load(tlbl,'-mat');
-      obj.clearTempDir();
+      obj.projClearTempDir();
 %       s = load(fname,'-mat');
       if s.nLabelPoints~=obj.nLabelPoints
         error('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
@@ -2079,31 +2143,53 @@ classdef Labeler < handle
     
     % Functions to handle bundled label files
     % MK 20190201
-    function tname = projGetEnsureTempDir(obj) % throws
+    function tname = projGetEnsureTempDir(obj,varargin) % throws
       % tname: project tempdir, assigned to .projTempDir. Guaranteed to
-      % exist, contents not guaranteed in any way
+      % exist, contents not guaranteed
+      
+      cleartmp = myparse(varargin,...
+        'cleartmp',false...
+        );
       
       if isempty(obj.projTempDir)
-        obj.projTempDir = tempname;
+        obj.projTempDir = tempname(APT.getdlcacheroot);
       end
       tname = obj.projTempDir;
+      
       if exist(tname,'dir')==0
         [success,message,~] = mkdir(tname);
         if ~success
           error('Could not create temp directory %s: %s',tname,message);
         end        
-      end      
+      elseif cleartmp
+        obj.projClearTempDir();
+      else
+        % .projTempDir exists and may have stuff in it
+      end
+      
     end
     
-    function [success,rawLblFile] = projUnbundleLoad(obj,fname) % throws
+    function [success,rawLblFile,isbundled] = projUnbundleLoad(obj,fname) % throws
       % Unbundles the lbl file if it is a tar bundle.
       %
+      % This can throw. If it throws you know nothing.
+      %
+      % If it doesn't throw:
+      %  If success and isbundled, then .projTempDir/<rawLblFile> is the
+      %   raw label file and .projTempDir/ contains the exploded DL model
+      %   cache tree.
+      %  If success and ~isbundled, then .projTempDir/<rawLblFile> is the
+      %   raw label file, but there are no DL models under .projTempDir.
+      %  If ~success, then .projTempDir is set and exists on the filesystem
+      %   but that's it. .projTempDir/<rawLblFile> probably doesn't exist.
+      %   
       % fname: fullpath to projectfile, either tarred/bundled or untarred
       %
-      % rawLblFile: path to untarred label file in projTempDir
+      % success, isbundled: as described above
+      % rawLblFile: full path to untarred raw label file in .projTempDir
       % MK 20190201
       
-      [rawLblFile,tname] = obj.projGetRawLblFile(); % throws; this fcn has mix of throws/warns
+      [rawLblFile,tname] = obj.projGetRawLblFile('cleartmp',true); % throws; sets .projTempDir
       
       try
         fprintf('Untarring project into %s\n',tname);
@@ -2114,83 +2200,58 @@ classdef Labeler < handle
           warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',fname);
           [success,message,~] = copyfile(fname,rawLblFile);
           if ~success
-            warningNoTrace('Could not copy lbl files for bundling: %s',message);
-          end
+            warningNoTrace('Could not copy raw label file: %s',message);
+            isbundled = [];
+          else
+            isbundled = false;  
+          end          
           return;
+        else
+          ME.rethrow(); % most unfortunate
         end
       end
+      
       if ~exist(rawLblFile,'file')
         warning('Could not find raw label file in the bundled label file %s',fname);
         success = false;
+        isbundled = [];
         return;
       end
+      
       success = true;
+      isbundled = true;
     end
     
-    function projCopyModelsToCache(obj,cacheDir)
-      % copies the unbundled model file from the projTempDir to cacheDir. 
-      % If cacheDir doesn't exist asks user for new one.
+    function success = projUpdateDLCache(obj)
+      % Updates project DL state to point to new cache in .projTempDir
       % 
       % Preconds: 
       %   - .projTempDir must be set
       %   - bundled project untarred into .projTempDir
       %   - .trackersAll has been set/loaded, ie 
-      %       .trackersAll{iDLTrker}.trnLastDMC(ivw) corresponds precisely 
-      %       to unbundled contents in .projTempDir (.rootDir may not be
-      %       correctly specified)
+      %       .trackersAll{iDLTrker}.trnLastDMC(ivw) is configured for
+      %       running except possibly for .rootDir specification. 
       %
-      % Postconds:
-      % If success:
-      %   - .trackParams.ROOT.DeepTrack.Saving.CacheDir possibly updated
-      %   - .trackersAll{iDLTrker}.trnLastDMC(ivw).rootDir possibly updated
-      %   - models in .projTempDir copied into new CacheDir
+      % Postconds, success:
+      %   - .trackersAll{iDLTrker}.trnLastDMC(ivw).rootDir updated to point
+      %   to .projTempDir 
+      %   - any memory of tracking results in DL tracker objs cleared
       %
-      % If failure, maybe nothing happened; project pretty unusable for
-      % tracking
-
+      % Postcond, ~success: nothing changed      
+      
       success = false;
       
-      % Check for exploded cache in tempdir
-      tCacheDir = fullfile(obj.projTempDir,obj.projname);
+      cacheDir = obj.projTempDir;
+      
+      % Check for exploded cache in tempdir      
+      tCacheDir = fullfile(cacheDir,obj.projname);
       if ~exist(tCacheDir,'dir')
-        warningNoTrace('Could not find model data for %s in the temp directory %s. Not copying the model files',...
-          obj.projname,obj.projTempDir);
+        warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
+          obj.projname,cacheDir);
         return;
       end
-      
-      % Check that cachedir exists; if not create a new one (eg if project
-      % opened in new filesys)
-      if ~exist(cacheDir,'dir')
-        uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir.','Cache Dir'));
-        newCacheDir = uigetdir('','Select cache dir');
-        if newCacheDir == 0
-          warningNoTrace('No local cache dir selected. Could not restore model files. Saved models will not be available for use');
-          return;
-        else
-          cacheDir = newCacheDir;
-        end
-      end
-      
+            
       % Update/set all DMC.rootDirs to cacheDir
-      % 
-      % Bundle/DMC/modelChain notes 20190419. See also issue #285
-      % Current DMC unbundling philosophy
-      % - Upon unbundling, we do not generate a new modelChainID. Multiple
-      % APTs can all be using/pointing at a single modelChainDir (subdir
-      % within a cache)
-      %   * Restarts currently unsafe due to #285
-      % - If a user never restarts, modelChain artifacts are *immutable*
-      % and effetively read-only. Therefore it is OK if multiple APTs point 
-      % to a single modelChainDir.
-      % - "partial tracking" results live in <modelChain>/trk. These just
-      % accumulate over time as APT instances track with the modelChain.
-      % These are timestamped and should have effectively unique IDs. On
-      % project load, DeepTracker trkfiles pointers/caches are cleared so
-      % that the user does not see previous tracking results.
-      %   * Trkfiles may not be immutable depending on how 3D 
-      % postprocessing develops. This is prob moot if partial tracking is 
-      % never retained.
-      %
       tAll = obj.trackersAll;
       for iTrker = 1:numel(tAll)
         tObj = tAll{iTrker};
@@ -2218,44 +2279,24 @@ classdef Labeler < handle
                 tObj.trnNetType.prettyStr,ivw);
               % At save-time we should be updating DMCs to local
               
-              % Don't update dmc(ivw).rootDir
+              % Don't update dmc(ivw).rootDir in this case
               
               % Nonfatal dont return
             end
           end
           
-          % Don't retrain any previous tracking results          
+          % Don't retain any previous tracking results
           tObj.clearTrackingResults();
         end
       end
       
-      outdir = fullfile(cacheDir,obj.projname);
-      if ~exist(outdir,'dir')
-        [success,message,~] = mkdir(outdir);
-        if ~success
-          warningNoTrace('Could not create directory %s in the cache. Could not restore model files. Saved models will not be available for use: %s',...
-            outdir,message);
-        end
-      end
-
-      % copy top-level projdir. This leaves existing files (other
-      % modelchaindirs etc) intact
-      fprintf(1,'Copying %s->%s\n',tCacheDir,outdir);
-      [success,message,~] = copyfile(tCacheDir,outdir);
-      if ~success
-        warningNoTrace('Could not copy model files to local cache dir %s',outdir);
-        warningNoTrace(message);
-      end
+      %obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = cacheDir;
       
-      if success
-        obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = cacheDir;
-      else
-        % Proj is going to be pretty hosed but they can view labels etc
-      end
+      success = true;
     end
     
-    function [rawLblFile,projtempdir] = projGetRawLblFile(obj) % throws
-      projtempdir = obj.projGetEnsureTempDir();
+    function [rawLblFile,projtempdir] = projGetRawLblFile(obj,varargin) % throws
+      projtempdir = obj.projGetEnsureTempDir(varargin{:});
       rawLblFile = fullfile(projtempdir,obj.DEFAULT_RAW_LABEL_FILENAME);
     end
     
@@ -2263,22 +2304,19 @@ classdef Labeler < handle
       % bundle contents of projTempDir into outFile
       %
       % throws on err, hopefully cleans up after itself (projtempdir) 
-      % regardless. unless the error is thrown from the cleanup! haha um.
+      % regardless. 
       
       verbose = myparse(varargin,...
         'verbose',obj.projVerbose ...
       );
       
-      % Intentionally don't always cleanup tempdir for now 
-      %oc = onCleanup(@() obj.clearTempDir()); % clean up tempdir on all exits 
-
       [rawLblFile,projtempdir] = obj.projGetRawLblFile();
       if ~exist(rawLblFile,'file')
         error('Raw label file %s does not exist. Could not create bundled label file.',...
           rawLblFile);
       end
       
-      % This will contain all projtempdir artifacts to be tarred
+      % allModelFiles will contain all projtempdir artifacts to be tarred
       allModelFiles = {rawLblFile};
       
       % find the model files and then bundle them into the tar directory.
@@ -2305,8 +2343,7 @@ classdef Labeler < handle
               end
 
               if dm.isRemote
-                cacheDirLocal = obj.trackDLParams.Saving.CacheDir;
-                dm.mirrorFromRemoteAws(cacheDirLocal);
+                dm.mirrorFromRemoteAws(projtempdir);
               end
 
               if verbose>0 && ndx==1
@@ -2315,28 +2352,41 @@ classdef Labeler < handle
               end
 
               modelFiles = dm.findModelGlobsLocal();
-              modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
-              for mndx = 1:numel(modelFiles)
-                copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-                % for a given tracker, multiple DMCs this could re-copy 
-                % proj-level artifacts like stripped lbls
+              if strcmp(dm.rootDir,projtempdir) % Possible filesep issues 
+                % DMC already lives in the right place
                 if verbose>1
-                  fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+                  cellfun(@(x)fprintf(1,'%s\n',x),modelFiles);
                 end
-              end           
-              allModelFiles = [allModelFiles; modelFilesDst]; %#ok<AGROW>
+                modelFilesDst = modelFiles;
+              else
+                % eg legacy projects (raw/unbundled)
+                modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
+                for mndx = 1:numel(modelFiles)
+                  copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+                  % for a given tracker, multiple DMCs this could re-copy
+                  % proj-level artifacts like stripped lbls
+                  if verbose>1                    
+                    fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+                  end
+                end
+              end
+              allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
             catch ME
-              warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be saved for this net type:\n%s',...
-                dm.netType,ME.getReport());
+              warningNoTrace('Nettype ''%s'' (view %d): error caught trying to save model. Trained model will not be saved for this net type:\n%s',...
+                dm.netType,ndx,ME.getReport());
             end
           end
         end
       end
       
+      % - all DL models exist under projtempdir
+      % - obj...Saving.CacheDir is unchanged
+      % - all DMCs need not have .rootDirs that point to projtempdir
+                  
       pat = [regexprep(projtempdir,'\\','\\\\') '[/\\]'];
       allModelFiles = cellfun(@(x) regexprep(x,pat,''),...
         allModelFiles,'UniformOutput',false);
-      fprintf(1,'Tarring model files into %s\n',projtempdir);
+      fprintf(1,'Tarring %d model files into %s\n',numel(allModelFiles),projtempdir);
       tar([outFile '.tar'],allModelFiles,projtempdir);
       movefile([outFile '.tar'],outFile); 
       fprintf(1,'Project saved to %s\n',outFile);
@@ -2344,13 +2394,20 @@ classdef Labeler < handle
       % matlab by default adds the .tar. So save it to tar
       % and then move it.
       
-      obj.clearTempDir();
+      % Don't clear the tempdir here, user may still be using project.
+      %obj.clearTempDir();
     end
     
-    function clearTempDir(obj) % throws
+    function projClearTempDir(obj) % throws
+      if isempty(obj.projTempDir)
+        return;
+      end
+      
       [success, message, ~] = rmdir(obj.projTempDir,'s');
-      if ~success
-        warning('Could not clear the temp directory %s',message);
+      if success
+        fprintf(1,'Cleared temp dir: %s\n',obj.projTempDir);
+      else
+        warning('Could not clear the temp directory: %s',message);
       end
       [success, message, ~] = mkdir(obj.projTempDir);
       if ~success
@@ -2875,7 +2932,9 @@ classdef Labeler < handle
         if isfield(s.trackerData{i},'trnLastDMC'),
           for j = 1:numel(s.trackerData{i}.trnLastDMC),
             dmc = s.trackerData{i}.trnLastDMC(j);
-            if isempty(dmc.nLabels) && ~dmc.isRemote
+            if isempty(dmc.nLabels) && (isempty(dmc.reader) || ~dmc.isRemote)
+              % dmc.reader is empty for legacy projs; which will be assumed 
+              % to be local in DeepTracker/modernizeSaveToken
               try
                 fprintf('Modernize: Reading nLabels for deep tracker\n');
                 dmc.readNLabels();
@@ -3049,7 +3108,7 @@ classdef Labeler < handle
       % KB 20190212: reorganized DL parameters -- many specific parameters
       % were moved to common, and organized common parameters. leaf names
       % should all be the same, and unique, so just match leaves
-      s = reorganizeDLParams(s);      
+      s = reorganizeDLParams(s); 
       
       % KB 20190214: all parameters are combined now
       if ~isTrackParams,
@@ -3060,6 +3119,19 @@ classdef Labeler < handle
       if ~isempty(s.trackParams) && ~isfield(s.trackParams.ROOT,'PostProcess'),
         dfltParams = APTParameters.defaultParamsStruct;
         s.trackParams.ROOT.PostProcess = dfltParams.PostProcess;
+      end
+      
+      % AL 20190507: .trackParams modernization
+      % For now only doing .DeepTrack but pattern prob works for all
+      if ~isempty(s.trackParams)
+        prmsDTComDflt = APTParameters.defaultParamsStructDTCommon;
+        fns = fieldnames(prmsDTComDflt);
+        for f=fns(:)',f=f{1}; %#ok<FXSET>
+          % Fields should currently match; later they may not, struct 
+          % should be updated then
+          s.trackParams.ROOT.DeepTrack.(f) = structoverlay(...
+            prmsDTComDflt.(f),s.trackParams.ROOT.DeepTrack.(f),'dontWarnUnrecog',true);
+        end
       end
       
       % KB 20190214: store all parameters in each tracker so that we don't
@@ -3109,6 +3181,16 @@ classdef Labeler < handle
         s.showSkeleton = false;
       end
       
+      % 20190429 TrkRes
+      if ~isfield(s,'trkRes')
+        nmov = size(s.movieFilesAll,1);
+        nmovGT = size(s.movieFilesAllGT,1);
+        nvw = size(s.movieFilesAll,2);
+        s.trkResIDs = cell(0,1);
+        s.trkRes = cell(nmov,nvw,0);
+        s.trkResGT = cell(nmovGT,nvw,0);
+        s.trkResViz = cell(0,1);
+      end
     end
 
   end 
@@ -3239,6 +3321,7 @@ classdef Labeler < handle
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           obj.(PROPS.VCD){end+1,1} = [];
         end
+        obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
         if ~gt
           obj.labeledposMarked{end+1,1} = false(nlblpts,nfrms,nTgt);
         end
@@ -3398,6 +3481,7 @@ classdef Labeler < handle
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
+      obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
       if ~gt
         obj.labeledposMarked{end+1,1} = false(nLblPts,nFrms,nTgt);
       end
@@ -3539,6 +3623,8 @@ classdef Labeler < handle
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
           obj.(PROPS.VCD)(iMov,:) = [];
         end
+        obj.(PROPS.TRKRES)(iMov,:,:) = [];
+
         obj.isinit = tfOrig;
         
         edata = MoviesRemappedEventData.movieRemovedEventData(...
@@ -3620,6 +3706,7 @@ classdef Labeler < handle
       for f=FLDS2,f=f{1}; %#ok<FXSET>
         obj.(f) = obj.(f)(p,:);
       end
+      obj.trkRes = obj.trkRes(p,:,:);
       
       obj.isinit = tfOrig;
       
@@ -6716,9 +6803,25 @@ classdef Labeler < handle
       tfRestrict = ~isempty(tblMFTrestrict);
       
       if useLabels2
-        mfts = MFTSetEnum.AllMovAllLabeled2;
+        if isempty(useTrain)
+          mfts = MFTSetEnum.AllMovAllLabeled2;
+        elseif useTrain
+          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.Labeled2Frm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        else % useGT
+          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.Labeled2Frm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        end
       else
-        mfts = MFTSetEnum.AllMovAllLabeled;
+        if isempty(useTrain)
+          mfts = MFTSetEnum.AllMovAllLabeled;
+        elseif useTrain
+          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.LabeledFrm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);          
+        else % useGT
+          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.LabeledFrm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        end
       end
       tblMF = mfts.getMFTable(obj);
       
@@ -7896,7 +7999,7 @@ classdef Labeler < handle
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.prevAxesLabelsUpdate();
       %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
-      obj.labels2VizUpdate();
+      obj.labels2VizUpdate('dotrkres',true);
       %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo)); 
     end
     
@@ -7905,7 +8008,7 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate();
+      obj.labels2VizUpdate('dotrkres',true);
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -7915,7 +8018,7 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate();
+      obj.labels2VizUpdate('dotrkres',true);
     end
         
   end
@@ -8682,6 +8785,7 @@ classdef Labeler < handle
       end
       
       tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp);
+      
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
@@ -8689,6 +8793,14 @@ classdef Labeler < handle
           'Not including %d partially-labeled rows.',nnan);
       end
       tblP = tblP(~tfnan,:);
+      
+      tfinf = any(isinf(tblP.p),2);
+      ninf = nnz(tfinf);
+      if ninf>0
+        warningNoTrace('Labeler:nanData',...
+          'Not including %d rows with fully-occluded labels.',ninf);
+      end
+      tblP = tblP(~tfinf,:);
     end
     
     % Hist Eq Notes
@@ -9888,7 +10000,9 @@ classdef Labeler < handle
         if obj.hasTrx || obj.cropProjHasCrops
           pGT = tblMFgtTrack.pAbs;
         else
-          tblfldsdonotcontainassert(tblMFgtTrack,'pAbs');
+          if tblfldscontains(tblMFgtTrack,'pAbs')
+            assert(isequal(tblMFgtTrack.p,tblMFgtTrack.pAbs));
+          end
           pGT = tblMFgtTrack.p;
         end
         d = tblTrkRes.pTrk - pGT;
@@ -10451,7 +10565,7 @@ classdef Labeler < handle
       tblSumm.nFrmLblTrk(tfNoStats) = 0;
       tblSumm.nFrmLblImported(tfNoStats) = 0;
       tblSumm.nFrmXV(tfNoStats) = 0;
-    end    
+    end  
   end
   methods (Static)
       function [nFrmLbl,nFrmTrk,nFrmImported,...
@@ -10484,40 +10598,7 @@ classdef Labeler < handle
         xvMeanErr = mean(xvErr(hasXV));
       end
       
-%     function trackSaveResults(obj,fname)
-%       tObj = obj.tracker;
-%       if isempty(tObj)
-%         error('Labeler:track','No tracker set.');
-%       end
-%       s = tObj.getSaveToken(); %#ok<NASGU>
-%       
-%       save(fname,'-mat','-struct','s');
-%       obj.projFSInfo = ProjectFSInfo('tracking results saved',fname);
-%       RC.saveprop('lastTrackingResultsFile',fname);
-%     end
-%     
-%     function trackLoadResults(obj,fname)
-%       tObj = obj.tracker;
-%       if isempty(tObj)
-%         error('Labeler:track','No tracker set.');
-%       end
-%       s = load(fname);
-%       tObj.loadSaveToken(s);
-%       
-%       obj.projFSInfo = ProjectFSInfo('tracking results loaded',fname);
-%       RC.saveprop('lastTrackingResultsFile',fname);
-%     end
-          
-%     function [success,fname] = trackSaveResultsAs(obj)
-%       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
-%         'uiputfile','Save tracking results','trackSaveResults');
-%     end
-%     
-%     function [success,fname] = trackLoadResultsAs(obj)
-%       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
-%         'uigetfile','Load tracking results','trackLoadResults');
-%     end
-%     
+ 
 %     function [success,fname] = trackSaveLoadAsHelper(obj,rcprop,uifcn,...
 %         promptstr,rawMeth)
 %       % rcprop: Name of RC property for guessing path
@@ -10550,6 +10631,137 @@ classdef Labeler < handle
 %       end
 %     end
      
+  end
+  
+  methods % TrackRes
+    
+    function trackResInit(obj)
+      obj.trkResIDs = cell(0,1);
+      obj.trkRes = cell(obj.nmovies,obj.nview,0);
+      obj.trkResGT = cell(obj.nmoviesGT,obj.nview,0);
+      for i=1:numel(obj.trkResViz)
+        delete(obj.trkResViz{i});
+      end
+      obj.trkResViz = cell(0,1);
+    end
+    
+    function [tf,iTrkRes] = trackResFindID(obj,id)
+      iTrkRes = find(strcmp(obj.trkResIDs,id));
+      assert(isempty(iTrkRes) || isscalar(iTrkRes));
+      tf = ~isempty(iTrkRes);      
+    end
+    
+    function tv = trackResFindTV(obj,id) % throws
+      % Return TrackingVisualizer object for id, or err
+      [tf,iTR] = obj.trackResFindID(id);
+      if ~tf
+        error('Tracking results ''%s'' not found in project.',id);
+      end
+      tv = obj.trkResViz{iTR};
+    end
+    
+    function iTrkRes = trackResEnsureID(obj,id)
+      iTrkRes = find(strcmp(obj.trkResIDs,id));
+      if isempty(iTrkRes)
+        handleTagPfix = ['handletag_' id];
+        tv = TrackingVisualizer(obj,handleTagPfix);
+        tv.vizInit();
+        
+        fprintf(1,'Adding new tracking results set ''%s''.\n',id);
+        obj.trkResIDs{end+1,1} = id;
+        obj.trkRes(:,:,end+1) = {[]};
+        obj.trkResGT(:,:,end+1) = {[]};
+        obj.trkResViz{end+1,1} = tv;
+        iTrkRes = numel(obj.trkResIDs);
+      end
+    end
+    
+    function trackResRmID(obj,id)
+      iTR = find(strcmp(obj.trkResIDs,id));
+      if isempty(iTR)
+        error('Tracking results ID ''%s'' not found in project',id);
+      end
+
+      assert(isscalar(iTR));
+      obj.trkResIDs(iTR,:) = [];
+      obj.trkRes(:,:,iTR) = [];
+      obj.trkResGT(:,:,iTR) = [];
+      tv = obj.trkResViz(iTR);
+      delete(tv);
+      obj.trkResViz(iTR,:) = [];
+    end
+    
+    function trackResAddCurrMov(obj,id,trkfiles)
+      if ~obj.hasMovie
+        error('No movie is open.');
+      end
+      mIdx = obj.currMovIdx;
+      obj.trackResAdd(id,mIdx,trkfiles);
+    end
+    
+    function trackResAdd(obj,id,mIdx,trkfiles)
+      % id: trackRes ID
+      % mIdx: [n] MovieIndex vector
+      % trkfiles: [nxnview] cell of trkfile objects or fullpaths
+
+      assert(isa(mIdx,'MovieIndex'));
+      n = numel(mIdx);
+      if ischar(trkfiles)
+        trkfiles = cellstr(trkfiles);
+      end
+      assert(iscell(trkfiles));
+      szassert(trkfiles,[n obj.nview]);
+      
+      iTR = obj.trackResEnsureID(id);
+      [iMovs,gt] = mIdx.get();
+      if gt
+        TRFLD = 'trkResGT';
+      else
+        TRFLD = 'trkRes';
+      end
+      
+      if iscellstr(trkfiles) || isstring(trkfiles)
+        trkfileobjs = cellfun(@TrkFile.load,trkfiles,'uni',0);
+      else
+        assert(isa(trkfiles{1},'TrkFile'));
+        trkfileobjs = trkfiles;
+      end
+      
+      for iMov = iMovs(:)'
+        v = obj.(TRFLD){iMov,1,iTR};
+        if ~isempty(v)
+          warningNoTrace('Overwriting existing tracking results for ''%s'' at movie index %d.',...
+            id,iMov);
+        end
+      end
+      obj.(TRFLD)(iMovs,:,iTR) = trkfileobjs;      
+    end
+    
+    function hlpTrackResSetViz(obj,tvMeth,id,varargin)
+      if isempty(id)
+        cellfun(@(x)x.(tvMeth)(varargin{:}),obj.trkResViz);
+      else
+        tv = obj.trackResFindTV(id); % throws
+        tv.(tvMeth)(varargin{:});
+      end
+    end
+    
+    function trackResSetHideViz(obj,id,tf)
+      obj.hlpTrackResSetViz('setHideViz',id,tf);
+    end
+    
+    function trackResSetHideTextLbls(obj,id,tf)
+      obj.hlpTrackResSetViz('setHideTextLbls',id,tf);
+    end    
+    
+    function trackResSetMarkerCosmetics(obj,id,varargin)
+      obj.hlpTrackResSetViz('setMarkerCosmetics',id,varargin);
+    end
+
+    function trackResSetTextCosmetics(obj,id,varargin)
+      obj.hlpTrackResSetViz('setTextCosmetics',id,varargin);
+    end
+
   end
    
   %% Video
@@ -10814,10 +11026,11 @@ classdef Labeler < handle
       else
         cropInfo = obj.movieFilesAllCropInfo{iMov};
       end
-      for iView=1:obj.nview,
-        obj.movieReader(iView).setCropInfo(cropInfo(iView));
+      if ~isempty(cropInfo), 
+        for iView=1:obj.nview,
+            obj.movieReader(iView).setCropInfo(cropInfo(iView));
+        end
       end
-      
     end
     
     function [whDefault,whMaxAllowed] = cropComputeDfltWidthHeight(obj)
@@ -12464,9 +12677,22 @@ classdef Labeler < handle
         obj.gdata.axes_curr,ptsPlotInfo);
       obj.genericInitLabelPointViz('lblOtherTgts_ptsH',[],...
         obj.gdata.axes_curr,ptsPlotInfo);
+      
+      for i=1:numel(obj.trkResViz)
+        tv = obj.trkResViz{i};
+        if isempty(tv.lObj)
+          tv.postLoadInit(obj);
+        else
+          tv.vizInit('postload',true);
+        end
+        tv.updateHideVizHideText();
+      end
     end
     
-    function labels2VizUpdate(obj)
+    function labels2VizUpdate(obj,varargin)
+      dotrkres = myparse(varargin,...
+        'dotrkres',false...
+        );
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;      
@@ -12474,13 +12700,42 @@ classdef Labeler < handle
       txtOffset = obj.labelPointsPlotInfo.LblOffset;
       LabelCore.setPtsCoordsStc(lpos2,obj.labeledpos2_ptsH,...
         obj.labeledpos2_ptsTxtH,txtOffset);
+      
+      if dotrkres
+        trkres = obj.trkResGTaware;
+        trvs = obj.trkResViz;
+        nTR = numel(trvs);
+        for iTR=1:nTR
+          if ~isempty(trkres{iMov,1,iTR})
+            tObjsAll = trkres(iMov,:,iTR);
+            trkPs = cellfun(@(x)x.pTrk,tObjsAll,'uni',0);
+            trkP = cat(1,trkPs{:}); % [nlabelpoints x 2 x nfrm x ntgt]
+            trkP = trkP(:,:,frm,iTgt);
+            trv = trvs{iTR};
+            trv.updateTrackRes(trkP);
+                % % From DeepTracker.getPredictionCurrFrame
+                % AL20160502: When changing movies, order of updates to
+                % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
+                % % be updated first, resulting in an OOB currFrame; protect against
+                % % this.
+                % frm = min(frm,size(xyPCM,3));
+                % xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+          end
+        end
+      end
     end
     
     function labels2VizShowHideUpdate(obj)
-      onoff = onIff(~obj.labels2Hide);
-      onofftxt = onIff(~obj.labels2Hide && obj.showPredTxtLbl);
+      tfHide = obj.labels2Hide;
+      tfShowTxt = obj.showPredTxtLbl;
+      onoff = onIff(~tfHide);
+      onofftxt = onIff(~tfHide && tfShowTxt);
       [obj.labeledpos2_ptsH.Visible] = deal(onoff);
       [obj.labeledpos2_ptsTxtH.Visible] = deal(onofftxt);
+      
+%       trvs = obj.trkResViz;
+%       cellfun(@(x)x.setHideViz(tfHide),trvs);
+%       cellfun(@(x)x.setHideTextLbls(~tfShowTxt),trvs);     
     end
     
     function labels2VizShow(obj)

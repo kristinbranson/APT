@@ -136,7 +136,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
 %       assert(isscalar(errFile));
 %       errFile = errFile{1};
     end
-
+ 
   end
   
 end

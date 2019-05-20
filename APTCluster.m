@@ -103,8 +103,9 @@ switch action
     end
   case 'xv'
     varargin = varargin(3:end);
-    [tableFile,tableSplitFile,paramFile,paramPatchFile,outDir] = ...
+    [auxRoot,tableFile,tableSplitFile,paramFile,paramPatchFile,outDir] = ...
       myparse(varargin,...
+      'auxRoot','',... % (opt) if supplied, root dir for all following args
       'tableFile','',... % (opt) mat-filename containing an MFTtable for rows to consider in XV
       'tableSplitFile','',... % (opt) mat-filename containing split variables. If specified, tableFile must be specced %      'tableSplitFileVar','',... % (opt) variable name in tableSplitFile. <tableSplitFile>.(tableSplitFielVar) should be a [height(<tableFile>) x nfold] logical where true indicates train and false indicates test
       'paramFile','',... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
@@ -120,6 +121,7 @@ switch action
       lObj.gtSetGTMode(false,'warnChange',true);
     end
 
+    tfAuxRoot = ~isempty(auxRoot);
     tfTable = ~isempty(tableFile);
     tfSplit = ~isempty(tableSplitFile);
 %     xvArgs = cell(1,0);
@@ -127,6 +129,9 @@ switch action
     [lblP,lblF,lblE] = fileparts(lblFile);
     outfileBase = ['xv_' lblF];
     if tfTable
+      if tfAuxRoot
+        tableFile = fullfile(auxRoot,tableFile);
+      end
       [~,tableFileS,~] = fileparts(tableFile);
       tblMFT = MFTable.loadTableFromMatfile(tableFile);
       fprintf(1,'Loaded table (%d rows) from %s.\n',height(tblMFT),tableFile);
@@ -135,6 +140,9 @@ switch action
     end
     if tfSplit
       assert(tfTable);
+      if tfAuxRoot
+        tableSplitFile = fullfile(auxRoot,tableSplitFile);
+      end
       [~,tableSplitFileS,~] = fileparts(tableSplitFile);
       split = loadSingleVariableMatfile(tableSplitFile);      
       if ~(islogical(split) && ismatrix(split) && size(split,1)==height(tblMFT))
@@ -147,6 +155,12 @@ switch action
       outfileBase = [outfileBase '_' tableSplitFileS];
     end
     
+    if tfAuxRoot && ~isempty(paramFile)
+      paramFile = fullfile(auxRoot,paramFile);
+    end
+    if tfAuxRoot && ~isempty(paramPatchFile)
+      paramPatchFile = fullfile(auxRoot,paramPatchFile);
+    end    
     outfileBase = lclSetParamsApplyPatches(lObj,paramFile,paramPatchFile,outfileBase);
     
     outfileBase = [outfileBase '_' datestr(now,'yyyymmddTHHMMSS')];
@@ -154,13 +168,17 @@ switch action
     lObj.trackCrossValidate(xvArgs{:});
     
     savestuff = struct();
-    assert(false,'TODO: react');
+    %assert(false,'TODO: react');
     savestuff.sPrm = lObj.trackGetParams();
     savestuff.xvArgs = xvArgs;
     savestuff.xvRes = lObj.xvResults;
     savestuff.xvResTS = lObj.xvResultsTS; %#ok<STRNU>
     if isempty(outDir)
       outDir = lblP;
+    else
+      if tfAuxRoot
+        outDir = fullfile(auxRoot,outDir);
+      end
     end
     outfile = fullfile(outDir,[outfileBase '.mat']);    
     fprintf('APTCluster: saving xv results: %s\n',outfile);
@@ -262,7 +280,7 @@ tfPPatch = ~isempty(paramPatchFile);
 if tfParam
   sPrm = loadSingleVariableMatfile(paramFile);
   fprintf(1,'Loaded parameters from %s.\n',paramFile);
-  assert(false,'TODO: react');
+  %assert(false,'TODO: react');
   lObj.trackSetParams(sPrm);
   [~,paramFileS,~] = fileparts(paramFile);
   outfileBase = [outfileBase '_' paramFileS];
