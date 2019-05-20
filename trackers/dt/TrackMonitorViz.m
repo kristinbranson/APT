@@ -23,6 +23,12 @@ classdef TrackMonitorViz < handle
       'Update tracking monitor'...
       'Show log files'...
       'Show error messages'}},...
+      'Conda',...
+      {{'List all conda jobs'...
+      'Show tracking jobs'' status',...
+      'Update tracking monitor'...
+      'Show log files'...
+      'Show error messages'}},...
       'Docker',...
       {{'List all docker jobs'...
       'Show tracking jobs'' status',...
@@ -258,6 +264,8 @@ classdef TrackMonitorViz < handle
           clusterstr = 'JRC cluster';
         case DLBackEnd.Docker
           clusterstr = 'Local';
+        case DLBackEnd.Conda
+          clusterstr = 'Local';
         case DLBackEnd.AWS,
           clusterstr = 'AWS';
         otherwise
@@ -392,7 +400,7 @@ classdef TrackMonitorViz < handle
         case 'Update tracking monitor',
           obj.updateMonitorPlots();
           drawnow;
-        case {'List all jobs on cluster','List all docker jobs'},
+        case {'List all jobs on cluster','List all docker jobs','List all conda jobs'},
           ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;
@@ -438,7 +446,9 @@ classdef TrackMonitorViz < handle
     function ss = queryAllJobsStatus(obj)
       
       ss = obj.trackWorkerObj.queryAllJobsStatus();
-      ss = strsplit(ss,'\n');
+      if ischar(ss),
+        ss = strsplit(ss,'\n');
+      end
       
     end
     

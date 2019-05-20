@@ -5,20 +5,20 @@ import time
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from config import load_config
+from .config import load_config
 from deepcut.nnet.net_factory import pose_net
-from nnet.pose_net import get_batch_spec
-from util.mylogging import setup_logging
+from .nnet.pose_net import get_batch_spec
+from .util.mylogging import setup_logging
 import urllib
 import os
 import PoseTools
 import numpy as np
-import predict
-from pose_dataset import Batch, PoseDataset
+import deepcut.predict as predict
+from .pose_dataset import Batch, PoseDataset
 import json
 import pickle
 from easydict import EasyDict as edict
-import config
+import deepcut.config as config
 import  tarfile
 
 # name = 'deepnet'

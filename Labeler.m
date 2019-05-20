@@ -1968,7 +1968,11 @@ classdef Labeler < handle
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       %MK 20190204 copy models to cache dir for bundled label file.
-      obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
+      % KB 20190425 - this was broken if no training had occurred before
+      % saving
+      if ~isempty(obj.trackDLParams)
+        obj.projCopyModelsToCache(obj.trackDLParams.Saving.CacheDir);
+      end
       obj.clearTempDir(); 
       
       obj.notify('projLoaded');

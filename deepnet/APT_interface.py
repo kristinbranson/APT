@@ -25,6 +25,7 @@ import ast
 import tempfile
 import tensorflow as tf
 
+ISPY3 = sys.version_info >= (3, 0)
 
 def loadmat(filename):
     """this function should be called instead of direct spio.loadmat
@@ -248,10 +249,16 @@ def get_matlab_ts(filename):
 
 
 def convert_unicode(data):
-    if isinstance(data, basestring):
-        return unicode(data)
+    if isinstance(data, str):
+        if ISPY3:
+            return data
+        else:
+            return unicode(data)
     elif isinstance(data, collections.Mapping):
-        return dict(map(convert_unicode, data.iteritems()))
+        if ISPY3:
+            return dict(map(convert_unicode, data.items()))
+        else:
+            return dict(map(convert_unicode, data.iteritems()))
     elif isinstance(data,np.ndarray):
         return data
     elif isinstance(data, collections.Iterable):
@@ -548,6 +555,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         cc = conf_params
         assert len(cc)%2 == 0, 'Config params should be in pairs of name value'
         for n,v in zip(cc[0::2],cc[1::2]):
+            print('Overriding param %s <= '%n,v)
             setattr(conf,n,ast.literal_eval(v))
 
     # overrides for each network
@@ -846,7 +854,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         #     cur_locs[:, 1] = cur_locs[:, 1] - ylo
         #     # -1 because matlab is 1-indexed
 
-        info = [mndx, f_ndx[ndx], t_ndx[ndx]]
+        info = [int(mndx), int(f_ndx[ndx]), int(t_ndx[ndx])]
 
         cur_out = multiResData.get_cur_env(out_fns, split, conf, info,
                                            mov_split, trx_split=None, predefined=predefined)
@@ -975,10 +983,10 @@ def create_deepcut_db(conf, split=False, split_file=None, use_cache=False):
         splits = db_from_lbl(conf, out_fns, split, split_file)
     [f.close() for f in train_fis]
     [f.close() for f in val_fis]
-    with open(os.path.join(conf.cachedir, 'train_data.p'), 'w') as f:
+    with open(os.path.join(conf.cachedir, 'train_data.p'), 'wb') as f:
         pickle.dump(train_data, f, protocol=2)
     if split:
-        with open(os.path.join(conf.cachedir, 'val_data.p'), 'w') as f:
+        with open(os.path.join(conf.cachedir, 'val_data.p'), 'wb') as f:
             pickle.dump(val_data, f, protocol=2)
 
     # save the split data
@@ -1657,7 +1665,8 @@ def classify_movie(conf, pred_fn,
 
                 else:
                     cur_v = ret_dict[k]
-                    if not extra_dict.has_key(k):
+                    # py3 and py2 compatible
+                    if k not in extra_dict:
                         sz = cur_v.shape[1:]
                         extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
 

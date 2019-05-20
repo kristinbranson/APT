@@ -27,6 +27,8 @@ import tensorflow as tf
 import keras.backend as K
 import logging
 
+ISPY3 = sys.version_info >= (3, 0)
+
 # name = 'open_pose'
 
 
@@ -373,7 +375,7 @@ class DataIteratorTF(object):
         elif db_type == 'train':
             filename = os.path.join(self.conf.cachedir, self.conf.trainfilename) + '.tfrecords'
         else:
-            raise IOError, 'Unspecified DB Type'
+            raise IOError('Unspecified DB Type') # KB 20190424 - py3
         self.file = filename
         self.iterator  = None
         self.distort = distort
@@ -395,10 +397,16 @@ class DataIteratorTF(object):
         if not self.iterator:
             self.iterator = tf.python_io.tf_record_iterator(self.file)
         try:
-            record = self.iterator.next()
+            if ISPY3:
+                record = next(self.iterator)
+            else:
+                record = self.iterator.next()
         except StopIteration:
             self.reset()
-            record = self.iterator.next()
+            if ISPY3:
+                record = next(self.iterator)
+            else:
+                record = self.iterator.next()
 
         return  record
 
