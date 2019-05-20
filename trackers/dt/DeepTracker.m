@@ -525,13 +525,7 @@ classdef DeepTracker < LabelTracker
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
       
-<<<<<<< HEAD
       [dockerimg,minFreeMem,condaEnv] = myparse(varargin,'dockerimg','bransonlabapt/apt_docker','minfreemem',obj.minFreeMem,'condaEnv',obj.condaEnv); %#ok<PROPLC>
-=======
-      [dockerimg,minFreeMem] = myparse(varargin,...
-        'dockerimg','bransonlabapt/apt_docker',...
-        'minfreemem',obj.minFreeMem); %#ok<PROPLC>
->>>>>>> develop
       
       gpuid = [];
       freemem = 0;
@@ -1656,13 +1650,9 @@ classdef DeepTracker < LabelTracker
         'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
-<<<<<<< HEAD
+        'isMultiView',nvw>1,... % currently all multiview projs train serially
         'reader',DeepModelChainReader.createFromBackEnd(backend),...
         'filesep',obj.filesep...
-=======
-        'isMultiView',nvw>1,... % currently all multiview projs train serially
-        'reader',DeepModelChainReader.createFromBackEnd(backend)...
->>>>>>> develop
         );
       dmcLcl = dmc.copy();
       dmcLcl.rootDir = obj.lObj.DLCacheDir;
@@ -2688,10 +2678,13 @@ classdef DeepTracker < LabelTracker
                 mov,trkfile,frm0_curr,frm1_curr,...
                 'baseargs',baseargsaug,'mntPaths',singBind,'containerName',containerName,...
                 'dockerargs',dockerargs);
-<<<<<<< HEAD
-              trksysinfo(imov,ivwjob).logcmd = sprintf('%s logs -f %s &> %s &',...
-                obj.dockercmd,trksysinfo(imov,ivwjob).containerName,...
-                outfile);
+              if useLogFlag
+                trksysinfo(imov,ivwjob).logcmd = [];
+              else
+                trksysinfo(imov,ivwjob).logcmd = sprintf('%s logs -f %s &> %s &',...
+                  obj.dockercmd,trksysinfo(imov,ivwjob).containerName,...
+                  outfile);
+              end
             case DLBackEnd.Conda
               condaargs = {'condaEnv',obj.condaEnv};
               if ~isempty(gpuids),
@@ -2703,16 +2696,7 @@ classdef DeepTracker < LabelTracker
                 mov,trkfile,frm0_curr,frm1_curr,...
                 'baseargs',[baseargsaug,{'filesep',obj.filesep}],...
                 'outfile',outfile,...
-                'condaargs',condaargs);              
-=======
-              if useLogFlag
-                trksysinfo(imov,ivwjob).logcmd = [];
-              else
-                trksysinfo(imov,ivwjob).logcmd = sprintf('%s logs -f %s &> %s &',...
-                  obj.dockercmd,trksysinfo(imov,ivwjob).containerName,...
-                  outfile);
-              end
->>>>>>> develop
+                'condaargs',condaargs);
           end
         end
       end
@@ -3886,16 +3870,10 @@ classdef DeepTracker < LabelTracker
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,... % either char or [nviewx1] cellstr
         outtrk,... % either char of [nviewx1] cellstr
-<<<<<<< HEAD
-        frm0,frm1,varargin)
-      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,fs] = myparse(varargin,...
-=======
         frm0,frm1,... % (opt) can be empty. these should prob be in optional P-Vs
         varargin)
-      
       [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
-        updateWinPaths2LnxContainer,lnxContainerMntLoc] = myparse(varargin,...
->>>>>>> develop
+        updateWinPaths2LnxContainer,lnxContainerMntLoc,fs] = myparse(varargin,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trxfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
@@ -3903,17 +3881,12 @@ classdef DeepTracker < LabelTracker
         'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive). can be [nview x 4] for multiview
         'hmaps',false,...% (opt) if true, generate heatmaps
         'deepnetroot',APT.getpathdl,...
-<<<<<<< HEAD
-        'model_file',[],... % can be [nview] cellstr
-        'filesep','/'...
-        ); 
-=======
         'model_file',[], ... % can be [nview] cellstr
         'log_file',[],... (opt)
         'updateWinPaths2LnxContainer',ispc, ... % if true, all paths will be massaged from win->lnx for use in container 
-        'lnxContainerMntLoc','/mnt' ... % used when updateWinPaths2LnxContainer==true
+        'lnxContainerMntLoc','/mnt',... % used when updateWinPaths2LnxContainer==true
+        'filesep','/'...
         );
->>>>>>> develop
      
       tffrm = ~isempty(frm0) && ~isempty(frm1);
       tfcache = ~isempty(cache);
@@ -3954,12 +3927,7 @@ classdef DeepTracker < LabelTracker
       end      
             
       assert(~(tftrx && tfcrop));
-<<<<<<< HEAD
-
       aptintrf = [deepnetroot fs 'APT_interface.py'];
-=======
-      
-      aptintrf = [deepnetroot '/APT_interface.py'];
       
       if updateWinPaths2LnxContainer
         fcnPathUpdate = @(x)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,lnxContainerMntLoc);
@@ -3982,7 +3950,6 @@ classdef DeepTracker < LabelTracker
         errfile = fcnPathUpdate(errfile);
         dllbl = fcnPathUpdate(dllbl);
       end
->>>>>>> develop
 
       movtrkstr = String.cellstr2DelimList(movtrk,' ');
       outtrkstr = String.cellstr2DelimList(outtrk,' ');
