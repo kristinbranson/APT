@@ -501,6 +501,11 @@ classdef DeepTracker < LabelTracker
       if isfield(s,'movIdx2trkfile')
         s = rmfield(s,'movIdx2trkfile');
       end
+      
+      % 20190520: filesep needed for local windows
+      if isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC) && isempty(s.trnLastDMC.filesep),
+        s.trnLastDMC.filesep = '/';
+      end
     end
   end
   
@@ -527,7 +532,7 @@ classdef DeepTracker < LabelTracker
       if obj.lObj.trackDLBackEnd.type == DLBackEnd.Conda,
         basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',aptdeepnet,obj.filesep);
       else
-        basecmd = sprintf('echo START; python %sparse_nvidia_smi.py; echo END',aptdeepnet);
+        basecmd = sprintf('echo START; python %s%sparse_nvidia_smi.py; echo END',aptdeepnet,obj.filesep);
       end
       
       switch obj.lObj.trackDLBackEnd.type,

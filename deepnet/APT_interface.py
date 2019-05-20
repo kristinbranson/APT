@@ -249,11 +249,10 @@ def get_matlab_ts(filename):
 
 
 def convert_unicode(data):
-    if isinstance(data, str):
-        if ISPY3:
-            return data
-        else:
-            return unicode(data)
+    if (not ISPY3) and isinstance(data,basestring):
+        return unicode(data)
+    elif ISPY3 and isinstance(data, str):
+        return data
     elif isinstance(data, collections.Mapping):
         if ISPY3:
             return dict(map(convert_unicode, data.items()))
@@ -1598,6 +1597,8 @@ def classify_movie(conf, pred_fn,
     info[u'model_file'] = model_file
     modelfilets = model_file + '.meta'
     modelfilets = modelfilets if os.path.exists(modelfilets) else model_file
+    if not os.path.exists(modelfilets):
+        raise ValueError('Files %s and %s do not exist'%(model_file,model_file+'.meta'))
     info[u'trnTS'] = get_matlab_ts(modelfilets)
     info[u'name'] = name
     param_dict = convert_unicode(conf.__dict__.copy())

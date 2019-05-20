@@ -102,7 +102,9 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     % true if the job is no longer running
     function tf = isKilled(obj,jID)
       
-      jID = jID{1};
+      if iscell(jID) && ~isempty(jID),
+        jID = jID{1};
+      end
       if isempty(jID),
         tf = false;
         fprintf('isKilled: jID is empty!\n');
