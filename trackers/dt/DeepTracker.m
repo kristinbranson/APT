@@ -505,8 +505,12 @@ classdef DeepTracker < LabelTracker
       end
       
       % 20190520: filesep needed for local windows
-      if isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC) && isempty(s.trnLastDMC.filesep),
-        s.trnLastDMC.filesep = '/';
+      if isfield(s,'trnLastDMC'),
+        for i = 1:numel(s.trnLastDMC),
+          if ~isempty(s.trnLastDMC(i)) && isempty(s.trnLastDMC(i).filesep),
+            s.trnLastDMC.filesep = '/';
+          end
+        end
       end
     end
   end
