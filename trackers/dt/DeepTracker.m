@@ -3107,11 +3107,14 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function trkPostProcIfNec(obj,mIdx,trkfiles)
+    function trkPostProcIfNec(obj,mIdx,trkfiles,varargin) % obj const
       % When appropriate, perform postprocessing and re-save trkfiles in
       % place.
       
-      pp3dtype = obj.sPrmAll.ROOT.PostProcess.reconcile3dType;
+      pp3dtype = myparse(varargin,...
+        'pp3dtype',obj.sPrmAll.ROOT.PostProcess.reconcile3dType ...
+        );
+      
       do3dreconcile = ~strcmp(pp3dtype,'none');      
       nvw = obj.lObj.nview;
       npts = obj.lObj.nPhysPoints;
