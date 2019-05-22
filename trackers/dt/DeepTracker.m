@@ -36,6 +36,7 @@ classdef DeepTracker < LabelTracker
     containerBindPaths % cellstr of bind paths for sing/docker
       % Will be used if it is nonempty; otherwise an attempt will be made 
       % to autogenerate the required bind/mount paths.
+    condaEnv = 'APT'; % name of conda environment
       
     %% train
     
@@ -65,6 +66,7 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     trnName
     trnNameLbl
+    filesep
   end
   properties
     % Notes on trnLastDMC.
@@ -211,6 +213,13 @@ classdef DeepTracker < LabelTracker
         v = {dmc.trainID};
         assert(all(strcmp(v{1},v)));
         v = v{1};
+      end
+    end
+    function v = get.filesep(obj)
+      if obj.lObj.trackDLBackEnd.type == DLBackEnd.Conda,
+        v = filesep;
+      else
+        v = '/';
       end
     end
     function v = get.nPts(obj)
@@ -494,6 +503,15 @@ classdef DeepTracker < LabelTracker
       if isfield(s,'movIdx2trkfile')
         s = rmfield(s,'movIdx2trkfile');
       end
+      
+      % 20190520: filesep needed for local windows
+      if isfield(s,'trnLastDMC'),
+        for i = 1:numel(s.trnLastDMC),
+          if ~isempty(s.trnLastDMC(i)) && isempty(s.trnLastDMC(i).filesep),
+            s.trnLastDMC.filesep = '/';
+          end
+        end
+      end
     end
   end
   
@@ -511,16 +529,18 @@ classdef DeepTracker < LabelTracker
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
       
-      [dockerimg,minFreeMem] = myparse(varargin,...
-        'dockerimg','bransonlabapt/apt_docker',...
-        'minfreemem',obj.minFreeMem); %#ok<PROPLC>
+      [dockerimg,minFreeMem,condaEnv] = myparse(varargin,'dockerimg','bransonlabapt/apt_docker','minfreemem',obj.minFreeMem,'condaEnv',obj.condaEnv); %#ok<PROPLC>
       
       gpuid = [];
       freemem = 0;
       gpuInfo = [];
       aptdeepnet = APT.getpathdl;
-      basecmd = sprintf('echo START; python %s/parse_nvidia_smi.py; echo END',aptdeepnet);
-
+      if obj.lObj.trackDLBackEnd.type == DLBackEnd.Conda,
+        basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',aptdeepnet,obj.filesep);
+      else
+        basecmd = sprintf('echo START; python %s%sparse_nvidia_smi.py; echo END',aptdeepnet,obj.filesep);
+      end
+      
       switch obj.lObj.trackDLBackEnd.type,
         case DLBackEnd.Docker,
           bindpath = {aptdeepnet};
@@ -534,6 +554,13 @@ classdef DeepTracker < LabelTracker
             dockercmdend = '"';
           end
           codestr = sprintf('%s run -i --runtime nvidia --rm --user $(id -u) -w %s %s %s bash -c ''cd %s; %s''%s',dockercmd,aptdeepnet,mountArgs,dockerimg,aptdeepnet,basecmd,dockercmdend);
+          [st,res] = system(codestr);
+          if st ~= 0,
+            warning('Error getting GPU info: %s',res);
+            return;
+          end
+        case DLBackEnd.Conda
+          codestr = sprintf('activate %s && %s',condaEnv,basecmd);
           [st,res] = system(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s',res);
@@ -635,6 +662,8 @@ classdef DeepTracker < LabelTracker
       switch backEnd.type
         case DLBackEnd.Bsub
           trnWrkObj = BgTrainWorkerObjBsub(nvw,dmcs);
+        case DLBackEnd.Conda
+          trnWrkObj = BgTrainWorkerObjConda(nvw,dmcs);
         case DLBackEnd.Docker
           trnWrkObj = BgTrainWorkerObjDocker(nvw,dmcs);
         case DLBackEnd.AWS
@@ -811,7 +840,7 @@ classdef DeepTracker < LabelTracker
       end
                   
       switch trnBackEnd.type
-        case {DLBackEnd.Bsub DLBackEnd.Docker}
+        case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
           obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);
         case DLBackEnd.AWS
           obj.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);          
@@ -1001,7 +1030,7 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'\n');      
 
       switch trnBackEnd.type
-        case {DLBackEnd.Bsub DLBackEnd.Docker}
+        case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
           [augims,dataAugDir] = obj.dataAugBsubDocker(ppdata,sPrmAll,trnBackEnd,'dataAugDir',dataAugDir);
         case DLBackEnd.AWS
           error('not implemented');
@@ -1043,7 +1072,7 @@ classdef DeepTracker < LabelTracker
       nvw = obj.lObj.nview;
       isMultiViewTrain = false;
       nTrainJobs = nvw;
-      if backEnd.type == DLBackEnd.Docker,
+      if backEnd.type == DLBackEnd.Docker || backEnd.type == DLBackEnd.Conda,
         % how many gpus do we have available?
         gpuids = obj.getFreeGPUs(nvw);
         if numel(gpuids) < nvw,
@@ -1068,7 +1097,8 @@ classdef DeepTracker < LabelTracker
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain,...
-        'reader',DeepModelChainReader.createFromBackEnd(backEnd)...
+        'reader',DeepModelChainReader.createFromBackEnd(backEnd),...
+        'filesep',obj.filesep...
         );
 
       switch backEnd.type
@@ -1084,7 +1114,7 @@ classdef DeepTracker < LabelTracker
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
-        case DLBackEnd.Docker
+        case [DLBackEnd.Conda,DLBackEnd.Docker],
           aptroot = APT.Root;
           obj.downloadPretrainedWeights('aptroot',aptroot); 
       end
@@ -1185,7 +1215,22 @@ classdef DeepTracker < LabelTracker
             logcmds{ivw} = sprintf('%s logs -f %s &> %s &',...
               obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
-          end          
+          end
+        case DLBackEnd.Conda
+          condaargs = {'condaEnv',obj.condaEnv};
+          for ivw=1:nvw,
+            if ivw>1
+              dmc(ivw) = dmc(1).copy();
+            end
+            dmc(ivw).view = ivw-1; % 0-based
+            if ivw <= nTrainJobs,
+              gpuid = gpuids(ivw);
+              syscmds{ivw} = ...
+                DeepTracker.trainCodeGenCondaDMC(dmc(ivw),gpuid,...
+                'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
+                'condaargs',condaargs);
+            end
+          end
         otherwise
           assert(false);
       end
@@ -1213,6 +1258,18 @@ classdef DeepTracker < LabelTracker
                 fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
                   iview,res2);
               end
+            else
+              fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
+                iview,res);
+            end            
+          end
+        elseif backEnd.type==DLBackEnd.Conda
+          bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
+          for iview=1:nTrainJobs
+            fprintf(1,'%s\n',syscmds{iview});
+            [job,st,res] = parfevalsystem(syscmds{iview});
+            if ~st,
+              bgTrnWorkerObj.parseJobID(job,iview);
             else
               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
                 iview,res);
@@ -1313,6 +1370,7 @@ classdef DeepTracker < LabelTracker
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
         case DLBackEnd.Docker
+        case DLBackEnd.Conda
       end
       
       switch backEnd.type
@@ -1320,6 +1378,7 @@ classdef DeepTracker < LabelTracker
           mntPaths = obj.genContainerMountPath('aptroot',aptroot);
         case DLBackEnd.Docker 
           mntPaths = obj.genContainerMountPath();          
+        case DLBackEnd.Conda
       end
       
       switch backEnd.type
@@ -1334,6 +1393,8 @@ classdef DeepTracker < LabelTracker
             DeepTracker.dataAugCodeGenDocker(...
             ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,outfile,...
             'mntPaths',mntPaths,'dockerargs',dockerargs);
+        case DLBackEnd.Conda
+          error('Not implemented'); % TODO
         otherwise
           assert(false);
       end
@@ -1594,7 +1655,8 @@ classdef DeepTracker < LabelTracker
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',nvw>1,... % currently all multiview projs train serially
-        'reader',DeepModelChainReader.createFromBackEnd(backend)...
+        'reader',DeepModelChainReader.createFromBackEnd(backend),...
+        'filesep',obj.filesep...
         );
       dmcLcl = dmc.copy();
       dmcLcl.rootDir = obj.lObj.DLCacheDir;
@@ -1605,7 +1667,7 @@ classdef DeepTracker < LabelTracker
                           
       if tfGenNewStrippedLbl        
         s = obj.trnCreateStrippedLbl('awsRemote',true,'wbObj',wbObj); 
-		% store nLabels in DMC
+        % store nLabels in DMC
         dmc.nLabels = s.nLabels;
         
         trainID = datestr(now,'yyyymmddTHHMMSS');
@@ -2023,7 +2085,7 @@ classdef DeepTracker < LabelTracker
             return;
           end
           
-        case DLBackEnd.Docker,
+        case {DLBackEnd.Docker,DLBackEnd.Conda},
 
           isMultiViewTrack = false;
           if isexternal,
@@ -2381,6 +2443,7 @@ classdef DeepTracker < LabelTracker
           end
           hmapArgs = [hmapArgs {'deepnetroot' [aptroot '/deepnet']}]; 
         case DLBackEnd.Docker
+        case DLBackEnd.Conda
       end
       
       %obj.downloadPretrainedWeights();
@@ -2626,6 +2689,18 @@ classdef DeepTracker < LabelTracker
                   obj.dockercmd,trksysinfo(imov,ivwjob).containerName,...
                   outfile);
               end
+            case DLBackEnd.Conda
+              condaargs = {'condaEnv',obj.condaEnv};
+              if ~isempty(gpuids),
+                condaargs(end+1:end+2) = {'gpuid',gpuids(imov,ivwjob)};
+              end
+              [trksysinfo(imov,ivwjob).codestr] = ...
+                DeepTracker.trackCodeGenConda(...
+                modelChainID,dmc(ivwjob).rootDir,dlLblFile,errfile,obj.trnNetType,...
+                mov,trkfile,frm0_curr,frm1_curr,...
+                'baseargs',[baseargsaug,{'filesep',obj.filesep}],...
+                'outfile',outfile,...
+                'condaargs',condaargs);
           end
         end
       end
@@ -2651,6 +2726,8 @@ classdef DeepTracker < LabelTracker
       switch backend.type
         case DLBackEnd.Bsub
           bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        case DLBackEnd.Conda,
+          bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmc);
         case DLBackEnd.Docker,
           bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
       end
@@ -2688,9 +2765,17 @@ classdef DeepTracker < LabelTracker
         for ivwjob=1:nViewJobs,
             
           fprintf(1,'%s\n',trksysinfo(imov,ivwjob).codestr);
-          [st,res] = system(trksysinfo(imov,ivwjob).codestr);
+          if backend.type == DLBackEnd.Conda,
+            [job,st,res] = parfevalsystem(trksysinfo(imov,ivwjob).codestr);
+          else
+            [st,res] = system(trksysinfo(imov,ivwjob).codestr);
+          end
           if st==0
-            bgTrkWorkerObj.parseJobID(res,ivwjob,imov);
+            if backend.type == DLBackEnd.Conda,
+              bgTrkWorkerObj.parseJobID(job,ivwjob,imov);
+            else
+              bgTrkWorkerObj.parseJobID(res,ivwjob,imov);
+            end
             fprintf('Tracking job (movie %d, job %d) spawned:\n%s\n',imov,ivwjob,res);
           else
             fprintf(2,'Failed to spawn tracking job for movie %d, job %d: %s.\n\n',...
@@ -3471,6 +3556,18 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('%s ',codestr{:});
       codestr = codestr(1:end-1);
     end
+    function codestr = codeGenCondaGeneral(basecmd,varargin)
+      % Take a base command and run it in a sing img
+      [condaEnv,gpuid] = myparse(varargin,...
+        'condaEnv','APT',...
+        'gpuid',0);
+      if ispc,
+        envcmd = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
+      else
+        envcmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID&& export CUDA_VISIBLE_DEVICES=%d',gpuid);
+      end
+      codestr = sprintf('activate %s&& %s&& %s',condaEnv,envcmd,basecmd);
+    end
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
@@ -3481,14 +3578,15 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
         varargin)
-      [view,deepnetroot,trainType] = myparse(varargin,...
+      [view,deepnetroot,trainType,fs] = myparse(varargin,...
         'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
         'deepnetroot',APT.getpathdl,...
-        'trainType',DLTrainType.New...
+        'trainType',DLTrainType.New,...
+        'filesep','/'...
           );
       tfview = ~isempty(view);
       
-      aptintrf = [deepnetroot '/APT_interface.py'];
+      aptintrf = [deepnetroot fs 'APT_interface.py'];
       
       switch trainType
         case DLTrainType.New
@@ -3532,11 +3630,41 @@ classdef DeepTracker < LabelTracker
         'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});
       
     end
+    function [codestr] = trainCodeGenConda(modelChainID,trainID,...
+        dllbl,cache,errfile,netType,trainType,view1b,gpuid,varargin)
+      
+      [condaargs,isMultiView,outfile] = myparse(varargin,'condaargs',{},'isMultiView',false,...
+        'outfile','');
+      %fprintf(2,'TODO: restart/trainType\n');
+      %baseargs = {'view' view1b};
+      baseargs = {'trainType' trainType};
+      if ~isMultiView,
+        baseargs = [baseargs,{'view' view1b}];
+      end
+      
+      basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
+        netType,baseargs{:},'filesep',filesep);
+      
+      if ~isempty(outfile),
+        basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
+      end
+      
+      codestr = DeepTracker.codeGenCondaGeneral(basecmd,...
+        'gpuid',gpuid,condaargs{:});
+      
+    end
     function [codestr,containerName] = trainCodeGenDockerDMC(dmc,mntPaths,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:});
+    end
+    function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
+      [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
+      [codestr] = DeepTracker.trainCodeGenConda(...
+        dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,trnCmdType,dmc.view+1,gpuid,...
+        'outfile',dmc.trainLogLnx,leftovers{:});
     end
     function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
         varargin)
@@ -3719,13 +3847,14 @@ classdef DeepTracker < LabelTracker
         errfile,nettype,view,listfile,varargin)
       % view: 1-based
       
-      [deepnetroot,model_file] = myparse(varargin,...
+      [deepnetroot,model_file,fs] = myparse(varargin,...
         'deepnetroot',APT.getpathdl,...
-        'model_file',[]... 
+        'model_file',[],... 
+        'filesep','/'...
         );
 
       tfmodel = ~isempty(model_file);      
-      aptintrf = [deepnetroot '/APT_interface.py'];
+      aptintrf = [deepnetroot fs 'APT_interface.py'];
 
       code = { ...
         'python' aptintrf ...
@@ -3750,9 +3879,8 @@ classdef DeepTracker < LabelTracker
         outtrk,... % either char of [nviewx1] cellstr
         frm0,frm1,... % (opt) can be empty. these should prob be in optional P-Vs
         varargin)
-      
       [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
-        updateWinPaths2LnxContainer,lnxContainerMntLoc] = myparse(varargin,...
+        updateWinPaths2LnxContainer,lnxContainerMntLoc,fs] = myparse(varargin,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trxfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
@@ -3763,7 +3891,8 @@ classdef DeepTracker < LabelTracker
         'model_file',[], ... % can be [nview] cellstr
         'log_file',[],... (opt)
         'updateWinPaths2LnxContainer',ispc, ... % if true, all paths will be massaged from win->lnx for use in container 
-        'lnxContainerMntLoc','/mnt' ... % used when updateWinPaths2LnxContainer==true
+        'lnxContainerMntLoc','/mnt',... % used when updateWinPaths2LnxContainer==true
+        'filesep','/'...
         );
      
       tffrm = ~isempty(frm0) && ~isempty(frm1);
@@ -3805,8 +3934,7 @@ classdef DeepTracker < LabelTracker
       end      
             
       assert(~(tftrx && tfcrop));
-      
-      aptintrf = [deepnetroot '/APT_interface.py'];
+      aptintrf = [deepnetroot fs 'APT_interface.py'];
       
       if updateWinPaths2LnxContainer
         fcnPathUpdate = @(x)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,lnxContainerMntLoc);
@@ -3930,9 +4058,10 @@ classdef DeepTracker < LabelTracker
     
     
     function codestr = dataAugCodeGenBase(ID,dllbl,cache,errfile,nettype,outfile,varargin)
-      [deepnetroot,model_file] = myparse(varargin,...
+      [deepnetroot,model_file,fs] = myparse(varargin,...
         'deepnetroot',APT.getpathdl,...
-        'model_file',[]... % can be [nview] cellstr
+        'model_file',[],... % can be [nview] cellstr
+        'filesep','/'...
         ); 
      
       tfcache = ~isempty(cache);
@@ -3942,7 +4071,7 @@ classdef DeepTracker < LabelTracker
         model_file = cellstr(model_file);
       end
 
-      aptintrf = [deepnetroot '/APT_interface.py'];
+      aptintrf = [deepnetroot fs 'APT_interface.py'];
 
       if tfmodel
         modelfilestr = String.cellstr2DelimList(model_file,' ');
@@ -3989,6 +4118,29 @@ classdef DeepTracker < LabelTracker
       
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
         'bindpath',mntPaths,dockerargs{:});
+    end
+    
+    function [codestr] = trackCodeGenConda(...
+        trnID,cache,dllbl,errfile,...
+        nettype,movtrk,outtrk,frm0,frm1,varargin)
+%         movtrk,outtrk,frm0,frm1,...
+%         modelChainID,trainID,dllbl,cache,errfile,netType,view1b,mntPaths,...
+%         varargin)
+
+      % varargin: see trackCodeGenBase, except for 'cache' and 'view'
+      
+      [baseargs,condaargs,outfile] = myparse(varargin,...
+        'baseargs',{},'condaargs',{},'outfile','');
+      
+      baseargs = [{'cache' cache} baseargs];
+        
+      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
+        movtrk,outtrk,frm0,frm1,baseargs{:});
+      if ~isempty(outfile),
+        basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
+      end
+      codestr = DeepTracker.codeGenCondaGeneral(basecmd,...
+        condaargs{:});
     end
     
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)

@@ -21,6 +21,7 @@ import tempfile
 #import PoseTrain
 import myutils
 import os
+import stat
 import cv2
 from cvc import cvc
 import math
@@ -40,6 +41,7 @@ import logging
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
+ISPY3 = sys.version_info >= (3, 0)
 
 # In[ ]:
 
@@ -185,7 +187,7 @@ def randomly_flip_lr(img, locs, group_sz = 1):
         reduce_dim = False
 
     num = img.shape[0]
-    n_groups = num/group_sz
+    n_groups = num//group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
@@ -206,7 +208,7 @@ def randomly_flip_ud(img, locs,group_sz = 1):
         reduce_dim = False
 
     num = img.shape[0]
-    n_groups = num/group_sz
+    n_groups = num//group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
@@ -230,7 +232,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
 
     num = img.shape[0]
     rows, cols = img.shape[1:3]
-    n_groups = num/group_sz
+    n_groups = num//group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
@@ -296,7 +298,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
     rows, cols = img.shape[1:3]
     rows = float(rows)
     cols = float(cols)
-    n_groups = num/group_sz
+    n_groups = num//group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
@@ -362,7 +364,7 @@ def randomly_adjust(img, conf, group_sz = 1):
     imax = conf.imax
     if (bdiff<0.01) and (cdiff<0.01):
         return img
-    n_groups = num/group_sz
+    n_groups = num//group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
@@ -385,7 +387,7 @@ def randomly_scale(img,locs,conf,group_sz=1):
     srange = conf.scale_range
     if srange<0.01:
         return img, locs
-    n_groups = num/group_sz
+    n_groups = num//group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
@@ -1184,7 +1186,7 @@ def db_info(self, dbType='val',train_type=0):
     with tf.Session() as sess:
         start_at = self.init_and_restore(sess, True, ['loss', 'dist'])
 
-        for step in range(num_val / self.conf.batch_size):
+        for step in range(num_val // self.conf.batch_size):
             if dbType is 'val':
                 self.setup_val(sess)
             else:
@@ -1415,8 +1417,12 @@ def get_datestr():
 
 
 def running_in_docker():
+    # KB 20190424: needed to check if this file exists, couldn't import in win/py3
+    f_cgroup = '/proc/self/cgroup'
+    if not os.path.isfile(f_cgroup):
+        return False
     # From https://gist.github.com/anantkamath/623ce7f5432680749e087cf8cfba9b69
-    with open('/proc/self/cgroup', 'r') as procfile:
+    with open(f_cgroup, 'r') as procfile:
         for line in procfile:
             fields = line.strip().split('/')
             if 'docker' in fields:
@@ -1522,7 +1528,11 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model="None"):
         f.write('python {}'.format(cmd))
         f.write('\n')
 
-    os.chmod(sing_script, 0755)
+    # KB 20190424: this doesn't work in py3
+    if ISPY3:
+        os.chmod(sing_script, stat.S_IREAD|stat.S_IEXEC|stat.S_IWUSR)
+    else:
+        os.chmod(sing_script, 0755)
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)

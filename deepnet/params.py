@@ -8,6 +8,11 @@ import numpy as num
 # from version import DEBUG, __version__
 DEBUG = False
 __version__ = '0'
+
+# KB 20190424: long is int in python 3
+if sys.version_info >= (3,):
+    long = int
+
 class ShapeParams:
     def __init__(self,major=0,minor=0,area=0,ecc=0):
         self.major = major
