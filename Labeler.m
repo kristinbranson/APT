@@ -6133,6 +6133,12 @@ classdef Labeler < handle
         sMacro.projdir = '';
         sMacro.projfile = '';
       end
+      tObj = obj.tracker;
+      if ~isempty(tObj)
+        sMacro.trackertype = tObj.algorithmName;
+      else
+        sMacro.trackertype = 'undefinedtracker';
+      end
     end
     
     function trkfile = defaultTrkFileName(obj,movfile)
@@ -6156,13 +6162,15 @@ classdef Labeler < handle
         basename = '$movfile';
       end
       
-      gt = obj.gtIsGTMode;
       if labels
+        gt = obj.gtIsGTMode;
         if gt
           basename = [basename '_gtlabels'];
         else
           basename = [basename '_labels'];
         end
+      else
+        basename = [basename '_$trackertype'];
       end
       
       rawname = fullfile('$movdir',basename);
@@ -6176,7 +6184,7 @@ classdef Labeler < handle
       % tfok: user canceled or similar
       % rawtrkname: use only if tfok==true
       
-      rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname.',...
+      rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname, $trackertype.',...
         'Export Trk File',1,{obj.defaultExportTrkRawname(varargin{:})});
       tfok = ~isempty(rawtrkname);
       if tfok
