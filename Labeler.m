@@ -12716,18 +12716,32 @@ classdef Labeler < handle
         for iTR=1:nTR
           if ~isempty(trkres{iMov,1,iTR})
             tObjsAll = trkres(iMov,:,iTR);
-            trkPs = cellfun(@(x)x.pTrk,tObjsAll,'uni',0);
-            trkP = cat(1,trkPs{:}); % [nlabelpoints x 2 x nfrm x ntgt]
-            trkP = trkP(:,:,frm,iTgt);
-            trv = trvs{iTR};
-            trv.updateTrackRes(trkP);
-                % % From DeepTracker.getPredictionCurrFrame
-                % AL20160502: When changing movies, order of updates to
-                % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
-                % % be updated first, resulting in an OOB currFrame; protect against
-                % % this.
-                % frm = min(frm,size(xyPCM,3));
-                % xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+            
+            trkP = cell(obj.nview,1);
+            tfHasRes = true;
+            for ivw=1:obj.nview
+              tObj = tObjsAll{ivw};
+              ifrm = find(frm==tObj.pTrkFrm);
+              iitgt = find(iTgt==tObj.pTrkiTgt);
+              if ~isempty(ifrm) && ~isempty(iitgt)
+                trkP{ivw} = tObj.pTrk(:,:,ifrm,iitgt);
+              else
+                tfHasRes = false;
+                break;
+              end
+            end
+            if tfHasRes            
+              trkP = cat(1,trkP{:}); % [nlabelpoints x 2 x nfrm x ntgt]
+              trv = trvs{iTR};
+              trv.updateTrackRes(trkP);
+                  % % From DeepTracker.getPredictionCurrFrame
+                  % AL20160502: When changing movies, order of updates to
+                  % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
+                  % % be updated first, resulting in an OOB currFrame; protect against
+                  % % this.
+                  % frm = min(frm,size(xyPCM,3));
+                  % xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+            end
           end
         end
       end
