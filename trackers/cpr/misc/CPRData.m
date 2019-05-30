@@ -405,6 +405,8 @@ classdef CPRData < handle
               wbObj.endPeriod();
               return;
             end
+          else
+            fprintf('Movie %s (%d/%d)\n',movsUn{iMov},iMov,numel(movsUn));
           end
           
           mov = movsUn{iMov};
