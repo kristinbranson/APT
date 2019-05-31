@@ -438,6 +438,8 @@ classdef RegressorCascade < handle
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       %
+      % p0: [NxNaugxD] randomized shapes, ABSOLUTE coords
+      %
       % See trainWithRandInit.
       %
       % This is used by Parameter Viz to visualize CPR shape init. The idea

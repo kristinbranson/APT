@@ -1243,10 +1243,12 @@ classdef Labeler < handle
 %         close(obj.hFig);
 %         obj.hFig = [];
 %       end        
+      gd = obj.gdata;
       if ~isempty(obj.hFig)
         deleteValidHandles(obj.hFig);
-        obj.hFig=[];
+        obj.hFig = [];
       end
+      deleteValidHandles(gd.depHandles);      
       be = obj.trackDLBackEnd;
       delete(be);
     end
