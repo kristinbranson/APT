@@ -1545,8 +1545,8 @@ classdef DeepTracker < LabelTracker
 
     function paths = genContainerMountPath(obj,varargin)
       
-      aptroot = myparse(varargin,...
-        'aptroot',APT.Root);
+      [aptroot,extradirs] = myparse(varargin,...
+        'aptroot',APT.Root,'extra',{});
       
       if ~isempty(obj.containerBindPaths)
         assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
@@ -1585,7 +1585,7 @@ classdef DeepTracker < LabelTracker
         
         fprintf('Using auto-generated container bind-paths:\n');
         dlroot = [aptroot '/deepnet'];
-        paths = [cacheDir;dlroot;macroCell(:);projbps(:)];
+        paths = [cacheDir;dlroot;macroCell(:);projbps(:);extradirs()];
         paths = unique(paths);
       end
       
@@ -2645,9 +2645,21 @@ classdef DeepTracker < LabelTracker
           %trksysinfo(ivw).logfilessh = outfile2;
           
           %mov = cellSelectHelper(movs,ivw);
+          
+          % make sure movie to be tracked is on path
+          movdir = fileparts(mov);
+          trkdir = fileparts(trkfile);
+          extradirs = {};
+          if ~isempty(movdir),
+            extradirs{end+1} = movdir;
+          end
+          if ~isempty(trkdir),
+            extradirs{end+1} = trkdir;
+          end
+          
           switch backend.type
             case DLBackEnd.Bsub
-              singBind = obj.genContainerMountPath('aptroot',aptroot);
+              singBind = obj.genContainerMountPath('aptroot',aptroot,'extra',extradirs); % HERE
               singargs = {'bindpath',singBind};
               
               repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
@@ -3192,11 +3204,14 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function trkPostProcIfNec(obj,mIdx,trkfiles)
+    function trkPostProcIfNec(obj,mIdx,trkfiles,varargin) % obj const
       % When appropriate, perform postprocessing and re-save trkfiles in
       % place.
       
-      pp3dtype = obj.sPrmAll.ROOT.PostProcess.reconcile3dType;
+      pp3dtype = myparse(varargin,...
+        'pp3dtype',obj.sPrmAll.ROOT.PostProcess.reconcile3dType ...
+        );
+      
       do3dreconcile = ~strcmp(pp3dtype,'none');      
       nvw = obj.lObj.nview;
       npts = obj.lObj.nPhysPoints;

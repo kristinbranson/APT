@@ -6135,6 +6135,12 @@ classdef Labeler < handle
         sMacro.projdir = '';
         sMacro.projfile = '';
       end
+      tObj = obj.tracker;
+      if ~isempty(tObj)
+        sMacro.trackertype = tObj.algorithmName;
+      else
+        sMacro.trackertype = 'undefinedtracker';
+      end
     end
     
     function trkfile = defaultTrkFileName(obj,movfile)
@@ -6158,13 +6164,15 @@ classdef Labeler < handle
         basename = '$movfile';
       end
       
-      gt = obj.gtIsGTMode;
       if labels
+        gt = obj.gtIsGTMode;
         if gt
           basename = [basename '_gtlabels'];
         else
           basename = [basename '_labels'];
         end
+      else
+        basename = [basename '_$trackertype'];
       end
       
       rawname = fullfile('$movdir',basename);
@@ -6178,7 +6186,7 @@ classdef Labeler < handle
       % tfok: user canceled or similar
       % rawtrkname: use only if tfok==true
       
-      rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname.',...
+      rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname, $trackertype.',...
         'Export Trk File',1,{obj.defaultExportTrkRawname(varargin{:})});
       tfok = ~isempty(rawtrkname);
       if tfok
@@ -6975,7 +6983,7 @@ classdef Labeler < handle
       tblMF(tfRmRow,:) = [];
     end
     
-    function tblMF = labelMFTableAddROICrop(obj,tblMF)
+    function tblMF = labelMFTableAddROICrop(obj,tblMF,doRemoveOOB)
       % Add .pRoi and .roi to tblMF using crop info
       %
       % tblMF.pRoi: Just like tblMF.p, but relative to tblMF.roi (p==1 => 
@@ -6987,6 +6995,9 @@ classdef Labeler < handle
       tblfldscontainsassert(tblMF,MFTable.FLDSFULL);
       tblfldsdonotcontainassert(tblMF,{'pRoi' 'roi'});
       assert(isa(tblMF.mov,'MovieIndex'));
+      if nargin < 3,
+        doRemoveOOB = true;
+      end
       
       if ~obj.cropProjHasCrops
         error('Project does not contain cropping information.');
@@ -7010,6 +7021,9 @@ classdef Labeler < handle
         % See Shape.p2pROI etc
         xy = Shape.vec2xy(p(i,:));
         [xyROI,tfOOBview] = Shape.xy2xyROI(xy,roiCurr,nphyspts);
+        if ~doRemoveOOB,
+          tfOOBview(:) = false;
+        end
         if any(tfOOBview)
           warningNoTrace('CPRLabelTracker:oob',...
             'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
@@ -8716,7 +8730,8 @@ classdef Labeler < handle
       %   - .p will be pAbs
       %   - no .roi
       
-      prmpp = myparse(varargin,'preProcParams',[]);
+      [prmpp,doRemoveOOB] = myparse(varargin,'preProcParams',[],...
+        'doRemoveOOB',true);
       isPreProcParams = ~isempty(prmpp);
       
       if obj.hasTrx
@@ -8736,7 +8751,7 @@ classdef Labeler < handle
         tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
         assert(all(tf) || ~any(tf));
         if ~any(tf)
-          tblP = obj.labelMFTableAddROICrop(tblP);
+          tblP = obj.labelMFTableAddROICrop(tblP,doRemoveOOB);
           tblP.pAbs = tblP.p;
           tblP.p = tblP.pRoi;        
         end
@@ -8762,13 +8777,14 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      [wbObj,tblMFTrestrict,gtModeOK,prmpp] = myparse(varargin,...
+      [wbObj,tblMFTrestrict,gtModeOK,prmpp,doRemoveOOB] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                     ... % 1. obj const 
                     ... % 2. tblP indeterminate
         'tblMFTrestrict',[],... % see labelGetMFTableLabeld
         'gtModeOK',false,... % by default, this meth should not be called in GT mode
-        'preProcParams',[]...
+        'preProcParams',[],...
+        'doRemoveOOB',true...
         ); 
       tfWB = ~isempty(wbObj);
       if ~isempty(tblMFTrestrict)
@@ -8786,7 +8802,8 @@ classdef Labeler < handle
         return;
       end
       
-      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp);
+      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp,...
+        'doRemoveOOB',doRemoveOOB);
       
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
@@ -12298,6 +12315,9 @@ classdef Labeler < handle
           end
           
           [x,y,th] = obj.targetLoc(ModeInfo.iMov,ModeInfo.iTgt,ModeInfo.frm);
+          if isnan(th),
+            th = -pi/2;
+          end
           ModeInfo.A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
           ModeInfo.tform = maketform('affine',ModeInfo.A);
           [ModeInfo.im,ModeInfo.xdata,ModeInfo.ydata] = imtransform(ModeInfo.im,ModeInfo.tform,'bicubic');
@@ -12710,18 +12730,32 @@ classdef Labeler < handle
         for iTR=1:nTR
           if ~isempty(trkres{iMov,1,iTR})
             tObjsAll = trkres(iMov,:,iTR);
-            trkPs = cellfun(@(x)x.pTrk,tObjsAll,'uni',0);
-            trkP = cat(1,trkPs{:}); % [nlabelpoints x 2 x nfrm x ntgt]
-            trkP = trkP(:,:,frm,iTgt);
-            trv = trvs{iTR};
-            trv.updateTrackRes(trkP);
-                % % From DeepTracker.getPredictionCurrFrame
-                % AL20160502: When changing movies, order of updates to
-                % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
-                % % be updated first, resulting in an OOB currFrame; protect against
-                % % this.
-                % frm = min(frm,size(xyPCM,3));
-                % xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+            
+            trkP = cell(obj.nview,1);
+            tfHasRes = true;
+            for ivw=1:obj.nview
+              tObj = tObjsAll{ivw};
+              ifrm = find(frm==tObj.pTrkFrm);
+              iitgt = find(iTgt==tObj.pTrkiTgt);
+              if ~isempty(ifrm) && ~isempty(iitgt)
+                trkP{ivw} = tObj.pTrk(:,:,ifrm,iitgt);
+              else
+                tfHasRes = false;
+                break;
+              end
+            end
+            if tfHasRes            
+              trkP = cat(1,trkP{:}); % [nlabelpoints x 2 x nfrm x ntgt]
+              trv = trvs{iTR};
+              trv.updateTrackRes(trkP);
+                  % % From DeepTracker.getPredictionCurrFrame
+                  % AL20160502: When changing movies, order of updates to
+                  % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
+                  % % be updated first, resulting in an OOB currFrame; protect against
+                  % % this.
+                  % frm = min(frm,size(xyPCM,3));
+                  % xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+            end
           end
         end
       end
