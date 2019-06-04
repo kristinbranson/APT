@@ -61,15 +61,17 @@ Movie:
 
 LabelPointsPlot:
   ColorMapName: 'darkjet'
-  Marker: '+'
-  MarkerSize: 6
-  LineWidth: 2
-  FontSize: 14
-  FontName: 'Helvetica'
-  FontWeight: 'normal'
-  FontAngle: 'normal'
-  LblOffset: 5
-  LblVisible: 'on'
+  MarkerProps:
+    Marker: '+'
+    MarkerSize: 6
+    LineWidth: 2
+  TextProps: 
+    FontSize: 14
+    FontName: 'Helvetica'
+    FontWeight: 'normal'
+    FontAngle: 'normal'
+    # Visible: no 'Visible' for now; Label Text Lbls always visible. FontSize can be set to eg .1 if desired
+  TextOffset: 5
   OccludedMarker: 'o'
   
   TemplateMode:
@@ -118,7 +120,7 @@ Track:
       FontSize: 14
       FontName: 'Helvetica'
       FontWeight: 'normal'
-      FontAngle: 'normal' 
+      FontAngle: 'normal'
       Visible: 'off'
     TextOffset: 5
 

@@ -4769,6 +4769,8 @@ classdef DeepTracker < LabelTracker
       ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
       obj.trkVizer.updateLandmarkColors(ptsClrs);      
     end
+    % For updating other cosmetics, go ahead and call obj.trkVizer methods
+    % directly
   end
 
   %% Labeler nav

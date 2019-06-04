@@ -167,7 +167,7 @@ classdef LabelCoreHT < LabelCore
       tfOccTag = lpostag(:,iFrm1,iTgt);
       % tfLbledOrOcc defined above
       
-      mrkr = obj.ptsPlotInfo.Marker;
+      mrkr = obj.ptsPlotInfo.MarkerProps.Marker;
       mrkrOcc = obj.ptsPlotInfo.OccludedMarker;      
       
       set(hPoints(tfLbledOrOcc & ~tfOccTag),'Marker',mrkr);
@@ -186,7 +186,7 @@ classdef LabelCoreHT < LabelCore
     function clearLabels(obj)
       iPt = obj.iPoint;
       clr = obj.unlabeledPointColor;
-      mrkr = obj.ptsPlotInfo.Marker;
+      mrkr = obj.ptsPlotInfo.MarkerProps.Marker;
       set(obj.hPts(iPt),'Color',clr,'Marker',mrkr);
       if ~isempty(obj.hPtsOcc),
         set(obj.hPtsOcc(iPt),'Color',clr); % marker should always be mrkr
@@ -218,7 +218,7 @@ classdef LabelCoreHT < LabelCore
           if evt.Button==1
             set(obj.hPts(iPt),...
               'Color',obj.ptsPlotInfo.Colors(iPt,:),...
-              'Marker',obj.ptsPlotInfo.Marker);
+              'Marker',obj.ptsPlotInfo.MarkerProps.Marker);
             obj.labeler.labelPosTagClearI(iPt);
           elseif evt.Button==3
             set(obj.hPts(iPt),...
@@ -332,10 +332,10 @@ classdef LabelCoreHT < LabelCore
       lObj.labelPosSetI(pos,iPt);
       
       mrkr = hPt.Marker;
-      assert(~strcmp(obj.ptsPlotInfo.Marker,obj.ptsPlotInfo.OccludedMarker),...
+      assert(~strcmp(obj.ptsPlotInfo.MarkerProps.Marker,obj.ptsPlotInfo.OccludedMarker),...
         'Marker and OccludedMarker are identical. Please specify distinguishable markers.');
       switch mrkr
-        case obj.ptsPlotInfo.Marker
+        case obj.ptsPlotInfo.MarkerProps.Marker
           lObj.labelPosTagClearI(iPt);
         case obj.ptsPlotInfo.OccludedMarker
           lObj.labelPosTagSetI(iPt);
@@ -373,10 +373,10 @@ classdef LabelCoreHT < LabelCore
       lObj.labelPosSetFramesI(frms,pos,iPt);
       
       mrkr = hPt.Marker;
-      assert(~strcmp(obj.ptsPlotInfo.Marker,obj.ptsPlotInfo.OccludedMarker),...
+      assert(~strcmp(obj.ptsPlotInfo.MarkerProps.Marker,obj.ptsPlotInfo.OccludedMarker),...
         'Marker and OccludedMarker are identical. Please specify distinguishable markers.');
       switch mrkr
-        case obj.ptsPlotInfo.Marker
+        case obj.ptsPlotInfo.MarkerProps.Marker
           lObj.labelPosTagClearFramesI(iPt,frms);
         case obj.ptsPlotInfo.OccludedMarker
           lObj.labelPosTagSetFramesI(iPt,frms);

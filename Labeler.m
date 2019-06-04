@@ -318,7 +318,6 @@ classdef Labeler < handle
     showTrxIDLbl;             % true to show id label 
     showOccludedBox;          % whether to show the occluded box
     
-    showPredTxtLbl;         % true to show text landmark labels for ALL preds -- imported (labeledpos2, and all trackers)
     showSkeleton;           % true to plot skeleton 
   end 
   properties
@@ -1434,9 +1433,7 @@ classdef Labeler < handle
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
       obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
-      
-      obj.showPredTxtLbl = cfg.Track.PredictPointsShowTextLbl;
-      
+            
       obj.labels2Hide = false;
 
       % When starting a new proj after having an existing proj open, old 
@@ -1496,7 +1493,6 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
       cfg.Track.PredictPointsPlot = obj.predPointsPlotInfo;
-      %cfg.Track.PredictPointsShowTextLbl = obj.showPredTxtLbl;      
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
       cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
@@ -1520,9 +1516,44 @@ classdef Labeler < handle
       end
     end
     
+    function cfg = cfgModernizeBase(cfg)
+      % 20190602 cfg.LabelPointsPlot, cfg.Track.PredictPointsPlot rearrange
+      
+      if ~isfield(cfg.LabelPointsPlot,'MarkerProps')
+        FLDS = {'Marker' 'MarkerSize' 'LineWidth'};
+        cfg.LabelPointsPlot.MarkerProps = structrestrictflds(cfg.LabelPointsPlot,FLDS);
+        cfg.LabelPointsPlot = rmfield(cfg.LabelPointsPlot,FLDS);
+      end
+      if ~isfield(cfg.LabelPointsPlot,'TextProps')
+        FLDS = {'FontSize'};
+        cfg.LabelPointsPlot.TextProps = structrestrictflds(cfg.LabelPointsPlot,FLDS);
+        cfg.LabelPointsPlot = rmfield(cfg.LabelPointsPlot,FLDS);
+        
+        cfg.LabelPointsPlot.TextOffset = cfg.LabelPointsPlot.LblOffset;
+        cfg.LabelPointsPlot = rmfield(cfg.LabelPointsPlot,'LblOffset');
+      end
+      
+      if ~isfield(cfg.Track.PredictPointsPlot,'MarkerProps')
+        cfg.Track.PredictPointsPlot = struct('MarkerProps',cfg.Track.PredictPointsPlot);
+      end        
+      if isfield(cfg.Track,'PredictPointsPlotColorMapName')
+        cfg.Track.PredictPointsPlot.ColorMapName = cfg.Track.PredictPointsPlotColorMapName;
+        cfg.Track = rmfield(cfg.Track,'PredictPointsPlotColorMapName');
+      end
+      if isfield(cfg.Track,'PredictPointsPlotColors')
+        cfg.Track.PredictPointsPlot.Colors = cfg.Track.PredictPointsPlotColors;
+        cfg.Track = rmfield(cfg.Track,'PredictPointsPlotColors');
+      end
+      if isfield(cfg.Track,'PredictPointsShowTextLbl')
+        cfg.Track.PredictPointsPlot.TextProps.Visible = onIff(cfg.Track.PredictPointsShowTextLbl);
+        cfg.Track = rmfield(cfg.Track,'PredictPointsShowTextLbl');
+      end
+    end    
     function cfg = cfgModernize(cfg)
       % Bring a cfg up-to-date with latest by adding in any new fields from
       % config.default.yaml.
+
+      cfg = Labeler.cfgModernizeBase(cfg);
       
       cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       
@@ -1684,7 +1715,7 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
-      obj.setShowPredTxtLbl(obj.showPredTxtLbl);
+%       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
@@ -1989,7 +2020,7 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
-      obj.setShowPredTxtLbl(obj.showPredTxtLbl);
+%       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       if ~wasbundled
         % DMC.rootDir point to original model locs
@@ -2704,19 +2735,6 @@ classdef Labeler < handle
         end
         cfg = structoverlay(cfgbase,cfg,'dontWarnUnrecog',true);
         s.cfg = cfg;
-      end
-      % 20190602 cfg.Track.PredictPointsPlot rearrange
-      if isfield(cfg.Track,'PredictPointsPlotColorMapName')
-        cfg.Track.PredictPointsPlot.ColorMapName = cfg.Track.PredictPointsPlotColorMapName;
-        cfg.Track = rmfield(cfg.Track,'PredictPointsPlotColorMapName');
-      end
-      if isfield(cfg.Track,'PredictPointsPlotColors')
-        cfg.Track.PredictPointsPlot.Colors = cfg.Track.PredictPointsPlotColors;
-        cfg.Track = rmfield(cfg.Track,'PredictPointsPlotColors');
-      end
-      if isfield(cfg.Track,'PredictPointsShowTextLbl')
-        cfg.Track.PredictPointsPlot.TextProps.Visible = onIff(cfg.Track.PredictPointsShowTextLbl);
-        cfg.Track = rmfield(cfg.Track,'PredictPointsShowTextLbl');
       end
       s.cfg = Labeler.cfgModernize(s.cfg);
       
@@ -5283,23 +5301,23 @@ classdef Labeler < handle
 %       end
     end
     
-    function setShowPredTxtLbl(obj,tf)
-      assert(isscalar(tf));
-      obj.showPredTxtLbl = logical(tf);
-      obj.updateShowPredTxtLbl();
-    end
+%     function setShowPredTxtLbl(obj,tf)
+%       assert(isscalar(tf));
+%       obj.showPredTxtLbl = logical(tf);
+%       obj.updateShowPredTxtLbl();
+%     end
     
-    function toggleShowPredTxtLbl(obj)
-      obj.setShowPredTxtLbl(~obj.showPredTxtLbl);
-    end
+%     function toggleShowPredTxtLbl(obj)
+%       obj.setShowPredTxtLbl(~obj.showPredTxtLbl);
+%     end
     
-    function updateShowPredTxtLbl(obj)
-      tfHideTxtLbl = ~obj.showPredTxtLbl;
-      for i=1:numel(obj.trackersAll)
-        obj.trackersAll{i}.trkVizer.setHideTextLbls(tfHideTxtLbl);
-      end
-      obj.labels2VizShowHideUpdate();      
-    end
+%     function updateShowPredTxtLbl(obj)
+%       tfHideTxtLbl = ~obj.showPredTxtLbl;
+%       for i=1:numel(obj.trackersAll)
+%         obj.trackersAll{i}.trkVizer.setHideTextLbls(tfHideTxtLbl);
+%       end
+%       obj.labels2VizShowHideUpdate();      
+%     end
     
     function setShowSkeleton(obj,tf)
       obj.showSkeleton = logical(tf);
@@ -6047,24 +6065,6 @@ classdef Labeler < handle
       tf = any(~isnan(lpos(:)));
     end
     
-    function [colors,colormapname,pvmarker,pvtext] = labelGetLabelCosmetics(obj)
-      lppi = obj.labelPointsPlotInfo;
-      if isfield(lppi,'Colors')
-        colors = lppi.Colors;
-      else
-        colors = [];
-      end
-      if isfield(lppi,'ColorMapName')
-        colormapname = lppi.ColorMapName;
-      else
-        colormapname = '';
-      end
-      
-      pvmarker = structrestrictflds(lppi,{'Marker' 'MarkerSize' 'LineWidth'});
-      pvtext = structrestrictflds(lppi,...
-        {'FontSize' 'FontName' 'FontWeight' 'FontAngle' 'LblVisible' 'LblOffset'});
-    end
-    
     % Label Cosmetics notes 20190601
     %
     % - Cosmetics settings live in PV pairs on .labelPointsPlotInfo
@@ -6133,11 +6133,16 @@ classdef Labeler < handle
     %  simplify the code a bit, cosmetics would be mutable, and cosmetics
     %  settings would be saved with the project.
     
-    function updateLandmarkLabelCosmetics(obj,colors,colormapname,pvMarker,pvText)
+    function updateLandmarkLabelCosmetics(obj,colors,colormapname,...
+        pvMarker,pvText,textOffset)
+      % colors: "setwise" colors
+      
+      szassert(colors,[obj.nPhysPts 3]);
       
       lc = obj.lblCore;
       
       % Colors apply to lblCore, lblPrev_*, timeline
+      
       obj.labelPointsPlotInfo.ColorMapName = colormapname;
       obj.labelPointsPlotInfo.Colors = colors;
       ptcolors = obj.Set2PointColors(colors);
@@ -6148,27 +6153,24 @@ classdef Labeler < handle
       % Marker cosmetics apply to lblCore, lblPrev_*
       flds = fieldnames(pvMarker);
       for f=flds(:)',f=f{1}; %#ok<FXSET>
-        obj.labelPointsPlotInfo.(f) = pvMarker.(f);
+        obj.labelPointsPlotInfo.MarkerProps.(f) = pvMarker.(f);
       end
       lc.updateMarkerCosmetics(pvMarker);      
       set(obj.lblPrev_ptsH,pvMarker);
       
-      % Text cosmetics apply to lblCore, lblPrev_*, except for LblVisible
-      % which only applies to lblCore
-      hTxtPrev = obj.lblPrev_ptsTxtH;
+      % Text cosmetics apply to lblCore, lblPrev_*
       flds = fieldnames(pvText);
       for f=flds(:)',f=f{1}; %#ok<FXSET>
-        obj.labelPointsPlotInfo.(f) = pvText.(f);
-        if isprop(hTxtPrev(1),f)
-          set(hTxtPrev,f,pvText.(f));
-        elseif strcmp(f,'LblOffset')
-          obj.prevAxesLabelsRedraw();
-        end        
+        obj.labelPointsPlotInfo.TextProps.(f) = pvText.(f);
       end
-      lc.updateTextLabelCosmetics(pvText);      
+      obj.labelPointsPlotInfo.TextOffset = textOffset;
+      set(obj.lblPrev_ptsTxtH,pvText);
+      obj.prevAxesLabelsRedraw(); % should use .TextOffset
+      lc.updateTextLabelCosmetics(pvText,textOffset);      
     end
     
-    function updateLandmarkPredictionCosmetics(obj,colors,colormapname,pvMarker,pvText)
+    function updateLandmarkPredictionCosmetics(obj,colors,colormapname,...
+        pvMarker,pvText,textOffset)
 
       % Colors apply to i) all trackers, ii) imported preds, and iii) all trackRes
       
@@ -6176,23 +6178,49 @@ classdef Labeler < handle
       obj.predPointsPlot.ColorMapName = colormapname;
       tAll = obj.trackersAll;
       for i=1:numel(tAll)
-        tAll.updateLandmarkColors();
+        if ~isempty(tAll{i})
+          tAll{i}.updateLandmarkColors();
+        end
       end
-      
+      lpos2tv = obj.labeledpos2trkViz;
       ptcolors = obj.Set2PointColors(colors);
-      obj.labeledpos2trkViz.updateLandmarkColors(ptColors);
+      lpos2tv.updateLandmarkColors(ptcolors);
       for i=1:numel(obj.trkResViz)
         obj.trkResViz{i}.updateLandmarkColors(ptcolors);
       end
       
-      % Markers apply to i) all trackers, ii) imported preds in labeledpos2_*
+      % Markers apply to i) all trackers, ii) imported preds
       fns = fieldnames(pvMarker);
-      for f=fns(:)',f=f{1}; %#ok<FXSET>
-        obj.predPointsPlot.(f) = pvMarker.(f);
+      for f=fns(:)',f=f{1}; %#ok<FXSET> 
+        % this allows pvMarker to be 'incomplete'; could just set entire
+        % struct
+        obj.predPointsPlot.MarkerProps.(f) = pvMarker.(f);
       end
-%       for i=1:numel
+      for i=1:numel(tAll)
+        if ~isempty(tAll{i})
+          tAll{i}.trkVizer.setMarkerCosmetics(pvMarker);
+        end
+      end
+      lpos2tv.setMarkerCosmetics(pvMarker);
       
       % Text: same as Markers
+      fns = fieldnames(pvText);
+      for f=fns(:)',f=f{1}; %#ok<FXSET>
+        obj.predPointsPlot.TextProps.(f) = pvText.(f);
+      end
+      % TrackingVisualizer wants this prop broken out
+      tfHideTxt = strcmp(pvText.Visible,'off'); % could make .Visible field optional 
+      pvText = rmfield(pvText,'Visible');
+      lpos2tv.setTextCosmetics(pvText);
+      lpos2tv.setTextOffset(textOffset);
+      lpos2tv.setHideTextLbls(tfHideTxt);
+      for i=1:numel(tAll)
+        if ~isempty(tAll{i})
+          tAll{i}.trkVizer.setTextCosmetics(pvText);
+          tAll{i}.trkVizer.setTextOffset(textOffset);
+          tAll{i}.trkVizer.setHideTextLbls(tfHideTxt);        
+        end
+      end
     end
 
   end
@@ -12705,7 +12733,7 @@ classdef Labeler < handle
       lpostag = lpostag{iMov}(:,frm,iTgt);
       end
       ipts = 1:obj.nPhysPoints;
-      txtOffset = obj.labelPointsPlotInfo.LblOffset;
+      txtOffset = obj.labelPointsPlotInfo.TextOffset;
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
         obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
       if any(lpostag(ipts))
@@ -12897,10 +12925,13 @@ classdef Labeler < handle
     
     function labels2VizShowHideUpdate(obj)
       tfHide = obj.labels2Hide;
-      tfShowTxt = obj.showPredTxtLbl;
+%       tfShowTxt = obj.showPredTxtLbl;
+      txtprops = obj.predPointsPlotInfo.TextProps;
+      tfHideTxt = strcmp(txtprops.Visible,'off');
+
       tv = obj.labeledpos2trkViz;
       tv.setHideViz(tfHide);
-      tv.setHideTextLbls(~tfShowTxt);
+      tv.setHideTextLbls(tfHideTxt);
       tv.updateHideVizHideText();
     end
     
