@@ -27,7 +27,8 @@ classdef APT
     
     function m = readManifest()
 
-      % KB 20190422 - Manifest no longer needed
+      % KB 20190422 - Manifest no longer needed but can be used by
+      % power-users
       
       fname = fullfile(APT.Root,APT.MANIFESTFILE);
       if exist(fname,'file')==0
@@ -42,9 +43,8 @@ classdef APT
       % overwrite these fields to default locs if read in from Manifest
       root = APT.Root;
       m.jaaba = fullfile(root,'external','JAABA');
-      m.piotr= fullfile(root,'external','PiotrDollarToolbox');
-      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');
-      
+      m.piotr = fullfile(root,'external','PiotrDollarToolbox');
+      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');      
     end
   
     function [p,jp] = getpath()
@@ -122,7 +122,7 @@ classdef APT
       tfRm = cellfun(@(x) ~isempty(regexp(x,'__MACOSX','once')) || ...
                           ~isempty(regexp(x,'\.git','once')) || ...
                           ~isempty(regexp(x,'[\\/]doc','once')) || ...
-                          ~isempty(regexp(x,'[\\/]external','once')) || ...
+                          ~isempty(regexp(x,'PiotrDollarToolbox[\\/]external','once')) || ...
                           isempty(x), pdolpath);
       pdolpath(tfRm,:) = [];
 
@@ -192,6 +192,10 @@ classdef APT
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
+       %MK 20190506 Add stuff to systems path for aws cli
+       if ismac
+        setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
+       end
     end
   
     function tf = matlabPathNotConfigured()
@@ -208,6 +212,23 @@ classdef APT
 %       else
 %         error('APT:noPath','Cannot find ''posetf'' Manifest specification.');
 %       end
+    end
+    
+    function cacheDir = getdlcacheroot()
+      
+      m = APT.readManifest;
+      if isfield(m,'dltemproot')
+        cacheDir = m.dltemproot;
+      else
+        if ispc
+          userDir = winqueryreg('HKEY_CURRENT_USER',...
+            ['Software\Microsoft\Windows\CurrentVersion\' ...
+            'Explorer\Shell Folders'],'Personal');
+        else
+          userDir = char(java.lang.System.getProperty('user.home'));
+        end
+        cacheDir = fullfile(userDir,'.apt');
+      end
     end
     
     function s = codesnapshot

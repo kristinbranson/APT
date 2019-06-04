@@ -20,7 +20,8 @@ from tensorflow.contrib.layers import batch_norm
 import copy
 import cv2
 import gc
-import resource
+# KB 20190424 - this doesn't seem to be used
+#import resource
 import json
 import math
 import threading
@@ -415,8 +416,9 @@ class PoseCommon(object):
 
         if not latest_ckpt or not do_restore:
             start_at = 0
-            sess.run(tf.variables_initializer(PoseTools.get_vars(name)),
-                     feed_dict=self.fd)
+#            sess.run(tf.variables_initializer(PoseTools.get_vars(name)),
+#                     feed_dict=self.fd)
+            sess.run(tf.variables_initializer(PoseTools.get_vars('')), feed_dict=self.fd)
             logging.info("Not loading {:s} variables. Initializing them".format(name))
             self.init_td()
             for dep_net in self.dep_nets:
@@ -583,7 +585,7 @@ class PoseCommon(object):
         self.create_optimizer()
         self.create_saver()
         training_iters = self.conf.dl_steps
-        num_val_rep = self.conf.num_test / self.conf.batch_size + 1
+        num_val_rep = self.conf.num_test // self.conf.batch_size + 1
 
         merged = tf.summary.merge_all()
         save_time = self.conf.get('save_time', None)
@@ -759,7 +761,7 @@ class PoseCommon(object):
             val_preds = []
             val_predlocs = []
             val_locs = []
-            for step in range(num_val/self.conf.batch_size):
+            for step in range(num_val//self.conf.batch_size):
                 self.setup_val(sess)
                 cur_pred = sess.run(self.pred, self.fd)
                 cur_predlocs = PoseTools.get_pred_locs(cur_pred)
@@ -886,7 +888,7 @@ class PoseCommonMulti(PoseCommon):
             val_ims = []
             val_preds = []
             val_locs = []
-            for step in range(num_val/self.conf.batch_size):
+            for step in range(num_val//self.conf.batch_size):
                 self.setup_val(sess)
                 cur_pred = sess.run(self.pred, self.fd)
                 cur_dist = self.compute_dist_m(cur_pred,self.locs)

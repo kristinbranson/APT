@@ -61,7 +61,7 @@ class PoseDataset:
     def load_dataset(self, db_file_name):
         cfg = self.cfg
 
-        with open(db_file_name,'r') as f:
+        with open(db_file_name,'rb') as f:
             mlab = pickle.load(f)
         num_images = len(mlab)
 

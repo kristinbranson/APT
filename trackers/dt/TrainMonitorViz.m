@@ -22,6 +22,12 @@ classdef TrainMonitorViz < handle
         'Update training monitor plots'...
         'Show log files'...
         'Show error messages'}},...
+      'Conda',...
+        {{'List all conda jobs'...
+        'Show training jobs'' status',...
+        'Update training monitor plots'...
+        'Show log files'...
+        'Show error messages'}},...
       'Docker',...
         {{'List all docker jobs'...
         'Show training jobs'' status',...
@@ -209,6 +215,8 @@ classdef TrainMonitorViz < handle
       switch obj.backEnd        
         case DLBackEnd.Bsub
           clusterstr = 'JRC cluster';
+        case DLBackEnd.Conda
+          clusterstr = 'Local';
         case DLBackEnd.Docker
           clusterstr = 'Local';
         case DLBackEnd.AWS,
@@ -345,7 +353,7 @@ classdef TrainMonitorViz < handle
         case 'Update training monitor plots',
           obj.updateMonitorPlots();
           drawnow;
-        case {'List all jobs on cluster','List all docker jobs'}
+        case {'List all jobs on cluster','List all docker jobs','List all conda jobs'}
           ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;
@@ -388,7 +396,9 @@ classdef TrainMonitorViz < handle
     function ss = queryAllJobsStatus(obj)
       
       ss = obj.trainWorkerObj.queryAllJobsStatus();
-      ss = strsplit(ss,'\n');
+      if ischar(ss),
+        ss = strsplit(ss,'\n');
+      end
       
     end
     

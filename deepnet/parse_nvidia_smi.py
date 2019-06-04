@@ -1,16 +1,40 @@
 import subprocess
 import pprint
 import re
+import platform
+import distutils.spawn
+import os
+
+import sys
+ISPY3 = sys.version_info >= (3, 0)
 
 PrettyOutput = False
 
 def get_gpu_memory_free():
 
-    sp = subprocess.Popen(['nvidia-smi', '-q' ,'-d','MEMORY'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    nvidiasmi = 'nvidia-smi'
+    # check if nvidia-smi exists
+    if distutils.spawn.find_executable(nvidiasmi) is None:
+        if platform.system() == "Windows":
+            nvpath = os.environ['NVTOOLSEXT_PATH']
+            if nvpath is None:
+                print('Could not find path to nvidia-smi. OS = Windows, environmental variable NVTOOLSEXT_PATH is not set')
+                return
+            nvpath,tail = os.path.split(nvpath)
+            if tail == '':
+                nvpath = os.path.dirname(nvpath)
+            nvidiasmi = os.path.join(nvpath,'NVSMI','nvidia-smi.exe')
+            if not os.path.isfile(nvidiasmi):
+                print('Could not find path to nvidia-smi. OS = Windows, looked at %s'%nvidiasmi)
+
+    sp = subprocess.Popen([nvidiasmi, '-q' ,'-d','MEMORY'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     out_str = sp.communicate()
 
-    out_list = out_str[0].split('\n')
+    if ISPY3:
+        out_list = out_str[0].decode().split('\n')
+    else:
+        out_list = out_str[0].split('\n')
 
     gpuidx = -1
     memtype = 'unknown'

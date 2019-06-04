@@ -830,7 +830,7 @@ switch lower(state),
     handles.pbTrack.Enable = onOff;
     handles.menu_view_hide_predictions.Enable = onOff;
     
-    if lObj.hasTrx && ~lObj.gtIsGTMode,
+    if ~lObj.gtIsGTMode,
       set(handles.menu_go_targets_summary,'Enable','on');
     else
       set(handles.menu_go_targets_summary,'Enable','off');
@@ -1336,7 +1336,7 @@ if lObj.hasMovie && evt.isFirstMovieOfProject,
   EnableControls(handles,'projectloaded');
 end
 
-if lObj.hasTrx && ~lObj.gtIsGTMode,
+if ~lObj.gtIsGTMode,
   set(handles.menu_go_targets_summary,'Enable','on');
 else
   set(handles.menu_go_targets_summary,'Enable','off');
@@ -1526,9 +1526,13 @@ hAx.CameraTargetMode = 'auto';
 
 function hlpUpdateTblTrxHilite(lObj)
 
-i = find(lObj.currTarget == lObj.tblTrxData(:,1));
-assert(numel(i) == 1);
-lObj.gdata.tblTrx.SelectedRows = i;
+try
+  i = find(lObj.currTarget == lObj.tblTrxData(:,1));
+  assert(numel(i) == 1);
+  lObj.gdata.tblTrx.SelectedRows = i;
+catch ME
+  warningNoTrace('Error caught updating highlight row in Targets Table.');
+end
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;

@@ -368,11 +368,11 @@ classdef FSPath
       %
       % base: char, common base path. Will be empty if there is no base path.
       
-      assert(isunix);
+%       assert(isunix);
       assert(~isempty(p) && iscellstr(p));
-      if ~all(cellfun(@(x)x(1)=='/',p))
-        error('All paths must be absolute unix paths.');
-      end
+%       if ~all(cellfun(@(x)x(1)=='/',p))
+%         error('All paths must be absolute unix paths.');
+%       end
       
       if isscalar(p)
         base = p{1};
@@ -384,12 +384,18 @@ classdef FSPath
       nfldrs = cellfun(@numel,parts);
       n = min(nfldrs);
 
+      if ispc
+        cmpFcn = @(x)all(strcmpi(x,x{1}));
+      else
+        cmpFcn = @(x)isequal(x{:});
+      end
+      
       for i=1:n
         c = cellfun(@(x)x{i},parts,'uni',0);
-        if isequal(c{:})
+        if cmpFcn(c)
           % none; all ith folders match
         else
-          i = i-1;
+          i = i-1; %#ok<FXSET>
           break;
         end
       end
@@ -397,6 +403,8 @@ classdef FSPath
       
       if i==0
         base = '';
+      elseif ispc
+        base = fullfile(parts{1}{1:i});
       else
         base = ['/' fullfile(parts{1}{1:i})];
       end

@@ -25,6 +25,7 @@ import ast
 import tempfile
 import tensorflow as tf
 
+ISPY3 = sys.version_info >= (3, 0)
 
 def loadmat(filename):
     """this function should be called instead of direct spio.loadmat
@@ -248,10 +249,15 @@ def get_matlab_ts(filename):
 
 
 def convert_unicode(data):
-    if isinstance(data, basestring):
+    if (not ISPY3) and isinstance(data,basestring):
         return unicode(data)
+    elif ISPY3 and isinstance(data, str):
+        return data
     elif isinstance(data, collections.Mapping):
-        return dict(map(convert_unicode, data.iteritems()))
+        if ISPY3:
+            return dict(map(convert_unicode, data.items()))
+        else:
+            return dict(map(convert_unicode, data.iteritems()))
     elif isinstance(data,np.ndarray):
         return data
     elif isinstance(data, collections.Iterable):
@@ -543,6 +549,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         cc = conf_params
         assert len(cc)%2 == 0, 'Config params should be in pairs of name value'
         for n,v in zip(cc[0::2],cc[1::2]):
+            print('Overriding param %s <= '%n,v)
             setattr(conf,n,ast.literal_eval(v))
 
     # overrides for each network
@@ -849,7 +856,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         #     cur_locs[:, 1] = cur_locs[:, 1] - ylo
         #     # -1 because matlab is 1-indexed
 
-        info = [mndx, f_ndx[ndx], t_ndx[ndx]]
+        info = [int(mndx), int(f_ndx[ndx]), int(t_ndx[ndx])]
 
         cur_out = multiResData.get_cur_env(out_fns, split, conf, info,
                                            mov_split, trx_split=None, predefined=predefined)
@@ -979,10 +986,10 @@ def create_deepcut_db(conf, split=False, split_file=None, use_cache=False):
         splits = db_from_lbl(conf, out_fns, split, split_file)
     [f.close() for f in train_fis]
     [f.close() for f in val_fis]
-    with open(os.path.join(conf.cachedir, 'train_data.p'), 'w') as f:
+    with open(os.path.join(conf.cachedir, 'train_data.p'), 'wb') as f:
         pickle.dump(train_data, f, protocol=2)
     if split:
-        with open(os.path.join(conf.cachedir, 'val_data.p'), 'w') as f:
+        with open(os.path.join(conf.cachedir, 'val_data.p'), 'wb') as f:
             pickle.dump(val_data, f, protocol=2)
 
     # save the split data
@@ -1174,6 +1181,8 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
     n_batches = int(math.ceil(float(n_list) / bsize))
     pred_locs = np.zeros([n_list, conf.n_classes, 2])
     pred_locs[:] = np.nan
+    pred_conf = np.zeros([n_list, conf.n_classes])
+    pred_conf[:] = np.nan
     trx, first_frames, _, _ = get_trx_info(trx_file, conf, 0)
     sz = (cap.get_height(), cap.get_width())
 
@@ -1185,7 +1194,13 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
 
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict['locs']
+        base_locs_conf = ret_dict.get('conf',None)
         hmaps = ret_dict['hmaps']
+
+        if base_locs_conf is not None:
+            szlocs = base_locs.shape
+            szconf = base_locs_conf.shape
+            assert szconf==szlocs[:-1], "Unexpected base_locs_conf size."
 
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
@@ -1196,8 +1211,11 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
             # pred_locs[cur_start + cur_t, :, :] = base_locs_orig[0, ...]
             # KB 20190123: this was just copying the first landmark for all landmarks
             pred_locs[cur_start + cur_t, :, :] = base_locs_orig
+            if base_locs_conf is not None:
+                pred_conf[cur_start + cur_t,:] = base_locs_conf[cur_t, ...]
 
-    return pred_locs
+
+    return pred_locs, pred_conf
 
 
 def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
@@ -1255,6 +1273,8 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
 
     pred_locs = np.zeros([len(in_list), conf.n_classes, 2])
     pred_locs[:] = np.nan
+    pred_conf = np.zeros([len(in_list), conf.n_classes])
+    pred_conf[:] = np.nan
 
     logging.info('Tracking GT labeled frames..')
     for ndx, dir_name in enumerate(local_dirs):
@@ -1275,8 +1295,9 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
             logging.exception('MOVIE_READ: ' + local_dirs[ndx] + ' is missing')
             exit(1)
 
-        cur_pred_locs = classify_list(conf, pred_fn, cap, cur_list, trx_files[ndx], crop_loc)
+        cur_pred_locs, cur_pred_conf = classify_list(conf, pred_fn, cap, cur_list, trx_files[ndx], crop_loc)
         pred_locs[cur_idx, ...] = cur_pred_locs
+        pred_conf[cur_idx, ...] = cur_pred_conf
 
         cap.close()  # close the movie handles
 
@@ -1286,7 +1307,7 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
     logging.info('Done prediction on all GT frames')
     lbl.close()
     close_fn()
-    return pred_locs
+    return pred_locs, pred_conf
 
 
 def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
@@ -1477,10 +1498,12 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
         else:
             assert False, 'Invalid frame specification in toTrack[%d]'%(i)
 
-    pred_locs = classify_list_all(model_type, conf, cur_list, on_gt=False, model_file=model_file, movie_files=toTrack['movieFiles'], trx_files=trxFiles, crop_locs=cropLocs)
+    pred_locs, pred_conf = classify_list_all(model_type, conf, cur_list, on_gt=False, model_file=model_file, movie_files=toTrack['movieFiles'], trx_files=trxFiles, crop_locs=cropLocs)
     mat_pred_locs = to_mat(pred_locs)
+    mat_pred_conf = pred_conf
 
     sio.savemat(out_file, {'pred_locs': mat_pred_locs,
+                           'pred_conf': mat_pred_conf,
                            'list_file': list_file} )
 
     success = True
@@ -1519,7 +1542,7 @@ def classify_gt_data(conf, model_type, out_file, model_file):
                 cur_list.append([ndx , f , trx_ndx ])
                 labeled_locs.append(cur_pts[trx_ndx, f, :, sel_pts])
 
-    pred_locs = classify_list_all(model_type, conf, cur_list, on_gt=True, model_file=model_file)
+    pred_locs, pred_conf = classify_list_all(model_type, conf, cur_list, on_gt=True, model_file=model_file)
     mat_pred_locs = to_mat(pred_locs)
     mat_labeled_locs = to_mat(np.array(labeled_locs))
     mat_list = cur_list
@@ -1607,6 +1630,8 @@ def classify_movie(conf, pred_fn,
     info[u'model_file'] = model_file
     modelfilets = model_file + '.index'
     modelfilets = modelfilets if os.path.exists(modelfilets) else model_file
+    if not os.path.exists(modelfilets):
+        raise ValueError('Files %s and %s do not exist'%(model_file,model_file+'.meta'))
     info[u'trnTS'] = get_matlab_ts(modelfilets)
     info[u'name'] = name
     param_dict = convert_unicode(conf.__dict__.copy())
@@ -1674,7 +1699,8 @@ def classify_movie(conf, pred_fn,
 
                 else:
                     cur_v = ret_dict[k]
-                    if not extra_dict.has_key(k):
+                    # py3 and py2 compatible
+                    if k not in extra_dict:
                         sz = cur_v.shape[1:]
                         extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
 
@@ -1999,7 +2025,7 @@ def run(args):
 
         conf = create_conf(lbl_file, ivw, name, net_type=args.type,
                            cache_dir=args.cache,conf_params=args.conf_params)
-        success,pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file[0], args.out_files[0])
+        success, pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file[0], args.out_files[0])
         assert success, 'Error classifying list_file ' + args.list_file
 
     elif args.sub_name == 'track':
