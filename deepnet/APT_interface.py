@@ -1,11 +1,15 @@
 from __future__ import division
 from __future__ import print_function
 
+import logging
+ll = logging.getLogger('matplotlib')
+ll.setLevel(logging.WARNING)
+
 import argparse
 import collections
 import datetime
 import json
-import logging
+
 from os.path import expanduser
 from random import sample
 
@@ -15,7 +19,8 @@ import PoseUNet_resnet as PoseURes
 import hdf5storage
 import imageio
 import multiResData
-from multiResData import *
+from multiResData import float_feature, int64_feature,bytes_feature,trx_pts, check_fnum
+# from multiResData import *
 import leap.training
 from leap.training import train_apt as leap_train
 import open_pose
@@ -24,6 +29,17 @@ import deepcut.train
 import ast
 import tempfile
 import tensorflow as tf
+import sys
+import h5py
+import numpy as np
+import os
+import movies
+import PoseTools
+import pickle
+import math
+import cv2
+import re
+from scipy import io as sio
 
 ISPY3 = sys.version_info >= (3, 0)
 
@@ -1146,6 +1162,7 @@ def get_augmented_images(conf, out_file, distort=True, on_gt = False,nsamples=No
 
 def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):
     '''convert predicted locs back to original image co-ordinates.
+    INCOMPLETE
     '''
     lbl = h5py.File(conf.labelfile, 'r')
     if on_gt:
@@ -1163,11 +1180,6 @@ def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):
         cur_list = [[l[1], l[2] ] for l in in_list if l[0] == (ndx )]
         cur_idx = [i for i, l in enumerate(in_list) if l[0] == (ndx )]
         crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
-        for cur in cur_list:
-
-            pred_locs[cur_idx, ...] = cur_pred_locs
-
-        cap.close()  # close the movie handles
 
 
 def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
@@ -1757,16 +1769,16 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
             self.train_data_name = 'traindata'
         files = self.model_files()
     elif net_type == 'leap':
-        files = leap.training.latest_model(conf, name)
+        files = leap.training.model_files(conf, name)
     elif net_type == 'openpose':
-        files = open_pose.latest_model(conf, name)
+        files = open_pose.model_files(conf, name)
     elif net_type == 'deeplabcut':
         files = deepcut.train.model_files(conf, name)
     else:
         assert False, 'Undefined Net Type'
 
     for f in files:
-        assert os.path.exists(f), 'Model file {} does not exist'.f
+        assert os.path.exists(f), 'Model file {} does not exist'.format(f)
 
     return files
 
