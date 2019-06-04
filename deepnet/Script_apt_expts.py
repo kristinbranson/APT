@@ -258,6 +258,26 @@ rae.setup('alice')
 rae.get_active_results()
 
 
+## Original DLC and Leap Training
+import run_apt_expts as rae
+dtypes = ['alice']#,'stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    # rae.train_deepcut_orig()
+    rae.train_leap_orig()
+
+
+## Results Orig leap vs our leap
+import run_apt_expts as rae
+dtypes = ['alice']#,'stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.get_leap_results()
+
+
+
 ## Extra code to view the results
 for split_num in range(3):
     res_file= '/nrs/branson/mayank/apt_cache/wheel_rig_tracker_feb_2017_cam0/mdn/view_0/cv_split_{}/deepnet_results.p'.format(split_num)
@@ -283,6 +303,25 @@ for split_num in range(3):
     conf.clahe_grid_size = 20
     cims = pt.adjust_contrast(ims,conf)
     pt.show_result(cims,ndx,locs,pred)
+
+
+## Original DLC and Leap Training
+import run_apt_expts as rae
+dtypes = ['alice','stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.train_deepcut_orig()
+    rae.train_leap_orig()
+
+
+## Results Orig leap vs our leap
+import run_apt_expts as rae
+dtypes = ['alice','stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.get_leap_results()
 
 
 ## Videos for results

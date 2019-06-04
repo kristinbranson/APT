@@ -1200,7 +1200,7 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
     return pred_locs
 
 
-def get_pred_fn(model_type, conf, model_file=None,name='deepnet'):
+def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
     ''' Returns prediction functions and close functions for different network types
 
     '''
@@ -1209,7 +1209,7 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet'):
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file,name=name)
     elif model_type == 'mdn':
-        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file,name=name)
+        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file,name=name,distort=distort)
     elif model_type == 'leap':
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file,name=name)
     elif model_type == 'deeplabcut':
@@ -1708,7 +1708,7 @@ def get_unet_pred_fn(conf, model_file=None,name='deepnet'):
     return self.get_pred_fn(model_file)
 
 
-def get_mdn_pred_fn(conf, model_file=None,name='deepnet'):
+def get_mdn_pred_fn(conf, model_file=None,name='deepnet',distort=False):
     tf.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=name)
     if name == 'deepnet':
@@ -1716,7 +1716,7 @@ def get_mdn_pred_fn(conf, model_file=None,name='deepnet'):
     else:
         self.train_data_name = None
 
-    return self.get_pred_fn(model_file)
+    return self.get_pred_fn(model_file,distort=distort)
 
 
 def get_latest_model_files(conf, net_type='mdn', name='deepnet'):

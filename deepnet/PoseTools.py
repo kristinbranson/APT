@@ -33,6 +33,7 @@ import datetime
 from scipy.ndimage.interpolation import zoom
 from scipy import stats
 import pickle
+import yaml
 import logging
 
 
@@ -1010,6 +1011,11 @@ def pickle_load(filename):
     return K
 
 
+def yaml_load(filename):
+    with open(filename,'r') as f:
+        K = yaml.load(f)
+    return K
+
 def get_train_data_file(conf,name):
     if name == 'deepnet':
         train_data_file = os.path.join(conf.cachedir, 'traindata')
@@ -1094,7 +1100,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60):
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet'):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
@@ -1104,7 +1110,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60):
         f.write('#!/bin/bash\n')
         # f.write('bjobs -uall -m `hostname -s`\n')
         f.write('. /opt/venv/bin/activate\n')
-        f.write('cd /groups/branson/home/kabram/bransonlab/APT/deepnet\n')
+        f.write('cd {}\n'.format(run_dir))
         f.write('numCores2use={} \n'.format(2))
         f.write('python {}'.format(cmd))
         f.write('\n')

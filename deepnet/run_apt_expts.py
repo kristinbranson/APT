@@ -137,7 +137,7 @@ def setup(data_type_in,gpu_device=None):
     nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
     lbl.close()
 
-def run_jobs(cmd_name,cur_cmd,redo=False):
+def run_jobs(cmd_name,cur_cmd,redo=False,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet'):
     logfile = os.path.join(sdir,'opt_' + cmd_name+ '.log')
     errfile = os.path.join(sdir,'opt_' + cmd_name+ '.err')
 
@@ -154,7 +154,7 @@ def run_jobs(cmd_name,cur_cmd,redo=False):
             run = False
 
     if run:
-        PoseTools.submit_job(cmd_name, cur_cmd, sdir, gpu_model=gpu_model)
+        PoseTools.submit_job(cmd_name, cur_cmd, sdir, gpu_model=gpu_model,run_dir=run_dir)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
@@ -205,8 +205,14 @@ def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
     print('{:40s} submit: {}, latest iter: {:06d} at {}. train:{:.2f} val:{:.2f}'.format( cmd_name, get_tstr(submit_time),latest_model_iter, get_tstr(latest_time),train_dist,val_dist))
     return latest_model_iter
 
-
 def plot_results(data_in,ylim=None,xlim=None):
+    import Tkinter
+    try:
+        plot_results1(data_in,ylim,xlim)
+    except Tkinter.TclError:
+        pass
+
+def plot_results1(data_in,ylim=None,xlim=None):
     ps = [50, 75, 90, 95]
     k = data_in.keys()[0]
     npts = data_in[k][0][0].shape[1]
@@ -227,7 +233,7 @@ def plot_results(data_in,ylim=None,xlim=None):
         if len(mt) == 0:
             continue
         t0 = mt[0]
-        mt = np.array([t - t0 for t in mt]) / 60.
+        mt = np.array([t - t0 for t in mt])
         mm = np.array(mm)
 
         for ndx in range(npts):
@@ -241,7 +247,14 @@ def plot_results(data_in,ylim=None,xlim=None):
     ax[-1].legend(leg)
 
 
-def plot_hist(in_exp,ps = [50, 75, 90, 95],cmap=None):
+def plot_hist(in_exp, ps = [50,75,90,95],cmap=None):
+    import Tkinter
+    try:
+        plot_hist1(in_exp,ps,cmap)
+    except Tkinter.TclError:
+        pass
+
+def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     data_in, ex_im, ex_loc = in_exp
     k = data_in.keys()[0]
     npts = data_in[k][0][0].shape[1]
@@ -249,6 +262,8 @@ def plot_hist(in_exp,ps = [50, 75, 90, 95],cmap=None):
     n_types = len(data_in)
     nc = n_types # int(np.ceil(np.sqrt(n_types)))
     nr = 1#int(np.ceil(n_types/float(nc)))
+    nc = int(np.ceil(np.sqrt(n_types)))
+    nr = int(np.ceil(n_types/float(nc)))
     if cmap is None:
         cmap = PoseTools.get_cmap(len(ps),'cool')
     f, axx = plt.subplots(nr, nc, figsize=(12, 8))
@@ -874,6 +889,79 @@ def run_dlc_augment_training(run_type = 'status'):
                 check_train_status(cmd_name,conf.cachedir,cmd_str[conf_id])
 
 
+def train_deepcut_orig(run_type='status'):
+    train_type = 'deeplabcut'
+    cache_dir = '/nrs/branson/mayank/apt_cache'
+    dlc_cmd = '/groups/branson/bransonlab/mayank/apt_expts/deepcut/pose-tensorflow/train.py'
+
+    for view in range(nviews):
+        for round in range(8):
+            exp_name = '{}_randsplit_round_{}'.format(data_type, round)
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            cmd_name = '{}_view{}_dlcorig_{}'.format(data_type, view, round)
+            if run_type == 'submit':
+                apt_expts.create_deepcut_cfg(conf)
+                args = easydict.EasyDict()
+                args.lbl_file = lbl_file
+                args.split_type = None
+                run_dir = conf.cachedir
+                cur_cmd = dlc_cmd
+
+                print cur_cmd
+                print
+                run_jobs(cmd_name,cur_cmd,run_dir=run_dir)
+            elif run_type == 'status':
+                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                check_train_status(cmd_name,conf.cachedir,'snapshot')
+
+
+def train_leap_orig(run_type='status'):
+    train_type = 'leap'
+    cache_dir = '/nrs/branson/mayank/apt_cache'
+    run_dir = '/groups/branson/bransonlab/mayank/apt_expts/leap'
+
+    for view in range(nviews):
+        for round in range(8):
+            exp_name = '{}_randsplit_round_{}_orig'.format(data_type, round)
+            exp_name1 = '{}_randsplit_round_{}'.format(data_type, round)
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            conf1 = apt.create_conf(lbl_file, view, exp_name1, cache_dir, train_type)
+            cmd_name = '{}_view{}_leaporig_{}'.format(data_type, view, round)
+            if run_type == 'submit':
+                in_file = os.path.join(conf1.cachedir,'leap_train.h5')
+                out_file = os.path.join(conf.cachedir,'leap_train.h5')
+                ii = h5py.File(in_file,'r')
+                ims = ii['box'][:]
+                locs = ii['joints'][:]
+                eid = ii['exptID'][:]
+                frid = ii['framesIdx'][:]
+                tid = ii['trxID'][:]
+                ii.close()
+
+                hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, 5)
+                hmaps = (hmaps + 1) / 2  # brings it back to [0,1]
+
+                hf = h5py.File(out_file, 'w')
+                hf.create_dataset('box', data=ims)
+                hf.create_dataset('confmaps', data=hmaps)
+                hf.create_dataset('joints', data=locs)
+                hf.create_dataset('exptID', data=eid)
+                hf.create_dataset('framesIdx', data=frid)
+                hf.create_dataset('trxID', data=tid)
+                hf.close()
+
+                cur_cmd = 'leap/training_MK.py {}'.format(out_file)
+
+                print cur_cmd
+                print
+                run_jobs(cmd_name,cur_cmd,run_dir=run_dir)
+            elif run_type == 'status':
+                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                check_train_status(cmd_name,conf.cachedir,'asflk')
+
+
+
+
 def run_incremental_training(run_type='status'):
     # Expt where we find out how training error changes with amount of training data
 
@@ -1065,7 +1153,7 @@ def get_normal_results():
 ## DLC AUG vs no aug --- RESULTS -----
 
 def get_dlc_results():
-    cmd_str = ['dlc_aug','dlc_noaug']
+    cmd_str = ['dlc_aug','dlc_noaug','snapshot']
     # exp_name = 'apt_expt'
     use_round = dlc_aug_use_round
     exp_name = '{}_randsplit_round_{}'.format(data_type,use_round)
@@ -1129,9 +1217,80 @@ def get_dlc_results():
         out_file = os.path.join(cache_dir,'{}_view{}_round{}_dlc'.format(data_type,ndx,use_round))
         save_mat(dlc_exp[0],out_file)
 
+
+def get_leap_results():
+    cmd_str = ['deepnet','weights']
+    train_type = 'leap'
+    for use_round in range(2,8):
+        all_view = []
+
+        for view in range(nviews):
+            dlc_exp = {}
+            gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}.tfrecords'.format(view))
+
+            for conf_id in range(len(cmd_str)):
+                exp_name = '{}_randsplit_round_{}'.format(data_type, use_round)
+                if cmd_str[conf_id] == 'weights':
+                    exp_name += '_orig'
+                train_name=cmd_str[conf_id]
+                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                if op_af_graph is not None:
+                    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+                files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+                files.sort(key=os.path.getmtime)
+                files = [f for f in files if os.path.splitext(f)[1] in ['.index', '','.h5']]
+                aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
+                aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+                if any([a < 0 for a in aa]):
+                    bb = int(np.where(np.array(aa) < 0)[0][-1]) + 1
+                    files = files[bb:]
+
+                n_max = 10
+                if len(files)> n_max:
+                    gg = len(files)
+                    sel = np.linspace(0,len(files)-1,n_max).astype('int')
+                    files = [files[s] for s in sel]
+
+                # files = files[-1:]
+                out_file = os.path.join(conf.cachedir,train_name + '_results.p')
+                recomp = False
+                if os.path.exists(out_file):
+                    fts = [os.path.getmtime(f) for f in files]
+                    ots = os.path.getmtime(out_file)
+                    if any([f > ots for f in fts]):
+                        recomp = True
+                    else:
+                        A = PoseTools.pickle_load(out_file)
+                        old_files = A[1]
+                        if len(files) != len(old_files) or not all([i==j for i,j in zip(files,old_files)]):
+                            recomp = True
+                else:
+                    recomp = True
+
+                if recomp:
+                    afiles = [f.replace('.index', '') for f in files]
+                    mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
+                    with open(out_file,'w') as f:
+                        pickle.dump([mdn_out,files],f)
+                else:
+                    A = PoseTools.pickle_load(out_file)
+                    mdn_out = A[0]
+
+                dlc_exp[train_name] = mdn_out
+            H = multiResData.read_and_decode_without_session(gt_file, conf)
+            ex_im = np.array(H[0][0])[:, :, 0]
+            ex_loc = np.array(H[1][0])
+            all_view.append([dlc_exp,ex_im,ex_loc])
+            # all_view.append(dlc_exp)
+
+        for ndx, dlc_exp in enumerate(all_view):
+            # plot_results(dlc_exp[0])
+            plot_hist(dlc_exp,[50,70,90,95])
+            out_file = os.path.join(cache_dir,'{}_view{}_round{}_leap'.format(data_type,ndx,use_round))
+            save_mat(dlc_exp[0],out_file)
+
+
 ## incremental training -- RESULTS ---
-
-
 def get_incremental_results():
     n_rounds = 8
     all_res = []
@@ -1230,7 +1389,7 @@ def get_cv_results(num_splits=None):
                 aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
                 aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
                 if any([a<0 for a in aa]):
-                    bb = int(np.where(np.array(aa)<0)[0])+1
+                    bb = int(np.where(np.array(aa)<0)[0][-1])+1
                     files = files[bb:]
                 files = files[-1:]
                 # n_max = 10
@@ -1624,7 +1783,7 @@ def get_active_results(num_rounds=8):
         mdn_out.insert(0,mdn_out[0])
         active_exp[add_type] = mdn_out
 
-    plot_results(active_exp,ylim=15)
+    plot_results(active_exp)#,ylim=15)
     save_mat(active_exp,os.path.join(cache_dir,'{}_view{}_active'.format(data_type,view)))
 
 

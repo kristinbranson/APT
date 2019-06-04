@@ -782,7 +782,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         return (pred_mean+label_mean)/2
 
 
-    def get_pred_fn(self, model_file=None):
+    def get_pred_fn(self, model_file=None,distort=False):
         sess, latest_model_file = self.restore_net(model_file)
 
         conf = self.conf
@@ -799,7 +799,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             bsize = conf.batch_size
             xs, _ = PoseTools.preprocess_ims(
                 all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=False, scale=self.conf.rescale)
+                distort=distort, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd[self.ph['phase_train']] = False

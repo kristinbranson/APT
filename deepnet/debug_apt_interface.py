@@ -1,8 +1,66 @@
-## results
 import run_apt_expts as rae
-reload(rae)
-rae.setup('larva','')
-rae.get_cv_results(num_splits=8)
+dtypes = ['alice','stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.get_leap_results()
+
+##
+import PoseTools
+import os
+import glob
+import APT_interface as apt
+import apt_expts
+import re
+import run_apt_expts as rae
+import multiResData
+import numpy as np
+
+reload(apt_expts)
+import PoseUNet_resnet
+
+reload(PoseUNet_resnet)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# mdn_names = ['separate_groups', 'joint_groups' ]
+mdn_names = ['explicit_offsets', 'implicit_offsets' ]
+mdn_names = ['normal', 'True' ]
+out_dir = '/groups/branson/home/kabram/temp'
+
+out = {}
+db_file = '/nrs/branson/mayank/apt_cache/Test/mdn/view_0/larva_compare/val_TF.tfrecords'
+for n in mdn_names:
+    cdir = os.path.dirname(db_file)
+    if n == 'deepnet':
+        tfile = os.path.join(cdir, 'traindata')
+    else:
+        tfile = os.path.join(cdir, 'Test_{}_traindata'.format(n))
+
+    if not os.path.exists(tfile):
+        continue
+    A = PoseTools.pickle_load(tfile)
+    conf = A[1]
+
+    files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(n))
+    files.sort(key=os.path.getmtime)
+    aa = [int(re.search('-(\d*).index', f).groups(0)[0]) for f in files]
+    aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+    if any([a < 0 for a in aa]):
+        bb = int(np.where(np.array(aa) < 0)[0]) + 1
+        files = files[bb:]
+    files = [f.replace('.index', '') for f in files]
+    files = files[-1:]
+    # if len(files) > 8:
+    #     gg = len(files)
+    #     sel = np.linspace(0, len(files) - 1, 8).astype('int')
+    #     files = [files[s] for s in sel]
+    #
+    mdn_out = apt_expts.classify_db_all(conf, db_file, files, 'mdn', name=n)
+    out[n] = mdn_out
+
+H = multiResData.read_and_decode_without_session(db_file, conf)
+ex_ims = np.array(H[0][0])
+ex_locs = np.array(H[1][0])
+f = rae.plot_hist([out,ex_ims,ex_locs],[50,75,90,95,97])
 
 
 ##
