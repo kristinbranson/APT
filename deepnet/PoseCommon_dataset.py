@@ -17,7 +17,6 @@ import math
 from past.utils import old_div
 from tensorflow.contrib.layers import batch_norm
 # from batch_norm import batch_norm_mine_old as batch_norm
-from matplotlib import pyplot as plt
 import copy
 import cv2
 import gc
@@ -170,6 +169,7 @@ class PoseCommon(object):
         self.pad_y = 0
         self.pad_x = 0
         self.compute_summary = self.conf.get('compute_summary',False)
+        self.input_sizes = None
 
 
     def get_latest_model_file(self):
@@ -203,7 +203,7 @@ class PoseCommon(object):
         var_list = self.get_var_list()
         saver['saver'] = (tf.train.Saver(var_list=var_list,
                                          max_to_keep=self.conf.maxckpt,
-                                         save_relative_paths=True))
+                                         save_relative_paths=True,pad_step_number=True))
         saver['summary_dir'] = os.path.join(self.conf.cachedir,self.conf.expname + '_' + name + '_log')
         self.saver = saver
 
@@ -239,7 +239,7 @@ class PoseCommon(object):
         saver = self.saver
         out_file = saver['out_file'].replace('\\', '/')
         saver['saver'].save(sess, out_file, global_step=step,
-                            latest_filename=os.path.basename(saver['ckpt_file']))
+                            latest_filename=os.path.basename(saver['ckpt_file']),write_meta_graph=False)
         logging.info('Saved state to %s-%d' % (out_file, step))
 
 
@@ -281,10 +281,12 @@ class PoseCommon(object):
         self.train_info = train_info
 
 
-    def save_td(self):
-        # save training info
-        saver = self.saver
-        train_data_file = saver['train_data_file']
+    def save_td(self, train_data_file = None):
+        if train_data_file is None:
+            # save training info
+            saver = self.saver
+            train_data_file = saver['train_data_file']
+
         with open(train_data_file, 'wb') as td_file:
             pickle.dump([self.train_info, self.conf], td_file, protocol=2)
         json_data = {}
@@ -296,6 +298,9 @@ class PoseCommon(object):
 
     def update_td(self, cur_dict):
         # update training info
+        if len(self.train_info) == 0:
+            for k in cur_dict.keys():
+                self.train_info[k] = []
         for k in cur_dict.keys():
             self.train_info[k].append(cur_dict[k])
         print_train_data(cur_dict)
@@ -353,7 +358,7 @@ class PoseCommon(object):
         train_db = os.path.join(self.conf.cachedir, self.conf.trainfilename) + '.tfrecords'
         train_dataset = tf.data.TFRecordDataset(train_db)
         val_db = os.path.join(self.conf.cachedir, self.conf.valfilename) + '.tfrecords'
-        if os.path.exists(val_db):
+        if os.path.exists(val_db) and os.path.getsize(val_db) > 0:
             logging.info("Val DB exists: Data for validation from:{}".format(val_db))
         else:
             logging.warning("Val DB does not exists: Data for validation from:{}".format(train_db))
@@ -418,7 +423,7 @@ class PoseCommon(object):
             self.init_td()
             for dep_net in self.dep_nets:
                 dep_net.init_restore_net(sess)
-            if self.conf.use_pretrained_weights:
+            if self.conf.use_pretrained_weights and self.pretrained_weights is not None:
                 self.restore_pretrained(sess)
         else:
             saver['saver'].restore(sess, latest_ckpt.model_checkpoint_path)
@@ -454,7 +459,7 @@ class PoseCommon(object):
         logging.debug('\n'.join(c_names))
         logging.debug("-- Not Loading from pretrained --")
         logging.debug('\n'.join(r_names))
-        logging.info('Restoring pretrained resnet weights form {}'.format(model_file))
+        logging.info('Restoring pretrained resnet weights from {}'.format(model_file))
         # common_vars = [i for i in common_vars if i not in rem_locs]
         pretrained_saver = tf.train.Saver(var_list=common_vars)
         pretrained_saver.restore(sess, model_file)
@@ -583,14 +588,13 @@ class PoseCommon(object):
         num_val_rep = self.conf.num_test // self.conf.batch_size + 1
 
         merged = tf.summary.merge_all()
+        save_time = self.conf.get('save_time', None)
         with tf.Session() as sess:
             train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
             start_at = self.init_restore_net(sess, do_restore=restore)
-            #self.restore_pretrained(sess,'/home/mayank/work/poseTF/cache/stephen_dataset/head_pose_umdn_joint-20000')
-            #initialize_remaining_vars(sess)
-            #self.init_td()
 
             start = time.time()
+            save_start = start
             for step in range(start_at, training_iters + 1):
                 self.train_step(step, sess, learning_rate, training_iters)
                 if step % self.conf.display_step == 0:
@@ -622,14 +626,68 @@ class PoseCommon(object):
                         train_writer.add_summary(summary,step)
 
                     start = end
-                if step % self.conf.save_step == 0:
-                    self.save(sess, step)
-                if step % self.conf.save_td_step == 0:
+                if self.conf.save_time is None:
+                    if step % self.conf.save_step == 0:
+                        self.save(sess, step)
+                else:
+                    if (time.time() - save_start) > self.conf.save_time*60:
+                        save_start = time.time()
+                        self.save(sess, step)
+
+                if step % self.conf.display_step == 0:
                     self.save_td()
             logging.info("Optimization Finished!")
             self.save(sess, training_iters)
             self.save_td()
         tf.reset_default_graph()
+
+
+    def train_quick(self, learning_rate=0.0001, restore=False):
+        self.create_optimizer()
+        self.create_saver()
+        training_iters = self.conf.dl_steps
+        with tf.Session() as sess:
+            start_at = self.init_restore_net(sess, do_restore=restore)
+            for step in range(start_at, training_iters + 1):
+                self.train_step(step, sess, learning_rate, training_iters)
+                self.update_and_save_td(step,sess)
+                if step % self.conf.save_step == 0:
+                    self.save(sess, step)
+            logging.info("Optimization Finished!")
+            self.save(sess, training_iters)
+            self.update_and_save_td(training_iters,sess)
+        tf.reset_default_graph()
+
+
+    def update_and_save_td(self, step, sess):
+        num_val_rep = self.conf.num_test / self.conf.batch_size + 1
+        if step % self.conf.display_step != 0:
+            return
+        train_dict = self.compute_train_data(sess, self.DBType.Train)
+        train_loss = train_dict['cur_loss']
+        train_dist = train_dict['cur_dist']
+        val_loss = 0.
+        val_dist = 0.
+        for _ in range(num_val_rep):
+            val_dict = self.compute_train_data(sess, self.DBType.Val)
+            val_loss += val_dict['cur_loss']
+            val_dist += val_dict['cur_dist']
+        val_loss = val_loss / num_val_rep
+        val_dist = val_dist / num_val_rep
+        cur_dict = OrderedDict()
+        cur_dict['val_dist'] = val_dist
+        cur_dict['train_dist'] = train_dist
+        cur_dict['train_loss'] = train_loss
+        cur_dict['val_loss'] = val_loss
+        cur_dict['step'] = step
+        cur_dict['l_rate'] = self.fd[self.ph['learning_rate']]
+        self.update_td(cur_dict)
+        if self.net_name == 'deepnet':
+            train_data_file = os.path.join( self.conf.cachedir,'traindata')
+        else:
+            train_data_file = os.path.join( self.conf.cachedir, self.name + '_traindata')
+        self.save_td(train_data_file)
+
 
 
     def restore_net_common(self, create_network_fn=None, model_file=None):
@@ -728,6 +786,7 @@ class PoseCommon(object):
         return val_dist, val_ims, val_preds, val_predlocs, val_locs
 
     def plot_results(self,n=50):
+        from matplotlib import pyplot as plt
         # saver = {}
         # saver['train_data_file'] = os.path.join(
         #     self.conf.cachedir,

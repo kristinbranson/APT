@@ -1,5 +1,4 @@
 import  matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import argparse
 import sys
@@ -367,10 +366,10 @@ def train_ours(args):
                     print('Submitted job: {}'.format(cmd))
 
 
-def classify_db_all(conf,db_file,model_files,model_type,name='deepnet'):
+def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=False):
     cur_out = []
     extra_str = ''
-    if model_type in ['mdn','unet','deeplabcut']:
+    if model_type not in ['leap','openpose']:
         extra_str = '.index'
     # else:
     #     extra_str = '.h5'
@@ -381,7 +380,7 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet'):
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name)
+        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
         pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
         close_fn()
         cur_out.append([pred, label, gt_list, m, 0,ts[mndx]])

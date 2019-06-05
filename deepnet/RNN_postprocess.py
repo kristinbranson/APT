@@ -282,6 +282,8 @@ class RNN_pp(object):
             self.create_network_conv()
         elif self.net_type == 'transformer':
             self.create_network_transformer()
+        elif self.net_type == 'simple_fc':
+            self.create_network_simple_fc()
         else:
             raise ValueError('incorrect network type')
 
@@ -361,6 +363,36 @@ class RNN_pp(object):
             kernel_initializer=tf.orthogonal_initializer())
 
         out = out_layer(X) + skip_layer(input)
+
+        out = out + tf.reshape(self.inputs[0][:,rx,:self.conf.n_classes*2],
+                               [-1,self.conf.n_classes*2])
+
+        loss = tf.nn.l2_loss(out-self.inputs[1])
+
+        self.pred = out
+        self.cost = loss
+
+        for k in self.ph.keys():
+            self.fd[self.ph[k]] = np.zeros(self.ph[k]._shape_as_list())
+
+
+    def create_network_simple_fc(self):
+        fc_sizes = [128,128]
+
+        # conv layers with different resolutions:
+        rx = self.rnn_pp_hist
+        X = self.inputs[0][:,rx-8:rx+8,:]
+        n_in = np.prod(X._shape_as_list()[1:])
+        X = tf.reshape(X, [-1, n_in])
+        input = X
+
+        layer = tf.layers.Dense(50, activation=tf.nn.relu,
+                kernel_initializer=tf.orthogonal_initializer())
+        X = layer(X)
+
+        out_layer = tf.layers.Dense(self.conf.n_classes*2, activation=None,
+            kernel_initializer=tf.orthogonal_initializer())
+        out = out_layer(X)
 
         out = out + tf.reshape(self.inputs[0][:,rx,:self.conf.n_classes*2],
                                [-1,self.conf.n_classes*2])

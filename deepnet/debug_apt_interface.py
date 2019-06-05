@@ -1,9 +1,453 @@
+import run_apt_expts as rae
+dtypes = ['alice','stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.get_leap_results()
+
+##
+import PoseTools
+import os
+import glob
+import APT_interface as apt
+import apt_expts
+import re
+import run_apt_expts as rae
+import multiResData
+import numpy as np
+
+reload(apt_expts)
+import PoseUNet_resnet
+
+reload(PoseUNet_resnet)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# mdn_names = ['separate_groups', 'joint_groups' ]
+mdn_names = ['explicit_offsets', 'implicit_offsets' ]
+mdn_names = ['normal', 'True' ]
+out_dir = '/groups/branson/home/kabram/temp'
+
+out = {}
+db_file = '/nrs/branson/mayank/apt_cache/Test/mdn/view_0/larva_compare/val_TF.tfrecords'
+for n in mdn_names:
+    cdir = os.path.dirname(db_file)
+    if n == 'deepnet':
+        tfile = os.path.join(cdir, 'traindata')
+    else:
+        tfile = os.path.join(cdir, 'Test_{}_traindata'.format(n))
+
+    if not os.path.exists(tfile):
+        continue
+    A = PoseTools.pickle_load(tfile)
+    conf = A[1]
+
+    files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(n))
+    files.sort(key=os.path.getmtime)
+    aa = [int(re.search('-(\d*).index', f).groups(0)[0]) for f in files]
+    aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+    if any([a < 0 for a in aa]):
+        bb = int(np.where(np.array(aa) < 0)[0]) + 1
+        files = files[bb:]
+    files = [f.replace('.index', '') for f in files]
+    files = files[-1:]
+    # if len(files) > 8:
+    #     gg = len(files)
+    #     sel = np.linspace(0, len(files) - 1, 8).astype('int')
+    #     files = [files[s] for s in sel]
+    #
+    mdn_out = apt_expts.classify_db_all(conf, db_file, files, 'mdn', name=n)
+    out[n] = mdn_out
+
+H = multiResData.read_and_decode_without_session(db_file, conf)
+ex_ims = np.array(H[0][0])
+ex_locs = np.array(H[1][0])
+f = rae.plot_hist([out,ex_ims,ex_locs],[50,75,90,95,97])
+
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseTools as pt
+import PoseUNet_resnet
+
+a = pt.pickle_load('/nrs/branson/mayank/apt_cache/Test/mdn/view_0/larva_compare/Test_normal_traindata')
+a = pt.pickle_load('/nrs/branson/mayank/apt_cache/Test/mdn/view_0/cv_split_0/traindata')
+
+conf = a[1]
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,name='deepnet')
+self.train_data_name = 'traindata'
+self.train_umdn(True)
 
 
 
+
+##
+data_type = 'roian'
 
 import APT_interface as apt
-cmd = '-name 20190401T232843 -view 1 -cache /nrs/branson/APTCache_Alice -model_files /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/deepnet-30000 -type mdn /nrs/branson/APTCache_Alice/Larva94A04_GT2/20190401T232843_20190401T233109.lbl track -mov /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/png_movie_mono.avi -out /nrs/branson/mayank/temp/png_movie_mono_trn20190401T232843_iter30000_20190402T093738.trk -start_frame 1020 -end_frame 1220 -trx /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/trx_aug.mat -trx_ids 1'
+import h5py
+import PoseTools
+import os
+import time
+import glob
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+import apt_expts
+import os
+import ast
+import apt_expts
+import os
+import pickle
+
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
+gt_lbl = None
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl'
+op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(1,2\),\(1,3\),\(2,3\)'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
+lbl.close()
+cache_dir = '/nrs/branson/mayank/apt_cache'
+all_models = ['openpose']
+
+gpu_model = 'GeForceRTX2080Ti'
+sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
+n_splits = 3
+
+
+common_conf = {}
+common_conf['rrange'] = 10
+common_conf['trange'] = 5
+common_conf['mdn_use_unet_loss'] = True
+common_conf['dl_steps'] = 100000
+common_conf['decay_steps'] = 20000
+common_conf['save_step'] = 5000
+common_conf['batch_size'] = 8
+common_conf['maxckpt'] = 20
+cache_dir = '/nrs/branson/mayank/apt_cache'
+train_name = 'deepnet'
+
+
+assert gt_lbl is None
+all_view = []
+for view in range(nviews):
+    out_exp = {}
+    for tndx in range(len(all_models)):
+        train_type = all_models[tndx]
+
+        out_split = None
+        for split in range(n_splits):
+            exp_name = 'cv_split_{}'.format(split)
+            mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+
+            if op_af_graph is not None:
+                conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+            files.sort(key=os.path.getmtime)
+            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
+            aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
+            if any([a<0 for a in aa]):
+                bb = int(np.where(np.array(aa)<0)[0])+1
+                files = files[bb:]
+            n_max = 10
+            if len(files)> n_max:
+                gg = len(files)
+                sel = np.linspace(0,len(files)-1,n_max).astype('int')
+                files = [files[s] for s in sel]
+
+            afiles = [f.replace('.index', '') for f in files]
+            afiles = afiles[-1:]
+            db_file = os.path.join(mdn_conf.cachedir,'val_TF.tfrecords')
+            mdn_out = apt_expts.classify_db_all(conf,db_file,afiles,train_type,name=train_name)
+
+        out_exp[train_type] = out_split
+    all_view.append(out_exp)
+
+
+
+##
+
+in_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4/leap_train.h5'
+out_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/leap_train.h5'
+
+import h5py
+H = h5py.File(in_file,'r')
+locs = H['joints'][:]
+hf = h5py.File(out_file,'w')
+
+hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, 5)
+hmaps += 1
+hmaps /= 2  # brings it back to [0,1]
+
+hf.create_dataset('box', data=H['box'][:])
+hf.create_dataset('confmaps', data=hmaps)
+hf.create_dataset('joints', data=locs)
+
+hf.close()
+H.close()
+
+##
+import multiResData
+A = multiResData.read_and_decode_without_session('/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/gtdata/gtdata_view0.tfrecords',5,())
+ims = np.array(A[0])
+locs = np.array(A[1])
+
+out_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/leap_gt.h5'
+
+import h5py
+hf = h5py.File(out_file,'w')
+
+hf.create_dataset('box', data=ims)
+hf.create_dataset('joints', data=locs)
+
+hf.close()
+
+##
+
+gt_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/leap_gt.h5'
+out_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/gt_preds_002.mat/leap_gt.h5'
+
+a = h5py.File(gt_file,'r')
+b = h5py.File(out_file,'r')
+locs = a['joints'][:]
+preds = np.transpose(b['positions_pred'][:],[0,2,1])
+hmaps = b['conf_pred'][:]
+
+dd = np.sqrt(np.sum((locs-preds)**2,axis=-1))
+np.percentile(dd,[50,75,90],axis=0)
+
+##
+
+import os
+import APT_interface as apt
+import glob
+import re
+import numpy as np
+import multiResData
+import math
+import h5py
+import PoseTools
+import json
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt_leap_original'
+train_name = 'deepnet'
+view = 0
+train_type = 'leap'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
+
+gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+
+conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+
+split = False
+use_cache = True
+train_data = []
+val_data = []
+
+# collect the images and labels in arrays
+out_fns = [lambda data: train_data.append(data), lambda data: val_data.append(data)]
+splits, __ = apt.db_from_cached_lbl(conf, out_fns, split, None)
+
+# save the split data
+try:
+    with open(os.path.join(conf.cachedir, 'splitdata.json'), 'w') as f:
+        json.dump(splits, f)
+except IOError:
+    logging.warning('SPLIT_WRITE: Could not output the split data information')
+
+for ndx in range(2):
+    if not split and ndx == 1:  # nothing to do if we dont split
+        continue
+
+    if ndx == 0:
+        cur_data = train_data
+        out_file = os.path.join(conf.cachedir, 'leap_train.h5')
+    else:
+        cur_data = val_data
+        out_file = os.path.join(conf.cachedir, 'leap_val.h5')
+
+    ims = np.array([i[0] for i in cur_data])
+    locs = np.array([i[1] for i in cur_data])
+    info = np.array([i[2] for i in cur_data])
+    hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, 3)
+    hmaps += 1
+    hmaps /= 2  # brings it back to [0,1]
+
+    if info.size > 0:
+        hf = h5py.File(out_file, 'w')
+        hf.create_dataset('box', data=ims)
+        hf.create_dataset('confmaps', data=hmaps)
+        hf.create_dataset('joints', data=locs)
+        hf.create_dataset('exptID', data=info[:, 0])
+        hf.create_dataset('framesIdx', data=info[:, 1])
+        hf.create_dataset('trxID', data=info[:, 2])
+        hf.close()
+
+##
+
+import os
+import APT_interface as apt
+import glob
+import re
+import numpy as np
+import multiResData
+import math
+import h5py
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
+train_name = 'deepnet'
+view = 0
+train_type = 'mdn'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
+
+gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+
+conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+conf.normalize_img_mean = False
+files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+files.sort(key=os.path.getmtime)
+files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
+aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+if any([a < 0 for a in aa]):
+    bb = int(np.where(np.array(aa) < 0)[0]) + 1
+    files = files[bb:]
+n_max = 6
+if len(files) > n_max:
+    gg = len(files)
+    sel = np.linspace(0, len(files) - 1, n_max).astype('int')
+    files = [files[s] for s in sel]
+
+out_file = os.path.join(conf.cachedir, train_name + '_results.p')
+afiles = [f.replace('.index', '') for f in files]
+
+for m in afiles[-1:]:
+    tf_iterator = multiResData.tf_reader(conf, gt_file, False)
+    tf_iterator.batch_size = 1
+    read_fn = tf_iterator.next
+    pred_fn, close_fn, _ = apt.get_pred_fn(train_type, conf, m, name=train_name)
+    bsize = conf.batch_size
+    all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
+    n = tf_iterator.N
+    pred_locs = np.zeros([n, conf.n_classes, 2])
+    unet_locs = np.zeros([n, conf.n_classes, 2])
+    mdn_locs = np.zeros([n, conf.n_classes, 2])
+    n_batches = int(math.ceil(float(n) / bsize))
+    labeled_locs = np.zeros([n, conf.n_classes, 2])
+    all_ims = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
+
+    info = []
+    for cur_b in range(n_batches):
+        cur_start = cur_b * bsize
+        ppe = min(n - cur_start, bsize)
+        for ndx in range(ppe):
+            next_db = read_fn()
+            all_f[ndx, ...] = next_db[0]
+            labeled_locs[cur_start + ndx, ...] = next_db[1]
+            info.append(next_db[2])
+        # base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict['locs']
+        ulocs = ret_dict['locs_unet']
+        hmaps = ret_dict['hmaps']
+
+        for ndx in range(ppe):
+            pred_locs[cur_start + ndx, ...] = base_locs[ndx, ...]
+            unet_locs[cur_start + ndx, ...] = ulocs[ndx, ...]
+            mdn_locs[cur_start + ndx, ...] = ret_dict['locs_mdn'][ndx, ...]
+            all_ims[cur_start + ndx, ...] = all_f[ndx, ...]
+
+    close_fn()
+
+
+##
+
+import APT_interface as apt
+import h5py
+import PoseTools
+import os
+import time
+import glob
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+import apt_expts
+import os
+import ast
+import apt_expts
+import os
+import pickle
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
+gt_lbl = lbl_file
+op_af_graph = '\(0,1\),\(0,2\),\(2,3\),\(1,3\),\(0,4\),\(1,4\)'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
+lbl.close()
+
+cache_dir = '/nrs/branson/mayank/apt_cache'
+
+train_type = 'mdn'
+exp_name = 'apt_exp'
+for view in range(nviews):
+    conf = apt.create_conf(gt_lbl, view, exp_name, cache_dir, train_type)
+    gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}.tfrecords'.format(view))
+    apt.create_tfrecord(conf,False,None,False,True,[gt_file])
+
+
+
+##
+import APT_interface as apt
+import os
+import glob
+import apt_expts
+import h5py
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
+train_name = 'deepnet'
+view =0
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
+
+train_type = 'leap'
+conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+mdn_out = apt_expts.classify_db_all(conf ,gt_file ,files ,train_type ,name=train_name)
+
+##
+import APT_interface as apt
+cmd = '-name 20190401T232843 -view 1 -cache /nrs/branson/APTCache_Alice -model_files /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/deepnet-30000 -type mdn /nrs/branson/APTCache_Alice/Larva94A04_GT2/20190401T232843_20190401T233109.lbl track -mov /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/png_movie_mono.avi -out /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/trk/png_movie_mono_trn20190401T232843_iter30000_20190402T093738.trk -start_frame 1020 -end_frame 1220 -trx /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/trx_aug.mat -trx_ids 1'
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 apt.main(cmd.split())
@@ -54,6 +498,22 @@ cmd = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache -err_fil
 ##
 # debug postprocessing
 import APT_interface as apt
+import numpy as np
+
+lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190207T121622_20190207T121731.lbl'
+conf = apt.create_conf(lbl_file,0,'20190207T121622','/home/mayank/temp/apt_cache','mdn')
+
+import multiResData
+A = multiResData.read_and_decode_without_session('/home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190207T121622/train_TF.tfrecords',conf,())
+ims = np.array(A[0])
+locs = np.array(A[1])
+import PoseTools
+reload(PoseTools)
+a,b = PoseTools.randomly_affine(ims[:10,...],locs[:10,...],conf)
+
+##
+# debug postprocessing
+import APT_interface as apt
 import RNN_postprocess
 
 lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190207T121622_20190207T121731.lbl'
@@ -73,12 +533,28 @@ apt.main(cmd.split())
 ##
 lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190131T181525_20190131T181623.lbl'
 import APT_interface as apt
+import easydict
+reload(apt)
 import os
-import tensorflow as tf
-import multiResData
-apt.test_preproc(lbl_file)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+conf = apt.create_conf('/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl',0,'20190129T180959','/home/mayank/temp/apt_cache','leap')
+# conf.label_blur_rad = 5
+# apt.create_leap_db(conf,False,use_cache=True)
+args = easydict.EasyDict()
+args.use_cache = True
+args.skip_db = True
+args.train_name = 'deepnet'
+conf.op_affinity_graph = [[0,1],[1,2],[2,0]]
+apt.train_openpose(conf,args,False)
+
 ##
-lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
+cmd_str = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache  -conf_params  label_blur_rad 7 dl_steps 5000 leap_use_default_lr False -train_name decay_lr -type leap /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl train -use_cache -skip_db'
+
+import APT_interface as apt
+apt.main(cmd_str.split())
+
+##
+# debug postprocessing
 import APT_interface as apt
 import os
 import tensorflow as tf

@@ -1585,7 +1585,7 @@ classdef DeepTracker < LabelTracker
         
         fprintf('Using auto-generated container bind-paths:\n');
         dlroot = [aptroot '/deepnet'];
-        paths = [cacheDir;dlroot;macroCell(:);projbps(:);extradirs()];
+        paths = [cacheDir;dlroot;macroCell(:);projbps(:);extradirs(:)];
         paths = unique(paths);
       end
       
