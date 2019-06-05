@@ -367,7 +367,7 @@ classdef LabelCore < handle
       set(obj.hPtsTxt,pvText);
       
       obj.ptsPlotInfo.TextOffset = txtoffset;      
-      % will be utilized at next setPtsCoords/etc update
+      obj.redrawTextLabels(); % to utilize txtoffset
     end
     
     function edges = skeletonEdges(obj)
@@ -679,8 +679,23 @@ classdef LabelCore < handle
   end
   methods
     function setPtsCoords(obj,xy,hPts,hTxt)
-      txtOffset = obj.labeler.labelPointsPlotInfo.TextOffset;
+      txtOffset = obj.labeler.labelPointsPlotInfo.TextOffset; % could use .ptsPlotInfo
       LabelCore.setPtsCoordsStc(xy,hPts,hTxt,txtOffset);
+    end
+    function redrawTextLabels(obj)
+      % eg when text offset is updated
+      txtOffset = obj.labeler.labelPointsPlotInfo.TextOffset; % could use .ptsPlotInfo
+      
+      h = obj.hPts;
+      hT = obj.hPtsTxt;
+      x = get(h,'XData');
+      y = get(h,'YData');
+      xy = [cell2mat(x(:)) cell2mat(y(:))];
+      xyT = xy + txtOffset;
+      %szassert(xy,[npts 2]);
+      for i = 1:numel(hT)
+        set(hT(i),'Position',[xyT(i,1) xyT(i,2) 1]);
+      end
     end
     
   end

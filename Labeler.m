@@ -1243,13 +1243,13 @@ classdef Labeler < handle
 %       if isvalid(obj.hFig)  % isvalid will fail if obj.hFig is empty
 %         close(obj.hFig);
 %         obj.hFig = [];
-%       end        
-      gd = obj.gdata;
+%       end     
       if ~isempty(obj.hFig)
+        gd = obj.gdata;
+        deleteValidHandles(gd.depHandles);      
         deleteValidHandles(obj.hFig);
         obj.hFig = [];
       end
-      deleteValidHandles(gd.depHandles);      
       be = obj.trackDLBackEnd;
       delete(be);
     end
@@ -6167,7 +6167,8 @@ classdef Labeler < handle
       obj.labelPointsPlotInfo.TextOffset = textOffset;
       set(obj.lblPrev_ptsTxtH,pvText);
       obj.prevAxesLabelsRedraw(); % should use .TextOffset
-      lc.updateTextLabelCosmetics(pvText,textOffset);      
+      lc.updateTextLabelCosmetics(pvText,textOffset);
+      %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
     end
     
     function updateLandmarkPredictionColors(obj,colors,colormapname)
