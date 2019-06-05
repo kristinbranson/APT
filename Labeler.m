@@ -1355,6 +1355,15 @@ classdef Labeler < handle
       % - lpp.ColorMapName, lpp.Colors both exist
       % - lpp.Colors is [nSet x 3]
       obj.labelPointsPlotInfo = lpp;
+      % AL 20190603: updated .PredictPointsPlot reorg
+      if ~isfield(cfg.Track.PredictPointsPlot,'Colors') || ...
+          size(cfg.Track.PredictPointsPlot.Colors,1)~=nSet
+        cfg.Track.PredictPointsPlot.Colors = ...
+          feval(cfg.Track.PredictPointsPlot.ColorMapName,nSet);
+      end
+      % .PredictPointsPlot color nvariants:
+      % - ppp.ColorMapName, ppp.Colors both exist
+      % - ppp.Colors is [nSet x 3]
       obj.predPointsPlotInfo = cfg.Track.PredictPointsPlot;
             
       obj.trackNFramesSmall = cfg.Track.PredictFrameStep;
@@ -1362,7 +1371,8 @@ classdef Labeler < handle
       obj.trackNFramesNear = cfg.Track.PredictNeighborhood;
       obj.trackModeIdx = 1;
       cfg.Track = rmfield(cfg.Track,...
-        {'PredictPointsPlot' 'PredictFrameStep' 'PredictFrameStepBig' 'PredictNeighborhood'});
+        {'PredictPointsPlot' 'PredictFrameStep' 'PredictFrameStepBig' ...
+        'PredictNeighborhood'});
                   
       arrayfun(@delete,obj.movieReader);
       obj.movieReader = [];
@@ -1387,18 +1397,6 @@ classdef Labeler < handle
         'LabelMode' 'LabelPointsPlot' 'ProjectName' 'Movie'});
       obj.projPrefs = rmfield(cfg,fldsRm);
       % A few minor subprops of projPrefs have explicit props
-
-      % KB: colormap for predictions
-      % KB 20181022: Changed npts to nSet
-      % AL 20190603: updated .PredictPointsPlot reorg
-      if ~isfield(obj.projPrefs.Track.PredictPointsPlot,'Colors') || ...
-             size(obj.projPrefs.Track.PredictPointsPlot.Colors,1)~=nSet
-        obj.projPrefs.Track.PredictPointsPlot.Colors = ...
-          feval(obj.projPrefs.Track.PredictPointsPlot.ColorMapName,nSet);
-      end
-      % .PredictPointsPlot color nvariants:
-      % - ppp.ColorMapName, ppp.Colors both exist
-      % - ppp.Colors is [nSet x 3]
       
       obj.notify('newProject');
 
@@ -1545,7 +1543,8 @@ classdef Labeler < handle
         cfg.Track = rmfield(cfg.Track,'PredictPointsPlotColors');
       end
       if isfield(cfg.Track,'PredictPointsShowTextLbl')
-        cfg.Track.PredictPointsPlot.TextProps.Visible = onIff(cfg.Track.PredictPointsShowTextLbl);
+        cfg.Track.PredictPointsPlot.TextProps.Visible = ...
+          onIff(cfg.Track.PredictPointsShowTextLbl);
         cfg.Track = rmfield(cfg.Track,'PredictPointsShowTextLbl');
       end
     end    
@@ -6133,14 +6132,11 @@ classdef Labeler < handle
     %  simplify the code a bit, cosmetics would be mutable, and cosmetics
     %  settings would be saved with the project.
     
-    function updateLandmarkLabelCosmetics(obj,colors,colormapname,...
-        pvMarker,pvText,textOffset)
+    function updateLandmarkLabelColors(obj,colors,colormapname)
       % colors: "setwise" colors
-      
-      szassert(colors,[obj.nPhysPts 3]);
-      
+
+      szassert(colors,[obj.nPhysPoints 3]);
       lc = obj.lblCore;
-      
       % Colors apply to lblCore, lblPrev_*, timeline
       
       obj.labelPointsPlotInfo.ColorMapName = colormapname;
@@ -6149,6 +6145,11 @@ classdef Labeler < handle
       lc.updateColors(ptcolors);
       LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
       obj.gdata.labelTLInfo.updateLandmarkColors();
+    end
+    
+    function updateLandmarkLabelCosmetics(obj,pvMarker,pvText,textOffset)
+
+      lc = obj.lblCore;
       
       % Marker cosmetics apply to lblCore, lblPrev_*
       flds = fieldnames(pvMarker);
@@ -6169,13 +6170,15 @@ classdef Labeler < handle
       lc.updateTextLabelCosmetics(pvText,textOffset);      
     end
     
-    function updateLandmarkPredictionCosmetics(obj,colors,colormapname,...
-        pvMarker,pvText,textOffset)
+    function updateLandmarkPredictionColors(obj,colors,colormapname)
+      % colors: "setwise" colors
 
+      szassert(colors,[obj.nPhysPoints 3]);
+      
       % Colors apply to i) all trackers, ii) imported preds, and iii) all trackRes
       
-      obj.predPointsPlot.Colors = colors;
-      obj.predPointsPlot.ColorMapName = colormapname;
+      obj.predPointsPlotInfo.Colors = colors;
+      obj.predPointsPlotInfo.ColorMapName = colormapname;
       tAll = obj.trackersAll;
       for i=1:numel(tAll)
         if ~isempty(tAll{i})
@@ -6188,25 +6191,30 @@ classdef Labeler < handle
       for i=1:numel(obj.trkResViz)
         obj.trkResViz{i}.updateLandmarkColors(ptcolors);
       end
+    end
+    
+    function updateLandmarkPredictionCosmetics(obj,pvMarker,pvText,textOffset)
       
       % Markers apply to i) all trackers, ii) imported preds
       fns = fieldnames(pvMarker);
       for f=fns(:)',f=f{1}; %#ok<FXSET> 
         % this allows pvMarker to be 'incomplete'; could just set entire
         % struct
-        obj.predPointsPlot.MarkerProps.(f) = pvMarker.(f);
+        obj.predPointsPlotInfo.MarkerProps.(f) = pvMarker.(f);
       end
+      tAll = obj.trackersAll;
       for i=1:numel(tAll)
         if ~isempty(tAll{i})
           tAll{i}.trkVizer.setMarkerCosmetics(pvMarker);
         end
       end
+      lpos2tv = obj.labeledpos2trkViz;
       lpos2tv.setMarkerCosmetics(pvMarker);
       
       % Text: same as Markers
       fns = fieldnames(pvText);
       for f=fns(:)',f=f{1}; %#ok<FXSET>
-        obj.predPointsPlot.TextProps.(f) = pvText.(f);
+        obj.predPointsPlotInfo.TextProps.(f) = pvText.(f);
       end
       % TrackingVisualizer wants this prop broken out
       tfHideTxt = strcmp(pvText.Visible,'off'); % could make .Visible field optional 

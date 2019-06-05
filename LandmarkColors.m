@@ -22,7 +22,7 @@ function varargout = LandmarkColors(varargin)
 
 % Edit the above text to modify the response to help LandmarkColors
 
-% Last Modified by GUIDE v2.5 08-Oct-2018 11:57:22
+% Last Modified by GUIDE v2.5 04-Jun-2019 13:50:26
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -69,7 +69,15 @@ colormap(handles.axes_colormap,handles.colormap);
 
 function handles = SaveState(handles)
 
-handles.saved = struct('colors',handles.colors,'colormapname',handles.colormapname);
+[pvMarkers,pvTxt,txtoffset] = MarkerControlsGet(handles);
+
+handles.saved = struct(...
+  'colors',handles.colors,...
+  'colormapname',handles.colormapname,...
+  'colorsApplyBoth',get(handles.cbApplyColorsLabelsPreds,'Value'),...
+  'pvMarkers',pvMarkers,...
+  'pvText',pvTxt,...
+  'textOffset',txtoffset);
 
 function [handles,success] = GuessBrightness(handles)
 
@@ -110,28 +118,29 @@ else
 end
 success = true;
 
-% --- Executes just before LandmarkColors is made visible.
 function LandmarkColors_OpeningFcn(hObject, eventdata, handles, varargin)
-% This function has no output args, see OutputFcn.
-% hObject    handle to figure
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-% varargin   command line arguments to LandmarkColors (see VARARGIN)
+% [tfchanges,savedinfo] = LandmarkColors(...)
 
-% Choose default command line output for LandmarkColors
 handles.output = hObject;
 
-handles.colors = varargin{1};
+handles.colors = varargin{1}; 
 handles.colormapname = varargin{2};
 handles.nlandmarks = varargin{3};
-% if nargin >= 4,
-ti = varargin{4};
-% else
-%   ti = 'Landmark colors';
-% end
+handles.lblOrPred = varargin{4}; % figure title
+switch handles.lblOrPred
+  case 'lbl'
+    ti = 'Label Visualization';
+  case 'pred'
+    ti = 'Prediction Visualization';
+  otherwise
+    assert(false);
+end
 set(handles.figure_landmarkcolors,'Name',ti);
+handles.applyCbkFcn = varargin{5}; % sig: 
+handles.markerPVs = varargin{6};
+handles.textPVs = varargin{7};
+handles.textOffset = varargin{8};
 
-handles.applyCbkFcn = varargin{5};
 handles.saved = [];
 
 % default
@@ -183,7 +192,8 @@ set(handles.radiobutton_manual,'Value',~usecolormap);
 set(handles.radiobutton_colormap,'Value',usecolormap);
 handles = UpdateMode(handles);
 
-% Update handles structure
+handles = MarkerControlsSet(handles);
+
 guidata(hObject, handles);
 
 % UIWAIT makes LandmarkColors wait for user response (see UIRESUME)
@@ -202,29 +212,16 @@ else
   set(hm,'Enable','off');
 end
 
-% --- Outputs from this function are returned to the command line.
 function varargout = LandmarkColors_OutputFcn(hObject, eventdata, handles) 
-% varargout  cell array for returning output args (see VARARGOUT);
-% hObject    handle to figure
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+% [tfchanges,savedinfo] = LandmarkColors(...)
 
-% Get default command line output from handles structure
 if isempty(handles),
   warning('State lost');
   varargout{1} = false;
   varargout{2} = [];
-  varargout{3} = '';
 else
-  if isempty(handles.saved),
-    varargout{1} = false;
-    varargout{2} = [];
-    varargout{3} = '';
-  else
-    varargout{1} = true;
-    varargout{2} = handles.saved.colors;
-    varargout{3} = handles.saved.colormapname;
-  end
+  varargout{1} = ~isempty(handles.saved);
+  varargout{2} = handles.saved;
   delete(handles.figure_landmarkcolors);
 end
 
@@ -255,54 +252,26 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-
-% --- Executes on button press in pushbutton_editcolormap.
-function pushbutton_editcolormap_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton_editcolormap (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% --- Executes on button press in pushbutton_resetcolormap.
-function pushbutton_resetcolormap_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton_resetcolormap (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-
-% --- Executes on button press in pushbutton_apply.
-function pushbutton_apply_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton_apply (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+function pbApply_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
-handles.applyCbkFcn(handles.colors,handles.colormapname);
+saved = handles.saved;
+handles.applyCbkFcn(saved.colors,saved.colormapname,...
+  saved.colorsApplyBoth,saved.pvMarkers,saved.pvText,saved.textOffset);
 guidata(hObject,handles);
 
-% --- Executes on button press in pushbutton_cancel.
-function pushbutton_cancel_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton_cancel (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+function pbCancel_Callback(hObject, eventdata, handles)
 uiresume(handles.figure_landmarkcolors);
 
-% --- Executes on button press in pushbutton_done.
-function pushbutton_done_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton_done (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+function pbDone_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
 guidata(hObject,handles);
 uiresume(handles.figure_landmarkcolors);
 
 function pushbutton_manual_Callback(hObject, eventdata, handles, landmarki)
-
-
 fprintf('Landmark %d\n',landmarki);
 handles.colors(landmarki,:) = uisetcolor(handles.colors(landmarki,:),sprintf('Landmark %d color',landmarki));
 set(handles.hbuttons(landmarki),'BackgroundColor',handles.colors(landmarki,:));
 guidata(hObject,handles);
-
-
 
 % --- Executes on button press in radiobutton_colormap.
 function radiobutton_colormap_Callback(hObject, eventdata, handles)
@@ -314,7 +283,6 @@ function radiobutton_colormap_Callback(hObject, eventdata, handles)
 handles = UpdateMode(handles);
 guidata(hObject,handles);
 
-
 % --- Executes on button press in radiobutton_manual.
 function radiobutton_manual_Callback(hObject, eventdata, handles)
 % hObject    handle to radiobutton_manual (see GCBO)
@@ -325,7 +293,6 @@ function radiobutton_manual_Callback(hObject, eventdata, handles)
 handles = UpdateMode(handles);
 guidata(hObject,handles);
 
-
 % --- Executes when user attempts to close figure_landmarkcolors.
 function figure_landmarkcolors_CloseRequestFcn(hObject, eventdata, handles)
 % hObject    handle to figure_landmarkcolors (see GCBO)
@@ -334,7 +301,6 @@ function figure_landmarkcolors_CloseRequestFcn(hObject, eventdata, handles)
 
 % Hint: delete(hObject) closes the figure
 uiresume(handles.figure_landmarkcolors);
-
 
 % --- Executes on slider movement.
 function slider_brightness_Callback(hObject, eventdata, handles)
@@ -362,7 +328,6 @@ if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColo
     set(hObject,'BackgroundColor',[.9 .9 .9]);
 end
 
-
 function edit_brightness_Callback(hObject, eventdata, handles)
 % hObject    handle to edit_brightness (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -382,7 +347,6 @@ else
   guidata(hObject,handles);
 end
 
-
 % --- Executes during object creation, after setting all properties.
 function edit_brightness_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to edit_brightness (see GCBO)
@@ -394,3 +358,132 @@ function edit_brightness_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
+function handles = MarkerControlsSet(handles)
+pvMrk = handles.markerPVs;
+pvTxt = handles.textPVs;
+
+s = get(handles.pumMarker,'String');
+i = find(strcmpi(s,pvMrk.Marker));
+if isempty(i),
+  warning('Unknown marker %s, using default ''+''',pvMrk.Marker);
+  i = find(strcmpi(s,'+'));
+  handles.markerPVs.Marker = '+';
+end
+set(handles.pumMarker,'Value',i);
+
+set(handles.etMarkerSize,'String',num2str(pvMrk.MarkerSize));
+
+set(handles.etLineWidth,'String',num2str(pvMrk.LineWidth));
+
+set(handles.etTextFontSize,'String',num2str(pvTxt.FontSize));
+
+set(handles.etTextOffset,'String',num2str(handles.textOffset));
+
+switch handles.lblOrPred
+  case 'lbl'
+    set(handles.cbShowText,'Value',1,'Enable','off');
+  case 'pred'
+    set(handles.cbShowText,'Value',strcmp(pvTxt.Visible,'on'),'Enable','on');
+end
+
+function [pvMrk,pvTxt,txtoff] = MarkerControlsGet(handles)
+
+pvMrk = struct();
+pvTxt = struct();
+s = get(handles.pumMarker,'String');
+pvMrk.Marker = s{get(handles.pumMarker,'Value')};
+pvMrk.MarkerSize = str2double(get(handles.etMarkerSize,'String'));
+pvMrk.LineWidth = str2double(get(handles.etLineWidth,'String'));
+pvTxt.FontSize = str2double(get(handles.etTextFontSize,'String'));
+if strcmp(handles.lblOrPred,'pred')
+  pvTxt.Visible = onIff(get(handles.cbShowText,'Value'));
+end
+txtoff = str2double(get(handles.etTextOffset,'String'));
+
+% --- Executes on selection change in pumMarker.
+function pumMarker_Callback(hObject, eventdata, handles)
+% hObject    handle to pumMarker (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns pumMarker contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from pumMarker
+
+function pumMarker_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pumMarker (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function etMarkerSize_Callback(hObject, eventdata, handles)
+% hObject    handle to etMarkerSize (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of etMarkerSize as text
+%        str2double(get(hObject,'String')) returns contents of etMarkerSize as a double
+
+function etMarkerSize_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to etMarkerSize (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function etLineWidth_Callback(hObject, eventdata, handles)
+
+function etLineWidth_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to etLineWidth (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function cbShowText_Callback(hObject, eventdata, handles)
+
+function etTextFontSize_Callback(hObject, eventdata, handles)
+
+function etTextFontSize_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to etTextFontSize (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function etTextOffset_Callback(hObject, eventdata, handles)
+
+function etTextOffset_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to etTextOffset (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function cbApplyColorsLabelsPreds_Callback(hObject, eventdata, handles)
+% hObject    handle to cbApplyColorsLabelsPreds (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of cbApplyColorsLabelsPreds
