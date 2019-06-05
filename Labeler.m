@@ -12881,6 +12881,9 @@ classdef Labeler < handle
           tv.vizInit('postload',true);
         end
       end
+
+%       obj.genericInitLabelPointViz('lblOtherTgts_ptsH',[],...
+%         obj.gdata.axes_curr,ptsPlotInfo);      
     end
     
     function labels2VizUpdate(obj,varargin)
@@ -12967,6 +12970,10 @@ classdef Labeler < handle
   methods % OtherTarget
     
     function labelsOtherTargetShowIdxs(obj,iTgts)
+      
+      % AL 20190605 maybe remove
+      return
+      
       frm = obj.currFrame;
       lpos = obj.labeledposCurrMovie;
       lpos = squeeze(lpos(:,:,frm,iTgts)); % [npts x 2 x numel(iTgts)]
@@ -12982,6 +12989,10 @@ classdef Labeler < handle
     end
     
     function labelsOtherTargetHideAll(obj)
+      
+      % AL 20190605 maybe remove
+      return
+
       npts = obj.nLabelPoints;
       hPts = obj.lblOtherTgts_ptsH;
       for ipt=1:npts

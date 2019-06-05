@@ -310,7 +310,9 @@ classdef TrackingVisualizer < handle
           b.(p) = a.(p);
         end
         b.hXYPrdRed = a.hXYPrdRed;
-        b.hXYPrdRedTxt = a.hXYPrdRedTxt;
+        if isfield(a,'hXYPrdRedTxt')
+          b.hXYPrdRedTxt = a.hXYPrdRedTxt;
+        end
       else
         b = a;
       end
