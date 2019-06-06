@@ -1,5 +1,5 @@
 import run_apt_expts as rae
-dtypes = ['alice','stephen']
+dtypes = ['stephen']
 for dd in dtypes:
     reload(rae)
     rae.setup(dd)

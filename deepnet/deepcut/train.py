@@ -178,7 +178,7 @@ def train(cfg,name='deepnet'):
 
     variables_to_restore = slim.get_variables_to_restore(include=["resnet_v1"])
     restorer = tf.train.Saver(variables_to_restore)
-    saver = tf.train.Saver(max_to_keep=50)
+    saver = tf.train.Saver(max_to_keep=50,save_relative_paths=True)
 
     sess = tf.Session()
 

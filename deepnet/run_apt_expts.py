@@ -354,9 +354,10 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
             conf_opts['rescale'] = 2
             conf_opts['batch_size'] = 2
         if train_type in ['mdn']:
-            conf_opts['batch_size'] = 2
+            conf_opts['batch_size'] = 4
             conf_opts['rescale'] = 2
             conf_opts['mdn_use_unet_loss'] = True
+            conf_opts['mdn_learning_rate'] = 0.0001
 
     if data_type == 'stephen':
         conf_opts['batch_size'] = 4
@@ -921,7 +922,7 @@ def train_deepcut_orig(run_type='status'):
                 check_train_status(cmd_name,conf.cachedir,'snapshot')
 
 
-def train_leap_orig(run_type='status'):
+def train_leap_orig(run_type='status',skip_db=True):
     train_type = 'leap'
     cache_dir = '/nrs/branson/mayank/apt_cache'
     run_dir = '/groups/branson/bransonlab/mayank/apt_expts/leap'
@@ -934,27 +935,28 @@ def train_leap_orig(run_type='status'):
             conf1 = apt.create_conf(lbl_file, view, exp_name1, cache_dir, train_type)
             cmd_name = '{}_view{}_leaporig_{}'.format(data_type, view, round)
             if run_type == 'submit':
-                in_file = os.path.join(conf1.cachedir,'leap_train.h5')
-                out_file = os.path.join(conf.cachedir,'leap_train.h5')
-                ii = h5py.File(in_file,'r')
-                ims = ii['box'][:]
-                locs = ii['joints'][:]
-                eid = ii['exptID'][:]
-                frid = ii['framesIdx'][:]
-                tid = ii['trxID'][:]
-                ii.close()
+                in_file = os.path.join(conf1.cachedir, 'leap_train.h5')
+                out_file = os.path.join(conf.cachedir, 'leap_train.h5')
+                if not skip_db:
+                    ii = h5py.File(in_file,'r')
+                    ims = ii['box'][:]
+                    locs = ii['joints'][:]
+                    eid = ii['exptID'][:]
+                    frid = ii['framesIdx'][:]
+                    tid = ii['trxID'][:]
+                    ii.close()
 
-                hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, 5)
-                hmaps = (hmaps + 1) / 2  # brings it back to [0,1]
+                    hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, 5)
+                    hmaps = (hmaps + 1) / 2  # brings it back to [0,1]
 
-                hf = h5py.File(out_file, 'w')
-                hf.create_dataset('box', data=ims)
-                hf.create_dataset('confmaps', data=hmaps)
-                hf.create_dataset('joints', data=locs)
-                hf.create_dataset('exptID', data=eid)
-                hf.create_dataset('framesIdx', data=frid)
-                hf.create_dataset('trxID', data=tid)
-                hf.close()
+                    hf = h5py.File(out_file, 'w')
+                    hf.create_dataset('box', data=ims)
+                    hf.create_dataset('confmaps', data=hmaps)
+                    hf.create_dataset('joints', data=locs)
+                    hf.create_dataset('exptID', data=eid)
+                    hf.create_dataset('framesIdx', data=frid)
+                    hf.create_dataset('trxID', data=tid)
+                    hf.close()
 
                 cur_cmd = 'leap/training_MK.py {}'.format(out_file)
 
@@ -1227,12 +1229,27 @@ def get_dlc_results():
 def get_leap_results():
     cmd_str = ['deepnet','weights']
     train_type = 'leap'
-    for use_round in range(2,8):
+    for use_round in range(4,8):
         all_view = []
 
         for view in range(nviews):
             dlc_exp = {}
             gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}.tfrecords'.format(view))
+
+            exp_name = '{}_randsplit_round_{}'.format(data_type, use_round)
+            exp_name += '_orig'
+            train_name='weights'
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+            files.sort(key=os.path.getmtime)
+            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '','.h5']]
+            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
+            aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+            if any([a < 0 for a in aa]):
+                bb = int(np.where(np.array(aa) < 0)[0][-1]) + 1
+                files = files[bb:]
+            ts = [os.path.getmtime(f) for f in files]
+            tmax = ts[-1]-ts[0]
 
             for conf_id in range(len(cmd_str)):
                 exp_name = '{}_randsplit_round_{}'.format(data_type, use_round)
@@ -1251,13 +1268,11 @@ def get_leap_results():
                     bb = int(np.where(np.array(aa) < 0)[0][-1]) + 1
                     files = files[bb:]
 
-                n_max = 10
-                if len(files)> n_max:
-                    gg = len(files)
-                    sel = np.linspace(0,len(files)-1,n_max).astype('int')
-                    files = [files[s] for s in sel]
+                tt = [os.path.getmtime(f) for f in files]
+                td = np.array([t-tt[0] for t in tt])
+                t_closest = np.argmin(np.abs(td-tmax))
+                files = [files[0],files[t_closest]]
 
-                # files = files[-1:]
                 out_file = os.path.join(conf.cachedir,train_name + '_results.p')
                 recomp = False
                 if os.path.exists(out_file):

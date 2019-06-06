@@ -203,7 +203,7 @@ class PoseCommon(object):
         var_list = self.get_var_list()
         saver['saver'] = (tf.train.Saver(var_list=var_list,
                                          max_to_keep=self.conf.maxckpt,
-                                         save_relative_paths=True,pad_step_number=True))
+                                         save_relative_paths=True))
         saver['summary_dir'] = os.path.join(self.conf.cachedir,self.conf.expname + '_' + name + '_log')
         self.saver = saver
 
