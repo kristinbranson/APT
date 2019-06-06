@@ -1939,7 +1939,6 @@ classdef Labeler < handle
       obj.movieFilesAllHaveLbls = cellfun(fcnAnyNonNan,obj.labeledpos);
       obj.movieFilesAllGTHaveLbls = cellfun(fcnAnyNonNan,obj.labeledposGT);      
       obj.gtUpdateSuggMFTableLbledComplete();
-      obj.isinit = false;
       
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
@@ -1954,6 +1953,8 @@ classdef Labeler < handle
       end
       obj.trackersAll = tAll;
       
+      obj.isinit = false;
+
       % preproc data cache
       % s.preProcData* will be present iff s.preProcSaveData==true
       if s.preProcSaveData 
@@ -6192,6 +6193,8 @@ classdef Labeler < handle
       for i=1:numel(obj.trkResViz)
         obj.trkResViz{i}.updateLandmarkColors(ptcolors);
       end
+      
+      obj.gdata.labelTLInfo.updateLandmarkColors();
     end
     
     function updateLandmarkPredictionCosmetics(obj,pvMarker,pvText,textOffset)

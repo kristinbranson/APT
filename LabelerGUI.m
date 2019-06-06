@@ -610,7 +610,7 @@ handles.propsNeedInit = {
   'suspScore' 
   'showTrx' 
   'showTrxCurrTargetOnly' %  'showPredTxtLbl'
-  'currTracker'  
+  'trackersAll' % AL20190606: trackersAll cbk calls 'currTracker' cbk
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'trackModeIdx'
   'movieCenterOnTarget'
