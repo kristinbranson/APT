@@ -242,12 +242,14 @@ import run_apt_expts as rae
 reload(rae)
 import os
 import time
-rae.setup('alice','')
-for round in range(8):
-    rae.run_active_learning(round,'active')
-    rae.run_active_learning(round,'random')
-    active_model = '/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/active_round{}/deepnet-00020000.index'.format(round)
-    random_model = '/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/random_round{}/deepnet-00020000.index'.format(round)
+dtype = 'stephen'
+rae.setup(dtype)
+view = 0
+for r_round in range(1,15):
+    rae.run_active_learning(r_round,'active',view)
+    rae.run_active_learning(r_round,'random',view)
+    active_model = '/nrs/branson/mayank/apt_cache/{}/mdn/view_{}/active_round{}/deepnet-20000.index'.format(rae.proj_name,view,r_round)
+    random_model = '/nrs/branson/mayank/apt_cache/{}/mdn/view_{}/random_round{}/deepnet-20000.index'.format(rae.proj_name,view,r_round)
     while not (os.path.exists(active_model) and os.path.exists(random_model)):
         time.sleep(200)
 

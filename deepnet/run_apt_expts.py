@@ -348,7 +348,7 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
 
     if data_type in ['larva']:
         conf_opts['batch_size'] = 4
-        conf_opts['adjust_contrast'] = True
+        conf_opts['adjust_contrast'] = False
         conf_opts['clahe_grid_size'] = 20
         if train_type in ['unet','resnet_unet','leap']:
             conf_opts['rescale'] = 2
@@ -357,7 +357,7 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
             conf_opts['batch_size'] = 4
             conf_opts['rescale'] = 2
             conf_opts['mdn_use_unet_loss'] = True
-            conf_opts['mdn_learning_rate'] = 0.0001
+            # conf_opts['mdn_learning_rate'] = 0.0001
 
     if data_type == 'stephen':
         conf_opts['batch_size'] = 4
@@ -1637,16 +1637,15 @@ def get_single_results():
     hdf5storage.savemat(os.path.join(cache_dir,'alice_single_vs_multiple_results.mat'), out_dict, truncate_existing=True)
 
 
-def run_active_learning(round_num,add_type='active'):
+def run_active_learning(round_num,add_type='active',view=0):
 
-    assert data_type is 'alice'
+    assert data_type in ['alice','stephen']
     import random
     import json
 
     n_add = 20
-    view = 0
     exp_name = 'active_round0'
-    c_conf = apt.create_conf(lbl_file, 0, exp_name, cache_dir, 'mdn')
+    c_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
     train_type = 'mdn'
     train_name = 'deepnet'
     common_conf['dl_steps'] = 20000
@@ -1677,7 +1676,7 @@ def run_active_learning(round_num,add_type='active'):
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_file)
 
-        run_trainining(exp_name,train_type,view=0,run_type='submit')
+        run_trainining(exp_name,train_type,view=view,run_type='submit')
 
     else:
 
@@ -1690,6 +1689,9 @@ def run_active_learning(round_num,add_type='active'):
 
         # find the worse validation examples
         prev_conf = apt.create_conf(lbl_file, view, prev_exp, cache_dir, train_type)
+        tfile = os.path.join(prev_conf.cachedir,'traindata')
+        A = PoseTools.pickle_load(tfile)
+        prev_conf = A[1]
         prev_splits = PoseTools.json_load(os.path.join(prev_conf.cachedir,'splitdata.json'))
         if op_af_graph is not None:
             prev_conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
@@ -1737,17 +1739,16 @@ def run_active_learning(round_num,add_type='active'):
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_split_file)
 
-        run_trainining(exp_name,train_type,view=0,run_type='submit')
+        run_trainining(exp_name,train_type,view=view,run_type='submit')
 
 
 
-def get_active_results(num_rounds=8):
+def get_active_results(num_rounds=8,view=0):
 
-    assert data_type is 'alice'
+    assert data_type in ['alice','stephen']
     import random
     import json
 
-    view = 0
     train_type = 'mdn'
     train_name = 'deepnet'
     gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
