@@ -235,15 +235,15 @@ handles.menu_view_showhide_skeleton = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_skeleton_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_view_showhide_skeleton,handles.menu_view_edit_skeleton);
 
-handles.menu_view_showhide_advanced = uimenu('Parent',handles.menu_view,...
-  'Label','Advanced',...
-  'Tag','menu_view_showhide_advanced');
-moveMenuItemAfter(handles.menu_view_showhide_advanced,handles.menu_view_showhide_skeleton);
-handles.menu_view_showhide_advanced_hidepredtxtlbls = uimenu('Parent',handles.menu_view_showhide_advanced,...
-  'Label','Hide Prediction Text Labels',...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_advanced_hidepredtxtlbls_Callback',hObject,eventdata,guidata(hObject)),...
-  'Tag','menu_view_showhide_advanced_hidepredtxtlbls',...
-  'Checked','off');
+% handles.menu_view_showhide_advanced = uimenu('Parent',handles.menu_view,...
+%   'Label','Advanced',...
+%   'Tag','menu_view_showhide_advanced');
+% moveMenuItemAfter(handles.menu_view_showhide_advanced,handles.menu_view_showhide_skeleton);
+% handles.menu_view_showhide_advanced_hidepredtxtlbls = uimenu('Parent',handles.menu_view_showhide_advanced,...
+%   'Label','Hide Prediction Text Labels',...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_advanced_hidepredtxtlbls_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Tag','menu_view_showhide_advanced_hidepredtxtlbls',...
+%   'Checked','off');
 
 handles.menu_view_hide_trajectories = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_trajectories_Callback',hObject,eventdata,guidata(hObject)),...
@@ -564,7 +564,7 @@ listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChang
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
-listeners{end+1,1} = addlistener(lObj,'showPredTxtLbl','PostSet',@cbkShowPredTxtLblChanged);
+% listeners{end+1,1} = addlistener(lObj,'showPredTxtLbl','PostSet',@cbkShowPredTxtLblChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
@@ -609,9 +609,8 @@ handles.propsNeedInit = {
   'labelMode' 
   'suspScore' 
   'showTrx' 
-  'showTrxCurrTargetOnly'
-  'showPredTxtLbl'
-  'currTracker'  
+  'showTrxCurrTargetOnly' %  'showPredTxtLbl'
+  'trackersAll' % AL20190606: trackersAll cbk calls 'currTracker' cbk
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'trackModeIdx'
   'movieCenterOnTarget'
@@ -2888,11 +2887,11 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
-function cbkShowPredTxtLblChanged(src,evt)
-lObj = evt.AffectedObject;
-handles = lObj.gdata;
-onOff = onIff(~lObj.showPredTxtLbl);
-handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
+% function cbkShowPredTxtLblChanged(src,evt)
+% lObj = evt.AffectedObject;
+% handles = lObj.gdata;
+% onOff = onIff(~lObj.showPredTxtLbl);
+% handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
 
 function cbkShowSkeletonChanged(src,evt)
 
@@ -3009,9 +3008,9 @@ function menu_view_hide_imported_predictions_Callback(hObject, eventdata, handle
 lObj = handles.labelerObj;
 lObj.labels2VizToggle();
 
-function menu_view_showhide_advanced_hidepredtxtlbls_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-lObj.toggleShowPredTxtLbl();
+% function menu_view_showhide_advanced_hidepredtxtlbls_Callback(hObject, eventdata, handles)
+% lObj = handles.labelerObj;
+% lObj.toggleShowPredTxtLbl();
 
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
 handles.menu_track_cpr_show_replicates.Checked = ...
@@ -4048,76 +4047,82 @@ function menu_track_tracking_algorithm_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-
-% --------------------------------------------------------------------
 function menu_view_landmark_colors_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_view_landmark_colors (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
 
-% --------------------------------------------------------------------
 function menu_view_landmark_label_colors_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_view_landmark_label_colors (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
 
+lObj = handles.labelerObj;
+nlandmarks = max(lObj.labeledposIPt2Set);
 
-nlandmarks = max(handles.labelerObj.labeledposIPt2Set);
-%nlandmarks = handles.labelerObj.nLabelPoints;
-
-if isfield(handles.labelerObj.labelPointsPlotInfo,'Colors'),
-  colors = handles.labelerObj.labelPointsPlotInfo.Colors;
+% get colors, colormapname, pvmarker, pvtext, txtoffset
+lppi = lObj.labelPointsPlotInfo;
+if isfield(lppi,'Colors')
+  colors = lppi.Colors;
 else
   colors = [];
 end
-if isfield(handles.labelerObj.labelPointsPlotInfo,'ColorMapName'),
-  colormapname = handles.labelerObj.labelPointsPlotInfo.ColorMapName;
+colormapname = lppi.ColorMapName;      
+pvmarker = lppi.MarkerProps;
+pvtext = lppi.TextProps;
+txtoffset = lppi.TextOffset;
+      
+applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'lbl',varargin{:});
+[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
+  'lbl',applyCbkFcn,pvmarker,pvtext,txtoffset);
+if ischange
+  applyCbkFcn(savedres.colors,savedres.colormapname,...
+    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
+end
+
+function hlpApplyCosmetics(lObj,lblsOrPreds,clrs,clrmap,clrsapplyboth,...
+  pvmarker,pvtext,textoffset)
+
+switch lblsOrPreds
+  case 'lbl'
+    colormeth = 'updateLandmarkLabelColors';
+    cosmeticmeth = 'updateLandmarkLabelCosmetics';
+  case 'pred'
+    colormeth = 'updateLandmarkPredictionColors';
+    cosmeticmeth = 'updateLandmarkPredictionCosmetics';
+  otherwise
+    assert(false);
+end
+
+% colors
+if clrsapplyboth
+  lObj.updateLandmarkLabelColors(clrs,clrmap);
+  lObj.updateLandmarkPredictionColors(clrs,clrmap);
 else
-  colormapname = '';
+  lObj.(colormeth)(clrs,clrmap);  
 end
 
-lObj = handles.labelerObj;
-applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkLabelColors(clrs,clrmapname);
-[ischange,newcolors,newcolormapname] = ...
-  LandmarkColors(colors,colormapname,nlandmarks,'Label colors',applyCbkFcn);
-if ~ischange,
-  return;
-end
-applyCbkFcn(newcolors,newcolormapname);
+% markers/txt
+lObj.(cosmeticmeth)(pvmarker,pvtext,textoffset);
 
-guidata(hObject,handles);
-
-% --------------------------------------------------------------------
 function menu_view_landmark_prediction_colors_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_view_landmark_prediction_colors (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
 
-% predictions: handles.labelerObj.projPrefs.Track
-% labels: handles.labelerObj.labelPointsPlotInfo
+lObj = handles.labelerObj;
+nlandmarks = max(lObj.labeledposIPt2Set);
 
-nlandmarks = max(handles.labelerObj.labeledposIPt2Set);
-%nlandmarks = handles.labelerObj.nLabelPoints;
-if isfield(handles.labelerObj.projPrefs,'Track') && ...
-    isfield(handles.labelerObj.projPrefs.Track,'PredictPointsPlotColorMapName'),
-  colormapname = handles.labelerObj.projPrefs.Track.PredictPointsPlotColorMapName;
-else
-  colormapname = '';
-end
-if isfield(handles.labelerObj.projPrefs,'Track') && ...
-    isfield(handles.labelerObj.projPrefs.Track,'PredictPointsPlotColors'),
-  colors = handles.labelerObj.projPrefs.Track.PredictPointsPlotColors;
+pppi = lObj.predPointsPlotInfo;
+if isfield(pppi,'Colors')
+  colors = pppi.Colors;
 else
   colors = [];
 end
-lObj = handles.labelerObj;
-applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkPredictionColors(clrs,clrmapname);
-[ischange,newcolors,newcolormapname] = ...
-  LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors',applyCbkFcn);
-if ~ischange,
-  return;
+colormapname = pppi.ColorMapName;
+pvmarker = pppi.MarkerProps;
+pvtext = pppi.TextProps;
+txtoffset = pppi.TextOffset;
+
+applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'pred',varargin{:});
+
+[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
+  'pred',applyCbkFcn,pvmarker,pvtext,txtoffset);
+if ischange
+  applyCbkFcn(savedres.colors,savedres.colormapname,...
+    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
 end
-applyCbkFcn(newcolors,newcolormapname);
 
 function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 
