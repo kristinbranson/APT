@@ -244,7 +244,7 @@ import os
 import time
 dtype = 'stephen'
 rae.setup(dtype)
-view = 1
+view = 0
 for r_round in range(15):
     rae.run_active_learning(r_round,'active',view)
     rae.run_active_learning(r_round,'random',view)
