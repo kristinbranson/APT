@@ -103,6 +103,8 @@ class HourglassModel():
 		self.test_op = None
 		self.weight_op = None
 
+		self.Session = None
+		self.saver = None
 		
 	# ACCESSOR
 	
@@ -166,8 +168,10 @@ class HourglassModel():
 			graphtime = time.time()
 			logging.info('---Graph : Done (' + str(int(abs(graphtime-inputtime))) + ' sec.)')
 
-			assert gtmaps.shape.as_list() == self.output.shape.as_list(), \
-				"output shape does not match gtmaps"
+			szgt = gtmaps.shape.as_list()
+			szout = self.output.shape.as_list()
+			assert szgt == szout, \
+				"output shape does not match gtmaps: {} vs {}".format(str(szgt), str(szout))
 			with tf.name_scope('loss'):
 				self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
 					logits=self.output, labels=gtmaps), name='cross_entropy_loss')
@@ -394,7 +398,7 @@ class HourglassModel():
 			out_file.write(out_string)
 		out_file.close()
 		print('Training Record Saved')
-			
+
 	def training_init(self, nEpochs = 10, epochSize = 1000, saveStep = 500, dataset = None, load = None):
 		""" Initialize the training
 		Args:
