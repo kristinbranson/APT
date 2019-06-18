@@ -4,13 +4,13 @@ import time
 import datetime
 import os
 
-from hourglass.hourglass_tiny import HourglassModel
-
 #from tensorflow.contrib.layers import batch_norm
 import logging
 import sys
 import numpy as np
 
+import PoseTools
+from hourglass.hourglass_tiny import HourglassModel
 
 def make_gaussian_al(height, width, sigma=3, center=None):
     """ Make a square gaussian kernel.
@@ -87,13 +87,39 @@ class Pose_hg(PoseBaseGeneral):
 
         PoseBaseGeneral.__init__(self, conf)
 
-        (imnr, imnc) = self.conf.imsz
-        assert imnr % 4 == 0, "Image size must be divisible by 4"
-        assert imnc % 4 == 0, "Image size must be divisible by 4"
+        def imszcheckcrop(sz, dimname):
+            szm4 = sz % 4
+            szuse = sz - szm4
+            if szm4 != 0:
+                warnstr = 'Image {} dimension ({}) is not a multiple of 4. Image will be cropped slightly.'.format(dimname, sz)
+                logging.warning(warnstr)
+            return szuse
 
-        self.gtsz = (imnr/4, imnc/4)
+        (imnr, imnc) = self.conf.imsz
+        imnr_use = imszcheckcrop(imnr, 'row')
+        imnc_use = imszcheckcrop(imnc, 'column')
+
+        self.imsz_use = (imnr_use, imnc_use)
+        self.gtsz_use = (imnr_use//4, imnc_use//4)
         self.hgmodel = None  # scalar HourglassModel
 
+    def preprocess_ims(self, ims, locs, conf, distort, rescale):
+        '''
+        Override this function to change how images are preprocessed. Ensure that the return objects are float32.
+
+        :param ims: Batch of input images b x h x w x c
+        :param locs: Landmark locations b x n x 2
+        :param conf: Configuration object
+        :param distort: Whether to distort for augmentation or not.
+        :param rescale: Downsample the image by this much.
+        :return: [ims,locs] Returns preprocessed and augmented images and landmark locations
+
+        '''
+        ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, rescale)
+
+        (imnr_use, imnc_use) = self.imsz_use
+        ims = ims[:, 0:imnr_use, 0:imnc_use, :]
+        return ims, locs
 
     def convert_locs_to_targets(self, locs):
         '''
@@ -106,15 +132,15 @@ class Pose_hg(PoseBaseGeneral):
 
         Returns:
              Single-element list [gtmaps] where gtmaps is
-                b x self.hgmodel.nStack x self.gtsz[0] x self.gtsz[1] x n
+                b x self.hgmodel.nStack x self.gtsz_use[0] x self.gtsz_use[1] x n
         '''
 
         bsize = self.conf.batch_size
-        npts = locs.shape[1]
+        npts = self.conf.n_classes
         nstack = 1
         assert locs.shape == (bsize, npts, 2), "Dimension mismatch"
         sigma = self.conf.label_blur_rad
-        (gtnr, gtnc) = self.gtsz
+        (gtnr, gtnc) = self.gtsz_use
 
         locsgt = locs.copy() / 4.0
         gtmapsz = (bsize, nstack, gtnr, gtnc, npts)
@@ -127,7 +153,6 @@ class Pose_hg(PoseBaseGeneral):
             gtmaps[i] = hm
 
         return [gtmaps]
-
 
     def train(self):
         '''
@@ -144,15 +169,26 @@ class Pose_hg(PoseBaseGeneral):
         To view updated training metrics in APT training update window, call self.append_td(step,train_loss,train_dist) every self.conf.display_step. train_loss is the current training loss, while train_dist is the mean pixel distance between the predictions and labels.
         '''
 
+        bsize = self.conf.batch_size
+        npts = self.conf.n_classes
+        #(imnr, imnc) = self.conf.imsz
+        imdim = self.conf.img_dim
+        (imnr_use, imnc_use) = self.imsz_use
+        (gtnr_use, gtnc_use) = self.gtsz_use
+        nstack = 1
+
         (imgs, locs, _, gtmaps) = self.inputs[0:4]
-        (nBatch, npts) = locs.shape.as_list()[0:2]
+
+        assert imgs.shape.as_list() == [bsize, imnr_use, imnc_use, imdim]  # should be preproced
+        assert locs.shape.as_list() == [bsize, npts, 2]
+        assert gtmaps.shape.as_list() == [bsize, nstack, gtnr_use, gtnc_use, npts]
 
         hgm = HourglassModel(
-            nStack=1,
+            nStack=nstack,
             nFeat=256,
             nLow=4,
             outputDim=npts,
-            batch_size=nBatch,
+            batch_size=bsize,
             drop_rate=0.2,
             lear_rate=2.5e-4,
             decay=0.96,
@@ -163,14 +199,12 @@ class Pose_hg(PoseBaseGeneral):
 
         self.hgmodel = hgm
 
-        hgm.generate_model_al(imgs,gtmaps)
-
+        hgm.generate_model_al(imgs, gtmaps)
 
         nEpochs = 1
         epochSize = self.conf.dl_steps
         savestep = self.conf.save_step
         dispstep = self.conf.save_td_step
-
         with tf.name_scope('Session'):
             with tf.device(hgm.gpu):
                 hgm._init_weight()
@@ -201,7 +235,8 @@ class Pose_hg(PoseBaseGeneral):
                             #img_train, gt_train, weight_train = next(self.generator)
                             self.fd_train()
                             if i % savestep == 0:
-                                _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op])
+                                _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op],
+                                                                feed_dict=self.fd)
                                 # Save summary (Loss + Accuracy)
                                 #self.train_summary.add_summary(summary, epoch * epochSize + i)
                                 #self.train_summary.flush()
@@ -212,10 +247,27 @@ class Pose_hg(PoseBaseGeneral):
                                                    global_step=i,
                                                    write_meta_graph=False)
                                     logging.info('Saved state to %s-%d' % (save_path, i))
+                                accmu = np.zeros(1)
                             else:
-                                _, c, = hgm.Session.run([hgm.train_rmsprop, hgm.loss])
+                                results = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur, feed_dict=self.fd)
+                                c = results[1]
+                                accs = results[2:]
+                                accs = np.stack(accs, axis=1)
+                                accmu = np.mean(accs, axis=0)
                             if i % dispstep == 0:
-                                logging.info('Loss is {:8.4f}'.format(c))
+                                accmustr = np.array2string(accmu)
+                                logstr = 'loss is {:8.4f}, acc is {:s}'.format(c, accmustr)
+                                logging.info(logstr)
+                                # Validation Set
+                                # accuracy_array = np.array([0.0] * len(self.joint_accur))
+                                # for i in range(validIter):
+                                #    img_valid, gt_valid, w_valid = next(
+                                #        self.generator)  # XXXAL looks like a bug want self.valid_gen
+                                #    accuracy_pred = self.Session.run(self.joint_accur,
+                                #                                     feed_dict={self.img: img_valid, self.gtMaps: gt_valid})
+                                #    accuracy_array += np.array(accuracy_pred, dtype=np.float32) / validIter
+                                # print('--Avg. Accuracy =', str((np.sum(accuracy_array) / len(accuracy_array)) * 100)[:6], '%')
+
                             #cost += c
                             #avg_cost += c / epochSize
                         epochfinishTime = time.time()
@@ -230,15 +282,6 @@ class Pose_hg(PoseBaseGeneral):
                         #    int(epochfinishTime - epochstartTime)) + ' sec.' + ' -avg_time/batch: ' + str(
                         #    ((epochfinishTime - epochstartTime) / epochSize))[:4] + ' sec.')
                         # self.resume['loss'].append(cost)
-                        # Validation Set
-                        # accuracy_array = np.array([0.0] * len(self.joint_accur))
-                        # for i in range(validIter):
-                        #    img_valid, gt_valid, w_valid = next(
-                        #        self.generator)  # XXXAL looks like a bug want self.valid_gen
-                        #    accuracy_pred = self.Session.run(self.joint_accur,
-                        #                                     feed_dict={self.img: img_valid, self.gtMaps: gt_valid})
-                        #    accuracy_array += np.array(accuracy_pred, dtype=np.float32) / validIter
-                        #print('--Avg. Accuracy =', str((np.sum(accuracy_array) / len(accuracy_array)) * 100)[:6], '%')
                         #self.resume['accur'].append(accuracy_pred)
                         #self.resume['err'].append(np.sum(accuracy_array) / len(accuracy_array))
                         #valid_summary = self.Session.run(self.test_op,
@@ -254,6 +297,113 @@ class Pose_hg(PoseBaseGeneral):
                     #    (self.resume['err'][-1] - self.resume['err'][0]) * 100) + '%')
                     print('  Training Time: ' + str(datetime.timedelta(seconds=time.time() - startTime)))
 
+    def get_pred_fn(self, model_file=None):
+        '''
+        :param model_file: Model_file to use. If not specified the latest trained should be used.
+        :return: pred_fn: Function that predicts the 2D locations given a batch of input images.
+        :return close_fn: Function to call to close the predictions (eg. the function should close the tensorflow session)
+        :return model_file_used: Returns the model file that is used for prediction.
 
+        Creates a prediction function that returns the pose prediction as a python array of size [batch_size,n_pts,2].
+        This function should creates the network, start a tensorflow session and load the latest model.
+
+        At the start of the function call:
+            self.setup_pred()
+        to setup the feed dicts
+
+        At the start of pred_fn call:
+            self.preproc_pred(ims)
+
+        Example implementation of functions are shown.
+
+        '''
+
+        self.setup_pred()
+        # Ater setup_pred, self.inputs[0] is now a placeholder in which input images should be fed. It can be used in the same manner as self.inputs are used during training as inputs to network.
+
+
+        # Model/network
+        # make an HGM with istrain FALSE
+
+        bsize = self.conf.batch_size
+        npts = self.conf.n_classes
+        (imnr, imnc) = self.conf.imsz
+        imdim = self.conf.img_dim
+        (imnr_use, imnc_use) = self.imsz_use
+        (gtnr_use, gtnc_use) = self.gtsz_use
+        nstack = 1
+
+        imgs = self.inputs[0]
+        szimgs = imgs.shape.as_list()
+        #nimgs = szimgs[0]
+        assert szimgs == [bsize, imnr_use, imnc_use, imdim]  # should be preproced
+
+        hgm = HourglassModel(
+            nStack=nstack,
+            nFeat=256,
+            nLow=4,
+            outputDim=npts,
+            batch_size=bsize,
+            drop_rate=0.2,
+            lear_rate=2.5e-4,
+            decay=0.96,
+            decay_step=2000,
+            logdir_train=self.conf.cachedir,
+            logdir_test=self.conf.cachedir,
+            training=False)
+
+        # needed for loss ops etc but we won't be computing them
+        gtmaps = tf.constant(0., dtype=tf.float32, shape=(bsize, gtnr_use, gtnc_use, imdim))
+
+        hgm.generate_model_al(imgs, gtmaps)
+
+        if model_file is None:
+            cachedir = self.conf.cachedir
+            logging.info("Model unspecified, using latest in {}".format(cachedir))
+            model_file_used = tf.train.latest_checkpoint(cachedir)
+            assert model_file_used is not None, "Cannot find model file"
+        else:
+            model_file_used = model_file
+
+        hgm.restore(model_file_used)
+        # hgm now has .Session and .saver
+        sess = hgm.Session
+
+        # check for uninitted vars
+        uninitted = tf.report_uninitialized_variables()
+        nuninitted = np.prod(uninitted.shape.as_list())
+        assert nuninitted==0, "Unitialized variables in graph after restore"
+
+        def pred_fn(ims):
+            '''
+            :param ims:
+            :return:
+            This is the function that is used for predicting the location on a batch of images.
+            The input is a numpy array B x H x W x C of RAW images.
+            The predicted locations should be B x N x 2
+            The predicted locations should be in the original image scale.
+            The predicted locations should be returned in a dict with key 'locs'
+            '''
+
+            szims = ims.shape.as_list()
+            assert szims == [bsize, imnr, imnc, imdim], "Unexpected batch-of-image sizes"
+
+            ims = self.preproc_pred(ims)
+            self.fd[self.inputs[0]] = ims
+            predhmaps = sess.run(hgm.output, feed_dict=self.fd)
+            szpredhmaps = predhmaps.shape.as_array()
+            assert szpredhmaps == [bsize, nstack, gtnr_use, gtnc_use, npts]
+
+            base_locs = PoseTools.get_pred_locs(predhmaps[:, -1, :, :, :], edge_ignore=0)
+            assert conf.rescale==1, "rescale must be 1"
+            base_locs = base_locs * conf.rescale
+            ret_dict = {}
+            ret_dict['locs'] = base_locs
+            return ret_dict
+
+        def close_fn():
+            hgm.Session.close()
+
+        return pred_fn, close_fn, model_file_used
 
 

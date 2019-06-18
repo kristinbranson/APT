@@ -148,7 +148,7 @@ def randomly_flip_lr(img, locs, group_sz = 1):
         jj = np.random.randint(2)
         if jj > 0.5:
             img[st:en, ...] = img[st:en, :, ::-1, :]
-            locs[st:en, :, :, 0] = img.shape[3] - locs[st:en, :, :, 0]
+            locs[st:en, :, :, 0] = img.shape[3] - locs[st:en, :, :, 0] # xxxAL is this a bug? img.shape[2]? offset of 1?
 
     locs = locs[:, 0, ...] if reduce_dim else locs
     return img, locs
@@ -169,7 +169,7 @@ def randomly_flip_ud(img, locs,group_sz = 1):
         jj = np.random.randint(2)
         if jj > 0.5:
             img[st:en, ...] = img[st:en, ::-1, : ,: ]
-            locs[st:en, :, :, 1] = img.shape[2] - locs[st:en, :, : , 1]
+            locs[st:en, :, :, 1] = img.shape[2] - locs[st:en, :, : , 1] # xxxAL img.shape[1]? offset of 1?
     locs = locs[:, 0, ...] if reduce_dim else locs
     return img, locs
 

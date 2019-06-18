@@ -102,6 +102,7 @@ class HourglassModel():
 		self.train_op = None
 		self.test_op = None
 		self.weight_op = None
+		self.joint_accur = None
 
 		self.Session = None
 		self.saver = None
@@ -179,17 +180,17 @@ class HourglassModel():
 			logging.info('---Loss : Done (' + str(int(abs(graphtime-losstime))) + ' sec.)')
 
 		with tf.device(self.cpu):
-			#with tf.name_scope('accuracy'):
-				#self._accuracy_computation()
-			#accurTime = time.time()
-			#logging.info('---Acc : Done (' + str(int(abs(accurTime-losstime))) + ' sec.)')
+			with tf.name_scope('accuracy'):
+				self.accuracy_ops_alljoints(gtmaps)
+			accurTime = time.time()
+			logging.info('---Acc : Done (' + str(int(abs(accurTime-losstime))) + ' sec.)')
 			with tf.name_scope('steps'):
 				self.train_step = tf.Variable(0, name='global_step', trainable=False)
 			with tf.name_scope('lr'):
 				self.lr = tf.train.exponential_decay(self.learning_rate, self.train_step,
 													 self.decay_step, self.decay, staircase=True, name='learning_rate')
 			lrtime = time.time()
-			logging.info('---LR : Done (' + str(int(abs(losstime-lrtime))) + ' sec.)')
+			logging.info('---LR : Done (' + str(int(abs(accurTime-lrtime))) + ' sec.)')
 		with tf.device(self.gpu):
 			with tf.name_scope('rmsprop'):
 				self.rmsprop = tf.train.RMSPropOptimizer(learning_rate=self.lr)
@@ -301,7 +302,7 @@ class HourglassModel():
 		with tf.name_scope('Session'):
 			with tf.device(self.gpu):
 				self._init_session()
-				self._define_saver_summary(summary = False)
+				self._define_saver_summary(summary=False)
 				if load is not None:
 					print('Loading Trained Model')
 					t = time.time()
@@ -429,7 +430,14 @@ class HourglassModel():
 		e2 = tf.expand_dims(e1,axis = 1, name = 'expdim02')
 		e3 = tf.expand_dims(e2,axis = 1, name = 'expdim03')
 		return tf.multiply(e3,self.bceloss, name = 'lossW')
-	
+
+	def accuracy_ops_alljoints(self, gtmaps):
+		""" set .joint_accur """
+		self.joint_accur = []
+		for i in range(self.outDim):
+			self.joint_accur.append(self.acc_op(self.output[:, self.nStack - 1, :, :, i],
+												gtmaps[:, self.nStack - 1, :, :, i]))
+
 	def _accuracy_computation(self):
 		""" Computes accuracy tensor
 		"""
@@ -775,7 +783,8 @@ class HourglassModel():
 
 			hwlow3 = np.array(low_3.shape.as_list()[1:3])
 			if not np.array_equal(hwup1, hwlow3*2):
-				logging.warning("asymmetric up/down legs in hourglass: %s vs %s".format(hwup1.array2string,(h2low3*2).array2string))
+				logging.warning("asymmetric up/down legs in hourglass: %s vs %s".format(np.array2string(hwup1),
+																						np.array2string(hwlow3*2)))
 
 			up_2 = tf.image.resize_nearest_neighbor(low_3, hwup1, name = 'upsampling')
 			if self.modif:
@@ -783,7 +792,7 @@ class HourglassModel():
 				return tf.nn.relu(tf.add_n([up_2,up_1]), name='out_hg')
 			else:
 				return tf.add_n([up_2,up_1], name='out_hg')
-	
+
 	def _argmax(self, tensor):
 		""" ArgMax
 		Args:
@@ -794,7 +803,14 @@ class HourglassModel():
 		resh = tf.reshape(tensor, [-1])
 		argmax = tf.arg_max(resh, 0)
 		return (argmax // tensor.get_shape().as_list()[0], argmax % tensor.get_shape().as_list()[0])
-	
+
+	def _compute_err_px(self, u, v):
+
+		u_x, u_y = self._argmax(u)
+		v_x, v_y = self._argmax(v)
+
+		return tf.sqrt(tf.square(tf.to_float(u_x - v_x)) + tf.square(tf.to_float(u_y - v_y)))
+
 	def _compute_err(self, u, v):
 		""" Given 2 tensors compute the euclidean distance (L2) between maxima locations
 		Args:
@@ -806,7 +822,20 @@ class HourglassModel():
 		u_x,u_y = self._argmax(u)
 		v_x,v_y = self._argmax(v)
 		return tf.divide(tf.sqrt(tf.square(tf.to_float(u_x - v_x)) + tf.square(tf.to_float(u_y - v_y))), tf.to_float(91))
-	
+
+	def acc_op(self, pred, gtmaps):
+		""" Given a Prediction batch (pred) and a Ground Truth batch (gtMaps),
+		compute all L2 distances
+		Args:
+			pred		: Prediction Batch (bsize x gtnr x gtnc)
+			gtmaps		: Ground Truth Batch (bsize x gtnr x gtnc)
+		Returns:
+			op computing [bsize] Tensor of L2 distances
+		"""
+
+		op = tf.map_fn(lambda(x): self._compute_err_px(x[0], x[1]), (pred, gtmaps), dtype=tf.float32)
+		return op
+
 	def _accur(self, pred, gtMap, num_image):
 		""" Given a Prediction batch (pred) and a Ground Truth batch (gtMaps),
 		returns one minus the mean distance.
