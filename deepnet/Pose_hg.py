@@ -352,28 +352,31 @@ class Pose_hg(PoseBaseGeneral):
             logdir_test=self.conf.cachedir,
             training=False)
 
-        # needed for loss ops etc but we won't be computing them
-        gtmaps = tf.constant(0., dtype=tf.float32, shape=(bsize, gtnr_use, gtnc_use, imdim))
-
-        hgm.generate_model_al(imgs, gtmaps)
-
         if model_file is None:
             cachedir = self.conf.cachedir
             logging.info("Model unspecified, using latest in {}".format(cachedir))
             model_file_used = tf.train.latest_checkpoint(cachedir)
             assert model_file_used is not None, "Cannot find model file"
         else:
+            logging.info("Model specified: {}".format(model_file))
             model_file_used = model_file
 
-        hgm.restore(model_file_used)
-        # hgm now has .Session and .saver
+        g = tf.get_default_graph()
+        with g.as_default():
+            # needed for loss ops etc but we won't be computing them
+            gtmaps = tf.constant(0., dtype=tf.float32, shape=(bsize, nstack, gtnr_use, gtnc_use, npts))
+            hgm.generate_model_al(imgs, gtmaps)
+            hgm.restore(model_file_used)
+            # hgm now has .Session and .saver
+
+            # check for uninitted vars
+            uninitted = tf.report_uninitialized_variables()
+            nuninitted = np.prod(uninitted.shape.as_list())
+            if nuninitted > 0:
+                warnstr = "{} uninitialized vars in graph after restore".format(nuninitted)
+                logging.warning(warnstr)
+
         sess = hgm.Session
-
-        # check for uninitted vars
-        uninitted = tf.report_uninitialized_variables()
-        nuninitted = np.prod(uninitted.shape.as_list())
-        assert nuninitted==0, "Unitialized variables in graph after restore"
-
         def pred_fn(ims):
             '''
             :param ims:
@@ -385,24 +388,26 @@ class Pose_hg(PoseBaseGeneral):
             The predicted locations should be returned in a dict with key 'locs'
             '''
 
-            szims = ims.shape.as_list()
-            assert szims == [bsize, imnr, imnc, imdim], "Unexpected batch-of-image sizes"
+            imshapeexp = (bsize, imnr, imnc, imdim)
+            assert ims.shape == imshapeexp, \
+                "Unexpected batch-of-image sizes: {:s} vs {:s}".format(ims.shape, imshapeexp)
 
             ims = self.preproc_pred(ims)
             self.fd[self.inputs[0]] = ims
             predhmaps = sess.run(hgm.output, feed_dict=self.fd)
-            szpredhmaps = predhmaps.shape.as_array()
-            assert szpredhmaps == [bsize, nstack, gtnr_use, gtnc_use, npts]
+            assert predhmaps.shape == (bsize, nstack, gtnr_use, gtnc_use, npts)
 
             base_locs = PoseTools.get_pred_locs(predhmaps[:, -1, :, :, :], edge_ignore=0)
-            assert conf.rescale==1, "rescale must be 1"
-            base_locs = base_locs * conf.rescale
+            base_locs = base_locs * 4
+
             ret_dict = {}
             ret_dict['locs'] = base_locs
+            ret_dict['hmaps'] = None
             return ret_dict
 
         def close_fn():
             hgm.Session.close()
+            # reset graph?
 
         return pred_fn, close_fn, model_file_used
 
