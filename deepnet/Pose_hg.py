@@ -235,8 +235,7 @@ class Pose_hg(PoseBaseGeneral):
                             #img_train, gt_train, weight_train = next(self.generator)
                             self.fd_train()
                             if i % savestep == 0:
-                                _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op],
-                                                                feed_dict=self.fd)
+                                _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op], feed_dict=self.fd)
                                 # Save summary (Loss + Accuracy)
                                 #self.train_summary.add_summary(summary, epoch * epochSize + i)
                                 #self.train_summary.flush()
