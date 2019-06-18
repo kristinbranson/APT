@@ -381,9 +381,15 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
-        pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred, label, gt_list = ret_list[:3]
+        if model_type == 'mdn':
+            extra_stuff = ret_list[3:]
+        else:
+            extra_stuff = 0
         close_fn()
-        cur_out.append([pred, label, gt_list, m, 0,ts[mndx]])
+        gt_list = np.array(gt_list)
+        cur_out.append([pred, label, gt_list, m, extra_stuff,ts[mndx]])
 
     return cur_out
 

@@ -1327,6 +1327,10 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
     bsize = conf.batch_size
     all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
     pred_locs = np.zeros([n, conf.n_classes, 2])
+    mdn_locs = np.zeros([n, conf.n_classes, 2])
+    unet_locs = np.zeros([n, conf.n_classes, 2])
+    mdn_conf = np.zeros([n, conf.n_classes])
+    unet_conf = np.zeros([n, conf.n_classes])
     n_batches = int(math.ceil(float(n) / bsize))
     labeled_locs = np.zeros([n, conf.n_classes, 2])
     info = []
@@ -1343,17 +1347,21 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
         # base_locs, hmaps = pred_fn(all_f)
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict['locs']
-        hmaps = ret_dict['hmaps']
 
         for ndx in range(ppe):
             pred_locs[cur_start + ndx, ...] = base_locs[ndx, ...]
+            if ret_dict.has_key('locs_mdn'):
+                mdn_locs[cur_start + ndx, ...] = ret_dict['locs_mdn'][ndx,...]
+                unet_locs[cur_start + ndx, ...] = ret_dict['locs_unet'][ndx, ...]
+                mdn_conf[cur_start + ndx, ...] = ret_dict['conf'][ndx, ...]
+                unet_conf[cur_start + ndx, ...] = ret_dict['conf_unet'][ndx, ...]
             if return_ims:
                 all_ims[cur_start + ndx, ...] = all_f[ndx, ...]
 
     if return_ims:
         return pred_locs, labeled_locs, info, all_ims
     else:
-        return pred_locs, labeled_locs, info
+        return pred_locs, labeled_locs, info, [mdn_locs,unet_locs,mdn_conf,unet_conf]
 
 
 def classify_db_all(model_type, conf, db_file, model_file=None):

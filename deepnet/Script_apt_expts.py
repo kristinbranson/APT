@@ -189,7 +189,7 @@ rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 ## results
 import run_apt_expts as rae
 reload(rae)
-rae.setup('romain','')
+rae.setup('romain')
 rae.get_cv_results(num_splits=6)
 
 
@@ -244,8 +244,8 @@ import os
 import time
 dtype = 'stephen'
 rae.setup(dtype)
-view = 0
-for r_round in range(1,15):
+view = 1
+for r_round in range(15):
     rae.run_active_learning(r_round,'active',view)
     rae.run_active_learning(r_round,'random',view)
     active_model = '/nrs/branson/mayank/apt_cache/{}/mdn/view_{}/active_round{}/deepnet-20000.index'.format(rae.proj_name,view,r_round)

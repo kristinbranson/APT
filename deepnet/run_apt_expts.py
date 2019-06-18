@@ -308,10 +308,16 @@ def save_mat(out_exp,out_file):
             dd = {}
             dd[u'pred'] = c[0]
             dd[u'labels'] = c[1]
+            dd[u'info'] = np.array(c[2])
             dd[u'model_file'] = c[3]
             dd[u'model_timestamp'] = c[5]
             iter = int(re.search('-(\d*)', c[3]).groups(0)[0])
             dd[u'model_iter'] = iter
+            if type(c[4]) in [list,tuple]:
+                dd[u'mdn_pred'] = c[4][0][0]
+                dd[u'unet_pred'] = c[4][0][1]
+                dd[u'mdn_conf'] = c[4][0][2]
+                dd[u'unet_conf'] = c[4][0][3]
 
             all_dd.append(dd)
         out_arr[unicode(k)] = all_dd
@@ -348,7 +354,7 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
 
     if data_type in ['larva']:
         conf_opts['batch_size'] = 4
-        conf_opts['adjust_contrast'] = False
+        conf_opts['adjust_contrast'] = True
         conf_opts['clahe_grid_size'] = 20
         if train_type in ['unet','resnet_unet','leap']:
             conf_opts['rescale'] = 2
@@ -1371,6 +1377,7 @@ def get_incremental_results():
 
             for x, a in enumerate(mdn_out):
                 a[-1] = train_size[x]
+                a[2] = np.array(a[2])
             mdn_out.insert(0,mdn_out[0])
             inc_exp[train_type] = mdn_out
         all_view.append(inc_exp)
@@ -1444,6 +1451,8 @@ def get_cv_results(num_splits=None):
                 else:
                     A = PoseTools.pickle_load(out_file)
                     mdn_out = A[0]
+                    for m in mdn_out:
+                        m[2] = np.array(m[2])
                 if len(mdn_out) == 1:
                     mdn_out.append(mdn_out[0][:])
                     mdn_out.append(mdn_out[0][:])
@@ -1455,6 +1464,7 @@ def get_cv_results(num_splits=None):
                     for mndx in range(min(len(mdn_out),len(out_split))):
                         out_split[mndx][0] = np.append(out_split[mndx][0],mdn_out[mndx][0],axis=0)
                         out_split[mndx][1] = np.append(out_split[mndx][1],mdn_out[mndx][1],axis=0)
+                        out_split[mndx][2] = np.append(out_split[mndx][2],mdn_out[mndx][2],axis=0)
 
                 if ex_im is None:
                     db_file = os.path.join(mdn_conf.cachedir, 'val_TF.tfrecords')
