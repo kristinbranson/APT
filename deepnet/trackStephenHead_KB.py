@@ -421,8 +421,10 @@ def main(argv):
                 
                 # make script to be qsubbed
                 scriptf = open(scriptfile,'w')
-                scriptf.write('if [ -d %s ]\n'%args.outdir)
-                scriptf.write('  then export MCR_CACHE_ROOT=%s/mcrcache%s\n'%(args.outdir,jobid))
+                if not os.path.exists('/scratch/hustons'):
+                    os.mkdir('/scratch/hustons')
+                scriptf.write('if [ -d %s ]\n'%'/scratch/hustons')
+                scriptf.write('  then export MCR_CACHE_ROOT=%s/mcrcache%s\n'%('/scratch/hustons',jobid))
                 scriptf.write('fi\n')
                 scriptf.write('%s "%s" "%s" "%s" "%s" "%s" "%s"\n'%(matscript,savefile,pname_front,pname_side,kinematfile,trkfile_front,trkfile_side))
                 scriptf.write('chmod g+w {}\n'.format(savefile))

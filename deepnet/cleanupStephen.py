@@ -82,11 +82,13 @@ def main(argv):
                     logfile = os.path.join(args.outdir, jobid + '_track.log')
                     errfile = os.path.join(args.outdir, jobid + '_track.err')
                     mcrdir = os.path.join(args.outdir, 'mcrcache'+jobid)
+                    mcrdir2 = os.path.join('/scratch/hustons','mcrcache'+jobid)
                     os.unlink(scriptfile) if os.path.isfile(scriptfile) else None
                     os.unlink(logfile) if os.path.isfile(logfile) else None
                     os.unlink(errfile) if os.path.isfile(errfile) else None
                     shutil.rmtree(mcrdir) if os.path.isdir(mcrdir) else None
-    
+                    shutil.rmtree(mcrdir2) if os.path.isdir(mcrdir2) else None
+
 
 if __name__ == "__main__":
    main(sys.argv[1:])
