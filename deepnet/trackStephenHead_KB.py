@@ -423,7 +423,7 @@ def main(argv):
                 scriptf = open(scriptfile,'w')
                 # if not os.path.exists('/scratch/hustons'):
                 #     os.mkdir('/scratch/hustons')
-                scriptf.write('if [ -d %s ]\n'%'/tmp/hustons')
+                scriptf.write('if [ ! -d %s ]\n'%'/tmp/hustons')
                 scriptf.write('  then mkdir /tmp/hustons\n')
                 scriptf.write('fi\n')
                 scriptf.write('export MCR_CACHE_ROOT=%s/mcrcache%s\n'%('/tmp/hustons',jobid))
