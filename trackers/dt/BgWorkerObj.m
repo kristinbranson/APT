@@ -41,13 +41,11 @@ classdef BgWorkerObj < handle
     end
     
     function killFiles = getKillFiles(obj)
-      
       nJobs = numel(obj.dmcs);
       killFiles = cell(1,nJobs);
       for ivw=1:nJobs
         killFiles{ivw} = obj.dmcs(ivw).killTokenLnx;
-      end        
-      
+      end
     end
     
     function reset(obj)

@@ -4,8 +4,7 @@ classdef InfoTimeline < handle
     TLPROPFILESTR = 'landmark_features.yaml';
     TLPROPTYPES = {'Labels','Predictions','Imported'};
   end
-  
-  
+   
   properties (SetAccess=private)
     TLPROPS; % features we can compute
     TLPROPS_TRACKER;
@@ -549,14 +548,19 @@ classdef InfoTimeline < handle
     end
     
     function updateLandmarkColors(obj)
-    
-      colors = obj.lObj.LabelPointColors;
+      tflbl = obj.getCurPropTypeIsLabel();
+      lblcolors = obj.lObj.LabelPointColors();
+      if tflbl
+        ptclrs = lblcolors;
+      else
+        ptclrs = obj.lObj.PredictPointColors();
+      end
       for i=1:obj.npts
-        set(obj.hPts(i),'Color',colors(i,:));
+        set(obj.hPts(i),'Color',ptclrs(i,:));
       end
       if obj.isL,
         for i=1:obj.npts
-          set(obj.hPtsL(i),'FaceColor',colors(i,:));
+          set(obj.hPtsL(i),'FaceColor',lblcolors(i,:));
         end
       end
     end
@@ -664,6 +668,11 @@ classdef InfoTimeline < handle
         obj.curprop = iprop;
       end
       obj.setLabelsFull();
+      obj.updateLandmarkColors();
+    end
+    function tf = getCurPropTypeIsLabel(obj)
+      v = obj.curproptype;
+      tf = strcmp(obj.proptypes{v},'Labels');
     end
   end
     

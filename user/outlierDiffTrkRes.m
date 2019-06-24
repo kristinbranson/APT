@@ -1,10 +1,10 @@
-function [suspscore,tblsusp,diagstr] = outlierDiffTrkRes(obj)
+function [suspscore,tblsusp,diagstr] = outlierDiffTrkRes(lObj)
 
-if obj.nTargets>1
-  error('Multiple targets currently unsupported.');
-end
+% if lObj.nTargets>1
+%   error('Multiple targets currently unsupported.');
+% end
   
-trIDsAll = obj.trkResIDs;
+trIDsAll = lObj.trkResIDs;
 if numel(trIDsAll)<2
   error('Project does not have two sets of tracking results loaded.');
 end
@@ -24,7 +24,7 @@ if isempty(resp)
 end
 assert(iscellstr(resp) && numel(resp)==2);
 
-[tf,iTRs] = cellfun(@obj.trackResFindID,resp);
+[tf,iTRs] = cellfun(@lObj.trackResFindID,resp);
 assert(all(tf));
 
 resp = inputdlg('Specify mean pixel err threshold','',1,{'4.0'});
@@ -36,32 +36,33 @@ if isempty(resp)
 end
 dlThresh = str2double(resp{1});
 
-npts = obj.nLabelPoints;
-nmov = obj.nmovies;
-trkres = obj.trkRes(:,:,iTRs);
+npts = lObj.nLabelPoints;
+nmov = lObj.nmovies;
+trkres = lObj.trkRes(:,:,iTRs); % [nmov nvw 2]
 tftrkres = ~cellfun(@isempty,trkres);
-tftrkres = squeeze(all(tftrkres,2)); % views should either all have trkres or not
-szassert(tftrkres,[nmov 2]);
+tftrkres = reshape(all(tftrkres,2),[nmov 2]); % views should either all have trkres or not
 
-dlpos = cell(nmov,1); % dlpos{imov} will be [npt x nfrm(imov)]
-dlposmean = cell(nmov,1); % dlposmean{imov} will be [1 x nfrm(imov)]
+dlpos = cell(nmov,1); % dlpos{imov} will be [npt x nfrm(imov) x ntgt(imov)]
+dlposmean = cell(nmov,1); % dlposmean{imov} will be [nfrm(imov) x ntgt(imov)]
 for imov=1:nmov
-  nfrm = obj.movieInfoAll{imov,1}.nframes;
+  nfrm = lObj.movieInfoAll{imov,1}.nframes;
+  ntgt = size(lObj.labeledpos{imov},4);
   if all(tftrkres(imov,:))
     trkresI = trkres(imov,:,:); % [1 x nvw x 2]
     pTrk = cellfun(@(x)x.pTrk,trkresI,'uni',0);
     pTrk1 = cat(1,pTrk{1,:,1});
     pTrk2 = cat(1,pTrk{1,:,2});
-    szassert(pTrk1,[npts 2 nfrm]);
-    szassert(pTrk2,[npts 2 nfrm]);
-    dlpos{imov} = squeeze(sqrt(sum((pTrk1-pTrk2).^2,2))); % [npts x nfrm]
+    szassert(pTrk1,[npts 2 nfrm ntgt]);
+    szassert(pTrk2,[npts 2 nfrm ntgt]);
+    dlpos{imov} = squeeze(sqrt(sum((pTrk1-pTrk2).^2,2))); % [npts x nfrm x ntgt]
     dlposmean{imov} = nanmean(dlpos{imov},1);
+    dlposmean{imov} = reshape(dlposmean{imov},[nfrm ntgt]);    
   else
     if any(tftrkres(imov,:))
       warningNoTrace('Movie %d has tracking results for one set but not the other and will not be included.',imov);
     end    
-    dlpos{imov} = nan(npts,nfrm);
-    dlposmean{imov} = nan(1,nfrm);
+    dlpos{imov} = nan(npts,nfrm,ntgt);
+    dlposmean{imov} = nan(nfrm,ntgt);
   end
 end
 
@@ -72,21 +73,20 @@ iTgt = nan(0,1);
 susp = nan(0,1);
 suspPt = nan(0,1);
 for imov=1:nmov
-  dl = dlposmean{imov}; % [1xnfrm]. L2 diff aved over all pts
-  dl = dl(:);
-  fkeep = find(dl>dlThresh);
+  dl = dlposmean{imov}; % [nfrm x ntgt]. L2 diff aved over all pts
+  [fkeep,tgtkeep] = find(dl>dlThresh);
+  idxkeep = sub2ind(size(dl),fkeep,tgtkeep);
   nkeep = numel(fkeep);
   
   suspscore{imov} = dl;    
 
-  dlfull = dlpos{imov}; % [npt x nfrm];
-  dlfullkeep = dlfull(:,fkeep); % [npt x nkeep];
-  [~,newsusppt] = max(dlfullkeep,[],1);
-  
+  dlfull = dlpos{imov}; % [npt x nfrm x ntgt];
+  newsusppt = arrayfun(@(i,j)argmax(dlfull(:,i,j)),fkeep,tgtkeep);
+    
   mov = [mov; repmat(imov,nkeep,1)]; %#ok<AGROW>
   frm = [frm; fkeep(:)]; %#ok<AGROW>
-  iTgt = [iTgt; ones(nkeep,1)]; %#ok<AGROW>
-  susp = [susp; dl(fkeep)]; %#ok<AGROW>
+  iTgt = [iTgt; tgtkeep(:)]; %#ok<AGROW>
+  susp = [susp; dl(idxkeep)]; %#ok<AGROW>
   
   suspPt = [suspPt; newsusppt(:)]; %#ok<AGROW>
 end

@@ -83,22 +83,13 @@ classdef LabelTracker < handle
       obj.lObj = labelerObj;
       
       trkPrefs = labelerObj.projPrefs.Track;
-      if isfield(trkPrefs,'PredictInterpolate')
-        val = logical(trkPrefs.PredictInterpolate);
-        assert(isscalar(val),'Expected scalar value for ''PredictInterpolate''.');
-        if val
-          warningNoTrace('Turning off tracking interpolation.');
-          labelerObj.projPrefs.Track.PredictInterpolate = false;
-          val = false;
-        end
-      else
+      val = logical(trkPrefs.PredictInterpolate);
+      assert(isscalar(val),'Expected scalar value for ''PredictInterpolate''.');
+      if val
+        warningNoTrace('Turning off tracking interpolation.');
+        labelerObj.projPrefs.Track.PredictInterpolate = false;
         val = false;
       end
-%       if obj.lObj.hasTrx && val
-%         warningNoTrace('LabelTracker:interp',...
-%           'Project has trajectories; turning off tracking interpolation.');
-%         val = false;
-%       end
       obj.trkVizInterpolate = val;
       
       obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());

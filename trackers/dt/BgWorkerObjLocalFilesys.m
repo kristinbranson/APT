@@ -100,13 +100,22 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       tfIsRunning = true(size(ids));
       try
         for i = 1:numel(ids),
-          if ~isnan(ids(i))
-            % Guard against nan jobIDs for now. This can occur when a job
-            % is started; the monitor is started before the job is spawned,
-            % and the monitorviz calls this after receiving the first 
-            % result from the bg worker before the jID is set.
-            tfIsRunning(i) = ~obj.isKilled(ids(i));
+          if iscell(ids),
+            id = ids{i};
+            if isempty(id),
+              continue;
+            end
+          else
+            id = ids(i);
+            if isnan(id),
+              continue;
+            end
           end
+          % Guard against nan jobIDs for now. This can occur when a job
+          % is started; the monitor is started before the job is spawned,
+          % and the monitorviz calls this after receiving the first
+          % result from the bg worker before the jID is set.
+          tfIsRunning(i) = ~obj.isKilled(id);
         end
         %fprintf('isRunning = %s\n',mat2str(tfIsRunning));
       catch ME,

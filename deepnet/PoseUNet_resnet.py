@@ -28,8 +28,9 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
         self.conf = conf
         self.out_scale = 1.
         self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        use_pretrained = conf.use_pretrained_weights
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
-        conf.use_pretrained_weights = True
+        conf.use_pretrained_weights = use_pretrained
 
         if self.resnet_source == 'official_tf':
             url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
@@ -205,7 +206,6 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def __init__(self, conf, name='umdn_resnet',pad_input=False):
-#        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         # self.resnet_source = 'official_tf'
         self.resnet_source = self.conf.get('mdn_resnet_source','slim')
@@ -246,7 +246,6 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #     tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
 
-            # self.pretrained_weights = '/home/mayank/work/poseTF/deepcut/models/resnet_v1_50.ckpt'
 
     def create_network(self):
 
@@ -533,7 +532,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     mdn_l = X
                 else:
                     with tf.variable_scope('layer_logits'):
-                        kernel_shape = [1, 1, n_filt_in, n_filt]
+                        if conf.get('mdn_logits_more_channels',False):
+                            kernel_shape = [1, 1, n_filt_in, 3*n_filt]
+                        else:
+                            kernel_shape = [1, 1, n_filt_in, n_filt]
+
                         weights = tf.get_variable("weights", kernel_shape,
                                                   initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                         biases = tf.get_variable("biases", kernel_shape[-1],
@@ -681,6 +684,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         cur_comp = []
         ll = tf.nn.softmax(mdn_logits, axis=1)
 
+        self.softmax_logits = ll
         n_preds = mdn_locs.get_shape().as_list()[1]
         # All gaussians in the mixture have some weight so that all the mixtures try to predict correctly.
         logit_eps = self.conf.mdn_logit_eps_training
@@ -689,7 +693,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # ll now has normalized logits.
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1, :]/locs_offset
-            kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
+            qq = mdn_locs[:,:,cls,:]
+            kk = tf.sqrt(tf.reduce_sum(tf.square(pp - qq), axis=2))
             # kk is the distance between all predictions for point cls from the labels.
             cur_comp.append(kk)
 
@@ -777,7 +782,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         return (pred_mean+label_mean)/2
 
 
-    def get_pred_fn(self, model_file=None):
+    def get_pred_fn(self, model_file=None,distort=False):
         sess, latest_model_file = self.restore_net(model_file)
 
         conf = self.conf
@@ -794,7 +799,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             bsize = conf.batch_size
             xs, _ = PoseTools.preprocess_ims(
                 all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=False, scale=self.conf.rescale)
+                distort=distort, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd[self.ph['phase_train']] = False
@@ -808,7 +813,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
             pred_means, pred_std, pred_weights,pred_dist = pred
             pred_means = pred_means * self.offset
-            pred_weights = PoseUMDN.softmax(pred_weights,axis=1)
+#            pred_weights = PoseUMDN.softmax(pred_weights,axis=1)
 
             osz = [int(i/conf.rescale) for i in self.conf.imsz]
             mdn_pred_out = np.zeros([bsize, osz[0], osz[1], conf.n_classes])
@@ -843,7 +848,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             mdn_conf = 2*mdn_conf -1 # it should now be between -1 to 1.
 
             if self.conf.mdn_use_unet_loss:
-                unet_locs = PoseTools.get_pred_locs(unet_pred)
+                unet_locs = PoseTools.get_pred_locs(unet_pred)*conf.rescale
                 d = np.sqrt(np.sum((base_locs - unet_locs) ** 2, axis=-1))
                 mdn_unet_locs = base_locs.copy()
                 mdn_unet_locs[d < mdn_unet_dist, :] = unet_locs[d < mdn_unet_dist, :]

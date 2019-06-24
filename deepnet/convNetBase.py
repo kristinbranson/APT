@@ -19,8 +19,6 @@ import os,sys
 # import lmdb
 # import caffe.proto.caffe_pb2
 # from caffe.io import datum_to_array
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 import math

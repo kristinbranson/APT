@@ -200,13 +200,25 @@ classdef AWSec2 < handle
       end
       
       % AL: see waitforPoll() util
+      % AL: see also aws ec2 wait, which sort of works but seems not
+      % reliably
       starttime = tic;
       tfsucc = false;
       while true,
         [tf,state1] = obj.getInstanceState();
         if tf && strcmpi(state1,'running'),
-          tfsucc = true;
-          break;
+          [tfexist,tfrun] = obj.inspectInstance();
+          if tfexist && tfrun
+            fprintf('... instance is started, waiting for full spin-up\n');
+            % AL: aws ec2 wait instance-status-ok sort of worked, sort of
+            pollCbk = @()obj.cmdInstance('cat /dev/null','dispcmd',true);
+            tfsucc = waitforPoll(pollCbk,iterwaittime,maxwaittime);
+            if tfsucc
+              break;
+            else
+              return;
+            end
+          end
         end
         if toc(starttime) > maxwaittime,
           return;
@@ -533,6 +545,10 @@ classdef AWSec2 < handle
         cmdremote,logfileremote);
     end
         
+    function tf = canKillRemoteProcess(obj)
+      tf = ~isempty(obj.remotePID) && ~isnan(obj.remotePID);
+    end
+    
     function killRemoteProcess(obj)
       if isempty(obj.remotePID)
         error('Unknown PID for remote process.');
@@ -673,7 +689,19 @@ classdef AWSec2 < handle
       if destRelative
         dest = ['~/' dest];
       end
-      cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
+      if ispc 
+        [fileP,fileF,fileE] = fileparts(file);
+        % 20190501. scp on windows is dumb and treats colons ':' as a
+        % host specifier etc. there may not be a good way to escape; 
+        % googling says use pscp or other scp impls. 
+        
+        fileP = regexprep(fileP,'/','\\');
+        fileF = regexprep(fileF,'/','\\');
+        cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
+          pem,['.\' fileF fileE],ip,dest);
+      else
+        cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
+      end
     end
 
     function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)

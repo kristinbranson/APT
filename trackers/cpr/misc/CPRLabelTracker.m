@@ -1230,6 +1230,10 @@ classdef CPRLabelTracker < LabelTracker
     
     function p0 = randInitShapes(obj,tblPTrn,bboxes,varargin)
       % Used by parameter viz
+      %
+      % bboxes: [nTrn x 4 x nview] where nTrn==size(tblPTrn,1)
+      %
+      % p0: [N x Naug x D x nview] 
       
       [prmpp,prm] = myparse(varargin,...
         'preProcParams',obj.lObj.preProcParams,...
@@ -1242,6 +1246,9 @@ classdef CPRLabelTracker < LabelTracker
       
       %obj.asyncReset(true);
       
+      nView = obj.lObj.nview;
+      szassert(bboxes,[size(tblPTrn,1) 4 nView]);
+
       iPt = prm.TrainInit.iPt;
       nfids = prm.Model.nfids;
       nviews = prm.Model.nviews;
@@ -1261,7 +1268,10 @@ classdef CPRLabelTracker < LabelTracker
       pTrn = tblPTrn.p;%d.pGTTrn(:,iPGT);
       % pTrn col order is: [iPGT(1)_x iPGT(2)_x ... iPGT(end)_x iPGT(1)_y ... iPGT(end)_y]
       
-      nView = obj.lObj.nview;
+      N = size(pTrn,1);
+      Naug = prm.TrainInit.Naug;
+      D = prm.Model.D;
+
       if nView==1 % doesn't need its own branch, just leaving old path
         % expect a permutation
         %assert(isequal(sort(locDataInTblP(:)'),1:height(tblPTrn))); %#ok<TRSRT>
@@ -1275,14 +1285,18 @@ classdef CPRLabelTracker < LabelTracker
               prm.Model,prm.TrainInit,prm.Reg,...
               'usetrxOrientation',usetrxOrientation,...
               'orientationThetas',oThetas);
+        szassert(p0,[N Naug D]);
       else
         assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
         assert(size(pTrn,2)==obj.lObj.nPhysPoints*nView*prm.Model.d); 
         assert(nfidsInTD==obj.lObj.nPhysPoints*nView);
         % col order of pTrn should be:
         % [p1v1_x p2v1_x .. pkv1_x p1v2_x .. pkv2_x .. pkvW_x
-        nPhysPoints = obj.lObj.nPhysPoints;
-        for iView=1:nView          
+        nPhysPoints = obj.lObj.nPhysPoints;    
+
+        p0 = nan(N,Naug,D,nView);
+        
+        for iView=1:nView 
           bbVw = bboxes(:,:,iView);
           iPtVw = (1:nPhysPoints)+(iView-1)*nPhysPoints;
           assert(isequal(iPtVw(:),find(obj.lObj.labeledposIPt2View==iView)));
@@ -1291,7 +1305,7 @@ classdef CPRLabelTracker < LabelTracker
           % Future todo: orientationThetas
           % Should break internally if 'orientationThetas' is req'd
           assert(~usetrxOrientation);
-          p0 = RegressorCascade.randInitStc(bbVw,pTrnVw,...
+          p0(:,:,:,iView) = RegressorCascade.randInitStc(bbVw,pTrnVw,...
             prm.Model,prm.TrainInit,prm.Reg);
         end
       end

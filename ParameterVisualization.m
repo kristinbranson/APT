@@ -64,6 +64,7 @@ classdef ParameterVisualization < handle
       
       if ~isempty(str)
         lims = axis(ax);
+        lims = double(lims); % #292 strange err lims can be returned as singles upsetting text()
         xc = (lims(1)+lims(2))/2;
         yc = (lims(3)+lims(4))/2;
         text(xc,yc,str,'horizontalalignment','center','parent',ax);

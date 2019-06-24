@@ -241,7 +241,7 @@ uiwait(hFig);
       pts = pts(:,1:2);
     end
     labelCM = lObj.LabelPointColors;
-    txtOffset = lObj.labelPointsPlotInfo.LblOffset;
+    txtOffset = lObj.labelPointsPlotInfo.TextOffset;
     
   end
 

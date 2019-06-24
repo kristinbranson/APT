@@ -50,9 +50,16 @@ classdef BgWorkerObjAWS < BgWorkerObj
         error('AWSEC2 backend object is unset.');
       end
       
-      dmc = obj.dmcs;
-      assert(isscalar(dmc)); % single-view atm
+      if ~aws.canKillRemoteProcess()
+        tfpid = aws.getRemotePythonPID();
+        if ~tfpid
+          error('Could not ascertain remote process ID in AWSEC2 instance %s.',aws.instanceID);
+        end
+      end
+      
       killfile = obj.getKillFiles();
+      killfile = unique(killfile);
+      assert(isscalar(killfile)); % for now
       killfile = killfile{1};
 
       aws.killRemoteProcess();
