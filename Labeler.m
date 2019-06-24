@@ -3427,7 +3427,11 @@ classdef Labeler < handle
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
-      obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
+      if ~isempty(obj.(PROPS.TRKRES))
+        obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
+      else
+        obj.(PROPS.TRKRES) = cell(1,obj.nview,0);        
+      end
       if ~gt
         obj.labeledposMarked{end+1,1} = false(nLblPts,nFrms,nTgt);
       end
