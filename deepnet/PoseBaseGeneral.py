@@ -15,13 +15,15 @@ class PoseBaseGeneral(PoseCommon):
     The function that need to overridden are:
     * convert_locs_to_target
     * train
-    * get_pred_fn
+    * load_model
+    * convert_preds_to_locs
 
     We use the tensorflow dataset pipeline to read and process the input images which makes the training fast. For this reason, image preprocessing and target creation (e.g. generating heatmaps) functions have to be defined separately so that they can be injected in the dataset pipeline.
     Override preprocess_ims if you want to define your own image pre-processing function. By default, it'll down sample the input image (if required), augment the images using the augmentation, and adjust contrast (if required).
-    In convert_locs_to_target, create target outputs (e.g. heatmaps) that you want the network the predict.
+    In convert_locs_to_target, create target outputs (e.g. heatmaps) from x,y locations that you want the network the predict.
     In train, create the network, train and save trained models.
-    In get_pred_fn, restore the network and create a function that will predict the landmark locations on input images.
+    In load_model, setup the network for prediction by restoring the network.
+    In convert_preds_to_locs, convert the output of network to x,y locations E.g From output heatmaps to x,y predictions.
 
     '''
 
@@ -41,9 +43,6 @@ class PoseBaseGeneral(PoseCommon):
         '''
 
         PoseCommon.__init__(self, conf,name='deepnet')
-
-    def get_var_list(self):
-        return tf.global_variables()
 
 
     def preproc_func(self, ims, locs, info, distort):
@@ -80,15 +79,68 @@ class PoseBaseGeneral(PoseCommon):
         ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, rescale)
         return ims, locs
 
+
     def convert_locs_to_targets(self,locs):
         '''
         Override this function to to convert labels into targets (e.g. heatmaps).
+        The locs are numpy array of size b x n x 2, where b is the batch size, n is the number of landmarks and locs[:,:,0] are x locations, while locs[:,:,1] are the y locations of the landmark.
+        The targets also should be numpy arrays, and the first dimension should correspond to the batch.
+
         You can use PoseTools.create_label_images to generate the target heatmaps.
         You can use PoseTools.create_affinity_labels to generate the target part affinity field heatmaps.
         Return the results as a list. This list will be available as tensors self.inputs[3], self.inputs[4] and so on for computing the loss.
         '''
 
         assert False, 'This function must be overridden'
+
+
+    def create_datasets(self):
+        '''
+        Creates the data set feed pipeline
+        :return:
+        '''
+
+        conf = self.conf
+        def _parse_function(serialized_example):
+            features = tf.parse_single_example(
+                serialized_example,
+                features={'height': tf.FixedLenFeature([], dtype=tf.int64),
+                          'width': tf.FixedLenFeature([], dtype=tf.int64),
+                          'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                          'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                          'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
+                          'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                          'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                          'image_raw': tf.FixedLenFeature([], dtype=tf.string)
+                          })
+            image = tf.decode_raw(features['image_raw'], tf.uint8)
+            trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
+            image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+
+            locs = tf.cast(features['locs'], tf.float32)
+            exp_ndx = tf.cast(features['expndx'], tf.float32)
+            ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
+            info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
+            return image, locs, info
+
+        train_db = os.path.join(self.conf.cachedir, self.conf.trainfilename) + '.tfrecords'
+        train_dataset = tf.data.TFRecordDataset(train_db)
+
+        train_dataset = train_dataset.map(map_func=_parse_function,num_parallel_calls=5)
+        train_dataset = train_dataset.repeat()
+        train_dataset = train_dataset.shuffle(buffer_size=100)
+        train_dataset = train_dataset.batch(self.conf.batch_size)
+        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=8)
+        train_dataset = train_dataset.prefetch(buffer_size=100)
+
+        self.train_dataset = train_dataset
+
+        train_iter = train_dataset.make_one_shot_iterator()
+        train_next = train_iter.get_next()
+
+        self.inputs = []
+        for ndx in range(len(train_next)):
+            self.inputs.append( train_next[ndx])
 
 
     def find_input_sizes(self):
@@ -125,13 +177,10 @@ class PoseBaseGeneral(PoseCommon):
 
         def train_pp(ims,locs,info):
             return self.preproc_func(ims,locs,info, True)
-        def val_pp(ims,locs,info):
-            return self.preproc_func(ims,locs,info, False)
 
         self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
-        self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes ))
 
-        self.setup_train()
+        self.create_datasets()
         self.set_input_sizes()
         self.init_td()
 
@@ -164,9 +213,7 @@ class PoseBaseGeneral(PoseCommon):
         self.inputs[1] has the landmark positions as b x n x 2
         self.inputs[2] has information about the movie number, frame number and trx number as b x 3
         self.inputs[3] onwards has the outputs that are produced by convert_locs_to_targets
-         that provice the
         The train function should save models to self.conf.cachedir every self.conf.save_step. Also save a final model at the end of the training with step number self.conf.dl_steps. APT expects the model files to be named 'deepnet-<step_no>' (i.e., follow the format used by tf.train.Saver for saving models e.g. deepnet-10000.index).
-        Before each training step call self.fd_train() which will setup the data generator to generate augmented input images in self.inputs from training database during the next call to sess.run. This also sets the self.ph['phase_train'] to True which can be used by batch norm. Use self.fd_val() will generate non-augmented inputs from training DB and to set the self.ph['phase_train'] to false for batch norm.
         To view updated training metrics in APT training update window, call self.append_td(step,train_loss,train_dist) every self.conf.display_step. train_loss is the current training loss, while train_dist is the mean pixel distance between the predictions and labels.
         '''
 
@@ -175,9 +222,7 @@ class PoseBaseGeneral(PoseCommon):
 
     def setup_pred(self):
         self.find_input_sizes()
-        self.create_ph_fd()
         self.create_input_ph()
-        self.fd_val()
 
 
     def preproc_pred(self,ims):
@@ -190,6 +235,35 @@ class PoseBaseGeneral(PoseCommon):
         info = np.zeros([self.conf.batch_size,3])
         ims, _ = self.preprocess_ims(ims,locs,self.conf,False,self.conf.rescale)
         return ims
+
+
+    def load_model(self, im_input, model_file=None):
+        '''
+        Setup up prediction function.
+        During prediction, the input image (after preprocessing) will be available in the im_input tensor. Return the prediction/output tensor and the TF session object, and the model file that was used to load the model. (Return model_file if that is used to load the model)
+
+        In this function, the network should be setup and the saved weights should be loaded from the model_file. If model_file is None load the weights from the latest model. The placeholders (if any) used during training, should be converted to constant tensors.
+
+        :param input: Input tensor that will have the image. The image will be preprocessed and downsampled by the rescale factor. This tensor is equivalent to self.inputs[0] tensor during training.
+        :return: prediction tensor. The outputs of this tensor evaluated on input image is given as input to convert_preds_to_locs.
+                : sess: Current TF session
+                : model_file_used : Model file used. If it is same as input model_file, then return model_file.
+        Eg: return self.pred, sess, model_file_used
+        '''
+
+        assert False, 'This function should be overridden'
+
+
+    def convert_preds_to_locs(self,preds):
+        '''
+        Convert the output prediction of network to x,y locations. The output should be in the same scale as input image. If you downsampled the input image, then the x,y location should for the downsampled image.
+        Eg. From heatmap output to x,y locations.
+
+        :param preds: Numpy array that is the output of the network.
+        :return: x,y locations as b x n x 2 where b is the batch_size, n is the number of landmarks. [:,:,0] should be the x location, while [:,:,1] should be the y locations.
+        '''
+
+        assert False, 'This function should be overridden'
 
 
     def get_pred_fn(self, model_file=None):
@@ -213,19 +287,14 @@ class PoseBaseGeneral(PoseCommon):
 
         '''
 
-
-        assert False, 'This function should be overridden'
-
         # setup the feed dicts
         self.setup_pred()
         # Ater setup_pred, self.inputs[0] is now  a placeholder in which input images should be fed. It can be used in the same manner as self.inputs are used during training as inputs to network.
 
-        # create the network
-        # self.create_network()
-        sess = tf.Session()
+        pred, sess, latest_model_file = self.load_model(self.inputs[0],model_file)
 
-        # restore the weights
-        # self.restore()
+        conf = self.conf
+
 
         def pred_fn(ims):
             '''
@@ -251,33 +320,6 @@ class PoseBaseGeneral(PoseCommon):
             sess.close()
 
         return pred_fn, close_fn, latest_model_file
-
-
-    def restore_net_common(self, model_file=None):
-        '''
-        :param model_file: Model file to restore the network form. If None, use the latest model.
-        This function creates the network, creates the session and load the saved model.
-        '''
-        create_network_fn = self.create_network
-        logging.info('--- Loading the model by reconstructing the graph ---')
-        self.find_input_sizes()
-        self.setup_pred()
-        self.pred = create_network_fn()
-        self.create_saver()
-        sess = tf.Session()
-        latest_model_file = self.restore(sess, model_file)
-        initialize_remaining_vars(sess)
-
-        try:
-            self.restore_td()
-        except (AttributeError,IOError):  # If the conf file has been modified
-            logging.warning("Couldn't load the training data")
-            self.init_td()
-
-        for i in self.inputs:
-            self.fd[i] = np.zeros(i.get_shape().as_list())
-
-        return sess, latest_model_file
 
 
     def create_input_ph(self):
