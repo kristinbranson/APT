@@ -291,8 +291,8 @@ class PoseBaseGeneral(PoseCommon):
         self.setup_pred()
         # Ater setup_pred, self.inputs[0] is now  a placeholder in which input images should be fed. It can be used in the same manner as self.inputs are used during training as inputs to network.
 
-        pred, sess, latest_model_file = self.load_model(self.inputs[0],model_file)
-
+        prd, sess, latest_model_file = self.load_model(self.inputs[0],model_file)
+        self.pred = prd
         conf = self.conf
 
 
@@ -314,6 +314,7 @@ class PoseBaseGeneral(PoseCommon):
             base_locs = base_locs * conf.rescale
             ret_dict = {}
             ret_dict['locs'] = base_locs
+            ret_dict['hmaps'] = None
             return ret_dict
 
         def close_fn():
