@@ -783,8 +783,8 @@ class HourglassModel():
 
 			hwlow3 = np.array(low_3.shape.as_list()[1:3])
 			if not np.array_equal(hwup1, hwlow3*2):
-				logging.warning("asymmetric up/down legs in hourglass: %s vs %s".format(np.array2string(hwup1),
-																						np.array2string(hwlow3*2)))
+				logging.warning("asymmetric up/down legs in hourglass: {:s} vs {:s}".format(np.array2string(hwup1),
+																							np.array2string(hwlow3*2)))
 
 			up_2 = tf.image.resize_nearest_neighbor(low_3, hwup1, name = 'upsampling')
 			if self.modif:

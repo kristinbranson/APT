@@ -233,7 +233,7 @@ class Pose_hg(PoseBaseGeneral):
 
                             #img_train, gt_train, weight_train = next(self.generator)
                             # self.fd_train()
-                            if i % savestep == 0:
+                            if i % savestep == 0 or i == epochSize-1:
                                 _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op])
                                 # Save summary (Loss + Accuracy)
                                 #self.train_summary.add_summary(summary, epoch * epochSize + i)
@@ -246,15 +246,21 @@ class Pose_hg(PoseBaseGeneral):
                                                    write_meta_graph=False)
                                     logging.info('Saved state to %s-%d' % (save_path, i))
                                 accmu = np.zeros(1)
+                                accmumu = np.zeros(1)
+                                accmumx = np.zeros(1)
                             else:
                                 results = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur)
                                 c = results[1]
                                 accs = results[2:]
                                 accs = np.stack(accs, axis=1)
                                 accmu = np.mean(accs, axis=0)
+                                accmumu = np.mean(accmu)
+                                accmumx = np.amax(accmu)
                             if i % dispstep == 0:
-                                accmustr = np.array2string(accmu)
-                                logstr = 'loss is {:8.4f}, acc is {:s}'.format(c, accmustr)
+                                self.append_td(i, c, accmumu)  # using accmumu instead of train dist
+                                # accmustr = np.array2string(accmu)
+                                # logstr = 'loss is {:8.4f}, accmu is {:s}'.format(c, accmustr)
+                                logstr = 'loss={:8.4f}, accmumu={:8.4f}, accmumx={:8.4f}'.format(c, accmumu, accmumx)
                                 logging.info(logstr)
                                 # Validation Set
                                 # accuracy_array = np.array([0.0] * len(self.joint_accur))
