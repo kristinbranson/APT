@@ -245,17 +245,17 @@ class Pose_hg(PoseBaseGeneral):
                                                    global_step=i,
                                                    write_meta_graph=False)
                                     logging.info('Saved state to %s-%d' % (save_path, i))
-                                accmu = np.zeros(1)
-                                accmumu = np.zeros(1)
-                                accmumx = np.zeros(1)
+                                # accmu = np.zeros(1)
+                                accmumu = 0.
+                                accmumx = 0.
                             else:
                                 results = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur)
                                 c = results[1]
                                 accs = results[2:]
                                 accs = np.stack(accs, axis=1)
                                 accmu = np.mean(accs, axis=0)
-                                accmumu = np.mean(accmu)
-                                accmumx = np.amax(accmu)
+                                accmumu = np.mean(accmu).item()
+                                accmumx = np.amax(accmu).item()
                             if i % dispstep == 0:
                                 self.append_td(i, c, accmumu)  # using accmumu instead of train dist
                                 # accmustr = np.array2string(accmu)
