@@ -26,6 +26,7 @@ classdef DeepTracker < LabelTracker
   end
   properties (Hidden)
     jrcgpuqueue = 'gpu_any';
+    jrcnslots = 1;
   end
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
@@ -1196,7 +1197,7 @@ classdef DeepTracker < LabelTracker
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
               aptroot,dmc(ivw),...
               'singArgs',singArgs,'trnCmdType',trnCmdType,...
-              'bsubargs',{'gpuqueue' obj.jrcgpuqueue});
+              'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
           end
         case DLBackEnd.Docker
           containerNames = cell(nTrainJobs,1);
@@ -2613,7 +2614,7 @@ classdef DeepTracker < LabelTracker
             fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);
           end
           
-          bsubargs = {'gpuqueue' obj.jrcgpuqueue 'outfile' outfile};
+          bsubargs = {'nslots' obj.jrcnslots 'gpuqueue' obj.jrcgpuqueue 'outfile' outfile};
           %sshargs = {'logfile' outfile2};
           sshargs = {};
           trksysinfo(imov,ivwjob).trkfile = trkfile;
