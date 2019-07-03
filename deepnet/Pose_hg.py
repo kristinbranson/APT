@@ -99,7 +99,8 @@ class Pose_hg(PoseBaseGeneral):
         imnc_use = imszcheckcrop(imnc, 'column')
 
         self.imsz_use = (imnr_use, imnc_use)
-        self.gtsz_use = (imnr_use//4, imnc_use//4)
+        self.dorefine = getattr(conf, 'hg_dorefine', False)
+        self.gtsz_use = (imnr_use, imnc_use) if self.dorefine else (imnr_use//4, imnc_use//4)
         self.hgmodel = None  # scalar HourglassModel
 
     def preprocess_ims(self, ims, locs, conf, distort, rescale):
@@ -141,7 +142,7 @@ class Pose_hg(PoseBaseGeneral):
         sigma = self.conf.label_blur_rad
         (gtnr, gtnc) = self.gtsz_use
 
-        locsgt = locs.copy() / 4.0
+        locsgt = locs.copy() if self.dorefine else locs.copy() / 4.0
         gtmapsz = (bsize, nstack, gtnr, gtnc, npts)
         gtmaps = np.zeros(gtmapsz, np.float32)
         for i in range(bsize):
@@ -194,7 +195,9 @@ class Pose_hg(PoseBaseGeneral):
             decay_step=2000,
             logdir_train=self.conf.cachedir,
             logdir_test=self.conf.cachedir,
-            training=True)
+            training=True,
+            do_refine=self.dorefine
+        )
 
         self.hgmodel = hgm
 
@@ -342,7 +345,9 @@ class Pose_hg(PoseBaseGeneral):
             decay_step=2000,
             logdir_train=self.conf.cachedir,
             logdir_test=self.conf.cachedir,
-            training=False)
+            training=False,
+            do_refine=self.dorefine
+        )
 
         if model_file is None:
             cachedir = self.conf.cachedir
@@ -389,5 +394,6 @@ class Pose_hg(PoseBaseGeneral):
         assert preds.shape == (bsize, nstack, gtnr_use, gtnc_use, npts)
 
         base_locs = PoseTools.get_pred_locs(preds[:, -1, :, :, :], edge_ignore=0)
-        base_locs = base_locs * 4
+        if not self.dorefine:
+            base_locs = base_locs * 4
         return base_locs
