@@ -34,7 +34,14 @@ classdef TrackingVisualizer < handle
 
     tfHideViz % scalar, true if tracking res hidden
     tfHideTxt % scalar, if true then hide text even if tfHideViz is false
-    
+
+    % besides colors, txtOffPx, the the show/hide state, other cosmetic 
+    % state is stored just in the various graphics handles.
+    %
+    % Note that at least one visibility flag must be stored outside the
+    % handles themselves, since text and markers+text can be independently 
+    % shown/hidden
+        
     handleTagPfix % char, prefix for handle tags
 
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
@@ -46,6 +53,7 @@ classdef TrackingVisualizer < handle
       'handleTagPfix'};
     LINE_PROPS_COSMETIC_SAVE = {'Color' 'LineWidth' 'Marker' ...
       'MarkerEdgeColor' 'MarkerFaceColor' 'MarkerSize'};
+    TEXT_PROPS_COSMETIC_SAVE = {'FontSize' 'FontName' 'FontWeight' 'FontAngle'};
   end
   properties (Dependent)
     nPts
@@ -68,33 +76,42 @@ classdef TrackingVisualizer < handle
       obj.hXYPrdRedTxt = [];
     end
     function vizInit(obj,varargin)
-      % Sets .hXYPrdRed, .hXYPrdRedOther
+      % Sets .hXYPrdRed, .hXYPrdRedOther, .hXYPrdRedTxt.
+      % 
+      % See "Construction/Init notes" below      
 
       postload = myparse(varargin,...
-        'postload',false... % set to true for post-load init
+        'postload',false... % see Construction/Init notes
         );      
       
       obj.deleteGfxHandles();
       
+      pppi = obj.lObj.predPointsPlotInfo;
+
       npts = numel(obj.ipt2vw);
       if postload
         ptclrs = obj.ptClrs;
       else
         ptclrs = obj.lObj.PredictPointColors;
         obj.ptClrs = ptclrs;
-        obj.txtOffPx = obj.lObj.labelPointsPlotInfo.LblOffset;
+        obj.txtOffPx = pppi.TextOffset;
       end
       szassert(ptclrs,[npts 3]);      
 
       % init .xyVizPlotArgs*
-      trackPrefs = obj.lObj.projPrefs.Track;
-      ptsPlotInfo = obj.lObj.labelPointsPlotInfo;
-      plotPrefs = trackPrefs.PredictPointsPlot;
-      plotPrefs.PickableParts = 'none';
-      xyVizPlotArgs = struct2paramscell(plotPrefs);
-      xyVizPlotArgsNonTarget = xyVizPlotArgs; % TODO: customize
+      markerPVs = pppi.MarkerProps;
+      textPVs = pppi.TextProps;
+      markerPVs.PickableParts = 'none';
+      textPVs.PickableParts = 'none';
+      markerPVs = struct2paramscell(markerPVs);
+      textPVs = struct2paramscell(textPVs);
+      %markerPVsNonTarget = markerPVs; % TODO: customize
       
-      hXYPrdRed0 = obj.hXYPrdRed;
+      if postload
+        % We init first with markerPVs/textPVs, then set saved custom PVs
+        hXYPrdRed0 = obj.hXYPrdRed;
+        hXYPrdRedTxt0 = obj.hXYPrdRedTxt;
+      end
       
       npts = obj.nPts;
       ax = obj.hAxs;
@@ -109,29 +126,39 @@ classdef TrackingVisualizer < handle
         clr = ptclrs(iPt,:);
         iVw = ipt2View(iPt);
         ptset = ipt2set(iPt);
-        hTmp(iPt) = plot(ax(iVw),nan,nan,xyVizPlotArgs{:},...
+        hTmp(iPt) = plot(ax(iVw),nan,nan,markerPVs{:},...
           'Color',clr,...
           'Tag',sprintf('%s_XYPrdRed_%d',pfix,iPt));
-        hTmpOther(iPt) = plot(ax(iVw),nan,nan,xyVizPlotArgs{:},...
+        hTmpOther(iPt) = plot(ax(iVw),nan,nan,markerPVs{:},...
           'Color',clr,...
           'Tag',sprintf('%s_XYPrdRedOther_%d',pfix,iPt));
         hTxt(iPt) = text(nan,nan,num2str(ptset),'Parent',ax(iVw),...
-          'Color',clr,...
-          'FontSize',ptsPlotInfo.FontSize,...
-          'PickableParts','none',...
+          'Color',clr,textPVs{:},...
           'Tag',sprintf('%s_PrdRedTxt_%d',pfix,iPt));
       end
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdRedOther = hTmpOther;
       obj.hXYPrdRedTxt = hTxt;
       
-      if postload && isstruct(hXYPrdRed0) 
-        if numel(hXYPrdRed0)==numel(hTmp)          
-          arrayfun(@(x,y)set(x,y),hTmp,hXYPrdRed0);
-        else
-          warningNoTrace('.hXYPrdRed: Number of saved prop-val structs does not match number of line handles.');
+      if postload
+        if isstruct(hXYPrdRed0)
+          if numel(hXYPrdRed0)==numel(hTmp)
+            arrayfun(@(x,y)set(x,y),hTmp,hXYPrdRed0);
+          else
+            warningNoTrace('.hXYPrdRed: Number of saved prop-val structs does not match number of line handles.');
+          end
+        end
+        if isstruct(hXYPrdRedTxt0)
+          if numel(hXYPrdRedTxt0)==numel(hTxt)
+            arrayfun(@(x,y)set(x,y),hTxt,hXYPrdRedTxt0);
+          else
+            warningNoTrace('.hXYPrdRedTxt: Number of saved prop-val structs does not match number of line handles.');
+          end
         end
       end
+      
+      % default textPVs do not respect .tfHideViz/.tfHideTxt
+      obj.updateHideVizHideText(); 
       
       obj.vizInitHook();
     end
@@ -155,6 +182,7 @@ classdef TrackingVisualizer < handle
     end
     function updateLandmarkColors(obj,ptsClrs)
       npts = obj.nPts;
+      szassert(ptsClrs,[npts 3]);
       for iPt=1:npts
         clr = ptsClrs(iPt,:);
         set(obj.hXYPrdRed(iPt),'Color',clr);
@@ -178,17 +206,56 @@ classdef TrackingVisualizer < handle
       end
     end
     function setMarkerCosmetics(obj,pvargs)
-      arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRed);
+      if isstruct(pvargs)
+        arrayfun(@(x)set(x,pvargs),obj.hXYPrdRed);
+      else
+        arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRed);
+      end
     end
     function setTextCosmetics(obj,pvargs)
-      arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRedTxt);      
+      if isstruct(pvargs)
+        arrayfun(@(x)set(x,pvargs),obj.hXYPrdRedTxt);
+      else        
+        arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRedTxt);
+      end
+    end
+    function setTextOffset(obj,offsetPx)
+      obj.txtOffPx = offsetPx; 
+      
+      npts = obj.nPts;      
+      h = obj.hXYPrdRed;
+      x = get(h,'XData');
+      y = get(h,'YData');
+      xy = [cell2mat(x(:)) cell2mat(y(:))];
+      szassert(xy,[npts 2]);
+      
+      obj.updateTrackRes(xy);
     end
   end
   
   methods 
-    % Ways to create/init a TrackingVisualizer
-    % - Call the constructor normally, then vizInit();
-    % - (When loading) Call constructor with no args, then postLoadInit()
+    % Construction/Init notes 
+    %
+    % 1. Call the constructor normally, then vizInit();
+    %   - This initializes cosmetics from labeler.predPointsPlotInfo
+    %   - This is the codepath used for LabelTrackers. LabelTracker TVs
+    %   are not serialized. New/fresh ones are created and cosmetics are
+    %   initted from labeler.predPointsPlotInfo.
+    % 2. From serialized. Call constructor with no args, then postLoadInit()
+    %   - SaveObj restores various cosmetic state, including PV props in
+    %   .hXYPrdRed and .hXYPrdRedTxt
+    %   - PostLoadInit->vizInit sets up cosmetic state on handles
+    %
+    % Save/load strategy. 
+    %
+    % In saveobj we record the cosmetics used for a TrackingVisualizer for 
+    % the .hXYPrdRed line handles by doing a get and saving the resulting 
+    % PVs in .hXYPrdRed; similarly for .hXYPrdRedTxt.
+    %
+    % Loadobj keeps these PVs in .hXYPrdRed and .hxYPrdRedTxt. At 
+    % postLoadInit->vizInit('postload',true) time, the PVs are re-set on 
+    % the .hXYPrdRed line handles. In this way, serialized TVs can keep
+    % arbitrary customized cosmetics.
     
     function obj = TrackingVisualizer(lObj,handleTagPfix)
       obj.tfHideTxt = false;
@@ -220,22 +287,19 @@ classdef TrackingVisualizer < handle
       obj.deleteGfxHandles();
     end
     
-    % Save/load strategy. 
-    %
-    % In saveobj we record the cosmetics used for a TrackingVisualizer for 
-    % the .hXYPrdRed line handles by doing a get and saving the resulting 
-    % PVs in .hXYPrdRed.
-    %
-    % Loadobj keeps these PVs in .hXYPrdRed. At postLoadInit->vizInit('postload',true)
-    % time, the PVs are re-set on the .hXYPrdRed line handles.
     function s = saveobj(obj)
       s = struct();
       for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>
         s.(p) = obj.(p);
       end
+      
       lineprops = obj.LINE_PROPS_COSMETIC_SAVE;
       vals = get(obj.hXYPrdRed,lineprops); % [nhandle x nprops]
       s.hXYPrdRed = cell2struct(vals,lineprops,2);
+      
+      textprops = obj.TEXT_PROPS_COSMETIC_SAVE;
+      vals = get(obj.hXYPrdRedTxt,textprops); % [nhandle x nprops]
+      s.hXYPrdRedTxt = cell2struct(vals,textprops,2);
     end
   end
   methods (Static)
@@ -246,6 +310,9 @@ classdef TrackingVisualizer < handle
           b.(p) = a.(p);
         end
         b.hXYPrdRed = a.hXYPrdRed;
+        if isfield(a,'hXYPrdRedTxt')
+          b.hXYPrdRedTxt = a.hXYPrdRedTxt;
+        end
       else
         b = a;
       end

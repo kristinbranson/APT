@@ -26,6 +26,7 @@ classdef DeepTracker < LabelTracker
   end
   properties (Hidden)
     jrcgpuqueue = 'gpu_any';
+    jrcnslots = 1;
   end
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
@@ -1196,7 +1197,7 @@ classdef DeepTracker < LabelTracker
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
               aptroot,dmc(ivw),...
               'singArgs',singArgs,'trnCmdType',trnCmdType,...
-              'bsubargs',{'gpuqueue' obj.jrcgpuqueue});
+              'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
           end
         case DLBackEnd.Docker
           containerNames = cell(nTrainJobs,1);
@@ -2613,7 +2614,7 @@ classdef DeepTracker < LabelTracker
             fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);
           end
           
-          bsubargs = {'gpuqueue' obj.jrcgpuqueue 'outfile' outfile};
+          bsubargs = {'nslots' obj.jrcnslots 'gpuqueue' obj.jrcgpuqueue 'outfile' outfile};
           %sshargs = {'logfile' outfile2};
           sshargs = {};
           trksysinfo(imov,ivwjob).trkfile = trkfile;
@@ -3454,6 +3455,7 @@ classdef DeepTracker < LabelTracker
         'bindpath',DFLTBINDPATH,...
         'singimg','/misc/local/singularity/branson_cuda10_mayank.simg');
       
+      bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
       codestr = sprintf('singularity exec --nv %s %s bash -c ". /opt/venv/bin/activate && %s"',...
@@ -4765,10 +4767,12 @@ classdef DeepTracker < LabelTracker
       obj.hideViz = tf;
     end
     function updateLandmarkColors(obj)
-      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      ptsClrs = obj.lObj.predPointsPlotInfo.Colors;
       ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
       obj.trkVizer.updateLandmarkColors(ptsClrs);      
     end
+    % For updating other cosmetics, go ahead and call obj.trkVizer methods
+    % directly
   end
 
   %% Labeler nav

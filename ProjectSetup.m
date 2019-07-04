@@ -274,7 +274,7 @@ end
 if isequal(fname,0)
   return;
 end
-lbl = load(fullfile(pth,fname),'-mat');
+lbl = loadLbl(fullfile(pth,fname));
 lbl = Labeler.lblModernize(lbl);
 cfg = lbl.cfg;
 handles = setCurrentConfig(handles,cfg);

@@ -172,63 +172,59 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % alternatively this is acting as multiview lblCore baseclass
       deleteValidHandles(obj.hPts);
       deleteValidHandles(obj.hPtsTxt);
-      deleteValidHandles(obj.labeler.labeledpos2_ptsH);
-      deleteValidHandles(obj.labeler.labeledpos2_ptsTxtH);
+%       deleteValidHandles(obj.labeler.labeledpos2_ptsH);
+%       deleteValidHandles(obj.labeler.labeledpos2_ptsTxtH);
       deleteValidHandles(obj.hSkel);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
       obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
-      obj.labeler.labeledpos2_ptsH = gobjects(obj.nPts,1);
-      obj.labeler.labeledpos2_ptsTxtH = gobjects(obj.nPts,1);
+%       obj.labeler.labeledpos2_ptsH = gobjects(obj.nPts,1);
+%       obj.labeler.labeledpos2_ptsTxtH = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
       %obj.hPtsColors = nan(obj.nPointSet,3);
       obj.hPtsTxtStrs = cell(obj.nPts,1);
-      trkPrefs = obj.labeler.projPrefs.Track;
-            
-      if ~isempty(trkPrefs)
-        ppi2 = trkPrefs.PredictPointsPlot;
-      else
-        ppi2 = obj.ptsPlotInfo;
-      end
-      ppi2.FontSize = ppi.FontSize;
+      
+%       ppi2 = obj.labeler.predPointsPlotInfo;
+      %ppi2.FontSize = ppi.FontSize;
       
       obj.updateSkeletonEdges([],ppi);
       obj.updateShowSkeleton();
 
+      pvMarker = struct2paramscell(ppi.MarkerProps);
+      pvText = struct2paramscell(ppi.TextProps);
+      
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
         setClr = ppi.Colors(iSet,:);
-        setClr2 = setClr;
+%         setClr2 = setClr;
         %obj.hPtsColors(iPt,:) = setClr;
-        ptsArgs = {nan,nan,ppi.Marker,...
+        ptsArgs = {nan,nan,pvMarker{:},...
           'ZData',1,... % AL 20160628: seems to help with making points clickable but who knows 2018018 probably remove me after Pickable Parts update
-          'MarkerSize',ppi.MarkerSize,...
-          'LineWidth',ppi.LineWidth,...
           'Color',setClr,...
           'UserData',iPt,...
           'HitTest','on',...
-          'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)};
-        ptsArgs2 = {nan,nan,ppi2.Marker,... % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
-          'MarkerSize',ppi2.MarkerSize,...
-          'LineWidth',ppi2.LineWidth,...
-          'Color',setClr2,...
-          'PickableParts','none'};
+          'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)}; %#ok<CCAT>
+%         ptsArgs2 = {nan,nan,ppi2.Marker,... % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
+%           'MarkerSize',ppi2.MarkerSize,...  % AL 20190602: Indeed very strange
+%           'LineWidth',ppi2.LineWidth,...
+%           'Color',setClr2,...
+%           'PickableParts','none'};
         ax = obj.hAx(obj.iPt2iAx(iPt));
         obj.hPts(iPt) = plot(ax,ptsArgs{:},'Tag',sprintf('LabelCoreMV_Pt%d',iPt));
-        obj.labeler.labeledpos2_ptsH(iPt) = plot(ax,ptsArgs2{:},'Tag',sprintf('LabelCoreMV_LabeledPos2%d',iPt)); % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
+%         obj.labeler.labeledpos2_ptsH(iPt) = plot(ax,ptsArgs2{:},...
+%           'Tag',sprintf('LabelCoreMV_LabeledPos2%d',iPt)); ...
+%           % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
         txtStr = num2str(iSet);
-        txtargs = {'Color',setClr,...
-          'FontSize',ppi.FontSize,...
-          'PickableParts','none'};
+        txtargs = {'Color',setClr,pvText{:},'PickableParts','none'}; %#ok<CCAT>
         obj.hPtsTxt(iPt) = text(nan,nan,txtStr,...
           'Parent',ax,txtargs{:},'Tag',sprintf('LabelCoreMV_PtTxt%d',iPt));
         obj.hPtsTxtStrs{iPt} = txtStr;
-        obj.labeler.labeledpos2_ptsTxtH(iPt) = text(nan,nan,txtStr,... % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
-          'Parent',ax,...
-          'Color',setClr2,...
-          'FontSize',ppi2.FontSize,...
-          'PickableParts','none',...
-          'Tag',sprintf('LabelCoreMV_LabeledPos2Txt%d',iPt));
+%         obj.labeler.labeledpos2_ptsTxtH(iPt) = text(nan,nan,txtStr,... % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
+%           'Parent',ax,...
+%           'Color',setClr2,...
+%           'FontSize',ppi2.FontSize,...
+%           'PickableParts','none',...
+%           'Tag',sprintf('LabelCoreMV_LabeledPos2Txt%d',iPt));
       end
       
       obj.setRandomTemplate();
@@ -258,24 +254,23 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.hPtsTxtOcc = gobjects(obj.nPts,1);
 
       ppi = obj.ptsPlotInfo;
-      %obj.hPtsColors = nan(obj.nPointSet,3);
+      pvMarker = struct2paramscell(ppi.MarkerProps);
+      pvText = struct2paramscell(ppi.TextProps);
 
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
         setClr = ppi.Colors(iSet,:);
         %obj.hPtsColors(iPt,:) = setClr;
-        ptsArgsOcc = {nan,nan,ppi.Marker,...
-          'MarkerSize',ppi.MarkerSize,...
-          'LineWidth',ppi.LineWidth,...
+        ptsArgsOcc = {nan,nan,pvMarker{:},...
           'Color',setClr,...
           'UserData',iPt,...
-          'HitTest','off'};        
+          'HitTest','off'}; %#ok<CCAT>
         axocc = obj.hAxOcc(obj.iPt2iAx(iPt));
         obj.hPtsOcc(iPt) = plot(axocc,ptsArgsOcc{:},'Tag',sprintf('LabelCoreMV_PtOcc%d',iPt));
         txtStr = num2str(iSet);
         txtargs = {'Color',setClr,...
-          'FontSize',ppi.FontSize,...
-          'PickableParts','none'};
+          pvText{:},...
+          'PickableParts','none'}; %#ok<CCAT>
         obj.hPtsTxtOcc(iPt) = text(nan,nan,txtStr,...
           'Parent',axocc,txtargs{:},'Tag',sprintf('LabelCoreMV_PtTxtOcc%d',iPt));
       end
@@ -302,7 +297,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       if isempty(obj.iSet2iPt) || isempty(obj.labeler.skeletonEdges),
         return;
       end
-
       
       if nargin < 2 || isempty(ax),
         ax = obj.hAx;

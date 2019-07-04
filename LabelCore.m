@@ -143,16 +143,16 @@ classdef LabelCore < handle
       ax = obj.hAx;
       obj.updateSkeletonEdges(ax,ptsPlotInfo);
       
+      pvMarker = struct2paramscell(ptsPlotInfo.MarkerProps);
+      pvText = struct2paramscell(ptsPlotInfo.TextProps);
+      
       for i = 1:obj.nPts
-        ptsArgs = {nan,nan,ptsPlotInfo.Marker,...
-          'MarkerSize',ptsPlotInfo.MarkerSize,...
-          'LineWidth',ptsPlotInfo.LineWidth,...
-          'Color',ptsPlotInfo.Colors(i,:),...
-          'UserData',i};
+        ptsArgs = {nan,nan,pvMarker{:},'Color',ptsPlotInfo.Colors(i,:),...
+          'UserData',i}; %#ok<CCAT>
         obj.hPts(i) = plot(ax(1),ptsArgs{:},'Tag',sprintf('LabelCore_Pts_%d',i));
         obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax(1),...
+          pvText{:},...
           'Color',ptsPlotInfo.Colors(i,:),...
-          'FontSize',ptsPlotInfo.FontSize,...
           'PickableParts','none',...
           'Tag',sprintf('LabelCore_Pts_%d',i));
       end
@@ -190,16 +190,18 @@ classdef LabelCore < handle
       obj.hPtsTxtOcc = gobjects(obj.nPts,1);
       
       axOcc = obj.hAxOcc;
+      
+      pvMarker = struct2paramscell(obj.ptsPlotInfo.MarkerProps);
+      pvText = struct2paramscell(obj.ptsPlotInfo.TextProps);
+      
       for i = 1:obj.nPts
-        ptsArgs = {nan,nan,obj.ptsPlotInfo.Marker,...
-          'MarkerSize',obj.ptsPlotInfo.MarkerSize,...
-          'LineWidth',obj.ptsPlotInfo.LineWidth,...
+        ptsArgs = {nan,nan,pvMarker{:},...
           'Color',obj.ptsPlotInfo.Colors(i,:),...
-          'UserData',i};
+          'UserData',i}; %#ok<CCAT>
         obj.hPtsOcc(i) = plot(axOcc(1),ptsArgs{:},'Tag',sprintf('LabelCore_PtsOcc_%d',i));
         obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc(1),...
+          pvText{:},...
           'Color',obj.ptsPlotInfo.Colors(i,:),...
-          'FontSize',obj.ptsPlotInfo.FontSize,...
           'PickableParts','none',...
           'Tag',sprintf('LabelCore_Pts_%d',i));
       end
@@ -321,7 +323,10 @@ classdef LabelCore < handle
     function getLabelingHelp(obj) %#ok<MANU>
     end
     
+    % Cosmetics: see "Cosmetics notes" in Labeler.m
+
     function updateColors(obj,colors)
+      % Colors apply to both markers and textlbls
       
       obj.ptsPlotInfo.Colors = colors;
       
@@ -344,6 +349,25 @@ classdef LabelCore < handle
 %         color = obj.ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
 %         set(obj.hSkel(i),'Color',color);
 %       end
+    end
+    
+    function updateMarkerCosmetics(obj,pvMarker)
+      flds = fieldnames(pvMarker);
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        obj.ptsPlotInfo.MarkerProps.(f) = pvMarker.(f);
+      end
+      set(obj.hPts,pvMarker);
+    end
+    
+    function updateTextLabelCosmetics(obj,pvText,txtoffset)
+      flds = fieldnames(pvText);
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        obj.ptsPlotInfo.TextProps.(f) = pvText.(f);
+      end
+      set(obj.hPtsTxt,pvText);
+      
+      obj.ptsPlotInfo.TextOffset = txtoffset;      
+      obj.redrawTextLabels(); % to utilize txtoffset
     end
     
     function edges = skeletonEdges(obj)
@@ -379,6 +403,7 @@ classdef LabelCore < handle
   
   %% 
   methods % show/hide viz
+    
     function labelsHide(obj)
       [obj.hPts.Visible] = deal('off');
       [obj.hPtsTxt.Visible] = deal('off'); 
@@ -399,7 +424,7 @@ classdef LabelCore < handle
       else
         obj.labelsHide();
       end
-    end
+    end    
     
     function updateShowSkeleton(obj)
       if isempty(obj.hSkel),
@@ -411,7 +436,6 @@ classdef LabelCore < handle
         [obj.hSkel.Visible] = deal('off');
       end
     end
-
         
   end
   
@@ -549,8 +573,6 @@ classdef LabelCore < handle
       LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
       LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
         obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
-
-      
     end
     
     function refreshPtMarkers(obj,varargin)
@@ -571,12 +593,12 @@ classdef LabelCore < handle
       set(hPoints(tfSl & tfEO),'Marker',ppitm.SelectedOccludedMarker);
       set(hPoints(tfSl & ~tfEO),'Marker',ppitm.SelectedPointMarker);
       set(hPoints(~tfSl & tfEO),'Marker',ppi.OccludedMarker);
-      set(hPoints(~tfSl & ~tfEO),'Marker',ppi.Marker);
+      set(hPoints(~tfSl & ~tfEO),'Marker',ppi.MarkerProps.Marker);
       
       if doPtsOcc && ~isempty(obj.hPtsOcc),
         hPointsOcc = obj.hPtsOcc(iPts);
         set(hPointsOcc(tfSl),'Marker',ppitm.SelectedPointMarker);
-        set(hPointsOcc(~tfSl),'Marker',ppi.Marker);
+        set(hPointsOcc(~tfSl),'Marker',ppi.MarkerProps.Marker);
       end
     end
         
@@ -657,13 +679,28 @@ classdef LabelCore < handle
   end
   methods
     function setPtsCoords(obj,xy,hPts,hTxt)
-      txtOffset = obj.labeler.labelPointsPlotInfo.LblOffset;
+      txtOffset = obj.labeler.labelPointsPlotInfo.TextOffset; % could use .ptsPlotInfo
       LabelCore.setPtsCoordsStc(xy,hPts,hTxt,txtOffset);
+    end
+    function redrawTextLabels(obj)
+      % eg when text offset is updated
+      txtOffset = obj.labeler.labelPointsPlotInfo.TextOffset; % could use .ptsPlotInfo
+      
+      h = obj.hPts;
+      hT = obj.hPtsTxt;
+      x = get(h,'XData');
+      y = get(h,'YData');
+      xy = [cell2mat(x(:)) cell2mat(y(:))];
+      xyT = xy + txtOffset;
+      %szassert(xy,[npts 2]);
+      for i = 1:numel(hT)
+        set(hT(i),'Position',[xyT(i,1) xyT(i,2) 1]);
+      end
     end
     
   end
   methods (Static)
-    function setPtsCoordsStc(xy,hPts,hTxt,txtOffset)      
+    function setPtsCoordsStc(xy,hPts,hTxt,txtOffset)
       %tic;
       nPoints = size(xy,1);
       assert(size(xy,2)==2);
@@ -748,7 +785,8 @@ classdef LabelCore < handle
       end
       h = plot(ax(1),nan(2,1),nan(2,1),'-','Color',color,...
         'PickableParts','none','Tag',sprintf('LabelCore_Skel_%d',i),...
-        'LineWidth',ptsPlotInfo.LineWidth);
+        'LineWidth',ptsPlotInfo.MarkerProps.LineWidth); 
+      % Maybe should be using a dedicated skeleton LineWidth prop
       
     end
     
