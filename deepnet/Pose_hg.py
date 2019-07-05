@@ -208,7 +208,7 @@ class Pose_hg(PoseBaseGeneral):
         savestep = self.conf.save_step
         dispstep = self.conf.save_td_step
         with tf.name_scope('Session'):
-            with tf.device(hgm.gpu):
+            with tf.device(None):  #hgm.gpu):
                 hgm._init_weight()
                 hgm._define_saver_summary(summary=False)
                 #self._train(nEpochs, epochSize, saveStep, validIter=10)
@@ -224,7 +224,7 @@ class Pose_hg(PoseBaseGeneral):
                         cost = 0.
                         print('Epoch :' + str(epoch) + '/' + str(nEpochs) + '\n')
                         # Training Set
-                        for i in range(epochSize):
+                        for i in range(epochSize+1):  # "plus 1" to get final expected saved ckpt eg deepnet-2000.index
                             #percent = ((i + 1) / epochSize) * 100
                             #num = np.int(20 * percent / 100)
                             #tToEpoch = int((time.time() - epochstartTime) * (100 - percent) / (percent))
@@ -236,8 +236,17 @@ class Pose_hg(PoseBaseGeneral):
 
                             #img_train, gt_train, weight_train = next(self.generator)
                             # self.fd_train()
-                            if i % savestep == 0 or i == epochSize-1:
-                                _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op])
+
+                            results = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur)
+                            c = results[1]
+                            accs = results[2:]
+                            accs = np.stack(accs, axis=1)
+                            accmu = np.mean(accs, axis=0)
+                            accmumu = np.mean(accmu).item()
+                            accmumx = np.amax(accmu).item()
+
+                            if i % savestep == 0 or i == epochSize:
+                                #_, c, _ = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur)
                                 # Save summary (Loss + Accuracy)
                                 #self.train_summary.add_summary(summary, epoch * epochSize + i)
                                 #self.train_summary.flush()
@@ -248,22 +257,12 @@ class Pose_hg(PoseBaseGeneral):
                                                    global_step=i,
                                                    write_meta_graph=False)
                                     logging.info('Saved state to %s-%d' % (save_path, i))
-                                # accmu = np.zeros(1)
-                                accmumu = 0.
-                                accmumx = 0.
-                            else:
-                                results = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur)
-                                c = results[1]
-                                accs = results[2:]
-                                accs = np.stack(accs, axis=1)
-                                accmu = np.mean(accs, axis=0)
-                                accmumu = np.mean(accmu).item()
-                                accmumx = np.amax(accmu).item()
+
                             if i % dispstep == 0:
                                 self.append_td(i, c, accmumu)  # using accmumu instead of train dist
                                 # accmustr = np.array2string(accmu)
                                 # logstr = 'loss is {:8.4f}, accmu is {:s}'.format(c, accmustr)
-                                logstr = 'loss={:8.4f}, accmumu={:8.4f}, accmumx={:8.4f}'.format(c, accmumu, accmumx)
+                                logstr = 'loss={:.4g}, accmumu={:.4g}, accmumx={:.4g}'.format(c, accmumu, accmumx)
                                 logging.info(logstr)
                                 # Validation Set
                                 # accuracy_array = np.array([0.0] * len(self.joint_accur))

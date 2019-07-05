@@ -28,22 +28,12 @@ classdef LabelTracker < handle
   % will need to be replaced with some other ID mechanism (eg a uuid or 
   % 2-ple ID etc.
   
-%   properties (Constant)
-%     % Known concrete LabelTrackers
-%     subclasses = {...
-%       'Interpolator'
-%       'SimpleInterpolator'
-%       'GMMTracker'
-%       'CPRLabelTracker'
-%       };
-%   end
-  
   properties (Abstract)
     algorithmName % char
     trackerInfo; % struct with whatever information we want to save about the current tracker. 
   end  
   
-  properties    
+  properties
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
     ax % axis for viewing tracking results
@@ -64,17 +54,8 @@ classdef LabelTracker < handle
     hideViz = false; % scalar logical. If true, hide visualizations
   end
   
-  properties (Constant)
-    APT_DEFAULT_TRACKERS = {
-      {'CPRLabelTracker'}
-      {'DeepTracker' 'trnNetType' DLNetType.mdn}
-      {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
-      {'DeepTracker' 'trnNetType' DLNetType.unet}
-      {'DeepTracker' 'trnNetType' DLNetType.openpose}
-      {'DeepTracker' 'trnNetType' DLNetType.leap}
-      };
+  properties (Constant)    
     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
-    DeepTrackerAlgorithmNames = {'mdn','deeplabcut','unet'};    
   end
       
   methods
@@ -121,15 +102,8 @@ classdef LabelTracker < handle
       if ~isempty(obj.hLMoviesReordered)
         delete(obj.hLMoviesReordered);
       end      
-    end
-    
-	% is the current tracking algorithm a DL algorithm?
-    function v = isDeepTracker(obj)
-      
-      v = ismember(obj.algorithmName,LabelTracker.DeepTrackerAlgorithmNames);
-      
-    end
-    
+    end    
+	
   end
   
   methods
@@ -410,22 +384,24 @@ classdef LabelTracker < handle
       end
     end
     
+    function info = getAllTrackersCreateInfo
+      
+      dlnets = enumeration('DLNetType');
+      info = [
+        {{'CPRLabelTracker'}}
+        arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0)
+        ];
+
+%       APT_DEFAULT_TRACKERS = {
+%         {'CPRLabelTracker'}
+%         {'DeepTracker' 'trnNetType' DLNetType.mdn}
+%         {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
+%         {'DeepTracker' 'trnNetType' DLNetType.unet}
+%         {'DeepTracker' 'trnNetType' DLNetType.openpose}
+%         {'DeepTracker' 'trnNetType' DLNetType.leap}
+%         };
+    end
+    
   end
-%     
-%     function sc = findAllSubclasses
-%       % sc: cellstr of LabelTracker subclasses in APT.Root
-%       
-%       scnames = LabelTracker.subclasses; % candidates
-%       nSC = numel(scnames);
-%       tf = false(nSC,1);
-%       for iSC=1:nSC
-%         name = scnames{iSC};
-%         mc = meta.class.fromName(name);
-%         tf(iSC) = ~isempty(mc) && any(strcmp('LabelTracker',{mc.SuperclassList.Name}));
-%       end
-%       sc = scnames(tf);
-%     end
-%     
-%   end
   
 end

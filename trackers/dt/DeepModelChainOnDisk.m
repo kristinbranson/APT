@@ -158,7 +158,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function v = get.trainFinalModelName(obj)
       switch obj.netType
-        case {DLNetType.openpose DLNetType.leap}
+        case {DLNetType.openpose DLNetType.leap} % this specificity prob belongs in DLNetType
           v = sprintf('deepnet-%d',obj.iterFinal);
         otherwise
           v = sprintf('deepnet-%d.index',obj.iterFinal);
@@ -166,7 +166,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end    
     function v = get.trainCurrModelName(obj)
       switch obj.netType
-        case {DLNetType.openpose DLNetType.leap}
+        case {DLNetType.openpose DLNetType.leap} % this specificity prob belongs in DLNetType
           v = sprintf('deepnet-%d',obj.iterCurr);
         otherwise
           v = sprintf('deepnet-%d.index',obj.iterCurr);
@@ -174,7 +174,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function v = get.trainModelGlob(obj)
       switch obj.netType
-        case {DLNetType.openpose DLNetType.leap}
+        case {DLNetType.openpose DLNetType.leap} % this specificity prob belongs in DLNetType
           v = 'deepnet-*';
         otherwise
           v = 'deepnet-*.index';

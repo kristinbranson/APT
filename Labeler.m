@@ -1695,12 +1695,12 @@ classdef Labeler < handle
       if trkPrefs.Enable
         % Create default trackers
         assert(isempty(obj.trackersAll));
-        dfltTrkers = LabelTracker.APT_DEFAULT_TRACKERS;
-        nTrkers = numel(dfltTrkers);
+        trkersCreateInfo = LabelTracker.getAllTrackersCreateInfo;
+        nTrkers = numel(trkersCreateInfo);
         tAll = cell(1,nTrkers);
         for i=1:nTrkers
-          trkerCls = dfltTrkers{i}{1};
-          trkerClsArgs = dfltTrkers{i}(2:end);
+          trkerCls = trkersCreateInfo{i}{1};
+          trkerClsArgs = trkersCreateInfo{i}(2:end);
           tAll{i} = feval(trkerCls,obj,trkerClsArgs{:});
           tAll{i}.init();
         end
@@ -2904,18 +2904,18 @@ classdef Labeler < handle
       
       % 20180525 DeepTrack integration. .trackerClass, .trackerData, .currTracker
       % 20181215 Updated for multiple DeepTrackers
-      dfltTrkers = LabelTracker.APT_DEFAULT_TRACKERS;
-      nDfltTrkers = numel(dfltTrkers);
+      trkersInfo = LabelTracker.getAllTrackersCreateInfo;
+      nDfltTrkers = numel(trkersInfo);
       if isempty(s.trackerClass)
         % Add current default trackers to all projs; doesn't hurt to have
         % them there
-        s.trackerClass = dfltTrkers;
+        s.trackerClass = trkersInfo;
         s.trackerData = repmat({[]},1,nDfltTrkers);
         s.currTracker = 0;
       elseif ischar(s.trackerClass)
-        assert(strcmp(s.trackerClass,dfltTrkers{1}{1}));
+        assert(strcmp(s.trackerClass,trkersInfo{1}{1}));
         assert(strcmp(s.trackerClass,'CPRLabelTracker'));
-        s.trackerClass = dfltTrkers;
+        s.trackerClass = trkersInfo;
         tData = repmat({[]},1,nDfltTrkers);
         tData{1} = s.trackerData;
         s.trackerData = tData;
@@ -2937,21 +2937,21 @@ classdef Labeler < handle
           end
           
           dlTrkClsAug = {'DeepTracker' 'trnNetType' s.trackerData{2}.trnNetType};
-          tf = cellfun(@(x)isequal(dlTrkClsAug,x),dfltTrkers);
+          tf = cellfun(@(x)isequal(dlTrkClsAug,x),trkersInfo);
           iTrk = find(tf);
           assert(isscalar(iTrk));
           newTData = repmat({[]},1,nDfltTrkers);
           newTData{1} = s.trackerData{1};
           newTData{iTrk} = s.trackerData{2};
           s.trackerData = newTData;
-          s.trackerClass = dfltTrkers;
+          s.trackerClass = trkersInfo;
           if s.currTracker==2
             s.currTracker = iTrk;
           end
         else % 20181214, planning ahead when we add trackers
-          assert(isequal(s.trackerClass(:),dfltTrkers(1:nExistingTrkers)));
+          assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers)));
           s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
-            dfltTrkers(nExistingTrkers+1:nDfltTrkers);
+            trkersInfo(nExistingTrkers+1:nDfltTrkers);
           s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
             repmat({[]},1,nDfltTrkers-nExistingTrkers);
         end
