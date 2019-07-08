@@ -10,7 +10,7 @@ classdef DLNetType
     unet ('unet','Unet')
     openpose ('openpose','OpenPose')
     leap ('leap','LEAP')
-    hg ('hg','HourGlass')
+    %hg ('hg','HourGlass')
   end
   methods 
     function obj = DLNetType(sstr,pstr)
