@@ -731,6 +731,16 @@ classdef DeepTracker < LabelTracker
         reason = 'Tracking is in progress.';
         return;
       end
+      
+      % For now we do this check here even though the actual parfeval()
+      % call for the tracking monitor is made in downstream code.
+      p = gcp;
+      nrun = numel(p.FevalQueue.RunningFutures);
+      if nrun>=p.NumWorkers
+        reason = 'Parallel pool is full. Cannot spawn training monitor.';
+        return;
+      end
+
       % AL 20190321 parameters now set at start of retrain
 %       if isempty(obj.sPrmAll)
 %         reason = 'No tracking parameters have been set.';
@@ -2323,6 +2333,15 @@ classdef DeepTracker < LabelTracker
       
       if obj.bgTrkIsRunning
         reason = 'Tracking is already in progress.';
+        return;
+      end
+      
+      % For now we do this check here even though the actual parfeval() 
+      % call for the tracking monitor is made in downstream code.
+      p = gcp;
+      nrun = numel(p.FevalQueue.RunningFutures);
+      if nrun>=p.NumWorkers
+        reason = 'Parallel pool is full. Cannot spawn tracking monitor.';
         return;
       end
 
