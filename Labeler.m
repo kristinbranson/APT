@@ -1244,7 +1244,7 @@ classdef Labeler < handle
 %         close(obj.hFig);
 %         obj.hFig = [];
 %       end     
-      if ~isempty(obj.hFig)
+      if ~isempty(obj.hFig) && isvalid(obj.hFig)
         gd = obj.gdata;
         deleteValidHandles(gd.depHandles);      
         deleteValidHandles(obj.hFig);
@@ -5048,10 +5048,7 @@ classdef Labeler < handle
       hBtn.Units = 'normalized';
       hF.Visible = 'on';
 
-      % See LabelerGUI/addDepHandle
-      handles = obj.gdata;
-      handles.depHandles(end+1,1) = hF;
-      guidata(obj.hFig,handles);
+      obj.addDepHandle(hF);
     end
         
   end
@@ -8667,10 +8664,7 @@ classdef Labeler < handle
 %       kph = SuspKeyPressHandler(nt);
 %       setappdata(hF,'keyPressHandler',kph);
 
-      % See LabelerGUI/addDepHandle
-      handles = obj.gdata;
-      handles.depHandles(end+1,1) = hF;
-      guidata(obj.hFig,handles);
+      obj.addDepHandle(hF);
     end
     
     function suspCbkTblNaved(obj,i)
@@ -13256,6 +13250,12 @@ classdef Labeler < handle
     function raiseAllFigs(obj)
       h = obj.gdata.figs_all;
       arrayfun(@figure,h);
+    end
+    
+    function addDepHandle(obj,h)
+      handles = obj.gdata;
+      handles.depHandles(end+1,1) = h;
+      guidata(obj.hFig,handles);      
     end
     
   end
