@@ -20,8 +20,15 @@ classdef APTParameters
       tPrmPostProc = parseConfigYaml(APTParameters.POSTPROCESS_PARAMETER_FILE);
       
       nettypes = enumeration('DLNetType');
-      tPrmDeepNets = ...
-        arrayfun(@(x)parseConfigYaml(fullfile(APT.getRoot,'trackers','dt',x.paramFileShort)),nettypes,'uni',0);
+      tPrmDeepNets = cell(numel(nettypes),1);
+      for i=1:numel(nettypes)
+        netyaml = fullfile(APT.getRoot,'trackers','dt',nettypes(i).paramFileShort);
+        tPrmDeepNets{i} = parseConfigYaml(netyaml);
+        % AL 20190711: automatically create requirements for all deep net 
+        %   param trees 
+        tPrmDeepNets{i}.traverse(@(x)set(x.Data,'Requirements',...
+                                         {char(nettypes(i)),'isDeepTrack'}));
+      end
       tPrmDeepNets = cat(1,tPrmDeepNets{:});
       tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);
       
@@ -186,12 +193,15 @@ classdef APTParameters
           tree.Data.Visible = false;
         elseif ismember('isDeepTrack',tree.Data.Requirements) && ~trackerIsDL,
           tree.Data.Visible = false;
-        elseif ismember('isMDN',tree.Data.Requirements) && ~strcmp(trackerAlgo,'mdn'),
-          tree.Data.Visible = false;
-        elseif ismember('isDeepLabCut',tree.Data.Requirements) && ~strcmp(trackerAlgo,'deeplabcut'),
-          tree.Data.Visible = false;
-        elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(trackerAlgo,'unet'),
-          tree.Data.Visible = false;        
+        else
+          dlnets = enumeration('DLNetType');
+          for i=1:numel(dlnets)
+            net = dlnets(i);
+            if ismember(net,tree.Data.Requirements) && ~strcmp(trackerAlgo,net)
+              tree.Data.Visible = false;
+              break;
+            end
+          end
         end
         
         return;

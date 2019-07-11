@@ -1,4 +1,4 @@
-classdef TreeNode < handle
+classdef TreeNode < handle 
 
   properties
     Data
@@ -18,6 +18,22 @@ classdef TreeNode < handle
       c = t.Children;
       for i=1:numel(c)
         c(i).traverse(fcn);
+      end
+    end
+    
+    function traverseDispWithPath(t,fcn)
+      % fcn should return a string to display
+      
+      assert(isscalar(t));
+      trav(t,'');
+      function trav(zt,zpth)
+        str = fcn(zt.Data);
+        zpthnew = [zpth '.' zt.Data.Field];
+        fprintf(1,'%s: %s\n',zpthnew,str);
+        c = zt.Children;
+        for i=1:numel(c)
+          trav(c(i),zpthnew);
+        end
       end
     end
     
@@ -128,4 +144,4 @@ classdef TreeNode < handle
     
   end
   
-end  
+end
