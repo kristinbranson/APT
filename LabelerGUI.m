@@ -1887,6 +1887,7 @@ if tfTracker
   
   % FUTURE TODO, enable for DL
   handles.menu_track_training_data_montage.Enable = onOffCpr;
+  handles.menu_track_track_and_export.Enable = onOffCpr;
   isDL = ~iscpr;
   onOffDL = onIff(isDL);
   handles.menu_track_backend_config.Visible = onOffDL;
