@@ -54,12 +54,12 @@ classdef TreeNode < handle
     end
     
     function tcopy = copy(t)
-      
+      % Deep copy
       tcopy = TreeNode(t.Data);
       for i = 1:numel(t.Children),
         tcopy.Children(i) = t.Children(i).copy();
       end
-      
+      tcopy.Children = reshape(tcopy.Children,size(t.Children));
     end
     
     function structapply(t,s)
