@@ -8,7 +8,7 @@ classdef Labeler < handle
     MAX_MOVIENAME_LENGTH = 80;
     
     % non-config props
-	% KB 20190214 - replaced trackDLParams, preProcParams with trackParams
+  	% KB 20190214 - replaced trackDLParams, preProcParams with trackParams
     SAVEPROPS = { ...
       'VERSION' 'projname' ...
       'movieReadPreLoadMovies' ...
@@ -1105,14 +1105,12 @@ classdef Labeler < handle
 %       end
     end
     
-    function v = get.cprParams(obj)
-      
+    function v = get.cprParams(obj)      
       if isempty(obj.trackParams),
         v = [];
       else
         v = APTParameters.all2CPRParams(obj.trackParams,obj.nPhysPoints,obj.nview);
-      end
-      
+      end      
     end
     
 %     function set.cprParams(obj,prmCpr)
@@ -2656,7 +2654,7 @@ classdef Labeler < handle
     function s = lblModernize(s)
       % s: struct, .lbl contents
       
-	  % whether trackParams is stored -- update from 20190214
+	    % whether trackParams is stored -- update from 20190214
       isTrackParams = isfield(s,'trackParams');
       
       if ~isfield(s,'labeledposTS')
@@ -2886,21 +2884,8 @@ classdef Labeler < handle
         if ~isempty(ppPrm0used)
           fprintf('Using default preprocessing parameters for: %s.\n',...
             String.cellstr2CommaSepList(ppPrm0used));
-        end
-        
+        end        
       end
-      
-%       % 20180411 trackerType, trackerDeep
-%       if ~isfield(s,'trackerType')
-%         if ~isempty(s.trackerData)
-%           s.trackerType = 'cpr';
-%         else
-%           s.trackerType = 'none';
-%         end
-%       end
-%       if ~isfield(s,'trackerDeepData')
-%         s.trackerDeepData = [];
-%       end
       
       % 20180525 DeepTrack integration. .trackerClass, .trackerData, .currTracker
       % 20181215 Updated for multiple DeepTrackers
@@ -9410,7 +9395,7 @@ classdef Labeler < handle
         error('%s. ',msgs{:});
       end
       
-      sPrm0 = obj.trackParams;      
+      sPrm0 = obj.trackParams;
       tfPPprmsChanged = ...
         xor(isempty(sPrm0),isempty(sPrm)) || ...
         ~APTParameters.isEqualPreProcParams(sPrm0,sPrm);
@@ -9518,47 +9503,7 @@ classdef Labeler < handle
       sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
-      
-%       tcprObj = obj.trackGetTracker('cpr');
-%       assert(~isempty(tcprObj),'CPR tracker object not found.');
-%       prmCpr = tcprObj.sPrm;
-%       
-%       prmPP = obj.preProcParams;
-%       
-%       prmDLCommon = obj.trackDLParams;
-%       
-%       prmDLSpecific = struct;
-%       tDLs = obj.trackersAll;
-%       for i=1:numel(tDLs)
-%         if ~tDLs{i}.isDeepTracker,
-%           continue;
-%         end
-%         tObj = tDLs{i};
-%         netTypePretty = tObj.trnNetType.prettyString;
-%         if isfield(prmDLSpecific,char(tObj.trnNetType)),
-%           sPrmDT = prmDLSpecific.(char(tObj.trnNetType));
-%         else
-%           sPrmDT = tObj.getParams();
-%         end
-%         prmDLSpecific.(netTypePretty) = sPrmDT;
-%       end
-%       
-%       sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj);
-      
     end
-    
-%     function tfPrmsChanged = trackSetDLParams(obj,dlPrms) % THROWS
-%       assert(isstruct(dlPrms));
-% 
-%       dlPrms0 = obj.trackDLParams;
-%       if ~isempty(dlPrms0.Saving.CacheDir) && ~isequal(dlPrms0.Saving.CacheDir,dlPrms.Saving.CacheDir)
-%         warningNoTrace('Existing/old trained Deep models will remain on disk at %s but will be inaccessible within APT.',...
-%           dlPrms0.CacheDir);
-%       end
-%       
-%       tfPrmsChanged = ~isequaln(dlPrms0,dlPrms);      
-%       obj.trackDLParams = dlPrms;
-%     end
     
     function trackSetDLBackend(obj,be)
       assert(isa(be,'DLBackEndClass'));
@@ -10539,7 +10484,8 @@ classdef Labeler < handle
       
       prmCpr = [];
       for iTrk=1:numel(s.trackerData)
-        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') && ~isempty(s.trackerData{iTrk})
+        if     strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') ...
+            && ~isempty(s.trackerData{iTrk})
           prmCpr = s.trackerData{iTrk}.sPrm;
           break;
         end
@@ -10563,8 +10509,8 @@ classdef Labeler < handle
       prmTrack.trackNFramesLarge = s.cfg.Track.PredictFrameStepBig;
       prmTrack.trackNFramesNear = s.cfg.Track.PredictNeighborhood;
       
-      sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,prmTrack);
-      
+      sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,...
+                                          prmDLSpecific,prmTrack);      
     end
     
     function sPrmAll = trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj)
