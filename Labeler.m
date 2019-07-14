@@ -480,7 +480,7 @@ classdef Labeler < handle
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
-    trackParams; % all tracking parameters
+    trackParams; % all tracking parameters. init: C
   end
   properties
     trkResIDs % [nTR x 1] cellstr unique IDs
@@ -864,13 +864,6 @@ classdef Labeler < handle
         v = [];
       end
     end
-%     function v = get.currTrxID(obj)
-%       if obj.hasTrx
-%         v = obj.trx(obj.currTarget).id;
-%       else
-%         v = nan;
-%       end
-%     end
     function v = get.nTrx(obj)
       v = numel(obj.trx);
     end
@@ -1404,10 +1397,7 @@ classdef Labeler < handle
       obj.movieInvert = movInvert;
       obj.movieCenterOnTarget = cfg.View(1).CenterOnTarget;
       obj.movieRotateTargetUp = cfg.View(1).RotateTargetUp;
- 
-%       % maybe useful to clear/reinit and shouldn't hurt
-%       obj.movieCache = containers.Map(); 
-      
+       
       obj.preProcInit();
       
       % Reset .trackersAll
@@ -1421,7 +1411,7 @@ classdef Labeler < handle
       obj.currTracker = 0;
       
       obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-      %obj.trackDLParams = APTParameters.defaultParamsStructDTCommon;  
+      obj.trackParams = [];
 
       obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
