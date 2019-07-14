@@ -111,18 +111,7 @@ classdef LabelTracker < handle
     function initHook(obj) %#ok<*MANU>
       % Called when a new project is created/loaded, etc
     end
-    
-%     function setParamHook(obj)
-%       % Called when a new parameter file is specified
-%       
-%       % See setParams.
-%     end
-%     
-%     function setParams(obj,sPrm)
-%       % Directly set params. Note, methods .setParamFile and .setParams
-%       % "overlap". Subclasses should do something intelligent.
-%     end
-    
+        
     function sPrm = getParams(obj)
       sPrm = struct();
     end

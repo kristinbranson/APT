@@ -423,16 +423,9 @@ classdef DeepTracker < LabelTracker
       obj.initHook(); % maybe handled upstream
       flds = fieldnames(s);
       flds = setdiff(flds,'hideViz');
-      %obj.isInit = true;
-%       try
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         obj.(f) = s.(f);
       end
-%       catch ME
-        %obj.isInit = false;
-%         ME.rethrow();
-%       end
-      %obj.isInit = false;      
       
       obj.dryRunOnly = false;
       
@@ -453,35 +446,28 @@ classdef DeepTracker < LabelTracker
       % 20181218
       if ~isfield(s,'containerBindPaths')
         s.containerBindPaths = cell(0,1);
-      end
-      % 20181220
-%       sPrmDflt = APTParameters.defaultParamsStructDT(s.trnNetType);
-%       sPrm0 = s.sPrm;
-%       if ~isempty(sPrm0)
-%         s.sPrm = structoverlay(sPrmDflt,sPrm0,...
-%           'dontWarnUnrecog',true); % to allow removal of obsolete params
-%       else
-%         s.sPrm = sPrmDflt;
-%       end
+      end 
       
       % 20190214
-      sPrmDflt = APTParameters.defaultParamsStructAll;
-      if isfield(s,'sPrm'),
-        
-        if ~isfield(s,'sPrmAll'),
-          s.sPrmAll = sPrmDflt;
-          s.sPrmAll.ROOT.DeepTrack.(s.trnNetType.prettyString) = s.sPrm;
-        end
-        
-        s = rmfield(s,'sPrm');
-      end
-      
-      sPrm0 = s.sPrmAll;
-      if ~isempty(sPrm0)
-        s.sPrmAll = structoverlay(sPrmDflt,sPrm0,...
+      % (Comment is basically C+P from CPRLabelTracker)
+      % IMPORTANT philisophical note. We update/modernize .sPrmAll here,
+      % but any changes should not invalidate previous trained trackers.
+      % Parameters may be renamed, new parameters added, etc; but eg any 
+      % new parameters added should be added with default values that 
+      % effectively would have been previously used.
+
+      assert(isfield(s,'sPrmAll') && ~isfield(s,'sPrm')); % taken care of in Labeler/lblModernize
+      sPrmDflt = APTParameters.defaultParamsStructAll;      
+      if ~isempty(s.sPrmAll)
+        % Labeler/lblModernize may not have modernized s.sPrmAll
+        s.sPrmAll = structoverlay(sPrmDflt,s.sPrmAll,...
           'dontWarnUnrecog',true); % to allow removal of obsolete params
       else
-        s.sPrmAll = sPrmDflt;
+        % AL 20190713 leave s.sPrmAll empty for untrained trackers
+        tfTrained = isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC);
+        assert(~tfTrained,'Apparent trained tracker with no parameters.');
+        % s.sPrmAll = sPrmDflt;
+        % Let's leave s.sPrmAll empty for now
       end
       
       % 20190405 

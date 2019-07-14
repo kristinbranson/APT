@@ -466,7 +466,7 @@ classdef Labeler < handle
     trackerAlgo % The current tracker algorithm, or ''
     trackerIsDL
     trackDLParams % scalar struct, common DL params
-    cprParams % scalar struct, cpr parameters
+%     cprParams % scalar struct, cpr parameters
     DLCacheDir % string, location of DL cache dir
   end
   properties (SetObservable)
@@ -1105,13 +1105,13 @@ classdef Labeler < handle
 %       end
     end
     
-    function v = get.cprParams(obj)      
-      if isempty(obj.trackParams),
-        v = [];
-      else
-        v = APTParameters.all2CPRParams(obj.trackParams,obj.nPhysPoints,obj.nview);
-      end      
-    end
+%     function v = get.cprParams(obj)      
+%       if isempty(obj.trackParams),
+%         v = [];
+%       else
+%         v = APTParameters.all2CPRParams(obj.trackParams,obj.nPhysPoints,obj.nview);
+%       end      
+%     end
     
 %     function set.cprParams(obj,prmCpr)
 %       
@@ -3119,10 +3119,6 @@ classdef Labeler < handle
         end
       end
       
-%       % modernize DL common params
-%       sDLcommon = APTParameters.defaultParamsStructDTCommon;      
-%       s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
-      
       % KB 20190212: reorganized DL parameters -- many specific parameters
       % were moved to common, and organized common parameters. leaf names
       % should all be the same, and unique, so just match leaves
@@ -3134,48 +3130,81 @@ classdef Labeler < handle
       end
       
       % KB 20190331: adding in post-processing parameters if missing
-      if ~isempty(s.trackParams) && ~isfield(s.trackParams.ROOT,'PostProcess'),
-        dfltParams = APTParameters.defaultParamsStruct;
-        s.trackParams.ROOT.PostProcess = dfltParams.PostProcess;
-      end
-      
-      % AL 20190507: .trackParams modernization
-      % For now only doing .DeepTrack but pattern prob works for all
-      if ~isempty(s.trackParams)
-        prmsDTComDflt = APTParameters.defaultParamsStructDTCommon;
-        fns = fieldnames(prmsDTComDflt);
-        for f=fns(:)',f=f{1}; %#ok<FXSET>
-          % Fields should currently match; later they may not, struct 
-          % should be updated then
-          s.trackParams.ROOT.DeepTrack.(f) = structoverlay(...
-            prmsDTComDflt.(f),s.trackParams.ROOT.DeepTrack.(f),'dontWarnUnrecog',true);
-        end
+      % AL 20190507: ... [a subset of] ... .trackParams modernization
+      % AL 20190712: (subsumes above) modernizing entire .trackParams
+      if ~isempty(s.trackParams)       
+        sPrmDflt = APTParameters.defaultParamsStructAll;
+        s.trackParams = structoverlay(sPrmDflt,s.trackParams,...
+          'dontWarnUnrecog',true); % to allow removal of obsolete params
+      else
+        % s.trackParams can be [] for eg new projs, will be set at
+        % parameter-set-time
       end
       
       % KB 20190214: store all parameters in each tracker so that we don't
       % have to delete trackers when tracking parameters change
+      % AL 20190712: further clarification 
       for i = 1:numel(s.trackerData),
         if isempty(s.trackerData{i}),
           continue;
         end
+        
+%         tfCPRHasTrained = strcmp(s.trackerClass{i}{1},'CPRLabelTracker') ...
+%                        && ~isempty(s.trackerData{i}.trnResRC) ...
+%                        && any([s.trackerData{i}.trnResRC.hasTrained]);
+%         tfDTHasTrained = strcmp(s.trackerClass{i}{1},'DeepTracker') ...
+%                        && ~isempty(s.trackerData{i}.trnLastDMC);
+
         if ~isfield(s.trackerData{i},'sPrmAll') || isempty(s.trackerData{i}.sPrmAll),
-          s.trackerData{i}.sPrmAll = s.trackParams; % Could be [] for legacy projs
-        end
-        if isfield(s.trackerData{i},'sPrm') && ~isempty(s.trackerData{i}.sPrm),
-          if strcmp(s.trackerClass{i}{1},'CPRLabelTracker'),
-            CPRParams1 = APTParameters.all2CPRParams(s.trackerData{i}.sPrmAll,numel(s.cfg.LabelPointNames),s.cfg.NumViews);
-            assert(isequaln(CPRParams1,s.trackerData{i}.sPrm));
+          if isfield(s.trackerData{i},'sPrm') && ~isempty(s.trackerData{i}.sPrm)
+            % legacy proj: .sPrm present
+            
+            tfCPR = strcmp(s.trackerClass{i}{1},'CPRLabelTracker');
+            tfDT = strcmp(s.trackerClass{i}{1},'DeepTracker');
+            s.trackerData{i}.sPrmAll = s.trackParams;
+            
+            if tfCPR
+              CPRParams1 = APTParameters.all2CPRParams(s.trackerData{i}.sPrmAll,...
+                numel(s.cfg.LabelPointNames),s.cfg.NumViews);
+              assert(isequaln(CPRParams1,s.trackerData{i}.sPrm));
+            elseif tfDT
+              DLSpecificParams1 = APTParameters.all2DLSpecificParams(...
+                s.trackerData{i}.sPrmAll,s.trackerClass{i}{3});
+              assert(isequaln(DLSpecificParams1,s.trackerData{i}.sPrm));
+            else
+              assert(false);
+            end
           else
-            DLSpecificParams1 = APTParameters.all2DLSpecificParams(s.trackerData{i}.sPrmAll,s.trackerClass{i}{3});
-            assert(isequaln(DLSpecificParams1,s.trackerData{i}.sPrm));
+            if ~isfield(s.trackerData{i},'sPrmAll')
+              s.trackerData{i}.sPrmAll = [];
+            end
           end
+          
+          if isfield(s.trackerData{i},'sPrm'),
+            s.trackerData{i} = rmfield(s.trackerData{i},'sPrm');
+          end          
+        else
+          % s.trackerData{i}.sPrmAll is present
+          assert(~isfield(s.trackerData{i},'sPrm'),'Unexpected legacy parameters.');
         end
         
-        % KB 20190331: adding in post-processing parameters if missing
-        if ~isempty(s.trackerData{i}.sPrmAll) && ...
-    	     ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
-          s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
-        end          
+        % At this point for s.trackerData{i}:
+        % 1. For legacy projs that had .sPrm but no .sPrmAll, we created 
+        %    .sPrmAll and asserted that those params effectively match the 
+        %    old .sPrm. Then we removed the .sPrm. In this case the 
+        %   .sPrmAll happens to be modernized already.
+        % 2. .sPrm has been removed in all cases.
+        % 3. For modern projs that have .sPrmAll, this may not yet be
+        % modernized. Responsibility for modernization will now be in the
+        % LabelTrackers/loadSaveToken. Hmm not sure this is best. 
+        
+%         % KB 20190331: adding in post-processing parameters if missing
+          % AL 20190712: This is now LabelTracker/loadSaveToken's
+          % responsibility
+%         if ~isempty(s.trackerData{i}.sPrmAll) && ...
+%     	     ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
+%           s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
+%         end          
       end
       
       if isfield(s,'preProcParams'),
@@ -3184,13 +3213,7 @@ classdef Labeler < handle
       if isfield(s,'trackDLParams'),
         s = rmfield(s,'trackDLParams');
       end
-      
-      for i = 1:numel(s.trackerData),
-        if isfield(s.trackerData{i},'sPrm'),
-          s.trackerData{i} = rmfield(s.trackerData{i},'sPrm');
-        end
-      end
-      
+            
       % KB 20190314: added skeleton
       if ~isfield(s,'skeletonEdges'),
         s.skeletonEdges = zeros(0,2);

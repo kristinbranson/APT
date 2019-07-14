@@ -2354,24 +2354,24 @@ classdef CPRLabelTracker < LabelTracker
       
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
-      end            
-
-      if (isfield(s,'sPrmAll') && ~isempty(s.sPrmAll)) || (isfield(s,'sPrm') && ~isempty(s.sPrm)),
+      end
+      
+      assert(isfield(s,'sPrmAll') && ~isfield(s,'sPrm')); % taken care of in Labeler/lblModernize
+      if ~isempty(s.sPrmAll)
         
-        isSPrmAll = isfield(s,'sPrmAll') && ~isempty(s.sPrmAll);
+        % AL 20190713
+        % s.sPrmAll is in general NOT modernized by Labeler/lblModernize.
+        % To modernize it,
+        % 1. use existing/legacy codepath to modernize s.sPrmAll.ROOT.CPR 
+        %  (this operates in "old-style" parameter space)
+        % 2. modernize everything else by overlaying on top of
+        % APTParameters.defulatParamsStructAll in the usual way
+        %
+        % TODO: get rid of the old-style parameters entirely. They are 
+        % doing a ton of damage to maintenance.
 
-        if isSPrmAll,
-          sPrm = CPRParam.all2cpr(s.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview); %#ok<*PROPLC>
-        else
-          s.sPrmAll = struct;
-          s.sPrmAll.ROOT = APTParameters.defaultParamsStruct;
-          warning('Obsolete code');
-          sPrm = s.sPrm;
-          s = rmfield(s,'sPrm');
-        end
-        
-        %isfield(s,'sPrm') && ~isempty(s.sPrm)
-        sPrm = CPRLabelTracker.modernizeParams(sPrm);
+        sPrmOS = CPRParam.all2cpr(s.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview); %#ok<*PROPLC>        
+        sPrmOS = CPRLabelTracker.modernizeParams(sPrmOS); % old-style params
         
         % 20161017
         % changes to default params param.example.yaml:
@@ -2406,16 +2406,17 @@ classdef CPRLabelTracker < LabelTracker
         % see RegressorCascade immutable parameters notes. Handles seem 
         % reasonable too.
                 
-        sPrmUse = sPrm;
+        sPrmUse = sPrmOS;
         sPrmUse.Model.nviews = 1; % see .trnResInit();
         rc = s.trnResRC;
         for i=1:numel(rc)
           rc(i).setPrmModernize(sPrmUse);
         end
-        
-        sPrm = CPRParam.old2newCPROnly(sPrm);
-        s.sPrmAll.ROOT.CPR = sPrm;
-        
+                
+        sPrmDflt = APTParameters.defaultParamsStructAll;
+        s.sPrmAll = structoverlay(sPrmDflt,s.sPrmAll,...
+          'dontWarnUnrecog',true); % to allow removal of obsolete params
+        s.sPrmAll.ROOT.CPR = CPRParam.old2newCPROnly(sPrmOS);
       else
         assert(isempty(s.trnResRC));
       end
@@ -3077,6 +3078,8 @@ classdef CPRLabelTracker < LabelTracker
   methods (Static)
     
     function sPrm = modernizeParams(sPrm)
+      % Modernize "old"-style cpr params
+      % 
       % IMPORTANT philisophical note. This CPR parameter-updating-function
       % currently does not ever alter sPrm in such a way as to invalidate
       % any previous trained trackers or tracking results based on sPrm.
@@ -3096,14 +3099,16 @@ classdef CPRLabelTracker < LabelTracker
 
       s0 = APTParameters.defaultCPRParamsOldStyle(); % 20180309 PreProc params handled in Labeler
       
-      if isfield(sPrm.Reg,'USE_AL_CORRECTION')
-        if sPrm.Reg.USE_AL_CORRECTION
-          error('CPRLabelTracker:prm',...
-            'Project contains obsolete CPR tracking parameter Reg.USE_AL_CORRECTION.');
-        end
-        assert(~s0.Reg.rotCorrection.use);
-        sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
-      end
+      % changed to assert 20190714
+      assert(~isfield(sPrm.Reg,'USE_AL_CORRECTION'));
+%       if isfield(sPrm.Reg,'USE_AL_CORRECTION')
+%         if sPrm.Reg.USE_AL_CORRECTION
+%           error('CPRLabelTracker:prm',...
+%             'Project contains obsolete CPR tracking parameter Reg.USE_AL_CORRECTION.');
+%         end
+%         assert(~s0.Reg.rotCorrection.use);
+%         sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
+%       end
       
       % Over time we may remove unused fields from base struture s0; no 
       % need to warn user that we will be dropping these extra fields from 
