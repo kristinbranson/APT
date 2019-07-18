@@ -249,6 +249,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def create_network(self):
 
+        if self.conf.get('mdn_use_full_regression',False):
+            return self.create_network_full()
+
         im, locs, info, hmap = self.inputs
         conf = self.conf
         in_sz = [int(sz//conf.rescale) for sz in conf.imsz]
@@ -613,12 +616,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         self.joint = True
 
         learning_rate = self.conf.get('mdn_learning_rate',0.001) # earlier it was 0.0001
-        if self.conf.get('mdn_use_full_regression',False):
-            cn = self.create_network_full
-        else:
-            cn = self.create_network
         super(self.__class__, self).train(
-            create_network=cn,
+            create_network=self.create_network,
             loss=self.loss,
             learning_rate=learning_rate,restore=restore)
 
@@ -1060,13 +1059,24 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             X = tf.layers.conv2d(X, 2 * n_filt, k_sz, padding='same',kernel_regularizer=wt_reg)
             X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
             X = tf.nn.relu(X)
-            X = tf.layers.conv2d(X, 2 * n_filt, k_sz, padding='same',kernel_regularizer=wt_reg)
+
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz,2,padding='same', kernel_regularizer=wt_reg)
             X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
             X = tf.nn.relu(X)
+
             X = tf.layers.conv2d(X, 2 * n_filt, k_sz, padding='same',kernel_regularizer=wt_reg)
             X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
             X = tf.nn.relu(X)
 
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz,2,padding='same', kernel_regularizer=wt_reg)
+            X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
+            X = tf.nn.relu(X)
+
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz, padding='same',kernel_regularizer=wt_reg)
+            X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
+            X = tf.nn.relu(X)
+
+            # if self.conf.get('mdn_full_reg_global_mean',True):
             X = tf.reduce_mean(X,[1,2])
 
             mdn_l = tf.keras.layers.Dense(k*n_out*2)(X)

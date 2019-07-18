@@ -348,7 +348,8 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
         if train_type in ['mdn','resnet_unet']:
             conf_opts['batch_size'] = 2
         elif train_type in ['unet']:
-            conf_opts['batch_size'] = 1
+            conf_opts['batch_size'] = 2
+            conf_opts['rescale'] = 2
         else:
             conf_opts['batch_size'] = 4
 
@@ -1803,7 +1804,11 @@ def get_active_results(num_rounds=8,view=0):
 
         if recomp:
             r_files = [f.replace('.index', '') for f in afiles]
-            mdn_out = apt_expts.classify_db_all(conf, gt_file, r_files, train_type, name=train_name)
+            tfile = os.path.join(conf.cachedir, 'traindata')
+            A = PoseTools.pickle_load(tfile)
+            use_conf = A[1]
+
+            mdn_out = apt_expts.classify_db_all(use_conf, gt_file, r_files, train_type, name=train_name)
             with open(out_file, 'w') as f:
                 pickle.dump([mdn_out, afiles], f)
         else:

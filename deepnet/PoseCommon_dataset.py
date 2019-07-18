@@ -541,7 +541,10 @@ class PoseCommon(object):
                 tf.summary.histogram('{}-grad'.format(nn),g)
                 tf.summary.histogram('{}-weight'.format(nn),v)
 
-            self.opt = optimizer.apply_gradients(zip(gradients, variables))
+            optimizer = optimizer.apply_gradients(zip(gradients, variables))
+            if self.conf.get('use_mixed_precision',False):
+                optimizer = tf.train.experimental.enable_mixed_precision_graph_rewrite(optimizer)
+            self.opt = optimizer
             # self.opt = optimizer.minimize(self.cost)
 
     def compute_dist(self, preds, locs):
