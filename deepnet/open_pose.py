@@ -2,6 +2,7 @@ from keras.models import Model
 from keras.layers.merge import Concatenate
 from keras.layers import Activation, Input, Lambda
 from keras.layers.convolutional import Conv2D
+from keras.layers.convolutional import Conv2DTranspose
 from keras.layers.pooling import MaxPooling2D
 from keras.layers.merge import Multiply
 from keras.regularizers import l2
@@ -127,6 +128,42 @@ def conv(x, nf, ks, name, weight_decay):
                bias_initializer=constant(0.0))(x)
     return x
 
+
+def deconv_2x(x, nf, ks, name, weight_decay):
+    kernel_reg = l2(weight_decay[0]) if weight_decay else None
+    bias_reg = l2(weight_decay[1]) if weight_decay else None
+
+    x = Conv2DTranspose(nf, (ks, ks), strides=2,
+                        padding='same', name=name,
+                        kernel_regularizer=kernel_reg,
+                        bias_regularizer=bias_reg,
+                        kernel_initializer=random_normal(stddev=0.01),
+                        bias_initializer=constant(0.0))(x)
+
+    return x
+
+    # HG deconv
+    # weight_decay = 1e-5
+    #
+    # with slim.arg_scope(
+    #         [slim.conv2d_transpose],
+    #         weights_regularizer=regularizers.l2_regularizer(weight_decay),  # weights_initializer=weight_init,
+    #         trainable=trainable,  # activation_fn=tf.python.ops.nn_ops.relu,
+    #         normalizer_fn=tflayers.batch_norm,
+    #         normalizer_params=batch_norm_params,
+    #         padding='SAME'):
+    #     with slim.arg_scope([tflayers.batch_norm], **batch_norm_params):
+    #         # will this apply to batch_norm "in" enclosing scope?
+    #         normal_initializer = tf.truncated_normal_initializer(0, 0.01)
+    #         net = slim.conv2d_transpose(net, self.nFeat, [4, 4], stride=2,
+    #                                     weights_initializer=normal_initializer,
+    #                                     activation_fn=tf.nn.relu,
+    #                                     scope='refine_up1')
+    #         net = slim.conv2d_transpose(net, self.nFeat, [4, 4], stride=2,
+    #                                     weights_initializer=normal_initializer,
+    #                                     activation_fn=tf.nn.relu,
+    #                                     scope='refine_up2')
+
 def pooling(x, ks, st, name):
     x = MaxPooling2D((ks, ks), strides=(st, st), name=name)(x)
     return x
@@ -185,8 +222,8 @@ def stage1_block(x, num_p, branch, weight_decay):
 
     return x
 
+
 def stageT_block(x, num_p, stage, branch, weight_decay):
-    # Block 1
     x = conv(x, 128, 7, "Mconv1_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
     x = conv(x, 128, 7, "Mconv2_stage%d_L%d" % (stage, branch), (weight_decay, 0))
@@ -200,7 +237,23 @@ def stageT_block(x, num_p, stage, branch, weight_decay):
     x = conv(x, 128, 1, "Mconv6_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
     x = conv(x, num_p, 1, "Mconv7_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    return x
 
+
+def stageTdeconv_block(x, num_p, stage, branch, weight_decay):
+    x = conv(x, 128, 7, "Mconv1_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = relu(x)
+    x = conv(x, 128, 7, "Mconv2_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = relu(x)
+    x = deconv_2x(x, 128, 4, "Mdeconv3_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = relu(x)
+    x = deconv_2x(x, 128, 4, "Mdeconv4_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = relu(x)
+    x = deconv_2x(x, 128, 4, "Mdeconv5_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = relu(x)
+    x = conv(x, 128, 1, "Mconv6_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = relu(x)
+    x = conv(x, num_p, 1, "Mconv7_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     return x
 
 def apply_mask(x, mask, stage, branch):
@@ -208,8 +261,15 @@ def apply_mask(x, mask, stage, branch):
     w = Multiply(name=w_name)([x, mask]) # vec_weight
     return w
 
-def get_training_model(weight_decay, br1=38,br2=19):
+def get_training_model(weight_decay, br1=38, br2=19):
+    '''
 
+    :param weight_decay: weight decay for l2 reg (applied only to weights not biases)
+    :param br1:
+    :param br2:
+    :return: Model.
+        Outputs: [pafS1, hmapS1, pafS2, ... hmapSn-1, pafSn (hi-res), hmapSn (hi-res)]
+    '''
     stages = 6
     np_branch1 = br1
     np_branch2 = br2
@@ -247,8 +307,8 @@ def get_training_model(weight_decay, br1=38,br2=19):
     outputs.append(w1)
     outputs.append(w2)
 
-    # stage sn >= 2
-    for sn in range(2, stages + 1):
+    # stage sn=2..stages-1
+    for sn in range(2, stages):
         # stage SN - branch 1 (PAF)
         stageT_branch1_out = stageT_block(x, np_branch1, sn, 1, weight_decay)
         w1 = apply_mask(stageT_branch1_out, vec_weight_input, sn, 1)
@@ -259,9 +319,33 @@ def get_training_model(weight_decay, br1=38,br2=19):
 
         outputs.append(w1)
         outputs.append(w2)
+        x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
-        if (sn < stages):
-            x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
+    # stage sn=stages
+    stageT_branch1_out = stageTdeconv_block(x, np_branch1, stages, 1, weight_decay)
+    w1 = apply_mask(stageT_branch1_out, vec_weight_input, stages, 1)
+    # stage SN - branch 2 (confidence maps)
+    stageT_branch2_out = stageTdeconv_block(x, np_branch2, stages, 2, weight_decay)
+    w2 = apply_mask(stageT_branch2_out, heat_weight_input, stages, 2)
+
+    outputs.append(w1)
+    outputs.append(w2)
+
+    # # stage sn >= 2
+    # for sn in range(2, stages + 1):
+    #     # stage SN - branch 1 (PAF)
+    #     stageT_branch1_out = stageT_block(x, np_branch1, sn, 1, weight_decay)
+    #     w1 = apply_mask(stageT_branch1_out, vec_weight_input, sn, 1)
+    #
+    #     # stage SN - branch 2 (confidence maps)
+    #     stageT_branch2_out = stageT_block(x, np_branch2, sn, 2, weight_decay)
+    #     w2 = apply_mask(stageT_branch2_out, heat_weight_input, sn, 2)
+    #
+    #     outputs.append(w1)
+    #     outputs.append(w2)
+    #
+    #     if (sn < stages):
+    #         x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
     model = Model(inputs=inputs, outputs=outputs)
 
@@ -309,11 +393,17 @@ def get_testing_model(br1=38,br2=19):
 #----------------------
 
 
-def create_affinity_labels(locs, imsz, graph,scale=1):
+def create_affinity_labels(locs, imsz, graph, scale=1):
     """
     Create/return part affinity fields
 
     locs: (nbatch x npts x 2)
+    imsz: (nr, nc) size of affinity maps to create/return
+    graph: (nlimb) array of 2-element tuples; connectivity/skeleton
+    scale: width of "tube" around limb.
+
+    returns (nbatch x imsz[0] x imsz[1] x nlimb*2) paf hmaps.
+        4th dim ordering: limb1x, limb1y, limb2x, limb2y, ...
     """
 
     n_out = len(graph)
@@ -335,7 +425,7 @@ def create_affinity_labels(locs, imsz, graph,scale=1):
             dx = (end_x - start_x)/ll/2
             dy = (end_y - start_y)/ll/2
             zz = None
-            for delta in np.arange(-scale,scale,0.25):
+            for delta in np.arange(-scale,scale,0.25):  # delta indicates perpendicular displacement from line/limb segment (in px)
                 # xx = np.round(np.linspace(start_x,end_x,6000))
                 # yy = np.round(np.linspace(start_y,end_y,6000))
                 # zz = np.stack([xx,yy])
@@ -349,31 +439,44 @@ def create_affinity_labels(locs, imsz, graph,scale=1):
                 # yy = np.round(np.linspace(start_y+dx,end_y+dx,6000))
                 # zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
             # zz now has all the pixels that are along the line.
+            # or "tube" of width scale around limb
             zz = np.unique(zz,axis=1)
-            # zz now has all the unique pixels that are along the line with thickness 1.
+            # zz now has all the unique pixels that are along the line with thickness==scale.
             dx = (end_x - start_x) / ll
             dy = (end_y - start_y) / ll
             for x,y in zz.T:
-                if x >= out.shape[2] or y >= out.shape[1]:
+                xint = int(round(x))
+                yint = int(round(y))
+                if xint < 0 or xint >= out.shape[2] or yint < 0 or yint >= out.shape[1]:
                     continue
-                out[cur,int(y),int(x),ndx*2] = dx
-                out[cur,int(y),int(x),ndx*2+1] = dy
+                out[cur,yint,xint,ndx*2] = dx
+                out[cur,yint,xint,ndx*2+1] = dy
 
     return out
 
-def create_label_images(locs, imsz,scale=1):
+def create_label_images(locs, imsz, scale=1):
+    """
+    Create/return target hmap for parts
+
+    This is a 2d isotropic gaussian with sigma=scale with tails clipped to 0. everywhere below 0.05
+
+    hmap min is 0., max is 1.
+
+    locs: (nbatch x npts x 2) part locs
+    """
+
     n_out = locs.shape[1]
     n_ex = locs.shape[0]
     out = np.zeros([n_ex,imsz[0],imsz[1],n_out])
     for cur in range(n_ex):
         for ndx in range(n_out):
             x,y = np.meshgrid(range(imsz[1]),range(imsz[0]))
-            x = x-locs[cur,ndx,0]
+            x = x - locs[cur,ndx,0]
             y = y - locs[cur,ndx,1]
             dd = np.sqrt(x**2+y**2)
             out[cur,:,:,ndx] = stats.norm.pdf(dd,scale=scale)/stats.norm.pdf(0,scale=scale)
     out[out<0.05] = 0.
-    return  out
+    return out
 
 class DataIteratorTF(object):
 
@@ -459,25 +562,36 @@ class DataIteratorTF(object):
         mask_sz2 = [self.batch_size,] + mask_sz + [self.heat_num]
         mask_im1 = np.ones(mask_sz1)
         mask_im2 = np.ones(mask_sz2)
+        mask_sz_origres = [int(x/self.conf.op_rescale) for x in self.conf.imsz]
+        mask_sz1_origres = [self.batch_size,] + mask_sz_origres + [2*self.vec_num]
+        mask_sz2_origres = [self.batch_size,] + mask_sz_origres + [self.heat_num]
+        mask_im1_origres = np.ones(mask_sz1_origres)
+        mask_im2_origres = np.ones(mask_sz2_origres)
 
         ims, locs = PoseTools.preprocess_ims(ims, locs, self.conf,
-                                            self.distort, self.conf.op_rescale)
+                                             self.distort, self.conf.op_rescale)
+        # locs has been rescaled per op_rescale (but not op_label_scale)
 
-        label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz,1) #self.conf.label_blur_rad)
+        label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz, 1) #self.conf.label_blur_rad)
 #        label_ims = PoseTools.create_label_images(locs/self.conf.op_label_scale, mask_sz,1,2)
-        label_ims = np.clip(label_ims,0,1)
+        label_ims = np.clip(label_ims,0,1) # AL: possibly unnec?
+
+        label_ims_origres = create_label_images(locs, mask_sz_origres, 1)
+        label_ims_origres = np.clip(label_ims_origres, 0, 1) # AL: possibly unnec?
 
         affinity_ims = create_affinity_labels(locs/self.conf.op_label_scale,
                                               mask_sz, self.conf.op_affinity_graph,1) #self.conf.label_blur_rad)
 
+        affinity_ims_origres = create_affinity_labels(locs,
+                                                      mask_sz_origres, self.conf.op_affinity_graph, 1)
 
-        return [ims, mask_im1, mask_im2], \
+        return [ims, mask_im1, mask_im2, mask_im1_origres, mask_im2_origres], \
                 [affinity_ims, label_ims,
                  affinity_ims, label_ims,
                  affinity_ims, label_ims,
                  affinity_ims, label_ims,
                  affinity_ims, label_ims,
-                 affinity_ims, label_ims ]
+                 affinity_ims_origres, label_ims_origres]
 
 
     def __iter__(self):
