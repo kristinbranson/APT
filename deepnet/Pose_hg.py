@@ -51,7 +51,6 @@ def generate_hm_al(height, width, joints, s):
     # hm[:,:,i] = np.zeros((height,width))
     return hm
 
-
 class Pose_hg(PoseBaseGeneral):
     '''
         Inherit this class to use your own network with APT.
@@ -100,7 +99,8 @@ class Pose_hg(PoseBaseGeneral):
         imnc_use = imszcheckcrop(imnc, 'column')
 
         self.imsz_use = (imnr_use, imnc_use)
-        self.gtsz_use = (imnr_use//4, imnc_use//4)
+        self.dorefine = getattr(conf, 'hg_dorefine', False)
+        self.gtsz_use = (imnr_use, imnc_use) if self.dorefine else (imnr_use//4, imnc_use//4)
         self.hgmodel = None  # scalar HourglassModel
 
     def preprocess_ims(self, ims, locs, conf, distort, rescale):
@@ -142,7 +142,7 @@ class Pose_hg(PoseBaseGeneral):
         sigma = self.conf.label_blur_rad
         (gtnr, gtnc) = self.gtsz_use
 
-        locsgt = locs.copy() / 4.0
+        locsgt = locs.copy() if self.dorefine else locs.copy() / 4.0
         gtmapsz = (bsize, nstack, gtnr, gtnc, npts)
         gtmaps = np.zeros(gtmapsz, np.float32)
         for i in range(bsize):
@@ -195,7 +195,9 @@ class Pose_hg(PoseBaseGeneral):
             decay_step=2000,
             logdir_train=self.conf.cachedir,
             logdir_test=self.conf.cachedir,
-            training=True)
+            training=True,
+            do_refine=self.dorefine
+        )
 
         self.hgmodel = hgm
 
@@ -233,9 +235,9 @@ class Pose_hg(PoseBaseGeneral):
                             #sys.stdout.flush()
 
                             #img_train, gt_train, weight_train = next(self.generator)
-                            self.fd_train()
-                            if i % savestep == 0:
-                                _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op], feed_dict=self.fd)
+                            # self.fd_train()
+                            if i % savestep == 0 or i == epochSize-1:
+                                _, c, summary = hgm.Session.run([hgm.train_rmsprop, hgm.loss, hgm.train_op])
                                 # Save summary (Loss + Accuracy)
                                 #self.train_summary.add_summary(summary, epoch * epochSize + i)
                                 #self.train_summary.flush()
@@ -246,16 +248,22 @@ class Pose_hg(PoseBaseGeneral):
                                                    global_step=i,
                                                    write_meta_graph=False)
                                     logging.info('Saved state to %s-%d' % (save_path, i))
-                                accmu = np.zeros(1)
+                                # accmu = np.zeros(1)
+                                accmumu = 0.
+                                accmumx = 0.
                             else:
-                                results = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur, feed_dict=self.fd)
+                                results = hgm.Session.run([hgm.train_rmsprop, hgm.loss] + hgm.joint_accur)
                                 c = results[1]
                                 accs = results[2:]
                                 accs = np.stack(accs, axis=1)
                                 accmu = np.mean(accs, axis=0)
+                                accmumu = np.mean(accmu).item()
+                                accmumx = np.amax(accmu).item()
                             if i % dispstep == 0:
-                                accmustr = np.array2string(accmu)
-                                logstr = 'loss is {:8.4f}, acc is {:s}'.format(c, accmustr)
+                                self.append_td(i, c, accmumu)  # using accmumu instead of train dist
+                                # accmustr = np.array2string(accmu)
+                                # logstr = 'loss is {:8.4f}, accmu is {:s}'.format(c, accmustr)
+                                logstr = 'loss={:8.4f}, accmumu={:8.4f}, accmumx={:8.4f}'.format(c, accmumu, accmumx)
                                 logging.info(logstr)
                                 # Validation Set
                                 # accuracy_array = np.array([0.0] * len(self.joint_accur))
@@ -296,32 +304,20 @@ class Pose_hg(PoseBaseGeneral):
                     #    (self.resume['err'][-1] - self.resume['err'][0]) * 100) + '%')
                     print('  Training Time: ' + str(datetime.timedelta(seconds=time.time() - startTime)))
 
-    def get_pred_fn(self, model_file=None):
+    def load_model(self, im_input, model_file=None):
         '''
-        :param model_file: Model_file to use. If not specified the latest trained should be used.
-        :return: pred_fn: Function that predicts the 2D locations given a batch of input images.
-        :return close_fn: Function to call to close the predictions (eg. the function should close the tensorflow session)
-        :return model_file_used: Returns the model file that is used for prediction.
+        Setup up prediction function.
+        During prediction, the input image (after preprocessing) will be available in the im_input tensor. Return the prediction/output tensor and the TF session object, and the model file that was used to load the model. (Return model_file if that is used to load the model)
 
-        Creates a prediction function that returns the pose prediction as a python array of size [batch_size,n_pts,2].
-        This function should creates the network, start a tensorflow session and load the latest model.
+        In this function, the network should be setup and the saved weights should be loaded from the model_file. If model_file is None load the weights from the latest model. The placeholders (if any) used during training, should be converted to constant tensors.
 
-        At the start of the function call:
-            self.setup_pred()
-        to setup the feed dicts
-
-        At the start of pred_fn call:
-            self.preproc_pred(ims)
-
-        Example implementation of functions are shown.
-
+        :param input: Input tensor that will have the image. The image will be preprocessed and downsampled by the rescale factor. This tensor is equivalent to self.inputs[0] tensor during training.
+        :return: prediction tensor. The outputs of this tensor evaluated on input image is given as input to convert_preds_to_locs.
+                : sess: Current TF session
+                : model_file_used : Model file used. If it is same as input model_file, then return model_file.
+        Eg: return self.pred, sess, model_file_used
         '''
 
-        self.setup_pred()
-        # Ater setup_pred, self.inputs[0] is now a placeholder in which input images should be fed. It can be used in the same manner as self.inputs are used during training as inputs to network.
-
-
-        # Model/network
         # make an HGM with istrain FALSE
 
         bsize = self.conf.batch_size
@@ -332,7 +328,7 @@ class Pose_hg(PoseBaseGeneral):
         (gtnr_use, gtnc_use) = self.gtsz_use
         nstack = 1
 
-        imgs = self.inputs[0]
+        imgs = im_input
         szimgs = imgs.shape.as_list()
         #nimgs = szimgs[0]
         assert szimgs == [bsize, imnr_use, imnc_use, imdim]  # should be preproced
@@ -349,7 +345,9 @@ class Pose_hg(PoseBaseGeneral):
             decay_step=2000,
             logdir_train=self.conf.cachedir,
             logdir_test=self.conf.cachedir,
-            training=False)
+            training=False,
+            do_refine=self.dorefine
+        )
 
         if model_file is None:
             cachedir = self.conf.cachedir
@@ -375,39 +373,27 @@ class Pose_hg(PoseBaseGeneral):
                 warnstr = "{} uninitialized vars in graph after restore".format(nuninitted)
                 logging.warning(warnstr)
 
-        sess = hgm.Session
-        def pred_fn(ims):
-            '''
-            :param ims:
-            :return:
-            This is the function that is used for predicting the location on a batch of images.
-            The input is a numpy array B x H x W x C of RAW images.
-            The predicted locations should be B x N x 2
-            The predicted locations should be in the original image scale.
-            The predicted locations should be returned in a dict with key 'locs'
-            '''
+        return hgm.output, hgm.Session, model_file_used
 
-            imshapeexp = (bsize, imnr, imnc, imdim)
-            assert ims.shape == imshapeexp, \
-                "Unexpected batch-of-image sizes: {:s} vs {:s}".format(ims.shape, imshapeexp)
+    def convert_preds_to_locs(self, preds):
+        '''
+        Convert the output prediction of network to x,y locations. The output should be in the same scale as input image. If you downsampled the input image, then the x,y location should for the downsampled image.
+        Eg. From heatmap output to x,y locations.
 
-            ims = self.preproc_pred(ims)
-            self.fd[self.inputs[0]] = ims
-            predhmaps = sess.run(hgm.output, feed_dict=self.fd)
-            assert predhmaps.shape == (bsize, nstack, gtnr_use, gtnc_use, npts)
+        :param preds: Numpy array that is the output of the network.
+        :return: x,y locations as b x n x 2 where b is the batch_size, n is the number of landmarks. [:,:,0] should be the x location, while [:,:,1] should be the y locations.
+        '''
 
-            base_locs = PoseTools.get_pred_locs(predhmaps[:, -1, :, :, :], edge_ignore=0)
+        bsize = self.conf.batch_size
+        npts = self.conf.n_classes
+        (imnr, imnc) = self.conf.imsz
+        imdim = self.conf.img_dim
+        (imnr_use, imnc_use) = self.imsz_use
+        (gtnr_use, gtnc_use) = self.gtsz_use
+        nstack = 1
+        assert preds.shape == (bsize, nstack, gtnr_use, gtnc_use, npts)
+
+        base_locs = PoseTools.get_pred_locs(preds[:, -1, :, :, :], edge_ignore=0)
+        if not self.dorefine:
             base_locs = base_locs * 4
-
-            ret_dict = {}
-            ret_dict['locs'] = base_locs
-            ret_dict['hmaps'] = None
-            return ret_dict
-
-        def close_fn():
-            hgm.Session.close()
-            # reset graph?
-
-        return pred_fn, close_fn, model_file_used
-
-
+        return base_locs
