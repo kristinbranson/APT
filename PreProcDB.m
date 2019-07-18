@@ -76,15 +76,15 @@ classdef PreProcDB < handle
       dataNew = [];
       
       if prmpp.histeq
-        warningNoTrace('Histogram Equalization currently disabled for Deep Learning trackers.');
+        %warningNoTrace('Histogram Equalization currently disabled for Deep Learning trackers.');
         prmpp.histeq = false;
       end
       if prmpp.BackSub.Use
-        warningNoTrace('Background subtraction currently disabled for Deep Learning trackers.');
+        %warningNoTrace('Background subtraction currently disabled for Deep Learning trackers.');
         prmpp.BackSub.Use = false;
       end
       if prmpp.NeighborMask.Use
-        warningNoTrace('Neighbor masking currently disabled for Deep Learning trackers.');
+        %warningNoTrace('Neighbor masking currently disabled for Deep Learning trackers.');
         prmpp.NeighborMask.Use = false;
       end
       assert(isempty(prmpp.channelsFcn));

@@ -83,7 +83,9 @@ classdef TrackMonitorViz < handle
       end
       obj.jobDescs = jobDescs;
       
+      lObj = dtObj.lObj;
       obj.hfig = TrackMonitorGUI(obj);
+      lObj.addDepHandle(obj.hfig);
       handles = guidata(obj.hfig);
       TrackMonitorViz.updateStartStopButton(handles,true,false);
       %handles.pushbutton_startstop.Enable = 'on';

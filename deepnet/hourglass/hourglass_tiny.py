@@ -179,7 +179,7 @@ class HourglassModel():
         starttime = time.time()
         logging.info('CREATE MODEL')
 
-        with tf.device(self.gpu):
+        with tf.device(None):  #self.gpu):
             inputtime = time.time()
             logging.info('---Inputs : Done (' + str(int(abs(inputtime - starttime))) + ' sec.)')
             self.output = self._graph_hourglass_al_single(imgs)
@@ -196,7 +196,7 @@ class HourglassModel():
             losstime = time.time()
             logging.info('---Loss : Done (' + str(int(abs(graphtime - losstime))) + ' sec.)')
 
-        with tf.device(self.cpu):
+        with tf.device(None):  #self.cpu):
             with tf.name_scope('accuracy'):
                 self.accuracy_ops_alljoints(gtmaps)
             accurTime = time.time()
@@ -208,7 +208,7 @@ class HourglassModel():
                                                      self.decay_step, self.decay, staircase=True, name='learning_rate')
             lrtime = time.time()
             logging.info('---LR : Done (' + str(int(abs(accurTime - lrtime))) + ' sec.)')
-        with tf.device(self.gpu):
+        with tf.device(None):  #self.gpu):
             with tf.name_scope('rmsprop'):
                 self.rmsprop = tf.train.RMSPropOptimizer(learning_rate=self.lr)
             optimtime = time.time()
@@ -225,7 +225,7 @@ class HourglassModel():
         inittime = time.time()
         logging.info('---Init : Done (' + str(int(abs(inittime - minimtime))) + ' sec.)')
 
-        with tf.device(self.cpu):
+        with tf.device(None):  #self.cpu):
             with tf.name_scope('training'):
                 tf.summary.scalar('loss', self.loss, collections=['train'])
                 tf.summary.scalar('learning_rate', self.lr, collections=['train'])
@@ -318,7 +318,7 @@ class HourglassModel():
             load	: Model to load (None if training from scratch) (see README for further information)
         """
         with tf.name_scope('Session'):
-            with tf.device(self.gpu):
+            with tf.device(None):  #self.gpu):
                 self._init_session()
                 self._define_saver_summary(summary=False)
                 if load is not None:
@@ -492,7 +492,7 @@ class HourglassModel():
         if (self.logdir_train == None) or (self.logdir_test == None):
             raise ValueError('Train/Test directory not assigned')
         else:
-            with tf.device(self.cpu):
+            with tf.device(None):  # self.cpu):
                 self.saver = tf.train.Saver()
             if summary:
                 with tf.device(self.gpu):

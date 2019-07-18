@@ -12,5 +12,7 @@
 
 ROOT:
   - ['','',false,DUMMY,'','']
-  - hg:
+  - HourGlass:
     - ['','',false,hourglass settings.,'','']
+    - hg_dorefine: ['Include refinement',boolean,true,'Whether to include deconvolutional layers to predict at input resolution.',true,'','Advanced','isDeepTrack',true]
+

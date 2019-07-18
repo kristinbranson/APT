@@ -63,10 +63,13 @@ classdef TrainMonitorViz < handle
   methods
     
     function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd)
+      lObj = dtObj.lObj;
       obj.dtObj = dtObj;
       obj.trainWorkerObj = trainWorkerObj;
       obj.backEnd = backEnd;
       obj.hfig = TrainMonitorGUI(obj);
+      lObj.addDepHandle(obj.hfig);
+      
       handles = guidata(obj.hfig);
       TrainMonitorViz.updateStartStopButton(handles,true,false);
       handles.pushbutton_startstop.Enable = 'on';

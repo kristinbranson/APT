@@ -1,19 +1,22 @@
 classdef DLNetType
-  properties 
+  properties
+    shortString
     prettyString
     paramFileShort
   end
   enumeration 
-    unet ('Unet','params_deeptrack_unet.yaml')
-    mdn ('MDN','params_deeptrack_mdn.yaml')
-    deeplabcut ('DeepLabCut','params_deeptrack_dlc.yaml')
-    openpose ('OpenPose','params_deeptrack_openpose.yaml')
-    leap ('LEAP','params_deeptrack_leap.yaml')
+    mdn ('mdn','MDN')
+    deeplabcut ('dlc','DeepLabCut')
+    unet ('unet','Unet')
+    openpose ('openpose','OpenPose')
+    leap ('leap','LEAP')
+    %hg ('hg','HourGlass')
   end
   methods 
-    function obj = DLNetType(str,pfile)
-      obj.prettyString = str;
-      obj.paramFileShort = pfile;
+    function obj = DLNetType(sstr,pstr)
+      obj.shortString = sstr;
+      obj.prettyString = pstr;
+      obj.paramFileShort = sprintf('params_deeptrack_%s.yaml',sstr);
     end
   end
   
@@ -28,14 +31,6 @@ classdef DLNetType
       end
       
       switch net
-        case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
-          
-          g = { ...
-            sprintf('deepnet-%d.*',iterCurr) % latest iter
-            'deepnet_ckpt' % 'splitdata.json'
-            'traindata*'
-            };
-         
         case DLNetType.openpose
           g = { ...
             sprintf('deepnet-%d',iterCurr) % latest iter
@@ -50,6 +45,12 @@ classdef DLNetType
             'training_info.mat'
             };
           
+        otherwise % case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
+          g = { ...
+            sprintf('deepnet-%d.*',iterCurr) % latest iter
+            'deepnet_ckpt' % 'splitdata.json'
+            'traindata*'
+            };
       end
     end    
   end
