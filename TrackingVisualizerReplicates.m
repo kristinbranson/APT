@@ -87,7 +87,12 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
       % isinterp: scalar logical, no longer used
       % xyfull: either [], or [npts x 2 x nrep]
             
-      assert(~isinterp,'Interpolation no longer supported.');
+      if nargin==2
+        %isinterp = false;
+        xyfull = [];
+      else
+        assert(~isinterp,'Interpolation no longer supported.');
+      end
       
       updateTrackRes@TrackingVisualizer(obj,xy);
       

@@ -27,7 +27,8 @@ classdef APT
     
     function m = readManifest()
 
-      % KB 20190422 - Manifest no longer needed
+      % KB 20190422 - Manifest no longer needed but can be used by
+      % power-users
       
       fname = fullfile(APT.Root,APT.MANIFESTFILE);
       if exist(fname,'file')==0
@@ -214,15 +215,20 @@ classdef APT
     end
     
     function cacheDir = getdlcacheroot()
-      if ispc
-        userDir = winqueryreg('HKEY_CURRENT_USER',...
-          ['Software\Microsoft\Windows\CurrentVersion\' ...
-          'Explorer\Shell Folders'],'Personal');
-      else
-        userDir = char(java.lang.System.getProperty('user.home'));
-      end
       
-      cacheDir = fullfile(userDir,'.apt');
+      m = APT.readManifest;
+      if isfield(m,'dltemproot')
+        cacheDir = m.dltemproot;
+      else
+        if ispc
+          userDir = winqueryreg('HKEY_CURRENT_USER',...
+            ['Software\Microsoft\Windows\CurrentVersion\' ...
+            'Explorer\Shell Folders'],'Personal');
+        else
+          userDir = char(java.lang.System.getProperty('user.home'));
+        end
+        cacheDir = fullfile(userDir,'.apt');
+      end
     end
     
     function s = codesnapshot

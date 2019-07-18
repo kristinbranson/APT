@@ -97,8 +97,20 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       d = tObj.fetchPreProcData(tblPTrn1,ppPrms);
       
       % get initializations
-      bboxes = repmat(d.bboxesTrn(1,:),[nlabeled,1]);
-      bboxes(idx,:) = d.bboxesTrn;
+      if lObj.nview>1
+        sz = cellfun(@(x) [size(x,2),size(x,1)],d.I,'uni',0);
+        bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+        bboxes1 = nan(d.N,4,lObj.nview);
+        for ivw=1:lObj.nview
+          bboxes1(:,:,ivw) = cat(1,bb{:,ivw});
+        end
+      else
+        bboxes1 = d.bboxesTrn;
+        szassert(bboxes1,[d.N 4]);
+      end
+      
+      bboxes = repmat(bboxes1(1,:,:),[nlabeled,1,1]);
+      bboxes(idx,:,:) = bboxes1;
             
       p0 = tObj.randInitShapes(tblPTrn,bboxes,'CPRParams',sPrmCPRold,...
         'preProcParams',ppPrms);
@@ -124,20 +136,25 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
           imsz{i}(end+1) = 1;
         end
       end
-      maxr = max(cellfun(@(x) x(:,1),imsz));
-      maxc = max(cellfun(@(x) x(:,2),imsz));
-      maxchn = max(cellfun(@(x) x(:,3),imsz));
-      im = zeros([maxr*nr,maxc*nc,maxchn],class(d.ITrn{1}));
+      maxrAll = max(cellfun(@(x) x(:,1),imsz));
+      maxcAll = max(cellfun(@(x) x(:,2),imsz));
+      maxchnAll = max(cellfun(@(x) x(:,3),imsz));
+      % AL20190531: just do view 1 for now
+      IVIEW = 1;
+      maxr = maxrAll(IVIEW);
+      maxc = maxcAll(IVIEW);
+      maxchn = maxchnAll(IVIEW);
+      im = zeros([maxr*nr,maxc*nc,maxchn],class(d.ITrn{1,IVIEW}));
       toplefts = nan(nshow,2);
       for i = 1:nshow,
         [r,c] = ind2sub([nr,nc],i);
         offr = (r-1)*maxr;
         offc = (c-1)*maxc;
-        imcurr = d.ITrn{i};
-        if imsz{i}(3) < maxchn,
+        imcurr = d.ITrn{i,IVIEW};
+        if imsz{i,IVIEW}(3) < maxchn,
           imcurr = repmat(imcurr(:,:,1),[1,1,maxchn]);
         end
-        im(offr+1:offr+imsz{i}(1),offc+1:offc+imsz{i}(2),:) = imcurr;
+        im(offr+1:offr+imsz{i,IVIEW}(1),offc+1:offc+imsz{i,IVIEW}(2),:) = imcurr;
         toplefts(i,:) = [offc,offr]+1;
       end      
       
@@ -159,7 +176,7 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
           repplot = randsample(size(p0,2),nrepplot);
         end
         for j = 1:npts,
-          plot(toplefts(i,1)+p0(i,repplot,j,1,1)-1,toplefts(i,2)+p0(i,repplot,j,2,1)-1,'.','Color',colors(j,:));
+          plot(toplefts(i,1)+p0(i,repplot,j,1,IVIEW)-1,toplefts(i,2)+p0(i,repplot,j,2,IVIEW)-1,'.','Color',colors(j,:));
         end
       end
       

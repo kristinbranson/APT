@@ -62,6 +62,9 @@ for f = fldsOver(:)',f=f{1}; %#ok<FXSET>
     sbase.(f) = sover.(f);
     % sover.(f) might be the same value as sbase.(f), but we don't consider
     % that base is being used in that case
+    %
+    % if sover.(f) is a struct that might be another special case where
+    % sometimes we want to warn etc.
   end
 end
 

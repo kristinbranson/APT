@@ -14,7 +14,7 @@ class config(object):
     # ----- Network parameters
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
-        self.label_blur_rad = 3  # 1.5
+        self.label_blur_rad = 3.  # 1.5
 
         self.batch_size = 8
         self.view = 0
@@ -23,6 +23,7 @@ class config(object):
         self.num_test = 8
         self.dl_steps = 60000 # number of training iters
         self.decay_steps = 25000
+        self.learning_rate = 0.0001
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
@@ -135,6 +136,7 @@ class config(object):
             logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
         else:
             logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
+            setattr(self,name,default)
         return getattr(self,name,default)
 
 

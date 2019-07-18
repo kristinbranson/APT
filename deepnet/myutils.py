@@ -11,8 +11,6 @@ from __future__ import division
 
 from builtins import range
 from past.utils import old_div
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from scipy import ndimage
@@ -119,6 +117,7 @@ def nms(image,rad=3,thresh=0):
 
 
 def save_dbox(name, fig = None, dest = 'temp', dpi=500):
+    import matplotlib.pyplot as plt
     if fig is None:
       fig = plt.gcf()
     tname = '/groups/branson/home/kabram/temp/' + name
