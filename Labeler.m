@@ -5624,12 +5624,15 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function labelPosBulkImport(obj,xy)
+    function labelPosBulkImport(obj,xy,ts)
       % Set ALL labels for current movie/target
       %
       % xy: [nptx2xnfrm]
       
       assert(~obj.gtIsGTMode);
+      if ~exist('ts','var'),
+        ts = now;
+      end
       
       iMov = obj.currMovie;
       lposOld = obj.labeledpos{iMov};

@@ -2,7 +2,7 @@
 
 %gtfile = '/nrs/branson/mayank/apt_cache/alice_view0_time.mat';
 
-exptype = 'Roian';
+exptype = 'RFView1';
 cprdir = '/groups/branson/bransonlab/apt/experiments/res/cprgt20190407';
 codedir = fileparts(mfilename('fullpath'));
 savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20190523';
@@ -35,6 +35,9 @@ nets = nets(idxnet);
 colors = colors(idxnet,:);
 legendnames = legendnames(idxnet);
 vwi = 1;
+doAlignCoordSystem = false;
+annoterrfile = '';
+
 
 switch exptype,
   case {'SHView0','SHView1'}
@@ -131,7 +134,9 @@ switch exptype,
     lblfile = '/groups/branson/home/bransonk/tracking/code/APT/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_mdn20190214_skeledges.lbl';
     maxerr = 30;
     doplotoverx = true;
+    gtdata_size = load(gtfile_trainsize);
     npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    annoterrfile = 'AnnotErrData20190614.mat';
 
   case {'RFView0','RFView1'}
     if strcmp(exptype,'RFView0'),
@@ -163,6 +168,8 @@ switch exptype,
     % not train
     labeltypes = {};
     datatypes = {};
+    
+    
 %     pttypes = {'L. antenna tip',1
 %       'R. antenna tip',2
 %       'L. antenna base',3
@@ -171,7 +178,8 @@ switch exptype,
 %     labeltypes = {'all',1};
 %     datatypes = {'all',1};
     maxerr = 100;
-    lblfile = '/groups/branson/bransonlab/apt/experiments/res/romain_viewpref_3dpostproc_20190522/romainTrackNov18_al_portable_mp4s_withExpTriResMovs134_20190522.lbl';
+    lblfile = '/groups/branson/bransonlab/apt/experiments/data/romainTrackNov18_updateDec06_al_portable_mdn60k_openposewking_newmacro.lbl';
+    %lblfile = '/groups/branson/bransonlab/apt/experiments/res/romain_viewpref_3dpostproc_20190522/romainTrackNov18_al_portable_mp4s_withExpTriResMovs134_20190522.lbl';
     gtimagefile = '/groups/branson/home/bransonk/tracking/code/APT/RomainTrainCVInfo20190419.mat';
     freezeInfo = struct;
     freezeInfo.iMov = 1;
@@ -282,18 +290,27 @@ switch exptype,
       gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit0_view0_cv.mat';
       gtfile_traintime = '';
       vwi = 1;
+      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0.lbl';
+      pttypes = {'Front foot',[1,2]
+        'Back foot',[3,4]
+        'Tail',5};
     elseif strcmp(exptype,'BSView1x'),
-      gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam0_tbltrn_brit_vw2_split_brit_vw1_prm_brit_al_20190515T184617.mat';
+      gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam1_tbltrn_brit_vw2_split_brit_vw2_prm_brit_al_20190515T184622.mat';
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit0_view1_cv.mat';
+      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit1_view0_cv.mat';
       gtfile_traintime = '';
       vwi = 1;
+      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam1.lbl';
+      pttypes = {'Front foot',[1,2]};
     else
-      gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam0_tbltrn_brit_vw3_split_brit_vw1_prm_brit_al_20190515T184617.mat';
+      gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam2_tbltrn_brit_vw3_split_brit_vw3_prm_brit_al_20190515T184819.mat';
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit0_view2_cv.mat';
+      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit2_view0_cv.mat';
       gtfile_traintime = '';
       vwi = 1;
+      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2.lbl';
+      pttypes = {'Back foot',[1,2]
+        'Tail',3};
     end
     condinfofile = '';
     gtdata_size = load(gtfile_trainsize);
@@ -318,26 +335,64 @@ switch exptype,
     %     labeltypes = {'all',1};
     %     datatypes = {'all',1};
     maxerr = 100;
-    lblfile = '/groups/branson/bransonlab/apt/experiments/res/romain_viewpref_3dpostproc_20190522/romainTrackNov18_al_portable_mp4s_withExpTriResMovs134_20190522.lbl';
-    gtimagefile = '/groups/branson/home/bransonk/tracking/code/APT/RomainTrainCVInfo20190419.mat';
-    freezeInfo = struct;
-    freezeInfo.iMov = 1;
-    freezeInfo.iTgt = 1;
-    freezeInfo.frm = 302;
-    freezeInfo.clim = [0,192];
-    doplotoverx = false;
-    gtimdata = load(gtimagefile);
+    gtimagefile = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat';    
     
-    pttypes = {'abdomen',19
-      'front leg joint 1',[13,16]
-      'front leg joint 2',[7,10]
-      'front leg tarsi',[1,4]
-      'middle leg joint 1',[14,17]
-      'middle leg joint 2',[8,11]
-      'middle leg tarsi',[2,5]
-      'back leg joint 1',[15,18]
-      'back leg joint 2',[9,12]
-      'back leg tarsi',[3,6]};
+    freezeInfo = struct;
+    freezeInfo.i = 1;
+    doplotoverx = false;
+    gtimdatain = load(gtimagefile);
+    realvwi = str2double(regexp(exptype,'View(\d+)x','once','tokens'))+1;
+    gtimdata = struct;
+    gtimdata.cvi = gtimdatain.cvidx{realvwi};
+    gtimdata.ppdata = gtimdatain.ppdatas{realvwi};
+    gtimdata.tblPGT = gtimdatain.tblPGTs{realvwi};
+    gtimdata.frame = gtimdata.tblPGT.frm;
+    gtimdata.movieidx = gtimdata.tblPGT.mov;
+    gtimdata.movies = gtimdatain.trnmovies{realvwi};
+    gtimdata.target = gtimdata.tblPGT.iTgt;
+    
+    
+%     pttypes = {'abdomen',19
+%       'front leg joint 1',[13,16]
+%       'front leg joint 2',[7,10]
+%       'front leg tarsi',[1,4]
+%       'middle leg joint 1',[14,17]
+%       'middle leg joint 2',[8,11]
+%       'middle leg tarsi',[2,5]
+%       'back leg joint 1',[15,18]
+%       'back leg joint 2',[9,12]
+%       'back leg tarsi',[3,6]};
+    
+  case 'FlyBubbleMDNvsDLC',
+    gtfile_trainsize = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/GT/MDNvsDLC_20190530.mat';
+    gtfile_trainsize_cpr = '';
+    gtfile_traintime = '';
+    gtfile_traintime_cpr = '';
+    conddata = [];
+    gtimagefile = '/groups/branson/home/bransonk/tracking/code/APT/FlyBubbleMDNvsDLC_gtimdata_20190531.mat';
+    gtimdata = load(gtimagefile);
+
+    nets = {'DLC','MDN'};
+    legendnames = {'DeepLabCut','MDN'};
+    nnets = numel(nets);
+    colors = [
+      0.8500    0.3250    0.0980
+      0.4940    0.1840    0.5560
+      ];
+    labeltypes = {};
+    datatypes = {};
+    pttypes = {'head',[1,2,3]
+      'body',[4,5,6,7]
+      'middle leg joint 1',[8,10]
+      'middle leg joint 2',[9,11]
+      'front leg tarsi',[12,17]
+      'middle leg tarsi',[13,16]
+      'back leg tarsi',[14,15]};
+    lblfile = '/groups/branson/home/bransonk/tracking/code/APT/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_mdn20190214_skeledges.lbl';
+    maxerr = [];
+    doplotoverx = false;
+    doAlignCoordSystem = true;
+    
     
   otherwise
     error('Unknown exp type %s',exptype);
@@ -362,11 +417,25 @@ if isempty(gtfile_traintime),
 else
   gtdata_time = load(gtfile_traintime);
 end
+if isempty(annoterrfile),
+  annoterrdata = [];
+else
+  annoterrdata =load(annoterrfile);
+end
 
 %% images for overlaying percentile errors 
 
-lObj = StartAPT;
-lObj.projLoad(lblfile);
+if ismember(exptype,{'BSView0x','BSView1x','BSView2x'}),
+  
+  lObj = load(lblfile,'-mat');
+  ptcolors = lObj.cfg.LabelPointsPlot.Colors;
+  lObj.labeledpos = cellfun(@SparseLabelArray.full,lObj.labeledpos,'uni',0);
+  
+else
+  lObj = StartAPT;
+  lObj.projLoad(lblfile);
+  ptcolors = lObj.LabelPointColors;
+end
 
 % nets = {'openpose','leap','deeplabcut','unet','mdn'};
 % nnets = numel(nets);
@@ -379,7 +448,7 @@ lObj.projLoad(lblfile);
 %binedges(end) = inf;
 
 switch exptype,
-  case 'FlyBubble'
+  case {'FlyBubble','FlyBubbleMDNvsDLC'},
     freezeInfo = lObj.prevAxesModeInfo;
     lpos = lObj.labeledpos{freezeInfo.iMov}(:,:,freezeInfo.frm,freezeInfo.iTgt);
     if freezeInfo.isrotated,
@@ -408,10 +477,22 @@ switch exptype,
     freezeInfo.axes_curr.CameraViewAngleMode = 'auto';
     npts = size(gtdata_size.mdn{1}.labels,2);
     lpos = lObj.labeledpos{freezeInfo.iMov}((vwi-1)*npts+(1:npts),:,freezeInfo.frm,freezeInfo.iTgt);
+  case {'BSView0x','BSView1x','BSView2x'},
+    freezeInfo.im = gtimdata.ppdata.I{freezeInfo.i};
+    freezeInfo.xdata = [1,size(freezeInfo.im,2)];
+    freezeInfo.ydata = [1,size(freezeInfo.im,1)];
+    freezeInfo.isrotated = false;
+    freezeInfo.axes_curr.XDir = 'normal';
+    freezeInfo.axes_curr.YDir = 'reverse';
+    npts = size(gtdata_size.mdn{1}.labels,2);
+    lpos = reshape(gtimdata.ppdata.pGT(freezeInfo.i,:),[npts,2]);
+  otherwise
+    error('Unknown exptype %s',exptype);
+    
 end
 
 assert(all(~isnan(lpos(:))));
-ptcolors = lObj.LabelPointColors;
+
 
 %% load in cpr data
 
@@ -423,6 +504,107 @@ if ~isempty(gtfile_traintime) && ~isempty(gtfile_traintime_cpr),
   gtdata_time = AddCPRGTData(gtdata_time,gtfile_trainsize_cpr,lObj.labeledpos,vwi);
 end
 
+%% compute kappa for OKS computation if there is annotation error data
+
+if ~isempty(annoterrdata),
+  kappadistname = 'gamma2';
+  switch kappadistname
+    case 'gaussian'
+      apvals = [50,75];
+      meanapvals = 50:5:95;
+    case 'gamma2'
+      apvals = [30,40,50];
+      meanapvals = 30:5:70;
+    otherwise
+      error('not implemented');
+  end
+  
+  ndatatypes = size(datatypes,1);
+  nlabeltypes = size(labeltypes,1);
+  npttypes = size(pttypes,1);
+  annfns = fieldnames(annoterrdata);
+  %kappadistname = 'gamma2';
+  [kappa,errs,areas,hfig] = TuneOKSKappa(annoterrdata,'distname',kappadistname,'pttypes',pttypes,'doplot',true,'dormoutliers',true);
+  set(hfig,'Units','pixels','Position',[10,10,560,1168]);
+  saveas(hfig,fullfile(savedir,sprintf('IntraAnnotatorDistributionFit_%s_%s',kappadistname,exptype)),'svg');
+  saveaspdf_JAABA(hfig,fullfile(savedir,sprintf('IntraAnnotatorDistributionFit_%s_%s.pdf',kappadistname,exptype)))
+  apk = cell(nnets+numel(annfns),1);
+  ap = cell(nnets+numel(annfns),1);
+  meanoks = cell(nnets+numel(annfns),1);
+
+  for i = 1:numel(annfns),
+    [apk{nnets+i},ap{nnets+i},meanoks{nnets+i}] = ComputeOKSStats(annoterrdata.(annfns{i}){end},kappa,'pttypes',pttypes,...
+      'conddata',annoterrdata.(annfns{i}){end},'pttypes',pttypes,'labeltypes',labeltypes,'datatypes',datatypes,...
+      'apvals',apvals,'meanapvals',meanapvals,'distname',kappadistname);
+  end
+  for ndx = 1:nnets,
+    [apk{ndx},ap{ndx},meanoks{ndx}] = ComputeOKSStats(gtdata_size.(nets{ndx}){end},kappa,'pttypes',pttypes,...
+      'conddata',conddata,'pttypes',pttypes,'labeltypes',labeltypes,'datatypes',datatypes,...
+      'apvals',apvals,'meanapvals',meanapvals,'distname',kappadistname);
+  end
+
+  fid = fopen(fullfile(savedir,sprintf('apoksdata_%s_%s.tex',kappadistname,exptype)),'w');
+  fprintf(fid,'distname = %s\\\\\n',kappadistname);
+  fprintf(fid,'AP averaged over OKS = %s\\\\\n\n',mat2str(meanapvals));
+  for datai = ndatatypes,
+    for labeli = 1:nlabeltypes,      
+      fprintf(fid,['\\begin{tabular}{|c||',repmat('c|',[1,nnets+numel(annfns)]),'}']);
+      fprintf(fid,'\\hline\n');
+      fprintf(fid,'Measure - %s',labeltypes{labeli});
+      for i = 1:nnets,
+        fprintf(fid,' & %s',legendnames{i});
+      end
+      for i = 1:numel(annfns),
+        fprintf(fid,' & %s',annfns{i});
+      end
+      fprintf(fid,'\\\\\\hline\\hline\n');
+      
+      fprintf(fid,'AP');
+      for ndx = 1:nnets+numel(annfns),
+        fprintf(fid,' & %.2f',ap{ndx}(1,datai,labeli));
+      end
+      fprintf(fid,'\\\\\\hline\n');
+      for pti = 1:npttypes,
+        fprintf(fid,'AP/%s',pttypes{pti,1});
+        for ndx = 1:nnets+numel(annfns),
+          fprintf(fid,' & %.2f',ap{ndx}(1+pti,datai,labeli));
+        end
+        fprintf(fid,'\\\\\\hline\n');
+      end
+      for k = 1:numel(apvals),
+        fprintf(fid,'AP-OKS=%d',apvals(k));
+        for ndx = 1:nnets+numel(annfns),
+          fprintf(fid,' & %.2f',apk{ndx}(k,1,datai,labeli));
+        end
+        fprintf(fid,'\\\\\\hline\n');
+      end
+      for pti = 1:npttypes,
+        for k = 1:numel(apvals),
+          fprintf(fid,'AP-OKS=%d/%s',apvals(k),pttypes{pti,1});
+          for ndx = 1:nnets+numel(annfns),
+            fprintf(fid,' & %.2f',apk{ndx}(k,1+pti,datai,labeli));
+          end
+          fprintf(fid,'\\\\\\hline\n');
+        end
+      end
+      fprintf(fid,'\\end{tabular}\n\n');
+    end
+  end
+  fclose(fid);
+
+end
+
+%% compute average precision at various thresholds relative to the animal scale
+
+ComputePixelPrecisionTable(gtdata_size,...
+  'nets',nets,'legendnames',legendnames,...
+  'exptype',exptype,...
+  'conddata',conddata,...
+  'labeltypes',labeltypes,'datatypes',datatypes,...
+  'savedir',savedir,...
+  'dosavefig',dosavefig,...
+  'pttypes',pttypes,...
+  'annoterrdata',annoterrdata);
 
 %% plot error percentiles per part type over training time
 
@@ -458,7 +640,7 @@ for stati = 1:3,
       statname = 'Best';
   end
 
-  PlotWorstLandmarkErrorOverX('gtdata',gtdata_time,...
+  hfigs = PlotWorstLandmarkErrorOverX('gtdata',gtdata_time,...
     'statname',statname,...
     'nets',nets,'legendnames',legendnames,...
     'colors',colors,...
@@ -471,6 +653,7 @@ for stati = 1:3,
     'dosavefig',dosavefig,...
     'x','Training time (h)',...
     'savekey','TrainTime');
+  
 end
 
 end
@@ -491,6 +674,7 @@ if doplotoverx,
     'dosavefig',dosavefig,...
     'x','N. training examples',...
     'savekey','TrainSetSize');
+  
 end
 
 %% plot error percentiles for worst part over training set size
@@ -507,7 +691,7 @@ if doplotoverx,
         statname = 'Best';
     end
     
-    PlotWorstLandmarkErrorOverX('gtdata',gtdata_size,...
+    hfigs = PlotWorstLandmarkErrorOverX('gtdata',gtdata_size,...
       'statname',statname,...
       'nets',nets,'legendnames',legendnames,...
       'colors',colors,...
@@ -520,6 +704,13 @@ if doplotoverx,
       'dosavefig',dosavefig,...
       'x','N. training examples',...
       'savekey','TrainSetSize');
+    
+    
+%     if ~isempty(annoterrdata),
+%       worsterr = max(sqrt(sum((annoterrdata.inter{end}.pred-annoterrdata.inter{end}.labels).^2,3)),[],2);
+%       medianterworsterr = median(worsterr);
+%     end
+  
   end
   
 end
@@ -555,6 +746,12 @@ PlotPerLandmarkErrorPrctiles('gtdata',gtdata_size,...
 
 clear hfigs;
 
+if ~isempty(annoterrdata),
+  cur_annoterrdata = annoterrdata.inter{end};
+else
+  cur_annoterrdata = [];
+end
+
 for stati = 1:3,
   switch stati,
     case 1
@@ -564,7 +761,8 @@ for stati = 1:3,
     case 3
       statname = 'Best';
   end
-
+  
+  
   PlotFracInliers('gtdata',gtdata_size,...
     'nets',nets,'legendnames',legendnames,...
     'colors',colors,...
@@ -573,7 +771,12 @@ for stati = 1:3,
     'labeltypes',labeltypes,'datatypes',datatypes,...
     'statname',statname,...
     'savedir',savedir,'dosavefig',dosavefig,...
-    'maxerr',maxerr);
+    'maxerr',maxerr,...
+    'prcs',prcs,...
+    'maxprc',99.5,...
+    'annoterrdata',cur_annoterrdata,...
+    'annoterrprc',99);
+  
   
   PlotSortedWorstLandmarkError('gtdata',gtdata_size,...
     'nets',nets,'legendnames',legendnames,...
@@ -582,7 +785,11 @@ for stati = 1:3,
     'conddata',conddata,...
     'labeltypes',labeltypes,'datatypes',datatypes,...
     'statname',statname,...
-    'savedir',savedir,'dosavefig',dosavefig,'maxerr',maxerr);
+    'savedir',savedir,'dosavefig',dosavefig,'maxerr',maxerr,...
+    'prcs',prcs,...
+    'maxprc',99.5,...
+    'annoterrdata',cur_annoterrdata,...
+    'annoterrprc',99);
 
   
 end
@@ -591,6 +798,7 @@ end
 
 nexamples_random = 5;
 nexamples_disagree = 5;
+errnets = {'mdn','deeplabcut'};
 hfigs = PlotExamplePredictions('gtdata',gtdata_size,...
   'gtimdata',gtimdata,...
   'lObj',lObj,...
@@ -601,7 +809,63 @@ hfigs = PlotExamplePredictions('gtdata',gtdata_size,...
   'dosavefig',dosavefig,'savedir',savedir,...
   'nexamples_random',nexamples_random,...
   'nexamples_disagree',nexamples_disagree,...
-  'errnets',annotators);
+  'doAlignCoordSystem',doAlignCoordSystem,...
+  'errnets',errnets);
+
+%% plot errors against each other for MDNvsDLC
+
+if ismember(exptype,{'FlyBubbleMDNvsDLC'}),
+  err = nan(size(gtdata_size.(nets{1}){end}.labels,1),nnets);
+  for ndx = 1:nnets,
+    err(:,ndx) = max(sqrt(sum((gtdata_size.(nets{ndx}){end}.labels-gtdata_size.(nets{ndx}){end}.pred).^2,3)),[],2);
+  end
+  hfig = figure;
+  clf;
+  maxerrcurr = max(err(:))*1.05;
+  hold on;
+  plot([0,maxerrcurr],[0,maxerrcurr],'c-');
+  plot(err(:,1),err(:,2),'k.','MarkerFaceColor','k');
+  axis equal;
+  set(gca,'XLim',[0,maxerrcurr],'YLim',[0,maxerrcurr]);
+  xlabel(sprintf('%s worst landmark error',legendnames{1}));
+  ylabel(sprintf('%s worst landmark error',legendnames{2}));
+  set(hfig,'Renderer','painters','Units','pixels','Position',[10,10,300,300]);
+  saveas(hfig,fullfile(savedir,sprintf('%s_DLCErrorVsMDNError.svg',exptype)),'svg')
+end
+
+%% print data set info
+
+strippedLblFile = struct;
+strippedLblFile.SH = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20190402_dlstripped.lbl';
+strippedLblFile.FlyBubble = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl';
+strippedLblFile.RF = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.lbl';
+strippedLblFile.BSView0x = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl';
+strippedLblFile.BSView1x = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl';
+strippedLblFile.BSView2x = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl';
+strippedLblFile.Roian = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl';
+strippedLblFile.Larva = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl';
+
+gtResFile = struct;
+gtResFile.SH = '/nrs/branson/mayank/apt_cache/stephen_view0_trainsize.mat';
+gtResFile.FlyBubble = '/nrs/branson/mayank/apt_cache/alice_view0_trainsize.mat';
+
+fns = fieldnames(strippedLblFile);
+nTrain = struct;
+nGT = struct;
+for i = 1:numel(fns),
+  fn = fns{i};
+  ld = load(strippedLblFile.(fn),'-mat');
+  nTrain.(fn) = size(ld.preProcData_I,1);
+  fprintf('%s\t%d',fn,nTrain.(fn));
+  if isfield(gtResFile,fn),
+    gd = load(gtResFile.(fn));
+    nGT.(fn) = size(gd.mdn{end}.pred,1);
+    fprintf('\t%d',nGT.(fn));
+  end
+  fprintf('\n');
+  
+end
+    
 
 %% old stuff
 

@@ -52,6 +52,9 @@ npttypes = size(pttypes,1);
 if isempty(conddata),
   ndatatypes = 1;
   nlabeltypes = 1;
+else
+  ndatatypes = max(conddata.data_cond);
+  nlabeltypes = max(conddata.label_cond);
 end
 if isempty(labeltypes),
   labeltypes = cell(nlabeltypes,2);
