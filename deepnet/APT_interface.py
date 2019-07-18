@@ -1366,37 +1366,48 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
 
 def classify_db_all(model_type, conf, db_file, model_file=None):
     ''' Classifies examples in DB'''
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
+
     if model_type == 'openpose':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'unet':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'mdn':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'leap':
         leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        pred_fn, close_fn, latest_model_file = leap.training.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, leap_gen, pred_fn, n)
+        ret = classify_db(conf, leap_gen, pred_fn, n)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
     elif model_type == 'deeplabcut':
         read_fn, n = deepcut.train.get_read_fn(conf, db_file)
-        pred_fn, close_fn, latest_model_file = deepcut.train.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, n)
+        ret = classify_db(conf, read_fn, pred_fn, n)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
     else:
-        raise ValueError('Undefined model type')
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
+
+        # raise ValueError('Undefined model type')
 
     return pred_locs, label_locs, info
 
@@ -2161,10 +2172,12 @@ def run(args):
                 else:
                     raise ValueError('Unrecognized net type')
                 db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file)
-            A = convert_to_orig_list(conf,preds,locs, info)
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
-            preds, locs = to_mat(A)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            # preds, locs = to_mat(A)
             hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list':info},appendmat=False,truncate_existing=True)
 
     elif args.sub_name == 'model_files':
