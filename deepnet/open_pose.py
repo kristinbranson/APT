@@ -258,48 +258,64 @@ def stageTdeconv_block(x, num_p, stage, branch, weight_decay):
 
 def apply_mask(x, mask, stage, branch):
     w_name = "weight_stage%d_L%d" % (stage, branch)
-    w = Multiply(name=w_name)([x, mask]) # vec_weight
+    w = Multiply(name=w_name)([x, mask])  # vec_weight
     return w
 
-def get_training_model(weight_decay, br1=38, br2=19):
+def get_training_model(imszuse, weight_decay, nlimbs=38, npts=19):
     '''
 
+    :param imszuse: (imnr, imnc) raw image size, possibly adjusted to be 0 mod 8
     :param weight_decay: weight decay for l2 reg (applied only to weights not biases)
-    :param br1:
-    :param br2:
+    :param br1: number of limbs
+    :param br2: number of landmarks
     :return: Model.
         Outputs: [pafS1, hmapS1, pafS2, ... hmapSn-1, pafSn (hi-res), hmapSn (hi-res)]
     '''
-    stages = 6
-    np_branch1 = br1
-    np_branch2 = br2
 
-    img_input_shape = (None, None, 3)
-    vec_input_shape = (None, None, br1)
-    heat_input_shape = (None, None, br2)
+    stages = 6
+
+    imnruse, imncuse = imszuse
+    assert imnruse % 8 == 0, "Image size must be divisible by 8"
+    assert imncuse % 8 == 0, "Image size must be divisible by 8"
+
+    img_input_shape = imszuse + (3,)
+    vec_input_shape_hires = imszuse + (nlimbs,)
+    heat_input_shape_hires = imszuse + (npts,)
+
+    imszvgg = (imnruse/8, imncuse/8)  # imsz post VGG ftrs
+    vec_input_shape = imszvgg + (nlimbs,)
+    heat_input_shape = imszvgg + (npts,)
 
     inputs = []
     outputs = []
 
-    img_input = Input(shape=img_input_shape)
-    vec_weight_input = Input(shape=vec_input_shape)
-    heat_weight_input = Input(shape=heat_input_shape)
-
+    img_input = Input(shape=img_input_shape, name='input_img')
+    vec_weight_input = Input(shape=vec_input_shape,
+                             name='input_paf_mask')
+    heat_weight_input = Input(shape=heat_input_shape,
+                              name='input_part_mask')
+    vec_weight_input_hires = Input(shape=vec_input_shape_hires,
+                                   name='input_paf_mask_hires')
+    heat_weight_input_hires = Input(shape=heat_input_shape_hires,
+                                    name='input_part_mask_hires')
     inputs.append(img_input)
     inputs.append(vec_weight_input)
     inputs.append(heat_weight_input)
+    inputs.append(vec_weight_input_hires)
+    inputs.append(heat_weight_input_hires)
 
     img_normalized = Lambda(lambda x: x / 256 - 0.5)(img_input) # [-0.5, 0.5]
 
     # VGG
+    # sz should be (bsize, imszvgg[0], imszvgg[1], nchans)
     stage0_out = vgg_block(img_normalized, weight_decay)
 
     # stage 1 - branch 1 (PAF)
-    stage1_branch1_out = stage1_block(stage0_out, np_branch1, 1, weight_decay)
+    stage1_branch1_out = stage1_block(stage0_out, nlimbs, 1, weight_decay)
     w1 = apply_mask(stage1_branch1_out, vec_weight_input, 1, 1)
 
     # stage 1 - branch 2 (confidence maps)
-    stage1_branch2_out = stage1_block(stage0_out, np_branch2, 2, weight_decay)
+    stage1_branch2_out = stage1_block(stage0_out, npts, 2, weight_decay)
     w2 = apply_mask(stage1_branch2_out, heat_weight_input, 1, 2)
 
     x = Concatenate()([stage1_branch1_out, stage1_branch2_out, stage0_out])
@@ -310,11 +326,11 @@ def get_training_model(weight_decay, br1=38, br2=19):
     # stage sn=2..stages-1
     for sn in range(2, stages):
         # stage SN - branch 1 (PAF)
-        stageT_branch1_out = stageT_block(x, np_branch1, sn, 1, weight_decay)
+        stageT_branch1_out = stageT_block(x, nlimbs, sn, 1, weight_decay)
         w1 = apply_mask(stageT_branch1_out, vec_weight_input, sn, 1)
 
         # stage SN - branch 2 (confidence maps)
-        stageT_branch2_out = stageT_block(x, np_branch2, sn, 2, weight_decay)
+        stageT_branch2_out = stageT_block(x, npts, sn, 2, weight_decay)
         w2 = apply_mask(stageT_branch2_out, heat_weight_input, sn, 2)
 
         outputs.append(w1)
@@ -322,11 +338,11 @@ def get_training_model(weight_decay, br1=38, br2=19):
         x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
     # stage sn=stages
-    stageT_branch1_out = stageTdeconv_block(x, np_branch1, stages, 1, weight_decay)
-    w1 = apply_mask(stageT_branch1_out, vec_weight_input, stages, 1)
+    stageT_branch1_out = stageTdeconv_block(x, nlimbs, stages, 1, weight_decay)
+    w1 = apply_mask(stageT_branch1_out, vec_weight_input_hires, stages, 1)
     # stage SN - branch 2 (confidence maps)
-    stageT_branch2_out = stageTdeconv_block(x, np_branch2, stages, 2, weight_decay)
-    w2 = apply_mask(stageT_branch2_out, heat_weight_input, stages, 2)
+    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, weight_decay)
+    w2 = apply_mask(stageT_branch2_out, heat_weight_input_hires, stages, 2)
 
     outputs.append(w1)
     outputs.append(w2)
@@ -606,7 +622,7 @@ class DataIteratorTF(object):
 #----------------------
 
 def set_openpose_defaults(conf):
-    conf.label_blur_rad = 5
+    conf.label_blur_rad = 5  # AL: think unused atm
     conf.rrange = 5
     conf.display_step = 50 # this is same as batches per epoch
     conf.dl_steps = 600000
@@ -630,6 +646,48 @@ def massage_conf(conf):
         conf.save_step = (div+1) * conf.display_step
         logging.info("Openpose requires the save step to be an even multiple of the display step. Increasing save step to {}".format(conf.save_step))
 
+def configure_lr_multipliers(model):
+    # setup lr multipliers for conv layers
+
+    lr_mult = dict()
+    for layer in model.layers:
+        # AL: second clause here unnec as Conv2DTranspose appears to be a subclass.
+        # Just for clarity
+        if isinstance(layer, Conv2D) or isinstance(layer, Conv2DTranspose):
+            # stage = 1
+            if re.match("Mconv\d_stage1.*", layer.name) or \
+               re.match("Mdeconv\d_stage1.*", layer.name):
+                kernel_name = layer.weights[0].name
+                bias_name = layer.weights[1].name
+                lr_mult[kernel_name] = 1
+                lr_mult[bias_name] = 2
+
+            # stage > 1
+            elif re.match("Mconv\d_stage.*", layer.name) or \
+                 re.match("Mdeconv\d_stage.*", layer.name):
+                kernel_name = layer.weights[0].name
+                bias_name = layer.weights[1].name
+                lr_mult[kernel_name] = 4
+                lr_mult[bias_name] = 8
+
+            # vgg
+            else:
+                kernel_name = layer.weights[0].name
+                bias_name = layer.weights[1].name
+                lr_mult[kernel_name] = 1
+                lr_mult[bias_name] = 2
+
+    return lr_mult
+
+
+def imszcheckcrop(sz, dimname):
+    szm8 = sz % 8
+    szuse = sz - szm8
+    if szm8 != 0:
+        warnstr = 'Image {} dimension ({}) is not a multiple of 8. Image will be cropped slightly.'.format(dimname, sz)
+        logging.warning(warnstr)
+    return szuse
+
 
 def training(conf,name='deepnet'):
 
@@ -650,6 +708,11 @@ def training(conf,name='deepnet'):
     restart = True
     last_epoch = 0
 
+    (imnr, imnc) = conf.imsz
+    imnr_use = imszcheckcrop(imnr, 'row')
+    imnc_use = imszcheckcrop(imnc, 'column')
+    imszuse = (imnr_use, imnc_use)
+
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, 'For open-pose save steps must be a multiple of display steps'
 
@@ -659,7 +722,10 @@ def training(conf,name='deepnet'):
     logging.info('Saved config to {}'.format(train_data_file))
 
     model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
-    model = get_training_model(weight_decay, br1=len(conf.op_affinity_graph) * 2, br2=conf.n_classes)
+    model = get_training_model(imszuse,
+                               weight_decay,
+                               nlimbs=len(conf.op_affinity_graph) * 2,
+                               npts=conf.n_classes)
 
     # load previous weights or vgg19 if this is the first run
     from_vgg = dict()
@@ -679,30 +745,9 @@ def training(conf,name='deepnet'):
     train_di2 = DataIteratorTF(conf, 'train', True, True)
     val_di = DataIteratorTF(conf, 'train', False, False)
 
-    # setup lr multipliers for conv layers
-    lr_mult = dict()
-    for layer in model.layers:
-        if isinstance(layer, Conv2D):
-            # stage = 1
-            if re.match("Mconv\d_stage1.*", layer.name):
-                kernel_name = layer.weights[0].name
-                bias_name = layer.weights[1].name
-                lr_mult[kernel_name] = 1
-                lr_mult[bias_name] = 2
-
-            # stage > 1
-            elif re.match("Mconv\d_stage.*", layer.name):
-                kernel_name = layer.weights[0].name
-                bias_name = layer.weights[1].name
-                lr_mult[kernel_name] = 4
-                lr_mult[bias_name] = 8
-
-            # vgg
-            else:
-                kernel_name = layer.weights[0].name
-                bias_name = layer.weights[1].name
-                lr_mult[kernel_name] = 1
-                lr_mult[bias_name] = 2
+    # AL: looks like lr_mults not used anymore with Adam
+    # configure_lr_multipliers(model)
+    # logging.info('Configured layer learning rate mulitpliers')
 
     # configure loss functions
     def eucl_loss(x, y):
