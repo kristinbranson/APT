@@ -1987,6 +1987,9 @@ def parse_args(argv):
 
     parser_model = subparsers.add_parser('model_files', help='prints the list of model files')
 
+    parser_test = subparsers.add_parser('test', help='Perform tests')
+    parser_test.add_argument('testrun', choices=['hello'], help="Test to run")
+
     print(argv)
     args = parser.parse_args(argv)
     if args.view is not None:
@@ -1997,11 +2000,14 @@ def parse_args(argv):
         args.start_frame = to_py(args.start_frame)
         args.crop_loc = to_py(args.crop_loc)
 
-    net_type = get_net_type(args.lbl_file)
-    # command line has precedence over the one in label file.
-    if args.type is None and net_type is not None:
-        logging.info("No network type specified on command line or in the lbl file. Selecting MDN")
-        args.type = 'mdn'
+    if args.sub_name != 'test':
+        net_type = get_net_type(args.lbl_file)
+        # command line has precedence over the one in label file.
+        if args.type is None and net_type is not None:
+            # AL20190719: don't understand this, in this branch the net_type was found in the lbl file?
+            # Shouldn't we be using/assigning to net_type here.
+            logging.info("No network type specified on command line or in the lbl file. Selecting MDN")
+            args.type = 'mdn'
     return args
 
 def run(args):
@@ -2181,6 +2187,10 @@ def run(args):
 
 def main(argv):
     args = parse_args(argv)
+
+    if args.sub_name == 'test':
+        print("Hello this is APT!")
+        return
 
     log_formatter = logging.Formatter('%(asctime)s %(pathname)s %(funcName)s [%(levelname)-5.5s] %(message)s')
 
