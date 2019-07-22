@@ -572,16 +572,21 @@ class DataIteratorTF(object):
         ims = np.stack(all_ims)  # [bsize x height x width x depth]
         locs = np.stack(all_locs)  # [bsize x ncls x 2]
 
+        imszuse = self.conf.imszuse
+        (imnr_use, imnc_use) = imszuse
+        ims = ims[:, 0:imnr_use, 0:imnc_use, :]
+
         if self.conf.img_dim == 1:
             assert ims.shape[-1] == 1, "Expected image depth of 1"
             ims = np.tile(ims, 3)
 
-        mask_sz = [int(x/self.conf.op_label_scale/self.conf.op_rescale) for x in self.conf.imsz]
+        assert self.conf.op_rescale==1, "op_rescale not sure if we are okay"
+        mask_sz = [int(x/self.conf.op_label_scale/self.conf.op_rescale) for x in imszuse]
         mask_sz1 = [self.batch_size,] + mask_sz + [2*self.vec_num]
         mask_sz2 = [self.batch_size,] + mask_sz + [self.heat_num]
         mask_im1 = np.ones(mask_sz1)
         mask_im2 = np.ones(mask_sz2)
-        mask_sz_origres = [int(x/self.conf.op_rescale) for x in self.conf.imsz]
+        mask_sz_origres = [int(x/self.conf.op_rescale) for x in imszuse]
         mask_sz1_origres = [self.batch_size,] + mask_sz_origres + [2*self.vec_num]
         mask_sz2_origres = [self.batch_size,] + mask_sz_origres + [self.heat_num]
         mask_im1_origres = np.ones(mask_sz1_origres)
@@ -732,6 +737,7 @@ def training(conf,name='deepnet'):
     imnr_use = imszcheckcrop(imnr, 'row')
     imnc_use = imszcheckcrop(imnc, 'column')
     imszuse = (imnr_use, imnc_use)
+    conf.imszuse = imszuse
 
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, 'For open-pose save steps must be a multiple of display steps'
