@@ -269,6 +269,7 @@ def get_training_model(imszuse, weight_decay, nlimbs=38, npts=19):
     :param br1: number of limbs
     :param br2: number of landmarks
     :return: Model.
+        Inputs: [img, pafmap (lores), hmap (lores sz), pafmap(hires), hmap(hires)]
         Outputs: [pafS1, hmapS1, pafS2, ... hmapSn-1, pafSn (hi-res), hmapSn (hi-res)]
     '''
 
@@ -537,13 +538,14 @@ class DataIteratorTF(object):
             else:
                 record = self.iterator.next()
 
-        return  record
+        return record
 
     def next(self):
 
         all_ims = []
         all_locs = []
         for b_ndx in range(self.batch_size):
+            # AL: this 'shuffle' seems weird
             n_skip = np.random.randint(30) if self.shuffle else 0
             for _ in range(n_skip+1):
                 record = self.read_next()
@@ -567,10 +569,11 @@ class DataIteratorTF(object):
             all_ims.append(reconstructed_img)
             all_locs.append(locs)
 
-        ims = np.stack(all_ims)
-        locs = np.stack(all_locs)
+        ims = np.stack(all_ims)  # [bsize x height x width x depth]
+        locs = np.stack(all_locs)  # [bsize x ncls x 2]
 
         if self.conf.img_dim == 1:
+            assert ims.shape[-1] == 1, "Expected image depth of 1"
             ims = np.tile(ims, 3)
 
         mask_sz = [int(x/self.conf.op_label_scale/self.conf.op_rescale) for x in self.conf.imsz]
@@ -590,24 +593,25 @@ class DataIteratorTF(object):
 
         label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz, 1) #self.conf.label_blur_rad)
 #        label_ims = PoseTools.create_label_images(locs/self.conf.op_label_scale, mask_sz,1,2)
-        label_ims = np.clip(label_ims,0,1) # AL: possibly unnec?
+        label_ims = np.clip(label_ims, 0, 1)  # AL: possibly unnec?
 
         label_ims_origres = create_label_images(locs, mask_sz_origres, 1)
         label_ims_origres = np.clip(label_ims_origres, 0, 1) # AL: possibly unnec?
 
         affinity_ims = create_affinity_labels(locs/self.conf.op_label_scale,
-                                              mask_sz, self.conf.op_affinity_graph,1) #self.conf.label_blur_rad)
+                                              mask_sz, self.conf.op_affinity_graph, 1) #self.conf.label_blur_rad)
 
         affinity_ims_origres = create_affinity_labels(locs,
                                                       mask_sz_origres, self.conf.op_affinity_graph, 1)
 
         return [ims, mask_im1, mask_im2, mask_im1_origres, mask_im2_origres], \
-                [affinity_ims, label_ims,
-                 affinity_ims, label_ims,
-                 affinity_ims, label_ims,
-                 affinity_ims, label_ims,
-                 affinity_ims, label_ims,
-                 affinity_ims_origres, label_ims_origres]
+               [affinity_ims, label_ims,
+                affinity_ims, label_ims,
+                affinity_ims, label_ims,
+                affinity_ims, label_ims,
+                affinity_ims, label_ims,
+                affinity_ims_origres, label_ims_origres]
+        # (inputs, targets)
 
 
     def __iter__(self):
@@ -689,6 +693,21 @@ def imszcheckcrop(sz, dimname):
     return szuse
 
 
+def configure_loss_functions(batch_size, hires_weight_factor):
+    def eucl_loss(x, y):
+        return K.sum(K.square(x - y)) / batch_size / 2
+
+    losses = {}
+    loss_weights = {}
+    for stage in range(1, 7):
+        for lvl in range(1, 3):
+            key = 'weight_stage{}_L{}'.format(stage, lvl)
+            losses[key] = eucl_loss
+            loss_weights[key] = hires_weight_factor if stage == 6 else 1.0
+
+    return losses, loss_weights
+
+
 def training(conf,name='deepnet'):
 
     #AL 20190327 For now we massage on the App side so the App knows what to expect for
@@ -707,6 +726,7 @@ def training(conf,name='deepnet'):
     max_iter = conf.dl_steps/iterations_per_epoch
     restart = True
     last_epoch = 0
+    hires_weight_factor = 2.5  # lo-res loss functions have weights of 1.0, hi-res loss funcitons have this weight
 
     (imnr, imnc) = conf.imsz
     imnr_use = imszcheckcrop(imnr, 'row')
@@ -749,13 +769,7 @@ def training(conf,name='deepnet'):
     # configure_lr_multipliers(model)
     # logging.info('Configured layer learning rate mulitpliers')
 
-    # configure loss functions
-    def eucl_loss(x, y):
-        return K.sum(K.square(x - y)) / batch_size / 2
-    losses = {}
-    for stage in range(1,7):
-        for lvl in range(1,3):
-            losses['weight_stage{}_L{}'.format(stage,lvl)] = eucl_loss
+    losses, loss_weights = configure_loss_functions(batch_size, hires_weight_factor)
 
     save_time = conf.get('save_time',None)
     # lr decay.
@@ -775,6 +789,7 @@ def training(conf,name='deepnet'):
             self.train_info['train_loss'] = []
             self.train_info['val_dist'] = []
             self.train_info['val_loss'] = []
+            self.train_info['lr'] = []
             self.config = conf
             self.force = False
             self.save_start = time()
@@ -787,28 +802,34 @@ def training(conf,name='deepnet'):
             train_x, train_y = self.train_di.next()
             train_out = self.model.predict(train_x)
             train_loss = self.model.evaluate(train_x, train_y, verbose=0)
+            lr = K.eval(self.model.optimizer.lr)
 
             # dist only for last layer
             tt1 = PoseTools.get_pred_locs(val_out[-1]) - \
                   PoseTools.get_pred_locs(val_y[-1])
-            tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
-            val_dist = np.nanmean(tt1)*self.config.op_label_scale
+            tt1 = np.sqrt(np.sum(tt1 ** 2, 2))  # [bsize x ncls]
+            val_dist = np.nanmean(tt1)  # this dist is in op_scale-downsampled space
+                                        # *self.config.op_label_scale
             tt1 = PoseTools.get_pred_locs(train_out[-1]) - \
                   PoseTools.get_pred_locs(train_y[-1])
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
-            train_dist = np.nanmean(tt1)*self.config.op_label_scale
+            train_dist = np.nanmean(tt1) # *self.config.op_label_scale
             self.train_info['val_dist'].append(val_dist)
-            self.train_info['val_loss'].append(val_loss[0])
+            self.train_info['val_loss'].append(val_loss[0]) # xxxAL why not sum or weighted sum here
             self.train_info['train_dist'].append(train_dist)
-            self.train_info['train_loss'].append(train_loss[0])
+            self.train_info['train_loss'].append(train_loss[0]) # xxxAL etc
             self.train_info['step'].append(int(step))
+            self.train_info['lr'].append(lr)
 
             p_str = ''
             for k in self.train_info.keys():
-                p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
+                if k == 'lr':
+                    p_str += '{:s}:{:.4g} '.format(k, self.train_info[k][-1])
+                else:
+                    p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             logging.info(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, 'traindata')
+            train_data_file = os.path.join(self.config.cachedir, 'traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -842,7 +863,7 @@ def training(conf,name='deepnet'):
     optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     # start training
-    model.compile(loss=losses, optimizer=optimizer)
+    model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)
 
     #save initial model
     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
