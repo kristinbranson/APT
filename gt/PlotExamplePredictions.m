@@ -24,7 +24,7 @@ function [hfigs,savenames] = PlotExamplePredictions(varargin)
 assert(~isempty(gtdata));
 assert(~isempty(gtimdata));
 
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 vwi = str2double(exptype(end))+1;
 if isnan(vwi),

@@ -164,12 +164,13 @@ end
 
 function sortederrs = GetSortedErrs(cur_data,net,exptype,conddata,datatypes,labeltypes,statname)
 
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 preds = cur_data.pred;
 labels = cur_data.labels;
-assert(size(preds,3)==2);
-assert(size(labels,3)==2);
+assert(all(size(preds)==size(labels)));
+% assert(size(preds,3)==2);
+% assert(size(labels,3)==2);
 iscpr = contains(net,'cpr');
 
 ndatatypes = size(datatypes,1);

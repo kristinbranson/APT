@@ -114,7 +114,7 @@ if geometricerror,
     end
   end
   etime = toc(starttime);
-  fprintf('Average time per reconstruction = %f, total time = %f\n',etime/n,etime);
+  %fprintf('Average time per reconstruction = %f, total time = %f\n',etime/n,etime);
 
   ptfront_re = nan(2,n);
   ptside_re = nan(2,n);

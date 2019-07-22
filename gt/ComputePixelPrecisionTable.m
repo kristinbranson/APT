@@ -15,7 +15,7 @@ function [tbls,medmindist,kvals,savename] = ComputePixelPrecisionTable(gtdata,va
   'threshmethod','medmindist',...
   'threshprctile',95);
 
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 if isempty(nets),
   assert(~isempty(gtdata));
@@ -29,7 +29,7 @@ if isempty(conddata),
   conddata.data_cond = ones(ndatapts,1);
   conddata.label_cond = ones(ndatapts,1);
 end
-nlandmarks = size(gtdata.(nets{1}){end}.labels,2);
+[ndata,nlandmarks,ndim] = size(gtdata.(nets{1}){end}.labels);
 if isempty(pttypes),
   npttypes = nlandmarks;
 end
@@ -78,7 +78,7 @@ end
 labelscurr = gtdata.(nets{1}){end}.labels;
 minds = nan(size(labelscurr,1),nlandmarks);
 for i = 1:size(labelscurr,1),
-  d = squareform(pdist(reshape(labelscurr(i,:,:),[nlandmarks,2])));
+  d = squareform(pdist(reshape(labelscurr(i,:,:),[nlandmarks,ndim])));
   d(eye(nlandmarks)==1) = inf;
   minds(i,:) = min(d,[],1);
 end
@@ -86,7 +86,25 @@ medmindist = median(minds(:));
 
 threshprctileerr = nan(1,nnets);
 for ndx = 1:nnets,
-  err = sqrt(sum((gtdata.(nets{ndx}){end}.labels-gtdata.(nets{ndx}){end}.pred).^2,3));
+
+  iscpr = contains(nets{ndx},'cpr');
+
+  idxcurr = true(size(conddata.data_cond));
+  iall = find(strcmp(datatypes,'all'),1);
+  if ~isempty(iall),
+    idxcurr = idxcurr & ismember(conddata.data_cond,datatypes{iall,2});
+  end
+  iall = find(strcmp(labeltypes,'all'),1);
+  if ~isempty(iall),
+    idxcurr = idxcurr & ismember(conddata.label_cond,labeltypes{iall,2});
+  end
+  if iscpr && isshexp,
+    % special case for SH/cpr whose computed GT output only has
+    % 1149 rows instead of 1150 cause dumb
+    idxcurr(4) = [];
+  end
+  
+  err = sqrt(sum((gtdata.(nets{ndx}){end}.labels(idxcurr,:,:)-gtdata.(nets{ndx}){end}.pred(idxcurr,:,:)).^2,3));
   %threshprctileerr(ndx) = prctile(err(:),threshprctile);
   maxerr = max(err,[],2);
   threshprctileerr(ndx) = prctile(maxerr,threshprctile);

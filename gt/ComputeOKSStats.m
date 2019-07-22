@@ -1,7 +1,10 @@
 function [apk,ap,meanoks,apvals] = ComputeOKSStats(data,kappa,varargin)
 
-[conddata,pttypes,datatypes,labeltypes,apvals,meanapvals,distname] = myparse(varargin,'conddata',[],'pttypes',{},...
-  'datatypes',{},'labeltypes',{},'apvals',[40,50,60],'meanapvals',30:5:70,'distname','gamma2');
+[conddata,pttypes,datatypes,labeltypes,apvals,meanapvals,distname,netname,exptype] = myparse(varargin,'conddata',[],'pttypes',{},...
+  'datatypes',{},'labeltypes',{},'apvals',[40,50,60],'meanapvals',30:5:70,'distname','gamma2','netname','','exptype','');
+
+isshexp = startsWith(exptype,'SH');
+iscpr = contains(netname,'cpr');%~isempty(strfind(netname,'cpr'));
 
 [ndatapts,npts,d] = size(data.labels);
 if isempty(pttypes),
@@ -50,6 +53,12 @@ ap = zeros([npttypes+1,ndatatypes,nlabeltypes]);
 for datai = 1:ndatatypes,
   for labeli = 1:nlabeltypes,
     idxcurr = ismember(conddata.data_cond,datatypes{datai,2})&ismember(conddata.label_cond,labeltypes{labeli,2});
+    if iscpr && isshexp,
+      % special case for SH/cpr whose computed GT output only has
+      % 1149 rows instead of 1150 cause dumb
+      idxcurr(4) = [];
+    end
+    
     meanoks(1,datai,labeli) = mean(oks(idxcurr));
     meanoks(2:end,datai,labeli) = mean(okstype(idxcurr,:),1);
     for k = 1:napvals,

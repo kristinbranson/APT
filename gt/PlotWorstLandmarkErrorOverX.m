@@ -21,7 +21,7 @@ function [hfigs,savenames,errprctiles] = PlotWorstLandmarkErrorOverX(varargin)
 
 prcs = sort(prcs);
 
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 if isempty(nets),
   assert(~isempty(gtdata));
@@ -131,8 +131,9 @@ if isempty(errprctiles),
       cur_data = gtdata.(nets{ndx}){mndx};
       preds = cur_data.pred;
       labels = cur_data.labels;
-      assert(size(preds,3)==2);
-      assert(size(labels,3)==2);
+      assert(all(size(preds)==size(labels)));
+%       assert(size(preds,3)==2);
+%       assert(size(labels,3)==2);
       iscpr = ~isempty(strfind(nets{ndx},'cpr'));
       
       for datai = 1:ndatatypes,

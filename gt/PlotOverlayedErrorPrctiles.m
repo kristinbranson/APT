@@ -17,7 +17,7 @@ function [hfigs,savenames,errprctilespts] = PlotOverlayedErrorPrctiles(varargin)
 
 assert(~isempty(freezeInfo));
 assert(~isempty(lpos));
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 if isempty(nets),
   assert(~isempty(gtdata));
