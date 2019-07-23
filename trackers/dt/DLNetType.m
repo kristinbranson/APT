@@ -3,24 +3,58 @@ classdef DLNetType
     shortString
     prettyString
     paramFileShort
+    
+    trkAuxFlds % [naux] struct array of auxiliary tracking fields with 
+               % fields .trkfld and .label
+    timelinePropList % [naux] struct array of tracker-specific properties 
+                     % in format used by InfoTimeline
   end
+  properties (Dependent)
+    nTrkAuxFlds
+  end
+  
   enumeration 
-    mdn ('mdn','MDN')
-    deeplabcut ('dlc','DeepLabCut')
-    unet ('unet','Unet')
-    openpose ('openpose','OpenPose')
-    leap ('leap','LEAP')
+    mdn ('mdn','MDN',struct('trkfld',{'pTrkconf' 'pTrkconf_unet'}, ...
+                            'label',{'conf_mdn' 'conf_unet'}))
+    deeplabcut ('dlc','DeepLabCut', struct('trkfld',cell(0,1),'label',[]))
+    unet ('unet','Unet',            struct('trkfld',cell(0,1),'label',[]))
+    openpose ('openpose','OpenPose',struct('trkfld',cell(0,1),'label',[]))
+    leap ('leap','LEAP',            struct('trkfld',cell(0,1),'label',[]))
     %hg ('hg','HourGlass')
   end
+  
   methods 
-    function obj = DLNetType(sstr,pstr)
+    function v = get.nTrkAuxFlds(obj)
+      v = numel(obj.trkAuxFlds);
+    end
+  end
+  methods 
+    function obj = DLNetType(sstr,pstr,auxflds)
       obj.shortString = sstr;
       obj.prettyString = pstr;
       obj.paramFileShort = sprintf('params_deeptrack_%s.yaml',sstr);
+      obj.trkAuxFlds = auxflds;
+      obj.timelinePropList = DLNetType.auxflds2PropList(auxflds);
     end
   end
   
   methods (Static)
+    function s = auxflds2PropList(auxflds)
+      % Create .timelinePropList; see comments in properties block
+      %
+      % s: struct array detailing traker-specific props
+      
+      s = EmptyLandmarkFeatureArray();
+      
+      for iaux=1:numel(auxflds)
+        label = auxflds(iaux).label;
+        s(end+1,1).name = label; %#ok<AGROW>
+        s(end).code = label;
+        s(end).feature = label;
+        s(end).transform = 'none';
+        s(end).coordsystem = 'Global';
+      end
+    end
     function g = modelGlobs(net,iterCurr)
       % net specific model globs in modelChainDir
       %
@@ -52,7 +86,7 @@ classdef DLNetType
             'traindata*'
             };
       end
-    end    
+    end   
   end
 end
     

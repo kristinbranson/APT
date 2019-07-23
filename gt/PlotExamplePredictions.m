@@ -4,7 +4,7 @@ function [hfigs,savenames] = PlotExamplePredictions(varargin)
   conddata,labeltypes,datatypes,...
   figpos,savedir,savenames,dosavefig,...
   reseed,nexamples_random,nexamples_disagree,...
-  ms,lw,textcolor,lObj,errnets] = myparse(varargin,'gtdata',[],'gtimdata',[],...
+  ms,lw,textcolor,lObj,errnets,doAlignCoordSystem] = myparse(varargin,'gtdata',[],'gtimdata',[],...
   'nets',{},'legendnames',{},'ptcolors',[],'exptype','exp',...
   'conddata',[],'labeltypes',{},'datatypes',{},...
   'figpos',[],...
@@ -18,12 +18,13 @@ function [hfigs,savenames] = PlotExamplePredictions(varargin)
   'LineWidth',2,...
   'textcolor','c',...
   'lObj',[],...
-  'errnets',{});
+  'errnets',{},...
+  'doAlignCoordSystem',false);
 
 assert(~isempty(gtdata));
 assert(~isempty(gtimdata));
 
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 vwi = str2double(exptype(end))+1;
 if isnan(vwi),
@@ -102,10 +103,16 @@ nexamples = nexamples_random + nexamples_disagree;
 hfigs = gobjects(ndatatypes,nlabeltypes);
 
 labelscurr = gtdata.(nets{1}){end}.labels;
+if doAlignCoordSystem,
+  labelscurr = align(labelscurr,gtimdata,lObj,vwi);
+end
 isbadlabel = false(ndatapts,1);
 for i = 1:ndatapts,
   labelcurr = permute(labelscurr(i,:,:),[2,3,1]);
   isbadlabel(i) = any(any(labelcurr < 1 | labelcurr > fliplr(size(gtimdata.ppdata.I{i,vwi}))));
+end
+if any(isbadlabel),
+  warning('%d bad labels ignored',nnz(isbadlabel));
 end
 
 for datai = 1:ndatatypes,
@@ -122,48 +129,8 @@ for datai = 1:ndatatypes,
     for neti = 1:nnets,
       
       predscurr = gtdata.(nets{neti}){end}.pred;
-      if ~isempty(strfind(nets{neti},'cpr')) || ismember(nets{neti},{'Alice','Austin'}),
-        
-        tblP = gtimdata.tblPGT;
-        isTrx = any(~isnan(tblP.pTrx(:)));
-        % doing this manually, can't find a good function to do it
-        preds = gtdata.(nets{neti}){end}.pred;
-        if isTrx,
-          for i = 1:ndatapts,
-            pAbs = permute(preds(i,:,:),[2,3,1]);
-            x = tblP.pTrx(i,1);
-            y = tblP.pTrx(i,2);
-            if isnan(x),
-              continue;
-            end
-            T = [1,0,0
-              0,1,0
-              -x,-y,1];
-            theta = tblP.thetaTrx(i);
-            if lObj.preProcParams.TargetCrop.AlignUsingTrxTheta && ~isnan(theta),
-              R = [cos(theta+pi/2),-sin(theta+pi/2),0
-                sin(theta+pi/2),cos(theta+pi/2),0
-                0,0,1];
-            else
-              R = eye(3);
-            end
-            A = T*R;
-            tform = maketform('affine',A);
-            [pRel(:,1),pRel(:,2)] = ...
-              tformfwd(tform,pAbs(:,1),pAbs(:,2));
-            pRoi = lObj.preProcParams.TargetCrop.Radius+pRel;
-            predscurr(i,:,:) = pRoi;
-          end
-        else
-          if ismember('roi',gtimdata.ppdata.MD.Properties.VariableNames)
-            nvws = size(gtimdata.ppdata.MD.roi,2)/4;
-            roi = reshape(gtimdata.ppdata.MD.roi,[ndatapts,4,nvws]);
-            roi = roi(:,:,vwi);
-            predscurr = preds - reshape(roi(:,[1,3]),[ndatapts,1,2]);
-          else
-            predscurr = preds;
-          end
-        end
+      if doAlignCoordSystem || ~isempty(strfind(nets{neti},'cpr')) || ismember(nets{neti},{'Alice','Austin'}),
+        predscurr = align(gtdata.(nets{neti}){end}.pred,gtimdata,lObj,vwi);
       end
       allpreds(:,:,:,neti) = predscurr;
     end
@@ -252,5 +219,50 @@ for datai = 1:ndatatypes,
       saveas(hfigs(datai,labeli),savenames{savei},'svg');
     end
           
+  end
+end
+
+function predscurr = align(preds,gtimdata,lObj,vwi)
+
+tblP = gtimdata.tblPGT;
+isTrx = any(~isnan(tblP.pTrx(:)));
+ndatapts = size(preds,1);
+predscurr = preds;
+
+% doing this manually, can't find a good function to do it
+if isTrx,
+  for i = 1:ndatapts,
+    pAbs = permute(preds(i,:,:),[2,3,1]);
+    x = tblP.pTrx(i,1);
+    y = tblP.pTrx(i,2);
+    if isnan(x),
+      continue;
+    end
+    T = [1,0,0
+      0,1,0
+      -x,-y,1];
+    theta = tblP.thetaTrx(i);
+    if lObj.preProcParams.TargetCrop.AlignUsingTrxTheta && ~isnan(theta),
+      R = [cos(theta+pi/2),-sin(theta+pi/2),0
+        sin(theta+pi/2),cos(theta+pi/2),0
+        0,0,1];
+    else
+      R = eye(3);
+    end
+    A = T*R;
+    tform = maketform('affine',A);
+    [pRel(:,1),pRel(:,2)] = ...
+      tformfwd(tform,pAbs(:,1),pAbs(:,2));
+    pRoi = lObj.preProcParams.TargetCrop.Radius+pRel;
+    predscurr(i,:,:) = pRoi;
+  end
+else
+  if ismember('roi',gtimdata.ppdata.MD.Properties.VariableNames)
+    nvws = size(gtimdata.ppdata.MD.roi,2)/4;
+    roi = reshape(gtimdata.ppdata.MD.roi,[ndatapts,4,nvws]);
+    roi = roi(:,:,vwi);
+    predscurr = preds - reshape(roi(:,[1,3]),[ndatapts,1,2]);
+  else
+    predscurr = preds;
   end
 end

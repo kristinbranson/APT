@@ -1986,13 +1986,34 @@ function cbkTrackerBackendTest(src,evt)
 
 handles = guidata(src);
 lObj = handles.labelerObj;
-switch lObj.trackDLBackEnd.type,
-  case DLBackEnd.Bsub,
-    lObj.tracker.testBsubConfig();
-  otherwise
-    msgbox(sprintf('Tests for %s have not been implemented',lObj.trackDLBackEnd.type),'Not implemented','modal');
-end
 
+cacheDir = lObj.DLCacheDir; 
+assert(exist(cacheDir,'dir')>0,...
+  'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
+
+be = lObj.trackDLBackEnd;
+be.testConfigUI(cacheDir);
+
+% % is APTCache set?
+% hedit.String{end+1} = ''; drawnow;
+% hedit.String{end+1} = '** Testing that Deep Track->Saving->CacheDir parameter is set...'; drawnow;
+% if isempty(cacheDir),
+%   hedit.String{end+1} = 'Deep Track->Saving->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
+%   return;
+% end
+% % does APTCache exist?
+% if ~exist(cacheDir,'dir'),
+%   hedit.String{end+1} = sprintf('Deep Track->CacheDir %s did not exist, trying to create it...',cacheDir); drawnow;
+%   [tfsucc1,msg1] = mkdir(cacheDir);
+%   if ~tfsucc1 || ~exist(cacheDir,'dir'),
+%     hedit.String{end+1} = sprintf('Deep Track->CacheDir %s could not be created: %s. Make sure you have access to %s, and/or set CacheDir to a different directory.',cacheDir,msg1,cacheDir); drawnow;
+%     return;
+%   end
+% end
+% hedit.String{end+1} = sprintf('Deep Track->Saving->CacheDir set to %s, and exists.',cacheDir); drawnow;
+% hedit.String{end+1} = 'SUCCESS!'; drawnow;
+      
+      
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
@@ -2040,7 +2061,6 @@ if ~isempty(tObj),
   tObj.updateTrackerInfo();
 end
 handles.labelTLInfo.setTracker(tObj);
-handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)

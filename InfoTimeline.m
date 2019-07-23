@@ -20,7 +20,6 @@ classdef InfoTimeline < handle
     hAxL = []% scalar handle to timeline axis
     hCurrFrame % scalar line handle current frame
     hCurrFrameL = []% scalar line handle current frame
-%     hMarked % scalar line handle, indicates marked frames
     hCMenuClearAll % scalar context menu
     hCMenuClearBout % scalar context menu
 
@@ -277,24 +276,24 @@ classdef InfoTimeline < handle
   
   methods
     
-    function readTimelineProps(obj)
-
-      path = fileparts(mfilename('fullpath'));
-      tlpropfile = fullfile(path,obj.TLPROPFILESTR);
-      assert(exist(tlpropfile,'file')>0);
-      
-      fid = fopen(tlpropfile,'r');
-      while true,
-        s = fgetl(fid);
-        if ~ischar(s),
-          break;
-        end
-        s = strtrim(s);
-        obj.TLPROPS{end+1} = s;
-      end
-      fclose(fid);
-      
-    end
+%     function readTimelineProps(obj)
+% 
+%       path = fileparts(mfilename('fullpath'));
+%       tlpropfile = fullfile(path,obj.TLPROPFILESTR);
+%       assert(exist(tlpropfile,'file')>0);
+%       
+%       fid = fopen(tlpropfile,'r');
+%       while true,
+%         s = fgetl(fid);
+%         if ~ischar(s),
+%           break;
+%         end
+%         s = strtrim(s);
+%         obj.TLPROPS{end+1} = s;
+%       end
+%       fclose(fid);
+%       
+%     end
     
     function readTimelinePropsNew(obj)
 
@@ -372,11 +371,8 @@ classdef InfoTimeline < handle
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
-      obj.props = props;
-      
+      obj.props = props;      
       obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
-      
-      
     end
         
     function setTracker(obj,tracker)
@@ -394,36 +390,17 @@ classdef InfoTimeline < handle
         end
         obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
         obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
-        %obj.props_tracker = cat(1,obj.props,repmat(props(:),[1,2]));
+        if obj.curprop>size(obj.props_tracker,1)
+          % .setCurProp() doesn't update pumInfo.value.
+          NEWPROP = 1;
+          obj.curprop = NEWPROP;
+          obj.lObj.gdata.pumInfo.Value = NEWPROP;
+        end
         obj.listenersTracker{end+1,1} = addlistener(tracker,...
           'newTrackingResults',@obj.cbkLabelUpdated);
-      end      
+      end
       
-%       % Break down existing props; eliminate existing tracker-props. We
-%       % also prefer tracker-props to come before labels2 props.
-%       pmat = obj.props;
-%       src = pmat(:,2);
-%       tfLabels = strcmp(src,'Labels');
-%       tfTracks = strcmp(src,'Tracks'); % will be deleted
-%       tfLabels2 = strcmp(src,'Labels2');
-%       assert(all(tfLabels+tfTracks+tfLabels2==1));
-% 
-%       cellfun(@delete,obj.listenersTracker);
-%       obj.listenersTracker = cell(0,1);      
-%       if isempty(tracker)
-%         obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
-%       else
-%         propList = tracker.propList();
-%         pmatnew = arrayfun(...
-%           @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
-%           (1:numel(propList))','uni',0);
-%         pmatnew = cat(1,pmatnew{:});
-%         obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
-%         
-%         cellfun(@delete,obj.listenersTracker);
-%         obj.listenersTracker{end+1,1} = addlistener(tracker,...
-%           'newTrackingResults',@obj.cbkLabelUpdated);
-%       end
+      obj.setLabelsFull();
     end
     
     function setLabelsFull(obj)
@@ -595,48 +572,48 @@ classdef InfoTimeline < handle
       obj.selectInit();
     end
         
-    function setJumpParams(obj)
-      % GUI to get jump parameters,
-      f = figure('Visible','on','Position',[360,500,200,90],...
-        'MenuBar','None','ToolBar','None');
-      tbottom = 70;
-      uicontrol('Style','text',...
-                   'String','Jump To:','Value',1,'Position',[10,tbottom,190,20]);
-      
-      ibottom = 50;           
-      hprop = uicontrol('Style','Text',...
-                   'String','drasdgx','Value',1,'Position',[10,ibottom-2,90,20],...
-                   'HorizontalAlignment','left');
-      hprope = get(hprop,'Extent');
-      st = hprope(3) + 15;
-      hCondition = uicontrol('Style','popupmenu',...
-                   'String',{'>','<='},'Value',1,'Position',[st,ibottom,40,20]);
-      hval = uicontrol('Style','edit',...
-                   'String','0','Position',[st+55,ibottom-2,30,20]);           
-      bbottom = 10;
-
-
-      uicontrol('Style','pushbutton',...
-                   'String','Cancel','Position',[30,bbottom,60,30],'Callback',{fcancel,f});
-      uicontrol('Style','pushbutton',...
-                   'String','Done','Position',[110,bbottom,60,30],...
-                   'Callback',{fapply,f,hCondition,hval,obj});
-                 
-      function fcancel(~,~,f)
-        delete(f);
-      end
-      
-      function fapply(~,~,f,hCondition,hval,obj) 
-        tr = str2double(get(hval,'String'));
-        if isnan(tr)
-          warndlg('Enter valid numerical value');
-          return;
-        end
-        obj.jumpThreshold = tr;
-        obj.jumpCondition = 2*get(hCondition,'Value')-3;
-        delete(f);
-      end
-    end
+%     function setJumpParams(obj)
+%       % GUI to get jump parameters,
+%       f = figure('Visible','on','Position',[360,500,200,90],...
+%         'MenuBar','None','ToolBar','None');
+%       tbottom = 70;
+%       uicontrol('Style','text',...
+%                    'String','Jump To:','Value',1,'Position',[10,tbottom,190,20]);
+%       
+%       ibottom = 50;           
+%       hprop = uicontrol('Style','Text',...
+%                    'String','drasdgx','Value',1,'Position',[10,ibottom-2,90,20],...
+%                    'HorizontalAlignment','left');
+%       hprope = get(hprop,'Extent');
+%       st = hprope(3) + 15;
+%       hCondition = uicontrol('Style','popupmenu',...
+%                    'String',{'>','<='},'Value',1,'Position',[st,ibottom,40,20]);
+%       hval = uicontrol('Style','edit',...
+%                    'String','0','Position',[st+55,ibottom-2,30,20]);           
+%       bbottom = 10;
+% 
+% 
+%       uicontrol('Style','pushbutton',...
+%                    'String','Cancel','Position',[30,bbottom,60,30],'Callback',{fcancel,f});
+%       uicontrol('Style','pushbutton',...
+%                    'String','Done','Position',[110,bbottom,60,30],...
+%                    'Callback',{fapply,f,hCondition,hval,obj});
+%                  
+%       function fcancel(~,~,f)
+%         delete(f);
+%       end
+%       
+%       function fapply(~,~,f,hCondition,hval,obj) 
+%         tr = str2double(get(hval,'String'));
+%         if isnan(tr)
+%           warndlg('Enter valid numerical value');
+%           return;
+%         end
+%         obj.jumpThreshold = tr;
+%         obj.jumpCondition = 2*get(hCondition,'Value')-3;
+%         delete(f);
+%       end
+%     end
     
     function v = isL(obj)
       v = ~isempty(obj.hAxL) && ishandle(obj.hAxL);
@@ -959,7 +936,7 @@ classdef InfoTimeline < handle
       end
     end
     
-     function data = getIsLabeledCurrMovTgt(obj)
+    function data = getIsLabeledCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
       labeler = obj.lObj;
@@ -974,58 +951,58 @@ classdef InfoTimeline < handle
       end
     end
     
-    function lpos = getMarkedDataCurrMovTgt(obj)
-      % lpos: [nptsxnfrm]
-      
-      labeler = obj.lObj;
-      iMov = labeler.currMovie;
-      if iMov>0
-        if ~labeler.gtIsGTMode
-          iTgt = labeler.currTarget;
-          lpos = squeeze(labeler.labeledposMarked{iMov}(:,:,iTgt)); % AL: squeeze seems unnec
-        else
-          lpos = false(labeler.nLabelPoints,labeler.nframes);
-        end
-      else
-        lpos = false(labeler.nLabelPoints,1);
-      end
-    end
+%     function lpos = getMarkedDataCurrMovTgt(obj)
+%       % lpos: [nptsxnfrm]
+%       
+%       labeler = obj.lObj;
+%       iMov = labeler.currMovie;
+%       if iMov>0
+%         if ~labeler.gtIsGTMode
+%           iTgt = labeler.currTarget;
+%           lpos = squeeze(labeler.labeledposMarked{iMov}(:,:,iTgt)); % AL: squeeze seems unnec
+%         else
+%           lpos = false(labeler.nLabelPoints,labeler.nframes);
+%         end
+%       else
+%         lpos = false(labeler.nLabelPoints,1);
+%       end
+%     end
     
-    function nxtFrm = findFrame(obj,dr,curFr)
-      % Finds the next or previous frame which satisfy conditions.
-      % dr = 0 is back, 1 is forward
-      nxtFrm = nan;
-      if isnan(obj.jumpThreshold)
-        warndlg('Threhold value is not for navigation');
-        obj.thresholdGUI();
-        if isnan(obj.jumpThreshold)
-          return;
-        end
-      end
-      
-      data = obj.getDataCurrMovTgt();
-      if obj.jumpCondition > 0
-        locs = any(data>obj.jumpThreshold,1);
-      else
-        locs = any(data<=obj.jumpThreshold,1);
-      end
-      
-      if dr > 0.5
-        locs = locs(curFr:end);
-        nxtlocs = find( (~locs(1:end-1))&(locs(2:end)),1);
-        if isempty(nxtlocs)
-          return;
-        end
-        nxtFrm = curFr + nxtlocs - 1;
-      else
-        locs = locs(1:curFr);
-        nxtlocs = find( (locs(1:end-1))&(~locs(2:end)),1,'last');
-        if isempty(nxtlocs)
-          return;
-        end
-        nxtFrm = nxtlocs;
-      end
-    end
+%     function nxtFrm = findFrame(obj,dr,curFr)
+%       % Finds the next or previous frame which satisfy conditions.
+%       % dr = 0 is back, 1 is forward
+%       nxtFrm = nan;
+%       if isnan(obj.jumpThreshold)
+%         warndlg('Threhold value is not for navigation');
+%         obj.thresholdGUI();
+%         if isnan(obj.jumpThreshold)
+%           return;
+%         end
+%       end
+%       
+%       data = obj.getDataCurrMovTgt();
+%       if obj.jumpCondition > 0
+%         locs = any(data>obj.jumpThreshold,1);
+%       else
+%         locs = any(data<=obj.jumpThreshold,1);
+%       end
+%       
+%       if dr > 0.5
+%         locs = locs(curFr:end);
+%         nxtlocs = find( (~locs(1:end-1))&(locs(2:end)),1);
+%         if isempty(nxtlocs)
+%           return;
+%         end
+%         nxtFrm = curFr + nxtlocs - 1;
+%       else
+%         locs = locs(1:curFr);
+%         nxtlocs = find( (locs(1:end-1))&(~locs(2:end)),1,'last');
+%         if isempty(nxtlocs)
+%           return;
+%         end
+%         nxtFrm = nxtlocs;
+%       end
+%     end
   end
   
 end
