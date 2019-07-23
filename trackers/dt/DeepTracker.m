@@ -4507,10 +4507,11 @@ classdef DeepTracker < LabelTracker
   %% TrackCurrRes = tracked state for current movie. Loaded into .trkP*
   methods
     function trackCurrResInit(obj)
+      % Assumes that .trnNetType is set
       obj.trkP = [];
       obj.trkPTS = zeros(0,1);
       obj.trkAux = [];
-      obj.trkAuxLbl = [];
+      obj.trkAuxLbl = {obj.trnNetType.trkAuxFlds.label}';
     end
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
@@ -4595,7 +4596,7 @@ classdef DeepTracker < LabelTracker
       obj.trkP = pTrk;
       obj.trkPTS = pTrkTS;
       obj.trkAux = aux;
-      obj.trkAuxLbl = {auxInfo.label}';
+      %obj.trkAuxLbl = {auxInfo.label}';
     end
     function xy = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm

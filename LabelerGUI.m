@@ -2061,7 +2061,6 @@ if ~isempty(tObj),
   tObj.updateTrackerInfo();
 end
 handles.labelTLInfo.setTracker(tObj);
-handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)

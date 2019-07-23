@@ -178,10 +178,10 @@ classdef LabelTracker < handle
       % tpos: [npts d nfrm ntgt], or empty/[] will be accepted if no
       % results are available. 
       % taux: [npts nfrm ntgt naux], or empty/[]
-      % tauxlbl: [naux] cellstr or []
+      % tauxlbl: [naux] cellstr 
       tpos = [];
       taux = [];
-      tauxlbl = [];
+      tauxlbl = cell(0,1);
     end
       
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
@@ -301,16 +301,7 @@ classdef LabelTracker < handle
   methods % For infotimeline display
     
     function props = propList(obj)
-      %props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
-      
-      props = {}; % a struct array is the expected type, but this empty 
-        % cell gets concated successfully
-       
-%       if isempty(obj.INFOTIMELINE_PROPS_TRACKER),
-%         props = {};
-%       else
-%         props = {obj.INFOTIMELINE_PROPS_TRACKER.name};
-%       end
+      props = EmptyLandmarkFeatureArray();
     end
     
     function data = getPropValues(obj,prop)

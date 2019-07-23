@@ -44,8 +44,7 @@ classdef DLNetType
       %
       % s: struct array detailing traker-specific props
       
-      s = struct('name',cell(0,1),'code',[],'feature',[],...
-        'transform',[],'coordsystem',[]);
+      s = EmptyLandmarkFeatureArray();
       
       for iaux=1:numel(auxflds)
         label = auxflds(iaux).label;
