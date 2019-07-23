@@ -54,9 +54,9 @@ classdef LabelTracker < handle
     hideViz = false; % scalar logical. If true, hide visualizations
   end
   
-  properties (Constant)    
-    INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
-  end
+%   properties (Constant)    
+%     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
+%   end
       
   methods
     
@@ -170,14 +170,18 @@ classdef LabelTracker < handle
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
-    function tpos = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       % This is a convenience method as it is a special case of 
       % getTrackingResults. Concrete LabelTrackers will also typically have 
       % the current movie's tracking results cached.
       % 
       % tpos: [npts d nfrm ntgt], or empty/[] will be accepted if no
       % results are available. 
+      % taux: [npts nfrm ntgt naux], or empty/[]
+      % tauxlbl: [naux] cellstr or []
       tpos = [];
+      taux = [];
+      tauxlbl = [];
     end
       
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
@@ -298,11 +302,15 @@ classdef LabelTracker < handle
     
     function props = propList(obj)
       %props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
-      if isempty(obj.INFOTIMELINE_PROPS_TRACKER),
-        props = {};
-      else
-        props = {obj.INFOTIMELINE_PROPS_TRACKER.name};
-      end
+      
+      props = {}; % a struct array is the expected type, but this empty 
+        % cell gets concated successfully
+       
+%       if isempty(obj.INFOTIMELINE_PROPS_TRACKER),
+%         props = {};
+%       else
+%         props = {obj.INFOTIMELINE_PROPS_TRACKER.name};
+%       end
     end
     
     function data = getPropValues(obj,prop)
@@ -315,7 +323,7 @@ classdef LabelTracker < handle
       ntgts = labeler.nTargets;
       iTgt = labeler.currTarget;
       iMov = labeler.currMovie;
-      tpos = obj.getTrackingResultsCurrMovie();
+      [tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovie();
       
       needtrx = obj.lObj.hasTrx && strcmpi(prop.coordsystem,'Body');
       if needtrx,
@@ -331,8 +339,12 @@ classdef LabelTracker < handle
         tpos = nan(npts,2,nfrms,ntgts);
       end
       
-      if ismember(prop.code,{obj.INFOTIMELINE_PROPS_TRACKER.code}),
-        error('Not implemented');
+      plist = obj.propList();
+      plistcodes = {plist.code}';
+      iaux = find(strcmp(prop.code,plistcodes));
+      if ~isempty(iaux)
+        assert(strcmp(tauxlbl{iaux},prop.code));
+        data = taux(:,:,iTgt,iaux);
       else      
         tpostag = false(npts,nfrms,ntgts);
         data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),tpostag(:,:,iTgt),bodytrx,prop);

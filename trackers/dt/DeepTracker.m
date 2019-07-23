@@ -167,6 +167,10 @@ classdef DeepTracker < LabelTracker
     % track curr res -- in-mem tracking results for current mov    
     trkP   % [npt x 2 x nfrm x ntgt] tracking results for current mov
     trkPTS % [npt x nfrm x ntgt] timestamp for trkP*
+    
+    trkAux % [npt x nfrm x ntgt x naux] auxiliary per-pt results eg confidences
+    trkAuxLbl % [naux] labels for 4th dim of trxAux
+              % naux given in DLNetType
 %     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt
 %            % .mov has class movieIndex 
   end
@@ -921,6 +925,10 @@ classdef DeepTracker < LabelTracker
         infos{end+1} = 'No tracker trained.';
       end
       
+    end
+    
+    function props = propList(obj)
+      props = obj.trnNetType.timelinePropList;
     end
     
     function [augims,dataAugDir] = dataAug(obj,ppdata,varargin)
@@ -4239,8 +4247,10 @@ classdef DeepTracker < LabelTracker
         obj.movIdx2trkfile(id) = trkfiles(tfexists);
       end
     end
-    function tpos = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       tpos = obj.trkP;
+      taux = obj.trkAux;
+      tauxlbl = obj.trkAuxLbl;
     end
     function [trkfileObjs,tfHasRes] = getTrackingResults(obj,mIdx)
       % Get tracking results for MovieIndices mIdx
@@ -4499,6 +4509,8 @@ classdef DeepTracker < LabelTracker
     function trackCurrResInit(obj)
       obj.trkP = [];
       obj.trkPTS = zeros(0,1);
+      obj.trkAux = [];
+      obj.trkAuxLbl = [];
     end
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
@@ -4555,8 +4567,17 @@ classdef DeepTracker < LabelTracker
       
       lObj = obj.lObj;
       ipt2view = lObj.labeledposIPt2View;
-      pTrk = nan(obj.nPts,2,lObj.nframes,lObj.nTargets);
-      pTrkTS = nan(obj.nPts,lObj.nframes,lObj.nTargets);      
+      
+      npt = obj.nPts;
+      nfrm = lObj.nframes;
+      ntgt = lObj.nTargets;
+      auxInfo = obj.trnNetType.trkAuxFlds;
+      naux = numel(auxInfo);
+      
+      pTrk = nan(npt,2,nfrm,ntgt);
+      pTrkTS = nan(npt,nfrm,ntgt); 
+      aux = nan(npt,nfrm,ntgt,naux);
+      
       for iview=1:obj.nview
         t = trks{iview};
         frms = t.pTrkFrm;
@@ -4564,10 +4585,17 @@ classdef DeepTracker < LabelTracker
         ipts = ipt2view==iview;
         pTrk(ipts,:,frms,itgts) = t.pTrk;
         pTrkTS(ipts,frms,itgts) = t.pTrkTS;
+        
+        for iaux=1:naux
+          trkfld = auxInfo(iaux).trkfld;
+          aux(ipts,frms,itgts,iaux) = t.(trkfld);
+        end
       end
       
       obj.trkP = pTrk;
       obj.trkPTS = pTrkTS;
+      obj.trkAux = aux;
+      obj.trkAuxLbl = {auxInfo.label}';
     end
     function xy = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm

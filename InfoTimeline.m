@@ -277,24 +277,24 @@ classdef InfoTimeline < handle
   
   methods
     
-    function readTimelineProps(obj)
-
-      path = fileparts(mfilename('fullpath'));
-      tlpropfile = fullfile(path,obj.TLPROPFILESTR);
-      assert(exist(tlpropfile,'file')>0);
-      
-      fid = fopen(tlpropfile,'r');
-      while true,
-        s = fgetl(fid);
-        if ~ischar(s),
-          break;
-        end
-        s = strtrim(s);
-        obj.TLPROPS{end+1} = s;
-      end
-      fclose(fid);
-      
-    end
+%     function readTimelineProps(obj)
+% 
+%       path = fileparts(mfilename('fullpath'));
+%       tlpropfile = fullfile(path,obj.TLPROPFILESTR);
+%       assert(exist(tlpropfile,'file')>0);
+%       
+%       fid = fopen(tlpropfile,'r');
+%       while true,
+%         s = fgetl(fid);
+%         if ~ischar(s),
+%           break;
+%         end
+%         s = strtrim(s);
+%         obj.TLPROPS{end+1} = s;
+%       end
+%       fclose(fid);
+%       
+%     end
     
     function readTimelinePropsNew(obj)
 
@@ -372,11 +372,8 @@ classdef InfoTimeline < handle
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
-      obj.props = props;
-      
+      obj.props = props;      
       obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
-      
-      
     end
         
     function setTracker(obj,tracker)
@@ -394,36 +391,10 @@ classdef InfoTimeline < handle
         end
         obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
         obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
-        %obj.props_tracker = cat(1,obj.props,repmat(props(:),[1,2]));
         obj.listenersTracker{end+1,1} = addlistener(tracker,...
           'newTrackingResults',@obj.cbkLabelUpdated);
       end      
       
-%       % Break down existing props; eliminate existing tracker-props. We
-%       % also prefer tracker-props to come before labels2 props.
-%       pmat = obj.props;
-%       src = pmat(:,2);
-%       tfLabels = strcmp(src,'Labels');
-%       tfTracks = strcmp(src,'Tracks'); % will be deleted
-%       tfLabels2 = strcmp(src,'Labels2');
-%       assert(all(tfLabels+tfTracks+tfLabels2==1));
-% 
-%       cellfun(@delete,obj.listenersTracker);
-%       obj.listenersTracker = cell(0,1);      
-%       if isempty(tracker)
-%         obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
-%       else
-%         propList = tracker.propList();
-%         pmatnew = arrayfun(...
-%           @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
-%           (1:numel(propList))','uni',0);
-%         pmatnew = cat(1,pmatnew{:});
-%         obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
-%         
-%         cellfun(@delete,obj.listenersTracker);
-%         obj.listenersTracker{end+1,1} = addlistener(tracker,...
-%           'newTrackingResults',@obj.cbkLabelUpdated);
-%       end
     end
     
     function setLabelsFull(obj)
