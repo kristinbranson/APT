@@ -27,11 +27,13 @@ if isa(caldata,'CalRigSH'),
 elseif isa(caldata,'OrthoCamCalPair'),
   reconstructfun = @(varargin) OrthoCamCalPair_reconstruct_fcn(caldata,varargin{:});
 else
-  error('Not implemented');
+  reconstructfun = @(varargin) CalRig_reconstruct_fcn(caldata,varargin{:});
+  %error('Not implemented');
 end
 
 function [XYZ,uv_re,err] = OrthoCamCalPair_reconstruct_fcn(caldata,uv,varargin)
 
+% uv is d=2 x nviews=2 x n
 sz = size(uv);
 nviews = sz(2);
 d = sz(1);
@@ -40,7 +42,26 @@ assert(d==2);
 n = prod([1,sz(3:end)]);
 uv_re = uv;
 
-[XYZ,err,uv_re(:,1,:),uv_re(:,2,:)] = caldata.stereoTriangulate(reshape(uv(:,1,:),[d,n]),reshape(uv(:,1,:),[d,n]),varargin{:});
+[XYZ,err,uv_re(:,1,:),uv_re(:,2,:)] = caldata.stereoTriangulate(reshape(uv(:,1,:),[d,n]),reshape(uv(:,2,:),[d,n]),varargin{:});
+
+function [XYZ,uv_re,err] = CalRig_reconstruct_fcn(caldata,uv,varargin)
+
+% uv is d=2 x nviews=2 x n
+sz = size(uv);
+nviews = sz(2);
+d = sz(1);
+% assert(nviews==2);
+% assert(d==2);
+n = prod([1,sz(3:end)]);
+
+% xy: [2xnxnviews] 2d image points
+%
+% X: [3xn] reconstructed 3d points. coord sys may depend on concrete
+%   subclass. (typically, coord sys of camera 1.)
+% xyrp: [2xnxnviews] reprojected 2d image points
+% rpe: [nxnviews] L2 reproj err
+
+[XYZ,uv_re,err] = caldata.triangulate(permute(reshape(uv,[d,nviews,n]),[1,3,2]));
 
 function [XYZ,uv_re,err] = CalRigSH_reconstruct_fcn(dlt_side,dlt_front,usegeometricerror,uv,varargin)
 
