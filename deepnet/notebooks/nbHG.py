@@ -13,19 +13,31 @@ import APT_interface as apt
 import multiResData
 import PoseTools
 
+
 gpu_model = 'GeForceRTX2080Ti'
 
 all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'hg']
-cache_dir = '/groups/branson/home/leea30/apt/posebase20190528/cache_20190702_hgrfn_long'
-run_dir = '/groups/branson/home/leea30/apt/posebase20190528/out_20190702_hgrfn_long'
-apt_deepnet_root = '/groups/branson/home/leea30/git/aptFtrDT/deepnet'
+#cache_dir = '/groups/branson/home/leea30/apt/posebase20190528/cache_20190702_hgrfn_long'
+#run_dir = '/groups/branson/home/leea30/apt/posebase20190528/out_20190702_hgrfn_long'
+#apt_deepnet_root = '/groups/branson/home/leea30/git/aptFtrDT/deepnet'
+cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cache20190721'
+run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190721'
+apt_deepnet_root = '/groups/branson/home/leea30/git/aptDev2019may/deepnet'
 
 lblbub = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
 lblsh = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20190402_dlstripped.lbl'
 
-cvibub = '/groups/branson/home/leea30/apt/posebase20190528/cvi_outer3_easy.mat'
-cvishE = '/groups/branson/home/leea30/apt/posebase20190528/cvi_sh_4523_outer3_easy.mat'
-cvishH = '/groups/branson/home/leea30/apt/posebase20190528/cvi_sh_4523_outer3_hard.mat'
+cvibub = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cvi_outer3_easy.mat'
+cvishE = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cvi_sh_4523_outer3_easy.mat'
+cvishH = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cvi_sh_4523_outer3_hard.mat'
+
+op_af_graph_bub = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+
+op_af_graph_bub_noslash = op_af_graph_bub.replace('\\', '')
+
+# nbHG.cv_train_from_mat(nbHG.lblbub,nbHG.cvibub,['openpose'])
+# nbHG.run_training(nbHG.lblbub,'cvi_outer3_easy__split0','bubdatatype','openpose',0,'submit')
+# nbHG.save_cv_results(nbHG.lblbub,0,'cvi_outer3_easy__split0','openpose',mdlS,nbHG.run_dir)
 
 def read_cvinfo(lbl_file, cv_info_file, view=0):
     data_info = h5py.File(cv_info_file, 'r')
@@ -94,7 +106,7 @@ def cv_train_from_mat(lbl_file, cv_info_file, models_run,
                     apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
         if dorun:
             for train_type in models_run:
-                rapt.run_trainining(exp_name, train_type, view, run_type)
+                rapt.run_trainining(elblbubxp_name, train_type, view, run_type)
 
 
 def run_jobs(cmd_name, cur_cmd, redo=False):
@@ -137,6 +149,12 @@ def run_training(lbl_file, exp_name, data_type, train_type, view, run_type, **kw
     conf_opts['save_step'] = conf_opts['dl_steps'] / 10
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
+
+    if train_type == 'openpose':
+        if data_type == 'bub':
+            conf_opts['op_affinity_graph'] = op_af_graph_bub
+        else:
+            assert False, "define aff graph"
 
     # if data_type in ['brit0' ,'brit1','brit2']:
     #     conf_opts['adjust_contrast'] = True
@@ -211,11 +229,20 @@ def run_training(lbl_file, exp_name, data_type, train_type, view, run_type, **kw
         check_train_status(cmd_name, conf.cachedir)
 
 
-def save_cv_results(lbl_file, view, exp_name, net, model_file_short, out_dir, conf_pvlist=None):
+def save_cv_results(lbl_file, view, exp_name, net, model_file_short, out_dir, data_type, conf_pvlist=None):
+
+    conf_pvlist = None
+    if net == 'openpose':
+        if data_type == 'bub':
+            conf_pvlist = ['op_affinity_graph', op_af_graph_bub_noslash]
+        else:
+            assert False, "define aff graph"
+
     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, net, conf_params=conf_pvlist)
     db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
     model_file = os.path.join(conf.cachedir, model_file_short)
     res = apt_expts.classify_db_all(conf, db_file, [model_file], net)
+    res.append(conf)
     out_file = "{}__vw{}__{}.p".format(exp_name, view, net)
     out_file = os.path.join(out_dir, out_file)
     with open(out_file, 'w') as f:

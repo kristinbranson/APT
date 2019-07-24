@@ -368,14 +368,15 @@ def get_training_model(imszuse, weight_decay, nlimbs=38, npts=19):
 
     return model
 
-def get_testing_model(br1=38,br2=19):
+def get_testing_model(imszuse, nlimb=38, npts=19):
     stages = 6
-    np_branch1 = br1
-    np_branch2 = br2
 
-    img_input_shape = (None, None, 3)
+    imnruse, imncuse = imszuse
+    assert imnruse % 8 == 0, "Image size must be divisible by 8"
+    assert imncuse % 8 == 0, "Image size must be divisible by 8"
+    img_input_shape = imszuse + (3,)
 
-    img_input = Input(shape=img_input_shape)
+    img_input = Input(shape=img_input_shape, name='input_img')
 
     img_normalized = Lambda(lambda x: x / 256 - 0.5)(img_input) # [-0.5, 0.5]
 
@@ -383,22 +384,24 @@ def get_testing_model(br1=38,br2=19):
     stage0_out = vgg_block(img_normalized, None)
 
     # stage 1 - branch 1 (PAF)
-    stage1_branch1_out = stage1_block(stage0_out, np_branch1, 1, None)
+    stage1_branch1_out = stage1_block(stage0_out, nlimb, 1, None)
 
     # stage 1 - branch 2 (confidence maps)
-    stage1_branch2_out = stage1_block(stage0_out, np_branch2, 2, None)
+    stage1_branch2_out = stage1_block(stage0_out, npts, 2, None)
 
     x = Concatenate()([stage1_branch1_out, stage1_branch2_out, stage0_out])
 
     # stage t >= 2
     stageT_branch1_out = None
     stageT_branch2_out = None
-    for sn in range(2, stages + 1):
-        stageT_branch1_out = stageT_block(x, np_branch1, sn, 1, None)
-        stageT_branch2_out = stageT_block(x, np_branch2, sn, 2, None)
+    for sn in range(2, stages):
+        stageT_branch1_out = stageT_block(x, nlimb, sn, 1, None)
+        stageT_branch2_out = stageT_block(x, npts, sn, 2, None)
+        x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
-        if (sn < stages):
-            x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
+    # stage sn=stages
+    stageT_branch1_out = stageTdeconv_block(x, nlimb, stages, 1, None)
+    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, None)
 
     model = Model(inputs=[img_input], outputs=[stageT_branch1_out, stageT_branch2_out])
 
@@ -892,8 +895,14 @@ def training(conf,name='deepnet'):
     obs.on_epoch_end(max_iter-1)
 
 
-def get_pred_fn(conf, model_file=None,name='deepnet'):
-    model = get_testing_model(br1=len(conf.op_affinity_graph) * 2, br2=conf.n_classes)
+def get_pred_fn(conf, model_file=None, name='deepnet'):
+    (imnr, imnc) = conf.imsz
+    imnr_use = imszcheckcrop(imnr, 'row')
+    imnc_use = imszcheckcrop(imnc, 'column')
+    imszuse = (imnr_use, imnc_use)
+    conf.imszuse = imszuse
+
+    model = get_testing_model(imszuse, nlimb=len(conf.op_affinity_graph) * 2, npts=conf.n_classes)
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
     else:
@@ -904,8 +913,12 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
     thre2 = conf.get('op_param_paf_thres',0.05)
 
     def pred_fn(all_f):
+        all_f = all_f[:, 0:imnr_use, 0:imnc_use, :]
+
         if all_f.shape[3] == 1:
             all_f = np.tile(all_f,[1,1,1,3])
+        # tiling beforehand a little weird as preprocess_ims->normalizexyxy branches on
+        # if img is color
         xs, _ = PoseTools.preprocess_ims(
             all_f, in_locs=np.zeros([conf.batch_size, conf.n_classes, 2]), conf=conf,
             distort=False, scale=conf.op_rescale)
@@ -916,7 +929,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
             all_infered.append(infered)
         pred = model_preds[-1]
         raw_locs = PoseTools.get_pred_locs(pred)
-        raw_locs = raw_locs * conf.op_rescale * conf.op_label_scale
+        raw_locs = raw_locs * conf.op_rescale  # * conf.op_label_scale
         base_locs = np.array(all_infered)*conf.op_rescale
         nanidx = np.isnan(base_locs)
         base_locs[nanidx] = raw_locs[nanidx]
