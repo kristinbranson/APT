@@ -17,7 +17,7 @@ classdef InfoTimeline < handle
   properties
     lObj % scalar Labeler handle
     hAx % scalar handle to timeline axis
-    hAxL = []% scalar handle to timeline axis
+    hAxL = [] % scalar handle to timeline axis
     hCurrFrame % scalar line handle current frame
     hCurrFrameL = []% scalar line handle current frame
     hCMenuClearAll % scalar context menu
@@ -794,88 +794,88 @@ classdef InfoTimeline < handle
     
   end
 
-  methods (Static) % util
-    function dmat2 = getDataFromLpos(lpos,lpostag,bodytrx,pcode)
-      % lpos: [npts x 2 x nfrm x ntgt] label array as in
-      %   lObj.labeledpos{iMov}
-      % lpostag: [npts x nfrm x ntgt] logical as in lObj.labeledpostag{iMov}
-      % pcode: name/id of data to extract
-      % iTgt: current target
-      %
-      % dmat: [npts x nfrm] data matrix for pcode, extracted from lpos
-      
-      % TODO: this currently computes for all frames, even those that have
-      % not been labeled
-      
-      dmat2 = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
+%   methods (Static) % util
+%     function dmat2 = getDataFromLpos(lpos,lpostag,bodytrx,pcode)
+%       % lpos: [npts x 2 x nfrm x ntgt] label array as in
+%       %   lObj.labeledpos{iMov}
+%       % lpostag: [npts x nfrm x ntgt] logical as in lObj.labeledpostag{iMov}
+%       % pcode: name/id of data to extract
+%       % iTgt: current target
+%       %
+%       % dmat: [npts x nfrm] data matrix for pcode, extracted from lpos
 %       
-%       tic;
-%       trx = InfoTimeline.initializeTrx(lpos(:,:,:,iTgt),lpostag(:,:,iTgt),bodytrx);
-%       if isfield(trx,pcode{1}),
-%         dmat2 = trx.(pcode{1});
-%         if isstruct(dmat2),
-%           dmat2 = dmat2.data;
-%         end
-%         fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
-%       else
-%         
-%         if isfield(trx,pcode{2}),
-%           dmat1 = trx.(pcode{2});
-%         else
-%         
-%           fun = sprintf('compute_landmark_%s',pcode{2});
-%           if ~exist(fun,'file'),
-%             warningNoTrace('Unknown property to display in timeline.');
-%             dmat2 = nan(size(lpos,1),size(lpos,3));
-%             fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
-%             return;
-%           end
-%           trx = feval(fun,trx);
-%           dmat1 = trx.(pcode{2});
-%         end
+%       % TODO: this currently computes for all frames, even those that have
+%       % not been labeled
 %       
-%         fun = sprintf('compute_landmark_stat_%s',pcode{3});
-%         if ~exist(fun,'file'),
-%           warningNoTrace('Unknown property to display in timeline.');
-%           dmat2 = nan(size(lpos,1),size(lpos,3));
-%           fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
-%           return;
-%         end
-%         
-%         dmat2 = feval(fun,dmat1);
-%         dmat2 = dmat2.data;
-%       end
-%       fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
-
-      
-%       switch pcode
-%         case 'x'
-%           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-%         case 'y'
-%           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-%         case 'dx'
-%           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-%           dmat = diff(dmat,1,2);
-%           dmat(:,end+1) = nan;
-%         case 'dy'
-%           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-%           dmat = diff(dmat,1,2);
-%           dmat(:,end+1) = nan;
-%         case '|dx|'
-%           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-%           dmat = abs(diff(dmat,1,2));
-%           dmat(:,end+1) = nan;
-%         case '|dy|'
-%           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-%           dmat = abs(diff(dmat,1,2));
-%           dmat(:,end+1) = nan;
-%         case 'occluded'
-%           dmat = double(lpostag(:,:,iTgt));
-%         otherwise
-%           warningNoTrace('Unknown property to display in timeline.');
-%           dmat = nan(size(lpos,1),size(lpos,3));
-%       end
-    end
+%       dmat2 = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
+% %       
+% %       tic;
+% %       trx = InfoTimeline.initializeTrx(lpos(:,:,:,iTgt),lpostag(:,:,iTgt),bodytrx);
+% %       if isfield(trx,pcode{1}),
+% %         dmat2 = trx.(pcode{1});
+% %         if isstruct(dmat2),
+% %           dmat2 = dmat2.data;
+% %         end
+% %         fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
+% %       else
+% %         
+% %         if isfield(trx,pcode{2}),
+% %           dmat1 = trx.(pcode{2});
+% %         else
+% %         
+% %           fun = sprintf('compute_landmark_%s',pcode{2});
+% %           if ~exist(fun,'file'),
+% %             warningNoTrace('Unknown property to display in timeline.');
+% %             dmat2 = nan(size(lpos,1),size(lpos,3));
+% %             fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
+% %             return;
+% %           end
+% %           trx = feval(fun,trx);
+% %           dmat1 = trx.(pcode{2});
+% %         end
+% %       
+% %         fun = sprintf('compute_landmark_stat_%s',pcode{3});
+% %         if ~exist(fun,'file'),
+% %           warningNoTrace('Unknown property to display in timeline.');
+% %           dmat2 = nan(size(lpos,1),size(lpos,3));
+% %           fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
+% %           return;
+% %         end
+% %         
+% %         dmat2 = feval(fun,dmat1);
+% %         dmat2 = dmat2.data;
+% %       end
+% %       fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
+% 
+%       
+% %       switch pcode
+% %         case 'x'
+% %           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
+% %         case 'y'
+% %           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
+% %         case 'dx'
+% %           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
+% %           dmat = diff(dmat,1,2);
+% %           dmat(:,end+1) = nan;
+% %         case 'dy'
+% %           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
+% %           dmat = diff(dmat,1,2);
+% %           dmat(:,end+1) = nan;
+% %         case '|dx|'
+% %           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
+% %           dmat = abs(diff(dmat,1,2));
+% %           dmat(:,end+1) = nan;
+% %         case '|dy|'
+% %           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
+% %           dmat = abs(diff(dmat,1,2));
+% %           dmat(:,end+1) = nan;
+% %         case 'occluded'
+% %           dmat = double(lpostag(:,:,iTgt));
+% %         otherwise
+% %           warningNoTrace('Unknown property to display in timeline.');
+% %           dmat = nan(size(lpos,1),size(lpos,3));
+% %       end
+%     end
 %     function trx = initializeTrx(lpos,occluded)
 %       trx = struct;
 %       trx.pos = lpos;
@@ -884,7 +884,7 @@ classdef InfoTimeline < handle
 %       trx.pxpermm = [];
 %       trx.fps = [];      
 %     end
-  end
+%   end
   
   methods (Access=private)
     function setLabelerSelectedFrames(obj)

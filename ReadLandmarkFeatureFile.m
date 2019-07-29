@@ -29,7 +29,9 @@ for i = 1:numel(featuretypes),
     else
       featurename = [featuretype,'_',transtypes{j}];
     end
-    feature = struct('name',featurename,'code',featurename,'feature',featuretype,'transform',transtypes{j},'coordsystem',coordsystem);
+    feature = struct('name',featurename,'code',featurename,...
+      'feature',featuretype,'transform',transtypes{j},...
+      'coordsystem',coordsystem);
     if isempty(features),
       features = feature;
     else
