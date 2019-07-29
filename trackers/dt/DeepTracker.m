@@ -3056,7 +3056,7 @@ classdef DeepTracker < LabelTracker
       
       do3dreconcile = ~strcmp(pp3dtype,'none');      
       nvw = obj.lObj.nview;
-      npts = obj.lObj.nPhysPoints;
+      %npts = obj.lObj.nPhysPoints;
       
       if do3dreconcile && nvw==2
         vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
@@ -3079,95 +3079,24 @@ classdef DeepTracker < LabelTracker
         end
         
         trk1 = trks{1};
-        trk2 = trks{2};        
-        if ~isequal(trk1.pTrkFrm,trk2.pTrkFrm) || ...
-           ~isequal(trk1.pTrkiTgt,trk2.pTrkiTgt)
-          warningNoTrace('Cannot perform 3D postprocessing; trkfiles differ in frames/targets tracked.');
+        trk2 = trks{2};                
+        rois = obj.lObj.getMovieRoiMovIdx(mIdx);
+        
+        try
+          [trk1save,trk2save] = PostProcess.triangulate(trk1,trk2,...
+            rois,vcd,pp3dtype);
+        catch ME
+          warningNoTrace('3d postprocessing failed: %s',ME.getReport());
           return;
         end
-
-        ptrk1 = trk1.pTrk;
-        ptrk2 = trk2.pTrk;
-        [npt,d,nfrm,ntgt] = size(ptrk1);
-        assert(isequal(size(ptrk1),size(ptrk2)),'Trkfiles contain position arrays with inconsistent sizes.');
-
-        assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
-        crig = vcd;
-
-        fprintf(1,'Performing 3d reconciliation: %s...\n',pp3dtype);
-        wbObj = WaitBarWithCancelCmdline('3d reconciliation');
-        oc = onCleanup(@()delete(wbObj));
-        switch pp3dtype
-          case 'triangulate'
-            % See PostProcess.ReconstructSampleMultiView
-            
-            assert(ntgt==1,'Expected single-target data in trkfiles.');
-            ptrk1 = reshape(permute(ptrk1,[2 3 1]),2,nfrm*npt); % coord, frm*pt
-            ptrk2 = reshape(permute(ptrk2,[2 3 1]),2,nfrm*npt);
-            ptrk = cat(3,ptrk1,ptrk2);
-            
-            X = nan(3,nfrm*npt);
-            ptrkrp = nan(size(ptrk));            
-            wbObj.startPeriod('Triangulation','shownumden',true,...
-              'denominator',nfrm*npt);
-            wbObjFrmShow = 500;
-            for i=1:nfrm*npt
-              if mod(i,wbObjFrmShow)==0
-                wbObj.updateFracWithNumDen(i);
-              end
-              [X(:,i),ptrkrp(:,i,:)] = crig.triangulate(ptrk(:,i,:));
-            end
-            wbObj.endPeriod();
-            
-            X = permute(reshape(X,[3 nfrm npt]),[3 1 2]); % npt x 3 x nfrm
-            ptrkrp = reshape(ptrkrp,[2 nfrm npt 1 nvw]);
-            ptrkrp = permute(ptrkrp,[3 1 2 4 5]); % npt x 2 x nfrm x 1 x nvw
-                        
-            trk1save = struct(...
-              'pTrkSingleView',trk1.pTrk,...
-              'pTrk',ptrkrp(:,:,:,:,1),...
-              'pTrk3d',X);
-            trk2save = struct(...
-              'pTrkSingleView',trk2.pTrk,...
-              'pTrk',ptrkrp(:,:,:,:,2));
-            
-            save(trkfiles{1},'-append','-struct','trk1save');
-            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
-              trkfiles{1});            
-            save(trkfiles{2},'-append','-struct','trk2save');
-            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
-              trkfiles{2});
-            
-          case 'experimental'
-            rois = obj.lObj.getMovieRoiMovIdx(mIdx);
-            DXYZ = 0.005; % experimental parameter
-            [X,ptrkrp,tMD,isspecial,prefview] = viewpref3drecon(...
-                trk1,trk2,crig,'roisEPline',rois,'dxyz',DXYZ,...
-                'wbObj',wbObj);
-            X = permute(X,[3 2 1]); % npt x 3 x nfrm            
-            ptrkrp = permute(ptrkrp,[4 2 1 5 3]); % npt x 2 x nfrm x 1 x nvw
-
-            trk1save = struct(...
-              'pTrkSingleView',trk1.pTrk,...
-              'pTrk',ptrkrp(:,:,:,:,1),...
-              'pTrk3d',X,...
-              'recon3d_prefview',prefview');
-            trk2save = struct(...
-              'pTrkSingleView',trk2.pTrk,...
-              'pTrk',ptrkrp(:,:,:,:,2));
-            
-            save(trkfiles{1},'-append','-struct','trk1save');
-            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
-              trkfiles{1});            
-            save(trkfiles{2},'-append','-struct','trk2save');
-            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
-              trkfiles{2});
-
-          otherwise
-            assert(false);
-            
-        end        
-      end 
+        
+        save(trkfiles{1},'-append','-struct','trk1save');
+        fprintf(1,'Saved/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
+          trkfiles{1});
+        save(trkfiles{2},'-append','-struct','trk2save');
+        fprintf(1,'Saved/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
+          trkfiles{2});
+      end
     end
 
     function trainStoppedCbk(obj,varargin)
