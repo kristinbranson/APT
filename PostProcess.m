@@ -3242,6 +3242,10 @@ classdef PostProcess < handle
         error('Cannot perform 3D postprocessing; trkfiles differ in frames/targets tracked.');
       end
       
+      if isfield(trk1,'pTrk3D')
+        error('Trkfile for view 1 already contains ''pTrk3D'' field. This trkfile has already been 3d-postprocessed.');
+      end
+      
       ptrk1 = trk1.pTrk;
       ptrk2 = trk2.pTrk;
         
