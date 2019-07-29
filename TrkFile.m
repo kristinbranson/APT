@@ -249,6 +249,77 @@ classdef TrkFile < dynamicprops
         obj1.(fld) = val;
       end
     end
+    
+    function indexInPlace(obj,ipts,ifrms,itgts)
+      % Subscripted-index a TrkFile *IN PLACE*. Your TrkFile will become
+      % smaller and you will 'lose' data!
+      % 
+      % ipts: [nptsidx] actual/absolute landmark indices; will be compared 
+      %   against .pTrkiPt. Can be -1 indicating "all available points".
+      % ifrms: [nfrmsidx] actual frames; will be compared against .pTrkFrm.
+      %   Can be -1 indicating "all available frames"
+      % itgts: [ntgtsidx] actual targets; will be compared against
+      % .pTrkiTgt. Can be -1 indicating "all available targets"
+      %
+      % Postconditions: All properties of TrkFile, including
+      % dynamic/'extra' properties, are indexed appropriately to the subset
+      % as specified by ipts, ifrms, itgts. 
+      
+      assert(isscalar(obj),'Obj must be a scalar Trkfile object.');
+      
+      if isequal(ipts,-1)
+        ipts = obj.pTrkiPt;
+      end
+      if isequal(ifrms,-1)
+        ifrms = obj.pTrkFrm;
+      end
+      if isequal(itgts,-1)
+        itgts = obj.pTrkiTgt;
+      end
+      [tfpts,ipts] = ismember(ipts,obj.pTrkiPt);
+      [tffrms,ifrms] = ismember(ifrms,obj.pTrkFrm);
+      [tftgts,itgts] = ismember(itgts,obj.pTrkiTgt);
+      if ~( all(tfpts) && all(tffrms) && all(tftgts) )
+        error('All specified points, frames, and targets are not present in TrkFile.');
+      end
+      
+      szpTrk = size(obj.pTrk); % [npts x 2 x nfrm x ntgt]
+      szpTrkTS = size(obj.pTrkTS); % [npts x nfrm x ntgt]
+      propsDim1Only = {'pTrkFull'};
+      
+      props = properties(obj);
+      for p=props(:)',p=p{1};
+        
+        v = obj.(p);
+        szv = size(v);
+        
+        if strcmp(p,'pTrkiPt')
+          obj.(p) = v(ipts);
+        elseif strcmp(p,'pTrkFrm')
+          obj.(p) = v(ifrms);
+        elseif strcmp(p,'pTrkiTgt')
+          obj.(p) = v(itgts);
+        elseif any(strcmp(p,propsDim1Only))
+          szvnew = szv;
+          szvnew(1) = numel(ipts);
+          v = reshape(v,szv(1),[]);
+          v = v(ipts,:);
+          v = reshape(v,szvnew);
+          obj.(p) = v;
+        elseif isnumeric(v) || islogical(v)
+          if isequal(szv,szpTrk)
+            obj.(p) = v(ipts,:,ifrms,itgts);
+          elseif isequal(szv,szpTrkTS)
+            obj.(p) = v(ipts,ifrms,itgts);
+          else
+            warningNoTrace('Numeric property ''%s'' with unrecognized shape: %s',...
+              p,mat2str(szv));
+          end
+        else
+          % non-numeric prop, no action
+        end
+      end
+    end
   end
   
   methods (Static)
