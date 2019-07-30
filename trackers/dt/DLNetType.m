@@ -43,16 +43,17 @@ classdef DLNetType
       % Create .timelinePropList; see comments in properties block
       %
       % s: struct array detailing traker-specific props
+           
+      % From landmark_features.yaml, NonNegative FeatureClass
+      TRANSTYPES = {'none' 'mean' 'median' 'std' 'min' 'max'};
+      COORDSYS = 'Global';
       
       s = EmptyLandmarkFeatureArray();
-      
       for iaux=1:numel(auxflds)
         label = auxflds(iaux).label;
-        s(end+1,1).name = label; %#ok<AGROW>
-        s(end).code = label;
-        s(end).feature = label;
-        s(end).transform = 'none';
-        s(end).coordsystem = 'Global';
+        for tt=TRANSTYPES,tt=tt{1}; %#ok<FXSET>
+          s(end+1,1) = ConstructLandmarkFeature(label,tt,COORDSYS); %#ok<AGROW>
+        end
       end
     end
     function g = modelGlobs(net,iterCurr)

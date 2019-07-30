@@ -2,7 +2,7 @@ function features = ReadLandmarkFeatureFile(filename)
 
 rawpropinfo = ReadYaml(filename);
 
-features = [];
+features = EmptyLandmarkFeatureArray();
 
 featuretypes = fieldnames(rawpropinfo.Features);
 for i = 1:numel(featuretypes),
@@ -23,20 +23,8 @@ for i = 1:numel(featuretypes),
   end
   
   for j = 1:numel(transtypes),
-
-    if strcmp(transtypes{j},'none'),
-      featurename = featuretype;
-    else
-      featurename = [featuretype,'_',transtypes{j}];
-    end
-    feature = struct('name',featurename,'code',featurename,...
-      'feature',featuretype,'transform',transtypes{j},...
-      'coordsystem',coordsystem);
-    if isempty(features),
-      features = feature;
-    else
-      features(end+1,1) = feature; %#ok<AGROW>
-    end
+    features(end+1,1) = ConstructLandmarkFeature(featuretype,...
+      transtypes{j},coordsystem); %#ok<AGROW>
   end
   
 end

@@ -179,7 +179,7 @@ classdef InfoTimeline < handle
       
       obj.tracker = [];
     
-      obj.TLPROPS_TRACKER =  EmptyLandmarkFeatureArray();
+      obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
       obj.readTimelinePropsNew();
             
       %obj.props = repmat(obj.TLPROPS(:),[1,2]);
@@ -924,7 +924,8 @@ classdef InfoTimeline < handle
               lpos = labeler.labeledpos2GTaware{iMov};
               lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
             end
-            data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),lpostag(:,:,iTgt),bodytrx,pcode);
+            data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
+              lpostag(:,:,iTgt),bodytrx,pcode);
           case 'Predictions'
             %pcode = obj.props_tracker{obj.curprop,2};
             pcode = obj.props_tracker(obj.curprop);
