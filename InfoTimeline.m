@@ -20,6 +20,7 @@ classdef InfoTimeline < handle
     hAxL = [] % scalar handle to timeline axis
     hCurrFrame % scalar line handle current frame
     hCurrFrameL = []% scalar line handle current frame
+    hStatThresh % scalar line handle, threshold
     hCMenuClearAll % scalar context menu
     hCMenuClearBout % scalar context menu
 
@@ -120,7 +121,11 @@ classdef InfoTimeline < handle
       ax.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
       hold(ax,'on');
       obj.hAx = ax;
-      obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off','Tag','InfoTimeline_CurrFrame');
+      obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],...
+        'hittest','off','Tag','InfoTimeline_CurrFrame');
+      obj.hStatThresh = plot(ax,[nan nan],[0 0],'-','Color',[1 1 1],...
+        'hittest','off','visible','off','Tag','InfoTimeline_StatThresh');
+      
 %       obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
 
       if ~isempty(axl) && ishandle(axl),
@@ -217,6 +222,9 @@ classdef InfoTimeline < handle
         'UserData',struct('LabelPat','Clear bout (frame %d-%d)','iBout',nan),...
         'Callback',@(src,evt)obj.cbkClearBout(src,evt),...
         'Tag','menu_InfoTimeline_ClearBout');
+      uimenu('Parent',hCMenu,'Label','Toggle statistic threshold visibility',...
+        'Callback',@(src,evt)obj.cbkToggleThresholdViz(src,evt),...
+        'Tag','menu_InfoTimeline_ToggleThresholdViz');      
       ax.UIContextMenu = hCMenu;
             
       if obj.isL,
@@ -239,11 +247,10 @@ classdef InfoTimeline < handle
     end
     
     function delete(obj)
-      deleteValidHandles([obj.hCurrFrame,obj.hCurrFrameL]);
+      deleteValidHandles([obj.hCurrFrame,obj.hCurrFrameL,obj.hStatThresh]);
       obj.hCurrFrame = [];
       obj.hCurrFrameL = [];
-%       deleteValidHandles(obj.hMarked);
-%       obj.hMarked = [];
+      obj.hStatThresh = [];
       if ~isempty(obj.hZoom)
         delete(obj.hZoom);
       end
@@ -275,25 +282,6 @@ classdef InfoTimeline < handle
   end  
   
   methods
-    
-%     function readTimelineProps(obj)
-% 
-%       path = fileparts(mfilename('fullpath'));
-%       tlpropfile = fullfile(path,obj.TLPROPFILESTR);
-%       assert(exist(tlpropfile,'file')>0);
-%       
-%       fid = fopen(tlpropfile,'r');
-%       while true,
-%         s = fgetl(fid);
-%         if ~ischar(s),
-%           break;
-%         end
-%         s = strtrim(s);
-%         obj.TLPROPS{end+1} = s;
-%       end
-%       fclose(fid);
-%       
-%     end
     
     function readTimelinePropsNew(obj)
 
@@ -336,6 +324,7 @@ classdef InfoTimeline < handle
       
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
       set(obj.hCurrFrameL,'XData',[nan nan],'YData',[0,obj.npts],'ZData',[1 1]);
+      set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
       linkaxes([obj.hAx,obj.hAxL],'x');
     end
     
@@ -452,6 +441,8 @@ classdef InfoTimeline < handle
         else
           warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(dat,1),obj.npts));
         end
+        
+        set(obj.hStatThresh,'XData',x([1 end]));
       end
       
       if obj.isL,
@@ -505,8 +496,13 @@ classdef InfoTimeline < handle
       if isnan(obj.npts), return; end
             
       r = obj.prefs.FrameRadius;
-      x0 = frm-r; %max(frm-r,1);
-      x1 = frm+r; %min(frm+r,obj.nfrm);
+      if r==0
+        x0 = 1;
+        x1 = obj.nfrm;
+      else
+        x0 = frm-r; %max(frm-r,1);
+        x1 = frm+r; %min(frm+r,obj.nfrm);
+      end
       obj.hAx.XLim = [x0 x1];
       set(obj.hCurrFrame,'XData',[frm frm]);
       if obj.isL,
@@ -576,6 +572,21 @@ classdef InfoTimeline < handle
     
     function selectClearSelection(obj)
       obj.selectInit();
+    end
+    
+    function setStatThresh(obj,th)
+      obj.hStatThresh.YData = [th th];
+    end
+    
+    function setStatThreshViz(obj,tfshow)
+      % show stat threshold and y-axis labels/ticks
+      onoff = onIff(tfshow);
+      obj.hStatThresh.Visible = onoff;
+      if tfshow
+        obj.hAx.YColor = obj.hAx.XColor;
+      else
+        obj.hAx.YColor = [0.15 0.15 0.15];
+      end
     end
         
 %     function setJumpParams(obj)
@@ -691,13 +702,18 @@ classdef InfoTimeline < handle
     end
     function cbkSetNumFramesShown(obj,src,evt) %#ok<INUSD>
       frmRad = obj.prefs.FrameRadius;
-      aswr = inputdlg('Number of frames','Timeline',1,{num2str(2*frmRad)});
+      aswr = inputdlg('Number of frames (0 to show full movie)',...
+        'Timeline',1,{num2str(2*frmRad)});
       if ~isempty(aswr)
         nframes = str2double(aswr{1});
-        validateattributes(nframes,{'numeric'},{'positive' 'integer'});
+        validateattributes(nframes,{'numeric'},{'nonnegative' 'integer'});
         obj.lObj.projPrefs.InfoTimelines.FrameRadius = round(nframes/2);
         obj.newFrame(obj.lObj.currFrame);
       end
+    end
+    function cbkToggleThresholdViz(obj,src,evt)
+      tfviz = strcmp(obj.hStatThresh.Visible,'on');
+      obj.setStatThreshViz(~tfviz);
     end
     function cbkContextMenu(obj,src,evt)  %#ok<INUSD>
       bouts = obj.selectGetSelection;
@@ -800,98 +816,6 @@ classdef InfoTimeline < handle
     
   end
 
-%   methods (Static) % util
-%     function dmat2 = getDataFromLpos(lpos,lpostag,bodytrx,pcode)
-%       % lpos: [npts x 2 x nfrm x ntgt] label array as in
-%       %   lObj.labeledpos{iMov}
-%       % lpostag: [npts x nfrm x ntgt] logical as in lObj.labeledpostag{iMov}
-%       % pcode: name/id of data to extract
-%       % iTgt: current target
-%       %
-%       % dmat: [npts x nfrm] data matrix for pcode, extracted from lpos
-%       
-%       % TODO: this currently computes for all frames, even those that have
-%       % not been labeled
-%       
-%       dmat2 = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
-% %       
-% %       tic;
-% %       trx = InfoTimeline.initializeTrx(lpos(:,:,:,iTgt),lpostag(:,:,iTgt),bodytrx);
-% %       if isfield(trx,pcode{1}),
-% %         dmat2 = trx.(pcode{1});
-% %         if isstruct(dmat2),
-% %           dmat2 = dmat2.data;
-% %         end
-% %         fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
-% %       else
-% %         
-% %         if isfield(trx,pcode{2}),
-% %           dmat1 = trx.(pcode{2});
-% %         else
-% %         
-% %           fun = sprintf('compute_landmark_%s',pcode{2});
-% %           if ~exist(fun,'file'),
-% %             warningNoTrace('Unknown property to display in timeline.');
-% %             dmat2 = nan(size(lpos,1),size(lpos,3));
-% %             fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
-% %             return;
-% %           end
-% %           trx = feval(fun,trx);
-% %           dmat1 = trx.(pcode{2});
-% %         end
-% %       
-% %         fun = sprintf('compute_landmark_stat_%s',pcode{3});
-% %         if ~exist(fun,'file'),
-% %           warningNoTrace('Unknown property to display in timeline.');
-% %           dmat2 = nan(size(lpos,1),size(lpos,3));
-% %           fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
-% %           return;
-% %         end
-% %         
-% %         dmat2 = feval(fun,dmat1);
-% %         dmat2 = dmat2.data;
-% %       end
-% %       fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
-% 
-%       
-% %       switch pcode
-% %         case 'x'
-% %           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-% %         case 'y'
-% %           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-% %         case 'dx'
-% %           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-% %           dmat = diff(dmat,1,2);
-% %           dmat(:,end+1) = nan;
-% %         case 'dy'
-% %           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-% %           dmat = diff(dmat,1,2);
-% %           dmat(:,end+1) = nan;
-% %         case '|dx|'
-% %           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-% %           dmat = abs(diff(dmat,1,2));
-% %           dmat(:,end+1) = nan;
-% %         case '|dy|'
-% %           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-% %           dmat = abs(diff(dmat,1,2));
-% %           dmat(:,end+1) = nan;
-% %         case 'occluded'
-% %           dmat = double(lpostag(:,:,iTgt));
-% %         otherwise
-% %           warningNoTrace('Unknown property to display in timeline.');
-% %           dmat = nan(size(lpos,1),size(lpos,3));
-% %       end
-%     end
-%     function trx = initializeTrx(lpos,occluded)
-%       trx = struct;
-%       trx.pos = lpos;
-%       trx.occluded = double(occluded);
-%       trx.realunits = false;
-%       trx.pxpermm = [];
-%       trx.fps = [];      
-%     end
-%   end
-  
   methods (Access=private)
     function setLabelerSelectedFrames(obj)
       % For the moment Labeler owns the property-of-record on what frames

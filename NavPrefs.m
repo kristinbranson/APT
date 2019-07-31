@@ -22,7 +22,7 @@ function varargout = NavPrefs(varargin)
 
 % Edit the above text to modify the response to help NavPrefs
 
-% Last Modified by GUIDE v2.5 12-Sep-2018 11:48:57
+% Last Modified by GUIDE v2.5 30-Jul-2019 15:59:55
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -58,7 +58,20 @@ pum = handles.pumShiftArrow;
 pum.String = arrayfun(@(x)x.prettyStr,shiftArrowModes,'uni',0);
 pum.Value = find(lObj.movieShiftArrowNavMode==shiftArrowModes);
 pum.UserData = shiftArrowModes;
+
+et = handles.etShiftArrowTimelineThresh;
+et.String = num2str(lObj.movieShiftArrowNavModeThresh);
+pum = handles.pumShiftArrowTimelineThreshCmp;
+idx = find(strcmp(pum.String,lObj.movieShiftArrowNavModeThreshCmp));
+assert(isscalar(idx));
+pum.Value = idx;
+tl = lObj.gdata.labelTLInfo;
+tlprop = tl.props(tl.curprop);
+handles.txTimelineProp.String = tlprop.name;
+
 guidata(hObject, handles);
+
+updateTimelineStatComparisonEnable(handles);
 
 centerOnParentFigure(hObject,lObj.gdata.figure);
 hObject.Visible = 'on';
@@ -86,6 +99,25 @@ if isnan(val) || val<=0
   hObject.String = num2str(handles.lObj.moviePlaySegRadius);
 end
 
+function pumShiftArrow_Callback(hObject, eventdata, handles)
+updateTimelineStatComparisonEnable(handles);
+
+function updateTimelineStatComparisonEnable(handles)
+pum = handles.pumShiftArrow;
+sam = pum.UserData(pum.Value);
+tfTLThresh = sam==ShiftArrowMovieNavMode.NEXTTIMELINETHRESH;
+onoff = onIff(tfTLThresh);
+
+handles.txTimelineProp.Enable = onoff;
+handles.pumShiftArrowTimelineThreshCmp.Enable = onoff;
+handles.etShiftArrowTimelineThresh.Enable = onoff;
+
+function etShiftArrowTimelineThresh_Callback(hObject, eventdata, handles)
+val = str2double(hObject.String);
+if isnan(val)
+  hObject.String = num2str(handles.lObj.movieShiftArrowNavModeThresh);
+end
+
 function pbApply_Callback(hObject, eventdata, handles)
 lObj = handles.lObj;
 lObj.movieFrameStepBig = str2double(handles.etFrameSkip.String);
@@ -94,6 +126,15 @@ lObj.moviePlaySegRadius = str2double(handles.etPlaybackLoopDiameter.String);
 pum = handles.pumShiftArrow;
 sam = pum.UserData(pum.Value);
 lObj.movieShiftArrowNavMode = sam;
+
+if sam==ShiftArrowMovieNavMode.NEXTTIMELINETHRESH
+  pum = handles.pumShiftArrowTimelineThreshCmp;
+  cmp = pum.String{pum.Value};
+  thresh = str2double(handles.etShiftArrowTimelineThresh.String);
+  lObj.setMovieShiftArrowNavModeThresh(thresh);
+  lObj.movieShiftArrowNavModeThreshCmp = cmp;  
+end
+
 close(handles.figure1);
 
 function pbCancel_Callback(hObject, eventdata, handles)
