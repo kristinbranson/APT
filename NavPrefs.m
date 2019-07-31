@@ -66,7 +66,7 @@ idx = find(strcmp(pum.String,lObj.movieShiftArrowNavModeThreshCmp));
 assert(isscalar(idx));
 pum.Value = idx;
 tl = lObj.gdata.labelTLInfo;
-tlprop = tl.props(tl.curprop);
+[~,tlprop] = tl.getCurPropSmart();
 handles.txTimelineProp.String = tlprop.name;
 
 guidata(hObject, handles);

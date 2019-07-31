@@ -6,8 +6,8 @@ classdef InfoTimeline < handle
   end
    
   properties (SetAccess=private)
-    TLPROPS; % features we can compute
-    TLPROPS_TRACKER;
+    TLPROPS; % struct array, features we can compute. Initted from yaml at construction-time
+    TLPROPS_TRACKER; % struct array, features for current tracker. Initted at setTracker time
   end
   
 %   % AL: Not using transparency for now due to perf issues on Linux
@@ -42,9 +42,9 @@ classdef InfoTimeline < handle
     color = [1,1,1]; % color when there is only one statistic for all landmarks
   end
   properties (SetObservable)
-    props % [npropx4]. Col 1: pretty/display name. Col 2: non-pretty name/id. Col 3: feature name. Col 4: transform name
-    props_tracker % [npropx4]. Col 1: pretty/display name. Col 2: non-pretty name/id. Col 3: feature name. Col 4: transform name
-    curprop % row index into props
+    props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
+    props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
+    curprop % row index into props, or props_tracker, depending on curproptype.
     proptypes % property types, eg 'Labels' or 'Predictions'.    
     curproptype % row index into proptypes
   end
@@ -187,7 +187,6 @@ classdef InfoTimeline < handle
       obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
       obj.readTimelinePropsNew();
             
-      %obj.props = repmat(obj.TLPROPS(:),[1,2]);
       obj.updateProps();
       obj.proptypes = InfoTimeline.TLPROPTYPES(:);
 
@@ -353,6 +352,7 @@ classdef InfoTimeline < handle
     end
     
     function updateProps(obj)
+      % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
       
       % remove body features if no body tracking
       props = obj.TLPROPS;
@@ -369,8 +369,12 @@ classdef InfoTimeline < handle
       obj.tracker = tracker;
       if ~isempty(obj.listenersTracker),
         cellfun(@delete,obj.listenersTracker);
+        obj.listenersTracker = cell(0,1);
       end
+      
+      % Set .proptypes, .props_tracker
       if isempty(tracker),
+        % AL: Probably obsolete codepath
         obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
         obj.props_tracker = [];
       else
@@ -379,15 +383,11 @@ classdef InfoTimeline < handle
         end
         obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
         obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
-        if obj.curprop>size(obj.props_tracker,1)
-          % .setCurProp() doesn't update pumInfo.value.
-          NEWPROP = 1;
-          obj.curprop = NEWPROP;
-          obj.lObj.gdata.pumInfo.Value = NEWPROP;
-        end
         obj.listenersTracker{end+1,1} = addlistener(tracker,...
           'newTrackingResults',@obj.cbkLabelUpdated);
       end
+      
+      obj.enforcePropConsistencyWithUI(false);
       
       obj.setLabelsFull();
     end
@@ -639,11 +639,41 @@ classdef InfoTimeline < handle
   end
   
   methods %getters setters
-    function props = getPropsDisp(obj,v)
-      if nargin < 2,
-        v = obj.curproptype;
+    function enforcePropConsistencyWithUI(obj,tfSetLabelsFull)
+      % Checks that .curprop is in range for current .props,
+      % .props_tracker, .curproptype. 
+      %
+      % Theoretically this check is necessary whenever .curprop, .props,
+      % .props_tracker, .curproptype change.
+      %
+      % If it is not, it resets .curprop, resets lObj.gdata.pumInfo.Value,
+      % and optionally calls setLabelsFull (only optional to avoid
+      % redundant/dup calls near callsite).
+
+      ptype = obj.proptypes{obj.curproptype};
+      switch ptype
+        case 'Predictions'
+          tfOOB = obj.curprop > numel(obj.props_tracker);
+        otherwise
+          tfOOB = obj.curprop > numel(obj.props);
       end
-      if strcmpi(obj.proptypes{v},'Predictions'),
+      
+      if tfOOB
+        NEWPROP = 1;
+        obj.curprop = NEWPROP;
+        obj.lObj.gdata.pumInfo.Value = NEWPROP;
+      end
+      
+      if tfSetLabelsFull
+        obj.setLabelsFull();
+      end
+    end
+    function props = getPropsDisp(obj,ipropType)
+      % Get available properties for given propType (idx)
+      if nargin < 2,
+        ipropType = obj.curproptype;
+      end
+      if strcmpi(obj.proptypes{ipropType},'Predictions'),
         props = {obj.props_tracker.name};
       else
         props = {obj.props.name};
@@ -653,16 +683,32 @@ classdef InfoTimeline < handle
       proptypes = obj.proptypes;
     end
     function setCurProp(obj,iprop)
+      % setLabelsFull will essentially assert that iprop is in range for
+      % current proptype.
+      %
+      % Does not update UI
       obj.curprop = iprop;
       obj.setLabelsFull();
     end
     function setCurPropType(obj,iproptype,iprop)
+      % iproptype, iprop assumed to be consistent already.
       obj.curproptype = iproptype;
       if nargin >= 3 && iprop ~= obj.curprop,
         obj.curprop = iprop;
       end
       obj.setLabelsFull();
       obj.updateLandmarkColors();
+    end
+    function [ptype,prop] = getCurPropSmart(obj)
+      % Get current proptype, and prop-specification-struct
+      
+      ptype = obj.proptypes{obj.curproptype};
+      switch ptype
+        case 'Predictions'
+          prop = obj.props_tracker{obj.curprop};
+        otherwise
+          prop = obj.props{obj.curprop};
+      end
     end
     function tf = getCurPropTypeIsLabel(obj)
       v = obj.curproptype;
@@ -827,7 +873,7 @@ classdef InfoTimeline < handle
     function data = getDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
-      ptype = obj.proptypes{obj.curproptype};
+      [ptype,pcode] = obj.getCurPropSmart();
       labeler = obj.lObj;
       iMov = labeler.currMovie;
       iTgt = labeler.currTarget;
@@ -837,8 +883,6 @@ classdef InfoTimeline < handle
       else
         switch ptype
           case {'Labels','Imported'}
-            %pcode = obj.props{obj.curprop,2};
-            pcode = obj.props(obj.curprop);
             needtrx = obj.lObj.hasTrx && strcmpi(pcode.coordsystem,'Body');
             if needtrx,
               trxFile = obj.lObj.trxFilesAllFullGTaware{iMov,1};
@@ -857,8 +901,6 @@ classdef InfoTimeline < handle
             data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
               lpostag(:,:,iTgt),bodytrx,pcode);
           case 'Predictions'
-            %pcode = obj.props_tracker{obj.curprop,2};
-            pcode = obj.props_tracker(obj.curprop);
             data = obj.tracker.getPropValues(pcode);
           otherwise
             error('Unknown data type %s',ptype);

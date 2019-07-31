@@ -538,10 +538,13 @@ handles.pumTrack.Callback = ...
 
 lObj = handles.labelerObj;
 
-handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,handles.axes_timeline_islabeled);
+handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,...
+  handles.axes_timeline_islabeled);
 
-set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),'Value',handles.labelTLInfo.curprop);
-set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),'Value',handles.labelTLInfo.curproptype);
+set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),...
+  'Value',handles.labelTLInfo.curprop);
+set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),...
+  'Value',handles.labelTLInfo.curproptype);
 
 % this is currently not used - KB made space here for training status
 %set(handles.txProjectName,'String','');
@@ -4333,15 +4336,15 @@ function pumInfo_labels_Callback(hObject, eventdata, handles)
 % Hints: contents = cellstr(get(hObject,'String')) returns pumInfo_labels contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from pumInfo_labels
 
-% s = get(hObject,'String');
-v = get(hObject,'Value');
-v2 = get(handles.pumInfo,'Value');
-s = handles.labelTLInfo.getPropsDisp(v);
-if v2 > numel(s),
-  v2 = 1;
+ipropType = get(hObject,'Value');
+% see also InfoTimeline/enforcePropConsistencyWithUI
+iprop = get(handles.pumInfo,'Value');
+props = handles.labelTLInfo.getPropsDisp(ipropType);
+if iprop > numel(props),
+  iprop = 1;
 end
-set(handles.pumInfo,'String',s,'Value',v2);
-handles.labelTLInfo.setCurPropType(v,v2);
+set(handles.pumInfo,'String',props,'Value',iprop);
+handles.labelTLInfo.setCurPropType(ipropType,iprop);
 
 
 % --- Executes during object creation, after setting all properties.
