@@ -705,9 +705,9 @@ classdef InfoTimeline < handle
       ptype = obj.proptypes{obj.curproptype};
       switch ptype
         case 'Predictions'
-          prop = obj.props_tracker{obj.curprop};
+          prop = obj.props_tracker(obj.curprop);
         otherwise
-          prop = obj.props{obj.curprop};
+          prop = obj.props(obj.curprop);
       end
     end
     function tf = getCurPropTypeIsLabel(obj)
