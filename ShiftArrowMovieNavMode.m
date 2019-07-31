@@ -1,6 +1,7 @@
 classdef ShiftArrowMovieNavMode
   enumeration
     NEXTTIMELINE ('Next shown in timeline')
+    NEXTTIMELINETHRESH ('Next where timeline stat exceeds threshold')
     NEXTLABELED ('Next labeled')
     NEXTTRACKED ('Next tracked')
     NEXTIMPORTED ('Next imported')
@@ -12,7 +13,7 @@ classdef ShiftArrowMovieNavMode
     function obj = ShiftArrowMovieNavMode(str)
       obj.prettyStr = str;
     end
-    function [tffound,f] = seekFrame(obj,lObj,dir)
+    function [tffound,f] = seekFrame(obj,lObj,dir,thresh,cmp)
       % dir: +1 or -1
       % 
       % f: frame
@@ -22,6 +23,9 @@ classdef ShiftArrowMovieNavMode
         case ShiftArrowMovieNavMode.NEXTTIMELINE
           tldata = lObj.gdata.labelTLInfo.tldata;
           [tffound,f] = Labeler.seekSmallLpos(tldata,f0,dir);
+        case ShiftArrowMovieNavMode.NEXTTIMELINETHRESH
+          tldata = lObj.gdata.labelTLInfo.tldata;
+          [tffound,f] = Labeler.seekSmallLposThresh(tldata,f0,dir,thresh,cmp);
         case ShiftArrowMovieNavMode.NEXTLABELED
           lpos = lObj.labeledposCurrMovie;
           [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);

@@ -1054,9 +1054,11 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
     case 'leftarrow'
       if tfShift
         sam = lObj.movieShiftArrowNavMode;
-        [tffound,f] = sam.seekFrame(lObj,-1);
+        samth = lObj.movieShiftArrowNavModeThresh;
+        samcmp = lObj.movieShiftArrowNavModeThreshCmp;
+        [tffound,f] = sam.seekFrame(lObj,-1,samth,samcmp);
         if tffound
-          lObj.setFrameProtected(f);          
+          lObj.setFrameProtected(f);
         end
       else
         lObj.frameDown(tfCtrl);
@@ -1064,9 +1066,11 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
     case 'rightarrow'
       if tfShift
         sam = lObj.movieShiftArrowNavMode;
-        [tffound,f] = sam.seekFrame(lObj,1);
+        samth = lObj.movieShiftArrowNavModeThresh;
+        samcmp = lObj.movieShiftArrowNavModeThreshCmp;
+        [tffound,f] = sam.seekFrame(lObj,1,samth,samcmp);
         if tffound
-          lObj.setFrameProtected(f);          
+          lObj.setFrameProtected(f);
         end
       else
         lObj.frameUp(tfCtrl);
