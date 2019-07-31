@@ -348,7 +348,8 @@ classdef LabelTracker < handle
               prop.transform);
             % data unchanged
           else
-            data = feval(fun,data);
+            data = feval(fun,struct('data',data));
+            data = data.data;
           end
         end
       else      

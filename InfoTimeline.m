@@ -425,8 +425,14 @@ classdef InfoTimeline < handle
         y1 = min(datnonnan(:));
         y2 = max(datnonnan(:));
         if y1 == y2,
-          y1 = y1-y1*eps;
-          y2 = y2+y2*eps;
+          if y1==0
+            y1 = -eps;
+            y2 = eps;
+          else
+            % y1, y2 potentially negative
+            y1 = y1-abs(y1)*eps;
+            y2 = y2+abs(y2)*eps;
+          end
         end
         %dy = max(y2-y1,eps);
         %lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
