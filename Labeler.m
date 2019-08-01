@@ -238,6 +238,12 @@ classdef Labeler < handle
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieShiftArrowNavMode; % scalar ShiftArrowMovieNavMode
+  end
+  properties (SetAccess=private)
+    movieShiftArrowNavModeThresh; % scalar double. This is separate prop from the ShiftArrowMode so it persists even if the ShiftArrowMode changes.
+  end
+  properties (SetObservable)
+    movieShiftArrowNavModeThreshCmp; % char, eg '<' or '>='
     moviePlaySegRadius; % scalar int
     moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
@@ -1215,6 +1221,12 @@ classdef Labeler < handle
       tfIsReady = ~obj.isinit && obj.hasMovie && obj.hasProject;
     end
     
+    function setMovieShiftArrowNavModeThresh(obj,v)
+      assert(isscalar(v) && isnumeric(v));
+      obj.movieShiftArrowNavModeThresh = v;
+      tl = obj.gdata.labelTLInfo;
+      tl.setStatThresh(v);
+    end
   end
   
   %% Ctor/Dtor
@@ -1380,6 +1392,8 @@ classdef Labeler < handle
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
       obj.movieShiftArrowNavMode = ShiftArrowMovieNavMode.(cfg.Movie.ShiftArrowNavMode);
+      obj.movieShiftArrowNavModeThresh = cfg.Movie.ShiftArrowNavModeThresh;
+      obj.movieShiftArrowNavModeThreshCmp = cfg.Movie.ShiftArrowNavModeThreshCmp;
       obj.moviePlaySegRadius = cfg.Movie.PlaySegmentRadius;
       obj.moviePlayFPS = cfg.Movie.PlayFPS;
            
@@ -1466,6 +1480,8 @@ classdef Labeler < handle
         'ForceGrayScale',obj.movieForceGrayscale,...
         'FrameStepBig',obj.movieFrameStepBig,...
         'ShiftArrowNavMode',char(obj.movieShiftArrowNavMode),...
+        'ShiftArrowNavModeThresh',obj.movieShiftArrowNavModeThresh,...
+        'ShiftArrowNavModeThreshCmp',obj.movieShiftArrowNavModeThreshCmp,...
         'PlaySegmentRadius',obj.moviePlaySegRadius,...
         'PlayFPS',obj.moviePlayFPS);
 
@@ -11791,6 +11807,39 @@ classdef Labeler < handle
       while 0<f && f<=nfrm
         for ipt=1:npts
           if ~isnan(lpos(ipt,f))
+            tffound = true;
+            return;
+          end
+        end
+        f = f+df;
+      end
+      tffound = false;
+      f = nan;
+    end
+    function [tffound,f] = seekSmallLposThresh(lpos,f0,df,th,cmp)
+      % lpos: [npts x nfrm]
+      % f0: starting frame
+      % df: frame increment
+      % th: threshold
+      % cmp: comparitor
+      % 
+      % tffound: logical
+      % f: first frame encountered with (non-nan) label that satisfies 
+      % comparison with threshold, applicable if tffound==true
+      
+      switch cmp
+        case '<',  cmp = @lt;
+        case '<=', cmp = @le;
+        case '>',  cmp = @gt;
+        case '>=', cmp = @ge;
+      end
+          
+      [npts,nfrm] = size(lpos);
+      
+      f = f0+df;
+      while 0<f && f<=nfrm
+        for ipt=1:npts
+          if cmp(lpos(ipt,f),th)
             tffound = true;
             return;
           end

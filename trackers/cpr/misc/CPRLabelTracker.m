@@ -2009,8 +2009,10 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
 
-    function tpos = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       tpos = obj.xyPrdCurrMovie;
+      taux = [];
+      tauxlbl = cell(0,1);
     end
     
     %MTGT
