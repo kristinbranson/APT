@@ -4,7 +4,7 @@ function [hfig,savename,sortederrs] = PlotFracInliers(varargin)
   conddata,labeltypes,datatypes,statname,...
   maxerr,minerr,...
   hfig,figpos,savedir,savename,dosavefig,prcs,maxprc,...
-  annoterrdata,annotcolor,annoterrprc] = myparse(varargin,'sortederrs',{},'gtdata',[],...
+  annoterrdata,annotcolor,annoterrprc,plotannfracinliers,APthresh,xscale] = myparse(varargin,'sortederrs',{},'gtdata',[],...
   'nets',{},'legendnames',{},'colors',[],'exptype','exp',...
   'conddata',[],'labeltypes',{},'datatypes',{},'statname','Worst',...
   'maxerr',[],'minerr',[],...
@@ -14,7 +14,9 @@ function [hfig,savename,sortederrs] = PlotFracInliers(varargin)
   'dosavefig',false,...
   'prcs',[],...
   'maxprc',100,...
-  'annoterrdata',[],'annotcolor',[0,0,0],'annoterrprc',99);
+  'annoterrdata',[],'annotcolor',[0,0,0],'annoterrprc',[],'plotannfracinliers',true,...
+  'APthresh',[],...
+  'xscale','linear');
 
 if isempty(nets),
   assert(~isempty(gtdata));
@@ -74,8 +76,33 @@ if isempty(sortederrs),
 end
 
 if ~isempty(annoterrdata),
-  annotsortederrs = GetSortedErrs(annoterrdata,'annotator','',annoterrdata,datatypes,labeltypes,statname);
-  annoterrthresh = cellfun(@(x) prctile(x,annoterrprc),annotsortederrs);
+  if ~isfield(annoterrdata,'pred'),
+    annfns = fieldnames(annoterrdata);
+  else
+    annfns = {'annotator'};
+  end
+  annotsortederrs = cell([numel(annfns),nlabeltypes,ndatatypes]);
+  for i = 1:numel(annfns),
+    if ~isfield(annoterrdata,'pred'),
+      cur_data = annoterrdata.(annfns{i}){end};
+    else
+      cur_data = annoterrdata;
+    end
+    annotsortederrs(i,:,:) = GetSortedErrs(cur_data,annfns{i},'',cur_data,datatypes,labeltypes,statname);
+  end
+  if ~isempty(annoterrprc),
+    annoterrthresh = nan([nlabeltypes,ndatatypes]);
+    for labeli = 1:nlabeltypes,
+      for datai = 1:ndatatypes,
+        annoterrthresh(labeli,datai) = prctile( cat(1,annotsortederrs{:,labeli,datai}),annoterrprc );
+      end
+    end
+  end
+  if plotannfracinliers,
+    sortederrs = cat(1,sortederrs,annotsortederrs);
+  end
+else
+  annfns = {};
 end
 
 ncurrs = cellfun(@numel,sortederrs);
@@ -106,6 +133,20 @@ hax = reshape(hax,[nlabeltypes,ndatatypes]);
   
 maxprc = min(maxprc,(1-1/maxn)*100);
 
+alllegendnames = legendnames(:);
+if ~isempty(annoterrdata) && plotannfracinliers,
+  alllegendnames = [alllegendnames;annfns(:)];
+  if numel(annfns) == 1,
+    grays = [0,0,0];
+  else
+    grays = linspace(0,.4,numel(annfns))'+[0,0,0];
+  end
+  colors = cat(1,colors,grays);
+  nplot = nnets + numel(annfns);
+else
+  nplot = nnets;
+end
+
 for datai = ndatatypes:-1:1,
   
   for labeli = 1:nlabeltypes,
@@ -114,21 +155,18 @@ for datai = ndatatypes:-1:1,
     cla(hax(labeli,datai));
     
     hold on;
-    h = gobjects(1,nnets);
+    h = gobjects(1,nplot);
     
-    if ~isempty(annoterrdata),
+    if ~isempty(annoterrdata) && ~isempty(annoterrprc),
       plot(annoterrthresh(labeli,datai)+[0,0],[eps,100],':','Color',annotcolor,'LineWidth',2);
     end
     
-    for ndx = 1:nnets,
+    for ndx = 1:nplot
       ncurr = numel(sortederrs{ndx,labeli,datai});
       if ncurr == 0,
         continue;
       end
       h(ndx) = plot(sortederrs{ndx,labeli,datai},max(eps,100-(1:ncurr)/ncurr*100),'-','LineWidth',2,'Color',colors(ndx,:));
-    end
-    if labeli == nlabeltypes && datai == ndatatypes,
-      legend(h,legendnames);
     end
     if labeli == nlabeltypes,
       xlabel(sprintf('%s landmark error',statname));
@@ -144,7 +182,19 @@ for datai = ndatatypes:-1:1,
     end
     set(gca,'YTick',100-flipud(prcs(:)),'YTickLabel',num2str(flipud(prcs(:))));
     set(gca,'XLim',[minerr,maxerr],'YLim',[100-maxprc,100],'XTick',10:10:maxerr);
-    set(gca,'XScale','log','YScale','log','YDir','reverse');
+    set(gca,'XScale',xscale,'YScale','log','YDir','reverse');
+    if ~isempty(APthresh),
+      for threshi = 1:numel(APthresh),
+        plot(APthresh(threshi)+[0,0],[100-maxprc,100],'-','Color',[.7,.7,.7]);
+      end
+      %       for threshi = 1:numel(APthresh),
+      %         plot(APthresh(threshi)+[0,0],[eps,100],':','Color',annotcolor,'LineWidth',2);
+      %       end
+    end
+    if labeli == 1 && datai == 1,
+      legend(h,alllegendnames);
+    end
+
     drawnow;
   end
 end
@@ -156,7 +206,11 @@ set(hfig,'Name',sprintf('%s landmark',statname));
 set(hfig,'Renderer','painters');
 if dosavefig,
   if isempty(savename),
-    savename = fullfile(savedir,sprintf('%s_GTFracInliers_%sLandmark.svg',exptype,statname));
+    if strcmpi(xscale,'linear'),
+      savename = fullfile(savedir,sprintf('%s_GTFracInliers_%sLandmark.svg',exptype,statname));
+    else
+      savename = fullfile(savedir,sprintf('%s_GTFracInliers_logx_%sLandmark.svg',exptype,statname));
+    end
   end
   saveas(hfig,savename,'svg');
 end

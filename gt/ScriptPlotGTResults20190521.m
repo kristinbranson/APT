@@ -2,7 +2,7 @@
 
 %gtfile = '/nrs/branson/mayank/apt_cache/alice_view0_time.mat';
 
-exptype = 'RF3D';
+exptype = 'FlyBubbleMDNvsDLC';
 cprdir = '/groups/branson/bransonlab/apt/experiments/res/cprgt20190407';
 codedir = fileparts(mfilename('fullpath'));
 savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20190523';
@@ -12,11 +12,17 @@ if ~exist(savedir,'dir'),
 end
 dosavefig = true;
 
+resmatfile = fullfile(savedir,sprintf('PlotGTResults_%s.mat',exptype));
+
 %% parameters
 
 ScriptGTDataSetParameters;
 
 %% load in data
+
+if exist(resmatfile,'file'),
+  load(resmatfile);
+else
 
 gtdata_size = load(gtfile_trainsize);
 if isempty(gtfile_traintime),
@@ -25,18 +31,26 @@ else
   gtdata_time = load(gtfile_traintime);
 end
 if ~isempty(annoterrfile),
-  annoterrdata =load(annoterrfile);
+  annoterrdata = load(annoterrfile);
 end
 
 %% images for overlaying percentile errors 
 
 if ~is3d,
 
-if ismember(exptype,{'BSView0x','BSView1x','BSView2x'}),
-  
+if ismember(exptype,{'BSView0x','BSView1x','BSView2x','FlyBubble','FlyBubbleMDNvsDLC'}),
+
+try
   lObj = load(lblfile,'-mat');
-  ptcolors = lObj.cfg.LabelPointsPlot.Colors;
-  lObj.labeledpos = cellfun(@SparseLabelArray.full,lObj.labeledpos,'uni',0);
+catch
+  tmploc = tempname;
+  mkdir(tmploc);
+  untar(lblfile,tmploc);
+  lObj = load(fullfile(tmploc,'label_file.lbl'),'-mat');
+  unix(sprintf('rm -r %s',tmploc));
+end
+ptcolors = lObj.cfg.LabelPointsPlot.Colors;
+lObj.labeledpos = cellfun(@SparseLabelArray.full,lObj.labeledpos,'uni',0);
   
 else
   lObj = StartAPT;
@@ -56,7 +70,11 @@ end
 
 switch exptype,
   case {'FlyBubble','FlyBubbleMDNvsDLC'},
-    freezeInfo = lObj.prevAxesModeInfo;
+    if isstruct(lObj),
+      freezeInfo = lObj.cfg.PrevAxes.ModeInfo;
+    else
+      freezeInfo = lObj.prevAxesModeInfo;
+    end
     lpos = lObj.labeledpos{freezeInfo.iMov}(:,:,freezeInfo.frm,freezeInfo.iTgt);
     if freezeInfo.isrotated,
       lpos = [lpos,ones(size(lpos,1),1)]*freezeInfo.A;
@@ -84,7 +102,11 @@ switch exptype,
     freezeInfo.axes_curr.CameraViewAngleMode = 'auto';
     npts = size(gtdata_size.mdn{1}.labels,2);
     lpos = lObj.labeledpos{freezeInfo.iMov}((vwi-1)*npts+(1:npts),:,freezeInfo.frm,freezeInfo.iTgt);
-  case {'BSView0x','BSView1x','BSView2x'},
+  case {'BSView0x','BSView1x','BSView2x','SHView0','SHView1','Larva','RFView0','RFView1','Roian'},
+%     if ~isfield(freezeInfo,'i'),
+%       i = find(gtimdata.ppdata.MD.frm == freezeInfo.frm & gtimdata.ppdata.MD.mov == freezeInfo.iMov & ...
+%         gtimdata.ppdata.MD.iTgt == freezeInfo.iTgt);
+%     end
     freezeInfo.im = gtimdata.ppdata.I{freezeInfo.i};
     freezeInfo.xdata = [1,size(freezeInfo.im,2)];
     freezeInfo.ydata = [1,size(freezeInfo.im,1)];
@@ -127,6 +149,10 @@ for i = 1:numel(fns),
   gtdata.(fns{i}) = gtdata.(fns{i})(end);
 end
 
+save(resmatfile,'gtdata_size','gtdata_time','gtdata','lpos','freezeInfo','annoterrdata','ptcolors','gtimdata','conddata','labeltypes','datatypes','pttypes','lObj');
+
+end
+
 %% compute kappa for OKS computation if there is annotation error data
 
 if ~isempty(annoterrdata),
@@ -164,7 +190,7 @@ end
 %% compute average precision at various thresholds relative to the animal scale
 
 threshmethod = 'prctileerr';
-ComputePixelPrecisionTable(gtdata,...
+[~,~,APthresh] = ComputePixelPrecisionTable(gtdata,...
   'nets',nets,'legendnames',legendnames,...
   'exptype',exptype,...
   'conddata',conddata,...
@@ -199,7 +225,7 @@ end
 
 if doplotoverx && ~isempty(gtdata_time),
 
-for stati = 1:3,
+for stati = 1,
   switch stati,
     case 1
       statname = 'Worst';
@@ -250,7 +276,7 @@ end
 
 if doplotoverx,
   
-  for stati = 1:3,
+  for stati = 1,
     switch stati,
       case 1
         statname = 'Worst';
@@ -269,7 +295,7 @@ if doplotoverx,
       'labeltypes',labeltypes,'datatypes',datatypes,...
       'prcs',prcs,...
       'savedir',savedir,...
-      'maxerr',maxerr,...
+      'maxerr',[],...
       'dosavefig',dosavefig,...
       'x','N. training examples',...
       'savekey','TrainSetSize');
@@ -328,7 +354,7 @@ else
   cur_annoterrdata = [];
 end
 
-for stati = 1:3,
+for stati = 1,
   switch stati,
     case 1
       statname = 'Worst';
@@ -350,9 +376,53 @@ for stati = 1:3,
     'maxerr',maxerr,...
     'prcs',prcs,...
     'maxprc',99.5,...
-    'annoterrdata',cur_annoterrdata,...
-    'annoterrprc',99);
+    'annoterrdata',annoterrdata,...
+    'annoterrprc',[],...
+    'plotannfracinliers',true,...
+    'APthresh',APthresh);
   
+  PlotFracInliers('gtdata',gtdata,...
+    'nets',nets,'legendnames',legendnames,...
+    'colors',colors,...
+    'exptype',exptype,...
+    'conddata',conddata,...
+    'labeltypes',labeltypes,'datatypes',datatypes,...
+    'statname',statname,...
+    'savedir',savedir,'dosavefig',dosavefig,...
+    'maxerr',maxerr,...
+    'prcs',prcs,...
+    'maxprc',99.5,...
+    'annoterrdata',annoterrdata,...
+    'annoterrprc',[],...
+    'plotannfracinliers',true,...
+    'APthresh',APthresh,...
+    'xscale','log');
+
+  
+  if ~isempty(pttypes),
+    npttypes = size(pttypes,1);
+    pttypecolors = zeros(npttypes,3);
+    for pti = 1:npttypes,
+      pttypecolors(pti,:) = ptcolors(max(pttypes{pti,2}),:);
+    end
+  else
+    pttypecolors = ptcolors;
+  end
+  for ndx = 1:nnets,
+    PlotFracInliersPerLandmark('gtdata',gtdata,...
+      'net',nets{ndx},'pttypes',pttypes,...
+      'colors',pttypecolors,...
+      'exptype',exptype,...
+      'conddata',conddata,...
+      'labeltypes',labeltypes,'datatypes',datatypes,...
+      'statname',statname,...
+      'savedir',savedir,'dosavefig',dosavefig,...
+      'maxerr',maxerr,...
+      'prcs',prcs,...
+      'maxprc',99.5,...
+      'plotannfracinliers',true,...
+      'APthresh',APthresh);
+  end
   
   PlotSortedWorstLandmarkError('gtdata',gtdata,...
     'nets',nets,'legendnames',legendnames,...
@@ -368,6 +438,55 @@ for stati = 1:3,
     'annoterrprc',99);
 
   
+end
+
+%% plot error threshold vs precision for 
+
+if nlabeltypes > 1
+  PlotFracInliersPerGroup('gtdata',gtdata,...
+    'net',nets{ndx},'pttypes',pttypes,...
+    'exptype',exptype,...
+    'conddata',conddata,...
+    'labeltypes',labeltypes,'datatypes',datatypes,...
+    'statname',statname,...
+    'savedir',savedir,'dosavefig',dosavefig,...
+    'maxerr',maxerr,...
+    'prcs',prcs,...
+    'maxprc',99.5,...
+    'APthresh',APthresh,...
+    'dataallonly',true);
+end
+
+if ndatatypes > 1,
+  PlotFracInliersPerGroup('gtdata',gtdata,...
+    'net',nets{ndx},'pttypes',pttypes,...
+    'exptype',exptype,...
+    'conddata',conddata,...
+    'labeltypes',labeltypes,'datatypes',datatypes,...
+    'statname',statname,...
+    'savedir',savedir,'dosavefig',dosavefig,...
+    'maxerr',maxerr,...
+    'prcs',prcs,...
+    'maxprc',99.5,...
+    'APthresh',APthresh,...
+    'labelallonly',true);
+end
+
+if ~isempty(annoterrdata) && nlabeltypes > 1,
+
+PlotFracInliersPerGroup('gtdata',annoterrdata,...
+  'net','intra','pttypes',pttypes,...
+  'exptype',exptype,...
+  'conddata',annoterrdata.intra{end},...
+  'labeltypes',labeltypes,'datatypes',datatypes,...
+  'statname',statname,...
+  'savedir',savedir,'dosavefig',dosavefig,...
+  'maxerr',maxerr,...
+  'prcs',prcs,...
+  'maxprc',99.5,...
+  'APthresh',APthresh,...
+  'dataallonly',true);
+
 end
 
 %% plot example predictions
@@ -407,7 +526,29 @@ if ismember(exptype,{'FlyBubbleMDNvsDLC'}),
   xlabel(sprintf('%s worst landmark error',legendnames{1}));
   ylabel(sprintf('%s worst landmark error',legendnames{2}));
   set(hfig,'Renderer','painters','Units','pixels','Position',[10,10,300,300]);
-  saveas(hfig,fullfile(savedir,sprintf('%s_DLCErrorVsMDNError.svg',exptype)),'svg')
+  saveas(hfig,fullfile(savedir,sprintf('%s_DLCErrorVsMDNError.svg',exptype)),'svg');
+  
+  preddist = max(sqrt(sum((gtdata.(nets{1}){end}.pred-gtdata.(nets{2}){end}.pred).^2,3)),[],2);
+  maxerrcurr = max(max(err(:)),preddist(:))*1.05;
+  hfig = figure;
+  clf;
+  hax = createsubplots(1,nnets,.05);
+  for ndx = 1:nnets,
+    axes(hax(ndx));
+    hold on;
+    plot([0,maxerrcurr],[0,maxerrcurr],'c-');
+    plot(err(:,ndx),preddist,'k.','MarkerFaceColor','k');
+    axis equal;
+    set(gca,'XLim',[0,maxerrcurr],'YLim',[0,maxerrcurr]);
+    xlabel(sprintf('%s worst landmark error',legendnames{ndx}));
+    ylabel(sprintf('%s worst landmark error',legendnames{2}));
+  set(hfig,'Renderer','painters','Units','pixels','Position',[10,10,300,300]);
+  saveas(hfig,fullfile(savedir,sprintf('%s_DLCErrorVsMDNError.svg',exptype)),'svg');
+
+  
+  end
+
+  
 end
 
 %% print data set info
