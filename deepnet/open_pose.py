@@ -510,7 +510,7 @@ class DataIteratorTF(object):
         else:
             raise IOError('Unspecified DB Type') # KB 20190424 - py3
         self.file = filename
-        self.iterator  = None
+        self.iterator = None
         self.distort = distort
         self.shuffle = shuffle
         self.batch_size = self.conf.batch_size
@@ -583,7 +583,7 @@ class DataIteratorTF(object):
             assert ims.shape[-1] == 1, "Expected image depth of 1"
             ims = np.tile(ims, 3)
 
-        assert self.conf.op_rescale==1, "op_rescale not sure if we are okay"
+        assert self.conf.op_rescale == 1, "op_rescale not sure if we are okay"
         mask_sz = [int(x/self.conf.op_label_scale/self.conf.op_rescale) for x in imszuse]
         mask_sz1 = [self.batch_size,] + mask_sz + [2*self.vec_num]
         mask_sz2 = [self.batch_size,] + mask_sz + [self.heat_num]
@@ -603,14 +603,17 @@ class DataIteratorTF(object):
 #        label_ims = PoseTools.create_label_images(locs/self.conf.op_label_scale, mask_sz,1,2)
         label_ims = np.clip(label_ims, 0, 1)  # AL: possibly unnec?
 
-        label_ims_origres = create_label_images(locs, mask_sz_origres, 1)
+        label_ims_origres = create_label_images(locs, mask_sz_origres,
+                                                self.conf.label_blur_rad)
         label_ims_origres = np.clip(label_ims_origres, 0, 1) # AL: possibly unnec?
 
         affinity_ims = create_affinity_labels(locs/self.conf.op_label_scale,
                                               mask_sz, self.conf.op_affinity_graph, 1) #self.conf.label_blur_rad)
 
         affinity_ims_origres = create_affinity_labels(locs,
-                                                      mask_sz_origres, self.conf.op_affinity_graph, 1)
+                                                      mask_sz_origres,
+                                                      self.conf.op_affinity_graph,
+                                                      self.conf.label_blur_rad)
 
         return [ims, mask_im1, mask_im2, mask_im1_origres, mask_im2_origres], \
                [affinity_ims, label_ims,
@@ -634,7 +637,7 @@ class DataIteratorTF(object):
 #----------------------
 
 def set_openpose_defaults(conf):
-    conf.label_blur_rad = 5  # AL: think unused atm
+    conf.label_blur_rad = 5
     conf.rrange = 5
     conf.display_step = 50 # this is same as batches per epoch
     conf.dl_steps = 600000
@@ -700,8 +703,18 @@ def imszcheckcrop(sz, dimname):
         logging.warning(warnstr)
     return szuse
 
+# AL losses, resolutions, blurs
+# Calling "loss0" the loss vs an all-zero array of the right size.
+# - For hmap, changing resolutions does not change loss0
+# - For hmap, increasing blur_rad increases loss0 by ~blur_rad^2 as expected.
+#    (blur_rad 1->3 ~ loss0 9.5->85)
+# - For paf, changing resolutions does change loss0 very roughly linearly as the
+#   limb length is linear in img sz. (increase res 5x => loss0 5x)
+# - For paf, changing the blur_rad also changes loss0 roughly linearly as the
+#   limb width ~ linear in blur_rad.
 
-def configure_loss_functions(batch_size, hires_weight_factor):
+def configure_loss_functions(batch_size, stg6_blur_rad, stg6_resfac,
+                             stg6_wtfac):
     def eucl_loss(x, y):
         return K.sum(K.square(x - y)) / batch_size / 2
 
@@ -711,7 +724,27 @@ def configure_loss_functions(batch_size, hires_weight_factor):
         for lvl in range(1, 3):
             key = 'weight_stage{}_L{}'.format(stage, lvl)
             losses[key] = eucl_loss
-            loss_weights[key] = hires_weight_factor if stage == 6 else 1.0
+            if stage == 6:
+                # stage6 hmap and paf maps are at
+                # 1. stg6_resfac (relative) upsampled resolution
+                # 2. stg6_blur_rad blur_rad
+
+                ispaf = lvl == 1
+                if ispaf:
+                    # 1. increased resolution increases natural scale of loss by
+                    #    stg6_resfac
+                    # 2. increased blur_rad increases " by stg6_blur_rad
+                    #       (relative to blur_rad of 1)
+                    loss_weights[key] = stg6_wtfac / stg6_resfac / stg6_blur_rad
+                    logging.info('Stage 6 paf loss_weight: {}'.format(loss_weights[key]))
+                else:
+                    # 1. has no effect
+                    # 2. increases the natural scale of the loss by stg6_blur_rad**2
+                    #     (assuming earlier stages have blur_rad==1)
+                    loss_weights[key] = stg6_wtfac / stg6_blur_rad**2
+                    logging.info('Stage 6 hmap loss_weight: {}'.format(loss_weights[key]))
+            else:
+                loss_weights[key] = 1.0
 
     return losses, loss_weights
 
@@ -778,7 +811,11 @@ def training(conf,name='deepnet'):
     # configure_lr_multipliers(model)
     # logging.info('Configured layer learning rate mulitpliers')
 
-    losses, loss_weights = configure_loss_functions(batch_size, hires_weight_factor)
+    assert conf.op_label_scale == 8
+    logging.info("Your label_blur_rad is {}".format(conf.label_blur_rad))
+    losses, loss_weights = configure_loss_functions(batch_size, conf.label_blur_rad,
+                                                    conf.op_label_scale,
+                                                    hires_weight_factor)
 
     save_time = conf.get('save_time',None)
     # lr decay.
