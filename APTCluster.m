@@ -32,7 +32,7 @@ if exist(lblFile,'file')==0
   error('APTCluster:file','Cannot find project file: ''%s''.',lblFile);
 end
 
-lObj = Labeler();
+lObj = Labeler('isgui',false);
 set(lObj.hFig,'Visible','off');
 fprintf('APTCluster: ''%s'' on project ''%s''.\n',action,lblFile);
 fprintf('Time to start labeler: %f\n',toc(startTime));
@@ -331,7 +331,7 @@ if tfMovInProj
       warningNoTrace('Movie ''%s'' exists in project, but not with trxfile ''%s''.',...
         mov,trx);
       % Attempt to add new (mov,trx) pair
-      lObj.movieAdd(mov,trx);
+      lObj.movieAdd(mov,trx,'offerMacroization',false);
       iMov = numel(lObj.movieFilesAllFull);        
     end
   else
@@ -339,7 +339,7 @@ if tfMovInProj
   end
 else
   % mov is not in proj
-  lObj.movieAdd(mov,trx);
+  lObj.movieAdd(mov,trx,'offerMacroization',false);
   iMov = numel(lObj.movieFilesAllFull);
 end
 lObj.movieSet(iMov);

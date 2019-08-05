@@ -40,7 +40,11 @@ if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
-hfigsplash = splashScreen(handles);
+handles.labelerObj = varargin{1};
+
+if handles.labelerObj.isgui,
+  hfigsplash = splashScreen(handles);
+end
 
 handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
 handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
@@ -110,7 +114,6 @@ handles.tbTLSelectMode.BackgroundColor = PURP;
 
 handles.output = hObject;
 
-handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
 
 handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
@@ -646,12 +649,16 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 EnableControls(handles,'tooltipinit');
 set(handles.figure,'Visible','on');
-RefocusSplashScreen(hfigsplash,handles);
+if handles.labelerObj.isgui,
+  RefocusSplashScreen(hfigsplash,handles);
+end
 
 LabelerTooltips(handles);
-RefocusSplashScreen(hfigsplash,handles);
-if ishandle(hfigsplash),
-  delete(hfigsplash);
+if handles.labelerObj.isgui,
+  RefocusSplashScreen(hfigsplash,handles);
+  if ishandle(hfigsplash),
+    delete(hfigsplash);
+  end
 end
 
 
@@ -659,6 +666,8 @@ ClearStatus(handles);
 EnableControls(handles,'noproject');
 
 guidata(hObject, handles);
+
+fprintf('Labeler GUI created.\n');
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
 % uiwait(handles.figure);

@@ -161,6 +161,8 @@ classdef Labeler < handle
     projPrefs; % init: C
     
     projVerbose = 0; % transient, unmanaged
+    
+    isgui = true; % whether there is a GUI
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -1235,6 +1237,8 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
       
+      [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
+      
       APT.setpathsmart;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
@@ -2082,6 +2086,9 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
+      
+      fprintf('Finished loading project.\n');
+      
     end
     
     function projImport(obj,fname)
@@ -3256,7 +3263,7 @@ classdef Labeler < handle
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
       [offerMacroization,gt] = myparse(varargin,...
-        'offerMacroization',~isdeployed, ... % If true, look for matches with existing macros
+        'offerMacroization',~isdeployed&&obj.isgui, ... % If true, look for matches with existing macros
         'gt',obj.gtIsGTMode ... % If true, add moviefile/trxfile to GT lists. Could be a separate method, but there is a lot of shared code/logic.
         );
       
@@ -3927,7 +3934,7 @@ classdef Labeler < handle
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
-          if isdeployed
+          if isdeployed || ~obj.isgui,
             error(qstr);
           end
           
