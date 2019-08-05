@@ -653,6 +653,7 @@ classdef CPRLabelTracker < LabelTracker
       Dfull = mdlPrms.nfids*mdlPrms.nviews*mdlPrms.d;
       Tp1 = obj.sPrm.Reg.T+1;
       szassert(pTstTRed,[nTst Dfull]);
+      % KB 20190805: only store data that is used. 
       if obj.storeFullTracking == StoreFullTrackingType.ALLITERS,
         szassert(pTstT,[nTst RT Dfull Tp1]);
         Tp1x = Tp1;
@@ -1759,6 +1760,7 @@ classdef CPRLabelTracker < LabelTracker
       if isfield(prm.TestInit,'movChunkSize')
         movChunkSize = prm.TestInit.movChunkSize;
       end
+      % KB 20190805: set movChunkSize outside of APT project, used by APTCluster
       if ~isempty(forceMovChunkSize),
         if ischar(forceMovChunkSize),
           forceMovChunkSize = str2double(forceMovChunkSize);

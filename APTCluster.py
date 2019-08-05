@@ -293,16 +293,16 @@ def main():
 
                 else:
                     infocmd = ['matlab','-nodisplay','-r',args.infobin+"'"+args.mov+"'"+MATLABCMDEND]
-                    #s = my_check_output(infocmd,timeout=20)
-                    #p = re.compile('\n\d+\n') # number surrounded by \n's
-                    #m = p.search(s)
-                    #if m is None:
-                    #    raise(RuntimeError,'Could not parse number of frames from MATLAB output')
-                    #s = s[m.start()+1:m.end()-1]
+                    s = my_check_output(infocmd,timeout=20)
+                    p = re.compile('\n\d+\n') # number surrounded by \n's
+                    m = p.search(s)
+                    if m is None:
+                        raise(RuntimeError,'Could not parse number of frames from MATLAB output')
+                    s = s[m.start()+1:m.end()-1]
 
-                print("REMOVE THIS!!")
-                nframes = 85934
-                #nframes = int(s)
+                #print("REMOVE THIS!!")
+                #nframes = 85934
+                nframes = int(s)
                 njobs = np.maximum(1,np.round(nframes/args.splitframes))
                 jobstarts = np.round(np.linspace(1,nframes+1,njobs+1)).astype(int)
                 jobends = jobstarts[1:]-1
