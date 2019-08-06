@@ -15,6 +15,8 @@ from keras.optimizers import Optimizer, Adam
 from keras import backend as K
 from keras.legacy import interfaces
 
+import scipy # XXXXXXXXXXXXX
+
 import sys
 import os
 import re
@@ -115,6 +117,69 @@ class MultiSGD(Optimizer):
 # ----- Model ---------
 #----------------------
 
+def upsample_filt(alg='nn', dtype=None):
+    if alg == 'nn':
+        x = np.array([[0., 0., 0., 0.],
+                      [0., 1., 1., 0.],
+                      [0., 1., 1., 0.],
+                      [0., 0., 0., 0.]], dtype=dtype)
+    elif alg == 'bl':
+        x = np.array(
+            [[0.0625, 0.1875, 0.1875, 0.0625],
+             [0.1875, 0.5625, 0.5625, 0.1875],
+             [0.1875, 0.5625, 0.5625, 0.1875],
+             [0.0625, 0.1875, 0.1875, 0.0625]], dtype=dtype)
+    else:
+        assert False
+    return x
+
+def upsample_initializer(shape, alg='nn', dtype=None):
+    print "upsample initializer desired shape: {}".format(shape)
+
+    f = upsample_filt(alg, dtype)
+
+    filtnr, filtnc, kout, kin = shape
+    assert kout == kin  # for now require equality
+    if kin > kout:
+        wstr = "upsample filter has more inputs ({}) than outputs ({}). Using truncated identity".format(kin, kout)
+        logging.warning(wstr)
+
+    xinit = np.zeros(shape)
+    for i in range(kout):
+        xinit[:, :, i, i] = f
+
+    return K.variable(value=xinit, dtype=dtype)
+
+# could use functools.partial etc
+def upsamp_init_nn(shape, dtype=None):
+    return upsample_initializer(shape, 'nn', dtype)
+def upsamp_init_bl(shape, dtype=None):
+    return upsample_initializer(shape, 'bl', dtype)
+
+
+def get_model_memory_usage(batch_size, model):
+    #import numpy as np
+    #from keras import backend as K
+    shapes_mem_count = 0
+    for l in model.layers:
+        single_layer_mem = 1
+        for s in l.output_shape:
+            if s is None:
+                continue
+            single_layer_mem *= s
+        shapes_mem_count += single_layer_mem
+    trainable_count = np.sum([K.count_params(p) for p in set(model.trainable_weights)])
+    non_trainable_count = np.sum([K.count_params(p) for p in set(model.non_trainable_weights)])
+    number_size = 4.0
+    if K.floatx() == 'float16':
+         number_size = 2.0
+    if K.floatx() == 'float64':
+         number_size = 8.0
+    total_memory = number_size*(batch_size*shapes_mem_count + trainable_count + non_trainable_count)
+    gbytes = np.round(total_memory / (1024.0 ** 3), 3)
+    return gbytes
+
+
 def relu(x): return Activation('relu')(x)
 
 def conv(x, nf, ks, name, weight_decay):
@@ -128,6 +193,24 @@ def conv(x, nf, ks, name, weight_decay):
                bias_initializer=constant(0.0))(x)
     return x
 
+
+def deconv_2x_upsampleinit(x, nf, ks, name, wd):
+    # init around upsampling;
+    # turn off weight decay
+    # TODO: custom weight decay around upsample-init
+
+    kernel_reg = l2(wd[0]) if wd else None
+    bias_reg = l2(wd[1]) if wd else None
+
+    x = Conv2DTranspose(nf, (ks, ks), strides=2,
+                        padding='same', name=name,
+                        kernel_regularizer=kernel_reg,
+                        bias_regularizer=bias_reg,
+                        kernel_initializer=upsamp_init_bl,
+                        bias_initializer=constant(0.0))(x)
+    logging.info("Using deconv w/init around upsample.")
+
+    return x
 
 def deconv_2x(x, nf, ks, name, weight_decay):
     kernel_reg = l2(weight_decay[0]) if weight_decay else None
@@ -240,16 +323,19 @@ def stageT_block(x, num_p, stage, branch, weight_decay):
     return x
 
 
-def stageTdeconv_block(x, num_p, stage, branch, weight_decay):
+def stageTdeconv_block(x, num_p, stage, branch, weight_decay, weight_decay_dc):
     x = conv(x, 128, 7, "Mconv1_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
     x = conv(x, 128, 7, "Mconv2_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
-    x = deconv_2x(x, 128, 4, "Mdeconv3_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    #x = deconv_2x(x, 128, 4, "Mdeconv3_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv3_stage%d_L%d" % (stage, branch), (weight_decay_dc, 0))
     x = relu(x)
-    x = deconv_2x(x, 128, 4, "Mdeconv4_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    #x = deconv_2x(x, 128, 4, "Mdeconv4_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv4_stage%d_L%d" % (stage, branch), (weight_decay_dc, 0))
     x = relu(x)
-    x = deconv_2x(x, 128, 4, "Mdeconv5_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    #x = deconv_2x(x, 128, 4, "Mdeconv5_stage%d_L%d" % (stage, branch), (weight_decay, 0))
+    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv5_stage%d_L%d" % (stage, branch), (weight_decay_dc, 0))
     x = relu(x)
     x = conv(x, 128, 1, "Mconv6_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
@@ -261,7 +347,46 @@ def apply_mask(x, mask, stage, branch):
     w = Multiply(name=w_name)([x, mask])  # vec_weight
     return w
 
-def get_training_model(imszuse, weight_decay, nlimbs=38, npts=19):
+def get_toy_model(upsamp_init):
+
+    xin = Input(shape=(768, 1024, 2), name='input')
+    inputs = [xin, ]
+
+    nf = 2
+    k = 4
+    xot = Conv2DTranspose(nf, (k, k), strides=2,
+                        padding='same', name='deconv',
+                        kernel_initializer=upsamp_init,
+                        bias_initializer=constant(0.0))(xin)
+    outputs = [xot, ]
+
+    model = Model(inputs=inputs, outputs=outputs)
+    return model, xin, xot
+def runtoy():
+    tf.reset_default_graph()
+
+    m, xin, xot = get_toy_model(upsamp_init_bl)
+
+    img = scipy.misc.face(True)
+    img = np.stack([img, img],axis=2)
+    img.shape = (1, 768, 1024, 2)
+
+    # img = np.array(range(4*4*3))
+    # img = img**2
+    # img.shape = (1, 4, 4, 3)
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        out = sess.run([xot], feed_dict={xin: img})
+
+    return out, img
+
+
+
+
+
+
+def get_training_model(imszuse, weight_decay, weight_decay_kernel_dc, nlimbs=38, npts=19):
     '''
 
     :param imszuse: (imnr, imnc) raw image size, possibly adjusted to be 0 mod 8
@@ -339,10 +464,10 @@ def get_training_model(imszuse, weight_decay, nlimbs=38, npts=19):
         x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
     # stage sn=stages
-    stageT_branch1_out = stageTdeconv_block(x, nlimbs, stages, 1, weight_decay)
+    stageT_branch1_out = stageTdeconv_block(x, nlimbs, stages, 1, weight_decay, weight_decay_kernel_dc)
     w1 = apply_mask(stageT_branch1_out, vec_weight_input_hires, stages, 1)
     # stage SN - branch 2 (confidence maps)
-    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, weight_decay)
+    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, weight_decay, weight_decay_kernel_dc)
     w2 = apply_mask(stageT_branch2_out, heat_weight_input_hires, stages, 2)
 
     outputs.append(w1)
@@ -400,8 +525,9 @@ def get_testing_model(imszuse, nlimb=38, npts=19):
         x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
     # stage sn=stages
-    stageT_branch1_out = stageTdeconv_block(x, nlimb, stages, 1, None)
-    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, None)
+    # AL: passing None into weight_decay(s) doesn't make sense; since it's the test model it's prob ok
+    stageT_branch1_out = stageTdeconv_block(x, nlimb, stages, 1, None, None)
+    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, None, None)
 
     model = Model(inputs=[img_input], outputs=[stageT_branch1_out, stageT_branch2_out])
 
@@ -786,6 +912,7 @@ def training(conf,name='deepnet'):
     model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     model = get_training_model(imszuse,
                                weight_decay,
+                               conf.weight_decay_kernel_dc,
                                nlimbs=len(conf.op_affinity_graph) * 2,
                                npts=conf.n_classes)
 
