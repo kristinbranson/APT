@@ -1,7 +1,8 @@
 import run_apt_expts as rae
 reload(rae)
-rae.setup('stephen')
-rae.get_normal_results()
+rae.setup('romain',0)
+rae.get_cv_results(num_splits=6)
+
 
 
 ##

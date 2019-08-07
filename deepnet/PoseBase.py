@@ -114,7 +114,7 @@ class PoseBase(PoseCommon):
 
         conf = self.conf
         hmaps_rescale = self.hmaps_downsample
-        hsz = [ math.ceil(i // conf.rescale,hmaps_rescale) for i in conf.imsz]
+        hsz = [ math.ceil( (i // conf.rescale)/hmaps_rescale) for i in conf.imsz]
         # Creates prediction heatmaps by placing gaussians with sigma label_blur_rad at location locs.
         hmaps = PoseTools.create_label_images(locs/hmaps_rescale, hsz, 1, conf.label_blur_rad)
         return [hmaps]
