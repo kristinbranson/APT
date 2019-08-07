@@ -51,6 +51,10 @@ def main():
     parser.add_argument("--splitframes",
                         help="Number of frames to track in each job. If 0, track all frames in one job.",
                         default=0,metavar="SPLITFRAMES",type=int)
+    parser.add_argument("--nframes",
+                        help="Number of frames in the video. If 0, use GetMovieNFrames to count.",
+                        default=0,metavar="NFRAMES",type=int)
+
     parser.add_argument("--startjob",help="Which job of split tracking to start on. Default = 0. This parameter is only relevant if tracking with splitframes parameter specified.",default=0)
     parser.add_argument("--endjob",
                         help="Which job of split tracking to end on. Specify -1 to run all jobs. Default = -1. This parameter is only relevant if tracking with splitframes parameter specified.",
@@ -284,26 +288,32 @@ def main():
 
             if args.splitframes > 0:
 
-                if args.usecompiled:
-                    infocmd = [args.infobin,args.mcr,args.mov]
-                    s = subprocess.check_output(infocmd)
-                    p = re.compile('\n\d+$') # last number
-                    m = p.search(s)
-                    s = s[m.start()+1:-1]
+                if args.nframes > 0:
+                    
+                    nframes = args.nframes
 
                 else:
-                    infocmd = ['matlab','-nodisplay','-r',args.infobin+"'"+args.mov+"'"+MATLABCMDEND]
-                    s = my_check_output(infocmd,timeout=20)
-                    p = re.compile('\n\d+\n') # number surrounded by \n's
-                    m = p.search(s)
-                    #pdb.set_trace()
-                    if m is None:
-                        raise(RuntimeError,'Could not parse number of frames from MATLAB output')
-                    s = s[m.start()+1:m.end()-1]
 
-                #print("REMOVE THIS!!")
-                #nframes = 85934
-                nframes = int(s)
+                    if args.usecompiled:
+                        infocmd = [args.infobin,args.mcr,args.mov]
+                        s = subprocess.check_output(infocmd)
+                        p = re.compile('\n\d+$') # last number
+                        m = p.search(s)
+                        s = s[m.start()+1:-1]
+
+                    else:
+                        infocmd = ['matlab','-nodisplay','-r',args.infobin+"'"+args.mov+"'"+MATLABCMDEND]
+                        s = my_check_output(infocmd,timeout=20)
+                        p = re.compile('\n\d+\n') # number surrounded by \n's
+                        m = p.search(s)
+                        #pdb.set_trace()
+                        if m is None:
+                            raise(RuntimeError,'Could not parse number of frames from MATLAB output')
+                        s = s[m.start()+1:m.end()-1]
+
+                    #print("REMOVE THIS!!")
+                    #nframes = 85934
+                    nframes = int(s)
                 njobs = np.maximum(1,np.round(nframes/args.splitframes))
                 jobstarts = np.round(np.linspace(1,nframes+1,njobs+1)).astype(int)
                 jobends = jobstarts[1:]-1
