@@ -296,6 +296,7 @@ def main():
                     s = my_check_output(infocmd,timeout=20)
                     p = re.compile('\n\d+\n') # number surrounded by \n's
                     m = p.search(s)
+                    #pdb.set_trace()
                     if m is None:
                         raise(RuntimeError,'Could not parse number of frames from MATLAB output')
                     s = s[m.start()+1:m.end()-1]
@@ -332,7 +333,7 @@ def main():
                         rawtrkname='%s/%s_%s_%s'%(outdiruse,moviestr,projstr,jobidcurr)
                     else:
                         rawtrkname = '%s/%s_%s_%s'%(moviedir,moviestr,projstr,jobidcurr)
-                    pdb.set_trace()
+                    #pdb.set_trace()
                     cmdcurr = makecmd(['startFrame',jobstarts[jobi],'endFrame',jobends[jobi],'rawtrkname',rawtrkname],cmd,usecompiled=args.usecompiled)
                     #cmdcurr = "%s startFrame %d endFrame %d rawtrkname %s"%(cmd,jobstarts[jobi],jobends[jobi],rawtrkname)
                     shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
@@ -345,7 +346,7 @@ def main():
 
                     infoline = "%d,%s,%s,%d,%d,%s,%s,%s,%s\n"%(jobi,args.mov,trxFile,jobstarts[jobi],jobends[jobi],jobidcurr,rawtrkname,shfilecurr,logfilecurr)
                     f.write(infoline)
-                    pdb.set_trace()
+                    #pdb.set_trace()
                     gencode(shfilecurr,jobidcurr,args,cmdcurr)
 
                     # submit

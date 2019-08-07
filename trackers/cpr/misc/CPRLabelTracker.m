@@ -1735,7 +1735,7 @@ classdef CPRLabelTracker < LabelTracker
       % tblMFT: MFtable. Req'd flds: MFTable.ID.
       
       [movChunkSize,parChunkSize,minChunksPar,useParFor,p0DiagImg,wbObj,...
-        forceMovChunkSize] = myparse(varargin,...
+        forceMovChunkSize,forceUseParFor] = myparse(varargin,...
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'parChunkSize',50, ... % size of batch for each iteration of a parfor loop
         'minChunksPar',2,...
@@ -1744,7 +1744,8 @@ classdef CPRLabelTracker < LabelTracker
         'wbObj',[], ... % WaitBarWithCancel. If cancel:
                    ... %  1. .lObj.preProcData might be cleared
                    ... %  2. tracking results may be partally updated
-        'forceMovChunkSize',[]...
+        'forceMovChunkSize',[],...
+        'forceUseParFor',[]...
         );
       tfWB = ~isempty(wbObj);
       
@@ -1775,6 +1776,9 @@ classdef CPRLabelTracker < LabelTracker
         if ~license('test','distrib_computing_toolbox') || maxNumCompThreads == 1,
           useParFor = false;
         end
+      end
+      if ~isempty(forceUseParFor),
+        useParFor = forceUseParFor;
       end
       
       fprintf('useParFor = %d\n',useParFor);
