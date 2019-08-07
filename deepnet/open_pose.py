@@ -734,7 +734,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         base_locs = np.array(all_infered)*conf.op_rescale
         nanidx = np.isnan(base_locs)
         base_locs[nanidx] = raw_locs[nanidx]
-        base_locs = raw_locs
+#        base_locs = raw_locs
         ret_dict = {}
         ret_dict['locs'] = base_locs
         ret_dict['hmaps'] = pred
