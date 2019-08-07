@@ -214,7 +214,7 @@ def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
 def plot_results(data_in,ylim=None,xlim=None):
     import Tkinter
     try:
-        plot_results1(data_in,ylim,xlim)
+        return plot_results1(data_in,ylim,xlim)
     except Tkinter.TclError:
         pass
 
@@ -251,12 +251,13 @@ def plot_results1(data_in,ylim=None,xlim=None):
         leg.append('{}'.format(k))
         ax[-1].plot([0, 1], [0, 1], color=cc[idx, :])
     ax[-1].legend(leg)
+    return f
 
 
 def plot_hist(in_exp, ps = [50,75,90,95],cmap=None):
     import Tkinter
     try:
-        plot_hist1(in_exp,ps,cmap)
+        return plot_hist1(in_exp,ps,cmap)
     except Tkinter.TclError:
         pass
 
