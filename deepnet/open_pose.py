@@ -1,6 +1,7 @@
 from keras.models import Model
 from keras.layers.merge import Concatenate
 from keras.layers import Activation, Input, Lambda
+from keras.layers import subtract as Subtract
 from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import Conv2DTranspose
 from keras.layers.pooling import MaxPooling2D
@@ -133,9 +134,11 @@ def upsample_filt(alg='nn', dtype=None):
         assert False
     return x
 
-def upsample_initializer(shape, alg='nn', dtype=None):
-    print "upsample initializer desired shape: {}".format(shape)
 
+def upsample_init_value(shape, alg='nn', dtype=None):
+    # Return numpy array for initialization value
+
+    print "upsample initializer desired shape: {}".format(shape)
     f = upsample_filt(alg, dtype)
 
     filtnr, filtnc, kout, kin = shape
@@ -148,8 +151,12 @@ def upsample_initializer(shape, alg='nn', dtype=None):
     for i in range(kout):
         xinit[:, :, i, i] = f
 
-    return K.variable(value=xinit, dtype=dtype)
+    return xinit
 
+
+def upsample_initializer(shape, alg='nn', dtype=None):
+    xinit = upsample_init_value(shape, alg, dtype)
+    return K.variable(value=xinit, dtype=dtype)
 # could use functools.partial etc
 def upsamp_init_nn(shape, dtype=None):
     return upsample_initializer(shape, 'nn', dtype)
@@ -180,6 +187,18 @@ def get_model_memory_usage(batch_size, model):
     return gbytes
 
 
+def make_kernel_regularizer(kinit, kweightdecay):
+    # kinit: numpy array with initial value of tensor
+
+    k0 = K.constant(kinit)
+
+    def reg(wmat):
+        assert k0.shape.as_list() == wmat.shape.as_list()
+        return kweightdecay * K.sum(K.square(Subtract([k0, wmat])))
+
+    return reg
+
+
 def relu(x): return Activation('relu')(x)
 
 def conv(x, nf, ks, name, weight_decay):
@@ -194,13 +213,27 @@ def conv(x, nf, ks, name, weight_decay):
     return x
 
 
-def deconv_2x_upsampleinit(x, nf, ks, name, wd):
-    # init around upsampling;
-    # turn off weight decay
-    # TODO: custom weight decay around upsample-init
+def deconv_2x_upsampleinit(x, nf, ks, name, wd, wdmode):
+    # init around upsampling
+    #
+    # wd: None, or [2]: kernel, then bias weight decay
+    # wdmode: 0 'aroundzero' or  1 'aroundinit'
 
-    kernel_reg = l2(wd[0]) if wd else None
-    bias_reg = l2(wd[1]) if wd else None
+    assert ks == 4, "Filtersize must be 4, using upsamp_init_bl"
+    # nf must also equal number of channels in x
+
+    if wdmode == 0:  # 'aroundzero':
+        kernel_reg = l2(wd[0]) if wd else None
+        bias_reg = l2(wd[1]) if wd else None
+        logging.info("Deconv: regularization around zero with weights {}".format(wd))
+    elif wdmode == 1:  # 'aroundinit'
+        kshape = (ks, ks, nf, nf)
+        kinit = upsample_init_value(kshape, 'bl')
+        kernel_reg = make_kernel_regularizer(kinit, wd[0])
+        bias_reg = l2(wd[1]) if wd else None
+        logging.info("Deconv: regulization around init with weights {}".format(wd))
+    else:
+        assert False
 
     x = Conv2DTranspose(nf, (ks, ks), strides=2,
                         padding='same', name=name,
@@ -208,7 +241,7 @@ def deconv_2x_upsampleinit(x, nf, ks, name, wd):
                         bias_regularizer=bias_reg,
                         kernel_initializer=upsamp_init_bl,
                         bias_initializer=constant(0.0))(x)
-    logging.info("Using deconv w/init around upsample.")
+    logging.info("Using 2xdeconv w/init around upsample, wdmode={}, wd={}.".format(wdmode, wd))
 
     return x
 
@@ -323,19 +356,22 @@ def stageT_block(x, num_p, stage, branch, weight_decay):
     return x
 
 
-def stageTdeconv_block(x, num_p, stage, branch, weight_decay, weight_decay_dc):
+def stageTdeconv_block(x, num_p, stage, branch, weight_decay, weight_decay_dc, weight_decay_mode):
     x = conv(x, 128, 7, "Mconv1_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
     x = conv(x, 128, 7, "Mconv2_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
     #x = deconv_2x(x, 128, 4, "Mdeconv3_stage%d_L%d" % (stage, branch), (weight_decay, 0))
-    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv3_stage%d_L%d" % (stage, branch), (weight_decay_dc, 0))
+    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv3_stage%d_L%d" % (stage, branch),
+                               (weight_decay_dc, 0), weight_decay_mode)
     x = relu(x)
     #x = deconv_2x(x, 128, 4, "Mdeconv4_stage%d_L%d" % (stage, branch), (weight_decay, 0))
-    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv4_stage%d_L%d" % (stage, branch), (weight_decay_dc, 0))
+    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv4_stage%d_L%d" % (stage, branch),
+                               (weight_decay_dc, 0), weight_decay_mode)
     x = relu(x)
     #x = deconv_2x(x, 128, 4, "Mdeconv5_stage%d_L%d" % (stage, branch), (weight_decay, 0))
-    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv5_stage%d_L%d" % (stage, branch), (weight_decay_dc, 0))
+    x = deconv_2x_upsampleinit(x, 128, 4, "Mdeconv5_stage%d_L%d" % (stage, branch),
+                               (weight_decay_dc, 0), weight_decay_mode)
     x = relu(x)
     x = conv(x, 128, 1, "Mconv6_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
@@ -386,7 +422,8 @@ def runtoy():
 
 
 
-def get_training_model(imszuse, weight_decay, weight_decay_kernel_dc, nlimbs=38, npts=19):
+def get_training_model(imszuse, weight_decay, weight_decay_kernel_dc, weight_decay_dc_mode,
+                       nlimbs=38, npts=19):
     '''
 
     :param imszuse: (imnr, imnc) raw image size, possibly adjusted to be 0 mod 8
@@ -464,10 +501,12 @@ def get_training_model(imszuse, weight_decay, weight_decay_kernel_dc, nlimbs=38,
         x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
     # stage sn=stages
-    stageT_branch1_out = stageTdeconv_block(x, nlimbs, stages, 1, weight_decay, weight_decay_kernel_dc)
+    stageT_branch1_out = stageTdeconv_block(x, nlimbs, stages, 1, weight_decay,
+                                            weight_decay_kernel_dc, weight_decay_dc_mode)
     w1 = apply_mask(stageT_branch1_out, vec_weight_input_hires, stages, 1)
     # stage SN - branch 2 (confidence maps)
-    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, weight_decay, weight_decay_kernel_dc)
+    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, weight_decay,
+                                            weight_decay_kernel_dc, weight_decay_dc_mode)
     w2 = apply_mask(stageT_branch2_out, heat_weight_input_hires, stages, 2)
 
     outputs.append(w1)
@@ -526,8 +565,8 @@ def get_testing_model(imszuse, nlimb=38, npts=19):
 
     # stage sn=stages
     # AL: passing None into weight_decay(s) doesn't make sense; since it's the test model it's prob ok
-    stageT_branch1_out = stageTdeconv_block(x, nlimb, stages, 1, None, None)
-    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, None, None)
+    stageT_branch1_out = stageTdeconv_block(x, nlimb, stages, 1, None, None, 0)
+    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, None, None, 0)
 
     model = Model(inputs=[img_input], outputs=[stageT_branch1_out, stageT_branch2_out])
 
@@ -913,6 +952,7 @@ def training(conf,name='deepnet'):
     model = get_training_model(imszuse,
                                weight_decay,
                                conf.weight_decay_kernel_dc,
+                               conf.weight_decay_dc_mode,
                                nlimbs=len(conf.op_affinity_graph) * 2,
                                npts=conf.n_classes)
 

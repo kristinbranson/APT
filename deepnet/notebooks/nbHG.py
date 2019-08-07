@@ -20,9 +20,9 @@ all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'h
 #cache_dir = '/groups/branson/home/leea30/apt/posebase20190528/cache_20190702_hgrfn_long'
 #run_dir = '/groups/branson/home/leea30/apt/posebase20190528/out_20190702_hgrfn_long'
 #apt_deepnet_root = '/groups/branson/home/leea30/git/aptFtrDT/deepnet'
-cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cache20190721'
-run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190721'
-apt_deepnet_root = '/groups/branson/home/leea30/git/aptDev2019may/deepnet'
+cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cache20190806_60k_lbr3_initDCupsamp_custWD'
+run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190806_60k_lbr3_initDCupsamp_custWD'
+apt_deepnet_root = '/groups/branson/home/leea30/git/aptDev2/deepnet'
 
 lblbub = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
 lblsh = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20190402_dlstripped.lbl'
@@ -36,8 +36,8 @@ op_af_graph_bub = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9
 op_af_graph_bub_noslash = op_af_graph_bub.replace('\\', '')
 
 # nbHG.cv_train_from_mat(nbHG.lblbub,nbHG.cvibub,['openpose'])
-# nbHG.run_training(nbHG.lblbub,'cvi_outer3_easy__split0','bubdatatype','openpose',0,'submit')
-# nbHG.save_cv_results(nbHG.lblbub,0,'cvi_outer3_easy__split0','openpose',mdlS,nbHG.run_dir)
+# nbHG.run_training(nbHG.lblbub,'cvi_outer3_easy__split0','bub','openpose',0,'submit',**opts)
+# nbHG.save_cv_results(nbHG.lblbub,0,'cvi_outer3_easy__split0','openpose',mdlS,nbHG.run_dir,'bub')
 
 def read_cvinfo(lbl_file, cv_info_file, view=0):
     data_info = h5py.File(cv_info_file, 'r')
@@ -248,6 +248,18 @@ def save_cv_results(lbl_file, view, exp_name, net, model_file_short, out_dir, da
     with open(out_file, 'w') as f:
         pickle.dump(res, f)
     print "saved {}".format(out_file)
+
+def perfsingle(pfile,ptiles=[50, 90, 97, 98, 99]):
+    with open(pfile, 'r') as f:
+        res = pickle.load(f)
+    ptrk = res[0][0]
+    plbl = res[0][1]
+    #mft = res[0][2]
+    ntest = ptrk.shape[0]
+    err = np.sqrt(np.sum((ptrk - plbl) ** 2, 2))
+    ptls = np.percentile(err, ptiles, axis=0)
+    ptls = np.transpose(ptls)
+    return (ptls,ntest)
 
 
 def perf(out_dir, expname_pat_splits, num_splits, n_classes):
