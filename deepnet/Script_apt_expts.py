@@ -189,7 +189,7 @@ rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 ## results
 import run_apt_expts as rae
 reload(rae)
-rae.setup('romain','')
+rae.setup('romain')
 rae.get_cv_results(num_splits=6)
 
 
@@ -242,20 +242,22 @@ import run_apt_expts as rae
 reload(rae)
 import os
 import time
-rae.setup('alice','')
-for round in range(8):
-    rae.run_active_learning(round,'active')
-    rae.run_active_learning(round,'random')
-    active_model = '/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/active_round{}/deepnet-00020000.index'.format(round)
-    random_model = '/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/random_round{}/deepnet-00020000.index'.format(round)
+dtype = 'stephen'
+rae.setup(dtype)
+view = 0
+for r_round in range(15):
+    rae.run_active_learning(r_round,'active',view)
+    rae.run_active_learning(r_round,'random',view)
+    active_model = '/nrs/branson/mayank/apt_cache/{}/mdn/view_{}/active_round{}/deepnet-20000.index'.format(rae.proj_name,view,r_round)
+    random_model = '/nrs/branson/mayank/apt_cache/{}/mdn/view_{}/random_round{}/deepnet-20000.index'.format(rae.proj_name,view,r_round)
     while not (os.path.exists(active_model) and os.path.exists(random_model)):
         time.sleep(200)
 
 ## results
 import run_apt_expts as rae
 reload(rae)
-rae.setup('alice')
-rae.get_active_results()
+rae.setup('stephen',0)
+rae.get_active_results(num_rounds=15,view=1)
 
 
 ## Original DLC and Leap Training
@@ -275,6 +277,36 @@ for dd in dtypes:
     reload(rae)
     rae.setup(dd)
     rae.get_leap_results()
+
+
+## Alice active learning different conditions
+import h5py
+from scipy import io as sio
+A = sio.loadmat('/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_condinfo.mat')
+
+for cond in range(1,4):
+    selndx = A['label_cond'][:,0] == cond
+
+    import PoseTools as pt
+    B = {}
+    B['active'] = pt.pickle_load('/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/active_round0/deepnet_results.p')
+    B['random'] = pt.pickle_load('/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/random_round0/deepnet_results.p')
+
+
+
+    aa = {}
+    for tt in ['active','random']:
+        cur = B[tt][0]
+        for ndx in range(36):
+            cur[ndx][0] = cur[ndx][0][selndx,...]
+            cur[ndx][1] = cur[ndx][1][selndx,...]
+            cur[ndx][-1] = ndx
+        cur.insert(0,cur[0])
+        aa[tt] = cur
+
+    rae.plot_results(aa)
+    f = plt.gcf()
+    f.savefig('/groups/branson/home/kabram/temp/alice_active_cond{}.png'.format(cond))
 
 
 

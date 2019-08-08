@@ -1,9 +1,9 @@
 import run_apt_expts as rae
-dtypes = ['stephen']
-for dd in dtypes:
-    reload(rae)
-    rae.setup(dd)
-    rae.get_leap_results()
+reload(rae)
+rae.setup('romain',0)
+rae.get_cv_results(num_splits=6)
+
+
 
 ##
 import PoseTools

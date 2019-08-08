@@ -214,7 +214,7 @@ def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
 def plot_results(data_in,ylim=None,xlim=None):
     import Tkinter
     try:
-        plot_results1(data_in,ylim,xlim)
+        return plot_results1(data_in,ylim,xlim)
     except Tkinter.TclError:
         pass
 
@@ -251,12 +251,13 @@ def plot_results1(data_in,ylim=None,xlim=None):
         leg.append('{}'.format(k))
         ax[-1].plot([0, 1], [0, 1], color=cc[idx, :])
     ax[-1].legend(leg)
+    return f
 
 
 def plot_hist(in_exp, ps = [50,75,90,95],cmap=None):
     import Tkinter
     try:
-        plot_hist1(in_exp,ps,cmap)
+        return plot_hist1(in_exp,ps,cmap)
     except Tkinter.TclError:
         pass
 
@@ -308,10 +309,16 @@ def save_mat(out_exp,out_file):
             dd = {}
             dd[u'pred'] = c[0]
             dd[u'labels'] = c[1]
+            dd[u'info'] = np.array(c[2])
             dd[u'model_file'] = c[3]
             dd[u'model_timestamp'] = c[5]
             iter = int(re.search('-(\d*)', c[3]).groups(0)[0])
             dd[u'model_iter'] = iter
+            if type(c[4]) in [list,tuple]:
+                dd[u'mdn_pred'] = c[4][0][0]
+                dd[u'unet_pred'] = c[4][0][1]
+                dd[u'mdn_conf'] = c[4][0][2]
+                dd[u'unet_conf'] = c[4][0][3]
 
             all_dd.append(dd)
         out_arr[unicode(k)] = all_dd
@@ -342,7 +349,8 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
         if train_type in ['mdn','resnet_unet']:
             conf_opts['batch_size'] = 2
         elif train_type in ['unet']:
-            conf_opts['batch_size'] = 1
+            conf_opts['batch_size'] = 2
+            conf_opts['rescale'] = 2
         else:
             conf_opts['batch_size'] = 4
 
@@ -357,7 +365,7 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
             conf_opts['batch_size'] = 4
             conf_opts['rescale'] = 2
             conf_opts['mdn_use_unet_loss'] = True
-            conf_opts['mdn_learning_rate'] = 0.0001
+            # conf_opts['mdn_learning_rate'] = 0.0001
 
     if data_type == 'stephen':
         conf_opts['batch_size'] = 4
@@ -1371,6 +1379,7 @@ def get_incremental_results():
 
             for x, a in enumerate(mdn_out):
                 a[-1] = train_size[x]
+                a[2] = np.array(a[2])
             mdn_out.insert(0,mdn_out[0])
             inc_exp[train_type] = mdn_out
         all_view.append(inc_exp)
@@ -1444,6 +1453,8 @@ def get_cv_results(num_splits=None):
                 else:
                     A = PoseTools.pickle_load(out_file)
                     mdn_out = A[0]
+                    for m in mdn_out:
+                        m[2] = np.array(m[2])
                 if len(mdn_out) == 1:
                     mdn_out.append(mdn_out[0][:])
                     mdn_out.append(mdn_out[0][:])
@@ -1455,6 +1466,7 @@ def get_cv_results(num_splits=None):
                     for mndx in range(min(len(mdn_out),len(out_split))):
                         out_split[mndx][0] = np.append(out_split[mndx][0],mdn_out[mndx][0],axis=0)
                         out_split[mndx][1] = np.append(out_split[mndx][1],mdn_out[mndx][1],axis=0)
+                        out_split[mndx][2] = np.append(out_split[mndx][2],mdn_out[mndx][2],axis=0)
 
                 if ex_im is None:
                     db_file = os.path.join(mdn_conf.cachedir, 'val_TF.tfrecords')
@@ -1637,16 +1649,15 @@ def get_single_results():
     hdf5storage.savemat(os.path.join(cache_dir,'alice_single_vs_multiple_results.mat'), out_dict, truncate_existing=True)
 
 
-def run_active_learning(round_num,add_type='active'):
+def run_active_learning(round_num,add_type='active',view=0):
 
-    assert data_type is 'alice'
+    assert data_type in ['alice','stephen']
     import random
     import json
 
     n_add = 20
-    view = 0
     exp_name = 'active_round0'
-    c_conf = apt.create_conf(lbl_file, 0, exp_name, cache_dir, 'mdn')
+    c_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
     train_type = 'mdn'
     train_name = 'deepnet'
     common_conf['dl_steps'] = 20000
@@ -1677,7 +1688,7 @@ def run_active_learning(round_num,add_type='active'):
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_file)
 
-        run_trainining(exp_name,train_type,view=0,run_type='submit')
+        run_trainining(exp_name,train_type,view=view,run_type='submit')
 
     else:
 
@@ -1690,6 +1701,9 @@ def run_active_learning(round_num,add_type='active'):
 
         # find the worse validation examples
         prev_conf = apt.create_conf(lbl_file, view, prev_exp, cache_dir, train_type)
+        tfile = os.path.join(prev_conf.cachedir,'traindata')
+        A = PoseTools.pickle_load(tfile)
+        prev_conf = A[1]
         prev_splits = PoseTools.json_load(os.path.join(prev_conf.cachedir,'splitdata.json'))
         if op_af_graph is not None:
             prev_conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
@@ -1737,17 +1751,16 @@ def run_active_learning(round_num,add_type='active'):
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_split_file)
 
-        run_trainining(exp_name,train_type,view=0,run_type='submit')
+        run_trainining(exp_name,train_type,view=view,run_type='submit')
 
 
 
-def get_active_results(num_rounds=8):
+def get_active_results(num_rounds=8,view=0):
 
-    assert data_type is 'alice'
+    assert data_type in ['alice','stephen']
     import random
     import json
 
-    view = 0
     train_type = 'mdn'
     train_name = 'deepnet'
     gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
@@ -1792,7 +1805,11 @@ def get_active_results(num_rounds=8):
 
         if recomp:
             r_files = [f.replace('.index', '') for f in afiles]
-            mdn_out = apt_expts.classify_db_all(conf, gt_file, r_files, train_type, name=train_name)
+            tfile = os.path.join(conf.cachedir, 'traindata')
+            A = PoseTools.pickle_load(tfile)
+            use_conf = A[1]
+
+            mdn_out = apt_expts.classify_db_all(use_conf, gt_file, r_files, train_type, name=train_name)
             with open(out_file, 'w') as f:
                 pickle.dump([mdn_out, afiles], f)
         else:

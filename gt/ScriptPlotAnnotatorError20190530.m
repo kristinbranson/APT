@@ -57,6 +57,32 @@ lblfile = '/groups/branson/home/bransonk/tracking/code/APT/multitarget_bubble_ex
 maxerr = 30;
 
 
+%% images for overlaying percentile errors 
+
+lObj = StartAPT;
+lObj.projLoad(lblfile);
+
+% nets = {'openpose','leap','deeplabcut','unet','mdn'};
+% nnets = numel(nets);
+% minerr = 0;
+% maxerr = 50;
+% nbins = 100;
+% binedges = linspace(minerr,maxerr,nbins+1);
+% bincenters = (binedges(1:end-1)+binedges(2:end))/2;
+% markers = {'o','s','d','^'};
+%binedges(end) = inf;
+
+freezeInfo = lObj.prevAxesModeInfo;
+lpos = lObj.labeledpos{freezeInfo.iMov}(:,:,freezeInfo.frm,freezeInfo.iTgt);
+if freezeInfo.isrotated,
+  lpos = [lpos,ones(size(lpos,1),1)]*freezeInfo.A;
+  lpos = lpos(:,1:2);
+end
+assert(all(~isnan(lpos(:))));
+ptcolors = lObj.LabelPointColors;
+
+
+
 %% load in data
 gtimdata = load(gtimagefile);
 conddata = load(condinfofile);
@@ -112,32 +138,11 @@ end
 conddata.data_cond = conddata.data_cond(gtidx,:);
 conddata.label_cond = conddata.label_cond(gtidx,:);
 
+saveannoterrdata = struct;
+saveannoterrdata.inter = annoterrdata.Alice;
+saveannoterrdata.intra = annoterrdata.Austin;
 
-
-%% images for overlaying percentile errors 
-
-lObj = StartAPT;
-lObj.projLoad(lblfile);
-
-% nets = {'openpose','leap','deeplabcut','unet','mdn'};
-% nnets = numel(nets);
-% minerr = 0;
-% maxerr = 50;
-% nbins = 100;
-% binedges = linspace(minerr,maxerr,nbins+1);
-% bincenters = (binedges(1:end-1)+binedges(2:end))/2;
-% markers = {'o','s','d','^'};
-%binedges(end) = inf;
-
-freezeInfo = lObj.prevAxesModeInfo;
-lpos = lObj.labeledpos{freezeInfo.iMov}(:,:,freezeInfo.frm,freezeInfo.iTgt);
-if freezeInfo.isrotated,
-  lpos = [lpos,ones(size(lpos,1),1)]*freezeInfo.A;
-  lpos = lpos(:,1:2);
-end
-assert(all(~isnan(lpos(:))));
-ptcolors = lObj.LabelPointColors;
-
+save AnnotErrData20190614.mat -struct saveannoterrdata
 
 %% overlay error percentiles per part for last entry
 

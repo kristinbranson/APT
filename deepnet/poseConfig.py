@@ -14,7 +14,7 @@ class config(object):
     # ----- Network parameters
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
-        self.label_blur_rad = 3  # 1.5
+        self.label_blur_rad = 3.  # 1.5
 
         self.batch_size = 8
         self.view = 0

@@ -40,7 +40,11 @@ if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
-hfigsplash = splashScreen(handles);
+handles.labelerObj = varargin{1};
+
+if handles.labelerObj.isgui,
+  hfigsplash = splashScreen(handles);
+end
 
 handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
 handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
@@ -110,7 +114,6 @@ handles.tbTLSelectMode.BackgroundColor = PURP;
 
 handles.output = hObject;
 
-handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
 
 handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
@@ -538,10 +541,13 @@ handles.pumTrack.Callback = ...
 
 lObj = handles.labelerObj;
 
-handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,handles.axes_timeline_islabeled);
+handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,...
+  handles.axes_timeline_islabeled);
 
-set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),'Value',handles.labelTLInfo.curprop);
-set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),'Value',handles.labelTLInfo.curproptype);
+set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),...
+  'Value',handles.labelTLInfo.curprop);
+set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),...
+  'Value',handles.labelTLInfo.curproptype);
 
 % this is currently not used - KB made space here for training status
 %set(handles.txProjectName,'String','');
@@ -643,12 +649,16 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 EnableControls(handles,'tooltipinit');
 set(handles.figure,'Visible','on');
-RefocusSplashScreen(hfigsplash,handles);
+if handles.labelerObj.isgui,
+  RefocusSplashScreen(hfigsplash,handles);
+end
 
 LabelerTooltips(handles);
-RefocusSplashScreen(hfigsplash,handles);
-if ishandle(hfigsplash),
-  delete(hfigsplash);
+if handles.labelerObj.isgui,
+  RefocusSplashScreen(hfigsplash,handles);
+  if ishandle(hfigsplash),
+    delete(hfigsplash);
+  end
 end
 
 
@@ -656,6 +666,8 @@ ClearStatus(handles);
 EnableControls(handles,'noproject');
 
 guidata(hObject, handles);
+
+fprintf('Labeler GUI created.\n');
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
 % uiwait(handles.figure);
@@ -1054,9 +1066,11 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
     case 'leftarrow'
       if tfShift
         sam = lObj.movieShiftArrowNavMode;
-        [tffound,f] = sam.seekFrame(lObj,-1);
+        samth = lObj.movieShiftArrowNavModeThresh;
+        samcmp = lObj.movieShiftArrowNavModeThreshCmp;
+        [tffound,f] = sam.seekFrame(lObj,-1,samth,samcmp);
         if tffound
-          lObj.setFrameProtected(f);          
+          lObj.setFrameProtected(f);
         end
       else
         lObj.frameDown(tfCtrl);
@@ -1064,9 +1078,11 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
     case 'rightarrow'
       if tfShift
         sam = lObj.movieShiftArrowNavMode;
-        [tffound,f] = sam.seekFrame(lObj,1);
+        samth = lObj.movieShiftArrowNavModeThresh;
+        samcmp = lObj.movieShiftArrowNavModeThreshCmp;
+        [tffound,f] = sam.seekFrame(lObj,1,samth,samcmp);
         if tffound
-          lObj.setFrameProtected(f);          
+          lObj.setFrameProtected(f);
         end
       else
         lObj.frameUp(tfCtrl);
@@ -1887,6 +1903,7 @@ if tfTracker
   
   % FUTURE TODO, enable for DL
   handles.menu_track_training_data_montage.Enable = onOffCpr;
+  handles.menu_track_track_and_export.Enable = onOffCpr;
   isDL = ~iscpr;
   onOffDL = onIff(isDL);
   handles.menu_track_backend_config.Visible = onOffDL;
@@ -1985,13 +2002,34 @@ function cbkTrackerBackendTest(src,evt)
 
 handles = guidata(src);
 lObj = handles.labelerObj;
-switch lObj.trackDLBackEnd.type,
-  case DLBackEnd.Bsub,
-    lObj.tracker.testBsubConfig();
-  otherwise
-    msgbox(sprintf('Tests for %s have not been implemented',lObj.trackDLBackEnd.type),'Not implemented','modal');
-end
 
+cacheDir = lObj.DLCacheDir; 
+assert(exist(cacheDir,'dir')>0,...
+  'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
+
+be = lObj.trackDLBackEnd;
+be.testConfigUI(cacheDir);
+
+% % is APTCache set?
+% hedit.String{end+1} = ''; drawnow;
+% hedit.String{end+1} = '** Testing that Deep Track->Saving->CacheDir parameter is set...'; drawnow;
+% if isempty(cacheDir),
+%   hedit.String{end+1} = 'Deep Track->Saving->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
+%   return;
+% end
+% % does APTCache exist?
+% if ~exist(cacheDir,'dir'),
+%   hedit.String{end+1} = sprintf('Deep Track->CacheDir %s did not exist, trying to create it...',cacheDir); drawnow;
+%   [tfsucc1,msg1] = mkdir(cacheDir);
+%   if ~tfsucc1 || ~exist(cacheDir,'dir'),
+%     hedit.String{end+1} = sprintf('Deep Track->CacheDir %s could not be created: %s. Make sure you have access to %s, and/or set CacheDir to a different directory.',cacheDir,msg1,cacheDir); drawnow;
+%     return;
+%   end
+% end
+% hedit.String{end+1} = sprintf('Deep Track->Saving->CacheDir set to %s, and exists.',cacheDir); drawnow;
+% hedit.String{end+1} = 'SUCCESS!'; drawnow;
+      
+      
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
@@ -2039,7 +2077,6 @@ if ~isempty(tObj),
   tObj.updateTrackerInfo();
 end
 handles.labelTLInfo.setTracker(tObj);
-handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)
@@ -4308,15 +4345,15 @@ function pumInfo_labels_Callback(hObject, eventdata, handles)
 % Hints: contents = cellstr(get(hObject,'String')) returns pumInfo_labels contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from pumInfo_labels
 
-% s = get(hObject,'String');
-v = get(hObject,'Value');
-v2 = get(handles.pumInfo,'Value');
-s = handles.labelTLInfo.getPropsDisp(v);
-if v2 > numel(s),
-  v2 = 1;
+ipropType = get(hObject,'Value');
+% see also InfoTimeline/enforcePropConsistencyWithUI
+iprop = get(handles.pumInfo,'Value');
+props = handles.labelTLInfo.getPropsDisp(ipropType);
+if iprop > numel(props),
+  iprop = 1;
 end
-set(handles.pumInfo,'String',s,'Value',v2);
-handles.labelTLInfo.setCurPropType(v,v2);
+set(handles.pumInfo,'String',props,'Value',iprop);
+handles.labelTLInfo.setCurPropType(ipropType,iprop);
 
 
 % --- Executes during object creation, after setting all properties.

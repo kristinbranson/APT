@@ -249,6 +249,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def create_network(self):
 
+        if self.conf.get('mdn_use_full_regression',False):
+            return self.create_network_full()
+
         im, locs, info, hmap = self.inputs
         conf = self.conf
         in_sz = [int(sz//conf.rescale) for sz in conf.imsz]
@@ -600,6 +603,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             return [locs, scales, logits, dist]
 
 
+
     def get_var_list(self):
         var_list = tf.global_variables(self.net_name)
         var_list += tf.global_variables('resnet_')
@@ -872,6 +876,222 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         return pred_fn, close_fn, latest_model_file
 
+
+    def create_network_full(self):
+
+        im, locs, info, hmap = self.inputs
+        conf = self.conf
+        in_sz = [int(sz//conf.rescale) for sz in conf.imsz]
+        im.set_shape([conf.batch_size,
+                      in_sz[0] + self.pad_y,
+                      in_sz[1] + self.pad_x,
+                      conf.img_dim])
+        hmap.set_shape([conf.batch_size, in_sz[0], in_sz[1],conf.n_classes])
+        locs.set_shape([conf.batch_size, conf.n_classes,2])
+        info.set_shape([conf.batch_size,3])
+        if conf.img_dim == 1:
+            im = tf.tile(im,[1,1,1,3])
+
+        conv = lambda a, b: conv_relu3(
+            a,b,self.ph['phase_train'], keep_prob=None,
+            use_leaky=self.conf.unet_use_leaky)
+
+        def conv_nopad(x_in,n_filt):
+            in_dim = x_in.get_shape().as_list()[3]
+            kernel_shape = [3, 3, in_dim, n_filt]
+            weights = tf.get_variable("weights", kernel_shape,
+                                      initializer=tf.contrib.layers.xavier_initializer())
+            biases = tf.get_variable("biases", kernel_shape[-1],
+                                     initializer=tf.constant_initializer(0.))
+            conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
+            conv = batch_norm(conv, decay=0.99, is_training=self.ph['phase_train'])
+
+            if self.conf.unet_use_leaky:
+                return tf.nn.leaky_relu(conv + biases)
+            else:
+                return tf.nn.relu(conv + biases)
+
+        if self.resnet_source == 'slim':
+            with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+                if self.conf.get('mdn_slim_is_training',True):
+                    slim_is_training = self.ph['phase_train']
+                else:
+                    slim_is_training = False
+
+                output_stride =  self.conf.get('mdn_slim_output_stride',None)
+
+                net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=slim_is_training,output_stride=output_stride)
+                l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
+                           'block3/unit_5/bottleneck_v1']
+                if not self.no_pad: l_names.append('block4')
+                down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
+
+                # n_filts = [64, 64, 64, 128, 256, 512]
+                n_filts = [32, 64, 128, 256, 512, 1024]
+
+        elif self.resnet_source == 'official_tf':
+            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=17, num_filters=64, kernel_size=7,
+                                       conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3],
+                                       block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2,
+                                       data_format='channels_last', dtype=tf.float32)
+            resnet_out = mm(im, self.ph['phase_train'])
+            down_layers = mm.layers
+            down_layers.pop(2) # remove one of the layers of size imsz/4, imsz/4 at index 2
+            net = down_layers[-1]
+            n_filts = [32, 64, 64, 128, 256, 512, 1024]
+            # n_filts = [ 64, 64, 128, 256, 512, 1024]
+
+        if self.conf.mdn_use_unet_loss:
+            with tf.variable_scope(self.net_name + '_unet'):
+
+                # add an extra layer at input resolution.
+                if self.conf.get('mdn_unet_highres',False):
+                    ex_down_layers = conv(im, 32)
+                    down_layers.insert(0, ex_down_layers)
+                    skip_ndx = 0
+                else:
+                    skip_ndx = -1
+
+                prev_in = None
+                for ndx in reversed(range(len(down_layers))):
+                    # reverse the resnet's downsampling.
+
+                    if prev_in is None:
+                        X = down_layers[ndx]
+                    else:
+                        if self.no_pad:
+                            # crop down layers to match unpadded prev_in
+                            prev_sh = prev_in.get_shape().as_list()[1:3]
+                            d_sh = down_layers[ndx].get_shape().as_list()[1:3]
+                            d_y = (d_sh[0]- prev_sh[0])//2
+                            d_x = (d_sh[1]- prev_sh[1])//2
+                            d_l = down_layers[ndx][:,d_y:(prev_sh[0]+d_y),d_x:(prev_sh[1]+d_x),:]
+                            X = tf.concat([prev_in, d_l], axis=-1)
+                        else:
+                            X = tf.concat([prev_in, down_layers[ndx]],axis=-1)
+
+                    sc_name = 'layerup_{}_0'.format(ndx)
+                    with tf.variable_scope(sc_name):
+                        if self.no_pad:
+                            X = conv_nopad(X, n_filts[ndx])
+                        else:
+                            X = conv(X, n_filts[ndx])
+
+                    if ndx is not skip_ndx:
+                        sc_name = 'layerup_{}_1'.format(ndx)
+                        with tf.variable_scope(sc_name):
+                            if self.no_pad:
+                                X = conv_nopad(X, n_filts[ndx])
+                            else:
+                                X = conv(X, n_filts[ndx])
+
+                        if ndx > 0:
+                            layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
+                        else:
+                            layers_sz = in_sz
+
+                        with tf.variable_scope('u_{}'.format(ndx)):
+                             # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                            # upsample usin conv2d_transpose. Use identity as init weights.
+                           X_sh = X.get_shape().as_list()
+                           w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
+                           for wndx in range(X_sh[-1]):
+                               w_mat[:,:,wndx,wndx] = 1.
+                           w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
+                           if self.no_pad:
+                               out_shape = [X_sh[0],X_sh[1]*2+2,X_sh[2]*2+2,X_sh[-1]]
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,strides=[1, 2, 2, 1], padding="VALID")
+                           else:
+                               out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+                           biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+                           conv_b = X + biases
+
+                           bn = batch_norm(conv_b,is_training=self.ph['phase_train'],decay=0.99)
+                           X = tf.nn.relu(bn)
+
+                    prev_in = X
+
+                n_filt = X.get_shape().as_list()[-1]
+                n_out = self.conf.n_classes
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tf.contrib.layers.xavier_initializer())
+                biases = tf.get_variable("out_biases", n_out, initializer=tf.constant_initializer(0.))
+                conv_out = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
+                X = tf.add(conv_out, biases, name = 'unet_pred')
+                X_unet = 2*tf.sigmoid(X)-1
+                if self.no_pad:
+                    unet_sh = X_unet.get_shape().as_list()[1:3]
+                    out_sz = [y//self.conf.rescale for y in self.conf.imsz]
+                    crop_x = (unet_sh[1] - out_sz[1])//2
+                    crop_y = (unet_sh[0] - out_sz[0])//2
+                    X_unet = X_unet[:, crop_y:(crop_y + out_sz[0]), crop_x:(crop_x+out_sz[1]),:]
+
+            self.unet_pred = X_unet
+
+        X = net
+        n_mdn_out = 8
+        locs_offset = 1.
+        n_groups = len(self.conf.mdn_groups)
+        n_out = self.conf.n_classes
+        # self.offset = float(self.conf.imsz[0])/X.get_shape().as_list()[1]
+
+        with tf.variable_scope(self.net_name):
+            if self.conf.get('mdn_regularize_wt',False) is True:
+                wt_scale = self.conf.get('mdn_regularize_wt_scale',0.1)
+                wt_reg = tf.contrib.layers.l2_regularizer(scale=wt_scale)
+            else:
+                wt_reg = None
+
+            n_filt_in = X.get_shape().as_list()[3]
+            # downsample thrice
+            n_filt = 512
+            k_sz = 3
+            k = 8
+
+            loc_shape = X.get_shape().as_list()
+            n_x = loc_shape[2]
+            n_y = loc_shape[1]
+            x_off, y_off = np.meshgrid(np.arange(n_x), np.arange(n_y))
+            x_off = np.tile(x_off[np.newaxis,:,:,np.newaxis],[loc_shape[0],1,1,1])
+            y_off = np.tile(y_off[np.newaxis,:,:,np.newaxis], [loc_shape[0],1,1,1])
+            X = tf.concat([X, x_off, y_off], axis=-1)
+
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz, padding='same',kernel_regularizer=wt_reg)
+            X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
+            X = tf.nn.relu(X)
+
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz,2,padding='same', kernel_regularizer=wt_reg)
+            X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
+            X = tf.nn.relu(X)
+
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz, padding='same',kernel_regularizer=wt_reg)
+            X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
+            X = tf.nn.relu(X)
+
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz,2,padding='same', kernel_regularizer=wt_reg)
+            X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
+            X = tf.nn.relu(X)
+
+            X = tf.layers.conv2d(X, 2 * n_filt, k_sz, padding='same',kernel_regularizer=wt_reg)
+            X = tf.layers.batch_normalization(X, training=self.ph['phase_train'])
+            X = tf.nn.relu(X)
+
+            # if self.conf.get('mdn_full_reg_global_mean',True):
+            X = tf.reduce_mean(X,[1,2])
+
+            mdn_l = tf.keras.layers.Dense(k*n_out*2)(X)
+            locs = tf.reshape(mdn_l, [-1, k, n_out, 2], name='locs_final')
+
+            mdn_s = tf.keras.layers.Dense(k*n_out)(X)
+            scales = tf.reshape(mdn_s, [-1, k, n_out], name='sigma_final')
+
+            mdn_w = tf.keras.layers.Dense(k * n_groups)(X)
+            logits = tf.reshape(mdn_w, [-1, k, n_groups], name='weights_final')
+
+            mdn_d = tf.keras.layers.Dense(k * n_out)(X)
+            dist = tf.reshape(mdn_d, [-1, k, n_out], name='dist_final')
+
+            return [locs, scales, logits, dist]
 
 
     def classify_val(self, model_file=None, onTrain=False,do_unet=False):

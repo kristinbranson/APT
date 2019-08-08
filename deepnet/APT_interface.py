@@ -1327,6 +1327,10 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
     bsize = conf.batch_size
     all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
     pred_locs = np.zeros([n, conf.n_classes, 2])
+    mdn_locs = np.zeros([n, conf.n_classes, 2])
+    unet_locs = np.zeros([n, conf.n_classes, 2])
+    mdn_conf = np.zeros([n, conf.n_classes])
+    unet_conf = np.zeros([n, conf.n_classes])
     n_batches = int(math.ceil(float(n) / bsize))
     labeled_locs = np.zeros([n, conf.n_classes, 2])
     info = []
@@ -1343,52 +1347,67 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
         # base_locs, hmaps = pred_fn(all_f)
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict['locs']
-        hmaps = ret_dict['hmaps']
 
         for ndx in range(ppe):
             pred_locs[cur_start + ndx, ...] = base_locs[ndx, ...]
+            if ret_dict.has_key('locs_mdn'):
+                mdn_locs[cur_start + ndx, ...] = ret_dict['locs_mdn'][ndx,...]
+                unet_locs[cur_start + ndx, ...] = ret_dict['locs_unet'][ndx, ...]
+                mdn_conf[cur_start + ndx, ...] = ret_dict['conf'][ndx, ...]
+                unet_conf[cur_start + ndx, ...] = ret_dict['conf_unet'][ndx, ...]
             if return_ims:
                 all_ims[cur_start + ndx, ...] = all_f[ndx, ...]
 
     if return_ims:
         return pred_locs, labeled_locs, info, all_ims
     else:
-        return pred_locs, labeled_locs, info
+        return pred_locs, labeled_locs, info, [mdn_locs,unet_locs,mdn_conf,unet_conf]
 
 
 def classify_db_all(model_type, conf, db_file, model_file=None):
     ''' Classifies examples in DB'''
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
+
     if model_type == 'openpose':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'unet':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'mdn':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'leap':
         leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        pred_fn, close_fn, latest_model_file = leap.training.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, leap_gen, pred_fn, n)
+        ret = classify_db(conf, leap_gen, pred_fn, n)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
     elif model_type == 'deeplabcut':
         read_fn, n = deepcut.train.get_read_fn(conf, db_file)
-        pred_fn, close_fn, latest_model_file = deepcut.train.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, n)
+        ret = classify_db(conf, read_fn, pred_fn, n)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
     else:
-        raise ValueError('Undefined model type')
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
+
+        # raise ValueError('Undefined model type')
 
     return pred_locs, label_locs, info
 
@@ -1979,6 +1998,9 @@ def parse_args(argv):
 
     parser_model = subparsers.add_parser('model_files', help='prints the list of model files')
 
+    parser_test = subparsers.add_parser('test', help='Perform tests')
+    parser_test.add_argument('testrun', choices=['hello'], help="Test to run")
+
     print(argv)
     args = parser.parse_args(argv)
     if args.view is not None:
@@ -1989,11 +2011,14 @@ def parse_args(argv):
         args.start_frame = to_py(args.start_frame)
         args.crop_loc = to_py(args.crop_loc)
 
-    net_type = get_net_type(args.lbl_file)
-    # command line has precedence over the one in label file.
-    if args.type is None and net_type is not None:
-        logging.info("No network type specified on command line or in the lbl file. Selecting MDN")
-        args.type = 'mdn'
+    if args.sub_name != 'test':
+        net_type = get_net_type(args.lbl_file)
+        # command line has precedence over the one in label file.
+        if args.type is None and net_type is not None:
+            # AL20190719: don't understand this, in this branch the net_type was found in the lbl file?
+            # Shouldn't we be using/assigning to net_type here.
+            logging.info("No network type specified on command line or in the lbl file. Selecting MDN")
+            args.type = 'mdn'
     return args
 
 def run(args):
@@ -2153,10 +2178,12 @@ def run(args):
                 else:
                     raise ValueError('Unrecognized net type')
                 db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file)
-            A = convert_to_orig_list(conf,preds,locs, info)
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
-            preds, locs = to_mat(A)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            # preds, locs = to_mat(A)
             hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list':info},appendmat=False,truncate_existing=True)
 
     elif args.sub_name == 'model_files':
@@ -2173,6 +2200,10 @@ def run(args):
 
 def main(argv):
     args = parse_args(argv)
+
+    if args.sub_name == 'test':
+        print("Hello this is APT!")
+        return
 
     log_formatter = logging.Formatter('%(asctime)s %(pathname)s %(funcName)s [%(levelname)-5.5s] %(message)s')
 

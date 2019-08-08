@@ -28,22 +28,12 @@ classdef LabelTracker < handle
   % will need to be replaced with some other ID mechanism (eg a uuid or 
   % 2-ple ID etc.
   
-%   properties (Constant)
-%     % Known concrete LabelTrackers
-%     subclasses = {...
-%       'Interpolator'
-%       'SimpleInterpolator'
-%       'GMMTracker'
-%       'CPRLabelTracker'
-%       };
-%   end
-  
   properties (Abstract)
     algorithmName % char
     trackerInfo; % struct with whatever information we want to save about the current tracker. 
   end  
   
-  properties    
+  properties
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
     ax % axis for viewing tracking results
@@ -64,18 +54,9 @@ classdef LabelTracker < handle
     hideViz = false; % scalar logical. If true, hide visualizations
   end
   
-  properties (Constant)
-    APT_DEFAULT_TRACKERS = {
-      {'CPRLabelTracker'}
-      {'DeepTracker' 'trnNetType' DLNetType.mdn}
-      {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
-      {'DeepTracker' 'trnNetType' DLNetType.unet}
-      {'DeepTracker' 'trnNetType' DLNetType.openpose}
-      {'DeepTracker' 'trnNetType' DLNetType.leap}
-      };
-    INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
-    DeepTrackerAlgorithmNames = {'mdn','deeplabcut','unet'};    
-  end
+%   properties (Constant)    
+%     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
+%   end
       
   methods
     
@@ -121,15 +102,8 @@ classdef LabelTracker < handle
       if ~isempty(obj.hLMoviesReordered)
         delete(obj.hLMoviesReordered);
       end      
-    end
-    
-	% is the current tracking algorithm a DL algorithm?
-    function v = isDeepTracker(obj)
-      
-      v = ismember(obj.algorithmName,LabelTracker.DeepTrackerAlgorithmNames);
-      
-    end
-    
+    end    
+	
   end
   
   methods
@@ -137,18 +111,7 @@ classdef LabelTracker < handle
     function initHook(obj) %#ok<*MANU>
       % Called when a new project is created/loaded, etc
     end
-    
-%     function setParamHook(obj)
-%       % Called when a new parameter file is specified
-%       
-%       % See setParams.
-%     end
-%     
-%     function setParams(obj,sPrm)
-%       % Directly set params. Note, methods .setParamFile and .setParams
-%       % "overlap". Subclasses should do something intelligent.
-%     end
-    
+        
     function sPrm = getParams(obj)
       sPrm = struct();
     end
@@ -207,14 +170,18 @@ classdef LabelTracker < handle
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
-    function tpos = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       % This is a convenience method as it is a special case of 
       % getTrackingResults. Concrete LabelTrackers will also typically have 
       % the current movie's tracking results cached.
       % 
       % tpos: [npts d nfrm ntgt], or empty/[] will be accepted if no
       % results are available. 
+      % taux: [npts nfrm ntgt naux], or empty/[]
+      % tauxlbl: [naux] cellstr 
       tpos = [];
+      taux = [];
+      tauxlbl = cell(0,1);
     end
       
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
@@ -334,12 +301,7 @@ classdef LabelTracker < handle
   methods % For infotimeline display
     
     function props = propList(obj)
-      %props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
-      if isempty(obj.INFOTIMELINE_PROPS_TRACKER),
-        props = {};
-      else
-        props = {obj.INFOTIMELINE_PROPS_TRACKER.name};
-      end
+      props = EmptyLandmarkFeatureArray();
     end
     
     function data = getPropValues(obj,prop)
@@ -352,7 +314,7 @@ classdef LabelTracker < handle
       ntgts = labeler.nTargets;
       iTgt = labeler.currTarget;
       iMov = labeler.currMovie;
-      tpos = obj.getTrackingResultsCurrMovie();
+      [tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovie();
       
       needtrx = obj.lObj.hasTrx && strcmpi(prop.coordsystem,'Body');
       if needtrx,
@@ -368,11 +330,32 @@ classdef LabelTracker < handle
         tpos = nan(npts,2,nfrms,ntgts);
       end
       
-      if ismember(prop.code,{obj.INFOTIMELINE_PROPS_TRACKER.code}),
-        error('Not implemented');
+      plist = obj.propList();
+      plistcodes = {plist.code}';
+      tfaux = any(strcmp(prop.code,plistcodes));
+      if tfaux
+        iaux = find(strcmp(tauxlbl,prop.feature));
+        assert(isscalar(iaux));
+        data = taux(:,:,iTgt,iaux);
+        
+        % cf ComputeLandmarkFeatureFromPos
+        if strcmpi(prop.transform,'none')
+          % none; data unchanged
+        else
+          fun = sprintf('compute_landmark_transform_%s',prop.transform);
+          if ~exist(fun,'file'),
+            warningNoTrace('Unknown property transformation ''%s'' for timeline display.',...
+              prop.transform);
+            % data unchanged
+          else
+            data = feval(fun,struct('data',data));
+            data = data.data;
+          end
+        end
       else      
         tpostag = false(npts,nfrms,ntgts);
-        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),tpostag(:,:,iTgt),bodytrx,prop);
+        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),...
+          tpostag(:,:,iTgt),bodytrx,prop);
       end
     end
     
@@ -410,22 +393,24 @@ classdef LabelTracker < handle
       end
     end
     
+    function info = getAllTrackersCreateInfo
+      
+      dlnets = enumeration('DLNetType');
+      info = [
+        {{'CPRLabelTracker'}}
+        arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0)
+        ];
+
+%       APT_DEFAULT_TRACKERS = {
+%         {'CPRLabelTracker'}
+%         {'DeepTracker' 'trnNetType' DLNetType.mdn}
+%         {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
+%         {'DeepTracker' 'trnNetType' DLNetType.unet}
+%         {'DeepTracker' 'trnNetType' DLNetType.openpose}
+%         {'DeepTracker' 'trnNetType' DLNetType.leap}
+%         };
+    end
+    
   end
-%     
-%     function sc = findAllSubclasses
-%       % sc: cellstr of LabelTracker subclasses in APT.Root
-%       
-%       scnames = LabelTracker.subclasses; % candidates
-%       nSC = numel(scnames);
-%       tf = false(nSC,1);
-%       for iSC=1:nSC
-%         name = scnames{iSC};
-%         mc = meta.class.fromName(name);
-%         tf(iSC) = ~isempty(mc) && any(strcmp('LabelTracker',{mc.SuperclassList.Name}));
-%       end
-%       sc = scnames(tf);
-%     end
-%     
-%   end
   
 end

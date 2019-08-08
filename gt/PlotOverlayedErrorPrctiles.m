@@ -17,7 +17,7 @@ function [hfigs,savenames,errprctilespts] = PlotOverlayedErrorPrctiles(varargin)
 
 assert(~isempty(freezeInfo));
 assert(~isempty(lpos));
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 if isempty(nets),
   assert(~isempty(gtdata));
@@ -42,6 +42,9 @@ end
 if isempty(conddata),
   ndatatypes = 1;
   nlabeltypes = 1;
+else
+  ndatatypes = max(conddata.data_cond);
+  nlabeltypes = max(conddata.label_cond);
 end
 if isempty(labeltypes),
   labeltypes = cell(nlabeltypes,2);

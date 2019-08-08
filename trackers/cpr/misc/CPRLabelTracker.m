@@ -653,7 +653,17 @@ classdef CPRLabelTracker < LabelTracker
       Dfull = mdlPrms.nfids*mdlPrms.nviews*mdlPrms.d;
       Tp1 = obj.sPrm.Reg.T+1;
       szassert(pTstTRed,[nTst Dfull]);
-      szassert(pTstT,[nTst RT Dfull Tp1]);
+      % KB 20190805: only store data that is used. 
+      if obj.storeFullTracking == StoreFullTrackingType.ALLITERS,
+        szassert(pTstT,[nTst RT Dfull Tp1]);
+        Tp1x = Tp1;
+      elseif obj.storeFullTracking == StoreFullTrackingType.FINALITER,
+        pTstT = pTstT(:,:,:,end);
+        szassert(pTstT,[nTst RT Dfull])
+        Tp1x = 1;
+      else
+        Tp1x = 0;
+      end
       
       tfROI = tblfldscontains(tblMFtrk,'roi');
       if tfROI
@@ -667,13 +677,15 @@ classdef CPRLabelTracker < LabelTracker
         xyTmp = permute(xyTmp,[3 1 2]);
         pTstTRed = reshape(xyTmp,[nTst Dfull]);
         
-        xyTmp = reshape(pTstT,[nTst RT npts 2 Tp1]);
-        xyTmp = permute(xyTmp,[3 4 1 2 5]); % [npts 2 nTst RT Tp1]
-        xyTmp = reshape(xyTmp,[npts 2 nTst*RT*Tp1]);
-        xyTmp = Shape.xyRoi2xy(xyTmp,repmat(tblMFtrk.roi,RT*Tp1,1));
-        xyTmp = reshape(xyTmp,[npts 2 nTst RT Tp1]);
-        xyTmp = permute(xyTmp,[3 4 1 2 5]); % [nTst RT npts 2 Tp1]
-        pTstT = reshape(xyTmp,[nTst RT Dfull Tp1]);
+        if obj.storeFullTracking ~= StoreFullTrackingType.NONE,
+          xyTmp = reshape(pTstT,[nTst RT npts 2 Tp1x]);
+          xyTmp = permute(xyTmp,[3 4 1 2 5]); % [npts 2 nTst RT Tp1]
+          xyTmp = reshape(xyTmp,[npts 2 nTst*RT*Tp1x]);
+          xyTmp = Shape.xyRoi2xy(xyTmp,repmat(tblMFtrk.roi,RT*Tp1x,1));
+          xyTmp = reshape(xyTmp,[npts 2 nTst RT Tp1x]);
+          xyTmp = permute(xyTmp,[3 4 1 2 5]); % [nTst RT npts 2 Tp1]
+          pTstT = reshape(xyTmp,[nTst RT Dfull Tp1x]);
+        end
       end
 
       if ~isempty(obj.trkP)
@@ -1722,15 +1734,18 @@ classdef CPRLabelTracker < LabelTracker
     function track(obj,tblMFT,varargin)
       % tblMFT: MFtable. Req'd flds: MFTable.ID.
       
-      [movChunkSize,parChunkSize,minChunksPar,useParFor,p0DiagImg,wbObj] = myparse(varargin,...
+      [movChunkSize,parChunkSize,minChunksPar,useParFor,p0DiagImg,wbObj,...
+        forceMovChunkSize,forceUseParFor] = myparse(varargin,...
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'parChunkSize',50, ... % size of batch for each iteration of a parfor loop
         'minChunksPar',2,...
         'useParFor',license('test','distrib_computing_toolbox') && maxNumCompThreads > 1,...
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
-        'wbObj',[] ... % WaitBarWithCancel. If cancel:
+        'wbObj',[], ... % WaitBarWithCancel. If cancel:
                    ... %  1. .lObj.preProcData might be cleared
                    ... %  2. tracking results may be partally updated
+        'forceMovChunkSize',[],...
+        'forceUseParFor',[]...
         );
       tfWB = ~isempty(wbObj);
       
@@ -1746,6 +1761,13 @@ classdef CPRLabelTracker < LabelTracker
       if isfield(prm.TestInit,'movChunkSize')
         movChunkSize = prm.TestInit.movChunkSize;
       end
+      % KB 20190805: set movChunkSize outside of APT project, used by APTCluster
+      if ~isempty(forceMovChunkSize),
+        if ischar(forceMovChunkSize),
+          forceMovChunkSize = str2double(forceMovChunkSize);
+        end
+        movChunkSize = forceMovChunkSize;
+      end
       if isfield(prm.TestInit,'parChunkSize')
         parChunkSize = prm.TestInit.parChunkSize;
       end
@@ -1754,6 +1776,9 @@ classdef CPRLabelTracker < LabelTracker
         if ~license('test','distrib_computing_toolbox') || maxNumCompThreads == 1,
           useParFor = false;
         end
+      end
+      if ~isempty(forceUseParFor),
+        useParFor = forceUseParFor;
       end
       
       fprintf('useParFor = %d\n',useParFor);
@@ -1764,6 +1789,9 @@ classdef CPRLabelTracker < LabelTracker
       usetrxOrientation = prmpp.TargetCrop.AlignUsingTrxTheta;
       fprintf('usetrxOrientation = %d\n',usetrxOrientation);
 
+      storeIters = obj.storeFullTracking==StoreFullTrackingType.ALLITERS;
+      storeReps = obj.storeFullTracking~=StoreFullTrackingType.NONE;
+      
       if isempty(tblMFT)
         msgbox('No frames specified for tracking.');
         return;
@@ -1858,7 +1886,13 @@ classdef CPRLabelTracker < LabelTracker
         assert(prm.Model.d==2);
         Dfull = nfids*nview*prm.Model.d;
         
-        pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
+        if storeIters,
+          pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
+        elseif storeReps,
+          pTstT = nan(NTst,RT,Dfull,1);
+        else
+          pTstT = [];
+        end
         pTstTRed = nan(NTst,Dfull);
         pTstTPruneMD = array2table(nan(NTst,0));
         TestInit = prm.TestInit;
@@ -1900,7 +1934,8 @@ classdef CPRLabelTracker < LabelTracker
               
               [p_t{jChunk}] = rc.propagateRandInit(IsVw,bboxesVw,TestInit,...
                 'usetrxOrientation',usetrxOrientation,...
-                'orientationThetas',oThetasChunk);
+                'orientationThetas',oThetasChunk,...
+                'storeIters',storeIters);
               
               % restarts get intermixed with examples, separate before
               % concatenating
@@ -1924,7 +1959,8 @@ classdef CPRLabelTracker < LabelTracker
             [p_t] = rc.propagateRandInit(IsVw,bboxesVw,prm.TestInit,...
               'wbObj',wbObj,...
               'usetrxOrientation',usetrxOrientation,...
-              'orientationThetas',oThetas);
+              'orientationThetas',oThetas,...
+              'storeIters',storeIters);
           end
           
           if tfWB && wbObj.isCancel
@@ -1954,7 +1990,8 @@ classdef CPRLabelTracker < LabelTracker
             [~,~,~,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
               TestInit,...
               'usetrxOrientation',usetrxOrientation,...
-              'orientationThetas',oThetasChunk);
+              'orientationThetas',oThetasChunk,...
+              'storeIters',storeIters);
             
             hFigP0DiagImg = RegressorCascade.createP0DiagImg(IsVw,p0Info);
             [ptmp,ftmp] = fileparts(p0DiagImg);
@@ -1980,7 +2017,11 @@ classdef CPRLabelTracker < LabelTracker
           assert(mod(trkD,2)==0);
           iFull = (1:nfids)+(iView-1)*nfids;
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
-          pTstT(:,:,iFull,:) = pTstTVw;
+          if storeIters,
+            pTstT(:,:,iFull,:) = pTstTVw;
+          elseif storeReps,
+            pTstT(:,:,iFull,:) = pTstTVw(:,:,:,end);
+          end
           pTstTRed(:,iFull) = pTstTRedVw; 
           
           pTstTTrnTS(iView) = rc.trnLog(end).ts;
@@ -2009,8 +2050,10 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
 
-    function tpos = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       tpos = obj.xyPrdCurrMovie;
+      taux = [];
+      tauxlbl = cell(0,1);
     end
     
     %MTGT
@@ -2354,24 +2397,24 @@ classdef CPRLabelTracker < LabelTracker
       
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
-      end            
-
-      if (isfield(s,'sPrmAll') && ~isempty(s.sPrmAll)) || (isfield(s,'sPrm') && ~isempty(s.sPrm)),
+      end
+      
+      assert(isfield(s,'sPrmAll') && ~isfield(s,'sPrm')); % taken care of in Labeler/lblModernize
+      if ~isempty(s.sPrmAll)
         
-        isSPrmAll = isfield(s,'sPrmAll') && ~isempty(s.sPrmAll);
+        % AL 20190713
+        % s.sPrmAll is in general NOT modernized by Labeler/lblModernize.
+        % To modernize it,
+        % 1. use existing/legacy codepath to modernize s.sPrmAll.ROOT.CPR 
+        %  (this operates in "old-style" parameter space)
+        % 2. modernize everything else by overlaying on top of
+        % APTParameters.defulatParamsStructAll in the usual way
+        %
+        % TODO: get rid of the old-style parameters entirely. They are 
+        % doing a ton of damage to maintenance.
 
-        if isSPrmAll,
-          sPrm = CPRParam.all2cpr(s.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview); %#ok<*PROPLC>
-        else
-          s.sPrmAll = struct;
-          s.sPrmAll.ROOT = APTParameters.defaultParamsStruct;
-          warning('Obsolete code');
-          sPrm = s.sPrm;
-          s = rmfield(s,'sPrm');
-        end
-        
-        %isfield(s,'sPrm') && ~isempty(s.sPrm)
-        sPrm = CPRLabelTracker.modernizeParams(sPrm);
+        sPrmOS = CPRParam.all2cpr(s.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview); %#ok<*PROPLC>        
+        sPrmOS = CPRLabelTracker.modernizeParams(sPrmOS); % old-style params
         
         % 20161017
         % changes to default params param.example.yaml:
@@ -2406,16 +2449,17 @@ classdef CPRLabelTracker < LabelTracker
         % see RegressorCascade immutable parameters notes. Handles seem 
         % reasonable too.
                 
-        sPrmUse = sPrm;
+        sPrmUse = sPrmOS;
         sPrmUse.Model.nviews = 1; % see .trnResInit();
         rc = s.trnResRC;
         for i=1:numel(rc)
           rc(i).setPrmModernize(sPrmUse);
         end
-        
-        sPrm = CPRParam.old2newCPROnly(sPrm);
-        s.sPrmAll.ROOT.CPR = sPrm;
-        
+                
+        sPrmDflt = APTParameters.defaultParamsStructAll;
+        s.sPrmAll = structoverlay(sPrmDflt,s.sPrmAll,...
+          'dontWarnUnrecog',true); % to allow removal of obsolete params
+        s.sPrmAll.ROOT.CPR = CPRParam.old2newCPROnly(sPrmOS);
       else
         assert(isempty(s.trnResRC));
       end
@@ -3077,6 +3121,8 @@ classdef CPRLabelTracker < LabelTracker
   methods (Static)
     
     function sPrm = modernizeParams(sPrm)
+      % Modernize "old"-style cpr params
+      % 
       % IMPORTANT philisophical note. This CPR parameter-updating-function
       % currently does not ever alter sPrm in such a way as to invalidate
       % any previous trained trackers or tracking results based on sPrm.
@@ -3096,14 +3142,16 @@ classdef CPRLabelTracker < LabelTracker
 
       s0 = APTParameters.defaultCPRParamsOldStyle(); % 20180309 PreProc params handled in Labeler
       
-      if isfield(sPrm.Reg,'USE_AL_CORRECTION')
-        if sPrm.Reg.USE_AL_CORRECTION
-          error('CPRLabelTracker:prm',...
-            'Project contains obsolete CPR tracking parameter Reg.USE_AL_CORRECTION.');
-        end
-        assert(~s0.Reg.rotCorrection.use);
-        sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
-      end
+      % changed to assert 20190714
+      assert(~isfield(sPrm.Reg,'USE_AL_CORRECTION'));
+%       if isfield(sPrm.Reg,'USE_AL_CORRECTION')
+%         if sPrm.Reg.USE_AL_CORRECTION
+%           error('CPRLabelTracker:prm',...
+%             'Project contains obsolete CPR tracking parameter Reg.USE_AL_CORRECTION.');
+%         end
+%         assert(~s0.Reg.rotCorrection.use);
+%         sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
+%       end
       
       % Over time we may remove unused fields from base struture s0; no 
       % need to warn user that we will be dropping these extra fields from 

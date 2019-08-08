@@ -69,7 +69,7 @@ classdef CPRParam
       he = sNew.ROOT.ImageProcessing.HistEq;
       sOld.PreProc.BackSub = sNew.ROOT.ImageProcessing.BackSub;
       sOld.PreProc.histeq = he.Use;
-      sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
+%       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
       sOld.PreProc.TargetCrop = sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop;
       sOld.PreProc.NeighborMask = sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask;
       sOld.PreProc.channelsFcn = [];
@@ -350,7 +350,7 @@ classdef CPRParam
 %       sNew.ROOT.Track.Type = char(lObj.trackerType);
       sNew.ROOT.ImageProcessing.BackSub = sOld.BackSub;
       sNew.ROOT.ImageProcessing.HistEq.Use = sOld.histeq;
-      sNew.ROOT.ImageProcessing.HistEq.NSampleH0 = sOld.histeqH0NumFrames;
+%       sNew.ROOT.ImageProcessing.HistEq.NSampleH0 = sOld.histeqH0NumFrames;
       sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop = sOld.TargetCrop;
       assert(isfield(sOld.TargetCrop,'AlignUsingTrxTheta'));
       sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask = sOld.NeighborMask;
