@@ -1451,7 +1451,9 @@ classdef Labeler < handle
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
       
-      RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
+      if obj.isgui,
+        RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
+      end
       
       obj.isinit = isinit0;
       
