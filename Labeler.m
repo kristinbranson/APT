@@ -1237,9 +1237,10 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
       
+      APT.setpathsmart;
+
       [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
       
-      APT.setpathsmart;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
