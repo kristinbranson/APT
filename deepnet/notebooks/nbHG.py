@@ -20,8 +20,8 @@ all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'h
 #cache_dir = '/groups/branson/home/leea30/apt/posebase20190528/cache_20190702_hgrfn_long'
 #run_dir = '/groups/branson/home/leea30/apt/posebase20190528/out_20190702_hgrfn_long'
 #apt_deepnet_root = '/groups/branson/home/leea30/git/aptFtrDT/deepnet'
-cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cache20190806_60k_lbr3_initDCupsamp_custWD'
-run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190806_60k_lbr3_initDCupsamp_custWD'
+cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cache20190806_60k_lbr3_initDCupsamp_noWD'
+run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cache20190806_60k_lbr3_initDCupsamp_noWD'
 apt_deepnet_root = '/groups/branson/home/leea30/git/aptDev2/deepnet'
 
 lblbub = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
@@ -229,7 +229,7 @@ def run_training(lbl_file, exp_name, data_type, train_type, view, run_type, **kw
         check_train_status(cmd_name, conf.cachedir)
 
 
-def save_cv_results(lbl_file, view, exp_name, net, model_file_short, out_dir, data_type, conf_pvlist=None):
+def save_cv_results(lbl_file, cachedir, view, exp_name, net, model_file_short, out_dir, data_type, kwout, conf_pvlist=None):
 
     conf_pvlist = None
     if net == 'openpose':
@@ -238,12 +238,12 @@ def save_cv_results(lbl_file, view, exp_name, net, model_file_short, out_dir, da
         else:
             assert False, "define aff graph"
 
-    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, net, conf_params=conf_pvlist)
+    conf = apt.create_conf(lbl_file, view, exp_name, cachedir, net, conf_params=conf_pvlist)
     db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
     model_file = os.path.join(conf.cachedir, model_file_short)
     res = apt_expts.classify_db_all(conf, db_file, [model_file], net)
     res.append(conf)
-    out_file = "{}__vw{}__{}.p".format(exp_name, view, net)
+    out_file = "{}__vw{}__{}__{}.p".format(exp_name, view, net, kwout)
     out_file = os.path.join(out_dir, out_file)
     with open(out_file, 'w') as f:
         pickle.dump(res, f)
@@ -289,5 +289,71 @@ def perf(out_dir, expname_pat_splits, num_splits, n_classes):
     }
     return results
 
+import tensorflow as tf
+import keras.backend as K
+import matplotlib.pyplot as plt
+import os
+import pickle
+import numpy as np
+import pathlib2
+import open_pose as op
 
+rootdir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/'
+cdirs = { \
+    'cu':'cache20190806_60k_lbr3_initDCupsamp_custWD/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0',
+    'no':'cache20190806_60k_lbr3_initDCupsamp_noWD/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0',
+    'old':'cache20190806_60k_lbr3_initDCupsamp_oldWD/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0',
+    'dev':'cache20190807_60k_dev/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0'
+}
+mdlS = 'deepnet-60000'
+tdS = 'traindata'
+
+def loadtd(cdir):
+    tdfile = os.path.join(rootdir, cdir, tdS)
+    with open(tdfile) as f:
+        td = pickle.load(f)
+    return td[0]  # json/map
+
+tds = {k: loadtd(cdirs[k]) for k in cdirs.keys()}
+
+def getweightsbiases(k):
+    cptfile = os.path.join(rootdir, cdirs[k], mdlS)
+    m = op.get_testing_model((176,176),32,17)
+    m.load_weights(cptfile)
+    l = m.layers
+    ll = l[165]
+    w,b = ll.get_weights()
+    return w, b
+
+def plotstuff(plotkey, marad=6):
+    fig,ax = plt.subplots(1,1)
+
+    for k in tds.keys():
+        v = tds[k]
+        x = v['step']
+        y = v[plotkey]
+        ys = np.convolve(y,np.ones((marad,))/float(marad),mode='valid')
+        ax.plot(x[:len(ys)],ys,linewidth=2.0,label=k)
+
+    ax.set_facecolor((0, 0, 0))
+    plt.grid(True)
+    plt.legend()
+
+def track_cv_all():
+    for k in ['cu', 'no']:
+        p = pathlib2.PurePath(cdirs[k])
+        cachedir = p.parts[0]
+        cachedir = os.path.join(rootdir, cachedir)
+
+        tf.reset_default_graph()
+        K.clear_session()
+        save_cv_results(lblbub, cachedir, 0, 'cvi_outer3_easy__split0', 'openpose', mdlS, rootdir, 'bub', k)
+
+def perfs_all():
+    def getperf(k):
+        pfile = os.path.join(rootdir, "cvi_outer3_easy__split0__vw0__openpose__{}.p".format(k))
+        ptls = perfsingle(pfile)
+        return ptls
+
+    return {k:getperf(k) for k in cdirs.keys()}
 
