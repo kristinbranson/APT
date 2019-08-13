@@ -163,6 +163,7 @@ classdef Labeler < handle
     projVerbose = 0; % transient, unmanaged
     
     isgui = true; % whether there is a GUI
+    unTarLoc = ''; % location that project has most recently been untarred to
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -2241,6 +2242,7 @@ classdef Labeler < handle
       try
         fprintf('Untarring project into %s\n',tname);
         untar(fname,tname);
+        obj.unTarLoc = tname;
         fprintf('... done with untar.\n');
       catch ME
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
@@ -2251,6 +2253,7 @@ classdef Labeler < handle
             isbundled = [];
           else
             isbundled = false;  
+            obj.unTarLoc = tname;
           end          
           return;
         else
@@ -2267,6 +2270,35 @@ classdef Labeler < handle
       
       success = true;
       isbundled = true;
+    end
+    
+    function success = cleanUpProjTempDir(obj,verbose)
+      
+      success = false;
+      if nargin < 2,
+        verbose = true;
+      end
+      if ~ischar(obj.unTarLoc) || isempty(obj.unTarLoc),
+        success = true;
+        return;
+      end
+      if ~exist(obj.unTarLoc,'dir'),
+        if verbose,
+          fprintf('Temporary tar directory %s does not exist. Not cleaning.\n',obj.unTarLoc);
+        end
+        return;
+      end
+      [success,msg] = rmdir(obj.unTarLoc,'s');
+      if ~success && verbose,
+        fprintf('Error deleting temporary tar directory %s:\n%s\n',obj.unTarLoc,msg);
+      end
+      if success,
+        if verbose,
+          fprintf('Removed temporary tar directory %s.\n',obj.unTarLoc);
+        end
+        obj.unTarLoc = '';
+      end
+      
     end
     
     function success = projUpdateDLCache(obj)
