@@ -1237,9 +1237,10 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
       
+      APT.setpathsmart;
+
       [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
       
-      APT.setpathsmart;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
@@ -3537,7 +3538,11 @@ classdef Labeler < handle
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
-      obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
+      if ~isempty(obj.(PROPS.TRKRES))
+        obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
+      else
+        obj.(PROPS.TRKRES) = cell(1,obj.nview,0);        
+      end
       if ~gt
         obj.labeledposMarked{end+1,1} = false(nLblPts,nFrms,nTgt);
       end

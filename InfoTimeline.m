@@ -892,7 +892,7 @@ classdef InfoTimeline < handle
               bodytrx = [];
             end
             if strcmp(ptype,'Labels'),
-              lpos = labeler.labeledposGTaware{iMov};
+            lpos = labeler.labeledposGTaware{iMov};
               lpostag = labeler.labeledpostagGTaware{iMov};
             else
               lpos = labeler.labeledpos2GTaware{iMov};
