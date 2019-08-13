@@ -12,6 +12,17 @@ switch exptype,
     isshexp = true;
     incondinfo = load(condinfofile);
     gtinfo = incondinfo.gtinfo;
+    
+  case 'SHsingle'
+    
+    gtfile_trainsize = {'/nrs/branson/mayank/apt_cache/stephen_view0_single.mat',...
+      '/nrs/branson/mayank/apt_cache/stephen_view1_single.mat'};
+    gtfile_traintime = {};
+    gtfile_trainsize_cpr = {};
+    gtfile_traintime_cpr = {};
+    annoterrfile = {'SHView0_AnnErrData20190718.mat','SHView1_AnnErrData20190718.mat'};
+    
+    
 
   case 'RF'
     

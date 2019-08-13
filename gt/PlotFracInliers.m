@@ -164,6 +164,7 @@ for datai = ndatatypes:-1:1,
     for ndx = 1:nplot
       ncurr = numel(sortederrs{ndx,labeli,datai});
       if ncurr == 0,
+        h(ndx) = plot(nan(1,2),nan(1,2),'-','LineWidth',2,'Color',colors(ndx,:));
         continue;
       end
       h(ndx) = plot(sortederrs{ndx,labeli,datai},max(eps,100-(1:ncurr)/ncurr*100),'-','LineWidth',2,'Color',colors(ndx,:));

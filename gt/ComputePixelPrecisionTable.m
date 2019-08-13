@@ -4,7 +4,8 @@ function [tbls,medmindist,kvals,savename] = ComputePixelPrecisionTable(gtdata,va
   conddata,labeltypes,datatypes,...
   pttypes,annoterrdata,...
   savedir,savename,dosavefig,...
-  threshmethod,threshprctile] = myparse(varargin,'kfracs',.25:.25:2,...
+  threshmethod,threshprctile,modeli,...
+  kvals] = myparse(varargin,'kfracs',.25:.25:2,...
   'nets',{},'legendnames',{},'colors',[],'exptype','exp',...
   'conddata',[],'labeltypes',{},'datatypes',{},...
   'pttypes',{},...
@@ -13,7 +14,9 @@ function [tbls,medmindist,kvals,savename] = ComputePixelPrecisionTable(gtdata,va
   'savename','',...
   'dosavefig',false,...
   'threshmethod','medmindist',...
-  'threshprctile',95);
+  'threshprctile',95,...
+  'modeli',[],...
+  'kvals',[]);
 
 isshexp = startsWith(exptype,'SH');
 
@@ -23,13 +26,19 @@ if isempty(nets),
 end
 nnets = numel(nets);
 
-ndatapts = size(gtdata.(nets{1}){end}.labels,1);
+if isempty(modeli),
+  modelicurr = numel(gtdata.(nets{1}));
+else
+  modelicurr = min(modeli,numel(gtdata.(nets{1})));
+end
+
+ndatapts = size(gtdata.(nets{1}){modelicurr}.labels,1);
 if isempty(conddata),
   conddata = struct;
   conddata.data_cond = ones(ndatapts,1);
   conddata.label_cond = ones(ndatapts,1);
 end
-[ndata,nlandmarks,ndim] = size(gtdata.(nets{1}){end}.labels);
+[ndata,nlandmarks,ndim] = size(gtdata.(nets{1}){modelicurr}.labels);
 if isempty(pttypes),
   npttypes = nlandmarks;
 end
@@ -75,7 +84,7 @@ if isempty(colors),
 end
 
 % distance to closest part in all labels
-labelscurr = gtdata.(nets{1}){end}.labels;
+labelscurr = gtdata.(nets{1}){modelicurr}.labels;
 minds = nan(size(labelscurr,1),nlandmarks);
 for i = 1:size(labelscurr,1),
   d = squareform(pdist(reshape(labelscurr(i,:,:),[nlandmarks,ndim])));
@@ -104,20 +113,28 @@ for ndx = 1:nnets,
     idxcurr(4) = [];
   end
   
-  err = sqrt(sum((gtdata.(nets{ndx}){end}.labels(idxcurr,:,:)-gtdata.(nets{ndx}){end}.pred(idxcurr,:,:)).^2,3));
+  if isempty(modeli),
+    modelicurr = numel(gtdata.(nets{ndx}));
+  else
+    modelicurr = min(modeli,numel(gtdata.(nets{ndx})));
+  end
+
+  err = sqrt(sum((gtdata.(nets{ndx}){modelicurr}.labels(idxcurr,:,:)-gtdata.(nets{ndx}){modelicurr}.pred(idxcurr,:,:)).^2,3));
   %threshprctileerr(ndx) = prctile(err(:),threshprctile);
   maxerr = max(err,[],2);
   threshprctileerr(ndx) = prctile(maxerr,threshprctile);
 end
 minthreshprctileerr = min(threshprctileerr);
 
-switch threshmethod,
-  case 'medmindist',
-    kvals = medmindist*kfracs;
-  case 'prctileerr',
-    kvals = minthreshprctileerr*kfracs;
-  otherwise
-    error('unknown method for choosing thresholds %s',threshmethod);
+if isempty(kvals),
+  switch threshmethod,
+    case 'medmindist',
+      kvals = medmindist*kfracs;
+    case 'prctileerr',
+      kvals = minthreshprctileerr*kfracs;
+    otherwise
+      error('unknown method for choosing thresholds %s',threshmethod);
+  end
 end
 
 if ~isempty(annoterrdata),
@@ -136,7 +153,14 @@ for ndx = 1:nnets+nann,
     err = sqrt(sum((annoterrdata.(annfns{ndx-nnets}){end}.labels-annoterrdata.(annfns{ndx-nnets}){end}.pred).^2,3));
     conddatacurr = annoterrdata.(annfns{ndx-nnets}){end};
   else
-    err = sqrt(sum((gtdata.(nets{ndx}){end}.labels-gtdata.(nets{ndx}){end}.pred).^2,3));
+    
+    if isempty(modeli),
+      modelicurr = numel(gtdata.(nets{ndx}));
+    else
+      modelicurr = min(modeli,numel(gtdata.(nets{ndx})));
+    end
+    
+    err = sqrt(sum((gtdata.(nets{ndx}){modelicurr}.labels-gtdata.(nets{ndx}){modelicurr}.pred).^2,3));
     conddatacurr = conddata;
   end
   iscpr = ndx <= nnets && ~isempty(strfind(nets{ndx},'cpr'));
