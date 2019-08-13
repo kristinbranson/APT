@@ -879,7 +879,7 @@ def imszcheckcrop(sz, dimname):
 #   limb width ~ linear in blur_rad.
 
 def configure_loss_functions(batch_size, stg6_blur_rad, stg6_resfac,
-                             stg6_wtfac):
+                             stg6_wtfac_paf, stg6_wtfac_prt):
     def eucl_loss(x, y):
         return K.sum(K.square(x - y)) / batch_size / 2
 
@@ -901,14 +901,24 @@ def configure_loss_functions(batch_size, stg6_blur_rad, stg6_resfac,
                     #    stg6_resfac
                     # 2. increased blur_rad increases " by stg6_blur_rad
                     #       (relative to blur_rad of 1)
-                    loss_weights[key] = stg6_wtfac / stg6_resfac / stg6_blur_rad
+                    loss_weights[key] = stg6_wtfac_paf / stg6_resfac / stg6_blur_rad
                     logging.info('Stage 6 paf loss_weight: {}'.format(loss_weights[key]))
                 else:
                     # 1. has no effect
                     # 2. increases the natural scale of the loss by stg6_blur_rad**2
                     #     (assuming earlier stages have blur_rad==1)
-                    loss_weights[key] = stg6_wtfac / stg6_blur_rad**2
+                    loss_weights[key] = stg6_wtfac_prt / stg6_blur_rad**2
                     logging.info('Stage 6 hmap loss_weight: {}'.format(loss_weights[key]))
+
+                # loss_weights[key] is the end-of-the-day weighting factor passed to K.compile.
+                # Empirically 201906 on bub, blur_rad of 3 (and resfac of 8):
+                #  mean(val_loss_full_paf_ratio)~25 and
+                #  mean(val_loss_full_prt_ratio)~37
+                # ie typical raw loss of stg6/(others) is that number; figured we want optimizer to
+                # upweight stg6 more in the [1,3] range although very unclear it makes any diff.
+                # Note the ratios above are flattish over the convergence/training (with some jumps
+                # at eg LR steps); it is not that the stg6 loss is offset to be higher with small
+                # reduction as convergence occurs. It is delta-loss that is relevant after all
             else:
                 loss_weights[key] = 1.0
             loss_weights_vec.append(loss_weights[key])
@@ -937,7 +947,6 @@ def training(conf,name='deepnet'):
     max_iter = conf.dl_steps/iterations_per_epoch
     restart = True
     last_epoch = 0
-    hires_weight_factor = 2.5  # lo-res loss functions have weights of 1.0, hi-res loss funcitons have this weight
 
     (imnr, imnc) = conf.imsz
     imnr_use = imszcheckcrop(imnr, 'row')
@@ -985,9 +994,9 @@ def training(conf,name='deepnet'):
 
     assert conf.op_label_scale == 8
     logging.info("Your label_blur_rad is {}".format(conf.label_blur_rad))
-    losses, loss_weights, loss_weights_vec = configure_loss_functions(batch_size, conf.label_blur_rad,
-                                                    conf.op_label_scale,
-                                                    hires_weight_factor)
+    losses, loss_weights, loss_weights_vec = \
+        configure_loss_functions(batch_size, conf.label_blur_rad, conf.op_label_scale,
+                                 conf.op_hires_wtfac_paf, conf.op_hires_wtfac_prt)
 
     save_time = conf.get('save_time',None)
     # lr decay.
