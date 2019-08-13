@@ -885,6 +885,7 @@ def configure_loss_functions(batch_size, stg6_blur_rad, stg6_resfac,
 
     losses = {}
     loss_weights = {}
+    loss_weights_vec = []  # yes this is dumb. loss_weights in order S1L1 S1L2 S2L1 ...
     for stage in range(1, 7):
         for lvl in range(1, 3):
             key = 'weight_stage{}_L{}'.format(stage, lvl)
@@ -910,9 +911,13 @@ def configure_loss_functions(batch_size, stg6_blur_rad, stg6_resfac,
                     logging.info('Stage 6 hmap loss_weight: {}'.format(loss_weights[key]))
             else:
                 loss_weights[key] = 1.0
+            loss_weights_vec.append(loss_weights[key])
 
-    return losses, loss_weights
+    return losses, loss_weights, loss_weights_vec
 
+def dot(K, L):
+   assert len(K) == len(L), 'lens do not match: {} vs {}'.format(len(K), len(L))
+   return sum(i[0] * i[1] for i in zip(K, L))
 
 def training(conf,name='deepnet'):
 
@@ -980,7 +985,7 @@ def training(conf,name='deepnet'):
 
     assert conf.op_label_scale == 8
     logging.info("Your label_blur_rad is {}".format(conf.label_blur_rad))
-    losses, loss_weights = configure_loss_functions(batch_size, conf.label_blur_rad,
+    losses, loss_weights, loss_weights_vec = configure_loss_functions(batch_size, conf.label_blur_rad,
                                                     conf.op_label_scale,
                                                     hires_weight_factor)
 
@@ -999,9 +1004,13 @@ def training(conf,name='deepnet'):
             self.train_info = {}
             self.train_info['step'] = []
             self.train_info['train_dist'] = []
-            self.train_info['train_loss'] = []
+            self.train_info['train_loss'] = []  # scalar loss (dotted with weightvec)
+            self.train_info['train_loss_K'] = []  # scalar loss as reported by K
+            self.train_info['train_loss_full'] = []  # full loss, layer by layer
             self.train_info['val_dist'] = []
-            self.train_info['val_loss'] = []
+            self.train_info['val_loss'] = []  # etc
+            self.train_info['val_loss_K'] = []
+            self.train_info['val_loss_full'] = []
             self.train_info['lr'] = []
             self.config = conf
             self.force = False
@@ -1011,10 +1020,16 @@ def training(conf,name='deepnet'):
             step = (epoch+1) * conf.display_step
             val_x, val_y = self.val_di.next()
             val_out = self.model.predict(val_x)
-            val_loss = self.model.evaluate(val_x, val_y, verbose=0)
+            val_loss_full = self.model.evaluate(val_x, val_y, verbose=0)
+            val_loss_K = val_loss_full[0]  # want Py 3 unpack
+            val_loss_full = val_loss_full[1:]
+            val_loss = dot(val_loss_full, loss_weights_vec)
             train_x, train_y = self.train_di.next()
             train_out = self.model.predict(train_x)
-            train_loss = self.model.evaluate(train_x, train_y, verbose=0)
+            train_loss_full = self.model.evaluate(train_x, train_y, verbose=0)
+            train_loss_K = train_loss_full[0]  # want Py 3 unpack
+            train_loss_full = train_loss_full[1:]
+            train_loss = dot(train_loss_full, loss_weights_vec)
             lr = K.eval(self.model.optimizer.lr)
 
             # dist only for last layer
@@ -1028,18 +1043,25 @@ def training(conf,name='deepnet'):
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
             train_dist = np.nanmean(tt1) # *self.config.op_label_scale
             self.train_info['val_dist'].append(val_dist)
-            self.train_info['val_loss'].append(val_loss[0]) # xxxAL why not sum or weighted sum here
+            self.train_info['val_loss'].append(val_loss)
+            self.train_info['val_loss_K'].append(val_loss_K)
+            self.train_info['val_loss_full'].append(val_loss_full)
             self.train_info['train_dist'].append(train_dist)
-            self.train_info['train_loss'].append(train_loss[0]) # xxxAL etc
+            self.train_info['train_loss'].append(train_loss)
+            self.train_info['train_loss_K'].append(train_loss_K)
+            self.train_info['train_loss_full'].append(train_loss_full)
             self.train_info['step'].append(int(step))
             self.train_info['lr'].append(lr)
 
             p_str = ''
             for k in self.train_info.keys():
+                lastval = self.train_info[k][-1]
                 if k == 'lr':
-                    p_str += '{:s}:{:.4g} '.format(k, self.train_info[k][-1])
+                    p_str += '{:s}:{:.4g} '.format(k, lastval)
+                elif isinstance(lastval, list):
+                    p_str += '{:s}:<list {} els>'.format(k, len(lastval))
                 else:
-                    p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
+                    p_str += '{:s}:{:.2f} '.format(k, lastval)
             logging.info(p_str)
 
             train_data_file = os.path.join(self.config.cachedir, 'traindata')
@@ -1078,6 +1100,8 @@ def training(conf,name='deepnet'):
     # start training
     model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)
 
+    logging.info("Your model.metrics_names are {}".format(model.metrics_names))
+
     #save initial model
     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
 
@@ -1099,7 +1123,7 @@ def training(conf,name='deepnet'):
     obs.on_epoch_end(max_iter-1)
 
 
-def get_pred_fn(conf, model_file=None, name='deepnet'):
+def get_pred_fn(conf, model_file=None, name='deepnet', rawpred=False):
     (imnr, imnc) = conf.imsz
     imnr_use = imszcheckcrop(imnr, 'row')
     imnc_use = imszcheckcrop(imnc, 'column')
@@ -1144,12 +1168,33 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         ret_dict['conf'] = np.max(pred, axis=(1, 2))
         return ret_dict
 
+    def pred_fn_rawmaps(all_f):
+        all_f = all_f[:, 0:imnr_use, 0:imnc_use, :]
+
+        if all_f.shape[3] == 1:
+            all_f = np.tile(all_f,[1,1,1,3])
+        # tiling beforehand a little weird as preprocess_ims->normalizexyxy branches on
+        # if img is color
+        xs, _ = PoseTools.preprocess_ims(
+            all_f, in_locs=np.zeros([conf.batch_size, conf.n_classes, 2]), conf=conf,
+            distort=False, scale=conf.op_rescale)
+        model_preds = model.predict(xs)
+        # all_infered = []
+        # for ex in range(xs.shape[0]):
+        #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
+        #     all_infered.append(infered)
+        return model_preds
+
+
     def close_fn():
         K.clear_session()
         # gc.collect()
         # del model
 
-    return pred_fn, close_fn, latest_model_file
+    if rawpred:
+        return pred_fn_rawmaps, close_fn, latest_model_file
+    else:
+        return pred_fn, close_fn, latest_model_file
 
 
 
