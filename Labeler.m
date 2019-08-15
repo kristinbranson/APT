@@ -365,7 +365,7 @@ classdef Labeler < handle
   end
   properties (SetAccess=private)
     nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
-    labelTemplate;    
+    labelTemplate;
     
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views. init: C
@@ -394,7 +394,7 @@ classdef Labeler < handle
     lblCore; % init: L
   end
   properties
-    labeledpos2trkViz % scalar TrackingVisualizer
+    labeledpos2trkViz % scalar TrackingVisualizerMT
 %     labeledpos2_ptsH;     % [npts]
 %     labeledpos2_ptsTxtH;  % [npts]    
 %     lblOtherTgts_ptsH;    % [npts]
@@ -1442,6 +1442,9 @@ classdef Labeler < handle
             
       obj.labels2Hide = false;
 
+      obj.skeletonEdges = zeros(0,2);
+      obj.showSkeleton = false;
+      
       % When starting a new proj after having an existing proj open, old 
       % state is lingering in .prevAxesModeInfo despite the next 
       % .setPrevAxesMode call due to various initialization foolishness
@@ -2032,6 +2035,9 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      
+      obj.setSkeletonEdges(obj.skeletonEdges);
+      obj.setShowSkeleton(obj.showSkeleton);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       if ~wasbundled
@@ -4176,7 +4182,7 @@ classdef Labeler < handle
       
       if isFirstMovie,
         % KB 20161213: moved this up here so that we could redo in initHook
-        obj.labelsMiscInit();
+        obj.trkResVizInit();
         % we set template below as it requires .trx to be set correctly. 
         % see below
         obj.labelingInit('dosettemplate',false); 
@@ -4202,11 +4208,16 @@ classdef Labeler < handle
         
       obj.isinit = isInitOrig; % end Initialization hell      
 
-      if isFirstMovie && obj.labelMode==LabelMode.TEMPLATE
-        % Setting the template requires the .trx to be appropriately set,
-        % so for template mode we redo this (it is part of labelingInit()
-        % here.
-        obj.labelingInitTemplate();
+      if isFirstMovie
+        % needs to be done after trx are set as labels2trkviz handles 
+        % multiple targets.
+        obj.labels2TrkVizInit();
+        if obj.labelMode==LabelMode.TEMPLATE
+          % Setting the template requires the .trx to be appropriately set,
+          % so for template mode we redo this (it is part of labelingInit()
+          % here.
+          obj.labelingInitTemplate();
+        end
       end
 
       % AL20160615: omg this is the plague.
@@ -4286,7 +4297,8 @@ classdef Labeler < handle
       obj.currTarget = 0;
       obj.isinit = isInitOrig;
       
-      obj.labelsMiscInit();
+      obj.labels2TrkVizInit();
+      obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
       edata = NewMovieEventData(false);
       notify(obj,'newMovie',edata);
@@ -5376,9 +5388,15 @@ classdef Labeler < handle
 %       obj.labels2VizShowHideUpdate();      
 %     end
     
+    function setSkeletonEdges(obj,se)
+      obj.skeletonEdges = se;
+      obj.lblCore.updateSkeletonEdges();
+      obj.labeledpos2trkViz.initAndUpdateSkeletonEdges(se);
+    end
     function setShowSkeleton(obj,tf)
       obj.showSkeleton = logical(tf);
       obj.lblCore.updateShowSkeleton();
+      obj.labeledpos2trkViz.updateHideVizHideText();
     end
         
   end
@@ -12916,17 +12934,19 @@ classdef Labeler < handle
 %       end
     end
     
-    function labelsMiscInit(obj)
+    function labels2TrkVizInit(obj)
       % Initialize trkViz for .labeledpos2, .trkRes*
       
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
         tv.delete();
       end      
-      tv = TrackingVisualizer(obj,'labeledpos2');
+      tv = TrackingVisualizerMT(obj,'labeledpos2');
       tv.vizInit();
       obj.labeledpos2trkViz = tv;
-            
+    end
+    
+    function trkResVizInit(obj)
       for i=1:numel(obj.trkResViz)
         tv = obj.trkResViz{i};
         if isempty(tv.lObj)
@@ -12935,9 +12955,6 @@ classdef Labeler < handle
           tv.vizInit('postload',true);
         end
       end
-
-%       obj.genericInitLabelPointViz('lblOtherTgts_ptsH',[],...
-%         obj.gdata.axes_curr,ptsPlotInfo);      
     end
     
     function labels2VizUpdate(obj,varargin)
@@ -12948,8 +12965,9 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;
-      lpos2 = obj.labeledpos2GTaware{iMov}(:,:,frm,iTgt);      
-      obj.labeledpos2trkViz.updateTrackRes(lpos2);
+      lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
+        [obj.nLabelPoints,2,obj.nTargets]);
+      obj.labeledpos2trkViz.updateTrackRes(lpos2,iTgt);
       
       if dotrkres
         trkres = obj.trkResGTaware;
