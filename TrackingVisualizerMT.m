@@ -261,6 +261,10 @@ classdef TrackingVisualizerMT < handle
         LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);        
       end
       
+      trajClrCurr = obj.lObj.projPrefs.Trx.TrajColorCurrent;
+      set(hSkl(:,obj.iTgtPrimary),'Color',obj.skelEdgeColor);
+      set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
+      
       obj.iTgtPrimary = iTgtPrimary;
     end
     function setMarkerCosmetics(obj,pvargs)
