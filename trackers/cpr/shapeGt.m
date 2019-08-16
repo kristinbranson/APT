@@ -751,11 +751,19 @@ for iview = 1:nviews
   end
   hs = hs(imgIds);
   ws = ws(imgIds);
+  
+  hsun = unique(hs);
+  wsun = unique(ws);
+  fast = all(tfvw) && isscalar(hsun) && isscalar(wsun);  
+  
   % old matlab requires explicit bsxfun
   if verLessThan('matlab','9.2.0'),
     cs1(:,tfvw) = bsxfun(@min,ws,cs1(:,tfvw));
     rs1(:,tfvw) = bsxfun(@min,hs,rs1(:,tfvw));
-  else    
+  elseif fast
+    cs1 = min(wsun,cs1);
+    rs1 = min(hsun,rs1);
+  else
     cs1(:,tfvw) = min(ws,cs1(:,tfvw));
     rs1(:,tfvw) = min(hs,rs1(:,tfvw));
   end
@@ -767,6 +775,8 @@ for iview = 1:nviews
   % old matlab requires explicit bsxfun
   if verLessThan('matlab','9.2.0'),
     inds1s = rs1(:,tfvw) + bsxfun(@times,cs1(:,tfvw)-1,hs) + bsxfun(@times,chn(:,tfvw)-1,hs.*ws);
+  elseif fast
+    inds1s = rs1 + (cs1-1)*hsun + (chn-1)*(hsun*wsun);
   else
     inds1s = rs1(:,tfvw) + (cs1(:,tfvw)-1).*hs + (chn(:,tfvw)-1).*(hs.*ws);
   end
@@ -778,6 +788,7 @@ for iview = 1:nviews
       rs2(:,tfvw) = bsxfun(@min,hs,rs2(:,tfvw));
       inds2s = rs2(:,tfvw) + bsxfun(@times,cs2(:,tfvw)-1,h) + bsxfun(@times,chn(:,tfvw)-1,h.*w);
     else
+      % TODO optim fast
       cs2(:,tfvw) = min(ws,cs2(:,tfvw));
       rs2(:,tfvw) = min(hs,rs2(:,tfvw));
       inds2s = rs2(:,tfvw) + (cs2(:,tfvw)-1).*h + (chn(:,tfvw)-1).*h.*w;
@@ -794,6 +805,9 @@ for iview = 1:nviews
       else
         if verLessThan('matlab','9.2.0'),
           ftrs(:,tfvw) = Is.Is(bsxfun(@plus,inds1s,Is.imoffs(imgIds,iview)));
+        elseif fast
+          ftrs = Is.Is(inds1s+Is.imoffs(imgIds,iview));
+          szassert(ftrs,[M FTot]);
         else
           ftrs(:,tfvw) = Is.Is(inds1s+Is.imoffs(imgIds,iview));
         end
