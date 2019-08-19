@@ -55,7 +55,13 @@ classdef TreeNode < handle
     
     function tcopy = copy(t)
       % Deep copy
-      tcopy = TreeNode(t.Data);
+
+      % Atm we only support the PropertiesGUIProp type in .Data, as this
+      % class guarantees a full deep copy(). Any object which is 
+      % fully/deep-copied with copy() should be fine though.
+      assert(isa(t.Data,'PropertiesGUIProp'));
+      pgp = t.Data.copy();
+      tcopy = TreeNode(pgp);
       for i = 1:numel(t.Children),
         tcopy.Children(i) = t.Children(i).copy();
       end
