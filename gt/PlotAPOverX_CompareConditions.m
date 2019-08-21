@@ -222,7 +222,7 @@ for ndx = 1:nnets,
   title(legendnames{ndx});
   xlabel(xl);
   if n_train_match,
-    set(gca,'XLim',[0,n_models]);
+    set(gca,'XLim',[.5,n_models-.5]);
   end
   if logscaley,
     yticks = fliplr([.25,.5,.75,.9,.95,.975,.99]);

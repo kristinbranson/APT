@@ -21,8 +21,11 @@ switch exptype,
     gtfile_trainsize_cpr = {};
     gtfile_traintime_cpr = {};
     annoterrfile = {'SHView0_AnnErrData20190718.mat','SHView1_AnnErrData20190718.mat'};
-    
-    
+    condinfofile = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190718.mat';
+    lblfile = '/groups/branson/home/bransonk/tracking/code/APT/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres_mdn20190214_skeledges.lbl';
+    isshexp = true;
+    incondinfo = load(condinfofile);
+    gtinfo = incondinfo.gtinfo;
 
   case 'RF'
     

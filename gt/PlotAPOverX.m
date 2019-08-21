@@ -2,7 +2,7 @@ function [hfig,savenames] = PlotAPOverX(varargin)
 
 [gtdata,nets,legendnames,colors,exptype,...
   n_train,conddata,labeltypes,datatypes,...
-  statname,hfig,figpos,savedir,savenames,dosavefig,xl,savekey,logscaley,extras] = ...
+  statname,hfig,figpos,savedir,savenames,dosavefig,xl,savekey,logscaley,annfn,lw,extras] = ...
   myparse_nocheck(varargin,'gtdata',[],...
   'nets',{},'legendnames',{},'colors',[],'exptype','exp',...
   'n_train',[],...
@@ -14,7 +14,9 @@ function [hfig,savenames] = PlotAPOverX(varargin)
   'dosavefig',false,...
   'x','',...
   'savekey','',...
-  'logscaley',false);
+  'logscaley',false,...
+  'annfn','intra',...
+  'LineWidth',2);
 
 if isempty(nets),
   assert(~isempty(gtdata));
@@ -127,6 +129,16 @@ for modeli = 1:maxnmodels,
   end
 end
 
+AWP_ann = nan(ndatatypes,nlabeltypes);
+idx = find(strcmp(tbls{end,end}.Row,annfn));
+if ~isempty(idx),
+  for datai = 1:ndatatypes,
+    for labeli = 1:nlabeltypes,
+      AWP_ann(datai,labeli) = tbls{datai,labeli}.AWP(idx);
+    end
+  end
+  legendnames{end+1} = 'Annotator';
+end
 
 if isempty(figpos),
   figpos = [10,10,2526/2,(150+1004/4*nlabeltypes)/2];
@@ -150,7 +162,14 @@ hax = createsubplots(ndatatypes,nlabeltypes,[[.05,.025];[.05,.025]]);
 hax = reshape(hax,[ndatatypes,nlabeltypes]);
 
 yoff = 1.0001;
-maxAP = max(AWP(:));
+maxAP = max(max(AWP(:)),max(AWP_ann(:)));
+if n_train_match,
+  xlim = [.5,n_models-.5];
+else
+  xlim = [min(cellfun(@min,n_train)),max(cellfun(@max,n_train))];
+  dx = diff(xlim);
+  xlim = xlim+[1,-1]*dx*.025;
+end
 
 for datai = 1:ndatatypes,
   
@@ -161,7 +180,15 @@ for datai = 1:ndatatypes,
     
     hold on;
       
-    h = gobjects(1,nnets);
+    h = gobjects(1,nnets+1);
+    if ~isnan(AWP_ann(datai,labeli)),
+      if logscaley,
+        ycurr = yoff-AWP_ann(datai,labeli);
+      else
+        ycurr = AWP_ann(datai,labeli);
+      end
+      plot(xlim,[0,0]+ycurr,'k:','LineWidth',lw);
+    end
     for ndx = 1:nnets,
       
       if ~isfield(gtdata,nets{ndx}),
@@ -176,12 +203,13 @@ for datai = 1:ndatatypes,
       end
       ycurr = squeeze(AWP(1:n_models_curr,ndx,datai,labeli))';
       if logscaley,
-        h(ndx) = plot(xcurr,yoff-ycurr,'.-','LineWidth',2,'Color',colors(ndx,:),'MarkerSize',12);
+        h(ndx) = plot(xcurr,yoff-ycurr,'.-','LineWidth',lw,'Color',colors(ndx,:),'MarkerSize',12);
       else
-        h(ndx) = plot(xcurr,ycurr,'.-','LineWidth',2,'Color',colors(ndx,:),'MarkerSize',12);
+        h(ndx) = plot(xcurr,ycurr,'.-','LineWidth',lw,'Color',colors(ndx,:),'MarkerSize',12);
       end
 
     end
+    
       
     if n_train_match,
       set(gca,'XTick',1:numel(n_train{n_train_idx}),'XTickLabels',num2str(n_train{n_train_idx}(:)));
@@ -193,9 +221,7 @@ for datai = 1:ndatatypes,
     title(datatypes{datai,1});
     xlabel(xl);
     ylabel(labeltypes{labeli,1});
-    if n_train_match,
-      set(gca,'XLim',[0,n_models]);
-    end
+    set(gca,'XLim',xlim);
     if logscaley,
       yticks = fliplr([.25,.5,.75,.9,.95,.975,.99]);
       yticks(yticks > maxAP) = [];

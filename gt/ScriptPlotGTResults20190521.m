@@ -4,7 +4,7 @@
 
 allexptypes = {'FlyBubble','SHView0','SHView1','SH3D','RFView0','RFView1','RF3D','Roian','BSView0x','BSView1x','BSView2x','Larva','FlyBubbleMDNvsDLC'};
 
-exptype = 'SH3D';
+exptype = 'FlyBubble';
 cprdir = '/groups/branson/bransonlab/apt/experiments/res/cprgt20190407';
 codedir = fileparts(mfilename('fullpath'));
 savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20190523';
@@ -17,9 +17,8 @@ dosavefig = true;
 for exptypei = 6:numel(allexptypes),
 exptype = allexptypes{exptypei};
 
-resmatfile = fullfile(savedir,sprintf('PlotGTResults_%s.mat',exptype));
-
 %% parameters
+resmatfile = fullfile(savedir,sprintf('PlotGTResults_%s.mat',exptype));
 
 ScriptGTDataSetParameters;
 
@@ -195,7 +194,7 @@ end
 %% compute average precision at various thresholds relative to the animal scale
 
 threshmethod = 'prctileerr';
-[~,~,APthresh] = ComputePixelPrecisionTable(gtdata,...
+[pixelPrecisionTbls,~,APthresh] = ComputePixelPrecisionTable(gtdata,...
   'nets',nets,'legendnames',legendnames,...
   'exptype',exptype,...
   'conddata',conddata,...
@@ -205,6 +204,10 @@ threshmethod = 'prctileerr';
   'pttypes',pttypes,...
   'annoterrdata',annoterrdata,...
   'threshmethod',threshmethod);
+
+if dosavefig,
+  save('-append',resmatfile,'APthresh','pixelPrecisionTbls');
+end
 
 %% plot error percentiles per part type over training time
 
@@ -275,7 +278,8 @@ if doplotoverx && ~isempty(gtdata_time),
     'pttypes',pttypes,...
     'annoterrdata',annoterrdata,...
     'kvals',APthresh,...
-    'logscaley',true);
+    'logscaley',true,...
+    'LineWidth',1);
   
 end
 
@@ -400,7 +404,8 @@ if doplotoverx && ~isempty(gtdata_size),
     'pttypes',pttypes,...
     'annoterrdata',annoterrdata,...
     'kvals',APthresh,...
-    'logscaley',true);
+    'logscaley',true,...
+    'LineWidth',1);
   
 end
 
@@ -697,6 +702,140 @@ if ismember(exptype,{'FlyBubbleMDNvsDLC'}),
 
   
 end
+
+%% compare head angle
+
+if ismember(exptype,{'FlyBubble'}),
+  derivedstats = struct;
+  for neti = 1:nnets,
+    net = nets{neti};
+    for ndx = 1:numel(gtdata.(net)),
+      pts = permute(gtdata.(net){ndx}.pred,[3,1,4,2]);
+      [~,~,~,~,headangle] = compute_HeadAngles(pts);
+      legangles = compute_LegAngles(pts);
+      abdomenangle = compute_AbdomenAngle(pts);
+      derivedstats.(net){ndx}.headangle.pred = headangle(:);
+      derivedstats.(net){ndx}.abdomenangle.pred = abdomenangle(:);
+      fns = fieldnames(legangles);
+      for i = 1:numel(fns),
+        fn = fns{i};
+        derivedstats.(net){ndx}.(fn).pred = legangles.(fn)(:);
+      end
+      pts = permute(gtdata.(net){ndx}.labels,[3,1,4,2]);
+      [~,~,~,~,headangle] = compute_HeadAngles(pts);
+      abdomenangle = compute_AbdomenAngle(pts);
+      legangles = compute_LegAngles(pts);
+      derivedstats.(net){ndx}.headangle.labels = headangle(:);
+      derivedstats.(net){ndx}.abdomenangle.labels = abdomenangle(:);
+      fns = fieldnames(legangles);
+      for i = 1:numel(fns),
+        fn = fns{i};
+        derivedstats.(net){ndx}.(fn).labels = legangles.(fn)(:);
+      end
+    end
+  end
+  
+  annotderivedstats = struct;
+  annotfns = fieldnames(annoterrdata);
+  for neti = 1:numel(annotfns),
+    net = annotfns{neti};
+    for ndx = 1:numel(annoterrdata.(net)),
+      pts = permute(annoterrdata.(net){ndx}.pred,[3,1,4,2]);
+      [~,~,~,~,headangle] = compute_HeadAngles(pts);
+      abdomenangle = compute_AbdomenAngle(pts);
+      legangles = compute_LegAngles(pts);
+      annotderivedstats.(net){ndx}.headangle.pred = headangle(:);
+      annotderivedstats.(net){ndx}.abdomenangle.pred = abdomenangle(:);
+      fns = fieldnames(legangles);
+      for i = 1:numel(fns),
+        fn = fns{i};
+        annotderivedstats.(net){ndx}.(fn).pred = legangles.(fn)(:);
+      end
+      pts = permute(annoterrdata.(net){ndx}.labels,[3,1,4,2]);
+      [~,~,~,~,headangle] = compute_HeadAngles(pts);
+      abdomenangle = compute_AbdomenAngle(pts);      
+      legangles = compute_LegAngles(pts);
+      annotderivedstats.(net){ndx}.headangle.labels = headangle(:);
+      annotderivedstats.(net){ndx}.abdomenangle.labels = abdomenangle(:);
+      fns = fieldnames(legangles);
+      for i = 1:numel(fns),
+        fn = fns{i};
+        annotderivedstats.(net){ndx}.(fn).labels = legangles.(fn)(:);
+      end
+    end
+  end
+  
+  anglefns = fieldnames(derivedstats.mdn{end});
+  m = regexp(anglefns,'^left(.*)$','once','tokens');
+  idxleft = find(~cellfun(@isempty,m));
+  combinedanglefns = [m{idxleft}];
+  m = regexp(anglefns,'^(left)|(right)','once');
+  idxother = find(cellfun(@isempty,m));
+
+  for i = 1:numel(combinedanglefns),
+    fn = combinedanglefns{i};
+    leftfn = ['left',fn];
+    rightfn = ['right',fn];
+    for neti = 1:nnets,
+      net = nets{neti};
+      for ndx = 1:numel(gtdata.(net)),
+        derivedstats.(net){ndx}.(fn).pred = cat(1,derivedstats.(net){ndx}.(leftfn).pred,derivedstats.(net){ndx}.(rightfn).pred);
+        derivedstats.(net){ndx}.(fn).labels = cat(1,derivedstats.(net){ndx}.(leftfn).labels,derivedstats.(net){ndx}.(rightfn).labels);
+      end
+    end
+    for neti = 1:numel(annotfns),
+      net = annotfns{neti};
+      for ndx = 1:numel(annoterrdata.(net)),
+        annotderivedstats.(net){ndx}.(fn).pred = cat(1,annotderivedstats.(net){ndx}.(leftfn).pred,annotderivedstats.(net){ndx}.(rightfn).pred);
+        annotderivedstats.(net){ndx}.(fn).labels = cat(1,annotderivedstats.(net){ndx}.(leftfn).labels,annotderivedstats.(net){ndx}.(rightfn).labels);
+      end
+    end
+
+  end
+  
+  for neti = 1:numel(annotfns),
+    net = annotfns{neti};
+    for ndx = 1:numel(annoterrdata.(net)),
+      annotderivedstats.(net){ndx}.data_cond = annoterrdata.(net){ndx}.data_cond;
+      annotderivedstats.(net){ndx}.label_cond = annoterrdata.(net){ndx}.label_cond;
+    end
+  end
+  symmanglefns = [combinedanglefns,anglefns(idxother)'];
+  
+  for i = 1:numel(symmanglefns),
+    if ismember(symmanglefns{i},{'headangle','abdomenangle'}),
+      minerr = .25;
+      maxerr = 30;
+    else
+      minerr = .5;
+      maxerr = 45;
+    end
+    
+    PlotFracInliers('gtdata',derivedstats,...
+      'nets',nets,'legendnames',legendnames,...
+      'colors',colors,...
+      'exptype',exptype,...
+      'conddata',conddata,...
+      'labeltypes',labeltypes,'datatypes',datatypes,...
+      'savedir',savedir,'dosavefig',dosavefig,...
+      'prcs',prcs,...
+      'maxprc',99.5,...
+      'minerr',minerr,...
+      'maxerr',maxerr,...
+      'annoterrprc',[],...
+      'plotannfracinliers',true,...
+      'xscale','log',...
+      'anglefn',symmanglefns{i},...
+      'convert2deg',true,...
+      'figpos',[10,10,1332,812],...
+      'annoterrdata',annotderivedstats);
+    %'annoterrdata',annoterrdata,...
+  end
+end
+  
+%% compare angles
+
+
 
 %% print data set info
 
