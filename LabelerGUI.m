@@ -4179,14 +4179,14 @@ function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 % end
 % template only for view 1... 
 
-handles.labelerObj.skeletonEdges = ...
-  defineSkeleton(handles.labelerObj,'edges',handles.labelerObj.skeletonEdges);
-handles.labelerObj.lblCore.updateSkeletonEdges();
-if isempty(handles.labelerObj.skeletonEdges),
+lObj = handles.labelerObj;
+se = defineSkeleton(lObj,'edges',lObj.skeletonEdges);
+lObj.setSkeletonEdges(se);
+if isempty(lObj.skeletonEdges),
   set(handles.menu_view_showhide_skeleton,'Enable','off','Checked','off');
 else
   set(handles.menu_view_showhide_skeleton,'Enable','on','Checked','on');
-  handles.labelerObj.setShowSkeleton(true);
+  lObj.setShowSkeleton(true);
 end
 
 function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)

@@ -1,6 +1,7 @@
 function [info,isdone] = CheckSplitTracking(lblFile,infoFile,varargin)
+% added support for passing unbundled project AR 20190913
 
-[resubmit,ncores] = myparse(varargin,'resubmit',false,'ncores',1);
+[resubmit,ncores,unbundledLbl] = myparse(varargin,'resubmit',false,'ncores',1,'unbundledLbl',[]);
 
 fid = fopen(infoFile,'r');
 
@@ -28,7 +29,12 @@ while true,
 end
 fclose(fid);
 
-ldata = load(lblFile,'projMacros','-mat');
+if ~isempty(unbundledLbl)
+    ldata.projMacros = unbundledLbl.projMacros;
+else 
+    ld = loadLbl(lblFile);
+    ldata.projMacros = ld.projMacros;
+end
 [~,ldata.projMacros.projfile] = fileparts(lblFile);
 
 fprintf('Tracking split into %d jobs.\n',numel(info));

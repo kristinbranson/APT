@@ -54,6 +54,15 @@ classdef HPOptim < handle
         end
       end
     end
+    function pd = getPrmDir(obj,isplit,round)
+      sdir = obj.splitdirs{isplit};
+      prmdir = sprintf('prm%d',round-1);
+      pd = fullfile(obj.basedir,sdir,prmdir);
+    end
+    function pd = getPchDir(obj,round)
+      pchdir = sprintf(obj.pchpat,round-1);
+      pd = fullfile(obj.basedir,pchdir);
+    end
   end
   
   methods
@@ -69,12 +78,13 @@ classdef HPOptim < handle
         return;
       end
       
-      [baseDir,prmPat,pchPat,rndPat] = myparse(varargin,...
+      [baseDir,prmPat,pchPat,rndPat,yearstr] = myparse(varargin,...
         'baseDir',pwd,...
         'prmPat','prm%d.mat',...
         'pchPat','pch%d',...
-        'rndPat','prm%d');
-      
+        'rndPat','prm%d',...
+        'yearstr',datestr(now,'yyyy')...
+        );      
       
       json = dir(fullfile(baseDir,'*.json'));
       if ~isscalar(json)
@@ -137,7 +147,6 @@ classdef HPOptim < handle
       xvresSplits = cell(nSplits,1);
       %trntrkErrSplits = cell(nSplits,1); % [nxnptxnRound]
       trntrkDXYSplits = cell(nSplits,1); % [nxDxnRound]
-      yearstr = datestr(now,'yyyy');
       tftrntrkfound = true;
       for iRound=0:nRound-1
         pchDir = fullfile(baseDir,sprintf(pchPat,iRound));
@@ -604,9 +613,185 @@ classdef HPOptim < handle
       end
     end
     
+    function s = getPerfDataAll(obj)
+      for isplit=1:obj.nsplit
+      for iround=1:obj.nround
+        s(iround,isplit) = obj.getPerfData(isplit,iround);
+        fprintf('split %d round %d\n',isplit,iround);
+      end
+      end
+    end
+    function s = getPerfData(obj,isplit,iround)
+      %iround: 1-based
+      
+      pnames = obj.pchnames;            
+      prmdir = obj.getPrmDir(isplit,iround);
+      pchdir = obj.getPchDir(iround);
+      s = struct();
+      prm0 = obj.prms{iround};
+      
+      for pch=pnames(:)',pch=pch{1};
+        dirpat = fullfile(prmdir,sprintf('apt-20*-%s.log',pch));
+        dd = dir(dirpat);
+        if isscalar(dd)
+          logf = fullfile(prmdir,dd.name);
+          elapsedcmd = sprintf('grep -A 1 Elapsed %s',logf);
+          [st,res] = system(elapsedcmd);
+          res = regexp(res,'\n','split');
+          elapsedpat = 'Elapsed time is (?<sec>[0-9\.]+) seconds.';                
+          try
+            switch obj.nview
+              case 1
+                assert(all(strncmp(res([1 4 7]),'Elapsed',numel('Elapsed'))));
+                assert(all(strncmp(res([2 5 8]),'Tracking',numel('Tracking'))));
+                secs = [];
+                for row=[1 4 7]
+                  toks = regexp(res{row},elapsedpat,'tokens');
+                  assert(isscalar(toks) && isscalar(toks{1}));
+                  secs(1,end+1) = round(str2double(toks{1}{1}));
+                end
+              case 2
+                assert(all(strncmp(res(1:3:end),'Elapsed',numel('Elapsed'))));
+                assert(all(strncmp(res(5:6:end),'Tracking',numel('Tracking'))));
+                secs = nan(2,3);
+                for ifold=1:3
+                for iview=1:2
+                  row = 1 + (iview-1)*3 + (ifold-1)*6;
+                  toks = regexp(res{row},elapsedpat,'tokens');
+                  assert(isscalar(toks) && isscalar(toks{1}));
+                  secs(iview,ifold) = round(str2double(toks{1}{1}));
+                end
+                end
+              otherwise
+                assert(false,'Unsupported number of views.');
+            end
+          catch ME
+            warningNoTrace('Unexpected parse of %s.\n',logf);
+            secs = nan(obj.nview,3);
+          end
+        else
+          warningNoTrace('No log found for %s.',dirpat);
+          secs = nan(obj.nview,3);
+        end
+                  
+        szassert(secs,[obj.nview 3]);
+        s.(pch).tracktimes = secs;          
+
+        dirpat = fullfile(pchdir,sprintf('%s.m',pch));
+        dd = dir(dirpat);
+        if isscalar(dd)
+          pchf = fullfile(pchdir,dd.name);
+          pchcmd = sprintf('cat %s',pchf);
+          [st,res] = system(pchcmd);
+          res = regexp(res,'\n','split');
+          res = res{1};
+          pchpat = '(?<lhs>[^=]+)=(?<rhs>.+)';
+          toks = regexp(res,pchpat,'names');
+          
+          evalstr = ['prm0' toks.lhs];
+          prmb4 = eval(evalstr);
+          prmaf = str2double(toks.rhs);
+          s.(pch).b4aft = [prmb4 prmaf];
+          s.(pch).b4aftstr = sprintf('%.2f -> %.2f',prmb4,prmaf);
+        else
+          warningNoTrace('No patch found for %s.',dirpat);
+          s.(pch).b4aft = [nan nan];
+          s.(pch).b4aft = 'unk -> unk';
+        end
+        
+        tblres = obj.tblres{iround,isplit};
+        idx = find(strcmp(pch,tblres.pch));
+        assert(isscalar(idx));
+        sres = table2struct(tblres(idx,:));
+        sres = rmfield(sres,'pch');
+        s.(pch) = structmerge(s.(pch),sres);
+      end
+    end
+        
   end
   
   methods (Static)
+    
+    function tbl = perfSummFromPerfData(sPD,pchs)
+      % sPD: output of getPerfData
+      % pchs: eg {'NrepTrk_up' 'NrepTrk_dn' ... };
+      
+      if exist('pchs','var')==0
+        pchs = {'NrepTrk_up' 'NrepTrk_dn' 'NumMajorIter_up' 'NumMajorIter_dn' 'NumMinorIter_up' 'NumMinorIter_dn'};
+      end
+      
+      s = [];
+      
+      [nround,nsplit] = size(sPD);
+      for pch = pchs(:)',pch=pch{1};
+      for iround=1:nround
+      for isplit=1:nsplit
+        s0 = sPD(iround,isplit).NOPATCH;
+        s1 = sPD(iround,isplit).(pch);
+        trktimesrat = s1.tracktimes./s0.tracktimes;
+        trktimesratmn = nanmean(trktimesrat(:));
+        
+        s(end+1,1).pch = pch;
+        s(end).round = iround;
+        s(end).split = isplit;
+        szassert(s1.b4aft,[1 2]);
+        s(end).b4 = s1.b4aft(1);
+        s(end).b4aftstr = s1.b4aftstr;
+        s(end).trktimesbase = s0.tracktimes;
+        s(end).trktimesrat = trktimesrat;
+        s(end).trktimesratmn = trktimesratmn;
+        s(end).score = s1.score;
+        s(end).nptimpfull = s1.nptimprovedfull;        
+      end
+      end
+      end
+      
+      tbl = struct2table(s);      
+    end
+    
+    function tres = perfSummSummRowFcn(tgrp)
+      trkTratmnmn = round((nanmean(tgrp.trktimesratmn)-1)*100);
+      %trkTratmnmdn = median(tgrp.trktimesratmn);
+      trkTratmnstd = round(nanstd(tgrp.trktimesratmn)*100);
+      scrmn = nanmean(tgrp.score);
+      %scrmdn = median(tgrp.score);
+      scrstd = nanstd(tgrp.score);
+      nptimpfullmn = nanmean(tgrp.nptimpfull);
+      %nptimpfullmdn = median(tgrp.nptimpfull);
+      nptimpfullstd = nanstd(tgrp.nptimpfull);
+      assert(all(strcmp(tgrp.pch,tgrp.pch{1})));
+      assert(all(strcmp(tgrp.b4aftstr,tgrp.b4aftstr{1})));
+      pch = tgrp.pch(1); % want cell for table() single-row API quirk
+      b4aftstr = tgrp.b4aftstr(1); % etc
+      count = height(tgrp);
+      b4 = tgrp.b4(1);
+      tres = table(pch,b4,b4aftstr,count,trkTratmnmn,trkTratmnstd,...
+        scrmn,scrstd,...
+        nptimpfullmn,nptimpfullstd);
+    end
+    function tbl = perfSummSumm(tblPerfSumm)
+      t = tblPerfSumm;
+      keys = strcat(t.pch,'#',t.b4aftstr);
+      keyun = unique(keys);
+      tbl = [];
+      for k=keyun(:)',k=k{1};
+        tf = strcmp(k,keys);
+        tgrp = t(tf,:);
+        tresgrp = HPOptim.perfSummSummRowFcn(tgrp);
+        tbl = cat(1,tbl,tresgrp);
+      end
+      
+      tbl = sortrows(tbl,{'pch' 'b4'});
+      
+        
+%       tbl = rowfun(@HPOptim.perfSummSummRowFcn,tblPerfSumm,...
+%         'InputVariables',{'pch' 'b4aftstr' 'trktimesratmn' 'score' 'nptimpfull'},...
+%         'GroupingVariables',{'pch' 'b4aftstr'},...
+%         'OutputVariableNames',{'pch' 'b4aftstr' 'trkTratmnmn' 'trkTratmnmdn' 'scrmn' 'scrmdn' 'nptimfullmn' 'nptimfullmdn'},...
+%         'NumOutputs',8, ...
+%         'OutputFormat','table'...
+%         );
+    end
     
     function [xverr,pchNames,xvres] = loadXVres(pchDir,xvDir,xvPat,varargin)
       % xvPat: sprintf-pat given a pchname to form xv-results-filename
