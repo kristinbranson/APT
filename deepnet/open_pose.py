@@ -532,7 +532,7 @@ def get_training_model(imszuse, weight_decay, weight_decay_kernel_dc, weight_dec
 
     return model
 
-def get_testing_model(imszuse, nlimb=38, npts=19):
+def get_testing_model(imszuse, nlimb=38, npts=19, fullpred=False):
     stages = 6
 
     imnruse, imncuse = imszuse
@@ -544,6 +544,8 @@ def get_testing_model(imszuse, nlimb=38, npts=19):
 
     img_normalized = Lambda(lambda x: x / 256 - 0.5)(img_input) # [-0.5, 0.5]
 
+    outputsfull = []
+
     # VGG
     stage0_out = vgg_block(img_normalized, None)
 
@@ -553,6 +555,9 @@ def get_testing_model(imszuse, nlimb=38, npts=19):
     # stage 1 - branch 2 (confidence maps)
     stage1_branch2_out = stage1_block(stage0_out, npts, 2, None)
 
+    outputsfull.append(stage1_branch1_out)
+    outputsfull.append(stage1_branch2_out)
+
     x = Concatenate()([stage1_branch1_out, stage1_branch2_out, stage0_out])
 
     # stage t >= 2
@@ -561,6 +566,8 @@ def get_testing_model(imszuse, nlimb=38, npts=19):
     for sn in range(2, stages):
         stageT_branch1_out = stageT_block(x, nlimb, sn, 1, None)
         stageT_branch2_out = stageT_block(x, npts, sn, 2, None)
+        outputsfull.append(stageT_branch1_out)
+        outputsfull.append(stageT_branch2_out)
         x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
 
     # stage sn=stages
@@ -568,7 +575,13 @@ def get_testing_model(imszuse, nlimb=38, npts=19):
     stageT_branch1_out = stageTdeconv_block(x, nlimb, stages, 1, None, None, 0)
     stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, None, None, 0)
 
-    model = Model(inputs=[img_input], outputs=[stageT_branch1_out, stageT_branch2_out])
+    outputsfull.append(stageT_branch1_out)
+    outputsfull.append(stageT_branch2_out)
+
+    if fullpred:
+        model = Model(inputs=[img_input], outputs=outputsfull)
+    else:
+        model = Model(inputs=[img_input], outputs=[stageT_branch1_out, stageT_branch2_out])
 
     return model
 
@@ -1139,15 +1152,18 @@ def get_pred_fn(conf, model_file=None, name='deepnet', rawpred=False):
     imszuse = (imnr_use, imnc_use)
     conf.imszuse = imszuse
 
-    model = get_testing_model(imszuse, nlimb=len(conf.op_affinity_graph) * 2, npts=conf.n_classes)
+    model = get_testing_model(imszuse,
+                              nlimb=len(conf.op_affinity_graph) * 2,
+                              npts=conf.n_classes,
+                              fullpred=rawpred)
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
     else:
         latest_model_file = model_file
     logging.info("Loading the weights from {}.. ".format(latest_model_file))
     model.load_weights(latest_model_file)
-    thre1 = conf.get('op_param_hmap_thres',0.1)
-    thre2 = conf.get('op_param_paf_thres',0.05)
+    # thre1 = conf.get('op_param_hmap_thres',0.1)
+    # thre2 = conf.get('op_param_paf_thres',0.05)
 
     def pred_fn(all_f):
         all_f = all_f[:, 0:imnr_use, 0:imnc_use, :]
