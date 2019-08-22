@@ -118,7 +118,7 @@ strong.regular-font {
 </ul>
 We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more information about setting up each of these back ends is <a href="#BackEnd">here</a>.</p>
 
-<p>If you choose to use a <b>local back end</b>, your local machine must have a CUDA-enabled GPU. The best GPUs for deep learning are constantly changing (some benchmark info is <a href="https://lambdalabs.com/blog/tag/benchmarks/">here</a>). It is important for this GPU to have sufficient memory. All GPUs we have used have at least 12GB of RAM. In our lab, we have used the following GPUs:
+<p>If you choose to use a <b>local back end</b>, your local machine must have an NVIDIA GPU with <a href="https://en.wikipedia.org/wiki/CUDA#GPUs_supported">Compute Capability >= 3.0</a>. The best GPUs for deep learning are constantly changing (some benchmark info is <a href="https://lambdalabs.com/blog/tag/benchmarks/">here</a>). It is important for this GPU to have sufficient memory. All GPUs we have used have at least 12GB of RAM. In our lab, we have used the following GPUs:
 <ul>
 <li>V100</li>
 <li>2080 Ti</li>
@@ -132,15 +132,108 @@ We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more informa
 
 <h2><a id="BackEnd">Setting up GPU back ends for deep learning</a></h2>
 
-The <b>GPU back end</b> is where and how GPU-based deep-learning computations are performed. Which back end to choose depends on your resources:
+<p>The <b>GPU back end</b> is where and how GPU-based deep-learning computations are performed. Which back end to choose depends on your resources:
 <ul>
-<li>If you are at Janelia, we recommend using the <b>Janelia GPU cluster</b> back end.</li>
-<li>If you have one or many CUDA-enabled GPUs in your local machine, we recommend using the <b>local</b> back end. </li>
-<li>Otherwise, we reccommend using the <b>AWS</b> back end to train on the Amazon Cloud.</li>
+<li>If you are at Janelia, we recommend using the <b><a href="#JaneliaBackEnd">Janelia GPU cluster</a></b> back end.</li>
+<li>If you have one or many CUDA-enabled GPUs in your local machine, we recommend using the <b><a href="#LocalBackEnd">local</a></b> back end. </li>
+<li>Otherwise, we reccommend using the <b><a href="#AWSBackEnd">AWS</a></b> back end to train on the Amazon Cloud.</li>
 </ul>
-Instructions for setting up each of these back ends follows. 
+Instructions for setting up each of these back ends follows. </p>
 
 <h3><a id="LocalBackEnd">Local GPU back end</a></h3>
+
+We use <b><a href="#CondaLocalBackEnd">Conda</a></b> to install dependencies on Windows OS and <b><a href="#DockerLocalBackEnd">Docker</a></b> containers to provide dependencies on Linux.
+
+<h4><a id="DockerLocalBackEnd">Docker setup - Linux</a></h4>
+
+Requirements:
+<ul>
+  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 418.39</a></li>
+  <li> <a href="https://docs.docker.com/install/">Docker</a></li> 
+  <li> <a href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a></li>
+</ul>
+The following instructions will take you, step-by-step, through installing and configuring these requirements. 
+<ul>
+  <li>
+    Install <b>CUDA</b> <a href="https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver">version >= 418.39</a>. This can be done by downloading and installing either the
+    <ul>
+      <li><a href="https://developer.nvidia.com/cuda-downloads">CUDA Toolkit</a> or</li>
+      <li><a href="https://www.nvidia.com/Download/index.aspx">CUDA driver</a> only.</li>
+    </ul>
+  </li>
+  <li>
+    Install <b><a href="https://docs.docker.com/install/">Docker</a></b> following the <a href="https://docs.docker.com/install/">instructions on Docker's website</a>. The free Community Edition is fine. 
+  </li>
+  <li>
+    Set up Docker so that it <b>does not require sudo</b> privileges as described here: <a href="https://docs.docker.com/install/linux/linux-postinstall/">Manage Docker as a non-root user</a>.
+  </li>
+  <li>
+    Install <b><a href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a></b>.
+  </li>
+  <li>
+    Download the latest pre-built APT docker container by running the following in a Linux terminal:
+    <pre>docker pull bransonlabapt/apt_docker:latest</pre>
+  </li>
+  <li>Test. Here are some test commands you can try to check that everything is working as expected:
+    <ul>
+      <li>
+	Test your Docker installation:
+	<pre>docker run hello-world</pre>
+      </li>
+      <li>
+	Test your nvidia-docker installation:
+	<pre>docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi</pre>
+      </li>
+    </ul>
+  </li>
+</ul>
+
+To use this back end within APT, select <b>Local (Docker)</b> under the <b>Track > GPU/Backend Configuration</b> menu. You can test that everything hooks up between Docker and APT by selecting menu item <b>Track > GPU/Backend Configuration > Test backend configuration</b>. 
+
+<h4><a id="CondaLocalBackEnd">Conda setup - Windows</a></h4>
+
+Requirements:
+<ul>
+  <li> <https://www.anaconda.com/distribution/>Anaconda Python 3.7</a></li>
+  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 418.39</a></li>
+<li>Python modules installed with Conda: tensorflow-gpu=1.13.1, keras=2.2.4, opencv=3.4.4 hdf5storage=0.1.15 imageio=2.5.0 scikit-image=0.15.0 matplotlib=3.0.3 future=0.17.1 easydict=1.9</li>
+</ul>
+The following instructions will take you, step-by-step, through installing and configuring these requirements. 
+<ul>
+  <li>
+    Install <https://www.anaconda.com/distribution/><b>Anaconda Python 3.7</b> version for Windows</a>.
+</li>
+  <li>
+    Install <b>CUDA</b> <a href="https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver">version >= 418.39</a>. This can be done by downloading and installing either the
+    <ul>
+      <li><a href="https://developer.nvidia.com/cuda-downloads">CUDA Toolkit</a> or</li>
+      <li><a href="https://www.nvidia.com/Download/index.aspx">CUDA driver</a> only.</li>
+    </ul>
+  <li>
+    The following is done at an Anaconda prompt (Start Menu > Anaconda3 > Anaconda Prompt):
+    <ul>
+      <li>
+	<b>Update Conda</b>:
+	<pre>conda update conda
+conda upgrade --all</pre>
+      </li>
+    <li>
+    Create and activate the <b>APT environment</b>. 
+    <pre>conda create --name APT
+conda activate APT</pre>
+    </li>
+    <li><b>Install dependencies</b>.
+    <pre>conda install -c anaconda tensorflow-gpu=1.13.1 keras=2.2.4
+conda install -c conda-forge opencv=3.4.4 hdf5storage=0.1.15 imageio=2.5.0 scikit-image=0.15.0 matplotlib=3.0.3 future=0.17.1 easydict=1.9</pre>
+    </li>
+    </ul>
+</ul>
+
+To use this back end within APT, select <b>Local (Conda)</b> under the <b>Track > GPU/Backend Configuration</b> menu. You can test that everything hooks up between Conda and APT by selecting menu item <b>Track > GPU/Backend Configuration > Test backend configuration</b>. 
+
+<h3><a id="AWSBackEnd">AWS GPU back end</a></h3>
+
+<h3><a id="JaneliaBackEnd">Janelia Cluster GPU back end</a></h3>
 
 
 
