@@ -3251,15 +3251,14 @@ classdef DeepTracker < LabelTracker
       %   (escaped double-quotes)
       
       DFLTBINDPATH = {};
-      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,filequote] = ...
+      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = ...
         myparse(varargin,...
         'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
         'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
         'dockerimg','bransonlabapt/apt_docker:latest',... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
-        'detach',true,...
-        'filequote','\"'... % quote char used to protect filenames/paths.
+        'detach',true ...
       );
       
       aptdeepnet = APT.getpathdl;
@@ -3301,8 +3300,10 @@ classdef DeepTracker < LabelTracker
       homedir = getenv('HOME');
       
       if isempty(APT.DOCKER_REMOTE_HOST),
+        % local Docker run
         dockercmd = 'docker';
         dockercmdend = '';
+        filequote = '"';
       else
         % i'm guessing this cding is nec to deal with automount issues
 %         if isempty(bindpath),
@@ -3316,6 +3317,7 @@ classdef DeepTracker < LabelTracker
         end
         dockercmd = sprintf('ssh -t %s "%sdocker',APT.DOCKER_REMOTE_HOST,cdargs);
         dockercmdend = '"';
+        filequote = '\"';
       end
       
       if tfDetach,
@@ -3419,8 +3421,14 @@ classdef DeepTracker < LabelTracker
         baseargs = [baseargs,{'view' view1b}];
       end
 
+      tfLocalDocker = isempty(APT.DOCKER_REMOTE_HOST);
+      if tfLocalDocker
+        filequote = '"';
+      else
+        filequote = '\"';
+      end        
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
-        netType,baseargs{:});
+        netType,baseargs{:},'filequote',filequote);
 
       if isempty(view1b),      
         containerName = [modelChainID '_' trainID];
@@ -3429,8 +3437,7 @@ classdef DeepTracker < LabelTracker
       end
      
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
-        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});
-      
+        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});      
     end
     function [codestr] = trainCodeGenConda(modelChainID,trainID,...
         dllbl,cache,errfile,netType,trainType,view1b,gpuid,varargin)
@@ -3870,8 +3877,14 @@ classdef DeepTracker < LabelTracker
       [baseargs,dockerargs,mntPaths] = myparse(varargin,...
         'baseargs',{},'dockerargs',{},'mntPaths',{});
       
+      tfLocalDocker = isempty(APT.DOCKER_REMOTE_HOST);
+      if tfLocalDocker
+        filequote = '"';
+      else
+        filequote = '\"';
+      end        
       basecmd = DeepTracker.dataAugCodeGenBase(ID,dllbl,cache,errfile,...
-        netType,outfile,baseargs{:});
+        netType,outfile,baseargs{:},'filequote',filequote);
       
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,ID,...
         'bindpath',mntPaths,dockerargs{:});
@@ -3928,9 +3941,14 @@ classdef DeepTracker < LabelTracker
         'baseargs',{},'dockerargs',{},'mntPaths',{},'containerName','');
       
       baseargs = [{'cache' cache} baseargs];
-        
+      tfLocalDocker = isempty(APT.DOCKER_REMOTE_HOST);
+      if tfLocalDocker
+        filequote = '"';
+      else
+        filequote = '\"';
+      end             
       basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
-        movtrk,outtrk,frm0,frm1,baseargs{:});
+        movtrk,outtrk,frm0,frm1,baseargs{:},'filequote',filequote);
 
       if isempty(containerName),
         if iscell(outtrk),

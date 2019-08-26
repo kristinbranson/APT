@@ -151,7 +151,7 @@ classdef DLBackEndClass < handle
           if isempty(APT.DOCKER_REMOTE_HOST),
             dockercmd = 'docker';
             dockercmdend = '';
-            filequote = '';
+            filequote = '"';
           else
             dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
             dockercmdend = '"';
@@ -285,7 +285,7 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = sprintf('** Testing that we can do passwordless ssh to %s...',host); drawnow;
       touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
       
-      remotecmd = sprintf('touch %s; if [ -e %s ]; then rm -f %s && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
+      remotecmd = sprintf('touch "%s"; if [ -e "%s" ]; then rm -f "%s" && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
       cmd1 = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host,'bg',false);
       cmd = sprintf('timeout 20 %s',cmd1);
       hedit.String{end+1} = cmd; drawnow;
@@ -343,9 +343,11 @@ classdef DLBackEndClass < handle
       if isempty(APT.DOCKER_REMOTE_HOST),
         dockercmd = 'docker';
         dockercmdend = '';
+        filequote = '"';
       else
         dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
         dockercmdend = '"';
+        filequote = '\"';
       end      
       cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
       fprintf(1,'%s\n',cmd);
@@ -378,8 +380,8 @@ classdef DLBackEndClass < handle
       % APT hello
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing APT deepnet library...'; drawnow;
-      filequote = '\"';
-      deepnetroot = [filequote APT.Root '/deepnet' filequote];
+      deepnetroot = [APT.Root '/deepnet'];
+      deepnetrootguard = [filequote deepnetroot filequote];
 %       if isempty(APT.DOCKER_REMOTE_HOST),
 %         dockercmd = 'docker';
 %         dockercmdend = '';
@@ -391,8 +393,8 @@ classdef DLBackEndClass < handle
         dockercmd 'run' '-it' ...
         '--runtime' 'nvidia' ...
         '--rm' ...
-        '-v' [deepnetroot ':' deepnetroot] ...
-        '-w' deepnetroot ...
+        sprintf('--mount ''type=bind,src=%s,dst=%s''',deepnetroot,deepnetroot) ...
+        '-w' deepnetrootguard ...
         obj.aptdockerimg ...
         sprintf('python APT_interface.py lbl test hello%s',dockercmdend) ...
         };
