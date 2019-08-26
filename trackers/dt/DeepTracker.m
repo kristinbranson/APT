@@ -1585,7 +1585,7 @@ classdef DeepTracker < LabelTracker
         fprintf('Training job spawned.\n\n');
 
         % record local cmdfile
-        cmdfile = dmcLcl.cmdfileLnx;
+        cmdfile = dmcLcl.cmdfileLnx; % currently writes "...viewNan..." since view is not set; this is benign
         %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
         [fh,msg] = fopen(cmdfile,'w');
         if isequal(fh,-1)
@@ -2705,8 +2705,8 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static)
     function sha = getSHA(file)
-      file = strrep(file,' ','\ ');
       if ismac
+        file = strrep(file,' ','\ ');
         shacmd = sprintf('MD5 %s',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         res = strtrim(res);
@@ -2714,13 +2714,14 @@ classdef DeepTracker < LabelTracker
         sha = toks{end};        
         sha = regexprep(sha,' ','');          
       elseif isunix
+        file = strrep(file,' ','\ ');
         shacmd = sprintf('md5sum %s',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
-        shacmd = sprintf('certUtil -hashFile %s MD5',file);
+        shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,'\n','split');
         sha = toks{2};
@@ -2792,13 +2793,13 @@ classdef DeepTracker < LabelTracker
         [~,~,movE] = fileparts(mov);
         movsha = DeepTracker.getSHA(mov);
         movRemoteRel = ['data/' movsha movE];
-        movRemoteAbs = ['~/' movRemoteRel];
+        movRemoteAbs = ['/home/ubuntu/' movRemoteRel];
         aws.scpUploadOrVerify(mov,movRemoteRel,'movie'); % throws            
         if tftrx
           trx = trxsfull{ivw};
           trxsha = DeepTracker.getSHA(trx);
           trxRemoteRel = ['data/' trxsha];
-          trxRemoteAbs = ['~/' trxRemoteRel];
+          trxRemoteAbs = ['/home/ubuntu/' trxRemoteRel];
           aws.scpUploadOrVerify(trx,trxRemoteRel,'trxfile'); % throws            
         end
         
@@ -4069,7 +4070,7 @@ classdef DeepTracker < LabelTracker
       % 
       % baseargs: PV cell vector that goes to .trackCodeGenBase
       
-      deepnetroot = '~/APT/deepnet';
+      deepnetroot = '/home/ubuntu/APT/deepnet';
       baseargs = [baseargs {'cache' cacheRemote}];
       codestrbase = DeepTracker.trackCodeGenBase(trnID,dlLblRemote,...
         errfileRemote,netType,movRemoteFull,trkRemoteFull,frm0,frm1,...
