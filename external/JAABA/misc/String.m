@@ -26,6 +26,10 @@ classdef String
       end
     end
     
+    function s = escapeSpaces(s)
+      s = regexprep(s,'([^\\]) ','$1\\ ');
+    end
+    
     % see civilizedStringFromCellArrayOfStrings
     
     function s = niceUpperCase(s)
