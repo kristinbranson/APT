@@ -1548,7 +1548,8 @@ classdef DeepTracker < LabelTracker
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
         dmcLcl.restartTS = dmc.restartTS;
         % read nLabels from stripped lbl file
-        dmc.readNLabels();        
+        dmcLcl.readNLabels();
+        dmc.nLabels = dmcLcl.nLabels;
       end
       dlLblFileRemote = dmc.lblStrippedLnx;
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
