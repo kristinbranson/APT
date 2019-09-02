@@ -110,13 +110,46 @@ strong.regular-font {
 
 <h3>GPU</h3>
 
-<p>A <a href="https://lambdalabs.com/blog/best-gpu-tensorflow-2080-ti-vs-v100-vs-titan-v-vs-1080-ti-benchmark">GPU</a> is required to train a deep-learning based tracker. APT can use any of:
+<p>A <a href="https://developer.nvidia.com/cuda-gpus">CUDA-enabled</a> <a href="https://lambdalabs.com/blog/best-gpu-tensorflow-2080-ti-vs-v100-vs-titan-v-vs-1080-ti-benchmark">GPU</a> is required to train a deep-learning based tracker. This GPU can be:
 <ul>
-<li>GPUs on your local machine via Docker.</li>
-<li>GPUs on the Amazon Cloud (AWS).</li>
-<li>The Janelia GPU cluster.</li>
+<li>On your local machine.</li>
+<li>On the Amazon Cloud (AWS).</li>
+<li>On the Janelia GPU cluster (Janelians-only).</li>
 </ul>
-We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more information about setting up each of these back ends is <a href="#BackEnd">here</a>. 
+We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more information about setting up each of these back ends is <a href="#BackEnd">here</a>.</p>
+
+<p>If you choose to use a <b>local back end</b>, your local machine must have an NVIDIA GPU with <a href="https://en.wikipedia.org/wiki/CUDA#GPUs_supported">Compute Capability >= 3.0</a>. The best GPUs for deep learning are constantly changing (some benchmark info is <a href="https://lambdalabs.com/blog/tag/benchmarks/">here</a>). It is important for this GPU to have sufficient memory. All GPUs we have used have at least 12GB of RAM. In our lab, we have used the following GPUs:
+<ul>
+<li>V100</li>
+<li>2080 Ti</li>
+<li>Titan Xp (older)</li>
+<li>Titan X (older)</li>
+<li>1080 Ti (older)</li>
+</ul>
+</p>
+
+<hr class="h2-divider">
+
+<h2><a id="BackEnd">Setting up GPU back ends for deep learning</a></h2>
+
+<p>The <b>GPU back end</b> is where and how GPU-based deep-learning computations are performed. Which back end to choose depends on your resources:
+<ul>
+<li>If you are at Janelia, we recommend using the <b><a href="JaneliaBackEnd.html">Janelia GPU cluster</a></b> back end.</li>
+<li>If you have one or many CUDA-enabled GPUs in your local machine, we recommend using the <b><a href="LocalBackEnd.html">local</a></b> back end. </li>
+<li>Otherwise, we reccommend using the <b><a href="AWSBackEnd.html">AWS</a></b> back end to train on the Amazon Cloud.</li>
+</ul>
+Instructions for setting up each of these back ends:
+<ul>
+  <li><a href="LocalBackEnd.html">Local GPU back end</a></li>
+  <li><a href="AWSBackEnd.html">AWS GPU back end</a></li>
+  <li><a href="JaneliaBackEnd.html">Janelia Cluster GPU back end</a></li>
+</ul>
+
+
+
+<h3><a id="JaneliaBackEnd">Janelia Cluster GPU back end</a></h3>
+
+
 
 <!--
 <hr class="h2-divider">
@@ -143,7 +176,7 @@ APT is a MATLAB-based program. To run it:
 </li>
 
 <li> Run <b>StartAPT</b> on the command line to start APT:
-<pre>>> lObj = StartAPT; 
+<pre>>> StartAPT; 
 </pre>
 </li>
 The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will then appear. 

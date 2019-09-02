@@ -163,6 +163,7 @@ classdef Labeler < handle
     projVerbose = 0; % transient, unmanaged
     
     isgui = true; % whether there is a GUI
+    unTarLoc = ''; % location that project has most recently been untarred to
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -364,7 +365,7 @@ classdef Labeler < handle
   end
   properties (SetAccess=private)
     nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
-    labelTemplate;    
+    labelTemplate;
     
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views. init: C
@@ -393,7 +394,7 @@ classdef Labeler < handle
     lblCore; % init: L
   end
   properties
-    labeledpos2trkViz % scalar TrackingVisualizer
+    labeledpos2trkViz % scalar TrackingVisualizerMT
 %     labeledpos2_ptsH;     % [npts]
 %     labeledpos2_ptsTxtH;  % [npts]    
 %     lblOtherTgts_ptsH;    % [npts]
@@ -1237,9 +1238,10 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
       
+      APT.setpathsmart;
+
       [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
       
-      APT.setpathsmart;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
@@ -1390,7 +1392,7 @@ classdef Labeler < handle
       obj.currIm = cell(obj.nview,1);
       delete(obj.currImHud);
       gd = obj.gdata;
-      obj.currImHud = AxisHUD(gd.axes_curr.Parent); 
+      obj.currImHud = AxisHUD(gd.axes_curr.Parent,gd.axes_curr); 
       %obj.movieSetNoMovie();
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
@@ -1440,6 +1442,9 @@ classdef Labeler < handle
             
       obj.labels2Hide = false;
 
+      obj.skeletonEdges = zeros(0,2);
+      obj.showSkeleton = false;
+      
       % When starting a new proj after having an existing proj open, old 
       % state is lingering in .prevAxesModeInfo despite the next 
       % .setPrevAxesMode call due to various initialization foolishness
@@ -2030,6 +2035,9 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      
+      obj.setSkeletonEdges(obj.skeletonEdges);
+      obj.setShowSkeleton(obj.showSkeleton);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       if ~wasbundled
@@ -2240,6 +2248,7 @@ classdef Labeler < handle
       try
         fprintf('Untarring project into %s\n',tname);
         untar(fname,tname);
+        obj.unTarLoc = tname;
         fprintf('... done with untar.\n');
       catch ME
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
@@ -2250,6 +2259,7 @@ classdef Labeler < handle
             isbundled = [];
           else
             isbundled = false;  
+            obj.unTarLoc = tname;
           end          
           return;
         else
@@ -2266,6 +2276,35 @@ classdef Labeler < handle
       
       success = true;
       isbundled = true;
+    end
+    
+    function success = cleanUpProjTempDir(obj,verbose)
+      
+      success = false;
+      if nargin < 2,
+        verbose = true;
+      end
+      if ~ischar(obj.unTarLoc) || isempty(obj.unTarLoc),
+        success = true;
+        return;
+      end
+      if ~exist(obj.unTarLoc,'dir'),
+        if verbose,
+          fprintf('Temporary tar directory %s does not exist. Not cleaning.\n',obj.unTarLoc);
+        end
+        return;
+      end
+      [success,msg] = rmdir(obj.unTarLoc,'s');
+      if ~success && verbose,
+        fprintf('Error deleting temporary tar directory %s:\n%s\n',obj.unTarLoc,msg);
+      end
+      if success,
+        if verbose,
+          fprintf('Removed temporary tar directory %s.\n',obj.unTarLoc);
+        end
+        obj.unTarLoc = '';
+      end
+      
     end
     
     function success = projUpdateDLCache(obj)
@@ -4143,7 +4182,7 @@ classdef Labeler < handle
       
       if isFirstMovie,
         % KB 20161213: moved this up here so that we could redo in initHook
-        obj.labelsMiscInit();
+        obj.trkResVizInit();
         % we set template below as it requires .trx to be set correctly. 
         % see below
         obj.labelingInit('dosettemplate',false); 
@@ -4169,11 +4208,16 @@ classdef Labeler < handle
         
       obj.isinit = isInitOrig; % end Initialization hell      
 
-      if isFirstMovie && obj.labelMode==LabelMode.TEMPLATE
-        % Setting the template requires the .trx to be appropriately set,
-        % so for template mode we redo this (it is part of labelingInit()
-        % here.
-        obj.labelingInitTemplate();
+      if isFirstMovie
+        % needs to be done after trx are set as labels2trkviz handles 
+        % multiple targets.
+        obj.labels2TrkVizInit();
+        if obj.labelMode==LabelMode.TEMPLATE
+          % Setting the template requires the .trx to be appropriately set,
+          % so for template mode we redo this (it is part of labelingInit()
+          % here.
+          obj.labelingInitTemplate();
+        end
       end
 
       % AL20160615: omg this is the plague.
@@ -4253,7 +4297,8 @@ classdef Labeler < handle
       obj.currTarget = 0;
       obj.isinit = isInitOrig;
       
-      obj.labelsMiscInit();
+      obj.labels2TrkVizInit();
+      obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
       edata = NewMovieEventData(false);
       notify(obj,'newMovie',edata);
@@ -5343,9 +5388,15 @@ classdef Labeler < handle
 %       obj.labels2VizShowHideUpdate();      
 %     end
     
+    function setSkeletonEdges(obj,se)
+      obj.skeletonEdges = se;
+      obj.lblCore.updateSkeletonEdges();
+      obj.labeledpos2trkViz.initAndUpdateSkeletonEdges(se);
+    end
     function setShowSkeleton(obj,tf)
       obj.showSkeleton = logical(tf);
       obj.lblCore.updateShowSkeleton();
+      obj.labeledpos2trkViz.updateHideVizHideText();
     end
         
   end
@@ -9550,46 +9601,51 @@ classdef Labeler < handle
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
     end
     
+    function be = trackGetDLBackend(obj)
+      be = obj.trackDLBackEnd;
+    end
+    
     function trackSetDLBackend(obj,be)
       assert(isa(be,'DLBackEndClass'));
-     
+      
       switch be.type
         case DLBackEnd.AWS
           % special-case this to avoid running repeat AWS commands
           
           aws = be.awsec2;
-          if ~isempty(aws)            
-            [tfexist,tfrunning] = aws.inspectInstance();
-            if tfexist
-              % AWS auto-shutdown alarm 20190213
-              % The only official way to set the APT backend is here. We add 
-              % a metricalarm here to auto-shutdown the EC2 instance should 
-              % it become idle.
-              %
-              % - We use use a single/unique alarm name (see AWSec2). I think
-              % this an AWS account can only have one alarm at a time, so
-              % adding it here removes it from somewhere else if it is
-              % somewhere else.
-              % - If an account uses multiple instances, some will be
-              % unprotected for now. We expect the typical use case to be a
-              % single instance at a time.
-              % - Currently we never remove the alarm, so it just hangs
-              % around configured for the last instance where it was added. I
-              % don't get the impression that this hurts or that CloudWatch
-              % is expensive etc. Note in particular, the CloudWatch alarm
-              % lifecycle is independent of the EC2 lifecycle. CloudWatch
-              % alarms specify an instance only eg via the 'Dimensions'.
-              % - The alarm(s) is clearly visible on the EC2 dash. I think it
-              % should be ok for now.
-              aws.configureAlarm;
-            end
+          if isempty(aws),            
+            be.awsec2 = AWSec2();
           end
-          
-          if isempty(aws) || ~tfexist
-            warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
-          elseif ~tfrunning
-            warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
-          end
+%           [tfexist,tfrunning] = aws.inspectInstance();
+%           if tfexist
+%             % AWS auto-shutdown alarm 20190213
+%             % The only official way to set the APT backend is here. We add
+%             % a metricalarm here to auto-shutdown the EC2 instance should
+%             % it become idle.
+%             %
+%             % - We use use a single/unique alarm name (see AWSec2). I think
+%             % this an AWS account can only have one alarm at a time, so
+%             % adding it here removes it from somewhere else if it is
+%             % somewhere else.
+%             % - If an account uses multiple instances, some will be
+%             % unprotected for now. We expect the typical use case to be a
+%             % single instance at a time.
+%             % - Currently we never remove the alarm, so it just hangs
+%             % around configured for the last instance where it was added. I
+%             % don't get the impression that this hurts or that CloudWatch
+%             % is expensive etc. Note in particular, the CloudWatch alarm
+%             % lifecycle is independent of the EC2 lifecycle. CloudWatch
+%             % alarms specify an instance only eg via the 'Dimensions'.
+%             % - The alarm(s) is clearly visible on the EC2 dash. I think it
+%             % should be ok for now.
+%             aws.configureAlarm;
+%           end
+%           
+%           if isempty(aws) || ~tfexist
+%             warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
+%           elseif ~tfrunning
+%             warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
+%           end
           
         otherwise
           [tf,reason] = be.getReadyTrainTrack();
@@ -12904,17 +12960,19 @@ classdef Labeler < handle
 %       end
     end
     
-    function labelsMiscInit(obj)
+    function labels2TrkVizInit(obj)
       % Initialize trkViz for .labeledpos2, .trkRes*
       
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
         tv.delete();
       end      
-      tv = TrackingVisualizer(obj,'labeledpos2');
+      tv = TrackingVisualizerMT(obj,'labeledpos2');
       tv.vizInit();
       obj.labeledpos2trkViz = tv;
-            
+    end
+    
+    function trkResVizInit(obj)
       for i=1:numel(obj.trkResViz)
         tv = obj.trkResViz{i};
         if isempty(tv.lObj)
@@ -12923,9 +12981,6 @@ classdef Labeler < handle
           tv.vizInit('postload',true);
         end
       end
-
-%       obj.genericInitLabelPointViz('lblOtherTgts_ptsH',[],...
-%         obj.gdata.axes_curr,ptsPlotInfo);      
     end
     
     function labels2VizUpdate(obj,varargin)
@@ -12936,8 +12991,9 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;
-      lpos2 = obj.labeledpos2GTaware{iMov}(:,:,frm,iTgt);      
-      obj.labeledpos2trkViz.updateTrackRes(lpos2);
+      lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
+        [obj.nLabelPoints,2,obj.nTargets]);
+      obj.labeledpos2trkViz.updateTrackRes(lpos2,iTgt);
       
       if dotrkres
         trkres = obj.trkResGTaware;

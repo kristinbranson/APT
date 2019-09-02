@@ -926,7 +926,17 @@ classdef CPRLabelTracker < LabelTracker
       end
 
     end
-
+    
+    function setNTestReps(obj,nReps)
+      obj.sPrmAll.ROOT.CPR.Replicates.NrepTrack = nReps;     
+    end
+    
+    function setNIters(obj,nIters)
+      obj.sPrmAll.ROOT.CPR.NumMajorIter = nIters;
+      for i = 1:numel(obj.trnResRC),
+        obj.trnResRC(i).prmReg.T = nIters;
+      end
+    end
      
     %#%MTGT
     function trainingDataMontage(obj)

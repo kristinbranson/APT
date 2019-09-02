@@ -299,6 +299,12 @@ function lclTrackAndExportSingleMov(lObj,mov,trx,trackArgs)
 % Trx: optional, specify '' for no-trx
 
 startTime = tic;
+isClean = false;
+
+if strcmp(lObj.tracker.algorithmName,'cpr'),
+  lObj.cleanUpProjTempDir();
+  isClean = true;
+end
 
 if lObj.gtIsGTMode
   error('APTCluster:gt','Unsupported for GT mode.');
@@ -385,8 +391,20 @@ if ~isempty(storeFullTrackingArgs),
 else
   fprintf('Using default storeFullTracking type %s.\n',lObj.tracker.storeFullTracking);
 end
-
-
+i = find(strcmp(trackArgs,'nReps'));
+assert(isempty(i) || isscalar(i));
+if ~isempty(i),
+  forceNReps = trackArgs{i+1};
+  trackArgs(i:i+1,:) = [];
+  lObj.tracker.setNTestReps(forceNReps);
+end
+i = find(strcmp(trackArgs,'nIters'));
+assert(isempty(i) || isscalar(i));
+if ~isempty(i),
+  forceNIters = trackArgs{i+1};
+  trackArgs(i:i+1,:) = [];
+  lObj.tracker.setNIters(forceNIters);
+end
 tfStartEnd = numel(startArgs)==2 && numel(endArgs)==2;
 if tfStartEnd
   frms = startArgs{2}:endArgs{2};
@@ -397,5 +415,8 @@ else
 end
 fprintf('Tracking preprocessing time: %f\n',toc(startTime)); startTime = tic;
 lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});
+if ~isClean,
+  lObj.cleanUpProjTempDir();
+end
 fprintf('Time to track, total: %f\n',toc(startTime)); startTime = tic;
 

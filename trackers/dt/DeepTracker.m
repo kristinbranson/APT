@@ -1548,7 +1548,8 @@ classdef DeepTracker < LabelTracker
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
         dmcLcl.restartTS = dmc.restartTS;
         % read nLabels from stripped lbl file
-        dmc.readNLabels();        
+        dmcLcl.readNLabels();
+        dmc.nLabels = dmcLcl.nLabels;
       end
       dlLblFileRemote = dmc.lblStrippedLnx;
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
@@ -1820,6 +1821,15 @@ classdef DeepTracker < LabelTracker
 
       if backend.type==DLBackEnd.AWS
         aws = backend.awsec2;        
+        
+        % update apt code
+        if isempty(obj.deepnetgitbranch)
+          args = {};
+        else
+          args = {'updateCmdArgs' {'branch' obj.deepnetgitbranch}};
+        end
+        DeepTracker.updateAPTRepoExecAWS(aws,args{:});
+        
         for i=1:numel(dmc)
           if ~dmc(i).isRemote
             dmc(i).mirror2remoteAws(aws);
@@ -2736,13 +2746,14 @@ classdef DeepTracker < LabelTracker
       nvw = obj.lObj.nview;
       aws = backend.awsec2;
       aws.checkInstanceRunning(); % harderrs if instance isn't running
-            
-      if isempty(obj.deepnetgitbranch)
-        args = {};
-      else
-        args = {'updateCmdArgs' {'branch' obj.deepnetgitbranch}};
-      end
-      DeepTracker.updateAPTRepoExecAWS(aws,args{:}); % prob shouldn't update relative to train...
+
+      % needed to move this earlier
+%       if isempty(obj.deepnetgitbranch)
+%         args = {};
+%       else
+%         args = {'updateCmdArgs' {'branch' obj.deepnetgitbranch}};
+%       end
+%       DeepTracker.updateAPTRepoExecAWS(aws,args{:}); % prob shouldn't update relative to train...
       
       % put/ensure remote stripped lbl
       dmc = obj.trnLastDMC;

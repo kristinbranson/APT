@@ -13,6 +13,15 @@ classdef APT
     
     %DOCKER_REMOTE_HOST = 'bransonk-ws3';
     DOCKER_REMOTE_HOST = '';
+    
+    % for now, hard-coded to use default loc for git
+    WINSCPCMD = 'C:\Program Files\Git\usr\bin\scp.exe';
+    WINSSHCMD = 'C:\Program Files\Git\usr\bin\ssh.exe';
+
+    % hardcoded name of AWS security group
+    AWS_SECURITY_GROUP = 'apt_dl';
+    AMI = 'ami-0168f57fb900185e1';
+    
   end
   
   methods (Static)
