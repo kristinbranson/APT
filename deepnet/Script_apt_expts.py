@@ -26,7 +26,6 @@ reload(rae)
 rae.setup('stephen')
 rae.get_normal_results()
 
-
 ## Accuracy over training set size
 
 import run_apt_expts as rae
@@ -278,6 +277,53 @@ for dd in dtypes:
     rae.setup(dd)
     rae.get_leap_results()
 
+
+## Pretrained vs not training
+import run_apt_expts as rae
+reload(rae)
+rae.setup('alice')
+rae.train_no_pretrained()
+
+## Pretrained vs not results
+import run_apt_expts as rae
+reload(rae)
+rae.setup('alice')
+rae.get_no_pretrained_results()
+
+
+## Difficult examples
+## Create the db
+import run_apt_expts as rae
+reload(rae)
+rae.setup('alice_difficult')
+rae.create_gt_db()
+
+##
+
+import run_apt_expts as rae
+reload(rae)
+rae.setup('alice_difficult')
+rae.get_normal_results()
+
+
+## LEAP
+import run_apt_expts as rae
+reload(rae)
+rae.setup('leap_fly')
+rae.create_normal_dbs()
+rae.create_gt_db()
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('leap_fly')
+rae.run_normal_training()
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('leap_fly')
+rae.get_normal_results()
 
 ## Alice active learning different conditions
 import h5py

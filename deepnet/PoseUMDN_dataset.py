@@ -22,7 +22,8 @@ renorm = False
 
 def softmax(x,axis=0):
     """Compute softmax values for each sets of scores in x."""
-    return np.exp(x) / np.sum(np.exp(x), axis=axis, keepdims=True)
+    y = x - x.max(axis=axis,keepdims=True)
+    return np.exp(y) / np.sum(np.exp(y), axis=axis, keepdims=True)
 
 def show_top_preds(im,pred_locs,pred_weights, n=12):
 
