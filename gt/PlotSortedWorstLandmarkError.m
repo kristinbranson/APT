@@ -3,16 +3,18 @@ function [hfig,savename,sortederrs] = PlotSortedWorstLandmarkError(varargin)
 [sortederrs,gtdata,nets,legendnames,colors,exptype,...
   conddata,labeltypes,datatypes,statname,...
   minerr,maxerr,...
-  hfig,figpos,savedir,savename,dosavefig] = myparse(varargin,'sortederrs',[],'gtdata',[],...
+  hfig,figpos,savedir,savename,dosavefig,prcs,maxprc,...
+  annoterrdata,annotcolor,annoterrprc] = myparse(varargin,'sortederrs',[],'gtdata',[],...
   'nets',{},'legendnames',{},'colors',[],'exptype','exp',...
   'conddata',[],'labeltypes',{},'datatypes',{},'statname','Worst',...
   'minerr',[],'maxerr',[],...
   'hfig',[],'figpos',[],...
   'savedir','.',...
   'savename','',...
-  'dosavefig',false);
-
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+  'dosavefig',false,...
+  'prcs',[],...
+  'maxprc',100,...
+  'annoterrdata',[],'annotcolor',[0,0,0],'annoterrprc',99);
 
 if isempty(nets),
   assert(~isempty(gtdata));
@@ -34,6 +36,7 @@ if isempty(conddata),
 end
 
 if isempty(labeltypes),
+  nlabeltypes = max(conddata.label_cond);
   labeltypes = cell(nlabeltypes,2);
   for i = 1:nlabeltypes,
     labeltypes{i,1} = num2str(i);
@@ -41,6 +44,7 @@ if isempty(labeltypes),
   end
 end
 if isempty(datatypes),
+  ndatatypes = max(conddata.data_cond);
   datatypes = cell(ndatatypes,2);
   for i = 1:ndatatypes,
     datatypes{i,1} = num2str(i);
@@ -62,38 +66,16 @@ if isempty(sortederrs),
   sortederrs = cell([nnets,nlabeltypes,ndatatypes]);
 
   for ndx = 1:nnets,
-    mndx = numel(gtdata.(nets{ndx}));
-    cur_data = gtdata.(nets{ndx}){mndx};
-    preds = cur_data.pred;
-    labels = cur_data.labels;
-    assert(size(preds,3)==2);
-    assert(size(labels,3)==2);
-    iscpr = ~isempty(strfind(nets{ndx},'cpr'));
-
-    for datai = 1:ndatatypes,
-      dtis = datatypes{datai,2};
-      for labeli = 1:nlabeltypes,
-        ltis = labeltypes{labeli,2};
-        idx = ismember(conddata.data_cond,dtis) & ismember(conddata.label_cond,ltis);
-        if iscpr && isshexp,
-          % special case for SH/cpr whose computed GT output only has
-          % 1149 rows instead of 1150 cause dumb
-          idx(4) = [];
-        end
-        dist = sqrt(sum( (preds(idx,:,:)-labels(idx,:,:)).^2,3));
-        switch lower(statname),
-          case 'worst',            
-            distcurr = max(dist,[],2);
-          case 'median',
-            distcurr = median(dist,2);
-          case 'best'
-            distcurr = min(dist,[],2);
-        end
-        sortederrs{ndx,labeli,datai} = sort(distcurr);
-      end
-    end
+    cur_data = gtdata.(nets{ndx}){end};
+    sortederrs(ndx,:,:) = GetSortedErrs(cur_data,nets{ndx},exptype,conddata,datatypes,labeltypes,statname);
   end
 end
+
+if ~isempty(annoterrdata),
+  annotsortederrs = GetSortedErrs(annoterrdata,'annotator','',annoterrdata,datatypes,labeltypes,statname);
+  annoterrthresh = cellfun(@(x) prctile(x,annoterrprc),annotsortederrs);
+end
+
 
 if isempty(maxerr),
   maxerr = max(cat(1,sortederrs{:}));
@@ -126,13 +108,17 @@ for datai = ndatatypes:-1:1,
     cla(hax(labeli,datai));
     
     hold on;
-    h = gobjects(1,nnets);
-    for ndx = 1:nnets,
+    nplot = size(sortederrs,1);
+    h = gobjects(1,nplot);
+    if ~isempty(annoterrdata),
+      plot([eps,100],annoterrthresh(labeli,datai)+[0,0],':','Color',annotcolor,'LineWidth',2);
+    end
+    for ndx = 1:nplot,
       ncurr = numel(sortederrs{ndx,labeli,datai});
       if ncurr == 0,
         continue;
       end
-      h(ndx) = plot((1:ncurr)/ncurr*100,squeeze(sortederrs{ndx,labeli,datai})','-','LineWidth',2,'Color',colors(ndx,:));
+      h(ndx) = plot(max(eps,100-(1:ncurr)/ncurr*100),squeeze(sortederrs{ndx,labeli,datai})','-','LineWidth',2,'Color',colors(ndx,:));
     end
     if labeli == nlabeltypes && datai == ndatatypes,
       legend(h,legendnames);
@@ -146,8 +132,13 @@ for datai = ndatatypes:-1:1,
     if labeli == 1,
       title(sprintf('%s, %s landmark',datatypes{datai,1},lower(statname)),'FontWeight','normal');
     end
-    set(gca,'XLim',[0,100],'YLim',[minerr,maxerr]);
-    set(gca,'YScale','log');
+    set(gca,'XLim',[100-maxprc,100],'YLim',[minerr,maxerr],'XDir','reverse');
+    set(gca,'YScale','log','XScale','log');
+    if isempty(prcs),
+      prcs = 100-get(gca,'XTick');
+    end
+    set(gca,'XTick',100-flipud(prcs(:)),'XTickLabel',num2str(flipud(prcs(:))));
+    set(gca,'YTick',10:10:maxerr);
     drawnow;
   end
 end
@@ -162,4 +153,42 @@ if dosavefig,
     savename = fullfile(savedir,sprintf('%s_ErrPercentiles_%sLandmark.svg',exptype,statname));
   end
   saveas(hfig,savename,'svg');
+end
+
+function sortederrs = GetSortedErrs(cur_data,net,exptype,conddata,datatypes,labeltypes,statname)
+
+isshexp = startsWith(exptype,'SH');
+
+preds = cur_data.pred;
+labels = cur_data.labels;
+assert(all(size(preds)==size(labels)));
+% assert(size(preds,3)==2);
+% assert(size(labels,3)==2);
+iscpr = contains(net,'cpr');
+
+ndatatypes = size(datatypes,1);
+nlabeltypes = size(labeltypes,1);
+
+sortederrs = cell(nlabeltypes,ndatatypes);
+for datai = 1:ndatatypes,
+  dtis = datatypes{datai,2};
+  for labeli = 1:nlabeltypes,
+    ltis = labeltypes{labeli,2};
+    idx = ismember(conddata.data_cond,dtis) & ismember(conddata.label_cond,ltis);
+    if iscpr && isshexp,
+      % special case for SH/cpr whose computed GT output only has
+      % 1149 rows instead of 1150 cause dumb
+      idx(4) = [];
+    end
+    dist = sqrt(sum( (preds(idx,:,:)-labels(idx,:,:)).^2,3));
+    switch lower(statname),
+      case 'worst',
+        distcurr = max(dist,[],2);
+      case 'median',
+        distcurr = median(dist,2);
+      case 'best'
+        distcurr = min(dist,[],2);
+    end
+    sortederrs{labeli,datai} = sort(distcurr);
+  end
 end

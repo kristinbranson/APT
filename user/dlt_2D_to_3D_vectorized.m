@@ -102,19 +102,19 @@ params_z = nan([2,n]);
 % Solve x parameterization 
 idxcurr = max_ind == 1;
 if any(idxcurr),
-
+  ncurr = nnz(idxcurr);
   A_x_inv = inv_2x2(A_x(:,:,idxcurr));
         
   % params_1 = A_x_inv*b_x_1;
   params_1 = reshape(cat(1, A_x_inv(1,1,:).*b_x_1(1,1,idxcurr) + A_x_inv(1,2,:).*b_x_1(2,1,idxcurr),...
-    A_x_inv(2,1,:).*b_x_1(1,1,idxcurr) + A_x_inv(2,2,:).*b_x_1(2,1,idxcurr)),[2,n]);
+    A_x_inv(2,1,:).*b_x_1(1,1,idxcurr) + A_x_inv(2,2,:).*b_x_1(2,1,idxcurr)),[2,ncurr]);
 
   % params_2 = A_x_inv*b_x_2;
   params_2 = reshape(cat(1, A_x_inv(1,1,:).*b_x_2(1,1,idxcurr) + A_x_inv(1,2,:).*b_x_2(2,1,idxcurr),...
-    A_x_inv(2,1,:).*b_x_2(1,1,idxcurr) + A_x_inv(2,2,:).*b_x_2(2,1,idxcurr)),[2,n]);
+    A_x_inv(2,1,:).*b_x_2(1,1,idxcurr) + A_x_inv(2,2,:).*b_x_2(2,1,idxcurr)),[2,ncurr]);
 
   % params_x = [ 0 1 ];   % of form [ b a ] where b + a*t  
-  params_x(:,idxcurr) = repmat( [0;1],[1,n] );
+  params_x(:,idxcurr) = repmat( [0;1],[1,ncurr] );
   
   % params_y = [ params_1(1) params_2(1) ];
   params_y(:,idxcurr) = cat(1,params_1(1,:),params_2(1,:));
@@ -130,20 +130,21 @@ idxcurr = max_ind == 2;
 if any(idxcurr),
         
   A_y_inv = inv_2x2(A_y(:,:,idxcurr));
+  ncurr = nnz(idxcurr);
         
   % params_1 = A_y_inv*b_y_1;
   params_1 = reshape(cat(1, A_y_inv(1,1,:).*b_y_1(1,1,idxcurr) + A_y_inv(1,2,:).*b_y_1(2,1,idxcurr),...
-    A_y_inv(2,1,:).*b_y_1(1,1,idxcurr) + A_y_inv(2,2,:).*b_y_1(2,1,idxcurr)),[2,n]);
+    A_y_inv(2,1,:).*b_y_1(1,1,idxcurr) + A_y_inv(2,2,:).*b_y_1(2,1,idxcurr)),[2,ncurr]);
         
   % params_2 = A_y_inv*b_y_2;
   params_2 = reshape(cat(1, A_y_inv(1,1,:).*b_y_2(1,1,idxcurr) + A_y_inv(1,2,:).*b_y_2(2,1,idxcurr),...
-    A_y_inv(2,1,:).*b_y_2(1,1,idxcurr) + A_y_inv(2,2,:).*b_y_2(2,1,idxcurr)),[2,n]);
+    A_y_inv(2,1,:).*b_y_2(1,1,idxcurr) + A_y_inv(2,2,:).*b_y_2(2,1,idxcurr)),[2,ncurr]);
         
   % params_x = [ params_1(1) params_2(1) ];
   params_x(:,idxcurr) = cat(1,params_1(1,:),params_2(1,:));
           
   % params_y = [ 0 1 ];   % of form [ b a ] where b + a*t
-  params_y(:,idxcurr) = repmat( [0;1],[1,n] );
+  params_y(:,idxcurr) = repmat( [0;1],[1,ncurr] );
         
   % params_z = [ params_1(2) params_2(2) ];
   params_z(:,idxcurr) = cat(1,params_1(2,:),params_2(2,:));
@@ -154,15 +155,16 @@ end
 idxcurr = max_ind == 3;
 if any(idxcurr),
 
-  A_z_inv = inv_2x2(A_z);
+  ncurr = nnz(idxcurr);
+  A_z_inv = inv_2x2(A_z(:,:,idxcurr));
         
   % params_1 = A_z_inv*b_z_1;
   params_1 = reshape(cat(1, A_z_inv(1,1,:).*b_z_1(1,1,idxcurr) + A_z_inv(1,2,:).*b_z_1(2,1,idxcurr),...
-    A_z_inv(2,1,:).*b_z_1(1,1,idxcurr) + A_z_inv(2,2,:).*b_z_1(2,1,idxcurr)),[2,n]);
+    A_z_inv(2,1,:).*b_z_1(1,1,idxcurr) + A_z_inv(2,2,:).*b_z_1(2,1,idxcurr)),[2,ncurr]);
     
   % params_2 = A_z_inv*b_z_2;
   params_2 = reshape(cat(1, A_z_inv(1,1,:).*b_z_2(1,1,idxcurr) + A_z_inv(1,2,:).*b_z_2(2,1,idxcurr),...
-    A_z_inv(2,1,:).*b_z_2(1,1,idxcurr) + A_z_inv(2,2,:).*b_z_2(2,1,idxcurr)),[2,n]);
+    A_z_inv(2,1,:).*b_z_2(1,1,idxcurr) + A_z_inv(2,2,:).*b_z_2(2,1,idxcurr)),[2,ncurr]);
 
   % params_x = [ params_1(1) params_2(1) ];
   params_x(:,idxcurr) = cat(1,params_1(1,:),params_2(1,:));      
@@ -171,7 +173,7 @@ if any(idxcurr),
   params_y(:,idxcurr) = cat(1,params_1(2,:),params_2(2,:));
         
   % params_z = [ 0 1 ];   % of form [ b a ] where b + a*t
-  params_z(:,idxcurr) = repmat( [0;1],[1,n] );
+  params_z(:,idxcurr) = repmat( [0;1],[1,ncurr] );
         
 end
 

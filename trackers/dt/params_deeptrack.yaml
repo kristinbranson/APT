@@ -34,7 +34,7 @@ ROOT:
       - imax: ['Max pixel value',float,true,'Maximum pixel value in the video.',255.,'','Advanced','isDeepTrack',true]
     - GradientDescent:
       - ['','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
-      - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. ',60000,'','Beginner','isDeepTrack',true]
+      - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. ',20000,'','Beginner','isDeepTrack',true]
       - batch_size: ['Training batch size',unsigned,true,'Number of training examples used in each iteration of gradient descent. Too large of values may cause the GPU to run out of memory. Too small of values may make training slower and result in poor optimization.',8,'','Advanced','isDeepTrack',true]
       - cos_steps: ['N. warm restarts',unsigned,true,'Number of times to restart training',2,'','Advanced','isDeepTrack',true]
       - decay_steps: ['Learning rate decay iterations',float,true,'The learning rate is decayed by gamma (below) after this many iterations of training.',25000,'','Advanced','isDeepTrack',true]

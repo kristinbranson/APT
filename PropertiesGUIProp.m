@@ -1,5 +1,11 @@
-classdef PropertiesGUIProp < matlab.mixin.SetGet
+classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
+  
   properties
+    
+    % *IMPORTANT*: properties must not be handles; PropertiesGUIProp
+    % objects must be fully-copied by the shallow copy() method provided by
+    % matlab.mixin.Copyable!!!
+    
     Field % char, fieldname on struct/obj
     DispName % displayname in table
     Type % {cellstr 'unsigned' 'signed' 'string' 'color' 'font' 'date' 'float' 'boolean' 'folder 'file' 'password' 'IPAddress'}

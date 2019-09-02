@@ -775,10 +775,11 @@ classdef RegressorCascade < handle
       % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
       % is shape after T'th major iteration.
          
-      [t0,wbObj,calrig] = myparse(varargin,...
+      [t0,wbObj,calrig,storeIters] = myparse(varargin,...
         't0',1,... % initial/starting major iteration
         'wbObj',[],... % WaitBarWithCancel. If cancel, obj is unchanged and p_t is partially filled
-        'calrig',[]);
+        'calrig',[],...
+        'storeIters',true);
       tfWB = ~isempty(wbObj);
 
       model = obj.prmModel;
@@ -802,8 +803,12 @@ classdef RegressorCascade < handle
       ftrMetaType = obj.prmFtr.metatype;
       bbs = bboxes(pIidx,:);
       T = obj.nMajor;
-      p_t = zeros(Q,D,T+1); % shapes over all initial conds/iterations, absolute coords
-      p_t(:,:,1) = p0;
+      if storeIters,
+        p_t = zeros(Q,D,T+1); % shapes over all initial conds/iterations, absolute coords
+        p_t(:,:,1) = p0;
+      else
+        p_t = zeros(Q,D,1);
+      end
       p = p0; % current/working shape, absolute coords
                    
       if tfWB
@@ -844,7 +849,9 @@ classdef RegressorCascade < handle
           p = shapeGt('compose',model,pDel,p,bbs); % p (output) is normalized
         end
         p = shapeGt('reprojectPose',model,p,bbs); % back to absolute coords
-        p_t(:,:,t+1) = p;
+        if storeIters || t == T,
+          p_t(:,:,t+1) = p;
+        end
       end
     end
     
