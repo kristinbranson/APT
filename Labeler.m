@@ -1844,6 +1844,11 @@ classdef Labeler < handle
         end
       end
       
+      % clean information we shouldn't save from AWS EC2
+      if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd),
+        s.trackDLBackEnd.awsec2 = [];
+      end
+      
       switch obj.labelMode
         case LabelMode.TEMPLATE
           %s.labelTemplate = obj.lblCore.getTemplate();
@@ -2428,7 +2433,11 @@ classdef Labeler < handle
               end
 
               if dm.isRemote
-                dm.mirrorFromRemoteAws(projtempdir);
+                try
+                  dm.mirrorFromRemoteAws(projtempdir);
+                catch
+                  warningNoTrace('Could not check if trackers had been downloaded from AWS.');
+                end
               end
 
               if verbose>0 && ndx==1
@@ -9614,7 +9623,9 @@ classdef Labeler < handle
           
           aws = be.awsec2;
           if isempty(aws),            
-            be.awsec2 = AWSec2();
+            be.awsec2 = AWSec2([],...
+              'SetStatusFun',@(varargin) obj.SetStatus(varargin{:}),...
+              'ClearStatusFun',@(varargin) obj.ClearStatus(varargin{:}));
           end
 %           [tfexist,tfrunning] = aws.inspectInstance();
 %           if tfexist
@@ -13299,9 +13310,13 @@ classdef Labeler < handle
    
     function SetStatus(obj,s,varargin)
       
-      if isfield(obj.gdata,'SetStatusFun'),
-        obj.gdata.SetStatusFun(obj.gdata,s,varargin{:});
-      else
+      try
+        if isfield(obj.gdata,'SetStatusFun'),
+          obj.gdata.SetStatusFun(obj.gdata,s,varargin{:});
+        else
+          fprintf(['Status: ',s,'...\n']);
+        end
+      catch
         fprintf(['Status: ',s,'...\n']);
       end
       
@@ -13309,12 +13324,15 @@ classdef Labeler < handle
 
     function ClearStatus(obj,varargin)
       
-      if isfield(obj.gdata,'ClearStatusFun'),
-        obj.gdata.ClearStatusFun(obj.gdata,varargin{:});
-      else
+      try
+        if isfield(obj.gdata,'ClearStatusFun'),
+          obj.gdata.ClearStatusFun(obj.gdata,varargin{:});
+        else
+          fprintf('Done.\n');
+        end
+      catch
         fprintf('Done.\n');
       end
-      
     end
     
     function setStatusBarTextWhenClear(obj,s,varargin)

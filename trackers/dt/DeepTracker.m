@@ -3153,8 +3153,20 @@ classdef DeepTracker < LabelTracker
         end
 
       end
+      
       % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
       obj.updateTrackerInfo();
+      
+      res = questdlg(sprintf('Training stopped after %d / %d iterations. Save trained model to file?',...
+        obj.trackerInfo.iterCurr,obj.trackerInfo.iterFinal),'Save?','Save','Save as...','No','Save');
+      if strcmpi(res,'Save'),
+        obj.lObj.projSaveSmart();
+        obj.lObj.projAssignProjNameFromProjFileIfAppropriate();
+      elseif strcmpi(res,'Save as...'),
+        obj.lObj.projSaveAs();
+        obj.lObj.projAssignProjNameFromProjFileIfAppropriate();
+      end
+      
     end
     
     function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)
