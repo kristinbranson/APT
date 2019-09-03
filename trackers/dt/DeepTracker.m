@@ -1145,7 +1145,7 @@ classdef DeepTracker < LabelTracker
                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths,gpuid,...
                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
                 'dockerArgs',dockerArgs);
-            logcmds{ivw} = sprintf('%s logs -f %s &> %s &',...
+            logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
               obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
           end
@@ -1586,7 +1586,7 @@ classdef DeepTracker < LabelTracker
         fprintf('Training job spawned.\n\n');
 
         % record local cmdfile
-        cmdfile = dmcLcl.cmdfileLnx;
+        cmdfile = dmcLcl.cmdfileLnx; % currently writes "...viewNan..." since view is not set; this is benign
         %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
         [fh,msg] = fopen(cmdfile,'w');
         if isequal(fh,-1)
@@ -2124,7 +2124,7 @@ classdef DeepTracker < LabelTracker
         singargs = {'bindpath',singBind};
         
         repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
-        repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
+        repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
         prefix = [DeepTracker.jrcprefix '; ' repoSScmd];        
         sshargsuse = [sshargs {'prefix' prefix}];
         
@@ -2514,7 +2514,7 @@ classdef DeepTracker < LabelTracker
               singargs = {'bindpath',singBind};
               
               repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
-              repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,aptroot,trksysinfo(imov,ivwjob).snapshotfile);
+              repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(imov,ivwjob).snapshotfile);
               prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
               
               sshargsuse = [sshargs {'prefix' prefix}];
@@ -2549,7 +2549,7 @@ classdef DeepTracker < LabelTracker
               if useLogFlag
                 trksysinfo(imov,ivwjob).logcmd = [];
               else
-                trksysinfo(imov,ivwjob).logcmd = sprintf('%s logs -f %s &> %s &',...
+                trksysinfo(imov,ivwjob).logcmd = sprintf('%s logs -f %s &> "%s" &',...
                   obj.dockercmd,trksysinfo(imov,ivwjob).containerName,...
                   outfile);
               end
@@ -2715,8 +2715,8 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static)
     function sha = getSHA(file)
-      file = strrep(file,' ','\ ');
       if ismac
+        file = strrep(file,' ','\ ');
         shacmd = sprintf('MD5 %s',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         res = strtrim(res);
@@ -2724,13 +2724,14 @@ classdef DeepTracker < LabelTracker
         sha = toks{end};        
         sha = regexprep(sha,' ','');          
       elseif isunix
+        file = strrep(file,' ','\ ');
         shacmd = sprintf('md5sum %s',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
-        shacmd = sprintf('certUtil -hashFile %s MD5',file);
+        shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,'\n','split');
         sha = toks{2};
@@ -2803,13 +2804,13 @@ classdef DeepTracker < LabelTracker
         [~,~,movE] = fileparts(mov);
         movsha = DeepTracker.getSHA(mov);
         movRemoteRel = ['data/' movsha movE];
-        movRemoteAbs = ['~/' movRemoteRel];
+        movRemoteAbs = ['/home/ubuntu/' movRemoteRel];
         aws.scpUploadOrVerify(mov,movRemoteRel,'movie'); % throws            
         if tftrx
           trx = trxsfull{ivw};
           trxsha = DeepTracker.getSHA(trx);
           trxRemoteRel = ['data/' trxsha];
-          trxRemoteAbs = ['~/' trxRemoteRel];
+          trxRemoteAbs = ['/home/ubuntu/' trxRemoteRel];
           aws.scpUploadOrVerify(trx,trxRemoteRel,'trxfile'); % throws            
         end
         
@@ -3269,15 +3270,20 @@ classdef DeepTracker < LabelTracker
     
     function codestr = codeGenDockerGeneral(basecmd,containerName,varargin)
       % Take a base command and run it in a docker img
+      %
+      % basecmd: currently assumed to have filenames/paths protected by \"
+      %   (escaped double-quotes)
       
       DFLTBINDPATH = {};
-      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = myparse(varargin,...
+      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = ...
+        myparse(varargin,...
         'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
         'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
         'dockerimg','bransonlabapt/apt_docker:latest',... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
-        'detach',true);
+        'detach',true ...
+      );
       
       aptdeepnet = APT.getpathdl;
 
@@ -3298,8 +3304,10 @@ classdef DeepTracker < LabelTracker
         userArgs = {};
         bashCmdQuote = '"';
       else
-        mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),...
-          bindpath,'uni',0);
+        mountArgsFcn = @(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x);
+        % Can use raw bindpaths here; already in single-quotes, addnl
+        % quotes unnec
+        mountArgs = cellfun(mountArgsFcn,bindpath,'uni',0);
         deepnetrootContainer = aptdeepnet;
         userArgs = {'--user' '$(id -u)'};
         bashCmdQuote = '''';
@@ -3316,8 +3324,10 @@ classdef DeepTracker < LabelTracker
       homedir = getenv('HOME');
       
       if isempty(APT.DOCKER_REMOTE_HOST),
+        % local Docker run
         dockercmd = 'docker';
         dockercmdend = '';
+        filequote = '"';
       else
         % i'm guessing this cding is nec to deal with automount issues
 %         if isempty(bindpath),
@@ -3331,6 +3341,7 @@ classdef DeepTracker < LabelTracker
         end
         dockercmd = sprintf('ssh -t %s "%sdocker',APT.DOCKER_REMOTE_HOST,cdargs);
         dockercmdend = '"';
+        filequote = '\"';
       end
       
       if tfDetach,
@@ -3352,10 +3363,11 @@ classdef DeepTracker < LabelTracker
         userArgs(:);
         {
         '-w'
-        deepnetrootContainer
+        [filequote deepnetrootContainer filequote]
         dockerimg
         sprintf('bash -c %sexport HOME=%s; %s cd %s; %s%s%s',...
-          bashCmdQuote,homedir,cudaEnv,deepnetrootContainer,basecmd,...
+          bashCmdQuote,[filequote homedir filequote],cudaEnv,...
+          [filequote deepnetrootContainer filequote],basecmd,... % basecmd should have filenames protected by \"
           bashCmdQuote,dockercmdend);
         }
       ];
@@ -3380,16 +3392,19 @@ classdef DeepTracker < LabelTracker
         'nslots',1,...
         'gpuqueue','gpu_any',...
         'outfile','/dev/null');
-      codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o %s -R"affinity[core(1)]" %s',...
+      codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      
     end
     function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
         varargin)
-      [view,deepnetroot,trainType,fs] = myparse(varargin,...
+      [view,deepnetroot,trainType,fs,filequote] = myparse(varargin,...
         'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
         'deepnetroot',APT.getpathdl,...
         'trainType',DLTrainType.New,...
-        'filesep','/'...
+        'filesep','/',...
+        'filequote','\"'... % quote char used to protect filenames/paths. 
+                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller 
+                        ... % is expected to wrap in enclosing regular double-quotes " !!
           );
       tfview = ~isempty(view);
       
@@ -3406,12 +3421,18 @@ classdef DeepTracker < LabelTracker
           assert(false);
       end
       
-      codestr = sprintf('python %s -name %s',aptintrf,trnID);
+      codestr = sprintf('python %s -name %s',...
+        [filequote aptintrf filequote],trnID);
       if tfview
         codestr = sprintf('%s -view %d',codestr,view); % APT_interface accepts 1-based view
       end      
       codestr = sprintf('%s -cache %s -err_file %s -type %s %s train -use_cache %s',...
-        codestr,cache,errfile,netType,dllbl,continueflags);
+        codestr,...
+        [filequote cache filequote], ... % String.escapeSpaces(cache),...
+        [filequote errfile filequote], ... % String.escapeSpaces(errfile),...
+        netType,...
+        [filequote dllbl filequote], ... % String.escapeSpaces(dllbl),...
+        continueflags);
     end
     function [codestr,containerName] = trainCodeGenDocker(modelChainID,trainID,...
         dllbl,cache,errfile,netType,trainType,view1b,mntPaths,gpuid,varargin)
@@ -3424,8 +3445,14 @@ classdef DeepTracker < LabelTracker
         baseargs = [baseargs,{'view' view1b}];
       end
 
+      tfLocalDocker = isempty(APT.DOCKER_REMOTE_HOST);
+      if tfLocalDocker
+        filequote = '"';
+      else
+        filequote = '\"';
+      end        
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
-        netType,baseargs{:});
+        netType,baseargs{:},'filequote',filequote);
 
       if isempty(view1b),      
         containerName = [modelChainID '_' trainID];
@@ -3434,8 +3461,7 @@ classdef DeepTracker < LabelTracker
       end
      
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
-        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});
-      
+        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});      
     end
     function [codestr] = trainCodeGenConda(modelChainID,trainID,...
         dllbl,cache,errfile,netType,trainType,view1b,gpuid,varargin)
@@ -3516,7 +3542,7 @@ classdef DeepTracker < LabelTracker
       end
         
       repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
-      repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,aptroot,dmc.aptRepoSnapshotLnx);
+      repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,dmc.aptRepoSnapshotLnx);
       prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
       
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
@@ -3583,7 +3609,7 @@ classdef DeepTracker < LabelTracker
       % copy cmd (lnx) deepnet/pretrained from production repo to JRC loc 
       srcPTWlnx = [DeepTracker.jrcprodrepo '/deepnet/pretrained'];
       dstPTWlnx = [aptrootLnx '/deepnet'];      
-      cmd = sprintf('cp -r -u %s %s',srcPTWlnx,dstPTWlnx);
+      cmd = sprintf('cp -r -u "%s" "%s"',srcPTWlnx,dstPTWlnx);
     end
     function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
       cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
@@ -3650,34 +3676,52 @@ classdef DeepTracker < LabelTracker
         };
       codestr = cat(2,codestr{:});
     end
+    function str = cellstr2SpaceDelimWithEscapedSpace(c)
+      % c: cellstr
+      %
+      % Use this to convert c to a space-delimited string for use as a
+      % command-line argument. It is assumed this argument will be used in 
+      % a *nix environment with eg python/argparse; individual elements of 
+      % c will have any naked whitespaces escaped so that any such elements 
+      % will not be (mis)interpretered as 2+ separate arguments.
+      c = cellfun(@String.escapeSpaces,c,'uni',0);
+      str = String.cellstr2DelimList(c,' ');
+    end
+    function str = cellstr2SpaceDelimWithQuote(c,quotechar)
+      c = cellfun(@(x)[quotechar x quotechar],c,'uni',0);
+      str = String.cellstr2DelimList(c,' '); 
+    end
     function codestr = trackCodeGenBaseListFile(trnID,cache,dllbl,outfile,...
         errfile,nettype,view,listfile,varargin)
       % view: 1-based
       
-      [deepnetroot,model_file,fs] = myparse(varargin,...
+      [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
         'deepnetroot',APT.getpathdl,...
         'model_file',[],... 
-        'filesep','/'...
+        'filesep','/',...
+        'filequote','\"'... % quote char used to protect filenames/paths.
+                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+                        ... % is expected to wrap in enclosing regular double-quotes " !!
         );
 
       tfmodel = ~isempty(model_file);      
       aptintrf = [deepnetroot fs 'APT_interface.py'];
 
       code = { ...
-        'python' aptintrf ...
+        'python' [filequote aptintrf filequote] ...
         '-name' trnID ...
         '-view' num2str(view) ... % 1b 
-        '-cache' cache ...
-        '-err_file' errfile ...
+        '-cache' [filequote cache filequote] ...
+        '-err_file' [filequote errfile filequote] ...
         };
       if tfmodel
-        code(end+1:end+2) = {'-model_files' model_file};
+        code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
       end
       code = [code ...
         '-type' char(nettype) ...
-        dllbl 'track' ...
-        '-out' outfile ...
-        '-list_file' listfile];
+        [filequote dllbl filequote] 'track' ...
+        '-out' [filequote outfile filequote] ...
+        '-list_file' [filequote listfile filequote] ];
       
       codestr = String.cellstr2DelimList(code,' ');
     end
@@ -3686,8 +3730,10 @@ classdef DeepTracker < LabelTracker
         outtrk,... % either char of [nviewx1] cellstr
         frm0,frm1,... % (opt) can be empty. these should prob be in optional P-Vs
         varargin)
+      
       [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
-        updateWinPaths2LnxContainer,lnxContainerMntLoc,fs] = myparse(varargin,...
+        updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote] = ...
+        myparse(varargin,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trxfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
@@ -3699,7 +3745,10 @@ classdef DeepTracker < LabelTracker
         'log_file',[],... (opt)
         'updateWinPaths2LnxContainer',ispc, ... % if true, all paths will be massaged from win->lnx for use in container 
         'lnxContainerMntLoc','/mnt',... % used when updateWinPaths2LnxContainer==true
-        'filesep','/'...
+        'filesep','/',...
+        'filequote','\"'... % quote char used to protect filenames/paths.
+                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+                        ... % is expected to wrap in enclosing regular double-quotes " !!
         );
      
       tffrm = ~isempty(frm0) && ~isempty(frm1);
@@ -3765,35 +3814,31 @@ classdef DeepTracker < LabelTracker
         dllbl = fcnPathUpdate(dllbl);
       end
 
-      movtrkstr = String.cellstr2DelimList(movtrk,' ');
-      outtrkstr = String.cellstr2DelimList(outtrk,' ');
-      if tftrx
-        trxtrkstr = String.cellstr2DelimList(trxtrk,' ');
-      end
-      if tfmodel
-        modelfilestr = String.cellstr2DelimList(model_file,' ');
-      end
-
-      codestr = {'python' aptintrf '-name' trnID};
+      codestr = {'python' [filequote aptintrf filequote] '-name' trnID};
       if tfview
         codestr = [codestr {'-view' num2str(view)}]; % view: 1-based for APT_interface
       end
       if tfcache
-        codestr = [codestr {'-cache' cache}];
+        codestr = [codestr {'-cache' [filequote cache filequote]}];
       end
-      codestr = [codestr {'-err_file' errfile}];
+      codestr = [codestr {'-err_file' [filequote errfile filequote]}];
       if tfmodel
-        codestr = [codestr {'-model_files' modelfilestr}];
+        codestr = [codestr {'-model_files' ...
+                            DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote)}];
       end
       if tflog
-        codestr = [codestr {'-log_file' log_file}];
+        codestr = [codestr {'-log_file' [filequote log_file filequote]}];
       end
-      codestr = [codestr {'-type' char(nettype) dllbl 'track' '-mov' movtrkstr '-out' outtrkstr}];
+      codestr = [codestr {'-type' char(nettype) ...
+                          [filequote dllbl filequote] ...
+                          'track' ...
+                          '-mov' DeepTracker.cellstr2SpaceDelimWithQuote(movtrk,filequote) ...
+                          '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
       if tffrm
         codestr = [codestr {'-start_frame' num2str(frm0) '-end_frame' num2str(frm1)}];
       end
       if tftrx
-        codestr = [codestr {'-trx' trxtrkstr}];
+        codestr = [codestr {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(trxtrk,filequote)}];
         if tftrxids
           trxids = num2cell(trxids); % 1-based for APT_interface
           trxidstr = sprintf('%d ',trxids{:});
@@ -3856,19 +3901,29 @@ classdef DeepTracker < LabelTracker
       [baseargs,dockerargs,mntPaths] = myparse(varargin,...
         'baseargs',{},'dockerargs',{},'mntPaths',{});
       
+      tfLocalDocker = isempty(APT.DOCKER_REMOTE_HOST);
+      if tfLocalDocker
+        filequote = '"';
+      else
+        filequote = '\"';
+      end        
       basecmd = DeepTracker.dataAugCodeGenBase(ID,dllbl,cache,errfile,...
-        netType,outfile,baseargs{:});
+        netType,outfile,baseargs{:},'filequote',filequote);
       
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,ID,...
         'bindpath',mntPaths,dockerargs{:});
-    end
+    end    
     
-    
-    function codestr = dataAugCodeGenBase(ID,dllbl,cache,errfile,nettype,outfile,varargin)
-      [deepnetroot,model_file,fs] = myparse(varargin,...
+    function codestr = dataAugCodeGenBase(ID,dllbl,cache,errfile,...
+        nettype,outfile,varargin)
+      
+      [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
         'deepnetroot',APT.getpathdl,...
         'model_file',[],... % can be [nview] cellstr
-        'filesep','/'...
+        'filesep','/',...
+        'filequote','\"'... % quote char used to protect filenames/paths.
+                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+                        ... % is expected to wrap in enclosing regular double-quotes " !!        
         ); 
      
       tfcache = ~isempty(cache);
@@ -3878,25 +3933,24 @@ classdef DeepTracker < LabelTracker
         model_file = cellstr(model_file);
       end
 
-      aptintrf = [deepnetroot fs 'APT_interface.py'];
-
-      if tfmodel
-        modelfilestr = String.cellstr2DelimList(model_file,' ');
-      end
-
-      codestr = sprintf('python %s -name %s',aptintrf,ID);
+      aptintrf = [deepnetroot fs 'APT_interface.py'];      
+    
+      codestr = sprintf('python %s -name %s',...
+        [filequote aptintrf filequote],ID);
       if tfcache
-        codestr = [codestr ' -cache ' cache];
+        %cache = String.escapeSpaces(cache);
+        codestr = [codestr ' -cache ' [filequote cache filequote]];
       end
-      codestr = [codestr ' -err_file ' errfile];
+      %errfile = String.escapeSpaces(errfile);
+      codestr = [codestr ' -err_file ' [filequote errfile filequote]];
       if tfmodel
-        codestr = sprintf('%s -model_files %s',codestr,modelfilestr);
+        %modelfilestr = DeepTracker.cellstr2SpaceDelimWithEscapedSpace(model_file);
+        codestr = sprintf('%s -model_files %s',codestr,...
+          DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
       end
       codestr = [codestr sprintf(' -type %s %s data_aug -out_file %s',...
-        char(nettype),dllbl,outfile)];
-
-    end
-    
+        char(nettype),[filequote dllbl filequote],[filequote outfile filequote])];
+    end    
     
     function [codestr,containerName] = trackCodeGenDocker(...
         trnID,cache,dllbl,errfile,...
@@ -3911,9 +3965,14 @@ classdef DeepTracker < LabelTracker
         'baseargs',{},'dockerargs',{},'mntPaths',{},'containerName','');
       
       baseargs = [{'cache' cache} baseargs];
-        
+      tfLocalDocker = isempty(APT.DOCKER_REMOTE_HOST);
+      if tfLocalDocker
+        filequote = '"';
+      else
+        filequote = '\"';
+      end             
       basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
-        movtrk,outtrk,frm0,frm1,baseargs{:});
+        movtrk,outtrk,frm0,frm1,baseargs{:},'filequote',filequote);
 
       if isempty(containerName),
         if iscell(outtrk),
@@ -4034,7 +4093,7 @@ classdef DeepTracker < LabelTracker
       % 
       % baseargs: PV cell vector that goes to .trackCodeGenBase
       
-      deepnetroot = '~/APT/deepnet';
+      deepnetroot = '/home/ubuntu/APT/deepnet';
       baseargs = [baseargs {'cache' cacheRemote}];
       codestrbase = DeepTracker.trackCodeGenBase(trnID,dlLblRemote,...
         errfileRemote,netType,movRemoteFull,trkRemoteFull,frm0,frm1,...

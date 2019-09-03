@@ -1103,7 +1103,7 @@ classdef AWSec2 < handle
         fileP = regexprep(fileP,'/','\\');
         fileF = regexprep(fileF,'/','\\');
         cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
-          pem,['.\' fileF fileE],ip,dest);
+          pem,['.\' fileF fileE],ip,dest); % fileP here can contain a space and pushd will do the right thing!
       else
         cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
       end
@@ -1112,7 +1112,7 @@ classdef AWSec2 < handle
     function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
       scpcmd = myparse(varargin,...
         'scpcmd','scp');
-      cmd = sprintf('%s -i %s -r ubuntu@%s:%s %s',scpcmd,pem,ip,srcAbs,dstAbs);
+      cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)

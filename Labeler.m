@@ -11706,7 +11706,11 @@ classdef Labeler < handle
       %fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       % Remainder nearly identical to setFrameAndTarget()
-      obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
+      try
+        obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
+      catch ME
+        warning('Could not set previous frame: %s',ME.message);
+      end
       
       %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
@@ -11805,7 +11809,11 @@ classdef Labeler < handle
       end
 
       % 2nd arg true to match legacy
-      obj.hlpSetCurrPrevFrame(frm,true);
+      try
+        obj.hlpSetCurrPrevFrame(frm,true);
+      catch ME
+        warning('Could not set previous frame: %s', ME.message);
+      end
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
@@ -12181,6 +12189,19 @@ classdef Labeler < handle
           'XData',imcurr.XData,'YData',imcurr.YData);
         
       %fprintf('hlpSetCurrPrevFrame 1: %f\n',toc(ticinfo)); ticinfo = tic;  
+      nfrs = min([obj.movieReader(:).nframes]);
+      if frm>nfrs
+        s1 = sprintf('Cannot browse to frame %d because the maximum',frm);
+        s2 = sprintf('number of frames reported by matlab is %d.',nfrs);
+        s3 = sprintf('Browsing to frame %d.',nfrs);
+        s4 = sprintf('The number of frames reported in a video can differ');
+        s5 = sprintf('based on the codecs installed. We tried to make');
+        s6 = sprintf('them consistent but there are no solutions other');
+        s7 = sprintf('encoding the video using a simpler codec.');
+
+        warndlg({s1,s2,s3,s4,s5,s6,s7}, 'Frame out of limit');
+        frm = nfrs;
+      end
       if obj.currFrame~=frm || tfforce
         imsall = gd.images_all;
         tfCropMode = obj.cropIsCropMode;        

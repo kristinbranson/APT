@@ -92,7 +92,7 @@ classdef BgWorkerObj < handle
     function dispModelChainDir(obj)
       for ivw=1:obj.nviews
         dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
+        cmd = sprintf('ls -al "%s"',dmc.dirModelChainLnx);
         fprintf('### View %d:\n',ivw);
         system(cmd);
         fprintf('\n');
