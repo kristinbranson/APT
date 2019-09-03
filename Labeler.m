@@ -9601,46 +9601,51 @@ classdef Labeler < handle
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
     end
     
+    function be = trackGetDLBackend(obj)
+      be = obj.trackDLBackEnd;
+    end
+    
     function trackSetDLBackend(obj,be)
       assert(isa(be,'DLBackEndClass'));
-     
+      
       switch be.type
         case DLBackEnd.AWS
           % special-case this to avoid running repeat AWS commands
           
           aws = be.awsec2;
-          if ~isempty(aws)            
-            [tfexist,tfrunning] = aws.inspectInstance();
-            if tfexist
-              % AWS auto-shutdown alarm 20190213
-              % The only official way to set the APT backend is here. We add 
-              % a metricalarm here to auto-shutdown the EC2 instance should 
-              % it become idle.
-              %
-              % - We use use a single/unique alarm name (see AWSec2). I think
-              % this an AWS account can only have one alarm at a time, so
-              % adding it here removes it from somewhere else if it is
-              % somewhere else.
-              % - If an account uses multiple instances, some will be
-              % unprotected for now. We expect the typical use case to be a
-              % single instance at a time.
-              % - Currently we never remove the alarm, so it just hangs
-              % around configured for the last instance where it was added. I
-              % don't get the impression that this hurts or that CloudWatch
-              % is expensive etc. Note in particular, the CloudWatch alarm
-              % lifecycle is independent of the EC2 lifecycle. CloudWatch
-              % alarms specify an instance only eg via the 'Dimensions'.
-              % - The alarm(s) is clearly visible on the EC2 dash. I think it
-              % should be ok for now.
-              aws.configureAlarm;
-            end
+          if isempty(aws),            
+            be.awsec2 = AWSec2();
           end
-          
-          if isempty(aws) || ~tfexist
-            warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
-          elseif ~tfrunning
-            warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
-          end
+%           [tfexist,tfrunning] = aws.inspectInstance();
+%           if tfexist
+%             % AWS auto-shutdown alarm 20190213
+%             % The only official way to set the APT backend is here. We add
+%             % a metricalarm here to auto-shutdown the EC2 instance should
+%             % it become idle.
+%             %
+%             % - We use use a single/unique alarm name (see AWSec2). I think
+%             % this an AWS account can only have one alarm at a time, so
+%             % adding it here removes it from somewhere else if it is
+%             % somewhere else.
+%             % - If an account uses multiple instances, some will be
+%             % unprotected for now. We expect the typical use case to be a
+%             % single instance at a time.
+%             % - Currently we never remove the alarm, so it just hangs
+%             % around configured for the last instance where it was added. I
+%             % don't get the impression that this hurts or that CloudWatch
+%             % is expensive etc. Note in particular, the CloudWatch alarm
+%             % lifecycle is independent of the EC2 lifecycle. CloudWatch
+%             % alarms specify an instance only eg via the 'Dimensions'.
+%             % - The alarm(s) is clearly visible on the EC2 dash. I think it
+%             % should be ok for now.
+%             aws.configureAlarm;
+%           end
+%           
+%           if isempty(aws) || ~tfexist
+%             warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
+%           elseif ~tfrunning
+%             warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
+%           end
           
         otherwise
           [tf,reason] = be.getReadyTrainTrack();
@@ -11690,7 +11695,11 @@ classdef Labeler < handle
       %fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       % Remainder nearly identical to setFrameAndTarget()
-      obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
+      try
+        obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
+      catch ME
+        warning('Could not set previous frame: %s',ME.message);
+      end
       
       %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
@@ -11789,7 +11798,11 @@ classdef Labeler < handle
       end
 
       % 2nd arg true to match legacy
-      obj.hlpSetCurrPrevFrame(frm,true);
+      try
+        obj.hlpSetCurrPrevFrame(frm,true);
+      catch ME
+        warning('Could not set previous frame: %s', ME.message);
+      end
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
@@ -12165,6 +12178,19 @@ classdef Labeler < handle
           'XData',imcurr.XData,'YData',imcurr.YData);
         
       %fprintf('hlpSetCurrPrevFrame 1: %f\n',toc(ticinfo)); ticinfo = tic;  
+      nfrs = min([obj.movieReader(:).nframes]);
+      if frm>nfrs
+        s1 = sprintf('Cannot browse to frame %d because the maximum',frm);
+        s2 = sprintf('number of frames reported by matlab is %d.',nfrs);
+        s3 = sprintf('Browsing to frame %d.',nfrs);
+        s4 = sprintf('The number of frames reported in a video can differ');
+        s5 = sprintf('based on the codecs installed. We tried to make');
+        s6 = sprintf('them consistent but there are no solutions other');
+        s7 = sprintf('encoding the video using a simpler codec.');
+
+        warndlg({s1,s2,s3,s4,s5,s6,s7}, 'Frame out of limit');
+        frm = nfrs;
+      end
       if obj.currFrame~=frm || tfforce
         imsall = gd.images_all;
         tfCropMode = obj.cropIsCropMode;        

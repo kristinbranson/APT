@@ -1844,7 +1844,7 @@ if ~isfield(handles,'menu_track_backend_config')
     'Parent',handles.menu_track_backend_config,...
     'Label','Local (Conda)',...
     'Callback',@cbkTrackerBackendMenu,...
-    'Tag','menu_track_backend_config_docker',...
+    'Tag','menu_track_backend_config_conda',...
     'userdata',DLBackEnd.Conda);
   if ispc,
     handles.menu_track_backend_config_docker.Enable = 'off';
@@ -1869,6 +1869,12 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','(AWS) Set EC2 instance',...
     'Callback',@cbkTrackerBackendAWSSetInstance,...
     'Tag','menu_track_backend_config_aws_setinstance');  
+  
+  handles.menu_track_backend_config_aws_configure = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(AWS) Configure...',...
+    'Callback',@cbkTrackerBackendAWSConfigure,...
+    'Tag','menu_track_backend_config_aws_configure');  
   
 %   handles.menu_track_backends{end+1,1} = uimenu( ...
 %     'Parent',handles.menu_track_backend_config,...
@@ -1955,34 +1961,23 @@ end
 handles.listenersTracker = listenersNew;
 
 function updateTrackBackendConfigMenuChecked(handles,lObj)
-switch lObj.trackDLBackEnd.type
-  case DLBackEnd.AWS
-    set(handles.menu_track_backend_config_jrc,'checked','off');
-    set(handles.menu_track_backend_config_docker,'checked','off');
-    set(handles.menu_track_backend_config_aws,'checked','on');
-    set(handles.menu_track_backend_config_aws_setinstance,'visible','on');
-  case DLBackEnd.Bsub
-    set(handles.menu_track_backend_config_jrc,'checked','on');
-    set(handles.menu_track_backend_config_docker,'checked','off');
-    set(handles.menu_track_backend_config_aws,'checked','off');
-    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
-  case DLBackEnd.Docker
-    set(handles.menu_track_backend_config_jrc,'checked','off');
-    set(handles.menu_track_backend_config_docker,'checked','on');
-    set(handles.menu_track_backend_config_aws,'checked','off');
-    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
-  otherwise
-    set(handles.menu_track_backend_config_jrc,'checked','off');
-    set(handles.menu_track_backend_config_docker,'checked','off');
-    set(handles.menu_track_backend_config_aws,'checked','off');
-end
+
+set(handles.menu_track_backend_config_jrc,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Bsub));
+set(handles.menu_track_backend_config_docker,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
+set(handles.menu_track_backend_config_conda,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Conda));
+set(handles.menu_track_backend_config_aws,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
+set(handles.menu_track_backend_config_aws_setinstance,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
+set(handles.menu_track_backend_config_aws_configure,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
 
 % Menu item ordering getting messed up somewhere
 handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
 handles.menu_track_backend_config_jrc.Position = 1;
 handles.menu_track_backend_config_aws.Position = 2;
 handles.menu_track_backend_config_docker.Position = 3;
-handles.menu_track_backend_config_aws_setinstance.Position = 4;
+handles.menu_track_backend_config_conda.Position = 4;
+handles.menu_track_backend_config_moreinfo.Position = 5;
+handles.menu_track_backend_config_aws_setinstance.Position = 6;
+handles.menu_track_backend_config_aws_configure.Position = 7;
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
@@ -1994,7 +1989,7 @@ function cbkTrackerBackendMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 beType = src.UserData;
-be = DLBackEndClass(beType);
+be = DLBackEndClass(beType,lObj.trackGetDLBackend());
 lObj.trackSetDLBackend(be);
 
 function cbkTrackerBackendMenuMoreInfo(src,evt)
@@ -2044,21 +2039,48 @@ be.testConfigUI(cacheDir);
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-be = lObj.trackDLBackEnd;
-assert(be.type==DLBackEnd.AWS);
+%be = lObj.trackDLBackEnd;
+assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
 
-aws = be.awsec2;
-if ~isempty(aws)
-  [tfsucc,instanceID,pemFile] = aws.respecifyInstance();
-else
-  [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
-end
+% aws = be.awsec2;
+% if ~isempty(aws)
+  %[tfsucc,instanceID,pemFile] = lObj.trackDLBackEnd.awsec2.respecifyInstance();
+  [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance();
+% else
+%   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
+% end
 
 if tfsucc
-  aws = AWSec2(pemFile,'instanceID',instanceID);
-  be.awsec2 = aws;
+%   lObj.trackDLBackEnd.awsec2.setInstanceID(instanceID);
+%   lObj.trackDLBackEnd.awsec2.setPemFile(pemFile);
+%   aws = AWSec2(pemFile,'instanceID',instanceID);
+%   be.awsec2 = aws;
   %aws.checkInstanceRunning('throwErrs',false);
-  lObj.trackSetDLBackend(be);
+  %lObj.trackSetDLBackend(be);
+end
+
+function cbkTrackerBackendAWSConfigure(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+%be = lObj.trackDLBackEnd;
+assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
+
+%aws = be.awsec2;
+%if ~isempty(aws)
+  [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance('canlaunch',1,...
+    'canconfigure',2,'forceSelect',1);
+  if ~tfsucc,
+    warning('Problem configuring: %s',reason);
+  end
+%else
+%  [tfsucc,keyName,pemFile] = AWSec2.specifySSHKeyUIStc();
+%end
+
+if tfsucc  
+%   aws = AWSec2(pemFile,'keyName',keyName);
+%   be.awsec2 = aws;
+  %aws.checkInstanceRunning('throwErrs',false);
+%   lObj.trackSetDLBackend(be);
 end
 
 function cbkTrackersAllChanged(src,evt)
