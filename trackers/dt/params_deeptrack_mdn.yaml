@@ -14,8 +14,10 @@ ROOT:
   - ['','',false,DUMMY,'','','','']
   - MDN:
     - ['','',false,Mixture Density Network (MDN) parameters,'','']
-    - mdn_use_unet_loss: ['Train UNet and MDN networks',boolean,true,'Train network to optimize a combination of the UNet and MDN loss functions. ',1,'','Developer','isMDN',true]
-    - mdn_pred_dist: ['Predict confidence',boolean,true,'Predict confidence for MDN predictions.',0,'','Developer','isMDN',true]
+    - mdn_use_unet_loss: ['Train UNet and MDN networks',boolean,true,'Train network to optimize a combination of the UNet and MDN loss functions. ',1,'','Developer','',true]
+    - mdn_pred_dist: ['Predict confidence',boolean,true,'Predict confidence for MDN predictions.',0,'','Developer','',true]
+    - ignore_occlued: ['Ignore occluded landmarks',boolean,true,'Do not train on landmarks labeled as occluded.',0,'','Beginner','',true]
+    - predict_occluded: ['Predict occluded',boolean,true,'Predict landmarks are occluded or not.',0,'','Beginner','',true]
 
 
 

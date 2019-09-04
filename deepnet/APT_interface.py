@@ -165,7 +165,7 @@ def tf_serialize(data):
     return example.SerializeToString()
 
 
-def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=False, db_files=()):
+def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=False, db_files=()):
     # function that creates tfrecords using db_from_lbl
     if not os.path.exists(conf.cachedir):
         os.mkdir(conf.cachedir)
@@ -667,6 +667,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
     lbl = h5py.File(conf.labelfile, 'r')
     view = conf.view
     flipud = conf.flipud
+    occ_as_nan = conf.get('ignore_occluded',False)
     npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
     sel_pts = int(view * npts_per_view) + conf.selpts
 
@@ -690,6 +691,8 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
         exp_name = conf.getexpname(dir_name)
         cur_pts = trx_pts(lbl, ndx, on_gt)
+        cur_occ = trx_pts(lbl, ndx, on_gt, field_name='labeledpostag')
+        cur_occ = ~np.isnan(cur_occ)
         crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
 
         try:
@@ -707,6 +710,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
             n_trx = 1
             trx_split = None
             cur_pts = cur_pts[np.newaxis, ...]
+            cur_occ = cur_occ[None,...]
 
         for trx_ndx in range(n_trx):
 
@@ -720,6 +724,10 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
                 cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=trx_split, predefined=predefined)
 
                 frame_in, cur_loc = multiResData.get_patch( cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
+
+                if occ_as_nan:
+                    cur_loc[cur_occ[fnum,:],:] = np.nan
+
                 cur_out([frame_in, cur_loc, info])
 
                 if cur_out is out_fns[1] and split:
@@ -756,6 +764,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
     view = conf.view
     npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
     sel_pts = int(view * npts_per_view) + conf.selpts
+    occ_as_nan = conf.get('ignore_occluded',False)
 
     splits = [[], []]
     count = 0
@@ -776,6 +785,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
     m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
     t_ndx = lbl['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
     f_ndx = lbl['preProcData_MD_frm'].value[0, :].astype('int') - 1
+    occ = lbl['preProcData_MD_tfocc'].value.astype('bool')
 
     if on_gt:
         m_ndx = -m_ndx
@@ -810,67 +820,11 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         cur_locs = cur_locs[:,conf.view,:].T
         mndx = to_py(m_ndx[ndx])
 
-        # BELOW is for old style code where rotation is done in py.
-        # if mndx != prev_trx_mov:
-        #     cur_pts = trx_pts(lbl, mndx, on_gt)
-        #     if cur_pts.ndim == 3:
-        #         cur_pts = cur_pts[np.newaxis, ...]
-        # crop_loc = PoseTools.get_crop_loc(lbl, mndx, view, on_gt)
-        # cur_locs = cur_pts[t_ndx[ndx], f_ndx[ndx], :, sel_pts].copy()
-        # cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy()
-        # cur_frame = cur_frame.T
-        #
-        # assert cur_frame.shape[0] == conf.imsz[0], 'height of cached images does not match the height specified in the params'
-        # assert cur_frame.shape[1] == conf.imsz[1], 'width of cached images does not match the width specified in the params'
-        #
-        #
-        # if conf.has_trx_file:
-        #
-        #     # dont load trx file if the current movie is same as previous.
-        #     # and trx split wont work well if the frames for the same animal are not contiguous
-        #     if ndx is 0 or t_ndx[ndx - 1] != t_ndx[ndx] or prev_trx_mov != mndx:
-        #         cur_trx, n_trx = get_cur_trx(trx_files[mndx], t_ndx[ndx])
-        #
-        #     if prev_trx_mov is not mndx:
-        #         trx_split = np.random.random(n_trx) < conf.valratio
-        #
-        #     prev_trx_mov = mndx
-        #
-        #     x, y, theta = read_trx(cur_trx, f_ndx[ndx])
-        #
-        #     cur_frame, cur_locs = multiResData.crop_patch_trx(conf, cur_frame, psz//2, psz//2, theta, cur_locs-[x,y] + [psz//2,psz//2])
-        #
-        #     # theta = theta + math.pi / 2
-        #     # patch = cur_frame
-        #     # rot_mat = cv2.getRotationMatrix2D((psz / 2, psz / 2), theta * 180 / math.pi, 1)
-        #     # rpatch = cv2.warpAffine(patch, rot_mat, (psz, psz))
-        #     # if rpatch.ndim == 2:
-        #     #     rpatch = rpatch[:, :, np.newaxis]
-        #     # cur_frame = rpatch
-        #     #
-        #     # ll = cur_locs.copy()
-        #     # ll = ll - [x, y]
-        #     # rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-        #     # lr = np.dot(ll, rot) + [psz / 2, psz / 2]
-        #     # if conf.imsz[0] < conf.imsz[1]:
-        #     #     extra = (psz - conf.imsz[0]) / 2
-        #     #     lr[:, 1] -= extra
-        #     # elif conf.imsz[1] < conf.imsz[0]:
-        #     #     extra = (psz - conf.imsz[1]) / 2
-        #     #     lr[:, 0] -= extra
-        #     # cur_locs = lr
-        #
-        # else:
-        #     trx_split = None
-        #     if crop_loc is not None:
-        #         xlo, xhi, ylo, yhi = crop_loc
-        #     else:
-        #         xlo = 0
-        #         ylo = 0
-        #
-        #     cur_locs[:, 0] = cur_locs[:, 0] - xlo  # ugh, the nasty x-y business.
-        #     cur_locs[:, 1] = cur_locs[:, 1] - ylo
-        #     # -1 because matlab is 1-indexed
+        cur_occ = occ[:,ndx].copy()
+        cur_occ = cur_occ.reshape([conf.nviews,conf.n_classes])
+        cur_occ = cur_occ[conf.view,:]
+
+        # For old style code where rotation is done in py look at git history around here to find the code .
 
         info = [int(mndx), int(f_ndx[ndx]), int(t_ndx[ndx])]
 
@@ -878,6 +832,8 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
                                            mov_split, trx_split=None, predefined=predefined)
         # when creating from cache, we don't do trx splitting. It should always be predefined
 
+        if occ_as_nan:
+            cur_locs[cur_occ] = np.nan
         cur_out([cur_frame, cur_locs, info])
 
         if cur_out is out_fns[1] and split:
@@ -1366,37 +1322,48 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
 
 def classify_db_all(model_type, conf, db_file, model_file=None):
     ''' Classifies examples in DB'''
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
+
     if model_type == 'openpose':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'unet':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'mdn':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'leap':
         leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        pred_fn, close_fn, latest_model_file = leap.training.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, leap_gen, pred_fn, n)
+        ret = classify_db(conf, leap_gen, pred_fn, n)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
     elif model_type == 'deeplabcut':
         read_fn, n = deepcut.train.get_read_fn(conf, db_file)
-        pred_fn, close_fn, latest_model_file = deepcut.train.get_pred_fn(conf, model_file)
-        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, n)
+        ret = classify_db(conf, read_fn, pred_fn, n)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
     else:
-        raise ValueError('Undefined model type')
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_locs, label_locs, info = ret[:3]
+        close_fn()
+
+        # raise ValueError('Undefined model type')
 
     return pred_locs, label_locs, info
 
@@ -2161,10 +2128,12 @@ def run(args):
                 else:
                     raise ValueError('Unrecognized net type')
                 db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file)
-            A = convert_to_orig_list(conf,preds,locs, info)
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
-            preds, locs = to_mat(A)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            # preds, locs = to_mat(A)
             hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list':info},appendmat=False,truncate_existing=True)
 
     elif args.sub_name == 'model_files':
@@ -2211,6 +2180,7 @@ def main(argv):
 
     log.addHandler(errh)
     log.addHandler(logh)
+    log.setLevel(logging.DEBUG)
 
     try:
         run(args)

@@ -18,10 +18,10 @@ if sPrm.ROOT.ImageProcessing.BackSub.Use && sPrm.ROOT.ImageProcessing.HistEq.Use
   msgs{end+1} = 'Background subtraction and histogram equalization cannot both be enabled.';
 end
 
-if sPrm.ROOT.ImageProcessing.HistEq.NSampleH0 <= 0,
-  isOk.ROOT.ImageProcessing.HistEq.NSampleH0 = false;
-  msgs{end+1} = 'Histogram equalization: Num frames sample must be at least 1.';
-end
+% if sPrm.ROOT.ImageProcessing.HistEq.NSampleH0 <= 0,
+%   isOk.ROOT.ImageProcessing.HistEq.NSampleH0 = false;
+%   msgs{end+1} = 'Histogram equalization: Num frames sample must be at least 1.';
+% end
 
 if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius <= 0,
   isOk.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = false;

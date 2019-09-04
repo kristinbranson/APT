@@ -482,7 +482,7 @@ def create_label_images(locs, im_sz, scale, blur_rad):
 
     label_ims = np.zeros((len(locs), sz0, sz1, n_classes))
     # labelims1 = np.zeros((len(locs),sz0,sz1,n_classes))
-    k_size = 3 * blur_rad
+    k_size = max(int(round(3 * blur_rad)),1)
     blur_l = np.zeros([2 * k_size + 1, 2 * k_size + 1])
     blur_l[k_size, k_size] = 1
     blur_l = cv2.GaussianBlur(blur_l, (2 * k_size + 1, 2 * k_size + 1), blur_rad)

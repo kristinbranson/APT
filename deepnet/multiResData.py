@@ -471,20 +471,19 @@ def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, fl
 
 
 
-def trx_pts(lbl, ndx, on_gt = False):
+def trx_pts(lbl, ndx, on_gt=False,field_name='labeledpos'):
     '''
     new styled sparse labeledpos
     returned points are 0-indexed in index as well as values
     '''
     if on_gt:
-        pts = np.array(lbl['labeledposGT'])
-    else:
-        pts = np.array(lbl['labeledpos'])
+        field_name += 'GT'
+    pts = np.array(lbl[field_name])
     try:
         sz = np.array(lbl[pts[0, ndx]]['size'])[:, 0].astype('int')
         cur_pts = np.zeros(sz).flatten()
         cur_pts[:] = np.nan
-        if lbl[pts[0,ndx]]['val'].value.ndim > 1:
+        if lbl[pts[0,ndx]]['idx'].value.ndim > 1:
             idx = np.array(lbl[pts[0, ndx]]['idx'])[0, :].astype('int') - 1
             val = np.array(lbl[pts[0, ndx]]['val'])[0, :] - 1
             cur_pts[idx] = val

@@ -1,7 +1,22 @@
 import run_apt_expts as rae
 reload(rae)
-rae.setup('stephen')
-rae.get_normal_results()
+rae.setup('leap_fly')
+rae.create_gt_db()
+
+##
+import APT_interface as apt
+cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name alice_randsplit_round_4 -cache /nrs/branson/mayank/apt_cache -conf_params use_pretrained_weights False  batch_size 8  trange 5  decay_steps 20000  save_step 4000  rrange 10  adjust_contrast False  mdn_use_unet_loss True  dl_steps 40000  normalize_img_mean False  maxckpt 20  -type mdn  -train_name no_pretrained  -view 1 train -skip_db -use_cache'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+apt.main(cmd.split())
+
+
+##
+import run_apt_expts as rae
+reload(rae)
+rae.setup('romain',0)
+rae.get_cv_results(num_splits=6)
+
 
 
 ##
@@ -443,13 +458,6 @@ conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
 gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
 files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
 mdn_out = apt_expts.classify_db_all(conf ,gt_file ,files ,train_type ,name=train_name)
-
-##
-import APT_interface as apt
-cmd = '-name 20190401T232843 -view 1 -cache /nrs/branson/APTCache_Alice -model_files /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/deepnet-30000 -type mdn /nrs/branson/APTCache_Alice/Larva94A04_GT2/20190401T232843_20190401T233109.lbl track -mov /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/png_movie_mono.avi -out /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/trk/png_movie_mono_trn20190401T232843_iter30000_20190402T093738.trk -start_frame 1020 -end_frame 1220 -trx /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/trx_aug.mat -trx_ids 1'
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-apt.main(cmd.split())
 
 ##
 import cv2

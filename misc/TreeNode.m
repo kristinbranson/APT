@@ -1,4 +1,4 @@
-classdef TreeNode < handle
+classdef TreeNode < handle 
 
   properties
     Data
@@ -21,6 +21,22 @@ classdef TreeNode < handle
       end
     end
     
+    function traverseDispWithPath(t,fcn)
+      % fcn should return a string to display
+      
+      assert(isscalar(t));
+      trav(t,'');
+      function trav(zt,zpth)
+        str = fcn(zt.Data);
+        zpthnew = [zpth '.' zt.Data.Field];
+        fprintf(1,'%s: %s\n',zpthnew,str);
+        c = zt.Children;
+        for i=1:numel(c)
+          trav(c(i),zpthnew);
+        end
+      end
+    end
+    
     function s = structize(t)
       % Convert a Tree (Data.Value fields only) to a struct
       
@@ -38,12 +54,12 @@ classdef TreeNode < handle
     end
     
     function tcopy = copy(t)
-      
+      % Deep copy
       tcopy = TreeNode(t.Data);
       for i = 1:numel(t.Children),
         tcopy.Children(i) = t.Children(i).copy();
       end
-      
+      tcopy.Children = reshape(tcopy.Children,size(t.Children));
     end
     
     function structapply(t,s)
@@ -128,4 +144,4 @@ classdef TreeNode < handle
     
   end
   
-end  
+end

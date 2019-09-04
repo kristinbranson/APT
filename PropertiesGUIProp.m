@@ -1,4 +1,4 @@
-classdef PropertiesGUIProp < handle
+classdef PropertiesGUIProp < matlab.mixin.SetGet
   properties
     Field % char, fieldname on struct/obj
     DispName % displayname in table

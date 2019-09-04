@@ -26,6 +26,7 @@ classdef DeepTracker < LabelTracker
   end
   properties (Hidden)
     jrcgpuqueue = 'gpu_any';
+    jrcnslots = 1;
   end
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
@@ -422,16 +423,9 @@ classdef DeepTracker < LabelTracker
       obj.initHook(); % maybe handled upstream
       flds = fieldnames(s);
       flds = setdiff(flds,'hideViz');
-      %obj.isInit = true;
-%       try
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         obj.(f) = s.(f);
       end
-%       catch ME
-        %obj.isInit = false;
-%         ME.rethrow();
-%       end
-      %obj.isInit = false;      
       
       obj.dryRunOnly = false;
       
@@ -452,35 +446,28 @@ classdef DeepTracker < LabelTracker
       % 20181218
       if ~isfield(s,'containerBindPaths')
         s.containerBindPaths = cell(0,1);
-      end
-      % 20181220
-%       sPrmDflt = APTParameters.defaultParamsStructDT(s.trnNetType);
-%       sPrm0 = s.sPrm;
-%       if ~isempty(sPrm0)
-%         s.sPrm = structoverlay(sPrmDflt,sPrm0,...
-%           'dontWarnUnrecog',true); % to allow removal of obsolete params
-%       else
-%         s.sPrm = sPrmDflt;
-%       end
+      end 
       
       % 20190214
-      sPrmDflt = APTParameters.defaultParamsStructAll;
-      if isfield(s,'sPrm'),
-        
-        if ~isfield(s,'sPrmAll'),
-          s.sPrmAll = sPrmDflt;
-          s.sPrmAll.ROOT.DeepTrack.(s.trnNetType.prettyString) = s.sPrm;
-        end
-        
-        s = rmfield(s,'sPrm');
-      end
-      
-      sPrm0 = s.sPrmAll;
-      if ~isempty(sPrm0)
-        s.sPrmAll = structoverlay(sPrmDflt,sPrm0,...
+      % (Comment is basically C+P from CPRLabelTracker)
+      % IMPORTANT philisophical note. We update/modernize .sPrmAll here,
+      % but any changes should not invalidate previous trained trackers.
+      % Parameters may be renamed, new parameters added, etc; but eg any 
+      % new parameters added should be added with default values that 
+      % effectively would have been previously used.
+
+      assert(isfield(s,'sPrmAll') && ~isfield(s,'sPrm')); % taken care of in Labeler/lblModernize
+      sPrmDflt = APTParameters.defaultParamsStructAll;      
+      if ~isempty(s.sPrmAll)
+        % Labeler/lblModernize may not have modernized s.sPrmAll
+        s.sPrmAll = structoverlay(sPrmDflt,s.sPrmAll,...
           'dontWarnUnrecog',true); % to allow removal of obsolete params
       else
-        s.sPrmAll = sPrmDflt;
+        % AL 20190713 leave s.sPrmAll empty for untrained trackers
+        tfTrained = isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC);
+        assert(~tfTrained,'Apparent trained tracker with no parameters.');
+        % s.sPrmAll = sPrmDflt;
+        % Let's leave s.sPrmAll empty for now
       end
       
       % 20190405 
@@ -730,6 +717,16 @@ classdef DeepTracker < LabelTracker
         reason = 'Tracking is in progress.';
         return;
       end
+      
+      % For now we do this check here even though the actual parfeval()
+      % call for the tracking monitor is made in downstream code.
+      p = gcp;
+      nrun = numel(p.FevalQueue.RunningFutures);
+      if nrun>=p.NumWorkers
+        reason = 'Parallel pool is full. Cannot spawn training monitor.';
+        return;
+      end
+
       % AL 20190321 parameters now set at start of retrain
 %       if isempty(obj.sPrmAll)
 %         reason = 'No tracking parameters have been set.';
@@ -1196,7 +1193,7 @@ classdef DeepTracker < LabelTracker
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
               aptroot,dmc(ivw),...
               'singArgs',singArgs,'trnCmdType',trnCmdType,...
-              'bsubargs',{'gpuqueue' obj.jrcgpuqueue});
+              'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
           end
         case DLBackEnd.Docker
           containerNames = cell(nTrainJobs,1);
@@ -2324,6 +2321,15 @@ classdef DeepTracker < LabelTracker
         reason = 'Tracking is already in progress.';
         return;
       end
+      
+      % For now we do this check here even though the actual parfeval() 
+      % call for the tracking monitor is made in downstream code.
+      p = gcp;
+      nrun = numel(p.FevalQueue.RunningFutures);
+      if nrun>=p.NumWorkers
+        reason = 'Parallel pool is full. Cannot spawn tracking monitor.';
+        return;
+      end
 
       % check trained tracker
       if isempty(obj.trnName)
@@ -2613,7 +2619,7 @@ classdef DeepTracker < LabelTracker
             fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);
           end
           
-          bsubargs = {'gpuqueue' obj.jrcgpuqueue 'outfile' outfile};
+          bsubargs = {'nslots' obj.jrcnslots 'gpuqueue' obj.jrcgpuqueue 'outfile' outfile};
           %sshargs = {'logfile' outfile2};
           sshargs = {};
           trksysinfo(imov,ivwjob).trkfile = trkfile;
@@ -3454,6 +3460,7 @@ classdef DeepTracker < LabelTracker
         'bindpath',DFLTBINDPATH,...
         'singimg','/misc/local/singularity/branson_cuda10_mayank.simg');
       
+      bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
       codestr = sprintf('singularity exec --nv %s %s bash -c ". /opt/venv/bin/activate && %s"',...
@@ -4765,10 +4772,12 @@ classdef DeepTracker < LabelTracker
       obj.hideViz = tf;
     end
     function updateLandmarkColors(obj)
-      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      ptsClrs = obj.lObj.predPointsPlotInfo.Colors;
       ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
       obj.trkVizer.updateLandmarkColors(ptsClrs);      
     end
+    % For updating other cosmetics, go ahead and call obj.trkVizer methods
+    % directly
   end
 
   %% Labeler nav

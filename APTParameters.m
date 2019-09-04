@@ -1,31 +1,55 @@
 classdef APTParameters
   properties (Constant)
-    PREPROCESS_PARAMETER_FILE = lclInitPreprocessParameterFile();
-    TRACK_PARAMETER_FILE = lclInitTrackParameterFile();
-    CPR_PARAMETER_FILE = lclInitCPRParameterFile();
-    DEEPTRACK_PARAMETER_FILE = lclInitDeepTrackParameterFile();
-    POSTPROCESS_PARAMETER_FILE = lclInitPostProcessParameterFile();
+    PARAM_FILE_SPECS = lclInitParamFileSpecs();
+  end
+  properties (Constant, Access=private)
+    % This property stores parsetrees for yamls so that yaml files only 
+    % need to be parsed once.
+    %
+    % This property is private as these trees are handles and mutable.
+    % Use getParamTrees to access copies of these trees.
+    PARAM_FILES_TREES = lclInitParamFilesTrees(); 
   end
   methods (Static)
-    function tPrm0 = defaultParamsTree
-%       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
-%       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
-%       tPrm0 = tPrmCpr;
-%       tPrm0.Children = [tPrm0.Children; tPrmDT.Children];
-
-      tPrmPreprocess = parseConfigYaml(APTParameters.PREPROCESS_PARAMETER_FILE);
-      tPrmTrack = parseConfigYaml(APTParameters.TRACK_PARAMETER_FILE);
-      tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
-      tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
-      tPrmPostProc = parseConfigYaml(APTParameters.POSTPROCESS_PARAMETER_FILE);
+    function trees = getParamTrees(subtree)
+      % Get a copy of PARAM_FILES_TREES. A copy is made for safety so the
+      % user can mutate as desired.
+      %
+      % subtree: optional char. fieldname of PARAM_FILES_TREES. If
+      % specified, the returned tree is a copy of
+      % PARAM_FILES_TREES.(subtree). 
       
-      nettypes = enumeration('DLNetType');
-      tPrmDeepNets = ...
-        arrayfun(@(x)parseConfigYaml(fullfile(APT.getRoot,'trackers','dt',x.paramFileShort)),nettypes,'uni',0);
-      tPrmDeepNets = cat(1,tPrmDeepNets{:});
-      tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);
+      if nargin==0
+        trees = APTParameters.PARAM_FILES_TREES;
+        for f=fieldnames(trees)',f=f{1}; %#ok<FXSET>
+          trees.(f).tree = trees.(f).tree.copy();
+        end
+      else        
+        trees = APTParameters.PARAM_FILES_TREES.(subtree).tree.copy();
+      end
+    end
+    
+    function tPrm0 = defaultParamsTree(varargin)
+      incDLNetSpecific = myparse(varargin,...
+        'incDLNetSpecific',true...
+        );
       
-      tPrmDT.Children.Children = [tPrmDT.Children.Children; tPrmDeepNetsChildren];
+      trees = APTParameters.getParamTrees;
+      tPrmPreprocess = trees.preprocess.tree;
+      tPrmTrack = trees.track.tree;
+      tPrmCpr = trees.cpr.tree;
+      tPrmDT = trees.deeptrack.tree;
+      tPrmPostProc = trees.postprocess.tree;
+      
+      if incDLNetSpecific
+        [~,nets] = enumeration('DLNetType');
+        tPrmDeepNets = cellfun(@(x)trees.(x).tree,nets,'uni',0);
+        tPrmDeepNets = cat(1,tPrmDeepNets{:});
+        tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);    
+        tPrmDT.Children.Children = [tPrmDT.Children.Children; ...
+                                    tPrmDeepNetsChildren];
+      end
+      
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
         tPrmCpr.Children; tPrmDT.Children; tPrmPostProc.Children];
@@ -33,35 +57,20 @@ classdef APTParameters
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
     function sPrm0 = defaultParamsStruct
-      % sPrm0: "new-style"
-
-      tPrmPreprocess = parseConfigYaml(APTParameters.PREPROCESS_PARAMETER_FILE);
-      sPrmPreprocess = tPrmPreprocess.structize();
-      sPrmPreprocess = sPrmPreprocess.ROOT;
-      
-      tPrmTrack = parseConfigYaml(APTParameters.TRACK_PARAMETER_FILE);
-      sPrmTrack = tPrmTrack.structize();
-      sPrmTrack = sPrmTrack.ROOT;
-      
-      tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
-      sPrmCpr = tPrmCpr.structize();
-      sPrmCpr = sPrmCpr.ROOT;
-      
-      tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
-      sPrmDT = tPrmDT.structize();
-      sPrmDT = sPrmDT.ROOT;
-      
-      tPrmPostprocess = parseConfigYaml(APTParameters.POSTPROCESS_PARAMETER_FILE);
-      sPrmPostprocess = tPrmPostprocess.structize();
-      sPrmPostprocess = sPrmPostprocess.ROOT;
-      
-      sPrm0 = structmerge(sPrmPreprocess,sPrmTrack,sPrmCpr,sPrmDT,sPrmPostprocess);
+      tPrm0 = APTParameters.defaultParamsTree('incDLNetSpecific',false);
+      sPrm0 = tPrm0.structize();
+      sPrm0 = sPrm0.ROOT;
+    end
+    function sPrm0 = defaultParamsStructAll
+      tPrm0 = APTParameters.defaultParamsTree;
+      sPrm0 = tPrm0.structize();
     end
     
     function dlNetTypes = getDLNetTypes
-      mc = ?DLNetType;
-      dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name},'uni',0);
-      dlNetTypes = cat(2,dlNetTypes{:});
+      dlNetTypes = enumeration('DLNetType')';
+%       mc = ?DLNetType;
+%       dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name},'uni',0);
+%       dlNetTypes = cat(2,dlNetTypes{:});
     end
     
     function dlNetTypesPretty = getDLNetTypesPretty
@@ -69,27 +78,13 @@ classdef APTParameters
       dlNetTypesPretty = cellfun(@(x) DLNetType(x).prettyString,{mc.EnumerationMemberList.Name},'Uni',0);
     end
     
-    function sPrm0 = defaultParamsStructAll
-      
-      sPrm0 = struct;
-      sPrm0.ROOT = APTParameters.defaultParamsStruct;
-      dlNetTypes = APTParameters.getDLNetTypes;
-      for i = 1:numel(dlNetTypes),
-        try
-          sPrm0 = APTParameters.setDLSpecificParams(sPrm0,...
-            dlNetTypes(i).prettyString,APTParameters.defaultParamsStructDT(dlNetTypes(i)));
-        end
-      end
-    end
-    
     function sPrmDTcommon = defaultParamsStructDTCommon
-      tPrm = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
+      tPrm = APTParameters.getParamTrees('deeptrack');
       sPrm = tPrm.structize();
       sPrmDTcommon = sPrm.ROOT.DeepTrack;
     end
     function sPrmDTspecific = defaultParamsStructDT(nettype)
-      prmFile = fullfile(APT.getRoot,'trackers','dt',nettype.paramFileShort);
-      tPrm = parseConfigYaml(prmFile);
+      tPrm = APTParameters.getParamTrees(char(nettype));
       sPrmDTspecific = tPrm.structize();
       sPrmDTspecific = sPrmDTspecific.ROOT;
       fld = fieldnames(sPrmDTspecific);
@@ -186,12 +181,15 @@ classdef APTParameters
           tree.Data.Visible = false;
         elseif ismember('isDeepTrack',tree.Data.Requirements) && ~trackerIsDL,
           tree.Data.Visible = false;
-        elseif ismember('isMDN',tree.Data.Requirements) && ~strcmp(trackerAlgo,'mdn'),
-          tree.Data.Visible = false;
-        elseif ismember('isDeepLabCut',tree.Data.Requirements) && ~strcmp(trackerAlgo,'deeplabcut'),
-          tree.Data.Visible = false;
-        elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(trackerAlgo,'unet'),
-          tree.Data.Visible = false;        
+        else
+          dlnets = enumeration('DLNetType');
+          for i=1:numel(dlnets)
+            net = dlnets(i);
+            if ismember(net,tree.Data.Requirements) && ~strcmp(trackerAlgo,net)
+              tree.Data.Visible = false;
+              break;
+            end
+          end
         end
         
         return;
@@ -304,9 +302,9 @@ classdef APTParameters
       v = rmfield(sPrmDT,intersect(fieldnames(sPrmDT),dlNetTypesPretty));
     end
 
-    function v = all2DLCacheDir(sPrmAll)
-      v = sPrmAll.ROOT.DeepTrack.Saving.CacheDir;
-    end
+%     function v = all2DLCacheDir(sPrmAll)
+%       v = sPrmAll.ROOT.DeepTrack.Saving.CacheDir;
+%     end
     
     % all parameters to specific dl parameters for input netType
     function v = all2DLSpecificParams(sPrmAll,netType)
@@ -455,24 +453,37 @@ classdef APTParameters
   end
 end
 
-function preprocessParamFile = lclInitPreprocessParameterFile()
-aptroot = APT.getRoot;
-preprocessParamFile = fullfile(aptroot,'params_preprocess.yaml');
+function s = lclInitParamFileSpecs()
+s = struct(...
+  'preprocess',{{'params_preprocess.yaml'}},...
+  'track',{{'params_track.yaml'}},...
+  'cpr',{{'trackers','cpr','params_cpr.yaml'}},...
+  'deeptrack',{{'trackers','dt','params_deeptrack.yaml'}},...
+  'postprocess',{{'params_postprocess.yaml'}});
+
+nettypes = enumeration('DLNetType');
+for i=1:numel(nettypes)
+  netty = nettypes(i);
+  s.(char(netty)) = {'trackers','dt',netty.paramFileShort};
 end
-function trackParamFile = lclInitTrackParameterFile()
-aptroot = APT.getRoot;
-trackParamFile = fullfile(aptroot,'params_track.yaml');
 end
-function cprParamFile = lclInitCPRParameterFile()
+
+function s = lclInitParamFilesTrees()
+%disp('APTParams init files trees');
+specs = APTParameters.PARAM_FILE_SPECS;
 aptroot = APT.getRoot;
-cprParamFile = fullfile(aptroot,'trackers','cpr','params_cpr.yaml');
-%cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
+[~,nets] = enumeration('DLNetType');
+
+s = struct();
+for f=fieldnames(specs)',f=f{1}; %#ok<FXSET>  
+  s.(f).yaml = fullfile(aptroot,specs.(f){:});
+  yamlcontents = parseConfigYaml(s.(f).yaml);
+  if any(strcmp(f,nets))
+    % AL 20190711: automatically create requirements for all deep net
+    %   param trees
+    yamlcontents.traverse(@(x)set(x.Data,'Requirements',...
+      {f,'isDeepTrack'}));
+  end
+  s.(f).tree = yamlcontents;
 end
-function dtParamFile = lclInitDeepTrackParameterFile()
-aptroot = APT.getRoot;
-dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
-end
-function pFile = lclInitPostProcessParameterFile()
-aptroot = APT.getRoot;
-pFile = fullfile(aptroot,'params_postprocess.yaml');
 end
