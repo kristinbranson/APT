@@ -231,7 +231,7 @@ def run_training(lbl_file, cdir, exp_name, data_type, train_type, view, run_type
 
 
 def save_cv_results(lbl_file, cachedir, view, exp_name, net, model_file_short, out_dir,
-                    data_type, kwout, mdn_hm_floor=0.1):
+                    data_type, kwout, mdn_hm_floor=0.1, db_file=None):
 
     conf_pvlist = None
     if net == 'openpose':
@@ -243,7 +243,8 @@ def save_cv_results(lbl_file, cachedir, view, exp_name, net, model_file_short, o
     return_hmaps = (net == 'mdn')
 
     conf = apt.create_conf(lbl_file, view, exp_name, cachedir, net, conf_params=conf_pvlist)
-    db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
+    if db_file is None:
+        db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
     model_file = os.path.join(conf.cachedir, model_file_short)
     res = apt_expts.classify_db_all(conf, db_file, [model_file], net,
                                     return_hm=return_hmaps,
@@ -292,7 +293,7 @@ def perfsinglehm(pfile, hm_nclustermax=1, hm_floor=0.1, hm_dec=100, ptiles=[50, 
         res = pickle.load(f)
     ptrk = res[0][0]
     plbl = res[0][1]
-    phm = res[0][4][0][-1]
+    pm, pu, pmconf, puconf, puhm = res[0][4][0]
 
     # hm = res[0][4][0][-1]
     # hm = hm + 1.0  # was scaled to [-1,1]
@@ -311,15 +312,14 @@ def perfsinglehm(pfile, hm_nclustermax=1, hm_floor=0.1, hm_dec=100, ptiles=[50, 
     err = np.sqrt(np.sum((ptrk - plbl) ** 2, 2))
 
     # plblhm = plbl[::hm_dec, ...]
-    errhm = np.sqrt(np.sum((phm - plbl) ** 2, 2))
+    errhm = np.sqrt(np.sum((puhm - plbl) ** 2, 2))
 
     ptls = np.percentile(err, ptiles, axis=0)
     ptls = np.transpose(ptls)
     ptlshm = np.percentile(errhm, ptiles, axis=0)
     ptlshm = np.transpose(ptlshm)
 
-    return (ptls, ptlshm, ntest, err, errhm)
-
+    return (ptls, ptlshm, ntest, err, errhm, ptrk, plbl, pm, pu, pmconf, puconf, puhm)
 
 def perfsingle(pfile,ptiles=[50, 90, 97, 98, 99]):
     with open(pfile, 'r') as f:
@@ -555,6 +555,19 @@ opts = {'label_blur_rad': 3,
         'op_hires_wtfac_paf': 2.4,
         'op_hires_wtfac_prt': 0.6}
 
-cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cdir20190813_60k_cmp'
+cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cdir20190813_60k_lbr3_initDCupsamp_noWD_wtfacsadj2'
+#run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190813_60k_lbr3_initDCupsamp_noWD_wtfacsadj2'
 run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190813_60k_cmp'
 mdlS = 'deepnet-60000'
+
+# And the models are in /nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/apt_expt
+mklbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+mkrundir = '/groups/branson/home/leea30/apt/mdn_hmap_postproc_20190822'
+mkcdir = '/nrs/branson/mayank/apt_cache/'
+mkexpname = 'apt_expt'
+mkdb = '/nrs/branson/mayank/apt_cache/multitarget_bubble/gtdata/gtdata_view0.tfrecords'
+mkmdlS = 'deepnet-100000'
+
+# save_cv_results(mklbl,mkcdir,0,mkexpname,'mdn',mkmdlS,mkrundir,'bub','bubGT_mdn_flr0p1',db_file=mkdb)
+# save_cv_results(lbl_file, cachedir, view, exp_name, net, model_file_short, out_dir,
+#                    data_type, kwout, mdn_hm_floor=0.1, db_file=None):
