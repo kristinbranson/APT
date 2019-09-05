@@ -1,6 +1,22 @@
 function PrintAllExpPrecisionTable(Ptbls,allexptypes,savename,varargin)
 
-[annfns,labelallonly,dataallonly,dorotateheader] = myparse(varargin,'annfns',{'inter','intra'},'labelallonly',false,'dataallonly',false,'dorotateheader',true);
+exptypedict = {...
+  'FlyBubble','10 flies'
+  'SHView0','Side'
+  'SHView1','Front'
+  'SH3D','3D'
+  'RFView0','View 1'
+  'RFView1','View 2'
+  'RF3D','3D'
+  'Roian','2 mice'
+  'BSView0x','Bottom'
+  'BSView1x','Front'
+  'BSView2x','Back'
+  'Larva','larva'
+  'FlyBubbleMDNvsDLC','Diff'};
+
+[annfns,labelallonly,dataallonly,dorotateheader,exptypedict] = myparse(varargin,'annfns',{'intra','inter'},'labelallonly',false,'dataallonly',false,'dorotateheader',true,...
+  'exptypedict',exptypedict);
 
 allonly = labelallonly && dataallonly;
 
@@ -41,10 +57,16 @@ fprintf(fid,['\\begin{tabular}{|c||',repmat('c|',[1,ncols]),'}\\hline\n']);
 % exptype column headers
 fprintf(fid,'Network');
 for eti = 1:nexptypes,
-  if ncolsperexptype(eti) > 1,
-    fprintf(fid,' & \\multicolumn{%d}{c|}{%s}',ncolsperexptype(eti),allexptypes{eti});
+  j = find(strcmp(allexptypes{eti},exptypedict(:,1)));
+  if ~isempty(j),
+    etname = exptypedict{j,2};
   else
-    fprintf(fid,' & %s',allexptypes{eti});
+    etname = allexptypes{eti};
+  end
+  if ncolsperexptype(eti) > 1,
+    fprintf(fid,' & \\multicolumn{%d}{c|}{%s}',ncolsperexptype(eti),etname);
+  else
+    fprintf(fid,' & %s',etname);
   end
 end
 if ~dataallonly,
@@ -148,7 +170,7 @@ for ndx = 1:nnets,
         else
           isbestval = round(tbl.AWP(j),roundprecision) >= round(bestval{eti}(datai,labeli),roundprecision);
           if isbestval,
-            fprintf(fid,' & {\\bf %.2f}',tbl.AWP(j));
+            fprintf(fid,' & \\textbf{%.2f}',tbl.AWP(j));
           else
             fprintf(fid,' & %.2f',tbl.AWP(j));
           end

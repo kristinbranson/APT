@@ -214,7 +214,7 @@ def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
 def plot_results(data_in,ylim=None,xlim=None):
     import Tkinter
     try:
-        plot_results1(data_in,ylim,xlim)
+        return plot_results1(data_in,ylim,xlim)
     except Tkinter.TclError:
         pass
 
@@ -251,12 +251,13 @@ def plot_results1(data_in,ylim=None,xlim=None):
         leg.append('{}'.format(k))
         ax[-1].plot([0, 1], [0, 1], color=cc[idx, :])
     ax[-1].legend(leg)
+    return f
 
 
 def plot_hist(in_exp, ps = [50,75,90,95],cmap=None):
     import Tkinter
     try:
-        plot_hist1(in_exp,ps,cmap)
+        return plot_hist1(in_exp,ps,cmap)
     except Tkinter.TclError:
         pass
 
@@ -348,7 +349,8 @@ def run_trainining(exp_name,train_type,view,run_type,**kwargs):
         if train_type in ['mdn','resnet_unet']:
             conf_opts['batch_size'] = 2
         elif train_type in ['unet']:
-            conf_opts['batch_size'] = 1
+            conf_opts['batch_size'] = 2
+            conf_opts['rescale'] = 2
         else:
             conf_opts['batch_size'] = 4
 
@@ -1803,7 +1805,11 @@ def get_active_results(num_rounds=8,view=0):
 
         if recomp:
             r_files = [f.replace('.index', '') for f in afiles]
-            mdn_out = apt_expts.classify_db_all(conf, gt_file, r_files, train_type, name=train_name)
+            tfile = os.path.join(conf.cachedir, 'traindata')
+            A = PoseTools.pickle_load(tfile)
+            use_conf = A[1]
+
+            mdn_out = apt_expts.classify_db_all(use_conf, gt_file, r_files, train_type, name=train_name)
             with open(out_file, 'w') as f:
                 pickle.dump([mdn_out, afiles], f)
         else:

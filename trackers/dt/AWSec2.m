@@ -21,16 +21,23 @@ classdef AWSec2 < handle
   end
   properties (Dependent)
     isSpecified
+    isConfigured
   end
   properties
     instanceIP
-    keyName
-    pem
+    keyName = '';
+    pem = '';
+
+    instanceType = 'p2.xlarge';
     
     scpCmd
     sshCmd
     
     remotePID
+    
+    SetStatusFun = @(s,varargin) fprintf(['AWS Status: ',s,'\n']);
+    ClearStatusFun = @(varargin) fprintf('Done.\n');
+
   end
   
   properties (Constant)
@@ -39,10 +46,13 @@ classdef AWSec2 < handle
   
   methods
     function set.instanceID(obj,v)
-      if ~isempty(obj.instanceID)
-        error('AWSEc2 instanceID is already set to %s.',obj.instanceID);
-      end
+%       if ~isempty(obj.instanceID) && ~strcmp(v,obj.instanceID),
+%         fprintf('AWSEc2 instanceID was already set to %s, overwriting to %s.',obj.instanceID,v);
+%       end
       obj.instanceID = v;
+    end
+    function v = get.isConfigured(obj)
+      v = ~isempty(obj.pem) && ~isempty(obj.keyName);
     end
     function v = get.isSpecified(obj)
       v = ~isempty(obj.instanceID);
@@ -51,18 +61,24 @@ classdef AWSec2 < handle
   
   methods
     
-    function obj = AWSec2(pem,varargin)
-      obj.pem = pem;
+    function obj = AWSec2(varargin)
       
+      if nargin >= 1,
+        pem = varargin{1};
+        if ~isempty(pem),
+          obj.pem = pem;
+        end
+      end
+            
       if ispc
-        obj.scpCmd = '"c:\Program Files\Git\usr\bin\scp.exe"';
-        obj.sshCmd = '"c:\Program Files\Git\usr\bin\ssh.exe"';
+        obj.scpCmd = ['"',APT.WINSCPCMD,'"'];
+        obj.sshCmd = ['"',APT.WINSSHCMD,'"'];
       else
         obj.scpCmd = 'scp';
         obj.sshCmd = 'ssh';
       end
 
-      for i=1:2:numel(varargin)
+      for i=2:2:numel(varargin)
         prop = varargin{i};
         val = varargin{i+1};
         obj.(prop) = val;
@@ -81,19 +97,83 @@ classdef AWSec2 < handle
 
   methods
     
-    function [tfsucc,json] = launchInstance(obj)
+    function SetStatus(obj,varargin)
+      if ~isempty(obj.SetStatusFun),
+        obj.SetStatusFun(varargin{:});
+      end
+    end
+    function ClearStatus(obj,varargin)
+      if ~isempty(obj.ClearStatusFun),
+        obj.ClearStatusFun(varargin{:});
+      end
+    end
+    
+    function setInstanceID(obj,instanceID,instanceType)
+
+      obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
+
+      if ~isempty(obj.instanceID),
+        if strcmp(instanceID,obj.instanceID),
+          % nothing to do
+          obj.ClearStatus();
+          return;
+        end
+        %instanceID = obj.instanceID;
+        [tfexist,tfrunning,json] = obj.inspectInstance();
+        if tfexist && tfrunning,
+          tfsucc = obj.stopInstance();
+          if ~tfsucc,
+            warning('Error stopping old AWS EC2 instance %s.',instanceID);
+          end
+          obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
+        end
+      end
+      obj.instanceID = instanceID;
+      if nargin > 3,
+        obj.instanceType = instanceType;
+      end
+      if obj.isSpecified,
+        obj.configureAlarm();
+      end
+      obj.ClearStatus();
+    end
+    function setPemFile(obj,pemFile)
+      obj.pem = pemFile;
+    end
+    function setKeyName(obj,keyName)
+      obj.keyName = keyName;
+    end
+    
+    function [tfsucc,json] = launchInstance(obj,varargin)
       % Launch a brand-new instance to specify an unspecified instance
 
-      assert(~obj.isSpecified,...
-        'AWSEc2 instance is already specified with instanceID %s.',obj.instanceID);
+      [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
+      obj.ResetInstanceID();
       
-      cmd = AWSec2.launchInstanceCmd(obj.keyName);
+%       assert(~obj.isSpecified,...
+%         'AWSEc2 instance is already specified with instanceID %s.',obj.instanceID);
+      
+      
+      obj.SetStatus('Launching new AWS EC2 instance');
+      cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
+        obj.ClearStatus();
         return;
       end
       json = jsondecode(json);
-      obj.instanceID = json.Instances.InstanceId;
+      instanceID = json.Instances.InstanceId;
+      if dostore,
+        obj.setInstanceID(instanceID);
+      end
+      obj.SetStatus('Waiting for AWS EC2 instance to spool up.');
+      [tfsucc] = obj.waitForInstanceStart();
+      if ~tfsucc,
+        obj.ClearStatus();
+        return;
+      end
+      obj.configureAlarm();
+      obj.ClearStatus();
     end
     
     function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
@@ -119,9 +199,19 @@ classdef AWSec2 < handle
         return;
       end
       json = jsondecode(json);
+      if isempty(json.Reservations),
+        tfexist = false;
+        tfrunning = false;
+        return;
+      end
       
       inst = json.Reservations.Instances;
       assert(strcmp(obj.instanceID,inst.InstanceId));
+      if strcmpi(inst.State.Name,'terminated'),
+        tfexist = false;
+        tfrunning = false;
+        return;
+      end
       
       tfrunning = strcmp(inst.State.Name,'running');
       if tfrunning
@@ -149,21 +239,190 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,instanceID,pemFile] = respecifyInstance(obj)
+      
+      %[tfsucc,instanceID,instanceType,reason] = obj.selectInstance('dostore',false);
+      
       [tfsucc,instanceID,pemFile] = ...
-        obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
+        obj.specifyInstanceUIStc(obj.instanceID,obj.pem,'instanceIDs',instanceIDs,'instanceTypes',instanceTypes);
     end
     
-    function [tfsucc,json] = stopInstance(obj)
+    function [tfsucc,keyName,pemFile] = respecifySSHKey(obj,dostore)
+      if nargin < 2,
+        dostore = false;
+      end
+      [tfsucc,keyName,pemFile] = ...
+        obj.specifySSHKeyUIStc(obj.keyName,obj.pem);
+      if tfsucc && dostore,
+        obj.setPemFile(pemFile);
+        obj.setKeyName(keyName);
+      end
+    end
+    
+    function [tfsucc,json] = stopInstance(obj,varargin)
+      [isinteractive] = myparse(varargin,'isinteractive',false);
+      if ~obj.isSpecified,
+        tfsucc = true;
+        json = {};
+        return;
+      end
+      if isinteractive,
+        res = questdlg(sprintf('Stop AWS instance %s? If you stop your instance, running other computations on AWS will have some overhead as the instance is re-initialized. If you do not stop the instance now, you may need to manually stop the instance in the future.',obj.instanceID),'Stop AWS Instance');
+        if ~strcmpi(res,'Yes'),
+          tfsucc = false;
+          return;
+        end
+      end
+      obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      obj.ClearStatus();
       if ~tfsucc
         return;
       end
       json = jsondecode(json);
-    end
 
-    function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
+      obj.stopAlarm();
       
+    end
+    
+
+    function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)
+    
+      instanceIDs = {};
+      instanceTypes = {};
+      obj.SetStatus('Listing AWS EC2 instances available');
+      cmd = AWSec2.listInstancesCmd(obj.keyName);%,'instType',obj.instanceType);
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      if tfsucc,
+        info = jsondecode(json);
+        if ~isempty(info.Reservations),
+          instanceIDs = {info.Reservations.Instances.InstanceId};
+          instanceTypes = {info.Reservations.Instances.InstanceType};
+        end
+      end
+      obj.ClearStatus();
+      
+    end
+    
+    function [tfsucc,instanceID,instanceType,reason,didLaunch] = selectInstance(obj,varargin)
+
+      [canLaunch,canConfigure,forceSelect] = ...
+        myparse(varargin,'canlaunch',true,...
+        'canconfigure',1,'forceSelect',true);
+      
+      reason = '';
+      instanceID = '';
+      instanceType = '';
+      didLaunch = false;
+      tfsucc = false;
+      
+      if ~obj.isConfigured || canConfigure >= 2,
+        if canConfigure,
+          [tfsucc] = obj.respecifySSHKey(true);
+          if ~tfsucc && ~obj.isConfigured,
+            reason = 'AWS EC2 instance is not configured.';
+            return;
+          else
+            tfsucc = true;
+          end
+        else
+          reason = 'AWS EC2 instance is not configured.';
+          return;
+        end
+      end
+      if forceSelect || ~obj.isSpecified,
+        if obj.isSpecified,
+          instanceID = obj.instanceID;
+        else
+          instanceID = '';
+        end
+        if canLaunch,
+          qstr = 'Launch a new instance or attach to an existing instance?';
+          if ~obj.isSpecified,
+            qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
+          else
+            qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
+          end
+          tstr = 'Specify AWS EC2 instance';
+          btn = questdlg(qstr,tstr,'Launch New','Attach to Existing','Cancel','Cancel');
+          if isempty(btn)
+            btn = 'Cancel';
+          end
+        else
+          btn = 'Attach to Existing';
+        end
+        while true,
+          switch btn
+            case 'Launch New'
+              tf = obj.launchInstance();
+              if ~tf
+                reason = 'Could not launch AWS EC2 instance.';
+                return;
+              end
+              instanceID = obj.instanceID;
+              instanceType = obj.instanceType;
+              didLaunch = true;
+              break;
+            case 'Attach to Existing',
+
+              [tfsucc,instanceIDs,instanceTypes] = obj.listInstances();
+              if ~tfsucc,
+                reason = 'Error listing instances.';
+                return;
+              end
+              if isempty(instanceIDs),
+                if canLaunch,
+                  btn = questdlg('No instances found. Launch a new instance?',tstr,'Launch New','Cancel','Cancel');
+                  continue;
+                else
+                  tfsucc = false;
+                  reason = 'No instances found.';
+                  return;
+                end
+              end
+              
+              PROMPT = {
+                'Instance'
+                };
+              NAME = 'AWS EC2 Select Instance';
+              INPUTBOXWIDTH = 100;
+              BROWSEINFO = struct('type',{'popupmenu'});
+              s = cellfun(@(x,y) sprintf('%s (%s)',x,y),instanceIDs,instanceTypes,'Uni',false);
+              v = 1;
+              if ~isempty(obj.instanceID),
+                v = find(strcmp(instanceIDs,obj.instanceID),1);
+                if isempty(v),
+                  v = 1;
+                end
+              end
+              DEFVAL = {{s,v}};
+              resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],1,1),...
+                DEFVAL,'on',BROWSEINFO);
+              tfsucc = ~isempty(resp);
+              if tfsucc
+                instanceID = instanceIDs{resp{1}};
+                instanceType = instanceTypes{resp{1}};
+              else
+                reason = 'Canceled.';
+                return;
+              end
+              break;
+            otherwise
+              reason = 'Canceled.';
+              return;
+          end
+        end
+        obj.setInstanceID(instanceID,instanceType);
+%         obj.instanceID = instanceID;
+%         obj.instanceType = instanceType;
+      end
+      tfsucc = true;
+
+    end
+    
+    function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
+
+      obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
       [doblock] = myparse(varargin,'doblock',true);
       
       maxwaittime = 100;
@@ -172,32 +431,52 @@ classdef AWSec2 < handle
       [tfsucc,state,json] = obj.getInstanceState();
       if ~tfsucc,
         warningstr = 'Failed to get instance state.';
+        obj.ClearStatus();
         return;
       end
-      if ismember(lower(state),{'running','pending'}),
-        warningstr = sprintf('Instance is %s, no need to start',state);
-        tfsucc = true;
-        return;
-      end
+
       if ismember(lower(state),{'shutting-down','terminated'}),
         warningstr = sprintf('Instance is %s, cannot start',state);
         tfsucc = false;
+        obj.ClearStatus();
         return
       end
       if ismember(lower(state),{'stopping'}),
         warningstr = sprintf('Instance is %s, please wait for this to finish before starting.',state);
         tfsucc = false;
+        obj.ClearStatus();
         return;
       end
-      cmd = AWSec2.startInstanceCmd(obj.instanceID);
-      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      if ~ismember(lower(state),{'running','pending'}),
+        cmd = AWSec2.startInstanceCmd(obj.instanceID);
+        [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      end
       if ~tfsucc
+        obj.ClearStatus();
         return;
       end
       json = jsondecode(json);
       if ~doblock,
+        obj.ClearStatus();
         return;
       end
+      
+      [tfsucc] = obj.waitForInstanceStart();
+      if ~tfsucc,
+        warningstr = 'Timed out waiting for AWS EC2 instance to spool up.';
+        obj.ClearStatus();
+        return;
+      end
+      
+      obj.inspectInstance();
+      obj.configureAlarm();
+      obj.ClearStatus();
+    end
+    
+    function [tfsucc] = waitForInstanceStart(obj)
+      
+      maxwaittime = 100;
+      iterwaittime = 5;
       
       % AL: see waitforPoll() util
       % AL: see also aws ec2 wait, which sort of works but seems not
@@ -211,8 +490,21 @@ classdef AWSec2 < handle
           if tfexist && tfrun
             fprintf('... instance is started, waiting for full spin-up\n');
             % AL: aws ec2 wait instance-status-ok sort of worked, sort of
-            pollCbk = @()obj.cmdInstance('cat /dev/null','dispcmd',true);
-            tfsucc = waitforPoll(pollCbk,iterwaittime,maxwaittime);
+            starttime = tic;
+            nAttempts = 0;
+            while true,
+              [tfsucc,res] = obj.cmdInstance('cat /dev/null','dispcmd',true);
+              if tfsucc,
+                break;
+              else
+                nAttempts = nAttempts + 1;
+                fprintf('Attempt %d to connect to AWS EC2 instance failed: %s.\n',nAttempts,res);
+                if toc(starttime) > maxwaittime,
+                  break;
+                end
+              end
+            end
+            %tfsucc = waitforPoll(pollCbk,iterwaittime,maxwaittime);
             if tfsucc
               break;
             else
@@ -225,14 +517,14 @@ classdef AWSec2 < handle
         end
         pause(iterwaittime);
       end
-      obj.inspectInstance();
+      
     end
     
     function checkInstanceRunning(obj,varargin)
       % - If runs silently, obj appears to be a running EC2 instance with 
       %   no issues
       % - If harderror thrown, something appears wrong
-      
+      obj.SetStatus('Checking whether AWS EC2 instance is running');
       throwErrs = myparse(varargin,...
         'throwErrs',true... % if false, just warn if there is a problem
         );
@@ -244,6 +536,8 @@ classdef AWSec2 < handle
       end
       
       [tfexist,tfrun] = obj.inspectInstance;
+      obj.ClearStatus();
+
       if ~tfexist
         throwFcn('Problem with EC2 instance id: %s',obj.instanceID);
       end
@@ -251,6 +545,7 @@ classdef AWSec2 < handle
         throwFcn('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
       end
+
     end
     
     function codestr = createShutdownAlarmCmd(obj,varargin)
@@ -312,11 +607,74 @@ classdef AWSec2 < handle
       codestr = String.cellstr2DelimList(code,' ');      
     end
     
+    function [tfsucc,isalarm,reason] = checkShutdownAlarm(obj)
+
+      tfsucc = false;
+      isalarm = false;
+      reason = '';
+      if ~obj.isSpecified,
+        reason = 'AWS EC2 instance not specified.';
+        return;
+      end
+      namestr = sprintf(obj.autoShutdownAlarmNamePat);
+
+      codestr = sprintf('aws cloudwatch describe-alarms --alarm-names "%s"',namestr);
+      [tfsucc,json] = obj.syscmd(codestr,...
+        'dispcmd',true,...
+        'failbehavior','warn',...
+        'isjsonout',true);
+      if ~tfsucc,
+        reason = 'AWS CLI error calling describe-alarms.';
+        return;
+      end
+      json = jsondecode(json);
+      if isempty(json) || isempty(json.MetricAlarms),
+        tfsucc = true;
+        return;
+      end
+      for i = 1:numel(json.MetricAlarms),
+          j = find(strcmpi({json.MetricAlarms(i).Dimensions.Name},'InstanceId'),1);
+          if ~isempty(j) && strcmp(json.MetricAlarms(i).Dimensions(j).Value,obj.instanceID),
+            isalarm = true;
+            break;
+          end
+      end
+      tfsucc = true;
+      
+    end
+
+    
+
+    
+    function tfsucc = stopAlarm(obj)
+
+      [tfsucc,isalarm,reason] = obj.checkShutdownAlarm();
+      if ~tfsucc,
+        warning('Could not check for alarm: %s\n',reason);
+        return;
+      end
+      if ~isalarm,
+        return;
+      end
+      
+      % TODO
+      
+    end
+    
     function tfsucc = configureAlarm(obj)
       % Note: this creates/puts a metricalarm with name based on the
       % instanceID. Currently the AWS API allows you to create the same
       % alarm multiple times with no harm (only one alarm is ultimately
       % created).
+
+      [tfsucc,isalarm,reason] = obj.checkShutdownAlarm();
+      if ~tfsucc,
+        warning('Could  not check for alarm: %s',reason);
+        return;
+      end
+      if isalarm,
+        return;
+      end
       
       codestr = obj.createShutdownAlarmCmd;
       
@@ -374,6 +732,9 @@ classdef AWSec2 < handle
       [destRelative,sysCmdArgs] = myparse(varargin,...
         'destRelative',true,... % true if dest is relative to ~
         'sysCmdArgs',{});
+      cmd = AWSec2.scpPrepareUploadCmd(obj.pem,obj.instanceIP,dest,...
+        'sshcmd',obj.sshCmd,'destRelative',destRelative);
+      AWSec2.syscmd(cmd,sysCmdArgs{:});
       cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dest,...
         'scpcmd',obj.scpCmd,'destRelative',destRelative);
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
@@ -409,9 +770,11 @@ classdef AWSec2 < handle
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
       else
+        obj.SetStatus(sprintf('Uploading %s file to AWS EC2 instance',fileDescStr));
         fprintf('About to upload. This could take a while depending ...\n');
         tfsucc = obj.scpUpload(src,dstAbs,...
           'destRelative',false,'sysCmdArgs',{'dispcmd',true});
+        obj.ClearStatus();
         if tfsucc
           fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dst);
         else
@@ -506,8 +869,10 @@ classdef AWSec2 < handle
         remoteDirFull = remoteDir;
       end
       
+      obj.SetStatus(sprintf('Creating directory %s on AWS EC2 instance',remoteDirFull));
       cmdremote = sprintf('mkdir -p %s',remoteDirFull);
       [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      obj.ClearStatus();
       if tfsucc
         fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
           descstr,remoteDirFull,res);
@@ -536,6 +901,7 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
+      fprintf('cmdInstance: %s\n',cmdremote);
       cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
       [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
     end
@@ -587,6 +953,10 @@ classdef AWSec2 < handle
       end
     end
     
+    function ResetInstanceID(obj)
+      obj.setInstanceID('');
+    end
+    
 %     function tf = isSameInstance(obj,obj2)
 %       assert(isscalar(obj) && isscalar(obj2));
 %       tf = strcmp(obj.instanceID,obj2.instanceID) && ~isempty(obj.instanceID);
@@ -596,11 +966,28 @@ classdef AWSec2 < handle
   methods (Static)
     
     function cmd = launchInstanceCmd(keyName,varargin)
-      [ami,instType,secGrp] = myparse(varargin,...
-        'ami','ami-0168f57fb900185e1',...
+      [ami,instType,secGrp,dryrun] = myparse(varargin,...
+        'ami',APT.AMI,...
         'instType','p3.2xlarge',...
-        'secGrp','apt_dl');
-      cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s --key-name %s',ami,instType,secGrp,keyName);
+        'secGrp',APT.AWS_SECURITY_GROUP,...
+        'dryrun',false);
+      cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s',ami,instType,secGrp);
+      if dryrun,
+        cmd = [cmd,' --dry-run'];
+      end
+      if ~isempty(keyName),
+        cmd = [cmd,' --key-name ',keyName];
+      end
+    end
+    
+    function cmd = listInstancesCmd(keyName,varargin)
+      
+      [ami,instType,secGrp] = myparse(varargin,...
+        'ami',APT.AMI,...
+        'instType','p3.2xlarge',...
+        'secGrp',APT.AWS_SECURITY_GROUP,...
+        'dryrun',false);
+      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance-type,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"',ami,instType,secGrp,keyName);
     end
     
     function cmd = describeInstancesCmd(ec2id)
@@ -651,8 +1038,14 @@ classdef AWSec2 < handle
         res = strtrim(char(res));
         tfsucc = st==0;
       else
+        fprintf('syscmd: %s\n',cmd);
         [st,res] = system(cmd);
-        tfsucc = st==0;
+        if st ~= 0,
+          fprintf('st = %d, res = %s\n',st,res);
+        else
+          fprintf('success.\n');
+        end
+        tfsucc = st==0 || isempty(res);
       end
       
       if isjsonout && tfsucc,
@@ -682,6 +1075,18 @@ classdef AWSec2 < handle
       end
     end
     
+    function cmd = scpPrepareUploadCmd(pem,ip,dest,varargin)
+      [destRelative,sshcmd] = myparse(varargin,...
+        'destRelative',true,...
+        'sshcmd','ssh');
+      if destRelative
+        dest = ['~/' dest];
+      end
+      [parentdir] = fileparts(dest);
+      cmdremote = sprintf('[ ! -d %s ] && mkdir -p %s',parentdir,parentdir);
+      cmd = AWSec2.sshCmdGeneral(sshcmd,pem,ip,cmdremote,'usedoublequotes',true);      
+    end
+    
     function cmd = scpUploadCmd(file,pem,ip,dest,varargin)
       [destRelative,scpcmd] = myparse(varargin,...
         'destRelative',true,...
@@ -698,7 +1103,7 @@ classdef AWSec2 < handle
         fileP = regexprep(fileP,'/','\\');
         fileF = regexprep(fileF,'/','\\');
         cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
-          pem,['.\' fileF fileE],ip,dest);
+          pem,['.\' fileF fileE],ip,dest); % fileP here can contain a space and pushd will do the right thing!
       else
         cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
       end
@@ -707,7 +1112,7 @@ classdef AWSec2 < handle
     function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
       scpcmd = myparse(varargin,...
         'scpcmd','scp');
-      cmd = sprintf('%s -i %s -r ubuntu@%s:%s %s',scpcmd,pem,ip,srcAbs,dstAbs);
+      cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)
@@ -731,7 +1136,7 @@ classdef AWSec2 < handle
     end
 
     function [tfsucc,instanceID,pemFile] = ...
-                              specifyInstanceUIStc(instanceID,pemFile)
+                              specifyInstanceUIStc(instanceID,pemFile,varargin)
       % Prompt user to specify/confirm an AWS instance.
       % 
       % instanceID, pemFile (in): optional defaults/best guesses
@@ -763,6 +1168,42 @@ classdef AWSec2 < handle
       else
         instanceID = [];
         pemFile = [];
+      end      
+    end
+    
+    function [tfsucc,keyName,pemFile] = ...
+        specifySSHKeyUIStc(keyName,pemFile)
+      % Prompt user to specify pemFile
+      % 
+      % keyName, pemFile (in): optional defaults/best guesses
+      
+      if nargin<1 || isempty(keyName),
+        keyName = '';
+      end
+      if nargin<2 || isempty(pemFile),
+        pemFile = '';
+      end
+      
+      PROMPT = {
+        'Key name'
+        'Private key (.pem or id_rsa) file'
+        };
+      NAME = 'AWS EC2 Config';
+      INPUTBOXWIDTH = 100;
+      BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
+
+      resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
+        {keyName;pemFile},'on',BROWSEINFO);
+      tfsucc = ~isempty(resp);      
+      if tfsucc
+        keyName = strtrim(resp{1});
+        pemFile = strtrim(resp{2});
+        if exist(pemFile,'file')==0
+          error('Cannot find private key (.pem or id_rsa) file %s.',pemFile);
+        end
+      else
+        keyName = '';
+        pemFile = '';
       end      
     end
     

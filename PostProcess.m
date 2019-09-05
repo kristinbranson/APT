@@ -3221,9 +3221,15 @@ classdef PostProcess < handle
       %   .pTrklocs_unet
       %   .pTrkconf
       %   .pTrkconf_unet
-      % rois: [nview x 4] 
+      % rois: [nview x 4]. Currently only used for
+      %   pp3dtype=='experimental'. Can be all nans for other pp3dtype etc.
       % crig: scalar CalRig object
       % pp3dtype: either 'triangulate' or 'experimental'
+      %
+      % trk1new/trk2new: trkfiles containing reconstructed results with
+      % diagnostics
+      %
+      % This can throw.
       
       DXYZ = myparse(varargin,...
         'dxyz',0.005...
@@ -3236,6 +3242,10 @@ classdef PostProcess < handle
         error('Cannot perform 3D postprocessing; trkfiles differ in frames/targets tracked.');
       end
       
+      if isfield(trk1,'pTrk3D')
+        error('Trkfile for view 1 already contains ''pTrk3D'' field. This trkfile has already been 3d-postprocessed.');
+      end
+      
       ptrk1 = trk1.pTrk;
       ptrk2 = trk2.pTrk;
         
@@ -3243,6 +3253,12 @@ classdef PostProcess < handle
       assert(isequal(size(ptrk1),size(ptrk2)),...
         'Trkfiles contain position arrays with inconsistent sizes.');
       
+      szassert(rois,[nvw 4]);
+      
+      if ~isa(crig,'CalRig')
+        error('Expected ''crig'' to be a CalRig instance.');
+      end
+        
       fprintf(1,'Performing 3d reconciliation: %s...\n',pp3dtype);
       wbObj = WaitBarWithCancelCmdline('3d reconciliation');
       oc = onCleanup(@()delete(wbObj));
@@ -3281,10 +3297,10 @@ classdef PostProcess < handle
             'pTrk',ptrkrp(:,:,:,:,2));
           
           %save(trkfiles{1},'-append','-struct','trk1save');
-          fprintf(1,'New variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d''.\n');
+          %fprintf(1,'New variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d''.\n');
           %trkfiles{1});
           %save(trkfiles{2},'-append','-struct','trk2save');
-          fprintf(1,'New variables ''pTrkSingleView'', ''pTrk''.\n');
+          %fprintf(1,'New variables ''pTrkSingleView'', ''pTrk''.\n');
           %trkfiles{2});
           
         case 'experimental'
@@ -3306,10 +3322,10 @@ classdef PostProcess < handle
             'pTrk',ptrkrp(:,:,:,:,2));
           
           %save(trkfiles{1},'-append','-struct','trk1save');
-          fprintf(1,'New variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d''.\n');
+%           fprintf(1,'New variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d''.\n');
           %trkfiles{1});
           %save(trkfiles{2},'-append','-struct','trk2save');
-          fprintf(1,'New variables ''pTrkSingleView'', ''pTrk''.\n');
+%           fprintf(1,'New variables ''pTrkSingleView'', ''pTrk''.\n');
           %trkfiles{2});
           
         otherwise
@@ -3318,7 +3334,6 @@ classdef PostProcess < handle
       end
       
     end
-    
     
   end
   

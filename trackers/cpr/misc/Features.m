@@ -772,22 +772,31 @@ classdef Features
       % See mathematical notes in generate2LMelliptical
       %   x = d*reff*cos(theta) = d*xeff
       %   y = d*reff/abRatio*sin(theta) = d*yeff
-      d = sqrt((x2-x1).^2+(y2-y1).^2)/2; % [NxF]. 2d=dist between lms
-      xEll = bsxfun(@times,d,xeff'); % [NxF]
-      yEll = bsxfun(@times,d,yeff'); % [NxF]
+      dx2 = (x2-x1)/2; % [NxF]
+      dy2 = (y2-y1)/2; % [NxF]
+      d = nan;
+      %d = sqrt(dx.^2+dy.^2)/2; % [NxF]. 2d=dist between lms
+      %xEll = bsxfun(@times,d,xeff'); % [NxF]
+      %yEll = bsxfun(@times,d,yeff'); % [NxF]
       % xEll and yEll are x- and y-coords of feature point, relative to
       % ellipse centered at origin and oriented along x-axis.
             
       xc = (x1+x2)/2; % [NxF]
       yc = (y1+y2)/2; % [NxF]
-      alpha = atan2(y2-y1,x2-x1); % [NxF] % OPTIM skip the trig just use dx, dy, d
-      cosa = cos(alpha); % [NxF]
-      sina = sin(alpha); % [NxF]
-      xF = xc + xEll.*cosa - yEll.*sina;
-      yF = yc + xEll.*sina + yEll.*cosa;
+      %alpha = atan2(y2-y1,x2-x1); % [NxF] % OPTIM skip the trig just use dx, dy, d
+      %cosa = cos(alpha); % [NxF]
+      %sina = sin(alpha); % [NxF]
+      alpha = nan; % no longer used/computed
+      %cosa = dx./(2*d);
+      %sina = dy./(2*d);
+      xF = xc + xeff'.*dx2 - yeff'.*dy2;
+      yF = yc + xeff'.*dy2 + yeff'.*dx2;
+      %xF = xc + xEll.*cosa - yEll.*sina;
+      %yF = yc + xEll.*sina + yEll.*cosa;
       xF = round(xF);
       yF = round(yF);
                 
+      % TODO: can prob optimize away repmat
       chan = repmat(chan',N,1);
       
       if nargout>=5

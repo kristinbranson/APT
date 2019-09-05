@@ -13,9 +13,12 @@ import csv
 import warnings
 import time
 import numpy as np
+from threading import Timer
 
 USEQSUB = False
 DEFAULTAPTBUILDROOTDIR="/groups/branson/bransonlab/apt/builds"  # root location of binaries
+DEFAULTAPTDIR=os.path.dirname(os.path.realpath(__file__))
+MATLABCMDEND = ");exit;catch ME,disp('Error caught:');disp(getReport(ME));disp('Exiting.');exit;end;\""
 
 def main():
 
@@ -34,6 +37,7 @@ def main():
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
     parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'")
     parser.add_argument("--binrootdir",help="Root build directory containing saved builds. Defaults to %s"%DEFAULTAPTBUILDROOTDIR,default=DEFAULTAPTBUILDROOTDIR)
+    parser.add_argument("--aptrootdir",help="Root directory containing APT MATLAB code. Defaults to %s"%DEFAULTAPTDIR,default=DEFAULTAPTDIR)
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
     parser.add_argument("--trackargs",help="use with action==track, trackbatch, xv, retrain, trntrk, gtcompute. enclose in quotes, additional/optional prop-val pairs")
@@ -46,12 +50,17 @@ def main():
     parser.add_argument("--splitframes",
                         help="Number of frames to track in each job. If 0, track all frames in one job.",
                         default=0,metavar="SPLITFRAMES",type=int)
+    parser.add_argument("--nframes",
+                        help="Number of frames in the video. If 0, use GetMovieNFrames to count.",
+                        default=0,metavar="NFRAMES",type=int)
+
     parser.add_argument("--startjob",help="Which job of split tracking to start on. Default = 0. This parameter is only relevant if tracking with splitframes parameter specified.",default=0)
     parser.add_argument("--endjob",
                         help="Which job of split tracking to end on. Specify -1 to run all jobs. Default = -1. This parameter is only relevant if tracking with splitframes parameter specified.",
                         default=-1)
     parser.add_argument("--prmpatchdir",help="Dir containing patch *.m files for use with xv or trntrk")
     parser.add_argument("--dryrun",help="Show but do not execute cluster (bsub) commands. Code generation still occurs.",action="store_true",default=False)
+    parser.add_argument("--usecompiled",help="if true, use compiled MATLAB, otherwise launch a real MATLAB",action="store_true",default=False)
 
     args = parser.parse_args()
     
@@ -91,48 +100,54 @@ def main():
     if args.prmpatchdir and args.action!="xv" and args.action!="trntrk":
         print("Action is " + args.action + ", ignoring --prmpatchdir specification")
 
-    if not args.bindate:
-        args.bindate = "current"
-    args.binroot = os.path.join(args.binrootdir,args.bindate)
-
-    args.multithreaded = not args.singlethreaded and int(args.nslots)>1
-    if args.multithreaded:
-        args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_multithreaded.sh")
-    else:
-        args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_singlethreaded.sh")
-    if not os.path.exists(args.bin):
-        sys.exit("Cannot find binary: {0:s}".format(args.bin))
-
-    # binary for getting info about movies
-    args.infobin = os.path.join(args.binroot,"APTCluster","run_GetMovieNFrames_singlethreaded.sh")
-
     args.KEYWORD = "apt" # used for log/sh filenames, sge job name
-    args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
-    args.MLROOT = "/misc/local/"
-
-    # check for mlrt tokens to specify/override mcr
-    bindir = os.path.dirname(args.bin)
-    mlrtTok = glob.glob(os.path.join(bindir,"MLRT_*"))
-    mlTok = glob.glob(os.path.join(bindir,"20*"))
-    if len(mlrtTok)>1:
-        warnings.warn("More than one MLRT_ token found in bindir: {0:s}".format(bindir))
-    if mlrtTok:
-        mlrtTok = os.path.basename(mlrtTok[-1])
-        mlrtMcr = mlrtTok[5:]
-        print("Found token in bindir: {0:s}. Using --mcr: {1:s}".format(mlrtTok,mlrtMcr))
-        args.mcr = os.path.join(args.MCRROOT,mlrtMcr)
-    elif mlTok:
-        mlTok = os.path.basename(mlTok[-1])
-        mlrt = "matlab-{0:s}".format(mlTok)
-        print("Found token in bindir: {0:s}. Running with {1:s}.".format(mlTok,mlrt))
-        args.mcr = os.path.join(args.MLROOT,mlrt)
-                      
-
-    if not os.path.exists(args.mcr):
-        sys.exit("Cannot find mcr: {0:s}".format(args.mcr))
     #args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/`whoami`"
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
+    args.multithreaded = not args.singlethreaded and int(args.nslots)>1
+
+    if args.usecompiled:
+        if not args.bindate:
+            args.bindate = "current"
+        args.binroot = os.path.join(args.binrootdir,args.bindate)
+
+        if args.multithreaded:
+            args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_multithreaded.sh")
+        else:
+            args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_singlethreaded.sh")
+        if not os.path.exists(args.bin):
+            sys.exit("Cannot find binary: {0:s}".format(args.bin))
+
+        # binary for getting info about movies
+        args.infobin = os.path.join(args.binroot,"APTCluster","run_GetMovieNFrames_singlethreaded.sh")
+
+        args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
+        args.MLROOT = "/misc/local/"
+
+        # check for mlrt tokens to specify/override mcr
+        bindir = os.path.dirname(args.bin)
+        mlrtTok = glob.glob(os.path.join(bindir,"MLRT_*"))
+        mlTok = glob.glob(os.path.join(bindir,"20*"))
+        if len(mlrtTok)>1:
+            warnings.warn("More than one MLRT_ token found in bindir: {0:s}".format(bindir))
+        if mlrtTok:
+            mlrtTok = os.path.basename(mlrtTok[-1])
+            mlrtMcr = mlrtTok[5:]
+            print("Found token in bindir: {0:s}. Using --mcr: {1:s}".format(mlrtTok,mlrtMcr))
+            args.mcr = os.path.join(args.MCRROOT,mlrtMcr)
+        elif mlTok:
+            mlTok = os.path.basename(mlTok[-1])
+            mlrt = "matlab-{0:s}".format(mlTok)
+            print("Found token in bindir: {0:s}. Running with {1:s}.".format(mlTok,mlrt))
+            args.mcr = os.path.join(args.MLROOT,mlrt)
+            if not os.path.exists(args.mcr):
+                sys.exit("Cannot find mcr: {0:s}".format(args.mcr))
+    else: # use real matlab
+        # todo
+        args.bin = "matlab -nodisplay -r \"try, cd('%s'); APT.setpath; APTCluster("%args.aptrootdir
+        args.infobin = "\"try, cd('%s'); APT.setpath; GetMovieNFrames("%args.aptrootdir
+        args.mcr = ""
+        args.binroot = ""
 
     if USEQSUB:
         args.BSUBARGS = "-pe batch " + args.nslots + " -j y -b y -cwd" 
@@ -203,12 +218,16 @@ def main():
             shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
             logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
 
-            cmd = args.projfile + " track  " + mov + " " + trx
+            cmd = makecmd([args.projfile,"track",mov,trx],usecompiled=args.usecompiled)
+            # cmd = args.projfile + " track " + mov + " " + trx
             if args.trackargs:
-                cmd = cmd + " " + args.trackargs
+                cmd = makecmd(args.trackargs,cmd,args.usecompiled)
+                # cmd = cmd + " " + args.trackargs
+
             if args.p0DiagImg:
                 p0DiagImgFull = os.path.join(outdiruse,args.p0DiagImg) # won't work well when args.outdir supplied
-                cmd = cmd + " p0DiagImg " + p0DiagImgFull
+                cmd = makecmd(['p0DiagImg',p0DiagImgFull],cmd,args.usecompiled)
+                # cmd = cmd + " p0DiagImg " + p0DiagImgFull
             gencode(shfile,jobid,args,cmd)
 
             # submit 
@@ -241,28 +260,58 @@ def main():
         shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
         logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
         if args.action=="retrain":
-            cmd = args.projfile + " " + args.action
+            cmd = makecmd([args.projfile,args.action],usecompiled=args.usecompiled)
+            # cmd = args.projfile + " " + args.action
             if args.trackargs:
-                cmd = cmd+" "+args.trackargs
+                cmd = makecmd(args.trackargs,cmd,usecompiled=args.usecompiled)
+                # cmd = cmd+" "+args.trackargs
         elif args.action=="track":
 
             if args.trx:
-                cmd=args.projfile+"  "+args.action+" "+args.mov+" "+args.trx
+                cmd = makecmd([args.projfile,args.action,args.mov,args.trx],usecompiled=args.usecompiled)
+                # cmd=args.projfile+"  "+args.action+" "+args.mov+" "+args.trx
             else:
-                cmd=args.projfile+"  "+args.action+" "+args.mov+" "+"''"
+                cmd = makecmd([args.projfile,args.action,args.mov,''],usecompiled=args.usecompiled)
+                # cmd=args.projfile+"  "+args.action+" "+args.mov+" "+"''"
             if args.trackargs:
-                cmd=cmd+" "+args.trackargs
+                cmd = makecmd(args.trackargs,cmd,usecompiled=args.usecompiled)
+                #if args.usecompiled:
+                #    cmd = makecmd(args.trackargs,cmd,usecompiled=args.usecompiled)
+                #else:
+                #    cmd = cmd + ',' + args.trackargs
+                #cmd=cmd+" "+args.trackargs
             if args.p0DiagImg:
                 p0DiagImgFull=os.path.join(outdiruse,args.p0DiagImg)
-                cmd=cmd+" p0DiagImg "+p0DiagImgFull
+                cmd = makecmd(['p0DiagImg',p0DiagImgFull],cmd,usecompiled=args.usecompiled)
+                # cmd=cmd+" p0DiagImg "+p0DiagImgFull
 
             if args.splitframes > 0:
-                infocmd = [args.infobin,args.mcr,args.mov]
-                s = subprocess.check_output(infocmd)
-                p = re.compile('\n\d+$') # last number
-                m = p.search(s)
-                s = s[m.start()+1:-1]
-                nframes = int(s)
+
+                if args.nframes > 0:
+                    
+                    nframes = args.nframes
+
+                else:
+
+                    if args.usecompiled:
+                        infocmd = [args.infobin,args.mcr,args.mov]
+                        s = subprocess.check_output(infocmd)
+                        p = re.compile('\n\d+$') # last number
+                        m = p.search(s)
+                        s = s[m.start()+1:-1]
+
+                    else:
+                        infocmd = ['matlab','-nodisplay','-r',args.infobin+"'"+args.mov+"'"+MATLABCMDEND]
+                        s = my_check_output(infocmd,timeout=20)
+                        p = re.compile('\n\d+\n') # number surrounded by \n's
+                        m = p.search(s)
+                        if m is None:
+                            raise(RuntimeError,'Could not parse number of frames from MATLAB output')
+                        s = s[m.start()+1:m.end()-1]
+
+                    #print("REMOVE THIS!!")
+                    #nframes = 85934
+                    nframes = int(s)
                 njobs = np.maximum(1,np.round(nframes/args.splitframes))
                 jobstarts = np.round(np.linspace(1,nframes+1,njobs+1)).astype(int)
                 jobends = jobstarts[1:]-1
@@ -292,7 +341,8 @@ def main():
                         rawtrkname='%s/%s_%s_%s'%(outdiruse,moviestr,projstr,jobidcurr)
                     else:
                         rawtrkname = '%s/%s_%s_%s'%(moviedir,moviestr,projstr,jobidcurr)
-                    cmdcurr = "%s startFrame %d endFrame %d rawtrkname %s"%(cmd,jobstarts[jobi],jobends[jobi],rawtrkname)
+                    cmdcurr = makecmd(['startFrame',jobstarts[jobi],'endFrame',jobends[jobi],'rawtrkname',rawtrkname],cmd,usecompiled=args.usecompiled)
+                    #cmdcurr = "%s startFrame %d endFrame %d rawtrkname %s"%(cmd,jobstarts[jobi],jobends[jobi],rawtrkname)
                     shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
                     logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
 
@@ -327,7 +377,8 @@ def main():
                 sys.exit()
 
         elif args.action=="trackbatchserial":
-            cmd = args.projfile + "  trackbatch " + args.movbatchfile
+            cmd = makecmd([args.projfile,'trackbatch',args.movbatchfile],usecompiled=args.usecompiled)
+            #cmd = args.projfile + "  trackbatch " + args.movbatchfile
 
         elif args.action=="xv" or args.action=="gtcompute" or args.action=="trntrk":
             if args.prmpatchdir:
@@ -353,7 +404,8 @@ def main():
                     if pch!='NOPATCH':
                         cmdcurr.append("paramPatchFile")
                         cmdcurr.append(pch)
-                    cmdcurr = " ".join(cmdcurr)
+                    cmdcurr = makecmd(cmdcurr,usecompiled=args.usecompiled)
+                    #cmdcurr = " ".join(cmdcurr)
                     gencode(shfilecurr,jobidcurr,args,cmdcurr)
 
                     # submit
@@ -373,7 +425,8 @@ def main():
                 cmd = [args.projfile,args.action,"outdir",outdiruse]
                 if args.trackargs:
                     cmd.append(args.trackargs)
-                cmd = " ".join(cmd)
+                cmd = makecmd(cmd,usecompiled=args.usecompiled)
+                #cmd = " ".join(cmd)
 
         gencode(shfile,jobid,args,cmd)
 
@@ -404,24 +457,71 @@ def gencode(fname,jobid,args,cmd,bin=None,mcr=None):
     print("source ~/.bashrc",file=f)
     print("umask 002",file=f)
     print("unset DISPLAY",file=f)
-    print("if [ -d "+args.TMP_ROOT_DIR+" ]; then",file=f)
-    print("  export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
-    print("fi",file=f)
-    print("echo MCR_CACHE_ROOT = $MCR_CACHE_ROOT",file=f)
+    if args.usecompiled:
+        print("if [ -d "+args.TMP_ROOT_DIR+" ]; then",file=f)
+        print("  export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
+        print("fi",file=f)
+        print("echo MCR_CACHE_ROOT = $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
-    print(bin + " " + mcr + " " + cmd,file=f)
+    if args.usecompiled:
+        print(bin + " " + mcr + " " + cmd,file=f)
+    else:
+        print(bin + cmd + MATLABCMDEND,file=f)
+
     print("",file=f)
 
-    print("if [ -e "+args.MCR_CACHE_ROOT+"."+jobid+" ]; then",file=f)
-    print("  echo deleting "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
-    print("  date",file=f)
-    print("  rm -rf "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
-    print("  date",file=f)
-    print("fi",file=f)
+    if args.usecompiled:
+        print("if [ -e "+args.MCR_CACHE_ROOT+"."+jobid+" ]; then",file=f)
+        print("  echo deleting "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
+        print("  date",file=f)
+        print("  rm -rf "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
+        print("  date",file=f)
+        print("fi",file=f)
 
     f.close()
     os.chmod(fname,stat.S_IRUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH);
+
+def makecmd(s,cmd='',usecompiled=False):
+
+    if isinstance(s,list):
+        for ss in s:
+            cmd = makecmd(ss,cmd,usecompiled)
+        return cmd
+
+    if usecompiled:
+        if not isinstance(s,str):
+            s = str(s)
+        if len(s) == 0:
+            s = "''"
+        if len(cmd) > 0:
+            cmd = cmd + ' '
+        cmd = cmd + s
+    else:
+        if len(cmd) > 0:
+            cmd = cmd + ','
+        if isinstance(s,str) and ((len(s) < 1) or s[0] != "'"):
+            cmd = cmd + "'" + s + "'"
+        else:
+            cmd = cmd + str(s)
+    return cmd
+
+def my_check_output(cmd,timeout=None):
+
+    cmdstr = " ".join(cmd)
+    proc = subprocess.Popen(cmdstr, bufsize=-1, shell=True, 
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    timer = Timer(timeout, proc.kill)
+    try:
+        timer.start()
+        o,e = proc.communicate()
+    finally:
+        timer.cancel()
+    if len(e) > 0:
+        raise Exception(OSError,e)
+    s = o.decode('ascii')
+    return s
+
 
 def pprintdict(d, indent=0):
    for key, value in sorted(d.items()):

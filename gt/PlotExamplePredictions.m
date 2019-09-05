@@ -224,6 +224,12 @@ end
 
 function predscurr = align(preds,gtimdata,lObj,vwi)
 
+if isstruct(lObj),
+  preProcParams = APTParameters.all2PreProcParams(lObj.trackParams);
+else
+  preProcParams = lObj.preProcParams;
+end
+
 tblP = gtimdata.tblPGT;
 isTrx = any(~isnan(tblP.pTrx(:)));
 ndatapts = size(preds,1);
@@ -242,7 +248,7 @@ if isTrx,
       0,1,0
       -x,-y,1];
     theta = tblP.thetaTrx(i);
-    if lObj.preProcParams.TargetCrop.AlignUsingTrxTheta && ~isnan(theta),
+    if preProcParams.TargetCrop.AlignUsingTrxTheta && ~isnan(theta),
       R = [cos(theta+pi/2),-sin(theta+pi/2),0
         sin(theta+pi/2),cos(theta+pi/2),0
         0,0,1];
@@ -253,7 +259,7 @@ if isTrx,
     tform = maketform('affine',A);
     [pRel(:,1),pRel(:,2)] = ...
       tformfwd(tform,pAbs(:,1),pAbs(:,2));
-    pRoi = lObj.preProcParams.TargetCrop.Radius+pRel;
+    pRoi = preProcParams.TargetCrop.Radius+pRel;
     predscurr(i,:,:) = pRoi;
   end
 else

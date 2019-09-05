@@ -332,13 +332,30 @@ classdef LabelTracker < handle
       
       plist = obj.propList();
       plistcodes = {plist.code}';
-      iaux = find(strcmp(prop.code,plistcodes));
-      if ~isempty(iaux)
-        assert(strcmp(tauxlbl{iaux},prop.code));
+      tfaux = any(strcmp(prop.code,plistcodes));
+      if tfaux
+        iaux = find(strcmp(tauxlbl,prop.feature));
+        assert(isscalar(iaux));
         data = taux(:,:,iTgt,iaux);
+        
+        % cf ComputeLandmarkFeatureFromPos
+        if strcmpi(prop.transform,'none')
+          % none; data unchanged
+        else
+          fun = sprintf('compute_landmark_transform_%s',prop.transform);
+          if ~exist(fun,'file'),
+            warningNoTrace('Unknown property transformation ''%s'' for timeline display.',...
+              prop.transform);
+            % data unchanged
+          else
+            data = feval(fun,struct('data',data));
+            data = data.data;
+          end
+        end
       else      
         tpostag = false(npts,nfrms,ntgts);
-        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),tpostag(:,:,iTgt),bodytrx,prop);
+        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),...
+          tpostag(:,:,iTgt),bodytrx,prop);
       end
     end
     

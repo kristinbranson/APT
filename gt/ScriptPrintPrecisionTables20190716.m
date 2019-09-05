@@ -2,7 +2,7 @@
 
 %gtfile = '/nrs/branson/mayank/apt_cache/alice_view0_time.mat';
 
-allexptypes = {'FlyBubble','SHView0','SHView1','SH3D','RFView0','RFView1','RF3D','Roian','BSView0x','BSView1x','BSView2x','Larva'};
+allexptypes = {'FlyBubble','SHView0','SHView1','SH3D','RFView0','RFView1','RF3D','Roian','BSView0x','BSView1x','BSView2x','Larva','FlyBubbleMDNvsDLC'};
 
 exptype = 'RFView1';
 cprdir = '/groups/branson/bransonlab/apt/experiments/res/cprgt20190407';
@@ -12,7 +12,7 @@ savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20190523';
 if ~exist(savedir,'dir'),
   mkdir(savedir);
 end
-dosavefig = false;
+dosavefig = true;
 
 Ptbls = cell(1,numel(allexptypes));
 

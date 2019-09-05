@@ -103,6 +103,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     pjtHLinesRecon   % [nview]. line handles for reconstructed pts
     
     pjtCalRig         % Scalar some-kind-of-calibration object
+    
+    pjtShow3D        % [nShow3D] aux handles for showing 3D info
   end
   properties (Dependent)
     pjtState         % either 0, 1, or 2 for number of defined working pts
@@ -950,7 +952,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
     end
     
-    function projectionCalcDisp3DPosn(obj)
+    function projectionDisp3DPosn(obj)
       % Calculate/display triangulated 3D coordinates of current working
       % points (assuming all have been set/adjusted)
       
@@ -982,7 +984,63 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           mat2str(round(reshape(xyim(:,1,ivw),[1 2]))),rpe(ivw) );
       end
       fprintf('3D coordinates are %s\n',mat2str(X,5));
+      
+      % C+P LabelerGUI (commented out there)
+      u0 = X(1);
+      v0 = X(2);
+      w0 = X(3);
+      VIEWDISTFRAC = 5;
+      obj.projectionClear3DPosn();
+      for iview=1:nvw
+        ax = axs(iview);
+        
+        % Start from where we want the 3D axes to be located in the view
+        xl = ax.XLim;
+        yl = ax.YLim;
+        % Loop and find the scale where the the maximum projected length is ~
+        % 1/8th the current view
+        SCALEMIN = 0;
+        SCALEMAX = 20;
+        SCALEN = 300;
+        avViewSz = (diff(xl)+diff(yl))/2;
+        tgtDX = avViewSz/VIEWDISTFRAC*.8;
+        scales = linspace(SCALEMIN,SCALEMAX,SCALEN);
+        
+        [x0,y0] = crig.project3d(u0,v0,w0,iview);
+        for iScale = 1:SCALEN
+          % origin is (u0,v0,w0) in 3D; (x0,y0) in 2D
+          
+          s = scales(iScale);
+          [x1,y1] = crig.project3d(u0+s,v0,w0,iview);
+          [x2,y2] = crig.project3d(u0,v0+s,w0,iview);
+          [x3,y3] = crig.project3d(u0,v0,w0+s,iview);
+          d1 = sqrt( (x1-x0).^2 + (y1-y0).^2 );
+          d2 = sqrt( (x2-x0).^2 + (y2-y0).^2 );
+          d3 = sqrt( (x3-x0).^2 + (y3-y0).^2 );
+          if d1>tgtDX || d2>tgtDX || d3>tgtDX
+            fprintf(1,'Found scale: %.2f\n',s);
+            break;
+          end
+        end
+        
+        LINEWIDTH = 5;
+        FONTSIZE = 22;
+        lineargs = {'LineWidth' LINEWIDTH};
+        textargs = {'fontweight' 'bold' 'fontsize' FONTSIZE 'parent' ax};
+        obj.pjtShow3D(end+1,1) = plot(ax,[x0 x1],[y0 y1],'r-',lineargs{:});
+        obj.pjtShow3D(end+1,1) = text(x1,y1,'x','Color',[1 0 0],textargs{:});
+        obj.pjtShow3D(end+1,1) = plot(ax,[x0 x2],[y0 y2],'g-',lineargs{:});
+        obj.pjtShow3D(end+1,1) = text(x2,y2,'y','Color',[0 0.5 0],textargs{:});
+        obj.pjtShow3D(end+1,1) = plot(ax,[x0 x3],[y0 y3],'-',...
+          'Color',[0 1 1],lineargs{:});
+        obj.pjtShow3D(end+1,1) = text(x3,y3,'z','Color',[0 0 1],textargs{:});
+      end
     end
+    function projectionClear3DPosn(obj)
+      deleteValidHandles(obj.pjtShow3D);
+      obj.pjtShow3D = gobjects(0,1);
+    end
+    
     
     function projectionRefresh(obj)
       switch obj.pjtState
