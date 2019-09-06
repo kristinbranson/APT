@@ -143,6 +143,12 @@ classdef DLBackEndClass < handle
           end
         end
         
+        [tfsucc] = obj.awsec2.waitForInstanceStart();
+        if ~tfsucc,
+          reason = 'Timed out waiting for AWS EC2 instance to be spooled up.';
+          return;
+        end
+        
         reason = '';
       else
         tf = true;

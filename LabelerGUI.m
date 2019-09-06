@@ -4085,7 +4085,6 @@ if isempty(s),
 end
 SetStatusText(handles,s);
 
-
 % --------------------------------------------------------------------
 function menu_file_export_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
 % hObject    handle to menu_file_export_labels2_trk_curr_mov (see GCBO)
