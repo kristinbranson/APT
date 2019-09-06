@@ -956,7 +956,7 @@ class Avi:
 
         # make frame into numpy array
         frame_data = self.file.read( frame_size )
-        frame = num.fromstring( frame_data, num.uint8 )
+        frame = num.frombuffer( frame_data, num.uint8 )
 
         # reshape...
         width = self.width + self.padwidth
@@ -1094,8 +1094,8 @@ class CompressedAvi:
 
         # compute the bits per pixel
         retval, im = self.source.read()
-        im = num.fromstring(im.data,num.uint8)
-        self.color_depth = len(im)/self.width/self.height
+        im = num.frombuffer(im.data,num.uint8)
+        self.color_depth = len(im)//self.width//self.height
         if self.color_depth != 1 and self.color_depth != 3:
             raise ValueError( 'color_depth = %d, only know how to deal with color_depth = 1 or colr_depth = 3'%self.color_depth )
         self.bits_per_pixel = self.color_depth * 8
@@ -1130,7 +1130,7 @@ class CompressedAvi:
                     frame.startswith(b'\xff\xd8') and frame.endswith(b'\xff\xd9')
                 ):
                     raise ValueError('invalid jpeg')
-                img = cv2.imdecode(num.fromstring(frame, dtype=num.uint8), -1)
+                img = cv2.imdecode(num.frombuffer(frame, dtype=num.uint8), -1)
                 ts = self.index_dat[framenumber,1] - self.index_dat[0,1]
                 return (img,ts)
 
@@ -1191,12 +1191,14 @@ class CompressedAvi:
         if not retval:
             raise IOError( "OpenCV failed reading frame %d" % self.currframe )
 
-        frame = num.fromstring(im.data,num.uint8)
+        frame = num.frombuffer(im.data,num.uint8)
 
         if self.color_depth == 1:
             frame.resize((self.height,self.width))
         else: # color_depth == 3
             frame.resize( (self.height, self.width, 3) )
+            # Mayank 20190906 - opencv by default read the image into BGR format. Surprisingly this wasn't an issue before.
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             # tmp = frame.astype(float)
             # tmp = tmp[:,2:self.width*3:3]*.3 + \
             #     tmp[:,1:self.width*3:3]*.59 + \
