@@ -4,6 +4,7 @@ import os
 import json
 import datetime
 import pickle
+import heatmap
 
 import numpy as np
 
@@ -13,35 +14,47 @@ import APT_interface as apt
 import multiResData
 import PoseTools
 
+
 gpu_model = 'GeForceRTX2080Ti'
 
 all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'hg']
-cache_dir = '/groups/branson/home/leea30/apt/posebase20190528/cache_20190702_hgrfn_long'
-run_dir = '/groups/branson/home/leea30/apt/posebase20190528/out_20190702_hgrfn_long'
-apt_deepnet_root = '/groups/branson/home/leea30/git/aptFtrDT/deepnet'
+#cache_dir = '/groups/branson/home/leea30/apt/posebase20190528/cache_20190702_hgrfn_long'
+#run_dir = '/groups/branson/home/leea30/apt/posebase20190528/out_20190702_hgrfn_long'
+#apt_deepnet_root = '/groups/branson/home/leea30/git/aptFtrDT/deepnet'
+apt_deepnet_root = '/groups/branson/home/leea30/git/aptDev2/deepnet'
 
 lblbub = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
 lblsh = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20190402_dlstripped.lbl'
 
-cvibub = '/groups/branson/home/leea30/apt/posebase20190528/cvi_outer3_easy.mat'
-cvishE = '/groups/branson/home/leea30/apt/posebase20190528/cvi_sh_4523_outer3_easy.mat'
-cvishH = '/groups/branson/home/leea30/apt/posebase20190528/cvi_sh_4523_outer3_hard.mat'
+cvibubE = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cvi_outer3_easy.mat'
+cvibubH ='/groups/branson/home/leea30/apt/openpose_refinement_20190721/cvi_outer3_hard.mat'
+cvishE = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cvi_sh_4523_outer3_easy.mat'
+cvishH = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cvi_sh_4523_outer3_hard.mat'
 
-def read_cvinfo(lbl_file, cv_info_file, view=0):
-    data_info = h5py.File(cv_info_file, 'r')
-    cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
-    n_splits = max(cv_info) + 1
+op_af_graph_bub = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
 
-    conf = apt.create_conf(lbl_file, view, 'cv_dummy', cache_dir, 'mdn')  # net type irrelevant
-    lbl_movies, _ = multiResData.find_local_dirs(conf)
+op_af_graph_bub_noslash = op_af_graph_bub.replace('\\', '')
+
+# nbHG.cv_train_from_mat(nbHG.lblbub,nbHG.cvibub,['openpose'])
+# nbHG.run_training(nbHG.lblbub,cdir,'cvi_outer3_easy__split0','bub','openpose',0,'submit',**opts)
+# nbHG.save_cv_results(nbHG.lblbub,cdir,0,'cvi_outer3_easy__split0','openpose',mdlS,nbHG.run_dir,'bub','kwresfile')
+# nbHG.predsingle(nbHG.lblbub, nbHG.cache_dir, 0, 'cvi_outer3_easy__split0', 'openpose', mdlS, 'bub'):
+
+def read_cvinfo(lbl_file, cdir, cv_info_file, view=0):
+
+    conf = apt.create_conf(lbl_file, view, 'cv_dummy', cdir, 'mdn')  # net type irrelevant
+    #lbl_movies, _ = multiResData.find_local_dirs(conf)
     #in_movies = [PoseTools.read_h5_str(data_info[k]) for k in data_info['movies'][0, :]]
     #assert lbl_movies == in_movies
-
     label_info = rapt.get_label_info(conf)
-    fr_info = apt.to_py(data_info['frame'].value[:, 0].astype('int'))
-    m_info = apt.to_py(data_info['movieidx'].value[:, 0].astype('int'))
-    if 'target' in data_info.keys():
-        t_info = apt.to_py(data_info['target'].value[:, 0].astype('int'))
+
+    cvi = h5py.File(cv_info_file, 'r')
+
+    cv_info = apt.to_py(cvi['cvi'].value[:, 0].astype('int'))
+    fr_info = apt.to_py(cvi['frame'].value[:, 0].astype('int'))
+    m_info = apt.to_py(cvi['movieidx'].value[:, 0].astype('int'))
+    if 'target' in cvi.keys():
+        t_info = apt.to_py(cvi['target'].value[:, 0].astype('int'))
         in_info = [(a, b, c) for a, b, c in zip(m_info, fr_info, t_info)]
     else:
         in_info = [(a, b, 0) for a, b in zip(m_info, fr_info)]
@@ -54,10 +67,10 @@ def read_cvinfo(lbl_file, cv_info_file, view=0):
     return cv_info, in_info, label_info
 
 
-def cv_train_from_mat(lbl_file, cv_info_file, models_run,
+def cv_train_from_mat(lbl_file, cdir, cv_info_file, models_run,
                       view=0, skip_db=False, create_splits=True, dorun=False, run_type='status'):
 
-    cv_info, in_info, label_info = read_cvinfo(lbl_file, cv_info_file, view)
+    cv_info, in_info, label_info = read_cvinfo(lbl_file, cdir, cv_info_file, view)
 
     lbl = h5py.File(lbl_file, 'r')
     proj_name = apt.read_string(lbl['projname'])
@@ -75,7 +88,7 @@ def cv_train_from_mat(lbl_file, cv_info_file, models_run,
         trn_info = list(set(label_info)-set(val_info))
         cur_split = [trn_info, val_info]
         exp_name = '{:s}__split{}'.format(cvifileshort, sndx)
-        split_file = os.path.join(cache_dir, proj_name, exp_name) + '.json'
+        split_file = os.path.join(cdir, proj_name, exp_name) + '.json'
         if not skip_db and create_splits:
             assert not os.path.exists(split_file)
             with open(split_file, 'w') as f:
@@ -84,7 +97,7 @@ def cv_train_from_mat(lbl_file, cv_info_file, models_run,
         # create the dbs
         if not skip_db:
             for train_type in models_run:
-                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                conf = apt.create_conf(lbl_file, view, exp_name, cdir, train_type)
                 conf.splitType = 'predefined'
                 if train_type == 'deeplabcut':
                     apt.create_deepcut_db(conf, split=True, split_file=split_file, use_cache=True)
@@ -94,7 +107,7 @@ def cv_train_from_mat(lbl_file, cv_info_file, models_run,
                     apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
         if dorun:
             for train_type in models_run:
-                rapt.run_trainining(exp_name, train_type, view, run_type)
+                rapt.run_trainining(elblbubxp_name, train_type, view, run_type)
 
 
 def run_jobs(cmd_name, cur_cmd, redo=False):
@@ -123,9 +136,9 @@ def run_jobs(cmd_name, cur_cmd, redo=False):
     #     print('NOT submitting job {}'.format(cmd_name))
 
 
-def run_training(lbl_file, exp_name, data_type, train_type, view, run_type, **kwargs):
+def run_training(lbl_file, cdir, exp_name, data_type, train_type, view, run_type, **kwargs):
 
-    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
+    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cdir)
     end_cmd = 'train -skip_db -use_cache'
 
     cmd_opts = {}
@@ -137,6 +150,12 @@ def run_training(lbl_file, exp_name, data_type, train_type, view, run_type, **kw
     conf_opts['save_step'] = conf_opts['dl_steps'] / 10
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
+
+    if train_type == 'openpose':
+        if data_type == 'bub':
+            conf_opts['op_affinity_graph'] = op_af_graph_bub
+        else:
+            assert False, "define aff graph"
 
     # if data_type in ['brit0' ,'brit1','brit2']:
     #     conf_opts['adjust_contrast'] = True
@@ -207,20 +226,112 @@ def run_training(lbl_file, exp_name, data_type, train_type, view, run_type, **kw
         print
         run_jobs(cmd_name, cur_cmd)
     elif run_type == 'status':
-        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        conf = apt.create_conf(lbl_file, view, exp_name, cdir, train_type)
         check_train_status(cmd_name, conf.cachedir)
 
 
-def save_cv_results(lbl_file, view, exp_name, net, model_file_short, out_dir, conf_pvlist=None):
-    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, net, conf_params=conf_pvlist)
-    db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
+def save_cv_results(lbl_file, cachedir, view, exp_name, net, model_file_short, out_dir,
+                    data_type, kwout, mdn_hm_floor=0.1, db_file=None):
+
+    conf_pvlist = None
+    if net == 'openpose':
+        if data_type == 'bub':
+            conf_pvlist = ['op_affinity_graph', op_af_graph_bub_noslash]
+        else:
+            assert False, "define aff graph"
+
+    return_hmaps = (net == 'mdn')
+
+    conf = apt.create_conf(lbl_file, view, exp_name, cachedir, net, conf_params=conf_pvlist)
+    if db_file is None:
+        db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
     model_file = os.path.join(conf.cachedir, model_file_short)
-    res = apt_expts.classify_db_all(conf, db_file, [model_file], net)
-    out_file = "{}__vw{}__{}.p".format(exp_name, view, net)
+    res = apt_expts.classify_db_all(conf, db_file, [model_file], net,
+                                    return_hm=return_hmaps,
+                                    hm_dec=1,
+                                    hm_floor=mdn_hm_floor,
+                                    hm_nclustermax=1)
+
+    res.append(conf)
+    out_file = "{}__vw{}__{}__{}.p".format(exp_name, view, net, kwout)
     out_file = os.path.join(out_dir, out_file)
     with open(out_file, 'w') as f:
         pickle.dump(res, f)
     print "saved {}".format(out_file)
+
+
+def predsingle(lbl_file, cachedir, view, exp_name, net, model_file_short, data_type):
+    conf_pvlist = None
+    if net == 'openpose':
+        if data_type == 'bub':
+            conf_pvlist = ['op_affinity_graph', op_af_graph_bub_noslash]
+        else:
+            assert False, "define aff graph"
+
+    conf = apt.create_conf(lbl_file, view, exp_name, cachedir, net, conf_params=conf_pvlist)
+    db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
+    model_file = os.path.join(conf.cachedir, model_file_short)
+
+    extra_str = ''
+    if net not in ['leap', 'openpose']:
+        extra_str = '.index'
+
+    tf_iterator = multiResData.tf_reader(conf, db_file, False)
+    tf_iterator.batch_size = 1
+    read_fn = tf_iterator.next
+    pred_fn, close_fn, _ = op.get_pred_fn(conf, model_file, name=None, rawpred=True)
+
+    im, locs, info, _ = read_fn()
+    print "im.shape is {}".format(im.shape)
+    predmaps = pred_fn(im)
+    close_fn()
+
+    return predmaps, im, locs, info
+
+def perfsinglehm(pfile, hm_nclustermax=1, hm_floor=0.1, hm_dec=100, ptiles=[50, 90, 97, 98, 99]):
+    with open(pfile, 'r') as f:
+        res = pickle.load(f)
+    ptrk = res[0][0]
+    plbl = res[0][1]
+    pm, pu, pmconf, puconf, puhm = res[0][4][0]
+
+    # hm = res[0][4][0][-1]
+    # hm = hm + 1.0  # was scaled to [-1,1]
+    #
+    # nhm, _, _, npt = hm.shape
+    # phmmu = np.zeros((nhm, npt, 2))
+    # for ihm in range(nhm):
+    #     for ipt in range(npt):
+    #         _, mutmp, _ = heatmap.compactify_hmap(hm[ihm, :, :, ipt],
+    #                                               floor=hm_floor,
+    #                                               nclustermax=hm_nclustermax)
+    #         mutmp = mutmp - 1.0
+    #         phmmu[ihm, ipt, :] = mutmp.flatten()[::-1]
+
+    ntest = ptrk.shape[0]
+    err = np.sqrt(np.sum((ptrk - plbl) ** 2, 2))
+
+    # plblhm = plbl[::hm_dec, ...]
+    errhm = np.sqrt(np.sum((puhm - plbl) ** 2, 2))
+
+    ptls = np.percentile(err, ptiles, axis=0)
+    ptls = np.transpose(ptls)
+    ptlshm = np.percentile(errhm, ptiles, axis=0)
+    ptlshm = np.transpose(ptlshm)
+
+    return (ptls, ptlshm, ntest, err, errhm, ptrk, plbl, pm, pu, pmconf, puconf, puhm)
+
+def perfsingle(pfile,ptiles=[50, 90, 97, 98, 99]):
+    with open(pfile, 'r') as f:
+        res = pickle.load(f)
+    ptrk = res[0][0]
+    plbl = res[0][1]
+    #mft = res[0][2]
+    ntest = ptrk.shape[0]
+    err = np.sqrt(np.sum((ptrk - plbl) ** 2, 2))
+    ptls = np.percentile(err, ptiles, axis=0)
+    ptls = np.transpose(ptls)
+    return (ptls,ntest)
 
 
 def perf(out_dir, expname_pat_splits, num_splits, n_classes):
@@ -250,5 +361,213 @@ def perf(out_dir, expname_pat_splits, num_splits, n_classes):
     }
     return results
 
+import tensorflow as tf
+import keras.backend as K
+import matplotlib.pyplot as plt
+import os
+import pickle
+import numpy as np
+import pathlib2
+import open_pose as op
+
+rootdir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/'
+cdirs = { \
+    'cu':'cache20190806_60k_lbr3_initDCupsamp_custWD/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0',
+    'no':'cache20190806_60k_lbr3_initDCupsamp_noWD/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0',
+    'old':'cache20190806_60k_lbr3_initDCupsamp_oldWD/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0',
+    'dev':'cache20190807_60k_dev/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0'
+}
+mdlS = 'deepnet-60000'
+tdS = 'traindata'
+
+def loadtd(cdir):
+    tdfile = os.path.join(rootdir, cdir, tdS)
+    with open(tdfile) as f:
+        td = pickle.load(f)
+    return td[0]  # json/map
 
 
+tds = {k: loadtd(cdirs[k]) for k in cdirs.keys()}
+
+def getweightsbiases(k):
+    cptfile = os.path.join(rootdir, cdirs[k], mdlS)
+    m = op.get_testing_model((176,176),32,17)
+    m.load_weights(cptfile)
+    l = m.layers
+    ll = l[165]
+    w,b = ll.get_weights()
+    return w, b
+
+def plotstuff(plotkey, marad=6):
+    fig,ax = plt.subplots(1,1)
+
+    for k in tds.keys():
+        v = tds[k]
+        x = v['step']
+        y = v[plotkey]
+        ys = np.convolve(y,np.ones((marad,))/float(marad),mode='valid')
+        ax.plot(x[:len(ys)],ys,linewidth=2.0,label=k)
+
+    ax.set_facecolor((0, 0, 0))
+    plt.grid(True)
+    plt.legend()
+
+def plotmaps(pm, im, pafstglimb=0):
+    plt.style.use("dark_background")
+
+    # hires prtmap
+    fig1, ax1 = plt.subplots(1, 2, sharex=True, sharey=True)
+    im1 = ax1[0].imshow(im)
+    plt.colorbar(im1, ax=ax1[0])
+    hmsum = pm[-1][0, :, :, :]
+    hmsum = np.sum(hmsum, axis=2)
+    im2 = ax1[1].imshow(hmsum)
+    plt.colorbar(im2, ax=ax1[1])
+
+    fig1.patch.set_facecolor((0, 0, 0))
+    ax1[0].set_facecolor((0, 0, 0))
+    ax1[1].set_facecolor((0, 0, 0))
+
+    # hires pafmap
+    fig2, ax2 = plt.subplots(4, 4, sharex=True, sharey=True)
+    pafs = pm[-2][0, :, :, :]
+    assert pafs.shape[2] == 32
+    for ilimb in range(16):
+        paflimbs = pafs[:, :, 2*ilimb:2*ilimb+2]
+        paflimbs = np.sqrt( paflimbs[:, :, 0]**2 + paflimbs[:, :, 1]**2 )
+        ax2[ilimb%4, ilimb//4].imshow(paflimbs)
+        ax2[ilimb%4, ilimb//4].set_facecolor((0, 0, 0))
+
+    fig2.patch.set_facecolor((0, 0, 0))
+
+    # paf evolution, pafstglimb
+    fig3, ax3 = plt.subplots(3, 4)
+    imcbx = []
+    imcby = []
+    for stg in range(6):
+        ilimb = pafstglimb
+
+        pafs = pm[0+2*stg][0, :, :, :]
+        assert pafs.shape[2] == 32
+        paflimb = pafs[:, :, 2 * ilimb:2 * ilimb + 2]
+        paflimb = np.sqrt(paflimb[:, :, 0] ** 2 + paflimb[:, :, 1] ** 2)
+        paflimbx = pafs[:, :, 2 * ilimb]
+        paflimby = pafs[:, :, 2 * ilimb+1]
+        ax = ax3[stg % 3, stg // 3]
+        imtmp = ax.imshow(paflimbx)
+        cbtmp = plt.colorbar(imtmp, ax=ax)
+        imcbx.append((imtmp, cbtmp))
+        #ax.set_facecolor((0, 0, 0))
+        ax = ax3[stg % 3, stg // 3 + 2]
+        imtmp = ax.imshow(paflimby)
+        cbtmp = plt.colorbar(imtmp, ax=ax)
+        imcby.append((imtmp, cbtmp))
+        #ax.set_facecolor((0, 0, 0))
+
+    ims,cbs = zip(*imcbx)
+    clims = [x.properties()['clim'] for x in ims]
+    clims = np.array(clims)
+    climset = (np.min(clims), np.max(clims))
+    for i in ims:
+        i.set_clim(climset)
+
+    ims, cbs = zip(*imcby)
+    clims = [x.properties()['clim'] for x in ims]
+    clims = np.array(clims)
+    climset = (np.min(clims), np.max(clims))
+    for i in ims:
+        i.set_clim(climset)
+
+    #fig3.patch.set_facecolor((0, 0, 0))
+
+
+def track_cv_all():
+    for k in ['cu', 'no']:
+        p = pathlib2.PurePath(cdirs[k])
+        cachedir = p.parts[0]
+        cachedir = os.path.join(rootdir, cachedir)
+
+        tf.reset_default_graph()
+        K.clear_session()
+        save_cv_results(lblbub, cachedir, 0, 'cvi_outer3_easy__split0', 'openpose', mdlS, rootdir, 'bub', k)
+
+def perfs_all():
+    def getperf(k):
+        pfile = os.path.join(rootdir, "cvi_outer3_easy__split0__vw0__openpose__{}.p".format(k))
+        ptls = perfsingle(pfile)
+        return ptls
+
+    return {k:getperf(k) for k in cdirs.keys()}
+
+tdf = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cache20190811_40k_lbr3_initDCupsamp_noWD/multitarget_bubble/openpose/view_0/cvi_outer3_easy__split0/traindata'
+
+with open(tdf) as f:
+    tdr = pickle.load(f)
+
+tdr = tdr[0]
+vlf = tdr['val_loss_full']
+vlf = np.array(vlf)
+x = tdr['step']
+vlfpaf = vlf[:, 0::2]
+vlfprt = vlf[:, 1::2]
+vlfpaf15 = np.mean(vlfpaf[:, :5], axis=1)
+vlfpaf6 = vlfpaf[:, 5]
+vlfprt15 = np.mean(vlfprt[:, :5], axis=1)
+vlfprt6 = vlfprt[:, 5]
+vlfpafrat = vlfpaf6/vlfpaf15
+vlfprtrat = vlfprt6/vlfprt15
+
+
+# with plt.rc_context({'axes.edgecolor':'white', 'xtick.color':'white', 'ytick.color':'white', 'figure.facecolor':'black'}):
+#
+#     fig,ax = plt.subplots(1,1)
+#     #x = range(len(vlfpafrat))
+#     ax.plot(x, vlfpafrat, linewidth=4.0, label='pafrat')
+#     ax.plot(x, vlfprtrat, linewidth=4.0, label='prtrat')
+#
+#     ax.set_facecolor((0, 0, 0))
+#     plt.grid(True)
+#     plt.legend()
+#
+# with plt.rc_context({'axes.edgecolor':'white', 'xtick.color':'white', 'ytick.color':'white', 'figure.facecolor':'black'}):
+#
+#     fig,ax = plt.subplots(1,1)
+#     #x = range(len(vlfpafrat))
+#     for i in range(5):
+#         ax.plot(x, np.log(vlfpaf[:, i]), linewidth=2.0, label=str(i))
+#     ax.plot(x, np.log(vlfpaf[:, 5]/40), 'r+', linewidth=2.0, label='6')
+#
+#     ax.set_facecolor((0, 0, 0))
+#     plt.grid(True)
+#     plt.legend()
+
+opts = {'label_blur_rad': 3,
+        'dl_steps': 60000,
+        'weight_decay_kernel_dc': 0.0,
+        'weight_decay_dc_mode': 0,
+        'op_hires_wtfac_paf': 1.0,
+        'op_hires_wtfac_prt': 0.24}
+
+opts = {'label_blur_rad': 3,
+        'dl_steps': 60000,
+        'weight_decay_kernel_dc': 0.0,
+        'weight_decay_dc_mode': 0,
+        'op_hires_wtfac_paf': 2.4,
+        'op_hires_wtfac_prt': 0.6}
+
+cache_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/cdir20190813_60k_lbr3_initDCupsamp_noWD_wtfacsadj2'
+#run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190813_60k_lbr3_initDCupsamp_noWD_wtfacsadj2'
+run_dir = '/groups/branson/home/leea30/apt/openpose_refinement_20190721/out20190813_60k_cmp'
+mdlS = 'deepnet-60000'
+
+# And the models are in /nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/apt_expt
+mklbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+mkrundir = '/groups/branson/home/leea30/apt/mdn_hmap_postproc_20190822'
+mkcdir = '/nrs/branson/mayank/apt_cache/'
+mkexpname = 'apt_expt'
+mkdb = '/nrs/branson/mayank/apt_cache/multitarget_bubble/gtdata/gtdata_view0.tfrecords'
+mkmdlS = 'deepnet-100000'
+
+# save_cv_results(mklbl,mkcdir,0,mkexpname,'mdn',mkmdlS,mkrundir,'bub','bubGT_mdn_flr0p1',db_file=mkdb)
+# save_cv_results(lbl_file, cachedir, view, exp_name, net, model_file_short, out_dir,
+#                    data_type, kwout, mdn_hm_floor=0.1, db_file=None):

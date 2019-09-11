@@ -39,7 +39,7 @@ if [ ! -d "$DIR" ]; then
 fi
 
 pushd . >/dev/null
-cd $DIR
+cd "$DIR"
 echo $DIR
 git rev-parse HEAD
 git status -b --porcelain .

@@ -358,7 +358,17 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       assert(obj.isRemote,'Model must be remote in order to mirror/download.');      
       
       aws = obj.reader.awsec2;
-      aws.checkInstanceRunning(); % harderrs if instance isn't running
+      [tfexist,tfrunning] = aws.inspectInstance();
+      if ~tfexist,
+        error('AWS EC2 instance %s could not be found.',aws.instanceID);
+      end
+      if ~tfrunning,
+        [tfsucc,~,warningstr] = aws.startInstance();
+        if ~tfsucc,
+          error('Could not start AWS EC2 instance %s: %s',aws.instanceID,warningstr);
+        end
+      end      
+      %aws.checkInstanceRunning(); % harderrs if instance isn't running
      
       succ = obj.updateCurrInfo;
       if ~succ

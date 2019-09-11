@@ -143,6 +143,12 @@ classdef DLBackEndClass < handle
           end
         end
         
+        [tfsucc] = obj.awsec2.waitForInstanceStart();
+        if ~tfsucc,
+          reason = 'Timed out waiting for AWS EC2 instance to be spooled up.';
+          return;
+        end
+        
         reason = '';
       else
         tf = true;
@@ -174,27 +180,39 @@ classdef DLBackEndClass < handle
       freemem = 0;
       gpuInfo = [];
       aptdeepnet = APT.getpathdl;
-      if obj.type == DLBackEnd.Conda,
-        basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',...
-          aptdeepnet,obj.filesep);
-      else
-        basecmd = sprintf('echo START; python %s%sparse_nvidia_smi.py; echo END',...
-          aptdeepnet,obj.filesep);
-      end
       
       switch obj.type,
         case DLBackEnd.Docker,
-          bindpath = {aptdeepnet};
-          mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),bindpath,'uni',0);
-          mountArgs = sprintf('%s ',mountArgs{:});
           if isempty(APT.DOCKER_REMOTE_HOST),
             dockercmd = 'docker';
             dockercmdend = '';
+            filequote = '"';
           else
             dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
             dockercmdend = '"';
+            filequote = '\"';
           end
-          codestr = sprintf('%s run -i --runtime nvidia --rm --user $(id -u) -w %s %s %s bash -c ''cd %s; %s''%s',dockercmd,aptdeepnet,mountArgs,dockerimg,aptdeepnet,basecmd,dockercmdend);
+    
+          parsenvidiasmi = sprintf('%s%sparse_nvidia_smi.py',aptdeepnet,obj.filesep);
+          parsenvidiasmi = [filequote parsenvidiasmi filequote];
+          aptdeepnetguard = [filequote aptdeepnet filequote];
+          %aptdeepnetguard = String.escapeSpaces(aptdeepnet);
+          basecmd = sprintf('echo START; python %s; echo END',parsenvidiasmi);
+          bindpath = {aptdeepnet}; % don't use guarded
+          mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),bindpath,'uni',0);
+          mountArgs = sprintf('%s ',mountArgs{:});
+          codestr = {...
+            dockercmd 'run' '-i' ...
+            '--runtime' 'nvidia' ...
+            '--rm' ...
+            '--user $(id -u)' ...
+            '-w' aptdeepnetguard ...
+            mountArgs ...
+            dockerimg ...
+            sprintf('bash -c ''cd %s; %s''%s',aptdeepnetguard,basecmd,dockercmdend) ...
+            };
+          codestr = String.cellstr2DelimList(codestr,' ');
+          %codestr = sprintf('%s run -i --runtime nvidia --rm --user $(id -u) -w %s %s %s bash -c ''cd %s; %s''%s',dockercmd,aptdeepnet,mountArgs,dockerimg,aptdeepnet,basecmd,dockercmdend);
           if verbose
             fprintf(1,'%s\n',codestr);
           end
@@ -204,6 +222,8 @@ classdef DLBackEndClass < handle
             return;
           end
         case DLBackEnd.Conda
+          basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',...
+            aptdeepnet,obj.filesep);
           codestr = sprintf('activate %s && %s',condaEnv,basecmd);
           [st,res] = system(codestr);
           if st ~= 0,
@@ -300,7 +320,7 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = sprintf('** Testing that we can do passwordless ssh to %s...',host); drawnow;
       touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
       
-      remotecmd = sprintf('touch %s; if [ -e %s ]; then rm -f %s && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
+      remotecmd = sprintf('touch "%s"; if [ -e "%s" ]; then rm -f "%s" && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
       cmd1 = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host,'bg',false);
       cmd = sprintf('timeout 20 %s',cmd1);
       hedit.String{end+1} = cmd; drawnow;
@@ -353,8 +373,19 @@ classdef DLBackEndClass < handle
       
       % docker hello world
       hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Testing docker hello-world...\n'; drawnow;
-      cmd = 'docker run hello-world';
+      hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
+      
+      if isempty(APT.DOCKER_REMOTE_HOST),
+        dockercmd = 'docker';
+        dockercmdend = '';
+        filequote = '"';
+      else
+        dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+        dockercmdend = '"';
+        filequote = '\"';
+      end      
+      cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
+      fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;
       [st,res] = system(cmd);
       reslines = splitlines(res);
@@ -383,25 +414,47 @@ classdef DLBackEndClass < handle
       
       % APT hello
       hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Testing APT deepnet library...\n'; drawnow;
+      hedit.String{end+1} = '** Testing APT deepnet library...'; drawnow;
       deepnetroot = [APT.Root '/deepnet'];
-      cmd = sprintf('docker run -it --runtime nvidia --rm -v %s:%s -w %s %s python APT_interface.py lbl test hello',...
-        deepnetroot,deepnetroot,deepnetroot,obj.aptdockerimg);
-      hedit.String{end+1} = cmd; drawnow;
-      [st,res] = system(cmd);
-      reslines = splitlines(res);
-      reslinesdisp = reslines(1:min(4,end));
-      hedit.String = [hedit.String; reslinesdisp(:)];
-      if st~=0
-        hedit.String{end+1} = 'FAILURE. Error with APT deepnet command.'; drawnow;
-        return;
+      deepnetrootguard = [filequote deepnetroot filequote];
+%       if isempty(APT.DOCKER_REMOTE_HOST),
+%         dockercmd = 'docker';
+%         dockercmdend = '';
+%       else
+%         dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+%         dockercmdend = '"';
+%       end
+      cmd = { ...
+        dockercmd 'run' '-it' ...
+        '--runtime' 'nvidia' ...
+        '--rm' ...
+        sprintf('--mount ''type=bind,src=%s,dst=%s''',deepnetroot,deepnetroot) ...
+        '-w' deepnetrootguard ...
+        obj.aptdockerimg ...
+        sprintf('python APT_interface.py lbl test hello%s',dockercmdend) ...
+        };
+      cmd = String.cellstr2DelimList(cmd,' ');
+%       cmd = sprintf('%s run -it --runtime nvidia --rm -v %s:%s -w %s %s python APT_interface.py lbl test hello%s',...
+%         dockercmd,deepnetroot,deepnetroot,deepnetroot,obj.aptdockerimg,dockercmdend);
+      RUNAPTHELLO = 1;
+      if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
+        fprintf(1,'%s\n',cmd);
+        hedit.String{end+1} = cmd; drawnow;
+        [st,res] = system(cmd);
+        reslines = splitlines(res);
+        reslinesdisp = reslines(1:min(4,end));
+        hedit.String = [hedit.String; reslinesdisp(:)];
+        if st~=0
+          hedit.String{end+1} = 'FAILURE. Error with APT deepnet command.'; drawnow;
+          return;
+        end
+        hedit.String{end+1} = 'SUCCESS!'; drawnow;
       end
-      hedit.String{end+1} = 'SUCCESS!'; drawnow;
       
       % free GPUs
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Looking for free GPUs ...\n'; drawnow;
-      [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1);
+      [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
         hedit.String{end+1} = 'FAILURE. Could not find free GPUs.'; drawnow;
         return;

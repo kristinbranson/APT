@@ -366,7 +366,8 @@ def train_ours(args):
                     print('Submitted job: {}'.format(cmd))
 
 
-def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=False):
+def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=False,
+                    return_hm=False, hm_dec=1, hm_floor=0.1, hm_nclustermax=1):
     cur_out = []
     extra_str = ''
     if model_type not in ['leap','openpose']:
@@ -381,7 +382,11 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
-        ret_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N,
+                                   return_hm=return_hm,
+                                   hm_dec=hm_dec,
+                                   hm_floor=hm_floor,
+                                   hm_nclustermax=hm_nclustermax)
         pred, label, gt_list = ret_list[:3]
         if model_type == 'mdn':
             extra_stuff = ret_list[3:]
@@ -389,7 +394,7 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
             extra_stuff = 0
         close_fn()
         gt_list = np.array(gt_list)
-        cur_out.append([pred, label, gt_list, m, extra_stuff,ts[mndx]])
+        cur_out.append([pred, label, gt_list, m, extra_stuff, ts[mndx]])
 
     return cur_out
 

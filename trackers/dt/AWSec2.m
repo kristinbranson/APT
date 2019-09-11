@@ -34,6 +34,10 @@ classdef AWSec2 < handle
     sshCmd
     
     remotePID
+    
+    SetStatusFun = @(s,varargin) fprintf(['AWS Status: ',s,'\n']);
+    ClearStatusFun = @(varargin) fprintf('Done.\n');
+
   end
   
   properties (Constant)
@@ -61,7 +65,9 @@ classdef AWSec2 < handle
       
       if nargin >= 1,
         pem = varargin{1};
-        obj.pem = pem;
+        if ~isempty(pem),
+          obj.pem = pem;
+        end
       end
             
       if ispc
@@ -91,10 +97,25 @@ classdef AWSec2 < handle
 
   methods
     
+    function SetStatus(obj,varargin)
+      if ~isempty(obj.SetStatusFun),
+        obj.SetStatusFun(varargin{:});
+      end
+    end
+    function ClearStatus(obj,varargin)
+      if ~isempty(obj.ClearStatusFun),
+        obj.ClearStatusFun(varargin{:});
+      end
+    end
+    
     function setInstanceID(obj,instanceID,instanceType)
+
+      obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
+
       if ~isempty(obj.instanceID),
         if strcmp(instanceID,obj.instanceID),
           % nothing to do
+          obj.ClearStatus();
           return;
         end
         %instanceID = obj.instanceID;
@@ -104,6 +125,7 @@ classdef AWSec2 < handle
           if ~tfsucc,
             warning('Error stopping old AWS EC2 instance %s.',instanceID);
           end
+          obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
         end
       end
       obj.instanceID = instanceID;
@@ -113,6 +135,7 @@ classdef AWSec2 < handle
       if obj.isSpecified,
         obj.configureAlarm();
       end
+      obj.ClearStatus();
     end
     function setPemFile(obj,pemFile)
       obj.pem = pemFile;
@@ -125,14 +148,17 @@ classdef AWSec2 < handle
       % Launch a brand-new instance to specify an unspecified instance
 
       [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
+      obj.ResetInstanceID();
       
-      assert(~obj.isSpecified,...
-        'AWSEc2 instance is already specified with instanceID %s.',obj.instanceID);
+%       assert(~obj.isSpecified,...
+%         'AWSEc2 instance is already specified with instanceID %s.',obj.instanceID);
       
       
+      obj.SetStatus('Launching new AWS EC2 instance');
       cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
+        obj.ClearStatus();
         return;
       end
       json = jsondecode(json);
@@ -140,7 +166,14 @@ classdef AWSec2 < handle
       if dostore,
         obj.setInstanceID(instanceID);
       end
+      obj.SetStatus('Waiting for AWS EC2 instance to spool up.');
+      [tfsucc] = obj.waitForInstanceStart();
+      if ~tfsucc,
+        obj.ClearStatus();
+        return;
+      end
       obj.configureAlarm();
+      obj.ClearStatus();
     end
     
     function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
@@ -239,18 +272,25 @@ classdef AWSec2 < handle
           return;
         end
       end
+      obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      obj.ClearStatus();
       if ~tfsucc
         return;
       end
       json = jsondecode(json);
+
+      obj.stopAlarm();
+      
     end
+    
 
     function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)
     
       instanceIDs = {};
       instanceTypes = {};
+      obj.SetStatus('Listing AWS EC2 instances available');
       cmd = AWSec2.listInstancesCmd(obj.keyName);%,'instType',obj.instanceType);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if tfsucc,
@@ -260,6 +300,7 @@ classdef AWSec2 < handle
           instanceTypes = {info.Reservations.Instances.InstanceType};
         end
       end
+      obj.ClearStatus();
       
     end
     
@@ -380,7 +421,8 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
-      
+
+      obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
       [doblock] = myparse(varargin,'doblock',true);
       
       maxwaittime = 100;
@@ -389,17 +431,20 @@ classdef AWSec2 < handle
       [tfsucc,state,json] = obj.getInstanceState();
       if ~tfsucc,
         warningstr = 'Failed to get instance state.';
+        obj.ClearStatus();
         return;
       end
 
       if ismember(lower(state),{'shutting-down','terminated'}),
         warningstr = sprintf('Instance is %s, cannot start',state);
         tfsucc = false;
+        obj.ClearStatus();
         return
       end
       if ismember(lower(state),{'stopping'}),
         warningstr = sprintf('Instance is %s, please wait for this to finish before starting.',state);
         tfsucc = false;
+        obj.ClearStatus();
         return;
       end
       if ~ismember(lower(state),{'running','pending'}),
@@ -407,12 +452,31 @@ classdef AWSec2 < handle
         [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       end
       if ~tfsucc
+        obj.ClearStatus();
         return;
       end
       json = jsondecode(json);
       if ~doblock,
+        obj.ClearStatus();
         return;
       end
+      
+      [tfsucc] = obj.waitForInstanceStart();
+      if ~tfsucc,
+        warningstr = 'Timed out waiting for AWS EC2 instance to spool up.';
+        obj.ClearStatus();
+        return;
+      end
+      
+      obj.inspectInstance();
+      obj.configureAlarm();
+      obj.ClearStatus();
+    end
+    
+    function [tfsucc] = waitForInstanceStart(obj)
+      
+      maxwaittime = 100;
+      iterwaittime = 5;
       
       % AL: see waitforPoll() util
       % AL: see also aws ec2 wait, which sort of works but seems not
@@ -453,14 +517,14 @@ classdef AWSec2 < handle
         end
         pause(iterwaittime);
       end
-      obj.inspectInstance();
+      
     end
     
     function checkInstanceRunning(obj,varargin)
       % - If runs silently, obj appears to be a running EC2 instance with 
       %   no issues
       % - If harderror thrown, something appears wrong
-      
+      obj.SetStatus('Checking whether AWS EC2 instance is running');
       throwErrs = myparse(varargin,...
         'throwErrs',true... % if false, just warn if there is a problem
         );
@@ -472,6 +536,8 @@ classdef AWSec2 < handle
       end
       
       [tfexist,tfrun] = obj.inspectInstance;
+      obj.ClearStatus();
+
       if ~tfexist
         throwFcn('Problem with EC2 instance id: %s',obj.instanceID);
       end
@@ -479,6 +545,7 @@ classdef AWSec2 < handle
         throwFcn('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
       end
+
     end
     
     function codestr = createShutdownAlarmCmd(obj,varargin)
@@ -579,13 +646,32 @@ classdef AWSec2 < handle
     
 
     
+    function tfsucc = stopAlarm(obj)
+
+      [tfsucc,isalarm,reason] = obj.checkShutdownAlarm();
+      if ~tfsucc,
+        warning('Could not check for alarm: %s\n',reason);
+        return;
+      end
+      if ~isalarm,
+        return;
+      end
+      
+      % TODO
+      
+    end
+    
     function tfsucc = configureAlarm(obj)
       % Note: this creates/puts a metricalarm with name based on the
       % instanceID. Currently the AWS API allows you to create the same
       % alarm multiple times with no harm (only one alarm is ultimately
       % created).
 
-      isalarm = obj.checkShutdownAlarm();
+      [tfsucc,isalarm,reason] = obj.checkShutdownAlarm();
+      if ~tfsucc,
+        warning('Could  not check for alarm: %s',reason);
+        return;
+      end
       if isalarm,
         return;
       end
@@ -646,6 +732,9 @@ classdef AWSec2 < handle
       [destRelative,sysCmdArgs] = myparse(varargin,...
         'destRelative',true,... % true if dest is relative to ~
         'sysCmdArgs',{});
+      cmd = AWSec2.scpPrepareUploadCmd(obj.pem,obj.instanceIP,dest,...
+        'sshcmd',obj.sshCmd,'destRelative',destRelative);
+      AWSec2.syscmd(cmd,sysCmdArgs{:});
       cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dest,...
         'scpcmd',obj.scpCmd,'destRelative',destRelative);
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
@@ -681,9 +770,11 @@ classdef AWSec2 < handle
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
       else
+        obj.SetStatus(sprintf('Uploading %s file to AWS EC2 instance',fileDescStr));
         fprintf('About to upload. This could take a while depending ...\n');
         tfsucc = obj.scpUpload(src,dstAbs,...
           'destRelative',false,'sysCmdArgs',{'dispcmd',true});
+        obj.ClearStatus();
         if tfsucc
           fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dst);
         else
@@ -778,8 +869,10 @@ classdef AWSec2 < handle
         remoteDirFull = remoteDir;
       end
       
+      obj.SetStatus(sprintf('Creating directory %s on AWS EC2 instance',remoteDirFull));
       cmdremote = sprintf('mkdir -p %s',remoteDirFull);
       [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      obj.ClearStatus();
       if tfsucc
         fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
           descstr,remoteDirFull,res);
@@ -952,7 +1045,7 @@ classdef AWSec2 < handle
         else
           fprintf('success.\n');
         end
-        tfsucc = st==0;
+        tfsucc = st==0 || isempty(res);
       end
       
       if isjsonout && tfsucc,
@@ -982,6 +1075,18 @@ classdef AWSec2 < handle
       end
     end
     
+    function cmd = scpPrepareUploadCmd(pem,ip,dest,varargin)
+      [destRelative,sshcmd] = myparse(varargin,...
+        'destRelative',true,...
+        'sshcmd','ssh');
+      if destRelative
+        dest = ['~/' dest];
+      end
+      [parentdir] = fileparts(dest);
+      cmdremote = sprintf('[ ! -d %s ] && mkdir -p %s',parentdir,parentdir);
+      cmd = AWSec2.sshCmdGeneral(sshcmd,pem,ip,cmdremote,'usedoublequotes',true);      
+    end
+    
     function cmd = scpUploadCmd(file,pem,ip,dest,varargin)
       [destRelative,scpcmd] = myparse(varargin,...
         'destRelative',true,...
@@ -998,7 +1103,7 @@ classdef AWSec2 < handle
         fileP = regexprep(fileP,'/','\\');
         fileF = regexprep(fileF,'/','\\');
         cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
-          pem,['.\' fileF fileE],ip,dest);
+          pem,['.\' fileF fileE],ip,dest); % fileP here can contain a space and pushd will do the right thing!
       else
         cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
       end
@@ -1007,7 +1112,7 @@ classdef AWSec2 < handle
     function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
       scpcmd = myparse(varargin,...
         'scpcmd','scp');
-      cmd = sprintf('%s -i %s -r ubuntu@%s:%s %s',scpcmd,pem,ip,srcAbs,dstAbs);
+      cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)

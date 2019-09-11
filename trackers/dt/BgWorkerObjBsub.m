@@ -145,8 +145,8 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       if isempty(n),
         killdir = '.';
       end
-      touchcmd = sprintf('mkdir -p %s; touch %s',killdir,killtoken);
-      touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
+      touchcmd = sprintf('mkdir -p "%s"; touch "%s"',killdir,killtoken); % codeGenSSHGeneral uses single-quotes
+      touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false); 
       [st,res] = system(touchcmd);
       if st~=0
         tfsucc = false;

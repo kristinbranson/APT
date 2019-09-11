@@ -32,17 +32,17 @@ def compactify_hmap_gaussian_test():
     muobs3,sigobs3,A3,err3 = compactify_hmap_gaussian(hmnoise,meanismax=True)
     return ((muobs,sigobs,A,err),(muobs2,sigobs2,A2,err2),(muobs3,sigobs3,A3,err3))
 
-def compactify_hmap(hm,floor=0.0,nclustermax=5):
+def compactify_hmap(hm, floor=0.0, nclustermax=5):
     # mu: for romain, if hm is (720,540), then mu[0] is x
 
     assert np.all(hm >= 0.)
     if floor > 0.0:
         hm[hm < floor] = 0.0
 
-    hmbw = hm>0.
-    lbls = skimage.measure.label(hmbw,connectivity=1)
-    rp = skimage.measure.regionprops(lbls,intensity_image=hm)
-    rp.sort(key=lambda x:x.area, reverse=True)
+    hmbw = hm > 0.
+    lbls = skimage.measure.label(hmbw, connectivity=1)
+    rp = skimage.measure.regionprops(lbls, intensity_image=hm)
+    rp.sort(key=lambda x: x.area, reverse=True)
 
     a = np.zeros(nclustermax)
     mu = np.zeros((2,nclustermax))
@@ -50,13 +50,13 @@ def compactify_hmap(hm,floor=0.0,nclustermax=5):
 
     nclusters = min(nclustermax,len(rp))
     for ic in range(nclusters):
-        a[ic] = rp[ic].weighted_moments[0,0]
-        mu[:,ic] = np.array(rp[ic].weighted_centroid) + 1.0 # transform to 1-based
+        a[ic] = rp[ic].weighted_moments[0, 0]
+        mu[:, ic] = np.array(rp[ic].weighted_centroid) + 1.0  # transform to 1-based
         wmc = rp[ic].weighted_moments_central
         xxcov = wmc[2,0]/a[ic]
         yycov = wmc[0,2]/a[ic]
         xycov = wmc[1,1]/a[ic]
-        sig[:,:,ic] = np.array([[xxcov,xycov],[xycov,yycov]])
+        sig[:, :, ic] = np.array([[xxcov, xycov], [xycov, yycov]])
 
     return a, mu, sig
 
