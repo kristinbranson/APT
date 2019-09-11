@@ -1,3 +1,10 @@
+
+cmd = '-name 20190911T071419 -view 1 -cache \/groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c -err_file /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/trk/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement_trn20190911T071419_iter1000_20190911T072419.err -model_files /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/deepnet-1000 -type mdn /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/20190911T071419_20190911T071450.lbl track -mov /groups/card/home/wellsc/Internship/RawVideo/run032_pez3001_20190128/highSpeedSupplement/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement.mp4 -out /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/trk/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement_trn20190911T071419_iter1000_20190911T072419.trk -start_frame 1 -end_frame 521 -crop_loc 1 384 416 832'
+
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
 import run_apt_expts as rae
 reload(rae)
 rae.setup('leap_fly')

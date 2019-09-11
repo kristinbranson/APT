@@ -984,6 +984,9 @@ def train_leap_orig(run_type='status',skip_db=True):
 def train_no_pretrained(run_type='status'):
     train_type = 'mdn'
 
+    common_conf['brange'] = '\(-0.2,0.2\)'
+    common_conf['crange'] = '\(0.7,1.3\)'
+
     for view in range(nviews):
         for round in range(8):
             exp_name = '{}_randsplit_round_{}'.format(data_type, round)
@@ -1426,9 +1429,10 @@ def get_no_pretrained_results():
                 files.sort(key=os.path.getmtime)
                 files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
                 aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
+                aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
 
                 if any([a < 0 for a in aa]):
-                    bb = int(np.where(np.array(aa) < 0)[0]) + 1
+                    bb = int(np.where(np.array(aa) < 0)[-1]) + 1
                     files = files[bb:]
                 n_max = 10
                 if len(files) > n_max:
