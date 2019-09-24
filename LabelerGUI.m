@@ -23,6 +23,21 @@ gui_State = struct('gui_Name',       gui_Name, ...
                    'gui_OutputFcn',  @LabelerGUI_OutputFcn, ...
                    'gui_LayoutFcn',  [] , ...
                    'gui_Callback',   []);
+
+%MK 20190906 - A special function to function handle of the local functions.
+% Typically this would have got handled by calling LabelerGUI(fn,...), but
+% since our gui_Name doesn't match the name of this file this doesn't work
+% anymore.
+if nargin==2 && ischar(varargin{1}) && ischar(varargin{2}) && strcmp(varargin{1},'get_local_fn') 
+    if exist(varargin{2})
+        fn = str2func(varargin{2});
+    else
+        fn = 0;
+    end
+    varargout = {fn};
+    return
+end
+
 if nargin && ischar(varargin{1}) && exist(varargin{1}) %#ok<EXIST>
     gui_State.gui_Callback = str2func(varargin{1});
 end
