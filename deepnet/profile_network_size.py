@@ -14,11 +14,12 @@ files = [['https://www.dropbox.com/s/mo2jfdmzzsz6btc/alice_sz90_stripped.lbl?dl=
          ['https://www.dropbox.com/s/uvyxjpxepdajoy7/alice_sz200_stripped.lbl?dl=0',400]
          ]
 
+
 bszs = range(2,12,3)
 
 def find_mem(lbl_file,bsz,net_type,conn,tdir):
     ss = os.path.splitext(os.path.split(lbl_file)[1])[0]
-    cmd = '-cache {}} -name {} -conf_params batch_size {} dl_steps 10 display_step 10 op_affinity_graph (0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16) -type {} {} train -use_cache -skip_db'.format(tdir,ss,bsz,net_type, lbl_file)
+    cmd = '-cache {} -name {} -conf_params batch_size {} dl_steps 10 display_step 10 op_affinity_graph (0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16) -type {} {} train -use_cache -skip_db'.format(tdir,ss,bsz,net_type, lbl_file)
 
     print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     print('batch size: {} label file:{}'.format(bsz,lbl_file))
