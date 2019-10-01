@@ -1134,6 +1134,8 @@ class tf_reader(object):
         except StopIteration:
             self.reset()
             record = self.iterator.next()
+        except AttributeError:
+            record = self.iterator.__next__()
         return  record
 
     def next(self):

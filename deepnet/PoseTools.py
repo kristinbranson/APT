@@ -1023,8 +1023,8 @@ def json_load(filename):
 
 
 def pickle_load(filename):
-    with open(filename,'r') as f:
-        K = pickle.load(f)
+    with open(filename,'rb') as f:
+        K = pickle.load(f,encoding='latin1')
     return K
 
 

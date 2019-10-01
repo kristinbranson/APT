@@ -271,6 +271,9 @@ for dd in dtypes:
 
 ## Results Orig leap vs our leap
 import run_apt_expts as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 dtypes = ['alice']#,'stephen']
 for dd in dtypes:
     reload(rae)
@@ -286,7 +289,7 @@ rae.train_no_pretrained()
 
 ## Pretrained vs not results
 import run_apt_expts as rae
-reload(rae)
+# reload(rae)
 rae.setup('alice')
 rae.get_no_pretrained_results()
 
@@ -321,11 +324,50 @@ rae.run_normal_training()
 
 ##
 import run_apt_expts as rae
-reload(rae)
+# reload(rae)
 rae.setup('leap_fly')
 rae.get_normal_results()
 
+## Our leap vs leap original
+from scipy import io as sio
+import os
+import PoseTools as pt
+import multiResData
+import apt_expts
+import APT_interface as apt
+import run_apt_expts as rae
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+rae.setup('leap_fly')
+view = 0
+
+L = sio.loadmat('/groups/branson/home/kabram/Downloads/figure_data(1).mat')
+labels = np.transpose(L['positions_test'],[2,0,1])
+preds = np.transpose(L['preds_test'][0,0][2],[2,0,1])
+out_leap = [[preds,labels,[],[],[],[]]]
+dd_leap = np.sqrt(np.sum((labels-preds)**2,1))
+dd_leap = dd_leap.T
+
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
+train_name = 'deepnet'
+gt_file = os.path.join(cache_dir, rae.proj_name, 'gtdata', 'gtdata_view{}{}.tfrecords'.format(view, rae.gt_name))
+H = multiResData.read_and_decode_without_session(gt_file, 32)
+ex_im = np.array(H[0][0])[:, :, 0]
+ex_loc = np.array(H[1][0])
+our_res = pt.pickle_load('/nrs/branson/mayank/apt_cache/leap_dset/leap/view_0/apt_expt/deepnet_results.p')
+our_preds = our_res[0][-1][0]
+our_labels = our_res[0][-1][1]
+
+conf = apt.create_conf(rae.lbl_file,0,'apt_expt',cache_dir,'leap')
+orig_leap_models = ['/nrs/branson/mayank/apt_cache/leap_dset/leap/view_0/apt_expt/weights-045.h5',]
+orig_leap = apt_expts.classify_db_all(conf,gt_file,orig_leap_models,'leap',name=train_name)
+
+out_dict = {'leap':out_leap,'our leap':our_res[0],'leap_orig':orig_leap}
+rae.plot_hist([out_dict,ex_im,ex_loc])
+
+
 ## Alice active learning different conditions
+
 import h5py
 from scipy import io as sio
 A = sio.loadmat('/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_condinfo.mat')

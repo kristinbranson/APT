@@ -18,7 +18,7 @@ def compactify_hmap_gaussian_test():
     xy = np.concatenate((xg[:, :, np.newaxis], yg[:, :, np.newaxis]), axis=2)
     hm = mvn.pdf(xy)
 
-    print "hm max is {}".format(np.max(hm))
+    print("hm max is {}".format(np.max(hm)))
 
 
     jitterthresh = .01
@@ -62,7 +62,7 @@ def compactify_hmap(hm, floor=0.0, nclustermax=5):
 
 def compactify_hmap_arr(hmagg,offset=1.0,floor=0.0):
     npt, nrtrans, nctrans, nfrm = hmagg.shape
-    print "{} frames, {} pts".format(nfrm, npt)
+    print("{} frames, {} pts".format(nfrm, npt))
 
     nclustermax = 5
 
@@ -75,14 +75,14 @@ def compactify_hmap_arr(hmagg,offset=1.0,floor=0.0):
     for ipt in range(npt):
         for f in range(nfrm):
             if f%50 == 0:
-                print "frame {}".format(f)
+                print("frame {}".format(f))
             hm = hmagg[ipt, :, :, f]
             hm = hm + offset
             As[:, ipt, f], mus[:, :, ipt, f], sigs[:, :, :, ipt, f] = \
                 compactify_hmap(hm, floor, nclustermax)
 
     toc = time.time() - tic
-    print "Took {} s to compactify".format(toc)
+    print("Took {} s to compactify".format(toc))
 
     return mus, sigs, As
 
@@ -94,20 +94,20 @@ def main(argv):
     hm = h5py.File(inmatfile,'r')
     hmagg = hm['hmagg']
     toc = time.time() - tic
-    print "Took {} s to load".format(toc)
+    print(" Took {} s to load".format(toc))
 
     tic = time.time()
     hmagg = np.array(hmagg)
     toc = time.time() - tic
-    print "Took {} s to get hm array".format(toc)
+    print("Took {} s to get hm array".format(toc))
 
     tic = timeit.default_timer()
     mus, sigs, As = compactify_hmap_arr(hmagg,floor=.015)
     toc = timeit.default_timer() - tic
-    print "Took {} s to compactify".format(toc)
+    print("Took {} s to compactify".format(toc))
 
     sio.savemat(outmatfile, {'mu': mus, 'sig': sigs, 'A': As})
-    print "Saved {}".format(outmatfile)
+    print("Saved {}".format(outmatfile))
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ import random
 import json
 import tensorflow as tf
 import easydict
+import sys
 
 data_type = None
 lbl_file = None
@@ -216,7 +217,12 @@ def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
     return latest_model_iter
 
 def plot_results(data_in,ylim=None,xlim=None):
-    import Tkinter
+    if sys.version_info[0] == 3:
+        # for Python3
+        import tkinter as Tkinter
+    else:
+        # for Python2
+        import Tkinter
     try:
         return plot_results1(data_in,ylim,xlim)
     except Tkinter.TclError:
@@ -224,7 +230,7 @@ def plot_results(data_in,ylim=None,xlim=None):
 
 def plot_results1(data_in,ylim=None,xlim=None):
     ps = [50, 75, 90, 95]
-    k = data_in.keys()[0]
+    k = list(data_in.keys())[0]
     npts = data_in[k][0][0].shape[1]
     nc = int(np.ceil(np.sqrt(npts+1)))
     nr = int(np.ceil((npts+1)/float(nc)))
@@ -259,7 +265,12 @@ def plot_results1(data_in,ylim=None,xlim=None):
 
 
 def plot_hist(in_exp, ps = [50,75,90,95],cmap=None):
-    import Tkinter
+    if sys.version_info[0] == 3:
+        # for Python3
+        import tkinter as Tkinter
+    else:
+        # for Python2
+        import Tkinter
     try:
         return plot_hist1(in_exp,ps,cmap)
     except Tkinter.TclError:
@@ -267,7 +278,7 @@ def plot_hist(in_exp, ps = [50,75,90,95],cmap=None):
 
 def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     data_in, ex_im, ex_loc = in_exp
-    k = data_in.keys()[0]
+    k = list(data_in.keys())[0]
     npts = data_in[k][0][0].shape[1]
 
     n_types = len(data_in)
@@ -325,6 +336,8 @@ def save_mat(out_exp,out_file):
                 dd[u'unet_conf'] = c[4][0][3]
 
             all_dd.append(dd)
+        if sys.version_info[0] >= 3:
+            unicode = str
         out_arr[unicode(k)] = all_dd
     hdf5storage.savemat(out_file,out_arr,truncate_existing=True)
 
@@ -405,8 +418,8 @@ def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwar
     cur_cmd = common_cmd + conf_str + opt_str + end_cmd
     cmd_name = '{}_view{}_{}_{}_{}'.format(data_type, view, exp_name, train_type,train_name)
     if run_type == 'submit':
-        print cur_cmd
-        print
+        print(cur_cmd)
+        print()
         run_jobs(cmd_name, cur_cmd)
     elif run_type == 'status':
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -844,8 +857,8 @@ def run_cv_training(run_type='status'):
                 cur_cmd = common_cmd + conf_str + opt_str + end_cmd
                 cmd_name = '{}_view{}_{}_{}'.format(data_type, view, exp_name, train_type)
                 if run_type == 'submit':
-                    print cur_cmd
-                    print
+                    print(cur_cmd)
+                    print()
                     run_jobs(cmd_name, cur_cmd)
                 elif run_type == 'status':
                     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -901,8 +914,8 @@ def run_dlc_augment_training(run_type = 'status'):
 
             cmd_name = '{}_view{}_{}_{}'.format(data_type,view,cmd_str[conf_id],use_round)
             if run_type == 'submit':
-                print cur_cmd
-                print
+                print(cur_cmd)
+                print()
                 run_jobs(cmd_name,cur_cmd)
             elif run_type == 'status':
                 conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -927,8 +940,8 @@ def train_deepcut_orig(run_type='status'):
                 run_dir = conf.cachedir
                 cur_cmd = dlc_cmd
 
-                print cur_cmd
-                print
+                print(cur_cmd)
+                print()
                 run_jobs(cmd_name,cur_cmd,run_dir=run_dir)
             elif run_type == 'status':
                 conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -973,8 +986,8 @@ def train_leap_orig(run_type='status',skip_db=True):
 
                 cur_cmd = 'leap/training_MK.py {}'.format(out_file)
 
-                print cur_cmd
-                print
+                print(cur_cmd)
+                print()
                 run_jobs(cmd_name,cur_cmd,run_dir=run_dir)
             elif run_type == 'status':
                 conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -1033,8 +1046,8 @@ def run_incremental_training(run_type='status'):
                 cmd_name = '{}_view{}_{}'.format(exp_name,view,train_type)
 
                 if run_type == 'submit':
-                    print cur_cmd
-                    print
+                    print(cur_cmd)
+                    print()
                     run_jobs(cmd_name,cur_cmd)
                 elif run_type == 'status':
                     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -1088,8 +1101,8 @@ def run_single_animal_training(run_type = 'status'):
         cmd_name = '{}_view{}_{}'.format(exp_name, view, train_type)
 
         if run_type == 'submit':
-            print cur_cmd
-            print
+            print(cur_cmd)
+            print()
             run_jobs(cmd_name, cur_cmd)
 
 
@@ -1099,11 +1112,11 @@ def create_gt_db():
     lbl = h5py.File(lbl_file,'r')
     proj_name = apt.read_string(lbl['projname'])
     lbl.close()
-    # print gt_name
+    # print(gt_name)
     for view in range(nviews):
         conf = apt.create_conf(gt_lbl, view, 'apt_expt', cache_dir, 'mdn')
         gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
-        print gt_file
+        print(gt_file)
         apt.create_tfrecord(conf,False,None,False,True,[gt_file])
 
 
@@ -1481,7 +1494,7 @@ def get_no_pretrained_results():
             for ndx_i,ii in enumerate(all_view):
                 plot_results(ii[0],ylim=15)
                 plot_hist(ii)
-                save_mat(ii[0],os.path.join(cache_dir,'{}_view{}_pretrained'.format(data_type,ndx_i)))
+                save_mat(ii[0],os.path.join(cache_dir,'{}_view{}_round{}_pretrained'.format(data_type,ndx_i,ndx)))
 
 
 

@@ -1313,7 +1313,7 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
 
         for ndx in range(ppe):
             pred_locs[cur_start + ndx, ...] = base_locs[ndx, ...]
-            if ret_dict.has_key('locs_mdn'):
+            if 'locs_mdn' in ret_dict.keys():
                 mdn_locs[cur_start + ndx, ...] = ret_dict['locs_mdn'][ndx,...]
                 unet_locs[cur_start + ndx, ...] = ret_dict['locs_unet'][ndx, ...]
                 mdn_conf[cur_start + ndx, ...] = ret_dict['conf'][ndx, ...]
