@@ -26,6 +26,13 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ''
 apt.main(cmd.split())
 
 
+import APT_interface as apt
+
+cmd = '-cache_dir /home/kabram/temp/apt_cache -name test_sz /home/kabram/temp/20190129T180959_20190129T181147.lbl train -use_cache'
+
+apt.main(cmd.split())
+##
+A = movies.Movie('/home/kabram/Dropbox (HHMI)/Results/FlyHogHof/CVResults/frame_of_take_offHOG_run010_pez3002_20140528_expt0024000009730145_vid0012_20150510.avi')
 ##
 import run_apt_expts as rae
 reload(rae)
