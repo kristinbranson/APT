@@ -65,7 +65,7 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
     % Hmm maybe just put the replicates .hXYPrdFull into base cls. Wait and
     % see
     
-    function setShowReplicates(obj,tf)      
+    function setShowReplicates(obj,tf)
       obj.tfShowReplicates = tf;
       obj.updateShowReplicates();
     end

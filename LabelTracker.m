@@ -54,9 +54,9 @@ classdef LabelTracker < handle
     hideViz = false; % scalar logical. If true, hide visualizations
   end
   
-  properties (Constant)    
-    INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
-  end
+%   properties (Constant)    
+%     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
+%   end
       
   methods
     
@@ -170,14 +170,18 @@ classdef LabelTracker < handle
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
-    function tpos = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       % This is a convenience method as it is a special case of 
       % getTrackingResults. Concrete LabelTrackers will also typically have 
       % the current movie's tracking results cached.
       % 
       % tpos: [npts d nfrm ntgt], or empty/[] will be accepted if no
       % results are available. 
+      % taux: [npts nfrm ntgt naux], or empty/[]
+      % tauxlbl: [naux] cellstr 
       tpos = [];
+      taux = [];
+      tauxlbl = cell(0,1);
     end
       
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
@@ -297,12 +301,7 @@ classdef LabelTracker < handle
   methods % For infotimeline display
     
     function props = propList(obj)
-      %props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
-      if isempty(obj.INFOTIMELINE_PROPS_TRACKER),
-        props = {};
-      else
-        props = {obj.INFOTIMELINE_PROPS_TRACKER.name};
-      end
+      props = EmptyLandmarkFeatureArray();
     end
     
     function data = getPropValues(obj,prop)
@@ -315,7 +314,7 @@ classdef LabelTracker < handle
       ntgts = labeler.nTargets;
       iTgt = labeler.currTarget;
       iMov = labeler.currMovie;
-      tpos = obj.getTrackingResultsCurrMovie();
+      [tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovie();
       
       needtrx = obj.lObj.hasTrx && strcmpi(prop.coordsystem,'Body');
       if needtrx,
@@ -331,11 +330,32 @@ classdef LabelTracker < handle
         tpos = nan(npts,2,nfrms,ntgts);
       end
       
-      if ismember(prop.code,{obj.INFOTIMELINE_PROPS_TRACKER.code}),
-        error('Not implemented');
+      plist = obj.propList();
+      plistcodes = {plist.code}';
+      tfaux = any(strcmp(prop.code,plistcodes));
+      if tfaux
+        iaux = find(strcmp(tauxlbl,prop.feature));
+        assert(isscalar(iaux));
+        data = taux(:,:,iTgt,iaux);
+        
+        % cf ComputeLandmarkFeatureFromPos
+        if strcmpi(prop.transform,'none')
+          % none; data unchanged
+        else
+          fun = sprintf('compute_landmark_transform_%s',prop.transform);
+          if ~exist(fun,'file'),
+            warningNoTrace('Unknown property transformation ''%s'' for timeline display.',...
+              prop.transform);
+            % data unchanged
+          else
+            data = feval(fun,struct('data',data));
+            data = data.data;
+          end
+        end
       else      
         tpostag = false(npts,nfrms,ntgts);
-        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),tpostag(:,:,iTgt),bodytrx,prop);
+        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),...
+          tpostag(:,:,iTgt),bodytrx,prop);
       end
     end
     

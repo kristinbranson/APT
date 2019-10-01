@@ -133,6 +133,8 @@ elseif strcmpi(ext,'.klb'),
   readframe = klb_get_readframe_fcn(filename,varargin{:});
   nframes = headerinfo.xyzct(dim); % AL 201507: KLB doc a little unclear here but this seems right
   fid = 0;
+elseif strcmpi(ext,'.bag'),
+ [readframe,nframes,fid,headerinfo] = bag_get_readframe_fcn(filename,varargin{:});
 elseif strcmpi(ext,'.mat'),
   videofiletype = load(filename,'videofiletype');
   switch videofiletype,

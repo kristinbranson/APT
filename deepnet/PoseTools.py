@@ -543,6 +543,8 @@ def create_affinity_labels(locs, im_sz, graph, scale, blur_rad):
             dx = (end_x - start_x)/ll/2
             dy = (end_y - start_y)/ll/2
             zz = None
+            # AL: worried this creates a "tube" of width blur_rad/2 instead of blur_rad because
+            # dx and dy above already have a factor of 1/2. c.f. open_pose/create_affinity_labels
             for delta in np.arange(-blur_rad/2,blur_rad/2,0.25):
                 xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,n_steps))
                 yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,n_steps))

@@ -653,7 +653,17 @@ classdef CPRLabelTracker < LabelTracker
       Dfull = mdlPrms.nfids*mdlPrms.nviews*mdlPrms.d;
       Tp1 = obj.sPrm.Reg.T+1;
       szassert(pTstTRed,[nTst Dfull]);
-      szassert(pTstT,[nTst RT Dfull Tp1]);
+      % KB 20190805: only store data that is used. 
+      if obj.storeFullTracking == StoreFullTrackingType.ALLITERS,
+        szassert(pTstT,[nTst RT Dfull Tp1]);
+        Tp1x = Tp1;
+      elseif obj.storeFullTracking == StoreFullTrackingType.FINALITER,
+        pTstT = pTstT(:,:,:,end);
+        szassert(pTstT,[nTst RT Dfull])
+        Tp1x = 1;
+      else
+        Tp1x = 0;
+      end
       
       tfROI = tblfldscontains(tblMFtrk,'roi');
       if tfROI
@@ -667,13 +677,15 @@ classdef CPRLabelTracker < LabelTracker
         xyTmp = permute(xyTmp,[3 1 2]);
         pTstTRed = reshape(xyTmp,[nTst Dfull]);
         
-        xyTmp = reshape(pTstT,[nTst RT npts 2 Tp1]);
-        xyTmp = permute(xyTmp,[3 4 1 2 5]); % [npts 2 nTst RT Tp1]
-        xyTmp = reshape(xyTmp,[npts 2 nTst*RT*Tp1]);
-        xyTmp = Shape.xyRoi2xy(xyTmp,repmat(tblMFtrk.roi,RT*Tp1,1));
-        xyTmp = reshape(xyTmp,[npts 2 nTst RT Tp1]);
-        xyTmp = permute(xyTmp,[3 4 1 2 5]); % [nTst RT npts 2 Tp1]
-        pTstT = reshape(xyTmp,[nTst RT Dfull Tp1]);
+        if obj.storeFullTracking ~= StoreFullTrackingType.NONE,
+          xyTmp = reshape(pTstT,[nTst RT npts 2 Tp1x]);
+          xyTmp = permute(xyTmp,[3 4 1 2 5]); % [npts 2 nTst RT Tp1]
+          xyTmp = reshape(xyTmp,[npts 2 nTst*RT*Tp1x]);
+          xyTmp = Shape.xyRoi2xy(xyTmp,repmat(tblMFtrk.roi,RT*Tp1x,1));
+          xyTmp = reshape(xyTmp,[npts 2 nTst RT Tp1x]);
+          xyTmp = permute(xyTmp,[3 4 1 2 5]); % [nTst RT npts 2 Tp1]
+          pTstT = reshape(xyTmp,[nTst RT Dfull Tp1x]);
+        end
       end
 
       if ~isempty(obj.trkP)
@@ -914,7 +926,17 @@ classdef CPRLabelTracker < LabelTracker
       end
 
     end
-
+    
+    function setNTestReps(obj,nReps)
+      obj.sPrmAll.ROOT.CPR.Replicates.NrepTrack = nReps;     
+    end
+    
+    function setNIters(obj,nIters)
+      obj.sPrmAll.ROOT.CPR.NumMajorIter = nIters;
+      for i = 1:numel(obj.trnResRC),
+        obj.trnResRC(i).prmReg.T = nIters;
+      end
+    end
      
     %#%MTGT
     function trainingDataMontage(obj)
@@ -1722,15 +1744,18 @@ classdef CPRLabelTracker < LabelTracker
     function track(obj,tblMFT,varargin)
       % tblMFT: MFtable. Req'd flds: MFTable.ID.
       
-      [movChunkSize,parChunkSize,minChunksPar,useParFor,p0DiagImg,wbObj] = myparse(varargin,...
+      [movChunkSize,parChunkSize,minChunksPar,useParFor,p0DiagImg,wbObj,...
+        forceMovChunkSize,forceUseParFor] = myparse(varargin,...
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'parChunkSize',50, ... % size of batch for each iteration of a parfor loop
         'minChunksPar',2,...
         'useParFor',license('test','distrib_computing_toolbox') && maxNumCompThreads > 1,...
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
-        'wbObj',[] ... % WaitBarWithCancel. If cancel:
+        'wbObj',[], ... % WaitBarWithCancel. If cancel:
                    ... %  1. .lObj.preProcData might be cleared
                    ... %  2. tracking results may be partally updated
+        'forceMovChunkSize',[],...
+        'forceUseParFor',[]...
         );
       tfWB = ~isempty(wbObj);
       
@@ -1746,6 +1771,13 @@ classdef CPRLabelTracker < LabelTracker
       if isfield(prm.TestInit,'movChunkSize')
         movChunkSize = prm.TestInit.movChunkSize;
       end
+      % KB 20190805: set movChunkSize outside of APT project, used by APTCluster
+      if ~isempty(forceMovChunkSize),
+        if ischar(forceMovChunkSize),
+          forceMovChunkSize = str2double(forceMovChunkSize);
+        end
+        movChunkSize = forceMovChunkSize;
+      end
       if isfield(prm.TestInit,'parChunkSize')
         parChunkSize = prm.TestInit.parChunkSize;
       end
@@ -1754,6 +1786,9 @@ classdef CPRLabelTracker < LabelTracker
         if ~license('test','distrib_computing_toolbox') || maxNumCompThreads == 1,
           useParFor = false;
         end
+      end
+      if ~isempty(forceUseParFor),
+        useParFor = forceUseParFor;
       end
       
       fprintf('useParFor = %d\n',useParFor);
@@ -1764,6 +1799,9 @@ classdef CPRLabelTracker < LabelTracker
       usetrxOrientation = prmpp.TargetCrop.AlignUsingTrxTheta;
       fprintf('usetrxOrientation = %d\n',usetrxOrientation);
 
+      storeIters = obj.storeFullTracking==StoreFullTrackingType.ALLITERS;
+      storeReps = obj.storeFullTracking~=StoreFullTrackingType.NONE;
+      
       if isempty(tblMFT)
         msgbox('No frames specified for tracking.');
         return;
@@ -1858,7 +1896,13 @@ classdef CPRLabelTracker < LabelTracker
         assert(prm.Model.d==2);
         Dfull = nfids*nview*prm.Model.d;
         
-        pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
+        if storeIters,
+          pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
+        elseif storeReps,
+          pTstT = nan(NTst,RT,Dfull,1);
+        else
+          pTstT = [];
+        end
         pTstTRed = nan(NTst,Dfull);
         pTstTPruneMD = array2table(nan(NTst,0));
         TestInit = prm.TestInit;
@@ -1900,7 +1944,8 @@ classdef CPRLabelTracker < LabelTracker
               
               [p_t{jChunk}] = rc.propagateRandInit(IsVw,bboxesVw,TestInit,...
                 'usetrxOrientation',usetrxOrientation,...
-                'orientationThetas',oThetasChunk);
+                'orientationThetas',oThetasChunk,...
+                'storeIters',storeIters);
               
               % restarts get intermixed with examples, separate before
               % concatenating
@@ -1924,7 +1969,8 @@ classdef CPRLabelTracker < LabelTracker
             [p_t] = rc.propagateRandInit(IsVw,bboxesVw,prm.TestInit,...
               'wbObj',wbObj,...
               'usetrxOrientation',usetrxOrientation,...
-              'orientationThetas',oThetas);
+              'orientationThetas',oThetas,...
+              'storeIters',storeIters);
           end
           
           if tfWB && wbObj.isCancel
@@ -1954,7 +2000,8 @@ classdef CPRLabelTracker < LabelTracker
             [~,~,~,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
               TestInit,...
               'usetrxOrientation',usetrxOrientation,...
-              'orientationThetas',oThetasChunk);
+              'orientationThetas',oThetasChunk,...
+              'storeIters',storeIters);
             
             hFigP0DiagImg = RegressorCascade.createP0DiagImg(IsVw,p0Info);
             [ptmp,ftmp] = fileparts(p0DiagImg);
@@ -1980,7 +2027,11 @@ classdef CPRLabelTracker < LabelTracker
           assert(mod(trkD,2)==0);
           iFull = (1:nfids)+(iView-1)*nfids;
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
-          pTstT(:,:,iFull,:) = pTstTVw;
+          if storeIters,
+            pTstT(:,:,iFull,:) = pTstTVw;
+          elseif storeReps,
+            pTstT(:,:,iFull,:) = pTstTVw(:,:,:,end);
+          end
           pTstTRed(:,iFull) = pTstTRedVw; 
           
           pTstTTrnTS(iView) = rc.trnLog(end).ts;
@@ -2009,8 +2060,10 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
 
-    function tpos = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       tpos = obj.xyPrdCurrMovie;
+      taux = [];
+      tauxlbl = cell(0,1);
     end
     
     %MTGT

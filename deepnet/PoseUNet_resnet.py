@@ -601,7 +601,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 dist = tf.reshape(dist, [-1, n_x * n_y, k, n_out])
                 dist = tf.reshape(dist, [-1, n_x * n_y * k, n_out], name='dist_final')
 
-            if self.conf.get('ignore_occluded',False):
+            if self.conf.get('predict_occluded',False):
             # predicting occlusion
                 X_occ = tf.layers.Conv2D(n_filt,1,padding='same')(X)
                 X_occ = tf.layers.batch_normalization(X_occ,training=self.ph['phase_train'])
@@ -878,6 +878,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 unet_pred = out[2]
             if pred_occ:
                 occ_out = out[-1]
+                occ_ret = np.zeros([bsize,self.conf.n_classes])
 
             pred_means, pred_std, pred_weights,pred_dist = pred
             pred_means = pred_means * self.offset
@@ -911,6 +912,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         mm = pred_means[ndx, sel_ex, g, :]
                         base_locs[ndx, g] = mm
                         mdn_conf[ndx,g] = np.max(pred_weights[ndx,:,gdx])
+                        if pred_occ:
+                            occ_ret[ndx,g] = occ_out[ndx,sel_ex,g]
 
             base_locs = base_locs * conf.rescale
             mdn_conf = 2*mdn_conf -1 # it should now be between -1 to 1.
@@ -934,7 +937,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             ret_dict['conf'] = mdn_conf
             ret_dict['hmaps_mdn'] = mdn_pred_out
             if pred_occ:
-                ret_dict['occ'] = occ_out
+                ret_dict['occ'] = occ_ret
             return ret_dict
 
         def close_fn():

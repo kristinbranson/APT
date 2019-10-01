@@ -6,6 +6,10 @@ classdef AxisHUD < handle
     txtHgt = 17;
     txtWdh = 130;  
     
+    annoXoff = 0;
+    annoHgt = 34;
+    annoWdh = 50;
+    
     txtClrTarget = [1 0.6 0.784];
     txtClrLblPoint = [1 1 0];
     txtClrSusp = [1 1 1];
@@ -16,11 +20,15 @@ classdef AxisHUD < handle
   end
   
   properties
-    hParent; % scalar handle    
+    hParent; % scalar handle
     hTxts; % col vec of handles to text uicontrols
     hTxtTgt; % scalar handle (for convenience; owned by hTxts)
     hTxtLblPt; 
     hTxtSusp;
+    
+    hHandedAnno; % scalar annotation for handedness indicator
+    hHandedListnr; % cell array of listeners to main axis .XDir and .YDir
+%     hAx; % axis for handedness
     
     hasTgt; % scalar logical
     hasLblPt; 
@@ -29,17 +37,64 @@ classdef AxisHUD < handle
   
   methods
     
-    function obj = AxisHUD(h)
+    function obj = AxisHUD(h,hax)
       assert(ishandle(h));
       obj.hParent = h;
+      obj.initHandedAnno();
       obj.initHTxts();
       obj.hasTgt = false;
       obj.hasLblPt = false;
       obj.hasSusp = false;
+      
+      lx = addlistener(hax,'XDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
+      ly = addlistener(hax,'YDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
+      obj.hHandedListnr = {lx ly};
+      
+      obj.cbkHandednessUpdate([],struct('AffectedObject',hax)); % initialize
+%       obj.hAx = hax;
     end
     
     function delete(obj)
       obj.initHTxts();
+
+      deleteValidHandles(obj.hHandedAnno);
+      obj.hHandedAnno = [];
+      
+      for i=1:numel(obj.hHandedListnr)
+        delete(obj.hHandedListnr{i});
+      end
+      obj.hHandedListnr = [];      
+    end
+    
+    function initHandedAnno(obj)
+      units0 = obj.hParent.Units;
+      obj.hParent.Units = 'pixels';
+      parentpos = obj.hParent.Position;
+      obj.hParent.Units = units0;
+      y1 = parentpos(4) - obj.annoHgt; % just below top of hParent
+            
+      % Add a new textbox
+      % hTxt: text (matlab.ui.control.UIControl) 
+      % ytop (input): top/ceiling of axis. 
+      % ytop (output): new top/ceiling after txtbox added.
+
+      pos = [obj.annoXoff y1 obj.annoWdh obj.annoHgt];
+      hAnn = annotation(obj.hParent,'textbox',...
+        'String','$\otimes z$',...
+        'FontUnits','pixels',...
+        'FontSize',26,...
+        'FontWeight','bold',...
+        'Units','pixels',...
+        'Position',pos,...
+        'Interpreter','latex',...
+        'LineStyle','none',...
+        'Color',[1 1 1]...
+        );
+      hAnn.Units = 'normalized';
+      hAnn.FontUnits = 'normalized';
+      
+      obj.hHandedAnno = hAnn;
+      %ytop = ytop - obj.txtHgt;      
     end
     
     function initHTxts(obj)
@@ -86,7 +141,7 @@ classdef AxisHUD < handle
       obj.hParent.Units = 'pixels';
       parentpos = obj.hParent.Position;
       obj.hParent.Units = units0;
-      y1 = parentpos(4) - obj.txtHgt; % just below top of hParent
+      y1 = parentpos(4) - obj.annoHgt; % just below anno
       if obj.hasTgt
         [obj.hTxtTgt,y1] = obj.addTxt(y1,obj.txtClrTarget);
         obj.hTxts(end+1,1) = obj.hTxtTgt;
@@ -113,7 +168,7 @@ classdef AxisHUD < handle
       obj.hTxtLblPt.String = str;      
     end
     
-    function updateSusp(obj,suspscore)      
+    function updateSusp(obj,suspscore)
       assert(obj.hasSusp);
       str = sprintf(obj.suspFmt,suspscore);
       obj.hTxtSusp.String = str;
@@ -142,6 +197,23 @@ classdef AxisHUD < handle
       ytop = ytop - obj.txtHgt;
     end
     
+    function setHandednessViz(obj,tfviz)
+      obj.hHandedAnno.Visible = onIff(tfviz);
+    end
+    
+    function setHandedness(obj,trueForOut)
+      if trueForOut
+        obj.hHandedAnno.String = '$\odot z$';
+      else
+        obj.hHandedAnno.String = '$\otimes z$';        
+      end
+    end
+    
+    function cbkHandednessUpdate(obj,src,evt)
+      ax = evt.AffectedObject;
+      tfRightHanded = strcmp(ax.XDir,ax.YDir); % normal/normal or rev/rev
+      obj.setHandedness(tfRightHanded);
+    end
   end
   
 end

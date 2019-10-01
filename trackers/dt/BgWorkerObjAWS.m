@@ -76,7 +76,7 @@ classdef BgWorkerObjAWS < BgWorkerObj
       else
         % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
         % pick up
-        cmd = sprintf('touch %s',killfile);
+        cmd = sprintf('touch ''%s''',killfile); % use single-quotes; cmdInstance will use double-quotes
         tfsucc = aws.cmdInstance(cmd,'dispcmd',false);
         if ~tfsucc
           warningNoTrace('Failed to create remote KILLED token: %s',killfile);

@@ -1,59 +1,8 @@
 
-all_types = ['openpose','mdn','unet','resnet_unet','deeplabcut','leap']
-# all_types = ['mdn']
-all_types = ['leap']
+cmd = '-name 20190911T071419 -view 1 -cache \/groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c -err_file /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/trk/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement_trn20190911T071419_iter1000_20190911T072419.err -model_files /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/deepnet-1000 -type mdn /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/20190911T071419_20190911T071450.lbl track -mov /groups/card/home/wellsc/Internship/RawVideo/run032_pez3001_20190128/highSpeedSupplement/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement.mp4 -out /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/trk/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement_trn20190911T071419_iter1000_20190911T072419.trk -start_frame 1 -end_frame 521 -crop_loc 1 384 416 832'
+
 import APT_interface as apt
-import tensorflow as tf
-import os
-import multiprocessing
-import time
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-lbl_files = ['/home/kabram/temp/20190129T180959_20190129T181147.lbl',
-             '/home/kabram/temp/alice_sz150_stripped.lbl',
-             '/home/kabram/temp/alice_bigsz_stripped.lbl',]
-bszs = range(2,12,2)
-# bszs = [2,]
-
-def find_mem(lbl_file,bsz,net_type,conn):
-    ss = os.path.splitext(os.path.split(lbl_files[0])[1])[0]
-    cmd = '-cache /home/kabram/work/temp/apt_cache -name {} -conf_params batch_size {} dl_steps 10 display_step 10 op_affinity_graph (0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16) -type {} {} train -use_cache -skip_db'.format(ss,bsz,net_type, lbl_file)
-
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    print('batch size: {} label file:{}'.format(bsz,lbl_file))
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    try:
-        apt.main(cmd.split())
-    except:
-        pass
-    sess = tf.get_default_session()
-    if sess is None:
-        sess = tf.Session()
-    mem_use = sess.run(tf.contrib.memory_stats.MaxBytesInUse())/1024/1024
-    tf.reset_default_graph()
-    conn.send(mem_use)
-    print(mem_use)
-
-
-all_mem_use = {}
-for cur_type in all_types:
-    xx = []
-    for sndx, lbl_file in enumerate(lbl_files):
-        cc = []
-        for bsz in bszs:
-            parent_conn, child_conn = multiprocessing.Pipe()
-            p = multiprocessing.Process(target=find_mem,args=(lbl_file,bsz, cur_type,child_conn))
-            p.start()
-            mm = parent_conn.recv()
-            p.join(2)
-            time.sleep(5)
-
-            if p.is_alive():
-                p.terminate()
-            cc.append([mm])
-        xx.append(cc)
-    all_mem_use[cur_type] = np.array(xx)
-
+apt.main(cmd.split())
 
 ##
 import run_apt_expts as rae

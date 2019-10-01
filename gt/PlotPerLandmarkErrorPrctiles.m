@@ -15,7 +15,7 @@ function [hfigs,savenames,errprctiles] = PlotPerLandmarkErrorPrctiles(varargin)
   'savenames',{},...
   'dosavefig',false);
 
-isshexp = ismember(exptype,{'SHView0','SHView1'});
+isshexp = startsWith(exptype,'SH');
 
 if isempty(nets),
   assert(~isempty(gtdata));
@@ -52,6 +52,9 @@ npttypes = size(pttypes,1);
 if isempty(conddata),
   ndatatypes = 1;
   nlabeltypes = 1;
+else
+  ndatatypes = max(conddata.data_cond);
+  nlabeltypes = max(conddata.label_cond);
 end
 if isempty(labeltypes),
   labeltypes = cell(nlabeltypes,2);
@@ -92,8 +95,9 @@ if isempty(errprctiles),
     cur_data = gtdata.(nets{ndx}){mndx};
     preds = cur_data.pred;
     labels = cur_data.labels;
-    assert(size(preds,3)==2);
-    assert(size(labels,3)==2);
+    assert(all(size(preds)==size(labels)));
+%     assert(size(preds,3)==2);
+%     assert(size(labels,3)==2);
     iscpr = ~isempty(strfind(nets{ndx},'cpr'));
 
     for datai = 1:ndatatypes,

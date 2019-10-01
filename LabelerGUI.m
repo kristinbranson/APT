@@ -40,7 +40,11 @@ if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
-hfigsplash = splashScreen(handles);
+handles.labelerObj = varargin{1};
+
+if handles.labelerObj.isgui,
+  hfigsplash = splashScreen(handles);
+end
 
 handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
 handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
@@ -110,7 +114,6 @@ handles.tbTLSelectMode.BackgroundColor = PURP;
 
 handles.output = hObject;
 
-handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
 
 handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
@@ -538,10 +541,13 @@ handles.pumTrack.Callback = ...
 
 lObj = handles.labelerObj;
 
-handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,handles.axes_timeline_islabeled);
+handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,...
+  handles.axes_timeline_islabeled);
 
-set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),'Value',handles.labelTLInfo.curprop);
-set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),'Value',handles.labelTLInfo.curproptype);
+set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),...
+  'Value',handles.labelTLInfo.curprop);
+set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),...
+  'Value',handles.labelTLInfo.curproptype);
 
 % this is currently not used - KB made space here for training status
 %set(handles.txProjectName,'String','');
@@ -643,12 +649,16 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 EnableControls(handles,'tooltipinit');
 set(handles.figure,'Visible','on');
-RefocusSplashScreen(hfigsplash,handles);
+if handles.labelerObj.isgui,
+  RefocusSplashScreen(hfigsplash,handles);
+end
 
 LabelerTooltips(handles);
-RefocusSplashScreen(hfigsplash,handles);
-if ishandle(hfigsplash),
-  delete(hfigsplash);
+if handles.labelerObj.isgui,
+  RefocusSplashScreen(hfigsplash,handles);
+  if ishandle(hfigsplash),
+    delete(hfigsplash);
+  end
 end
 
 
@@ -656,6 +666,8 @@ ClearStatus(handles);
 EnableControls(handles,'noproject');
 
 guidata(hObject, handles);
+
+fprintf('Labeler GUI created.\n');
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
 % uiwait(handles.figure);
@@ -1054,9 +1066,11 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
     case 'leftarrow'
       if tfShift
         sam = lObj.movieShiftArrowNavMode;
-        [tffound,f] = sam.seekFrame(lObj,-1);
+        samth = lObj.movieShiftArrowNavModeThresh;
+        samcmp = lObj.movieShiftArrowNavModeThreshCmp;
+        [tffound,f] = sam.seekFrame(lObj,-1,samth,samcmp);
         if tffound
-          lObj.setFrameProtected(f);          
+          lObj.setFrameProtected(f);
         end
       else
         lObj.frameDown(tfCtrl);
@@ -1064,9 +1078,11 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
     case 'rightarrow'
       if tfShift
         sam = lObj.movieShiftArrowNavMode;
-        [tffound,f] = sam.seekFrame(lObj,1);
+        samth = lObj.movieShiftArrowNavModeThresh;
+        samcmp = lObj.movieShiftArrowNavModeThreshCmp;
+        [tffound,f] = sam.seekFrame(lObj,1,samth,samcmp);
         if tffound
-          lObj.setFrameProtected(f);          
+          lObj.setFrameProtected(f);
         end
       else
         lObj.frameUp(tfCtrl);
@@ -1824,6 +1840,17 @@ if ~isfield(handles,'menu_track_backend_config')
     'Callback',@cbkTrackerBackendMenu,...
     'Tag','menu_track_backend_config_docker',...
     'userdata',DLBackEnd.Docker);  
+  handles.menu_track_backend_config_conda = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','Local (Conda)',...
+    'Callback',@cbkTrackerBackendMenu,...
+    'Tag','menu_track_backend_config_conda',...
+    'userdata',DLBackEnd.Conda);
+  if ispc,
+    handles.menu_track_backend_config_docker.Enable = 'off';
+  else
+    handles.menu_track_backend_config_conda.Enable = 'off';
+  end
   % KB added menu item to get more info about how to set up
   handles.menu_track_backend_config_moreinfo = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
@@ -1842,6 +1869,12 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','(AWS) Set EC2 instance',...
     'Callback',@cbkTrackerBackendAWSSetInstance,...
     'Tag','menu_track_backend_config_aws_setinstance');  
+  
+  handles.menu_track_backend_config_aws_configure = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(AWS) Configure...',...
+    'Callback',@cbkTrackerBackendAWSConfigure,...
+    'Tag','menu_track_backend_config_aws_configure');  
   
 %   handles.menu_track_backends{end+1,1} = uimenu( ...
 %     'Parent',handles.menu_track_backend_config,...
@@ -1928,34 +1961,23 @@ end
 handles.listenersTracker = listenersNew;
 
 function updateTrackBackendConfigMenuChecked(handles,lObj)
-switch lObj.trackDLBackEnd.type
-  case DLBackEnd.AWS
-    set(handles.menu_track_backend_config_jrc,'checked','off');
-    set(handles.menu_track_backend_config_docker,'checked','off');
-    set(handles.menu_track_backend_config_aws,'checked','on');
-    set(handles.menu_track_backend_config_aws_setinstance,'visible','on');
-  case DLBackEnd.Bsub
-    set(handles.menu_track_backend_config_jrc,'checked','on');
-    set(handles.menu_track_backend_config_docker,'checked','off');
-    set(handles.menu_track_backend_config_aws,'checked','off');
-    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
-  case DLBackEnd.Docker
-    set(handles.menu_track_backend_config_jrc,'checked','off');
-    set(handles.menu_track_backend_config_docker,'checked','on');
-    set(handles.menu_track_backend_config_aws,'checked','off');
-    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
-  otherwise
-    set(handles.menu_track_backend_config_jrc,'checked','off');
-    set(handles.menu_track_backend_config_docker,'checked','off');
-    set(handles.menu_track_backend_config_aws,'checked','off');
-end
+
+set(handles.menu_track_backend_config_jrc,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Bsub));
+set(handles.menu_track_backend_config_docker,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
+set(handles.menu_track_backend_config_conda,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Conda));
+set(handles.menu_track_backend_config_aws,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
+set(handles.menu_track_backend_config_aws_setinstance,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
+set(handles.menu_track_backend_config_aws_configure,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
 
 % Menu item ordering getting messed up somewhere
 handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
 handles.menu_track_backend_config_jrc.Position = 1;
 handles.menu_track_backend_config_aws.Position = 2;
 handles.menu_track_backend_config_docker.Position = 3;
-handles.menu_track_backend_config_aws_setinstance.Position = 4;
+handles.menu_track_backend_config_conda.Position = 4;
+handles.menu_track_backend_config_moreinfo.Position = 5;
+handles.menu_track_backend_config_aws_setinstance.Position = 6;
+handles.menu_track_backend_config_aws_configure.Position = 7;
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
@@ -1967,7 +1989,7 @@ function cbkTrackerBackendMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 beType = src.UserData;
-be = DLBackEndClass(beType);
+be = DLBackEndClass(beType,lObj.trackGetDLBackend());
 lObj.trackSetDLBackend(be);
 
 function cbkTrackerBackendMenuMoreInfo(src,evt)
@@ -1986,31 +2008,79 @@ function cbkTrackerBackendTest(src,evt)
 
 handles = guidata(src);
 lObj = handles.labelerObj;
-switch lObj.trackDLBackEnd.type,
-  case DLBackEnd.Bsub,
-    lObj.tracker.testBsubConfig();
-  otherwise
-    msgbox(sprintf('Tests for %s have not been implemented',lObj.trackDLBackEnd.type),'Not implemented','modal');
-end
 
+cacheDir = lObj.DLCacheDir; 
+assert(exist(cacheDir,'dir')>0,...
+  'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
+
+be = lObj.trackDLBackEnd;
+be.testConfigUI(cacheDir);
+
+% % is APTCache set?
+% hedit.String{end+1} = ''; drawnow;
+% hedit.String{end+1} = '** Testing that Deep Track->Saving->CacheDir parameter is set...'; drawnow;
+% if isempty(cacheDir),
+%   hedit.String{end+1} = 'Deep Track->Saving->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
+%   return;
+% end
+% % does APTCache exist?
+% if ~exist(cacheDir,'dir'),
+%   hedit.String{end+1} = sprintf('Deep Track->CacheDir %s did not exist, trying to create it...',cacheDir); drawnow;
+%   [tfsucc1,msg1] = mkdir(cacheDir);
+%   if ~tfsucc1 || ~exist(cacheDir,'dir'),
+%     hedit.String{end+1} = sprintf('Deep Track->CacheDir %s could not be created: %s. Make sure you have access to %s, and/or set CacheDir to a different directory.',cacheDir,msg1,cacheDir); drawnow;
+%     return;
+%   end
+% end
+% hedit.String{end+1} = sprintf('Deep Track->Saving->CacheDir set to %s, and exists.',cacheDir); drawnow;
+% hedit.String{end+1} = 'SUCCESS!'; drawnow;
+      
+      
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-be = lObj.trackDLBackEnd;
-assert(be.type==DLBackEnd.AWS);
+%be = lObj.trackDLBackEnd;
+assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
 
-aws = be.awsec2;
-if ~isempty(aws)
-  [tfsucc,instanceID,pemFile] = aws.respecifyInstance();
-else
-  [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
-end
+% aws = be.awsec2;
+% if ~isempty(aws)
+  %[tfsucc,instanceID,pemFile] = lObj.trackDLBackEnd.awsec2.respecifyInstance();
+  [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance();
+% else
+%   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
+% end
 
 if tfsucc
-  aws = AWSec2(pemFile,'instanceID',instanceID);
-  be.awsec2 = aws;
+%   lObj.trackDLBackEnd.awsec2.setInstanceID(instanceID);
+%   lObj.trackDLBackEnd.awsec2.setPemFile(pemFile);
+%   aws = AWSec2(pemFile,'instanceID',instanceID);
+%   be.awsec2 = aws;
   %aws.checkInstanceRunning('throwErrs',false);
-  lObj.trackSetDLBackend(be);
+  %lObj.trackSetDLBackend(be);
+end
+
+function cbkTrackerBackendAWSConfigure(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+%be = lObj.trackDLBackEnd;
+assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
+
+%aws = be.awsec2;
+%if ~isempty(aws)
+  [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance('canlaunch',1,...
+    'canconfigure',2,'forceSelect',1);
+  if ~tfsucc,
+    warning('Problem configuring: %s',reason);
+  end
+%else
+%  [tfsucc,keyName,pemFile] = AWSec2.specifySSHKeyUIStc();
+%end
+
+if tfsucc  
+%   aws = AWSec2(pemFile,'keyName',keyName);
+%   be.awsec2 = aws;
+  %aws.checkInstanceRunning('throwErrs',false);
+%   lObj.trackSetDLBackend(be);
 end
 
 function cbkTrackersAllChanged(src,evt)
@@ -2040,7 +2110,6 @@ if ~isempty(tObj),
   tObj.updateTrackerInfo();
 end
 handles.labelTLInfo.setTracker(tObj);
-handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)
@@ -4016,7 +4085,6 @@ if isempty(s),
 end
 SetStatusText(handles,s);
 
-
 % --------------------------------------------------------------------
 function menu_file_export_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
 % hObject    handle to menu_file_export_labels2_trk_curr_mov (see GCBO)
@@ -4143,14 +4211,14 @@ function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 % end
 % template only for view 1... 
 
-handles.labelerObj.skeletonEdges = ...
-  defineSkeleton(handles.labelerObj,'edges',handles.labelerObj.skeletonEdges);
-handles.labelerObj.lblCore.updateSkeletonEdges();
-if isempty(handles.labelerObj.skeletonEdges),
+lObj = handles.labelerObj;
+se = defineSkeleton(lObj,'edges',lObj.skeletonEdges);
+lObj.setSkeletonEdges(se);
+if isempty(lObj.skeletonEdges),
   set(handles.menu_view_showhide_skeleton,'Enable','off','Checked','off');
 else
   set(handles.menu_view_showhide_skeleton,'Enable','on','Checked','on');
-  handles.labelerObj.setShowSkeleton(true);
+  lObj.setShowSkeleton(true);
 end
 
 function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)
@@ -4309,15 +4377,15 @@ function pumInfo_labels_Callback(hObject, eventdata, handles)
 % Hints: contents = cellstr(get(hObject,'String')) returns pumInfo_labels contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from pumInfo_labels
 
-% s = get(hObject,'String');
-v = get(hObject,'Value');
-v2 = get(handles.pumInfo,'Value');
-s = handles.labelTLInfo.getPropsDisp(v);
-if v2 > numel(s),
-  v2 = 1;
+ipropType = get(hObject,'Value');
+% see also InfoTimeline/enforcePropConsistencyWithUI
+iprop = get(handles.pumInfo,'Value');
+props = handles.labelTLInfo.getPropsDisp(ipropType);
+if iprop > numel(props),
+  iprop = 1;
 end
-set(handles.pumInfo,'String',s,'Value',v2);
-handles.labelTLInfo.setCurPropType(v,v2);
+set(handles.pumInfo,'String',props,'Value',iprop);
+handles.labelTLInfo.setCurPropType(ipropType,iprop);
 
 
 % --- Executes during object creation, after setting all properties.

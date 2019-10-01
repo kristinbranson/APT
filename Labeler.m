@@ -161,6 +161,9 @@ classdef Labeler < handle
     projPrefs; % init: C
     
     projVerbose = 0; % transient, unmanaged
+    
+    isgui = true; % whether there is a GUI
+    unTarLoc = ''; % location that project has most recently been untarred to
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -238,6 +241,12 @@ classdef Labeler < handle
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieShiftArrowNavMode; % scalar ShiftArrowMovieNavMode
+  end
+  properties (SetAccess=private)
+    movieShiftArrowNavModeThresh; % scalar double. This is separate prop from the ShiftArrowMode so it persists even if the ShiftArrowMode changes.
+  end
+  properties (SetObservable)
+    movieShiftArrowNavModeThreshCmp; % char, eg '<' or '>='
     moviePlaySegRadius; % scalar int
     moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
@@ -356,7 +365,7 @@ classdef Labeler < handle
   end
   properties (SetAccess=private)
     nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
-    labelTemplate;    
+    labelTemplate;
     
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views. init: C
@@ -385,7 +394,7 @@ classdef Labeler < handle
     lblCore; % init: L
   end
   properties
-    labeledpos2trkViz % scalar TrackingVisualizer
+    labeledpos2trkViz % scalar TrackingVisualizerMT
 %     labeledpos2_ptsH;     % [npts]
 %     labeledpos2_ptsTxtH;  % [npts]    
 %     lblOtherTgts_ptsH;    % [npts]
@@ -1215,6 +1224,12 @@ classdef Labeler < handle
       tfIsReady = ~obj.isinit && obj.hasMovie && obj.hasProject;
     end
     
+    function setMovieShiftArrowNavModeThresh(obj,v)
+      assert(isscalar(v) && isnumeric(v));
+      obj.movieShiftArrowNavModeThresh = v;
+      tl = obj.gdata.labelTLInfo;
+      tl.setStatThresh(v);
+    end
   end
   
   %% Ctor/Dtor
@@ -1224,6 +1239,9 @@ classdef Labeler < handle
       % lObj = Labeler();
       
       APT.setpathsmart;
+
+      [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
+      
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
@@ -1374,12 +1392,14 @@ classdef Labeler < handle
       obj.currIm = cell(obj.nview,1);
       delete(obj.currImHud);
       gd = obj.gdata;
-      obj.currImHud = AxisHUD(gd.axes_curr.Parent); 
+      obj.currImHud = AxisHUD(gd.axes_curr.Parent,gd.axes_curr); 
       %obj.movieSetNoMovie();
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
       obj.movieShiftArrowNavMode = ShiftArrowMovieNavMode.(cfg.Movie.ShiftArrowNavMode);
+      obj.movieShiftArrowNavModeThresh = cfg.Movie.ShiftArrowNavModeThresh;
+      obj.movieShiftArrowNavModeThreshCmp = cfg.Movie.ShiftArrowNavModeThreshCmp;
       obj.moviePlaySegRadius = cfg.Movie.PlaySegmentRadius;
       obj.moviePlayFPS = cfg.Movie.PlayFPS;
            
@@ -1422,6 +1442,9 @@ classdef Labeler < handle
             
       obj.labels2Hide = false;
 
+      obj.skeletonEdges = zeros(0,2);
+      obj.showSkeleton = false;
+      
       % When starting a new proj after having an existing proj open, old 
       % state is lingering in .prevAxesModeInfo despite the next 
       % .setPrevAxesMode call due to various initialization foolishness
@@ -1433,7 +1456,9 @@ classdef Labeler < handle
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
       
-      RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
+      if obj.isgui,
+        RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
+      end
       
       obj.isinit = isinit0;
       
@@ -1466,6 +1491,8 @@ classdef Labeler < handle
         'ForceGrayScale',obj.movieForceGrayscale,...
         'FrameStepBig',obj.movieFrameStepBig,...
         'ShiftArrowNavMode',char(obj.movieShiftArrowNavMode),...
+        'ShiftArrowNavModeThresh',obj.movieShiftArrowNavModeThresh,...
+        'ShiftArrowNavModeThreshCmp',obj.movieShiftArrowNavModeThreshCmp,...
         'PlaySegmentRadius',obj.moviePlaySegRadius,...
         'PlayFPS',obj.moviePlayFPS);
 
@@ -1817,6 +1844,11 @@ classdef Labeler < handle
         end
       end
       
+      % clean information we shouldn't save from AWS EC2
+      if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd),
+        s.trackDLBackEnd.awsec2 = [];
+      end
+      
       switch obj.labelMode
         case LabelMode.TEMPLATE
           %s.labelTemplate = obj.lblCore.getTemplate();
@@ -2008,6 +2040,9 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      
+      obj.setSkeletonEdges(obj.skeletonEdges);
+      obj.setShowSkeleton(obj.showSkeleton);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       if ~wasbundled
@@ -2066,6 +2101,9 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
+      
+      fprintf('Finished loading project.\n');
+      
     end
     
     function projImport(obj,fname)
@@ -2215,6 +2253,7 @@ classdef Labeler < handle
       try
         fprintf('Untarring project into %s\n',tname);
         untar(fname,tname);
+        obj.unTarLoc = tname;
         fprintf('... done with untar.\n');
       catch ME
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
@@ -2225,6 +2264,7 @@ classdef Labeler < handle
             isbundled = [];
           else
             isbundled = false;  
+            obj.unTarLoc = tname;
           end          
           return;
         else
@@ -2241,6 +2281,35 @@ classdef Labeler < handle
       
       success = true;
       isbundled = true;
+    end
+    
+    function success = cleanUpProjTempDir(obj,verbose)
+      
+      success = false;
+      if nargin < 2,
+        verbose = true;
+      end
+      if ~ischar(obj.unTarLoc) || isempty(obj.unTarLoc),
+        success = true;
+        return;
+      end
+      if ~exist(obj.unTarLoc,'dir'),
+        if verbose,
+          fprintf('Temporary tar directory %s does not exist. Not cleaning.\n',obj.unTarLoc);
+        end
+        return;
+      end
+      [success,msg] = rmdir(obj.unTarLoc,'s');
+      if ~success && verbose,
+        fprintf('Error deleting temporary tar directory %s:\n%s\n',obj.unTarLoc,msg);
+      end
+      if success,
+        if verbose,
+          fprintf('Removed temporary tar directory %s.\n',obj.unTarLoc);
+        end
+        obj.unTarLoc = '';
+      end
+      
     end
     
     function success = projUpdateDLCache(obj)
@@ -2364,7 +2433,11 @@ classdef Labeler < handle
               end
 
               if dm.isRemote
-                dm.mirrorFromRemoteAws(projtempdir);
+                try
+                  dm.mirrorFromRemoteAws(projtempdir);
+                catch
+                  warningNoTrace('Could not check if trackers had been downloaded from AWS.');
+                end
               end
 
               if verbose>0 && ndx==1
@@ -3240,7 +3313,7 @@ classdef Labeler < handle
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
       [offerMacroization,gt] = myparse(varargin,...
-        'offerMacroization',~isdeployed, ... % If true, look for matches with existing macros
+        'offerMacroization',~isdeployed&&obj.isgui, ... % If true, look for matches with existing macros
         'gt',obj.gtIsGTMode ... % If true, add moviefile/trxfile to GT lists. Could be a separate method, but there is a lot of shared code/logic.
         );
       
@@ -3512,7 +3585,11 @@ classdef Labeler < handle
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
-      obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
+      if ~isempty(obj.(PROPS.TRKRES))
+        obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
+      else
+        obj.(PROPS.TRKRES) = cell(1,obj.nview,0);        
+      end
       if ~gt
         obj.labeledposMarked{end+1,1} = false(nLblPts,nFrms,nTgt);
       end
@@ -3911,7 +3988,7 @@ classdef Labeler < handle
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
-          if isdeployed
+          if isdeployed || ~obj.isgui,
             error(qstr);
           end
           
@@ -4114,7 +4191,7 @@ classdef Labeler < handle
       
       if isFirstMovie,
         % KB 20161213: moved this up here so that we could redo in initHook
-        obj.labelsMiscInit();
+        obj.trkResVizInit();
         % we set template below as it requires .trx to be set correctly. 
         % see below
         obj.labelingInit('dosettemplate',false); 
@@ -4140,11 +4217,16 @@ classdef Labeler < handle
         
       obj.isinit = isInitOrig; % end Initialization hell      
 
-      if isFirstMovie && obj.labelMode==LabelMode.TEMPLATE
-        % Setting the template requires the .trx to be appropriately set,
-        % so for template mode we redo this (it is part of labelingInit()
-        % here.
-        obj.labelingInitTemplate();
+      if isFirstMovie
+        % needs to be done after trx are set as labels2trkviz handles 
+        % multiple targets.
+        obj.labels2TrkVizInit();
+        if obj.labelMode==LabelMode.TEMPLATE
+          % Setting the template requires the .trx to be appropriately set,
+          % so for template mode we redo this (it is part of labelingInit()
+          % here.
+          obj.labelingInitTemplate();
+        end
       end
 
       % AL20160615: omg this is the plague.
@@ -4224,7 +4306,8 @@ classdef Labeler < handle
       obj.currTarget = 0;
       obj.isinit = isInitOrig;
       
-      obj.labelsMiscInit();
+      obj.labels2TrkVizInit();
+      obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
       edata = NewMovieEventData(false);
       notify(obj,'newMovie',edata);
@@ -5314,9 +5397,15 @@ classdef Labeler < handle
 %       obj.labels2VizShowHideUpdate();      
 %     end
     
+    function setSkeletonEdges(obj,se)
+      obj.skeletonEdges = se;
+      obj.lblCore.updateSkeletonEdges();
+      obj.labeledpos2trkViz.initAndUpdateSkeletonEdges(se);
+    end
     function setShowSkeleton(obj,tf)
       obj.showSkeleton = logical(tf);
       obj.lblCore.updateShowSkeleton();
+      obj.labeledpos2trkViz.updateHideVizHideText();
     end
         
   end
@@ -5652,12 +5741,15 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function labelPosBulkImport(obj,xy)
+    function labelPosBulkImport(obj,xy,ts)
       % Set ALL labels for current movie/target
       %
       % xy: [nptx2xnfrm]
       
       assert(~obj.gtIsGTMode);
+      if ~exist('ts','var'),
+        ts = now;
+      end
       
       iMov = obj.currMovie;
       lposOld = obj.labeledpos{iMov};
@@ -9518,46 +9610,53 @@ classdef Labeler < handle
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
     end
     
+    function be = trackGetDLBackend(obj)
+      be = obj.trackDLBackEnd;
+    end
+    
     function trackSetDLBackend(obj,be)
       assert(isa(be,'DLBackEndClass'));
-     
+      
       switch be.type
         case DLBackEnd.AWS
           % special-case this to avoid running repeat AWS commands
           
           aws = be.awsec2;
-          if ~isempty(aws)            
-            [tfexist,tfrunning] = aws.inspectInstance();
-            if tfexist
-              % AWS auto-shutdown alarm 20190213
-              % The only official way to set the APT backend is here. We add 
-              % a metricalarm here to auto-shutdown the EC2 instance should 
-              % it become idle.
-              %
-              % - We use use a single/unique alarm name (see AWSec2). I think
-              % this an AWS account can only have one alarm at a time, so
-              % adding it here removes it from somewhere else if it is
-              % somewhere else.
-              % - If an account uses multiple instances, some will be
-              % unprotected for now. We expect the typical use case to be a
-              % single instance at a time.
-              % - Currently we never remove the alarm, so it just hangs
-              % around configured for the last instance where it was added. I
-              % don't get the impression that this hurts or that CloudWatch
-              % is expensive etc. Note in particular, the CloudWatch alarm
-              % lifecycle is independent of the EC2 lifecycle. CloudWatch
-              % alarms specify an instance only eg via the 'Dimensions'.
-              % - The alarm(s) is clearly visible on the EC2 dash. I think it
-              % should be ok for now.
-              aws.configureAlarm;
-            end
+          if isempty(aws),            
+            be.awsec2 = AWSec2([],...
+              'SetStatusFun',@(varargin) obj.SetStatus(varargin{:}),...
+              'ClearStatusFun',@(varargin) obj.ClearStatus(varargin{:}));
           end
-          
-          if isempty(aws) || ~tfexist
-            warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
-          elseif ~tfrunning
-            warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
-          end
+%           [tfexist,tfrunning] = aws.inspectInstance();
+%           if tfexist
+%             % AWS auto-shutdown alarm 20190213
+%             % The only official way to set the APT backend is here. We add
+%             % a metricalarm here to auto-shutdown the EC2 instance should
+%             % it become idle.
+%             %
+%             % - We use use a single/unique alarm name (see AWSec2). I think
+%             % this an AWS account can only have one alarm at a time, so
+%             % adding it here removes it from somewhere else if it is
+%             % somewhere else.
+%             % - If an account uses multiple instances, some will be
+%             % unprotected for now. We expect the typical use case to be a
+%             % single instance at a time.
+%             % - Currently we never remove the alarm, so it just hangs
+%             % around configured for the last instance where it was added. I
+%             % don't get the impression that this hurts or that CloudWatch
+%             % is expensive etc. Note in particular, the CloudWatch alarm
+%             % lifecycle is independent of the EC2 lifecycle. CloudWatch
+%             % alarms specify an instance only eg via the 'Dimensions'.
+%             % - The alarm(s) is clearly visible on the EC2 dash. I think it
+%             % should be ok for now.
+%             aws.configureAlarm;
+%           end
+%           
+%           if isempty(aws) || ~tfexist
+%             warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
+%           elseif ~tfrunning
+%             warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
+%           end
           
         otherwise
           [tf,reason] = be.getReadyTrainTrack();
@@ -11607,7 +11706,11 @@ classdef Labeler < handle
       %fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       % Remainder nearly identical to setFrameAndTarget()
-      obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
+      try
+        obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
+      catch ME
+        warning('Could not set previous frame: %s',ME.message);
+      end
       
       %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
@@ -11706,7 +11809,11 @@ classdef Labeler < handle
       end
 
       % 2nd arg true to match legacy
-      obj.hlpSetCurrPrevFrame(frm,true);
+      try
+        obj.hlpSetCurrPrevFrame(frm,true);
+      catch ME
+        warning('Could not set previous frame: %s', ME.message);
+      end
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
@@ -11788,6 +11895,39 @@ classdef Labeler < handle
       while 0<f && f<=nfrm
         for ipt=1:npts
           if ~isnan(lpos(ipt,f))
+            tffound = true;
+            return;
+          end
+        end
+        f = f+df;
+      end
+      tffound = false;
+      f = nan;
+    end
+    function [tffound,f] = seekSmallLposThresh(lpos,f0,df,th,cmp)
+      % lpos: [npts x nfrm]
+      % f0: starting frame
+      % df: frame increment
+      % th: threshold
+      % cmp: comparitor
+      % 
+      % tffound: logical
+      % f: first frame encountered with (non-nan) label that satisfies 
+      % comparison with threshold, applicable if tffound==true
+      
+      switch cmp
+        case '<',  cmp = @lt;
+        case '<=', cmp = @le;
+        case '>',  cmp = @gt;
+        case '>=', cmp = @ge;
+      end
+          
+      [npts,nfrm] = size(lpos);
+      
+      f = f0+df;
+      while 0<f && f<=nfrm
+        for ipt=1:npts
+          if cmp(lpos(ipt,f),th)
             tffound = true;
             return;
           end
@@ -12049,6 +12189,19 @@ classdef Labeler < handle
           'XData',imcurr.XData,'YData',imcurr.YData);
         
       %fprintf('hlpSetCurrPrevFrame 1: %f\n',toc(ticinfo)); ticinfo = tic;  
+      nfrs = min([obj.movieReader(:).nframes]);
+      if frm>nfrs
+        s1 = sprintf('Cannot browse to frame %d because the maximum',frm);
+        s2 = sprintf('number of frames reported by matlab is %d.',nfrs);
+        s3 = sprintf('Browsing to frame %d.',nfrs);
+        s4 = sprintf('The number of frames reported in a video can differ');
+        s5 = sprintf('based on the codecs installed. We tried to make');
+        s6 = sprintf('them consistent but there are no solutions other');
+        s7 = sprintf('encoding the video using a simpler codec.');
+
+        warndlg({s1,s2,s3,s4,s5,s6,s7}, 'Frame out of limit');
+        frm = nfrs;
+      end
       if obj.currFrame~=frm || tfforce
         imsall = gd.images_all;
         tfCropMode = obj.cropIsCropMode;        
@@ -12818,17 +12971,19 @@ classdef Labeler < handle
 %       end
     end
     
-    function labelsMiscInit(obj)
+    function labels2TrkVizInit(obj)
       % Initialize trkViz for .labeledpos2, .trkRes*
       
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
         tv.delete();
       end      
-      tv = TrackingVisualizer(obj,'labeledpos2');
+      tv = TrackingVisualizerMT(obj,'labeledpos2');
       tv.vizInit();
       obj.labeledpos2trkViz = tv;
-            
+    end
+    
+    function trkResVizInit(obj)
       for i=1:numel(obj.trkResViz)
         tv = obj.trkResViz{i};
         if isempty(tv.lObj)
@@ -12837,9 +12992,6 @@ classdef Labeler < handle
           tv.vizInit('postload',true);
         end
       end
-
-%       obj.genericInitLabelPointViz('lblOtherTgts_ptsH',[],...
-%         obj.gdata.axes_curr,ptsPlotInfo);      
     end
     
     function labels2VizUpdate(obj,varargin)
@@ -12850,8 +13002,9 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;
-      lpos2 = obj.labeledpos2GTaware{iMov}(:,:,frm,iTgt);      
-      obj.labeledpos2trkViz.updateTrackRes(lpos2);
+      lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
+        [obj.nLabelPoints,2,obj.nTargets]);
+      obj.labeledpos2trkViz.updateTrackRes(lpos2,iTgt);
       
       if dotrkres
         trkres = obj.trkResGTaware;
@@ -13178,9 +13331,13 @@ classdef Labeler < handle
    
     function SetStatus(obj,s,varargin)
       
-      if isfield(obj.gdata,'SetStatusFun'),
-        obj.gdata.SetStatusFun(obj.gdata,s,varargin{:});
-      else
+      try
+        if isfield(obj.gdata,'SetStatusFun'),
+          obj.gdata.SetStatusFun(obj.gdata,s,varargin{:});
+        else
+          fprintf(['Status: ',s,'...\n']);
+        end
+      catch
         fprintf(['Status: ',s,'...\n']);
       end
       
@@ -13188,12 +13345,15 @@ classdef Labeler < handle
 
     function ClearStatus(obj,varargin)
       
-      if isfield(obj.gdata,'ClearStatusFun'),
-        obj.gdata.ClearStatusFun(obj.gdata,varargin{:});
-      else
+      try
+        if isfield(obj.gdata,'ClearStatusFun'),
+          obj.gdata.ClearStatusFun(obj.gdata,varargin{:});
+        else
+          fprintf('Done.\n');
+        end
+      catch
         fprintf('Done.\n');
       end
-      
     end
     
     function setStatusBarTextWhenClear(obj,s,varargin)
