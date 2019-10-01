@@ -593,12 +593,15 @@ class PoseCommon(object):
 
         merged = tf.summary.merge_all()
         save_time = self.conf.get('save_time', None)
-        with tf.Session() as sess:
-            train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        with tf.Session(config=config) as sess:
+            # train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
             start_at = self.init_restore_net(sess, do_restore=restore)
 
             start = time.time()
             save_start = start
+
             for step in range(start_at, training_iters + 1):
                 self.train_step(step, sess, learning_rate, training_iters)
                 if step % self.conf.display_step == 0:
@@ -626,8 +629,8 @@ class PoseCommon(object):
 
                     if self.compute_summary and (step %(10*self.conf.display_step)==0):
                         self.fd_train()
-                        summary = sess.run(merged,self.fd)
-                        train_writer.add_summary(summary,step)
+                        # summary = sess.run(merged,self.fd)
+                        # train_writer.add_summary(summary,step)
 
                     start = end
                 if self.conf.save_time is None:
@@ -664,7 +667,7 @@ class PoseCommon(object):
 
 
     def update_and_save_td(self, step, sess):
-        num_val_rep = self.conf.num_test / self.conf.batch_size + 1
+        num_val_rep = self.conf.num_test // self.conf.batch_size + 1
         if step % self.conf.display_step != 0:
             return
         train_dict = self.compute_train_data(sess, self.DBType.Train)

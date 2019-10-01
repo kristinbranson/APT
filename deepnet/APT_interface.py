@@ -516,7 +516,10 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         pass
     try:
         if isModern and net_type == 'openpose':
-            bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])           
+            try:
+                bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
+            except ValueError:
+                bb = ''
         else: 
             bb = ''
         graph = []
@@ -1912,7 +1915,6 @@ def train(lblfile, nviews, name, args):
         except tf.errors.ResourceExhaustedError as e:
             logging.exception('Out of GPU Memory. Either reduce the batch size or scale down the image')
             exit(1)
-
 
 def parse_args(argv):
     parser = argparse.ArgumentParser()
