@@ -221,7 +221,9 @@ class PoseDataset:
             im_file = data_item.im_path
             logging.debug('image %s', im_file)
             logging.debug('mirror %r', mirror)
-            image = imread(im_file) #, mode='RGB')
+            image = imread(im_file)
+            if image.ndim < 3:
+                image = np.tile(image[:,:,np.newaxis],[1,1,3])
 
             if self.has_gt:
                 joints = np.copy(data_item.joints)
@@ -237,6 +239,8 @@ class PoseDataset:
                 o1 = img.shape[0]//scale
                 o2 = img.shape[1]//scale
                 img = transform.resize(image, [o1,o2])
+            else:
+                img = image
 
               # img = imresize(image, scale) if scale != 1 else image
             img, dx, dy = self.crop_to_size(img, im_sz)
