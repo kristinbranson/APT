@@ -2,7 +2,7 @@
 
 # initial AMI:  ami-060865e8b5914b4c4
 sudo -H pip2.7 install --upgrade https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-1.13.1-cp27-none-linux_x86_64.whl
-sudo -H pip2.7 install imageio Keras h5py enum EasyDict future scikit-image hdf5storage
+sudo -H pip2.7 install imageio Keras==2.2.4 h5py enum EasyDict future scikit-image hdf5storage
 
 # build opencv
 # uninstall and reinstall cmake if it doesn't work.

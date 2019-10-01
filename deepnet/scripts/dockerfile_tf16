@@ -36,7 +36,7 @@ RUN apt-get -y update && apt-get -y install python$PYTHON_VERSION-dev wget unzip
 	&& cd / \
     && rm -rf /opencv /opencv_contrib /var/lib/apt/lists/* \
 
-    && pip install ipython imageio Keras h5py enum EasyDict scipy future scikit-image hdf5storage \ 
+    && pip install ipython imageio Keras==2.2.4 h5py enum EasyDict scipy future scikit-image hdf5storage \ 
     &&  python -mpip install -U pip \ 
     &&  python -mpip install -U matplotlib \ 
     &&  apt-get update  \ 

@@ -380,7 +380,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
     rows, cols = img.shape[1:3]
     rows = float(rows)
     cols = float(cols)
-    n_groups = num/group_sz
+    n_groups = num//group_sz
     assert(num%group_sz==0), 'Incorrect group size'
 
     for ndx in range(n_groups):
@@ -1023,8 +1023,8 @@ def json_load(filename):
 
 
 def pickle_load(filename):
-    with open(filename,'r') as f:
-        K = pickle.load(f)
+    with open(filename,'rb') as f:
+        K = pickle.load(f,encoding='latin1')
     return K
 
 
@@ -1133,10 +1133,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60,run_d
         f.write('\n')
 
     # KB 20190424: this doesn't work in py3
-    if ISPY3:
-        os.chmod(sing_script, stat.S_IREAD|stat.S_IEXEC|stat.S_IWUSR)
-    else:
-        os.chmod(sing_script, 0755)
+    os.chmod(sing_script, stat.S_IREAD|stat.S_IEXEC|stat.S_IWUSR)
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)

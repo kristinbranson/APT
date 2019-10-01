@@ -210,8 +210,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # self.resnet_source = 'official_tf'
         self.resnet_source = self.conf.get('mdn_resnet_source','slim')
         self.offset = float(self.conf.get('mdn_slim_output_stride',32))
+        use_pretrained = conf.use_pretrained_weights
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input)
-        conf.use_pretrained_weights = True
+        conf.use_pretrained_weights = use_pretrained
         self.dep_nets = []
         self.max_dist = 30
         self.min_dist = 5
@@ -600,6 +601,16 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 dist = tf.reshape(dist, [-1, n_x * n_y, k, n_out])
                 dist = tf.reshape(dist, [-1, n_x * n_y * k, n_out], name='dist_final')
 
+            if self.conf.get('predict_occluded',False):
+            # predicting occlusion
+                X_occ = tf.layers.Conv2D(n_filt,1,padding='same')(X)
+                X_occ = tf.layers.batch_normalization(X_occ,training=self.ph['phase_train'])
+                X_occ = tf.nn.relu(X_occ)
+                X_occ = tf.layers.Conv2D(k*n_out,1)(X_occ)
+                occ_pred = tf.reshape(X_occ,[-1,n_x*n_y,k,n_out])
+                occ_pred = tf.reshape(occ_pred,[-1,n_x*n_y*k,n_out])
+                self.occ_pred = occ_pred
+
             return [locs, scales, logits, dist]
 
 
@@ -637,10 +648,15 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         else:
             dist_loss = 0
 
+        if self.conf.get('predict_occluded',False):
+            occ_loss = self.occ_loss(self.pred,in_locs)
+        else:
+            occ_loss = 0
+
         # wt regularization loss
         regularizer_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
 
-        return (mdn_loss + unet_loss + dist_loss + sum(regularizer_losses)) / self.conf.batch_size
+        return (mdn_loss + unet_loss + dist_loss + occ_loss + sum(regularizer_losses)) / self.conf.batch_size
 
     def my_loss(self, X, y):
 
@@ -681,8 +697,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # loss = -tf.log(tf.reduce_sum(pp, axis=1))
         return tf.reduce_sum(cur_loss)/self.conf.n_classes
 
-    def l2_loss(self, X, y):
 
+    def l2_loss(self, X, y):
         locs_offset = self.offset
         mdn_locs, mdn_scales, mdn_logits, mdn_dist = X
         cur_comp = []
@@ -690,16 +706,54 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         self.softmax_logits = ll
         n_preds = mdn_locs.get_shape().as_list()[1]
-        # All gaussians in the mixture have some weight so that all the mixtures try to predict correctly.
+        # All predictions have some weight so that all the mixtures try to predict correctly.
         logit_eps = self.conf.mdn_logit_eps_training
         ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
         ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
-        # ll now has normalized logits.
+        # ll now has normalized logits. and shape is x * y * ngrps
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1, :]/locs_offset
+            occ_pts = tf.is_finite(pp)
+            pp = tf.where(occ_pts,pp,tf.zeros_like(pp))
+            occ_pts_pred = tf.tile(occ_pts,[1,n_preds,1])
             qq = mdn_locs[:,:,cls,:]
+            qq = tf.where(occ_pts_pred,qq,tf.zeros_like(qq))
             kk = tf.sqrt(tf.reduce_sum(tf.square(pp - qq), axis=2))
-            # kk is the distance between all predictions for point cls from the labels.
+            # kk is the distance between all predictions for point cls from the labels. Shape is x * y * k
+            cur_comp.append(kk)
+
+        cur_loss = 0
+        all_pp = []
+        for ndx,gr in enumerate(self.conf.mdn_groups):
+            sel_comp = [cur_comp[i] for i in gr]
+            sel_comp = tf.stack(sel_comp, 1)
+            pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
+            cur_loss += pp
+            all_pp.append(pp)
+
+        self.all_pp = all_pp
+
+        return tf.reduce_sum(cur_loss)/self.conf.n_classes
+
+
+    def occ_loss(self,X,y):
+        occ_pred = self.occ_pred
+        mdn_locs, mdn_scales, mdn_logits, mdn_dist = X
+        ll = tf.nn.softmax(mdn_logits, axis=1)
+
+        n_preds = mdn_locs.get_shape().as_list()[1]
+        # All predictions have some weight so that all the mixtures try to predict correctly.
+        logit_eps = self.conf.mdn_logit_eps_training
+        ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
+        ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
+        # ll now has normalized logits. and shape is x * y * ngrps
+        cur_comp = []
+        for cls in range(self.conf.n_classes):
+            pp = y[:, cls:cls + 1,0]
+            occ_pts = tf.cast(~tf.is_finite(pp),tf.float32)
+            occ_pts_pred = tf.tile(occ_pts,[1,n_preds])
+            qq = occ_pred[:,:,cls]
+            kk = tf.square(occ_pts - qq)
             cur_comp.append(kk)
 
         cur_loss = 0
@@ -741,6 +795,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             sel_comp = [cur_comp[i] for i in gr]
             sel_comp = tf.stack(sel_comp, 1)
             # pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
+            sel_comp = tf.boolean_mask(sel_comp,tf.is_finite(sel_comp))
             pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
             cur_loss += pp
 
@@ -792,6 +847,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         conf = self.conf
 
         mdn_unet_dist = self.conf.get('mdn_unet_dist',6)
+        pred_occ = self.conf.get('predict_occluded',False)
 
         def pred_fn(all_f):
             # this is the function that is used for classification.
@@ -802,18 +858,27 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
             bsize = conf.batch_size
             xs, _ = PoseTools.preprocess_ims(
-                all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=distort, scale=self.conf.rescale)
+                all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf, distort=distort, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd[self.ph['phase_train']] = False
             self.fd[self.ph['learning_rate']] = 0
             # self.fd[self.ph['keep_prob']] = 1.
-
+            out_list = [self.pred, self.inputs]
             if self.conf.mdn_use_unet_loss:
-                pred, unet_pred, cur_input = sess.run([self.pred, self.unet_pred, self.inputs], self.fd)
-            else:
-                pred, cur_input = sess.run([self.pred, self.inputs], self.fd)
+                out_list.append(self.unet_pred)
+            if pred_occ:
+                out_list.append(self.occ_pred)
+
+            out = sess.run(out_list,self.fd)
+
+            pred = out[0]
+            cur_input = out[1]
+            if self.conf.mdn_use_unet_loss:
+                unet_pred = out[2]
+            if pred_occ:
+                occ_out = out[-1]
+                occ_ret = np.zeros([bsize,self.conf.n_classes])
 
             pred_means, pred_std, pred_weights,pred_dist = pred
             pred_means = pred_means * self.offset
@@ -847,6 +912,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         mm = pred_means[ndx, sel_ex, g, :]
                         base_locs[ndx, g] = mm
                         mdn_conf[ndx,g] = np.max(pred_weights[ndx,:,gdx])
+                        if pred_occ:
+                            occ_ret[ndx,g] = occ_out[ndx,sel_ex,g]
 
             base_locs = base_locs * conf.rescale
             mdn_conf = 2*mdn_conf -1 # it should now be between -1 to 1.
@@ -869,6 +936,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             ret_dict['conf_unet'] = (np.max(unet_pred,axis=(1,2)) + 1)/2
             ret_dict['conf'] = mdn_conf
             ret_dict['hmaps_mdn'] = mdn_pred_out
+            if pred_occ:
+                ret_dict['occ'] = occ_ret
             return ret_dict
 
         def close_fn():
@@ -1139,18 +1208,35 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_u_preds = []
         val_u_predlocs = []
         val_dist_pred = []
+        val_occ_pred = []
         do_unet = do_unet and self.conf.mdn_use_unet_loss
+
+        pred_list = [p_m, p_s, p_w, p_d, self.inputs]
+        if do_unet:
+            pred_list.append(self.unet_pred)
+        if self.conf.get('ignore_occluded',False):
+            pred_list.append(self.occ_pred)
+
         for step in range(num_val / self.conf.batch_size):
             if onTrain:
                 self.fd_train()
             else:
                 self.fd_val()
+
+            out = sess.run(pred_list,self.fd)
+            pred_means = out[0]
+            pred_std = out[1]
+            pred_weights = out[2]
+            pred_dist = out[3]
+            cur_input = out[4]
+
             if do_unet:
-                pred_means, pred_std, pred_weights, pred_dist, cur_input, unet_pred = sess.run(
-                    [p_m, p_s, p_w, p_d, self.inputs, self.unet_pred], self.fd)
-            else:
-                pred_means, pred_std, pred_weights, pred_dist, cur_input = sess.run(
-                    [p_m, p_s, p_w, p_d, self.inputs], self.fd)
+                unet_pred = out[5]
+                val_u_preds.append(unet_pred)
+                val_u_predlocs.append(PoseTools.get_pred_locs(unet_pred))
+            if self.conf.ignore_occluded:
+                occ_pred = out[-1]
+                val_occ_pred.append(occ_pred)
 
             val_means.append(pred_means)
             val_std.append(pred_std)
@@ -1202,11 +1288,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             val_locs.append(cur_input[1])
             val_preds.append(mdn_pred_out)
             val_predlocs.append(cur_predlocs)
-            if do_unet:
-                val_u_preds.append(unet_pred)
-                val_u_predlocs.append(PoseTools.get_pred_locs(unet_pred))
 
         sess.close()
+        tf.reset_default_graph()
 
         def val_reshape(in_a):
             in_a = np.array(in_a)
@@ -1221,15 +1305,17 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_std = val_reshape(val_std)
         val_wts = val_reshape(val_wts)
         val_dist_pred = val_reshape(val_dist_pred)
-        tf.reset_default_graph()
+        out_list = [val_dist, val_ims, val_preds, val_predlocs, val_locs, [val_means, val_std, val_wts, val_dist_pred]]
+
         if do_unet:
             val_u_preds = val_reshape(val_u_preds)
             val_u_predlocs = val_reshape(val_u_predlocs)
-            return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
-               [val_means, val_std, val_wts, val_dist_pred],[val_u_preds, val_u_predlocs]
-        else:
-            return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
-               [val_means, val_std, val_wts, val_dist_pred]
+            out_list.append([val_u_preds, val_u_predlocs])
+        if self.conf.ignore_occluded:
+            val_occ_pred = val_reshape(val_occ_pred)
+            out_list.append(val_occ_pred)
+
+        return out_list
 
 
 def preproc_func(ims, locs, info, conf, distort, out_scale = 8.):
