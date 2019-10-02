@@ -14,8 +14,8 @@ classdef DLNetType
   end
   
   enumeration 
-    mdn ('mdn','MDN',struct('trkfld',{'pTrkconf' 'pTrkconf_unet'}, ...
-                            'label',{'conf_mdn' 'conf_unet'}))
+    mdn ('mdn','MDN',struct('trkfld',{'pTrkconf' 'pTrkconf_unet' 'pTrkocc'}, ...
+                            'label',{'conf_mdn' 'conf_unet' 'tfocc'}))
     deeplabcut ('dlc','DeepLabCut', struct('trkfld',cell(0,1),'label',[]))
     unet ('unet','Unet',            struct('trkfld',cell(0,1),'label',[]))
     openpose ('openpose','OpenPose',struct('trkfld',cell(0,1),'label',[]))

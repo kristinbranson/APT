@@ -22,6 +22,8 @@ classdef DeepTracker < LabelTracker
       '%s/pretrained/resnet_v1_50.ckpt'... 
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
+    
+    MDN_OCCLUDED_THRESH = 0.5;
   end
   properties (Hidden)
     jrcgpuqueue = 'gpu_any';
@@ -4600,24 +4602,37 @@ classdef DeepTracker < LabelTracker
         
         for iaux=1:naux
           trkfld = auxInfo(iaux).trkfld;
-          aux(ipts,frms,itgts,iaux) = t.(trkfld);
+          if isprop(t,trkfld)
+            aux(ipts,frms,itgts,iaux) = t.(trkfld);
+          else
+            % aux els remain nan
+            % Don't warn as not all auxflds must be there. eg pTrkocc is
+            % only present if params request it etc.
+            % warningNoTrace('Missing field ''%s'' in trkfile.',trkfld);
+          end
         end
       end
+      
+      % For now we rely on this in eg getPredictionCurrentFrame
+      assert(strcmp(obj.trkAuxLbl{end},'tfocc')); 
       
       obj.trkP = pTrk;
       obj.trkPTS = pTrkTS;
       obj.trkAux = aux;
       %obj.trkAuxLbl = {auxInfo.label}';
     end
-    function xy = getPredictionCurrentFrame(obj)
+    function [xy,tfocc] = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
+      % tfocc: [nPtsxnTgt] logical
       
       frm = obj.lObj.currFrame;
       xyPCM = obj.trkP;
+      
       if isempty(xyPCM)
         npts = obj.nPts;
         nTgt = obj.lObj.nTargets;
         xy = nan(npts,2,nTgt);
+        tfocc = false(npts,nTgt);
       else
         % AL20160502: When changing movies, order of updates to 
         % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
@@ -4625,6 +4640,11 @@ classdef DeepTracker < LabelTracker
         % this.
         frm = min(frm,size(xyPCM,3));
         xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+        
+        if nargout>1          
+          xyaux = squeeze(obj.trkAux(:,frm,:,end)); % currently expect last auxfld is occlusion stat
+          tfocc = xyaux > DeepTracker.MDN_OCCLUDED_THRESH;
+        end
       end
     end
   end
@@ -4656,7 +4676,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
             
-      xy = obj.getPredictionCurrentFrame();    
+      [xy,tfocc] = obj.getPredictionCurrentFrame();    
       frm = lObj.currFrame;
       itgt = lObj.currTarget;
       trx = lObj.currTrx;
@@ -4671,7 +4691,7 @@ classdef DeepTracker < LabelTracker
         trxXY = [trx.x(itrx) trx.y(itrx)];
         trxTh = trx.theta(itrx);        
       end        
-      obj.trkVizer.updateTrackRes(xy(:,:,itgt),frm,itgt,trxXY,trxTh);
+      obj.trkVizer.updateTrackRes(xy(:,:,itgt),tfocc(:,itgt),frm,itgt,trxXY,trxTh);
     end
     function newLabelerTarget(obj)
       obj.newLabelerFrame();

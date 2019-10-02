@@ -29,7 +29,8 @@ classdef TrackingVisualizer < handle
 
     ipt2vw % [npts], like Labeler/labeledposIPt2View
     ptClrs % [nptsx3], like Labeler/labeledposIPt2View.
-    
+    tfocc % [npts], logical flag for occluded prediction
+   
     txtOffPx % scalar, px offset for landmark text labels 
 
     tfHideViz % scalar, true if tracking res hidden
@@ -47,6 +48,10 @@ classdef TrackingVisualizer < handle
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
     hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
     hXYPrdRedTxt; % [nPts] handle vec, text labels for hXYPrdRed
+    
+    hXYPrdRedMrkr % char. .Marker for hXYPrdRed. Needs to be stored here due b/c 
+            % TrackingVisualizer displays occluded tracking results with a
+            % different marker.
   end
   properties (Constant)
     SAVEPROPS = {'ipt2vw' 'ptClrs' 'txtOffPx' 'tfHideViz' 'tfHideTxt' ...
@@ -54,6 +59,8 @@ classdef TrackingVisualizer < handle
     LINE_PROPS_COSMETIC_SAVE = {'Color' 'LineWidth' 'Marker' ...
       'MarkerEdgeColor' 'MarkerFaceColor' 'MarkerSize'};
     TEXT_PROPS_COSMETIC_SAVE = {'FontSize' 'FontName' 'FontWeight' 'FontAngle'};
+    
+    OCCLUDED_MARKER = 'o';
   end
   properties (Dependent)
     nPts
@@ -96,7 +103,9 @@ classdef TrackingVisualizer < handle
         obj.ptClrs = ptclrs;
         obj.txtOffPx = pppi.TextOffset;
       end
-      szassert(ptclrs,[npts 3]);      
+      szassert(ptclrs,[npts 3]);
+      
+      obj.tfocc = false(npts,1);
 
       % init .xyVizPlotArgs*
       markerPVs = pppi.MarkerProps;
@@ -139,7 +148,7 @@ classdef TrackingVisualizer < handle
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdRedOther = hTmpOther;
       obj.hXYPrdRedTxt = hTxt;
-      
+            
       if postload
         if isstruct(hXYPrdRed0)
           if numel(hXYPrdRed0)==numel(hTmp)
@@ -157,6 +166,8 @@ classdef TrackingVisualizer < handle
         end
       end
       
+      obj.hXYPrdRedMrkr = get(hTmp(1),'Marker');
+
       % default textPVs do not respect .tfHideViz/.tfHideTxt
       obj.updateHideVizHideText(); 
       
@@ -191,7 +202,7 @@ classdef TrackingVisualizer < handle
       end
       obj.ptClrs = ptsClrs;
     end
-    function updateTrackRes(obj,xy)
+    function updateTrackRes(obj,xy,tfocc)
       %
       % xy: [npts x 2]
             
@@ -204,6 +215,13 @@ classdef TrackingVisualizer < handle
         set(h(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2));
         set(hTxt(iPt),'Position',[xyoff(iPt,:) 0]);
       end
+      
+      if nargin==3
+        assert(numel(tfocc)==numel(h));
+        set(h(tfocc),'Marker',obj.OCCLUDED_MARKER);
+        set(h(~tfocc),'Marker',obj.hXYPrdRedMrkr);
+        obj.tfocc = tfocc;
+      end
     end
     function setMarkerCosmetics(obj,pvargs)
       if isstruct(pvargs)
@@ -211,6 +229,9 @@ classdef TrackingVisualizer < handle
       else
         arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRed);
       end
+      % TODO: If some markers are currently occluded, this will 'overwrite'
+      % them with normal makrers. Browse to a new frame will refresh.
+      obj.hXYPrdRedMrkr = get(obj.hXYPrdRed(1),'Marker');
     end
     function setTextCosmetics(obj,pvargs)
       if isstruct(pvargs)
@@ -219,17 +240,21 @@ classdef TrackingVisualizer < handle
         arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRedTxt);
       end
     end
-    function setTextOffset(obj,offsetPx)
-      obj.txtOffPx = offsetPx; 
-      
-      npts = obj.nPts;      
+    function setTextOffset(obj,dx)
+      obj.txtOffPx = dx;
+            
+      npts = obj.nPts;
       h = obj.hXYPrdRed;
+      hTxt = obj.hXYPrdRedTxt;
       x = get(h,'XData');
       y = get(h,'YData');
       xy = [cell2mat(x(:)) cell2mat(y(:))];
-      szassert(xy,[npts 2]);
+      %szassert(xy,[npts 2]);      
+      xyoff = xy+dx;
       
-      obj.updateTrackRes(xy);
+      for iPt=1:npts
+        set(hTxt(iPt),'Position',[xyoff(iPt,:) 0]);
+      end
     end
   end
   
@@ -296,6 +321,8 @@ classdef TrackingVisualizer < handle
       lineprops = obj.LINE_PROPS_COSMETIC_SAVE;
       vals = get(obj.hXYPrdRed,lineprops); % [nhandle x nprops]
       s.hXYPrdRed = cell2struct(vals,lineprops,2);
+      % save assuming none are occluded
+      [s.hXYPrdRed.Marker] = deal(obj.hXYPrdRedMrkr); 
       
       textprops = obj.TEXT_PROPS_COSMETIC_SAVE;
       vals = get(obj.hXYPrdRedTxt,textprops); % [nhandle x nprops]
