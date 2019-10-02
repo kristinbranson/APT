@@ -1912,7 +1912,12 @@ classdef Labeler < handle
       % MK 20190204. Use Unbundling instead of loading.
       [success,tlbl,wasbundled] = obj.projUnbundleLoad(fname);
       if ~success, error('Could not unbundle the label file %s',fname); end
+      
+      % AL 20191002 occlusion-prediction viz, DLNetType enum changed
+      % should-be-harmlessly
+      warnst = warning('off','MATLAB:class:EnumerationValueChanged');
       s = load(tlbl,'-mat');
+      warning(warnst);
 %       s = load(fname,'-mat');  
 
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
