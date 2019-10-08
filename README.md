@@ -20,7 +20,7 @@ A basic, preliminary user guide with installation and setup instructions can be 
 More recent or advanced documentation can be found in the [https://github.com/kristinbranson/APT/wiki](wikis). This wiki is sorted chronologically with the most recent updates at the top.
 
 ### Contributors
-APT is being developed by Allen Lee, Mayank Kabra, Kristin Branson, Felipe Rodriguez, Alice Robie, and Roian Egnor, with help from many others. All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. APT is currently under heavy development. Please contact Kristin Branson if you are interested in using it.
+APT is being developed in the Branson lab by Allen Lee, Mayank Kabra, Kristin Branson, Alice Robie, and Roian Egnor, with help from many others. All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. APT is currently under heavy development. Please contact Kristin Branson if you are interested in using it.
 
 ### License
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [GNU General Public License (version 3)](http://GNU_GPL_v3.html) for more details.
