@@ -1,4 +1,4 @@
-## APT: The Animal Part Tracker
+### APT: The Animal Part Tracker
 
 APT is a machine-learning based software package that enables tracking the pose or posture of behaving animals in video. APT can work with potentially any animal (or animals), in any setting or experimental configuration. Its major functionality includes:
 
@@ -10,7 +10,7 @@ APT is a machine-learning based software package that enables tracking the pose 
 
 ... and much more!
 
-## User Guide
+### User Guide
 
 A basic, preliminary user guide with installation and setup instructions can be found at [http://kristinbranson.github.io/APT](http://kristinbranson.github.io/APT/). 
 
