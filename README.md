@@ -1,10 +1,13 @@
 ### APT: The Animal Part Tracker
 
+![APT Examples](https://github.com/kristinbranson/APT/blob/master/docs/images/apt_examples.png)
+
 APT is a machine-learning based software package that enables tracking the pose or posture of behaving animals in video. APT can work with potentially any animal (or animals), in any setting or experimental configuration. Its major functionality includes:
 
   * Implementations of a number of leading DNN (deep neural network) architectures, as well as extensibility to new, user-defined deep networks
-  * Support for GPU training and tracking on a local workstation, in the AWS cloud, or with the JRC GPU cluster (for Janelians) 
-  * A fully-featured graphical interface, as well as a rich command-line API for scripting and advanced users
+  * Support for GPU training and tracking on a local workstation with our [Docker image](https://github.com/kristinbranson/APT/wiki/Linux-&-Docker-Setup-Instructions), in the AWS cloud, or with the JRC GPU cluster (for Janelians) 
+  * A fully-featured graphical interface 
+  * A rich MATLAB command-line API for scripting and advanced users
   * Support for multi-camera data with 3D-enabled labeling and tracking
   * Support for projects with multiple animals and/or externally-generated body tracking
 
