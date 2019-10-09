@@ -1238,7 +1238,7 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
       
-      APT.setpathsmart;
+      %APT.setpathsmart;
 
       [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
       

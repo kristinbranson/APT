@@ -38,7 +38,7 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         fspollargs = ...
           sprintf('exists %s existsNE %s existsNE %s existsNEerr %s exists %s lastmodified %s nfrmtracked %s nfrmtracked %s',...
             trkfile,errFile,logFile,logFile,killFile,partFile,partFile,trkfile);
-        cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollargs);
+        cmdremote = sprintf('~/APT/matlab/misc/fspoll.py %s',fspollargs);
 
         fprintf('The time is %s\n',datestr(now,'yyyymmddTHHMMSS'));
         [tfpollsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);

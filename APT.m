@@ -3,14 +3,14 @@ classdef APT
   properties (Constant)
     Root = fileparts(mfilename('fullpath'));
     MANIFESTFILE = 'Manifest.txt';
-    SnapshotScript = fullfile(APT.Root,'repo_snapshot.sh');
+    SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh');
     
-    BUILDSNAPSHOTFILE = 'build.snapshot';
-    BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
+%     BUILDSNAPSHOTFILE = 'build.snapshot';
+%     BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
     
-    BUILDMCCFILE = 'build.mcc';
-    BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
-    
+%     BUILDMCCFILE = 'build.mcc';
+%     BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
+
     DOCKER_REMOTE_HOST = ''; % Conceptually this prob belongs in DLBackEndClass
     
     % for now, hard-coded to use default loc for git
@@ -19,8 +19,7 @@ classdef APT
 
     % hardcoded name of AWS security group
     AWS_SECURITY_GROUP = 'apt_dl';
-    AMI = 'ami-0168f57fb900185e1';
-    
+    AMI = 'ami-0168f57fb900185e1';  
   end
   
   methods (Static)
@@ -62,7 +61,8 @@ classdef APT
       m = APT.readManifest;
       
       root = APT.Root;
-      cprroot = fullfile(root,'trackers','cpr');
+      mlroot = fullfile(root,'matlab');
+      cprroot = fullfile(mlroot,'trackers','cpr');
       if isfield(m,'jaaba')
         jaabaroot = m.jaaba;
       elseif isfield(m,'jctrax')
@@ -90,21 +90,22 @@ classdef APT
       end
       aptpath = { ...
         root; ...
-        fullfile(root,'util'); ...
-        fullfile(root,'misc'); ...
-        fullfile(root,'private_imuitools'); ...
-        fullfile(root,'netlab'); ...
-        fullfile(root,'user'); ...
-        fullfile(root,'user','orthocam'); ...
-        fullfile(root,'user','orthocam',visionpath); ...
-        fullfile(root,'YAMLMatlab_0.4.3'); ...
-        fullfile(root,'JavaTableWrapper'); ...
-        fullfile(root,'propertiesGUI'); ...
-        fullfile(root,'treeTable'); ...
-        fullfile(root,'jsonlab-1.2','jsonlab'); ...
+        mlroot; ...
+        fullfile(mlroot,'util'); ...
+        fullfile(mlroot,'misc'); ...
+        fullfile(mlroot,'private_imuitools'); ...
+        fullfile(root,'external','netlab'); ...
+        fullfile(mlroot,'user'); ...
+        fullfile(mlroot,'user','orthocam'); ...
+        fullfile(mlroot,'user','orthocam',visionpath); ...
+        fullfile(mlroot,'YAMLMatlab_0.4.3'); ...
+        fullfile(mlroot,'JavaTableWrapper'); ...
+        fullfile(mlroot,'propertiesGUI'); ...
+        fullfile(mlroot,'treeTable'); ...
+        fullfile(mlroot,'jsonlab-1.2','jsonlab'); ...
         fullfile(root,'test'); ...
-        fullfile(root,'compute_landmark_features'); ...
-        fullfile(root,'compute_landmark_transforms'); ...
+        fullfile(mlroot,'compute_landmark_features'); ...
+        fullfile(mlroot,'compute_landmark_transforms'); ...
         };
       
       cprpath = { ...
@@ -116,7 +117,7 @@ classdef APT
         };
       
       dtpath = { ...
-        fullfile(root,'trackers','dt'); ...
+        fullfile(mlroot,'trackers','dt'); ...
         };
 
       jaabapath = { ...
@@ -142,9 +143,9 @@ classdef APT
       
       jp = {...
         fullfile(root,'java','APTJava.jar'); ...
-        fullfile(root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
-        fullfile(root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
-        fullfile(root,'treeTable')};
+        fullfile(mlroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
+        fullfile(mlroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
+        fullfile(mlroot,'treeTable')};
     end
     
     function jaabapath = getjaabapath()
@@ -159,6 +160,7 @@ classdef APT
     function setpath()
       
       [p,jp] = APT.getpath();
+      addpath(fullfile(APT.Root,'matlab')); % for javaaddpathstatic
       cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
       
@@ -200,10 +202,10 @@ classdef APT
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
-       %MK 20190506 Add stuff to systems path for aws cli
-       if ismac
+      %MK 20190506 Add stuff to systems path for aws cli
+      if ismac
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
-       end
+      end
     end
   
     function tf = matlabPathNotConfigured()
@@ -214,12 +216,6 @@ classdef APT
     function pposetf = getpathdl()
       r = APT.Root;
       pposetf = fullfile(r,'deepnet');
-%       m = APT.readManifest;
-%       if isfield(m,'posetf')
-%         pposetf = m.posetf;
-%       else
-%         error('APT:noPath','Cannot find ''posetf'' Manifest specification.');
-%       end
     end
     
     function cacheDir = getdlcacheroot()
@@ -286,7 +282,8 @@ classdef APT
       end      
     end
     
-    function buildAPTCluster(varargin)
+    function buildAPTCluster(varargin) 
+      % OBSOLETE probably broken due to paths/reorg 20191009
       [incsinglethreaded,bindirname] = myparse(varargin,...
         'incsinglethreaded',true,...
         'bindirname',[]... % custom binary output dir, eg '20180709.feature.deeptrack'. Still located underneath Manifest:build dir
@@ -320,6 +317,9 @@ classdef APT
       Ipth = [repmat({'-I'},numel(pth),1) pth];
       Ipth = Ipth';      
       aptroot = APT.Root;
+      mlroot = fullfile(aptroot,'matlab');
+      % 20191008: paths below are now out of date with repo re-org. 
+      % buildAPTCluster obsolete
       cprroot = fullfile(aptroot,'trackers','cpr');
       dtroot = fullfile(aptroot,'trackers','dt');
       jaabapath = APT.getjaabapath();

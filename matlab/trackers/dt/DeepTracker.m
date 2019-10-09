@@ -2123,7 +2123,7 @@ classdef DeepTracker < LabelTracker
         singBind = obj.genContainerMountPath('aptroot',aptroot);
         singargs = {'bindpath',singBind};
         
-        repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
+        repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
         repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
         prefix = [DeepTracker.jrcprefix '; ' repoSScmd];        
         sshargsuse = [sshargs {'prefix' prefix}];
@@ -2513,7 +2513,7 @@ classdef DeepTracker < LabelTracker
               singBind = obj.genContainerMountPath('aptroot',aptroot,'extra',extradirs); % HERE
               singargs = {'bindpath',singBind};
               
-              repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
+              repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
               repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(imov,ivwjob).snapshotfile);
               prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
               
@@ -3429,7 +3429,7 @@ classdef DeepTracker < LabelTracker
         aptroot = dmc.dirAptRootLnx;
       end
         
-      repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
+      repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,dmc.aptRepoSnapshotLnx);
       prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
       

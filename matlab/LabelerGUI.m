@@ -4292,8 +4292,8 @@ function hfig = splashScreen(handles)
 
 %hparent = handles.figure;
 hfig = nan;
-p = fileparts(mfilename('fullpath'));
-splashimfilename = fullfile(p,'SplashScreen.png');
+p = APT.Root; %fileparts(mfilename('fullpath'));
+splashimfilename = fullfile(p,'gfx','SplashScreen.png');
 if ~exist(splashimfilename,'file'),
   return;
 end
