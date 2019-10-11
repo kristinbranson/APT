@@ -1024,7 +1024,10 @@ def json_load(filename):
 
 def pickle_load(filename):
     with open(filename,'rb') as f:
-        K = pickle.load(f,encoding='latin1')
+        if sys.version_info.major > 2:
+            K = pickle.load(f,encoding='latin1')
+        else:
+            K = pickle.load(f)
     return K
 
 

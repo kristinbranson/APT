@@ -1,9 +1,13 @@
+import movies
+b = movies.Movie('/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190530_vocpbm164564_m164564_odor_m164301_f0_164992.mjpg')
 
+
+##
 import run_apt_expts as rae
-# reload(rae)
-rae.setup('alice')
-rae.get_no_pretrained_results()
-
+rae.setup('stephen')
+for round in range(5):
+    rae.dlc_aug_use_round = round
+    rae.get_dlc_results()
 
 
 ##

@@ -1,5 +1,6 @@
 
 all_types = ['openpose','mdn','unet','resnet_unet','deeplabcut','leap']
+all_types = ['openpose','mdn','unet','resnet_unet','deeplabcut']
 import APT_interface as apt
 import tensorflow as tf
 import os
@@ -7,7 +8,6 @@ import multiprocessing
 import tempfile
 import time
 import numpy as np
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 files = [['https://www.dropbox.com/s/mo2jfdmzzsz6btc/alice_sz90_stripped.lbl?dl=0',181],
          ['https://www.dropbox.com/s/88m1l9u8oi056io/alice_sz150_stripped.lbl?dl=0',300],
@@ -19,7 +19,7 @@ bszs = range(2,12,3)
 
 def find_mem(lbl_file,bsz,net_type,conn,tdir):
     ss = os.path.splitext(os.path.split(lbl_file)[1])[0]
-    cmd = '-cache {} -name {} -conf_params batch_size {} dl_steps 10 display_step 10 op_affinity_graph (0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16) -type {} {} train -use_cache -skip_db'.format(tdir,ss,bsz,net_type, lbl_file)
+    cmd = '-cache {} -name {} -conf_params batch_size {} dl_steps 10 display_step 10 op_affinity_graph (0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16) -type {} {} train -use_cache '.format(tdir,ss,bsz,net_type, lbl_file)
 
     print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     print('batch size: {} label file:{}'.format(bsz,lbl_file))
@@ -61,6 +61,7 @@ for cur_type in all_types:
             if p.is_alive():
                 p.terminate()
             cc.append([mm])
+            time.sleep(15)
         xx.append(cc)
     all_mem_use[cur_type] = np.array(xx)
 

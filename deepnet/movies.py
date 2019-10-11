@@ -1047,55 +1047,59 @@ class CompressedAvi:
 
         if DEBUG_MOVIES: print('Trying to read compressed AVI')
         self.issbfmf = False
-        self.source = cv2.VideoCapture( filename )
-        self.indexed_mjpg = False
         self.filename = filename
-        if not self.source.isOpened():
-            raise IOError( "OpenCV could not open the movie %s" % filename )
 
-        if hasattr(cv2, 'cv'): # OpenCV 2.x
-            self.start_time = self.source.get( cv2.cv.CV_CAP_PROP_POS_MSEC )
-            self.fps = self.source.get( cv2.cv.CV_CAP_PROP_FPS )
-            self.n_frames = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT ) )
-        else: # OpenCV 3.x
-            self.start_time = self.source.get( cv2.CAP_PROP_POS_MSEC )
-            self.fps = self.source.get( cv2.CAP_PROP_FPS )
-            self.n_frames = int( self.source.get( cv2.CAP_PROP_FRAME_COUNT ) )
+        index_file = os.path.splitext(filename)[0] + '.txt'
+        if os.path.splitext(filename)[1] == '.mjpg' and os.path.exists(index_file):
+            with open(index_file) as f:
+                import csv
+                rr = csv.reader(f, delimiter=' ')
+                index_dat = list(rr)
+            self.n_frames = len(index_dat)
+            self.index_dat = num.array(index_dat).astype('float').astype('int')
+            self.indexed_mjpg = True
+            self.fps = 30
+            if DEBUG_MOVIES: print('Mjpg movie has index file. Reading it as indexed jpg')
+            self.start_time = 0.
+            im, _ = self.get_frame(0)
+            self.width = im.shape[1]
+            self.height = im.shape[0]
+            self.color_depth = im.size//self.width//self.height
 
-        if self.n_frames < 0 and os.path.splitext(filename)[1] == '.mjpg':
-            index_file = os.path.splitext(filename)[0]  + '.txt'
-            if os.path.exists(index_file):
-                with open(index_file) as f:
-                    import csv
-                    rr = csv.reader(f,delimiter=' ')
-                    index_dat = list(rr)
-                self.n_frames = len(index_dat)
-                self.index_dat = num.array(index_dat).astype('float').astype('int')
-                self.indexed_mjpg = True
-            else:
+        else:
+            self.source = cv2.VideoCapture( filename )
+            self.indexed_mjpg = False
+            if not self.source.isOpened():
+                raise IOError( "OpenCV could not open the movie %s" % filename )
+
+            if hasattr(cv2, 'cv'): # OpenCV 2.x
+                self.start_time = self.source.get( cv2.cv.CV_CAP_PROP_POS_MSEC )
+                self.fps = self.source.get( cv2.cv.CV_CAP_PROP_FPS )
+                self.n_frames = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT ) )
+            else: # OpenCV 3.x
+                self.start_time = self.source.get( cv2.CAP_PROP_POS_MSEC )
+                self.fps = self.source.get( cv2.CAP_PROP_FPS )
+                self.n_frames = int( self.source.get( cv2.CAP_PROP_FRAME_COUNT ) )
+            if self.n_frames < 0 and os.path.splitext(filename)[1] == '.mjpg':
                 raise IOError("MJPG movie files doesn't have index file at the default location {}".format(index_file) )
 
-        self.frame_delay_us = 1e6 / self.fps
+            # read in the width and height of each frame
+            if hasattr(cv2, 'cv'): # OpenCV 2.x
+                self.width = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_WIDTH ) )
+                self.height = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_HEIGHT ) )
+            else: # OpenCV 3.x
+                self.width = int( self.source.get( cv2.CAP_PROP_FRAME_WIDTH ) )
+                self.height = int( self.source.get( cv2.CAP_PROP_FRAME_HEIGHT ) )
+            # compute the bits per pixel
+            retval, im = self.source.read()
+            im = num.frombuffer(im.data,num.uint8)
+            self.color_depth = len(im)//self.width//self.height
 
-        # added to help masquerade as FMF file:
-        self.filename = filename
-
-        # read in the width and height of each frame
-        if hasattr(cv2, 'cv'): # OpenCV 2.x
-            self.width = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_WIDTH ) )
-            self.height = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_HEIGHT ) )
-        else: # OpenCV 3.x
-            self.width = int( self.source.get( cv2.CAP_PROP_FRAME_WIDTH ) )
-            self.height = int( self.source.get( cv2.CAP_PROP_FRAME_HEIGHT ) )
         self.MAXBUFFERSIZE = num.round(200*1000*1000./self.width/self.height)
         self.keyframe_period = 100 ##################
         self.buffersize = int(min(self.MAXBUFFERSIZE,self.keyframe_period))
         if DEBUG_MOVIES: print('buffersize set to ' + str(self.buffersize))
 
-        # compute the bits per pixel
-        retval, im = self.source.read()
-        im = num.frombuffer(im.data,num.uint8)
-        self.color_depth = len(im)//self.width//self.height
         if self.color_depth != 1 and self.color_depth != 3:
             raise ValueError( 'color_depth = %d, only know how to deal with color_depth = 1 or colr_depth = 3'%self.color_depth )
         self.bits_per_pixel = self.color_depth * 8
@@ -1104,9 +1108,14 @@ class CompressedAvi:
         self.buffer = num.zeros((self.height,self.width,self.color_depth,self.buffersize),dtype=num.uint8)
         self.bufferts = num.zeros(self.buffersize)
 
-        # put the first frame in it
-        self.seek( 0 )
-        (frame,ts) = self.get_next_frame_and_reset_buffer()
+        self.frame_delay_us = 1e6 / self.fps
+        # added to help masquerade as FMF file:
+
+        if not self.indexed_mjpg:
+            # put the first frame in it
+            self.seek( 0 )
+            (im_,ts) = self.get_next_frame_and_reset_buffer()
+
         if DEBUG_MOVIES: print("Done initializing CompressedAVI")
 
 
