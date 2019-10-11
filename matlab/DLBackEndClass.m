@@ -23,17 +23,18 @@ classdef DLBackEndClass < handle
     
     awsec2 % used only for type==AWS
     
-    aptdockerimgroot = 'bransonlabapt/apt_docker';
-    aptdockerimgtag = ''; % optional tag eg 'tf1.6'
+    dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
+    dockerimgroot = 'bransonlabapt/apt_docker';
+    dockerimgtag = 'latest'; % optional tag eg 'tf1.6'
     
     condaEnv = 'APT'; % used only for Conda
   end
   properties (Dependent)
     filesep
-    aptdockerimg % full docker img spec (with tag if specified)
+    dockerimgfull % full docker img spec (with tag if specified)
   end
   
-  methods
+  methods % Prop access
     function v = get.filesep(obj)
       if obj.type == DLBackEnd.Conda,
         v = filesep;
@@ -41,10 +42,10 @@ classdef DLBackEndClass < handle
         v = '/';
       end
     end
-    function v = get.aptdockerimg(obj)
-      v = obj.aptdockerimgroot;
-      if ~isempty(obj.aptdockerimgtag)
-        v = [v ':' obj.aptdockerimgtag];
+    function v = get.dockerimgfull(obj)
+      v = obj.dockerimgroot;
+      if ~isempty(obj.dockerimgtag)
+        v = [v ':' obj.dockerimgtag];
       end
     end
   end
@@ -56,8 +57,8 @@ classdef DLBackEndClass < handle
         % save state
         obj.deepnetrunlocal = oldbe.deepnetrunlocal;
         obj.awsec2 = oldbe.awsec2;
-        obj.aptdockerimgroot = oldbe.aptdockerimgroot;
-        obj.aptdockerimgtag = oldbe.aptdockerimgtag;
+        obj.dockerimgroot = oldbe.dockerimgroot;
+        obj.dockerimgtag = oldbe.dockerimgtag;
         obj.condaEnv = oldbe.condaEnv;
       end
       
@@ -170,7 +171,7 @@ classdef DLBackEndClass < handle
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
       
       [dockerimg,minFreeMem,condaEnv,verbose] = myparse(varargin,...
-        'dockerimg',obj.aptdockerimg,...
+        'dockerimg',obj.dockerimgfull,...
         'minfreemem',obj.minFreeMem,...
         'condaEnv',obj.condaEnv,...
         'verbose',0 ...
@@ -182,37 +183,12 @@ classdef DLBackEndClass < handle
       aptdeepnet = APT.getpathdl;
       
       switch obj.type,
-        case DLBackEnd.Docker,
-          if isempty(APT.DOCKER_REMOTE_HOST),
-            dockercmd = 'docker';
-            dockercmdend = '';
-            filequote = '"';
-          else
-            dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
-            dockercmdend = '"';
-            filequote = '\"';
-          end
-    
-          parsenvidiasmi = sprintf('%s%sparse_nvidia_smi.py',aptdeepnet,obj.filesep);
-          parsenvidiasmi = [filequote parsenvidiasmi filequote];
-          aptdeepnetguard = [filequote aptdeepnet filequote];
-          %aptdeepnetguard = String.escapeSpaces(aptdeepnet);
-          basecmd = sprintf('echo START; python %s; echo END',parsenvidiasmi);
+        case DLBackEnd.Docker
+          basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnet}; % don't use guarded
-          mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),bindpath,'uni',0);
-          mountArgs = sprintf('%s ',mountArgs{:});
-          codestr = {...
-            dockercmd 'run' '-i' ...
-            '--runtime' 'nvidia' ...
-            '--rm' ...
-            '--user $(id -u)' ...
-            '-w' aptdeepnetguard ...
-            mountArgs ...
-            dockerimg ...
-            sprintf('bash -c ''cd %s; %s''%s',aptdeepnetguard,basecmd,dockercmdend) ...
-            };
-          codestr = String.cellstr2DelimList(codestr,' ');
-          %codestr = sprintf('%s run -i --runtime nvidia --rm --user $(id -u) -w %s %s %s bash -c ''cd %s; %s''%s',dockercmd,aptdeepnet,mountArgs,dockerimg,aptdeepnet,basecmd,dockercmdend);
+          codestr = obj.codeGenDockerGeneral(basecmd,'aptTestContainer',...
+            'bindpath',bindpath,...
+            'detach',false);
           if verbose
             fprintf(1,'%s\n',codestr);
           end
@@ -269,27 +245,24 @@ classdef DLBackEndClass < handle
       gpuid = gpuInfo.id(order(1:nrequest));        
     end
     
-%     function tf = filesysAreCompatible(obj,obj2)
-%       assert(isscalar(obj) && isscalar(obj2));
-%     end
   end
   
-   methods (Static)    
+  methods (Static)
     
     function [hfig,hedit] = createFigTestConfig(figname)
       hfig = dialog('Name',figname,'Color',[0,0,0],'WindowStyle','normal');
       hedit = uicontrol(hfig,'Style','edit','Units','normalized',...
-      'Position',[.05,.05,.9,.9],'Enable','inactive','Min',0,'Max',10,...
-      'HorizontalAlignment','left','BackgroundColor',[.1,.1,.1],...
-      'ForegroundColor',[0,1,0]);
+        'Position',[.05,.05,.9,.9],'Enable','inactive','Min',0,'Max',10,...
+        'HorizontalAlignment','left','BackgroundColor',[.1,.1,.1],...
+        'ForegroundColor',[0,1,0]);
     end
     
     function [tfsucc,hedit] = testBsubConfig(cacheDir,varargin)
       tfsucc = false;
       [host] = myparse(varargin,'host',DeepTracker.jrchost);
-
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');      
-      hedit.String = {sprintf('%s: Testing JRC cluster backend...',datestr(now))}; 
+      
+      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
+      hedit.String = {sprintf('%s: Testing JRC cluster backend...',datestr(now))};
       drawnow;
       
       % test that you can ping jrc host
@@ -315,7 +288,7 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = 'SUCCESS!'; drawnow;
       
       % test that we can connect to jrc host and access CacheDir on it
-     
+      
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = sprintf('** Testing that we can do passwordless ssh to %s...',host); drawnow;
       touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
@@ -353,16 +326,174 @@ classdef DLBackEndClass < handle
         hedit.String{end+1} = sprintf('Error running bjobs on %s',host); drawnow;
         return;
       end
-      hedit.String{end+1} = 'SUCCESS!'; 
-      hedit.String{end+1} = ''; 
+      hedit.String{end+1} = 'SUCCESS!';
+      hedit.String{end+1} = '';
       hedit.String{end+1} = 'All tests passed. JRC Backend should work for you.'; drawnow;
       
-      tfsucc = true;      
-    end    
-   end
+      tfsucc = true;
+    end
+    
+    function [tfsucc,clientver,clientapiver] = getDockerVers
+      % Run docker cli to get docker versions
+      %
+      % tfsucc: true if docker cli command successful
+      % clientver: if tfsucc, char containing client version; indeterminate otherwise
+      % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
+      
+      if isempty(APT.DOCKER_REMOTE_HOST),
+        dockercmd = 'docker';
+        dockercmdend = '';
+        filequote = '"';
+      else
+        dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+        dockercmdend = '"';
+        filequote = '\"';
+      end    
+      
+      FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
+      cmd = sprintf('%s version --format ''%s''%s',dockercmd,FMTSPEC,dockercmdend);
+      
+      tfsucc = false;
+      clientver = '';
+      clientapiver = '';
+        
+      [st,res] = system(cmd);
+      if st~=0
+        return;
+      end
+      
+      res = regexp(res,'\n','split'); % in case of ssh
+      res = res{1};      
+      res = strtrim(res);
+      toks = regexp(res,'#','split');
+      if numel(toks)~=2
+        return;
+      end
+      
+      tfsucc = true;
+      clientver = toks{1};
+      clientapiver = toks{2};
+    end
+    
+  end
    
-   methods
+  methods % Docker
 
+    function filequote = getFileQuoteDockerCodeGen(obj) %#ok<MANU>
+      % get filequote to use with codeGenDockerGeneral      
+      if isempty(APT.DOCKER_REMOTE_HOST)
+        % local Docker run
+        filequote = '"';
+      else
+        filequote = '\"';
+      end
+    end
+    
+    function codestr = codeGenDockerGeneral(obj,basecmd,containerName,varargin)
+      % Take a base command and run it in a docker img
+      %
+      % basecmd: currently assumed to have any filenames/paths protected by
+      %   filequote as returned by obj.getFileQuoteDockerCodeGen
+      
+      DFLTBINDPATH = {};
+      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = ...
+        myparse(varargin,...
+        'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
+        'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
+        'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
+        'isgpu',true,... % set to false for CPU-only
+        'gpuid',0,... % used if isgpu
+        'detach',true ...
+        );
+      
+      aptdeepnet = APT.getpathdl;
+      
+      tfWinAppLnxContainer = ispc;
+      if tfWinAppLnxContainer
+        % 1. Special treatment for bindpath. src are windows paths, dst are
+        % linux paths inside /mnt.
+        % 2. basecmd massage. All paths in basecmd will be windows paths;
+        % these need to be replaced with the container paths under /mnt.
+        srcbindpath = bindpath;
+        dstbindpath = cellfun(...
+          @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
+          srcbindpath,'uni',0);
+        mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
+          srcbindpath,dstbindpath,'uni',0);
+        deepnetrootContainer = ...
+          DeepTracker.codeGenPathUpdateWin2LnxContainer(aptdeepnet,bindMntLocInContainer);
+        userArgs = {};
+        bashCmdQuote = '"';
+      else
+        mountArgsFcn = @(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x);
+        % Can use raw bindpaths here; already in single-quotes, addnl
+        % quotes unnec
+        mountArgs = cellfun(mountArgsFcn,bindpath,'uni',0);
+        deepnetrootContainer = aptdeepnet;
+        userArgs = {'--user' '$(id -u)'};
+        bashCmdQuote = '''';
+      end
+      
+      if isgpu
+        %nvidiaArgs = {'--runtime nvidia'};
+        gpuArgs = {'--gpus' 'all'};
+        cudaEnv = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d;',gpuid);
+      else
+        gpuArgs = cell(1,0);
+        cudaEnv = '';
+      end
+      
+      homedir = getenv('HOME');
+      
+      dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
+      
+      if isempty(APT.DOCKER_REMOTE_HOST),
+        % local Docker run
+        dockercmd = sprintf('%s docker',dockerApiVerExport);
+        dockercmdend = '';
+        filequote = '"';
+      else
+        if tfWinAppLnxContainer
+          error('Docker execution on remote host currently unsupported on Windows.');
+          % Might work fine, maybe issue with double-quotes
+        end
+        dockercmd = sprintf('ssh -t %s "%s docker',APT.DOCKER_REMOTE_HOST,dockerApiVerExport);
+        dockercmdend = '"';
+        filequote = '\"';
+      end
+      
+      if tfDetach,
+        detachstr = '-d';
+      else
+        detachstr = '-i';
+      end
+      
+      codestr = [
+        {
+        dockercmd
+        'run'
+        detachstr
+        sprintf('--name %s',containerName);
+        '--rm'
+        };
+        mountArgs(:);
+        gpuArgs(:);
+        userArgs(:);
+        {
+        '-w'
+        [filequote deepnetrootContainer filequote]
+        dockerimg
+        sprintf('bash -c %sexport HOME=%s; %s cd %s; %s%s%s',...
+         bashCmdQuote,[filequote homedir filequote],cudaEnv,...
+         [filequote deepnetrootContainer filequote],basecmd,... % basecmd should have filenames protected by \"
+         bashCmdQuote,dockercmdend);
+        }
+        ];
+      
+      codestr = sprintf('%s ',codestr{:});
+      codestr = codestr(1:end-1);
+    end
+    
     function [tfsucc,hedit] = testDockerConfig(obj)
       tfsucc = false;
       %[host] = myparse(varargin,'host',DeepTracker.jrchost);
@@ -378,11 +509,9 @@ classdef DLBackEndClass < handle
       if isempty(APT.DOCKER_REMOTE_HOST),
         dockercmd = 'docker';
         dockercmdend = '';
-        filequote = '"';
       else
         dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
         dockercmdend = '"';
-        filequote = '\"';
       end      
       cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
       fprintf(1,'%s\n',cmd);
@@ -397,49 +526,40 @@ classdef DLBackEndClass < handle
       end
       hedit.String{end+1} = 'SUCCESS!'; drawnow;
       
-%       % nvidia-docker nvidia-smi
-%       hedit.String{end+1} = ''; drawnow;
-%       hedit.String{end+1} = '** Testing nvidia-docker with nvidia-smi...\n'; drawnow;
-%       cmd = 'docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi';
-%       hedit.String{end+1} = cmd; drawnow;
-%       [st,res] = system(cmd);
-%       reslines = splitlines(res);
-%       reslinesdisp = reslines(1:min(4,end));
-%       hedit.String = [hedit.String; reslinesdisp(:)];
-%       if st~=0
-%         hedit.String{end+1} = 'FAILURE. Error with nvidia-docker run command.'; drawnow;
-%         return;
-%       end
-%       hedit.String{end+1} = 'SUCCESS!'; drawnow;
+      % docker (api) version
+      hedit.String{end+1} = ''; drawnow;
+      hedit.String{end+1} = '** Checking docker API version...'; drawnow;
+      
+      [tfsucc,clientver,clientapiver] = DLBackEndClass.getDockerVers;
+      if ~tfsucc        
+        hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
+        return;
+      end
+      % In this conditional we assume the apiver numbering scheme continues
+      % like '1.39', '1.40', ... 
+      if ~(str2double(clientapiver)>=str2double(obj.dockerapiver))          
+        hedit.String{end+1} = ...
+          sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
+            clientapiver,obj.dockerapiver);
+        drawnow;
+        return;
+      end        
+      succstr = sprintf('SUCCESS! Your Docker API version is %s.',clientapiver);
+      hedit.String{end+1} = succstr; drawnow;      
       
       % APT hello
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing APT deepnet library...'; drawnow;
       deepnetroot = [APT.Root '/deepnet'];
-      deepnetrootguard = [filequote deepnetroot filequote];
-%       if isempty(APT.DOCKER_REMOTE_HOST),
-%         dockercmd = 'docker';
-%         dockercmdend = '';
-%       else
-%         dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
-%         dockercmdend = '"';
-%       end
-      cmd = { ...
-        dockercmd 'run' '-it' ...
-        '--runtime' 'nvidia' ...
-        '--rm' ...
-        sprintf('--mount ''type=bind,src=%s,dst=%s''',deepnetroot,deepnetroot) ...
-        '-w' deepnetrootguard ...
-        obj.aptdockerimg ...
-        sprintf('python APT_interface.py lbl test hello%s',dockercmdend) ...
-        };
-      cmd = String.cellstr2DelimList(cmd,' ');
-%       cmd = sprintf('%s run -it --runtime nvidia --rm -v %s:%s -w %s %s python APT_interface.py lbl test hello%s',...
-%         dockercmd,deepnetroot,deepnetroot,deepnetroot,obj.aptdockerimg,dockercmdend);
+      %deepnetrootguard = [filequote deepnetroot filequote];
+      basecmd = 'python APT_interface.py lbl test hello';
+      cmd = obj.codeGenDockerGeneral(basecmd,'containerTest',...
+        'detach',false,...
+        'bindpath',{deepnetroot});      
       RUNAPTHELLO = 1;
       if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
-        fprintf(1,'%s\n',cmd);
-        hedit.String{end+1} = cmd; drawnow;
+        %fprintf(1,'%s\n',cmd);
+        %hedit.String{end+1} = cmd; drawnow;
         [st,res] = system(cmd);
         reslines = splitlines(res);
         reslinesdisp = reslines(1:min(4,end));
@@ -453,7 +573,7 @@ classdef DLBackEndClass < handle
       
       % free GPUs
       hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Looking for free GPUs ...\n'; drawnow;
+      hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
       [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
         hedit.String{end+1} = 'FAILURE. Could not find free GPUs.'; drawnow;
@@ -466,6 +586,10 @@ classdef DLBackEndClass < handle
       
       tfsucc = true;      
     end
+    
+  end
+  
+  methods % AWS
     
     function [tfsucc,hedit] = testAWSConfig(obj,varargin)
       tfsucc = false;
@@ -603,8 +727,6 @@ classdef DLBackEndClass < handle
       
       tfsucc = true;      
     end
-
-
     
   end
   

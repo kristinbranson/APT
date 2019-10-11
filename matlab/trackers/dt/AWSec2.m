@@ -806,9 +806,9 @@ classdef AWSec2 < handle
         );
 
       if reqnonempty
-        script = '~/APT/misc/fileexistsnonempty.sh';
+        script = '~/APT/matlab/misc/fileexistsnonempty.sh';
       else
-        script = '~/APT/misc/fileexists.sh';
+        script = '~/APT/matlab/misc/fileexists.sh';
       end
       if size > 0
         cmdremote = sprintf('%s %s %d',script,f,size);
@@ -941,7 +941,7 @@ classdef AWSec2 < handle
       
       fspollstr = sprintf('%s ',fspollargs{:});
       fspollstr = fspollstr(1:end-1);
-      cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollstr);
+      cmdremote = sprintf('~/APT/matlab/misc/fspoll.py %s',fspollstr);
 
       [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
       if tfsucc

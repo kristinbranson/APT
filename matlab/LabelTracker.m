@@ -170,6 +170,14 @@ classdef LabelTracker < handle
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
+    function xy = getPredictionCurrentFrame(obj)
+      % Convenience meth
+      %
+      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
+      
+      xy = [];
+    end
+
     function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
       % This is a convenience method as it is a special case of 
       % getTrackingResults. Concrete LabelTrackers will also typically have 
@@ -213,11 +221,6 @@ classdef LabelTracker < handle
       s = struct('class',classname(obj));
     end
     
-    function xy = getPredictionCurrentFrame(obj)
-      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
-      xy = [];
-    end
-
     function importTrackingResults(obj,iMovSgned,trkfiles)
       % Import tracking results for movies iMovs.
       % Default implemation ERRORS

@@ -476,7 +476,7 @@ aptroot = APT.getRoot;
 
 s = struct();
 for f=fieldnames(specs)',f=f{1}; %#ok<FXSET>  
-  s.(f).yaml = fullfile(aptroot,specs.(f){:});
+  s.(f).yaml = fullfile(aptroot,'matlab',specs.(f){:});
   yamlcontents = parseConfigYaml(s.(f).yaml);
   if any(strcmp(f,nets))
     % AL 20190711: automatically create requirements for all deep net
