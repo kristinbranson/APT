@@ -395,9 +395,6 @@ classdef Labeler < handle
   end
   properties
     labeledpos2trkViz % scalar TrackingVisualizerMT
-%     labeledpos2_ptsH;     % [npts]
-%     labeledpos2_ptsTxtH;  % [npts]    
-%     lblOtherTgts_ptsH;    % [npts]
   end
   
   properties
@@ -4222,10 +4219,13 @@ classdef Labeler < handle
         
       obj.isinit = isInitOrig; % end Initialization hell      
 
+      % needs to be done after trx are set as labels2trkviz handles
+      % multiple targets.
+      % 20191017 done for every movie because different movies may have
+      % diff numbers of targets.
+      obj.labels2TrkVizInit();
+      
       if isFirstMovie
-        % needs to be done after trx are set as labels2trkviz handles 
-        % multiple targets.
-        obj.labels2TrkVizInit();
         if obj.labelMode==LabelMode.TEMPLATE
           % Setting the template requires the .trx to be appropriately set,
           % so for template mode we redo this (it is part of labelingInit()
@@ -11750,7 +11750,7 @@ classdef Labeler < handle
       %fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
 
       
-      fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
+      %fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
       
     end
     
