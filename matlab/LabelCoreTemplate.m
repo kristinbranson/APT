@@ -3,10 +3,9 @@ classdef LabelCoreTemplate < LabelCore
   
   % DESCRIPTION
   % In Template mode, there is a set of template/"white" points on the
-  % image at all times. (When starting, these points need to be either
-  % specified or loaded/imported.) To label a frame, adjust the points as 
-  % necessary and accept. Adjusted points are shown in colors (rather than
-  % white).
+  % image at all times. (When starting, these points are randomized.) To 
+  % label a frame, adjust the points as necessary and accept. Adjusted 
+  % points are shown in colors (rather than white).
   %
   % Points may also be Selected using hotkeys (0..9). When a point is
   % selected, the arrow-keys adjust the point as if by mouse. Mouse-clicks
@@ -14,14 +13,96 @@ classdef LabelCoreTemplate < LabelCore
   % Adjustment of a point in this way is identical in concept to
   % click-dragging.
   %
-  % To mark a point as FullyOccluded, select it with a hotkey and click in 
-  % the occluded box. To un-occlude, select it with a hotkey and click in 
-  % the main image.
-  %
   % To toggle a point as EstimatedOccluded, right-click on the point, or
   % use the 'o' hotkey.
+  
+  % DETAILED DESC
+  % Indiv points, Adjustedness. 
+  %  Unadjusted points. These have not been touched by a human. If tracking 
+  %   results do not exist, these points are shown in white and are placed 
+  %   at guesstimates to their true location. 
+  % 
+  %   If tracking results do exist, then these points are currently shown
+  %   with a larger marker and thinner linestyle.
   %
+  %   For now, unadjusted points can be selected or estocc'ed and this does
+  %   not alter their unadjusted-ness. ESTOCC SHOULD ADJUST
+  %  Adjusted points. These have been click-dragged,
+  %   selected-and-mouseclicked, or selected-and-arrow-moved. Their
+  %   unadjusted-modification to point cosmetics is removed. Adjusted
+  %   points may still be selected.
   %
+  % Overall state, Adjust vs Accepted.
+  %  The current frame can be in an overall Accepted or overall Adjusting
+  %  state. In the Accepted state, the "Accept" button is depressed and all
+  %  points appear as if adjusted. Points can still be selected/est-occ'ed 
+  %  without exiting this state. OCCING SHOULD ENTER ADJUST
+  %
+  %  The alternative overall state is Adjusting, where the labels/points
+  %  differ in some respect from what is "recorded in the "DB". In this
+  %  state, navigation to another frame and returning will result in
+  %  reversion of the points to their stored state. To record the
+  %  adjustments, the user must press Accept.
+  
+  % MARKER COSMETICS 
+  %
+  % The baseline cosmetics are stored in .ptsPlotInfo (ppi) which is 
+  % initted from lObj.labelPointsPlotInfo. Currently LabelCoreTemplate does 
+  % not consider lObj.predPointsPlotInfo even though it does display 
+  % tracking; the tracking is shown as a labeling aide.
+  %
+  % Marker. The .Marker prop is affected by:
+  %   * Selected-ness: 0 or 1. 
+  %     - 1 currently hardcoded to use 'x'
+  %   * Est-occluded-ness: 0 or 1
+  %     - 1 currently hardcoded to 'o'; 's' for Selected&EstOcc
+  %
+  % MarkerColor. The marker Color is currently only affected by
+  % Adjusted-ness; unadj-raw are white and everything else is per ppi.
+  % 
+  % OtherMarkerProps (Size, LineWidth). This is affected by:
+  %   * Adjusted-ness: {adj, unadj-raw, unadj-w-trk}
+  %     - unadj-raw currently is the same as adj.
+  %     - unadj-w-trk uses a larger/thinner marker.
+  %
+  % Marker Text Label: Currently only the .FontAngle mutates; it is
+  %   italicized for unadj-w-trk.
+
+  % SUB APIS
+  %
+  % Adjustedness is stored in .tfAdjusted and should be mutated only with
+  % the adjusted* api. 
+  % (Adjustedness affects {Color, OtherMarkerProps, MarkerTextLabel})
+  %
+  % Selectedness.
+  % A selected point is one that is currently being "worked on". This gives
+  % the point "focus" and enables eg using arrow keys for adjustment. Only 
+  % one point can be selected at a time. 
+  %
+  % Selectedness is stored in .tfSel and should be mutated only through the
+  % LabelCore/selected* api. Selectedness is indicated in the UI via hPt
+  % markers; use refreshPtMarkers() to update the UI.
+  %
+  % Estimated-occluded-ness.
+  % An estimated-occluded point is one whose position is uncertain to some
+  % degree due to occlusions in the image. 
+  %
+  % Estimated-occ-ness is stored in .tfEstOcc and should be mutated only
+  % through toggleEstOcc. Est-occ-ness is indicated in the UI via hPt
+  % markers, and again refreshPtMarkers() is the universal update.
+  %
+  % This business is pretty complicated and the factoring between LCT and
+  % LC seems somehow suboptimal or outdated at this pt.
+  % Marker <= (affected by) Sel, EO
+  % MarkerProps: <= tfAdj, hasTrk
+  % Color <= tfAdj
+  % MarkerText <= tfAdj, hasTrk
+  % Coords => LabelCore
+  % Selected => LabelCore API => Marker
+  % Adj => LabelCoreTemplate API => MarkerProps, Color, MarkerTxt
+  % EO => LabelCore => Marker
+  
+  % --- OLDER NOTES BELOW ---
   % IMPL NOTES
   % 2 basic states, Adjusting and Accepted
   % - Adjusting, unlabeled frame underneath
@@ -62,37 +143,7 @@ classdef LabelCoreTemplate < LabelCore
   % - New target (same frame), labeled
   % -- Previously accepted labels shown as colored points.
   
-  % STATE + COSMETICS (besides the coordinates)
-  %
-  % Adjustedness. 
-  % Conceptually, unadjusted points have not been touched by a person. They 
-  % are either template-guesses (white) or template-from-tracking-
-  % predictions (colored, but with different markersize/linewidth). 
-  % Existing labels, or points that have been moved have been adjusted. 
-  % Currently, as an implementation edge case, toggling selectedness (see 
-  % next) or estocc-ness (see next) does not affect adjustness although 
-  % arguably these actions should set adjustedness.
-  %
-  % Adjustedness is stored in .tfAdjusted and should be mutated only with
-  % the adjusted* api. Adjustedness is indicated in the UI via hPt color, 
-  % linewidth, markersize and hPtTxt FontAngle.
-  %
-  % Selectedness.
-  % A selected point is one that is currently being "worked on". This gives
-  % the point "focus" and enables eg using arrow keys for adjustment. Only 
-  % one point can be selected at a time. 
-  %
-  % Selectedness is stored in .tfSel and should be mutated only through the
-  % LabelCore/selected* api. Selectedness is indicated in the UI via hPt
-  % markers; use refreshPtMarkers() to update the UI.
-  %
-  % Estimated-occluded-ness.
-  % An estimated-occluded point is one whose position is uncertain to some
-  % degree due to occlusions in the image. 
-  %
-  % Estimated-occ-ness is stored in .tfEstOcc and should be mutated only
-  % through toggleEstOcc. Est-occ-ness is indicated in the UI via hPt
-  % markers, and again refreshPtMarkers() is the universal update.
+  
 
   properties
     supportsMultiView = false;
@@ -105,13 +156,26 @@ classdef LabelCoreTemplate < LabelCore
     
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from 
                  % template or tracking prediction
+                 
+    % scalar LabelCoreTemplateResetType
+    % The only way to clear/reset point(s) to unadjusted is to call     
+    % setAllPointsUnadjusted. At this time, a LabelCoreTemplateResetType is
+    % passed essentially indicating whether the frame has existing
+    % tracking/predictions or not. We record this, the point being that if
+    % at any time an element of .tfAdjusted is false, this property
+    % indicates whether tracking is present for that unadjusted point.
+    lastSetAllUnadjustedResetType = LabelCoreTemplateResetType.RESET
     
     kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
                  % the '1' hotkey maps to, eg typically this will take the 
                  % values 1, 11, 21, ...
                  
-    hPtsPVRegAdjustedness; % HG PV-pairs for normal marker size, linewidth
-    hPtsPVPredAdjustedness; % " for unadjusted tracking predictions
+    % See cosmetics discussion above. Predicted-unadjustedness (or not)
+    % toggles Marker Color, Other Marker Props, and Marker Txt Angle
+    hPtsMarkerPVPredUnadjusted; % HG PV-pairs for unadjusted tracking predictions
+    hPtsMarkerPVNotPredUnadjusted; % HG PV-pairs for not that; reverts the above
+    hPtsTxtPVPredUnadjusted % etc
+    hPtsTxtPVNotPredUnadjusted
   end  
   
   methods
@@ -133,13 +197,7 @@ classdef LabelCoreTemplate < LabelCore
       npts = obj.nPts;
       obj.tfAdjusted = false(npts,1);
       
-      ppi = obj.ptsPlotInfo;
-      obj.hPtsPVRegAdjustedness = struct( ...
-        'MarkerSize',ppi.MarkerProps.MarkerSize,...
-        'LineWidth',ppi.MarkerProps.LineWidth);
-      obj.hPtsPVPredAdjustedness = struct( ...
-        'MarkerSize',ppi.MarkerProps.MarkerSize*1.5,...
-        'LineWidth',ppi.MarkerProps.LineWidth/2);
+      obj.updatePredUnadjustedPVs();
       
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
@@ -182,9 +240,9 @@ classdef LabelCoreTemplate < LabelCore
       end
       
       assert(iFrm1==lObj.currFrame);
-      [tftrked,lposTrk] = lObj.trackIsCurrMovFrmTracked(iTgt1);
+      [tftrked,lposTrk,occTrk] = lObj.trackIsCurrMovFrmTracked(iTgt1);
       if tftrked
-        obj.assignLabelCoords(lposTrk);
+        obj.assignLabelCoords(lposTrk,'lblTags',occTrk);
         obj.enterAdjust(LabelCoreTemplateResetType.RESETPREDICTED,false);
         return;
       end
@@ -234,6 +292,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function unAcceptLabels(obj)
+      assert(false,'Unsupported');
       obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
     end 
     
@@ -426,6 +485,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
+      % Note: currently occluded axis hidden so this should be uncalled
       
       if ~obj.labeler.isReady,
         return;
@@ -461,6 +521,118 @@ classdef LabelCoreTemplate < LabelCore
         '* Clicking on the image moves the selected point to that location.'};
     end
             
+  end
+  
+  methods % Cosmetics related; LabelCore cosmetics overloads
+    
+    % These overloads exist so that Templatemode-specific cosmetic state
+    % can be updated when core cosmetic state (.ptsPlotInfo) is updated.
+    
+    function updatePredUnadjustedPVs(obj)
+      % update .hPts*PV*Unadjusted from .ptsPlotInfo
+          
+      % Currently we hardcode this but could change in future
+
+      ppi = obj.ptsPlotInfo;
+      obj.hPtsMarkerPVPredUnadjusted = struct( ...
+        'MarkerSize',ppi.MarkerProps.MarkerSize*1.5,...
+        'LineWidth',ppi.MarkerProps.LineWidth/2);
+      obj.hPtsMarkerPVNotPredUnadjusted = struct( ...
+        'MarkerSize',ppi.MarkerProps.MarkerSize,...
+        'LineWidth',ppi.MarkerProps.LineWidth);
+      obj.hPtsTxtPVPredUnadjusted = struct( ...
+        'FontAngle','italics');
+      obj.hPtsTxtPVNotPredUnadjusted = struct( ...
+        'FontAngle',ppi.TextProps.FontAngle);      
+    
+      % 20191018 AL maybe useful pattern later in future
+%       predvizMrkProps = ppi.MarkerProps;
+%       predvizMrkProps.MarkerSize = 1.5*predvizMrkProps.MarkerSize;
+%       predvizMrkProps.LineWidth = predvizMrkProps.LineWidth/2;
+%       predvizTxtProps = ppi.TextProps;
+%       predvizTxtProps.FontAngle = 'italic';
+%       
+%       ppi.TemplateMode.PredViz.MarkerProps = predvizMrkProps;
+%       ppi.TemplateMode.PredViz.TextProps = predvizTxtProps;
+%       obj.ptsPlotInfo = ppi;
+    end
+    
+    function updateColors(obj,colors)
+      % LabelCore overload
+
+      obj.ptsPlotInfo.Colors = colors;
+
+      % Set colors for adjusted pts or unadj/predicted
+      resetType = obj.lastSetAllUnadjustedResetType;
+      tfSetColor = obj.tfAdjusted | ...
+                   resetType==LabelCoreTemplateResetType.RESETPREDICTED;
+      for i = 1:obj.nPts
+        if tfSetColor(i)
+          if numel(obj.hPts) >= i && ishandle(obj.hPts(i)),
+            set(obj.hPts(i),'Color',colors(i,:));
+          end
+          if numel(obj.hPtsTxt) >= i && ishandle(obj.hPtsTxt(i)),
+            set(obj.hPtsTxt(i),'Color',colors(i,:));
+          end
+          % Occ pts currently hidden
+          %         if numel(obj.hPtsOcc) >= i && ishandle(obj.hPtsOcc(i)),
+          %           set(obj.hPtsOcc(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+          %         end
+          %         if numel(obj.hPtsTxtOcc) >= i && ishandle(obj.hPtsTxtOcc(i)),
+          %           set(obj.hPtsTxtOcc(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+          %         end
+
+          % TO DO uncomment
+          % for i = 1:numel(obj.hSkel),
+          % color = obj.ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
+          % set(obj.hSkel(i),'Color',color);
+          % end
+        end
+      end
+    end
+    
+    function updateMarkerCosmetics(obj,pvMarker)
+      flds = fieldnames(pvMarker);
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        obj.ptsPlotInfo.MarkerProps.(f) = pvMarker.(f);
+      end
+      
+      obj.updatePredUnadjustedPVs();
+      
+      obj.refreshPtMarkers(); % updates hPts.Marker
+      obj.refreshMarkerProps(); % updates other marker-related props
+    end
+    
+    function updateTextLabelCosmetics(obj,pvText,txtoffset)
+      % Currently, if pvText includes FontAngle this will collide with 
+      % Unadjusted/Predicted-ness and this will not be handled properly.
+      % (However FontAngle currently *not* exposed in cosmetics picker)
+      
+      flds = fieldnames(pvText);
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        obj.ptsPlotInfo.TextProps.(f) = pvText.(f);
+      end
+      set(obj.hPtsTxt,pvText);
+      
+      obj.ptsPlotInfo.TextOffset = txtoffset;      
+      obj.redrawTextLabels(); % to utilize txtoffset
+    end
+    
+    function refreshMarkerProps(obj)
+      % Refresh marker properties (not including .Marker, .Color) on .hPts
+      % based on .tfAdjusted, .lastSetAllUnadjustedResetType, .hPtsMarkerPV*
+      
+      resetType = obj.lastSetAllUnadjustedResetType;
+      tfAdj = obj.tfAdjusted;
+      
+      % resetType describes/applies to those els of tfAdj that are false
+      tfUnadjPredicted = ~tfAdj & ...
+                         resetType==LabelCoreTemplateResetType.RESETPREDICTED;
+      tfNotUnadjPredicted = ~tfUnadjPredicted;
+      set(obj.hPts(tfNotUnadjPredicted),obj.hPtsMarkerPVNotPredUnadjusted);
+      set(obj.hPts(tfUnadjPredicted),obj.hPtsMarkerPVPredUnadjusted);
+    end
+
   end
   
   methods % template
@@ -573,7 +745,7 @@ classdef LabelCoreTemplate < LabelCore
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
         clr = obj.ptsPlotInfo.Colors(iSel,:);
-        pv = obj.hPtsPVRegAdjustedness;
+        pv = obj.hPtsMarkerPVNotPredUnadjusted;
         pv.Color = clr;
         set(obj.hPts(iSel),pv);
         if ~isempty(obj.hPtsOcc),
@@ -585,7 +757,7 @@ classdef LabelCoreTemplate < LabelCore
     
     function setAllPointsAdjusted(obj)
       clrs = obj.ptsPlotInfo.Colors;
-      pv = obj.hPtsPVRegAdjustedness;
+      pv = obj.hPtsMarkerPVNotPredUnadjusted;
       for i=1:obj.nPts
         pv.Color = clrs(i,:);
         set(obj.hPts(i),pv);
@@ -601,7 +773,7 @@ classdef LabelCoreTemplate < LabelCore
       assert(isa(resetType,'LabelCoreTemplateResetType'));
       switch resetType
         case LabelCoreTemplateResetType.RESET
-          pv = obj.hPtsPVRegAdjustedness;
+          pv = obj.hPtsMarkerPVNotPredUnadjusted;
           pv.Color = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
           set(obj.hPts,pv);
           set(obj.hPtsOcc,pv);
@@ -609,7 +781,7 @@ classdef LabelCoreTemplate < LabelCore
         case LabelCoreTemplateResetType.RESETPREDICTED
           %clrs = rgbbrighten(obj.ptsPlotInfo.Colors,0);
           clrs = obj.ptsPlotInfo.Colors;
-          pv = obj.hPtsPVPredAdjustedness;
+          pv = obj.hPtsMarkerPVPredUnadjusted;
           for i=1:obj.nPts
             pv.Color = clrs(i,:);
             set(obj.hPts(i),pv);
@@ -620,10 +792,11 @@ classdef LabelCoreTemplate < LabelCore
           end
         otherwise
           assert(false);
-      end      
+      end
       obj.tfAdjusted(:) = false;
+      obj.lastSetAllUnadjustedResetType = resetType;
     end
-    
+            
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
       obj.refreshPtMarkers('iPts',iPt);

@@ -697,7 +697,6 @@ classdef LabelCore < handle
         set(hT(i),'Position',[xyT(i,1) xyT(i,2) 1]);
       end
     end
-    
   end
   methods (Static)
     function setPtsCoordsStc(xy,hPts,hTxt,txtOffset)

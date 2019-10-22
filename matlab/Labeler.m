@@ -10453,20 +10453,29 @@ classdef Labeler < handle
       end
     end
     
-    function [tf,lposTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
+    function [tf,lposTrk,occTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
       % tf: scalar logical, true if tracker has results/predictions for 
       %   currentMov/frm/iTgt 
       % lposTrk: [nptsx2] if tf is true, xy coords from tracker; otherwise
       %   indeterminate
+      % occTrk: [npts] if tf is true, point is predicted as occluded
       
       tObj = obj.tracker;
       if isempty(tObj)
         tf = false;
         lposTrk = [];
+        occTrk = [];
       else
-        xy = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+        if isa(tObj,'CPRLabelTracker')
+          xy = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+          occ = false(obj.nLabelPoints,obj.nTargets);
+        else
+          [xy,occ] = tObj.getPredictionCurrentFrame();
+        end
         szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);
+        
         lposTrk = xy(:,:,iTgt);
+        occTrk = occ(:,iTgt);
         tfnan = isnan(xy);
         tf = any(~tfnan(:));
       end
