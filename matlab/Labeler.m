@@ -395,9 +395,6 @@ classdef Labeler < handle
   end
   properties
     labeledpos2trkViz % scalar TrackingVisualizerMT
-%     labeledpos2_ptsH;     % [npts]
-%     labeledpos2_ptsTxtH;  % [npts]    
-%     lblOtherTgts_ptsH;    % [npts]
   end
   
   properties
@@ -4222,10 +4219,13 @@ classdef Labeler < handle
         
       obj.isinit = isInitOrig; % end Initialization hell      
 
+      % needs to be done after trx are set as labels2trkviz handles
+      % multiple targets.
+      % 20191017 done for every movie because different movies may have
+      % diff numbers of targets.
+      obj.labels2TrkVizInit();
+      
       if isFirstMovie
-        % needs to be done after trx are set as labels2trkviz handles 
-        % multiple targets.
-        obj.labels2TrkVizInit();
         if obj.labelMode==LabelMode.TEMPLATE
           % Setting the template requires the .trx to be appropriately set,
           % so for template mode we redo this (it is part of labelingInit()
@@ -10453,20 +10453,29 @@ classdef Labeler < handle
       end
     end
     
-    function [tf,lposTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
+    function [tf,lposTrk,occTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
       % tf: scalar logical, true if tracker has results/predictions for 
       %   currentMov/frm/iTgt 
       % lposTrk: [nptsx2] if tf is true, xy coords from tracker; otherwise
       %   indeterminate
+      % occTrk: [npts] if tf is true, point is predicted as occluded
       
       tObj = obj.tracker;
       if isempty(tObj)
         tf = false;
         lposTrk = [];
+        occTrk = [];
       else
-        xy = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+        if isa(tObj,'CPRLabelTracker')
+          xy = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+          occ = false(obj.nLabelPoints,obj.nTargets);
+        else
+          [xy,occ] = tObj.getPredictionCurrentFrame();
+        end
         szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);
+        
         lposTrk = xy(:,:,iTgt);
+        occTrk = occ(:,iTgt);
         tfnan = isnan(xy);
         tf = any(~tfnan(:));
       end
@@ -11750,7 +11759,7 @@ classdef Labeler < handle
       %fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
 
       
-      fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
+      %fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
       
     end
     
