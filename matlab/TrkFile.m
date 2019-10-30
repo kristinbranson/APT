@@ -132,7 +132,7 @@ classdef TrkFile < dynamicprops
       tbl = struct2table(s);
     end
     
-    function trkfile = mergePartial(obj1,obj2)
+    function mergePartial(obj1,obj2)
       % Merge trkfile into current trkfile. Doesn't merge .pTrkFull* fields 
       % (for now).
       %
@@ -197,7 +197,8 @@ classdef TrkFile < dynamicprops
       obj1.hlpMergePartial(obj2,'pTrkconf_unet',[npttrk nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
       obj1.hlpMergePartial(obj2,'pTrklocs_mdn',[npttrk 2 nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
       obj1.hlpMergePartial(obj2,'pTrklocs_unet',[npttrk 2 nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
-       
+      obj1.hlpMergePartial(obj2,'pTrkocc',[npttrk nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
+
       %obj1.pTrkiPt = obj1.pTrkiPt; unchanged
       obj1.pTrkFrm = frmUnion;
       obj1.pTrkiTgt = iTgtUnion;
