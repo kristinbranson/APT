@@ -5719,20 +5719,37 @@ classdef Labeler < handle
     function labelPosBulkClear(obj,varargin)
       % Clears ALL labels for current GT state -- ALL MOVIES/TARGETS
       
-      gt = myparse(varargin,...
+      [cleartype,gt] = myparse(varargin,...
+        'cleartype','all',... % 'all'=>all movs all tgts
+        ...                   % 'tgt'=>all movs current tgt
+        ...                   % WARNING: 'tgt' assumes target i corresponds across all movies!!
         'gt',obj.gtIsGTMode);
       
       PROPS = Labeler.gtGetSharedPropsStc(gt);
       nMov = obj.getnmoviesGTawareArg(gt);
       
       ts = now;
+      iTgt = obj.currTarget;
       for iMov=1:nMov
-        obj.(PROPS.LPOS){iMov}(:) = nan;        
-        obj.(PROPS.LPOSTS){iMov}(:) = ts;
-        obj.(PROPS.LPOSTAG){iMov}(:) = false;
-        if ~gt
-          % unclear what this should be; marked-ness currently unused
-          obj.labeledposMarked{iMov}(:) = false; 
+        switch cleartype
+          case 'all'
+            obj.(PROPS.LPOS){iMov}(:) = nan;        
+            obj.(PROPS.LPOSTS){iMov}(:) = ts;
+            obj.(PROPS.LPOSTAG){iMov}(:) = false;
+            if ~gt
+              % unclear what this should be; marked-ness currently unused
+              obj.labeledposMarked{iMov}(:) = false; 
+            end
+          case 'tgt'
+            obj.(PROPS.LPOS){iMov}(:,:,:,iTgt) = nan;
+            obj.(PROPS.LPOSTS){iMov}(:,:,iTgt) = ts;
+            obj.(PROPS.LPOSTAG){iMov}(:,:,iTgt) = false;
+            if ~gt
+              % unclear what this should be; marked-ness currently unused
+              obj.labeledposMarked{iMov}(:,:,iTgt) = false; 
+            end            
+          otherwise
+            assert(false);
         end
       end
       if ~gt,
