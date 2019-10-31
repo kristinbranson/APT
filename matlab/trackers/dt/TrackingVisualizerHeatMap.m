@@ -33,7 +33,7 @@ classdef TrackingVisualizerHeatMap < TrackingVisualizer
       obj.heatMapReader.init(hmdir,hmnr,hmnc,nfrm,obj.nPts,ntgt);
     end
     
-    function updateTrackRes(obj,xy,currFrm,currTgt,trxXY,trxTh)
+    function updateTrackRes(obj,xy,tfocc,currFrm,currTgt,trxXY,trxTh)
       % Update 'final tracking' markers; if .heatMapEnable, also update
       % images with heatmap data. Avoid using separate axis or transparent
       % layer for heatmap info for perf issues.
@@ -42,7 +42,7 @@ classdef TrackingVisualizerHeatMap < TrackingVisualizer
       %
       % xy: [npts x 2]
          
-      updateTrackRes@TrackingVisualizer(obj,xy);
+      updateTrackRes@TrackingVisualizer(obj,xy,tfocc);
       
       if obj.heatMapEnable
         ims = obj.hIms;

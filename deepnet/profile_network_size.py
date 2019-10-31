@@ -1,5 +1,5 @@
 
-all_types = ['openpose','mdn','unet','resnet_unet','deeplabcut','leap']
+all_types = ['openpose','mdn','unet','resnet_unet','deeplabcut']
 import APT_interface as apt
 import tensorflow as tf
 import os
@@ -61,6 +61,7 @@ for cur_type in all_types:
             if p.is_alive():
                 p.terminate()
             cc.append([mm])
+            time.sleep(15)
         xx.append(cc)
     all_mem_use[cur_type] = np.array(xx)
 

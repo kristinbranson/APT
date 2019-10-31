@@ -11,8 +11,9 @@ Y = load('/groups/branson/bransonlab/apt/experiments/data/cprXVerrVsHeadPosn2018
 P = load('/groups/branson/home/kabram/bransonlab/PoseTF/headTracking/normal_cv_data.mat');
 
 outdir = '/groups/branson/home/kabram/temp/stephenOut/';
-bodylut = '/groups/branson/home/kabram/bransonlab/APT/user/flynum2bodyAxis.csv';
-mybodylut = '/groups/branson/home/kabram/bransonlab/APT/user/flynum2bodyAxis_linux.csv';
+% 20191009 AL updated paths to matlab code
+bodylut = '/groups/branson/home/kabram/bransonlab/APT/matlab/user/flynum2bodyAxis.csv';
+mybodylut = '/groups/branson/home/kabram/bransonlab/APT/matlab/user/flynum2bodyAxis_linux.csv';
 caliblut = '/groups/huston/hustonlab/flp-chrimson_experiments/fly2DLT_lookupTableStephen.csv';
 
 addpath user/APT2RT/
@@ -70,7 +71,7 @@ end
 
 
 rmpath /groups/branson/bransonlab/mayank/tools/TOOLBOX_calib/
-addpath /groups/branson/bransonlab/mayank/APT/user/APT2RT/matGeom/matGeom/geom3d
+addpath /groups/branson/bransonlab/mayank/APT/matlab/user/APT2RT/matGeom/matGeom/geom3d
 
 flyId_all = X.tMain.flyID;
 

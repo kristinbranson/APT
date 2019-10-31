@@ -5,10 +5,10 @@ urllib.request.urlretrieve(url,'/home/kabram/temp/tt')
 
 ##
 import run_apt_expts as rae
-# reload(rae)
-rae.setup('alice')
-rae.get_no_pretrained_results()
-
+rae.setup('stephen')
+for round in range(5):
+    rae.dlc_aug_use_round = round
+    rae.get_dlc_results()
 
 
 ##
@@ -31,6 +31,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ''
 apt.main(cmd.split())
 
 
+<<<<<<< HEAD
 import APT_interface as apt
 
 cmd = '-cache_dir /home/kabram/temp/apt_cache -name test_sz /home/kabram/temp/20190129T180959_20190129T181147.lbl train -use_cache'
@@ -38,6 +39,8 @@ cmd = '-cache_dir /home/kabram/temp/apt_cache -name test_sz /home/kabram/temp/20
 apt.main(cmd.split())
 ##
 A = movies.Movie('/home/kabram/Dropbox (HHMI)/Results/FlyHogHof/CVResults/frame_of_take_offHOG_run010_pez3002_20140528_expt0024000009730145_vid0012_20150510.avi')
+=======
+>>>>>>> c6e2fc4759574f4d2ee6c7ee54ce1e75f1061bba
 ##
 import run_apt_expts as rae
 reload(rae)

@@ -365,6 +365,16 @@ orig_leap = apt_expts.classify_db_all(conf,gt_file,orig_leap_models,'leap',name=
 out_dict = {'leap':out_leap,'our leap':our_res[0],'leap_orig':orig_leap}
 rae.plot_hist([out_dict,ex_im,ex_loc])
 
+## mdn with and without unet
+import run_apt_expts as rae
+rae.setup('alice')
+rae.run_mdn_no_unet()
+
+
+##
+import run_apt_expts as rae
+rae.setup('alice')
+rae.get_mdn_no_unet_results()
 
 ## Alice active learning different conditions
 

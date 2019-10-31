@@ -51,7 +51,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         fspollargs = ...
           sprintf('exists %s exists %s existsNE %s existsNE %s existsNEerr %s exists %s contents %s',...
             json,finalmdl,errFile,logFile,logFile,killFile,json);
-        cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollargs);
+        cmdremote = sprintf('~/APT/matlab/misc/fspoll.py %s',fspollargs);
 
         [tfpollsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
         if tfpollsucc

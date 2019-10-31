@@ -1005,6 +1005,17 @@ def train_no_pretrained(run_type='status'):
             exp_name = '{}_randsplit_round_{}'.format(data_type, round)
             run_trainining(exp_name,train_type,view,run_type,train_name='no_pretrained',use_pretrained_weights=False,dl_steps=100000,maxckpt=30,save_step=5000)
 
+def run_mdn_no_unet(run_type = 'status'):
+
+    common_conf['dl_steps'] = 100000
+    common_conf['maxckpt'] = 20
+    common_conf['save_time'] = 20 # save every 20 min
+    common_conf['mdn_use_unet_loss'] = False
+
+    train_type = 'mdn'
+    for view in range(nviews):
+        run_trainining('apt_expt',train_type,view, run_type,train_name='no_unet')
+
 
 def run_incremental_training(run_type='status'):
     # Expt where we find out how training error changes with amount of training data
@@ -1196,9 +1207,87 @@ def get_normal_results():
         plot_hist(out_exp)
         save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_time{}'.format(data_type,ndx,gt_name)))
 
+def get_mdn_no_unet_results():
+## Normal Training  ------- RESULTS -------
+    cache_dir = '/nrs/branson/mayank/apt_cache'
+    exp_name = 'apt_expt'
+
+    all_view = []
+
+    for view in range(nviews):
+        out_exp = {}
+
+        gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
+        train_type = 'mdn'
+        for train_name in ['deepnet','no_unet']:
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            # if data_type == 'stephen' and train_type == 'mdn':
+            #     conf.mdn_use_unet_loss = False
+            if op_af_graph is not None:
+                conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+            conf.normalize_img_mean = False
+            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+            files.sort(key=os.path.getmtime)
+            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
+            aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
+            if any([a<0 for a in aa]):
+                bb = int(np.where(np.array(aa)<0)[0])+1
+                files = files[bb:]
+            n_max = 10
+            if len(files)> n_max:
+                gg = len(files)
+                sel = np.linspace(0,len(files)-1,n_max).astype('int')
+                files = [files[s] for s in sel]
+
+
+            out_file = os.path.join(conf.cachedir,'{}_no_unet_results.p'.format(train_name))
+            recomp = False
+            if os.path.exists(out_file):
+                fts = [os.path.getmtime(f) for f in files]
+                ots = os.path.getmtime(out_file)
+                if any([f > ots for f in fts]):
+                    recomp = True
+                else:
+                    A = PoseTools.pickle_load(out_file)
+                    old_files = A[1]
+                    if not all([i==j for i,j in zip(files,old_files)]):
+                        recomp = True
+            else:
+                recomp = True
+
+            # recomp = False
+
+            if recomp:
+                afiles = [f.replace('.index', '') for f in files]
+                if train_name == 'deepnet':
+                    td_file = os.path.join(conf.cachedir,'traindata')
+                else:
+                    td_file = os.path.join(conf.cachedir,conf.expname + '_' + train_name + '_traindata')
+                td = PoseTools.pickle_load(td_file)
+                cur_conf = td[1]
+                mdn_out = apt_expts.classify_db_all(cur_conf,gt_file,afiles,train_type,name=train_name)
+                with open(out_file,'w') as f:
+                    pickle.dump([mdn_out,files],f)
+            else:
+                A = PoseTools.pickle_load(out_file)
+                mdn_out = A[0]
+
+            out_exp[train_name] = mdn_out
+
+        H = multiResData.read_and_decode_without_session(gt_file, conf)
+        ex_im = np.array(H[0][0])[:, :, 0]
+        ex_loc = np.array(H[1][0])
+        all_view.append([out_exp,ex_im,ex_loc])
+
+    for ndx,out_exp in enumerate(all_view):
+        plot_results(out_exp[0])
+        plot_hist(out_exp)
+        save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_no_unet{}'.format(data_type,ndx,gt_name)))
+
 ## DLC AUG vs no aug --- RESULTS -----
 
-def get_dlc_results():
+def get_dlc_results(redo=False):
     cmd_str = ['dlc_aug','dlc_noaug','snapshot']
     # exp_name = 'apt_expt'
     use_round = dlc_aug_use_round
@@ -1214,6 +1303,7 @@ def get_dlc_results():
         for conf_id in range(len(cmd_str)):
             train_name=cmd_str[conf_id]
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            conf.normalize_img_mean = False
             if op_af_graph is not None:
                 conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
             files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
@@ -1241,8 +1331,12 @@ def get_dlc_results():
             else:
                 recomp = True
 
+            if redo:
+                recomp = True
+
             if recomp:
                 afiles = [f.replace('.index', '') for f in files]
+#                tdata = PoseTools.pickle_load()
                 mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
                 with open(out_file,'w') as f:
                     pickle.dump([mdn_out,files],f)

@@ -1215,7 +1215,13 @@ handles.axes_all = axs;
 handles.images_all = ims;
 handles.axes_occ = axsOcc;
 
-handles = cropInitImRects(handles);
+% AL 20191002 This is to enable labeling simple projs without the Image
+% toolbox (crop init uses imrect)
+try
+  handles = cropInitImRects(handles);
+catch ME
+  fprintf(2,'Crop Mode initialization error: %s\n',ME.message);
+end
 
 if isfield(handles,'allAxHiliteMgr') && ~isempty(handles.allAxHiliteMgr)
   % Explicit deletion not supposed to be nec
@@ -4286,8 +4292,8 @@ function hfig = splashScreen(handles)
 
 %hparent = handles.figure;
 hfig = nan;
-p = fileparts(mfilename('fullpath'));
-splashimfilename = fullfile(p,'SplashScreen.png');
+p = APT.Root; %fileparts(mfilename('fullpath'));
+splashimfilename = fullfile(p,'gfx','SplashScreen.png');
 if ~exist(splashimfilename,'file'),
   return;
 end
