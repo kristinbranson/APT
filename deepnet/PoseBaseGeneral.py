@@ -1,3 +1,25 @@
+'''
+    This class provides a flexible way to add your own networks to APT. To add your networks, if your network name is _mynet_, you'll have to create a new file Pose_mynet.py in which you need to define a new class of the same name (Pose_mynet) which should inherit from PoseBase.
+    ```
+    from PoseBaseGeneral import PoseBaseGeneral
+    class Pose_mynet(PoseBaseGeneral):
+        def train(self):
+        ...
+    ```
+
+    The function that need to overridden are:
+
+    * `PoseBase.PoseBase.convert_locs_to_targets`: Function to create target outputs (e.g. heatmaps) from x,y locations that you want the network the predict.
+    * `PoseBase.PoseBase.train`: Main training function. Create the network, train and save trained models.
+    * `PoseBase.PoseBase.load_model`: Load saved models. setup the network for prediction by restoring the network.
+    * `PoseBase.PoseBase.convert_preds_to_locs`: Function to convert the output of network to x,y locations E.g From output heatmaps to x,y predictions.
+
+    We use the tensorflow dataset pipeline to read and process the input images for faster training. For this, image preprocessing and target creation (e.g. generating heatmaps) functions have to be defined individually so that they can be injected into the dataset pipeline.
+
+    Override preprocess_ims if you want to define your own image pre-processing function. By default, it'll down sample the input image (if specified by the user), augment the images using the augmentation parameters, and normalize contrast using CLAHE (again if specified by the user).
+
+'''
+
 from PoseCommon_dataset import PoseCommon, initialize_remaining_vars
 import PoseTools
 import tensorflow as tf
@@ -18,7 +40,7 @@ class PoseBaseGeneral(PoseCommon):
     * load_model
     * convert_preds_to_locs
 
-    We use the tensorflow dataset pipeline to read and process the input images which makes the training fast. For this reason, image preprocessing and target creation (e.g. generating heatmaps) functions have to be defined separately so that they can be injected in the dataset pipeline.
+    We use the tensorflow dataset pipeline to read and process the input images for faster training. For this, image preprocessing and target creation (e.g. generating heatmaps) functions have to be defined individually so that they can be injected into the dataset pipeline.
     Override preprocess_ims if you want to define your own image pre-processing function. By default, it'll down sample the input image (if required), augment the images using the augmentation, and adjust contrast (if required).
     In convert_locs_to_target, create target outputs (e.g. heatmaps) from x,y locations that you want the network the predict.
     In train, create the network, train and save trained models.
@@ -48,11 +70,14 @@ class PoseBaseGeneral(PoseCommon):
     def preproc_func(self, ims, locs, info, distort):
         '''
         This function is added into tensorflow dataset pipeline using tf.py_func. The outputs returned by this function are available tf tensors in self.inputs array.
-        :param ims: Input image as B x H x W x C
-        :param locs: Labeled part locations as B x N x 2
-        :param info: Information about the input as B x 3. (:,0) is the movie number, (:,1) is the frame number and (:,2) is the animal number (if the project has trx).
-        :param distort: Whether to augment the data or not.
-        :return: augmented images, augmented labeled locations, input information, heatmaps.
+
+        Args:
+            param ims: Input image as B x H x W x C
+            param locs: Labeled part locations as B x N x 2
+            param info: Information about the input as B x 3. (:,0) is the movie number, (:,1) is the frame number and (:,2) is the animal number (if the project has trx).
+            param distort: Whether to augment the data or not.
+        Returns:
+             A list with augmented images, augmented labeled locations, input information, heatmaps.
         '''
 
         conf = self.conf
@@ -68,7 +93,7 @@ class PoseBaseGeneral(PoseCommon):
         '''
         Override this function to change how images are preprocessed. Ensure that the return objects are float32.
 
-        :param ims: Batch of input images b x h x w x c
+        :param ims: Batch of input images B x H x W x C
         :param locs: Landmark locations b x n x 2
         :param conf: Configuration object
         :param distort: Whether to distort for augmentation or not.
@@ -82,10 +107,10 @@ class PoseBaseGeneral(PoseCommon):
 
     def convert_locs_to_targets(self,locs):
         '''
-        Override this function to to convert labels into targets (e.g. heatmaps).
-        The locs are numpy array of size b x n x 2, where b is the batch size, n is the number of landmarks and locs[:,:,0] are x locations, while locs[:,:,1] are the y locations of the landmark.
-        The targets also should be numpy arrays, and the first dimension should correspond to the batch.
+        :param locs: Numpy array of size B x N x 2, where B is the batch size, N is the number of landmarks and locs[:,:,0] are x locations, while locs[:,:,1] are the y locations of the landmark.
+        :return: target_list A list of targets. The targets also should be numpy arrays, and the first dimension should correspond to the batch.
 
+        Override this function to to convert labels into targets (e.g. heatmaps).
         You can use PoseTools.create_label_images to generate the target heatmaps.
         You can use PoseTools.create_affinity_labels to generate the target part affinity field heatmaps.
         Return the results as a list. This list will be available as tensors self.inputs[3], self.inputs[4] and so on for computing the loss.
@@ -209,9 +234,9 @@ class PoseBaseGeneral(PoseCommon):
         :return:
 
         Implement network creation and and its training in this function. The input and output tensors are in self.inputs.
-        self.inputs[0] has the preprocessed and augmented images as b x h x w x c
-        self.inputs[1] has the landmark positions as b x n x 2
-        self.inputs[2] has information about the movie number, frame number and trx number as b x 3
+        self.inputs[0] has the downsampled, preprocessed and augmented images as B x H//s x W//s x C, where s is the downsample factor.
+        self.inputs[1] has the landmark positions as B x N x 2
+        self.inputs[2] has information about the movie number, frame number and trx number as B x 3
         self.inputs[3] onwards has the outputs that are produced by convert_locs_to_targets
         The train function should save models to self.conf.cachedir every self.conf.save_step. Also save a final model at the end of the training with step number self.conf.dl_steps. APT expects the model files to be named 'deepnet-<step_no>' (i.e., follow the format used by tf.train.Saver for saving models e.g. deepnet-10000.index).
         To view updated training metrics in APT training update window, call self.append_td(step,train_loss,train_dist) every self.conf.display_step. train_loss is the current training loss, while train_dist is the mean pixel distance between the predictions and labels.
@@ -260,7 +285,7 @@ class PoseBaseGeneral(PoseCommon):
         Eg. From heatmap output to x,y locations.
 
         :param preds: Numpy array that is the output of the network.
-        :return: x,y locations as b x n x 2 where b is the batch_size, n is the number of landmarks. [:,:,0] should be the x location, while [:,:,1] should be the y locations.
+        :return: x,y locations as B x N x 2 where b is the batch_size, n is the number of landmarks. [:,:,0] should be the x location, while [:,:,1] should be the y locations.
         '''
 
         assert False, 'This function should be overridden'

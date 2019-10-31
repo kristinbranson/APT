@@ -7,19 +7,21 @@ import multiprocessing
 import tempfile
 import time
 import numpy as np
+import urllib.request
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
-files = [['https://www.dropbox.com/s/mo2jfdmzzsz6btc/alice_sz90_stripped.lbl?dl=0',181],
-         ['https://www.dropbox.com/s/88m1l9u8oi056io/alice_sz150_stripped.lbl?dl=0',300],
-         ['https://www.dropbox.com/s/uvyxjpxepdajoy7/alice_sz200_stripped.lbl?dl=0',400]
+files = [['https://www.dropbox.com/s/mo2jfdmzzsz6btc/alice_sz90_stripped.lbl?dl=1',181],
+         ['https://www.dropbox.com/s/88m1l9u8oi056io/alice_sz150_stripped.lbl?dl=1',300],
+         ['https://www.dropbox.com/s/uvyxjpxepdajoy7/alice_sz200_stripped.lbl?dl=1',400]
          ]
 
 
-bszs = range(2,12,3)
+bszs = range(2,12,4)
 
 def find_mem(lbl_file,bsz,net_type,conn,tdir):
     ss = os.path.splitext(os.path.split(lbl_file)[1])[0]
-    cmd = '-cache {} -name {} -conf_params batch_size {} dl_steps 10 display_step 10 op_affinity_graph (0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16) -type {} {} train -use_cache -skip_db'.format(tdir,ss,bsz,net_type, lbl_file)
+    cmd = '-cache {} -name {} -conf_params batch_size {} dl_steps 10 display_step 10 op_affinity_graph (0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16) -type {} {} train -use_cache '.format(tdir,ss,bsz,net_type, lbl_file)
 
     print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     print('batch size: {} label file:{}'.format(bsz,lbl_file))
@@ -40,9 +42,7 @@ tdir = tempfile.mkdtemp()
 local_files = []
 for cur_f in files:
     out_file = os.path.join(tdir,'file_{}.lbl'.format(cur_f[1]))
-
-    cmd = 'wget -q -O {} {}'.format(out_file,cur_f[0])
-    os.system(cmd)
+    urllib.request.urlretrieve(cur_f[0],out_file)
     local_files.append(out_file)
 
 all_mem_use = {}
@@ -66,7 +66,9 @@ for cur_type in all_types:
 
 
 from scipy import io
-io.savemat('data/network_size.mat',all_mem_use)
+imsz = np.array([f[1] for f in files])
+io.savemat('data/network_size.mat',{'mem_use':all_mem_use,
+    'batch_size':np.array(bszs),'im_sz':np.array(imsz)})
 
 ##
 

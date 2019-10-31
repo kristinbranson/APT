@@ -1,4 +1,9 @@
+url = 'https://www.dropbox.com/sh/sfku14q2aja3xo3/AADzyjRJDec7G1ncQIaL8LIka?dl=1'
+import urllib
 
+urllib.request.urlretrieve(url,'/home/kabram/temp/tt')
+
+##
 import run_apt_expts as rae
 # reload(rae)
 rae.setup('alice')

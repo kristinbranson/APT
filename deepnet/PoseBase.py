@@ -1,3 +1,48 @@
+'''
+    This class provides the easiest way to add your own networks to APT. To add your networks, if your network name is _mynet_, you'll have to create a new file Pose_mynet.py in which you need to define a new class of the same name (Pose_mynet) which should inherit from PoseBase.
+    ```
+    from PoseBase import PoseBase
+    class Pose_mynet(PoseBase):
+        def train(self):
+        ...
+    ```
+
+    If the network generates heatmaps for each landmark (i.e., body part), then you need to override
+
+    * `PoseBase.PoseBase.create_network`:
+    * Supply the appropriate hmaps_downsample to the __init__ function when you inherit. Eg, self.hmaps_downsample = 8
+
+    If your networks output is different than only heatmaps, you'll have to override
+
+    * `PoseBase.PoseBase.preproc_func`: (to generate the target outputs other than heatmaps).
+    * `PoseBase.PoseBase.create_network`:
+    * `PoseBase.PoseBase.loss`:
+    * `PoseBase.PoseBase.convert_preds_to_locs`:
+
+    In addition, if you want to change the training procedure, you'll have to override
+
+    * `PoseBase.PoseBase.train` function:
+    * `PoseBase.PoseBase.get_pred_fn` function:
+
+    To use pretrained weights, put the location of the pretrained weights in self.pretrained_weights. Eg
+    ``` def __init__(self, conf):
+            ...
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            wt_dir = os.path.join(script_dir, 'pretrained')
+            self.pretrained_weights =  os.path.join(wt_dir,'resnet_v1_50.ckpt')
+    ```
+
+    The Pose_mynet object once created, will have access to configuration settings that were set by the user in APT GUI in the self.conf object. Some of the useful configuration settings are:
+
+    * imsz: 2 element tuple specifying the size of the input image.
+    * img_dim: Number of channels in input image.
+    * batch_size: Batch size defined by user.
+    * rescale: How much to downsample the input image before feeding into the network.
+    * dl_steps: Number of steps to run training for.
+    Details of other settings can be found APT/tracker/dt/params_deeptrack.yaml.
+
+'''
+
 from PoseCommon_dataset import PoseCommon, initialize_remaining_vars
 import PoseTools
 import tensorflow as tf
@@ -9,43 +54,15 @@ import math
 
 class PoseBase(PoseCommon):
     '''
-    Inherit this class to use your own network with APT.
-    If the name of your networks is <netname>, then the new class should be created in python file Pose_<netname>.py and the class name should also be Pose_<netname>
-    The new class name should be the same
-
-    If the network generates heatmaps for each landmark (i.e., body part), then you only need to override create_network function and supply the appropriate hmaps_downsample to the __init__ function when you inherit.
-
-    If your networks output is different than only heatmaps, you'll have to override
-        - preproc_func (to generate the target outputs other than heatmaps).
-        - create_network
-        - loss
-        - convert_preds_to_locs
-
-    In addition, if you want to change the training procedure, you'll have to override
-        - train function.
-        - get_pred_fn function
-
-    To use pretrained weights, put the location of the pretrained weights in self.pretrained_weights. by modifying the line self.pretrained_weights = None in __init__ function
-        (Eg:
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        wt_dir = os.path.join(script_dir, 'pretrained')
-        self.pretrained_weights =  os.path.join(wt_dir,'resnet_v1_50.ckpt')
-        )
     '''
 
 
     def __init__(self, conf, hmaps_downsample=1):
-        '''
-        Initialize the pose object.
+        ''' Initialize the pose object.
 
-        :param conf: Configuration object has all the parameters defined in params_netname.yaml. Some important parameters are:
-            imsz: 2 element tuple specifying the size of the input image.
-            img_dim: Number of channels in input image
-            batch_size
-            rescale: How much to downsample the input image before feeding into the network.
-            dl_steps: Number of steps to run training for.
-            In addition, any configuration setting defined in APT_basedir/trackers/dt/params_<netname>.yaml will be available to objects Pose_<netname> in file Pose_<netname> are created.
-        :param hmaps_downsample: The amount that the networks heatmaps are downsampled as compared to input image. Ignored if preproc_func is overridden.
+        Args:
+            conf: Configuration object has all the parameters defined in params_netname.yaml.
+            hmaps_downsample: The amount that the networks heatmaps are downsampled as compared to input image. Ignored if preproc_func is overridden.
 
         '''
 
@@ -62,11 +79,13 @@ class PoseBase(PoseCommon):
         '''
         Override this function to change how images are preprocessed. Ensure that the return objects are float32.
         This function is added into tensorflow dataset pipeline using tf.py_func. The outputs returned by this function are available tf tensors in self.inputs array.
-        :param ims: Input image as B x H x W x C
-        :param locs: Labeled part locations as B x N x 2
-        :param info: Information about the input as B x 3. (:,0) is the movie number, (:,1) is the frame number and (:,2) is the animal number (if the project has trx).
-        :param distort: Whether to augment the data or not.
-        :return: augmented images, augmented labeled locations, input information, heatmaps.
+        Args:
+            ims: Input image as B x H x W x C
+            locs: Labeled part locations as B x N x 2
+            info: Information about the input as B x 3. (:,0) is the movie number, (:,1) is the frame number and (:,2) is the animal number (if the project has trx).
+            distort: Whether to augment the data or not.
+        Returns:
+            List as [augmented images, augmented labeled locations, input information, heatmaps]
         '''
 
         conf = self.conf
@@ -91,9 +110,9 @@ class PoseBase(PoseCommon):
     def create_network(self):
         '''
         Use self.inputs to create a network.
-        If preproc_function is not overridden, then:
-            self.inputs[0] tensor has the images [bsz,imsz[0],imsz[1],imgdim]
-            self.inputs[1] tensor has the locations in an array of [bsz,npts,2]
+        By default (if preproc_function is not overridden), the training data is supplied as a list in self.inputs. For batch size B, image size H x W x C and downsample factor s and N landmarks:
+            self.inputs[0] tensor has the images [B,H//s,W//s,C]
+            self.inputs[1] tensor has the locations in an array of [B,N,2]
             self.inputs[2] tensor has the [movie_id, frame_id, animal_id] information. Mostly useful for debugging.
             self.inputs[3] tensor has the heatmaps, which should ideally not be used for creating the network. Use it only for computing the loss.
         Information about whether it is training phase or test phase for batch norm is available in self.ph['phase_train']
@@ -124,7 +143,7 @@ class PoseBase(PoseCommon):
     def convert_preds_to_locs(self, pred):
         '''
         Converts the networks output to 2D predictions.
-        Override this function to write your function to convert the networks output (as numpy array) to locations. Note the locations should be in input images scale i.e., downsampled by self.rescale
+        Override this function to write your function to convert the networks output (as numpy array) to locations. Note the locations should be in input images scale i.e., not downsampled by self.rescale
         :param pred: Output of network as python/numpy arrays
         :return: 2D locations as batch_size x num_pts x 2
         '''
@@ -244,11 +263,9 @@ class PoseBase(PoseCommon):
         :return close_fn: Function to call to close the predictions (eg. the function should close the tensorflow session)
         :return model_file_used: Returns the model file that is used for prediction.
 
-        Creates a prediction function that returns the pose prediction as a python array of size [batch_size,n_pts,2].
-        This function should creates the network, start a tensorflow session and load the latest model.
+        Creates a prediction function that returns the pose prediction as a python array of size [B, N, 2].
+        This function should create the network, start a tensorflow session and load the latest model.
         If you used self.create_saver() for saving the models, you can restore the latest model by calling self.create_saver() after creating the network but before creating a session, and then calling self.restore(sess)
-
-
         '''
 
         try:
