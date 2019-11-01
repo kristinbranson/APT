@@ -1785,7 +1785,7 @@ classdef Labeler < handle
       RC.saveprop('lastLblFile',fname);      
     end
     
-    function projSaveMassaged(obj,fname,varargin)
+    function projSaveModified(obj,fname,varargin)
       s = obj.projGetSaveStructWithMassage(varargin{:});
       save(fname,'-mat','-struct','s');
       fprintf('Saved modified project file %s.\n',fname);
