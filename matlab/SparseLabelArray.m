@@ -12,7 +12,6 @@ classdef SparseLabelArray
           v = x(i);
         case 'ts'
           i = find(~isinf(x));
-          
           v = x(i);
         case 'log'
           i = find(x);
@@ -52,6 +51,27 @@ classdef SparseLabelArray
           assert(false,'Unrecognized type.');
       end
       x(s.idx) = s.val; % scalar expansion for 'log'
+    end
+  end
+  methods (Static) 
+    % Methods that act on full arrays; maybe this class should be
+    % 'LabelArray'
+    
+    function x = fullExpandPts(x,ty,nptsadd)
+      % Add points to labelarrays
+      szadd = size(x);
+      szadd(1) = nptsadd;
+      switch ty
+        case 'nan', xadd = nan(szadd);          
+        case 'ts', xadd = -inf(szadd);
+        case 'log', xadd = false(szadd);
+        otherwise, assert(false);
+      end
+      x = cat(1,x,xadd);
+    end
+    function x = fullRmPts(x,iptsrm)
+      colons = repmat({':'},1,ndims(x)-1);
+      x(iptsrm,colons{:}) = [];      
     end
   end
 end

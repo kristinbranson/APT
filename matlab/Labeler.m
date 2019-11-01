@@ -1510,6 +1510,7 @@ classdef Labeler < handle
     
   end
     
+  % Consider moving this stuff to Config.m
   methods (Static)
     
     function cfg = cfgGetLastProjectConfigNoView
@@ -1585,6 +1586,34 @@ classdef Labeler < handle
       cfg = orderfields(cfg,[flds0(:);fldsExtra(:)]);
     end
     
+    function cfg = cfgRmLabelPoints(cfg,iptsrm)
+      % Update/Massage config, removing given landmarks/pts 
+      %
+      % iptsrm: vector of ipt indices
+
+      nptsrm = numel(iptsrm);
+      nptsremain = cfg.NumLabelPoints-nptsrm;
+      if nptsremain<=0
+        error('Cannot remove %d points as config.NumLabelPoints is %d.',...
+          nptsrm,cfg.NumLabelPoints);
+      end
+      
+      cfg.LabelPointNames(iptsrm,:) = [];
+      cfg.NumLabelPoints = nptsremain;
+    end
+    
+    function cfg = cfgAddLabelPoints(cfg,nptsadd)
+      % Update/Massage config, adding nptsadd new landmarks/pts 
+      %
+      % nptsadd: scalar positive int
+      
+      npts0 = cfg.NumLabelPoints;
+      newptnames = arrayfun(@(x)sprintf('pt%d',x),...
+        (npts0+1:npts0+nptsadd)','uni',0);
+
+      cfg.LabelPointNames = cat(1,cfg.LabelPointNames,newptnames);
+      cfg.NumLabelPoints = cfg.NumLabelPoints + nptsadd;
+    end      
     
     % moved this from ProjectSetup
     function sMirror = cfg2mirror(cfg)
@@ -1755,6 +1784,12 @@ classdef Labeler < handle
 
       RC.saveprop('lastLblFile',fname);      
     end
+    
+    function projSaveMassaged(obj,fname,varargin)
+      s = obj.projGetSaveStructWithMassage(varargin{:});
+      save(fname,'-mat','-struct','s');
+      fprintf('Saved modified project file %s.\n',fname);
+    end
         
     function [success,lblfname] = projSaveAs(obj)
       % Saves a .lbl file, prompting user for filename.
@@ -1859,6 +1894,68 @@ classdef Labeler < handle
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
         s.preProcDataTS = obj.preProcDataTS;
         s.ppdb = obj.ppdb;
+      end
+    end
+    
+    function s = projGetSaveStructWithMassage(obj,varargin)
+      [massageType,massageArg] = myparse(varargin,...
+        'modificationType','addpoints',... % or 'rmpoints'
+        'modificationArg',1 ...
+      );
+      
+      s = obj.projGetSaveStruct('sparsify',false,'forceExcDataCache',true);
+      
+      switch massageType
+        case 'addpoints'
+          nptsadd = massageArg;
+          fprintf(1,'Adding %d points to project...\n',nptsadd);
+          s.cfg = Labeler.cfgAddLabelPoints(s.cfg,nptsadd);
+          %modfcn will be applied to each el of lposProps
+          modfcn = @(x,ty)SparseLabelArray.fullExpandPts(x,ty,nptsadd);          
+        case 'rmpoints'
+          iptsrm = massageArg;
+          fprintf(1,'Removing points %s from project...\n',mat2str(iptsrm));
+          s.cfg = Labeler.cfgRmLabelPoints(s.cfg,iptsrm);
+          modfcn = @(x,ty)SparseLabelArray.fullRmPts(x,iptsrm);
+        otherwise
+          assert(false);
+      end
+      
+      % massage/sparsify lpos props
+      lposProps = obj.SAVEPROPS_LPOS;
+      nprop = size(lposProps,1);
+      for iprop=1:nprop
+        fld = lposProps{iprop,1};
+        ty = lposProps{iprop,2};
+        val = s.(fld);
+        switch fld
+          case {'labeledpos2' 'labeledpos2GT'}
+            % Clear imported tracking; below we clear trackers
+            for imov=1:numel(val)
+              val{imov}(:) = nan;
+            end
+        end
+        val = cellfun(@(x)modfcn(x,ty),val,'uni',0);
+        s.(fld) = cellfun(@(x)SparseLabelArray.create(x,ty),val,'uni',0);
+      end
+
+      % manual massage other fields of s
+      % *Warning* Not very maintainable, not very happy but this may not 
+      % get used that much plus it should typically be non-critical (eg if 
+      % an error occurs, the original proj is safe/untouched).
+      s.gtTblRes = [];
+      s.labelTemplate = [];
+      if ~strcmp(s.trackParams.ROOT.CPR.RotCorrection.OrientationType,'fixed')
+        warningNoTrace('CPR rotational correction/orientation type is not ''fixed''. Head/tail landmarks updated to landmarks 1/2 respectively.');
+        s.trackParams.ROOT.CPR.RotCorrection.HeadPoint = 1;
+        s.trackParams.ROOT.CPR.RotCorrection.TailPoint = 2;
+      end
+      s.xvResults = [];
+      s.xvResultsTS = [];
+      s.skeletonEdges = zeros(0,2);
+      s = Labeler.resetTrkResFieldsStruct(s);
+      for i=1:numel(s.trackerData)
+        s.trackerData{i} = [];
       end
     end
     
@@ -3289,16 +3386,18 @@ classdef Labeler < handle
       
       % 20190429 TrkRes
       if ~isfield(s,'trkRes')
-        nmov = size(s.movieFilesAll,1);
-        nmovGT = size(s.movieFilesAllGT,1);
-        nvw = size(s.movieFilesAll,2);
-        s.trkResIDs = cell(0,1);
-        s.trkRes = cell(nmov,nvw,0);
-        s.trkResGT = cell(nmovGT,nvw,0);
-        s.trkResViz = cell(0,1);
+        s = Labeler.resetTrkResFieldsStruct(s);
       end
     end
-
+    function s = resetTrkResFieldsStruct(s)
+      nmov = size(s.movieFilesAll,1);
+      nmovGT = size(s.movieFilesAllGT,1);
+      nvw = size(s.movieFilesAll,2);
+      s.trkResIDs = cell(0,1);
+      s.trkRes = cell(nmov,nvw,0);
+      s.trkResGT = cell(nmovGT,nvw,0);
+      s.trkResViz = cell(0,1);
+    end
   end 
   
   %% Movie
