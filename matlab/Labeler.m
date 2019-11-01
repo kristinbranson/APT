@@ -5889,8 +5889,9 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function labelPosBulkImportTbl(obj,tblFT)
+    function labelPosBulkImportTblMov(obj,tblFT,iMov)
       % Set labels for current movie/target from a table. GTmode supported.
+      % Existing labels are NOT cleared!
       %
       % tblFT: table with fields .frm, .iTgt, .p, .tfocc. CANNOT have field
       % .mov, to avoid possible misunderstandings/bugs. This meth sets
@@ -5900,11 +5901,19 @@ classdef Labeler < handle
       %          {physical pt,view,coordinate (x vs y)}
       %   * tblFT.tfocc should be logical of size [n x nLabelPoints]
       %
+      % iMov: optional scalar movie index into which labels are imported.
+      %   Defaults to .currMovie.
+      % 
       % No checking is done against image or crop size.
       
       tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'});
       tblfldsdonotcontainassert(tblFT,{'mov'});
-      
+
+      if exist('iMov','var')==0
+        iMov = obj.currMovie;
+      end
+      assert(iMov>0);
+
       n = height(tblFT);
       npts = obj.nLabelPoints;
       szassert(tblFT.p,[n 2*npts]);
@@ -5913,8 +5922,6 @@ classdef Labeler < handle
 
       PROPS = obj.gtGetSharedProps();
       
-      iMov = obj.currMovie;
-      assert(iMov>0);
       warningNoTrace('Existing labels NOT cleared.');
       lpos = obj.(PROPS.LPOS){iMov};
       lpostag = obj.(PROPS.LPOSTAG){iMov};
@@ -5946,6 +5953,37 @@ classdef Labeler < handle
         obj.lastLabelChangeTS = tsnow;
       end
       obj.labeledposNeedsSave = true;
+    end
+    
+    function labelPosBulkImportTbl(obj,tblFT)
+      % Like labelPosBulkImportTblMov, but table may include movie 
+      % fullpaths. 
+      %
+      % tblFT: table with fields .mov, .frm, .iTgt, .p. tblFT.mov are 
+      % movie full-paths and they must match entries in 
+      % obj.movieFilesAllFullGTaware *exactly*. 
+      % For multiview projects, tblFT.mov must match 
+      % obj.movieFilesAllFullGTaware(:,1).
+      
+      movs = tblFT.mov;
+      mfaf1 = obj.movieFilesAllFullGTaware(:,1);
+      [tf,iMov] = ismember(movs,mfaf1); % iMov are movie indices
+      if ~all(tf)
+        movsbad = unique(movs(~tf));
+        error('Movies not found in project: %s',...
+          String.cellstr2CommaSepList(movsbad));
+      end
+      
+      iMovUn = unique(iMov);
+      nMovUn = numel(iMovUn);
+      for iiMovUn=1:nMovUn
+        imovcurr = iMovUn(iiMovUn);
+        tfmov = iMov==imovcurr;
+        nrows = nnz(tfmov);
+        fprintf('Importing %d rows for movie %d.\n',nrows,imovcurr);
+        obj.labelPosBulkImportTblMov(...
+          tblFT(tfmov,{'frm' 'iTgt' 'p' 'tfocc'}),imovcurr);
+      end
     end
     
     function labelPosSetUnmarkedFramesMovieFramesUnmarked(obj,xy,iMov,frms)

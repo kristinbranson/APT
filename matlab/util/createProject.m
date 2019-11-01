@@ -115,7 +115,7 @@ for imovadd=1:nmovadd
     tfMov = tblLbls.mov==imovadd;
     tblLblsThis = tblLbls(tfMov,:);
     tblLblsThis(:,{'mov'}) = [];
-    lObj.labelPosBulkImportTbl(tblLblsThis);
+    lObj.labelPosBulkImportTblMov(tblLblsThis);
     fprintf(1,' ... imported %d lbled rows.\n',height(tblLblsThis));
   end  
   if tfCalibFiles
