@@ -17,7 +17,7 @@ APT is a machine-learning based software package that enables tracking the pose 
 
 A basic, preliminary user guide with installation and setup instructions can be found at [http://kristinbranson.github.io/APT](http://kristinbranson.github.io/APT/). 
 
-More recent or advanced documentation can be found in the [https://github.com/kristinbranson/APT/wiki](wikis). This wiki is sorted chronologically with the most recent updates at the top.
+More recent or advanced documentation can be found in the [wikis](https://github.com/kristinbranson/APT/wiki). This wiki is sorted chronologically with the most recent updates at the top.
 
 ### Contributors
 APT is being developed in the Branson lab by Allen Lee, Mayank Kabra, Kristin Branson, Alice Robie, and Roian Egnor, with help from many others. All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. APT is currently under heavy development. Please contact Kristin Branson if you are interested in using it.
