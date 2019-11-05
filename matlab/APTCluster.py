@@ -16,9 +16,10 @@ import numpy as np
 from threading import Timer
 
 USEQSUB = False
-DEFAULTAPTBUILDROOTDIR="/groups/branson/bransonlab/apt/builds"  # root location of binaries
-DEFAULTAPTDIR=os.path.dirname(os.path.realpath(__file__))
+DEFAULTAPTBUILDROOTDIR = "/groups/branson/bransonlab/apt/builds"  # root location of binaries
+DEFAULTAPTDIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 MATLABCMDEND = ");exit;catch ME,disp('Error caught:');disp(getReport(ME));disp('Exiting.');exit;end;\""
+MATLABBIN = "/misc/local/matlab-2018b/bin/matlab"
 
 def main():
 
@@ -144,7 +145,7 @@ def main():
                 sys.exit("Cannot find mcr: {0:s}".format(args.mcr))
     else: # use real matlab
         # todo
-        args.bin = "matlab -nodisplay -r \"try, cd('%s'); APT.setpath; APTCluster("%args.aptrootdir
+        args.bin = "%s -nodisplay -r \"try, cd('%s'); APT.setpath; APTCluster("%(MATLABBIN,args.aptrootdir)
         args.infobin = "\"try, cd('%s'); APT.setpath; GetMovieNFrames("%args.aptrootdir
         args.mcr = ""
         args.binroot = ""
@@ -301,10 +302,11 @@ def main():
                         s = s[m.start()+1:-1]
 
                     else:
-                        infocmd = ['matlab','-nodisplay','-r',args.infobin+"'"+args.mov+"'"+MATLABCMDEND]
+                        infocmd = [MATLABBIN,'-nodisplay','-r',args.infobin+"'"+args.mov+"'"+MATLABCMDEND]
                         s = my_check_output(infocmd,timeout=20)
                         p = re.compile('\n\d+\n') # number surrounded by \n's
                         m = p.search(s)
+                        print(" ".join(infocmd))
                         if m is None:
                             raise(RuntimeError,'Could not parse number of frames from MATLAB output')
                         s = s[m.start()+1:m.end()-1]
