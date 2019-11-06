@@ -134,7 +134,7 @@ class PoseBase(PoseCommon):
         conf = self.conf
         hmaps_rescale = self.hmaps_downsample
         hsz = [ math.ceil( (i // conf.rescale)/hmaps_rescale) for i in conf.imsz]
-        # Creates prediction heatmaps by placing gaussians with sigma label_blur_rad at location locs.
+        # Creates target heatmaps by placing gaussians with sigma label_blur_rad at location locs.
         hmaps = PoseTools.create_label_images(locs/hmaps_rescale, hsz, 1, conf.label_blur_rad)
         return [hmaps]
 
@@ -179,7 +179,7 @@ class PoseBase(PoseCommon):
         :return: The loss function to be optimized.
         Override this to define your own loss function.
         '''
-        hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes
+        hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes/self.conf.batch_size
 
         return hmap_loss
 
