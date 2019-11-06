@@ -426,7 +426,7 @@ def main(argv):
                 # scriptf.write('if [ ! -d %s ]\n'%'/tmp/hustons')
                 # scriptf.write('  then mkdir /tmp/hustons\n')
                 # scriptf.write('fi\n')
-                scriptf.write('export MCR_CACHE_ROOT=%s/mcrcache%s\n'%('/scratch/',jobid))
+                scriptf.write('export MCR_CACHE_ROOT=%s/mcrcache%s\n'%('/scratch/hustons/',jobid))
                 scriptf.write('%s "%s" "%s" "%s" "%s" "%s" "%s"\n'%(matscript,savefile,pname_front,pname_side,kinematfile,trkfile_front,trkfile_side))
                 scriptf.write('chmod g+w {}\n'.format(savefile))
                 scriptf.write('chmod g+w {}\n'.format(trkfile_front))
