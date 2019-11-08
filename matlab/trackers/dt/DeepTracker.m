@@ -4485,10 +4485,7 @@ classdef DeepTracker < LabelTracker
           end
         end
       end
-      
-      % For now we rely on this in eg getPredictionCurrentFrame
-      assert(strcmp(obj.trkAuxLbl{end},'scr_occ')); 
-      
+            
       obj.trkP = pTrk;
       obj.trkPTS = pTrkTS;
       obj.trkAux = aux;
@@ -4514,9 +4511,17 @@ classdef DeepTracker < LabelTracker
         frm = min(frm,size(xyPCM,3));
         xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
         
-        if nargout>1          
-          scrocc = squeeze(obj.trkAux(:,frm,:,end)); % currently expect last auxfld is occlusion stat
-          tfocc = scrocc > DeepTracker.MDN_OCCLUDED_THRESH;
+        if nargout>1
+          tfscrocc = strcmp(obj.trkAuxLbl,'scr_occ');
+          switch nnz(tfscrocc)
+            case 0
+              scrocc = nan(obj.nPts,obj.lObj.nTargets);
+            case 1
+              scrocc = squeeze(obj.trkAux(:,frm,:,tfscrocc));
+            otherwise
+              assert(false,'Multiple fields matching ''scr_occ''.');              
+          end
+          tfocc = scrocc > DeepTracker.MDN_OCCLUDED_THRESH;              
         end
       end
     end
