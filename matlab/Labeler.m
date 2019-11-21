@@ -1945,7 +1945,8 @@ classdef Labeler < handle
       % an error occurs, the original proj is safe/untouched).
       s.gtTblRes = [];
       s.labelTemplate = [];
-      if ~strcmp(s.trackParams.ROOT.CPR.RotCorrection.OrientationType,'fixed')
+      if ~isempty(s.trackParams) && ...
+         ~strcmp(s.trackParams.ROOT.CPR.RotCorrection.OrientationType,'fixed')
         warningNoTrace('CPR rotational correction/orientation type is not ''fixed''. Head/tail landmarks updated to landmarks 1/2 respectively.');
         s.trackParams.ROOT.CPR.RotCorrection.HeadPoint = 1;
         s.trackParams.ROOT.CPR.RotCorrection.TailPoint = 2;
