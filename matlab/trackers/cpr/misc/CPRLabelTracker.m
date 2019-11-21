@@ -304,7 +304,7 @@ classdef CPRLabelTracker < LabelTracker
       % tblP: labeled data from Labeler that is more recent than anything 
       % in .trnDataTblPTS
       
-      tblP = obj.lObj.preProcGetMFTableLbled();
+      tblP = obj.lObj.preProcGetMFTableLbled('treatInfPosAsOcc',false);
       maxTS = max(tblP.pTS,[],2);
       maxTDTS = max([obj.trnDataTblPTS(:);-inf]);
       tf = maxTS > maxTDTS;
@@ -1021,7 +1021,9 @@ classdef CPRLabelTracker < LabelTracker
       % Either use supplied tblPTrn, or use all labeled data
       if isempty(tblPTrn)
         % use all labeled data
-        tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
+        tblPTrn = obj.lObj.preProcGetMFTableLbled(...
+          'wbObj',wbObj,...
+          'treatInfPosAsOcc',false);
         if tfWB && wbObj.isCancel
           % Theoretically we are safe to return here as of 201801. We
           % have only called obj.asyncReset() so far.

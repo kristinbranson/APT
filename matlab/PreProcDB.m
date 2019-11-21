@@ -137,12 +137,23 @@ classdef PreProcDB < handle
         nPhysPts = lObj.nPhysPoints;
         nView = lObj.nview;
         pRel = reshape(pAbs,[n nPhysPts nView 2]);
+        %pRelnan = isnan(pRel);
         szassert(tformA,[3 3 n nView]);
         for i=1:n
           for ivw=1:nView
             tform = maketform('affine',tformA(:,:,i,ivw));
-            [pRel(i,:,ivw,1),pRel(i,:,ivw,2)] = ...
-              tformfwd(tform,pRel(i,:,ivw,1),pRel(i,:,ivw,2));
+            % Go through this rigamarole as tformfwd() errs when passed any 
+            % nans
+            u = pRel(i,:,ivw,1);
+            v = pRel(i,:,ivw,2);
+            tfnan = isnan(u) | isnan(v); % isnan(u) should prob EQUAL isnan(v)
+            x = nan(1,nPhysPts);
+            y = nan(1,nPhysPts);
+            [x(~tfnan),y(~tfnan)] = tformfwd(tform,u(~tfnan),v(~tfnan));
+            pRel(i,:,ivw,1) = x;
+            pRel(i,:,ivw,2) = y;
+%             [pRel(i,:,ivw,1),pRel(i,:,ivw,2)] = ...
+%               tformfwd(tform,pRel(i,:,ivw,1),pRel(i,:,ivw,2));
           end
         end
         pRel = reshape(pRel,[n nPhysPts*nView*2]);

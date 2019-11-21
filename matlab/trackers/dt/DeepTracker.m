@@ -964,7 +964,8 @@ classdef DeepTracker < LabelTracker
 
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
-          [augims,dataAugDir] = obj.dataAugBsubDocker(ppdata,sPrmAll,trnBackEnd,'dataAugDir',dataAugDir);
+          [augims,dataAugDir] = obj.dataAugBsubDocker(ppdata,sPrmAll,...
+            trnBackEnd,'dataAugDir',dataAugDir);
         case DLBackEnd.AWS
           error('not implemented');
           %obj.trnSpawnAWS(trnBackEnd,modelChain,'wbObj',wbObj);    
@@ -1250,7 +1251,8 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,sPrmAll,backEnd,varargin)
+    function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,...
+        sPrmAll,backEnd,varargin)
       
       [dataAugDir] = myparse(varargin,'dataAugDir','');
       

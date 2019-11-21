@@ -8,18 +8,25 @@ classdef DLNetType
                % fields .trkfld and .label
     timelinePropList % [naux] struct array of tracker-specific properties 
                      % in format used by InfoTimeline
+                     
+    doesOccPred
   end
   properties (Dependent)
     nTrkAuxFlds
   end
   
   enumeration 
-    mdn ('mdn','MDN',struct('trkfld',{'pTrkconf' 'pTrkconf_unet' 'pTrkocc'}, ...
-                            'label',{'conf_mdn' 'conf_unet' 'scr_occ'}))
-    deeplabcut ('dlc','DeepLabCut', struct('trkfld',cell(0,1),'label',[]))
-    unet ('unet','Unet',            struct('trkfld',cell(0,1),'label',[]))
-    openpose ('openpose','OpenPose',struct('trkfld',cell(0,1),'label',[]))
-    leap ('leap','LEAP',            struct('trkfld',cell(0,1),'label',[]))
+    mdn ('mdn','MDN',...
+          struct('trkfld',{'pTrkconf' 'pTrkconf_unet' 'pTrkocc'}, ...
+                 'label',{'conf_mdn' 'conf_unet' 'scr_occ'}),true)
+    deeplabcut ('dlc','DeepLabCut', ...
+                struct('trkfld',cell(0,1),'label',[]),false)
+    unet ('unet','Unet', ...
+          struct('trkfld',cell(0,1),'label',[]),false)
+    openpose ('openpose','OpenPose',...
+              struct('trkfld',cell(0,1),'label',[]),false)
+    leap ('leap','LEAP', ...
+          struct('trkfld',cell(0,1),'label',[]),false)
     %hg ('hg','HourGlass')
   end
   
@@ -29,12 +36,13 @@ classdef DLNetType
     end
   end
   methods 
-    function obj = DLNetType(sstr,pstr,auxflds)
+    function obj = DLNetType(sstr,pstr,auxflds,tfoccpred)
       obj.shortString = sstr;
       obj.prettyString = pstr;
       obj.paramFileShort = sprintf('params_deeptrack_%s.yaml',sstr);
       obj.trkAuxFlds = auxflds;
       obj.timelinePropList = DLNetType.auxflds2PropList(auxflds);
+      obj.doesOccPred = tfoccpred;
     end
   end
   

@@ -127,6 +127,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           ~isfield(obj.initVizInfo,'sPrm') || isempty(obj.initVizInfo.sPrm) || ...
           ~APTParameters.isEqualPreProcParams(obj.initVizInfo.sPrm,sPrm),
 
+        % Let 'treatInfPosAsOcc' default to false here, should be fine as
+        % this is for paramviz
         tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms);
         nlabeled = size(tblPTrn,1);
         if nr * nc > nlabeled,

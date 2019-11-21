@@ -9190,14 +9190,18 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      [wbObj,tblMFTrestrict,gtModeOK,prmpp,doRemoveOOB] = myparse(varargin,...
+      [wbObj,tblMFTrestrict,gtModeOK,prmpp,doRemoveOOB,...
+        treatInfPosAsOcc] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                     ... % 1. obj const 
                     ... % 2. tblP indeterminate
         'tblMFTrestrict',[],... % see labelGetMFTableLabeld
         'gtModeOK',false,... % by default, this meth should not be called in GT mode
         'preProcParams',[],...
-        'doRemoveOOB',true...
+        'doRemoveOOB',true,...
+        'treatInfPosAsOcc',false ... % if true, treat inf labels as 
+                                 ... % 'fully occluded'; if false, remove 
+                                 ... % any rows with inf labels
         ); 
       tfWB = ~isempty(wbObj);
       if ~isempty(tblMFTrestrict)
@@ -9226,13 +9230,31 @@ classdef Labeler < handle
       end
       tblP = tblP(~tfnan,:);
       
-      tfinf = any(isinf(tblP.p),2);
-      ninf = nnz(tfinf);
-      if ninf>0
-        warningNoTrace('Labeler:nanData',...
-          'Not including %d rows with fully-occluded labels.',ninf);
+      if treatInfPosAsOcc
+        tfinf = isinf(tblP.p);        
+        pAbsIsFld = any(strcmp(tblP.Properties.VariableNames,'pAbs'));
+        if pAbsIsFld
+          assert(isequal(tfinf,isinf(tblP.pAbs)));
+        end
+        tfinf2 = reshape(tfinf,height(tblP),[],2);
+        assert(isequal(tfinf2(:,:,1),tfinf2(:,:,2)));
+        nfulloccpts = nnz(tfinf2(:,:,1));        
+        warningNoTrace('Utilizing %d fully-occluded landmarks.',nfulloccpts);
+      
+        tblP.p(tfinf) = nan;
+        if pAbsIsFld
+          tblP.pAbs(tfinf) = nan;
+        end
+        tblP.tfocc(tfinf2(:,:,1)) = true;
+      else
+        tfinf = any(isinf(tblP.p),2);
+        ninf = nnz(tfinf);
+        if ninf>0
+          warningNoTrace('Labeler:nanData',...
+            'Not including %d rows with fully-occluded labels.',ninf);
+        end
+        tblP = tblP(~tfinf,:);
       end
-      tblP = tblP(~tfinf,:);
     end
     
     % Hist Eq Notes
@@ -9854,6 +9876,8 @@ classdef Labeler < handle
       end
       
       if ~isempty(tblMFTtrn)
+        assert(strcmp(tObj.algorithmName,'cpr'));
+        % assert this as we do not fetch tblMFTp to treatInfPosAsOcc
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
         retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
@@ -9907,6 +9931,8 @@ classdef Labeler < handle
         'tblMFTtrn',[]... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
         );
       
+      % allow 'treatInfPosAsOcc' to default to false in these calls; we are
+      % just checking number of labeled rows
       if ~isempty(tblMFTtrn)
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
       else
@@ -9977,7 +10003,8 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function [tfsucc,tblPTrn,s] = trackCreateDeepTrackerStrippedLbl(obj,varargin)
+    function [tfsucc,tblPTrn,s] = ...
+        trackCreateDeepTrackerStrippedLbl(obj,varargin)
       % For use with DeepTrackers. Create stripped lbl based on
       % .currTracker
       %
@@ -9993,13 +10020,23 @@ classdef Labeler < handle
       if ~obj.hasMovie
         % for NumChans see below
         error('Please select/open a movie.');
-      end      
+      end
       
-      % 
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('There is no current tracker selected.');
+      end
+      
+      %
       % Determine the training set
       % 
       if isempty(ppdata),
-        tblPTrn = obj.preProcGetMFTableLbled('wbObj',wbObj);
+        treatInfPosAsOcc = ...
+          isa(tObj,'DeepTracker') && tObj.trnNetType.doesOccPred;
+        tblPTrn = obj.preProcGetMFTableLbled(...
+          'wbObj',wbObj,...
+          'treatInfPosAsOcc',treatInfPosAsOcc ...
+          );
         if tfWB && wbObj.isCancel
           tfsucc = false;
           tblPTrn = [];
@@ -10043,6 +10080,8 @@ classdef Labeler < handle
         obj.ppdb.dat.summarize('mov',ppdbITrn);
         
       else
+        % training set provided; note it may or may not include fully-occ
+        % labels etc.
         tblPTrn = ppdata.MD;
       end
       
@@ -10298,9 +10337,11 @@ classdef Labeler < handle
       end
       
       if ~tfTblMFgt
+        % CPR required below; allow 'treatInfPosAsOcc' to default to false
         tblMFgt = obj.preProcGetMFTableLbled();
       elseif ~tblMFgtIsFinal        
         tblMFgt0 = tblMFgt; % legacy checks below
+        % CPR required below; allow 'treatInfPosAsOcc' to default to false
         tblMFgt = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFgt);
         % Legacy checks/assert can remove at some pt
         assert(height(tblMFgt0)==height(tblMFgt),...
@@ -10473,6 +10514,7 @@ classdef Labeler < handle
 
       obj.preProcUpdateH0IfNec();
 
+      % codepath requires CPR; allow 'treatInfPosAsOcc' to default to false 
       tblMFTPtrn = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
       tblMFTtrk = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrk);
       

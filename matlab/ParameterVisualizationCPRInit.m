@@ -74,7 +74,8 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       % Choose labeled frames to read in
       [~,sPrmCPRold,ppPrms] = lObj.convertNew2OldParams(sPrm);
       
-      tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms);      
+      tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms,...
+        'treatInfPosAsOcc',false);      
       nr = 3;
       nc = 3;
       nlabeled = size(tblPTrn,1);
