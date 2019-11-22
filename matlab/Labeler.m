@@ -9220,25 +9220,30 @@ classdef Labeler < handle
         return;
       end
       
-      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp,...
-        'doRemoveOOB',doRemoveOOB);
-      
-      tfnan = any(isnan(tblP.p),2);
-      nnan = nnz(tfnan);
-      if nnan>0
+      % In tblP we can have:
+      % * regular labels: .p is non-nan & non-inf; .tfocc is false
+      % * estimated-occluded labels: .p is non-nan & non-inf; .tfocc is true
+      % * fully-occ labels: .p is inf, .tfocc is false
+
+      % For now we don't accept partially-labeled rows
+      tfnanrow = any(isnan(tblP.p),2);
+      nnanrow = nnz(tfnanrow);
+      if nnanrow>0
         warningNoTrace('Labeler:nanData',...
-          'Not including %d partially-labeled rows.',nnan);
+          'Not including %d partially-labeled rows.',nnanrow);
       end
-      tblP = tblP(~tfnan,:);
-      
+      tblP = tblP(~tfnanrow,:);
+        
+      % Deal with full-occ rows in tblP. Do this here as otherwise the call 
+      % to preProcCropLabelsToRoiIfNec will consider inf labels as "OOB"
       if treatInfPosAsOcc
         tfinf = isinf(tblP.p);        
         pAbsIsFld = any(strcmp(tblP.Properties.VariableNames,'pAbs'));
-        if pAbsIsFld
+        if pAbsIsFld % probably .pAbs is put in below by preProcCropLabelsToRoiIfNec
           assert(isequal(tfinf,isinf(tblP.pAbs)));
         end
         tfinf2 = reshape(tfinf,height(tblP),[],2);
-        assert(isequal(tfinf2(:,:,1),tfinf2(:,:,2)));
+        assert(isequal(tfinf2(:,:,1),tfinf2(:,:,2))); % both x/y coords should be inf for fully-occ
         nfulloccpts = nnz(tfinf2(:,:,1));        
         warningNoTrace('Utilizing %d fully-occluded landmarks.',nfulloccpts);
       
@@ -9256,6 +9261,9 @@ classdef Labeler < handle
         end
         tblP = tblP(~tfinf,:);
       end
+      
+      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp,...
+        'doRemoveOOB',doRemoveOOB);
     end
     
     % Hist Eq Notes
