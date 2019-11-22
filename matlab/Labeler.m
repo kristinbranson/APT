@@ -9256,7 +9256,7 @@ classdef Labeler < handle
         tfinf = any(isinf(tblP.p),2);
         ninf = nnz(tfinf);
         if ninf>0
-          warningNoTrace('Labeler:nanData',...
+          warningNoTrace('Labeler:infData',...
             'Not including %d rows with fully-occluded labels.',ninf);
         end
         tblP = tblP(~tfinf,:);
@@ -9942,6 +9942,8 @@ classdef Labeler < handle
       
       % allow 'treatInfPosAsOcc' to default to false in these calls; we are
       % just checking number of labeled rows
+      warnst = warning('off','Labeler:infData'); % ignore "Not including n rows with fully-occ labels"
+      oc = onCleanup(@()warning(warnst));
       if ~isempty(tblMFTtrn)
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
       else
