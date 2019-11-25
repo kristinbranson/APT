@@ -2068,6 +2068,18 @@ classdef CPRLabelTracker < LabelTracker
       tauxlbl = cell(0,1);
     end
     
+  end
+  methods (Static)
+    function imsz = roi2imsz(roi)
+      % roi: [xlo xhi ylo yhi]
+      % imsz: {h w}. This format is a one-off to match DeepTracker trkfile 
+      % output for JAABA import.
+      h = roi(4)-roi(3)+1;
+      w = roi(2)-roi(1)+1;
+      imsz = {h w};
+    end
+  end
+  methods
     %MTGT
     %#%MV
     function [trkfiles,tfHasRes] = getTrackingResults(obj,mIdx)
@@ -2099,13 +2111,18 @@ classdef CPRLabelTracker < LabelTracker
       end
       
       tfHasCrop = obj.lObj.cropProjHasCrops;
-        
+      tfHasTrx = obj.lObj.projectHasTrx;
+      assert(~(tfHasCrop && tfHasTrx),'Project cannot have both crops and trx');
+      if tfHasTrx
+        tgtcroprad = obj.sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
+        tgtcropsz = 2*tgtcroprad+1;
+        tgtcropimsz = {tgtcropsz tgtcropsz};
+      end
+      
       for i = nMov:-1:1
         [trkpos,trkposTS,trkposFull,trkposFullMFT,trkposTrnTS,tfHasRes(i)] = ...
                                         obj.getTrackResRaw(mIdx(i));
-        if tfHasCrop
-          cropinfos = obj.lObj.getMovieFilesAllCropInfoMovIdx(mIdx(i));
-        end
+        movRoi = obj.lObj.getMovieRoiMovIdx(mIdx(i));
           
         if tfMultiView
           assert(size(trkpos,1)==nPhysPts*nview);
@@ -2116,10 +2133,17 @@ classdef CPRLabelTracker < LabelTracker
             trkinfo.view = ivw;
             trkinfo.trnTS = trkposTrnTS(ivw);
             if tfHasCrop
-              % WARNING: turning into 0b for consistency with deepnet
-              trkinfo.crop_loc = cropinfos(ivw).roi - 1;
+              trkinfo.crop_loc = movRoi(ivw,:);
             else
-              trkinfo.crop_loc = zeros(0,1); % consistency with deepnet
+              % hastrx, or nocrop-notrx
+              trkinfo.crop_loc = zeros(0,1); % particular empty shape is one-off for consistency with deepnet
+            end
+            if tfHasTrx
+              % should not happen for multiview
+              trkinfo.params.imsz = tgtcropimsz;
+            else
+              % has crop or nocrop-notrx
+              trkinfo.params.imsz = CPRLabelTracker.roi2imsz(movRoi(ivw,:));
             end
             trkfiles{i,ivw} = TrkFile(trkpos(iptCurrVw,:,:,:),...
               'pTrkTS',trkposTS(iptCurrVw,:,:),...
@@ -2129,13 +2153,20 @@ classdef CPRLabelTracker < LabelTracker
               'trkInfo',trkinfo);
           end
         else
+          % This branch needn't be special case
           trkinfo = trkinfobase;
           trkinfo.trnTS = trkposTrnTS;
           if tfHasCrop
-            % WARNING: turning into 0b for consistency with deepnet
-            trkinfo.crop_loc = cropinfos.roi - 1;
+            trkinfo.crop_loc = movRoi;
           else
-            trkinfo.crop_loc = zeros(0,1); % consistency with deepnet
+            % hastrx, or nocrop-notrx
+            trkinfo.crop_loc = zeros(0,1); % consistency with deepnet etc
+          end
+          if tfHasTrx
+            trkinfo.params.imsz = tgtcropimsz;
+          else
+            % has crop or nocrop-notrx
+            trkinfo.params.imsz = CPRLabelTracker.roi2imsz(movRoi);
           end
           trkfiles{i,1} = TrkFile(trkpos,...
             'pTrkTS',trkposTS,...
