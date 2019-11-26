@@ -1,5 +1,8 @@
 import run_apt_expts as rae
 
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 
 ## Accuracy over time.
 
@@ -10,18 +13,27 @@ rae.run_normal_training() #run_type = 'submit' to actually submit jobs.
 
 ##
 import run_apt_expts as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 reload(rae)
 rae.setup('alice')
 rae.get_normal_results()
 
 ##
 import run_apt_expts as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 reload(rae)
 rae.setup('stephen')
 rae.run_normal_training() #run_type = 'submit' to actually submit jobs.
 
 ##
 import run_apt_expts as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 reload(rae)
 rae.setup('stephen')
 rae.get_normal_results()
@@ -29,6 +41,9 @@ rae.get_normal_results()
 ## Accuracy over training set size
 
 import run_apt_expts as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 reload(rae)
 rae.setup('alice')
 # rae.create_incremental_dbs()
@@ -304,6 +319,9 @@ rae.create_gt_db()
 ##
 
 import run_apt_expts as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 reload(rae)
 rae.setup('alice_difficult')
 rae.get_normal_results()

@@ -21,6 +21,7 @@ import resnet_official
 import urllib
 import tarfile
 import math
+from open_pose2 import upsample_init_value
 
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
@@ -123,19 +124,22 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
                     layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                     with tf.variable_scope('u_{}'.format(ndx)):
-                        X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
-                        # X_sh = X.get_shape().as_list()
+                        # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                        X_sh = X.get_shape().as_list()
                         # w_mat = np.zeros([5,5,X_sh[-1],X_sh[-1]])
                         # for wndx in range(X_sh[-1]):
                         #     w_mat[:,:,wndx,wndx] = 1.
                         # w = tf.get_variable('w', [5, 5, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
-                        # out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-                        # X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
-                        # biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
-                        # conv_b = X + biases
-                        #
-                        # bn = batch_norm(conv_b)
-                        # X = tf.nn.relu(bn)
+                        w_sh = [4,4,X_sh[-1],X_sh[-1]]
+                        w_init = upsample_init_value(w_sh,alg='bl',dtype=tf.float32)
+                        w = tf.get_variable('w',w_sh,initializer=tf.constant_initializer(w_init))
+                        out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+                        X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+                        biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+                        conv_b = X + biases
+
+                        bn = batch_norm(conv_b)
+                        X = tf.nn.relu(bn)
 
                 prev_in = X
 
@@ -407,6 +411,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         locs_offset = 1.
         n_groups = len(self.conf.mdn_groups)
         n_out = self.conf.n_classes
+        self.resnet_out = X
         # self.offset = float(self.conf.imsz[0])/X.get_shape().as_list()[1]
 
         with tf.variable_scope(self.net_name):

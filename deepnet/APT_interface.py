@@ -354,7 +354,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     try:
         try:
             lbl = loadmat(lbl_file)
-        except NotImplementedError:
+        except (NotImplementedError,ValueError):
             # logging.info('Label file is in v7.3 format. Loading using h5py')
             lbl = h5py.File(lbl_file, 'r')
     except TypeError as e:
@@ -1652,7 +1652,7 @@ def classify_movie(conf, pred_fn,
     param_dict = convert_unicode(conf.__dict__.copy())
     param_dict.pop('cropLoc', None)
     info[u'params'] = param_dict
-    info[u'crop_loc'] = crop_loc
+    info[u'crop_loc'] = to_mat(crop_loc)
 
     if end_frame < 0: end_frame = end_frames.max()
     if end_frame > end_frames.max(): end_frame = end_frames.max()
