@@ -1,5 +1,12 @@
-import movies
-b = movies.Movie('/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190530_vocpbm164564_m164564_odor_m164301_f0_164992.mjpg')
+
+##
+import run_apt_expts as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
+reload(rae)
+rae.setup('alice')
+rae.get_incremental_results()
 
 
 ##

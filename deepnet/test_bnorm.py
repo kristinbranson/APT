@@ -73,3 +73,8 @@ print y_2
 print y_3
 print y_4
 print y_5
+
+##
+import keras.layers as kl
+
+aa = kl.BatchNormalization
