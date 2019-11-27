@@ -163,7 +163,6 @@ classdef LabelCore < handle
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
       gdata = obj.labeler.gdata;
       set(gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF(s,e));
-      %set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
       
       set(gdata.tbAccept,'Enable','on');
       set(gdata.pbClear,'Enable','on');
@@ -172,6 +171,10 @@ classdef LabelCore < handle
       obj.tfOcc = false(obj.nPts,1);
       obj.tfEstOcc = false(obj.nPts,1);
       obj.tfSel = false(obj.nPts,1);
+      
+      if obj.labeler.showOccludedBox
+        obj.showOcc();
+      end
       
       obj.txLblCoreAux.Visible = 'off';
       units0 = obj.txLblCoreAux.FontUnits;
@@ -183,7 +186,7 @@ classdef LabelCore < handle
     end
     
     function showOcc(obj)
-      
+            
       deleteValidHandles(obj.hPtsOcc);
       deleteValidHandles(obj.hPtsTxtOcc);
       obj.hPtsOcc = gobjects(obj.nPts,1);
@@ -214,13 +217,11 @@ classdef LabelCore < handle
     end
     
     function hideOcc(obj)
-      
       deleteValidHandles(obj.hPtsOcc);
       deleteValidHandles(obj.hPtsTxtOcc);
       obj.hPtsOcc = [];
       obj.hPtsTxtOcc = [];
       set(obj.hAxOcc,'ButtonDownFcn','');
-      
     end
            
   end
@@ -245,7 +246,6 @@ classdef LabelCore < handle
       
     end
 
-    
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSD>
       % Frame has changed, Target is the same
       %
@@ -560,19 +560,42 @@ classdef LabelCore < handle
       %
       % .hPts, .hPtsTxt: 'Hide' occluded points. Non-occluded, no action.
       % .hPtsOcc, .hPtsTxtOcc: shown/hidden/positioned as appropriate
+%       
+%       if isempty(obj.hPtsOcc),
+%         return;
+%       end
       
-      if isempty(obj.hPtsOcc),
-        return;
+      tf = obj.tfOcc;
+      %assert(isvector(tf) && numel(tf)==obj.nPts);
+      nOcc = nnz(tf);
+      if nOcc>0
+        if isempty(obj.hPtsOcc)
+          % this cond is a proxy for lObj.showOccludedbox==false          
+          
+          % It's best to force-show the occ box now. The labelDB says there
+          % are 1+ fully-occ points in this frame. Without revealing the 
+          % occ box we cannot faithfully show the current label state.
+          % Moreover the project is now known to contain fully-occluded
+          % labels so the user will need the fully-occ box anyway.
+          obj.labeler.setShowOccludedBox(true);
+          obj.showOcc();
+          
+          % early-return b/c showOcc() calls/reenters this meth
+          % (refreshOccludedPoints!)
+          return
+        end
+        
+        % Hide the 'regular' pts that are fully-occ
+        obj.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
       end
       
-      tf = obj.tfOcc;      
-      assert(isvector(tf) && numel(tf)==obj.nPts);
-      nOcc = nnz(tf);
-      iOcc = find(tf);
-      obj.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
-      LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
-      LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
-        obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
+      if ~isempty(obj.hPtsOcc) 
+        iOcc = find(tf);
+        LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],...
+          obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
+        LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
+          obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
+      end
     end
     
     function refreshPtMarkers(obj,varargin)

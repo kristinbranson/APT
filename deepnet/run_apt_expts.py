@@ -42,6 +42,7 @@ gt_name = ''
 
 cache_dir = '/nrs/branson/mayank/apt_cache'
 all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose','resnet_unet']
+# all_models = ['resnet_unet'] # 20191102. Rerunning experiments with deconvolved upsampling
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
@@ -88,7 +89,7 @@ def setup(data_type_in,gpu_device=None):
         common_conf['trange'] = 20
 
     elif data_type == 'roian':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped_newmovielocs.lbl'
         op_af_graph = '\(0,1\),\(0,2\),\(0,3\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
         common_conf['rrange'] = 180
@@ -451,7 +452,7 @@ def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
     conf = apt.create_conf(lbl_file,0,'cv_dummy',cache_dir,'mdn')
     lbl_movies, _ = multiResData.find_local_dirs(conf)
     in_movies = [PoseTools.read_h5_str(data_info[k]) for k in data_info['movies'][0,:]]
-    assert lbl_movies == in_movies or data_type == 'romain'
+    assert lbl_movies == in_movies or data_type in ['romain','roian']
     label_info = get_label_info(conf)
     fr_info = apt.to_py(data_info['frame'].value[:,0].astype('int'))
     m_info = apt.to_py(data_info['movieidx'].value[:,0].astype('int'))
@@ -1162,11 +1163,11 @@ def get_normal_results():
             if any([a<0 for a in aa]):
                 bb = int(np.where(np.array(aa)<0)[0])+1
                 files = files[bb:]
-            n_max = 10
-            if len(files)> n_max:
-                gg = len(files)
-                sel = np.linspace(0,len(files)-1,n_max).astype('int')
-                files = [files[s] for s in sel]
+            # n_max = 10
+            # if len(files)> n_max:
+            #     gg = len(files)
+            #     sel = np.linspace(0,len(files)-1,n_max).astype('int')
+            #     files = [files[s] for s in sel]
 
 
             out_file = os.path.join(conf.cachedir,train_name + '_results{}.p'.format(gt_name))

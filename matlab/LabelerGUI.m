@@ -3432,6 +3432,8 @@ if lObj.tracker.hasTrained
   end
 end
 
+% xvalidate currently requires CPR; allow treatInfPosAsOcc to default to
+% false
 tblMFgt = lObj.preProcGetMFTableLbled();
 inputstr = sprintf('This project has %d labeled frames.\nNumber of folds for k-fold cross validation:',...
   height(tblMFgt));

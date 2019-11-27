@@ -138,7 +138,7 @@ def upsample_filt(alg='nn', dtype=None):
 def upsample_init_value(shape, alg='nn', dtype=None):
     # Return numpy array for initialization value
 
-    print "upsample initializer desired shape: {}".format(shape)
+    print("upsample initializer desired shape: {}".format(shape))
     f = upsample_filt(alg, dtype)
 
     filtnr, filtnc, kout, kin = shape

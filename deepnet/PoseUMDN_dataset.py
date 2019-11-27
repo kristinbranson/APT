@@ -84,6 +84,8 @@ class PoseUMDN(PoseCommon.PoseCommon):
         self.i_locs = None
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
         self.no_pad = False
+        self.mdn_layers1 = []
+        self.mdn_layers2 = []
  
         if pad_input:
             self.pad_y = find_pad_sz(n_layers=5,in_sz=conf.imsz[0])

@@ -218,7 +218,7 @@ classdef LabelTracker < handle
       % Get standardized form of metadata for this tracker. Metadata should
       % include parameters, uniquely identify a trained model, etc.
       
-      s = struct('class',classname(obj));
+      s = struct('class',class(obj));
     end
     
     function importTrackingResults(obj,iMovSgned,trkfiles)
