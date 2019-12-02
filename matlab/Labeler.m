@@ -9244,8 +9244,10 @@ classdef Labeler < handle
         end
         tfinf2 = reshape(tfinf,height(tblP),[],2);
         assert(isequal(tfinf2(:,:,1),tfinf2(:,:,2))); % both x/y coords should be inf for fully-occ
-        nfulloccpts = nnz(tfinf2(:,:,1));        
-        warningNoTrace('Utilizing %d fully-occluded landmarks.',nfulloccpts);
+        nfulloccpts = nnz(tfinf2(:,:,1));
+        if nfulloccpts>0
+          warningNoTrace('Utilizing %d fully-occluded landmarks.',nfulloccpts);
+        end
       
         tblP.p(tfinf) = nan;
         if pAbsIsFld
