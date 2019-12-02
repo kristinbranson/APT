@@ -62,8 +62,8 @@ strong.regular-font {
   </li>
   <li><a href="#How to">How to train a part tracker with machine learning</a>
     <ul>
-      <li><a href="#What parts">What parts should you label?</a></li>
-      <li><a href="#What frames">Training data: Which frames should you label?</a></li>
+      <li><a href="#Which parts">Which parts should you label?</a></li>
+      <li><a href="#Which frames">Training data: Which frames should you label?</a></li>
       <li><a href="#How many frames">How many frames do I need to label?</a></li>
       <li><a href="#Is it working">How do I tell if it is working?</a></li>
     </ul>
@@ -216,12 +216,15 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
 <p>To train APT, you must label the locations of these parts in many sample images. The collection of video frames and corresponding manual labels is called the <b>training data set</b>. </p>
 <p>APT's machine learning algorithm will then learn a classifier which can <b>predict</b> part locations from just the video frame. It chooses the parameters of the classifier so that it is as accurate as possible on the training data. </p>
 <p>This learned classifier can then be used to track frames, animals, and videos that it wasn't trained on, producing <b>trajectories</b> -- the locations of each part for each animal over sequences of frames.</p>
-<p>APT gives you a lot of freedom -- you must choose what parts to label and which frames, videos, and animals to include in your training data. You can also choose different machine learning algorithms, each of which include multiple hyperparameters that can affect their performance. Below, we outline some principles to consider to get APT to work well.</p>
-<h3><a id="#What parts">What parts should you label?</a></h3>
-<p>The first choice you must make is which parts you want to label. The first thing to consider is <b>what you are going to do with the output trajectories</b>, should tracking be successful. We try to think through the exact computations we will do with the output trajectories before deciding what parts to label. </p>
+<p>APT gives you a lot of freedom -- you must choose which parts to label and which frames, videos, and animals to include in your training data. You can also choose different machine learning algorithms, each of which include multiple hyperparameters that can affect their performance. Below, we outline some principles to consider to get APT to work well.</p>
+<h3><a id="#Which parts">Which parts should you label?</a></h3>
+<p>The first choice you must make is which parts you want to label. The first thing to consider is <b>what you are going to do with the output trajectories</b>, should tracking be successful. We try to think through the exact computations we will do with the output trajectories before deciding which parts to label. </p>
 <p>The second thing to consider is how <b>reliably</b> you can manually label each part. That is, if you were to ask two people to label the part in the same image, how much <b>inter-annotator disagreement</b> will there be? As a rule of thumb, if it is hard for you to do the task, it will be also be hard for APT. We have found it easier to label parts that correspond to specific anatomical locations on the animal regardless of what angle you are viewing the animal from. For example, the tip of a mouse's left ear is a specific anatomical location, while the top of the mouse's head might be a more view-dependent feature. </p>
 <p>It is also important to consider <b>how easy it is</b> to identify that specific anatomical location from images. For example, the left front shoulder joint of a mouse is a specific anatomical location, but it is quite difficult to localize visually through all the blobbiness of a mouse. It is also important to think about how easy it is to localize the part from the types of video you have recorded. For instance, it is perhaps hard to label the big toe of the front left foot of a mouse in video taken from above a mouse, since the foot is <b>often occluded</b> by the body of the mouse. It is best if you do not need to guess where the part is, but can reliably localize the part.</p>
-<h3><a id="What frames">Training data: Which frames should you label?</a></h3>
+<center><a href="images/PartChoices.png"><img src="images/PartChoices.png" width="90%"></a><br/>
+  <i>Example part choices for a variety of tracking projects</i>
+</center>
+<h3><a id="Which frames">Training data: Which frames should you label?</a></h3>
 <p>Using APT, you can choose to label whichever frames you like. Here, we describe some best practices for choosing frames to label.</p>
 <p>Choose a <b>diverse set of frames</b> to label that are <b>representative</b> of all the types of videos you want your tracker to work on. If you want your tracker to work on many different animals, then you should <b>label different animals</b>, otherwise your tracker may overfit to specific characteristics of the one individual you labeled. Similarly, if you want your tracker to work in many different videos, then you should <b>label frames in multiple videos</b>, otherwise the tracker may overfit to specific characteristics of individual videos.</p>
 <p>In general, you want to think about all the different ways you might want to use the tracker, and make sure that all of those are represented in your training data. APT makes it easy to add multiple videos to your <a href="#APT Projects">APT Project</a> and to navigate to different frames and different animals.</p>
