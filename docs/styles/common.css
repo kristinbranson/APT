@@ -103,6 +103,13 @@ table
 	border-collapse: collapse;
 }
 
+#table_align
+{
+    margin: 0em;
+    border-collapse: collapse;
+    border-spacing: 0px;
+}
+
 footer 
 {
     margin-top: 2em;
