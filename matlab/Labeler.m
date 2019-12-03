@@ -31,7 +31,7 @@ classdef Labeler < handle
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
-      'skeletonEdges','showSkeleton'...
+      'skeletonEdges','showSkeleton','flipLandmarkMatches'...
       'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
     SAVEPROPS_LPOS = {...
       'labeledpos' 'nan'
@@ -357,6 +357,7 @@ classdef Labeler < handle
     labeledpos2GT         % like .labeledpos2
 
     skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
+    flipLandmarkMatches = zeros(0,2); % nPairs x 2 matrix containing indices of vertex landmarks
     
   end
   properties % make public setaccess
@@ -1441,6 +1442,7 @@ classdef Labeler < handle
 
       obj.skeletonEdges = zeros(0,2);
       obj.showSkeleton = false;
+      obj.flipLandmarkMatches = zeros(0,2);
       
       % When starting a new proj after having an existing proj open, old 
       % state is lingering in .prevAxesModeInfo despite the next 
@@ -1954,6 +1956,7 @@ classdef Labeler < handle
       s.xvResults = [];
       s.xvResultsTS = [];
       s.skeletonEdges = zeros(0,2);
+      s.flipLandmarkMatches = zeros(0,2);
       s = Labeler.resetTrkResFieldsStruct(s);
       for i=1:numel(s.trackerData)
         s.trackerData{i} = [];
@@ -2143,6 +2146,7 @@ classdef Labeler < handle
       
       obj.setSkeletonEdges(obj.skeletonEdges);
       obj.setShowSkeleton(obj.showSkeleton);
+      obj.setFlipLandmarkMatches(obj.flipLandmarkMatches);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       if ~wasbundled
@@ -3384,6 +3388,12 @@ classdef Labeler < handle
       if ~isfield(s,'showSkeleton'),
         s.showSkeleton = false;
       end
+
+      % KB 20191203: added landmark matches
+      if ~isfield(s,'flipLandmarkMatches'),
+        s.flipLandmarkMatches = zeros(0,2);
+      end
+
       
       % 20190429 TrkRes
       if ~isfield(s,'trkRes')
@@ -5511,6 +5521,9 @@ classdef Labeler < handle
       obj.showSkeleton = logical(tf);
       obj.lblCore.updateShowSkeleton();
       obj.labeledpos2trkViz.updateHideVizHideText();
+    end
+    function setFlipLandmarkMatches(obj,matches)
+      obj.flipLandmarkMatches = matches;
     end
         
   end
@@ -10179,6 +10192,14 @@ classdef Labeler < handle
       else
         tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
       end
+      % add landmark matches
+      matches = obj.flipLandmarkMatches;
+      nedge = size(matches,1);
+      matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
+      matchstr = String.cellstr2CommaSepList(matchstr);
+      tdata.sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
+      %tdata.sPrmAll.ROOT.DeepTrack.
+      
       tdata.trnNetTypeString = char(tdata.trnNetType);
       
       tftrx = obj.hasTrx;      

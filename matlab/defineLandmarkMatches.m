@@ -12,7 +12,7 @@ end
   edges,txtOffset,selectedMarkerSize,unselectedMarkerSize,...
   selectedMarker,unselectedMarker,...
   unselectedColor,selectedColor,...
-  unselectedLineWidth,selectedLineWidth] = myparse(varargin,'hfig',nan,'hax',nan,...
+  unselectedLineWidth,selectedLineWidth,instructions] = myparse(varargin,'hfig',nan,'hax',nan,...
   'imagesc_args',{},'label_cm',[],'plotpts_args',{},...
   'axes_props',{},'text_args',{},...
   'edges',zeros(0,2),...
@@ -21,7 +21,8 @@ end
   'unselectedMarkerSize',8,...
   'selectedMarker','o','unselectedMarker','+',...
   'unselectedColor',[.5,.5,.5],'selectedColor',[.8,0,.8],...
-  'unselectedLineWidth',2,'selectedLineWidth',4);
+  'unselectedLineWidth',2,'selectedLineWidth',4,...
+  'instructions','');
 
 if isa(im,'Labeler')
   [im,pts,imagescArgs,labelCM,axesProps,txtOffset] = parseLabelerArgs(lObj);
@@ -31,12 +32,16 @@ if isempty(edges),
   edges = zeros(0,2);
 end
 
-
+instrh = .3;
 if ~ishandle(hAx),
   if ~ishandle(hFig),
     hFig = figure;
   end
-  hAx = axes('parent',hFig);
+  if isempty(instructions),
+    hAx = axes('parent',hFig,'Position',[.13,.11,.775,.815]);
+  else
+    hAx = axes('parent',hFig,'Position',[.13,.11+instrh,.775,.815-instrh]);
+  end
 else
   hFig = get(hAx,'Parent');
   delete(findobj(hFig,'Style','pushbutton'));
@@ -83,7 +88,7 @@ iSelected = [];
 set(hFig,'Units','normalized');
 set(hAx,'Units','normalized');
 pos = get(hAx,'Position');
-w = .2;
+w = .25;
 d = .01;
 h = .05;
 addPos = [pos(1)+pos(3)/2-1.5*(w-d/2),pos(2)-h-d,w,h];
@@ -91,15 +96,20 @@ removePos = addPos;
 removePos(1) = addPos(1)+w+d;
 donePos = removePos;
 donePos(1) = removePos(1)+w+d;
-pbAddEdge = uicontrol('Style','pushbutton','Parent',hFig,'Units','normalized','Position',addPos,'String','Add match',...
+pbAddEdge = uicontrol('Style','pushbutton','Parent',hFig,'Units','normalized','Position',addPos,'String','Add pair',...
   'BackgroundColor',[0,.6,0],'ForegroundColor','w','FontWeight','bold',...
   'Callback',@cbkPBAddEdge);
-pbRemoveEdge = uicontrol('Style','pushbutton','Parent',hFig,'Units','normalized','Position',removePos,'String','Remove match',...
+pbRemoveEdge = uicontrol('Style','pushbutton','Parent',hFig,'Units','normalized','Position',removePos,'String','Remove pair',...
   'BackgroundColor',[.6,0,0],'ForegroundColor','w','FontWeight','bold',...
   'Callback',@cbkPBRemoveEdge);
 pbDone = uicontrol('Style','pushbutton','Parent',hFig,'Units','normalized','Position',donePos,'String','Done',...
   'BackgroundColor',[0,0,.8],'ForegroundColor','w','FontWeight','bold',...
   'Callback',@cbkPBDone);
+if ~isempty(instructions),
+  instrPos = [.05,d,.9,instrh];
+  txtInstr = uicontrol('Style','text','Parent',hFig,'Units','normalized','Position',instrPos,'String',instructions,...
+    'HorizontalAlignment','left');
+end
 
 uiwait(hFig);
 
