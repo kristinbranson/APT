@@ -30,7 +30,7 @@ ROOT:
       - adjustContrast: ['Histogram equalization',boolean,true,'Normalize image contrast using contrast limited adaptive histogram equalization (CLAHE).',0,'','Important','isDeepTrack',true]
       - clahe_grid_size: ['Neighborhood size for histogram equalization',unsigned,true,'CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels.',20,'','Advanced','isDeepTrack',true]
       - normalize: ['Brightness normalization',boolean,true,'Normalize images by subtracting the average pixel intensity in the image.',0,'','Beginner','isDeepTrack',true]
-      - flipud: ['Flip movie',boolean,true,'Whether to flip images upside down. ',0,'','Beginner','isDeepTrack',true]
+      - flipud: ['Flip movie',boolean,true,'Whether to flip images upside down. ',0,'','Developer','isDeepTrack',true]
       - imax: ['Max pixel value',float,true,'Maximum pixel value in the video.',255.,'','Advanced','isDeepTrack',true]
     - GradientDescent:
       - ['','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
@@ -47,8 +47,8 @@ ROOT:
       - scale_range: ['Scale range',float,true,'Augment by adjusting image scale by a random amount between (1-this number) to (1+this number). 0 indicates no scale adjustment, 1 indicates scaling by a factor between 0 to 2',0.2,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
       - crange: ['Contrast range',float,true,'Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment',0.1,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
       - brange: ['Brightness range',float,true,'Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.',0.1,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
-      - horz_flip: ['Flip horizontally',boolean,true,'Augment by flipping the training image and labels horizontally.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isDeepTrack',true]
-      - vert_flip: ['Flip vertically',boolean,true,'Augment by flipping the training image ang labels vertically.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isDeepTrack',true]
+      - horz_flip: ['Flip horizontally',boolean,true,'Augment by flipping the training image and labels horizontally.',0,'ParameterVisualizationPreproc#preproc1','Developer','isDeepTrack',true]
+      - vert_flip: ['Flip vertically',boolean,true,'Augment by flipping the training image ang labels vertically.',0,'ParameterVisualizationPreproc#preproc1','Developer','isDeepTrack',true]
       - perturb_color: ['Perturb color',boolean,true,'Augment by perturbing image color.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isDeepTrack',true]
       - check_bounds_distort: ['Check landmarks during augmentation',boolean,true,'Check that landmarks remain within the image during augmentation.',1,'','Advanced','isDeepTrack',true]
     - LossFunction:
