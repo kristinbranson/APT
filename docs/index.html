@@ -263,6 +263,7 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
       <center><br/><a href="images/MultiViewLabeling.png"><img src="images/MultiViewLabeling.png" width="50%"></a><br/>
 	<i>Example multi-view recording.</i></center><br/>
     </li>
+  </ul>
 
 <hr class="h2-divider">
 
@@ -431,36 +432,53 @@ The <b><a href="#Labeling window">Labeling window</a></b> shows the current fram
 
 <p>One of the main goals of the APT user interface is allowing easy and efficient labeling of training data. To this end, we have implemented a few different labeling modes. You can select different labeling modes from the <b>Label</b> menu.</p>
 
-<h3><a id="Sequential Mode">Sequential labeling mode</a></h3>
+<h3><a id="Sequential mode">Sequential labeling mode</a></h3>
 <p>In sequential labeling mode, when you decide to label an animal and frame, you must click and label all points in sequential order. We recommend using this mode if you have <b>memorized the part order</b> (you can look at the <a href="#Reference frame">reference frame</a> for a reminder) and most of the parts are in quite variable locations. <b>We use this mode for almost all of our projects.</b></p>
 <p>To begin labeling an animal/frame, <b>click on the location of part 1</b> in the <a href="#Labeling window">labeling window</a>. Then, <b>sequentially click</b> to label parts 2, 3, ... until you have <b>labeled all parts</b>.</p>
 <p>You can <b>edit placement</b> of any landmark after you finish initially positioning all parts in the following ways:
   <ul>
     <li>Clicking and <b>dragging</b> the part.</li>
-    <li>Selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can tell that a part has been selected because its <b>marker will change from a '+' to an 'x'</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. Re-typing the identifying number will toggle the part to be unselected again. </li>
+    <li>Selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can tell that a part has been selected because its <b>marker will change from a '+' to an 'x'</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. Re-typing the identifying number will toggle the part to be <b>unselected</b> again. </li>
   </ul>
 </p>
-<p>You can remove labels by clicking the <b><a href="#Clear button">Clear</a></b> button.</p>
-<p>In sequential mode, frames must be either completely labeled or completely unlabeled, i.e. you can't only label a few of the parts. If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button.</p>
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
 <p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
 
-<ul>
-<li><b>Sequential mode:</b><br>
-Allows you to just click your points in order; points are automatically accepted once you click the last point.  You can edit placement after you finish by:
-<ul>
-<li>Clicking and dragging a point</li>
-<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from '+' to 'x' (Numbers above 10 are accessed by `(back quote) + number key).</li>
-<li>Activating a point with the number keys and moving with arrow keys. Hitting the number key again will toggle the point back to '+'. If you hold down the shift key while you click, the point will be recorded as an 'o' instead of a '+', indicating an occluded point.</li> 
-</ul>
-</li>
+<h3><a id="Template mode">Template labeling mode</a></h3>
+<p>In template mode, all the parts are placed in a pre-specified location, and you select and move individual parts. This mode is useful if it is hard to remember the parts in order (e.g. if there are a <i>lot</i> of parts), or if many of the parts don't move much. </p>
 
-<li><b>Template mode:</b><br>
-The first frame will have unassigned label points in random locations on the image (white pluses with colored numbers next to them). On subsequent frames the points will be where they were on the previous frame. To label the frame, move the pluses to where they should belong on the target.  You can drag and drop a point with the mouse or you can select (or unselect) a point with its associated number key (1-9).  When a point is selected it changes from a plus to an x.  A selected point can be moved using the arrow keys (helpful for fine-tuning positions).  Shift plus the arrow keys moves the selected point in larger jumps.  When a point is selected, a mouse click anywhere on the image will move the selected point to that location. Once you are happy with the positions of the points, click the accept button, the 's' key or the space bar to save the labels for the current frame.  
+<p>When you navigate to an unlabeled frame, all the parts will appear as white '+'es. As you modify them, they will be colored.</p>
+<center>
+<table id="table_align" style="width:50%">
+  <tr>
+    <td>
+      <center><a href="images/TemplateModeUnlabeledZ.png"><img width="100%" src="images/TemplateModeUnlabeledZ.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TemplateModePartiallyLabeled.png"><img width="100%" src="images/TemplateModePartiallyLabeled.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Template mode: Unlabeled frame</i></center></td>
+    <td><center><i>Partially labeled frame</i></center></td>
+  </tr>
+</table>
+</center>
+<p>The <b>initial locations</b> of the parts in a given frame is based on the last labeled frame you have navigated to. If you have <a href="#Body Tracking">body tracking</a>, then the template will translate and/or rotate with the body track. If no frames have been labeled yet, the initial part locations will be random.</p>
+<p>You can <b>modify</b> the label of any part in the following ways:
+  <ul>
+    <li><b>Clicking</b> a part to select it. You can tell that a part has been selected because its <b>marker will change from a '+' to an 'x'</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. </li>
+    <li>Clicking and <b>dragging</b> the part.</li>
+    <li>Selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. Re-typing the identifying number will toggle the part to be <b>unselected</b> again. </li>
+  </ul>
+</p>
+<p>Once you have <b>finished labeling</b> the animal and frame, <b>click the red <a href="#Label state button">"Accept"</a></b> button to let APT know that this frame is now completely labeled. You can also press the keyboard shortcut 's' or the space bar. The Accept button will change to green and read "Labeled". All parts will change to be colored '+'es. </p>
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button. The green <a href="#Label state button">"Labeled"</a> button will change back to a red "Accept" button. </p>
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
 
-</li>
-
-
-<li><b>High throughput mode:</b><br>
+<!-- <li><b>High throughput mode:</b><br>
 
 In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced. The number of frames to advance is set in 'Set Frame Increment' in the Label dropdown menu. When the end of the movie is reached, the labeling point is incremented, until all labeling for all points is complete. You may manually change the current labeling point in 'Set Labeling Point' in the Label dropdown menu.
 
@@ -468,27 +486,35 @@ Right-clicking the current point offers options for repeatedly accepting the cur
 
 </li>
 
-
-<li><b>Multiview calibrated:</b><br>
-
-For calibrated labeling, first go to Setup> Load Calibration File to load a calibration file. This enables calibrated labeling, where epipolar lines and reconstructed points are shown to assist in labeling multi-camera data.
-
-The number keys 0-9 select a physical point. Each view has its own projection of this point and the selected point will be indicated on all views. After a point is selected, clicking on any view will jump the point in that view to the clicked location. Epipolar lines will be projected in the other views. The point in the first/original view is now adjustable by click-dragging, or with the arrow or -arrow keys. The epipolar lines should live-update as the first point is adjusted.
-
-For projects with three or more views: Clicking on a second view jumps the selected point in the second view to the clicked location. With the point anchored in two views, reconstructed best-guesses for the point are shown in all remaining views. The reconstruction shows three points indicating a spread of possible locations based on the first two clicked locations. The middle point is the most likely location.
-
-Spacebar toggles the anchoring state of a point in a view. Anchored points have the letter 'a' appended to their text label. When a point is anchored, epipolar lines or reconstructed points are shown in the other views. Points that are shown as 'x' rather than '+' are adjustable with the arrow keys (fine adjustment) or -arrow keys (coarse adjustment).
-
-When all points are in their desired locations, the Accept button (or 's' hotkey) accepts the labels.
-
-</li>
-</ul>
+-->
 
 
-Once you have a reasonable number of frames labeled you are ready to train a classifier.</p>
+<h3><a id="Multiview mode">Multiview labeling mode</a></h3>
 
-To remove frames (useful for making a subset, or if you change your mind about how something should be labeled), you can just click the "Clear" button on that frame (next to the Accepted button), and those points will go back to unassigned.
+<p><a href="#MultiView">Multi-view</a> projects require parts to be labeled in each view. There is an extra <a href="#Label frame">label frame</a> for each additional view. Multiview labeling mode must be used for all multi-view projects. </p>
+<center><a href="images/MultiViewLabelFrames.png"><img src="images/MultiViewLabelFrames.png" width="75%"></a><br/>
+  <i>Label frames for a project with 2 views</i>
+</center>
 
+<p>Multi-view labeling mode is most similar to <a href="#Template mode">template labeling mode</a>. When you navigate to an unlabeled frame, all the parts are placed in a pre-specified location in all views, and will appear as white '+'es. As you modify them, they will be colored. When a part is selected for modification, it is <b>selected in all views</b> simultaneously. </p>
+
+<p>The <b>initial locations</b> of the parts in a given frame is based on the last labeled frame you have navigated to. If no frames have been labeled yet, the initial part locations will be random.</p>
+<p>You can <b>modify</b> the label of any part in the following ways:
+  <ul>
+    <li>If no other part is selected, you can <b>click</b> a part to select it. You can tell that a part has been selected because its number will be bolded and surrounded by a <b>white rectangle</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Note that you can click in any view to modify the label in that view. </li>
+    <li>If no other part is selected, you can click and <b>drag</b> the part to a new location.</li>
+    <li>You can selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can then <b>click a new location</b> to move the part to that location. Re-typing the identifying number will toggle the part to be <b>unselected</b> again. </li>
+  </ul>
+</p>
+<p>Once you have <b>finished labeling</b> the animal and frame, <b>click the red <a href="#Label state button">"Accept"</a></b> button to let APT know that this frame is now completely labeled. You can also press the keyboard shortcut 's' or the space bar. The Accept button will change to green and read "Labeled". All parts will change to be colored '+'es. </p>
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button. The green <a href="#Label state button">"Labeled"</a> button will change back to a red "Accept" button. </p>
+<p>If your cameras are <b>calibrated</b>, you can load this calibration information into APT by selecting <b>Load calibration file</b> from the <b>Label</b> menu. When a part is selected in one view by clicking on it, the calibration information is used to compute the <a href="http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/OWENS/LECT10/node3.html">epipolar line</a> on which the part in other views should lie. This is shown in all other views. An 'a'</p>
+<center><a href="images/MultiViewLabelingCalibrated.png"><img src="images/MultiViewLabelingCalibrated.png" width="75%"></a><br/>
+  <i>Two-view project with calibration: the blue line in View 2 indicates the epipolar line based on the label in View 1.</i>
+</center>
+
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
 
 
 <hr class="h2-divider">
