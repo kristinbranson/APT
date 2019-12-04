@@ -429,8 +429,20 @@ The <b><a href="#Labeling window">Labeling window</a></b> shows the current fram
 
 <h2><a id="Labeling points">Labeling points</a></h2>
 
-Labeling modes:
-There are different labeling modes, which you can switch between in the Label dropdown menu.
+<p>One of the main goals of the APT user interface is allowing easy and efficient labeling of training data. To this end, we have implemented a few different labeling modes. You can select different labeling modes from the <b>Label</b> menu.</p>
+
+<h3><a id="Sequential Mode">Sequential labeling mode</a></h3>
+<p>In sequential labeling mode, when you decide to label an animal and frame, you must click and label all points in sequential order. We recommend using this mode if you have <b>memorized the part order</b> (you can look at the <a href="#Reference frame">reference frame</a> for a reminder) and most of the parts are in quite variable locations. <b>We use this mode for almost all of our projects.</b></p>
+<p>To begin labeling an animal/frame, <b>click on the location of part 1</b> in the <a href="#Labeling window">labeling window</a>. Then, <b>sequentially click</b> to label parts 2, 3, ... until you have <b>labeled all parts</b>.</p>
+<p>You can <b>edit placement</b> of any landmark after you finish initially positioning all parts in the following ways:
+  <ul>
+    <li>Clicking and <b>dragging</b> the part.</li>
+    <li>Selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can tell that a part has been selected because its <b>marker will change from a '+' to an 'x'</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. Re-typing the identifying number will toggle the part to be unselected again. </li>
+  </ul>
+</p>
+<p>You can remove labels by clicking the <b><a href="#Clear button">Clear</a></b> button.</p>
+<p>In sequential mode, frames must be either completely labeled or completely unlabeled, i.e. you can't only label a few of the parts. If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
 
 <ul>
 <li><b>Sequential mode:</b><br>
