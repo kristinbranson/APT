@@ -146,6 +146,7 @@ classdef LabelCoreTemplate < LabelCore
   
 
   properties
+    supportsSingleView = true;
     supportsMultiView = false;
     supportsCalibration = false;
   end

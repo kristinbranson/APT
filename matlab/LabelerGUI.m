@@ -162,7 +162,7 @@ end
 
 handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
   'Parent',handles.menu_labeling_setup,...
-  'Label','Multiview Calibrated',...
+  'Label','Multiview',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multiview_calibrated_mode_2_Callback',hObject,eventdata,guidata(hObject)),...
   'Tag','menu_setup_multiview_calibrated_mode_2');  
 delete(handles.menu_setup_multiview_calibrated_mode);
@@ -170,6 +170,14 @@ handles.menu_setup_multiview_calibrated_mode = [];
 delete(handles.menu_setup_tracking_correction_mode);
 handles.menu_setup_tracking_correction_mode = [];
 delete(handles.menu_setup_createtemplate);
+
+handles.menu_setup_use_calibration = uimenu(...
+  'Parent',handles.menu_labeling_setup,...
+  'Label','Use calibration',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_use_calibration_Callback',hObject,eventdata,guidata(hObject)),...
+  'Tag','menu_setup_use_calibration',...
+  'Checked','off');  
+
 handles.menu_setup_label_overlay_montage = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_overlay_montage_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Label Overlay Montage',...
@@ -197,12 +205,13 @@ LABEL_MENU_ORDER = {
    'menu_setup_template_mode'
    'menu_setup_highthroughput_mode'
    'menu_setup_multiview_calibrated_mode_2'   
+   'menu_setup_streamlined'
+   'menu_setup_load_calibration_file'
+   'menu_setup_use_calibration'
    'menu_setup_label_overlay_montage'
    'menu_setup_label_overlay_montage_trx_centered'
    'menu_setup_set_labeling_point'
    'menu_setup_set_nframe_skip'
-   'menu_setup_streamlined'
-   'menu_setup_load_calibration_file'
    'menu_setup_lock_all_frames'
    'menu_setup_unlock_all_frames'};
 menuReorder(handles.menu_labeling_setup,LABEL_MENU_ORDER);
@@ -210,6 +219,7 @@ handles.menu_setup_label_overlay_montage.Separator = 'on';
 handles.menu_setup_set_labeling_point.Separator = 'on';
 handles.menu_setup_streamlined.Separator = 'on';
 handles.menu_setup_load_calibration_file.Separator = 'off';
+handles.menu_setup_load_calibration_file.Text = 'Select calibration file...';
 
 handles.menu_view_show_bgsubbed_frames = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_bgsubbed_frames_Callback',hObject,eventdata,guidata(hObject)),...
@@ -647,6 +657,17 @@ handles.propsNeedInit = {
   'showOccludedBox'
   };
 
+% handles that are only enabled in multi-view or single-view mode
+
+handles.h_multiview_only = [...
+  handles.menu_setup_multiview_calibrated_mode_2...
+  ];
+handles.h_singleview_only = [...
+   handles.menu_setup_sequential_mode ...
+   handles.menu_setup_template_mode ...
+   handles.menu_setup_highthroughput_mode ...
+   ];
+  
 set(handles.output,'Toolbar','figure');
 
 handles = initTblTrx(handles);
@@ -869,6 +890,13 @@ switch lower(state),
       set(handles.menu_go_targets_summary,'Enable','off');
     end
     
+    if lObj.nview == 1,
+      set(handles.h_multiview_only,'Enable','off');
+    elseif lObj.nview > 1,
+      set(handles.h_singleview_only,'Enable','off');
+    else
+      error('Sanity check -- nview = 0');
+    end
 
   otherwise
     fprintf('Not implemented\n');
@@ -1474,6 +1502,13 @@ else
   str = sprintf('%s %d: %s',movstr,lObj.currMovie,mname);
 end
 set(handles.txMoviename,'String',str);
+
+% by default, use calibration if there is calibration for this movie
+lc = lObj.lblCore;
+if ~isempty(lc) && lc.supportsCalibration,
+  handles.menu_setup_use_calibration.Checked = onIff(lc.isCalRig && lc.showCalibration);
+end
+
 if ~isempty(mname)
   %str = sprintf('new %s %s at %s',lower(movstr),mname,datestr(now,16));
   %setStatusBarTextWhenClear(handles,str);
@@ -1646,6 +1681,7 @@ switch lblMode
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_use_calibration.Visible = 'off';
   case LabelMode.TEMPLATE
 %     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1654,6 +1690,7 @@ switch lblMode
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_use_calibration.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
 %     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
@@ -1662,6 +1699,7 @@ switch lblMode
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_use_calibration.Visible = 'off';
 %   case LabelMode.ERRORCORRECT
 %     handles.menu_setup_createtemplate.Visible = 'off';
 %     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1678,6 +1716,7 @@ switch lblMode
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'on';
+    handles.menu_setup_use_calibration.Visible = 'on';
 end
 
 lc = lObj.lblCore;
@@ -2831,7 +2870,29 @@ if isempty(ret)
 end
 ret = str2double(ret{1});
 lObj.lblCore.setIPoint(ret);
+
+function set_use_calibration(handles,v)
+
+lObj = handles.labelerObj;
+lc = lObj.lblCore;
+if lc.supportsCalibration,
+  lc.setShowCalibration(v);
+end
+handles.menu_setup_use_calibration.Checked = onIff(lc.showCalibration);
+
+function menu_setup_use_calibration_Callback(hObject, eventdata, handles)
+
+lObj = handles.labelerObj;
+lc = lObj.lblCore;
+if lc.supportsCalibration,
+  lc.toggleShowCalibration();
+  hObject.Checked = onIff(lc.showCalibration);
+else
+  hObject.Checked = 'off';
+end
+
 function menu_setup_load_calibration_file_Callback(hObject, eventdata, handles)
+
 lastCalFile = RC.getprop('lastCalibrationFile');
 if isempty(lastCalFile)
   lastCalFile = pwd;
@@ -2875,6 +2936,7 @@ if tfProjWide
 else
   lObj.viewCalSetCurrMovie(crObj);%,'tfSetViewSizes',tfSetViewSizes);
 end
+set_use_calibration(handles,true);
 
 RC.saveprop('lastCalibrationFile',fname);
 

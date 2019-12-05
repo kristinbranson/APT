@@ -22,6 +22,7 @@ classdef LabelCore < handle
   end
   
   properties (Abstract)
+    supportsSingleView % scalar logical
     supportsMultiView % scalar logical
     supportsCalibration % scalar logical
   end

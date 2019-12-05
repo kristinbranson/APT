@@ -71,6 +71,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     streamlined = false; 
   end
   properties
+    supportsSingleView = false;
     supportsMultiView = true;
     supportsCalibration = true;
   end
@@ -87,10 +88,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
                   % .iSet2iPt(iSet,:) are the nview pt indices that
                   % correspond to pointset iSet.
     iPt2iSet      % [npts]. set index for each point.
+    showCalibration = true; % whether to show calibration-based info
   end
   properties (Dependent)
     nView         % scalar
     nPointSet     % scalar, number of 'point sets'.    
+    isCalRig
   end  
     
   %% Projections
@@ -135,6 +138,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     function v = get.pjtState(obj)
       v = nnz(~isnan(obj.pjtIPts));
     end
+    function v = get.isCalRig(obj)
+      v = ~isempty(obj.pjtCalRig);
+    end
   end
   
   methods
@@ -143,6 +149,17 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.numHotKeyPtSet = val;
       obj.refreshHotkeyDesc();
     end
+
+    function setShowCalibration(obj,val)
+      obj.showCalibration = val;      
+      
+      if obj.isCalRig,
+        obj.projectionRefresh();
+      end
+
+      
+    end
+
     
   end
   
@@ -895,6 +912,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % update EPlines based on .pjtIPt1 and coords of that hPt.
       
       assert(obj.pjtState==1);
+      if ~obj.isCalRig,
+        return;
+      end
       
       iPt1 = obj.pjtIPts(1);
       hPt1 = obj.hPts(iPt1);
@@ -907,7 +927,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         imroi = [hIm.XData hIm.YData];
         [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
         hEpi = obj.pjtHLinesEpi(iAx);
-        set(hEpi,'XData',x,'YData',y,'Visible','on','Color',hPt1.Color);
+        set(hEpi,'XData',x,'YData',y,'Visible',onIff(obj.showCalibration),'Color',hPt1.Color);
         %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
       end
       set(obj.pjtHLinesEpi(iAx1),'Visible','off');
@@ -932,6 +952,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % corresponding hPts.
       
       assert(obj.pjtState==2);
+      if ~obj.isCalRig,
+        return;
+      end
       
       iPt1 = obj.pjtIPts(1);
       iPt2 = obj.pjtIPts(2);
@@ -948,7 +971,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         [x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
         set(obj.pjtHLinesRecon(iAx),...
           'XData',x,'YData',y,...
-          'Visible','on','Color',hPt1.Color);
+          'Visible',onIff(obj.showCalibration),'Color',hPt1.Color);
       end
     end
     
@@ -1192,6 +1215,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       str = sprintf('Hotkeys 0-9 map to 3d points %d-%d',iSet0,iSet1);
       [obj.hAxXLabels(2:end).String] = deal(str);
       obj.txLblCoreAux.String = str;
+    end
+    
+    function toggleShowCalibration(obj)
+      
+      obj.setShowCalibration(~obj.showCalibration);
+      
     end
             
   end

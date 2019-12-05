@@ -8,7 +8,7 @@ classdef LabelMode
     TEMPLATE ('Template')
     HIGHTHROUGHPUT ('HighThroughput')
 %     ERRORCORRECT ('ErrorCorrect')
-    MULTIVIEWCALIBRATED2 ('Multiview Calibrated')
+    MULTIVIEWCALIBRATED2 ('Multiview')
   end
   methods
     function obj = LabelMode(pStr)

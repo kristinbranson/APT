@@ -5598,8 +5598,8 @@ classdef Labeler < handle
       if obj.lblCore.supportsCalibration
         vcd = obj.viewCalibrationDataCurrent;
         if isempty(vcd)
-          warningNoTrace('Labeler:labelingInit',...
-            'No calibration data loaded for calibrated labeling.');
+%           warningNoTrace('Labeler:labelingInit',...
+%             'No calibration data loaded for calibrated labeling.');
         else
           obj.lblCore.projectionSetCalRig(vcd);
         end
