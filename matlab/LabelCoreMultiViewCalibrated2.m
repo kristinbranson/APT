@@ -600,8 +600,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         if isscalar(iAx) && ~isnan(iWS)
           tfSel = true;
           iSel = obj.iSet2iPt(iWS,iAx);
-        else
-          fprintf('No point selected.\n');
         end
         if tfSel && ~obj.tfOcc(iSel)
           tfShift = any(strcmp('shift',modifier));
