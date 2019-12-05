@@ -595,7 +595,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         %[tfSel,iSel] = obj.anyPointSelected();
         
-        iAx = find(gcf==obj.hFig);
+        iAx = find(get(0,'CurrentFigure')==obj.hFig);
         iWS = obj.iSetWorking;
         if isscalar(iAx) && ~isnan(iWS)
           tfSel = true;
@@ -763,6 +763,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionWorkingSetSet(obj,iSet)
+            
       iPtsSet = obj.iSet2iPt(iSet,:);
 
       h = obj.hPts;
@@ -779,6 +780,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           set(hPT(i),'Color',hClrs(i,:)*.75,'FontWeight','normal','EdgeColor','none');
           set(h(i),'HitTest','off');
         end
+      end
+      iAx = find(get(0,'CurrentFigure')==obj.hFig);
+      if isscalar(iAx),
+        set(obj.hFig(iAx),'CurrentObject',get(hPT(iAx),'Parent'));
       end
       obj.iSetWorking = iSet;
       obj.labeler.currImHud.updateLblPoint(iSet,obj.nPointSet);
