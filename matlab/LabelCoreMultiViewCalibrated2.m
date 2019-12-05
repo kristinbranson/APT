@@ -593,11 +593,20 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.setPtFullOcc(iPt);
         end
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
-        [tfSel,iSel] = obj.anyPointSelected();
+        %[tfSel,iSel] = obj.anyPointSelected();
+        
+        iAx = find(gcf==obj.hFig);
+        iWS = obj.iSetWorking;
+        if isscalar(iAx) && ~isnan(iWS)
+          tfSel = true;
+          iSel = obj.iSet2iPt(iWS,iAx);
+        else
+          fprintf('No point selected.\n');
+        end
         if tfSel && ~obj.tfOcc(iSel)
           tfShift = any(strcmp('shift',modifier));
           xy = obj.getLabelCoordsI(iSel);
-          iAx = obj.iPt2iAx(iSel);
+          %iAx = obj.iPt2iAx(iSel);
           ax = obj.hAx(iAx);
           switch key
             case 'leftarrow'
