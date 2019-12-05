@@ -1062,6 +1062,10 @@ if ~lObj.isReady,
 end
 
 tfKPused = false;
+isarrow = ismember(evt.Key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'});
+if isarrow && ismember(src,lObj.gdata.h_ignore_arrows),
+  return;
+end
 
 % first try user-defined KeyPressHandlers
 kph = lObj.keyPressHandlers;
@@ -1296,6 +1300,7 @@ arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is
 arrayfun(@(x)pan(x,'off'),handles.figs_all);
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
+handles.h_ignore_arrows = [handles.slider_frame];
 set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
 if ispc
@@ -2263,7 +2268,7 @@ mnu = lObj.gdata.menu_view_rotate_video_target_up;
 mnu.Checked = onIff(tf);
 lObj.UpdatePrevAxesDirections();
 
-function slider_frame_Callback(hObject,~)
+function slider_frame_Callback(hObject,evt,varargin)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
