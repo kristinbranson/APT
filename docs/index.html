@@ -96,6 +96,7 @@ strong.regular-font {
       <li><a href="#Sequential mode">Sequential labeling mode</a></li>
       <li><a href="#Template mode">Template labeling mode</a></li>
       <li><a href="#Multiview mode">Multiview labeling mode</a></li>
+      <li><a href="#Multiview streamlined mode">Streamlined multiview labeling mode</a></li>
     </ul>
   </li>
 <li><a href="#Setting the tracking parameters">Setting the tracking parameters</a></li>
@@ -509,12 +510,12 @@ Right-clicking the current point offers options for repeatedly accepting the cur
   <ul>
     <li>If no other part is selected, you can <b>click</b> a part to select it. You can tell that a part has been selected because its number will be bolded and surrounded by a <b>white rectangle</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Note that you can click in any view to modify the label in that view. </li>
     <li>If no other part is selected, you can click and <b>drag</b> the part to a new location.</li>
-    <li>You can selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can then <b>click a new location</b> to move the part to that location. Re-typing the identifying number will toggle the part to be <b>unselected</b> again. </li>
+    <li>You can selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can then <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b> to move the part in the currently in-focus view. Re-typing the identifying number or the space bar will toggle the part to be <b>unselected</b> again. </li>
   </ul>
 </p>
 <p>Once you have <b>finished labeling</b> the animal and frame, <b>click the red <a href="#Label state button">"Accept"</a></b> button to let APT know that this frame is now completely labeled. You can also press the keyboard shortcut 's' or the space bar. The Accept button will change to green and read "Labeled". All parts will change to be colored '+'es. </p>
 <p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button. The green <a href="#Label state button">"Labeled"</a> button will change back to a red "Accept" button. </p>
-<p>If your cameras are <b>calibrated</b>, you can load this calibration information into APT by selecting <b>Load calibration file</b> from the <b>Label</b> menu. When a part is selected in one view by clicking on it, the calibration information is used to compute the <a href="http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/OWENS/LECT10/node3.html">epipolar line</a> on which the part in other views should lie. This is shown in all other views. </p>
+<p>If your cameras are <b>calibrated</b>, you can load this calibration information into APT by selecting <a id="Load calibration file"><b>Load calibration file</b></a> from the <b>Label</b> menu. Calibration file types are detailed <a href="#Calibration files">here</a>. When a part is selected in one view by clicking on it, the calibration information is used to compute the <a href="http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/OWENS/LECT10/node3.html">epipolar line</a> on which the part in other views should lie. This is shown in all other views. </p>
 <center><a href="images/MultiViewLabelingCalibrated.png"><img src="images/MultiViewLabelingCalibrated.png" width="75%"></a><br/>
   <i>Two-view project with calibration: the blue line in View 2 indicates the epipolar line based on the label in View 1.</i>
 </center>
@@ -522,6 +523,66 @@ Right-clicking the current point offers options for repeatedly accepting the cur
 <p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
 <p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
 
+<h3><a id="Multiview streamlined mode">Streamlined multiview labeling mode</a></h3>
+
+<p>The <b>streamlined</b> version of multiview labeling is very similar to standard <a href="Multiview mode">multiview labeling mode</a>, with a few features to reduce the number of clicks necessary. Streamlined mode can be selected by choosing <b>"Streamlined"</b> from the Label menu.</p>
+
+<p>The main <b>differences</b> from standard multiview labeling are the following:
+  <ul>
+    <li><b>No template is shown</b> when you navigate to an unlabeled frame. Instead, you must <b>select a part by typing its identifying number</b>.</li>
+    <li>Once all parts have been annotated in all views, the label for the frame is <b>automatically accepted</b> -- you do not need to click the <b>"Accept"</b> button.</li>
+  </ul>
+</p>
+
+<!--
+<p>A full description of multiview streamlined mode follows.</p>
+
+
+<p>When you navigate to an <b>unlabeled frame</b>, no parts will be shown. To being annotating, type <b>type the identifying number</b> for the part you want to label. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. </p>
+
+<p>Click the location of the part in <b>each view</b>. Clicking again in the view will move the part to the selected view. You can also modify the location of the part by <b>clicking and dragging</b> the part, or by using the <b>arrow keys</b>. </p>
+
+<p>Then, <b>type the identifying number</b> for the next part you want to label, and repeat, until you have labeled all parts in the frame. </p>
+
+<p>At any time, you can <b>modify</b> a part's annotation by typing its identifying number, and clicking, dragging, or using the arrow keys. You can tell that a part has been selected because its number will be bolded and surrounded by a <b>white rectangle</b>.
+
+<p>Once all parts have been annotated in all views, the <a href="#Label state button">label state button</a> automatically toggles to <b>"Accepted"</b>. 
+
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button. The green <a href="#Label state button">"Labeled"</a> button will change back to a red "Accept" button. </p>
+
+<p>If your cameras are <b>calibrated</b>, you can load this calibration information into APT by selecting <b>Load calibration file</b> from the <b>Label</b> menu. Calibration file types are detailed <a href="#Calibration files">here</a>. When a part is selected in one view by clicking on it, the calibration information is used to compute the <a href="http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/OWENS/LECT10/node3.html">epipolar line</a> on which the part in other views should lie. This is shown in all other views. </p>
+
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
+
+-->
+
+<hr class="h2-divider">
+
+<h2><a id="Multiview requirements">Multiview project requirements</a></h2>
+
+<p>If a <a href="#Setting up a new project">project is set up</a> to have <b><var>N</var> > 1 views</b>, then videos are <a href="#AddMovie">added</a> to the project as sets of <var>N</var>.</p>
+<p>Frames in these videos should be <b>synchronized</b> -- e.g. frame 123 in video 1 should have been recorded at the same time as frame 123 in video 2. Ideally, all videos should have the same number of rames. If this is not the case for some reason, APT will use the length of the shortest video.</p>
+
+<h3><a id="Calibration files">Calibration files</a></h2>
+
+<p>Camera calibration information can be used to <a href="#Load calibration file">help during <b>manual labeling</b></a>. It is also used when <b>tracking to reconstruct the 3-d part positions</b> from corresponding 2-d predicted part positions in each view.</p>
+<p>We currently support 3 types of calibration files. They are all for pairs of cameras with correspondences defined using images of a checkerboard pattern. 
+  <ul>
+    <li><b><a href="https://www.mathworks.com/help/vision/ug/stereo-camera-calibrator-app.html">Matlab Stereo Camera Calibration App</a></b>: Using this app, select "<b>Export Camera Parameters - Export Parameters to Workspace</b>", and save the variable <b>"stereoParameters"</b> to a MAT file. This MAT file can then be loaded in to APT. </li>
+    <li><b><a href="http://www.vision.caltech.edu/bouguetj/calib_doc/">Caltech Calibration Toolbox</a></b>: 
+	<ul>
+	  <li>Calibrate each camera individually using the <a href="http://www.vision.caltech.edu/bouguetj/calib_doc/htmls/example.html">calib_gui</a>.</li>
+	  <li>Combine these calibrations to get a stereo calibration using the <a href="http://www.vision.caltech.edu/bouguetj/calib_doc/htmls/example5.html">stereo_gui</a>.</li>
+	  <li>Click <b>"Save stereo calib results"</b> to save to a MAT file. This MAT file can then be loaded into APT. </li>
+	</ul>
+    </li>
+    <li><b><a href="https://github.com/kristinbranson/APT/blob/master/user/orthocam/README_StereoCalibration.md">OrthoCam</a></b>: OrthoCam is based on MATLAB's Camera calibration App, but performs the stereo calibration in a weak perspective regime -- when the depth of field is much smaller than the camera-to-pbject distance <var>&Delta;z</var> &lt;&lt; <var>z</var>. The MAT file produced by Orthocam can be loaded into APT.</li>
+  </ul>
+</p>
+
+      
+  <!-- TODO - 3d tracking still not in the GUI??? -->
 
 <hr class="h2-divider">
 
