@@ -2270,7 +2270,7 @@ classdef DeepTracker < LabelTracker
       else
         nMovies = 1;
       end
-      if isMultiView,
+      if ~isMultiView,
         nViewJobs = 1;
       else
         nViewJobs = nView;
