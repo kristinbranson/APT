@@ -1106,6 +1106,18 @@ def read_and_decode_without_session(filename, conf, indices=(0,)):
     xx.close()
     return all_ims, all_locs, all_info
 
+def read_tfrecord_metadata(filename):
+    # reads metadata off the first entry in a tf record db.
+
+    xx = tf.python_io.tf_record_iterator(filename)
+    record = next(xx)
+    example = tf.train.Example()
+    example.ParseFromString(record)
+    height = int(example.features.feature['height'].int64_list.value[0])
+    width = int(example.features.feature['width'].int64_list.value[0])
+    depth = int(example.features.feature['depth'].int64_list.value[0])
+    xx.close()
+    return {'height': height, 'width': width, 'depth': depth}
 
 class tf_reader(object):
 

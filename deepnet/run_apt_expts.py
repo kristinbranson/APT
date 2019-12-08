@@ -1,3 +1,4 @@
+from __future__ import print_function
 
 ##  #######################        SETUP
 
@@ -289,7 +290,7 @@ def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     nr = int(np.ceil(n_types/float(nc)))
     if cmap is None:
         cmap = PoseTools.get_cmap(len(ps),'cool')
-    f, axx = plt.subplots(nr, nc, figsize=(12, 8))
+    f, axx = plt.subplots(nr, nc, figsize=(12, 8), squeeze=False)
     axx = axx.flat
     for idx,k in enumerate(data_in.keys()):
         o = data_in[k][-1]

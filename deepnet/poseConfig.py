@@ -72,7 +72,41 @@ class config(object):
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
+        self.op_backbone = 'resnet50_8px'
+        self.op_backbone_weights = 'imagenet'
+        self.op_map_lores_blur_rad = 1.0
+        self.op_map_hires_blur_rad = 2.0
+        self.op_paf_lores_tubewidth = 0.95 # not used if tubeblur=True
+        self.op_paf_lores_tubeblur = False
+        self.op_paf_lores_tubeblursig = 0.95
+        self.op_paf_lores_tubeblurclip = 0.05
+        self.op_paf_nstage = 5
+        self.op_map_nstage = 1
+        self.op_hires = True
+        self.op_hires_ndeconv = 2
+        self.op_base_lr = 4e-5  # Gines 5e-5
+        self.op_weight_decay_kernel = 5e-4
+        self.op_hmpp_floor = 0.1
+        self.op_hmpp_nclustermax = 1
+        self.op_pred_raw = False
         self.n_steps = 4.41
+
+        # ---
+        self.sb_rescale = 1
+        self.sb_im_pady = None  # computed at runtime
+        self.sb_im_padx = None  # "
+        self.sb_base_lr = 4e-5
+        self.sb_weight_decay_kernel = 5e-4
+        self.sb_backbone = 'ResNet50_8px'
+        self.sb_backbone_weights = 'imagenet'
+        self.sb_num_deconv = 3
+        self.sb_deconv_num_filt = 512
+        self.sb_output_scale = None  # output heatmap dims, computed at runtime
+        self.sb_upsamp_chan_handling = 'direct_deconv'  # or 'reduce_first'
+        self.sb_blur_rad_input_res = 3.0  # target hmap blur rad @ input resolution
+        self.sb_blur_rad_output_res = None  # runtime-computed
+        self.sb_hmpp_floor = 0.1
+        self.sb_hmpp_nclustermax = 1
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
@@ -81,6 +115,25 @@ class config(object):
         self.dlc_train_img_dir = 'deepcut_train'
         self.dlc_train_data_file = 'deepcut_data.mat'
         self.dlc_augment = True
+
+        # ---- dpk
+        # "early" here is eg after initial setup in APT_interface
+        self.dpk_downsample_factor = 2      # (immutable after early) integer downsample                                            *power* for output shape
+        self.dpk_n_stacks = 2
+        self.dpk_growth_rate = 48
+        self.dpk_use_pretrained = False
+        self.dpk_n_outputs = 1              # (settable at TGTFR._call_-time)
+        self.dpk_use_augmenter = True       # if true, use dpk_augmenter if distort=True
+        self.dpk_augmenter = None           # iaa obj
+        self.dpk_im_pady = None
+        self.dpk_im_padx = None
+        self.dpk_use_graph = True           # (immutable after early) bool
+        self.dpk_graph = None               # (immutable after early)
+        self.dpk_swap_index = None          # (immutable after early)
+        self.dpk_graph_scale = 1.0          # (immutable after early) float, scale factor                                           applied to grp/limb/global confmaps
+        self.dpk_output_shape = None        # (computed at TGTFR/init) conf map output shape
+        self.dpk_output_sigma = None        # (computed at TGTFR/init) target hmap gaussian                                         sd in output coords
+        self.dpk_input_sigma = 5.0          # (immutable after early) target hmap gaussian                                          sd in input coords
 
         # ============== EXTRA ================
 

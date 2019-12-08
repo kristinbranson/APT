@@ -65,6 +65,7 @@ def scale_images(img, locs, scale, conf):
         else:
             simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3],
                                                   preserve_range= True, mode='edge')
+    # AL 20190909: This following is not precisely correct, eg cf create_label_images?
     new_locs = locs.copy()
     new_locs = new_locs/scale
     return simg, new_locs
@@ -397,7 +398,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
         while not sane:
             valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
-            sfactor = (np.random.rand() - 0.5) * conf.scale_range + 1
+            sfactor = (np.random.rand() - 0.5) * conf.scale_range + 1 # XXX LOOKS LIKE BUG relative to doc? (looks like off fac 2?)
             # clip scaling to 0.05
             if sfactor < 0.05:
                 sfactor = 0.05
@@ -810,26 +811,58 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     plt.figure(); plt.imshow(im_s,cmap=cmap)
 
 
-def show_result(ims, ndx, locs, predlocs= None):
+def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11):
     import matplotlib.pyplot as plt
     from matplotlib import cm
     count = float(len(ndx))
     yy = np.ceil(np.sqrt(count/12)*4).astype('int')
     xx = np.ceil(count/yy).astype('int')
-    f,ax = plt.subplots(xx,yy,figsize=(16,12),sharex=True,sharey=True)
+    f = plt.figure(num=fignum)
+    f.clf()
+    ax = f.subplots(xx,yy,sharex=True,sharey=True)  # figsize=(16,12),
     ax = ax.flatten()
     cmap = cm.get_cmap('jet')
     rgba = cmap(np.linspace(0, 1, locs.shape[1]))
-    for idx in range(count):
+    for idx in range(int(count)):
         if ims.shape[3] == 1:
             ax[idx].imshow(ims[ndx[idx],:,:,0],cmap='gray')
         else:
             ax[idx].imshow(ims[ndx[idx],...])
 
-        ax[idx].scatter(locs[ndx[idx],:,0],locs[ndx[idx],:,1],c=rgba,marker='.')
+        if hilitept is not None:
+            ax[idx].scatter(locs[ndx[idx], :, 0], locs[ndx[idx], :, 1],
+                            c=rgba, marker='.', alpha=0.25)
+            plt.sca(ax[idx])
+            plt.plot(locs[ndx[idx], hilitept, 0], locs[ndx[idx], hilitept, 1],
+                     c=rgba[hilitept,:], marker='.', markersize=12)
+        else:
+            ax[idx].scatter(locs[ndx[idx],:,0],locs[ndx[idx],:,1],c=rgba,marker='.', s=mrkrsz)
         if predlocs is not None:
-            ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
-                            c=rgba, marker='+')
+            if hilitept is not None:
+                ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
+                                c=rgba, marker='+', alpha=0.25)
+                #plt.sca(ax[idx])
+                plt.plot(predlocs[ndx[idx], hilitept, 0], predlocs[ndx[idx], hilitept, 1],
+                         c=rgba[hilitept,:], marker='+', markersize=12)
+            else:
+                ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
+                                c=rgba, marker='+', s=mrkrsz)
+
+        f.patch.set_facecolor((0.4, 0.4, 0.4))
+        ax[idx].set_facecolor((1, 1, 1))
+
+        tstr = "row {}".format(ndx[idx])
+        if mft is not None:
+            mov, frm, tgt = mft[ndx[idx], :]
+            tstr += ": {}/{}/{}".format(mov, frm, tgt)
+        if perr is not None and hilitept is not None:
+            tstr += ": {:.3f}".format(perr[ndx[idx], hilitept])
+        if len(tstr)>0:
+            tobj = plt.title(tstr)
+            plt.setp(tobj, color='w')
+
+
+
 
 
 def output_graph(logdir, sess):
@@ -957,6 +990,10 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     :param scale: How much to downsample the input image
     :param group_sz:
     :return:
+        AL 20190909: The second return arg (locs) may not be precisely correct when
+        scale>1
+
+        Relies on conf.imsz and many other preproc-related params
     '''
 #    assert ims.dtype == 'uint8', 'Preprocessing only work on uint8 images'
     locs = in_locs.copy()
@@ -979,6 +1016,7 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
 
 
 def pad_ims(ims, locs, pady, padx):
+    # AL WARNING for caller: this modifies locs in place
     pady_b = pady//2 # before
     padx_b = padx//2
     pady_a = pady-pady_b # after
