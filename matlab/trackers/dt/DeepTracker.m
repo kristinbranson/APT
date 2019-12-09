@@ -2439,9 +2439,14 @@ classdef DeepTracker < LabelTracker
             end
             
           end
-          mov = movs{imov,ivwjob};
+          if isMultiView,
+            mov = movs(imov,:);
+            [~,movS] = fileparts(mov{ivwjob});
+          else
+            mov = movs{imov,ivwjob};
+            [~,movS] = fileparts(mov);
+          end
           trnstr = trnstrs{ivwjob};
-          [~,movS] = fileparts(mov);
           if isMultiView,
             trkoutdir1 = trkoutdir{ivwjob};
           else
@@ -2501,15 +2506,16 @@ classdef DeepTracker < LabelTracker
           %mov = cellSelectHelper(movs,ivw);
           
           % make sure movie to be tracked is on path
-          movdir = fileparts(mov);
-          trkdir = fileparts(trkfile);
           extradirs = {};
-          if ~isempty(movdir),
-            extradirs{end+1} = movdir;
+          for i = 1:numel(movs),
+            movdir = fileparts(movs{i});
+            extradirs{end+1} = movdir; %#ok<AGROW>
           end
-          if ~isempty(trkdir),
-            extradirs{end+1} = trkdir;
+          for i = 1:numel(trkfiles),
+            trkdir = fileparts(trkfiles{i});
+            extradirs{end+1} = trkdir; %#ok<AGROW>
           end
+          extradirs = unique(extradirs);
           
           switch backend.type
             case DLBackEnd.Bsub
