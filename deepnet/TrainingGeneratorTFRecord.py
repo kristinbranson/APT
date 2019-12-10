@@ -6,7 +6,7 @@ import logging
 
 import multiResData as mrd
 import PoseTools
-import opdata2 as opdata
+import tfdatagen as opdata
 
 __all__ = ["TrainingGeneratorTFRecord"]
 
@@ -153,7 +153,22 @@ class TrainingGeneratorTFRecord:
     # def _init_data(self):
 
 
-    def get_generator(self, validation, confidence, **kwargs):
+    def get_generator(self, validation, confidence, infinite=True, **kwargs):
+        '''
+
+        :param validation:
+        :param confidence:
+        :param infinite:
+            validation_data+infinite notes:
+            * for fit_generator, validation_data, we want infinite as the validation_steps is specified and K will just
+            call the generator repeatedly.
+            * for APTKerasCbk, again we want infinite
+            * the only time we don't want infinite is with val data and dpk/engine/evaluate, which currently is written
+            as an eval over the entire val generator.
+
+        :param kwargs:
+        :return:
+        '''
         if confidence:
             ppfcn = 'ims_locs_preprocess_dpk'
         else:
@@ -167,7 +182,7 @@ class TrainingGeneratorTFRecord:
             falseIfValid,
             falseIfValid,  # note, shuffling can skip a lot of records if infinite=False
             ppfcn,
-            infinite=falseIfValid,
+            infinite=infinite,
             **kwargs,
         )
         return g
