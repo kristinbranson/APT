@@ -56,6 +56,7 @@ classdef LabelCoreHT < LabelCore
 % - Automatic capability to "resume where you left off"?
 
   properties
+    supportsSingleView = true;
     supportsMultiView = false;
     supportsCalibration = false;
   end

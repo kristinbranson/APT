@@ -5598,8 +5598,8 @@ classdef Labeler < handle
       if obj.lblCore.supportsCalibration
         vcd = obj.viewCalibrationDataCurrent;
         if isempty(vcd)
-          warningNoTrace('Labeler:labelingInit',...
-            'No calibration data loaded for calibrated labeling.');
+%           warningNoTrace('Labeler:labelingInit',...
+%             'No calibration data loaded for calibrated labeling.');
         else
           obj.lblCore.projectionSetCalRig(vcd);
         end
@@ -9977,13 +9977,22 @@ classdef Labeler < handle
       
     end
     
-    function [tfCanTrack,reason] = trackCanTrack(obj)
+    function [tfCanTrack,reason] = trackCanTrack(obj,tblMFT)
       tfCanTrack = false;
       if isempty(obj.tracker),
         reason = 'The tracker has not been set.';
         return;
       end
+      
       [tfCanTrack,reason] = obj.tracker.canTrack();
+      
+      if ~tfCanTrack,
+        return;
+      end
+      
+      [tfCanTrack,reason] = PostProcess.canPostProcess(obj,tblMFT);
+
+      
     end
     
     function tfCanTrack = trackAllCanTrack(obj)
@@ -9996,15 +10005,20 @@ classdef Labeler < handle
     end
     
     function track(obj,mftset,varargin)
-      % mftset: an MFTSet
+      % mftset: an MFTSet or table tblMFT
       
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
 
-      assert(isa(mftset,'MFTSet'));
-      tblMFT = mftset.getMFTable(obj);
+      if isa(mftset,'table'),
+        tblMFT = mftset;
+      else
+        assert(isa(mftset,'MFTSet'));
+        tblMFT = mftset.getMFTable(obj);
+      end
+      
       tObj.track(tblMFT,varargin{:});
       
       % For template mode to see new tracking results

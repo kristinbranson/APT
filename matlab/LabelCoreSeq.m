@@ -28,6 +28,7 @@ classdef LabelCoreSeq < LabelCore
   % sets the current point to be fully occluded. 
   
   properties
+    supportsSingleView = true;
     supportsMultiView = false;
     supportsCalibration = false;
   end
