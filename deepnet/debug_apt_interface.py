@@ -1,24 +1,4 @@
-
-##
-import run_apt_expts as rae
-import sys
-if sys.version_info.major > 2:
-    from importlib import reload
-reload(rae)
-rae.setup('alice')
-rae.get_incremental_results()
-
-
-##
-import run_apt_expts as rae
-rae.setup('stephen')
-for round in range(5):
-    rae.dlc_aug_use_round = round
-    rae.get_dlc_results()
-
-
-##
-cmd = '-name 20190911T071419 -view 1 -cache \/groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c -err_file /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/trk/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement_trn20190911T071419_iter1000_20190911T072419.err -model_files /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/deepnet-1000 -type mdn /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/20190911T071419_20190911T071450.lbl track -mov /groups/card/home/wellsc/Internship/RawVideo/run032_pez3001_20190128/highSpeedSupplement/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement.mp4 -out /groups/branson/home/kabram/.apt/tpebb6275b_8f29_4607_ae7d_0aa29a7efc2c/cluster-deeplab/mdn/view_0/20190911T071419/trk/run032_pez3001_20190128_expt0129000017060801_vid0002_supplement_trn20190911T071419_iter1000_20190911T072419.trk -start_frame 1 -end_frame 521 -crop_loc 1 384 416 832'
+cmd = '-name 20191206T024459 -view 1 -cache /groups/branson/home/kabram/.apt/tp0812543a_6893_40b2_befd_90409dbe6afe -err_file /groups/branson/home/kabram/.apt/tp0812543a_6893_40b2_befd_90409dbe6afe/test1/20191206T024459view0_20191206T0245171.err -type mdn /groups/branson/home/kabram/.apt/tp0812543a_6893_40b2_befd_90409dbe6afe/test1/20191206T024459_20191206T024517.lbl train -use_cache -skip_db'
 
 import APT_interface as apt
 apt.main(cmd.split())
