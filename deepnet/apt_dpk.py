@@ -464,6 +464,12 @@ def apt_dpk_conf(conf_base, data_generator, cache_root, proj_name, exp_name, vie
     imshape = data_generator.compute_image_shape()
     conf.imsz = imshape[:2]
     conf.img_dim = imshape[2]
+    roundupeven = lambda x: x + x % 2
+    imsznet = conf.imsz
+    imsznet = (roundupeven(imsznet[0]), roundupeven(imsznet[1]))
+    conf.dpk_imsz_net = imsznet
+    conf.dpk_im_padx = conf.dpk_imsz_net[1] - conf.imsz[1]
+    conf.dpk_im_pady = conf.dpk_imsz_net[0] - conf.imsz[0]
 
     conf.dpk_graph = data_generator.graph
     conf.dpk_swap_index = data_generator.swap_index
@@ -582,15 +588,7 @@ def apt_db_from_datagen(dg, split_file, dpkconf):
 
 #region Train
 
-def train(conf, compileonly=False):
-
-    roundupeven = lambda x: x + x % 2
-    imsznet = conf.imsz
-    imsznet = (roundupeven(imsznet[0]), roundupeven(imsznet[1]))
-    conf.dpk_imsz_net = imsznet
-    conf.dpk_im_padx = conf.dpk_imsz_net[1] - conf.imsz[1]
-    conf.dpk_im_pady = conf.dpk_imsz_net[0] - conf.imsz[0]
-
+def compile(conf):
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
     sdn = StackedDenseNet(tgtfr,
                           n_stacks=conf.dpk_n_stacks,
@@ -602,29 +600,31 @@ def train(conf, compileonly=False):
         lr=.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     sdn.compile(optimizer=optimizer, loss='mse')
 
+    return tgtfr, sdn, cbk
+
+def train(conf):
     print_dpk_conf(conf)
 
-    if compileonly:
-        return sdn, conf, cbk
-    else:
-        tgconf = tgtfr.get_config()
-        sdnconf = sdn.get_config()
-        conf_file = os.path.join(conf.cachedir, 'conf.pickle')
-        with open(conf_file, 'wb') as fh:
-            pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
-        logging.info("Saved confs to {}".format(conf_file))
+    tgtfr, sdn, cbk = compile(conf)
 
-        nval = tgtfr.n_validation
-        nvalbatch = nval // conf.batch_size
-        logging.info("n_validation={}, n_validationbatch={}".format(nval, nvalbatch))
-        assert nvalbatch > 0, 'Number of validation batches must be greater than 0.'
-        sdn.fit(
-            batch_size=conf.batch_size,
-            validation_batch_size=conf.batch_size,
-            callbacks=cbk,
-            epochs=conf.dl_steps // conf.display_step,
-            steps_per_epoch=conf.display_step,
-            validation_steps=nvalbatch, )  # default validation_freq of 1 seems fine # validation_freq=10)
+    tgconf = tgtfr.get_config()
+    sdnconf = sdn.get_config()
+    conf_file = os.path.join(conf.cachedir, 'conf.pickle')
+    with open(conf_file, 'wb') as fh:
+        pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
+    logging.info("Saved confs to {}".format(conf_file))
+
+    nval = tgtfr.n_validation
+    nvalbatch = nval // conf.batch_size
+    logging.info("n_validation={}, n_validationbatch={}".format(nval, nvalbatch))
+    assert nvalbatch > 0, 'Number of validation batches must be greater than 0.'
+    sdn.fit(
+        batch_size=conf.batch_size,
+        validation_batch_size=conf.batch_size,
+        callbacks=cbk,
+        epochs=conf.dl_steps // conf.display_step,
+        steps_per_epoch=conf.display_step,
+        validation_steps=nvalbatch, )  # default validation_freq of 1 seems fine # validation_freq=10)
 
 def train_orig(conf, dg):
     print_dpk_conf(conf)
@@ -664,6 +664,36 @@ def train_orig(conf, dg):
         steps_per_epoch=None)
 
 #endregion
+
+def load_apt_cpkt(exp_dir, mdlfile):
+    '''
+    Load an APT-style saved model checkpoint
+    :param exp_dir:
+    :param mdlfile: eg deepnet-25000
+    :return:
+    '''
+
+    conf_file = os.path.join(exp_dir, 'conf.pickle')
+    mdl_wgts_file = os.path.join(exp_dir, mdlfile)
+
+    with open(conf_file, 'rb') as fh:
+        conf_dict = pickle.load(fh)
+    conf = conf_dict['conf']
+    model_config = conf_dict['sdn']
+
+    tgtfr, sdn, cbk = compile(conf)
+
+    sdn.__init_train_model__()
+    sdn.train_model.load_weights(mdl_wgts_file)
+    kwargs = {}
+    kwargs["output_shape"] = model_config["output_shape"]
+    kwargs["keypoints_shape"] = model_config["keypoints_shape"]
+    kwargs["downsample_factor"] = model_config["downsample_factor"]
+    kwargs["output_sigma"] = model_config["output_sigma"]
+    sdn.__init_predict_model__(**kwargs)
+
+    return sdn, conf, model_config
+
 
 #region Script/Cmdline API
 
@@ -731,7 +761,7 @@ def main(argv):
         dg.graph = skeleton[:, 0]
         dg.swap_index = skeleton[:, 1]
 
-        augmenter = make_augmenter(dg.swap_index)
+        augmenter = make_imgaug_augmenter(dg.swap_index)
 
         cdpk = apt_dpk_conf(dg, args.cacheroot, projname, args.expname)
 
@@ -757,14 +787,18 @@ def main(argv):
         train_orig(conf, dg)
         return None
     else:  # apt impl/train
-        sdn, conf, cbks = train(conf, compileonly=args.compileonly)
-        return conf, sdn, cbks
+        if args.compileonly:
+            _, sdn, cbks = compile(conf)
+            return conf, sdn, cbks
+        else:
+            train(conf)
 
 #endregion
 
 if __name__ == "__main__" and len(sys.argv) > 1:
     main(sys.argv[1:])
 else:
+    pass
 
     '''
     h5file = dpk_fly_h5
