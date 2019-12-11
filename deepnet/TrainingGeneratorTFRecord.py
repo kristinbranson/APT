@@ -83,7 +83,7 @@ class TrainingGeneratorTFRecord:
 
         valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        assert os.path.exists(trntfr)
+        assert os.path.exists(trntfr), "path {} not found".format(trntfr)
         if not os.path.exists(valtfr):
             logging.info("Cannot find val db; using train db {}".format(trntfr))
             valtfr = trntfr
