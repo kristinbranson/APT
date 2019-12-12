@@ -27,7 +27,7 @@ ROOT:
     - ImageProcessing:
       - ['','',false,'Parameters related to initial processing of the input video data before any learning happens.','','','','']
       - scale: ['Downsample factor',unsigned,true,'Downsample images by this factor. This will decrease the amount of memory needed on the GPU.',1,'','Beginner','isDeepTrack',true]
-      - adjustContrast: ['Histogram equalization',boolean,true,'Normalize image contrast using contrast limited adaptive histogram equalization (CLAHE).',0,'','Important','isDeepTrack',true]
+      - adjustContrast: ['Histogram equalization',boolean,true,'Normalize image contrast using contrast limited adaptive histogram equalization (CLAHE).',0,'ParameterVisualizationPreproc#preproc1','Beginner','isDeepTrack',true]
       - clahe_grid_size: ['Neighborhood size for histogram equalization',unsigned,true,'CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels.',20,'','Advanced','isDeepTrack',true]
       - normalize: ['Brightness normalization',boolean,true,'Normalize images by subtracting the average pixel intensity in the image.',0,'','Beginner','isDeepTrack',true]
       - flipud: ['Flip movie',boolean,true,'Whether to flip images upside down. ',0,'','Developer','isDeepTrack',true]

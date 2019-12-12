@@ -534,10 +534,24 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.op_affinity_graph = graph
     except KeyError:
         pass
+    try:
+        bb = read_string(dt_params['DeepTrack']['DataAugmentation']['flipLandmarkMatches'])
+        graph = {}
+        if bb:
+            bb = bb.split(',')
+            for b in bb:
+                mm = re.search('(\d+)\s+(\d+)', b)
+                n1 = int(mm.groups()[0]) - 1
+                n2 = int(mm.groups()[1]) - 1
+                graph[n1] = n2
+                graph[n2] = n1
+        conf.flipLandmarkMatches = graph
+    except KeyError:
+        pass
 
     conf.mdn_groups = [(i,) for i in range(conf.n_classes)]
 
-    done_keys = ['CacheDir','scale','brange','crange','trange','rrange','op_affinity_graph','flipud','dl_steps','scale','adjustContrast','normalize','sizex','sizey']
+    done_keys = ['CacheDir','scale','brange','crange','trange','rrange','op_affinity_graph','flipud','dl_steps','scale','adjustContrast','normalize','sizex','sizey','flipLandmarkMatches']
 
     if isModern:
         dt_params_flat = flatten_dict(dt_params['DeepTrack'])
@@ -591,6 +605,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     conf.dlc_rescale = conf.rescale
     conf.leap_rescale = conf.rescale
 
+    assert not(conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
     return conf
 
 

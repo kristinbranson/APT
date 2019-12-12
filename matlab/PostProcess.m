@@ -3335,6 +3335,37 @@ classdef PostProcess < handle
       
     end
     
+    function [v,msg] = canPostProcess(lObj,tblMFT)
+      
+      v = true;
+      msg = '';
+      
+      if lObj.nview == 1,
+        return;
+      end
+      
+      sPrmAll = lObj.trackGetParams();
+      pptype = sPrmAll.ROOT.PostProcess.reconcile3dType;
+      if strcmpi(pptype,'None'),
+        return;
+      end
+      
+      mIdxes = unique(tblMFT.mov);
+      hasCal = true(size(mIdxes));
+      for i = 1:numel(mIdxes),
+        vcd = lObj.getViewCalibrationDataMovIdx(mIdxes(i));
+        if isempty(vcd),
+          hasCal(i) = false;
+        end
+      end
+      
+      if any(~hasCal),
+        v = false;
+        msg = sprintf('Postprocessing includes triangulation, but movies with the following indices are missing calibration files: %s. Please add calibration files for these movies.',mat2str(mIdxes(~hasCal)));
+      end
+      
+    end
+      
   end
   
 end

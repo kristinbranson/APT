@@ -704,6 +704,14 @@ if handles.labelerObj.isgui,
   end
 end
 
+% get rid of extra toolbars
+h = findall(hObject,'-property','Toolbar');
+for i = 1:numel(h),
+  htool = get(h(i),'Toolbar');
+  if ishandle(htool),
+    set(htool,'Visible','off');
+  end
+end
 
 ClearStatus(handles);
 EnableControls(handles,'noproject');
@@ -2374,18 +2382,19 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 SetStatus(handles,'Tracking...');
-[tfCanTrack,reason] = handles.labelerObj.trackCanTrack();
+tm = getTrackMode(handles);
+tblMFT = tm.getMFTable(handles.labelerObj);
+[tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
 if ~tfCanTrack,
   errordlg(['Error tracking: ',reason],'Error tracking');
   ClearStatus(handles);
   return;
 end
 fprintf('Tracking started at %s...\n',datestr(now));
-tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);
 oc = onCleanup(@()delete(wbObj));
-handles.labelerObj.track(tm,'wbObj',wbObj);
+handles.labelerObj.track(tblMFT,'wbObj',wbObj);
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Tracking canceled');
   msgbox(msg,'Track');
