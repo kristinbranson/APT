@@ -133,7 +133,8 @@ def crop_images(frame_in, conf):
     return frame_in[start[0]:end[0], start[1]:end[1], :]
 
 
-def randomly_flip_lr(img, locs, group_sz = 1):
+def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
+    locs = in_locs.copy()
     if locs.ndim == 3:
         reduce_dim = True
         locs = locs[:,np.newaxis,...]
@@ -142,19 +143,29 @@ def randomly_flip_lr(img, locs, group_sz = 1):
 
     num = img.shape[0]
     n_groups = num//group_sz
+    orig_locs = locs.copy()
+    pairs = conf.flipLandmarkMatches
+    wd = img.shape[2]
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
         jj = np.random.randint(2)
         if jj > 0.5:
             img[st:en, ...] = img[st:en, :, ::-1, :]
-            locs[st:en, :, :, 0] = img.shape[3] - locs[st:en, :, :, 0] # xxxAL is this a bug? img.shape[2]? offset of 1?
+            for ll in range(locs.shape[2]):
+                if ll in pairs.keys():
+                    match = pairs[ll]
+                    locs[st:en, :, ll, 0] = wd - 1 - orig_locs[st:en, :, match, 0]
+                    locs[st:en, :, ll, 1] = orig_locs[st:en, :, match, 1]
+                else:
+                    locs[st:en, :, ll, 0] = wd - 1 - orig_locs[st:en, :, ll, 0]
 
     locs = locs[:, 0, ...] if reduce_dim else locs
     return img, locs
 
 
-def randomly_flip_ud(img, locs,group_sz = 1):
+def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
+    locs = in_locs.copy()
     if locs.ndim == 3:
         reduce_dim = True
         locs = locs[:,np.newaxis,...]
@@ -163,13 +174,23 @@ def randomly_flip_ud(img, locs,group_sz = 1):
 
     num = img.shape[0]
     n_groups = num//group_sz
+    orig_locs = locs.copy()
+    pairs = conf.flipLandmarkMatches
+    ht = img.shape[1]
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
         jj = np.random.randint(2)
         if jj > 0.5:
             img[st:en, ...] = img[st:en, ::-1, : ,: ]
-            locs[st:en, :, :, 1] = img.shape[2] - locs[st:en, :, : , 1] # xxxAL img.shape[1]? offset of 1?
+            for ll in range(locs.shape[2]):
+                if ll in pairs.keys():
+                    match = pairs[ll]
+                    locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, match , 1]
+                    locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
+                else:
+                    locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, ll, 1]
+
     locs = locs[:, 0, ...] if reduce_dim else locs
     return img, locs
 
@@ -966,9 +987,9 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     xs, locs = scale_images(xs, locs, scale, conf)
     if distort:
         if conf.horz_flip:
-            xs, locs = randomly_flip_lr(xs, locs, group_sz=group_sz)
+            xs, locs = randomly_flip_lr(xs, locs, conf, group_sz=group_sz)
         if conf.vert_flip:
-            xs, locs = randomly_flip_ud(xs, locs, group_sz=group_sz)
+            xs, locs = randomly_flip_ud(xs, locs, conf, group_sz=group_sz)
         xs, locs = randomly_affine(xs, locs, conf, group_sz=group_sz)
         # xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
         # xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
