@@ -99,7 +99,13 @@ strong.regular-font {
       <li><a href="#Multiview streamlined mode">Streamlined multiview labeling mode</a></li>
     </ul>
   </li>
-<li><a href="#Setting the tracking parameters">Setting the tracking parameters</a></li>
+  <li><a href="#Body tracking requirements">Body-tracking project requirements</a></li>
+  <li><a href="#Multiview requirements">Multiview project requirements</a>
+  <ul>
+    <li><a href="#Calibration files">Calibration files</a></li>
+  </ul>
+  </li>
+<li><a href="#Setting parameters">Setting parameters</a></li>
 <li><a href="#Training">Training</a></li>
 <li><a href="#Tracking">Tracking</a></li>
 <li><a href="#Exporting tracking results">Exporting tracking results</a></li>
@@ -306,7 +312,7 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
     <p>The Manage Movies dialog has a row for each movie (or set of corresponding movies, for multi-view projects). This includes:
       <ul>
 	<li>Movie: Path to the movie file.</li>
-	<li>Trx: Path to the body tracking file (for body-tracking projects).</li>
+	<li>Trx: Path to the body tracking file (for <a href="#Body tracking">body-tracking</a> projects).</li>
 	<li>Has Labels: Whether any manual labels have been added to this movie.</li>
       </ul>
       Macros may be used here and are identified by $, for example, $movdir stands for the directory containing the video.
@@ -559,10 +565,72 @@ Right-clicking the current point offers options for repeatedly accepting the cur
 
 <hr class="h2-divider">
 
+<h2><a id="Body tracking requirements">Body-tracking project requirements</a></h2>
+
+<p>As described <a href="#Body tracking">above</a>, APT can use <b>trajectories</b> indicating the centroid and/or orientation of each animal in each frame to preprocess the videos. These trajectories are computed using other tracking software, and are stored in <b>MAT files</b>, <a href="#Manage Movies">one for each video</a>. </p>
+
+<h3><a id="Trx file format">Trx file format</a></h3>
+<p>APT expects body tracking data in the trx file format which is a MATLAB .mat file containing a variable <b><code>trx</code></b>. <code>trx</code> is an array of structs with an element for each animal (i.e., <code>length(trx)</code> is the number of animals/trajectories in the video). The struct for each trajectory <code>i</code>, <code>trx(i)</code>, has the following fields:
+  <ul>
+    <li><code>x</code>: x-coordinate of the animal in pixels (1 x <code>nframes</code>). Thus, <code>trx(i).x(t)</code> is the x-position of animal <code>i</code> in frame <code>t</code> of the animal's trajectory (which corresponds to video frame <code>trx(i).firstframe + t - 1</code>).</li>
+    <li><code>y</code>: y-coordinate of the animal in pixels (1 x <code>nframes</code>).</li>
+    <li><code>theta</code>: Orientation of the animal (head) in radians (1 x <code>nframes</code>).</li>
+    <li><code>a</code>: 1/4 of the major-axis length in pixels (1 x <code>nframes</code>).</li>
+    <li><code>b</code>: 1/4 of the minor-axis length in pixels (1 x <code>nframes</code>).</li>
+    <li><code>nframes</code>: Number of frames in the trajectory of the current animal (scalar).</li>
+    <li><code>firstframe</code>: First frame of the animal's trajectory (scalar).</li>
+    <li><code>endframe</code>: Last frame of the animal's trajectory (scalar).</li>
+    <li><code>off</code>: Offset for computing index into x, y, etc. Always equal to <code>1 - firstframe</code> (scalar).
+  </ul>
+</p>
+<p>If your tracker does not track the orientation (<code>theta</code>), the major-axis length (<code>a</code>) or the minor axis length (<code>b</code>), set these values to <code>NaN</code>.</p>
+<!--In these cases: (theta missing) theta alignment, and (theta,a,b missing) Neighbor Masking can not be used.-->
+
+<p>Below is the <code>trx</code> struct for a movie with 1500 frames and two animals. The first trajectory has data for the entire movie. The second trajectory is tracked for the second half of the movie (frames 750:1500).</p>
+
+<pre>  
+trx(1) = 
+          x: [1×1500 double]
+          y: [1×1500 double]
+          a: [1×1500 double]
+          b: [1×1500 double]
+      theta: [1×1500 double]
+ firstframe: 1
+   endframe: 1500
+    nframes: 1500
+        off: 0 
+
+
+ trx(2) = 
+          x: [1×751 double]
+          y: [1×751 double]
+          a: [1×751 double]
+          b: [1×751 double]
+      theta: [1×751 double]
+ firstframe: 750
+   endframe: 1500
+    nframes: 751
+        off: -749 
+</pre>
+
+<h3><a id="Body tracking cropping">Body-tracking-based image cropping</a></h3>
+
+<p>APT uses body tracking information to crop and/or rotate the image around the tracked animals and improve tracking performance. For each body trajectory in each frame, APT crops a square centered at the body tracking centroid (<code>trx(i).x(t),trx(i).y(t)</code> above). The width of this square is defined as twice the <b>ImageProcessing:Body Tracking:Target ROI:Radius</b> parameter. The square can also be rotated according to be aligned with the animal's body orientation (<code>trx(i).theta(t)</code> above). This is particularly important when recording video from <b>overhead</b>, as we want APT to track in the same way regardless of which direction the animal is facing. To rotate the crop based on orientation, select the parameter <b>ImageProcessing:Body Tracking:Target ROI:Align using trajectory theta</b>.</p>
+
+<p>These transformations can improve tracking in a few ways:
+  <ul>
+    <li>Cropping reduces the size of the image the tracker searches over and operates on. We have found this to be very important because deep learning algorithms are <b>memory limited</b>, and images either need to be cropped based on body tracking or downsampled, which can cause loss of tracking resolution. Note that APT can also crop around a static location, see <a href="#Cropping">Cropping movies</a>. </li>
+    <li>Centering the cropped image on a single animal is also essential for tracking individuals in videos containing <b>multiple animals</b>.</li>
+    <li>For overhead views of animals, by aligning with the body orientation, APT can be <b>invariant</b> to the animal's orientation in the environment -- the tracker can operate the same regardless of which direction the animal is facing. Otherwise, APT must learn to identify the orientation of the animal, and that this orientation should not affect tracking.</li>
+  </ul>
+</p>
+
+<hr class="h2-divider">
+
 <h2><a id="Multiview requirements">Multiview project requirements</a></h2>
 
 <p>If a <a href="#Setting up a new project">project is set up</a> to have <b><var>N</var> > 1 views</b>, then videos are <a href="#AddMovie">added</a> to the project as sets of <var>N</var>.</p>
-<p>Frames in these videos should be <b>synchronized</b> -- e.g. frame 123 in video 1 should have been recorded at the same time as frame 123 in video 2. Ideally, all videos should have the same number of rames. If this is not the case for some reason, APT will use the length of the shortest video.</p>
+<p>Frames in these videos should be <b>synchronized</b> -- e.g. frame 123 in video 1 should have been recorded at the same time as frame 123 in video 2. Ideally, all videos should have the same number of frames. If this is not the case for some reason, APT will use the length of the shortest video.</p>
 
 <h3><a id="Calibration files">Calibration files</a></h2>
 
@@ -582,13 +650,19 @@ Right-clicking the current point offers options for repeatedly accepting the cur
 </p>
 
       
-  <!-- TODO - 3d tracking still not in the GUI??? -->
-
 <hr class="h2-divider">
 
-<h2><a id="Setting the tracking parameters"> Setting the tracking parameters </a></h2>
+<h2><a id="Setting parameters">Setting parameters</a></h2>
 
-How well APT works depends critically on getting the tracking parameters set well for the particular application.  Each tracker has different parameters.  
+<p>APT's performance depends critically on setting several tracking parameters well. Several of these parameters must be changed with each new tracking application. To access the tracking parameters, select <b>"Configure tracking parameters..."</b> from the Tracking menu.</p>
+<p>We have divided parameters into the following categories:
+  <ul>
+    <li><b>Important</b>: These parameters should be adjusted <b>with each new tracking application</b>. </li>
+    <li><b>Beginner</b>: We recommend that <b>everyone</b> consider and adjust these parameters. They may not need to be changed from one application to another. </li>
+    <li><b>Advanced</b>: We recommend these parameters be modified only by advanced users, or with help from developers.</li>
+    <li><b>Developer</b>: We don't recommend modifying these parameters. They may be works-in-progress or obsolete. </li>
+  </ul>
+</p>
 
 <p>Select 'Configure tracking parameters' from the Track dropdown menu. This will popup a <a href="images/apt_track_configure_tracking_parameters.png" target="_blank"> <b>tracking parameters window.</b></a></p>
 
