@@ -1,3 +1,6 @@
+from __future__ import division
+from __future__ import print_function
+
 import os
 import math
 import matplotlib.pyplot as plt
@@ -21,7 +24,6 @@ import deepposekit.io.TrainingGenerator
 from deepposekit.augment import FlipAxis
 import deepposekit.callbacks
 from deepposekit.models import StackedDenseNet
-import deepposekit.io.utils as dpkut
 
 import TrainingGeneratorTFRecord as TGTFR
 import tfdatagen as opd
@@ -33,6 +35,8 @@ import kerascallbacks
 import poseConfig
 import APT_interface as apt
 import run_apt_expts as rae
+import deepposekit.io.utils as dpkut
+
 
 
 bubtouchroot = '/groups/branson/home/leea30/apt/ar_flybub_touching_op_20191111'
@@ -45,7 +49,6 @@ exptouch = 'cvi_trn4702_tst180__split1' # trn4702, tst180
 
 cacheroot = '/nrs/branson/al/cache'
 dpk_fly_h5 = '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release.h5'
-bub_skel_csv = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'
 
 isotri='/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
 isotrilocs = np.array([[226., 107.], [180., 446.], [283., 445.]])
@@ -413,7 +416,9 @@ lr/stopping/etc vs earlystop/bestsave etc) do not make significant differences.
 
 def get_rae_normal_conf():
     '''
-    Get 'normal'/base conf from run_apt_exps
+    Get 'normal'/base conf from run_apt_exps.
+
+    Also massages/replaces a few "string props" with their numeric/literal versions.
     :return:
     '''
 
@@ -434,12 +439,18 @@ def get_rae_normal_conf():
 
     return conf
 
-def apt_dpk_conf(conf_base, data_generator, cache_root, proj_name, exp_name, view=0):
+def update_conf_dpk(conf_base,
+                    graph,
+                    swap_index,
+                    n_keypoints=None,  # optional. if not provided conf.n_classes can be already set
+                    imshape=None,  # " .imsz, .img_dim "
+                    useimgaug=False,
+                    imgaugtype='dpkfly',  # used only if useimgaug==True
+                    ):
     '''
-    Truncated/simplified conf for dpk replication tests
+    Massage a given APT conf for dpk. This mostly sets dpk_* props etc.
 
-    :param conf_base: conf starting pt
-    :param data_generator: can be "stub" if true DG unavail
+    :param conf_base: conf starting pt. should have KEEPATTS (see below) set correctly*
     :return: This returns the same handle as conf_base
     '''
 
@@ -447,9 +458,10 @@ def apt_dpk_conf(conf_base, data_generator, cache_root, proj_name, exp_name, vie
 
     # this is prob unnec and could be dumb
     KEEPATTS = [
-        'trainfilename', 'valfilename', 'batch_size',
+        'trainfilename', 'valfilename', 'cachedir', 'batch_size',
         'dl_steps', 'display_step', 'save_step',
-        'rescale', 'imsz', 'adjust_contrast', 'clahe_grid_size', 'horz_flip', 'vert_flip',
+        'rescale', 'n_classes', 'imsz',
+        'adjust_contrast', 'clahe_grid_size', 'horz_flip', 'vert_flip',
         'rrange', 'trange', 'scale_range', 'check_bounds_distort', 'brange', 'crange',
         'imax', 'normalize_img_mean', 'img_dim', 'perturb_color', 'normalize_batch_mean']
     attrs = vars(conf).keys()
@@ -457,26 +469,51 @@ def apt_dpk_conf(conf_base, data_generator, cache_root, proj_name, exp_name, vie
         if not att.startswith('dpk_') and att not in KEEPATTS:
             setattr(conf, att, ['__FOO_UNUSED__', ])
 
-    conf.cachedir = os.path.join(cache_root, proj_name, 'dpk',
-                                 'view_{}'.format(view), exp_name)
-    conf.n_classes = data_generator.n_keypoints
-    #conf.batch_size = 8
-    imshape = data_generator.compute_image_shape()
-    conf.imsz = imshape[:2]
-    conf.img_dim = imshape[2]
-    roundupeven = lambda x: x + x % 2
+    # stuff that is set from lblfile by apt.create_conf; OR that
+    # we are now adding (if no lbl avail)
+
+    if n_keypoints is not None:
+        if hasattr(conf, 'n_classes'):
+            assert conf.n_classes == n_keypoints
+        else:
+            conf.n_classes = n_keypoints
+    if imshape is not None:
+        if hasattr(conf, 'imsz'):
+            assert conf.imsz == imshape[:2]
+        else:
+            conf.imsz = imshape[:2]
+        if hasattr(conf, 'img_dim'):
+            assert conf.img_dim == imshape[2]
+        else:
+            conf.img_dim = imshape[2]
+    assert hasattr(conf, 'n_classes') and hasattr(conf, 'imsz') and hasattr(conf, 'img_dim')
+
+    dsfac = 2 ** conf.dpk_downsample_factor
+    roundupeven = lambda x: int(np.ceil(x/dsfac)) * dsfac
     imsznet = conf.imsz
     imsznet = (roundupeven(imsznet[0]), roundupeven(imsznet[1]))
     conf.dpk_imsz_net = imsznet
     conf.dpk_im_padx = conf.dpk_imsz_net[1] - conf.imsz[1]
     conf.dpk_im_pady = conf.dpk_imsz_net[0] - conf.imsz[0]
 
-    conf.dpk_graph = data_generator.graph
-    conf.dpk_swap_index = data_generator.swap_index
-    #conf.dl_steps = 40000
-    #conf.save_step = 5000
+    conf.dpk_graph = graph
+    conf.dpk_swap_index = swap_index
+
+    conf.dpk_use_augmenter = useimgaug
+    conf.dpk_augmenter = make_imgaug_augmenter(imgaugtype, swap_index) if useimgaug else None
 
     return conf
+
+
+def update_conf_dpk_skel_csv(conf_base, skel_csv):
+    s = dpkut.initialize_skeleton(skel_csv)
+    skeleton = s[["tree", "swap_index"]].values
+    graph = skeleton[:, 0]
+    swap_index = skeleton[:, 1]
+    conf = update_conf_dpk(conf_base, graph, swap_index)
+
+    return conf
+
 
 def print_dpk_conf(conf):
     print("### CONF ###")
@@ -495,8 +532,8 @@ def print_dpk_conf(conf):
 
 #region Augment
 
-def make_imgaug_augmenter(dset, data_generator_or_swap_index):
-    if dset == 'dpkfly':
+def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
+    if imgaugtype == 'dpkfly':  # similar to fly dset in dpk ppr; currently simplified
         augmenter = []
 
         augmenter.append(FlipAxis(data_generator_or_swap_index, axis=0))  # flip image up-down
@@ -605,14 +642,18 @@ def compile(conf):
 def train(conf):
     print_dpk_conf(conf)
 
+    conf_file = os.path.join(conf.cachedir, 'conf.pickle')
+    with open(conf_file, 'wb') as fh:
+        pickle.dump({'conf': conf}, fh)
+    logging.info("Saved conf to {}".format(conf_file))
+
     tgtfr, sdn, cbk = compile(conf)
 
     tgconf = tgtfr.get_config()
     sdnconf = sdn.get_config()
-    conf_file = os.path.join(conf.cachedir, 'conf.pickle')
-    with open(conf_file, 'wb') as fh:
-        pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
-    logging.info("Saved confs to {}".format(conf_file))
+    with open(conf_file, 'ab') as fh:
+        pickle.dump({'tg': tgconf, 'sdn': sdnconf}, fh)
+    logging.info("Saved other confs to {}".format(conf_file))
 
     nval = tgtfr.n_validation
     nvalbatch = nval // conf.batch_size
@@ -738,45 +779,35 @@ def main(argv):
     args = parseargs(argv)
 
     projname = args.dset
-    # empty DataGenerator stub class for non-DPK datasets
-    class data_gen_stub():
-        pass
+
 
     if args.dset == 'dpkfly':
         h5file = dpk_fly_h5
         dg = deepposekit.io.DataGenerator(h5file)
 
         conf = get_rae_normal_conf()
-        conf = apt_dpk_conf(conf, dg, args.cacheroot, projname, args.expname)
+        conf = update_conf_dpk(conf,
+                               dg.graph,
+                               dg.swap_index,
+                               n_keypoints=dg.n_keypoints,
+                               imshape=dg.compute_image_shape(),
+                               useimgaug=(args.augtype == 'imgaug'),
+                               imgaugtype=args.dset)
 
         dpk_origtrain_nsteps = 400
 
     elif args.dset == 'alice':
         assert False, "xxx move this stuff into rae"
-        s = dpkut.initialize_skeleton(bub_skel_csv)
-        skeleton = s[["tree", "swap_index"]].values
-        dg = data_gen_stub()
-        dg.n_keypoints = 17
-        dg.compute_image_shape = lambda: (181, 181, 1)
-        dg.graph = skeleton[:, 0]
-        dg.swap_index = skeleton[:, 1]
+
 
         augmenter = make_imgaug_augmenter(dg.swap_index)
 
-        cdpk = apt_dpk_conf(dg, args.cacheroot, projname, args.expname)
+        cdpk = update_conf_dpk(dg, args.cacheroot, projname, args.expname)
 
         dpk_origtrain_nsteps = None  # cannot run origtrain with bub
 
     else:
         assert False
-
-    if args.augtype == 'imgaug':
-        ia_augmenter = make_imgaug_augmenter(args.dset, dg)
-        conf.dpk_use_augmenter = True
-        conf.dpk_augmenter = ia_augmenter
-    else:
-        conf.dpk_use_augmenter = False
-        conf.dpk_augmenter = None
 
     if args.traintype == 'orig':
         assert not args.compileonly, "Not implemented"

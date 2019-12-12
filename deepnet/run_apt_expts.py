@@ -30,6 +30,7 @@ import json
 import tensorflow as tf
 import easydict
 import sys
+import apt_dpk
 
 data_type = None
 lbl_file = None
@@ -67,7 +68,8 @@ common_conf['maxckpt'] = 20
 
 
 def setup(data_type_in,gpu_device=None):
-    global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name
+    global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name, \
+        dpk_skel_csv
     data_type = data_type_in
     if gpu_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(gpu_device)
@@ -75,16 +77,21 @@ def setup(data_type_in,gpu_device=None):
     if data_type == 'alice' or data_type=='alice_difficult':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
         op_graph = []
-        gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
-        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
+        #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
         groups = ['']
+        dpk_skel_csv = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'
+
         if data_type == 'alice_difficult':
             gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_MDNvsDLC_labeled_alMassaged20190809_stripped.lbl'
             gt_name = '_diff'
     elif data_type == 'stephen':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
         gt_lbl = lbl_file
-        op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
+        #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
+        # for vw2; who knows vw1
+        op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
         common_conf['trange'] = 20
@@ -150,7 +157,10 @@ def setup(data_type_in,gpu_device=None):
     nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
     lbl.close()
 
-def run_jobs(cmd_name,cur_cmd,redo=False,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet'):
+def run_jobs(cmd_name,cur_cmd,
+             redo=False,
+             run_dir='/groups/branson/home/leea30/git/apt.dpk1920/deepnet',
+             precmd=''):
     logfile = os.path.join(sdir,'opt_' + cmd_name+ '.log')
     errfile = os.path.join(sdir,'opt_' + cmd_name+ '.err')
 
@@ -167,7 +177,10 @@ def run_jobs(cmd_name,cur_cmd,redo=False,run_dir='/groups/branson/home/kabram/br
             run = False
 
     if run:
-        PoseTools.submit_job(cmd_name, cur_cmd, sdir, gpu_model=gpu_model,run_dir=run_dir)
+        PoseTools.submit_job(cmd_name, cur_cmd, sdir,
+                             gpu_model=gpu_model,
+                             run_dir=run_dir,
+                             precmd=precmd)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
@@ -344,21 +357,22 @@ def save_mat(out_exp,out_file):
     hdf5storage.savemat(out_file,out_arr,truncate_existing=True)
 
 
-def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwargs):
+def run_trainining_conf_helper(train_type, kwargs):
+    '''
+    Helper function that takes common_conf and further sets up for particular train_type
 
-    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
-    end_cmd = 'train -skip_db -use_cache'
-    cmd_opts = {}
-    cmd_opts['type'] = train_type
-    cmd_opts['view'] = view + 1
-    cmd_opts['train_name'] = train_name
+    :param train_type:
+    :param kwargs:
+    :return:
+    '''
+
     conf_opts = common_conf.copy()
     # conf_opts.update(other_conf[conf_id])
-    conf_opts['save_step'] = conf_opts['dl_steps'] / 10
+    conf_opts['save_step'] = conf_opts['dl_steps'] // 10
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
 
-    if data_type in ['brit0' ,'brit1','brit2']:
+    if data_type in ['brit0', 'brit1', 'brit2']:
         conf_opts['adjust_contrast'] = True
         if train_type == 'unet':
             conf_opts['batch_size'] = 2
@@ -405,6 +419,22 @@ def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwar
     if op_af_graph is not None:
         conf_opts['op_affinity_graph'] = op_af_graph
 
+    if dpk_skel_csv is not None:
+        conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv + '\\"'
+
+    return conf_opts
+
+
+def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwargs):
+
+    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
+    end_cmd = 'train -skip_db -use_cache'
+    cmd_opts = {}
+    cmd_opts['type'] = train_type
+    cmd_opts['view'] = view + 1
+    cmd_opts['train_name'] = train_name
+
+    conf_opts = run_trainining_conf_helper(train_type, kwargs)  # this is copied from common_conf
 
     if len(conf_opts) > 0:
         conf_str = ' -conf_params'
@@ -419,10 +449,13 @@ def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwar
 
     cur_cmd = common_cmd + conf_str + opt_str + end_cmd
     cmd_name = '{}_view{}_{}_{}_{}'.format(data_type, view, exp_name, train_type,train_name)
-    if run_type == 'submit':
+    if run_type == 'dry':
+        return conf_opts, cur_cmd, cmd_name
+    elif run_type == 'submit':
         print(cur_cmd)
         print()
-        run_jobs(cmd_name, cur_cmd)
+        precmd = 'export PYTHONPATH="{}"'.format(dpk_py_path) if train_type == 'dpk' else ''
+        run_jobs(cmd_name, cur_cmd, precmd=precmd)
     elif run_type == 'status':
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         check_train_status(cmd_name, conf.cachedir)

@@ -41,6 +41,7 @@ import cv2
 import re
 from scipy import io as sio
 import heatmap
+import apt_dpk
 
 ISPY3 = sys.version_info >= (3, 0)
 
@@ -576,6 +577,9 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     if net_type == 'openpose':
         # openpose uses its own normalization
         conf.normalize_img_mean = False
+        
+    if net_type == 'dpk':
+        apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
@@ -1851,6 +1855,17 @@ def train_deepcut(conf, args, split_file=None):
     tf.reset_default_graph()
 
 
+def train_dpk(conf, args, split, split_file=None):
+    if not args.skip_db:
+        create_tfrecord(conf,
+                        split=split,
+                        use_cache=args.use_cache,
+                        split_file=split_file)
+
+    tf.reset_default_graph()
+    apt_dpk.train(conf)
+
+
 def train(lblfile, nviews, name, args):
     ''' Creates training db and calls the appropriate network's training function '''
 
@@ -1899,6 +1914,8 @@ def train(lblfile, nviews, name, args):
                 if args.use_defaults:
                     deepcut.train.set_deepcut_defaults(conf)
                 train_deepcut(conf,args, split_file=split_file)
+            elif net_type == 'dpk':
+                train_dpk(conf, args, split, split_file=split_file)
             else:
                 if not args.skip_db:
                     create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
