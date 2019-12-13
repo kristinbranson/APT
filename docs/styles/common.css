@@ -155,3 +155,17 @@ hr {
 /* Replacement for html 3 u tag */
 .u {text-decoration: underline;}
 
+li.important{
+    color:#A41D24
+}
+
+
+li.beginner{
+    color:#0590B7
+}
+li.advanced{
+    color:#582F96
+}
+li.developer{
+    color:#627561
+}
