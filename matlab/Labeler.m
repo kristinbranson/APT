@@ -10193,26 +10193,31 @@ classdef Labeler < handle
       % 
       
       tdata = s.trackerData{s.currTracker};
+      
       if ~isempty(sPrmAll),
         tdata.sPrmAll = sPrmAll;
-      elseif tdata.trnNetType==DLNetType.openpose
-        % put skeleton => affinity_graph for now        
-        skel = obj.skeletonEdges;
-        assert(~isempty(skel));
-        nedge = size(skel,1);
-        skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
-        skelstr = String.cellstr2CommaSepList(skelstr);
-        tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
-      else
-        tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
       end
-      % add landmark matches
-      matches = obj.flipLandmarkMatches;
-      nedge = size(matches,1);
-      matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
-      matchstr = String.cellstr2CommaSepList(matchstr);
-      tdata.sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
-      %tdata.sPrmAll.ROOT.DeepTrack.
+      
+      tdata.sPrmAll = obj.addExtraParams(tdata.sPrmAll);
+      
+%       if tdata.trnNetType==DLNetType.openpose
+%         % put skeleton => affinity_graph for now        
+%         skel = obj.skeletonEdges;
+%         assert(~isempty(skel));
+%         nedge = size(skel,1);
+%         skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
+%         skelstr = String.cellstr2CommaSepList(skelstr);
+%         tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
+%       else
+%         tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
+%       end
+%       % add landmark matches
+%       matches = obj.flipLandmarkMatches;
+%       nedge = size(matches,1);
+%       matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
+%       matchstr = String.cellstr2CommaSepList(matchstr);
+%       tdata.sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
+%       %tdata.sPrmAll.ROOT.DeepTrack.
       
       tdata.trnNetTypeString = char(tdata.trnNetType);
       
@@ -10245,6 +10250,26 @@ classdef Labeler < handle
       s.cfg.NumChans = size(s.preProcData_I{1},3);
       
       tfsucc = true;
+    end
+    
+    function sPrmAll = addExtraParams(obj,sPrmAll)
+            
+      skel = obj.skeletonEdges;
+      if ~isempty(skel),
+        nedge = size(skel,1);
+        skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
+        skelstr = String.cellstr2CommaSepList(skelstr);
+        sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
+      else
+        sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
+      end
+      % add landmark matches
+      matches = obj.flipLandmarkMatches;
+      nedge = size(matches,1);
+      matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
+      matchstr = String.cellstr2CommaSepList(matchstr);
+      sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
+
     end
     
     function trackAndExport(obj,mftset,varargin)
