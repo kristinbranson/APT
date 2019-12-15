@@ -32,6 +32,8 @@ import easydict
 import sys
 import apt_dpk
 
+ISPY3 = sys.version_info >= (3, 0)
+
 data_type = None
 lbl_file = None
 op_af_graph = None
@@ -81,7 +83,7 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
         op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
         groups = ['']
-        dpk_skel_csv = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'
+        dpk_skel_csv = apt_dpk.skeleton_csvs['alice']
 
         if data_type == 'alice_difficult':
             gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_MDNvsDLC_labeled_alMassaged20190809_stripped.lbl'
@@ -92,6 +94,8 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         # for vw2; who knows vw1
         op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
+        dpk_skel_csv = apt_dpk.skeleton_csvs['stephen']
+
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
         common_conf['trange'] = 20
@@ -157,12 +161,14 @@ def setup(data_type_in,gpu_device=None):
     nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
     lbl.close()
 
-def run_jobs(cmd_name,cur_cmd,
+def run_jobs(cmd_name,
+             cur_cmd,
              redo=False,
              run_dir='/groups/branson/home/leea30/git/apt.dpk1920/deepnet',
-             precmd=''):
-    logfile = os.path.join(sdir,'opt_' + cmd_name+ '.log')
-    errfile = os.path.join(sdir,'opt_' + cmd_name+ '.err')
+             precmd='',
+             logdir=sdir):
+    logfile = os.path.join(logdir,'opt_' + cmd_name+ '.log')
+    errfile = os.path.join(logdir,'opt_' + cmd_name+ '.err')
 
     run = False
     if redo:
@@ -177,7 +183,7 @@ def run_jobs(cmd_name,cur_cmd,
             run = False
 
     if run:
-        PoseTools.submit_job(cmd_name, cur_cmd, sdir,
+        PoseTools.submit_job(cmd_name, cur_cmd, logdir,
                              gpu_model=gpu_model,
                              run_dir=run_dir,
                              precmd=precmd)
@@ -357,7 +363,28 @@ def save_mat(out_exp,out_file):
     hdf5storage.savemat(out_file,out_arr,truncate_existing=True)
 
 
-def run_trainining_conf_helper(train_type, kwargs):
+# conf_opts format notes
+# APT_interf accepts conf_params as a string of PVs. This is prob good, we need a hard boundary where
+# APT_interf can always be run with arbitrary specification from the cmdline.
+# This does mean that conf_params needs to be serializable to string and in some cases this means escaping parens etc.
+# Formats for values:
+# 1. double-escaped strings, because conf_opts first gets printed (removing one escape), then gets parsed (removing another)
+# 2. single-escaped strings, etc
+# 3. actual values. These are converted to strings via print() and vice versa via ast.literal_eval
+# Formats for structure:
+# A. dict
+# B. pv list
+
+'''
+def conf_opts_dict_to_pvlist(conf_opts):
+    if ISPY3:
+        pvs = list(conf_opts.items())
+        pvlist = [i for el in pvs for i in el]
+    else:
+        assert False, "todo"
+'''
+
+def run_trainining_conf_helper(train_type, view0b, kwargs):
     '''
     Helper function that takes common_conf and further sets up for particular train_type
 
@@ -420,9 +447,10 @@ def run_trainining_conf_helper(train_type, kwargs):
         conf_opts['op_affinity_graph'] = op_af_graph
 
     if dpk_skel_csv is not None:
-        conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv + '\\"'
+        conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
 
     return conf_opts
+
 
 
 def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwargs):
@@ -468,7 +496,10 @@ def create_normal_dbs():
     for view in range(nviews):
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
-            conf = apt.create_conf(lbl_file,view,exp_name,cache_dir,train_type)
+            conf_opts = run_trainining_conf_helper(train_type, view, {})
+            pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
+            pvlist = apt.conf_opts_pvargstr2list(pvlist)
+            conf = apt.create_conf(lbl_file,view,exp_name,cache_dir,train_type,conf_params=pvlist)
             if train_type == 'deeplabcut':
                 apt.create_deepcut_db(conf,split=False,use_cache=True)
             elif train_type == 'leap':

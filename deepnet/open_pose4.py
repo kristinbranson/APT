@@ -604,6 +604,7 @@ def training(conf, name='deepnet'):
                 logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
 
     # prepare generators
+    assert(False, "react use make_data_gen and pass tfrfile")
     train_di = opdata.data_generator(conf, 'train', True, True,'ims_locs_preprocess_openpose')
     train_di2 = opdata.data_generator(conf, 'train', True, True,'ims_locs_preprocess_openpose')
     val_di = opdata.data_generator(conf, 'train', False, False,'ims_locs_preprocess_openpose')

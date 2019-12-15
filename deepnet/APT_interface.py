@@ -5,6 +5,7 @@ import logging
 ll = logging.getLogger('matplotlib')
 ll.setLevel(logging.WARNING)
 
+import shlex
 import argparse
 import collections
 import datetime
@@ -349,6 +350,51 @@ def flatten_dict(din, dout=None, parent_keys=None, sep='_'):
             dout[k] = v
 
     return dout
+
+def conf_opts_dict2pvargstr(conf_opts):
+    '''
+    Convert a dict of conf opts to a pv-string to be printed to cmdline
+    String vals in dict should be double-escaped
+    :param conf_opts: dict
+    :return: str
+    '''
+
+    if len(conf_opts) > 0:
+        conf_str = ' -conf_params'
+        for k in conf_opts.keys():
+            conf_str = '{} {} {} '.format(conf_str, k, conf_opts[k])
+    else:
+        conf_str = ''
+
+    return conf_str
+
+def conf_opts_pvargstr2list(conf_str):
+    '''
+    Return pv-list where vals are still strings
+    :param conf_str:
+    :return:
+    '''
+    argv = shlex.split(conf_str)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-conf_params', default=None, nargs='*')
+    args = parser.parse_args(argv)
+    confparamslist = args.conf_params
+    return confparamslist
+
+def conf_opts_pvargstr2dict(conf_str):
+    '''
+    Return dict of conf_opts where vals are now true values
+    :param conf_str:
+    :return:
+    '''
+    cc = conf_opts_pvargstr2list(conf_str)
+    assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
+    props = cc[::2]
+    vals = cc[1::2]
+    vals = [ast.literal_eval(x) for x in vals]
+    conf_opts = dict(zip(props, vals))
+    return conf_opts
+
 
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
 

@@ -469,7 +469,7 @@ def ims_locs_preprocess_dpk_noconf(imsraw, locsraw, conf, distort):
 def ims_locs_preprocess_dummy(imsraw, locsraw, conf, distort):
     return imsraw, locsraw, None
 
-def data_generator(conf, db_type, distort, shuffle, ims_locs_proc_fn, debug=False, infinite=True):
+def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=False, infinite=True):
     '''
 
     :param conf: A deep-copy should be passed in so that the generator is unaffected by chances to conf
@@ -481,12 +481,7 @@ def data_generator(conf, db_type, distort, shuffle, ims_locs_proc_fn, debug=Fals
     :return:
     '''
 
-    if db_type == 'val':
-        filename = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
-    elif db_type == 'train':
-        filename = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-    else:
-        raise IOError('Unspecified DB Type')  # KB 20190424 - py3
+    filename = tfrfilename
 
     isstr = isinstance(ims_locs_proc_fn, str) if ISPY3 else \
             isinstance(ims_locs_proc_fn, basestring)
@@ -562,11 +557,11 @@ def data_generator(conf, db_type, distort, shuffle, ims_locs_proc_fn, debug=Fals
             yield [ims], targets
             # (inputs, targets)
 
-def make_data_generator(conf0, db_type, distort, shuffle, ims_locs_proc_fn, **kwargs):
+def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, **kwargs):
     conf = copy.deepcopy(conf0)
-    logging.warning("opdata makedatagen. dbtype={}, distort/shuf={}/{}, ppfun={}, {}".format(
-        db_type, distort, shuffle, ims_locs_proc_fn, kwargs))
-    return data_generator(conf, db_type, distort, shuffle, ims_locs_proc_fn, **kwargs)
+    logging.warning("opdata makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
+        tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
+    return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
 
 if __name__ == "__main__":
 

@@ -118,6 +118,7 @@ class config(object):
 
         # ---- dpk
         # "early" here is eg after initial setup in APT_interface
+        self.dpk_max_val_batches = 1       # maximum number of validation batches
         self.dpk_downsample_factor = 2      # (immutable after early) integer downsample                                            *power* for output shape
         self.dpk_n_stacks = 2
         self.dpk_growth_rate = 48

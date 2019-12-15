@@ -175,10 +175,11 @@ class TrainingGeneratorTFRecord:
             ppfcn = 'ims_locs_preprocess_dpk_noconf'
             assert self.conf.dpk_n_outputs == 1
 
+        tfrfilename = self.valtfr if validation else self.trntfr
         falseIfValid = False if validation else True
         g = opdata.make_data_generator(
+            tfrfilename,
             self.conf,
-            'val' if validation else 'train',
             falseIfValid,
             falseIfValid,  # note, shuffling can skip a lot of records if infinite=False
             ppfcn,
