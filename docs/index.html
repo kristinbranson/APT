@@ -395,7 +395,7 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
   <li><b><a id="Train button">Train button</a></b>: Start training a tracker from the current training data.</li>
   <li><b><a id="Track button">Track button</a></b>: Start tracking the <a href="#Frames to track">selected frames</a> with the <a href="#Current tracker">current tracker</a>.</li>
   <li><b><a id="Frames to track">Frames to track</a></b>: Which frames will be tracked when the "Track" button is pressed.</li>
-  <li><b><a id="Select frames to track">Select rames to track</a></b>: These buttons can be used to select a set of frames to track from the <a href="#Label timeline"Label</a> or <a href="Property timeline">property</a> timeline.</li>
+  <li><b><a id="Select frames to track">Select frames to track</a></b>: These buttons can be used to select a set of frames to track from the <a href="#Label timeline">Label</a> or <a href="Property timeline">property</a> timeline.</li>
   <li><b><a id="Label timeline">Label timeline</a></b>: Timeline showing which frames have been labeled. The center frame of the timeline is always the current frame, and is indicated by the white vertical bar. Colors indicate which parts have been labeled in each frame, and black indicates that the frame has not been labeled.</li>
   <li><b><a id="Property timeline">Property timeline</a></b>: Timeline showing a derived property for the current window of frames. This can be a property computed from either manual labels or the tracker's predictions, for example the inter-frame movement of each landmark, or the tracker's confidence. This can be used to find and navigate to frames for which tracking may not be working well.</li>
 </ul>
@@ -670,11 +670,11 @@ trx(1) =
       
 <hr class="h2-divider">
 
-<h2><a id="Setting parameters">Setting parameters</a></h2>
+<h2><a id="Tracking parameters">Tracking parameters</a></h2>
 
 <p>APT's performance depends critically on setting several tracking parameters well. Several of these parameters must be changed with each new tracking application. To access the tracking parameters, select <b>"Configure tracking parameters..."</b> from the Tracking menu.</p>
 
-<center><a href="images/TrackingParametersGUI.png"><img src="images/TrackingParametersGUI.png"></a></center>
+<center><a id="TrackingParametersGUI" href="images/TrackingParametersGUI.png"><img src="images/TrackingParametersGUI.png"></a></center>
 
 <p>We have divided parameters into the following categories:
   <ul>
@@ -683,14 +683,16 @@ trx(1) =
     <li><b>Advanced</b>: We recommend these parameters be modified only by advanced users, or with help from developers.</li>
     <li><b>Developer</b>: We don't recommend modifying these parameters. They may be works-in-progress or obsolete. </li>
   </ul>
-  At the bottom of the GUI, you can select which of these parameters to show. In the example above, we select "Beginner", which limits parameters made visible to Important and Beginner. 
+  At the bottom of the GUI, you can select which of these parameters to show. In the example above, we select "Beginner", which limits parameters made visible to Important and Beginner. Once you have set the parameters to what you would like, hit the Apply button. </p>
 </p>
 
 <p>Next, we describe our process for setting parameters for a new project. We also provide a table with values chosen for a variety of applications.</p>
 
 <h3><a id="Deep learning parameter guide">Setting tracking parameters: deep learning</a></h3>
   
-<h4>1. Set <a href="#Body tracking cropping">cropping</a> parameters (<a href="#Body tracking">Body tracking projects only</a>).</h4>
+<h4>1. Set cropping parameters.</h4>
+
+<p>For <b><a href="#Body tracking">Body tracking projects</a></b>, <a href="#Body tracking cropping">cropping</a> parameters are accessed within the <a href="#TrackingParametersGUI">"Tracking parameters" GUI</a>:
 <ul>
   <li><b>Target ROI: Radius</b>: As described <a href="#Body tracking cropping">above</a>, set the radius of the square cropped around the body tracking centroid. A preview of the box is shown in the right panel. Select a radius here so that all parts of the animal will always be within the box. APT will only predict parts to be within this box. Selecting a box that is too large will result in lower resolution output predictions.
     <center><a href="images/TargetROIRadius.png"><img src="images/TargetROIRadius.png"></a><br/>
@@ -698,6 +700,19 @@ trx(1) =
   </li>
   <li><b>Target ROI: Align using trajectory theta</b>: As described <a href="#Body tracking cropping">above</a>, decide whether you want to align the square cropped around the body tracking centroid with the tracked body orientation. We recommend doing this when (a) orientation of the animal is accurately tracked and (b) tracking should be invariant to this orientation, i.e. there is no semantic difference between directions in the video. For example, in video recorded from overhead, we want our tracker to work the same for an animal facing up, left, right, or down. </li>
 </ul>
+</p>
+
+<p>For projects <b>without body tracking</b>, cropping can be modified by selecting <b>"Edit cropping"</b> from the File menu. Here, you can set a <b>single, static crop box for each movie</b>.</p>
+<ul>
+  <li>To create the initial crop box, click <b>"Adjust Size"</b>. This will place a box whose corners you can drag around. </li>
+  <li>Click <b>"Done Adjusting"</b> when you have finished adjusting this box.</li>
+  <li>The <b>same size box</b> is required for all videos for a given view in a project. Thus, when you switch to a different movie, by default, you can drag around the location of the box, but not change its size. </li>
+  <li>To change the size of the crop box, click "Adjust Size". This will <b>change the size of the crop box for all movies</b> for a given view.</li>
+  <li>When you are done, click "Finish". The main view will now zoom in to this crop region. </li>
+</ul>
+<center><a href="images/EditCropping.png"><img src="images/EditCropping.png" width="50%"></a><br/>
+  <i>Interface to edit crop region for the current movie</i>
+</center>
 
 <h4>2. Set data augmentation parameters</h4>
 <p>APT can be trained that tracking should be <b>invariant</b> to certain kinds of perturbations through data augmentation. Here, each training example is randomly perturbed every time it is seen during training. This effectively increases the size of your training set, and allows trackers to be trained from smaller amounts of manual annotation.</p>
@@ -759,19 +774,38 @@ trx(1) =
   <li><b>Flip vertically</b>: Augment by flipping the training image ang labels vertically. If you use this, it is important that you set pairs of corresponding landmarks, e.g. the left rear foot part corresponds to the right rear foot part when flipped, by selecting <a href="#FlipLandmarkPairings">"Select landmark flip pairings"</a> from the Track menu. </li>
 </ul>
 
-<h4>4. Set landmark flip pairings</h4>
+<h4>3. Set memory-related parameters</h4>
+
+<p>To train a deep neural network, it must fit within your GPU's memory. The amount of memory necessary is proportional to the <b>product</b> of the <b>area of the input image</b> in pixels times the neural network's <b>batch size</b>:
+<var>Memory</var> &#8733; <var>Area</var>&#183;<var>BatchSize</var>.
+</p>
+<p>Next, set the <b>"Downsample factor"</b> and <b>"Training batch size"</b> parameters so that the network will fit into memory.</p>
+
+<p>The area of the input image is computed as follows.</p>
+<ul>
+  <li>We need to know the <b>area of the cropped image</b>.
+    <ul>
+      <li>For body-tracking projects, crop area is specified by the <a href="#Target ROI Radius">Target ROI Radius</a>, and the area of the image in pixels is computed as <b><var>Area</var><sub>0</sub> = 4&#183;<var>Radius</var><sup>2</sup></b>.</li>
+      <li>For projects without body tracking, cropping can be specified by selecting <b><a href="#Edit cropping">"Edit cropping"</a></b> from the File menu. By default, the cropped region is the entire video frame. The crop area is (<var>Area<sub>0</sub></var> = <var>width</var>&#183;<var>height<var>).</li>
+    </ul>
+  </li>
+  <li>If this crop area is large, we can make it smaller by <b>downsampling</b> the image -- shrinking the image in both width and height. This is specified in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> as <b>Downsample factor</b>. Downsizing the image has the <b>negative effect</b> of <b>throwing away details</b> that may be important to finding parts. It also <b>reduces final resolution of the output</b> tracking. We recommend downsampling as little as possible. The input image area is reduced by this downsample factor squared: <var>Area</var> = <var>DownsampleFactor</var><sup>2</sup>&#183;<var>Area</var><sub>0</sub></li>
+</ul>
+
+<p>The <b>Training batch size</b> is the number of images the neural network processes at a time during training. Memory requirements <b>increase linearly</b> with the batch size. Neural network performance can degrade with either too large or too small batch sizes. We recommend batch sizes in the range of 2 to 8 images. </p>
+
+<h4>4. Set N. iterations of training</h4>
+
+<p>Switch the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> to show "<b>Beginner</b>" parameters. Set "<b>N. iterations of training</b>" in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a>. This is the number of the tracker is trained for, and training time increases linearly with number of iterations. Longer training generally works better, but takes longer and has diminishing returns. During training, you can examine whether training has converged, and decide to stop training at any time.</p>
+  
+<h4>5. Set landmark flip pairings</h4>
 
 <center><a id="FlipLandmarkPairings" href="images/FlipLandmarkPairings.png"><img src="images/FlipLandmarkPairings.png" width="25%"></a><br/>
 <i>Examples of pairs of matching landmarks to swap when flipping during data augmentation. Note that some landmarks are unpaired. These do not need to be swapped.</i></center>
 <p>If you selected <b>"Flip horizontally"</b> or <b>"Flip vertically"</b> above, it is important that you <b>specify corresponding pairs</b> of landmarks after this flip occurs. For example, after flipping both the image and the manual annotations, the left rear foot should be where the right rear foot is, and vice-versa. To do this, select <b>"Select landmark flip pairings"</b> from the Track menu.</p>
 
-<p>Select 'Configure tracking parameters' from the Track dropdown menu. This will popup a <a href="images/apt_track_configure_tracking_parameters.png" target="_blank"> <b>tracking parameters window.</b></a></p>
-
-What displays will depend on what type of tracking you are using.  Clicking on each option will produce a description of that option at the bottom of the page. Note that many of the default options are selections from dropdown menus, click the current option to see the other options. 
-
-<p>Once you have set the parameters to what you would like, hit the Apply button.</p>
-
-<a href="tracking_parameters.html#CPR">CPR Tracking parameters</a>
+<!-- <a href="tracking_parameters.html#CPR">CPR Tracking parameters</a> 
+-->
 
 <hr class="h2-divider">
 
