@@ -172,7 +172,7 @@ class TrainingGeneratorTFRecord:
         if confidence:
             ppfcn = 'ims_locs_preprocess_dpk'
         else:
-            ppfcn = 'ims_locs_preprocess_dpk_noconf'
+            ppfcn = 'ims_locs_preprocess_dpk_noconf_nodistort'
             assert self.conf.dpk_n_outputs == 1
 
         tfrfilename = self.valtfr if validation else self.trntfr

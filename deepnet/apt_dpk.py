@@ -15,8 +15,10 @@ import sys
 import pickle
 import importlib
 import ast
+import copy
 
 import tensorflow.keras as tfk
+import keras.backend as K
 import imgaug.augmenters as iaa
 import imgaug as ia
 import deepposekit.io.DataGenerator
@@ -36,6 +38,8 @@ import poseConfig
 import APT_interface as apt
 import run_apt_expts as rae
 import deepposekit.io.utils as dpkut
+import deepposekit.utils.keypoints
+import util
 
 
 
@@ -54,6 +58,15 @@ isotri='/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
 isotrilocs = np.array([[226., 107.], [180., 446.], [283., 445.]])
 isotriswapidx = np.array([-1, 2, 1])
 
+skeleton_csvs = {
+    'alice': ['/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'],
+    'stephen': [
+            '/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw0_side.csv',
+            '/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw1_front.csv'],
+    'dpkfly':    ['/groups/branson/home/leea30/git/dpkd/datasets/fly/skeleton.csv'],
+    'dpklocust': ['/groups/branson/home/leea30/git/dpkd/datasets/locust/skeleton.csv'],
+    'dpkzebra':  ['/groups/branson/home/leea30/git/dpkd/datasets/zebra/skeleton.csv'],
+}
 
 
 def viz_targets(ims, tgts, npts, ngrps, ibatch=0):
@@ -356,27 +369,6 @@ def create_callbacks_orig(sdn, conf):
 
 #endregion
 
-def predict_stuff(sdn, ims, locsgt, hmfloor=0.1, hmncluster=1):
-    mt = sdn.train_model
-    mp = sdn.predict_model
-
-    sdnconf = sdn.get_config()
-    npts = sdnconf['keypoints_shape'][0]
-    unscalefac = 2**sdnconf['downsample_factor']
-
-    yt = mt.predict(ims)
-    yhm = op4.clip_heatmap_with_warn(yt[-1][..., :npts])
-    locsTlo = hm.get_weighted_centroids(yhm, hmfloor, hmncluster)
-    locsThi = opd.unscale_points(locsTlo, unscalefac)
-
-    locsPhi = mp.predict(ims)
-    locsPhi = locsPhi[..., :2]  # 3rd/last col is confidence
-
-    errT = np.sqrt(np.sum((locsgt-locsThi)**2, axis=-1))
-    errP = np.sqrt(np.sum((locsgt-locsPhi)**2, axis=-1))
-
-    return errT, errP, locsThi, locsPhi
-
 '''
 for our dsets:
 1. rapt load/reload, then setup.
@@ -450,12 +442,13 @@ def update_conf_dpk(conf_base,
     '''
     Massage a given APT conf for dpk. This mostly sets dpk_* props etc.
 
-    :param conf_base: conf starting pt. should have KEEPATTS (see below) set correctly*
+    :param conf_base: conf starting pt.
     :return: This returns the same handle as conf_base
     '''
 
     conf = conf_base
 
+    '''
     # this is prob unnec and could be dumb
     KEEPATTS = [
         'trainfilename', 'valfilename', 'cachedir', 'batch_size',
@@ -468,6 +461,7 @@ def update_conf_dpk(conf_base,
     for att in attrs:
         if not att.startswith('dpk_') and att not in KEEPATTS:
             setattr(conf, att, ['__FOO_UNUSED__', ])
+    '''
 
     # stuff that is set from lblfile by apt.create_conf; OR that
     # we are now adding (if no lbl avail)
@@ -504,15 +498,38 @@ def update_conf_dpk(conf_base,
 
     return conf
 
-
-def update_conf_dpk_skel_csv(conf_base, skel_csv):
+def read_skel_csv(skel_csv):
     s = dpkut.initialize_skeleton(skel_csv)
     skeleton = s[["tree", "swap_index"]].values
     graph = skeleton[:, 0]
     swap_index = skeleton[:, 1]
-    conf = update_conf_dpk(conf_base, graph, swap_index)
+    return graph, swap_index
 
+
+def update_conf_dpk_skel_csv(conf_base, skel_csv):
+    graph, swap_index = read_skel_csv(skel_csv)
+    conf = update_conf_dpk(conf_base, graph, swap_index)
     return conf
+
+
+def skel_graph_test(ty):
+    skel_csv = skeleton_csvs[ty]
+    for idxskel, csv in enumerate(skel_csv):
+        print("### View {}".format(idxskel))
+        graph, swap_index = read_skel_csv(csv)
+        # this stuff from dpk.utils.keypoints
+        edge_labels = deepposekit.utils.keypoints.graph_to_edges(graph)
+        labels = np.unique(edge_labels)
+        for idx, label in enumerate(labels):  # loop over groups
+            print("  grp {}: rootidx={}".format(idx, label))
+            lines = graph[edge_labels == label]  # parent conns for this grp
+            lines_idx = np.where(edge_labels == label)[0]  # downstream conns "
+            print(np.stack([lines, lines_idx, ]))
+            for jdx, (line_idx, line) in enumerate(zip(lines_idx, lines)):
+                if line >= 0:  # parent conn exists
+                    pass
+                else:
+                    assert jdx == 0  # the first member of each group must be the parent/root of that group.
 
 
 def print_dpk_conf(conf):
@@ -657,6 +674,7 @@ def train(conf):
 
     nval = tgtfr.n_validation
     nvalbatch = nval // conf.batch_size
+    nvalbatch = min(nvalbatch, conf.dpk_max_val_batches)
     logging.info("n_validation={}, n_validationbatch={}".format(nval, nvalbatch))
     assert nvalbatch > 0, 'Number of validation batches must be greater than 0.'
     sdn.fit(
@@ -706,6 +724,78 @@ def train_orig(conf, dg):
 
 #endregion
 
+#region Predict
+
+def get_pred_fn(conf0, model_file):
+
+    assert model_file is not None, "model_file is currently required"
+
+    conf = copy.deepcopy(conf0)
+    exp_dir = conf.cachedir
+    sdn, conf_saved, _ = load_apt_cpkt(exp_dir, model_file)
+
+    print("Comparing conf to conf_saved:")
+    util.dictdiff(vars(conf), vars(conf_saved))
+
+    pred_model = sdn.predict_model
+
+    def pred_fn(imsraw):
+        '''
+
+        :param imsraw: BHWC
+        :return:
+        '''
+
+        bsize = imsraw.shape[0]
+        assert bsize == conf.batch_size
+        locs_dummy = np.zeros((bsize, conf.n_classes, 2))
+        # can do non-distort img preproc
+        ims, _, _ = opd.ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locs_dummy, conf, False)
+
+        predres = pred_model.predict(ims)
+        locs = predres[..., :2]  # 3rd/last col is confidence
+        confidence = predres[..., 2]
+        ret_dict = {}
+        ret_dict['locs'] = locs
+        ret_dict['confidence'] = confidence
+        return ret_dict
+
+    def close_fn():
+        K.clear_session()
+
+    return pred_fn, close_fn, model_file
+
+def predict_stuff(sdn, ims, locsgt, hmfloor=0.1, hmncluster=1):
+    '''
+
+    :param sdn:
+    :param ims: PREPROCESSED ims NOT raw ims
+    :param locsgt:
+    :param hmfloor:
+    :param hmncluster:
+    :return:
+    '''
+    mt = sdn.train_model
+    mp = sdn.predict_model
+
+    sdnconf = sdn.get_config()
+    npts = sdnconf['keypoints_shape'][0]
+    unscalefac = 2**sdnconf['downsample_factor']
+
+    assert False, "need to preproc ims"
+    yt = mt.predict(ims)
+    yhm = op4.clip_heatmap_with_warn(yt[-1][..., :npts])
+    locsTlo = hm.get_weighted_centroids(yhm, hmfloor, hmncluster)
+    locsThi = opd.unscale_points(locsTlo, unscalefac)
+
+    locsPhi = mp.predict(ims)
+    locsPhi = locsPhi[..., :2]  # 3rd/last col is confidence
+
+    errT = np.sqrt(np.sum((locsgt-locsThi)**2, axis=-1))
+    errP = np.sqrt(np.sum((locsgt-locsPhi)**2, axis=-1))
+
+    return errT, errP, locsThi, locsPhi
+
 def load_apt_cpkt(exp_dir, mdlfile):
     '''
     Load an APT-style saved model checkpoint
@@ -735,6 +825,7 @@ def load_apt_cpkt(exp_dir, mdlfile):
 
     return sdn, conf, model_config
 
+#endregion
 
 #region Script/Cmdline API
 

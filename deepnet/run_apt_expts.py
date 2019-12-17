@@ -43,6 +43,8 @@ proj_name = None
 trn_flies = None
 cv_info_file = None
 gt_name = ''
+dpk_skel_csv = None
+dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/git/imgaug'
 
 cache_dir = '/nrs/branson/mayank/apt_cache'
 all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose','resnet_unet']
@@ -53,6 +55,9 @@ sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
 n_splits = 3
 
 dlc_aug_use_round = 0
+
+# common_conf procedure. Always call reload() first to initialize the global common_conf state.
+# then setup, then individual actions furthwe tweak conf. Always call reload first!
 
 common_conf = {}
 common_conf['rrange'] = 10
@@ -462,14 +467,8 @@ def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwar
     cmd_opts['view'] = view + 1
     cmd_opts['train_name'] = train_name
 
-    conf_opts = run_trainining_conf_helper(train_type, kwargs)  # this is copied from common_conf
-
-    if len(conf_opts) > 0:
-        conf_str = ' -conf_params'
-        for k in conf_opts.keys():
-            conf_str = '{} {} {} '.format(conf_str, k, conf_opts[k])
-    else:
-        conf_str = ''
+    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)  # this is copied from common_conf
+    conf_str = apt.conf_opts_dict2pvargstr(conf_opts)
 
     opt_str = ''
     for k in cmd_opts.keys():
@@ -477,16 +476,46 @@ def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwar
 
     cur_cmd = common_cmd + conf_str + opt_str + end_cmd
     cmd_name = '{}_view{}_{}_{}_{}'.format(data_type, view, exp_name, train_type,train_name)
+
+    # C+P mirror of APT_interf
+    exp_dir = os.path.join(cache_dir, proj_name, train_type, 'view_{}'.format(view), exp_name)
+    explog_dir = os.path.join(exp_dir, 'log')
+    if not os.path.exists(explog_dir):
+        os.mkdir(explog_dir)
+
     if run_type == 'dry':
         return conf_opts, cur_cmd, cmd_name
     elif run_type == 'submit':
         print(cur_cmd)
         print()
         precmd = 'export PYTHONPATH="{}"'.format(dpk_py_path) if train_type == 'dpk' else ''
-        run_jobs(cmd_name, cur_cmd, precmd=precmd)
+        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir)
     elif run_type == 'status':
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         check_train_status(cmd_name, conf.cachedir)
+
+
+def get_apt_conf():
+    '''
+    Create/generate confs as (hopefully) done by Apt_interf
+    :return:
+    '''
+
+    res = [None,] * nviews
+    exp_name = 'apt_expt'
+    for view in range(nviews):
+        for tndx in range(len(all_models)):
+            train_type = all_models[tndx]
+            conf_opts = run_trainining_conf_helper(train_type, view, {})
+            pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
+            pvlist = apt.conf_opts_pvargstr2list(pvlist)
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
+                                   conf_params=pvlist)
+            if res[view] is None:
+                res[view] = {}
+            res[view][all_models[tndx]] = conf
+
+    return res
 
 
 
@@ -861,16 +890,20 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
 
 
 
-def run_normal_training(run_type = 'status'):
+def run_normal_training(expname = 'apt_expt', run_type = 'status'):
 
     common_conf['dl_steps'] = 50000
     common_conf['maxckpt'] = 20
     common_conf['save_time'] = 20 # save every 20 min
+    # common_conf['sb_num_deconv'] = 2 # XXXXXXXXXXXXXXXXXXXXXXXXX
 
+    results = {}
     for train_type in all_models:
         for view in range(nviews):
-            run_trainining('apt_expt',train_type,view, run_type)
+            key = "{}_vw{}".format(train_type, view)
+            results[key] = run_trainining(expname, train_type, view, run_type)
 
+    return results
 
 ## CV Training ---- TRAINING ----
 
@@ -1200,11 +1233,9 @@ def create_gt_db():
 ## ######################  RESULTS
 
 
-def get_normal_results():
+def get_normal_results(exp_name='apt_expt', train_name='deepnet'):
 ## Normal Training  ------- RESULTS -------
-    cache_dir = '/nrs/branson/mayank/apt_cache'
-    exp_name = 'apt_expt'
-    train_name = 'deepnet'
+    # cache_dir = '/nrs/branson/al/cache'
 
     all_view = []
 
@@ -1214,12 +1245,20 @@ def get_normal_results():
         gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
         for train_type in all_models:
 
-            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            conf_opts = run_trainining_conf_helper(train_type, view, {})
+            pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
+            pvlist = apt.conf_opts_pvargstr2list(pvlist)
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
+                                   conf_params=pvlist)
+            #conf.sb_num_deconv = 2 # XXXXXXXXXXXXXXXxx
             # if data_type == 'stephen' and train_type == 'mdn':
             #     conf.mdn_use_unet_loss = False
-            if op_af_graph is not None:
-                conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-            conf.normalize_img_mean = False
+
+            #if op_af_graph is not None:
+            #    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+            #conf.normalize_img_mean = False
+            assert not conf.normalize_img_mean
+
             files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
             files.sort(key=os.path.getmtime)
             files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
@@ -1234,6 +1273,8 @@ def get_normal_results():
             #     sel = np.linspace(0,len(files)-1,n_max).astype('int')
             #     files = [files[s] for s in sel]
 
+            print('view {}, net {}. Your models are:'.format(view, train_type))
+            print(files)
 
             out_file = os.path.join(conf.cachedir,train_name + '_results{}.p'.format(gt_name))
             recomp = False
@@ -1255,7 +1296,7 @@ def get_normal_results():
             if recomp:
                 afiles = [f.replace('.index', '') for f in files]
                 mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
-                with open(out_file,'w') as f:
+                with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,files],f)
             else:
                 A = PoseTools.pickle_load(out_file)

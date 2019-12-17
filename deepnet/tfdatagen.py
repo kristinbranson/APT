@@ -387,26 +387,44 @@ def imgaug_augment(augmenter, images, keypoints):
 
 __ims_locs_preprocess_dpk_has_run__ = False
 
-def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort):
+def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
+                                 draw_conf_maps=True):
+    '''
+
+    :param imsraw:
+    :param locsraw:
+    :param conf:
+    :param distort: Even if distort==False, *some image preproc may be done!!*
+        (contrast adjust, intense normalization etc)
+    :param draw_conf_maps: draw confidence hmaps
+    :return: ims, locs, tgts. If draw_conf_maps==False, tgts are just a copy of locs
+    '''
 
     global __ims_locs_preprocess_dpk_has_run__
 
-    #assert conf.sb_rescale == 1 We do want something like this
+    # bc PoseTools.preprocess_ims see below
+    assert conf.rescale == conf.sb_rescale == 1
 
-    if distort:
-        #print('distort')
-        if conf.dpk_use_augmenter:
+    if conf.dpk_use_augmenter:
+        # dpk out of the box doesn't do non-distortion img preproc
+        # (eg prediction is a raw Keras predict on a cv VideoReader
+
+        # prob unnec at least if distort==True
+        imsraw = imsraw.copy()
+        locsraw = locsraw.copy()
+        if distort:
             augmenter = conf.dpk_augmenter
             assert augmenter is not None
             ims, locs = imgaug_augment(augmenter, imsraw, locsraw)
         else:
-            RESCALEPREPROC = 1
-            # used in preprocess_ims
-            assert conf.imsz == imsraw.shape[1:3]
-            ims, locs = PoseTools.preprocess_ims(imsraw, locsraw, conf, distort, RESCALEPREPROC)
-    else:
-        ims = imsraw
-        locs = locsraw
+            ims = imsraw
+            locs = locsraw
+    else:  # ours/PoseTools
+        # Note here even if distort==False ims may be preprocessed
+        RESCALEPREPROC = 1
+        assert conf.imsz == imsraw.shape[1:3]
+        # This currently makes a copy
+        ims, locs = PoseTools.preprocess_ims(imsraw, locsraw, conf, distort, RESCALEPREPROC)
 
     ims, locs = pad_ims_black(ims, locs, conf.dpk_im_pady, conf.dpk_im_padx)
     imsz_net = conf.dpk_imsz_net
@@ -423,24 +441,27 @@ def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort):
     #label_map_outres = heatmap.create_label_hmap(locs_outres,
     #                                             imsz_out,
     #                                             conf.sb_blur_rad_output_res)
-    y = dpk.utils.keypoints.draw_confidence_maps(
-        ims,
-        locs,
-        graph=conf.dpk_graph,
-        output_shape=conf.dpk_output_shape,
-        use_graph=conf.dpk_use_graph,
-        sigma=conf.dpk_output_sigma
-    )
-    nmaps = y.shape[-1]
-    y *= 255
-    if conf.dpk_use_graph:
-        y[..., conf.n_classes:] *= conf.dpk_graph_scale  # scale grps, limbs, globals
 
-    if conf.dpk_n_outputs > 1:
-        y = [y for idx in range(conf.dpk_n_outputs)]
+    if draw_conf_maps:
+        y = dpk.utils.keypoints.draw_confidence_maps(
+            ims,
+            locs,
+            graph=conf.dpk_graph,
+            output_shape=conf.dpk_output_shape,
+            use_graph=conf.dpk_use_graph,
+            sigma=conf.dpk_output_sigma
+        )
+        nmaps = y.shape[-1]
+        y *= 255
+        if conf.dpk_use_graph:
+            y[..., conf.n_classes:] *= conf.dpk_graph_scale  # scale grps, limbs, globals
 
-    targets = y
-    #targets = [label_map_outres,]
+        if conf.dpk_n_outputs > 1:
+            y = [y for idx in range(conf.dpk_n_outputs)]
+
+        targets = y
+    else:
+        targets = locs.copy()
 
     if not __ims_locs_preprocess_dpk_has_run__:
         str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}, nmaps = {}'
@@ -450,20 +471,16 @@ def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort):
 
     return ims, locs, targets
 
-def ims_locs_preprocess_dpk_noconf(imsraw, locsraw, conf, distort):
-    ims = imsraw
-    locs = locsraw
-    ims, locs = pad_ims_black(ims, locs, conf.dpk_im_pady, conf.dpk_im_padx)
-    imsz_net = conf.dpk_imsz_net
-    (imnr_net, imnc_net) = imsz_net
-    assert ims.shape[1] == imnr_net
-    assert ims.shape[2] == imnc_net
-    assert ims.shape[3] == conf.img_dim
+def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort):
+    return ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
+                                        draw_conf_maps=True)
 
+def ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locsraw, conf, distort):
+    # Still can img preproc
+    assert distort is False
     assert conf.dpk_n_outputs == 1, "Unexpected dpk_n_outputs: {}".format(conf.dpk_n_outputs)
-
-    tgts = locs.copy()
-    return ims, locs, tgts
+    return ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
+                                        draw_conf_maps=False)
 
 
 def ims_locs_preprocess_dummy(imsraw, locsraw, conf, distort):
