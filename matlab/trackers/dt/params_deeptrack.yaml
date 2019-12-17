@@ -26,7 +26,7 @@ ROOT:
 #    - valratio: ['Amount of validation data',float,true,'Amount of data to keep aside for validation',0.3,'','Advanced','isDeepTrack']
     - ImageProcessing:
       - ['','',false,'Parameters related to initial processing of the input video data before any learning happens.','','','','']
-      - scale: ['Downsample factor',unsigned,true,'Downsample images in width and height by this factor. This will decrease the amount of memory needed on the GPU.',1,'','Important','isDeepTrack',true]
+      - scale: ['Downsample factor',unsigned,true,'Downsample images in width and height by this factor. This will decrease the amount of memory needed on the GPU.',1,'ParameterVisualizationMemory','Important','isDeepTrack',true]
       - adjustContrast: ['Histogram equalization',boolean,true,'Normalize image contrast using contrast limited adaptive histogram equalization (CLAHE).',0,'ParameterVisualizationPreproc#preproc1','Beginner','isDeepTrack',true]
       - clahe_grid_size: ['Neighborhood size for histogram equalization',unsigned,true,'CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels.',20,'','Advanced','isDeepTrack',true]
       - normalize: ['Brightness normalization',boolean,true,'Normalize images by subtracting the average pixel intensity in the image.',0,'','Beginner','isDeepTrack',true]
@@ -35,7 +35,7 @@ ROOT:
     - GradientDescent:
       - ['','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
       - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. ',20000,'','Beginner','isDeepTrack',true]
-      - batch_size: ['Training batch size',unsigned,true,'Number of training examples used in each iteration of gradient descent. Too large of values may cause the GPU to run out of memory. Too small of values may make training slower and result in poor optimization.',8,'','Important','isDeepTrack',true]
+      - batch_size: ['Training batch size',unsigned,true,'Number of training examples used in each iteration of gradient descent. Too large of values may cause the GPU to run out of memory. Too small of values may make training slower and result in poor optimization.',8,'ParameterVisualizationMemory','Important','isDeepTrack',true]
       - cos_steps: ['N. warm restarts',unsigned,true,'Number of times to restart training',2,'','Advanced','isDeepTrack',true]
       - decay_steps: ['Learning rate decay iterations',float,true,'The learning rate is decayed by gamma (below) after this many iterations of training.',25000,'','Advanced','isDeepTrack',true]
       - gamma: ['Learning rate decay (gamma)',float,true,'Amount to decay the learning rate by after the number of decay iterations above.',0.1,'','Advanced','isDeepTrack',true]
