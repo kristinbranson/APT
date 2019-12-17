@@ -371,7 +371,7 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
                     return_hm=False, hm_dec=1, hm_floor=0.1, hm_nclustermax=1):
     cur_out = []
     extra_str = ''
-    if model_type not in ['leap','openpose']:
+    if model_type not in ['leap', 'openpose', 'sb', 'dpk']:
         extra_str = '.index'
     # else:
     #     extra_str = '.h5'
@@ -392,7 +392,8 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
         if model_type == 'mdn':
             extra_stuff = ret_list[3:]
         else:
-            extra_stuff = 0
+            extra_stuff = ret_list[3:]  # XXX AL but why not
+            # extra_stuff = 0
         close_fn()
         gt_list = np.array(gt_list)
         cur_out.append([pred, label, gt_list, m, extra_stuff, ts[mndx]])

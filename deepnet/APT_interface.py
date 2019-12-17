@@ -24,7 +24,8 @@ from multiResData import float_feature, int64_feature,bytes_feature,trx_pts, che
 # from multiResData import *
 import leap.training
 from leap.training import train_apt as leap_train
-import open_pose
+import open_pose4 as op
+import sb1 as sb
 from deepcut.train import train as deepcut_train
 import deepcut.train
 import ast
@@ -1263,6 +1264,8 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
         pred_fn, close_fn, model_file = apt_dpk.get_pred_fn(conf, model_file)
     elif model_type == 'openpose':
         pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file,name=name)
+	elif model_type == 'sb':
+        pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name)
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file,name=name)
     elif model_type == 'mdn':
@@ -1419,7 +1422,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None):
     ''' Classifies examples in DB'''
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
 
-    if model_type == 'openpose':
+    if model_type == 'openpose' or model_type == 'sb':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
@@ -1840,8 +1843,8 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
         files = self.model_files()
     elif net_type == 'leap':
         files = leap.training.model_files(conf, name)
-    elif net_type == 'openpose':
-        files = open_pose.model_files(conf, name)
+    elif net_type == 'openpose' or net_type == 'sb':
+        files = op.model_files(conf, name)
     elif net_type == 'deeplabcut':
         files = deepcut.train.model_files(conf, name)
     else:
@@ -1904,10 +1907,17 @@ def train_openpose(conf, args, split, split_file=None):
     nodes = []
     graph = conf.op_affinity_graph
     _ = [nodes.extend(n) for n in graph]
-    assert len(graph) == (conf.n_classes - 1) and len(
-        set(nodes)) == conf.n_classes, 'Affinity Graph for open pose is not a complete tree'
+    #assert len(graph) == (conf.n_classes - 1) and len(
+        #set(nodes)) == conf.n_classes, 'Affinity Graph for open pose is not a complete tree'
 
-    open_pose.training(conf,name=args.train_name)
+    op.training(conf,name=args.train_name)
+    tf.reset_default_graph()
+
+
+def train_sb(conf, args, split, split_file=None):
+    if not args.skip_db:
+        create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
+    sb.training(conf, name=args.train_name)
     tf.reset_default_graph()
 
 
@@ -1967,8 +1977,11 @@ def train(lblfile, nviews, name, args):
                 train_mdn(conf, args, restore, split, split_file=split_file)
             elif net_type == 'openpose':
                 if args.use_defaults:
-                    open_pose.set_openpose_defaults(conf)
+                    op.set_openpose_defaults(conf)
                 train_openpose(conf, args, split, split_file=split_file)
+            elif net_type == 'sb':
+                assert not args.use_defaults
+                train_sb(conf, args, split, split_file=split_file)
             elif net_type == 'leap':
                 if args.use_defaults:
                     leap.training.set_leap_defaults(conf)
