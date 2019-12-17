@@ -108,6 +108,7 @@ table
     margin: 0em;
     border-collapse: collapse;
     border-spacing: 0px;
+    table-layout: fixed;
 }
 
 footer 

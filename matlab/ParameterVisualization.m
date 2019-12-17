@@ -2,6 +2,12 @@ classdef ParameterVisualization < handle
   % Parameters that want a visualization when they are being set should
   % subclass this abstract base class
   
+  properties 
+    
+    axPos = [0.0473118279569892 0.0493358633776091 0.911827956989247 0.929791271347249];
+    
+  end
+  
   methods (Abstract)
     
     % Called when a property is selected for consideration, eg when a user

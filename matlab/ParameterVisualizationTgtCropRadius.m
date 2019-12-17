@@ -26,6 +26,8 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     function init(obj,hAx,lObj,propFullName,sPrm)
       
       obj.initSuccessful = false;
+      set(hAx,'Units','normalized','Position',obj.axPos);
+      
       if ~lObj.hasMovie
         ParameterVisualization.grayOutAxes(hAx,'No movie available.');
         return;

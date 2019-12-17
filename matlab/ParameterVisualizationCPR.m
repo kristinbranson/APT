@@ -64,6 +64,8 @@ classdef ParameterVisualizationCPR < ParameterVisualization
         return;
       end
 
+      set(hAx,'Units','normalized','Position',obj.axPos);
+      
       obj.initSuccessful = false;
       obj.initVizInfo = [];
       success = false;
