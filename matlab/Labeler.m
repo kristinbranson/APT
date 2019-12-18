@@ -3296,6 +3296,22 @@ classdef Labeler < handle
         s.trackParams = Labeler.trackGetParamsFromStruct(s);
       end
       
+      % KB 20191218: replaced scale_range with scale_factor_range
+      if isstruct(s.trackParams) && isfield(s.trackParams,'ROOT') && ...
+          isstruct(s.trackParams.ROOT) && isfield(s.trackParams.ROOT,'DeepTrack') && ...
+          isstruct(s.trackParams.ROOT.DeepTrack) && isfield(s.trackParams.ROOT.DeepTrack,'DataAugmentation') && ...
+          isstruct(s.trackParams.ROOT.DeepTrack.DataAugmentation) && ...
+          ~isfield(s.trackParams.ROOT.DeepTrack.DataAugmentation,'scale_factor_range') && ...
+          isfield(s.trackParams.ROOT.DeepTrack.DataAugmentation,'scale_range'),
+        if s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_range ~= 0,
+          warning(['"Scale range" data augmentation parameter has been replaced by "Scale factor range". ' ...
+            'These are very similar, so we have auto-populated "Scale factor range" based on your '...
+            '"Scale range" parameter. However, these are not the same. Please examine "Scale factor range" '...
+            'in the Tracking parameters GUI']);
+        end
+        s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1+s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_range;
+      end
+      
       % KB 20190331: adding in post-processing parameters if missing
       % AL 20190507: ... [a subset of] ... .trackParams modernization
       % AL 20190712: (subsumes above) modernizing entire .trackParams
@@ -3399,6 +3415,7 @@ classdef Labeler < handle
       if ~isfield(s,'trkRes')
         s = Labeler.resetTrkResFieldsStruct(s);
       end
+      
     end
     function s = resetTrkResFieldsStruct(s)
       nmov = size(s.movieFilesAll,1);

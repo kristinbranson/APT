@@ -93,6 +93,12 @@ def read_entry(x):
         return x
 
 
+def has_entry(x,s):
+    if type(x) is h5py._hl.dataset.Dataset:
+        return False
+    else:
+        return s in x.keys()
+    
 def read_string(x):
     if type(x) is h5py._hl.dataset.Dataset:
         if len(x) == 2 and x[0] == 0 and x[1] == 0:  # empty ML strings returned this way
@@ -514,6 +520,15 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.rrange = bb
     except KeyError:
         pass
+
+    # KB 20191218 - use scale_range only if it exists and scale_factor_range does not
+    if isModern:
+        try:
+            conf.use_scale_factor_range = has_entry(dt_params['DeepTrack']['DataAugmentation'],'scale_factor_range') or not has_entry(dt_params['DeepTrack']['DataAugmentation'],'scale_range')
+        except KeyError:
+            pass
+
+    
     try:
         if isModern and net_type == 'openpose':
             try:
