@@ -58,7 +58,7 @@ The following instructions will take you, step-by-step, through installing and c
     </ul>
   </li>
   <li>
-    Install <b><a href="https://docs.docker.com/install/">Docker</a></b> following the <a href="https://docs.docker.com/install/">instructions on Docker's website</a>. The free Community Edition is fine. 
+    Install <b><a href="https://docs.docker.com/install/">Docker</a></b> (>=19.03) following the <a href="https://docs.docker.com/install/">instructions on Docker's website</a>. The free Community Edition is fine. 
   </li>
   <li>
     Set up Docker so that it <b>does not require sudo</b> privileges as described here: <a href="https://docs.docker.com/install/linux/linux-postinstall/">Manage Docker as a non-root user</a>.
@@ -78,7 +78,7 @@ The following instructions will take you, step-by-step, through installing and c
       </li>
       <li>
 	Test your nvidia-docker installation:
-	<pre>docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi</pre>
+	<pre> docker run --gpus all nvidia/cuda:9.0-base nvidia-smi <!--docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi--></pre>
       </li>
     </ul>
   </li>

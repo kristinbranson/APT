@@ -67,6 +67,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 
       obj.initSuccessful = false;
       obj.initVizInfo = [];
+      set(hAx,'Units','normalized','Position',obj.axPos);
             
       if ~lObj.hasMovie
         ParameterVisualization.grayOutAxes(hAx,'No movie available.');
