@@ -291,7 +291,7 @@ classdef AWSec2 < handle
       instanceIDs = {};
       instanceTypes = {};
       obj.SetStatus('Listing AWS EC2 instances available');
-      cmd = AWSec2.listInstancesCmd(obj.keyName);%,'instType',obj.instanceType);
+      cmd = AWSec2.listInstancesCmd(obj.keyName,'instType',obj.instanceType);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if tfsucc,
         info = jsondecode(json);
@@ -304,7 +304,8 @@ classdef AWSec2 < handle
       
     end
     
-    function [tfsucc,instanceID,instanceType,reason,didLaunch] = selectInstance(obj,varargin)
+    function [tfsucc,instanceID,instanceType,reason,didLaunch] = ...
+        selectInstance(obj,varargin)
 
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin,'canlaunch',true,...

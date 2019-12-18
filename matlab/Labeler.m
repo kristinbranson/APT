@@ -1879,9 +1879,11 @@ classdef Labeler < handle
       end
       
       % clean information we shouldn't save from AWS EC2
-      if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd),
-        s.trackDLBackEnd.awsec2 = [];
-      end
+      % AL 20191217: this breaks training, trackDLBackEnd is a handle to a live
+      % object
+%       if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd),
+%         s.trackDLBackEnd.awsec2 = [];
+%       end
       
       switch obj.labelMode
         case LabelMode.TEMPLATE
