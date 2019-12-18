@@ -153,8 +153,9 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
         if jj > 0.5:
             img[st:en, ...] = img[st:en, :, ::-1, :]
             for ll in range(locs.shape[2]):
-                if ll in pairs.keys():
-                    match = pairs[ll]
+                str_ll = '{}'.format(ll)
+                if str_ll in pairs.keys():
+                    match = pairs[str_ll]
                     locs[st:en, :, ll, 0] = wd - 1 - orig_locs[st:en, :, match, 0]
                     locs[st:en, :, ll, 1] = orig_locs[st:en, :, match, 1]
                 else:
@@ -184,7 +185,8 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
         if jj > 0.5:
             img[st:en, ...] = img[st:en, ::-1, : ,: ]
             for ll in range(locs.shape[2]):
-                if ll in pairs.keys():
+                str_ll = '{}'.format(ll)
+                if str_ll in pairs.keys():
                     match = pairs[ll]
                     locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, match , 1]
                     locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
