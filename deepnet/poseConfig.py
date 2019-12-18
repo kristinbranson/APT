@@ -42,6 +42,7 @@ class config(object):
         self.normalize_img_mean = False
         self.normalize_batch_mean = False
         self.perturb_color = False
+        self.flipLandmarkMatches = {}
 
         # ----- Data parameters
         # l1_cropsz = 0

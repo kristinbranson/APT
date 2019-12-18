@@ -542,8 +542,9 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
                 mm = re.search('(\d+)\s+(\d+)', b)
                 n1 = int(mm.groups()[0]) - 1
                 n2 = int(mm.groups()[1]) - 1
-                graph[n1] = n2
-                graph[n2] = n1
+                graph['{}'.format(n1)] = n2
+                graph['{}'.format(n2)] = n1
+                # The keys have to be strings so that they can be saved in the trk file
         conf.flipLandmarkMatches = graph
     except KeyError:
         pass
