@@ -3415,7 +3415,6 @@ classdef Labeler < handle
       if ~isfield(s,'trkRes')
         s = Labeler.resetTrkResFieldsStruct(s);
       end
-      
     end
     function s = resetTrkResFieldsStruct(s)
       nmov = size(s.movieFilesAll,1);
