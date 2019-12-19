@@ -740,7 +740,7 @@ trx(1) =
     <td><center><i>Original training images</i></center></td>
     <td><center><i>Rotate by up to 15 degrees</i></center></td>
     <td><center><i>Translate by up to 5 pixels</i></center></td>
-    <td><center><i>Scale by a factor of between 1/1.1 and 1.1</i></center></td>
+    <td><center><i>Scale by a factor of between 1/1.2 and 1.2</i></center></td>
   </tr>
   <tr>
     <td>
@@ -785,6 +785,23 @@ trx(1) =
 </p>
 <p>Next, set the <b>"Downsample factor"</b> and <b>"Training batch size"</b> parameters so that the network will fit into memory.</p>
 
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/DownsampleFactor.png"><img width="100%" src="images/DownsampleFactor.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TrainingBatchSize.png"><img width="100%" src="images/TrainingBatchSize.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Memory requirements for different <b>Downsample factors</b></i></center></td>
+    <td><center><i>Memory requirements for different <b>Training batch sizes</b></i></center></td>
+  </tr>
+</table>
+</center>
+
 <p>The area of the input image is computed as follows.</p>
 <ul>
   <li>We need to know the <b>area of the cropped image</b>.
@@ -793,10 +810,10 @@ trx(1) =
       <li>For projects without body tracking, cropping can be specified by selecting <b><a href="#Edit cropping">"Edit cropping"</a></b> from the File menu. By default, the cropped region is the entire video frame. The crop area is (<var>Area<sub>0</sub></var> = <var>width</var>&#183;<var>height<var>).</li>
     </ul>
   </li>
-  <li>If this crop area is large, we can make it smaller by <b>downsampling</b> the image -- shrinking the image in both width and height. This is specified in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> as <b>Downsample factor</b>. Downsizing the image has the <b>negative effect</b> of <b>throwing away details</b> that may be important to finding parts. It also <b>reduces final resolution of the output</b> tracking. We recommend downsampling as little as possible. The input image area is reduced by this downsample factor squared: <var>Area</var> = <var>DownsampleFactor</var><sup>2</sup>&#183;<var>Area</var><sub>0</sub></li>
+  <li>If this crop area is large, we can make it smaller by <b>downsampling</b> the image -- shrinking the image in both width and height. This is specified in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> as <b>Downsample factor</b>. Downsizing the image has the <b>negative effect</b> of <b>throwing away details</b> that may be important to finding parts. It also <b>reduces final resolution of the output</b> tracking. We recommend downsampling as little as possible. The input image area is reduced by this downsample factor squared: <var>Area</var> = <var>DownsampleFactor</var><sup>2</sup>&#183;<var>Area</var><sub>0</sub>. An estimate of the memory required for the current and other Downsample factors is shown in the Parameter visualization window when you select Downsample factor in the Tracking Parameters GUI. </li>
 </ul>
 
-<p>The <b>Training batch size</b> is the number of images the neural network processes at a time during training. Memory requirements <b>increase linearly</b> with the batch size. Neural network performance can degrade with either too large or too small batch sizes. We recommend batch sizes in the range of 2 to 8 images. </p>
+<p>The <b>Training batch size</b> is the number of images the neural network processes at a time during training. Memory requirements <b>increase linearly</b> with the batch size. Neural network performance can degrade with either too large or too small batch sizes. We recommend batch sizes in the range of 2 to 8 images. An estimate of the memory required for the current and other batch sizes is shown in the Parameter visualization window when you select Training batch size in the Tracking Parameters GUI. </p>
 
 <h4>4. Set N. iterations of training</h4>
 

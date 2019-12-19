@@ -514,10 +514,11 @@ classdef DeepTracker < LabelTracker
     
     % if we don't need to be careful with quotes, we can use this
     function s = dockercmd(obj)
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      be = obj.lObj.trackDLBackEnd;
+      if isempty(be.dockerremotehost),
         s = 'docker';
       else
-        s = sprintf('ssh -t %s docker',APT.DOCKER_REMOTE_HOST);
+        s = sprintf('ssh -t %s docker',be.dockerremotehost);
       end
     end
     
@@ -584,7 +585,7 @@ classdef DeepTracker < LabelTracker
         case DLBackEnd.Conda
           trnWrkObj = BgTrainWorkerObjConda(nvw,dmcs);
         case DLBackEnd.Docker
-          trnWrkObj = BgTrainWorkerObjDocker(nvw,dmcs);
+          trnWrkObj = BgTrainWorkerObjDocker(nvw,dmcs,backEnd);
         case DLBackEnd.AWS
           trnWrkObj = BgTrainWorkerObjAWS(nvw,dmcs,backEnd.awsec2);
         otherwise
@@ -2604,7 +2605,7 @@ classdef DeepTracker < LabelTracker
         case DLBackEnd.Conda,
           bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmc);
         case DLBackEnd.Docker,
-          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc,backend);
       end
       % working here -- make this work with multiple movies
       bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...

@@ -1916,7 +1916,7 @@ if ~isfield(handles,'menu_track_backend_config')
     'userdata',DLBackEnd.AWS);
   handles.menu_track_backend_config_docker = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
-    'Label','Local (Docker)',...
+    'Label','Docker',...
     'Callback',@cbkTrackerBackendMenu,...
     'Tag','menu_track_backend_config_docker',...
     'userdata',DLBackEnd.Docker);  
@@ -1955,6 +1955,14 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','(AWS) Configure...',...
     'Callback',@cbkTrackerBackendAWSConfigure,...
     'Tag','menu_track_backend_config_aws_configure');  
+  
+  % KB added menu item to set Docker host
+  handles.menu_track_backend_config_setdockerssh = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(Docker) Set remote host...',...
+    'Callback',@cbkTrackerBackendSetDockerSSH,...
+    'Tag','menu_track_backend_config_setdockerssh');  
+
   
 %   handles.menu_track_backends{end+1,1} = uimenu( ...
 %     'Parent',handles.menu_track_backend_config,...
@@ -2048,6 +2056,7 @@ set(handles.menu_track_backend_config_conda,'checked',onIff(lObj.trackDLBackEnd.
 set(handles.menu_track_backend_config_aws,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
 set(handles.menu_track_backend_config_aws_setinstance,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
 set(handles.menu_track_backend_config_aws_configure,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
+set(handles.menu_track_backend_config_setdockerssh,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
 
 % Menu item ordering getting messed up somewhere
 handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
@@ -2058,6 +2067,7 @@ handles.menu_track_backend_config_conda.Position = 4;
 handles.menu_track_backend_config_moreinfo.Position = 5;
 handles.menu_track_backend_config_aws_setinstance.Position = 6;
 handles.menu_track_backend_config_aws_configure.Position = 7;
+handles.menu_track_backend_config_setdockerssh.Position = 8;
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
@@ -2162,6 +2172,54 @@ if tfsucc
   %aws.checkInstanceRunning('throwErrs',false);
 %   lObj.trackSetDLBackend(be);
 end
+
+function cbkTrackerBackendSetDockerSSH(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+%be = lObj.trackDLBackEnd;
+assert(lObj.trackDLBackEnd.type==DLBackEnd.Docker);
+drh = lObj.trackDLBackEnd.dockerremotehost;
+if isempty(drh),
+  defans = 'Local';
+else
+  defans = 'Remote';
+end
+
+res = questdlg('Run docker on your Local machine, or SSH to a Remote machine?',...
+  'Set Docker Remote Host','Local','Remote','Cancel',defans);
+if strcmpi(res,'Cancel'),
+  return;
+end
+if strcmpi(res,'Remote'),
+  res = inputdlg({'Remote Host Name:'},'Set Docker Remote Host',1,{drh});
+  if isempty(res) || isempty(res{1}),
+    return;
+  end
+  lObj.trackDLBackEnd.dockerremotehost = res{1};
+else
+  lObj.trackDLBackEnd.dockerremotehost = '';
+end
+
+ischange = ~strcmp(drh,lObj.trackDLBackEnd.dockerremotehost);
+
+if ischange,
+  res = questdlg('Test new Docker configuration now?','Test Docker configuration','Yes','No','Yes');
+  if strcmpi(res,'Yes'),
+    try
+      [tfsucc,hedit] = lObj.trackDLBackEnd.testDockerConfig();
+    catch ME,
+      tfsucc = false;
+      disp(getReport(ME));
+    end
+    if ~tfsucc,
+      res = questdlg('Test failed. Revert to previous Docker settings?','Backend test failed','Yes','No','Yes');
+      if strcmpi(res,'Yes'),
+        lObj.trackDLBackEnd.dockerremotehost = drh;
+      end
+    end
+  end
+end
+
 
 function cbkTrackersAllChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -2371,7 +2429,13 @@ oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
 oc2 = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
-handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+try
+  handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+catch ME
+  errordlg(ME.message,'Error while training','modal');
+  disp(getReport(ME));
+  return;
+end
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Training canceled');
   msgbox(msg,'Train');

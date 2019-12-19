@@ -26,6 +26,7 @@ classdef DLBackEndClass < handle
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
     dockerimgroot = 'bransonlabapt/apt_docker';
     dockerimgtag = 'latest'; % optional tag eg 'tf1.6'
+    dockerremotehost = '';
     
     condaEnv = 'APT'; % used only for Conda
   end
@@ -333,19 +334,25 @@ classdef DLBackEndClass < handle
       tfsucc = true;
     end
     
-    function [tfsucc,clientver,clientapiver] = getDockerVers
+  end
+  
+  methods % Docker
+
+    % KB 20191219: moved this to not be a static function so that we could
+    % use this object's dockerremotehost
+    function [tfsucc,clientver,clientapiver] = getDockerVers(obj)
       % Run docker cli to get docker versions
       %
       % tfsucc: true if docker cli command successful
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      if isempty(obj.dockerremotehost),
         dockercmd = 'docker';
         dockercmdend = '';
         filequote = '"';
       else
-        dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
         dockercmdend = '"';
         filequote = '\"';
       end    
@@ -363,25 +370,24 @@ classdef DLBackEndClass < handle
       end
       
       res = regexp(res,'\n','split'); % in case of ssh
-      res = res{1};      
-      res = strtrim(res);
-      toks = regexp(res,'#','split');
-      if numel(toks)~=2
-        return;
-      end
+      for i = 1:numel(res),
+        res1 = res{i};
+        res1 = strtrim(res1);
+        toks = regexp(res1,'#','split');
+        if numel(toks)~=2
+          continue;
+        end
       
-      tfsucc = true;
-      clientver = toks{1};
-      clientapiver = toks{2};
+        tfsucc = true;
+        clientver = toks{1};
+        clientapiver = toks{2};
+        break;
+      end
     end
     
-  end
-   
-  methods % Docker
-
-    function filequote = getFileQuoteDockerCodeGen(obj) %#ok<MANU>
+    function filequote = getFileQuoteDockerCodeGen(obj) 
       % get filequote to use with codeGenDockerGeneral      
-      if isempty(APT.DOCKER_REMOTE_HOST)
+      if isempty(obj.dockerremotehost)
         % local Docker run
         filequote = '"';
       else
@@ -447,7 +453,7 @@ classdef DLBackEndClass < handle
       
       dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
       
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      if isempty(obj.dockerremotehost),
         % local Docker run
         dockercmd = sprintf('%s docker',dockerApiVerExport);
         dockercmdend = '';
@@ -457,7 +463,7 @@ classdef DLBackEndClass < handle
           error('Docker execution on remote host currently unsupported on Windows.');
           % Might work fine, maybe issue with double-quotes
         end
-        dockercmd = sprintf('ssh -t %s "%s docker',APT.DOCKER_REMOTE_HOST,dockerApiVerExport);
+        dockercmd = sprintf('ssh -t %s "%s docker',obj.dockerremotehost,dockerApiVerExport);
         dockercmdend = '"';
         filequote = '\"';
       end
@@ -506,11 +512,11 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
       
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      if isempty(obj.dockerremotehost),
         dockercmd = 'docker';
         dockercmdend = '';
       else
-        dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
         dockercmdend = '"';
       end      
       cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
@@ -530,11 +536,13 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking docker API version...'; drawnow;
       
-      [tfsucc,clientver,clientapiver] = DLBackEndClass.getDockerVers;
+      [tfsucc,clientver,clientapiver] = obj.getDockerVers;
       if ~tfsucc        
         hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
         return;
       end
+      
+      tfsucc = false;
       % In this conditional we assume the apiver numbering scheme continues
       % like '1.39', '1.40', ... 
       if ~(str2double(clientapiver)>=str2double(obj.dockerapiver))          
