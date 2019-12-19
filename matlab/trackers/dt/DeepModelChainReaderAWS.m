@@ -4,12 +4,29 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
     awsec2
   end
   
+  methods (Access=protected)
+    function obj2 = copyElement(obj)
+      obj2 = copyElement@DeepModelChainReader(obj);
+      if ~isempty(obj.awsec2)
+        obj2.awsec2 = copy(obj.awsec2);
+      end
+    end
+  end
+  
   methods
     
     function obj = DeepModelChainReaderAWS(aws)
       assert(isa(aws,'AWSec2'));
       assert(aws.isSpecified);
       obj.awsec2 = aws; % awsec2 is specified and so .instanceID is immutable
+    end
+    
+    function prepareBg(obj)
+      % Typically you would deepcopy the reader before calling this
+      assert(isscalar(obj));
+      if ~isempty(obj.awsec2)
+        obj.awsec2.clearStatusFuns();
+      end
     end
     
     function  tf = getModelIsRemote(obj)
