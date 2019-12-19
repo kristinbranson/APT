@@ -74,6 +74,13 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         return;
       end
       
+      [tffound] = lObj.labelFindOneLabeledFrame();
+      if ~tffound,
+        ParameterVisualization.grayOutAxes(hAx,'No frames labeled.');
+        return;
+      end
+        
+      
       %ParameterVisualization.setBusy(hAx,'Computing visualization. Please wait...');
       
       % Choose labeled frames
@@ -132,6 +139,9 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         % this is for paramviz
         tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms);
         nlabeled = size(tblPTrn,1);
+        if nlabeled == 0,
+          return;
+        end
         if nr * nc > nlabeled,
           nc = ceil(sqrt(nlabeled));
           nr = ceil(nlabeled/nc);
