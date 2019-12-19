@@ -422,7 +422,10 @@ classdef DeepTracker < LabelTracker
       props = obj.SAVEPROPS;
       for p=props(:)',p=p{1}; %#ok<FXSET>
         s.(p) = obj.(p);
-      end      
+      end
+      if ~isempty(obj.trnLastDMC)
+        obj.trnLastDMC = obj.trnLastDMC.copyAndDetach();
+      end
     end
     function loadSaveToken(obj,s)
       s = DeepTracker.modernizeSaveToken(s);

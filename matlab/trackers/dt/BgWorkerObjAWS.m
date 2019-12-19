@@ -11,6 +11,27 @@ classdef BgWorkerObjAWS < BgWorkerObj
       obj.awsEc2 = awsec2;
     end
     
+    function obj2 = copyAndDetach(obj)
+      % See note in BGClient/configure(). We create a new obj2 here that is
+      % a deep-copy made palatable for parfeval
+      
+      dmcs = obj.dmcs;
+      if ~isempty(dmcs)
+        dmcs = dmcs.copyAndDetach();
+      end
+
+      aws = obj.awsEc2;
+      if ~isempty(aws)
+        aws = copy(aws);
+        aws.clearStatusFuns();
+      end
+      
+      objcls = class(obj);
+      % Semi-hack, only subclasses of BgWorkerObjAWS are
+      % BgTrain/TrackWorkerObjAWS and their constructor sigs match this.
+      obj2 = feval(objcls, obj.nviews, dmcs, aws); 
+    end    
+    
     function tf = fileExists(obj,f)
       tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
     end
@@ -67,7 +88,7 @@ classdef BgWorkerObjAWS < BgWorkerObj
       % expect command to fail; fail -> py proc killed
       pollCbk = @()~aws.cmdInstance('pgrep python','dispcmd',true,'failbehavior','silent');
       iterWaitTime = 1;
-      maxWaitTime = 10;
+      maxWaitTime = 20;
       tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
       
       if ~tfsucc

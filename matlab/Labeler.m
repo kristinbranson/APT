@@ -1258,7 +1258,9 @@ classdef Labeler < handle
         obj.hFig = [];
       end
       be = obj.trackDLBackEnd;
-      delete(be);
+      if ~isempty(be)
+        be.shutdown();
+      end
     end
     
   end
@@ -1878,12 +1880,17 @@ classdef Labeler < handle
         end
       end
       
-      % clean information we shouldn't save from AWS EC2
-      % AL 20191217: this breaks training, trackDLBackEnd is a handle to a live
-      % object
-%       if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd),
-%         s.trackDLBackEnd.awsec2 = [];
-%       end
+      % Older comment: clean information we shouldn't save from AWS EC2
+      % AL 20191217: setting .awsec2 to [] breaks training, trackDLBackEnd 
+      % is a handle to a live object. 
+      %
+      % We do a deep-copy of the backend here as we are serializing the 
+      % proj either for saving or a stripped lbl etc and i) the saved 
+      % objects need sanitation and ii) conceptually the serialized object
+      % does not share handle identity with other 'live' handles to obj.
+      if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd)
+        s.trackDLBackEnd = s.trackDLBackEnd.copyAndDetach();
+      end
       
       switch obj.labelMode
         case LabelMode.TEMPLATE
@@ -9847,8 +9854,12 @@ classdef Labeler < handle
           aws = be.awsec2;
           if isempty(aws),            
             be.awsec2 = AWSec2([],...
-              'SetStatusFun',@(varargin) obj.SetStatus(varargin{:}),...
-              'ClearStatusFun',@(varargin) obj.ClearStatus(varargin{:}));
+              'SetStatusFun',[], ... % @(varargin) obj.SetStatus(varargin{:}),...
+              'ClearStatusFun',[]); % ... %@(varargin) obj.ClearStatus(varargin{:}));
+          else
+            % This codepath occurs on eg projLoad
+            be.awsec2.SetStatusFun = []; % @(varargin) obj.SetStatus(varargin{:});
+            be.awsec2.ClearStatusFun = []; % @(varargin) obj.ClearStatus(varargin{:});
           end
 %           [tfexist,tfrunning] = aws.inspectInstance();
 %           if tfexist

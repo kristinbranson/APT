@@ -1,4 +1,4 @@
-classdef DLBackEndClass < handle
+classdef DLBackEndClass < matlab.mixin.Copyable
   % Design unclear but good chance this is a thing
   %
   % This thing (maybe) specifies a physical machine/server along with a 
@@ -67,6 +67,18 @@ classdef DLBackEndClass < handle
     end
     
     function delete(obj)
+      % AL 20191218
+      % DLBackEndClass can now be deep-copied (see copyAndDetach below) as 
+      % sometimes this is necessary for serialization eg to disk.
+      % Since the mapping from obj<->resource is no longer 1-to-1, 
+      % destructors should no longer shut down resources.
+      %
+      % See new shutdown() call.
+      
+      % pass
+    end
+    
+    function shutdown(obj)
       if obj.type==DLBackEnd.AWS
         aws = obj.awsec2;
         if ~isempty(aws)
@@ -78,6 +90,36 @@ classdef DLBackEndClass < handle
         end
       end
     end
+    
+    function obj2 = copyAndDetach(obj)
+      % See notes in BGClient, BGWorkerObjAWS.
+      %
+      % Sometimes we want a deep-copy of obj that is sanitized for
+      % eg serialization. This copy may still be largely functional (in the
+      % case of BGWorkerObjAWS) or perhaps it can be 'reconstituted' at
+      % load-time as here.
+      
+      assert(isscalar(obj));
+      obj2 = copy(obj);
+      if ~isempty(obj2.awsec2)
+        obj2.awsec2.clearStatusFuns();
+      end
+    end
+    
+  end
+  methods (Access=protected)
+    
+    function obj2 = copyElement(obj)
+      % overload so that .awsec2 is deep-copied
+      obj2 = copyElement@matlab.mixin.Copyable(obj);
+      if ~isempty(obj.awsec2)
+        obj2.awsec2 = copy(obj.awsec2);
+      end
+    end
+    
+  end
+  
+  methods
     
     function testConfigUI(obj,cacheDir)
       % Test whether backend is ready to do; display results in msgbox
@@ -640,14 +682,17 @@ classdef DLBackEndClass < handle
           return;
         end
       end
+      
+      awsec2 = obj.awsec2;
 
       % test that AWS CLI is installed
       hedit.String{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); drawnow;
       cmd = 'aws ec2 describe-regions --output table';
       hedit.String{end+1} = cmd; drawnow;
-      [status,result] = system(cmd);
+      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true);
+      %[status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
-      if status ~= 0,
+      if ~tfsucc % status ~= 0,
         hedit.String{end+1} = 'FAILURE. Error using the AWS CLI.'; drawnow;
         return;
       end
@@ -656,8 +701,9 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); drawnow;
       cmd = 'aws ec2 describe-security-groups';
       hedit.String{end+1} = cmd; drawnow;
-      [status,result] = system(cmd);
-      if status == 0,
+      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      %[status,result] = system(cmd);
+      if tfsucc %status == 0,
         try
           result = jsondecode(result);
           if ismember('apt_dl',{result.SecurityGroups.GroupName}),
