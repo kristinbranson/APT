@@ -740,7 +740,7 @@ trx(1) =
     <td><center><i>Original training images</i></center></td>
     <td><center><i>Rotate by up to 15 degrees</i></center></td>
     <td><center><i>Translate by up to 5 pixels</i></center></td>
-    <td><center><i>Scale by a factor of up to 0.1</i></center></td>
+    <td><center><i>Scale by a factor of between 1/1.1 and 1.1</i></center></td>
   </tr>
   <tr>
     <td>
@@ -771,7 +771,7 @@ trx(1) =
 <ul>
   <li><b>Rotate range</b>: Augment by rotating training images and labels by a random angle less than this number of degrees in either direction. If you <i>don't</i> have body tracking orientation available, and you want APT to be invariant to heading direction, you should set this to 180 degrees to rotate by any amount. </li>
   <li><b>Translation range</b>: Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels.</li>
-  <li><b>Scale range</b>: Augment by adjusting image scale by a random amount between (1-this number) to (1+this number). 0 indicates no scale adjustment, 1 indicates scaling by a factor of up to 2.</li>
+  <li><b>Scale range</b>: Augment by adjusting image scale by a random amount between (1/this number) to (this number). 1 indicates no scale adjustment.</li>
   <li><b>Contrast range</b>: Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment</li>
   <li><b>Brightness range</b>: Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.</li>
   <li><b>Flip horizontally</b>: Augment by flipping the training image and labels horizontally (left to right). If you use this, it is important that you set pairs of corresponding landmarks, e.g. the left rear foot part corresponds to the right rear foot part when flipped, by selecting <a href="#FlipLandmarkPairings">"Select landmark flip pairings"</a> from the Track menu. </li>
