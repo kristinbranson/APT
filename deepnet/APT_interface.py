@@ -1997,8 +1997,11 @@ def parse_args(argv):
     parser_classify.add_argument('-list_file',dest='list_file', help='JSON file with list of movies, targets and frames to track',default=None)
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
-    parser_gt.add_argument('-out', dest='out_file_gt',
-                           help='Mat file to save output to. _[view_num].mat will be appended', required=True)
+    parser_gt.add_argument('-out',
+                           dest='out_file_gt',
+                           help='Mat file (full path with .mat extension) where GT output will be saved',
+                           nargs='+',
+                           required=True)
 
     parser_aug = subparsers.add_parser('data_aug', help='get the augmented images')
     parser_aug.add_argument('-no_aug',dest='no_aug',help='dont augment the images. Return the original images',default=False)
@@ -2138,19 +2141,27 @@ def run(args):
     elif args.sub_name == 'gt_classify':
         if args.view is None:
             views = range(nviews)
-            if args.model_file is None:
-                args.model_file = [None] * nviews
-            else:
-                assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
         else:
             views = [args.view]
-            if args.model_file is None:
-                args.model_file = [None]
+
+        if args.model_file is None:
+            args.model_file = [None] * len(views)
+        else:
+            assert len(args.model_file) == len(views), 'Number of model files specified must match number of views to be processed'
+
+        assert args.out_file_gt is not None
+
+        assert len(args.out_file_gt) == len(views), 'Number of gt output files must match number of views to be processed'
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
-            out_file = args.out_file + '_{}.mat'.format(view)
-            classify_gt_data(args.type, conf, out_file, model_file=args.model_file[view_ndx])
+            conf = create_conf(lbl_file, view, name,
+                               net_type=args.type,
+                               cache_dir=args.cache,
+                               conf_params=args.conf_params)
+            #out_file = args.out_file_gt + '_{}.mat'.format(view)
+            classify_gt_data(conf, args.type,
+                             args.out_file_gt[view_ndx],
+                             model_file=args.model_file[view_ndx])
 
     elif args.sub_name == 'data_aug':
         if args.view is None:

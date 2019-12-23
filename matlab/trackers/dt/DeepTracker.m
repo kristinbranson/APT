@@ -2032,8 +2032,8 @@ classdef DeepTracker < LabelTracker
     end
     
     % AL20191220 GT classification
-    % track2() is an alternate codepath that is refactored
-    % relative to track(). Over time we may be able to migrate track() over to
+    % track2() is an alternate codepath that is refactored relative to 
+    % track(). Over time we may be able to migrate track() over to 
     % track2(). Currently track2 handles trackListFile and trackGT.
     %
     % track2 operates in more stages to hopefully facilitate modularity and
@@ -2137,6 +2137,7 @@ classdef DeepTracker < LabelTracker
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
       trksysinfo = struct(...
+        'trkinfotimestamp',repmat({nowstr},size(trnstrs(:))),...
         'aptroot',repmat({aptroot},size(trnstrs(:))),...
         'dmcRootDir',{dmc.rootDir}',...
         'lblStrippedLnx',{dmc.lblStrippedLnx}',...
@@ -2193,28 +2194,20 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [tfSuccess,trksysinfo] = trackListFile(obj,listfiles,outfiles)
-
-      listfiles = cellstr(listfiles);
-      outfiles = cellstr(outfiles);
-      nview = obj.lObj.nview;
-      assert(isequal(nview,numel(listfiles),numel(outfiles)));
+    function tfSuccess = track2_spawn(obj,trksysinfo)
+      % spawns jobs per trksysinfo and sets obj.trksysinfo, unless
+      % .dryRunOnly is true.
       
-      obj.track2_pretrack();
-      
-      [~,listfileKeywords,~] = cellfun(@myfileparts,listfiles,'uni',0);      
-      trksysinfo = obj.track2_genBaseTrkInfo(listfileKeywords);
-      
-      trksysinfo = obj.track2_codegen_listfile(trksysinfo,listfiles,outfiles);
-            
       if obj.dryRunOnly
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
         tfSuccess = true;
       else
-        % Actually do things                    
-
+        % Actually do things
+        
         tfSuccess = true;
+
+        nview = obj.lObj.nview;
         for ivw=1:nview
           trkoutdir = trksysinfo(ivw).trkoutdir;
           if exist(trkoutdir,'dir')==0
@@ -2234,6 +2227,7 @@ classdef DeepTracker < LabelTracker
             fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
               ivw,res);
             tfSuccess = false;
+            % remaining views not even attempted apparently
             return;
           end
         end
@@ -2241,14 +2235,77 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trackGtClassify(obj)
+    function [tfSuccess,trksysinfo] = trackListFile(obj,listfiles,outfiles)
+
+      listfiles = cellstr(listfiles);
+      outfiles = cellstr(outfiles);
+      nview = obj.lObj.nview;
+      assert(isequal(nview,numel(listfiles),numel(outfiles)));
+      
+      obj.track2_pretrack();
+      
+      [~,listfileKeywords,~] = cellfun(@myfileparts,listfiles,'uni',0);      
+      trksysinfo = obj.track2_genBaseTrkInfo(listfileKeywords);
+      
+      trksysinfo = obj.track2_codegen_listfile(trksysinfo,listfiles,outfiles);
+       
+      tfSuccess = obj.track2_spawn(trksysinfo);
+    end
+    
+    function trksysinfo = track2_codegen_gt(obj,trksysinfo)
+      % trackListFile-specific trksysinfo massage + codegen
+      
+      nview = obj.lObj.nview;
+      modelChainID = obj.trnName;
+      
+      for ivw=1:nview
+        
+        trkoutdir = trksysinfo(ivw).trkoutdir;
+        gtoutfile = sprintf('gtcls_vw%d_%s.mat',ivw,trksysinfo(ivw).trkinfotimestamp);
+        gtoutfile = [trkoutdir '/' gtoutfile];
+        trksysinfo(ivw).gtoutfile = gtoutfile;
+        
+        aptroot = trksysinfo(ivw).aptroot;
+        logfile = trksysinfo(ivw).logfile;
+        
+        baseargs = {'deepnetroot' [aptroot '/deepnet']};
+        baseargsaug = [baseargs {'model_file' trksysinfo(ivw).modelfile}];
+        bsubargs = {'outfile' logfile};
+        sshargs = {};
+        singBind = obj.genContainerMountPath('aptroot',aptroot);
+        singargs = {'bindpath',singBind};
+        repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
+        repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
+        prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
+        sshargsuse = [sshargs {'prefix' prefix}];
+        
+        trksysinfo(ivw).codestr = DeepTracker.trackCodeGenGTClassifySSHBsubSing(...
+          trksysinfo(ivw),modelChainID,obj.trnNetType,ivw,...          
+          'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
+          'sshargs',sshargsuse);
+      end
+    end
+    
+    function [tfSuccess,trksysinfo] = trackGT(obj)
       % Track all GT frames in proj.
-      % Conceptually similar to trackListFile where the list is comprised 
-      % of GT-labeled rows.
+      % Conceptually similar to trackListFile. Conceptually the list is 
+      % comprised of all GT-labeled rows but in practice this is handled in
+      % the py.
       
+      tblGT = obj.lObj.labelGetMFTableLabeled('useTrain',0);
+      if isempty(tblGT)
+        error('Project has no GT frames labeled.');
+      end      
+        
+      obj.track2_pretrack();
       
+      nview = obj.lObj.nview;
+      kw = repmat({'GT'},nview,1);
+      trksysinfo = obj.track2_genBaseTrkInfo(kw);
       
+      trksysinfo = obj.track2_codegen_gt(trksysinfo);
       
+      tfSuccess = obj.track2_spawn(trksysinfo);
     end
     
     function [tfCanTrack,reason] = canTrack(obj)
@@ -3713,6 +3770,42 @@ classdef DeepTracker < LabelTracker
       
       codestr = String.cellstr2DelimList(code,' ');
     end
+    function codestr = trackCodeGenBaseGTClassify(trnID,cache,dllbl,gtoutfile,...
+        errfile,nettype,view,varargin)
+      % CodeGen for gtclassify; single view with single gtoutfile
+      % 
+      % view: 1-based
+      % Looks a lot like trackCodeGenBaseListFile
+      
+      [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
+        'deepnetroot',APT.getpathdl,...
+        'model_file',[],... 
+        'filesep','/',...
+        'filequote','\"'... % quote char used to protect filenames/paths.
+                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+                        ... % is expected to wrap in enclosing regular double-quotes " !!
+        );
+
+      tfmodel = ~isempty(model_file);      
+      aptintrf = [deepnetroot fs 'APT_interface.py'];
+
+      code = { ...
+        'python' [filequote aptintrf filequote] ...
+        '-name' trnID ...
+        '-view' num2str(view) ... % 1b 
+        '-cache' [filequote cache filequote] ...
+        '-err_file' [filequote errfile filequote] ...
+        };
+      if tfmodel
+        code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
+      end
+      code = [code ...
+        '-type' char(nettype) ...
+        [filequote dllbl filequote] 'gt_classify' ...
+        '-out' [filequote gtoutfile filequote] ];
+      
+      codestr = String.cellstr2DelimList(code,' ');
+    end
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,... % either char or [nviewx1] cellstr
         outtrk,... % either char of [nviewx1] cellstr
@@ -4066,6 +4159,29 @@ classdef DeepTracker < LabelTracker
       codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end
+    
+    function codestr = trackCodeGenGTClassifySSHBsubSing(trksysinfo,...
+        trnID,nettype,view,varargin)
+      
+      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{},...
+        'sshargs',{}...
+        );      
+      
+      cache = trksysinfo.dmcRootDir;
+      dllbl = trksysinfo.lblStrippedLnx;
+      errfile = trksysinfo.errfile;
+      gtoutfile = trksysinfo.gtoutfile;
+
+      codebase = DeepTracker.trackCodeGenBaseGTClassify(trnID,cache,dllbl,...
+        gtoutfile,errfile,nettype,view,baseargs{:});
+      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
+      codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
+      codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
+    end
+    
     function codestr = trackCodeGenAWS(...
         trnID,cacheRemote,dlLblRemote,errfileRemote,netType,movRemoteFull,...
         trkRemoteFull,frm0,frm1,baseargs)

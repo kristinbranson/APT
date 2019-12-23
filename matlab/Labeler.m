@@ -7249,6 +7249,8 @@ classdef Labeler < handle
       %
       % Includes nonGT/GT rows per current GT state.
       %
+      % Can return [] indicating "no labels of requested/specified type"
+      %
       % tblMF: See MFTable.FLDSFULLTRX.
       
       [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
@@ -7295,6 +7297,10 @@ classdef Labeler < handle
       end
       
       if tfMFTOnly,
+        return;
+      end
+      
+      if isequal(tblMF,[]) % this would have errored below in call to labelAddLabelsMFTableStc
         return;
       end
       
