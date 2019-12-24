@@ -2153,9 +2153,10 @@ classdef DeepTracker < LabelTracker
         trnstr = trksysinfo(ivw).trnstr;
         trkoutdir = trksysinfo(ivw).trkoutdir;
         
-        logfile = fullfile(trkoutdir,[taskKeywords{ivw} '_' trnstr '_' nowstr '.log']);
-        errfile = fullfile(trkoutdir,[taskKeywords{ivw} '_' trnstr '_' nowstr '.err']);
-        ssfile  = fullfile(trkoutdir,[taskKeywords{ivw} '_' trnstr '_' nowstr '.aptsnapshot']);     
+        args = {taskKeywords{ivw},trnstr,ivw,nowstr};
+        logfile = fullfile(trkoutdir,sprintf('%s_%s_vw%d_%s.log',args{:}));
+        errfile = fullfile(trkoutdir,sprintf('%s_%s_vw%d_%s.err',args{:}));
+        ssfile  = fullfile(trkoutdir,sprintf('%s_%s_vw%d_%s.aptsnapshot',args{:}));    
         trksysinfo(ivw).logfile = logfile;
         trksysinfo(ivw).errfile = errfile;
         trksysinfo(ivw).snapshotfile = ssfile;
@@ -2192,6 +2193,58 @@ classdef DeepTracker < LabelTracker
           'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargsuse);
       end
+    end
+    
+    function track2_bgStart(obj,trksysinfo,cbkTrkComplete)
+      % Start track monitor. This stuff mirrors what is done in (and 
+      % downstream) of .track()
+
+      assert(isempty(obj.bgTrkMonitor));
+      
+      logfiles = reshape({trksysinfo.logfile},size(trksysinfo));
+      errfiles = reshape({trksysinfo.errfile},size(trksysinfo));
+%       if isMultiView,
+%         outfiles = reshape(cat(1,trksysinfo.trkfile),[nMovies,nView]);
+%         partfiles = reshape(cat(1,trksysinfo.parttrkfile),[nMovies,nView]);        
+%       else
+      outfiles = reshape({trksysinfo.outfile},size(trksysinfo));
+      % For now, use empty-strings here as track2 does not provide
+      % intermediate info or "part files" during tracking. BgWorkerObj
+      % should just operate with the non-existent partfiles having no
+      % effect.
+      partfiles = repmat({''},size(trksysinfo)); 
+%        end
+      
+      nview = obj.lObj.nview;
+      dmc = obj.trnLastDMC;
+      be = obj.lObj.trackDLBackEnd;
+      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nview,dmc,be)
+      
+      mIdxDummy = MovieIndex(1); % not used for anything
+      movsDummy = repmat({'__UNUSED__'},1,nview);
+      bgTrkWorkerObj.initFiles(mIdxDummy,movsDummy,...
+        outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)');
+      
+      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+      if any(tfErrFileErr)
+        error('There is an existing error in an error file: ''%s''.',...
+          String.cellstr2CommaSepList(errfiles));
+      end
+      
+      bgTrkMonitorObj = BgTrackMonitor;
+      
+      %nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
+      %fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
+      
+      %trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
+      trkVizObj = TrkTrnMonVizCmdline();
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,cbkTrkComplete);
+      %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+      
+      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)disp('bgStart') ); % @(s,e)obj.notify('trackStart'));
+      addlistener(bgTrkMonitorObj,'bgEnd',@(s,e)disp('bgEnd')); % @(varargin) obj.trackStoppedCbk(varargin{:}));
+      
+      obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);        
     end
     
     function tfSuccess = track2_spawn(obj,trksysinfo)
@@ -2263,7 +2316,7 @@ classdef DeepTracker < LabelTracker
         trkoutdir = trksysinfo(ivw).trkoutdir;
         gtoutfile = sprintf('gtcls_vw%d_%s.mat',ivw,trksysinfo(ivw).trkinfotimestamp);
         gtoutfile = [trkoutdir '/' gtoutfile];
-        trksysinfo(ivw).gtoutfile = gtoutfile;
+        trksysinfo(ivw).outfile = gtoutfile;
         
         aptroot = trksysinfo(ivw).aptroot;
         logfile = trksysinfo(ivw).logfile;
@@ -2292,6 +2345,11 @@ classdef DeepTracker < LabelTracker
       % comprised of all GT-labeled rows but in practice this is handled in
       % the py.
       
+      [tfCanTrack,reason] = obj.canTrack();
+      if ~tfCanTrack
+        error('Cannot perform GT tracking: %s',reason);
+      end
+      
       tblGT = obj.lObj.labelGetMFTableLabeled('useTrain',0);
       if isempty(tblGT)
         error('Project has no GT frames labeled.');
@@ -2305,9 +2363,20 @@ classdef DeepTracker < LabelTracker
       
       trksysinfo = obj.track2_codegen_gt(trksysinfo);
       
+      obj.track2_bgStart(trksysinfo,@obj.cbkTrackGTComplete);
+      
       tfSuccess = obj.track2_spawn(trksysinfo);
     end
     
+    function cbkTrackGTComplete(obj,res)
+      gtmats = cell(size(res));
+      for ivw=1:numel(res)
+        gtmatfile = res(ivw).trkfile;
+        gtmats{ivw} = load(gtmatfile,'-mat');
+        fprintf(1,'Loaded gt output mat-file %s.\n',gtmatfile);
+      end
+    end
+        
     function [tfCanTrack,reason] = canTrack(obj)
       tfCanTrack = false;
       reason = '';
@@ -2744,14 +2813,7 @@ classdef DeepTracker < LabelTracker
         outfiles = reshape({trksysinfo.trkfile},size(trksysinfo));
         partfiles = reshape({trksysinfo.parttrkfile},size(trksysinfo));
       end
-      switch backend.type
-        case DLBackEnd.Bsub
-          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
-        case DLBackEnd.Conda,
-          bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmc);
-        case DLBackEnd.Docker,
-          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc,backend);
-      end
+      bgTrkWWorkerObj = DeepTracker.createBgTrkWorkerObj(nView,dmc,backend);
       % working here -- make this work with multiple movies
       bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
         logfiles,errfiles,partfiles);
@@ -2871,6 +2933,16 @@ classdef DeepTracker < LabelTracker
 
   end
   methods (Static)
+    function bgTrkWorkerObj = createBgTrkWorkerObj(nView,dmc,backend)
+      switch backend.type
+        case DLBackEnd.Bsub
+          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        case DLBackEnd.Conda,
+          bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmc);
+        case DLBackEnd.Docker,
+          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc,backend);
+      end
+    end
     function sha = getSHA(file)
       if ismac
         file = strrep(file,' ','\ ');
@@ -4173,7 +4245,7 @@ classdef DeepTracker < LabelTracker
       cache = trksysinfo.dmcRootDir;
       dllbl = trksysinfo.lblStrippedLnx;
       errfile = trksysinfo.errfile;
-      gtoutfile = trksysinfo.gtoutfile;
+      gtoutfile = trksysinfo.outfile;
 
       codebase = DeepTracker.trackCodeGenBaseGTClassify(trnID,cache,dllbl,...
         gtoutfile,errfile,nettype,view,baseargs{:});

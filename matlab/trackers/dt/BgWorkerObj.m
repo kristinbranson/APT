@@ -6,6 +6,31 @@ classdef BgWorkerObj < handle
   % - Poll filesystem for updates
   % - Be able to read/parse the current state on disk
   
+  % Class diagram 20191223
+  % Only leaf/concrete classes Bg{Train,Track}WorkerObj{BEtype} are 
+  % instantiated.
+  % 
+  % BgWorkerObj
+  % BgTrainWorkerObj < BgWorkerObj
+  % BgTrackWorkerObj < BgWorkerObj
+  % BgWorkerObjLocalFilesys < BgWorkerObj
+  %   BgWorkerObjDocker < BgWorkerObjLocalFilesys  
+  %   BgWorkerObjBsub < BgWorkerObjLocalFilesys
+  %   BgWorkerObjConda < BgWorkerObjLocalFilesys  
+  % BgWorkerObjAWS < BgWorkerObj
+  %
+  % Train concrete classes
+  % BgTrainWorkerObjDocker < BgWorkerObjDocker & BgTrainWorkerObj  
+  % BgTrainWorkerObjConda < BgWorkerObjConda & BgTrainWorkerObj
+  % BgTrainWorkerObjBsub < BgWorkerObjBsub & BgTrainWorkerObj
+  % BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
+  %
+  % Track concrete classes
+  % BgTrackWorkerObjDocker < BgWorkerObjDocker & BgTrackWorkerObj  
+  % BgTrackWorkerObjConda < BgWorkerObjConda & BgTrackWorkerObj  
+  % BgTrackWorkerObjBsub < BgWorkerObjBsub & BgTrackWorkerObj  
+  % BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj 
+  
   properties
     nviews
     dmcs % [nview] DeepModelChainOnDisk array  
@@ -15,6 +40,7 @@ classdef BgWorkerObj < handle
     tf = fileExists(obj,file)
     tf = errFileExistsNonZeroSize(obj,errFile)
     s = fileContents(obj,file)
+    killFiles = getKillFiles(obj)
     [tf,warnings] = killProcess(obj)
     sRes = compute(obj)
   end
@@ -39,15 +65,7 @@ classdef BgWorkerObj < handle
     function errFile = getErrFile(obj)
       errFile = {};
     end
-    
-    function killFiles = getKillFiles(obj)
-      nJobs = numel(obj.dmcs);
-      killFiles = cell(1,nJobs);
-      for ivw=1:nJobs
-        killFiles{ivw} = obj.dmcs(ivw).killTokenLnx;
-      end
-    end
-    
+
     function reset(obj)
       
     end

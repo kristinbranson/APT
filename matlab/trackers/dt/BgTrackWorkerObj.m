@@ -28,6 +28,12 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj@BgWorkerObj(varargin{:});
     end
     function initFiles(obj,mIdx,movfiles,outfiles,logfiles,dlerrfiles,partfiles)
+      % 
+      %
+      % mIdx: Non-essential, just stored metadata returned to client 
+      % movfiles: [nMovs x obj.nviews] just stored metadata ". However, the
+      %   size is meaningful, see above
+      
       obj.mIdx = mIdx;
       obj.nMovies = size(movfiles,1);
       assert(size(movfiles,2)==obj.nviews);
