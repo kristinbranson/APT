@@ -1646,8 +1646,14 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
         if k.startswith('locs_'):
             tmp = to_mat(tmp)
         out_dict['pTrk' + k] = tmp
-
-    hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+    try:
+        sio.savemat(out_file, out_dict, appendmat=False)
+        #hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+    except Exception as e:
+        logging.info('Exception caught saving trkfile {}: {}'.format(out_file, e))
+        logging.info('Pickling to {}...'.format(out_file))
+        with open(out_file, 'wb') as fh:
+            pickle.dump(out_dict, fh)
 
 
 def classify_movie(conf, pred_fn,
