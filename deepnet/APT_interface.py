@@ -44,6 +44,16 @@ import heatmap
 
 ISPY3 = sys.version_info >= (3, 0)
 
+def savemat_with_catch_and_pickle(filename, out_dict):
+    try:
+        sio.savemat(filename, out_dict, appendmat=False)
+        # hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+    except Exception as e:
+        logging.info('Exception caught saving mat-file {}: {}'.format(filename, e))
+        logging.info('Pickling to {}...'.format(filename))
+        with open(filename, 'wb') as fh:
+            pickle.dump(out_dict, fh)
+
 def loadmat(filename):
     """this function should be called instead of direct spio.loadmat
     as it cures the problem of not properly recovering python dictionaries
@@ -54,7 +64,6 @@ def loadmat(filename):
     data = sio.loadmat(filename, struct_as_record=False, squeeze_me=True, appendmat=False)
     return _check_keys(data)
 
-
 def _check_keys(dict_in):
     '''
     checks if entries in dictionary are mat-objects. If yes
@@ -64,7 +73,6 @@ def _check_keys(dict_in):
         if isinstance(dict_in[key], sio.matlab.mio5_params.mat_struct):
             dict_in[key] = _todict(dict_in[key])
     return dict_in
-
 
 def _todict(matobj):
     '''
@@ -1278,6 +1286,8 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
     pred_locs[:] = np.nan
     pred_conf = np.zeros([len(in_list), conf.n_classes])
     pred_conf[:] = np.nan
+    pred_crop_locs = np.zeros([len(in_list), 4])
+    pred_crop_locs[:] = np.nan
 
     logging.info('Tracking GT labeled frames..')
     for ndx, dir_name in enumerate(local_dirs):
@@ -1301,6 +1311,8 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
         cur_pred_locs, cur_pred_conf = classify_list(conf, pred_fn, cap, cur_list, trx_files[ndx], crop_loc)
         pred_locs[cur_idx, ...] = cur_pred_locs
         pred_conf[cur_idx, ...] = cur_pred_conf
+        if crop_loc is not None:
+            pred_crop_locs[cur_idx, ...] = crop_loc
 
         cap.close()  # close the movie handles
 
@@ -1310,7 +1322,7 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
     logging.info('Done prediction on all GT frames')
     lbl.close()
     close_fn()
-    return pred_locs, pred_conf
+    return pred_locs, pred_conf, pred_crop_locs
 
 
 def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
@@ -1479,6 +1491,31 @@ def check_train_db(model_type, conf, out_file):
 
 # KB 20190123: classify a list of movies, targets, and frames
 # save results to mat file out_file
+
+def compile_trk_info(conf, model_file, crop_loc, expname=None):
+    '''
+    Compile classification/predict metadata stored in eg trkfile.trkInfo
+    :return:
+    '''
+
+    if expname is None:
+        expname = os.path.basename(conf.cachedir)
+
+    info = {}  # tracking info. Can be empty.
+    info[u'model_file'] = model_file
+    modelfilets = model_file + '.index'
+    modelfilets = modelfilets if os.path.exists(modelfilets) else model_file
+    if not os.path.exists(modelfilets):
+        raise ValueError('Files %s and %s do not exist' % (model_file, model_file + '.meta'))
+    info[u'trnTS'] = get_matlab_ts(modelfilets)
+    info[u'name'] = expname
+    param_dict = convert_unicode(conf.__dict__.copy())
+    param_dict.pop('cropLoc', None)
+    info[u'params'] = param_dict
+    info[u'crop_loc'] = to_mat(crop_loc)
+
+    return info
+
 def classify_list_file(conf, model_type, list_file, model_file, out_file):
 
     success = False
@@ -1544,13 +1581,13 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
         else:
             assert False, 'Invalid frame specification in toTrack[%d]'%(i)
 
-    pred_locs, pred_conf = classify_list_all(model_type, conf, cur_list, on_gt=False, model_file=model_file, movie_files=toTrack['movieFiles'], trx_files=trxFiles, crop_locs=cropLocs)
+    pred_locs, pred_conf, _ = classify_list_all(model_type, conf, cur_list, on_gt=False, model_file=model_file, movie_files=toTrack['movieFiles'], trx_files=trxFiles, crop_locs=cropLocs)
     mat_pred_locs = to_mat(pred_locs)
     mat_pred_conf = pred_conf
 
-    sio.savemat(out_file, {'pred_locs': mat_pred_locs,
-                           'pred_conf': mat_pred_conf,
-                           'list_file': list_file} )
+    savemat_with_catch_and_pickle(out_file, {'pred_locs': mat_pred_locs,
+                                             'pred_conf': mat_pred_conf,
+                                             'list_file': list_file})
 
     success = True
 
@@ -1588,17 +1625,22 @@ def classify_gt_data(conf, model_type, out_file, model_file):
                 cur_list.append([ndx , f , trx_ndx ])
                 labeled_locs.append(cur_pts[trx_ndx, f, :, sel_pts])
 
-    pred_locs, pred_conf = classify_list_all(model_type, conf, cur_list, on_gt=True, model_file=model_file)
+    pred_locs, pred_conf, pred_crop_locs = classify_list_all(model_type, conf, cur_list, on_gt=True, model_file=model_file)
     mat_pred_locs = to_mat(pred_locs)
     mat_labeled_locs = to_mat(np.array(labeled_locs))
+    mat_crop_locs = to_mat(pred_crop_locs)
     mat_list = cur_list
 
-    sio.savemat(out_file, {'pred_locs': mat_pred_locs,
-                           'labeled_locs': mat_labeled_locs,
-                           'list': mat_list})
+    DUMMY_CROP_INFO = []
+    trk_info = compile_trk_info(conf, model_file, DUMMY_CROP_INFO)
+
+    savemat_with_catch_and_pickle(out_file, {'pred_locs': mat_pred_locs,
+                                             'labeled_locs': mat_labeled_locs,
+                                             'crop_locs': mat_crop_locs,
+                                             'list': mat_list,
+                                             'trkInfo': trk_info})
     lbl.close()
     return pred_locs, labeled_locs, cur_list
-
 
 def convert_to_mat_trk(in_pred, conf, start, end, trx_ids):
     ''' Converts predictions to compatible trk format'''
@@ -1612,7 +1654,6 @@ def convert_to_mat_trk(in_pred, conf, start, end, trx_ids):
     if not conf.has_trx_file:
         pred_locs = pred_locs[..., 0]
     return pred_locs
-
 
 def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, info, mov_file):
     '''
@@ -1646,15 +1687,8 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
         if k.startswith('locs_'):
             tmp = to_mat(tmp)
         out_dict['pTrk' + k] = tmp
-    try:
-        sio.savemat(out_file, out_dict, appendmat=False)
-        #hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
-    except Exception as e:
-        logging.info('Exception caught saving trkfile {}: {}'.format(out_file, e))
-        logging.info('Pickling to {}...'.format(out_file))
-        with open(out_file, 'wb') as fh:
-            pickle.dump(out_dict, fh)
 
+    savemat_with_catch_and_pickle(out_file, out_dict)
 
 def classify_movie(conf, pred_fn,
                    mov_file='',
@@ -1678,18 +1712,7 @@ def classify_movie(conf, pred_fn,
     bsize = conf.batch_size
     flipud = conf.flipud
 
-    info = {}  # tracking info. Can be empty.
-    info[u'model_file'] = model_file
-    modelfilets = model_file + '.index'
-    modelfilets = modelfilets if os.path.exists(modelfilets) else model_file
-    if not os.path.exists(modelfilets):
-        raise ValueError('Files %s and %s do not exist'%(model_file,model_file+'.meta'))
-    info[u'trnTS'] = get_matlab_ts(modelfilets)
-    info[u'name'] = name
-    param_dict = convert_unicode(conf.__dict__.copy())
-    param_dict.pop('cropLoc', None)
-    info[u'params'] = param_dict
-    info[u'crop_loc'] = to_mat(crop_loc)
+    info = compile_trk_info(conf, model_file, crop_loc, expname=name)
 
     if end_frame < 0: end_frame = end_frames.max()
     if end_frame > end_frames.max(): end_frame = end_frames.max()
