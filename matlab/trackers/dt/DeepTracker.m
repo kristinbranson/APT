@@ -2355,6 +2355,8 @@ classdef DeepTracker < LabelTracker
         error('Project has no GT frames labeled.');
       end      
         
+      obj.bgTrkReset();
+
       obj.track2_pretrack();
       
       nview = obj.lObj.nview;
@@ -2369,12 +2371,50 @@ classdef DeepTracker < LabelTracker
     end
     
     function cbkTrackGTComplete(obj,res)
-      gtmats = cell(size(res));
-      for ivw=1:numel(res)
-        gtmatfile = res(ivw).trkfile;
-        gtmats{ivw} = load(gtmatfile,'-mat');
-        fprintf(1,'Loaded gt output mat-file %s.\n',gtmatfile);
-      end
+      gtmatfiles = {res.trkfile}';
+      tblGT = obj.trackGTgtmat2tbl(gtmatfiles);
+      %assignin('base','tblGT',tblGT);
+      %fprintf(1,'assigned in base tblGT\n');
+      obj.trackGTcompute(tblGT);
+    end
+    
+    function tblGTres = trackGTcompute(obj,tblGT)
+      tblMFT_SuggAndLbled = obj.lObj.gtGetTblSuggAndLbled();
+      tblGT(:,'pLbl') = [];
+      tblGTres = obj.lObj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,...
+        tblGT); % also sets obj.lObj.gtTblRes
+    end
+    
+    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles)
+      gtmats = cellfun(@(x)load(x,'-mat'),gtmatfiles); %#ok<LOAD>
+      cellfun(@(x)fprintf(1,'Loaded gt output mat-file %s.\n',x),gtmatfiles);
+      
+      assert(numel(gtmats)==obj.nview);
+      assert(isequal(gtmats.list)); % all mft/metadata tables should match
+      
+      mft = gtmats(1).list; % should already be 1based from deepnet
+      assert(size(mft,2)==3);
+      mIdx = MovieIndex(-mft(:,1)); % mov indices are assumed to be positive but referencing GT movs
+      % labeled/pred_locs are [nfrmtrk x nphyspt x 2]
+      plbl = cat(2,gtmats.labeled_locs); % now [nfrmtrk x npt x 2]      
+      nfrmtrk = size(plbl,1);
+      plbl = reshape(plbl,nfrmtrk,[]); % now [nfrmtrx x (npt*2)] where col order is (all x-coords, then all y-)
+      ptrk = cat(2,gtmats.locs);
+      nfrmtrk = size(ptrk,1);
+      ptrk = reshape(ptrk,nfrmtrk,[]);
+      assert(isequal(size(plbl),size(ptrk)));
+      
+      tfcroplocs = arrayfun(@(x)~isempty(x.crop_locs) && any(~isnan(x.crop_locs(:))),...
+        gtmats);
+      assert(all(tfcroplocs==tfcroplocs(1)));
+      if tfcroplocs(1)
+        rois = cat(2,gtmats.crop_locs); % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...]
+        tblGT = table(mIdx,mft(:,2),mft(:,3),plbl,ptrk,rois,'VariableNames',...
+          {'mov' 'frm' 'iTgt' 'pLbl' 'pTrk' 'roi'});
+      else
+        tblGT = table(mIdx,mft(:,2),mft(:,3),plbl,ptrk,'VariableNames',...
+          {'mov' 'frm' 'iTgt' 'pLbl' 'pTrk'});
+      end      
     end
         
     function [tfCanTrack,reason] = canTrack(obj)
@@ -2813,7 +2853,7 @@ classdef DeepTracker < LabelTracker
         outfiles = reshape({trksysinfo.trkfile},size(trksysinfo));
         partfiles = reshape({trksysinfo.parttrkfile},size(trksysinfo));
       end
-      bgTrkWWorkerObj = DeepTracker.createBgTrkWorkerObj(nView,dmc,backend);
+      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nView,dmc,backend);
       % working here -- make this work with multiple movies
       bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
         logfiles,errfiles,partfiles);

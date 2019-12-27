@@ -8674,10 +8674,10 @@ classdef Labeler < handle
       assert(isempty(idx) || isscalar(idx));
       tf = ~isempty(idx);
     end
-    function tblGTres = gtComputeGTPerformance(obj,varargin)
-      useLabels2 = myparse(varargin,...
-        'useLabels2',false ... % if true, use labels2 "imported preds" instead of tracking
-        );
+    function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj)
+      % Compile table of GT suggestions with their labels; 
+      % 
+      % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg
       
       tblMFTSugg = obj.gtSuggMFTable;
       mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
@@ -8703,7 +8703,13 @@ classdef Labeler < handle
       
       % Labeled GT table, in order of tblMFTSugg
       tblMFT_SuggAndLbled = tblMFTLbld(loc(tf),:);
+    end
+    function tblGTres = gtComputeGTPerformance(obj,varargin)
+      useLabels2 = myparse(varargin,...
+        'useLabels2',false ... % if true, use labels2 "imported preds" instead of tracking
+        );
       
+      tblMFT_SuggAndLbled = obj.gtGetTblSuggAndLbled();
       fprintf(1,'Computing GT performance with %d GT rows.\n',...
         height(tblMFT_SuggAndLbled));
         
@@ -8852,7 +8858,6 @@ classdef Labeler < handle
       axis(ax,'ij');
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
-      % Montage
       obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h,'nplot',nmontage);
     end    
     function gtNextUnlabeledUI(obj)
