@@ -111,7 +111,17 @@ classdef BgWorkerObj < handle
       for ivw=1:obj.nviews
         dmc = obj.dmcs(ivw);
         cmd = sprintf('ls -al "%s"',dmc.dirModelChainLnx);
-        fprintf('### View %d:\n',ivw);
+        fprintf('### View %d: %s\n',ivw,dmc.dirModelChainLnx);
+        system(cmd);
+        fprintf('\n');
+      end
+    end
+    
+    function dispTrkOutDir(obj)
+      for ivw=1:obj.nviews
+        dmc = obj.dmcs(ivw);
+        cmd = sprintf('ls -al "%s"',dmc.dirTrkOutLnx);
+        fprintf('### View %d: %s\n',ivw,dmc.dirTrkOutLnx);
         system(cmd);
         fprintf('\n');
       end

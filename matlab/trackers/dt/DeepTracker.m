@@ -2385,7 +2385,11 @@ classdef DeepTracker < LabelTracker
         tblGT); % also sets obj.lObj.gtTblRes
     end
     
-    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles)
+    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,varargin)
+      
+      GTMATLOCFLD = 'locs';
+      GTMATOCCFLD = 'occ';
+      
       gtmats = cellfun(@(x)load(x,'-mat'),gtmatfiles); %#ok<LOAD>
       cellfun(@(x)fprintf(1,'Loaded gt output mat-file %s.\n',x),gtmatfiles);
       
@@ -2399,22 +2403,26 @@ classdef DeepTracker < LabelTracker
       plbl = cat(2,gtmats.labeled_locs); % now [nfrmtrk x npt x 2]      
       nfrmtrk = size(plbl,1);
       plbl = reshape(plbl,nfrmtrk,[]); % now [nfrmtrx x (npt*2)] where col order is (all x-coords, then all y-)
-      ptrk = cat(2,gtmats.locs);
+      ptrk = cat(2,gtmats.(GTMATLOCFLD));
       nfrmtrk = size(ptrk,1);
       ptrk = reshape(ptrk,nfrmtrk,[]);
       assert(isequal(size(plbl),size(ptrk)));
+      ptrkocc = cat(2,gtmats.(GTMATOCCFLD));
+      szplbl = size(plbl);
+      assert(isequal(size(ptrkocc),[szplbl(1) szplbl(2)/2]));
       
       tfcroplocs = arrayfun(@(x)~isempty(x.crop_locs) && any(~isnan(x.crop_locs(:))),...
         gtmats);
       assert(all(tfcroplocs==tfcroplocs(1)));
+      
+      tablevars = {mIdx,mft(:,2),mft(:,3),plbl,ptrk,ptrkocc};
+      tablevarnames = {'mov' 'frm' 'iTgt' 'pLbl' 'pTrk' 'pTrkocc'};      
       if tfcroplocs(1)
         rois = cat(2,gtmats.crop_locs); % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...]
-        tblGT = table(mIdx,mft(:,2),mft(:,3),plbl,ptrk,rois,'VariableNames',...
-          {'mov' 'frm' 'iTgt' 'pLbl' 'pTrk' 'roi'});
-      else
-        tblGT = table(mIdx,mft(:,2),mft(:,3),plbl,ptrk,'VariableNames',...
-          {'mov' 'frm' 'iTgt' 'pLbl' 'pTrk'});
+        tablevars{end+1} = rois; 
+        tablevarnames{end+1} = 'roi'; 
       end      
+      tblGT = table(tablevars{:},'VariableNames',tablevarnames);
     end
         
     function [tfCanTrack,reason] = canTrack(obj)
@@ -2971,6 +2979,17 @@ classdef DeepTracker < LabelTracker
       end
     end
 
+    function trkPrintTrkOutDir(obj)
+%       modelChainID = obj.trnName;
+%       if isempty(modelChainID) 
+%         error('Training is not complete or in progress.');
+%       end
+      if ~obj.bgTrkIsRunning
+        fprintf('Tracking is not in progress; log is for most recent tracking session.\n');
+      end
+      bgObj = obj.bgTrkMonBGWorkerObj;      
+      bgObj.dispTrkOutDir();
+    end
   end
   methods (Static)
     function bgTrkWorkerObj = createBgTrkWorkerObj(nView,dmc,backend)

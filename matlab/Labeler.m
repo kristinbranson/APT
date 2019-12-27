@@ -8780,6 +8780,14 @@ classdef Labeler < handle
       err = sqrt(sum((pTrk-pLbl).^2,3));
       muerr = mean(err,2);
       
+      % Future: contingency tbl or other stats for occlusions
+%       tfTrkHasOcc = isfield(tblTrkRes,'pTrkocc');
+%       if tfTrkHasOcc
+%         PTRKOCCTHRESH = 0.5;
+%         pTrkocctf = tblTrkRes.pTrkocc>=PTRKOCCTHRESH;        
+%         docc = pTrkocctf-tfoccLbl;
+%       end        
+      
       tblTmp = tblMFT_SuggAndLbled(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
       if tblfldscontains(tblTrkRes,'pTrx')

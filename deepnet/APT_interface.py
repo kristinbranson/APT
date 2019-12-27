@@ -1205,13 +1205,16 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc):
         nrows_pred = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + nrows_pred)],
                                  conf, cap, flipud, trx, crop_loc)
+        assert all_f.shape[0] == bsize  # dim0 has size bsize but only nrows_pred rows are filled
         ret_dict_b = pred_fn(all_f)
 
         # py3 and py2 compatible
         for k in ret_dict_b.keys():
             retval = ret_dict_b[k]
-            if k not in ret_dict.keys() and retval.ndim == 3:
-                assert retval.shape[0] == nrows_pred
+            if k not in ret_dict.keys() and (retval.ndim == 3 or retval.ndim == 2):
+                # again only nrows_pred rows are filled
+                assert retval.shape[0] == bsize, \
+                    "Unexpected output shape {} for key {}".format(retval.shape, k)
                 sz = retval.shape[1:]
                 ret_dict[k] = np.zeros((n_list, ) + sz)
                 ret_dict[k][:] = np.nan
@@ -1225,9 +1228,10 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc):
                 retval = ret_dict_b[k]
                 if retval.ndim == 4:  # hmaps
                     pass
-                elif retval.ndim == 3:
+                elif retval.ndim == 3 or retval.ndim == 2:
                     cur_orig = retval[cur_t, ...]
                     if k.startswith('locs'):  # transform locs
+                        assert retval.ndim == 3
                         cur_orig = convert_to_orig(cur_orig, conf, cur_f, cur_trx, crop_loc)
                     ret_dict[k][cur_start + cur_t, ...] = cur_orig
                 else:
