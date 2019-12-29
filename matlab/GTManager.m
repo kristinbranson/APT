@@ -310,6 +310,4 @@ end
 
 function pbComputeGT_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
-tblGTres = lObj.gtComputeGTPerformance();
-msgbox('Assigned results in Labeler property ''gtTblRes''.');
-lObj.gtReport();
+lObj.gtComputeGTPerformance();

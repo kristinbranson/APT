@@ -3911,17 +3911,13 @@ function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 % next three lines identical to GTManager:pbComputeGT_Callback
-tblGTres = lObj.gtComputeGTPerformance();
-msgbox('Assigned results in Labeler property ''gtTblRes''.');
-lObj.gtReport();
+lObj.gtComputeGTPerformance();
 
 function menu_evaluate_gtcomputeperfimported_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 % next three lines identical to GTManager:pbComputeGT_Callback
-tblGTres = lObj.gtComputeGTPerformance('useLabels2',true);
-msgbox('Assigned results in Labeler property ''gtTblRes''.');
-lObj.gtReport();
+lObj.gtComputeGTPerformance('useLabels2',true);
   
 function cbkGtIsGTModeChanged(src,evt)
 lObj = src;

@@ -1161,7 +1161,7 @@ def get_augmented_images(conf, out_file, distort=True, on_gt = False,nsamples=No
 
 def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):
     '''convert predicted locs back to original image co-ordinates.
-    INCOMPLETE
+    INCOMPLETE/UNUSED
     '''
     lbl = h5py.File(conf.labelfile, 'r')
     if on_gt:
@@ -1170,7 +1170,7 @@ def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):
         local_dirs, _ = multiResData.find_local_dirs(conf)
 
     if conf.has_trx_file:
-        trx_files = multiResData.get_trx_files(lbl, local_dirs)
+        trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt)
     else:
         trx_files = [None, ] * len(local_dirs)
 
@@ -1268,32 +1268,58 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
     return pred_fn, close_fn, model_file
 
 
-def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=None,
-                      trx_files=None, crop_locs=None):
+def classify_list_all(model_type, conf, in_list, on_gt, model_file,
+                      movie_files=None, trx_files=None, crop_locs=None):
     '''
     Classifies a list of examples.
+
     in_list should be of list of type [mov_file, frame_num, trx_ndx]
     everything is 0-indexed
-    '''
-    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
 
-    if on_gt:
+    Movie and trx indices in in_list are dereferenced as follows:
+    * In the usual case, movie_files is None and movieFilesAll/trxFilesAll in the
+    conf.labelfile are used. If on_gt is True, movieFilesAllGT/etc are used. Crop
+    locations are also read from the conf.labelfile (if present).
+    * In the externally-specified case, movie_files, trx_files (if appropriate),
+    and crop_locs (if appropriate) must be provided.
+    '''
+
+    # Possible refactor: factor into i) marshall movs/trxs/crops and ii) track the
+    #  'external' list
+
+    is_external_movies = movie_files is not None
+    if is_external_movies:
+        local_dirs = movie_files
+
+        assert (trx_files is not None) == conf.has_trx_file, \
+            "Unexpected trx_files specification, conf.has_trx_file={}.".format(conf.has_trx_file)
+
+        is_external_crop = (crop_locs is not None) and (len(crop_locs) > 0)
+        if is_external_crop:
+            assert len(crop_locs) == len(local_dirs), \
+                "Number of crop_locs ({}) does not match number of movies ({})".format(len(crop_locs), len(local_dirs))
+    elif on_gt:
         local_dirs, _ = multiResData.find_gt_dirs(conf)
+        # crops fetched from lbl below
     else:
         local_dirs, _ = multiResData.find_local_dirs(conf)
-    is_external_movies = False
-    if movie_files is not None:
-        local_dirs = movie_files
-        is_external_movies = True
-        is_crop = (crop_locs is not None) and (len(crop_locs) > 0)
+        # crops fetched from lbl below
 
     lbl = h5py.File(conf.labelfile, 'r')
     view = conf.view
+
     if conf.has_trx_file:
-        if not is_external_movies:
-            trx_files = multiResData.get_trx_files(lbl, local_dirs)
+        if is_external_movies:
+            pass  # trx_files provided
+        else:
+            trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt)
     else:
         trx_files = [None, ] * len(local_dirs)
+
+    assert len(trx_files) == len(local_dirs), \
+        "Number of trx_files ({}) does not match number of movies ({})".format(len(trx_files), len(local_dirs))
+
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
 
     # pred_locs = np.zeros([len(in_list), conf.n_classes, 2])
     # pred_locs[:] = np.nan
@@ -1307,17 +1333,18 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
     ret_dict_all['crop_locs'] = np.zeros([nlist, 4])
     ret_dict_all['crop_locs'][:] = np.nan
 
-    logging.info('Tracking GT labeled frames..')
+    logging.info('Tracking {} rows...'.format(nlist))
     for ndx, dir_name in enumerate(local_dirs):
 
         cur_list = [[l[1], l[2]] for l in in_list if l[0] == ndx]
         cur_idx = [i for i, l in enumerate(in_list) if l[0] == ndx]
         if is_external_movies:
-            if is_crop:
+            if is_external_crop:
                 crop_loc = crop_locs[ndx]
             else:
                 crop_loc = None
         else:
+            # This returns None if proj/lbl doesnt have crops
             crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
 
         try:
@@ -1664,7 +1691,7 @@ def classify_gt_data(conf, model_type, out_file, model_file):
             cur_pts = cur_pts[np.newaxis, ...]
 
         if conf.has_trx_file:
-            trx_files = multiResData.get_trx_files(lbl, local_dirs)
+            trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt=True)
             trx = sio.loadmat(trx_files[ndx])['trx'][0]
             n_trx = len(trx)
         else:
@@ -1673,7 +1700,7 @@ def classify_gt_data(conf, model_type, out_file, model_file):
         for trx_ndx in range(n_trx):
             frames = multiResData.get_labeled_frames(lbl, ndx, trx_ndx, on_gt=True)
             for f in frames:
-                cur_list.append([ndx , f , trx_ndx ])
+                cur_list.append([ndx, f, trx_ndx])
                 labeled_locs.append(cur_pts[trx_ndx, f, :, sel_pts])
 
     ret_dict_all = classify_list_all(model_type, conf, cur_list,

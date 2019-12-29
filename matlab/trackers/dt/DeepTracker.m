@@ -142,6 +142,8 @@ classdef DeepTracker < LabelTracker
     
     trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
       % to generate heatmaps on disk
+      
+    trkGTtrkTbl % transient, table of gt results
    
     trkSysInfo % [nview] transient, unmanaged. struct array of info used 
     % for current or most recent tracking codegen/system call. currently 
@@ -2089,8 +2091,8 @@ classdef DeepTracker < LabelTracker
       % to enable turning off/on postproc or trying diff pp algos with a 
       % given trained tracker
       if ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
-        msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D.'
-        error(msg);
+        msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D.';
+        uiwait(msgbox(msg,'3D Reconciliation','modal'));
       end 
       
       % why not; done in track()
@@ -2247,26 +2249,28 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);        
     end
     
-    function tfSuccess = track2_spawn(obj,trksysinfo)
+    function [tfSuccess,msg] = track2_spawn(obj,trksysinfo)
       % spawns jobs per trksysinfo and sets obj.trksysinfo, unless
       % .dryRunOnly is true.
+      
+      tfSuccess = true;
+      msg = '';
       
       if obj.dryRunOnly
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
-        tfSuccess = true;
       else
         % Actually do things
         
-        tfSuccess = true;
-
-        nview = obj.lObj.nview;
-        for ivw=1:nview
+        nvw = obj.lObj.nview;
+        for ivw=1:nvw
           trkoutdir = trksysinfo(ivw).trkoutdir;
           if exist(trkoutdir,'dir')==0
             [succ,msg] = mkdir(trkoutdir);
             if ~succ
-              error('Failed to create trk cache dir %s: %s',trkoutdir,msg);
+              tfSuccess = false;
+              msg = sprintf('Failed to create trk cache dir %s: %s',trkoutdir,msg);
+              return;
             else
               fprintf(1,'Created trk output dir: %s\n',trkoutdir);
             end
@@ -2277,10 +2281,11 @@ classdef DeepTracker < LabelTracker
           if st==0
             fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
           else
-            fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
-              ivw,res);
             tfSuccess = false;
-            % remaining views not even attempted apparently
+            msg = sprintf('Failed to spawn tracking job for view %d: %s.\n\n',...
+              ivw,res);
+            % remaining views not even attempted apparently; or, earlier
+            % views already spawned but we early-return anyway
             return;
           end
         end
@@ -2288,7 +2293,7 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [tfSuccess,trksysinfo] = trackListFile(obj,listfiles,outfiles)
+    function [tfSuccess,msg,trksysinfo] = trackListFile(obj,listfiles,outfiles)
 
       listfiles = cellstr(listfiles);
       outfiles = cellstr(outfiles);
@@ -2302,7 +2307,7 @@ classdef DeepTracker < LabelTracker
       
       trksysinfo = obj.track2_codegen_listfile(trksysinfo,listfiles,outfiles);
        
-      tfSuccess = obj.track2_spawn(trksysinfo);
+      [tfSuccess,msg] = obj.track2_spawn(trksysinfo);
     end
     
     function trksysinfo = track2_codegen_gt(obj,trksysinfo)
@@ -2339,50 +2344,64 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [tfSuccess,trksysinfo] = trackGT(obj)
+    function [tfSucc,msg,trksysinfo] = trackGT(obj)
       % Track all GT frames in proj.
       % Conceptually similar to trackListFile. Conceptually the list is 
       % comprised of all GT-labeled rows but in practice this is handled in
       % the py.
+
+      tfSucc = false;
+      msg = '';
       
-      [tfCanTrack,reason] = obj.canTrack();
+      [tfCanTrack,msg] = obj.canTrack();
       if ~tfCanTrack
-        error('Cannot perform GT tracking: %s',reason);
+        return;
       end
       
       tblGT = obj.lObj.labelGetMFTableLabeled('useTrain',0);
       if isempty(tblGT)
-        error('Project has no GT frames labeled.');
+        msg = 'Project has no GT frames labeled.';
+        return;
       end      
         
       obj.bgTrkReset();
 
       obj.track2_pretrack();
       
-      nview = obj.lObj.nview;
-      kw = repmat({'GT'},nview,1);
+      nvw = obj.lObj.nview;
+      kw = repmat({'GT'},nvw,1);
       trksysinfo = obj.track2_genBaseTrkInfo(kw);
       
       trksysinfo = obj.track2_codegen_gt(trksysinfo);
       
       obj.track2_bgStart(trksysinfo,@obj.cbkTrackGTComplete);
       
-      tfSuccess = obj.track2_spawn(trksysinfo);
+      [tfSucc,msg] = obj.track2_spawn(trksysinfo);
     end
     
     function cbkTrackGTComplete(obj,res)
       gtmatfiles = {res.trkfile}';
       tblGT = obj.trackGTgtmat2tbl(gtmatfiles);
-      %assignin('base','tblGT',tblGT);
-      %fprintf(1,'assigned in base tblGT\n');
+      obj.trkGTtrkTbl = tblGT;
       obj.trackGTcompute(tblGT);
     end
     
-    function tblGTres = trackGTcompute(obj,tblGT)
+    function trackGTcompute(obj,tblGT,varargin)
+      reportargs = myparse(varargin,...
+        'reportargs',{});
+      
       tblMFT_SuggAndLbled = obj.lObj.gtGetTblSuggAndLbled();
+      
+      % only for check below. this pLbl is read from gtmatfiles which is 
+      % produced by the Py
+      tblGTpLbl = tblGT.pLbl; 
       tblGT(:,'pLbl') = [];
-      tblGTres = obj.lObj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,...
-        tblGT); % also sets obj.lObj.gtTblRes
+      obj.lObj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblGT); % also sets obj.lObj.gtTblRes
+      if ~isequaln(tblGTpLbl,obj.lObj.gtTblRes.pLbl)
+        warningNoTrace('Discrepancy encountered in GT labels read from deepnet mat-files.');
+      end
+      obj.lObj.gtReport(reportargs{:});
+      msgbox('GT results available in Labeler property ''gtTblRes''.');
     end
     
     function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,varargin)
@@ -2394,7 +2413,9 @@ classdef DeepTracker < LabelTracker
       cellfun(@(x)fprintf(1,'Loaded gt output mat-file %s.\n',x),gtmatfiles);
       
       assert(numel(gtmats)==obj.nview);
-      assert(isequal(gtmats.list)); % all mft/metadata tables should match
+      if numel(gtmats)>1
+        assert(isequal(gtmats.list)); % all mft/metadata tables should match
+      end
       
       mft = gtmats(1).list; % should already be 1based from deepnet
       assert(size(mft,2)==3);
@@ -2407,9 +2428,14 @@ classdef DeepTracker < LabelTracker
       nfrmtrk = size(ptrk,1);
       ptrk = reshape(ptrk,nfrmtrk,[]);
       assert(isequal(size(plbl),size(ptrk)));
-      ptrkocc = cat(2,gtmats.(GTMATOCCFLD));
+      
       szplbl = size(plbl);
-      assert(isequal(size(ptrkocc),[szplbl(1) szplbl(2)/2]));
+      if isfield(gtmats,GTMATOCCFLD)
+        ptrkocc = cat(2,gtmats.(GTMATOCCFLD));
+        assert(isequal(size(ptrkocc),[szplbl(1) szplbl(2)/2]));
+      else
+        ptrkocc = nan(szplbl(1),szplbl(2)/2);
+      end
       
       tfcroplocs = arrayfun(@(x)~isempty(x.crop_locs) && any(~isnan(x.crop_locs(:))),...
         gtmats);
