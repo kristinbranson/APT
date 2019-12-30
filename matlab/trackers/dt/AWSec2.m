@@ -726,6 +726,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         cmd = AWSec2.scpDownloadCmd(obj.pem,obj.instanceIP,srcAbs,dstAbs,...
           'scpcmd',obj.scpCmd);
         tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
+        tfsucc = tfsucc && (exist(dstAbs,'file')>0);
       end
     end
     

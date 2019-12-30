@@ -2755,8 +2755,8 @@ classdef DeepTracker < LabelTracker
     end
   end
   methods
-    function trkSpawnAWS(obj,backend,mIdx,tMFTConc,dlLblFileLcl,cropRois,...
-        hmapArgs,frm0,frm1)
+    function trkSpawnAWS(obj,backend,mIdx,tMFTConc,dlLblFileLcl,...
+        cropRois,hmapArgs,frm0,frm1)
       % Currently mIdx, tMFTConc only one movie
       
       nvw = obj.lObj.nview;
@@ -3035,6 +3035,7 @@ classdef DeepTracker < LabelTracker
     end
 
     function trkCompleteCbkAWS(obj,backend,trkfilesLocal,res)
+      fprintf('AWS: tracking complete at %s\n',datestr(now));
       assert(numel(trkfilesLocal)==numel(res));
  
       mIdx = [res.mIdx];
@@ -3053,7 +3054,9 @@ classdef DeepTracker < LabelTracker
         for ivw=1:numel(res)
           trkLcl = trkfilesLocal{ivw};
           trkRmt = res(ivw).trkfile;
+          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
           aws.scpDownloadOrVerify(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          fprintf('downloaded...\n');
         end
         
         obj.trkPostProcIfNec(mIdx,trkfilesLocal);
