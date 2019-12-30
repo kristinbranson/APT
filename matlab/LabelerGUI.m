@@ -3547,8 +3547,8 @@ lObj = handles.labelerObj;
 instructions = ['These part matches are used for data augmentation when training using deep learning. ' ...
                 'To create more training data, we can flip the original images. This requires knowing ' ...
                 'which parts on the left of the animal correspond to the same parts on the right side. ' ...
-                'Use this GUI to select these pairings of parts. Each part can only belong to at most' ...
-                'one pair. Some parts will not be part of any pair, e.g. parts that go down the' ...
+                'Use this GUI to select these pairings of parts. Each part can only belong to at most ' ...
+                'one pair. Some parts will not be part of any pair, e.g. parts that go down the ' ...
                 'mid-line of the animal should not have a mate.'];
 matches = defineLandmarkMatches(lObj,'edges',lObj.flipLandmarkMatches,'instructions',instructions);
 lObj.setFlipLandmarkMatches(matches);
@@ -3911,17 +3911,13 @@ function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 % next three lines identical to GTManager:pbComputeGT_Callback
-tblGTres = lObj.gtComputeGTPerformance();
-msgbox('Assigned results in Labeler property ''gtTblRes''.');
-lObj.gtReport();
+lObj.gtComputeGTPerformance();
 
 function menu_evaluate_gtcomputeperfimported_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 % next three lines identical to GTManager:pbComputeGT_Callback
-tblGTres = lObj.gtComputeGTPerformance('useLabels2',true);
-msgbox('Assigned results in Labeler property ''gtTblRes''.');
-lObj.gtReport();
+lObj.gtComputeGTPerformance('useLabels2',true);
   
 function cbkGtIsGTModeChanged(src,evt)
 lObj = src;

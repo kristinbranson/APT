@@ -7249,6 +7249,8 @@ classdef Labeler < handle
       %
       % Includes nonGT/GT rows per current GT state.
       %
+      % Can return [] indicating "no labels of requested/specified type"
+      %
       % tblMF: See MFTable.FLDSFULLTRX.
       
       [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
@@ -7295,6 +7297,10 @@ classdef Labeler < handle
       end
       
       if tfMFTOnly,
+        return;
+      end
+      
+      if isequal(tblMF,[]) % this would have errored below in call to labelAddLabelsMFTableStc
         return;
       end
       
@@ -8540,10 +8546,18 @@ classdef Labeler < handle
 %     end
     function gtSetUserSuggestions(obj,tblMFT,varargin)
       % Set user-specified/defined GT suggestions
-      % tblMFT: .mov (MovieIndices), .frm, .iTgt
+      %
+      % tblMFT: .mov (MovieIndices), .frm, .iTgt. If [], default to all
+      % labeled GT rows in proj
       
       sortcanonical = myparse(varargin,...
         'sortcanonical',false);
+      
+      if isequal(tblMFT,[])
+        fprintf(1,'Defaulting to all labeled GT frames in project...\n');
+        tblMFT = obj.labelGetMFTableLabeled('useTrain',0,'mftonly',true);
+        fprintf(1,'... found %d GT rows.\n',height(tblMFT));
+      end
       
       if ~istable(tblMFT) && ~all(tblfldscontains(tblMFT,MFTable.FLDSID))
         error('Specified table is not a valid Movie-Frame-Target table.');
@@ -8668,10 +8682,10 @@ classdef Labeler < handle
       assert(isempty(idx) || isscalar(idx));
       tf = ~isempty(idx);
     end
-    function tblGTres = gtComputeGTPerformance(obj,varargin)
-      useLabels2 = myparse(varargin,...
-        'useLabels2',false ... % if true, use labels2 "imported preds" instead of tracking
-        );
+    function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj)
+      % Compile table of GT suggestions with their labels; 
+      % 
+      % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg
       
       tblMFTSugg = obj.gtSuggMFTable;
       mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
@@ -8697,7 +8711,36 @@ classdef Labeler < handle
       
       % Labeled GT table, in order of tblMFTSugg
       tblMFT_SuggAndLbled = tblMFTLbld(loc(tf),:);
+    end
+    function tblGTres = gtComputeGTPerformance(obj,varargin)
+      %
+      % Front door entry point for computing gt performance
       
+      [doreport,useLabels2,doui] = myparse(varargin,...
+        'doreport',true, ... % if true, call .gtReport at end
+        'useLabels2',false, ... % if true, use labels2 "imported preds" instead of tracking
+        'doui',true ... % if true, msgbox when done
+        );
+      
+      tObj = obj.tracker;
+      if ~useLabels2 && isa(tObj,'DeepTracker')
+        % Separate codepath here. DeepTrackers run in a separate async
+        % process spawned by shell; trackGT in this process and then
+        % remaining GT computations are done at callback time (in
+        % DeepTracker.m)
+        [tfsucc,msg] = tObj.trackGT();
+        DIALOGTTL = 'GT Tracking';
+        if tfsucc
+          msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
+          msgbox(msg,DIALOGTTL);
+        else
+          msg = sprintf('GT tracking failed: %s',msg);
+          warndlg(msg,DIALOGTTL);
+        end
+        return;
+      end
+
+      tblMFT_SuggAndLbled = obj.gtGetTblSuggAndLbled();
       fprintf(1,'Computing GT performance with %d GT rows.\n',...
         height(tblMFT_SuggAndLbled));
         
@@ -8722,12 +8765,18 @@ classdef Labeler < handle
         tblTrkRes.pTrk = tblTrkRes.p; % .p is imported positions => imported tracking
         tblTrkRes(:,'p') = [];
       else
-        tObj = obj.tracker;
         tObj.track(tblMFT_SuggAndLbled);
         tblTrkRes = tObj.getAllTrackResTable();
       end
 
       tblGTres = obj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblTrkRes);
+      
+      if doreport
+        obj.gtReport();
+      end
+      if doui        
+        msgbox('GT results available in Labeler property ''gtTblRes''.');
+      end
     end
     function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
         tblTrkRes)
@@ -8767,6 +8816,14 @@ classdef Labeler < handle
       pLbl = reshape(pLbl,[nrow npts 2]);
       err = sqrt(sum((pTrk-pLbl).^2,3));
       muerr = mean(err,2);
+      
+      % Future: contingency tbl or other stats for occlusions
+%       tfTrkHasOcc = isfield(tblTrkRes,'pTrkocc');
+%       if tfTrkHasOcc
+%         PTRKOCCTHRESH = 0.5;
+%         pTrkocctf = tblTrkRes.pTrkocc>=PTRKOCCTHRESH;        
+%         docc = pTrkocctf-tfoccLbl;
+%       end        
       
       tblTmp = tblMFT_SuggAndLbled(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
@@ -8846,7 +8903,7 @@ classdef Labeler < handle
       axis(ax,'ij');
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
-      % Montage
+      nmontage = min(nmontage,height(t));
       obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h,'nplot',nmontage);
     end    
     function gtNextUnlabeledUI(obj)

@@ -20,6 +20,9 @@ classdef BgTrackWorkerObj < BgWorkerObj
     artfctLogfiles % [nMovies x nViewJobs] cellstr of fullpaths to bsub logs
     artfctErrFiles % [nMovies x nViewJobs] char fullpath to DL errfile    
     artfctPartTrkfiles % [nMovies x nviews] full paths to partial trkfile to be generated/output
+    partFileIsTextStatus % logical scalar. If true, partfiles are a 
+          % textfile containing a single line '<nfrmsdone>' 
+          % indicating tracking status. Otherwise, partfiles are mat-files.
     killFiles % [nMovies x nViewJobs]
   end
     
@@ -27,7 +30,14 @@ classdef BgTrackWorkerObj < BgWorkerObj
     function obj = BgTrackWorkerObj(varargin)
       obj@BgWorkerObj(varargin{:});
     end
+    
     function initFiles(obj,mIdx,movfiles,outfiles,logfiles,dlerrfiles,partfiles)
+      % 
+      %
+      % mIdx: Non-essential, just stored metadata returned to client 
+      % movfiles: [nMovs x obj.nviews] just stored metadata ". However, the
+      %   size is meaningful, see above
+      
       obj.mIdx = mIdx;
       obj.nMovies = size(movfiles,1);
       assert(size(movfiles,2)==obj.nviews);
@@ -36,6 +46,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj.artfctLogfiles = logfiles;
       obj.artfctErrFiles = dlerrfiles;
       obj.artfctPartTrkfiles = partfiles;
+      obj.partFileIsTextStatus = false;
       % number of jobs views are split into. this will either be 1 or nviews
       nViewJobs = size(logfiles,2);
       obj.killFiles = cell(obj.nMovies,nViewJobs);
@@ -49,6 +60,11 @@ classdef BgTrackWorkerObj < BgWorkerObj
         end
       end
     end
+    
+    function setPartfileIsTextStatus(obj,tf)
+      obj.partFileIsTextStatus = tf;
+    end
+      
     function sRes = compute(obj)
       % sRes: [nviews] struct array      
 
@@ -70,12 +86,22 @@ classdef BgTrackWorkerObj < BgWorkerObj
       % KB 20190115: also get locations of part track files and timestamps
       % of last modification
       partTrkFileTimestamps = nan(size(obj.artfctPartTrkfiles));
+      parttrkfileNfrmtracked = nan(size(obj.artfctPartTrkfiles));
       for i = 1:numel(obj.artfctPartTrkfiles),
-        tmp = dir(obj.artfctPartTrkfiles{i});
+        parttrkfile = obj.artfctPartTrkfiles{i};
+        tmp = dir(parttrkfile);
         if ~isempty(tmp),
           partTrkFileTimestamps(i) = tmp.datenum;
+          if obj.partFileIsTextStatus
+            tmp = obj.fileContents(parttrkfile);
+            PAT = '(?<numfrmstrked>[0-9]+)';
+            toks = regexp(tmp,PAT,'names');
+            if ~isempty(toks)
+              parttrkfileNfrmtracked(i) = str2double(toks.numfrmstrked);
+            end
+          end
         end
-      end
+      end      
         
       killFileExists = false(size(obj.killFiles));
       for i = 1:numel(obj.killFiles),
@@ -107,7 +133,12 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'parttrkfile',obj.artfctPartTrkfiles,...
         'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
         'killFile',repmat(obj.killFiles,[1,nViewsPerJob]),...
-        'killFileExists',repmat(num2cell(killFileExists),[1,nViewsPerJob]));      
+        'killFileExists',repmat(num2cell(killFileExists),[1,nViewsPerJob]));
+      if obj.partFileIsTextStatus
+        parttrkfileNfrmtracked = num2cell(parttrkfileNfrmtracked);
+        [sRes.parttrkfileNfrmtracked] = deal(parttrkfileNfrmtracked{:});
+        [sRes.trkfileNfrmtracked] = deal(parttrkfileNfrmtracked{:});
+      end
     end
     
     function reset(obj)

@@ -57,11 +57,22 @@ def find_gt_dirs(conf):
 
 
 def get_trx_files(lbl, local_dirs, on_gt=False):
+    '''
+    Get trxFiles from lbl, eg lbl.trxFilesAll or lbl.trxFilesAllGT when on_gt=True
+    :param lbl:
+    :param local_dirs: list of moviefiles corresponding trxfiles; used for macro-replacement
+    :param on_gt:
+    :return:
+    '''
     if on_gt:
         trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAllGT'][0]]
     else:
         trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAll'][0]]
     movdir = [os.path.dirname(a) for a in local_dirs]
+
+    assert len(trx_files) == len(movdir), \
+        "Number of trxfiles ({}) differs from movies ({})".format(len(trx_files), len(movdir))
+
     trx_files = [s.replace('$movdir', m) for (s, m) in zip(trx_files, movdir)]
     try:
         for k in lbl['projMacros'].keys():
@@ -319,7 +330,7 @@ def create_full_tf_record(conf):
     env.close()  # close the database
     print('%d,%d number of pos examples added to the db and val-db' % (count, val_count))
 
-def get_labeled_frames(lbl,ndx ,trx_ndx=None, on_gt=False):
+def get_labeled_frames(lbl, ndx, trx_ndx=None, on_gt=False):
     cur_pts = trx_pts(lbl, ndx, on_gt)
     if cur_pts.ndim == 4:
         frames = np.where(np.invert(np.all(np.isnan(cur_pts[trx_ndx, :, :, :]), axis=(1, 2))))[0]

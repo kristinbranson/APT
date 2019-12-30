@@ -47,8 +47,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       tfsucc = false;
       warnings = {};
       
-      %dmcs = obj.dmcs;
-      killfiles = obj.getKillFiles();%{dmcs.killTokenLnx};
+      killfiles = obj.getKillFiles();
       killfiles = unique(killfiles);
       jobids = obj.jobID;
       assert(isequal(numel(jobids),numel(killfiles)));
