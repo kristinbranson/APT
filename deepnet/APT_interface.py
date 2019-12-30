@@ -1269,7 +1269,9 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
 
 
 def classify_list_all(model_type, conf, in_list, on_gt, model_file,
-                      movie_files=None, trx_files=None, crop_locs=None):
+                      movie_files=None, trx_files=None, crop_locs=None,
+                      part_file=None,  # If specified, save intermediate "part" files
+                      ):
     '''
     Classifies a list of examples.
 
@@ -1291,8 +1293,9 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
     if is_external_movies:
         local_dirs = movie_files
 
-        assert (trx_files is not None) == conf.has_trx_file, \
-            "Unexpected trx_files specification, conf.has_trx_file={}.".format(conf.has_trx_file)
+        assert (trx_files is not None and len(trx_files) > 0) == conf.has_trx_file, \
+            "Unexpected trx_files specification (length {}), conf.has_trx_file={}.".format(
+                len(trx_files), conf.has_trx_file)
 
         is_external_crop = (crop_locs is not None) and (len(crop_locs) > 0)
         if is_external_crop:
@@ -1376,6 +1379,9 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
 
         n_done = len([1 for i in in_list if i[0]<=ndx])
         logging.info('Done prediction on {} out of {} GT labeled frames'.format(n_done,len(in_list)))
+        if part_file is not None:
+            with open(part_file, 'w') as fh:
+                fh.write("{}".format(n_done))
 
     logging.info('Done prediction on all GT frames')
     lbl.close()
@@ -1703,9 +1709,11 @@ def classify_gt_data(conf, model_type, out_file, model_file):
                 cur_list.append([ndx, f, trx_ndx])
                 labeled_locs.append(cur_pts[trx_ndx, f, :, sel_pts])
 
+    partfile = out_file + '.part'
     ret_dict_all = classify_list_all(model_type, conf, cur_list,
                                      on_gt=True,
-                                     model_file=model_file)
+                                     model_file=model_file,
+                                     part_file=partfile)
 
     ret_dict_all['labeled_locs'] = np.array(labeled_locs)
     to_mat_all_locs_in_dict(ret_dict_all)

@@ -8903,6 +8903,7 @@ classdef Labeler < handle
       axis(ax,'ij');
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
+      nmontage = min(nmontage,height(t));
       obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h,'nplot',nmontage);
     end    
     function gtNextUnlabeledUI(obj)

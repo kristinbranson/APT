@@ -2102,8 +2102,8 @@ classdef DeepTracker < LabelTracker
     function trksysinfo = track2_genBaseTrkInfo(obj,taskKeywords)
       % taskKeyword: arbitrary string/keyword for log/errfiles etc
 
-      nview = obj.lObj.nview;
-      assert(numel(taskKeywords)==nview);
+      nvw = obj.lObj.nview;
+      assert(numel(taskKeywords)==nvw);
 
       %%% DMC %%% 
       
@@ -2151,7 +2151,7 @@ classdef DeepTracker < LabelTracker
         'snapshotfile',[],...
         'codestr',[]);
       
-      for ivw=1:nview
+      for ivw=1:nvw
         trnstr = trksysinfo(ivw).trnstr;
         trkoutdir = trksysinfo(ivw).trkoutdir;
         
@@ -2168,14 +2168,15 @@ classdef DeepTracker < LabelTracker
     function trksysinfo = track2_codegen_listfile(obj,trksysinfo,listfiles,outfiles)
       % trackListFile-specific trksysinfo massage + codegen
       
-      nview = obj.lObj.nview;
-      assert(isequal(nview,numel(listfiles),numel(outfiles)));
+      nvw = obj.lObj.nview;
+      assert(isequal(nvw,numel(listfiles),numel(outfiles)));
 
       modelChainID = obj.trnName;
       
-      for ivw=1:nview
+      for ivw=1:nvw
         trksysinfo(ivw).listfile = listfiles{ivw};
         trksysinfo(ivw).outfile = outfiles{ivw};
+        trksysinfo(ivw).partfile = ''; % for now
         aptroot = trksysinfo(ivw).aptroot;
         logfile = trksysinfo(ivw).logfile;
         
@@ -2197,9 +2198,14 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function track2_bgStart(obj,trksysinfo,cbkTrkComplete)
+    function track2_bgStart(obj,trksysinfo,cbkTrkComplete,nfrms2trk)
       % Start track monitor. This stuff mirrors what is done in (and 
       % downstream) of .track()
+      
+      % nfrms2trk: currently used just so viz knows when "done" is.
+      % Something feels off here, bgStart doesn't need to know something
+      % like nfrms2trk. This is a viz thing. So maybe bgStart accepts the
+      % viz etc. Def not a big deal, so we are making the viz here too.
 
       assert(isempty(obj.bgTrkMonitor));
       
@@ -2210,23 +2216,20 @@ classdef DeepTracker < LabelTracker
 %         partfiles = reshape(cat(1,trksysinfo.parttrkfile),[nMovies,nView]);        
 %       else
       outfiles = reshape({trksysinfo.outfile},size(trksysinfo));
-      % For now, use empty-strings here as track2 does not provide
-      % intermediate info or "part files" during tracking. BgWorkerObj
-      % should just operate with the non-existent partfiles having no
-      % effect.
-      partfiles = repmat({''},size(trksysinfo)); 
-%        end
+      partfiles = reshape({trksysinfo.partfile},size(trksysinfo));
       
-      nview = obj.lObj.nview;
+      nvw = obj.lObj.nview;
       dmc = obj.trnLastDMC;
       be = obj.lObj.trackDLBackEnd;
-      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nview,dmc,be)
-      
+      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nvw,dmc,be);
+            
       mIdxDummy = MovieIndex(1); % not used for anything
-      movsDummy = repmat({'__UNUSED__'},1,nview);
+      movsDummy = repmat({'__UNUSED__'},1,nvw);
       bgTrkWorkerObj.initFiles(mIdxDummy,movsDummy,...
-        outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)');
-      
+        outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)');      
+      % for now always true for track2* codepath
+      bgTrkWorkerObj.setPartfileIsTextStatus(true);
+
       tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
       if any(tfErrFileErr)
         error('There is an existing error in an error file: ''%s''.',...
@@ -2239,7 +2242,8 @@ classdef DeepTracker < LabelTracker
       %fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
       
       %trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      trkVizObj = TrkTrnMonVizCmdline();
+      %trkVizObj = TrkTrnMonVizCmdline();
+      trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,be.type,nfrms2trk);
       bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,cbkTrkComplete);
       %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
       
@@ -2297,8 +2301,8 @@ classdef DeepTracker < LabelTracker
 
       listfiles = cellstr(listfiles);
       outfiles = cellstr(outfiles);
-      nview = obj.lObj.nview;
-      assert(isequal(nview,numel(listfiles),numel(outfiles)));
+      nvw = obj.lObj.nview;
+      assert(isequal(nvw,numel(listfiles),numel(outfiles)));
       
       obj.track2_pretrack();
       
@@ -2313,15 +2317,17 @@ classdef DeepTracker < LabelTracker
     function trksysinfo = track2_codegen_gt(obj,trksysinfo)
       % trackListFile-specific trksysinfo massage + codegen
       
-      nview = obj.lObj.nview;
+      nvw = obj.lObj.nview;
       modelChainID = obj.trnName;
       
-      for ivw=1:nview
+      for ivw=1:nvw
         
         trkoutdir = trksysinfo(ivw).trkoutdir;
-        gtoutfile = sprintf('gtcls_vw%d_%s.mat',ivw,trksysinfo(ivw).trkinfotimestamp);
-        gtoutfile = [trkoutdir '/' gtoutfile];
+        gtoutfileBase  = sprintf('gtcls_vw%d_%s',ivw,trksysinfo(ivw).trkinfotimestamp);
+        gtoutfile = [trkoutdir '/' [gtoutfileBase '.mat']];
+        partfile = [gtoutfile '.part'];
         trksysinfo(ivw).outfile = gtoutfile;
+        trksysinfo(ivw).partfile = partfile;
         
         aptroot = trksysinfo(ivw).aptroot;
         logfile = trksysinfo(ivw).logfile;
@@ -2374,7 +2380,8 @@ classdef DeepTracker < LabelTracker
       
       trksysinfo = obj.track2_codegen_gt(trksysinfo);
       
-      obj.track2_bgStart(trksysinfo,@obj.cbkTrackGTComplete);
+      nfrms2trk = height(tblGT); % a little fragile here
+      obj.track2_bgStart(trksysinfo,@obj.cbkTrackGTComplete,nfrms2trk);
       
       [tfSucc,msg] = obj.track2_spawn(trksysinfo);
     end
@@ -2388,7 +2395,7 @@ classdef DeepTracker < LabelTracker
     
     function trackGTcompute(obj,tblGT,varargin)
       reportargs = myparse(varargin,...
-        'reportargs',{});
+        'reportargs',{'nmontage',24});
       
       tblMFT_SuggAndLbled = obj.lObj.gtGetTblSuggAndLbled();
       
@@ -2637,7 +2644,7 @@ classdef DeepTracker < LabelTracker
           end
           
           % base args
-          baseargsaug = hmapArgs;
+          baseargsaug = hmapATrkMonitorVizClrgs;
           modelFile = cellSelectHelper(modelFiles,ivw);
           baseargsaug = [baseargsaug {'model_file' modelFile}]; %#ok<AGROW>
           if tfcrop(imov)
