@@ -1,11 +1,11 @@
-classdef TrainMonitorVizCmdline < handle
+classdef TrkTrnMonVizCmdline < handle
   
   methods
     
-    function obj = TrainMonitorVizCmdline(varargin)
+    function obj = TrkTrnMonVizCmdline(varargin)
     end
     
-    function resultsReceived(obj,sRes)
+    function [tfSucc,msg] = resultsReceived(obj,sRes)
       % Callback executed when new result received from training monitor BG
       % worker
       %
@@ -24,10 +24,12 @@ classdef TrainMonitorVizCmdline < handle
 %         else
 %           fprintf(1,'\n');
 %         end
-      end      
+      end  
+      
+      tfSucc = true;
+      msg = '';
     end
     
   end
   
 end
-

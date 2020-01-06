@@ -154,8 +154,9 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
         if jj > 0.5:
             img[st:en, ...] = img[st:en, :, ::-1, :]
             for ll in range(locs.shape[2]):
-                if ll in pairs.keys():
-                    match = pairs[ll]
+                str_ll = '{}'.format(ll)
+                if str_ll in pairs.keys():
+                    match = pairs[str_ll]
                     locs[st:en, :, ll, 0] = wd - 1 - orig_locs[st:en, :, match, 0]
                     locs[st:en, :, ll, 1] = orig_locs[st:en, :, match, 1]
                 else:
@@ -185,7 +186,8 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
         if jj > 0.5:
             img[st:en, ...] = img[st:en, ::-1, : ,: ]
             for ll in range(locs.shape[2]):
-                if ll in pairs.keys():
+                str_ll = '{}'.format(ll)
+                if str_ll in pairs.keys():
                     match = pairs[ll]
                     locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, match , 1]
                     locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
@@ -360,15 +362,26 @@ def randomly_scale(img,locs,conf,group_sz=1):
     # and single channel
     im_sz = img.shape[1:]
     num = img.shape[0]
-    srange = conf.scale_range
-    if srange<0.01:
+    if conf.use_scale_factor_range:
+        srange = conf.scale_factor_range
+    else:
+        srange = conf.scale_range
+    if (conf.use_scale_factor_range and (srange > 1.0/1.01) and (srange < 1.01)) or \
+       ((not conf.use_scale_factor_range) and srange < .01):
         return img, locs
     n_groups = num//group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
-        sfactor = (np.random.rand()-0.5)*srange + 1
-
+        if conf.use_scale_factor_range:
+            # KB 20191218: first choose the scale factor
+            # then decide whether to make it smaller or larger
+            sfactor = 1.+np.random.rand()*np.abs(srange-1.)
+            if np.random.rand() < 0.5:
+                sfactor = 1.0/sfactor
+        else:
+            sfactor = (np.random.rand()-0.5)*srange + 1
+            
         for g in range(group_sz):
             jj = img[st+g, ...].copy()
             # cur_img = zoom(jj, sfactor) if srange != 0 else jj
@@ -387,7 +400,17 @@ def randomly_scale(img,locs,conf,group_sz=1):
 
 
 def randomly_affine(img,locs, conf, group_sz=1):
-    if conf.rrange < 1 and conf.trange< 1 and conf.scale_range<0.01:
+
+    # KB 20191218 - replaced scale_range with scale_factor_range
+    if conf.use_scale_factor_range:
+        srange = conf.scale_factor_range
+    else:
+        srange = conf.scale_range
+    no_rescale = (conf.use_scale_factor_range and \
+                  (srange > 1.0/1.01) and (srange < 1.01)) or \
+                  ((not conf.use_scale_factor_range) and srange < .01)
+    
+    if conf.rrange < 1 and conf.trange< 1 and no_rescale:
         return img, locs
 
     locs = locs.copy()
@@ -419,7 +442,17 @@ def randomly_affine(img,locs, conf, group_sz=1):
         while not sane:
             valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
-            sfactor = (np.random.rand() - 0.5) * conf.scale_range + 1 # XXX LOOKS LIKE BUG relative to doc? (looks like off fac 2?)
+
+            if conf.use_scale_factor_range:
+                # KB 20191218: first choose the scale factor
+                # then decide whether to make it smaller or larger
+                sfactor = 1.+np.random.rand()*np.abs(srange-1.)
+                if np.random.rand() < 0.5:
+                    sfactor = 1.0/sfactor
+            else:
+                sfactor = (np.random.rand()-0.5)*srange + 1
+
+            # sfactor = (np.random.rand() - 0.5) * conf.scale_range + 1
             # clip scaling to 0.05
             if sfactor < 0.05:
                 sfactor = 0.05

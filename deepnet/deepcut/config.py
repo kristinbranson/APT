@@ -27,6 +27,9 @@ def _merge_a_into_b(a, b):
         if type(v) is edict:
             try:
                 _merge_a_into_b(a[k], b[k])
+            except KeyError:
+                logging.warning(
+                    'Ignoring unrecognized configuration attribute: {}'.format(k))
             except:
                 print('Error under config key: {}'.format(k))
                 raise

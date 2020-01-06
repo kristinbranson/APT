@@ -1,4 +1,4 @@
-classdef DLBackEndClass < handle
+classdef DLBackEndClass < matlab.mixin.Copyable
   % Design unclear but good chance this is a thing
   %
   % This thing (maybe) specifies a physical machine/server along with a 
@@ -26,6 +26,7 @@ classdef DLBackEndClass < handle
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
     dockerimgroot = 'bransonlabapt/apt_docker';
     dockerimgtag = 'latest'; % optional tag eg 'tf1.6'
+    dockerremotehost = '';
     
     condaEnv = 'APT'; % used only for Conda
   end
@@ -66,6 +67,18 @@ classdef DLBackEndClass < handle
     end
     
     function delete(obj)
+      % AL 20191218
+      % DLBackEndClass can now be deep-copied (see copyAndDetach below) as 
+      % sometimes this is necessary for serialization eg to disk.
+      % Since the mapping from obj<->resource is no longer 1-to-1, 
+      % destructors should no longer shut down resources.
+      %
+      % See new shutdown() call.
+      
+      % pass
+    end
+    
+    function shutdown(obj)
       if obj.type==DLBackEnd.AWS
         aws = obj.awsec2;
         if ~isempty(aws)
@@ -77,6 +90,36 @@ classdef DLBackEndClass < handle
         end
       end
     end
+    
+    function obj2 = copyAndDetach(obj)
+      % See notes in BGClient, BGWorkerObjAWS.
+      %
+      % Sometimes we want a deep-copy of obj that is sanitized for
+      % eg serialization. This copy may still be largely functional (in the
+      % case of BGWorkerObjAWS) or perhaps it can be 'reconstituted' at
+      % load-time as here.
+      
+      assert(isscalar(obj));
+      obj2 = copy(obj);
+      if ~isempty(obj2.awsec2)
+        obj2.awsec2.clearStatusFuns();
+      end
+    end
+    
+  end
+  methods (Access=protected)
+    
+    function obj2 = copyElement(obj)
+      % overload so that .awsec2 is deep-copied
+      obj2 = copyElement@matlab.mixin.Copyable(obj);
+      if ~isempty(obj.awsec2)
+        obj2.awsec2 = copy(obj.awsec2);
+      end
+    end
+    
+  end
+  
+  methods
     
     function testConfigUI(obj,cacheDir)
       % Test whether backend is ready to do; display results in msgbox
@@ -333,19 +376,25 @@ classdef DLBackEndClass < handle
       tfsucc = true;
     end
     
-    function [tfsucc,clientver,clientapiver] = getDockerVers
+  end
+  
+  methods % Docker
+
+    % KB 20191219: moved this to not be a static function so that we could
+    % use this object's dockerremotehost
+    function [tfsucc,clientver,clientapiver] = getDockerVers(obj)
       % Run docker cli to get docker versions
       %
       % tfsucc: true if docker cli command successful
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      if isempty(obj.dockerremotehost),
         dockercmd = 'docker';
         dockercmdend = '';
         filequote = '"';
       else
-        dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
         dockercmdend = '"';
         filequote = '\"';
       end    
@@ -363,25 +412,24 @@ classdef DLBackEndClass < handle
       end
       
       res = regexp(res,'\n','split'); % in case of ssh
-      res = res{1};      
-      res = strtrim(res);
-      toks = regexp(res,'#','split');
-      if numel(toks)~=2
-        return;
-      end
+      for i = 1:numel(res),
+        res1 = res{i};
+        res1 = strtrim(res1);
+        toks = regexp(res1,'#','split');
+        if numel(toks)~=2
+          continue;
+        end
       
-      tfsucc = true;
-      clientver = toks{1};
-      clientapiver = toks{2};
+        tfsucc = true;
+        clientver = toks{1};
+        clientapiver = toks{2};
+        break;
+      end
     end
     
-  end
-   
-  methods % Docker
-
-    function filequote = getFileQuoteDockerCodeGen(obj) %#ok<MANU>
+    function filequote = getFileQuoteDockerCodeGen(obj) 
       % get filequote to use with codeGenDockerGeneral      
-      if isempty(APT.DOCKER_REMOTE_HOST)
+      if isempty(obj.dockerremotehost)
         % local Docker run
         filequote = '"';
       else
@@ -447,7 +495,7 @@ classdef DLBackEndClass < handle
       
       dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
       
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      if isempty(obj.dockerremotehost),
         % local Docker run
         dockercmd = sprintf('%s docker',dockerApiVerExport);
         dockercmdend = '';
@@ -457,7 +505,7 @@ classdef DLBackEndClass < handle
           error('Docker execution on remote host currently unsupported on Windows.');
           % Might work fine, maybe issue with double-quotes
         end
-        dockercmd = sprintf('ssh -t %s "%s docker',APT.DOCKER_REMOTE_HOST,dockerApiVerExport);
+        dockercmd = sprintf('ssh -t %s "%s docker',obj.dockerremotehost,dockerApiVerExport);
         dockercmdend = '"';
         filequote = '\"';
       end
@@ -506,11 +554,11 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
       
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      if isempty(obj.dockerremotehost),
         dockercmd = 'docker';
         dockercmdend = '';
       else
-        dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
         dockercmdend = '"';
       end      
       cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
@@ -530,11 +578,13 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking docker API version...'; drawnow;
       
-      [tfsucc,clientver,clientapiver] = DLBackEndClass.getDockerVers;
+      [tfsucc,clientver,clientapiver] = obj.getDockerVers;
       if ~tfsucc        
         hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
         return;
       end
+      
+      tfsucc = false;
       % In this conditional we assume the apiver numbering scheme continues
       % like '1.39', '1.40', ... 
       if ~(str2double(clientapiver)>=str2double(obj.dockerapiver))          
@@ -632,14 +682,17 @@ classdef DLBackEndClass < handle
           return;
         end
       end
+      
+      awsec2 = obj.awsec2;
 
       % test that AWS CLI is installed
       hedit.String{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); drawnow;
       cmd = 'aws ec2 describe-regions --output table';
       hedit.String{end+1} = cmd; drawnow;
-      [status,result] = system(cmd);
+      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true);
+      %[status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
-      if status ~= 0,
+      if ~tfsucc % status ~= 0,
         hedit.String{end+1} = 'FAILURE. Error using the AWS CLI.'; drawnow;
         return;
       end
@@ -648,8 +701,9 @@ classdef DLBackEndClass < handle
       hedit.String{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); drawnow;
       cmd = 'aws ec2 describe-security-groups';
       hedit.String{end+1} = cmd; drawnow;
-      [status,result] = system(cmd);
-      if status == 0,
+      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      %[status,result] = system(cmd);
+      if tfsucc %status == 0,
         try
           result = jsondecode(result);
           if ismember('apt_dl',{result.SecurityGroups.GroupName}),

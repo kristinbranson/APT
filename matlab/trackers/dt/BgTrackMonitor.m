@@ -1,4 +1,4 @@
-classdef BgTrackMonitor < BgMonitor  % BGTrackMonitor
+classdef BgTrackMonitor < BgMonitor 
   %
   % A BgTrackMonitor:
   % 1. Is a BGClient/BGWorker pair comprising a client, bg worker working

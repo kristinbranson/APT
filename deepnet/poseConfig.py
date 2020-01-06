@@ -35,6 +35,10 @@ class config(object):
         self.rrange = 30
         self.trange = 10
         self.scale_range = 0.1
+        self.scale_factor_range = 1.1
+        # KB 20191218 - if scale_factor_range is read in, use that
+        # otherwise, if scale_range is read in, use that
+        self.use_scale_factor_range = True
         self.imax = 255.
         self.check_bounds_distort = True
         self.adjust_contrast = False
@@ -42,6 +46,7 @@ class config(object):
         self.normalize_img_mean = False
         self.normalize_batch_mean = False
         self.perturb_color = False
+        self.flipLandmarkMatches = {}
 
         # ----- Data parameters
         # l1_cropsz = 0

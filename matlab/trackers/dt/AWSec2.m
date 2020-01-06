@@ -1,4 +1,4 @@
-classdef AWSec2 < handle
+classdef AWSec2 < matlab.mixin.Copyable
   % Handle to a single AWS EC2 instance. The instance may be in any state,
   % running, stopped, etc.
   %
@@ -106,6 +106,18 @@ classdef AWSec2 < handle
       if ~isempty(obj.ClearStatusFun),
         obj.ClearStatusFun(varargin{:});
       end
+    end
+    function clearStatusFuns(obj)
+      % AL20191218
+      % AWSEc2 objects are deep-copied onto bg worker objects and this is
+      % causing problems on Linux because these function handles contain
+      % references to the Labeler and the entire GUI is being
+      % serialized/copied. 
+      %
+      % For these worker objects these statusFun handles are unnec and we 
+      % clear them out.
+      obj.SetStatusFun = [];
+      obj.ClearStatusFun = [];
     end
     
     function setInstanceID(obj,instanceID,instanceType)
@@ -243,7 +255,7 @@ classdef AWSec2 < handle
       %[tfsucc,instanceID,instanceType,reason] = obj.selectInstance('dostore',false);
       
       [tfsucc,instanceID,pemFile] = ...
-        obj.specifyInstanceUIStc(obj.instanceID,obj.pem,'instanceIDs',instanceIDs,'instanceTypes',instanceTypes);
+        obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
     end
     
     function [tfsucc,keyName,pemFile] = respecifySSHKey(obj,dostore)
@@ -291,20 +303,21 @@ classdef AWSec2 < handle
       instanceIDs = {};
       instanceTypes = {};
       obj.SetStatus('Listing AWS EC2 instances available');
-      cmd = AWSec2.listInstancesCmd(obj.keyName);%,'instType',obj.instanceType);
+      cmd = AWSec2.listInstancesCmd(obj.keyName,'instType',[]); % empty instType to list all instanceTypes
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if tfsucc,
         info = jsondecode(json);
         if ~isempty(info.Reservations),
-          instanceIDs = {info.Reservations.Instances.InstanceId};
-          instanceTypes = {info.Reservations.Instances.InstanceType};
+          instanceIDs = arrayfun(@(x)x.Instances.InstanceId,info.Reservations,'uni',0);
+          instanceTypes = arrayfun(@(x)x.Instances.InstanceType,info.Reservations,'uni',0);
         end
       end
       obj.ClearStatus();
       
     end
     
-    function [tfsucc,instanceID,instanceType,reason,didLaunch] = selectInstance(obj,varargin)
+    function [tfsucc,instanceID,instanceType,reason,didLaunch] = ...
+        selectInstance(obj,varargin)
 
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin,'canlaunch',true,...
@@ -987,7 +1000,11 @@ classdef AWSec2 < handle
         'instType','p3.2xlarge',...
         'secGrp',APT.AWS_SECURITY_GROUP,...
         'dryrun',false);
-      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance-type,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"',ami,instType,secGrp,keyName);
+      
+      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"',ami,secGrp,keyName);
+      if ~isempty(instType)
+        cmd = [cmd sprintf(' "Name=instance-type,Values=%s"',instType)];
+      end
     end
     
     function cmd = describeInstancesCmd(ec2id)
@@ -1136,7 +1153,7 @@ classdef AWSec2 < handle
     end
 
     function [tfsucc,instanceID,pemFile] = ...
-                              specifyInstanceUIStc(instanceID,pemFile,varargin)
+                              specifyInstanceUIStc(instanceID,pemFile)
       % Prompt user to specify/confirm an AWS instance.
       % 
       % instanceID, pemFile (in): optional defaults/best guesses

@@ -137,6 +137,14 @@ classdef BgTrainWorkerObj < BgWorkerObj
 %       errFile = errFile{1};
     end
  
+    function killFiles = getKillFiles(obj)
+      nJobs = numel(obj.dmcs);
+      killFiles = cell(1,nJobs);
+      for ivw=1:nJobs
+        killFiles{ivw} = obj.dmcs(ivw).killTokenLnx;
+      end
+    end
+    
   end
   
 end

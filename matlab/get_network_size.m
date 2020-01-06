@@ -5,7 +5,7 @@ function nsz = get_network_size(net_type,im_sz,batch_size)
 % batch_size is the batch size. eg. 8
 % return the memory size in MB.
 
-dat_file = fullfile('deepnet','data','network_size.mat');
+dat_file = fullfile(APT.Root,'deepnet','data','network_size.mat');
 nsz = -1;
 try
   A = load(dat_file);
