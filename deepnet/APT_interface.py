@@ -46,8 +46,8 @@ ISPY3 = sys.version_info >= (3, 0)
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
-        sio.savemat(filename, out_dict, appendmat=False)
-        # hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+        # sio.savemat(filename, out_dict, appendmat=False)
+        hdf5storage.savemat(filename, out_dict, appendmat=False, truncate_existing=True)
     except Exception as e:
         logging.info('Exception caught saving mat-file {}: {}'.format(filename, e))
         logging.info('Pickling to {}...'.format(filename))
@@ -1578,6 +1578,8 @@ def compile_trk_info(conf, model_file, crop_loc, expname=None):
     param_dict = convert_unicode(conf.__dict__.copy())
     param_dict.pop('cropLoc', None)
     info[u'params'] = param_dict
+    if 'flipLandmarkMatches' in param_dict.keys() and not param_dict['flipLandmarkMatches']:
+        param_dict['flipLandmarkMatches'] = None
     info[u'crop_loc'] = to_mat(crop_loc)
 
     return info
