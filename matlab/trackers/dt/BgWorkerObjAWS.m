@@ -48,7 +48,7 @@ classdef BgWorkerObjAWS < BgWorkerObj
       aws = obj.awsEc2;
       for ivw=1:obj.nviews
         dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
+        cmd = sprintf('ls -al "%s"',dmc.dirModelChainLnx);
         fprintf('### View %d:\n',ivw);
         [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
         if tfsucc
@@ -60,6 +60,24 @@ classdef BgWorkerObjAWS < BgWorkerObj
         fprintf('\n');
       end
     end
+    
+    function dispTrkOutDir(obj)
+      aws = obj.awsEc2;
+      for ivw=1:obj.nviews
+        dmc = obj.dmcs(ivw);
+        cmd = sprintf('ls -al "%s"',dmc.dirTrkOutLnx);
+        fprintf('### View %d:\n',ivw);
+        [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
+        if tfsucc
+          disp(res);
+        else
+          warningNoTrace('Failed to access training directory %s: %s',...
+            dmc.dirModelChainLnx,res);
+        end
+        fprintf('\n');
+      end
+    end
+    
     
     function [tfsucc,warnings] = killProcess(obj)
       warnings = {};
