@@ -1263,8 +1263,8 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
     if model_type == 'dpk':
         pred_fn, close_fn, model_file = apt_dpk.get_pred_fn(conf, model_file)
     elif model_type == 'openpose':
-        pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file,name=name)
-	elif model_type == 'sb':
+        pred_fn, close_fn, model_file = op.get_pred_fn(conf, model_file,name=name)
+    elif model_type == 'sb':
         pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name)
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file,name=name)

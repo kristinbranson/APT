@@ -25,7 +25,7 @@ shift
 done
 
 if [ "$#" -eq 0 ]; then 
-    DIR=$scriptpath
+    DIR="$(dirname "$scriptpath")"
 elif [ "$#" -eq 1 ]; then
     DIR=$1
 else

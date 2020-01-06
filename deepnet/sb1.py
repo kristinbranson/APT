@@ -427,9 +427,10 @@ def training(conf, name='deepnet'):
 
     # prepare generators
     PREPROCFN = 'ims_locs_preprocess_sb'
-    train_di = opdata.data_generator(conf, 'train', True, True, PREPROCFN)
-    train_di2 = opdata.data_generator(conf, 'train', True, True, PREPROCFN)
-    val_di = opdata.data_generator(conf, 'train', False, False, PREPROCFN)
+    trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+    train_di = opdata.make_data_generator(trntfr, conf, True, True, PREPROCFN)
+    train_di2 = opdata.make_data_generator(trntfr, conf, True, True, PREPROCFN)
+    val_di = opdata.make_data_generator(trntfr, conf, False, False, PREPROCFN)
 
     losses, loss_weights, loss_weights_vec = configure_losses(model, batch_size)
 
@@ -460,7 +461,7 @@ def training(conf, name='deepnet'):
 
         def on_epoch_end(self, epoch, logs={}):
             step = (epoch+1) * iterations_per_epoch
-            val_x, val_y = self.val_di.next()
+            val_x, val_y = next(self.val_di)
             val_out = self.model.predict(val_x, batch_size=batch_size)
             val_out = [val_out,] # single output apparently not in list
             val_loss_full = self.model.evaluate(val_x, val_y, batch_size=batch_size, verbose=0)
@@ -468,7 +469,7 @@ def training(conf, name='deepnet'):
             #val_loss_full = val_loss_full[1:]
             #val_loss = dot(val_loss_full, loss_weights_vec)
             #val_loss = np.nan
-            train_x, train_y = self.train_di.next()
+            train_x, train_y = next(self.train_di)
             train_out = self.model.predict(train_x, batch_size=batch_size)
             train_out = [train_out,]
             train_loss_full = self.model.evaluate(train_x, train_y, batch_size=batch_size, verbose=0)
