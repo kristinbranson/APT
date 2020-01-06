@@ -46,8 +46,9 @@ ISPY3 = sys.version_info >= (3, 0)
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
-        sio.savemat(filename, out_dict, appendmat=False)
-        # hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+        #logging.info('Saving to mat file %s using hdf5storage.savemat'%filename)
+        #sio.savemat(filename, out_dict, appendmat=False)
+        hdf5storage.savemat(filename, out_dict, appendmat=False, truncate_existing=True)
     except Exception as e:
         logging.info('Exception caught saving mat-file {}: {}'.format(filename, e))
         logging.info('Pickling to {}...'.format(filename))

@@ -810,6 +810,38 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
         'destRelative',destRelative); % throws
     end
+        
+    function rmRemoteFile(obj,dst,fileDescStr,varargin) % throws
+      % Either i) confirm a remote file does not exist, or ii) deletes it.
+      % This method either succeeds or fails and harderrors.
+      %
+      % dst: path to file on remote system
+      % dstRel: relative (to home) path to destination
+      % fileDescStr: eg 'training file' or 'movie'
+      
+      destRelative = myparse(varargin,...
+        'destRelative',true);
+      
+      if destRelative
+        if iscell(dst),
+          dstAbs = cellfun(@(x) ['~/' x],dst,'Uni',0);
+        else
+          dstAbs = ['~/' dst];
+        end
+      else
+        dstAbs = dst;
+      end
+      
+      if iscell(dstAbs),
+        cmd = ['rm -f',sprintf(' "%s"',dstAbs{:})];
+      else
+        cmd = sprintf('rm -f "%s"',dstAbs);
+      end
+      obj.SetStatus(sprintf('Deleting %s file(s) (if they exist) from AWS EC2 instance',fileDescStr));
+      [tfsucc,res] = obj.cmdInstance(cmd,'dispcmd',true,'failbehavior','err'); %#ok<ASGLU>
+      obj.ClearStatus();
+    end
+    
     
     function tf = remoteFileExists(obj,f,varargin)
       [reqnonempty,dispcmd,usejavaRT,size] = myparse(varargin,...
