@@ -2644,7 +2644,7 @@ classdef DeepTracker < LabelTracker
           end
           
           % base args
-          baseargsaug = hmapATrkMonitorVizClrgs;
+          baseargsaug = hmapArgs;
           modelFile = cellSelectHelper(modelFiles,ivw);
           baseargsaug = [baseargsaug {'model_file' modelFile}]; %#ok<AGROW>
           if tfcrop(imov)
