@@ -3300,7 +3300,8 @@ classdef DeepTracker < LabelTracker
       if ~obj.bgTrkIsRunning
         fprintf('Tracking is not in progress; log is for most recent tracking session.\n');
       end
-      bgObj = obj.bgTrkMonBGWorkerObj;      
+      bgObj = obj.bgTrkMonBGWorkerObj; % For AWS this can cause trouble because the AWSEC2 instance is 
+        % detached
       bgObj.dispTrkOutDir();
     end
   end

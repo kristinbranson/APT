@@ -1579,6 +1579,8 @@ def compile_trk_info(conf, model_file, crop_loc, expname=None):
     param_dict = convert_unicode(conf.__dict__.copy())
     param_dict.pop('cropLoc', None)
     info[u'params'] = param_dict
+    if 'flipLandmarkMatches' in param_dict.keys() and not param_dict['flipLandmarkMatches']:
+        param_dict['flipLandmarkMatches'] = None
     info[u'crop_loc'] = to_mat(crop_loc)
 
     return info

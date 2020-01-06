@@ -1,9 +1,21 @@
-classdef BgWorkerObjAWS < BgWorkerObj
+classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
   
   properties
     awsEc2 % Instance of AWSec2
   end
   
+  methods (Access=protected)    
+    function obj2 = copyElement(obj)
+      % overload so that .awsec2 is deep-copied
+      obj2 = copyElement@matlab.mixin.Copyable(obj);
+      if ~isempty(obj.dmcs)
+        obj2.dmcs = copy(obj.dmcs);
+      end
+      if ~isempty(obj.awsEc2)
+        obj2.awsEc2 = copy(obj.awsEc2);
+      end
+    end
+  end
   methods
 
     function obj = BgWorkerObjAWS(nviews,dmcs,awsec2,varargin)
@@ -15,21 +27,17 @@ classdef BgWorkerObjAWS < BgWorkerObj
       % See note in BGClient/configure(). We create a new obj2 here that is
       % a deep-copy made palatable for parfeval
       
+      obj2 = copy(obj); % deep-copies obj, including .awsec2 and .dmcs if appropriate
+
       dmcs = obj.dmcs;
       if ~isempty(dmcs)
-        dmcs = dmcs.copyAndDetach();
+        dmcs.prepareBg();
       end
 
       aws = obj.awsEc2;
       if ~isempty(aws)
-        aws = copy(aws);
         aws.clearStatusFuns();
-      end
-      
-      objcls = class(obj);
-      % Semi-hack, only subclasses of BgWorkerObjAWS are
-      % BgTrain/TrackWorkerObjAWS and their constructor sigs match this.
-      obj2 = feval(objcls, obj.nviews, dmcs, aws); 
+      end      
     end    
     
     function tf = fileExists(obj,f)
@@ -48,7 +56,7 @@ classdef BgWorkerObjAWS < BgWorkerObj
       aws = obj.awsEc2;
       for ivw=1:obj.nviews
         dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
+        cmd = sprintf('ls -al "%s"',dmc.dirModelChainLnx);
         fprintf('### View %d:\n',ivw);
         [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
         if tfsucc
@@ -60,6 +68,24 @@ classdef BgWorkerObjAWS < BgWorkerObj
         fprintf('\n');
       end
     end
+    
+    function dispTrkOutDir(obj)
+      aws = obj.awsEc2;
+      for ivw=1:obj.nviews
+        dmc = obj.dmcs(ivw);
+        cmd = sprintf('ls -al "%s"',dmc.dirTrkOutLnx);
+        fprintf('### View %d:\n',ivw);
+        [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
+        if tfsucc
+          disp(res);
+        else
+          warningNoTrace('Failed to access training directory %s: %s',...
+            dmc.dirModelChainLnx,res);
+        end
+        fprintf('\n');
+      end
+    end
+    
     
     function [tfsucc,warnings] = killProcess(obj)
       warnings = {};

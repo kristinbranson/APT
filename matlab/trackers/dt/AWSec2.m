@@ -255,7 +255,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       %[tfsucc,instanceID,instanceType,reason] = obj.selectInstance('dostore',false);
       
       [tfsucc,instanceID,pemFile] = ...
-        obj.specifyInstanceUIStc(obj.instanceID,obj.pem,'instanceIDs',instanceIDs,'instanceTypes',instanceTypes);
+        obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
     end
     
     function [tfsucc,keyName,pemFile] = respecifySSHKey(obj,dostore)
@@ -1186,7 +1186,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
 
     function [tfsucc,instanceID,pemFile] = ...
-                              specifyInstanceUIStc(instanceID,pemFile,varargin)
+                              specifyInstanceUIStc(instanceID,pemFile)
       % Prompt user to specify/confirm an AWS instance.
       % 
       % instanceID, pemFile (in): optional defaults/best guesses
