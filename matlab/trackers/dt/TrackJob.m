@@ -226,6 +226,10 @@ classdef TrackJob < handle
       if isempty(cropRoi),
         obj.cropRoi = [];
       else
+        if iscell(cropRoi),
+          assert(numel(cropRoi)==1);
+          cropRoi = cropRoi{1};
+        end
         szassert(cropRoi,[obj.nTotalView 4]);
         obj.cropRoi = cropRoi(obj.ivw,:);
       end
