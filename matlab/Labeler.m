@@ -7035,7 +7035,7 @@ classdef Labeler < handle
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS(obj)
       
-      obj.lastLabelChangeTS = cellfun(@(x) max(x(:)),obj.labeledposTS);
+      obj.lastLabelChangeTS = max(cellfun(@(x) max(x(:)),obj.labeledposTS));
       
     end
     
@@ -11786,10 +11786,25 @@ classdef Labeler < handle
       if tfProceedSet
         obj.(PROPS.MFACI){iMov}(iview).roi = roi;
       end
+     
+      if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
+        % if this movie has labels, retraining might be necessary
+        % set timestamp for all labels in this movie to now
+        obj.reportLabelChange();
+      end
       
       % actually in some codepaths nothing changed, but shouldn't hurt
-      obj.preProcNonstandardParamChanged();
+      if tfSzChanged,
+        obj.preProcNonstandardParamChanged();
+      end
       obj.notify('cropCropsChanged'); 
+    end
+    
+    function reportLabelChange(obj)
+      
+      obj.labeledposNeedsSave = true;
+      obj.lastLabelChangeTS = now;
+
     end
     
     function tfOKSz = cropCheckValidCropSize(obj,iview,widthHeight)

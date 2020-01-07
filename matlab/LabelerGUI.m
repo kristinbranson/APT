@@ -2864,8 +2864,11 @@ save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
+
+SetStatus(handles,'Switching crop mode...');
 lObj = handles.labelerObj;
 lObj.cropSetCropMode(~lObj.cropIsCropMode);
+ClearStatus(handles);
 
 function menu_help_Callback(hObject, eventdata, handles)
 
@@ -4010,10 +4013,12 @@ end
 
 function cbkCropIsCropModeChanged(src,evt)
 lObj = src;
+lObj.SetStatus('Switching crop mode...');
 cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
 if lObj.hasMovie
   lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
+lObj.ClearStatus();
 
 function cbkUpdateCropGUITools(src,evt)
 lObj = src;
@@ -4040,6 +4045,7 @@ REGCONTROLS = {
 
 onIfTrue = onIff(tf);
 offIfTrue = onIff(~tf);
+
 %cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
 set(handles.uipanel_cropcontrols,'Visible',onIfTrue);
 set(handles.text_trackerinfo,'Visible',offIfTrue);
