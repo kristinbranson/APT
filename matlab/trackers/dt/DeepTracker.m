@@ -4706,7 +4706,7 @@ classdef DeepTracker < LabelTracker
       tfsuccess = false;
       isold = false;
       [p,n,e] = fileparts(trkfile);
-      m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_iter(?<iter>.*)_(?<trk_ts>.*)$','names','once');
+      m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_iter(?<iter>\d+)_(?<trk_ts>\d{8}T\d{6}).*$','names','once');
       if isempty(m),
         m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_(?<trk_ts>.*)$','names','once');
         if ~isempty(m),
