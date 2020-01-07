@@ -237,7 +237,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
           [st,res] = system(codestr);
           if st ~= 0,
-            warning('Error getting GPU info: %s',res);
+            warning('Error getting GPU info: %s\n%s',res,codestr);
             return;
           end
         case DLBackEnd.Conda
