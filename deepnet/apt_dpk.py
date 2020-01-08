@@ -62,7 +62,12 @@ skeleton_csvs = {
     'alice': ['/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'],
     'stephen': [
             '/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw0_side.csv',
-            '/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw1_front.csv'],
+            '/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw1_front.csv',
+        ],
+    'romain': [
+            '/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw0.csv',
+            '/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw1.csv',
+        ],
     'dpkfly':    ['/groups/branson/home/leea30/git/dpkd/datasets/fly/skeleton.csv'],
     'dpklocust': ['/groups/branson/home/leea30/git/dpkd/datasets/locust/skeleton.csv'],
     'dpkzebra':  ['/groups/branson/home/leea30/git/dpkd/datasets/zebra/skeleton.csv'],

@@ -12,11 +12,14 @@ import APT_interface as apt
 import h5py
 import PoseTools
 import os
+import shutil
+import subprocess
 import time
 import glob
 import re
 import numpy as np
 import matplotlib.pyplot as plt
+import datetime
 import apt_expts
 import os
 import ast
@@ -31,6 +34,7 @@ import tensorflow as tf
 import easydict
 import sys
 import apt_dpk
+
 
 ISPY3 = sys.version_info >= (3, 0)
 
@@ -88,7 +92,7 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
         op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
         groups = ['']
-        dpk_skel_csv = apt_dpk.skeleton_csvs['alice']
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
 
         if data_type == 'alice_difficult':
             gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_MDNvsDLC_labeled_alMassaged20190809_stripped.lbl'
@@ -99,7 +103,7 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         # for vw2; who knows vw1
         op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
-        dpk_skel_csv = apt_dpk.skeleton_csvs['stephen']
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
 
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
@@ -114,28 +118,29 @@ def setup(data_type_in,gpu_device=None):
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
         op_af_graph = '\(0,4\),\(1,4\),\(2,4\),\(3,4\)'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data//BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'brit1':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl'
         op_af_graph = '\(\(0,1\),\)'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'brit2':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
         op_af_graph = '\(2,0\),\(2,1\)'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'romain':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped_trn1027.mat'
         op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14),(12,13),(13,14),(14,18),(18,17),(17,16),(16,15)'
         op_af_graph = op_af_graph.replace('(','\(')
         op_af_graph = op_af_graph.replace(')','\)')
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/RomainTrainCVInfo20190419.mat'
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
         common_conf['trange'] = 20
     elif data_type == 'larva':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/LarvaTrainCVInfo20190419.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data/LarvaTrainCVInfo20190419.mat'
         j = tuple(zip(range(27), range(1, 28)))
         op_af_graph = '{}'.format(j)
         op_af_graph = op_af_graph.replace('(','\(')
@@ -172,8 +177,8 @@ def run_jobs(cmd_name,
              run_dir='/groups/branson/home/leea30/git/apt.dpk1920/deepnet',
              precmd='',
              logdir=sdir):
-    logfile = os.path.join(logdir,'opt_' + cmd_name+ '.log')
-    errfile = os.path.join(logdir,'opt_' + cmd_name+ '.err')
+    logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
+    errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 
     run = False
     if redo:
@@ -188,6 +193,11 @@ def run_jobs(cmd_name,
             run = False
 
     if run:
+        ss_script = os.path.join(os.path.dirname(run_dir), 'matlab', 'repo_snapshot.sh')
+        ss_dst = os.path.join(logdir, '{}.snapshot'.format(cmd_name))
+        ss_cmd = "{} > {}".format(ss_script, ss_dst)
+        subprocess.call(ss_cmd, shell=True)
+        print(ss_cmd)
         PoseTools.submit_job(cmd_name, cur_cmd, logdir,
                              gpu_model=gpu_model,
                              run_dir=run_dir,
@@ -456,9 +466,32 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
 
     return conf_opts
 
+def cp_exp_bare(src_exp_dir, dst_exp_dir):
+    '''
+    Copy training dbs etc from existing expdir to new empty expdir
+    :param src_exp_dir existing expdir
+    :param dst_exp_dir: new expdir, created if nec
+    :return:
+    '''
 
+    if not os.path.exists(dst_exp_dir):
+        os.mkdir(dst_exp_dir)
+        print("Created dir {}",format(dst_exp_dir))
 
-def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwargs):
+    GLOBSPECS = ['*.tfrecords', 'splitdata.json']
+    for globspec in GLOBSPECS:
+        gs = os.path.join(src_exp_dir, globspec)
+        globres = glob.glob(gs)
+        for src in globres:
+            fileshort = os.path.basename(src)
+            dst = os.path.join(dst_exp_dir, fileshort)
+            shutil.copyfile(src, dst)
+            print("Copied {}->{}".format(src, dst))
+
+def run_trainining(exp_name,train_type,view,run_type,
+                   train_name='deepnet',
+                   rename_existing_exp=True,
+                   **kwargs):
 
     common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
     end_cmd = 'train -skip_db -use_cache'
@@ -474,21 +507,36 @@ def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwar
     for k in cmd_opts.keys():
         opt_str = '{} -{} {} '.format(opt_str, k, cmd_opts[k])
 
+    now_str = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
     cur_cmd = common_cmd + conf_str + opt_str + end_cmd
-    cmd_name = '{}_view{}_{}_{}_{}'.format(data_type, view, exp_name, train_type,train_name)
-
-    # C+P mirror of APT_interf
-    exp_dir = os.path.join(cache_dir, proj_name, train_type, 'view_{}'.format(view), exp_name)
-    explog_dir = os.path.join(exp_dir, 'log')
-    if not os.path.exists(explog_dir):
-        os.mkdir(explog_dir)
+    cmd_name = '{}_view{}_{}_{}_{}_{}'.format(data_type, view, exp_name, train_type, train_name, now_str)
+    precmd = 'export PYTHONPATH="{}"'.format(dpk_py_path) if train_type == 'dpk' else ''
 
     if run_type == 'dry':
+        print(cmd_name)
+        print("precmd: {}".format(precmd))
+        print("cmd: {}".format(cur_cmd))
         return conf_opts, cur_cmd, cmd_name
     elif run_type == 'submit':
+        # C+P mirror of APT_interf
+        exp_dir = os.path.join(cache_dir, proj_name, train_type, 'view_{}'.format(view), exp_name)
+
+        # backup existing exp if nec
+        if rename_existing_exp and os.path.exists(exp_dir):
+            exp_dir_bak = '{}.bak{}'.format(exp_dir, now_str)
+            os.rename(exp_dir, exp_dir_bak)
+            print("Existing expdir {} renamed to {}.".format(exp_dir, exp_dir_bak))
+            cp_exp_bare(exp_dir_bak, exp_dir)
+
+        # code snapshot is done downstream in run_jobs/PoseTools submit
+
+        # logdir
+        explog_dir = os.path.join(exp_dir, 'log')
+        if not os.path.exists(explog_dir):
+            os.makedirs(explog_dir, exist_ok=True)  # Py3.2+ only
+
         print(cur_cmd)
         print()
-        precmd = 'export PYTHONPATH="{}"'.format(dpk_py_path) if train_type == 'dpk' else ''
         run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir)
     elif run_type == 'status':
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -890,7 +938,7 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
 
 
 
-def run_normal_training(expname = 'apt_expt', run_type = 'status'):
+def run_normal_training(expname = 'apt_expt', run_type = 'status', rename_existing_exp=True):
 
     common_conf['dl_steps'] = 50000
     common_conf['maxckpt'] = 20
@@ -901,7 +949,8 @@ def run_normal_training(expname = 'apt_expt', run_type = 'status'):
     for train_type in all_models:
         for view in range(nviews):
             key = "{}_vw{}".format(train_type, view)
-            results[key] = run_trainining(expname, train_type, view, run_type)
+            results[key] = run_trainining(expname, train_type, view, run_type,
+                                          rename_existing_exp=rename_existing_exp)
 
     return results
 
