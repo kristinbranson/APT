@@ -8575,6 +8575,8 @@ classdef Labeler < handle
         error('Specified table is not a valid Movie-Frame-Target table.');
       end
       
+      tblMFT = tblMFT(:,MFTable.FLDSID);
+      
       if ~isa(tblMFT.mov,'MovieIndex')
         warningNoTrace('Table .mov is numeric. Assuming positive indices into GT movie list (.movieFilesAllGT).');
         tblMFT.mov = MovieIndex(tblMFT.mov,true);
@@ -8705,7 +8707,7 @@ classdef Labeler < handle
         TargetSetVariable.AllTgts);    
       tblMFTLbld = mfts.getMFTable(obj);
       
-      [tf,loc] = ismember(tblMFTSugg,tblMFTLbld);
+      [tf,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
       assert(isequal(tf,obj.gtSuggMFTableLbled));
       nSuggLbled = nnz(tf);
       nSuggUnlbled = nnz(~tf);

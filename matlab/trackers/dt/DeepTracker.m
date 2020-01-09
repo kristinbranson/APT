@@ -2223,10 +2223,10 @@ classdef DeepTracker < LabelTracker
       be = obj.lObj.trackDLBackEnd;
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nvw,dmc,be);
             
-      mIdxDummy = MovieIndex(1); % not used for anything
+      %mIdxDummy = MovieIndex(1); % not used for anything
       movsDummy = repmat({'__UNUSED__'},1,nvw);
-      bgTrkWorkerObj.initFiles(mIdxDummy,movsDummy,...
-        outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)');      
+      bgTrkWorkerObj.initFiles(movsDummy,...
+        outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)',false);  
       % for now always true for track2* codepath
       bgTrkWorkerObj.setPartfileIsTextStatus(true);
 
