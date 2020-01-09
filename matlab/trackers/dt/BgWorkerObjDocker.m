@@ -183,9 +183,15 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       res = regexp(res,'\n','split');
       res = regexp(res,'^[0-9a-f]+$','once','match');
       l = cellfun(@numel,res);
-      res = res{find(l==64,1)};
-      assert(~isempty(res));
-      containerID = strtrim(res);
+      try
+        res = res{find(l==64,1)};
+        assert(~isempty(res));
+        containerID = strtrim(res);
+      catch ME,
+        warning('Could not parse job id from:\n%s\',res);
+        disp(getReport(ME));
+        containerID = '';
+      end
       
     end
     

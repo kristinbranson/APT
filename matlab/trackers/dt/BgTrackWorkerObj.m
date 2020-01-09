@@ -14,7 +14,9 @@ classdef BgTrackWorkerObj < BgWorkerObj
     % the client has, the client can decide what to do.
     
     nMovies = 1 % number of movies being tracked
-    mIdx % Movie index
+    nViewJobs = 1 % number of jobs views are broken into
+    mIdx = [] % Movie index
+    isexternal = false % whether we are tracking movies that are part of the lbl project
     movfiles % [nMovies x nview] full paths movie being tracked
     artfctTrkfiles % [nMovies x nviews] full paths trkfile to be generated/output
     artfctLogfiles % [nMovies x nViewJobs] cellstr of fullpaths to bsub logs
@@ -31,10 +33,9 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj@BgWorkerObj(varargin{:});
     end
     
-    function initFiles(obj,mIdx,movfiles,outfiles,logfiles,dlerrfiles,partfiles)
-      % 
+    function initFilesOld(obj,mIdx,movfiles,outfiles,logfiles,dlerrfiles,partfiles)
       %
-      % mIdx: Non-essential, just stored metadata returned to client 
+      %
       % movfiles: [nMovs x obj.nviews] just stored metadata ". However, the
       %   size is meaningful, see above
       
@@ -48,10 +49,10 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj.artfctPartTrkfiles = partfiles;
       obj.partFileIsTextStatus = false;
       % number of jobs views are split into. this will either be 1 or nviews
-      nViewJobs = size(logfiles,2);
-      obj.killFiles = cell(obj.nMovies,nViewJobs);
+      obj.nViewJobs = size(logfiles,2);
+      obj.killFiles = cell(obj.nMovies,obj.nViewJobs);
       for imov = 1:obj.nMovies,
-        for ivw = 1:nViewJobs,
+        for ivw = 1:obj.nViewJobs,
           if obj.nMovies > 1,
             obj.killFiles{imov,ivw} = sprintf('%s.mov%d_vw%d.KILLED',logfiles{imov,ivw},imov,ivw);
           else
@@ -61,16 +62,46 @@ classdef BgTrackWorkerObj < BgWorkerObj
       end
     end
     
+    function initFiles(obj,movfiles,outfiles,logfiles,dlerrfiles,partfiles,isexternal)
+      % 
+      %
+      % movfiles: [nMovs x obj.nviews] just stored metadata ". However, the
+      %   size is meaningful, see above
+      
+      obj.nMovies = size(movfiles,1);
+      assert(size(movfiles,2)==obj.nviews);
+      obj.movfiles = movfiles;
+      obj.artfctTrkfiles = outfiles;
+      obj.artfctLogfiles = logfiles;
+      obj.artfctErrFiles = dlerrfiles;
+      obj.artfctPartTrkfiles = partfiles;
+      obj.partFileIsTextStatus = false;
+      % number of jobs views are split into. this will either be 1 or nviews
+      obj.nViewJobs = size(logfiles,2);
+      obj.killFiles = cell(obj.nMovies,obj.nViewJobs);
+      for imov = 1:obj.nMovies,
+        for ivw = 1:obj.nViewJobs,
+          if obj.nMovies > 1,
+            obj.killFiles{imov,ivw} = sprintf('%s.mov%d_vw%d.KILLED',logfiles{imov,ivw},imov,ivw);
+          else
+            obj.killFiles{ivw} = sprintf('%s.%d.KILLED',logfiles{ivw},ivw);
+          end
+        end
+      end
+      obj.isexternal = isexternal;
+    end
+    
     function setPartfileIsTextStatus(obj,tf)
       obj.partFileIsTextStatus = tf;
     end
       
     function sRes = compute(obj)
-      % sRes: [nviews] struct array      
+      % sRes: [nMovies x nviews] struct array      
 
       % Order important, check if job is running first. If we check after
       % looking at artifacts, job may stop in between time artifacts and 
       % isRunning are probed.
+      % isRunning is nMovies x nViewJobs
       isRunning = obj.getIsRunning();
       if isempty(isRunning)
         isRunning = true(size(obj.killFiles));
@@ -79,14 +110,14 @@ classdef BgTrackWorkerObj < BgWorkerObj
       end
       isRunning = num2cell(isRunning);
       
-      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0);
-      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctLogfiles,'uni',0);
-      bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0);
+      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0); % nMovies x nViewJobs
+      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctLogfiles,'uni',0); % nMovies x nViewJobs
+      bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0); % nMovies x nViewJobs
       
       % KB 20190115: also get locations of part track files and timestamps
       % of last modification
-      partTrkFileTimestamps = nan(size(obj.artfctPartTrkfiles));
-      parttrkfileNfrmtracked = nan(size(obj.artfctPartTrkfiles));
+      partTrkFileTimestamps = nan(size(obj.artfctPartTrkfiles)); % nMovies x nviews
+      parttrkfileNfrmtracked = nan(size(obj.artfctPartTrkfiles)); % nMovies x nviews
       for i = 1:numel(obj.artfctPartTrkfiles),
         parttrkfile = obj.artfctPartTrkfiles{i};
         tmp = dir(parttrkfile);
@@ -103,7 +134,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         end
       end      
         
-      killFileExists = false(size(obj.killFiles));
+      killFileExists = false(size(obj.killFiles)); % nMovies x nViewJobs
       for i = 1:numel(obj.killFiles),
         killFileExists(i) = obj.fileExists(obj.killFiles{i});
       end
@@ -113,11 +144,10 @@ classdef BgTrackWorkerObj < BgWorkerObj
       else
         mIdx = obj.mIdx;
       end
-      % number of jobs views are split up into
-      nViewJobs = size(obj.killFiles,2);
       % number of views handled per job
-      nViewsPerJob = obj.nviews / nViewJobs;
+      nViewsPerJob = obj.nviews / obj.nViewJobs;
       
+      % nMovies x nviews
       sRes = struct(...
         'tfComplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
         'isRunning',repmat(isRunning,[1,nViewsPerJob]),...
@@ -133,7 +163,8 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'parttrkfile',obj.artfctPartTrkfiles,...
         'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
         'killFile',repmat(obj.killFiles,[1,nViewsPerJob]),...
-        'killFileExists',repmat(num2cell(killFileExists),[1,nViewsPerJob]));
+        'killFileExists',repmat(num2cell(killFileExists),[1,nViewsPerJob]),...
+        'isexternal',repmat(obj.isexternal,[1,nViewsPerJob]));
       if obj.partFileIsTextStatus
         parttrkfileNfrmtracked = num2cell(parttrkfileNfrmtracked);
         [sRes.parttrkfileNfrmtracked] = deal(parttrkfileNfrmtracked{:});

@@ -5040,10 +5040,11 @@ classdef Labeler < handle
     % updated as it is assumed that trxfiles on disk do not mutate over the
     % course of a single APT session.
     
-    function [trx,frm2trx] = getTrx(obj,filename,nfrm)
+    function [trx,frm2trx] = getTrx(obj,filename,varargin)
+      % [trx,frm2trx] = getTrx(obj,filename,[nfrm])
       % Get trx data for iMov/iView from .trxCache; load from filesys if
       % necessary      
-      [trx,frm2trx] = Labeler.getTrxCacheStc(obj.trxCache,filename,nfrm);
+      [trx,frm2trx] = Labeler.getTrxCacheStc(obj.trxCache,filename,varargin{:});
     end
     
     function clearTrxCache(obj)
@@ -5064,11 +5065,19 @@ classdef Labeler < handle
       % frm2trx: [nfrm x ntrx] logical. frm2trx(f,i) is true if trx(i) is
       %  live @ frame f
       
+      if nargin < 3,
+        nfrm = [];
+      end
+      
       if trxCache.isKey(filename)
         s = trxCache(filename);
         trx = s.trx;
         frm2trx = s.frm2trx;
+        if isempty(nfrm),
+          nfrm = size(frm2trx,1);
+        end
         szassert(frm2trx,[nfrm numel(trx)]);
+          
       else
         if exist(filename,'file')==0
           % Currently user will have to navigate to iMov to fix
@@ -5283,6 +5292,9 @@ classdef Labeler < handle
       % f2t: [nfrm x nTrx] logical. f2t(f,iTgt) is true iff trx(iTgt) is
       % live at frame f.
       
+      if isempty(nfrm),
+        nfrm = max([trx.endframe]);
+      end
       nTrx = numel(trx);
       f2t = false(nfrm,nTrx);
       for iTgt=1:nTrx
@@ -7023,7 +7035,7 @@ classdef Labeler < handle
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS(obj)
       
-      obj.lastLabelChangeTS = cellfun(@(x) max(x(:)),obj.labeledposTS);
+      obj.lastLabelChangeTS = max(cellfun(@(x) max(x(:)),obj.labeledposTS));
       
     end
     
@@ -11774,10 +11786,25 @@ classdef Labeler < handle
       if tfProceedSet
         obj.(PROPS.MFACI){iMov}(iview).roi = roi;
       end
+     
+      if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
+        % if this movie has labels, retraining might be necessary
+        % set timestamp for all labels in this movie to now
+        obj.reportLabelChange();
+      end
       
       % actually in some codepaths nothing changed, but shouldn't hurt
-      obj.preProcNonstandardParamChanged();
+      if tfSzChanged,
+        obj.preProcNonstandardParamChanged();
+      end
       obj.notify('cropCropsChanged'); 
+    end
+    
+    function reportLabelChange(obj)
+      
+      obj.labeledposNeedsSave = true;
+      obj.lastLabelChangeTS = now;
+
     end
     
     function tfOKSz = cropCheckValidCropSize(obj,iview,widthHeight)
