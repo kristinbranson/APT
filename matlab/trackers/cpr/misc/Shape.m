@@ -997,6 +997,8 @@ classdef Shape
       opts.framelbls = [];
       opts.framelblscolor = [1 1 1];
       opts.labelpts = false;
+      opts.labelptsdx = 10;
+      opts.labelptsargs = {'fontweight' 'bold'};
       opts.md = [];
       opts.p2 = [];
       opts.p2marker = '+';
@@ -1120,8 +1122,13 @@ classdef Shape
       hP1 = gobjects(npts,1);
       hP2 = gobjects(npts,1);
       for ipt=1:npts
-        hP1(ipt) = plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...
-            'wo','MarkerFaceColor',colors(ipt,:));
+        bigx = squeeze(bigP(ipt,1,:));
+        bigy = squeeze(bigP(ipt,2,:));        
+        hP1(ipt) = plot(bigx,bigy,'wo','MarkerFaceColor',colors(ipt,:));
+        if opts.labelpts
+          text(bigx+opts.labelptsdx,bigy+opts.labelptsdx,num2str(ipt),...
+            'color',colors(ipt,:),opts.labelptsargs{:});
+        end
         if tfP2
           hP2(ipt) = plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
             opts.p2marker,'MarkerFaceColor',colors(ipt,:),...

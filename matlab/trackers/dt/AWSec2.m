@@ -258,7 +258,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
     end
     
-    function [tfsucc,keyName,pemFile] = respecifySSHKey(obj,dostore)
+    function [tfsucc,keyName,pemFile] = specifyPemKeyType(obj,dostore)
       if nargin < 2,
         dostore = false;
       end
@@ -331,7 +331,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       
       if ~obj.isConfigured || canConfigure >= 2,
         if canConfigure,
-          [tfsucc] = obj.respecifySSHKey(true);
+          [tfsucc] = obj.specifyPemKeyType(true);
           if ~tfsucc && ~obj.isConfigured,
             reason = 'AWS EC2 instance is not configured.';
             return;
