@@ -8948,6 +8948,18 @@ classdef Labeler < handle
       [iMov,iMovGT] = Labeler.identifyCommonMovSets(...
         obj.movieFilesAllFull,obj.movieFilesAllGTFull);
     end
+    function fname = getDefaultFilenameExportGTResults(obj)
+      gtstr = 'gtresults';
+      if ~isempty(obj.projectfile)
+        rawname = ['$projdir/$projfile_' gtstr '.mat'];
+      elseif ~isempty(obj.projname)
+        rawname = ['$projdir/$projname_' gtstr '.mat'];
+      else
+        rawname = ['$projdir/' gtstr '.mat'];
+      end
+      sMacro = obj.baseTrkFileMacros();
+      fname = FSPath.macroReplace(rawname,sMacro);
+    end
   end
   methods (Static)
     function PROPS = gtGetSharedPropsStc(gt)
