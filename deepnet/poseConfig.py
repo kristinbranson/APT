@@ -131,6 +131,7 @@ class config(object):
         self.dpk_n_outputs = 1              # (settable at TGTFR._call_-time)
         self.dpk_use_augmenter = True       # if true, use dpk_augmenter if distort=True
         self.dpk_augmenter = None           # iaa obj
+        self.dpk_n_transition_min = 5       # target n_transition=this; in practice could be more if imsz is perfect power of 2 etc
         self.dpk_im_pady = None
         self.dpk_im_padx = None
         self.dpk_use_graph = True           # (immutable after early) bool

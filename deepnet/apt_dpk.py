@@ -487,7 +487,7 @@ def update_conf_dpk(conf_base,
             conf.img_dim = imshape[2]
     assert hasattr(conf, 'n_classes') and hasattr(conf, 'imsz') and hasattr(conf, 'img_dim')
 
-    dsfac = 2 ** conf.dpk_downsample_factor
+    dsfac = 2 ** conf.dpk_n_transition_min
     roundupeven = lambda x: int(np.ceil(x/dsfac)) * dsfac
     imsznet = conf.imsz
     imsznet = (roundupeven(imsznet[0]), roundupeven(imsznet[1]))

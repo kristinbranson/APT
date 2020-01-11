@@ -543,7 +543,7 @@ def run_trainining(exp_name,train_type,view,run_type,
         check_train_status(cmd_name, conf.cachedir)
 
 
-def get_apt_conf():
+def get_apt_conf(**kwargs):
     '''
     Create/generate confs as (hopefully) done by Apt_interf
     :return:
@@ -554,7 +554,7 @@ def get_apt_conf():
     for view in range(nviews):
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
-            conf_opts = run_trainining_conf_helper(train_type, view, {})
+            conf_opts = run_trainining_conf_helper(train_type, view, kwargs)
             pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
             pvlist = apt.conf_opts_pvargstr2list(pvlist)
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,

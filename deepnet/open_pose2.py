@@ -170,7 +170,11 @@ def get_model_memory_usage(batch_size, model):
     shapes_mem_count = 0
     for l in model.layers:
         single_layer_mem = 1
-        for s in l.output_shape:
+        outshape = l.output_shape
+        if isinstance(outshape, list):
+            assert len(outshape)==1
+            outshape = outshape[0]
+        for s in outshape:
             if s is None:
                 continue
             single_layer_mem *= s

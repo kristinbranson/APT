@@ -3,6 +3,10 @@ from __future__ import print_function
 
 import numpy as np
 
+def dictsubsetpfix(d, pfix):
+    return dict((k, d[k]) for k in d if k.startswith(pfix))
+
+
 def dictdiff(d1, d2):
     k1 = set(d1.keys())
     k2 = set(d2.keys())
