@@ -54,19 +54,63 @@ def get_cmap(n_classes,map_name='jet'):
     cmap = cm.get_cmap(map_name)
     return cmap(np.linspace(0, 1, n_classes))
 
+def rescale_points(locs_hires, scalex, scaley):
+    '''
+    Rescale (x/y) points to a lower res. Returns a new array
 
-def scale_images(img, locs, scale, conf):
+    :param locs_hires: (nbatch x npts x 2) (x,y) locs, 0-based. (0,0) is the center of the upper-left pixel.
+    :param scalex: float downsample factor. eg if 2, the image size is cut in half
+    :return: (nbatch x npts x 2) (x,y) locs, 0-based, rescaled (lo-res)
+
+    Should work fine with scale<1
+    '''
+
+    bsize, npts, d = locs_hires.shape
+    assert d == 2
+    assert issubclass(locs_hires.dtype.type, np.floating)
+    locs_lores = locs_hires.copy()
+    locs_lores[:, :, 0] = (locs_lores[:, :, 0] - float(scalex - 1) / 2) / scalex
+    locs_lores[:, :, 1] = (locs_lores[:, :, 1] - float(scaley - 1) / 2) / scaley
+    return locs_lores
+
+def unscale_points(locs_lores, scalex, scaley):
+    '''
+    Undo rescale_points. Returns a new array
+
+    :param locs_lores:
+    :param scale:
+    :return:
+    '''
+
+    bsize, npts, d = locs_lores.shape
+    assert d == 2
+    assert issubclass(locs_lores.dtype.type, np.floating)
+    locs_hires = locs_lores.copy()
+    locs_hires[:, :, 0] = float(scalex) * (locs_hires[:, :, 0] + 0.5) - 0.5
+    locs_hires[:, :, 1] = float(scaley) * (locs_hires[:, :, 1] + 0.5) - 0.5
+    return locs_hires
+
+def scale_images(img, locs, scale, conf, **kwargs):
     sz = img.shape
-    simg = np.zeros((sz[0], int(float(sz[1])/ scale), int(float(sz[2])/ scale), sz[3]))
+    szy_ds = sz[1]//scale
+    szx_ds = sz[2]//scale
+    scaley_actual = sz[1]/szy_ds
+    scalex_actual = sz[2]/szx_ds
+
+    simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
     for ndx in range(sz[0]):
+        # use anti_aliasing?
         if sz[3] == 1:
             simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3],
-                                                  preserve_range=True,mode='edge')
+                                                  preserve_range=True, mode='edge', **kwargs)
         else:
             simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3],
-                                                  preserve_range= True, mode='edge')
-    new_locs = locs.copy()
-    new_locs = new_locs/scale
+                                                  preserve_range= True, mode='edge', **kwargs)
+
+    # AL 20190909. see also create_label_images
+    # new_locs = new_locs/scale
+    new_locs = rescale_points(locs, scalex_actual, scaley_actual)
+
     return simg, new_locs
 
 
@@ -530,9 +574,26 @@ def create_label_images_slow(locs, im_sz, scale, blur_rad):
 
 
 def create_label_images(locs, im_sz, scale, blur_rad):
+    '''
+
+    :param locs: original, hi-res locs
+    :param im_sz: original, hi-res imsz
+    :param scale: downsample fac
+    :param blur_rad: gaussian/blur radius in output coord sys
+    :return: [bsize x sz0_ds x sz1_ds x npts]
+
+    Note: this uses pixel-centered template in the output/downsampled coord sys
+    so is not subpixel-accurate
+
+    '''
     n_classes = len(locs[0])
-    sz0 = int(im_sz[0]// scale)
+    sz0 = int(im_sz[0] // scale)
     sz1 = int(im_sz[1] // scale)
+
+    # These may differ slightly from scale if im_sz is not evenly divisible by
+    # scale.
+    scaley_actual = im_sz[0]/sz0
+    scalex_actual = im_sz[1]/sz1
 
     label_ims = np.zeros((len(locs), sz0, sz1, n_classes))
     # labelims1 = np.zeros((len(locs),sz0,sz1,n_classes))
@@ -549,10 +610,11 @@ def create_label_images(locs, im_sz, scale, blur_rad):
                 continue
                 #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
             #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
-            yy = float(locs[ndx][cls][1]-float(scale-1)/2)/scale
-            xx = float(locs[ndx][cls][0]-float(scale-1)/2)/scale
-            modlocs0 = int(np.round(yy))
-            modlocs1 = int(np.round(xx))
+
+            yy = float(locs[ndx][cls][1]-float(scaley_actual-1)/2)/scaley_actual
+            xx = float(locs[ndx][cls][0]-float(scalex_actual-1)/2)/scalex_actual
+            modlocs0 = int(np.round(yy))  # AL 20200113 not subpixel
+            modlocs1 = int(np.round(xx))  # AL 20200113 not subpixel
             l0 = min(sz0, max(0, modlocs0 - k_size))
             r0 = max(0, min(sz0, modlocs0 + k_size + 1))
             l1 = min(sz1, max(0, modlocs1 - k_size))
@@ -562,7 +624,7 @@ def create_label_images(locs, im_sz, scale, blur_rad):
 
     # label_ims = 2.0 * (label_ims - 0.5)
     label_ims -= 0.5
-    label_ims *=2.0
+    label_ims *= 2.0
     return label_ims
 
 
@@ -864,26 +926,57 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     plt.figure(); plt.imshow(im_s,cmap=cmap)
 
 
-def show_result(ims, ndx, locs, predlocs= None):
+def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11):
     import matplotlib.pyplot as plt
     from matplotlib import cm
     count = float(len(ndx))
     yy = np.ceil(np.sqrt(count/12)*4).astype('int')
     xx = np.ceil(count/yy).astype('int')
-    f,ax = plt.subplots(xx,yy,figsize=(16,12),sharex=True,sharey=True)
+    f = plt.figure(num=fignum)
+    f.clf()
+    ax = f.subplots(xx,yy,sharex=True,sharey=True)  # figsize=(16,12),
     ax = ax.flatten()
     cmap = cm.get_cmap('jet')
     rgba = cmap(np.linspace(0, 1, locs.shape[1]))
-    for idx in range(count):
+    for idx in range(int(count)):
         if ims.shape[3] == 1:
             ax[idx].imshow(ims[ndx[idx],:,:,0],cmap='gray')
         else:
             ax[idx].imshow(ims[ndx[idx],...])
 
-        ax[idx].scatter(locs[ndx[idx],:,0],locs[ndx[idx],:,1],c=rgba,marker='.')
+        if hilitept is not None:
+            ax[idx].scatter(locs[ndx[idx], :, 0], locs[ndx[idx], :, 1],
+                            c=rgba, marker='.', alpha=0.25)
+            plt.sca(ax[idx])
+            plt.plot(locs[ndx[idx], hilitept, 0], locs[ndx[idx], hilitept, 1],
+                     c=rgba[hilitept,:], marker='.', markersize=12)
+        else:
+            ax[idx].scatter(locs[ndx[idx],:,0],locs[ndx[idx],:,1],c=rgba,marker='.', s=mrkrsz)
         if predlocs is not None:
-            ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
-                            c=rgba, marker='+')
+            if hilitept is not None:
+                ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
+                                c=rgba, marker='+', alpha=0.25)
+                #plt.sca(ax[idx])
+                plt.plot(predlocs[ndx[idx], hilitept, 0], predlocs[ndx[idx], hilitept, 1],
+                         c=rgba[hilitept,:], marker='+', markersize=12)
+            else:
+                ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
+                                c=rgba, marker='+', s=mrkrsz)
+
+        f.patch.set_facecolor((0.4, 0.4, 0.4))
+        ax[idx].set_facecolor((1, 1, 1))
+
+        tstr = "row {}".format(ndx[idx])
+        if mft is not None:
+            mov, frm, tgt = mft[ndx[idx], :]
+            tstr += ": {}/{}/{}".format(mov, frm, tgt)
+        if perr is not None and hilitept is not None:
+            tstr += ": {:.3f}".format(perr[ndx[idx], hilitept])
+        if len(tstr)>0:
+            tobj = plt.title(tstr)
+            plt.setp(tobj, color='w')
+
+    return ax
 
 
 def output_graph(logdir, sess):
