@@ -436,6 +436,35 @@ def get_rae_normal_conf():
 
     return conf
 
+def compute_padding_imsz_net(imsz, rescale, n_transition_min):
+    '''
+    From the raw image size, desired rescale, and desired n_transition_min,
+    compute the necessary padding and resulting imsz_net (input-to-network-size)
+
+    :param imsz: [2] raw im size
+    :param rescale: float, desired rescale. Note this is not precisely equal to the rescale used
+    :param n_transition_min: desired minimum n_transition
+    :return: padx, pady, imsz_pad, imsz_net
+    '''
+
+    # in tfdatagen, the input pipeline is read->pad->rescale/distort->ready_for_network
+
+    # we set the padding so the rescale is 'perfect' ie the desired rescale is the one precisely
+    # used ie the imsz-after-pad is precisely divisible by rescale
+
+    assert isinstance(rescale, int) or rescale.is_integer(), "Expect rescale to by integral value"
+
+    imsz_pad_should_be_divisible_by = int(rescale * 2 ** n_transition_min)
+    dsfac = imsz_pad_should_be_divisible_by
+    roundupeven = lambda x: int(np.ceil(x/dsfac)) * dsfac
+
+    imsz_pad = (roundupeven(imsz[0]), roundupeven(imsz[1]))
+    padx = imsz_pad[1] - imsz[1]
+    pady = imsz_pad[0] - imsz[0]
+    imsz_net = (int(imsz_pad[0]/rescale), int(imsz_pad[1]/rescale))
+
+    return padx, pady, imsz_pad, imsz_net
+
 def update_conf_dpk(conf_base,
                     graph,
                     swap_index,
@@ -487,13 +516,11 @@ def update_conf_dpk(conf_base,
             conf.img_dim = imshape[2]
     assert hasattr(conf, 'n_classes') and hasattr(conf, 'imsz') and hasattr(conf, 'img_dim')
 
-    dsfac = 2 ** conf.dpk_n_transition_min
-    roundupeven = lambda x: int(np.ceil(x/dsfac)) * dsfac
-    imsznet = conf.imsz
-    imsznet = (roundupeven(imsznet[0]), roundupeven(imsznet[1]))
-    conf.dpk_imsz_net = imsznet
-    conf.dpk_im_padx = conf.dpk_imsz_net[1] - conf.imsz[1]
-    conf.dpk_im_pady = conf.dpk_imsz_net[0] - conf.imsz[0]
+    conf.dpk_im_padx, conf.dpk_im_pady, conf.dpk_imsz_pad, conf.dpk_imsz_net = \
+        compute_padding_imsz_net(conf.imsz, conf.rescale, conf.dpk_n_transition_min)
+
+    logging.info("DPK size stuff: imsz={}, imsz_pad={}, imsz_net={}, rescale={}, n_trans_min={}".format(
+        conf.imsz, conf.dpk_imsz_pad, conf.dpk_imsz_net, conf.rescale, conf.dpk_n_transition_min))
 
     conf.dpk_graph = graph
     conf.dpk_swap_index = swap_index
@@ -757,9 +784,20 @@ def get_pred_fn(conf0, model_file):
         # can do non-distort img preproc
         ims, _, _ = opd.ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locs_dummy, conf, False)
 
+        assert ims.shape[1] == conf.dpk_imsz_net[0]
+        assert ims.shape[2] == conf.dpk_imsz_net[1]
+        assert ims.shape[3] == conf.img_dim
+
         predres = pred_model.predict(ims)
         locs = predres[..., :2]  # 3rd/last col is confidence
         confidence = predres[..., 2]
+
+        # locs are in imsz_net-space which is post-pad, post rescale
+        # Right now we are setting padding in update_conf_dpk so the rescale is precisely used
+        locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)  # makes a copy, returns new array
+        locs[..., 0] -= conf.dpk_im_padx//2  # see tfdatagen.pad_ims_black
+        locs[..., 1] -= conf.dpk_im_pady//2
+
         ret_dict = {}
         ret_dict['locs'] = locs
         ret_dict['confidence'] = confidence

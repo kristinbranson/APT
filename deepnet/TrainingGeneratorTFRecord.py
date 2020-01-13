@@ -96,9 +96,9 @@ class TrainingGeneratorTFRecord:
         valmddict = mrd.read_tfrecord_metadata(valtfr)
         for k in ['height', 'width', 'depth']:
             assert trnmddict[k] == valmddict[k]
-        # as far as TGTFR and all DPK-related, the ims have post-padded sz
-        self.height = trnmddict['height'] + conf.dpk_im_pady
-        self.width = trnmddict['width'] + conf.dpk_im_padx
+        # as far as TGTFR and all DPK-related, the ims have post-pad, post-rescale sz
+        self.height = conf.dpk_imsz_net[0]
+        self.width = conf.dpk_imsz_net[1]
         self.n_channels = trnmddict['depth']
         self.image_shape = (self.height, self.width, self.n_channels)
         conf.dpk_output_shape = (

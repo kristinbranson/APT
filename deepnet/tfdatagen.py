@@ -161,38 +161,6 @@ def create_affinity_labels(locs, imsz, graph,
 
     return out
 
-def rescale_points(locs_hires, scale):
-    '''
-    Rescale (x/y) points to a lower res
-
-    :param locs_hires: (nbatch x npts x 2) (x,y) locs, 0-based. (0,0) is the center of the upper-left pixel.
-    :param scale: downsample factor. eg if 2, the image size is cut in half
-    :return: (nbatch x npts x 2) (x,y) locs, 0-based, rescaled (lo-res)
-
-    Should work fine with scale<1
-    '''
-
-    bsize, npts, d = locs_hires.shape
-    assert d == 2
-    assert issubclass(locs_hires.dtype.type, np.floating)
-    locs_lores = (locs_hires - float(scale - 1) / 2) / scale
-    return locs_lores
-
-def unscale_points(locs_lores, scale):
-    '''
-    Undo rescale_points
-
-    :param locs_lores:
-    :param scale:
-    :return:
-    '''
-
-    bsize, npts, d = locs_lores.shape
-    assert d == 2
-    assert issubclass(locs_lores.dtype.type, np.floating)
-    locs_hires = float(scale) * (locs_lores + 0.5) - 0.5
-    return locs_hires
-
 def parse_record(record, npts):
     example = tf.train.Example()
     example.ParseFromString(record)
@@ -252,7 +220,7 @@ def pad_ims_edge(ims, locs, pady, padx):
 def pad_ims_black(ims, locs, pady, padx):
     # Similar to PoseTools.pad_ims
 
-    pady_b = pady//2 # before
+    pady_b = pady//2  # before
     padx_b = padx//2
     pady_a = pady-pady_b # after
     padx_a = padx-padx_b
@@ -294,8 +262,8 @@ def ims_locs_preprocess_openpose(ims, locs, conf, distort):
     # locs -> PAFs, MAP
     # Generates hires maps here but only used below if conf.op_hires
     dc_scale = conf.op_hires_ndeconv ** 2
-    locs_lores = rescale_points(locs, conf.op_label_scale)
-    locs_hires = rescale_points(locs, conf.op_label_scale // dc_scale)
+    locs_lores = rescale_points(locs, conf.op_label_scale, None)  # XXX
+    locs_hires = rescale_points(locs, conf.op_label_scale // dc_scale, None) # XXX
     imsz_lores = [int(x / conf.op_label_scale / conf.op_rescale) for x in imszuse]
     imsz_hires = [int(x / conf.op_label_scale * dc_scale / conf.op_rescale) for x in imszuse]
     label_map_lores = heatmap.create_label_hmap(locs_lores, imsz_lores, conf.op_map_lores_blur_rad)
@@ -347,7 +315,7 @@ def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort):
     if conf.img_dim == 1:
         ims = np.tile(ims, 3)
 
-    locs_outres = rescale_points(locs, conf.sb_output_scale)
+    locs_outres = rescale_points(locs, conf.sb_output_scale, None)  # XXX
     imsz_out = [int(x / conf.sb_output_scale) for x in imszuse]
     label_map_outres = heatmap.create_label_hmap(locs_outres,
                                                  imsz_out,
@@ -400,33 +368,41 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
     :return: ims, locs, tgts. If draw_conf_maps==False, tgts are just a copy of locs
     '''
 
+    '''
+    conf.imsz: raw im size in TFR
+    conf.dpk_imsz_net: after padding, then rescale; size of input to network
+    conf.rescale:
+    conf.dpk_im_pad*   
+    '''
     global __ims_locs_preprocess_dpk_has_run__
 
-    # bc PoseTools.preprocess_ims see below
-    assert conf.rescale == conf.sb_rescale == 1
+    assert conf.imsz == imsraw.shape[1:3]
+
+    imspad, locspad = pad_ims_black(imsraw, locsraw, conf.dpk_im_pady, conf.dpk_im_padx)
+    assert imspad.shape[1] == conf.dpk_imsz_pad[0]
+    assert imspad.shape[2] == conf.dpk_imsz_pad[1]
 
     if conf.dpk_use_augmenter:
         # dpk out of the box doesn't do non-distortion img preproc
         # (eg prediction is a raw Keras predict on a cv VideoReader
 
+        assert conf.rescale == conf.sb_rescale == 1
+
         # prob unnec at least if distort==True
-        imsraw = imsraw.copy()
-        locsraw = locsraw.copy()
+        imspad = imspad.copy()
+        locspad = locspad.copy()
         if distort:
             augmenter = conf.dpk_augmenter
             assert augmenter is not None
-            ims, locs = imgaug_augment(augmenter, imsraw, locsraw)
+            ims, locs = imgaug_augment(augmenter, imspad, locspad)
         else:
-            ims = imsraw
-            locs = locsraw
+            ims = imspad
+            locs = locspad
     else:  # ours/PoseTools
         # Note here even if distort==False ims may be preprocessed
-        RESCALEPREPROC = 1
-        assert conf.imsz == imsraw.shape[1:3]
-        # This currently makes a copy
-        ims, locs = PoseTools.preprocess_ims(imsraw, locsraw, conf, distort, RESCALEPREPROC)
 
-    ims, locs = pad_ims_black(ims, locs, conf.dpk_im_pady, conf.dpk_im_padx)
+        ims, locs = PoseTools.preprocess_ims(imspad, locspad, conf, distort, conf.rescale)
+
     imsz_net = conf.dpk_imsz_net
     (imnr_net, imnc_net) = imsz_net
     assert ims.shape[1] == imnr_net
