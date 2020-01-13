@@ -2223,10 +2223,10 @@ classdef DeepTracker < LabelTracker
       be = obj.lObj.trackDLBackEnd;
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nvw,dmc,be);
             
-      mIdxDummy = MovieIndex(1); % not used for anything
+      %mIdxDummy = MovieIndex(1); % not used for anything
       movsDummy = repmat({'__UNUSED__'},1,nvw);
-      bgTrkWorkerObj.initFiles(mIdxDummy,movsDummy,...
-        outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)');      
+      bgTrkWorkerObj.initFiles(movsDummy,...
+        outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)',false);  
       % for now always true for track2* codepath
       bgTrkWorkerObj.setPartfileIsTextStatus(true);
 
@@ -4706,7 +4706,7 @@ classdef DeepTracker < LabelTracker
       tfsuccess = false;
       isold = false;
       [p,n,e] = fileparts(trkfile);
-      m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_iter(?<iter>.*)_(?<trk_ts>.*)$','names','once');
+      m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_iter(?<iter>\d+)_(?<trk_ts>\d{8}T\d{6}).*$','names','once');
       if isempty(m),
         m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_(?<trk_ts>.*)$','names','once');
         if ~isempty(m),

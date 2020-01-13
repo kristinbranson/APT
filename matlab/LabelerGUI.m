@@ -499,16 +499,27 @@ handles.menu_evaluate_gtloadsuggestions = uimenu('Parent',handles.menu_evaluate,
   'Label','Load GT suggestions',...
   'Tag','menu_evaluate_gtloadsuggestions',...
   'Separator','on');
+handles.menu_evaluate_gtsetsuggestions = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtsetsuggestions_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Set GT suggestions to current GT labels',...
+  'Tag','menu_evaluate_gtsetsuggestions',...
+  'Separator','off');
 handles.menu_evaluate_gtcomputeperf = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperf_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance',...
   'Tag','menu_evaluate_gtcomputeperf',...
-  'Separator','off');
+  'Separator','on');
 handles.menu_evaluate_gtcomputeperfimported = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperfimported_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance (imported predictions)',...
   'Tag','menu_evaluate_gtcomputeperfimported',...
   'Separator','off');
+handles.menu_evaluate_gtexportresults = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtexportresults_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export GT performance results',...
+  'Tag','menu_evaluate_gtexportresults',...
+  'Separator','off');
+
 
 handles.menu_go.Position = 4;
 handles.menu_track.Position = 5;
@@ -2864,8 +2875,11 @@ save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
+
+SetStatus(handles,'Switching crop mode...');
 lObj = handles.labelerObj;
 lObj.cropSetCropMode(~lObj.cropIsCropMode);
+ClearStatus(handles);
 
 function menu_help_Callback(hObject, eventdata, handles)
 
@@ -3907,6 +3921,15 @@ msgstr = sprintf('Loaded GT table with %d rows spanning %d GT movies.',...
   height(tbl),numel(unique(tbl.mov)));
 msgbox(msgstr,'GT Table Loaded');
 
+function menu_evaluate_gtsetsuggestions_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+assert(lObj.gtIsGTMode);
+lObj.gtSetUserSuggestions([]);
+tbl = lObj.gtSuggMFTable;
+msgstr = sprintf('Set GT suggestions table with %d rows spanning %d GT movies.',...
+  height(tbl),numel(unique(tbl.mov)));
+msgbox(msgstr,'GT Table Loaded');
+
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
@@ -3918,6 +3941,28 @@ lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 % next three lines identical to GTManager:pbComputeGT_Callback
 lObj.gtComputeGTPerformance('useLabels2',true);
+
+function menu_evaluate_gtexportresults_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+
+tblRes = lObj.gtTblRes;
+if isempty(tblRes)
+  errordlg('No GT results are currently available.','Export GT Results');
+  return;
+end
+
+%assert(lObj.gtIsGTMode);
+fname = lObj.getDefaultFilenameExportGTResults();
+[f,p] = uiputfile(fname,'Export File');
+if isequal(f,0)
+  return;
+end
+fname = fullfile(p,f);  
+VARNAME = 'tblGT';
+s = struct();
+s.(VARNAME) = tblRes;
+save(fname,'-mat','-struct','s');
+fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
   
 function cbkGtIsGTModeChanged(src,evt)
 lObj = src;
@@ -3927,8 +3972,10 @@ onIffGT = onIff(gt);
 handles.menu_go_gt_frames.Visible = onIffGT;
 handles.menu_evaluate_gtmode.Checked = onIffGT;
 handles.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
+handles.menu_evaluate_gtsetsuggestions.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperf.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
+handles.menu_evaluate_gtexportresults.Visible = onIffGT;
 handles.txGTMode.Visible = onIffGT;
 handles.GTMgr.Visible = onIffGT;
 hlpGTUpdateAxHilite(lObj);
@@ -4010,10 +4057,12 @@ end
 
 function cbkCropIsCropModeChanged(src,evt)
 lObj = src;
+lObj.SetStatus('Switching crop mode...');
 cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
 if lObj.hasMovie
   lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
+lObj.ClearStatus();
 
 function cbkUpdateCropGUITools(src,evt)
 lObj = src;
@@ -4040,6 +4089,7 @@ REGCONTROLS = {
 
 onIfTrue = onIff(tf);
 offIfTrue = onIff(~tf);
+
 %cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
 set(handles.uipanel_cropcontrols,'Visible',onIfTrue);
 set(handles.text_trackerinfo,'Visible',offIfTrue);

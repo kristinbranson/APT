@@ -7035,7 +7035,7 @@ classdef Labeler < handle
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS(obj)
       
-      obj.lastLabelChangeTS = cellfun(@(x) max(x(:)),obj.labeledposTS);
+      obj.lastLabelChangeTS = max(cellfun(@(x) max(x(:)),obj.labeledposTS));
       
     end
     
@@ -8575,6 +8575,8 @@ classdef Labeler < handle
         error('Specified table is not a valid Movie-Frame-Target table.');
       end
       
+      tblMFT = tblMFT(:,MFTable.FLDSID);
+      
       if ~isa(tblMFT.mov,'MovieIndex')
         warningNoTrace('Table .mov is numeric. Assuming positive indices into GT movie list (.movieFilesAllGT).');
         tblMFT.mov = MovieIndex(tblMFT.mov,true);
@@ -8705,7 +8707,7 @@ classdef Labeler < handle
         TargetSetVariable.AllTgts);    
       tblMFTLbld = mfts.getMFTable(obj);
       
-      [tf,loc] = ismember(tblMFTSugg,tblMFTLbld);
+      [tf,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
       assert(isequal(tf,obj.gtSuggMFTableLbled));
       nSuggLbled = nnz(tf);
       nSuggUnlbled = nnz(~tf);
@@ -8945,6 +8947,18 @@ classdef Labeler < handle
 
       [iMov,iMovGT] = Labeler.identifyCommonMovSets(...
         obj.movieFilesAllFull,obj.movieFilesAllGTFull);
+    end
+    function fname = getDefaultFilenameExportGTResults(obj)
+      gtstr = 'gtresults';
+      if ~isempty(obj.projectfile)
+        rawname = ['$projdir/$projfile_' gtstr '.mat'];
+      elseif ~isempty(obj.projname)
+        rawname = ['$projdir/$projname_' gtstr '.mat'];
+      else
+        rawname = ['$projdir/' gtstr '.mat'];
+      end
+      sMacro = obj.baseTrkFileMacros();
+      fname = FSPath.macroReplace(rawname,sMacro);
     end
   end
   methods (Static)
@@ -11786,10 +11800,25 @@ classdef Labeler < handle
       if tfProceedSet
         obj.(PROPS.MFACI){iMov}(iview).roi = roi;
       end
+     
+      if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
+        % if this movie has labels, retraining might be necessary
+        % set timestamp for all labels in this movie to now
+        obj.reportLabelChange();
+      end
       
       % actually in some codepaths nothing changed, but shouldn't hurt
-      obj.preProcNonstandardParamChanged();
+      if tfSzChanged,
+        obj.preProcNonstandardParamChanged();
+      end
       obj.notify('cropCropsChanged'); 
+    end
+    
+    function reportLabelChange(obj)
+      
+      obj.labeledposNeedsSave = true;
+      obj.lastLabelChangeTS = now;
+
     end
     
     function tfOKSz = cropCheckValidCropSize(obj,iview,widthHeight)
