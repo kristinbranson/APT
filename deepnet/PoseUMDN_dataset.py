@@ -44,7 +44,7 @@ def preproc_func(ims, locs, info, conf, distort, pad_input=False, pad_x=0, pad_y
     ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
     tlocs = locs.copy()
     if pad_input:
-        tlocs[:,:,0] -= pad_x//2
+        tlocs[:,:,0] -= pad_x//2  # AL: incorrect if conf.rescale~=1?
         tlocs[:,:,1] -= pad_y//2
 
     hsz = [i//conf.rescale for i in conf.imsz]

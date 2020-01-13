@@ -513,6 +513,7 @@ def blur_label(im_sz, loc, scale, blur_rad):
 
 
 def create_label_images_slow(locs, im_sz, scale, blur_rad):
+    # AL: requires scale==1?
     n_out = locs.shape[1]
     n_ex = locs.shape[0]
     sz0 = int(float(im_sz[0])/ scale)
@@ -1212,27 +1213,34 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet'):
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
+               run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',
+               sing_image='/misc/local/singularity/branson_allen.simg',
+               precmd=''):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
     sing_log = os.path.join(dir, 'opt_' + name + '.log')
-    bsub_script = os.path.join(dir, 'opt_' + name + '_bsub.sh')
+    bsub_script = os.path.join(dir, 'opt_' + name + '.bsub.sh')
     with open(sing_script, 'w') as f:
         f.write('#!/bin/bash\n')
         # f.write('bjobs -uall -m `hostname -s`\n')
         f.write('. /opt/venv/bin/activate\n')
         f.write('cd {}\n'.format(run_dir))
         f.write('numCores2use={} \n'.format(2))
+        f.write('{} \n'.format(precmd))
         f.write('python {}'.format(cmd))
         f.write('\n')
 
     # KB 20190424: this doesn't work in py3
-    os.chmod(sing_script, stat.S_IREAD|stat.S_IEXEC|stat.S_IWUSR)
+    if ISPY3:
+        os.chmod(sing_script, stat.S_IREAD|stat.S_IEXEC|stat.S_IWUSR)
+    else:
+        os.chmod(sing_script, 0o0755)
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n2 -W {} -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_cuda10_mayank.simg {}"' '''.format(name, sing_log, sing_err, timeout, gpu_str, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n2 -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     with open(bsub_script,'w') as f:
         f.write(cmd)
         f.write('\n')
