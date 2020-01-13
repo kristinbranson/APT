@@ -92,8 +92,8 @@ def unscale_points(locs_lores, scalex, scaley):
 
 def scale_images(img, locs, scale, conf, **kwargs):
     sz = img.shape
-    szy_ds = sz[1]//scale
-    szx_ds = sz[2]//scale
+    szy_ds = int(sz[1]//scale)
+    szx_ds = int(sz[2]//scale)
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
 
