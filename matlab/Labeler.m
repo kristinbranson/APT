@@ -11800,17 +11800,25 @@ classdef Labeler < handle
       if tfProceedSet
         obj.(PROPS.MFACI){iMov}(iview).roi = roi;
       end
-     
-      if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
-        % if this movie has labels, retraining might be necessary
-        % set timestamp for all labels in this movie to now
-        obj.reportLabelChange();
-      end
       
-      % actually in some codepaths nothing changed, but shouldn't hurt
-      if tfSzChanged,
+      % KB 20200113: changing roi for movies with labels will require
+      % preproc data to be cleaned out. For now, we are clearing out
+      % trackers all together in this case. 
+      
+      if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
         obj.preProcNonstandardParamChanged();
       end
+     
+%       if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
+%         % if this movie has labels, retraining might be necessary
+%         % set timestamp for all labels in this movie to now
+%         obj.reportLabelChange();
+%       end
+%       
+%       % actually in some codepaths nothing changed, but shouldn't hurt
+%       if tfSzChanged,
+%         obj.preProcNonstandardParamChanged();
+%       end
       obj.notify('cropCropsChanged'); 
     end
     

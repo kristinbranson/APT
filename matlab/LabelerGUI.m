@@ -2870,14 +2870,22 @@ end
 fname = fullfile(p,f);  
 VARNAME = 'tblLbls';
 s = struct();
-s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); %#ok<STRNU>
+s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); 
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
 
-SetStatus(handles,'Switching crop mode...');
 lObj = handles.labelerObj;
+
+if ~isempty(lObj.tracker) && ~lObj.gtIsGTMode && lObj.labelPosMovieHasLabels(lObj.currMovie),
+  res = questdlg('Frames of the current movie are labeled. Editing the crop region for this movie will cause trackers to be reset. Continue?');
+  if ~strcmpi(res,'Yes'),
+    return;
+  end
+end
+
+SetStatus(handles,'Switching crop mode...');
 lObj.cropSetCropMode(~lObj.cropIsCropMode);
 ClearStatus(handles);
 
