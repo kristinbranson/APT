@@ -663,8 +663,9 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     if net_type == 'openpose':
         # openpose uses its own normalization
         conf.normalize_img_mean = False
-        
-    if net_type == 'dpk':
+    elif net_type == 'sb':
+        sb.update_conf(conf)
+    elif net_type == 'dpk':
         apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
 
     # elif net_type == 'deeplabcut':

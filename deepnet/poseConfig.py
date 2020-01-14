@@ -97,7 +97,9 @@ class config(object):
         self.n_steps = 4.41
 
         # ---
-        self.sb_rescale = 1
+        #self.sb_rescale = 1
+        self.sb_n_transition_supported = 5  # sb network in:out size can be up to 2**<this> (as factor of 2). this
+            # is for preproc/input pipeline only; see sb_output_scale for actual ratio
         self.sb_im_pady = None  # computed at runtime
         self.sb_im_padx = None  # "
         self.sb_base_lr = 4e-5
@@ -106,7 +108,7 @@ class config(object):
         self.sb_backbone_weights = 'imagenet'
         self.sb_num_deconv = 3
         self.sb_deconv_num_filt = 512
-        self.sb_output_scale = None  # output heatmap dims, computed at runtime
+        self.sb_output_scale = None  # output heatmap dims relative to imszuse (network input size), computed at runtime
         self.sb_upsamp_chan_handling = 'direct_deconv'  # or 'reduce_first'
         self.sb_blur_rad_input_res = 3.0  # target hmap blur rad @ input resolution
         self.sb_blur_rad_output_res = None  # runtime-computed

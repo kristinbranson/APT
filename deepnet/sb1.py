@@ -349,6 +349,7 @@ def set_openpose_defaults(conf):
     conf.gamma = 0.333
 '''
 
+'''
 def get_im_pad(sz, dimname):
     BASE = 32
     szmod = sz % BASE
@@ -362,6 +363,55 @@ def get_im_pad(sz, dimname):
         logging.warning(warnstr)
 
     return pad, szuse
+'''
+
+def compute_padding_imsz_net(imsz, rescale, n_transition_max):
+    '''
+    From the raw image size, desired rescale, and desired n_transition_min,
+    compute the necessary padding and resulting imsz_net (input-to-network-size)
+
+    n_transition_min is a term from from dpk but here it is just the downsample scale of
+    network output:input (as an exponent with base 2)
+
+    :param imsz: [2] raw im size
+    :param rescale: float, desired rescale.
+    :param n_transition_max: log_2(network_input_sz/network_output_sz)
+    :return: padx, pady, imsz_pad, imsz_net, imsz_net_out_min_supported
+    '''
+
+    # in tfdatagen, the input pipeline is read->pad->rescale/distort->ready_for_network
+
+    # we set the padding so the rescale is 'perfect' ie the desired rescale is the one precisely
+    # used ie the imsz-after-pad is precisely divisible by rescale
+
+    assert isinstance(rescale, int) or rescale.is_integer(), "Expect rescale to be integral value"
+
+    net_in_out_ratio_max = 2 ** n_transition_max
+    imsz_pad_should_be_divisible_by = int(rescale * net_in_out_ratio_max)
+    dsfac = imsz_pad_should_be_divisible_by
+    roundupeven = lambda x: int(np.ceil(x/dsfac)) * dsfac
+
+    imsz_pad = (roundupeven(imsz[0]), roundupeven(imsz[1]))
+    padx = imsz_pad[1] - imsz[1]
+    pady = imsz_pad[0] - imsz[0]
+    imsz_net = (int(imsz_pad[0]/rescale), int(imsz_pad[1]/rescale))
+    imsz_net_out_min_supported = (int(imsz_pad[0]/rescale/net_in_out_ratio_max),
+                                  int(imsz_pad[1]/rescale/net_in_out_ratio_max))
+
+    return padx, pady, imsz_pad, imsz_net, imsz_net_out_min_supported
+
+def update_conf(conf):
+    '''
+    Update conf in-place
+    :param conf:
+    :return:
+    '''
+
+    conf.sb_im_padx, conf.sb_im_pady, conf.sb_imsz_pad, conf.sb_imsz_net, _ = \
+        compute_padding_imsz_net(conf.imsz, conf.rescale, conf.sb_n_transition_supported)
+    logging.info("SB size stuff: imsz={}, imsz_pad={}, imsz_net={}, rescale={}".format(
+        conf.imsz, conf.sb_imsz_pad, conf.sb_imsz_net, conf.rescale))
+
 
 def dot(K, L):
    assert len(K) == len(L), 'lens do not match: {} vs {}'.format(len(K), len(L))
@@ -390,13 +440,9 @@ def training(conf, name='deepnet'):
     max_iter = math.ceil(conf.dl_steps/iterations_per_epoch)
     last_epoch = 0
 
-    (imnr, imnc) = conf.imsz
-    conf.sb_im_pady, imnr_use = get_im_pad(imnr, 'row')
-    conf.sb_im_padx, imnc_use = get_im_pad(imnc, 'column')
-    imszuse = (imnr_use, imnc_use)
-    conf.imszuse = imszuse
-    logging.info('pady/padx = {}/{}, imszuse = {}'.format(
-        conf.sb_im_pady, conf.sb_im_padx, imszuse))
+    #(imnr, imnc) = conf.imsz
+    #conf.sb_im_pady, imnr_use = get_im_pad(imnr, 'row')
+    #conf.sb_im_padx, imnc_use = get_im_pad(imnc, 'column')
 
     assert conf.dl_steps % iterations_per_epoch == 0, 'dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, ' save steps must be a multiple of display steps'
@@ -412,7 +458,7 @@ def training(conf, name='deepnet'):
     #model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     assert not conf.normalize_img_mean, "SB currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "SB currently performs its own img input norm"
-    model = get_training_model(imszuse,
+    model = get_training_model(conf.sb_imsz_net,
                                conf.sb_weight_decay_kernel,
                                nDC=conf.sb_num_deconv,
                                dc_num_filt=conf.sb_deconv_num_filt,
@@ -602,17 +648,17 @@ def dictcompare(d1, d2, dictname):
     return nmatch
 
 def get_pred_fn(conf, model_file=None, name='deepnet'):
-    (imnr, imnc) = conf.imsz
-    conf.sb_im_pady, imnr_use = get_im_pad(imnr, 'row')
-    conf.sb_im_padx, imnc_use = get_im_pad(imnc, 'column')
-    imszuse = (imnr_use, imnc_use)
-    conf.imszuse = imszuse
-    logging.info('pady/padx = {}/{}, imszuse = {}'.format(
-        conf.sb_im_pady, conf.sb_im_padx, imszuse))
+    #(imnr, imnc) = conf.imsz
+    #conf.sb_im_pady, imnr_use = get_im_pad(imnr, 'row') # xxxxxxx
+    #conf.sb_im_padx, imnc_use = get_im_pad(imnc, 'column')
+    #imszuse = (imnr_use, imnc_use)
+    #conf.imszuse = imszuse
+    #logging.info('pady/padx = {}/{}, imszuse = {}'.format(
+    #    conf.sb_im_pady, conf.sb_im_padx, imszuse))
 
     assert not conf.normalize_img_mean, "SB currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "SB currently performs its own img input norm"
-    model = get_testing_model(imszuse,
+    model = get_testing_model(conf.sb_imsz_net,
                               nDC=conf.sb_num_deconv,
                               dc_num_filt=conf.sb_deconv_num_filt,
                               npts=conf.n_classes,
@@ -654,31 +700,12 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         :return:
         '''
 
-        assert conf.sb_rescale == 1  # for now
+
         assert all_f.shape[0] == conf.batch_size
-        if all_f.shape[-1] == 1:
-            all_f = np.tile(all_f, 3)
-        else:
-            assert all_f.shape[-1] == 3, "Requires precisely 3 channels"
-
         locs_sz = (conf.batch_size, conf.n_classes, 2)
-
-        # mirror opdata2/data_generator, ims_locs_preprocess_sb
-
-        imspp, locspp = PoseTools.preprocess_ims(
-            all_f,
-            in_locs=np.zeros(locs_sz),
-            conf=conf,
-            distort=False,
-            scale=conf.sb_rescale)
-
-        ims, _ = opdata.pad_ims_black(imspp, locspp, conf.sb_im_pady, conf.sb_im_padx)
-        imszuse = conf.imszuse  # post-pad dimensions (input to network)
-        (imnr_use, imnc_use) = imszuse
-        assert ims.shape[1] == imnr_use
-        assert ims.shape[2] == imnc_use
-        assert ims.shape[3] == 3
-
+        locs_dummy = np.zeros(locs_sz)
+        ims, _ = opdata.ims_locs_preprocess_sb(all_f, locs_dummy, conf, False,
+                                               gen_target_hmaps=False)
         predhm = model.predict(ims)  # model with single output apparently not a list
 
         # all_infered = []
@@ -696,20 +723,22 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         assert predlocs_wgtcnt.shape == locs_sz
         print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
 
-        unscalefac = conf.sb_output_scale
-        assert predhm_clip.shape[1] == imnr_use / unscalefac
-        assert predhm_clip.shape[2] == imnc_use / unscalefac
-        predlocs_argmax_hires = opdata.unscale_points(predlocs_argmax, unscalefac)
-        predlocs_wgtcnt_hires = opdata.unscale_points(predlocs_wgtcnt, unscalefac)
-        # now at input, padded res
+        netscalefac = conf.sb_output_scale
+        imnr_net, imnc_net = conf.sb_imsz_net  # post-pad dimensions (input to network)
+        assert predhm_clip.shape[1] == imnr_net / netscalefac
+        assert predhm_clip.shape[2] == imnc_net / netscalefac
+        #predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, scalefac, scalefac)
+        #predlocs_wgtcnt_hires = PoseTools.unscale_points(predlocs_wgtcnt, scalefac, scalefac)
+
+        totscalefac = netscalefac * conf.rescale
+        predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, totscalefac, totscalefac)
+        predlocs_wgtcnt_hires = PoseTools.unscale_points(predlocs_wgtcnt, totscalefac, totscalefac)
 
         # undo padding
         predlocs_argmax_hires[..., 0] -= conf.sb_im_padx//2
         predlocs_argmax_hires[..., 1] -= conf.sb_im_pady//2
         predlocs_wgtcnt_hires[..., 0] -= conf.sb_im_padx//2
         predlocs_wgtcnt_hires[..., 1] -= conf.sb_im_pady//2
-
-        assert conf.sb_rescale == 1  # we are not rescaling by this
 
         # base_locs = np.array(all_infered)*conf.op_rescale
         # nanidx = np.isnan(base_locs)
@@ -728,7 +757,6 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         K.clear_session()
 
     return pred_fn, close_fn, latest_model_file
-
 
 def model_files(conf, name):
     latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)

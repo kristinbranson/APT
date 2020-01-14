@@ -442,7 +442,7 @@ def compute_padding_imsz_net(imsz, rescale, n_transition_min):
     compute the necessary padding and resulting imsz_net (input-to-network-size)
 
     :param imsz: [2] raw im size
-    :param rescale: float, desired rescale. Note this is not precisely equal to the rescale used
+    :param rescale: float, desired rescale.
     :param n_transition_min: desired minimum n_transition
     :return: padx, pady, imsz_pad, imsz_net
     '''
@@ -452,7 +452,7 @@ def compute_padding_imsz_net(imsz, rescale, n_transition_min):
     # we set the padding so the rescale is 'perfect' ie the desired rescale is the one precisely
     # used ie the imsz-after-pad is precisely divisible by rescale
 
-    assert isinstance(rescale, int) or rescale.is_integer(), "Expect rescale to by integral value"
+    assert isinstance(rescale, int) or rescale.is_integer(), "Expect rescale to be integral value"
 
     imsz_pad_should_be_divisible_by = int(rescale * 2 ** n_transition_min)
     dsfac = imsz_pad_should_be_divisible_by
@@ -784,8 +784,7 @@ def get_pred_fn(conf0, model_file):
         # can do non-distort img preproc
         ims, _, _ = opd.ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locs_dummy, conf, False)
 
-        assert ims.shape[1] == conf.dpk_imsz_net[0]
-        assert ims.shape[2] == conf.dpk_imsz_net[1]
+        assert ims.shape[1:3] == conf.dpk_imsz_net
         assert ims.shape[3] == conf.img_dim
 
         predres = pred_model.predict(ims)

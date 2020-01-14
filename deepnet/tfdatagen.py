@@ -287,36 +287,41 @@ def ims_locs_preprocess_openpose(ims, locs, conf, distort):
 
 __ims_locs_preprocess_sb_has_run__ = False
 
-def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort):
+def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort, gen_target_hmaps=True):
     '''
     Openpose; Preprocess ims/locs; generate targets
     :param ims:
     :param locs:
     :param conf:
     :param distort:
-    :return:
+    :param gen_target_hmaps: If false, don't draw hmaps, just return ims, locs
+    :return: ims, locs, targets
     '''
 
     global __ims_locs_preprocess_sb_has_run__
 
-    assert conf.sb_rescale == 1
-
-    # used in preprocess_ims
     assert conf.imsz == imsraw.shape[1:3]
-    imspp, locspp = PoseTools.preprocess_ims(imsraw, locsraw, conf, distort, conf.sb_rescale)
-    # locs has been rescaled per sb_rescale
 
-    ims, locs = pad_ims_black(imspp, locspp, conf.sb_im_pady, conf.sb_im_padx)
-    imszuse = conf.imszuse # post-pad dimensions (input to network)
+    imspad, locspad = pad_ims_black(imsraw, locsraw, conf.sb_im_pady, conf.sb_im_padx)
+    assert imspad.shape[1:3] == conf.sb_imsz_pad
+
+    ims, locs = PoseTools.preprocess_ims(imspad, locspad, conf, distort, conf.rescale)
+
+    imszuse = conf.sb_imsz_net  # network input dims
     (imnr_use, imnc_use) = imszuse
-    assert ims.shape[1] == imnr_use
-    assert ims.shape[2] == imnc_use
+    assert ims.shape[1:3] == imszuse
     assert ims.shape[3] == conf.img_dim
     if conf.img_dim == 1:
         ims = np.tile(ims, 3)
 
-    locs_outres = rescale_points(locs, conf.sb_output_scale, None)  # XXX
+    if not gen_target_hmaps:
+        return ims, locs
+
+    assert (imnr_use/conf.sb_output_scale).is_integer() and \
+           (imnc_use/conf.sb_output_scale).is_integer(), \
+        "Network input size is not even multiple of sb_output_scale"
     imsz_out = [int(x / conf.sb_output_scale) for x in imszuse]
+    locs_outres = PoseTools.rescale_points(locs, conf.sb_output_scale, conf.sb_output_scale)
     label_map_outres = heatmap.create_label_hmap(locs_outres,
                                                  imsz_out,
                                                  conf.sb_blur_rad_output_res)
@@ -386,7 +391,7 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
         # dpk out of the box doesn't do non-distortion img preproc
         # (eg prediction is a raw Keras predict on a cv VideoReader
 
-        assert conf.rescale == conf.sb_rescale == 1
+        assert conf.rescale == 1
 
         # prob unnec at least if distort==True
         imspad = imspad.copy()
