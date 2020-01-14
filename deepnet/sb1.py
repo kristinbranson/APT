@@ -674,8 +674,8 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
     cdir = conf.cachedir
     tdfile = os.path.join(cdir, 'traindata')
     if os.path.exists(tdfile):
-        with open(tdfile) as f:
-            td = pickle.load(f)
+        with open(tdfile, 'rb') as f:
+            td = pickle.load(f, encoding='latin1')
         conftrain = td[1]
         logging.info("Comparing prediction config to training config within {}...".format(tdfile))
         nmatch = dictcompare(vars(conf), vars(conftrain), 'poseconfig')

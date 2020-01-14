@@ -34,6 +34,7 @@ import tensorflow as tf
 import easydict
 import sys
 import apt_dpk
+import util
 
 
 ISPY3 = sys.version_info >= (3, 0)
@@ -490,8 +491,10 @@ def cp_exp_bare(src_exp_dir, dst_exp_dir):
 
 def run_trainining(exp_name,train_type,view,run_type,
                    train_name='deepnet',
-                   rename_existing_exp=True,
-                   **kwargs):
+                   cp_from_existing_exp=None,  # short expname same dir as exp_name
+                   exp_note='',
+                   **kwargs
+                   ):
 
     common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
     end_cmd = 'train -skip_db -use_cache'
@@ -519,14 +522,19 @@ def run_trainining(exp_name,train_type,view,run_type,
         return conf_opts, cur_cmd, cmd_name
     elif run_type == 'submit':
         # C+P mirror of APT_interf
-        exp_dir = os.path.join(cache_dir, proj_name, train_type, 'view_{}'.format(view), exp_name)
+        exp_dir_parent = os.path.join(cache_dir, proj_name, train_type, 'view_{}'.format(view))
+        exp_dir = os.path.join(exp_dir_parent, exp_name)
 
-        # backup existing exp if nec
-        if rename_existing_exp and os.path.exists(exp_dir):
-            exp_dir_bak = '{}.bak{}'.format(exp_dir, now_str)
-            os.rename(exp_dir, exp_dir_bak)
-            print("Existing expdir {} renamed to {}.".format(exp_dir, exp_dir_bak))
-            cp_exp_bare(exp_dir_bak, exp_dir)
+        if cp_from_existing_exp is not None:
+            existing_exp = os.path.join(exp_dir_parent, cp_from_existing_exp)
+            assert os.path.exists(existing_exp)
+            assert not os.path.exists(exp_dir), "exp_dir already exists: {}".format(exp_dir)
+
+            #exp_dir_bak = '{}.bak{}'.format(exp_dir, now_str)
+            #os.rename(exp_dir, exp_dir_bak)
+            #print("Existing expdir {} renamed to {}.".format(exp_dir, exp_dir_bak))
+            cp_exp_bare(existing_exp, exp_dir)
+
 
         # code snapshot is done downstream in run_jobs/PoseTools submit
 
@@ -535,6 +543,15 @@ def run_trainining(exp_name,train_type,view,run_type,
         if not os.path.exists(explog_dir):
             os.makedirs(explog_dir, exist_ok=True)  # Py3.2+ only
 
+        if len(exp_note)>0:
+            notefile = os.path.join(exp_dir,'EXPNOTE')
+            if os.path.exists(notefile):
+                print("Notefile {} exists already; not overwriting".format(notefile))
+            else:
+                with open(notefile,'w') as fh:
+                    fh.write(exp_note)
+                print("Wrote note to {}".format(notefile))
+
         print(cur_cmd)
         print()
         run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir)
@@ -542,6 +559,22 @@ def run_trainining(exp_name,train_type,view,run_type,
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         check_train_status(cmd_name, conf.cachedir)
 
+
+def create_conf_help(train_type, view, exp_name, **kwargs):
+    '''
+    Call apt.create_conf after customizing the conf for the given train_type/view/kwargs.
+    :param train_type:
+    :param view:
+    :param exp_name:
+    :param kwargs:
+    :return:
+    '''
+    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)
+    pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
+    pvlist = apt.conf_opts_pvargstr2list(pvlist)
+    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
+                           conf_params=pvlist)
+    return conf
 
 def get_apt_conf(**kwargs):
     '''
@@ -554,11 +587,7 @@ def get_apt_conf(**kwargs):
     for view in range(nviews):
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
-            conf_opts = run_trainining_conf_helper(train_type, view, kwargs)
-            pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
-            pvlist = apt.conf_opts_pvargstr2list(pvlist)
-            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
-                                   conf_params=pvlist)
+            conf = create_conf_help(train_type, view, exp_name, kwargs)
             if res[view] is None:
                 res[view] = {}
             res[view][all_models[tndx]] = conf
@@ -573,10 +602,7 @@ def create_normal_dbs():
     for view in range(nviews):
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
-            conf_opts = run_trainining_conf_helper(train_type, view, {})
-            pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
-            pvlist = apt.conf_opts_pvargstr2list(pvlist)
-            conf = apt.create_conf(lbl_file,view,exp_name,cache_dir,train_type,conf_params=pvlist)
+            conf = create_conf_help(train_type, view, exp_name)
             if train_type == 'deeplabcut':
                 apt.create_deepcut_db(conf,split=False,use_cache=True)
             elif train_type == 'leap':
@@ -585,7 +611,10 @@ def create_normal_dbs():
                 apt.create_tfrecord(conf,split=False,use_cache=True)
 
 
-def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
+def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
+                      exp_name_pfix='',  # prefix for exp_name
+                      split_idxs=None,  # optional list of split indices to run
+                      **kwargs):
     assert data_type in ['romain','larva','roian','carsen']
 
     data_info = h5py.File(cv_info_file, 'r')
@@ -608,22 +637,33 @@ def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
     print('Number of labels that exists in label file but not in mat file:{}'.format(len(diff1)))
     print('Number of labels that exists in mat file but not in label file:{}'.format(len(diff2)))
     # assert all([a == b for a, b in zip(in_info, label_info)])
-    for sndx in range(max(cv_info)+1):
+
+    if split_idxs is not None:
+        assert all([x in range(n_splits) for x in split_idxs])
+    else:
+        split_idxs = range(n_splits)
+
+    for sndx in split_idxs:
         val_info = [l for ndx,l in enumerate(in_info) if cv_info[ndx]==sndx]
         trn_info = list(set(label_info)-set(val_info))
         cur_split = [trn_info,val_info]
-        exp_name = 'cv_split_{}'.format(sndx)
+        exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)
         split_file = os.path.join(cache_dir,proj_name,exp_name) + '.json'
         if not skip_db and create_splits:
-            assert not os.path.exists(split_file)
+            if os.path.exists(split_file):
+                print("Warning, overwriting existing split file {}", format(split_file))
+            def convert(o):
+                if isinstance(o, np.int64): return int(o)
+                raise TypeError
             with open(split_file,'w') as f:
-                json.dump(cur_split,f)
+                json.dump(cur_split,f,default=convert)
 
         # create the dbs
         if not skip_db:
             for view in range(nviews):
                 for train_type in all_models:
-                    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                    conf = create_conf_help(train_type, view, exp_name, **kwargs)
+                    #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                     conf.splitType = 'predefined'
                     if train_type == 'deeplabcut':
                         apt.create_deepcut_db(conf, split=True, split_file=split_file, use_cache=True)
@@ -635,9 +675,9 @@ def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
 
     for view in range(nviews):
         for train_type in all_models:
-            for sndx in range(n_splits):
-                exp_name = 'cv_split_{}'.format(sndx)
-                run_trainining(exp_name,train_type,view,run_type)
+            for sndx in split_idxs:
+                exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)
+                run_trainining(exp_name,train_type,view,run_type, **kwargs)
 
 
 def cv_train_britton(skip_db=True, run_type='status',create_splits=False):
@@ -938,19 +978,20 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
 
 
 
-def run_normal_training(expname = 'apt_expt', run_type = 'status', rename_existing_exp=True):
+def run_normal_training(expname = 'apt_expt',
+                        run_type = 'status',
+                        **kwargs
+                        ):
 
     common_conf['dl_steps'] = 50000
     common_conf['maxckpt'] = 20
     common_conf['save_time'] = 20 # save every 20 min
-    # common_conf['sb_num_deconv'] = 2 # XXXXXXXXXXXXXXXXXXXXXXXXX
 
     results = {}
     for train_type in all_models:
         for view in range(nviews):
             key = "{}_vw{}".format(train_type, view)
-            results[key] = run_trainining(expname, train_type, view, run_type,
-                                          rename_existing_exp=rename_existing_exp)
+            results[key] = run_trainining(expname, train_type, view, run_type, **kwargs)
 
     return results
 
@@ -1282,7 +1323,7 @@ def create_gt_db():
 ## ######################  RESULTS
 
 
-def get_normal_results(exp_name='apt_expt', train_name='deepnet'):
+def get_normal_results(exp_name='apt_expt', train_name='deepnet', **kwargs):
 ## Normal Training  ------- RESULTS -------
     # cache_dir = '/nrs/branson/al/cache'
 
@@ -1294,18 +1335,24 @@ def get_normal_results(exp_name='apt_expt', train_name='deepnet'):
         gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
         for train_type in all_models:
 
-            conf_opts = run_trainining_conf_helper(train_type, view, {})
-            pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
-            pvlist = apt.conf_opts_pvargstr2list(pvlist)
-            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
-                                   conf_params=pvlist)
-            #conf.sb_num_deconv = 2 # XXXXXXXXXXXXXXXxx
-            # if data_type == 'stephen' and train_type == 'mdn':
-            #     conf.mdn_use_unet_loss = False
+            conf = create_conf_help(train_type, view, exp_name, **kwargs)
 
-            #if op_af_graph is not None:
-            #    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-            #conf.normalize_img_mean = False
+            # compare conf to conf on disk
+            cffile = os.path.join(conf.cachedir, 'conf.pickle')
+            if os.path.exists(cffile):
+                with open(cffile, 'rb') as fh:
+                    conf0 = pickle.load(fh,encoding='latin1')
+                conf0 = conf0['conf']
+            else:
+                cffile = os.path.join(conf.cachedir, 'traindata')
+                assert os.path.exists(cffile), "Cant find conf on disk"
+                with open(cffile, 'rb') as fh:
+                    conf0 = pickle.load(fh,encoding='latin1')
+                conf0 = conf0[-1]
+
+            print("## View {} Net {} Conf Compare (disk vs now)".format(view,train_type))
+            util.dictdiff(vars(conf0), vars(conf))
+
             assert not conf.normalize_img_mean
 
             files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
