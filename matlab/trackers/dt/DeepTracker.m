@@ -1830,6 +1830,7 @@ classdef DeepTracker < LabelTracker
       backend = obj.lObj.trackDLBackEnd;
 
       if backend.type==DLBackEnd.AWS
+        obj.lObj.SetStatus('AWS Tracking: Uploading code and data...');
         aws = backend.awsec2;        
         
         % update apt code
@@ -1845,6 +1846,9 @@ classdef DeepTracker < LabelTracker
             dmc(i).mirror2remoteAws(aws);
           end
         end
+        
+        obj.lObj.SetStatus('Tracking...');
+
       end
       
       obj.updateTrackerInfo();
@@ -2024,9 +2028,11 @@ classdef DeepTracker < LabelTracker
 
         case DLBackEnd.AWS
           if isexternal,
-            error('Not implemented');
+            tfSuccess = obj.trkSpawn(backend,[],[],dlLblFileLcl,...
+              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles);
           else
-            obj.trkSpawnAWS(backend,mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
+            obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
+              cropRois,hmapArgs,f0,f1);
           end
         otherwise
           assert(false);
@@ -3126,6 +3132,10 @@ classdef DeepTracker < LabelTracker
                   trksysinfo(imov,ivwjob).logfile); %#ok<AGROW>
               end
               
+            case DLBackEnd.AWS,
+              
+              trksysinfo(imov,ivwjob).setCodeStr('baseargs',baseArgs);
+              
             case DLBackEnd.Conda
               condaargs = {'condaEnv',obj.condaEnv};
               if ~isempty(gpuids),
@@ -3133,6 +3143,9 @@ classdef DeepTracker < LabelTracker
               end
               trksysinfo(imov,ivwjob).setCodeStr('baseargs',baseArgs,...
                 'condaargs',condaargs);
+              
+            otherwise
+              error('Not implemented back end %s',backend.type);
           end
         end
       end
@@ -3202,10 +3215,14 @@ classdef DeepTracker < LabelTracker
             [st,res] = system(trksysinfo(imov,ivwjob).codestr);
           end
           if st==0
-            if backend.type == DLBackEnd.Conda,
-              bgTrkWorkerObj.parseJobID(job,ivwjob,imov);
-            else
-              bgTrkWorkerObj.parseJobID(res,ivwjob,imov);
+            switch backend.type,
+              case DLBackEnd.Conda,
+                bgTrkWorkerObj.parseJobID(job,ivwjob,imov);
+              case [DLBackEnd.Docker,DLBackEnd.Bsub],
+                bgTrkWorkerObj.parseJobID(res,ivwjob,imov);
+              case DLBackEnd.AWS
+              otherwise
+                error('Not implemented: %s',backend.type);
             end
             fprintf('Tracking job (movie %d, job %d) spawned:\n%s\n',imov,ivwjob,res);
           else
@@ -3314,6 +3331,10 @@ classdef DeepTracker < LabelTracker
           bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmc);
         case DLBackEnd.Docker,
           bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc,backend);
+        case DLBackEnd.AWS,
+           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView,dmc,backend.awsec2);
+        otherwise
+          error('Not implemented back end %s',backend.type);
       end
     end
     function sha = getSHA(file)
@@ -3407,13 +3428,15 @@ classdef DeepTracker < LabelTracker
         movsha = DeepTracker.getSHA(mov);
         movRemoteRel = ['data/' movsha movE];
         movRemoteAbs = ['/home/ubuntu/' movRemoteRel];
-        aws.scpUploadOrVerify(mov,movRemoteRel,'movie'); % throws            
+        info = dir(mov);
+        aws.scpUploadOrVerify(mov,movRemoteRel,sprintf('Movie %s (%d MB)',mov,round(info.bytes/2^20))); % throws            
         if tftrx
           trx = trxsfull{ivw};
+          info = dir(trx);
           trxsha = DeepTracker.getSHA(trx);
           trxRemoteRel = ['data/' trxsha];
           trxRemoteAbs = ['/home/ubuntu/' trxRemoteRel];
-          aws.scpUploadOrVerify(trx,trxRemoteRel,'trxfile'); % throws            
+          aws.scpUploadOrVerify(trx,trxRemoteRel,sprintf('Trxfile %s (%d MB)',trx,round(info.bytes/2^20))); % throws            
         end
         
         % trk/log names, local and remote
@@ -3623,9 +3646,16 @@ classdef DeepTracker < LabelTracker
     
     function trkCompleteCbk(obj,res)
 
+      try,
+      
       % res is nMovies x nViews
       [nMovies,nViews] = size(res);
       isexternal = res(1).isexternal;
+      
+      for i = 1:numel(obj.trkSysInfo),
+        obj.trkSysInfo(i).downloadRemoteResults();
+      end
+
       if isexternal,
         % AL: guessing here didn't test
         for i=1:nMovies*nViews,
@@ -3651,7 +3681,7 @@ classdef DeepTracker < LabelTracker
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.
         
-        trkfiles = {res(i,:).trkfile}';
+        trkfiles = [obj.trkSysInfo(i,:).trkfileLcl]';
         obj.trkPostProcIfNec(mIdx(i),trkfiles);
         obj.trackResAddTrkfile(mIdx(i),trkfiles);
         if mIdx(i)==obj.lObj.currMovIdx
@@ -3666,6 +3696,10 @@ classdef DeepTracker < LabelTracker
             fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
           end
         end
+      end
+      
+      catch ME,
+        warning('Error gathering tracking results:\n%s',getReport(ME));
       end
       
     end

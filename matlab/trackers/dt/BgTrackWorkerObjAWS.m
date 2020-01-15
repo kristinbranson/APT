@@ -22,7 +22,8 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         'parttrkfileNfrmtracked',[],... % 'extra' in BgTrackWorkerObjAWS 
         'trkfileNfrmtracked',[],... % 'extra' in BgTrackWorkerObjAWS 
         'killFile',obj.killFiles,...
-        'killFileExists',[]);      
+        'killFileExists',[],...
+        'isexternal',obj.isexternal);      
       
       aws = obj.awsEc2;
       
