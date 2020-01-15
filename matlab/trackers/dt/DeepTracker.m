@@ -3010,6 +3010,16 @@ classdef DeepTracker < LabelTracker
         nViewJobs = nView;
       end
       
+      if isexternal
+        % "defaults"
+        if isempty(trxids)
+          trxids = cell(nMovies,1);
+        end
+        if isempty(trxfiles)
+          trxfiles = cell(nMovies,1);
+        end
+      end
+      
       cacheDir = obj.lObj.DLCacheDir;
       nowstr = datestr(now,'yyyymmddTHHMMSS');
 
