@@ -1,6 +1,8 @@
+from __future__ import print_function
+
 from keras.models import Model
 from keras.layers.merge import Concatenate
-from keras.layers import Activation, Input, Lambda
+from keras.layers import Activation, Input, Lambda, PReLU
 from keras.layers import subtract as Subtract
 from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import Conv2DTranspose
@@ -30,15 +32,18 @@ import keras.backend as K
 import logging
 from time import time
 import cv2
+from past.utils import old_div
 
 import open_pose2 as op2
+import open_pose_data as opdata
+import heatmap
 
 ISPY3 = sys.version_info >= (3, 0)
 
 def relu(x): return Activation('relu')(x)
 
-def prelu(x):
-    return keras.layers.PReLU(shared_axes=[1, 2])(x)
+def prelu(x,nm):
+    return PReLU(shared_axes=[1, 2],name=nm)(x)
 
 def conv(x, nf, ks, name, weight_decay):
     kernel_reg = l2(weight_decay[0]) if weight_decay else None
@@ -61,13 +66,13 @@ def convblock(x0, nf, namebase, wd_kernel):
     :param wd_kernel:
     :return:
     '''
-    x1 = conv(x0, nf, 3, "convblock_{}_{}".format(namebase, 1), (wd_kernel, 0))
-    x1 = prelu(x1)
-    x2 = conv(x1, nf, 3, "convblock_{}_{}".format(namebase, 2), (wd_kernel, 0))
-    x2 = prelu(x2)
-    x3 = conv(x2, nf, 3, "convblock_{}_{}".format(namebase, 3), (wd_kernel, 0))
-    x3 = prelu(x3)
-    x = Concatenate()([x1, x2, x3])
+    x1 = conv(x0, nf, 3, "cblock-{}-{}".format(namebase, 1), (wd_kernel, 0))
+    x1 = prelu(x1, "cblock-{}-{}-prelu".format(namebase, 1))
+    x2 = conv(x1, nf, 3, "cblock-{}-{}".format(namebase, 2), (wd_kernel, 0))
+    x2 = prelu(x2, "cblock-{}-{}-prelu".format(namebase, 2))
+    x3 = conv(x2, nf, 3, "cblock-{}-{}".format(namebase, 3), (wd_kernel, 0))
+    x3 = prelu(x3, "cblock-{}-{}-prelu".format(namebase, 3))
+    x = Concatenate(name="cblock-{}".format(namebase))([x1, x2, x3])
     return x
 
 def stageCNN(x, nfout, stagety, stageidx, wd_kernel,
@@ -75,14 +80,51 @@ def stageCNN(x, nfout, stagety, stageidx, wd_kernel,
     # stagety: 'map' or 'paf'
 
     for iCB in range(nconvblocks):
-        namebase = "{}_stg{}_cb{}".format(stagety, stageidx, iCB)
+        namebase = "{}-stg{}-cb{}".format(stagety, stageidx, iCB)
         x = convblock(x, nfconvblock, namebase, wd_kernel)
-    x = conv(x, nf1by1, 1, "{}_stg{}_1by1_1".format(stagety, stageidx), (wd_kernel, 0))
-    x = prelu(x)
-    x = conv(x, nfout, 1, "{}_stg{}_1by1_2".format(stagety, stageidx), (wd_kernel, 0))
-    x = prelu(x)
+    x = conv(x, nf1by1, 1, "{}-stg{}-1by1-1".format(stagety, stageidx), (wd_kernel, 0))
+    x = prelu(x, "{}-stg{}-1by1-1-prelu".format(stagety, stageidx))
+    x = conv(x, nfout, 1, "{}-stg{}-1by1-2".format(stagety, stageidx), (wd_kernel, 0))
+    x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
     return x
 
+def stageCNNwithDeconv(x, nfout, stagety, stageidx, wd_kernel,
+                       nfconvblock=128, nconvblocks=5, ndeconvs=2, nf1by1=128):
+    '''
+    Like stageCNN, but with ndeconvs Deconvolutions to increase imsz by 2**ndeconvs
+    :param x:
+    :param nfout:
+    :param stagety:
+    :param stageidx:
+    :param wd_kernel:
+    :param nfconvblock:
+    :param nconvblocks:
+    :param ndeconvs:
+    :param nfdeconv:
+    :param nf1by1:
+    :return:
+    '''
+
+    for iCB in range(nconvblocks):
+        namebase = "{}-stg{}-cb{}".format(stagety, stageidx, iCB)
+        x = convblock(x, nfconvblock, namebase, wd_kernel)
+
+    nfilt = x.shape.as_list()[-1]
+    logging.info("Adding {} deconvs with nfilt={}".format(ndeconvs, nfilt))
+
+    DCFILTSZ = 4
+    for iDC in range(ndeconvs):
+        dcname = "{}-stg{}-dc{}".format(stagety, stageidx, iDC)
+        x = op2.deconv_2x_upsampleinit(x, nfilt, DCFILTSZ, dcname, None, 0)
+        x = prelu(x, "{}-prelu".format(dcname))
+
+    x = conv(x, nf1by1, 1, "{}-stg{}-1by1-1".format(stagety, stageidx), (wd_kernel, 0))
+    x = prelu(x, "{}-stg{}-postDC-1by1-1-prelu".format(stagety, stageidx))
+    x = conv(x, nfout, 1, "{}-stg{}-1by1-2".format(stagety, stageidx), (wd_kernel, 0))
+    x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
+    return x
+
+'''
 def stageTdeconv_block(x, num_p, stage, branch, weight_decay, weight_decay_dc, weight_decay_mode):
     x = conv(x, 128, 7, "Mconv1_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     x = relu(x)
@@ -104,13 +146,14 @@ def stageTdeconv_block(x, num_p, stage, branch, weight_decay, weight_decay_dc, w
     x = relu(x)
     x = conv(x, num_p, 1, "Mconv7_stage%d_L%d" % (stage, branch), (weight_decay, 0))
     return x
+'''
 
 def apply_mask(x, mask, stage, branch):
     w_name = "weight_stage%d_L%d" % (stage, branch)
     w = Multiply(name=w_name)([x, mask])  # vec_weight
     return w
 
-def get_training_model(imszuse, wd_kernel, nPAFstg=5, nMAPstg=1, nlimbsT2=38, npts=19):
+def get_training_model(imszuse, wd_kernel, nPAFstg=5, nMAPstg=1, nlimbsT2=38, npts=19, doDC=True, nDC=2):
     '''
 
     :param imszuse: (imnr, imnc) raw image size, possibly adjusted to be 0 mod 8
@@ -126,7 +169,6 @@ def get_training_model(imszuse, wd_kernel, nPAFstg=5, nMAPstg=1, nlimbsT2=38, np
     assert imnruse % 8 == 0, "Image size must be divisible by 8"
     assert imncuse % 8 == 0, "Image size must be divisible by 8"
 
-    img_input_shape = imszuse + (3,)
     paf_input_shape_hires = imszuse + (nlimbsT2,)
     map_input_shape_hires = imszuse + (npts,)
 
@@ -136,7 +178,9 @@ def get_training_model(imszuse, wd_kernel, nPAFstg=5, nMAPstg=1, nlimbsT2=38, np
 
     inputs = []
 
-    img_input = Input(shape=img_input_shape, name='input_img')
+    # This is hardcoded to dim=3 due to VGG pretrained weights
+    img_input = Input(shape=imszuse + (3,), name='input_img')
+
     # paf_weight_input = Input(shape=paf_input_shape,
     #                          name='input_paf_mask')
     # map_weight_input = Input(shape=map_input_shape,
@@ -156,7 +200,8 @@ def get_training_model(imszuse, wd_kernel, nPAFstg=5, nMAPstg=1, nlimbsT2=38, np
     # VGG
     vggF = op2.vgg_block(img_normalized, wd_kernel)
     # sz should be (bsize, imszvgg[0], imszvgg[1], nchans)
-    assert vggF.shape.as_list()[1:] == imszvgg + (128,)
+    print(vggF.shape.as_list()[1:])
+    assert vggF.shape.as_list()[1:] == list(imszvgg + (128,))
 
     # PAF 1..nPAFstg
     xpaflist = []
@@ -164,19 +209,24 @@ def get_training_model(imszuse, wd_kernel, nPAFstg=5, nMAPstg=1, nlimbsT2=38, np
     for iPAFstg in range(nPAFstg):
         xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, wd_kernel)
         xpaflist.append(xstageout)
-        xstagein = Concatenate()([vggF, xstageout])
+        xstagein = Concatenate(name="paf-stg{}".format(iPAFstg))([vggF, xstageout])
 
     # MAP
     xmaplist = []
     for iMAPstg in range(nMAPstg):
         xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, wd_kernel)
         xmaplist.append(xstageout)
-        xstagein = Concatenate()[vggF, xpaflist[-1], xstageout]
+        xstagein = Concatenate(name="map-stg{}".format(iMAPstg))([vggF, xpaflist[-1], xstageout])
+
+    xmaplistDC = []
+    if doDC:
+        # xstagein is ready/good from MAP loop
+        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, wd_kernel, ndeconvs=nDC)
+        xmaplistDC.append(xstageout)
 
     assert len(xpaflist) == nPAFstg
     assert len(xmaplist) == nMAPstg
-
-    outputs = xpaflist + xmaplist
+    outputs = xpaflist + xmaplist + xmaplistDC
 
     # w1 = apply_mask(stage1_branch1_out, paf_weight_input, 1, 1)
     # w2 = apply_mask(stage1_branch2_out, map_weight_input, 1, 2)
@@ -184,282 +234,113 @@ def get_training_model(imszuse, wd_kernel, nPAFstg=5, nMAPstg=1, nlimbsT2=38, np
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
-def get_testing_model(imszuse, nlimb=38, npts=19, fullpred=False):
-    stages = 6
+def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None):
+    '''
+    
+    :param model: 
+    :param bsize: 
+    :param dc_on: True if deconv/hires is on
+    :param dcNum: number of 2x deconvs applied 
+    :param dc_blur_rad_ratio: The ratio blur_rad_hires/blur_rad_lores
+    :param dc_wtfac: Weighting factor for hi-res
+    
+    :return: losses, loss_weights. both dicts whose keys are .names of model.outputs
+    '''
+
+    def eucl_loss(x, y):
+        return K.sum(K.square(x - y)) / bsize / 2.  # not sure why norm by bsize nec
+
+    losses = {}
+    loss_weights = {}
+    loss_weights_vec = []
+
+    outs = model.outputs
+    lyrs = model.layers
+    for o in outs:
+        # Not sure how to get from output Tensor to its layer. Using
+        # output Tensor name doesn't work with model.compile
+        olyrname = [l.name for l in lyrs if l.output == o]
+        assert len(olyrname) == 1, "Found multiple layers for output."
+        key = olyrname[0]
+        losses[key] = eucl_loss
+
+        if "postDC" in key:
+            assert dc_on, "Found post-deconv layer"
+            # left alone, L2 loss will be ~dc_blur_rad_ratio**2 larger for hi-res wrt lo-res
+            loss_weights[key] = float(dc_wtfac) / float(dc_blur_rad_ratio)**2
+        else:
+            loss_weights[key] = 1.0
+
+        logging.info('Configured loss for output name {}, loss_weight={}'.format(key, loss_weights[key]))
+        loss_weights_vec.append(loss_weights[key])
+
+    return losses, loss_weights, loss_weights_vec
+
+def get_testing_model(imszuse, nPAFstg=5, nMAPstg=1, nlimbsT2=38, npts=19, doDC=True, nDC=2, fullpred=False):
+    '''
+    See get_training_model
+    :param imszuse:
+    :param nPAFstg:
+    :param nMAPstg:
+    :param nlimbsT2:
+    :param npts:
+    :param fullpred:
+    :return:
+    '''
 
     imnruse, imncuse = imszuse
     assert imnruse % 8 == 0, "Image size must be divisible by 8"
     assert imncuse % 8 == 0, "Image size must be divisible by 8"
-    img_input_shape = imszuse + (3,)
+    imszvgg = (imnruse/8, imncuse/8)  # imsz post VGG ftrs
 
-    img_input = Input(shape=img_input_shape, name='input_img')
+    img_input = Input(shape=imszuse + (3,), name='input_img')
 
     img_normalized = Lambda(lambda x: x / 256 - 0.5)(img_input) # [-0.5, 0.5]
 
-    outputsfull = []
-
     # VGG
-    stage0_out = vgg_block(img_normalized, None)
+    vggF = op2.vgg_block(img_normalized, None)
+    # sz should be (bsize, imszvgg[0], imszvgg[1], nchans)
+    print(vggF.shape.as_list()[1:])
+    assert vggF.shape.as_list()[1:] == list(imszvgg + (128,))
 
-    # stage 1 - branch 1 (PAF)
-    stage1_branch1_out = stage1_block(stage0_out, nlimb, 1, None)
+    # PAF 1..nPAFstg
+    xpaflist = []
+    xstagein = vggF
+    for iPAFstg in range(nPAFstg):
+        # Using None for wd_kernel is nonsensical but shouldn't hurt in test mode
+        xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, None)
+        xpaflist.append(xstageout)
+        xstagein = Concatenate(name="paf-stg{}".format(iPAFstg))([vggF, xstageout])
 
-    # stage 1 - branch 2 (confidence maps)
-    stage1_branch2_out = stage1_block(stage0_out, npts, 2, None)
+    # MAP
+    xmaplist = []
+    for iMAPstg in range(nMAPstg):
+        # Using None for wd_kernel is nonsensical but shouldn't hurt in test mode
+        xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, None)
+        xmaplist.append(xstageout)
+        xstagein = Concatenate(name="map-stg{}".format(iMAPstg))([vggF, xpaflist[-1], xstageout])
 
-    outputsfull.append(stage1_branch1_out)
-    outputsfull.append(stage1_branch2_out)
+    xmaplistDC = []
+    if doDC:
+        # xstagein is ready/good from MAP loop
+        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, None, ndeconvs=nDC)
+        xmaplistDC.append(xstageout)
 
-    x = Concatenate()([stage1_branch1_out, stage1_branch2_out, stage0_out])
-
-    # stage t >= 2
-    stageT_branch1_out = None
-    stageT_branch2_out = None
-    for sn in range(2, stages):
-        stageT_branch1_out = stageT_block(x, nlimb, sn, 1, None)
-        stageT_branch2_out = stageT_block(x, npts, sn, 2, None)
-        outputsfull.append(stageT_branch1_out)
-        outputsfull.append(stageT_branch2_out)
-        x = Concatenate()([stageT_branch1_out, stageT_branch2_out, stage0_out])
-
-    # stage sn=stages
-    # AL: passing None into weight_decay(s) doesn't make sense; since it's the test model it's prob ok
-    stageT_branch1_out = stageTdeconv_block(x, nlimb, stages, 1, None, None, 0)
-    stageT_branch2_out = stageTdeconv_block(x, npts, stages, 2, None, None, 0)
-
-    outputsfull.append(stageT_branch1_out)
-    outputsfull.append(stageT_branch2_out)
+    assert len(xpaflist) == nPAFstg
+    assert len(xmaplist) == nMAPstg
 
     if fullpred:
-        model = Model(inputs=[img_input], outputs=outputsfull)
+        outputs = xpaflist + xmaplist + xmaplistDC
+    elif doDC:
+        outputs = [xpaflist[-1], xmaplistDC[-1], ]
     else:
-        model = Model(inputs=[img_input], outputs=[stageT_branch1_out, stageT_branch2_out])
+        outputs = [xpaflist[-1], xmaplist[-1], ]
+
+    model = Model(inputs=[img_input], outputs=outputs)
 
     return model
 
 
-# ---------------------
-# -- Data Generator ---
-#----------------------
-
-
-def create_affinity_labels(locs, imsz, graph, scale=1):
-    """
-    Create/return part affinity fields
-
-    locs: (nbatch x npts x 2)
-    imsz: (nr, nc) size of affinity maps to create/return
-    graph: (nlimb) array of 2-element tuples; connectivity/skeleton
-    scale: width of "tube" around limb.
-
-    returns (nbatch x imsz[0] x imsz[1] x nlimb*2) paf hmaps.
-        4th dim ordering: limb1x, limb1y, limb2x, limb2y, ...
-    """
-
-    n_out = len(graph)
-    n_ex = locs.shape[0]
-    out = np.zeros([n_ex,imsz[0],imsz[1],n_out*2])
-    n_steps = 2*max(imsz)
-
-    for cur in range(n_ex):
-        for ndx, e in enumerate(graph):
-            start_x, start_y = locs[cur,e[0],:]
-            end_x, end_y = locs[cur,e[1],:]
-            ll = np.sqrt( (start_x-end_x)**2 + (start_y-end_y)**2)
-
-            if ll==0:
-                # Can occur if start/end labels identical
-                # Don't update out/PAF
-                continue
-
-            dx = (end_x - start_x)/ll/2
-            dy = (end_y - start_y)/ll/2
-            zz = None
-            for delta in np.arange(-scale,scale,0.25):  # delta indicates perpendicular displacement from line/limb segment (in px)
-                # xx = np.round(np.linspace(start_x,end_x,6000))
-                # yy = np.round(np.linspace(start_y,end_y,6000))
-                # zz = np.stack([xx,yy])
-                xx = np.round(np.linspace(start_x+delta*dy,end_x+delta*dy,n_steps))
-                yy = np.round(np.linspace(start_y-delta*dx,end_y-delta*dx,n_steps))
-                if zz is None:
-                    zz = np.stack([xx,yy])
-                else:
-                    zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
-                # xx = np.round(np.linspace(start_x-dy,end_x-dy,6000))
-                # yy = np.round(np.linspace(start_y+dx,end_y+dx,6000))
-                # zz = np.concatenate([zz,np.stack([xx,yy])],axis=1)
-            # zz now has all the pixels that are along the line.
-            # or "tube" of width scale around limb
-            zz = np.unique(zz,axis=1)
-            # zz now has all the unique pixels that are along the line with thickness==scale.
-            dx = (end_x - start_x) / ll
-            dy = (end_y - start_y) / ll
-            for x,y in zz.T:
-                xint = int(round(x))
-                yint = int(round(y))
-                if xint < 0 or xint >= out.shape[2] or yint < 0 or yint >= out.shape[1]:
-                    continue
-                out[cur,yint,xint,ndx*2] = dx
-                out[cur,yint,xint,ndx*2+1] = dy
-
-    return out
-
-def create_label_images(locs, imsz, scale=1):
-    """
-    Create/return target hmap for parts
-
-    This is a 2d isotropic gaussian with sigma=scale with tails clipped to 0. everywhere below 0.05
-
-    hmap min is 0., max is 1.
-
-    locs: (nbatch x npts x 2) part locs
-    """
-
-    n_out = locs.shape[1]
-    n_ex = locs.shape[0]
-    out = np.zeros([n_ex,imsz[0],imsz[1],n_out])
-    for cur in range(n_ex):
-        for ndx in range(n_out):
-            x,y = np.meshgrid(range(imsz[1]),range(imsz[0]))
-            x = x - locs[cur,ndx,0]
-            y = y - locs[cur,ndx,1]
-            dd = np.sqrt(x**2+y**2)
-            out[cur,:,:,ndx] = stats.norm.pdf(dd,scale=scale)/stats.norm.pdf(0,scale=scale)
-    out[out<0.05] = 0.
-    return out
-
-class DataIteratorTF(object):
-
-
-    def __init__(self, conf, db_type, distort, shuffle):
-        self.conf = conf
-        if db_type == 'val':
-            filename = os.path.join(self.conf.cachedir, self.conf.valfilename) + '.tfrecords'
-        elif db_type == 'train':
-            filename = os.path.join(self.conf.cachedir, self.conf.trainfilename) + '.tfrecords'
-        else:
-            raise IOError('Unspecified DB Type') # KB 20190424 - py3
-        self.file = filename
-        self.iterator = None
-        self.distort = distort
-        self.shuffle = shuffle
-        self.batch_size = self.conf.batch_size
-        self.vec_num = len(conf.op_affinity_graph)
-        self.heat_num = self.conf.n_classes
-        self.N = PoseTools.count_records(filename)
-
-
-    def reset(self):
-        if self.iterator:
-            self.iterator.close()
-        self.iterator = tf.python_io.tf_record_iterator(self.file)
-        # print('========= Resetting ==========')
-
-
-    def read_next(self):
-        if not self.iterator:
-            self.iterator = tf.python_io.tf_record_iterator(self.file)
-        try:
-            if ISPY3:
-                record = next(self.iterator)
-            else:
-                record = self.iterator.next()
-        except StopIteration:
-            self.reset()
-            if ISPY3:
-                record = next(self.iterator)
-            else:
-                record = self.iterator.next()
-
-        return record
-
-    def next(self):
-
-        all_ims = []
-        all_locs = []
-        for b_ndx in range(self.batch_size):
-            # AL: this 'shuffle' seems weird
-            n_skip = np.random.randint(30) if self.shuffle else 0
-            for _ in range(n_skip+1):
-                record = self.read_next()
-
-            example = tf.train.Example()
-            example.ParseFromString(record)
-            height = int(example.features.feature['height'].int64_list.value[0])
-            width = int(example.features.feature['width'].int64_list.value[0])
-            depth = int(example.features.feature['depth'].int64_list.value[0])
-            expid = int(example.features.feature['expndx'].float_list.value[0]),
-            t = int(example.features.feature['ts'].float_list.value[0]),
-            img_string = example.features.feature['image_raw'].bytes_list.value[0]
-            img_1d = np.fromstring(img_string, dtype=np.uint8)
-            reconstructed_img = img_1d.reshape((height, width, depth))
-            locs = np.array(example.features.feature['locs'].float_list.value)
-            locs = locs.reshape([self.conf.n_classes, 2])
-            if 'trx_ndx' in example.features.feature.keys():
-                trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
-            else:
-                trx_ndx = 0
-            all_ims.append(reconstructed_img)
-            all_locs.append(locs)
-
-        ims = np.stack(all_ims)  # [bsize x height x width x depth]
-        locs = np.stack(all_locs)  # [bsize x ncls x 2]
-
-        imszuse = self.conf.imszuse
-        (imnr_use, imnc_use) = imszuse
-        ims = ims[:, 0:imnr_use, 0:imnc_use, :]
-
-        if self.conf.img_dim == 1:
-            assert ims.shape[-1] == 1, "Expected image depth of 1"
-            ims = np.tile(ims, 3)
-
-        assert self.conf.op_rescale == 1, "op_rescale not sure if we are okay"
-        mask_sz = [int(x/self.conf.op_label_scale/self.conf.op_rescale) for x in imszuse]
-        mask_sz1 = [self.batch_size,] + mask_sz + [2*self.vec_num]
-        mask_sz2 = [self.batch_size,] + mask_sz + [self.heat_num]
-        mask_im1 = np.ones(mask_sz1)
-        mask_im2 = np.ones(mask_sz2)
-        mask_sz_origres = [int(x/self.conf.op_rescale) for x in imszuse]
-        mask_sz1_origres = [self.batch_size,] + mask_sz_origres + [2*self.vec_num]
-        mask_sz2_origres = [self.batch_size,] + mask_sz_origres + [self.heat_num]
-        mask_im1_origres = np.ones(mask_sz1_origres)
-        mask_im2_origres = np.ones(mask_sz2_origres)
-
-        ims, locs = PoseTools.preprocess_ims(ims, locs, self.conf,
-                                             self.distort, self.conf.op_rescale)
-        # locs has been rescaled per op_rescale (but not op_label_scale)
-
-        label_ims = create_label_images(locs/self.conf.op_label_scale, mask_sz, 1) #self.conf.label_blur_rad)
-#        label_ims = PoseTools.create_label_images(locs/self.conf.op_label_scale, mask_sz,1,2)
-        label_ims = np.clip(label_ims, 0, 1)  # AL: possibly unnec?
-
-        label_ims_origres = create_label_images(locs, mask_sz_origres,
-                                                self.conf.label_blur_rad)
-        label_ims_origres = np.clip(label_ims_origres, 0, 1) # AL: possibly unnec?
-
-        affinity_ims = create_affinity_labels(locs/self.conf.op_label_scale,
-                                              mask_sz, self.conf.op_affinity_graph, 1) #self.conf.label_blur_rad)
-
-        affinity_ims_origres = create_affinity_labels(locs,
-                                                      mask_sz_origres,
-                                                      self.conf.op_affinity_graph,
-                                                      self.conf.label_blur_rad)
-
-        return [ims, mask_im1, mask_im2, mask_im1_origres, mask_im2_origres], \
-               [affinity_ims, label_ims,
-                affinity_ims, label_ims,
-                affinity_ims, label_ims,
-                affinity_ims, label_ims,
-                affinity_ims, label_ims,
-                affinity_ims_origres, label_ims_origres]
-        # (inputs, targets)
-
-
-    def __iter__(self):
-        return self
-
-    def __next__(self, *args, **kwargs):
-        return self.next(*args, **kwargs)
 
 
 # ---------------------
@@ -491,39 +372,6 @@ def massage_conf(conf):
         conf.save_step = (div+1) * conf.display_step
         logging.info("Openpose requires the save step to be an even multiple of the display step. Increasing save step to {}".format(conf.save_step))
 
-def configure_lr_multipliers(model):
-    # setup lr multipliers for conv layers
-
-    lr_mult = dict()
-    for layer in model.layers:
-        # AL: second clause here unnec as Conv2DTranspose appears to be a subclass.
-        # Just for clarity
-        if isinstance(layer, Conv2D) or isinstance(layer, Conv2DTranspose):
-            # stage = 1
-            if re.match("Mconv\d_stage1.*", layer.name) or \
-               re.match("Mdeconv\d_stage1.*", layer.name):
-                kernel_name = layer.weights[0].name
-                bias_name = layer.weights[1].name
-                lr_mult[kernel_name] = 1
-                lr_mult[bias_name] = 2
-
-            # stage > 1
-            elif re.match("Mconv\d_stage.*", layer.name) or \
-                 re.match("Mdeconv\d_stage.*", layer.name):
-                kernel_name = layer.weights[0].name
-                bias_name = layer.weights[1].name
-                lr_mult[kernel_name] = 4
-                lr_mult[bias_name] = 8
-
-            # vgg
-            else:
-                kernel_name = layer.weights[0].name
-                bias_name = layer.weights[1].name
-                lr_mult[kernel_name] = 1
-                lr_mult[bias_name] = 2
-
-    return lr_mult
-
 
 def imszcheckcrop(sz, dimname):
     szm8 = sz % 8
@@ -543,74 +391,20 @@ def imszcheckcrop(sz, dimname):
 # - For paf, changing the blur_rad also changes loss0 roughly linearly as the
 #   limb width ~ linear in blur_rad.
 
-def configure_loss_functions(batch_size, stg6_blur_rad, stg6_resfac,
-                             stg6_wtfac_paf, stg6_wtfac_prt):
-    def eucl_loss(x, y):
-        return K.sum(K.square(x - y)) / batch_size / 2
-
-    losses = {}
-    loss_weights = {}
-    loss_weights_vec = []  # yes this is dumb. loss_weights in order S1L1 S1L2 S2L1 ...
-    for stage in range(1, 7):
-        for lvl in range(1, 3):
-            key = 'weight_stage{}_L{}'.format(stage, lvl)
-            losses[key] = eucl_loss
-            if stage == 6:
-                # stage6 hmap and paf maps are at
-                # 1. stg6_resfac (relative) upsampled resolution
-                # 2. stg6_blur_rad blur_rad
-
-                ispaf = lvl == 1
-                if ispaf:
-                    # 1. increased resolution increases natural scale of loss by
-                    #    stg6_resfac
-                    # 2. increased blur_rad increases " by stg6_blur_rad
-                    #       (relative to blur_rad of 1)
-                    loss_weights[key] = stg6_wtfac_paf / stg6_resfac / stg6_blur_rad
-                    logging.info('Stage 6 paf loss_weight: {}'.format(loss_weights[key]))
-                else:
-                    # 1. has no effect
-                    # 2. increases the natural scale of the loss by stg6_blur_rad**2
-                    #     (assuming earlier stages have blur_rad==1)
-                    loss_weights[key] = stg6_wtfac_prt / stg6_blur_rad**2
-                    logging.info('Stage 6 hmap loss_weight: {}'.format(loss_weights[key]))
-
-                # loss_weights[key] is the end-of-the-day weighting factor passed to K.compile.
-                # Empirically 201906 on bub, blur_rad of 3 (and resfac of 8):
-                #  mean(val_loss_full_paf_ratio)~25 and
-                #  mean(val_loss_full_prt_ratio)~37
-                # ie typical raw loss of stg6/(others) is that number; figured we want optimizer to
-                # upweight stg6 more in the [1,3] range although very unclear it makes any diff.
-                # Note the ratios above are flattish over the convergence/training (with some jumps
-                # at eg LR steps); it is not that the stg6 loss is offset to be higher with small
-                # reduction as convergence occurs. It is delta-loss that is relevant after all
-            else:
-                loss_weights[key] = 1.0
-            loss_weights_vec.append(loss_weights[key])
-
-    return losses, loss_weights, loss_weights_vec
-
 def dot(K, L):
    assert len(K) == len(L), 'lens do not match: {} vs {}'.format(len(K), len(L))
    return sum(i[0] * i[1] for i in zip(K, L))
 
-def training(conf,name='deepnet'):
 
-    #AL 20190327 For now we massage on the App side so the App knows what to expect for
-    # training outputs
-    #massage_conf(conf)
+def training(conf, name='deepnet'):
 
-    base_lr = 4e-5  # 2e-5
-    momentum = 0.9
-    weight_decay = 5e-4
-    lr_policy = "step"
-    batch_size = conf.batch_size
-    gamma = conf.gamma
-    stepsize = int(conf.decay_steps)
-    # stepsize = 68053  # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
+    base_lr = conf.op_base_lr
+    batch_size = conf.batch_size  # Gines 10
+    gamma = conf.gamma  # Gines 1/2
+    stepsize = int(conf.decay_steps)  # after each stepsize iterations update learning rate: lr=lr*gamma
+      # Gines much larger: 200k, 300k, then every 60k
     iterations_per_epoch = conf.display_step
     max_iter = conf.dl_steps/iterations_per_epoch
-    restart = True
     last_epoch = 0
 
     (imnr, imnc) = conf.imsz
@@ -622,52 +416,49 @@ def training(conf,name='deepnet'):
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, 'For open-pose save steps must be a multiple of display steps'
 
+    # need this to set default
+    save_time = conf.get('save_time', None)
+
     train_data_file = os.path.join(conf.cachedir, 'traindata')
     with open(train_data_file, 'wb') as td_file:
         pickle.dump(conf, td_file, protocol=2)
     logging.info('Saved config to {}'.format(train_data_file))
 
-    model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
+    #model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     model = get_training_model(imszuse,
-                               weight_decay,
-                               conf.weight_decay_kernel_dc,
-                               conf.weight_decay_dc_mode,
+                               conf.op_weight_decay_kernel,
+                               nPAFstg=conf.op_paf_nstage,
+                               nMAPstg=conf.op_map_nstage,
                                nlimbsT2=len(conf.op_affinity_graph) * 2,
-                               npts=conf.n_classes)
+                               npts=conf.n_classes,
+                               doDC=conf.op_hires,
+                               nDC=conf.op_hires_ndeconv)
 
-    # load previous weights or vgg19 if this is the first run
-    from_vgg = dict()
-    for blk in range(1,5):
-        for lvl in range(1,3):
-            from_vgg['conv{}_{}'.format(blk,lvl)] = 'block{}_conv{}'.format(blk,lvl)
     logging.info("Loading vgg19 weights...")
+    from_vgg = op2.from_vgg
     vgg_model = VGG19(include_top=False, weights='imagenet')
     for layer in model.layers:
         if layer.name in from_vgg:
             vgg_layer_name = from_vgg[layer.name]
             layer.set_weights(vgg_model.get_layer(vgg_layer_name).get_weights())
-            logging.info("Loaded VGG19 layer: " + vgg_layer_name)
+            logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
 
     # prepare generators
-    train_di = DataIteratorTF(conf, 'train', True, True)
-    train_di2 = DataIteratorTF(conf, 'train', True, True)
-    val_di = DataIteratorTF(conf, 'train', False, False)
-
-    # AL: looks like lr_mults not used anymore with Adam
-    # configure_lr_multipliers(model)
-    # logging.info('Configured layer learning rate mulitpliers')
+    train_di = opdata.DataIteratorTF(conf, 'train', True, True)
+    train_di2 = opdata.DataIteratorTF(conf, 'train', True, True)
+    val_di = opdata.DataIteratorTF(conf, 'train', False, False)
 
     assert conf.op_label_scale == 8
     logging.info("Your label_blur_rad is {}".format(conf.label_blur_rad))
     losses, loss_weights, loss_weights_vec = \
-        configure_loss_functions(batch_size, conf.label_blur_rad, conf.op_label_scale,
-                                 conf.op_hires_wtfac_paf, conf.op_hires_wtfac_prt)
+        configure_losses(model, batch_size,
+                         dc_on=conf.op_hires,
+                         dc_blur_rad_ratio=conf.op_map_hires_blur_rad / conf.op_map_lores_blur_rad,
+                         dc_wtfac=2.5)
 
-    save_time = conf.get('save_time',None)
-    # lr decay.
-    def step_decay(epoch):
+    def lr_decay(epoch):  # epoch is 0-based
         initial_lrate = base_lr
-        steps = epoch * iterations_per_epoch
+        steps = (epoch+1) * iterations_per_epoch
         lrate = initial_lrate * math.pow(gamma, math.floor(steps / stepsize))
         return lrate
 
@@ -691,27 +482,39 @@ def training(conf,name='deepnet'):
             self.save_start = time()
 
         def on_epoch_end(self, epoch, logs={}):
-            step = (epoch+1) * conf.display_step
+            step = (epoch+1) * iterations_per_epoch
             val_x, val_y = self.val_di.next()
-            val_out = self.model.predict(val_x)
-            val_loss_full = self.model.evaluate(val_x, val_y, verbose=0)
+            val_out = self.model.predict(val_x, batch_size=batch_size)
+            val_loss_full = self.model.evaluate(val_x, val_y, batch_size=batch_size, verbose=0)
             val_loss_K = val_loss_full[0]  # want Py 3 unpack
             val_loss_full = val_loss_full[1:]
             val_loss = dot(val_loss_full, loss_weights_vec)
+            #val_loss = np.nan
             train_x, train_y = self.train_di.next()
-            train_out = self.model.predict(train_x)
-            train_loss_full = self.model.evaluate(train_x, train_y, verbose=0)
+            train_out = self.model.predict(train_x, batch_size=batch_size)
+            train_loss_full = self.model.evaluate(train_x, train_y, batch_size=batch_size, verbose=0)
             train_loss_K = train_loss_full[0]  # want Py 3 unpack
             train_loss_full = train_loss_full[1:]
             train_loss = dot(train_loss_full, loss_weights_vec)
+            #train_loss = np.nan
             lr = K.eval(self.model.optimizer.lr)
 
-            # dist only for last layer
-            tt1 = PoseTools.get_pred_locs(val_out[-1]) - \
-                  PoseTools.get_pred_locs(val_y[-1])
+            # dist only for last MAP layer (will be hi-res if deconv is on)
+            predhmval = val_out[-1]
+            predhmval = clip_heatmap_with_warn(predhmval)
+            # (bsize, npts, 2), (x,y), 0-based
+            predlocsval = heatmap.get_weighted_centroids(predhmval,
+                                                         floor=self.config.op_hmpp_floor,
+                                                         nclustermax=self.config.op_hmpp_nclustermax)
+            gtlocs = heatmap.get_weighted_centroids(val_y[-1],
+                                                    floor=self.config.op_hmpp_floor,
+                                                    nclustermax=self.config.op_hmpp_nclustermax)
+            tt1 = predlocsval - gtlocs
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))  # [bsize x ncls]
             val_dist = np.nanmean(tt1)  # this dist is in op_scale-downsampled space
                                         # *self.config.op_label_scale
+
+            # NOTE train_dist uses argmax
             tt1 = PoseTools.get_pred_locs(train_out[-1]) - \
                   PoseTools.get_pred_locs(train_y[-1])
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
@@ -757,45 +560,60 @@ def training(conf,name='deepnet'):
                     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
 
 
-
     # configure callbacks
-    lrate = LearningRateScheduler(step_decay)
-    checkpoint = ModelCheckpoint(
-        model_file, monitor='loss', verbose=0, save_best_only=False,
-        save_weights_only=True, mode='min', period=conf.save_step)
+    lrate = LearningRateScheduler(lr_decay)
+    # checkpoint = ModelCheckpoint(val_di
+    #     model_file, monitor='loss', verbose=0, save_best_only=False,
+    #     save_weights_only=True, mode='min', period=conf.save_step)
     obs = OutputObserver(conf, [train_di2, val_di])
-    callbacks_list = [lrate, obs] #checkpoint,
+    callbacks_list = [lrate, obs]  #checkpoint,
 
-    # sgd optimizer with lr multipliers
     # optimizer = MultiSGD(lr=base_lr, momentum=momentum, decay=0.0, nesterov=False, lr_mult=lr_mult)#, clipnorm=1.)
     # Mayank 20190423 - Adding clipnorm so that the loss doesn't go to zero.
     optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
-    # start training
     model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)
 
     logging.info("Your model.metrics_names are {}".format(model.metrics_names))
 
-    #save initial model
+    # save initial model
     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
 
-    # training
     model.fit_generator(train_di,
-                        steps_per_epoch=conf.display_step,
+                        steps_per_epoch=iterations_per_epoch,
                         epochs=max_iter-1,
                         callbacks=callbacks_list,
                         verbose=0,
+                        initial_epoch=last_epoch
+                        )
                         # validation_data=val_di,
                         # validation_steps=val_samples // batch_size,
 #                        use_multiprocessing=True,
 #                        workers=4,
-                        initial_epoch=last_epoch
-                        )
 
     # force saving in case the max iter doesn't match the save step.
     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(max_iter*iterations_per_epoch)))))
     obs.on_epoch_end(max_iter-1)
 
+def clip_heatmap_with_warn(predhm):
+    '''
+
+    :param predhm:
+    :return: clipped predhm; could be same array as predhm if no change
+    '''
+
+    if np.any(predhm < 0.0):
+        PTILES = [1, 5, 10, 50, 99]
+        ptls = np.percentile(predhm, PTILES)
+        warnstr = 'Prediction heatmap has negative els! PTILES {}: {}'.format(PTILES, ptls)
+        logging.warning(warnstr)
+
+        predhm_clip = predhm.copy()
+        predhm_clip[predhm_clip < 0.0] = 0.0
+    else:
+        predhm_clip = predhm
+
+    return predhm_clip
 
 def get_pred_fn(conf, model_file=None, name='deepnet', rawpred=False):
     (imnr, imnc) = conf.imsz
@@ -805,8 +623,12 @@ def get_pred_fn(conf, model_file=None, name='deepnet', rawpred=False):
     conf.imszuse = imszuse
 
     model = get_testing_model(imszuse,
-                              nlimb=len(conf.op_affinity_graph) * 2,
+                              nPAFstg=conf.op_paf_nstage,
+                              nMAPstg=conf.op_map_nstage,
+                              nlimbsT2=len(conf.op_affinity_graph) * 2,
                               npts=conf.n_classes,
+                              doDC=conf.op_hires,
+                              nDC=conf.op_hires_ndeconv,
                               fullpred=rawpred)
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
@@ -818,49 +640,82 @@ def get_pred_fn(conf, model_file=None, name='deepnet', rawpred=False):
     # thre2 = conf.get('op_param_paf_thres',0.05)
 
     def pred_fn(all_f):
-        all_f = all_f[:, 0:imnr_use, 0:imnc_use, :]
 
-        if all_f.shape[3] == 1:
-            all_f = np.tile(all_f,[1,1,1,3])
-        # tiling beforehand a little weird as preprocess_ims->normalizexyxy branches on
-        # if img is color
-        xs, _ = PoseTools.preprocess_ims(
-            all_f, in_locs=np.zeros([conf.batch_size, conf.n_classes, 2]), conf=conf,
-            distort=False, scale=conf.op_rescale)
-        model_preds = model.predict(xs)
+        assert conf.op_rescale == 1  # for now
+        assert all_f.shape[0] == conf.batch_size
+
+        locs_sz = (conf.batch_size, conf.n_classes, 2)
+
+        # mirror open_pose_data/DataIteratorTF
+
+        ims, _ = PoseTools.preprocess_ims(
+            all_f,
+            in_locs=np.zeros(locs_sz),
+            conf=conf,
+            distort=False,
+            scale=conf.op_rescale)
+
+        ims = ims[:, 0:imnr_use, 0:imnc_use, :]
+
+        assert conf.img_dim == ims.shape[-1]
+        if conf.img_dim == 1:
+            ims = np.tile(ims, 3)
+
+        model_preds = model.predict(ims)
         # all_infered = []
         # for ex in range(xs.shape[0]):
         #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
         #     all_infered.append(infered)
-        pred = model_preds[-1]
-        raw_locs = PoseTools.get_pred_locs(pred)
-        raw_locs = raw_locs * conf.op_rescale  # * conf.op_label_scale
+        predhm = model_preds[-1]  # this is always the last/final MAP hmap
+        predhm_clip = clip_heatmap_with_warn(predhm)
+
+        # (bsize, npts, 2), (x,y), 0-based
+        predlocs_argmax = PoseTools.get_pred_locs(predhm)
+        predlocs_wgtcnt = heatmap.get_weighted_centroids(predhm_clip,
+                                                         floor=conf.op_hmpp_floor,
+                                                         nclustermax=conf.op_hmpp_nclustermax)
+        assert predlocs_argmax.shape == locs_sz
+        assert predlocs_wgtcnt.shape == locs_sz
+        print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
+
+        unscalefac = conf.op_label_scale
+        if conf.op_hires:
+            unscalefac = unscalefac / 2**conf.op_hires_ndeconv
+        assert predhm_clip.shape[1] == imnr_use / unscalefac
+        assert predhm_clip.shape[2] == imnc_use / unscalefac
+        predlocs_argmax_hires = opdata.unscale_points(predlocs_argmax, unscalefac)
+        predlocs_wgtcnt_hires = opdata.unscale_points(predlocs_wgtcnt, unscalefac)
+
+        assert conf.op_rescale == 1  # we are not rescaling by this
+
         # base_locs = np.array(all_infered)*conf.op_rescale
         # nanidx = np.isnan(base_locs)
         # base_locs[nanidx] = raw_locs[nanidx]
-        base_locs = raw_locs
+
         ret_dict = {}
-        ret_dict['locs'] = base_locs
-        ret_dict['hmaps'] = pred
-        ret_dict['conf'] = np.max(pred, axis=(1, 2))
+        ret_dict['locs'] = predlocs_wgtcnt_hires
+        ret_dict['locs_mdn'] = predlocs_argmax_hires  # XXX hack for now
+        ret_dict['locs_unet'] = predlocs_argmax_hires  # XXX hack for now
+        ret_dict['conf'] = np.max(predhm, axis=(1, 2))
+        ret_dict['conf_unet'] = np.max(predhm, axis=(1, 2)) # XXX hack
         return ret_dict
 
-    def pred_fn_rawmaps(all_f):
-        all_f = all_f[:, 0:imnr_use, 0:imnc_use, :]
-
-        if all_f.shape[3] == 1:
-            all_f = np.tile(all_f,[1,1,1,3])
-        # tiling beforehand a little weird as preprocess_ims->normalizexyxy branches on
-        # if img is color
-        xs, _ = PoseTools.preprocess_ims(
-            all_f, in_locs=np.zeros([conf.batch_size, conf.n_classes, 2]), conf=conf,
-            distort=False, scale=conf.op_rescale)
-        model_preds = model.predict(xs)
-        # all_infered = []
-        # for ex in range(xs.shape[0]):
-        #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
-        #     all_infered.append(infered)
-        return model_preds
+    # def pred_fn_rawmaps(all_f):
+    #     all_f = all_f[:, 0:imnr_use, 0:imnc_use, :]
+    #
+    #     if all_f.shape[3] == 1:
+    #         all_f = np.tile(all_f,[1,1,1,3])
+    #     # tiling beforehand a little weird as preprocess_ims->normalizexyxy branches on
+    #     # if img is color
+    #     xs, _ = PoseTools.preprocess_ims(
+    #         all_f, in_locs=np.zeros([conf.batch_size, conf.n_classes, 2]), conf=conf,
+    #         distort=False, scale=conf.op_rescale)
+    #     model_preds = model.predict(xs)
+    #     # all_infered = []
+    #     # for ex in range(xs.shape[0]):
+    #     #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
+    #     #     all_infered.append(infered)
+    #     return model_preds
 
 
     def close_fn():
@@ -869,10 +724,10 @@ def get_pred_fn(conf, model_file=None, name='deepnet', rawpred=False):
         # del model
 
     if rawpred:
+        assert False, "unsupported"
         return pred_fn_rawmaps, close_fn, latest_model_file
     else:
         return pred_fn, close_fn, latest_model_file
-
 
 
 def do_inference(hmap, paf, conf, thre1, thre2):
@@ -1073,3 +928,4 @@ def model_files(conf, name):
         return None
     traindata_file = PoseTools.get_train_data_file(conf, name)
     return [latest_model_file, traindata_file + '.json']
+
