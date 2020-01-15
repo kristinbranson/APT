@@ -838,6 +838,25 @@ def predict_stuff(sdn, ims, locsgt, hmfloor=0.1, hmncluster=1):
 
     return errT, errP, locsThi, locsPhi
 
+def conf_load(conf_file):
+    '''
+    Handles multiple-pickled-dicts in a pickle
+    :param conf_file:
+    :return:
+    '''
+    conf = {}
+    with open(conf_file, 'rb') as f:
+        while True:
+            try:
+                d = pickle.load(f)
+            except EOFError:
+                break
+            if isinstance(d, dict):
+                assert not any([x in conf for x in d])
+                conf.update(d)
+    return conf
+
+
 def load_apt_cpkt(exp_dir, mdlfile):
     '''
     Load an APT-style saved model checkpoint
@@ -849,8 +868,7 @@ def load_apt_cpkt(exp_dir, mdlfile):
     conf_file = os.path.join(exp_dir, 'conf.pickle')
     mdl_wgts_file = os.path.join(exp_dir, mdlfile)
 
-    with open(conf_file, 'rb') as fh:
-        conf_dict = pickle.load(fh)
+    conf_dict = conf_load(conf_file)
     conf = conf_dict['conf']
     model_config = conf_dict['sdn']
 

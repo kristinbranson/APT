@@ -459,7 +459,11 @@ def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort):
 def ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locsraw, conf, distort):
     # Still can img preproc
     assert distort is False
-    assert conf.dpk_n_outputs == 1, "Unexpected dpk_n_outputs: {}".format(conf.dpk_n_outputs)
+
+    #assert conf.dpk_n_outputs == 1, "Unexpected dpk_n_outputs: {}".format(conf.dpk_n_outputs)
+    # This assert is done in TGTFR when creating a generator; callsites that call this directly
+    # can/should know what they are doing
+
     return ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
                                         draw_conf_maps=False)
 

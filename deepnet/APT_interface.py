@@ -412,7 +412,7 @@ def conf_opts_pvargstr2dict(conf_str):
     return conf_opts
 
 
-def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
+def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None,quiet=False):
 
     try:
         try:
@@ -656,7 +656,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         cc = conf_params
         assert len(cc)%2 == 0, 'Config params should be in pairs of name value'
         for n,v in zip(cc[0::2],cc[1::2]):
-            print('Overriding param %s <= '%n,v)
+            if not quiet:
+                print('Overriding param %s <= '%n,v)
             setattr(conf,n,ast.literal_eval(v))
 
     # overrides for each network

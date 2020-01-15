@@ -412,8 +412,6 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
     conf_opts = common_conf.copy()
     # conf_opts.update(other_conf[conf_id])
     conf_opts['save_step'] = conf_opts['dl_steps'] // 10
-    for k in kwargs.keys():
-        conf_opts[k] = kwargs[k]
 
     if data_type in ['brit0', 'brit1', 'brit2']:
         conf_opts['adjust_contrast'] = True
@@ -464,6 +462,9 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
 
     if dpk_skel_csv is not None:
         conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
+
+    for k in kwargs.keys():
+        conf_opts[k] = kwargs[k]
 
     return conf_opts
 
@@ -556,11 +557,12 @@ def run_trainining(exp_name,train_type,view,run_type,
         print()
         run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir)
     elif run_type == 'status':
-        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        conf = create_conf_help(train_type, view, exp_name, quiet=True, **kwargs)
         check_train_status(cmd_name, conf.cachedir)
 
 
-def create_conf_help(train_type, view, exp_name, **kwargs):
+def create_conf_help(train_type, view, exp_name, quiet=False, **kwargs):
     '''
     Call apt.create_conf after customizing the conf for the given train_type/view/kwargs.
     :param train_type:
@@ -573,7 +575,7 @@ def create_conf_help(train_type, view, exp_name, **kwargs):
     pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
     pvlist = apt.conf_opts_pvargstr2list(pvlist)
     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
-                           conf_params=pvlist)
+                           conf_params=pvlist, quiet=quiet)
     return conf
 
 def get_apt_conf(**kwargs):
