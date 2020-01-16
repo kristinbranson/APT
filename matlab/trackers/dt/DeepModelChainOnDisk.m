@@ -348,6 +348,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       descstr = sprintf('Model file: %s',netstr);
       for i=1:nMdlFiles
         src = mdlFiles{i};
+        info = dir(src);
+        filesz = info.bytes/2^10;
         dst = mdlFilesRemote{i};
         % We just use scpUploadOrVerify which does not confirm the identity
         % of file if it already exists. These model files should be
@@ -356,7 +358,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         %
         % Only situation that might cause problems are augmentedtrains but
         % let's not worry about that for now.
-        aws.scpUploadOrVerify(src,dst,descstr,'destRelative',false); % throws
+        aws.scpUploadOrVerify(src,dst,sprintf('%s (%s), %d KB',descstr,info.name,round(filesz)),'destRelative',false); % throws
       end
       
       % if we made it here, upload successful
