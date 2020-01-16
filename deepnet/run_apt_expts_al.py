@@ -55,8 +55,9 @@ dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/g
 cache_dir = '/nrs/branson/al/cache'
 #all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'sb', 'dpk']
 #all_models = ['sb'] # , 'mdn', 'deeplabcut', 'openpose']
-#all_models = ['dpk', 'sb']
-all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet']
+all_models = ['dpk', 'sb']
+#all_models = ['mdn', 'deeplabcut']
+#all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet']
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/nrs/branson/al/out'
@@ -283,12 +284,12 @@ def check_train_status(cmd_name_base, cache_dir, run_name='deepnet'):
         if latest_time > submit_time and first_time > submit_time:
             diter = latest_model_iter - first_model_iter
             dtime = latest_time - first_time
-            sec_per_iter = dtime/diter
+            sec_per_iter = np.array(dtime)/np.array(diter)
             #min_per_5kiter = sec_per_iter * 5000 / 60
     if np.isnan(sec_per_iter):
         trntime5kiter = '---'
     else:
-        trntime5kiter = str(datetime.timedelta(seconds=round(sec_per_iter*5000)))
+        trntime5kiter = str(datetime.timedelta(seconds=np.round(sec_per_iter*5000)))
 
     print('{:45s}. nsub: {} submit: {}, latest iter: {:06d} at {}. train:{:.2f} val:{:.2f}. trntime/5kiter:{}'.format(
         cmd_name_base, nsubmits, get_tstr(submit_time), latest_model_iter, get_tstr(latest_time),
