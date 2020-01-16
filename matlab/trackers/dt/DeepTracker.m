@@ -3228,7 +3228,9 @@ classdef DeepTracker < LabelTracker
             switch backend.type,
               case DLBackEnd.Conda,
                 bgTrkWorkerObj.parseJobID(job,ivwjob,imov);
-              case [DLBackEnd.Docker,DLBackEnd.Bsub],
+              case DLBackEnd.Docker,
+                bgTrkWorkerObj.parseJobID(res,ivwjob,imov);
+              case DLBackEnd.Bsub,
                 bgTrkWorkerObj.parseJobID(res,ivwjob,imov);
               case DLBackEnd.AWS
               otherwise
