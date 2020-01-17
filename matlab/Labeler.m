@@ -9794,7 +9794,7 @@ classdef Labeler < handle
       sPrm.ROOT.Track = rmfield(sPrm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
     end
     
-    function trackSetParams(obj,sPrm)
+    function trackSetParams(obj,sPrm,varargin)
       % Set all parameters:
       %  - preproc
       %  - cpr
@@ -9806,6 +9806,7 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
+      [setall] = myparse(varargin,'all',false);
       sPrm = APTParameters.enforceConsistency(sPrm);
 
       [tfOK,msgs] = APTParameters.checkParams(sPrm);
@@ -9817,7 +9818,11 @@ classdef Labeler < handle
       tfPPprmsChanged = ...
         xor(isempty(sPrm0),isempty(sPrm)) || ...
         ~APTParameters.isEqualPreProcParams(sPrm0,sPrm);
-      sPrm = obj.setTrackNFramesParams(sPrm);
+      sPrm = obj.setTrackNFramesParams(sPrm);      
+      if setall,
+        sPrm = obj.setExtraParams(sPrm);
+      end
+      
       obj.trackParams = sPrm;
       
       if tfPPprmsChanged
@@ -9900,7 +9905,7 @@ classdef Labeler < handle
       sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
     end
     
-    function sPrm = trackGetParams(obj)
+    function sPrm = trackGetParams(obj,varargin)
       % Get all parameters:
       %  - preproc
       %  - cpr
@@ -9916,11 +9921,16 @@ classdef Labeler < handle
       
       % Future TODO: As in trackSetParams, currently this is hardcoded when
       % it ideally would just be a generic loop
+      [getall] = myparse(varargin,'all',false);
       
       sPrm = obj.trackParams;
       sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
+      if getall,
+        sPrm = obj.addExtraParams(sPrm);
+      end
+      
     end
     
     function be = trackGetDLBackend(obj)
@@ -10382,6 +10392,39 @@ classdef Labeler < handle
       matchstr = String.cellstr2CommaSepList(matchstr);
       sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
 
+    end
+    
+    function sPrmAll = setExtraParams(obj,sPrmAll)
+      
+      if structisfield(sPrmAll,'ROOT.DeepTrack.OpenPose.affinity_graph'),
+        skelstr = sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph;
+        nedge = numel(skelstr);
+        skel = nan(nedge,2);
+        for i = 1:nedge,
+          skel(i,:) = sscanf(skelstr{i},'%d %d');
+        end
+        obj.skeletonEdges = skel;
+        sPrmAll.ROOT.DeepTrack.OpenPose = rmfield(sPrmAll.ROOT.DeepTrack.OpenPose,'affinity_graph');
+        if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.OpenPose)),
+          sPrmAll.ROOT.DeepTrack.OpenPose = '';
+        end
+      end
+
+      % add landmark matches
+      if structisfield(sPrmAll,'ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches'),
+        matchstr = sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches;
+        matchstr = strsplit(matchstr,',');
+        nedge = numel(matchstr);
+        matches = nan(nedge,2);
+        for i = 1:nedge,
+          matches(i,:) = sscanf(matchstr{i},'%d %d');
+        end
+        obj.setFlipLandmarkMatches(matches);
+        sPrmAll.ROOT.DeepTrack.DataAugmentation = rmfield(sPrmAll.ROOT.DeepTrack.DataAugmentation,'flipLandmarkMatches');
+        if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.DataAugmentation)),
+          sPrmAll.ROOT.DeepTrack.DataAugmentation = '';
+        end
+      end
     end
     
     function trackAndExport(obj,mftset,varargin)

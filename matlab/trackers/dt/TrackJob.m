@@ -57,6 +57,7 @@ classdef TrackJob < handle
     uploadfun = @(varargin) [];
     mkdirRemFun = @(varargin) [];
     rmRemFun = @(varargin) [];
+    downloadfun = @(varargin) true;
     
     logcmd = '';
     codestr = '';
@@ -295,15 +296,30 @@ classdef TrackJob < handle
              'dockerargs',dockerargs);
           
         case DLBackEnd.Conda,
+                
           [obj.codestr] = ...
             DeepTracker.trackCodeGenConda(...
-            obj.modelChainID,obj.rootDirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
+            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
             obj.movfileRem,obj.trkfileRem,...
             obj.frm0,obj.frm1,...
             'baseargs',[baseargs,{'filesep',obj.tObj.filesep}],...
             'outfile',obj.logfile,...
             'condaargs',condaargs);
+          
+        case DLBackEnd.AWS,
+          
+          codestrRem = ...
+            DeepTracker.trackCodeGenAWS(...
+            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
+            obj.movfileRem,obj.trkfileRem,...
+            obj.frm0,obj.frm1,...
+            baseargs);
+          
+          obj.codestr = obj.backend.awsec2.sshCmdGeneralLogged(codestrRem,obj.logfile);
            
+        otherwise
+          error('not implemented back end %s',obj.backend.type);
+          
       end
       codestr = obj.codestr;
     end
@@ -364,12 +380,15 @@ classdef TrackJob < handle
     
     function setBackEnd(obj,backend)
       obj.backend = backend;
-      switch obj.backend,
+      switch obj.backend.type,
         case DLBackEnd.AWS,
           aws = obj.backend.awsec2;
           obj.uploadfun = @aws.scpUploadOrVerifyEnsureDir;
           obj.mkdirRemFun = @aws.ensureRemoteDir;
           obj.rmRemFun = @aws.rmRemoteFile;
+          sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
+          obj.downloadfun = @(varargin) aws.scpDownloadOrVerify(varargin{:},'sysCmdArgs',sysCmdArgs);
+        
       end
       
     end
@@ -458,8 +477,9 @@ classdef TrackJob < handle
             obj.trxfileRem{i} = [obj.remoteRoot '/' trxRemoteRel];
           end
           
-          [~,trkfilestr,ext] = fileparts(obj.trkfileLcl{i}); %#ok<PROPLC>
-          obj.trkfileRem{i} = fullfile(obj.trkoutdirRem{i},[trkfilestr,ext]); %#ok<PROPLC>
+          trnstr0 = obj.trnstr{i};
+          trkRemoteRel = [movsha '_' trnstr0 '_' obj.nowstr '.trk'];
+          obj.trkfileRem{i} = fullfile(obj.trkoutdirRem{i},trkRemoteRel);
           
         end
       end
@@ -483,10 +503,10 @@ classdef TrackJob < handle
       end
             
       % errors out if fails
-      obj.checkUploadFiles(obj.lblfileLcl,obj.lblfileRem,'training file');
-      obj.checkUploadFiles(obj.movfileLcl,obj.movfileRem,'trxfile');
+      obj.checkUploadFiles({obj.lblfileLcl},{obj.lblfileRem},'Lbl file');
+      obj.checkUploadFiles(obj.movfileLcl,obj.movfileRem,'Movie file');
       if obj.tftrx,
-        obj.checkUploadFiles(obj.trxfileLcl,obj.trxfileRem,'trxfile');
+        obj.checkUploadFiles(obj.trxfileLcl,obj.trxfileRem,'Trx file');
       end
 
       
@@ -502,6 +522,24 @@ classdef TrackJob < handle
         obj.uploadfun(fileLcl{i},fileRem{i},varargin{:});
       end
       
+    end
+    
+    function tfsucc = downloadRemoteResults(obj)
+      
+      tfsucc = true;
+      if ~obj.tfremote,
+        return;
+      end
+      
+      tfsucc = obj.downloadFiles(obj.trkfileRem,obj.trkfileLcl);
+      
+    end
+    
+    function tfsucc = downloadFiles(obj,fileRem,fileLcl)
+      tfsucc = true;
+      for i = 1:numel(fileLcl),
+        tfsucc = tfsucc && obj.downloadfun(fileRem{i},fileLcl{i});
+      end      
     end
     
     function deletePartTrkFiles(obj)
