@@ -54,10 +54,8 @@ dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/g
 
 cache_dir = '/nrs/branson/al/cache'
 #all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'sb', 'dpk']
-#all_models = ['sb'] # , 'mdn', 'deeplabcut', 'openpose']
-all_models = ['dpk', 'sb']
-#all_models = ['mdn', 'deeplabcut']
-#all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet']
+#all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet'] #, 'sb', 'dpk']
+all_models = ['openpose']
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/nrs/branson/al/out'
@@ -472,8 +470,9 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
         elif train_type in ['unet']:
             conf_opts['batch_size'] = 2
             conf_opts['rescale'] = 2
-        elif train_type in ['sb', 'dpk']:
+        elif train_type in ['sb', 'dpk', 'openpose']:
             conf_opts['rescale'] = 2
+            conf_opts['batch_size'] = 4
         else:
             conf_opts['batch_size'] = 4
 
@@ -664,7 +663,8 @@ def create_normal_dbs():
 
 def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                       exp_name_pfix='',  # prefix for exp_name
-                      split_idxs=None,  # optional list of split indices to run
+                      split_idxs=None,  # optional list of split indices to run (0-based)
+                      view_idxs=None,  # optional list of view indices to run (0-based)
                       **kwargs):
     assert data_type in ['romain','larva','roian','carsen']
 
@@ -694,6 +694,11 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
     else:
         split_idxs = range(n_splits)
 
+    if view_idxs is not None:
+        assert all([x in range(nviews) for x in view_idxs])
+    else:
+        view_idxs = range(nviews)
+
     for sndx in split_idxs:
         val_info = [l for ndx,l in enumerate(in_info) if cv_info[ndx]==sndx]
         trn_info = list(set(label_info)-set(val_info))
@@ -711,7 +716,7 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
 
         # create the dbs
         if not skip_db:
-            for view in range(nviews):
+            for view in view_idxs:
                 for train_type in all_models:
                     conf = create_conf_help(train_type, view, exp_name, **kwargs)
                     #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
@@ -723,7 +728,7 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                     else:
                         apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
 
-    for view in range(nviews):
+    for view in view_idxs:
         for train_type in all_models:
             for sndx in split_idxs:
                 exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)

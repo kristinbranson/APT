@@ -36,8 +36,9 @@ import cv2
 from past.utils import old_div
 import matplotlib.pyplot as plt
 
-import tfdatagen as opdata
+import tfdatagen
 import heatmap
+import util
 
 ISPY3 = sys.version_info >= (3, 0)
 
@@ -512,30 +513,61 @@ def set_openpose_defaults(conf):
     conf.n_steps = 4.41
     conf.gamma = 0.333
 
+def compute_padding_imsz_net(imsz, rescale, bb_ds_scale, ndeconv):
+    '''
+    :param imsz: [2] raw im size
+    :param rescale: float, desired rescale.
+    :return:
+    '''
 
-def massage_conf(conf):
-    assert conf.dl_steps >= conf.display_step, \
-        "Number of dl steps must be greater than or equal to the display step"
-    div,mod = divmod(conf.dl_steps,conf.display_step)
-    if mod != 0:
-        conf.dl_steps = (div+1) * conf.display_step
-        logging.info("Openpose requires the number of dl steps to be an even multiple of the display step. Increasing dl steps to {}".format(conf.dl_steps))
+    # in tfdatagen, the input pipeline is read->pad->rescale/distort->ready_for_network
 
-    assert conf.save_step >= conf.display_step, \
-        "dl save step must be greater than or equal to the display step"
-    div,mod = divmod(conf.save_step,conf.display_step)
-    if mod != 0:
-        conf.save_step = (div+1) * conf.display_step
-        logging.info("Openpose requires the save step to be an even multiple of the display step. Increasing save step to {}".format(conf.save_step))
+    # in the network, it goes inputres->bbres(downsamp currently 8x)->deconvres(2x upsamp ndeconv times)
 
+    # we set the initial padding so all scaling is 'perfect' ie the initial rescale, then bbdownsampe etc.
 
-def imszcheckcrop(sz, dimname):
-    szm8 = sz % 8
-    szuse = sz - szm8
-    if szm8 != 0:
-        warnstr = 'Image {} dimension ({}) is not a multiple of 8. Image will be cropped slightly.'.format(dimname, sz)
-        logging.warning(warnstr)
-    return szuse
+    def checkint(x, name):
+        assert isinstance(x, int) or x.is_integer(), "Expect {} to be integral value".format(name)
+
+    checkint(rescale, 'rescale')
+    checkint(bb_ds_scale, 'bb_ds_scale')
+    checkint(ndeconv, 'ndeconv')
+
+    dc_scale = 2**ndeconv
+    scale_hires = bb_ds_scale / dc_scale  # downsample scale of hires (postDC) relative to network input
+    assert scale_hires.is_integer(), "scale_hires is non-integral: {}".format(scale_hires)
+
+    imsz_pad_should_be_divisible_by = int(rescale * bb_ds_scale)
+    dsfac = imsz_pad_should_be_divisible_by
+    def roundupeven(x):
+        return int(np.ceil(x/dsfac)) * dsfac
+
+    imsz_pad = (roundupeven(imsz[0]), roundupeven(imsz[1]))
+    padx = imsz_pad[1] - imsz[1]
+    pady = imsz_pad[0] - imsz[0]
+    imsz_net = (int(imsz_pad[0]/rescale), int(imsz_pad[1]/rescale))
+    imsz_bb = (int(imsz_pad[0]/rescale/bb_ds_scale), int(imsz_pad[1]/rescale/bb_ds_scale))
+    imsz_dc = (int(imsz_pad[0]/rescale/scale_hires), int(imsz_pad[1]/rescale/scale_hires))
+
+    return padx, pady, imsz_pad, imsz_net, imsz_bb, imsz_dc
+
+def update_conf(conf):
+    '''
+    Update conf in-place
+    :param conf:
+    :return:
+    '''
+
+    (conf.op_im_padx, conf.op_im_pady, conf.op_imsz_pad, conf.op_imsz_net, conf.op_imsz_lores,
+     conf.op_imsz_hires) = compute_padding_imsz_net(conf.imsz, conf.rescale,
+                                                    conf.op_label_scale, conf.op_hires_ndeconv)
+    logging.info("OP size stuff: imsz={}, imsz_pad={}, imsz_net={}, imsz_lores, imsz_hires, rescale={}".format(
+        conf.imsz, conf.op_imsz_pad, conf.op_imsz_net, conf.op_imsz_lores, conf.op_imsz_hires,
+        conf.rescale))
+
+    if conf.normalize_img_mean:
+        conf.normalize_img_mean = False
+        logging.warning("Turning off normalize_img_mean. Openpose does its own normalization.")
 
 # AL losses, resolutions, blurs
 # Calling "loss0" the loss vs an all-zero array of the right size.
@@ -551,7 +583,6 @@ def dot(K, L):
    assert len(K) == len(L), 'lens do not match: {} vs {}'.format(len(K), len(L))
    return sum(i[0] * i[1] for i in zip(K, L))
 
-
 def training(conf, name='deepnet'):
 
     base_lr = conf.op_base_lr
@@ -563,17 +594,11 @@ def training(conf, name='deepnet'):
     max_iter = conf.dl_steps/iterations_per_epoch
     last_epoch = 0
 
-    (imnr, imnc) = conf.imsz
-    imnr_use = imszcheckcrop(imnr, 'row')
-    imnc_use = imszcheckcrop(imnc, 'column')
-    imszuse = (imnr_use, imnc_use)
-    conf.imszuse = imszuse
-
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, 'For open-pose save steps must be a multiple of display steps'
 
     # need this to set default
-    save_time = conf.get('save_time', None)
+    #save_time = conf.get('save_time', None)
 
     train_data_file = os.path.join(conf.cachedir, 'traindata')
     with open(train_data_file, 'wb') as td_file:
@@ -583,7 +608,7 @@ def training(conf, name='deepnet'):
     #model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     assert not conf.normalize_img_mean, "OP currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "OP currently performs its own img input norm"
-    model = get_training_model(imszuse,
+    model = get_training_model(conf.op_imsz_net,
                                conf.op_weight_decay_kernel,
                                backbone=conf.op_backbone,
                                backbone_weights=conf.op_backbone_weights,
@@ -604,10 +629,11 @@ def training(conf, name='deepnet'):
                 logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
 
     # prepare generators
-    assert(False, "react use make_data_gen and pass tfrfile")
-    train_di = opdata.data_generator(conf, 'train', True, True,'ims_locs_preprocess_openpose')
-    train_di2 = opdata.data_generator(conf, 'train', True, True,'ims_locs_preprocess_openpose')
-    val_di = opdata.data_generator(conf, 'train', False, False,'ims_locs_preprocess_openpose')
+    PREPROCFN = 'ims_locs_preprocess_openpose'
+    trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+    train_di = tfdatagen.make_data_generator(trntfr, conf, True, True, PREPROCFN)
+    train_di2 = tfdatagen.make_data_generator(trntfr, conf, True, True, PREPROCFN)
+    val_di = tfdatagen.make_data_generator(trntfr, conf, False, False, PREPROCFN)
 
     assert conf.op_label_scale == 8
     logging.info("Your label_blur_rads (hi/lo)res are {}/{}".format(
@@ -777,25 +803,12 @@ def clip_heatmap_with_warn(predhm):
 
     return predhm_clip
 
-def dictcompare(d1, d2, dictname):
-    nmatch = 0
-    for k in d1.keys():
-        if k in d2:
-            if np.all(d1[k] == d2[k]):
-                nmatch += 1
-            else:
-                logging.warning("key {} does not match in {}!".format(k, dictname))
-        else:
-            logging.warning("key {} is missing in second {}!".format(k, dictname))
-
-    return nmatch
-
 def get_pred_fn(conf, model_file=None, name='deepnet'):
-    (imnr, imnc) = conf.imsz
-    imnr_use = imszcheckcrop(imnr, 'row')
-    imnc_use = imszcheckcrop(imnc, 'column')
-    imszuse = (imnr_use, imnc_use)
-    conf.imszuse = imszuse
+    #(imnr, imnc) = conf.imsz
+    #imnr_use = imszcheckcrop(imnr, 'row')
+    #imnc_use = imszcheckcrop(imnc, 'column')
+    #imszuse = (imnr_use, imnc_use)
+    #conf.imszuse = imszuse
 
     # check the conf against the conf stored in the traindata w/trained model
     # they should match
@@ -806,8 +819,8 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
             td = pickle.load(f)
         conftrain = td[1]
         logging.info("Comparing prediction config to training config within {}...".format(tdfile))
-        nmatch = dictcompare(vars(conf), vars(conftrain), 'poseconfig')
-        logging.info("... done comparing configs, {} matching keys".format(nmatch))
+        util.dictdiff(vars(conf), vars(conftrain), logging.info)
+        logging.info("... done comparing configs")
     else:
         wstr = "Cannot find traindata file {}. Not checking predict vs train config.".format(tdfile)
         logging.warning(wstr)
@@ -840,7 +853,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         :return:
         '''
 
-        assert conf.op_rescale == 1  # for now
+        assert conf.op_rescale == 1  # for now XXXXXXXXXXXXX
         assert all_f.shape[0] == conf.batch_size
         if all_f.shape[-1] == 1:
             all_f = np.tile(all_f, 3)
@@ -856,7 +869,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
             in_locs=np.zeros(locs_sz),
             conf=conf,
             distort=False,
-            scale=conf.op_rescale)
+            scale=conf.op_rescale) # XXXXXXXXXXXXXX
 
         ims = ims[:, 0:imnr_use, 0:imnc_use, :]
 
@@ -883,10 +896,10 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
             unscalefac = unscalefac / 2**conf.op_hires_ndeconv
         assert predhm_clip.shape[1] == imnr_use / unscalefac
         assert predhm_clip.shape[2] == imnc_use / unscalefac
-        predlocs_argmax_hires = opdata.unscale_points(predlocs_argmax, unscalefac)
-        predlocs_wgtcnt_hires = opdata.unscale_points(predlocs_wgtcnt, unscalefac)
+        predlocs_argmax_hires = tfdatagen.unscale_points(predlocs_argmax, unscalefac)
+        predlocs_wgtcnt_hires = tfdatagen.unscale_points(predlocs_wgtcnt, unscalefac)
 
-        assert conf.op_rescale == 1  # we are not rescaling by this
+        assert conf.op_rescale == 1  # we are not rescaling by this # XXXXXXXXXXXXXXXXX
 
         # base_locs = np.array(all_infered)*conf.op_rescale
         # nanidx = np.isnan(base_locs)

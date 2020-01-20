@@ -7,7 +7,7 @@ def dictsubsetpfix(d, pfix):
     return dict((k, d[k]) for k in d if k.startswith(pfix))
 
 
-def dictdiff(d1, d2):
+def dictdiff(d1, d2, print_fcn=print):
     k1 = set(d1.keys())
     k2 = set(d2.keys())
 
@@ -15,8 +15,8 @@ def dictdiff(d1, d2):
     k2not1 = k2-k1
     k = k1.intersection(k2)
 
-    print("{} keys in d1 not in d2: {}".format(len(k1not2), k1not2))
-    print("{} keys in d2 not in d1: {}".format(len(k2not1), k2not1))
+    print_fcn("{} keys in d1 not in d2: {}".format(len(k1not2), k1not2))
+    print_fcn("{} keys in d2 not in d1: {}".format(len(k2not1), k2not1))
 
     for kk in k:
         v1 = d1[kk]
@@ -27,4 +27,4 @@ def dictdiff(d1, d2):
         if not tf:
             print("{}: values differ, {} vs {}".format(kk, v1, v2))
 
-    print("{} total common keys checked".format(len(k)))
+    print_fcn("{} total common keys checked".format(len(k)))

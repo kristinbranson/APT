@@ -31,6 +31,7 @@ from time import time
 
 import tfdatagen as opdata
 import heatmap
+import util
 
 ISPY3 = sys.version_info >= (3, 0)
 
@@ -448,7 +449,7 @@ def training(conf, name='deepnet'):
     assert conf.save_step % iterations_per_epoch == 0, ' save steps must be a multiple of display steps'
 
     # need this to set default
-    _ = conf.get('save_time', None)
+    # _ = conf.get('save_time', None)
 
     train_data_file = os.path.join(conf.cachedir, 'traindata')
     with open(train_data_file, 'wb') as td_file:
@@ -634,19 +635,6 @@ def clip_heatmap_with_warn(predhm):
 
     return predhm_clip
 
-def dictcompare(d1, d2, dictname):
-    nmatch = 0
-    for k in d1.keys():
-        if k in d2:
-            if np.all(d1[k] == d2[k]):
-                nmatch += 1
-            else:
-                logging.warning("key {} does not match in {}!".format(k, dictname))
-        else:
-            logging.warning("key {} is missing in second {}!".format(k, dictname))
-
-    return nmatch
-
 def get_pred_fn(conf, model_file=None, name='deepnet'):
     #(imnr, imnc) = conf.imsz
     #conf.sb_im_pady, imnr_use = get_im_pad(imnr, 'row') # xxxxxxx
@@ -678,8 +666,8 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
             td = pickle.load(f, encoding='latin1')
         conftrain = td[1]
         logging.info("Comparing prediction config to training config within {}...".format(tdfile))
-        nmatch = dictcompare(vars(conf), vars(conftrain), 'poseconfig')
-        logging.info("... done comparing configs, {} matching keys".format(nmatch))
+        util.dictdiff(vars(conf), vars(conftrain), logging.info)
+        logging.info("... done comparing configs")
     else:
         wstr = "Cannot find traindata file {}. Not checking predict vs train config.".format(tdfile)
         logging.warning(wstr)
@@ -739,10 +727,6 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         predlocs_argmax_hires[..., 1] -= conf.sb_im_pady//2
         predlocs_wgtcnt_hires[..., 0] -= conf.sb_im_padx//2
         predlocs_wgtcnt_hires[..., 1] -= conf.sb_im_pady//2
-
-        # base_locs = np.array(all_infered)*conf.op_rescale
-        # nanidx = np.isnan(base_locs)
-        # base_locs[nanidx] = raw_locs[nanidx]
 
         ret_dict = {}
         ret_dict['locs'] = predlocs_wgtcnt_hires

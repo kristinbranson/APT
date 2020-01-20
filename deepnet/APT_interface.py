@@ -662,8 +662,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     # overrides for each network
     if net_type == 'openpose':
-        # openpose uses its own normalization
-        conf.normalize_img_mean = False
+        op.update_conf(conf)
     elif net_type == 'sb':
         sb.update_conf(conf)
     elif net_type == 'dpk':
@@ -675,7 +674,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.use_pretrained_weights = False
 
     conf.unet_rescale = conf.rescale
-    conf.op_rescale = conf.rescale
+    #conf.op_rescale = conf.rescale
     conf.dlc_rescale = conf.rescale
     conf.leap_rescale = conf.rescale
 

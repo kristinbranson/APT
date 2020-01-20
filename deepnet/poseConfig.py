@@ -77,6 +77,8 @@ class config(object):
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
+        self.op_im_pady = None  # computed at runtime
+        self.op_im_padx = None  # "
         self.op_backbone = 'resnet50_8px'
         self.op_backbone_weights = 'imagenet'
         self.op_map_lores_blur_rad = 1.0
@@ -160,6 +162,7 @@ class config(object):
 
         # ----- Save parameters
 
+        self.save_time = None
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30

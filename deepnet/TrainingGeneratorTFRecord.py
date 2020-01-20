@@ -217,7 +217,7 @@ class TrainingGeneratorTFRecord:
             Otherwise, generates keypoints.
 
         """
-        # This is dumb, this is only set here to pass into opdata.data_generator; it shouldn't persist
+        # This is dumb, this is only set here to pass into tfdatagen.data_generator; it shouldn't persist
         self.conf.dpk_n_outputs = n_outputs
         logging.warning('Ignoring batch specification of {}, conf batchsize is {}'.format(batch_size, self.conf.batch_size))
         #self.batch_size = batch_size

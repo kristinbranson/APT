@@ -230,7 +230,7 @@ def pad_ims_black(ims, locs, pady, padx):
     out_locs[..., 1] += pady_b
     return out_ims, out_locs
 
-def ims_locs_preprocess_openpose(ims, locs, conf, distort):
+def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmaps=True):
     '''
     Openpose; Preprocess ims/locs; generate targets
     :param ims:
@@ -240,37 +240,40 @@ def ims_locs_preprocess_openpose(ims, locs, conf, distort):
     :return:
     '''
 
-    assert conf.op_rescale == 1, \
-        "Need further mods/corrections below for op_rescale~=1"
     assert conf.op_label_scale == 8, \
-        "Expected openpose scale of 8"  # Any value should be ok tho
+        "Expected openpose scale of 8"  # Any value should be ok tho. this is the BB output scale
 
-    # used in preprocess_ims
-    assert conf.imsz == ims.shape[1:3], "Image size is {}".format(ims.shape[1:])
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf,
-                                         distort, conf.op_rescale)
-    # locs has been rescaled per op_rescale (but not op_label_scale)
+    assert conf.imsz == imsraw.shape[1:3], "Image size is {}".format(imsraw.shape[1:])
 
-    imszuse = conf.imszuse
-    (imnr_use, imnc_use) = imszuse
-    ims = ims[:, 0:imnr_use, 0:imnc_use, :]
+    imspad, locspad = pad_ims_black(imsraw, locsraw, conf.op_im_pady, conf.op_im_padx)
+    assert imspad.shape[1:3] == conf.op_imsz_pad
 
-    assert conf.img_dim == ims.shape[-1]
+    ims, locs = PoseTools.preprocess_ims(imspad, locspad, conf, distort, conf.rescale)
+    # locs has been rescaled per rescale (but not op_label_scale)
+
+    imszuse = conf.op_imsz_net
+    assert ims.shape[1:3] == imszuse
+    assert ims.shape[3] == conf.img_dim
     if conf.img_dim == 1:
         ims = np.tile(ims, 3)
 
+    if not gen_target_hmaps:
+        return ims, locs
+
     # locs -> PAFs, MAP
     # Generates hires maps here but only used below if conf.op_hires
-    dc_scale = conf.op_hires_ndeconv ** 2
-    locs_lores = rescale_points(locs, conf.op_label_scale, None)  # XXX
-    locs_hires = rescale_points(locs, conf.op_label_scale // dc_scale, None) # XXX
-    imsz_lores = [int(x / conf.op_label_scale / conf.op_rescale) for x in imszuse]
-    imsz_hires = [int(x / conf.op_label_scale * dc_scale / conf.op_rescale) for x in imszuse]
-    label_map_lores = heatmap.create_label_hmap(locs_lores, imsz_lores, conf.op_map_lores_blur_rad)
-    label_map_hires = heatmap.create_label_hmap(locs_hires, imsz_hires, conf.op_map_hires_blur_rad)
+    dc_scale = 2**conf.op_hires_ndeconv
+    scale_hires = conf.op_label_scale / dc_scale  # downsample scale of hires (postDC) relative to network input
+    assert scale_hires.is_integer()
+    locs_lores = PoseTools.rescale_points(locs, conf.op_label_scale, conf.op_label_scale)  ## bb output/working res
+    locs_hires = PoseTools.rescale_points(locs, scale_hires, scale_hires)
+    #imsz_lores = [int(x / conf.op_label_scale) for x in imszuse]
+    #imsz_hires = [int(x / scale_hires) for x in imszuse]
 
+    label_map_lores = heatmap.create_label_hmap(locs_lores, conf.op_imsz_lores, conf.op_map_lores_blur_rad)
+    label_map_hires = heatmap.create_label_hmap(locs_hires, conf.op_imsz_hires, conf.op_map_hires_blur_rad)
     label_paf_lores = create_affinity_labels(locs_lores,
-                                             imsz_lores,
+                                             conf.op_imsz_lores,
                                              conf.op_affinity_graph,
                                              tubewidth=conf.op_paf_lores_tubewidth,
                                              tubeblur=conf.op_paf_lores_tubeblur,
@@ -493,7 +496,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
     batch_size = conf.batch_size
     N = PoseTools.count_records(filename)
 
-    logging.warning("opdata data gen. file={}, distort/shuf={}/{}, ppfun={}, N={}".format(
+    logging.warning("tfdatagen data gen. file={}, distort/shuf={}/{}, ppfun={}, N={}".format(
         filename, distort, shuffle, ims_locs_proc_fn.__name__, N))
 
     # Py 2.x workaround nested functions outer variable rebind
@@ -561,7 +564,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
 
 def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, **kwargs):
     conf = copy.deepcopy(conf0)
-    logging.warning("opdata makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
+    logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
         tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
 
