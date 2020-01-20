@@ -43,9 +43,12 @@ import cv2
 import re
 from scipy import io as sio
 import heatmap
-import apt_dpk
 
 ISPY3 = sys.version_info >= (3, 0)
+
+if ISPY3:
+    import apt_dpk
+
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:

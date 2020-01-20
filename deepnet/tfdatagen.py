@@ -14,9 +14,12 @@ import time
 
 import PoseTools
 import heatmap
-import deepposekit as dpk
 
 ISPY3 = sys.version_info >= (3, 0)
+
+if ISPY3:
+    import deepposekit as dpk
+
 
 def distsquaredpts2limb(zz, startxy, sehat):
     '''
