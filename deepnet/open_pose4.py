@@ -1,4 +1,5 @@
 from __future__ import print_function
+from __future__ import division
 
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Concatenate
@@ -318,7 +319,7 @@ def get_training_model(imszuse, wd_kernel, backbone='resnet50_8px', backbone_wei
 
     # backbone
     if backbone == 'vgg':
-        imszBB = (imnruse / 8, imncuse / 8)  # imsz post backbone
+        imszBB = (imnruse // 8, imncuse // 8)  # imsz post backbone
         #paf_input_shape = imszvgg + (nlimbsT2,)
         #map_input_shape = imszvgg + (npts,)
         backboneF = vgg_block(img_normalized, wd_kernel)
@@ -430,7 +431,7 @@ def get_testing_model(imszuse,
     imnruse, imncuse = imszuse
     assert imnruse % 8 == 0, "Image size must be divisible by 8"
     assert imncuse % 8 == 0, "Image size must be divisible by 8"
-    imszvgg = (imnruse/8, imncuse/8)  # imsz post VGG ftrs
+    imszvgg = (imnruse//8, imncuse//8)  # imsz post VGG ftrs
 
     img_input = Input(shape=imszuse + (3,), name='input_img')
 
@@ -438,7 +439,7 @@ def get_testing_model(imszuse,
 
     # backbone
     if backbone == 'vgg':
-        imszBB = (imnruse / 8, imncuse / 8)  # imsz post backbone
+        imszBB = (imnruse // 8, imncuse // 8)  # imsz post backbone
         #paf_input_shape = imszvgg + (nlimbsT2,)
         #map_input_shape = imszvgg + (npts,)
         backboneF = vgg_block(img_normalized, None)
@@ -591,7 +592,7 @@ def training(conf, name='deepnet'):
     stepsize = int(conf.decay_steps)  # after each stepsize iterations update learning rate: lr=lr*gamma
       # Gines much larger: 200k, 300k, then every 60k
     iterations_per_epoch = conf.display_step
-    max_iter = conf.dl_steps/iterations_per_epoch
+    max_iter = conf.dl_steps//iterations_per_epoch
     last_epoch = 0
 
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
@@ -671,14 +672,14 @@ def training(conf, name='deepnet'):
 
         def on_epoch_end(self, epoch, logs={}):
             step = (epoch+1) * iterations_per_epoch
-            val_x, val_y = self.val_di.next()
+            val_x, val_y = next(self.val_di)
             val_out = self.model.predict(val_x, batch_size=batch_size)
             val_loss_full = self.model.evaluate(val_x, val_y, batch_size=batch_size, verbose=0)
             val_loss_K = val_loss_full[0]  # want Py 3 unpack
             val_loss_full = val_loss_full[1:]
             val_loss = dot(val_loss_full, loss_weights_vec)
             #val_loss = np.nan
-            train_x, train_y = self.train_di.next()
+            train_x, train_y = next(self.train_di)
             train_out = self.model.predict(train_x, batch_size=batch_size)
             train_loss_full = self.model.evaluate(train_x, train_y, batch_size=batch_size, verbose=0)
             train_loss_K = train_loss_full[0]  # want Py 3 unpack
