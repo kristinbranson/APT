@@ -151,7 +151,11 @@ def upsample_init_value(shape, alg='nn', dtype=None):
 
 def upsample_initializer(shape, alg='nn', dtype=None):
     xinit = upsample_init_value(shape, alg, dtype)
-    return K.variable(value=xinit, dtype=dtype)
+    if ISPY3:
+        return K.constant(xinit, dtype=dtype)  # using K.variable causes strange init/async/race(?) errs in Py3+tf1.14
+    else:
+        return K.variable(value=xinit, dtype=dtype)  # this worked OK in Py2+tf1.13
+
 # could use functools.partial etc
 def upsamp_init_nn(shape, dtype=None, partition_info=None):
     return upsample_initializer(shape, 'nn', dtype)
@@ -314,7 +318,7 @@ def get_training_model(imszuse, wd_kernel, backbone='resnet50_8px', backbone_wei
     # inputs.append(paf_weight_input_hires)
     # inputs.append(map_weight_input_hires)
 
-    img_normalized = Lambda(lambda z: z / 256 - 0.5)(img_input)  # [-0.5, 0.5] Isn't this really [-0.5, 0.496]
+    img_normalized = Lambda(lambda z: z / 256. - 0.5)(img_input)  # [-0.5, 0.5] Isn't this really [-0.5, 0.496]
     # sub mean?
 
     # backbone
@@ -562,7 +566,7 @@ def update_conf(conf):
     (conf.op_im_padx, conf.op_im_pady, conf.op_imsz_pad, conf.op_imsz_net, conf.op_imsz_lores,
      conf.op_imsz_hires) = compute_padding_imsz_net(conf.imsz, conf.rescale,
                                                     conf.op_label_scale, conf.op_hires_ndeconv)
-    logging.info("OP size stuff: imsz={}, imsz_pad={}, imsz_net={}, imsz_lores, imsz_hires, rescale={}".format(
+    logging.info("OP size stuff: imsz={}, imsz_pad={}, imsz_net={}, imsz_lores={}, imsz_hires={}, rescale={}".format(
         conf.imsz, conf.op_imsz_pad, conf.op_imsz_net, conf.op_imsz_lores, conf.op_imsz_hires,
         conf.rescale))
 

@@ -284,7 +284,7 @@ def check_train_status(cmd_name_base, cache_dir, run_name='deepnet'):
             dtime = latest_time - first_time
             sec_per_iter = np.array(dtime)/np.array(diter)
             #min_per_5kiter = sec_per_iter * 5000 / 60
-    if np.isnan(sec_per_iter):
+    if np.isnan(sec_per_iter) or np.isinf(sec_per_iter):
         trntime5kiter = '---'
     else:
         trntime5kiter = str(datetime.timedelta(seconds=np.round(sec_per_iter*5000)))
