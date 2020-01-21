@@ -808,6 +808,28 @@ def clip_heatmap_with_warn(predhm):
 
     return predhm_clip
 
+def compare_conf_traindata(conf):
+    '''
+    Compare given conf to one on disk
+    :param conf:
+    :return:
+    '''
+    cdir = conf.cachedir
+    tdfile = os.path.join(cdir, 'traindata')
+    if os.path.exists(tdfile):
+        with open(tdfile, 'rb') as f:
+            td = pickle.load(f, encoding='latin1')
+        conftrain = td[1]
+        logging.info("Comparing prediction config to training config within {}...".format(tdfile))
+        d0 = vars(conf)
+        d1 = vars(conftrain)
+        util.dictdiff(d0, d1, logging.info)
+        logging.info("... done comparing configs")
+    else:
+        wstr = "Cannot find traindata file {}. Not checking predict vs train config.".format(tdfile)
+        logging.warning(wstr)
+
+
 def get_pred_fn(conf, model_file=None, name='deepnet'):
     #(imnr, imnc) = conf.imsz
     #imnr_use = imszcheckcrop(imnr, 'row')
@@ -815,24 +837,13 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
     #imszuse = (imnr_use, imnc_use)
     #conf.imszuse = imszuse
 
-    # check the conf against the conf stored in the traindata w/trained model
-    # they should match
-    cdir = conf.cachedir
-    tdfile = os.path.join(cdir, 'traindata')
-    if os.path.exists(tdfile):
-        with open(tdfile) as f:
-            td = pickle.load(f)
-        conftrain = td[1]
-        logging.info("Comparing prediction config to training config within {}...".format(tdfile))
-        util.dictdiff(vars(conf), vars(conftrain), logging.info)
-        logging.info("... done comparing configs")
-    else:
-        wstr = "Cannot find traindata file {}. Not checking predict vs train config.".format(tdfile)
-        logging.warning(wstr)
+    compare_conf_traindata(conf)
+
+    # TODO: Theoretically probably should deep-copy conf since it is used in the returned fn
 
     assert not conf.normalize_img_mean, "OP currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "OP currently performs its own img input norm"
-    model = get_testing_model(imszuse,
+    model = get_testing_model(conf.op_imsz_net,
                               backbone=conf.op_backbone,
                               nPAFstg=conf.op_paf_nstage,
                               nMAPstg=conf.op_map_nstage,
@@ -858,26 +869,11 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         :return:
         '''
 
-        assert conf.op_rescale == 1  # for now XXXXXXXXXXXXX
         assert all_f.shape[0] == conf.batch_size
-        if all_f.shape[-1] == 1:
-            all_f = np.tile(all_f, 3)
-        else:
-            assert all_f.shape[-1] == 3, "Requires precisely 3 channels"
-
         locs_sz = (conf.batch_size, conf.n_classes, 2)
-
-        # mirror open_pose_data/DataIteratorTF
-
-        ims, _ = PoseTools.preprocess_ims(
-            all_f,
-            in_locs=np.zeros(locs_sz),
-            conf=conf,
-            distort=False,
-            scale=conf.op_rescale) # XXXXXXXXXXXXXX
-
-        ims = ims[:, 0:imnr_use, 0:imnc_use, :]
-
+        locs_dummy = np.zeros(locs_sz)
+        ims, _ = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False,
+                                                        gen_target_hmaps=False)
         model_preds = model.predict(ims)
 
         # all_infered = []
@@ -896,15 +892,22 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         assert predlocs_wgtcnt.shape == locs_sz
         print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
 
-        unscalefac = conf.op_label_scale
+        netscalefac = conf.op_label_scale  # net input:output
         if conf.op_hires:
-            unscalefac = unscalefac / 2**conf.op_hires_ndeconv
-        assert predhm_clip.shape[1] == imnr_use / unscalefac
-        assert predhm_clip.shape[2] == imnc_use / unscalefac
-        predlocs_argmax_hires = tfdatagen.unscale_points(predlocs_argmax, unscalefac)
-        predlocs_wgtcnt_hires = tfdatagen.unscale_points(predlocs_wgtcnt, unscalefac)
+            netscalefac = netscalefac / 2**conf.op_hires_ndeconv
+        imnr_net, imnc_net = conf.op_imsz_net
+        assert predhm_clip.shape[1] == imnr_net / netscalefac  # rhs should be integral
+        assert predhm_clip.shape[2] == imnc_net / netscalefac  # "
 
-        assert conf.op_rescale == 1  # we are not rescaling by this # XXXXXXXXXXXXXXXXX
+        totscalefac = netscalefac * conf.rescale  # rescale to net input, then undo rescale
+        predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, totscalefac, totscalefac)
+        predlocs_wgtcnt_hires = PoseTools.unscale_points(predlocs_wgtcnt, totscalefac, totscalefac)
+
+        # undo padding
+        predlocs_argmax_hires[..., 0] -= conf.op_im_padx // 2
+        predlocs_argmax_hires[..., 1] -= conf.op_im_pady // 2
+        predlocs_wgtcnt_hires[..., 0] -= conf.op_im_padx // 2
+        predlocs_wgtcnt_hires[..., 1] -= conf.op_im_pady // 2
 
         # base_locs = np.array(all_infered)*conf.op_rescale
         # nanidx = np.isnan(base_locs)

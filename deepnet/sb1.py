@@ -31,6 +31,7 @@ from time import time
 
 import tfdatagen as opdata
 import heatmap
+import open_pose4 as op
 import util
 
 ISPY3 = sys.version_info >= (3, 0)
@@ -657,20 +658,9 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         max(1.0, conf.sb_blur_rad_input_res / float(conf.sb_output_scale))
     logging.info('Model output scale is {}, blurrad_input/output is {}/{}'.format(conf.sb_output_scale, conf.sb_blur_rad_input_res, conf.sb_blur_rad_output_res))
 
-    # check the conf against the conf stored in the traindata w/trained model
-    # they should match
-    cdir = conf.cachedir
-    tdfile = os.path.join(cdir, 'traindata')
-    if os.path.exists(tdfile):
-        with open(tdfile, 'rb') as f:
-            td = pickle.load(f, encoding='latin1')
-        conftrain = td[1]
-        logging.info("Comparing prediction config to training config within {}...".format(tdfile))
-        util.dictdiff(vars(conf), vars(conftrain), logging.info)
-        logging.info("... done comparing configs")
-    else:
-        wstr = "Cannot find traindata file {}. Not checking predict vs train config.".format(tdfile)
-        logging.warning(wstr)
+    op.compare_conf_traindata(conf)
+
+    # TODO: Theoretically probably should deep-copy conf since it is used in the returned fn
 
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
@@ -687,7 +677,6 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         :param all_f: raw images NHWC
         :return:
         '''
-
 
         assert all_f.shape[0] == conf.batch_size
         locs_sz = (conf.batch_size, conf.n_classes, 2)
@@ -709,10 +698,10 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
                                                          nclustermax=conf.sb_hmpp_nclustermax)
         assert predlocs_argmax.shape == locs_sz
         assert predlocs_wgtcnt.shape == locs_sz
-        print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
+        print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.sb_hmpp_floor, conf.sb_hmpp_nclustermax))
 
         netscalefac = conf.sb_output_scale
-        imnr_net, imnc_net = conf.sb_imsz_net  # post-pad dimensions (input to network)
+        imnr_net, imnc_net = conf.sb_imsz_net
         assert predhm_clip.shape[1] == imnr_net / netscalefac
         assert predhm_clip.shape[2] == imnc_net / netscalefac
         #predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, scalefac, scalefac)
