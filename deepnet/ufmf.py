@@ -1,4 +1,4 @@
-from __future__ import division
+
 import sys
 import struct, collections
 import warnings
@@ -129,7 +129,7 @@ def identify_ufmf_version(filename):
     version_buflen = struct.calcsize(VERSION_FMT)
     version_buf = fd.read( version_buflen )
     had_marker=False
-    if version_buf=='ufmf':
+    if version_buf==b'ufmf': # KB 20190425 - py3 upgrade
         version_buf = fd.read( version_buflen )
         had_marker=True
     version, = struct.unpack(VERSION_FMT, version_buf)
@@ -144,8 +144,8 @@ def identify_ufmf_version(filename):
 
 def _write_dict(fd,save_dict):
     fd.write('d')
-    fd.write(chr(len(save_dict.keys())))
-    keys = save_dict.keys()
+    fd.write(chr(len(list(save_dict.keys()))))
+    keys = list(save_dict.keys())
     keys.sort() # keep ordering fixed to file remains same if re-indexed
     for key in keys:
         value = save_dict[key]
@@ -205,12 +205,12 @@ def _read_dict(fd,buf_remaining=None):
         x,buf_remaining = _read_min_chars(fd,Hsize,buf_remaining)
         keylen, = struct.unpack('<H',x)
         x,buf_remaining = _read_min_chars(fd,keylen,buf_remaining)
-        key = x
+        key = x.decode()
         x,buf_remaining = _read_min_chars(fd,1,buf_remaining)
         id = x
-        if id=='d':
+        if id==b'd':
             value,buf_remaining = _read_dict(fd,buf_remaining)
-        elif id=='a':
+        elif id==b'a':
             value,buf_remaining = _read_array(fd,buf_remaining)
         else:
             raise ValueError("don't know how to read value with id %s"%(id,))
@@ -412,16 +412,16 @@ class _UFmfV3LowLevelReader(object):
         (i.e. curpos-1)
         """
         len_type = ord(self._fd_read(1))
-        keyframe_type = self._fd_read(len_type)
+        keyframe_type = self._fd_read(len_type).decode()
         assert len(keyframe_type)==len_type
         intup = struct.unpack(FMT[self._version].KEYFRAME2,
                               self._fd_read(self._keyframe2_sz))
         dtype_char,width,height,timestamp=intup
 
-        if dtype_char=='B':
+        if dtype_char==b'B':
             dtype=np.uint8
             sz=1
-        elif dtype_char=='f':
+        elif dtype_char==b'f':
             dtype=np.float32
             sz=4
         else:
@@ -599,7 +599,7 @@ class _UFmfV3Indexer(object):
         result = {'frame':self._index['frame']}
         # remove defaultdict and convert to dict
         result['keyframe'] = {}
-        for keyframe_type,value in self._index['keyframe'].iteritems():
+        for keyframe_type,value in self._index['keyframe'].items():
             result['keyframe'][keyframe_type] = value
         return result
 
@@ -632,11 +632,11 @@ class _UFmfV3Indexer(object):
         if self._index_progress:
             pbar.finish()
         # convert to arrays
-        for keyframe_type in self._index['keyframe'].keys():
-            for key in self._index['keyframe'][keyframe_type].keys():
+        for keyframe_type in list(self._index['keyframe'].keys()):
+            for key in list(self._index['keyframe'][keyframe_type].keys()):
                 self._index['keyframe'][keyframe_type][key]=np.array(
                     self._index['keyframe'][keyframe_type][key])
-        for key in self._index['frame'].keys():
+        for key in list(self._index['frame'].keys()):
             self._index['frame'][key]=np.array(
                 self._index['frame'][key])
         if self._index_chunk_location is None:
@@ -786,7 +786,7 @@ class UfmfV3(UfmfBase):
                                    self._max_width, self._max_height,
                                    len(self._coding) )
                 self._fd.write(buf)
-            except IOError, err:
+            except IOError as err:
                 if raise_write_errors:
                     raise
                 else:
@@ -944,9 +944,9 @@ class UfmfV4(UfmfV3):
         # store the new parameters in V4
         self._r.set_params(self._max_width,self._max_height,self._isfixedsize)
 
-        assert ufmf_str=='ufmf'
+        assert ufmf_str==b'ufmf' # KB 20190425 - py3
         assert expected_version==self._version
-        self._coding = self._r._fd_read( coding_str_len )
+        self._coding = self._r._fd_read( coding_str_len ).decode()
         self._coding = self._coding.lower()
 
         # store the coding in the low-level reader
@@ -994,7 +994,7 @@ class UfmfV4(UfmfV3):
                                    self._isfixedsize,
                                    len(self._coding) )
                 self._fd.write(buf)
-            except IOError, err:
+            except IOError as err:
                 if raise_write_errors:
                     raise
                 else:
@@ -1011,7 +1011,7 @@ class UfmfV4(UfmfV3):
             id = buf[:1]
             buf = buf[1:]
             try:
-                assert id=='d' # dictionary
+                assert id==b'd' # dictionary
 
                 self._index,buf_remaining = _read_dict(self._fd, buf_remaining=buf)
                 if len(buf_remaining)!=0:
@@ -1037,7 +1037,7 @@ def md5sum_headtail(filename):
 
     try:
         fd.seek(-1000,os.SEEK_END)
-    except IOError,err:
+    except IOError as err:
         # it's OK, we'll just read up to another 1000 bytes
         pass
 
@@ -1110,7 +1110,7 @@ class FlyMovieEmulator(object):
             warnings.warn('unsupported argument "allow_partial_frames" ignored')
         try:
             self.seek(fno)
-        except NoSuchFrameError, err:
+        except NoSuchFrameError as err:
             if self._allow_no_such_frame_errors:
                 raise
             else:
@@ -1255,7 +1255,7 @@ class FlyMovieEmulator(object):
                     self._timestamps = npz['timestamps']
                     self._fno2loc = npz['fno2loc']
                     return
-        except Exception, err:
+        except Exception as err:
             if int(os.environ.get('UFMF_FORCE_CACHE','0')):
                 raise
             else:
@@ -1285,7 +1285,7 @@ class FlyMovieEmulator(object):
                      my_hash=my_hash,
                      timestamps=timestamps,
                      fno2loc=fno2loc)
-        except Exception,err:
+        except Exception as err:
             if int(os.environ.get('UFMF_FORCE_CACHE','0')):
                 raise
             else:
@@ -1469,7 +1469,7 @@ class UfmfSaverV3(UfmfSaverBase):
             assert np_image_data.strides[0] == width*np_image_data.strides[1]
             assert np_image_data.strides[1] == strides1
         except:
-            print 'np_image_data.strides, width',np_image_data.strides, width
+            print('np_image_data.strides, width',np_image_data.strides, width)
             raise
         b =  chr(KEYFRAME_CHUNK) + chr(char2) + keyframe_type # chunkid, len(type), type
         b += struct.pack(FMT[self.version].KEYFRAME2,dtype,width,height,timestamp)
@@ -1580,7 +1580,7 @@ class AutoShrinkUfmfSaverV3(UfmfSaverV3):
         super(AutoShrinkUfmfSaverV3,self).__init__(*args,**kwargs)
     def _add_frame_regions(self,timestamp,regions):
         if len(regions):
-            for kf_type in self._cached_keyframes.keys():
+            for kf_type in list(self._cached_keyframes.keys()):
                 kf_image_data, kf_timestamp = self._cached_keyframes[kf_type]
                 super(AutoShrinkUfmfSaverV3,self).add_keyframe( \
                                           kf_type, kf_image_data, kf_timestamp)

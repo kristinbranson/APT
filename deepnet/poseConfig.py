@@ -14,7 +14,7 @@ class config(object):
     # ----- Network parameters
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
-        self.label_blur_rad = 3  # 1.5
+        self.label_blur_rad = 3.  # 1.5
 
         self.batch_size = 8
         self.view = 0
@@ -23,9 +23,11 @@ class config(object):
         self.num_test = 8
         self.dl_steps = 60000 # number of training iters
         self.decay_steps = 25000
+        self.learning_rate = 0.0001
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
+        self.trx_align_theta = True
         self.horz_flip = False
         self.vert_flip = False
         self.brange = [-0.2, 0.2]
@@ -33,6 +35,10 @@ class config(object):
         self.rrange = 30
         self.trange = 10
         self.scale_range = 0.1
+        self.scale_factor_range = 1.1
+        # KB 20191218 - if scale_factor_range is read in, use that
+        # otherwise, if scale_range is read in, use that
+        self.use_scale_factor_range = True
         self.imax = 255.
         self.check_bounds_distort = True
         self.adjust_contrast = False
@@ -40,6 +46,7 @@ class config(object):
         self.normalize_img_mean = False
         self.normalize_batch_mean = False
         self.perturb_color = False
+        self.flipLandmarkMatches = {}
 
         # ----- Data parameters
         # l1_cropsz = 0
@@ -70,6 +77,7 @@ class config(object):
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
+        self.n_steps = 4.41
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
@@ -77,7 +85,7 @@ class config(object):
         # ----- Deep Lab Cut
         self.dlc_train_img_dir = 'deepcut_train'
         self.dlc_train_data_file = 'deepcut_data.mat'
-        self.dlc_augment = False
+        self.dlc_augment = True
 
         # ============== EXTRA ================
 
@@ -133,6 +141,7 @@ class config(object):
             logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
         else:
             logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
+            setattr(self,name,default)
         return getattr(self,name,default)
 
 

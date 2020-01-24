@@ -77,14 +77,14 @@ If initpath is a directory and not in interactive mode, it's an error."""
                           '.sbfmf': 'static background fly movie format files (*.sbfmf)',
                           '.ufmf': 'micro fly movie format files (*.ufmf)'}
             if len( known_extensions() ) != len( extensions ):
-                print "movie-open dialog doesn't list the same number of extensions as known_extensions()"
+                print("movie-open dialog doesn't list the same number of extensions as known_extensions()")
 
             dialog_str = ''
             # dlg.SetFilterIndex() could do this, too
-            if default_extension in extensions.keys():
+            if default_extension in list(extensions.keys()):
                 dialog_str = extensions[default_extension] + '|*' + default_extension + '|'
                 del extensions[default_extension]
-            for ext, txt in extensions.iteritems():
+            for ext, txt in extensions.items():
                 dialog_str += txt + '|*' + ext + '|'
             dialog_str += 'Any (*)|*'
 
@@ -124,7 +124,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
         (front, ext) = os.path.splitext( self.fullpath )
         ext = ext.lower()
         if ext not in known_extensions():
-            print "unknown file extension; will try OpenCV to open"
+            print("unknown file extension; will try OpenCV to open")
 
         # read FlyMovieFormat
         if ext == '.fmf':
@@ -183,7 +183,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
                 # KB: if use_uncompressed_avi set to False, then
                 # only try CompressedAvi class
                 if not params.use_uncompressed_avi:
-                    if DEBUG: print "Not using uncompressed AVI class"
+                    if DEBUG: print("Not using uncompressed AVI class")
                     raise
                 self.h_mov = Avi( self.fullpath )
                 self.type = 'avi'
@@ -191,13 +191,13 @@ If initpath is a directory and not in interactive mode, it's an error."""
                 try:
                     self.h_mov = CompressedAvi( self.fullpath )
                     self.type = 'cavi'
-                except Exception, details:
+                except Exception as details:
                     if self.interactive:
                         msgtxt = "Failed opening file \"%s\"."%( self.fullpath )
                         wx.MessageBox( msgtxt, "Error", wx.ICON_ERROR|wx.OK )
                     raise
                 else:
-                    print "reading compressed AVI"
+                    print("reading compressed AVI")
 
             if self.interactive and self.h_mov.bits_per_pixel == 24 and not DEBUG_MOVIES and False:
                 wx.MessageBox( "Currently, RGB movies are immediately converted to grayscale. All color information is ignored.", "Warning", wx.ICON_WARNING|wx.OK )
@@ -215,7 +215,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
                 if self.interactive:
                     wx.MessageBox("Ctrax is assuming your movie is in an AVI format and is most likely compressed. Out-of-order frame access (e.g. dragging the frame slider toolbars around) will be slow. At this time, the frame chosen to be displayed may be off by one or two frames, i.e. may not line up perfectly with computed trajectories.","Warning",wx.ICON_WARNING|wx.OK)
                 else:
-                    print "reading movie as compressed AVI"
+                    print("reading movie as compressed AVI")
 
         self.file_lock = multiprocessing.RLock()
 
@@ -249,13 +249,13 @@ If initpath is a directory and not in interactive mode, it's an error."""
                 if self.interactive:
                     wx.MessageBox( "Frame number %d out of range"%(framenumber), "Error", wx.ICON_ERROR|wx.OK )
                 else:
-                    print "frame", framenumber, "out of range"
+                    print("frame", framenumber, "out of range")
                 raise
             except (ValueError, AssertionError):
                 if self.interactive:
                     wx.MessageBox( "Error reading frame %d"%(framenumber), "Error", wx.ICON_ERROR|wx.OK )
                 else:
-                    print "error reading frame", framenumber
+                    print("error reading frame", framenumber)
                 raise
             else:
                 # if params.movie_flipud:
@@ -338,8 +338,8 @@ If initpath is a directory and not in interactive mode, it's an error."""
 
         self.writesbfmf_framestarts[:i+1] = inmovie.h_mov.framelocs[:i+1]
 
-        if DEBUG_MOVIES: print "copied framestarts: "
-        if DEBUG_MOVIES: print str(self.writesbfmf_framestarts[:i+1])
+        if DEBUG_MOVIES: print("copied framestarts: ")
+        if DEBUG_MOVIES: print(str(self.writesbfmf_framestarts[:i+1]))
 
         # seek to the first frame
         inmovie.h_mov.seek(0)
@@ -347,13 +347,13 @@ If initpath is a directory and not in interactive mode, it's an error."""
         # copy in pages of size pagesize
         pagesize = int(2**20)
         for j in range(firstaddr,lastaddr,pagesize):
-            if DEBUG_MOVIES: print "writing page at %d"%inmovie.h_mov.file.tell()
+            if DEBUG_MOVIES: print("writing page at %d"%inmovie.h_mov.file.tell())
             buf = inmovie.h_mov.read_some_bytes(pagesize)
             self.outfile.write(buf)
 
         # write last page
         if j < lastaddr:
-            if DEBUG_MOVIES: print "writing page at %d"%inmovie.h_mov.file.tell()
+            if DEBUG_MOVIES: print("writing page at %d"%inmovie.h_mov.file.tell())
             buf = inmovie.h_mov.read_some_bytes(int(lastaddr-pagesize))
             self.outfile.write(buf)
 
@@ -379,7 +379,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
         # write the index
         indexloc = self.outfile.tell()
         nframeswrite = frame - params.start_frame + 1
-        if DEBUG_MOVIES: print "writing index, nframeswrite = %d"%nframeswrite
+        if DEBUG_MOVIES: print("writing index, nframeswrite = %d"%nframeswrite)
         for i in range(nframeswrite):
             self.outfile.write(struct.pack("<Q",self.writesbfmf_framestarts[i]))
 
@@ -425,7 +425,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
         self.writesbfmf_nframesloc = self.outfile.tell()
         self.outfile.write(struct.pack("<2I",int(self.nframescompress),int(difference_mode)))
 
-        if DEBUG_MOVIES: print "writeheader: nframescompress = " + str(self.nframescompress)
+        if DEBUG_MOVIES: print("writeheader: nframescompress = " + str(self.nframescompress))
 
         # compute the location of the standard deviation image
         stdloc = self.outfile.tell() + struct.calcsize("B")*self.nr*self.nc
@@ -448,7 +448,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
 
     def writesbfmf_writeframe(self,isfore,im,stamp,currframe):
 
-        if DEBUG_MOVIES: print "writing frame %d"%currframe
+        if DEBUG_MOVIES: print("writing frame %d"%currframe)
 
         tmp = isfore.copy()
         tmp.shape = (self.nr*self.nc,)
@@ -464,7 +464,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
         j = currframe - params.start_frame
         self.writesbfmf_framestarts[j] = self.outfile.tell()
 
-        if DEBUG_MOVIES: print "stored in framestarts[%d]"%j
+        if DEBUG_MOVIES: print("stored in framestarts[%d]"%j)
 
         # write number of pixels and time stamp
         self.outfile.write(struct.pack("<Id",n,stamp))
@@ -481,7 +481,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
                 try:
                     self.h_mov.close()
                 except:
-                    print "Could not close"
+                    print("Could not close")
 
 
 """
@@ -517,7 +517,7 @@ class Avi:
         try:
             self.read_header()
             self.postheader_calculations()
-        except Exception, details:
+        except Exception as details:
             if DEBUG_MOVIES: print( "error reading uncompressed AVI:" )
             if DEBUG_MOVIES: print( details )
             raise
@@ -533,7 +533,7 @@ class Avi:
         else:
             self.bytes_per_chunk = self.buf_size + self.timestamp_len
         #self.bits_per_pixel = 8
-        if DEBUG_MOVIES: print "bits per pix: %d, bytes per chunk %d" % (self.bits_per_pixel, self.bytes_per_chunk)
+        if DEBUG_MOVIES: print("bits per pix: %d, bytes per chunk %d" % (self.bits_per_pixel, self.bytes_per_chunk))
 
 
     def get_all_timestamps( self ):
@@ -562,10 +562,10 @@ class Avi:
         # read RIFF then riffsize
         RIFF, riff_size, AVI = struct.unpack( '4sI4s', self.file.read( 12 ) )
         if not RIFF == 'RIFF':
-            print "movie header RIFF error at", RIFF, riff_size, AVI
+            print("movie header RIFF error at", RIFF, riff_size, AVI)
             raise TypeError("Invalid AVI file. Must be a RIFF file.")
         if (not AVI == 'AVI ') and (not AVI == 'AVIX'):
-            print "movie header AVI error at", RIFF, riff_size, AVI
+            print("movie header AVI error at", RIFF, riff_size, AVI)
             raise TypeError("Invalid AVI file. File type must be \'AVI \'.")
 
         # read hdrl
@@ -573,14 +573,14 @@ class Avi:
         hdrlstart = self.file.tell() - 4
 
         if not LIST == 'LIST':
-            print "movie header LIST 1 error at", LIST, hdrl_size, hdrl
+            print("movie header LIST 1 error at", LIST, hdrl_size, hdrl)
             raise TypeError("Invalid AVI file. Did not find header list.")
 
         if hdrl == 'hdrl': # a real header
             # read avih
             avih, avih_size = struct.unpack( '4sI', self.file.read( 8 ) )
             if not avih == 'avih':
-                print "movie header avih error at", avih, avih_size
+                print("movie header avih error at", avih, avih_size)
                 raise TypeError("Invalid AVI file. Did not find avi header.")
             avihchunkstart = self.file.tell()
 
@@ -595,8 +595,8 @@ class Avi:
             self.file.seek(3*4,1)
             self.width,self.height = struct.unpack('2I',self.file.read(8))
 
-            if DEBUG_MOVIES: print "width = %d, height = %d"%(self.width,self.height)
-            if DEBUG_MOVIES: print "n_frames = %d"%self.n_frames
+            if DEBUG_MOVIES: print("width = %d, height = %d"%(self.width,self.height))
+            if DEBUG_MOVIES: print("n_frames = %d"%self.n_frames)
 
             # skip the rest of the aviheader
             self.file.seek(avihchunkstart+avih_size,0)
@@ -605,12 +605,12 @@ class Avi:
                   struct.unpack( '4sI4s', self.file.read( 12 ) )
 
             if (not LIST == 'LIST') or (not strl == 'strl'):
-                print "movie header LIST 2 error at", LIST, strl
+                print("movie header LIST 2 error at", LIST, strl)
                 raise TypeError("Invalid AVI file. Did not find stream list.")
 
             strh, strh_size = struct.unpack( '4sI', self.file.read( 8 ) )
             if not strh == 'strh':
-                print "movie header strh error at", strh, strh_size
+                print("movie header strh error at", strh, strh_size)
                 raise TypeError("Invalid AVI file. Did not find stream header.")
 
             strhstart = self.file.tell()
@@ -619,20 +619,20 @@ class Avi:
             vids, fcc = struct.unpack( '4s4s', self.file.read( 8 ) )
             # check for vidstream
             if not vids == 'vids':
-                print "movie header vids error at", vids
+                print("movie header vids error at", vids)
                 raise TypeError("Unsupported AVI file type. First stream found is not a video stream.")
             # check fcc
             if fcc not in ['DIB ', '\x00\x00\x00\x00', "", "RAW ", "NONE", chr(24)+"BGR", 'Y8  ']:
-                if DEBUG_MOVIES: print "movie header codec error at", fcc
+                if DEBUG_MOVIES: print("movie header codec error at", fcc)
                 raise TypeError("Unsupported AVI file type %s, only uncompressed AVIs supported."%fcc)
-            if DEBUG_MOVIES: print "codec", fcc
+            if DEBUG_MOVIES: print("codec", fcc)
 
             # skip the rest of the stream header
             self.file.seek(strhstart+strh_size,0)
 
             strf, strf_size = struct.unpack( '4sI', self.file.read( 8 ) )
             if not strf == "strf":
-                print "movie header strf error at", strf
+                print("movie header strf error at", strf)
                 raise TypeError("Invalid AVI file. Did not find strf.")
 
             strfstart = self.file.tell()
@@ -643,7 +643,7 @@ class Avi:
 
             # read in bits per pixel
             self.bits_per_pixel, = struct.unpack('H',self.file.read(2))
-            if DEBUG_MOVIES: print "bits_per_pixel = %d"%self.bits_per_pixel
+            if DEBUG_MOVIES: print("bits_per_pixel = %d"%self.bits_per_pixel)
 
             # is this an indexed avi?
             colormapsize = (strf_size - bitmapheadersize)/4
@@ -653,7 +653,7 @@ class Avi:
                 self.colormap = num.frombuffer(self.file.read(4*colormapsize),num.uint8)
                 self.colormap = self.colormap.reshape((colormapsize,4))
                 self.colormap = self.colormap[:,:-1]
-                if DEBUG_MOVIES: print "file is indexed with %d colors" % len( self.colormap )
+                if DEBUG_MOVIES: print("file is indexed with %d colors" % len( self.colormap ))
             else:
                 self.isindexed = False
 
@@ -673,7 +673,7 @@ class Avi:
             if LIST == 'LIST':
                 # find movi
                 movi, = struct.unpack('4s',self.file.read(4))
-                if DEBUG_MOVIES: print 'looking for movi, found ' + movi
+                if DEBUG_MOVIES: print('looking for movi, found ' + movi)
                 if movi == 'movi':
                     break
                 else:
@@ -687,14 +687,14 @@ class Avi:
         # read extra stuff
         while True:
             fourcc,chunksize, = struct.unpack('4sI',self.file.read(8))
-            if DEBUG_MOVIES: print 'read fourcc=%s, chunksize=%d'%(fourcc,chunksize)
+            if DEBUG_MOVIES: print('read fourcc=%s, chunksize=%d'%(fourcc,chunksize))
             if fourcc == '00db' or fourcc == '00dc':
                 self.file.seek(-8,1)
                 break
             self.file.seek(chunksize,1)
 
         self.buf_size = chunksize
-        if DEBUG_MOVIES: print "chunk size: ", self.buf_size
+        if DEBUG_MOVIES: print("chunk size: ", self.buf_size)
 
         # check whether n_frames makes sense (sometimes headers lie)
         approx_file_len = self.buf_size*self.n_frames
@@ -704,10 +704,10 @@ class Avi:
         self.file.seek( cur_pos )
 
         if real_file_len > approx_file_len*1.1:
-            print "approximate file length %ld bytes, real length %ld"%(approx_file_len, real_file_len)
+            print("approximate file length %ld bytes, real length %ld"%(approx_file_len, real_file_len))
             self._header_n_frames = self.n_frames
             self.n_frames = int( num.floor( (real_file_len - cur_pos)/self.buf_size ) )
-            print "guessing %d frames in movie, although header said %d"%(self.n_frames,self._header_n_frames)
+            print("guessing %d frames in movie, although header said %d"%(self.n_frames,self._header_n_frames))
 
 
     ###################################################################
@@ -744,21 +744,21 @@ class Avi:
         else:
             raise TypeError("Unsupported AVI type. bitsperpixel must be 8 or 24, not %d."%self.bits_per_pixel)
 
-        if DEBUG_MOVIES: print "format = " + str(self.format)
+        if DEBUG_MOVIES: print("format = " + str(self.format))
 
         if self.n_frames == 0:
             loccurr = self.file.tell()
             self.file.seek(0,2)
             locend = self.file.tell()
             self.n_frames = int( num.floor( (locend - self.data_start) / (self.buf_size+8) ) )
-            print "n frames = 0; setting to %d"%self.n_frames
+            print("n frames = 0; setting to %d"%self.n_frames)
 
-        #Barbara Casillas & Victor Mireles, 5/12/13
-    	#We try to read the last frame. If it is not accessible
-    	# ("frame x out of range" error) then get_frame will fix self.n_frames.
-    	#So, we just keep reading the last frame until there is no correction.
-    	currentNframes = self.n_frames #(estimated num. of frames)
-    	while True:
+        # Barbara Casillas & Victor Mireles, 5/12/13
+        # #We try to read the last frame. If it is not accessible
+        # ("frame x out of range" error) then get_frame will fix self.n_frames.
+        # #So, we just keep reading the last frame until there is no correction.
+        currentNframes = self.n_frames  # estimated number of frames
+        while True:
             frameNumber = self.n_frames - 1
             try:
                 self.get_frame(frameNumber)
@@ -771,7 +771,7 @@ class Avi:
 
     def nearest_indexed_frame( self, framenumber ):
         """Return nearest known frame index less than framenumber."""
-        keys = self.frame_index.keys()
+        keys = list(self.frame_index.keys())
         keys.sort()
         nearest = None
         for key in keys:
@@ -863,7 +863,7 @@ class Avi:
     def get_frame( self, framenumber ):
         """Read frame from file and return as NumPy array."""
 
-        if DEBUG_MOVIES: print "uncompressed get_frame(%d)"%framenumber
+        if DEBUG_MOVIES: print("uncompressed get_frame(%d)"%framenumber)
 
         if framenumber < 0: raise IndexError
         if framenumber >= self.n_frames: raise NoMoreFramesException
@@ -872,7 +872,7 @@ class Avi:
 
         # read frame from file
         if framenumber in self.frame_index:
-            if DEBUG_MOVIES: print "calling frame %d from index at %d"%(framenumber,self.frame_index[framenumber])
+            if DEBUG_MOVIES: print("calling frame %d from index at %d"%(framenumber,self.frame_index[framenumber]))
             self.file.seek( self.frame_index[framenumber], os.SEEK_SET )
             return self.get_next_frame()
 
@@ -916,20 +916,20 @@ class Avi:
                 return self.get_next_frame()
 
         this_frame_id, frame_size = struct.unpack( '4sI', file_data )
-        if DEBUG_MOVIES: print 'frame id=%s, sz=%d'%(this_frame_id,frame_size)
+        if DEBUG_MOVIES: print('frame id=%s, sz=%d'%(this_frame_id,frame_size))
 
         if this_frame_id == 'idx1' or \
                this_frame_id == 'ix00' or \
                this_frame_id == 'ix01': # another index midstream
             a = self.file.read( frame_size )
             this_frame_id, frame_size = struct.unpack( '4sI', self.file.read( 8 ) )
-            if DEBUG_MOVIES: print 'skipped index; frame id=' + str(this_frame_id) + ', sz=' + str(frame_size)
+            if DEBUG_MOVIES: print('skipped index; frame id=' + str(this_frame_id) + ', sz=' + str(frame_size))
 
         if this_frame_id == 'RIFF': # another whole header
             self.file.seek( -8, os.SEEK_CUR )
             self.read_header()
             this_frame_id, frame_size = struct.unpack( '4sI', self.file.read( 8 ) )
-            if DEBUG_MOVIES: print 'skipped another header; frame id=' + str(this_frame_id) + ', sz=' + str(frame_size)
+            if DEBUG_MOVIES: print('skipped another header; frame id=' + str(this_frame_id) + ', sz=' + str(frame_size))
 
         if hasattr( self, 'frame_id' ) and this_frame_id != self.frame_id:
             # who knows? try skipping ahead a bit
@@ -938,25 +938,25 @@ class Avi:
                 self.file.seek( -7, os.SEEK_CUR )
                 this_frame_id, frame_size = struct.unpack( '4sI', self.file.read( 8 ) )
                 tries += 1
-            if DEBUG_MOVIES: print "skipped forward %d bytes; now id=%s, sz=%d"%(tries,this_frame_id, frame_size)
+            if DEBUG_MOVIES: print("skipped forward %d bytes; now id=%s, sz=%d"%(tries,this_frame_id, frame_size))
 
         if frame_size != self.buf_size:
             if hasattr( self, '_header_n_frames' ) and \
                    (self.framenumber == self._header_n_frames or self.framenumber == self._header_n_frames - 1):
                 self.n_frames = self.framenumber
-                print "resetting frame count to", self.n_frames
+                print("resetting frame count to", self.n_frames)
                 raise IndexError( "Error reading frame %d; header said only %d frames were present" % (self.framenumber, self._header_n_frames) )
             else:
                 raise ValueError( "Frame size %d on disk does not equal uncompressed size %d; movie must be uncompressed"%(frame_size, self.buf_size) )
         if not hasattr( self, 'frame_id' ):
             self.frame_id = this_frame_id
         elif this_frame_id != self.frame_id:
-            if DEBUG_MOVIES: print "looking for header %s; found %s"%(self.frame_id,this_frame_id)
+            if DEBUG_MOVIES: print("looking for header %s; found %s"%(self.frame_id,this_frame_id))
             raise ValueError( "error seeking frame start: unknown data header" )
 
         # make frame into numpy array
         frame_data = self.file.read( frame_size )
-        frame = num.fromstring( frame_data, num.uint8 )
+        frame = num.frombuffer( frame_data, num.uint8 )
 
         # reshape...
         width = self.width + self.padwidth
@@ -1003,14 +1003,14 @@ class Avi:
                     raise ValueError("apparent new width = %d; expected width = %d"
                         % (height, self.newwidth))
             else:
-                print self.width, self.height, self.padwidth, self.padheight
-                print self.width*self.height, frame_size, frame.size, self.width*self.height*3, frame_size/3
-                print frame_size/self.width/3, frame_size/self.height/3, frame_size % width, frame_size % height
+                print(self.width, self.height, self.padwidth, self.padheight)
+                print(self.width*self.height, frame_size, frame.size, self.width*self.height*3, frame_size/3)
+                print(frame_size/self.width/3, frame_size/self.height/3, frame_size % width, frame_size % height)
                 raise ValueError("apparent new width is not integral; mod = %d" % (frame.size % height))
 
         if self.framenumber not in self.frame_index:
             self.frame_index[self.framenumber] = self.file.tell() - frame_size - 8
-            if DEBUG_MOVIES: print "added frame %d to index at %d"%(self.framenumber,self.frame_index[self.framenumber])
+            if DEBUG_MOVIES: print("added frame %d to index at %d"%(self.framenumber,self.frame_index[self.framenumber]))
 
         return frame, self.make_timestamp( self.framenumber )
 
@@ -1045,41 +1045,61 @@ class CompressedAvi:
 
     def __init__(self,filename):
 
-        if DEBUG_MOVIES: print 'Trying to read compressed AVI'
+        if DEBUG_MOVIES: print('Trying to read compressed AVI')
         self.issbfmf = False
-        self.source = cv2.VideoCapture( filename )
-        if not self.source.isOpened():
-            raise IOError( "OpenCV could not open the movie %s" % filename )
-
-        if hasattr(cv2, 'cv'): # OpenCV 2.x
-            self.start_time = self.source.get( cv2.cv.CV_CAP_PROP_POS_MSEC )
-            self.fps = self.source.get( cv2.cv.CV_CAP_PROP_FPS )
-            self.n_frames = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT ) )
-        else: # OpenCV 3.x
-            self.start_time = self.source.get( cv2.CAP_PROP_POS_MSEC )
-            self.fps = self.source.get( cv2.CAP_PROP_FPS )
-            self.n_frames = int( self.source.get( cv2.CAP_PROP_FRAME_COUNT ) )
-        self.frame_delay_us = 1e6 / self.fps
-
-        # added to help masquerade as FMF file:
         self.filename = filename
 
-        # read in the width and height of each frame
-        if hasattr(cv2, 'cv'): # OpenCV 2.x
-            self.width = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_WIDTH ) )
-            self.height = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_HEIGHT ) )
-        else: # OpenCV 3.x
-            self.width = int( self.source.get( cv2.CAP_PROP_FRAME_WIDTH ) )
-            self.height = int( self.source.get( cv2.CAP_PROP_FRAME_HEIGHT ) )
+        index_file = os.path.splitext(filename)[0] + '.txt'
+        if os.path.splitext(filename)[1] == '.mjpg' and os.path.exists(index_file):
+            with open(index_file) as f:
+                import csv
+                rr = csv.reader(f, delimiter=' ')
+                index_dat = list(rr)
+            self.n_frames = len(index_dat)
+            self.index_dat = num.array(index_dat).astype('float').astype('int')
+            self.indexed_mjpg = True
+            self.fps = 30
+            if DEBUG_MOVIES: print('Mjpg movie has index file. Reading it as indexed jpg')
+            self.start_time = 0.
+            im, _ = self.get_frame(0)
+            self.width = im.shape[1]
+            self.height = im.shape[0]
+            self.color_depth = im.size//self.width//self.height
+
+        else:
+            self.source = cv2.VideoCapture( filename )
+            self.indexed_mjpg = False
+            if not self.source.isOpened():
+                raise IOError( "OpenCV could not open the movie %s" % filename )
+
+            if hasattr(cv2, 'cv'): # OpenCV 2.x
+                self.start_time = self.source.get( cv2.cv.CV_CAP_PROP_POS_MSEC )
+                self.fps = self.source.get( cv2.cv.CV_CAP_PROP_FPS )
+                self.n_frames = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_COUNT ) )
+            else: # OpenCV 3.x
+                self.start_time = self.source.get( cv2.CAP_PROP_POS_MSEC )
+                self.fps = self.source.get( cv2.CAP_PROP_FPS )
+                self.n_frames = int( self.source.get( cv2.CAP_PROP_FRAME_COUNT ) )
+            if self.n_frames < 0 and os.path.splitext(filename)[1] == '.mjpg':
+                raise IOError("MJPG movie files doesn't have index file at the default location {}".format(index_file) )
+
+            # read in the width and height of each frame
+            if hasattr(cv2, 'cv'): # OpenCV 2.x
+                self.width = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_WIDTH ) )
+                self.height = int( self.source.get( cv2.cv.CV_CAP_PROP_FRAME_HEIGHT ) )
+            else: # OpenCV 3.x
+                self.width = int( self.source.get( cv2.CAP_PROP_FRAME_WIDTH ) )
+                self.height = int( self.source.get( cv2.CAP_PROP_FRAME_HEIGHT ) )
+            # compute the bits per pixel
+            retval, im = self.source.read()
+            im = num.frombuffer(im.data,num.uint8)
+            self.color_depth = len(im)//self.width//self.height
+
         self.MAXBUFFERSIZE = num.round(200*1000*1000./self.width/self.height)
         self.keyframe_period = 100 ##################
-        self.buffersize = min(self.MAXBUFFERSIZE,self.keyframe_period)
-        if DEBUG_MOVIES: print 'buffersize set to ' + str(self.buffersize)
+        self.buffersize = int(min(self.MAXBUFFERSIZE,self.keyframe_period))
+        if DEBUG_MOVIES: print('buffersize set to ' + str(self.buffersize))
 
-        # compute the bits per pixel
-        retval, im = self.source.read()
-        im = num.fromstring(im.data,num.uint8)
-        self.color_depth = len(im)/self.width/self.height
         if self.color_depth != 1 and self.color_depth != 3:
             raise ValueError( 'color_depth = %d, only know how to deal with color_depth = 1 or colr_depth = 3'%self.color_depth )
         self.bits_per_pixel = self.color_depth * 8
@@ -1088,10 +1108,15 @@ class CompressedAvi:
         self.buffer = num.zeros((self.height,self.width,self.color_depth,self.buffersize),dtype=num.uint8)
         self.bufferts = num.zeros(self.buffersize)
 
-        # put the first frame in it
-        self.seek( 0 )
-        (frame,ts) = self.get_next_frame_and_reset_buffer()
-        if DEBUG_MOVIES: print "Done initializing CompressedAVI"
+        self.frame_delay_us = 1e6 / self.fps
+        # added to help masquerade as FMF file:
+
+        if not self.indexed_mjpg:
+            # put the first frame in it
+            self.seek( 0 )
+            (im_,ts) = self.get_next_frame_and_reset_buffer()
+
+        if DEBUG_MOVIES: print("Done initializing CompressedAVI")
 
 
     def get_all_timestamps( self ):
@@ -1103,24 +1128,40 @@ class CompressedAvi:
 
         if framenumber < 0: raise IndexError
 
+        if self.indexed_mjpg:
+            with open(self.filename,'rb') as mjpeg_file:
+                mjpeg_file.seek(self.index_dat[framenumber,2])
+                frame_length = self.index_dat[framenumber,3] - self.index_dat[framenumber,2]
+                frame = mjpeg_file.read(frame_length)
+                if len(frame) != frame_length:
+                    raise ValueError('incomplete frame data')
+                if not (
+                    frame.startswith(b'\xff\xd8') and frame.endswith(b'\xff\xd9')
+                ):
+                    raise ValueError('invalid jpeg')
+                img = cv2.imdecode(num.frombuffer(frame, dtype=num.uint8), -1)
+                ts = self.index_dat[framenumber,1] - self.index_dat[0,1]
+                return (img,ts)
+
+
         # have we already stored this frame?
         if framenumber >= self.bufferframe0 and framenumber < self.bufferframe1:
             off = num.mod(framenumber - self.bufferframe0 + self.bufferoff0,self.buffersize)
-            if DEBUG_MOVIES: print "frame %d is in buffer at offset %d"%(framenumber,off)
+            if DEBUG_MOVIES: print("frame %d is in buffer at offset %d"%(framenumber,off))
             return (self.buffer[:,:,:,off].copy(),self.bufferts[off])
 
         # is framenumber the next frame to read in?
         if framenumber == self.currframe:
-            if DEBUG_MOVIES: print "frame %d is the next frame, just calling get_next_frame"%framenumber
+            if DEBUG_MOVIES: print("frame %d is the next frame, just calling get_next_frame"%framenumber)
             return self.get_next_frame()
 
         # otherwise, we need to seek
-        if DEBUG_MOVIES: print "seeking to frame %d" % framenumber
+        if DEBUG_MOVIES: print("seeking to frame %d" % framenumber)
         self.seek( framenumber )
         try:
             return self.get_next_frame_and_reset_buffer()
         except IOError:
-            print "error reading frame %d from compressed AVI (curr %d, buff0 %d, buff1 %d)" % (framenumber, self.currframe, self.bufferframe0, self.bufferframe1)
+            print("error reading frame %d from compressed AVI (curr %d, buff0 %d, buff1 %d)" % (framenumber, self.currframe, self.bufferframe0, self.bufferframe1))
             raise
 
 
@@ -1159,12 +1200,14 @@ class CompressedAvi:
         if not retval:
             raise IOError( "OpenCV failed reading frame %d" % self.currframe )
 
-        frame = num.fromstring(im.data,num.uint8)
+        frame = num.frombuffer(im.data,num.uint8)
 
         if self.color_depth == 1:
             frame.resize((self.height,self.width))
         else: # color_depth == 3
             frame.resize( (self.height, self.width, 3) )
+            # Mayank 20190906 - opencv by default read the image into BGR format. Surprisingly this wasn't an issue before.
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             # tmp = frame.astype(float)
             # tmp = tmp[:,2:self.width*3:3]*.3 + \
             #     tmp[:,1:self.width*3:3]*.59 + \
@@ -1189,14 +1232,14 @@ class CompressedAvi:
             self.bufferframe0 += 1
             if self.buffersize > 1:
                 self.bufferoff0 += 1
-            if DEBUG_MOVIES: print "erasing first frame, bufferframe0 is now %d, bufferoff0 is now %d"%(self.bufferframe0,self.bufferoff0)
+            if DEBUG_MOVIES: print("erasing first frame, bufferframe0 is now %d, bufferoff0 is now %d"%(self.bufferframe0,self.bufferoff0))
 
-        if DEBUG_MOVIES: print "buffer frames: [%d,%d), bufferoffset0 = %d"%(self.bufferframe0,self.bufferframe1,self.bufferoff0)
+        if DEBUG_MOVIES: print("buffer frames: [%d,%d), bufferoffset0 = %d"%(self.bufferframe0,self.bufferframe1,self.bufferoff0))
 
         self.buffer[:,:,:,self.bufferoff] = frame.copy()
         self.bufferts[self.bufferoff] = ts
 
-        if DEBUG_MOVIES: print "read into buffer[%d], ts = %f"%(self.bufferoff,ts)
+        if DEBUG_MOVIES: print("read into buffer[%d], ts = %f"%(self.bufferoff,ts))
 
         self.bufferoff += 1
 
@@ -1204,39 +1247,39 @@ class CompressedAvi:
         if self.bufferoff >= self.buffersize:
             self.bufferoff = 0
 
-        if DEBUG_MOVIES: print "incremented bufferoff to %d"%self.bufferoff
+        if DEBUG_MOVIES: print("incremented bufferoff to %d"%self.bufferoff)
 
         # remember current location in the movie
         self.currframe += 1
         self.prevts = ts
 
-        if DEBUG_MOVIES: print "updated currframe to %d, prevts to %f"%(self.currframe,self.prevts)
+        if DEBUG_MOVIES: print("updated currframe to %d, prevts to %f"%(self.currframe,self.prevts))
 
         return (frame,ts)
 
     def _estimate_fps(self):
 
-        if DEBUG_MOVIES: print 'Estimating fps'
+        if DEBUG_MOVIES: print('Estimating fps')
 
         # seek to the start of the stream
         self.source._seek(self.ZERO)
 
-        if DEBUG_MOVIES: print 'First seek succeeded'
+        if DEBUG_MOVIES: print('First seek succeeded')
 
         # initial time stamp
         ts0 = self.source.get_next_video_timestamp()
         ts1 = ts0
 
-        if DEBUG_MOVIES: print 'initial time stamp = ' + str(ts0)
+        if DEBUG_MOVIES: print('initial time stamp = ' + str(ts0))
 
         # get the next frame and time stamp a bunch of times
         nsamples = 200
-        if DEBUG_MOVIES: print 'nsamples = ' + str(nsamples)
+        if DEBUG_MOVIES: print('nsamples = ' + str(nsamples))
         i = 0 # i is the number of frames we have successfully grabbed
         while True:
             im = self.source.get_next_video_frame()
             ts = self.source.get_next_video_timestamp()
-            if DEBUG_MOVIES: print 'i = %d, ts = '%i + str(ts)
+            if DEBUG_MOVIES: print('i = %d, ts = '%i + str(ts))
             if (ts is None) or num.isnan(ts) or (ts <= ts1):
                 break
             i = i + 1
@@ -1248,17 +1291,17 @@ class CompressedAvi:
             raise ValueError( "Could not compute the fps in the compressed movie" )
 
         self.fps = float(i) / (ts1-ts0)
-        if DEBUG_MOVIES: print 'Estimated frames-per-second = %f'%self.fps
+        if DEBUG_MOVIES: print('Estimated frames-per-second = %f'%self.fps)
 
     def _estimate_keyframe_period(self):
 
-        if DEBUG_MOVIES: print 'Estimating keyframe period'
+        if DEBUG_MOVIES: print('Estimating keyframe period')
 
         self.source._seek(self.ZERO)
 
         ts0 = self.source.get_next_video_timestamp()
 
-        if DEBUG_MOVIES: print 'After first seek, ts0 intialized to ' + str(ts0)
+        if DEBUG_MOVIES: print('After first seek, ts0 intialized to ' + str(ts0))
 
         i = 1 # i is the number of successful seeks
         foundfirst = False
@@ -1295,10 +1338,10 @@ class CompressedAvi:
 
             i = i + 1
 
-        if DEBUG_MOVIES: print "i = %d, i0 = %d"%(i,i0)
+        if DEBUG_MOVIES: print("i = %d, i0 = %d"%(i,i0))
         self.keyframe_period = i - i0
         self.keyframe_period_s = self.keyframe_period / self.fps
-        if DEBUG_MOVIES: print "Estimated keyframe period = " + str(self.keyframe_period)
+        if DEBUG_MOVIES: print("Estimated keyframe period = " + str(self.keyframe_period))
 
     def get_n_frames( self ):
         return self.n_frames
@@ -1344,7 +1387,7 @@ def write_results_to_avi(movie,tracks,filename,f0=None,f1=None):
     offsets = num.zeros(nframes_write)
     for i in range(f0,f1+1):
         if (i % 100) == 0:
-            print 'Frame %d / %d'%(i,nframes_write)
+            print('Frame %d / %d'%(i,nframes_write))
 
         offsets[i-f0] = write_avi_frame(movie,tracks,i,outstream)
 
@@ -1376,7 +1419,7 @@ def write_avi_index(movie,offsets,outstream):
             bin_offset = struct.pack( 'I', int(o) )
         except struct.error:
             traceback.print_exc()
-            print "writing index %d"%o
+            print("writing index %d"%o)
             break
 
         outstream.write(struct.pack('4s','00db'))
@@ -1417,7 +1460,7 @@ def write_avi_frame(movie,tracks,i,outstream):
         #print "dataframe = " + str(dataframe)
         these_pts = []
         ellplot = []
-        for ellipse in dataframe.itervalues():
+        for ellipse in dataframe.values():
             if num.isnan(ellipse.center.x) or \
                     num.isnan(ellipse.center.y):
                 continue
@@ -1582,18 +1625,18 @@ def write_avi_header(movie,tracks,filename,outstream,f0,f1):
 def write_chunk_header(chunktype,chunksize,outstream):
     try:
         outstream.write(struct.pack('4sI',chunktype,chunksize))
-    except struct.error, details:
+    except struct.error as details:
         traceback.print_exc()
-        print "writing '%s' with size %d"%(chunktype,chunksize)
+        print("writing '%s' with size %d"%(chunktype,chunksize))
         outstream.write(struct.pack('4sI',chunktype,0))
 
 
 def write_list_header(listtype,listsize,outstream):
     try:
         outstream.write(struct.pack('4sI4s','LIST',listsize,listtype))
-    except struct.error, details:
+    except struct.error as details:
         traceback.print_exc()
-        print "writing '%s' with size %d"%(listtype,listsize)
+        print("writing '%s' with size %d"%(listtype,listsize))
         outstream.write(struct.pack('4sI4s','LIST',0,listtype))
 
 

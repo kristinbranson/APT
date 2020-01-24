@@ -1,5 +1,4 @@
 import  matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import argparse
 import sys
@@ -19,6 +18,7 @@ import random
 import json
 import subprocess
 import PoseTools
+import stat
 
 methods = ['unet','leap','deeplabcut','openpose']
 out_dir = '/groups/branson/bransonlab/mayank/apt_expts/'
@@ -245,7 +245,7 @@ def train_theirs(args):
 
                 if curm == 'unet':
                     f.write('cd {}\n'.format(unet_dir))
-                    cmd = 'APT_interface_mdn.py -view {} -cache {} -type unet {} train -skip_db'.format(view+1, cachedir, args.lbl_file)
+                    cmd = 'APT_interface.py -view {} -cache {} -type unet {} train -skip_db'.format(view+1, cachedir, args.lbl_file)
                     f.write('python {}'.format(cmd))
                 elif curm == 'openpose':
                     f.write('cd {}\n'.format(openpose_dir))
@@ -264,7 +264,7 @@ def train_theirs(args):
                     raise ValueError('Undefined net type: {}'.format(curm))
 
                 f.close()
-                os.chmod(singularity_script, 0755)
+                os.chmod(singularity_script, stat.S_IEXEC)
                 cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {}  -n4 -gpu "num=1" -q gpu_any "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
                     singularity_logfile, singularity_script)  # -n4 because we use 4 preprocessing threads
                 subprocess.call(cmd, shell=True)
@@ -303,7 +303,7 @@ def train_theirs(args):
                         raise ValueError('Undefined net type: {}'.format(curm))
 
                     f.close()
-                    os.chmod(singularity_script, 0755)
+                    os.chmod(singularity_script, stat.S_IEXEC)
                     cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {}  -n4 -gpu "num=1" -q gpu_tesla "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
                         singularity_logfile, singularity_script)  # -n4 because we use 4 preprocessing threads
                     subprocess.call(cmd, shell=True)
@@ -367,10 +367,11 @@ def train_ours(args):
                     print('Submitted job: {}'.format(cmd))
 
 
-def classify_db_all(conf,db_file,model_files,model_type,name='deepnet'):
+def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=False,
+                    return_hm=False, hm_dec=1, hm_floor=0.1, hm_nclustermax=1):
     cur_out = []
     extra_str = ''
-    if model_type in ['mdn','unet','deeplabcut']:
+    if model_type not in ['leap','openpose']:
         extra_str = '.index'
     # else:
     #     extra_str = '.h5'
@@ -381,10 +382,20 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet'):
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name)
-        pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
+        ret_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N,
+                                   return_hm=return_hm,
+                                   hm_dec=hm_dec,
+                                   hm_floor=hm_floor,
+                                   hm_nclustermax=hm_nclustermax)
+        pred, label, gt_list = ret_list[:3]
+        if model_type == 'mdn':
+            extra_stuff = ret_list[3:]
+        else:
+            extra_stuff = 0
         close_fn()
-        cur_out.append([pred, label, gt_list, m, 0,ts[mndx]])
+        gt_list = np.array(gt_list)
+        cur_out.append([pred, label, gt_list, m, extra_stuff, ts[mndx]])
 
     return cur_out
 

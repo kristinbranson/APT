@@ -8,10 +8,7 @@ import convNetBase as CNB
 import numpy as np
 import movies
 from PoseTools import scale_images
-import matplotlib as mpl
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 import tempfile
-from matplotlib import cm
 import movies
 import multiResData
 from scipy import io as sio
@@ -38,7 +35,8 @@ def preproc_func(ims, locs, info, conf, distort, pad_input=False,pad_x=0,pad_y=0
         tlocs[:,:,0] -= pad_x//2
         tlocs[:,:,1] -= pad_y//2
 
-    hmaps = PoseTools.create_label_images(tlocs, conf.imsz, conf.rescale, conf.label_blur_rad)
+    hsz = [i//conf.rescale for i in conf.imsz]
+    hmaps = PoseTools.create_label_images(tlocs, hsz, 1, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 def conv_residual(x_in, train_phase):
@@ -110,6 +108,7 @@ class PoseUNet(PoseCommon):
         self.for_training = 1 # for prediction.
         self.scale = self.conf.rescale
         self.no_pad = pad_input
+        conf.use_pretrained_weights = False
 
         if pad_input:
             self.pad_y,_ = find_pad_sz(n_layers=4,in_sz=conf.imsz[0])
@@ -879,6 +878,10 @@ class PoseUNet(PoseCommon):
 
 
     def create_pred_movie(self, movie_name, out_movie, max_frames=-1, flipud=False, trace=True):
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import matplotlib as mpl
+        from matplotlib import cm
+
         conf = self.conf
         sess = self.setup_net(0, True)
         predLocs, pred_scores, pred_max_scores = self.classify_movie(movie_name, sess, end_frame=max_frames, flipud=flipud)
@@ -949,6 +952,10 @@ class PoseUNet(PoseCommon):
 
 
     def create_pred_movie_trx(self, movie_name, out_movie, trx, fly_num, max_frames=-1, start_at=0, flipud=False, trace=True):
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import matplotlib as mpl
+        from matplotlib import cm
+
         conf = self.conf
         sess = self.setup_net(0, True)
         predLocs = self.classify_movie_trx(movie_name, trx, sess, end_frame=max_frames, flipud=flipud, start_frame=start_at)

@@ -3,26 +3,56 @@ classdef APT
   properties (Constant)
     Root = fileparts(mfilename('fullpath'));
     MANIFESTFILE = 'Manifest.txt';
-    SnapshotScript = fullfile(APT.Root,'repo_snapshot.sh');
+    SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh');
     
-    BUILDSNAPSHOTFILE = 'build.snapshot';
-    BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
+%     BUILDSNAPSHOTFILE = 'build.snapshot';
+%     BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
     
-    BUILDMCCFILE = 'build.mcc';
-    BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
+%     BUILDMCCFILE = 'build.mcc';
+%     BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
+
+    %DOCKER_REMOTE_HOST = ''; % Conceptually this prob belongs in DLBackEndClass
+    %DOCKER_REMOTE_HOST = 'bransonk-ws3'; % Conceptually this prob belongs in DLBackEndClass
+    
+    % for now, hard-coded to use default loc for git
+    WINSCPCMD = 'C:\Program Files\Git\usr\bin\scp.exe';
+    WINSSHCMD = 'C:\Program Files\Git\usr\bin\ssh.exe';
+
+    % hardcoded name of AWS security group
+    AWS_SECURITY_GROUP = 'apt_dl';
+    AMI = 'ami-0168f57fb900185e1';  
   end
   
   methods (Static)
     
+    function p = getRoot()
+      if isdeployed
+        p = ctfroot;
+      else
+        p = fileparts(mfilename('fullpath'));
+      end
+    end
+    
     function m = readManifest()
+
+      % KB 20190422 - Manifest no longer needed but can be used by
+      % power-users
+      
       fname = fullfile(APT.Root,APT.MANIFESTFILE);
       if exist(fname,'file')==0
-        error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
+        m = struct;
+      else
+        tmp = importdata(fname);
+        tmp = regexp(tmp,',','split');
+        tmp = cat(1,tmp{:});
+        m = cell2struct(tmp(:,2),tmp(:,1));
       end
-      tmp = importdata(fname);
-      tmp = regexp(tmp,',','split');
-      tmp = cat(1,tmp{:});
-      m = cell2struct(tmp(:,2),tmp(:,1));
+      
+      % overwrite these fields to default locs if read in from Manifest
+      root = APT.Root;
+      m.jaaba = fullfile(root,'external','JAABA');
+      m.piotr = fullfile(root,'external','PiotrDollarToolbox');
+      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');      
     end
   
     function [p,jp] = getpath()
@@ -32,7 +62,8 @@ classdef APT
       m = APT.readManifest;
       
       root = APT.Root;
-      cprroot = fullfile(root,'trackers','cpr');
+      mlroot = fullfile(root,'matlab');
+      cprroot = fullfile(mlroot,'trackers','cpr');
       if isfield(m,'jaaba')
         jaabaroot = m.jaaba;
       elseif isfield(m,'jctrax')
@@ -42,13 +73,9 @@ classdef APT
       end
       if isfield(m,'piotr')
         pdolroot = m.piotr;
-      else
-        pdolroot = '';
       end      
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
-      else
-        camroot = '';
       end
       
       if isempty(pdolroot)
@@ -64,21 +91,22 @@ classdef APT
       end
       aptpath = { ...
         root; ...
-        fullfile(root,'util'); ...
-        fullfile(root,'misc'); ...
-        fullfile(root,'private_imuitools'); ...
-        fullfile(root,'netlab'); ...
-        fullfile(root,'user'); ...
-        fullfile(root,'user','orthocam'); ...
-        fullfile(root,'user','orthocam',visionpath); ...
-        fullfile(root,'YAMLMatlab_0.4.3'); ...
-        fullfile(root,'JavaTableWrapper'); ...
-        fullfile(root,'propertiesGUI'); ...
-        fullfile(root,'treeTable'); ...
-        fullfile(root,'jsonlab-1.2','jsonlab'); ...
+        mlroot; ...
+        fullfile(mlroot,'util'); ...
+        fullfile(mlroot,'misc'); ...
+        fullfile(mlroot,'private_imuitools'); ...
+        fullfile(root,'external','netlab'); ...
+        fullfile(mlroot,'user'); ...
+        fullfile(mlroot,'user','orthocam'); ...
+        fullfile(mlroot,'user','orthocam',visionpath); ...
+        fullfile(mlroot,'YAMLMatlab_0.4.3'); ...
+        fullfile(mlroot,'JavaTableWrapper'); ...
+        fullfile(mlroot,'propertiesGUI'); ...
+        fullfile(mlroot,'treeTable'); ...
+        fullfile(mlroot,'jsonlab-1.2','jsonlab'); ...
         fullfile(root,'test'); ...
-        fullfile(root,'compute_landmark_features'); ...
-        fullfile(root,'compute_landmark_transforms'); ...
+        fullfile(mlroot,'compute_landmark_features'); ...
+        fullfile(mlroot,'compute_landmark_transforms'); ...
         };
       
       cprpath = { ...
@@ -90,7 +118,7 @@ classdef APT
         };
       
       dtpath = { ...
-        fullfile(root,'trackers','dt'); ...
+        fullfile(mlroot,'trackers','dt'); ...
         };
 
       jaabapath = { ...
@@ -104,7 +132,7 @@ classdef APT
       tfRm = cellfun(@(x) ~isempty(regexp(x,'__MACOSX','once')) || ...
                           ~isempty(regexp(x,'\.git','once')) || ...
                           ~isempty(regexp(x,'[\\/]doc','once')) || ...
-                          ~isempty(regexp(x,'[\\/]external','once')) || ...
+                          ~isempty(regexp(x,'PiotrDollarToolbox[\\/]external','once')) || ...
                           isempty(x), pdolpath);
       pdolpath(tfRm,:) = [];
 
@@ -116,9 +144,9 @@ classdef APT
       
       jp = {...
         fullfile(root,'java','APTJava.jar'); ...
-        fullfile(root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
-        fullfile(root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
-        fullfile(root,'treeTable')};
+        fullfile(mlroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
+        fullfile(mlroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
+        fullfile(mlroot,'treeTable')};
     end
     
     function jaabapath = getjaabapath()
@@ -133,6 +161,7 @@ classdef APT
     function setpath()
       
       [p,jp] = APT.getpath();
+      addpath(fullfile(APT.Root,'matlab')); % for javaaddpathstatic
       cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
       
@@ -174,6 +203,10 @@ classdef APT
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
+      %MK 20190506 Add stuff to systems path for aws cli
+      if ismac
+        setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
+      end
     end
   
     function tf = matlabPathNotConfigured()
@@ -184,12 +217,23 @@ classdef APT
     function pposetf = getpathdl()
       r = APT.Root;
       pposetf = fullfile(r,'deepnet');
-%       m = APT.readManifest;
-%       if isfield(m,'posetf')
-%         pposetf = m.posetf;
-%       else
-%         error('APT:noPath','Cannot find ''posetf'' Manifest specification.');
-%       end
+    end
+    
+    function cacheDir = getdlcacheroot()
+      
+      m = APT.readManifest;
+      if isfield(m,'dltemproot')
+        cacheDir = m.dltemproot;
+      else
+        if ispc
+          userDir = winqueryreg('HKEY_CURRENT_USER',...
+            ['Software\Microsoft\Windows\CurrentVersion\' ...
+            'Explorer\Shell Folders'],'Personal');
+        else
+          userDir = char(java.lang.System.getProperty('user.home'));
+        end
+        cacheDir = fullfile(userDir,'.apt');
+      end
     end
     
     function s = codesnapshot
@@ -239,7 +283,8 @@ classdef APT
       end      
     end
     
-    function buildAPTCluster(varargin)
+    function buildAPTCluster(varargin) 
+      % OBSOLETE probably broken due to paths/reorg 20191009
       [incsinglethreaded,bindirname] = myparse(varargin,...
         'incsinglethreaded',true,...
         'bindirname',[]... % custom binary output dir, eg '20180709.feature.deeptrack'. Still located underneath Manifest:build dir
@@ -273,6 +318,9 @@ classdef APT
       Ipth = [repmat({'-I'},numel(pth),1) pth];
       Ipth = Ipth';      
       aptroot = APT.Root;
+      mlroot = fullfile(aptroot,'matlab');
+      % 20191008: paths below are now out of date with repo re-org. 
+      % buildAPTCluster obsolete
       cprroot = fullfile(aptroot,'trackers','cpr');
       dtroot = fullfile(aptroot,'trackers','dt');
       jaabapath = APT.getjaabapath();
@@ -323,12 +371,19 @@ classdef APT
         '-a',fullfile(aptroot,InfoTimeline.TLPROPFILESTR),...
         '-a',fullfile(aptroot,'params_preprocess.yaml'),...
         '-a',fullfile(aptroot,'params_track.yaml'),...
+        '-a',fullfile(aptroot,'params_postprocess.yaml'),...
+        '-a',fullfile(aptroot,'landmark_features.yaml'),...        
         '-a',fullfile(aptroot,'misc','darkjet.m'),...
         '-a',fullfile(aptroot,'misc','lightjet.m'),...
         '-a',fullfile(cprroot,'params_cpr.yaml'),... %        '-a',fullfile(cprroot,'param.example.yaml'),...
         '-a',fullfile(cprroot,'misc','CPRLabelTracker.m'),...
         '-a',fullfile(cprroot,'misc','CPRBlurPreProc.m'),...
+        '-a',fullfile(dtroot,'params_deeptrack_dlc.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_unet.yaml'),...
         '-a',fullfile(dtroot,'params_deeptrack.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_openpose.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_mdn.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_leap.yaml'),...
         '-a',fullfile(dtroot,'DeepTracker.m'),...        
         '-a',fullfile(aptroot,'LabelerGUI_lnx.fig'),... 
         '-a',fullfile(aptroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'),...

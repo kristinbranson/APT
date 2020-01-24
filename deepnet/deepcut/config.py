@@ -5,7 +5,7 @@ import logging
 import yaml
 from easydict import EasyDict as edict
 
-import default_config
+import deepcut.default_config as default_config
 
 
 cfg = default_config.cfg
@@ -27,6 +27,9 @@ def _merge_a_into_b(a, b):
         if type(v) is edict:
             try:
                 _merge_a_into_b(a[k], b[k])
+            except KeyError:
+                logging.warning(
+                    'Ignoring unrecognized configuration attribute: {}'.format(k))
             except:
                 print('Error under config key: {}'.format(k))
                 raise
@@ -65,8 +68,8 @@ def convert_to_deepcut(conf):
     conf.dataset = os.path.join(conf.cachedir,conf.dlc_train_data_file)
     conf.global_scale = 1./conf.dlc_rescale
     conf.num_joints = conf.n_classes
-    conf.scale_jitter_lo = 0.9
-    conf.scale_jitter_up = 1.1
+    conf.scale_jitter_lo = 1 - conf.scale_range
+    conf.scale_jitter_up = 1 + conf.scale_range
     conf.net_type = 'resnet_50'
     conf.pos_dist_thresh = 17
     conf.max_input_size = 1000

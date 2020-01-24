@@ -5,19 +5,20 @@ import time
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from config import load_config
+from .config import load_config
 from deepcut.nnet.net_factory import pose_net
-from nnet.pose_net import get_batch_spec
-from util.mylogging import setup_logging
+from .nnet.pose_net import get_batch_spec
+from .util.mylogging import setup_logging
 import urllib
 import os
 import PoseTools
 import numpy as np
-import predict
-from pose_dataset import Batch, PoseDataset
+import deepcut.predict as predict
+from .pose_dataset import Batch, PoseDataset
 import json
+import pickle
 from easydict import EasyDict as edict
-import config
+import deepcut.config as config
 import  tarfile
 
 # name = 'deepnet'
@@ -89,13 +90,20 @@ def get_optimizer(loss_op, cfg):
     return learning_rate, train_op
 
 
-def save_td(cfg, train_info):
-    train_data_file = os.path.join( cfg.cachedir, 'traindata')
+def save_td(cfg, train_info,name):
+    if name == 'deepnet':
+        train_data_file = os.path.join(cfg.cachedir, 'traindata')
+    else:
+        train_data_file = os.path.join(cfg.cachedir, name + '_traindata')
+
+    # train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
     for x in train_info.keys():
         json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
     with open(train_data_file + '.json', 'w') as json_file:
         json.dump(json_data, json_file)
+    with open(train_data_file, 'wb') as train_data_file:
+        pickle.dump([train_info, cfg], train_data_file, protocol=2)
 
 
 def set_deepcut_defaults(cfg):
@@ -131,6 +139,15 @@ def train(cfg,name='deepnet'):
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
 
+    if name == 'deepnet':
+        train_data_file = os.path.join(cfg.cachedir, 'traindata')
+    else:
+        train_data_file = os.path.join(cfg.cachedir, name + '_traindata')
+
+    with open(train_data_file, 'wb') as td_file:
+        pickle.dump(cfg, td_file, protocol=2)
+    logging.info('Saved config to {}'.format(train_data_file))
+
     dirname = os.path.dirname(os.path.dirname(__file__))
     init_weights = os.path.join(dirname, 'pretrained','resnet_v1_50.ckpt')
 
@@ -161,7 +178,7 @@ def train(cfg,name='deepnet'):
 
     variables_to_restore = slim.get_variables_to_restore(include=["resnet_v1"])
     restorer = tf.train.Saver(variables_to_restore)
-    saver = tf.train.Saver(max_to_keep=50)
+    saver = tf.train.Saver(max_to_keep=50,save_relative_paths=True)
 
     sess = tf.Session()
 
@@ -185,6 +202,7 @@ def train(cfg,name='deepnet'):
     ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
 
     start = time.time()
+    save_start = time.time()
     for it in range(max_iter+1):
         current_lr = lr_gen.get_lr(it)
         [_, loss_val] = sess.run([train_op, total_loss], # merged_summaries],
@@ -215,16 +233,22 @@ def train(cfg,name='deepnet'):
             train_info['val_dist'].append(dd.mean())
             train_info['train_dist'].append(dd.mean())
 
-        if it % cfg.save_td_step == 0:
-            save_td(cfg, train_info)
+            save_td(cfg, train_info,name)
+
         # Save snapshot
-        if (it % cfg.save_step == 0 ) or it == max_iter:
-            saver.save(sess, model_name, global_step=it,
+        if 'save_time' in cfg.keys() and cfg['save_time'] is not None:
+            if (time.time() - save_start) > cfg['save_time']*60:
+                saver.save(sess, model_name, global_step=it,
+                           latest_filename=os.path.basename(ckpt_file))
+                save_start = time.time()
+        else:
+            if (it % cfg.save_step == 0 ) or it == max_iter:
+                saver.save(sess, model_name, global_step=it,
                        latest_filename=os.path.basename(ckpt_file))
 
-    sess.close()
     coord.request_stop()
-    coord.join([thread],3)
+    coord.join([thread],stop_grace_period_secs=60)
+    sess.close()
 
 
 def get_pred_fn(cfg, model_file=None,name='deepnet'):
@@ -234,9 +258,9 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
 
     if model_file is None:
         ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
-        latest_ckpt = tf.train.get_checkpoint_state( cfg.cachedir, ckpt_file)
-        init_weights = latest_ckpt.model_checkpoint_path
+        latest_ckpt = tf.train.get_checkpoint_state(cfg.cachedir, ckpt_file)
         model_file = latest_ckpt.model_checkpoint_path
+        init_weights = model_file
     else:
         init_weights = model_file
 
@@ -248,6 +272,8 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
             cur_im = np.tile(all_f,[1,1,1,3])
         else:
             cur_im = all_f
+        cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.n_classes, 2]), conf=cfg, distort=False, scale=cfg.dlc_rescale)
+
         cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
@@ -262,6 +288,19 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
         sess.close()
 
     return pred_fn, close_fn, model_file
+
+def model_files(cfg, name='deepnet'):
+    ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
+    if not os.path.exists(ckpt_file):
+        return []
+    latest_ckpt = tf.train.get_checkpoint_state(cfg.cachedir, ckpt_file)
+    latest_model_file = latest_ckpt.model_checkpoint_path
+    import glob
+    all_model_files = glob.glob(latest_model_file + '.*')
+    train_data_file = os.path.join( cfg.cachedir, 'traindata')
+    all_model_files.extend([ckpt_file, train_data_file])
+
+    return all_model_files
 
 
 if __name__ == '__main__':

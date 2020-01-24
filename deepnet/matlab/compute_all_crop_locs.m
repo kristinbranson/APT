@@ -12,8 +12,9 @@ function compute_all_crop_locs()
 		all_crops{ndx,1} = C{1}(ndx);
 		if ~exist(C{2}{ndx},'file'),
 			continue;
-		end
-		L = load(C{2}{ndx},'-mat');
+                end
+                lblfile = C{2}{ndx};
+ 		L = loadLbl(lblfile);      
 		if class(L.labeledpos{1}) == 'double'
 			curpts = L.labeledpos{1}(:,:,1);
 		else

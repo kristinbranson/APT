@@ -57,11 +57,22 @@ def find_gt_dirs(conf):
 
 
 def get_trx_files(lbl, local_dirs, on_gt=False):
+    '''
+    Get trxFiles from lbl, eg lbl.trxFilesAll or lbl.trxFilesAllGT when on_gt=True
+    :param lbl:
+    :param local_dirs: list of moviefiles corresponding trxfiles; used for macro-replacement
+    :param on_gt:
+    :return:
+    '''
     if on_gt:
         trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAllGT'][0]]
     else:
         trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAll'][0]]
     movdir = [os.path.dirname(a) for a in local_dirs]
+
+    assert len(trx_files) == len(movdir), \
+        "Number of trxfiles ({}) differs from movies ({})".format(len(trx_files), len(movdir))
+
     trx_files = [s.replace('$movdir', m) for (s, m) in zip(trx_files, movdir)]
     try:
         for k in lbl['projMacros'].keys():
@@ -319,7 +330,7 @@ def create_full_tf_record(conf):
     env.close()  # close the database
     print('%d,%d number of pos examples added to the db and val-db' % (count, val_count))
 
-def get_labeled_frames(lbl,ndx ,trx_ndx=None, on_gt=False):
+def get_labeled_frames(lbl, ndx, trx_ndx=None, on_gt=False):
     cur_pts = trx_pts(lbl, ndx, on_gt)
     if cur_pts.ndim == 4:
         frames = np.where(np.invert(np.all(np.isnan(cur_pts[trx_ndx, :, :, :]), axis=(1, 2))))[0]
@@ -471,20 +482,19 @@ def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, fl
 
 
 
-def trx_pts(lbl, ndx, on_gt = False):
+def trx_pts(lbl, ndx, on_gt=False,field_name='labeledpos'):
     '''
     new styled sparse labeledpos
     returned points are 0-indexed in index as well as values
     '''
     if on_gt:
-        pts = np.array(lbl['labeledposGT'])
-    else:
-        pts = np.array(lbl['labeledpos'])
+        field_name += 'GT'
+    pts = np.array(lbl[field_name])
     try:
         sz = np.array(lbl[pts[0, ndx]]['size'])[:, 0].astype('int')
         cur_pts = np.zeros(sz).flatten()
         cur_pts[:] = np.nan
-        if lbl[pts[0,ndx]]['val'].value.ndim > 1:
+        if lbl[pts[0,ndx]]['idx'].value.ndim > 1:
             idx = np.array(lbl[pts[0, ndx]]['idx'])[0, :].astype('int') - 1
             val = np.array(lbl[pts[0, ndx]]['val'])[0, :] - 1
             cur_pts[idx] = val
@@ -532,8 +542,10 @@ def read_trx(cur_trx, fnum):
     if cur_trx is None:
         return None,None,None
     trx_fnum = fnum - int(cur_trx['firstframe'][0, 0]) + 1
-    x = int(round(cur_trx['x'][0, trx_fnum])) - 1
-    y = int(round(cur_trx['y'][0, trx_fnum])) - 1
+    # x = int(round(cur_trx['x'][0, trx_fnum])) - 1
+    # y = int(round(cur_trx['y'][0, trx_fnum])) - 1
+    x = cur_trx['x'][0, trx_fnum] - 1
+    y = cur_trx['y'][0, trx_fnum] - 1
     # -1 for 1-indexing in matlab and 0-indexing in python
     theta = cur_trx['theta'][0, trx_fnum]
     return x, y, theta
@@ -552,7 +564,7 @@ def read_frame(cap, fnum, cur_trx, offset=0, stationary=True,flipud=False):
             o_fnum = cur_trx['firstframe'][0, 0] - 1
     else:
         o_fnum = 0 if o_fnum < 0 else o_fnum
-        o_fnum = cap.get_n_frames()-1 if o_fnum > cap.get_n_frames() else o_fnum
+        o_fnum = cap.get_n_frames()-1 if o_fnum > (cap.get_n_frames()-1) else o_fnum
 
     framein = cap.get_frame(o_fnum)[0]
     if flipud:
@@ -577,39 +589,58 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs):
     ''' return patch for movies with trx file
     function for testing test_crop_path_trx
     '''
-    psz = int(max(conf.imsz))
+    psz_x = conf.imsz[1]
+    psz_y = conf.imsz[0]
     im = im_in.copy()
     theta = theta + math.pi / 2
 
     if im_in.ndim == 2:
         im = im[:,:,np.newaxis]
 
-    pad_im = np.pad(im, [[psz, psz],[psz, psz],[0,0]], 'constant')
-    patch = pad_im[y:y + (2 * psz + 1), x: (x + 2 * psz + 1),:]
-    # patch is now of size 2*psz+1 with pixel x,y at its center at (psz,psz).
-    rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
-    rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz + 1, 2 * psz + 1),flags=cvc.INTER_CUBIC)
+    # psz = int(max(conf.imsz))
+    # pad_im = np.pad(im, [[psz, psz],[psz, psz],[0,0]], 'constant')
+    # patch = pad_im[y:y + (2 * psz + 1), x: (x + 2 * psz + 1),:]
+    # # patch is now of size 2*psz+1 with pixel x,y at its center at (psz,psz).
+    # rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
+    # rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz + 1, 2 * psz + 1),flags=cvc.INTER_CUBIC)
+
+
+    if conf.trx_align_theta:
+        T = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1)
+        R = np.eye(3)
+        R[:, :2] = R1.T
+        A_full = np.matmul(T,R)
+    else:
+        x = np.round(x)
+        y = np.round(y)
+        A_full = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
+
+    A = A_full[:,:2].T
+    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cvc.INTER_CUBIC)
     if rpatch.ndim == 2:
         rpatch = rpatch[:, :, np.newaxis]
+
+    lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
+    lr = lr.T
 
     # select patch starting at psz/2 of size psz.
     # for odd psz: x,y is at (psz-1)/2,(psz-1)/2
     # for even psz: x,y is at psz/2-1, psz/2-1
-    rpatch = rpatch[psz // 2 + 1: -psz // 2 , psz // 2 + 1: - psz // 2 , :]
-
-    ll = locs.copy()
-    ll = ll - [x, y]
-    rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-    lr = np.dot(ll, rot) + [psz - psz // 2 -1, psz - psz // 2 -1]
-
-    if conf.imsz[0] < conf.imsz[1]:
-        extra = (psz-conf.imsz[0])//2
-        rpatch = rpatch[extra:-extra,...]
-        lr[:,1] -= extra
-    elif conf.imsz[1] < conf.imsz[0]:
-        extra = (psz-conf.imsz[1])//2
-        rpatch = rpatch[:,extra:-extra,...]
-        lr[:,0] -= extra
+    # rpatch = rpatch[psz // 2 + 1: -psz // 2 , psz // 2 + 1: - psz // 2 , :]
+    # ll = locs.copy()
+    # ll = ll - [x, y]
+    # rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+    # lr = np.dot(ll, rot) + [psz - psz // 2 -1, psz - psz // 2 -1]
+    #
+    # if conf.imsz[0] < conf.imsz[1]:
+    #     extra = (psz-conf.imsz[0])//2
+    #     rpatch = rpatch[extra:-extra,...]
+    #     lr[:,1] -= extra
+    # elif conf.imsz[1] < conf.imsz[0]:
+    #     extra = (psz-conf.imsz[1])//2
+    #     rpatch = rpatch[:,extra:-extra,...]
+    #     lr[:,0] -= extra
 
     rpatch = rpatch[:,:,:conf.img_dim]
     return rpatch, lr
@@ -1047,6 +1078,12 @@ def read_and_decode_rnn(filename_queue, conf):
 def read_and_decode_without_session(filename, conf, indices=(0,)):
     # reads the tf record db. Returns entries at location indices
     # If indices is empty, then it reads the whole database.
+    # Instead of conf, n_classes can be also be given
+
+    if type(conf) == int:
+        n_classes = conf
+    else:
+        n_classes = conf.n_classes
 
     xx = tf.python_io.tf_record_iterator(filename)
     all_ims = []
@@ -1067,7 +1104,7 @@ def read_and_decode_without_session(filename, conf, indices=(0,)):
         img_1d = np.fromstring(img_string, dtype=np.uint8)
         reconstructed_img = img_1d.reshape((height, width, depth))
         locs = np.array(example.features.feature['locs'].float_list.value)
-        locs = locs.reshape([conf.n_classes, 2])
+        locs = locs.reshape([n_classes, 2])
         if 'trx_ndx' in example.features.feature.keys():
             trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
         else:
@@ -1108,6 +1145,8 @@ class tf_reader(object):
         except StopIteration:
             self.reset()
             record = self.iterator.next()
+        except AttributeError:
+            record = self.iterator.__next__()
         return  record
 
     def next(self):

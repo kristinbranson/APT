@@ -9,6 +9,8 @@ import shutil
 import json
 import PoseTools
 import math
+import pickle
+import logging
 
 import keras
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback,LearningRateScheduler
@@ -322,17 +324,24 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     data_path = [os.path.join(conf.cachedir, 'leap_train.h5')]
     batch_size = conf.batch_size
     rotate_angle = conf.rrange
-    assert conf.dl_steps % conf.display_step ==0, 'For leap, number of training iterations must be divisible by display step'
+    assert conf.dl_steps % conf.display_step == 0, \
+        'For leap, number of training iterations must be divisible by display step'
     epochs = conf.dl_steps/conf.display_step
-    batches_per_epoch=conf.display_step
+    batches_per_epoch = conf.display_step
     val_batches_per_epoch=10
-    assert conf.save_step % conf.display_step == 0, 'For leap, save steps must be divisible by display steps'
+    assert conf.save_step % conf.display_step == 0, \
+        'For leap, save steps must be divisible by display steps'
     save_step = conf.save_step/conf.display_step
-    base_output_path = conf.cachedir
+    base_output_path = str(conf.cachedir)
     net_name = conf.leap_net_name
 
+    train_data_file = os.path.join(conf.cachedir, 'traindata')
+    with open(train_data_file, 'wb') as td_file:
+        pickle.dump(conf, td_file, protocol=2)
+    logging.info('Saved config to {}'.format(train_data_file))
+
     box_dset="box"
-    confmap_dset="confmaps"
+    confmap_dset="joints" #"confmaps" work with locs rather than heatmaps.
     filters=64
     reduce_lr_factor=0.1
     reduce_lr_patience=3
@@ -352,8 +361,11 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         val_confmap = confmap
 
     # Pull out metadata
-    img_size = box.shape[1:]
-    num_output_channels = confmap.shape[-1]
+    img_size = np.array(box.shape[1:])
+    img_size[0] = img_size[0]//conf.rescale
+    img_size[1] = img_size[1]//conf.rescale
+
+    num_output_channels = conf.n_classes
 
     # Create network
     model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=amsgrad, upsampling_layers=upsampling_layers, summary=True)
@@ -361,7 +373,6 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         print("Could not find model:", net_name)
         return
 
-    model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     # Initialize run
     run_path = base_output_path
     savemat(os.path.join(base_output_path, "training_info.mat"),
@@ -375,35 +386,37 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
              "amsgrad": amsgrad, "upsampling_layers": upsampling_layers})
 
     # Save initial network
-    model.save(os.path.join(run_path, "initial_model.h5"))
+    model.save(str(os.path.join(run_path, "initial_model.h5")))
 
     # Data generators/augmentation
     input_layers = model.input_names
     output_layers = model.output_names
-    srange = [1 - conf.scale_range, 1 + conf.scale_range]
     if len(input_layers) > 1 or len(output_layers) > 1:
-        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
-        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
+        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, conf, shuffle=True)
+        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, conf, shuffle=True)
     else:
-        train_datagen = PairedImageAugmenter(box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
-        val_datagen = PairedImageAugmenter(val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
+        train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
+        val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
     base_lr = 4e-5  # 2e-5
     momentum = 0.9
     weight_decay = 5e-4
     lr_policy = "step"
-    gamma = 0.333
-    step_size = 6000 # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
+    gamma = conf.gamma          #0.333
+    step_size = conf.decay_steps # 6000 # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
+    save_time = conf.get('save_time',None)
 
     def step_decay(epoch):
         initial_lrate = base_lr
         steps = epoch * batches_per_epoch
         lrate = initial_lrate * math.pow(gamma, math.floor(steps / step_size))
         return lrate
-    lrate = LearningRateScheduler(step_decay)
 
-    # Initialize training callbacks
-    reduce_lr_callback = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
+    if not conf.get('leap_use_default_lr',False):
+        lrate = LearningRateScheduler(step_decay)
+    else:
+        # Initialize training callbacks
+        lrate = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
                                           patience=reduce_lr_patience, verbose=1, mode="auto",
                                           epsilon=reduce_lr_min_delta, cooldown=reduce_lr_cooldown,
                                           min_lr=reduce_lr_min_lr)
@@ -423,6 +436,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             self.force = False
             self.train_ndx = 0
             self.val_ndx  = 0
+            self.start_time = time()
 
         def on_epoch_end(self, epoch, logs={}):
             step = epoch*conf.display_step
@@ -459,16 +473,26 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
+            if name == 'deepnet':
+                train_data_file = os.path.join( self.config.cachedir, 'traindata')
+            else:
+                train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
 
             json_data = {}
             for x in self.train_info.keys():
                 json_data[x] = np.array(self.train_info[x]).astype(np.float64).tolist()
             with open(train_data_file + '.json', 'w') as json_file:
                 json.dump(json_data, json_file)
+            with open(train_data_file, 'wb') as train_data_file:
+                pickle.dump([self.train_info, conf], train_data_file, protocol=2)
 
-            if step % conf.save_step == 0:
-                model.save(os.path.join(conf.cachedir,name + '-{}'.format(step)))
+            if conf.save_time is None:
+                if step % conf.save_step == 0:
+                    model.save(str(os.path.join(run_path,name + '-{}'.format(step))))
+            else:
+                if time() - self.start_time > conf.save_time*60:
+                    self.start_time = time()
+                    model.save(str(os.path.join(run_path, name + '-{}'.format(step))))
 
     obs = OutputObserver(conf,[train_datagen,val_datagen])
 
@@ -488,8 +512,8 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             validation_data=val_datagen,
             validation_steps=val_batches_per_epoch,
             callbacks = [
-                reduce_lr_callback,
-                # lrate,
+                # reduce_lr_callback,
+                lrate,
                 # checkpointer,
                 obs
             ]
@@ -500,7 +524,8 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
+    model.save(str(os.path.join(run_path, name + '-{}'.format(conf.dl_steps))))
+    # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
     obs.on_epoch_end(epochs)
 
 
@@ -510,7 +535,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         latest_model_file = PoseTools.get_latest_model_file_keras(conf,name)
     else:
         latest_model_file = model_file
-    model = keras.models.load_model(latest_model_file)
+    model = keras.models.load_model(str(latest_model_file))
 
     def pred_fn(all_f):
         newY = int(np.ceil(float(all_f.shape[1]) / 32) * 32)
@@ -518,12 +543,15 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         X1 = np.zeros([all_f.shape[0], newY, newX, all_f.shape[3]]).astype('float32')
         X1[:, :all_f.shape[1], :all_f.shape[2], :] = all_f
 
+        X1, _ = PoseTools.preprocess_ims(X1, in_locs=np.zeros([X1.shape[0], conf.n_classes, 2]), conf=conf, distort=False, scale=conf.rescale)
+
+
         X1 = X1.astype("float32") / 255
         pred = model.predict(X1,batch_size = X1.shape[0])
         pred = np.stack(pred)
         pred = pred[:,:all_f.shape[1],:all_f.shape[2],:]
         base_locs = PoseTools.get_pred_locs(pred)
-        base_locs = base_locs * conf.leap_rescale
+        base_locs = base_locs * conf.rescale
 
         ret_dict = {}
         ret_dict['locs'] = base_locs
@@ -534,6 +562,15 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
     close_fn = K.clear_session
 
     return pred_fn, close_fn, latest_model_file
+
+
+def model_files(conf, name):
+    latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
+    if latest_model_file is None:
+        return None
+    traindata_file = PoseTools.get_train_data_file(conf,name)
+    return [latest_model_file, traindata_file + '.json']
+
 
 if __name__ == "__main__":
     # Turn interactive plotting off

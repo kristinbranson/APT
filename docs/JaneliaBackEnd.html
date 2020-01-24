@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT Documentation - Local GPU Back End</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all" 
+href="styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen" 
+href="styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print" 
+href="styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" 
+media="projection" href="styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+
+
+<h1><a href="index.html">APT Documentation</a>: Janelia Cluster GPU Back End</h1>
+
+<p>We describe how to set up APT to use the Janelia GPU Cluster for all deep learning.</p>
+
+<p>This is only applicable to people with access to the Janelia cluster. Note that Janelians need to contact IT to have access to the cluster granted, if you haven't done this already. If there is interest in extending this to other LSF-based clusters, please let us know. Instructions are currently only available for Linux. Please also let us know if there is demand to extend this to other operating systems. </p>
+
+<p>First, the Janelia cluster's <code>login1</code> must be in your computer's list of ssh <a href="https://en.wikibooks.org/wiki/OpenSSH/Client_Configuration_Files">known hosts</a>. To do this, just type
+  <pre>ssh login1</pre>
+  at a terminal, and agree to adding login1 to the list of known hosts, if you haven't already.
+</p>
+<p>Second, you need to set up passwordless ssh login using RSA public-private key pairs. Instructions are available <a href="https://linuxize.com/post/how-to-setup-passwordless-ssh-login/">here</a>. To test that this is working, you can try typing:
+  <pre>ssh login1</pre>
+  at a terminal, and see that logging in works without a password.
+</p>
+
+
+<footer>
+<hr class="h1-divider">
+<center>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated November 20, 2019</i>
+</center>
+</footer>
+
+
+</body>
