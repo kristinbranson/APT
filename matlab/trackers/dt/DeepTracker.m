@@ -3233,6 +3233,9 @@ classdef DeepTracker < LabelTracker
               case DLBackEnd.Bsub,
                 bgTrkWorkerObj.parseJobID(res,ivwjob,imov);
               case DLBackEnd.AWS
+                aws = backend.awsec2;
+                pause(5.0); % hack
+                aws.getRemotePythonPID();
               otherwise
                 error('Not implemented: %s',backend.type);
             end

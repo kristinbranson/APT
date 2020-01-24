@@ -491,9 +491,10 @@ classdef TrackJob < handle
       TrackJob.checkCreateDir(obj.trkoutdirLcl,'trk cache dir');
       if obj.tfremote,
         obj.mkdirRemFun(obj.remoteDataDirRel,'descstr','data');
+        for i=1:numel(obj.trkoutdirRem)
+          obj.mkdirRemFun(obj.trkoutdirRem{i},'descstr','data','relative',false);
+        end
       end
-      
-      
     end
     
     function checkCreateRemotes(obj)
