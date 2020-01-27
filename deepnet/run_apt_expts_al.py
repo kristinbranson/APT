@@ -1378,9 +1378,19 @@ def create_gt_db():
 ## ######################  RESULTS
 
 
-def get_normal_results(exp_name='apt_expt', train_name='deepnet', **kwargs):
+def get_normal_results(exp_name='apt_expt',
+                       train_name='deepnet',
+                       gt_name_use_output=None,  # if supplied, use instead of gt_name
+                       last_model_only=False,
+                       classify_fcn='classify_db2',
+                       classify_return_ims=False,
+                       **kwargs):
 ## Normal Training  ------- RESULTS -------
     # cache_dir = '/nrs/branson/al/cache'
+
+
+    if gt_name_use_output is None:
+        gt_name_use_output = gt_name
 
     all_view = []
 
@@ -1427,7 +1437,7 @@ def get_normal_results(exp_name='apt_expt', train_name='deepnet', **kwargs):
             print('view {}, net {}. Your models are:'.format(view, train_type))
             print(files)
 
-            out_file = os.path.join(conf.cachedir,train_name + '_results{}.p'.format(gt_name))
+            out_file = os.path.join(conf.cachedir, train_name + '_results{}.p'.format(gt_name_use_output))
             recomp = False
             if os.path.exists(out_file):
                 fts = [os.path.getmtime(f) for f in files]
@@ -1446,11 +1456,18 @@ def get_normal_results(exp_name='apt_expt', train_name='deepnet', **kwargs):
 
             if recomp:
                 afiles = [f.replace('.index', '') for f in files]
-                mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
+                if last_model_only:
+                    afiles = afiles[-1:]
+                mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,
+                                                    name=train_name,
+                                                    classify_fcn=classify_fcn,
+                                                    return_ims=classify_return_ims)
                 with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,files],f)
+                print("Wrote {}".format(out_file))
             else:
                 A = PoseTools.pickle_load(out_file)
+                print("Loaded {}".format(out_file))
                 mdn_out = A[0]
 
             out_exp[train_type] = mdn_out
@@ -1463,7 +1480,7 @@ def get_normal_results(exp_name='apt_expt', train_name='deepnet', **kwargs):
     for ndx,out_exp in enumerate(all_view):
         plot_results(out_exp[0])
         plot_hist(out_exp)
-        save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_time{}'.format(data_type,ndx,gt_name)))
+        save_mat(out_exp[0], os.path.join(cache_dir,'{}_view{}_time{}'.format(data_type, ndx, gt_name_use_output)))
 
 def get_mdn_no_unet_results():
 ## Normal Training  ------- RESULTS -------

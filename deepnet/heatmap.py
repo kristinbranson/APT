@@ -3,12 +3,17 @@ from __future__ import print_function
 import sys
 import time
 import timeit
+import distutils  # prefer packaging in future
 import h5py
 from scipy import stats
 import scipy.io as sio
 import skimage.measure
 import numpy as np
 import matplotlib.pyplot as plt
+
+# prefer packaging module in future
+assert distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"), \
+    "Unexpected version of skimage; needed for r/c coord conventions"
 
 def compactify_hmap_gaussian_test():
     sig = np.array([[10,4],[4,7]])
@@ -35,31 +40,37 @@ def compactify_hmap_gaussian_test():
     muobs3,sigobs3,A3,err3 = compactify_hmap_gaussian(hmnoise,meanismax=True)
     return ((muobs,sigobs,A,err),(muobs2,sigobs2,A2,err2),(muobs3,sigobs3,A3,err3))
 
-def compactify_hmap(hm, floor=0.0, nclustermax=5):
+def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
     '''
 
     :param hm:
     :param floor:
     :param nclustermax:
     :return:
-         mu: (2, nclustermax). Each col is (row,col) weighted centroid, 1-based
+         mu: (2, nclustermax). Each col is (col,row) or (x,y) weighted centroid, 1-based
+
+         (Whether this is row,col or col,row depends on the version of skimage; apparently
+         rc for version >=0.16.0; see skimage.measure doc and assert above)
 
     '''
 
-    assert np.all(hm >= 0.)
+    assert np.all(hm_in >= 0.)
     if floor > 0.0:
+        hm = hm_in.copy()
         hm[hm < floor] = 0.0
+    else:
+        hm = hm_in
 
     hmbw = hm > 0.
     lbls = skimage.measure.label(hmbw, connectivity=1)
     rp = skimage.measure.regionprops(lbls, intensity_image=hm)
-    rp.sort(key=lambda x: x.area, reverse=True)
+    rp.sort(key=lambda x: x.max_intensity, reverse=True)
 
     a = np.zeros(nclustermax)
     mu = np.zeros((2,nclustermax))
     sig = np.zeros((2,2,nclustermax))
 
-    nclusters = min(nclustermax,len(rp))
+    nclusters = min(nclustermax, len(rp))
     for ic in range(nclusters):
         a[ic] = rp[ic].weighted_moments[0, 0]
         mu[:, ic] = np.array(rp[ic].weighted_centroid) + 1.0  # transform to 1-based
@@ -122,6 +133,31 @@ def get_weighted_centroids(hm, floor=0.0, nclustermax=5):
             hmmu[ib, ipt, :] = mutmp[::-1].flatten() - 1.0
 
     return hmmu
+
+def find_peaks(map, thre):
+    '''
+    Find local maxima above thresh
+    :param map:
+    :param thre:
+    :return: list of (x,y,amplitude) of qualifying peaks found
+    '''
+    map_left = np.zeros(map.shape)  # "down"?
+    map_left[1:, :] = map[:-1, :]
+    map_right = np.zeros(map.shape)  # "up"?
+    map_right[:-1, :] = map[1:, :]
+    map_up = np.zeros(map.shape)  # "right"
+    map_up[:, 1:] = map[:, :-1]
+    map_down = np.zeros(map.shape)  # "left"
+    map_down[:, :-1] = map[:, 1:]
+
+    # assumes map is positive semidef i guess
+    peaks_binary = np.logical_and.reduce(
+        (map >= map_left, map >= map_right, map >= map_up, map >= map_down, map > thre))
+    # note reverse. list of (x,y) or (col,row) pairs
+    peaks = list(zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]))
+    peaks_with_score = [x + (map[x[1], x[0]],) for x in peaks]
+
+    return peaks_with_score
 
 def create_label_hmap(locs, imsz, sigma, clip=0.05):
     """

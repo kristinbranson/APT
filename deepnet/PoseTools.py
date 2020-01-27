@@ -77,17 +77,16 @@ def unscale_points(locs_lores, scalex, scaley):
     '''
     Undo rescale_points. Returns a new array
 
-    :param locs_lores:
+    :param locs_lores: last dim has len 2 and is x,y
     :param scale:
     :return:
     '''
 
-    bsize, npts, d = locs_lores.shape
-    assert d == 2
+    assert locs_lores.shape[-1] == 2
     assert issubclass(locs_lores.dtype.type, np.floating)
     locs_hires = locs_lores.copy()
-    locs_hires[:, :, 0] = float(scalex) * (locs_hires[:, :, 0] + 0.5) - 0.5
-    locs_hires[:, :, 1] = float(scaley) * (locs_hires[:, :, 1] + 0.5) - 0.5
+    locs_hires[..., 0] = float(scalex) * (locs_hires[..., 0] + 0.5) - 0.5
+    locs_hires[..., 1] = float(scaley) * (locs_hires[..., 1] + 0.5) - 0.5
     return locs_hires
 
 def scale_images(img, locs, scale, conf, **kwargs):

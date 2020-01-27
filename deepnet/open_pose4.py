@@ -529,7 +529,7 @@ def compute_padding_imsz_net(imsz, rescale, bb_ds_scale, ndeconv):
 
     # in the network, it goes inputres->bbres(downsamp currently 8x)->deconvres(2x upsamp ndeconv times)
 
-    # we set the initial padding so all scaling is 'perfect' ie the initial rescale, then bbdownsampe etc.
+    # we set the initial padding so all scaling is 'perfect' ie the initial rescale, then bbdownsample etc.
 
     def checkint(x, name):
         assert isinstance(x, int) or x.is_integer(), "Expect {} to be integral value".format(name)
@@ -554,7 +554,9 @@ def compute_padding_imsz_net(imsz, rescale, bb_ds_scale, ndeconv):
     imsz_bb = (int(imsz_pad[0]/rescale/bb_ds_scale), int(imsz_pad[1]/rescale/bb_ds_scale))
     imsz_dc = (int(imsz_pad[0]/rescale/scale_hires), int(imsz_pad[1]/rescale/scale_hires))
 
-    return padx, pady, imsz_pad, imsz_net, imsz_bb, imsz_dc
+    netinoutscale = scale_hires
+
+    return padx, pady, imsz_pad, imsz_net, imsz_bb, imsz_dc, netinoutscale
 
 def update_conf(conf):
     '''
@@ -563,9 +565,15 @@ def update_conf(conf):
     :return:
     '''
 
-    (conf.op_im_padx, conf.op_im_pady, conf.op_imsz_pad, conf.op_imsz_net, conf.op_imsz_lores,
-     conf.op_imsz_hires) = compute_padding_imsz_net(conf.imsz, conf.rescale,
-                                                    conf.op_label_scale, conf.op_hires_ndeconv)
+    if not conf.op_hires:
+        assert conf.op_hires_ndeconv == 0
+        # stuff should work with ndeconv=0
+
+    (conf.op_im_padx, conf.op_im_pady, conf.op_imsz_pad, conf.op_imsz_net,
+     conf.op_imsz_lores, conf.op_imsz_hires, conf.op_net_inout_scale) = \
+        compute_padding_imsz_net(conf.imsz, conf.rescale,
+                                 conf.op_label_scale,
+                                 conf.op_hires_ndeconv)
     logging.info("OP size stuff: imsz={}, imsz_pad={}, imsz_net={}, imsz_lores={}, imsz_hires={}, rescale={}".format(
         conf.imsz, conf.op_imsz_pad, conf.op_imsz_net, conf.op_imsz_lores, conf.op_imsz_hires,
         conf.rescale))
@@ -858,7 +866,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         latest_model_file = model_file
     logging.info("Loading the weights from {}.. ".format(latest_model_file))
     model.load_weights(latest_model_file)
-    # thre1 = conf.get('op_param_hmap_thres',0.1)
+    thre_hm = conf.get('op_param_hmap_thres',0.1)
     # thre2 = conf.get('op_param_paf_thres',0.05)
 
     def pred_fn(all_f, retrawpred=conf.op_pred_raw):
@@ -880,6 +888,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         # for ex in range(xs.shape[0]):
         #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
         #     all_infered.append(infered)
+
         predhm = model_preds[-1]  # this is always the last/final MAP hmap
         predhm_clip = clip_heatmap_with_warn(predhm)
 
@@ -892,9 +901,34 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         assert predlocs_wgtcnt.shape == locs_sz
         print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
 
-        netscalefac = conf.op_label_scale  # net input:output
-        if conf.op_hires:
-            netscalefac = netscalefac / 2**conf.op_hires_ndeconv
+        # OTHER OUTPUTS
+        # simple diagnostic in lieu of do_inf for now
+        NCLUSTER_MAX = 5
+        num_peaks = np.zeros((conf.batch_size, conf.n_classes))
+        pks_with_score = np.zeros((conf.batch_size, conf.n_classes,
+                                   NCLUSTER_MAX, 3))  # last D: x, y, score
+        pks_with_score[:] = np.nan
+        pks_with_score_cmpt = pks_with_score.copy()
+        for ib in range(conf.batch_size):
+            for ipt in range(conf.n_classes):
+                hmthis = predhm_clip[ib, :, :, ipt]
+                pks_with_score_this = heatmap.find_peaks(hmthis, thre_hm)
+                pks_with_score_this = np.stack(pks_with_score_this)  # npk x 3
+                irows = min(NCLUSTER_MAX, pks_with_score_this.shape[0])
+                pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
+
+                a, mu, sig = heatmap.compactify_hmap(hmthis,
+                                                     floor=0.1,
+                                                     nclustermax=NCLUSTER_MAX)
+                #mu = mu[::-1, :] - 1.0  # now x,y and 0b
+                mu -= 1.0
+                a_mu = np.vstack((mu, a)).T
+                assert a_mu.shape == (NCLUSTER_MAX, 3)
+                pks_with_score_cmpt[ib, ipt, :, :] = a_mu
+
+                num_peaks[ib, ipt] = len(pks_with_score_this)
+
+        netscalefac = conf.op_net_inout_scale
         imnr_net, imnc_net = conf.op_imsz_net
         assert predhm_clip.shape[1] == imnr_net / netscalefac  # rhs should be integral
         assert predhm_clip.shape[2] == imnc_net / netscalefac  # "
@@ -902,12 +936,20 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         totscalefac = netscalefac * conf.rescale  # rescale to net input, then undo rescale
         predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, totscalefac, totscalefac)
         predlocs_wgtcnt_hires = PoseTools.unscale_points(predlocs_wgtcnt, totscalefac, totscalefac)
+        pks_with_score[..., :2] = PoseTools.unscale_points(pks_with_score[..., :2],
+                                                           totscalefac, totscalefac)
+        pks_with_score_cmpt[..., :2] = PoseTools.unscale_points(pks_with_score_cmpt[..., :2],
+                                                                totscalefac, totscalefac)
 
         # undo padding
         predlocs_argmax_hires[..., 0] -= conf.op_im_padx // 2
         predlocs_argmax_hires[..., 1] -= conf.op_im_pady // 2
         predlocs_wgtcnt_hires[..., 0] -= conf.op_im_padx // 2
         predlocs_wgtcnt_hires[..., 1] -= conf.op_im_pady // 2
+        pks_with_score[..., 0] -= conf.op_im_padx // 2
+        pks_with_score[..., 1] -= conf.op_im_pady // 2
+        pks_with_score_cmpt[..., 0] -= conf.op_im_padx // 2
+        pks_with_score_cmpt[..., 1] -= conf.op_im_pady // 2
 
         # base_locs = np.array(all_infered)*conf.op_rescale
         # nanidx = np.isnan(base_locs)
@@ -921,11 +963,15 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
             ret_dict['pred_hmaps'] = model_preds
             ret_dict['ims'] = ims
         else:
+            # all return args should be [bsize x n_classes x ...]
             ret_dict['locs'] = predlocs_wgtcnt_hires
-            ret_dict['locs_mdn'] = predlocs_argmax_hires  # XXX hack for now
-            ret_dict['locs_unet'] = predlocs_argmax_hires  # XXX hack for now
+            ret_dict['locs_wgtcnt_hires'] = predlocs_wgtcnt_hires
+            ret_dict['locs_argmax_hires'] = predlocs_argmax_hires
             ret_dict['conf'] = np.max(predhm, axis=(1, 2))
-            ret_dict['conf_unet'] = np.max(predhm, axis=(1, 2))  # XXX hack
+            ret_dict['num_hm_peaks'] = num_peaks
+            ret_dict['pks_with_score'] = pks_with_score
+            ret_dict['pks_with_score_cmpt'] = pks_with_score_cmpt
+
 
         return ret_dict
 
@@ -934,72 +980,89 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
 
     return pred_fn, close_fn, latest_model_file
 
-def do_inference(hmap, paf, conf, thre1, thre2):
+
+def do_inference(hmap, paf, conf, thre_hm, thre_paf):
+    '''
+
+    :param hmap: hmnr x hmnc x npt
+    :param paf: hmnr x hmnc x nlimb
+    :param conf:
+    :param thre_hm: scalar float
+    :param thre_paf: scalar float
+    :return:
+    '''
+
     all_peaks = []
     peak_counter = 0
     limb_seq = conf.op_affinity_graph
-    hmap = cv2.resize(hmap,(0,0),fx=conf.op_label_scale, fy=conf.op_label_scale,interpolation=cv2.INTER_CUBIC)
-    paf = cv2.resize(paf,(0,0),fx=conf.op_label_scale, fy=conf.op_label_scale,interpolation=cv2.INTER_CUBIC)
 
-    for part in range(hmap.shape[-1]):
+    # upscale fac from net output to padded raw image
+    totscalefac = conf.op_net_inout_scale * conf.rescale
+
+    # work at raw input res
+    hmap = cv2.resize(hmap, (0,0), fx=totscalefac, fy=totscalefac,
+                      interpolation=cv2.INTER_CUBIC)
+    paf = cv2.resize(paf, (0,0), fx=totscalefac, fy=totscalefac,
+                     interpolation=cv2.INTER_CUBIC)
+
+    npts = hmap.shape[-1]
+    for part in range(npts):
         map_ori = hmap[:, :, part]
         map = map_ori
         # map = gaussian_filter(map_ori, sigma=3)
 
-        map_left = np.zeros(map.shape)
-        map_left[1:, :] = map[:-1, :]
-        map_right = np.zeros(map.shape)
-        map_right[:-1, :] = map[1:, :]
-        map_up = np.zeros(map.shape)
-        map_up[:, 1:] = map[:, :-1]
-        map_down = np.zeros(map.shape)
-        map_down[:, :-1] = map[:, 1:]
+        peaks_with_score = heatmap.find_peaks(map, thre_hm)
 
-        peaks_binary = np.logical_and.reduce(
-            (map >= map_left, map >= map_right, map >= map_up, map >= map_down, map > thre1))
-        peaks = list(zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]))  # note reverse
-
-        peaks_with_score = [x + (map_ori[x[1], x[0]],) for x in peaks]
         # if len(peaks_with_score)>2:
         #    peaks_with_score = sorted(peaks_with_score,key=lambda x:x[2],reverse=True)[:2]
         #    peaks = peaks_with_score #  taking the first two peaks
-        id = range(peak_counter, peak_counter + len(peaks))
+        id = range(peak_counter, peak_counter + len(peaks_with_score))
         peaks_with_score_and_id = [peaks_with_score[i] + (id[i],) for i in range(len(id))]
+        # list of (x, y, score, id)
 
         all_peaks.append(peaks_with_score_and_id)
-        peak_counter += len(peaks)
+        peak_counter += len(peaks_with_score)
+
+    # all_peaks[ipt] is list of (qualifying) hmap peaks found: (x, y, score, id)
+    assert len(all_peaks) == npts
 
     connection_all = []
     special_k = []
     mid_num = 8
 
-    for k in range(len(limb_seq)):
+    nlimb = len(limb_seq)
+    assert paf.shape[-1] == nlimb*2
+    for k in range(nlimb):
         x_paf = paf[:,:,k*2]
         y_paf = paf[:,:,k*2+1]
         # score_mid = paf[:, :, [x for x in limb_seq[k]]]
-        candA = all_peaks[limb_seq[k][0]]
-        candB = all_peaks[limb_seq[k][1]]
+        candA = all_peaks[limb_seq[k][0]]  # list of (x,y,score,id) for first pt in limb
+        candB = all_peaks[limb_seq[k][1]]  # " second pt
         nA = len(candA)
         nB = len(candB)
-        indexA, indexB = limb_seq[k]
-        if  nA != 0 and nB != 0:
+        # indexA, indexB = limb_seq[k]
+        if nA != 0 and nB != 0:
             connection_candidate = []
             for i in range(nA):
                 for j in range(nB):
-                    vec = np.subtract(candB[j][:2], candA[i][:2])
+                    vec = np.subtract(candB[j][:2], candA[i][:2])  # (x,y) vec from A->B
                     norm = math.sqrt(vec[0] * vec[0] + vec[1] * vec[1])
                     # failure case when 2 body parts overlaps
                     if norm == 0:
                         continue
-                    if norm > max(conf.imsz):
+                    if norm > max(conf.op_imsz_pad):
                         continue
                     # if limbSeq[k][0]==0 and limbSeq[k][1]==1 and norm < 150:
                     #   continue
 
-                    vec = np.divide(vec, norm)
+                    vec = np.divide(vec, norm)  # now unit vec from A->B
 
-                    startend = list(zip(np.linspace(candA[i][0], candB[j][0], num=mid_num), \
-                                        np.linspace(candA[i][1], candB[j][1], num=mid_num)))
+                    startend = list(zip(np.linspace(candA[i][0], candB[j][0],
+                                                    num=mid_num), \
+                                        np.linspace(candA[i][1], candB[j][1],
+                                                    num=mid_num)))
+                    # list of mid_num (xm,ym) pts evenly spaced along line seg
+                    # from A to B
 
                     vec_x = np.array(
                         [x_paf[int(round(startend[I][1])), int(round(startend[I][0]))] \
@@ -1007,19 +1070,32 @@ def do_inference(hmap, paf, conf, thre1, thre2):
                     vec_y = np.array(
                         [y_paf[int(round(startend[I][1])), int(round(startend[I][0]))] \
                          for I in range(len(startend))])
+                    # np vectors of length mid_num containing paf (component) vals
 
                     score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1])
                     score_with_dist_prior = sum(score_midpts) / len(score_midpts) # + min( 0.5 * oriImg.shape[0] / norm - 1, 0)
-                    criterion1 = len(np.nonzero(score_midpts > thre2)[0]) > 0.8 * len( score_midpts)
+                    # average dot prod of paf along line seg
+                    criterion1 = len(np.nonzero(score_midpts > thre_paf)[0]) > 0.8 * len(score_midpts)  # 80% of dot prods exceed thre_paf
                     criterion2 = score_with_dist_prior > 0
                     if criterion1 and criterion2:
                         connection_candidate.append([i, j, score_with_dist_prior,
                                                      score_with_dist_prior + candA[i][2] + candB[j][2]])
+            # connection_candidate is list of (i, j, average_paf_dotprod, totscore) of
+            # accepted candidates where i/j index candA/B resp. connection_candidate could
+            # be empty.
+            #
+            # scale of score_with_dist_prior is paf scale; candA/B scores are hmap scale
+            # so adding them seems ok
 
-            connection_candidate = sorted(connection_candidate, key=lambda x: x[2], reverse=True)
+            # currently sort by paf-dotprod only (instead of totscore)
+            connection_candidate = sorted(connection_candidate,
+                                          key=lambda x: x[2], reverse=True)
+            # cols are (pkid_i, pkid_j, paf_dotprod, i, j)
             connection = np.zeros((0, 5))
             for c in range(len(connection_candidate)):
                 i, j, s = connection_candidate[c][0:3]
+                # each part candidate (eg i or j) can only participate in one row/connection.
+                # greedy match, match highest scores first
                 if (i not in connection[:, 3] and j not in connection[:, 4]):
                     connection = np.vstack([connection, [candA[i][3], candB[j][3], s, i, j]])
                     if (len(connection) >= min(nA, nB)):
@@ -1030,18 +1106,39 @@ def do_inference(hmap, paf, conf, thre1, thre2):
             special_k.append(k)
             connection_all.append([])
 
+    assert len(connection_all) == nlimb
+    # connection_all[k] is a connection array [nconn_cands x 5] where cols are
+    #       (pkid_i, pkid_j, paf_dotprod, i, j)
+    #   where i/j index all_peaks[limb_seq[k][0]]/all_peaks[limb_seq[k][1]], resp.
+    #   and rows are avail connections for limb k, in ~ descending order of match quality
+    #   connection_all[k] should not have any repeated indices in cols 0, 1, 3, 4
+    #
+    # connection_all[k] can be [0x5] or [] if no candidate connections; in the latter
+    # case special_k will contain k
+
+    # subset. rows are "people"
     # last number in each row is the total parts number of that person
     # the second last number in each row is the score of the overall configuration
+    # For first n_classes els, subset[isub,ipt] is -1 if unset, otherwise is
+    # pkID for that part
     subset = -1 * np.ones((0, conf.n_classes + 2))
+    # XXX what are the invariants for subset if any?
+
     candidate = np.array([item for sublist in all_peaks for item in sublist])
+    # candidate is [npeakstot x 4] array with cols (x, y, hmapscore, pkid)
+    assert np.array_equal(candidate[:,-1], range(len(candidate)))
 
     for k in range(len(limb_seq)):
-        if k not in special_k:
-            partAs = connection_all[k][:, 0]
-            partBs = connection_all[k][:, 1]
+        if k not in special_k:  # connection_all[k] could still be empty [0x5]
+            partAs = connection_all[k][:, 0]  # peakids
+            partBs = connection_all[k][:, 1]  # peakids
+            assert len(np.unique(partAs)) == len(partAs)
+            assert len(np.unique(partBs)) == len(partBs)
             indexA, indexB = np.array(limb_seq[k])
 
             for i in range(len(connection_all[k])):  # = 1:size(temp,1)
+                # (loop over)/check all avail conns for this limb
+
                 found = 0
                 subset_idx = [-1, -1]
                 for j in range(len(subset)):  # 1:size(subset,1):
@@ -1050,6 +1147,7 @@ def do_inference(hmap, paf, conf, thre1, thre2):
                         found += 1
 
                 if found == 1:
+                    # found person where one part already matches. fill in other part
                     j = subset_idx[0]
                     if (subset[j][indexB] != partBs[i]):
                         subset[j][indexB] = partBs[i]
@@ -1063,18 +1161,23 @@ def do_inference(hmap, paf, conf, thre1, thre2):
                 elif found == 2:  # if found 2 and disjoint, merge them
                     j1, j2 = subset_idx
                     membership = ((subset[j1] >= 0).astype(int) + (subset[j2] >= 0).astype(int))[:-2]
-                    if len(np.nonzero(membership == 2)[0]) == 0:  # merge
-                        subset[j1][:-2] += (subset[j2][:-2] + 1)
+                    # membership[ipt] is number of people in which landmark ipt is assigned:
+                    # can be 0, 1, or 2
+                    if len(np.nonzero(membership == 2)[0]) == 0:  # merge; no overlap
+                        subset[j1][:-2] += (subset[j2][:-2] + 1)  # tricky
                         subset[j1][-2:] += subset[j2][-2:]
                         subset[j1][-2] += connection_all[k][i][2]
                         subset = np.delete(subset, j2, 0)
                     else:  # as like found == 1
+                        # XXX dont understand why this unilaterally assigns partBs[i] to j1
+                        # and leaves j2 unchanged; and doesnt consider partAs[i]
                         subset[j1][indexB] = partBs[i]
                         subset[j1][-1] += 1
                         subset[j1][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
 
                 # if find no partA in the subset, create a new subset
                 elif not found and k < 2:
+                    # XXX what if k>=2!?!
                     row = -1 * np.ones(conf.n_classes+2)
                     row[indexA] = partAs[i]
                     row[indexB] = partBs[i]
@@ -1096,9 +1199,9 @@ def do_inference(hmap, paf, conf, thre1, thre2):
     for i in range(conf.n_classes):  # 17
         parts[i] = []
         for j in range(len(all_peaks[i])):
-            a = int(all_peaks[i][j][0])
-            b = int(all_peaks[i][j][1])
-            c = all_peaks[i][j][2]
+            a = int(all_peaks[i][j][0])  # x
+            b = int(all_peaks[i][j][1])  # y
+            c = all_peaks[i][j][2]  # hmap score
             detections.append((a, b, c))
             parts[i].append((a, b, c))
     #        cv2.circle(canvas, all_peaks[i][j][0:2], 4, colors[i], thickness=-1)
@@ -1109,7 +1212,7 @@ def do_inference(hmap, paf, conf, thre1, thre2):
     if subset.shape[0] < 1:
         return mappings
 
-    subset = subset[np.argsort(subset[:,-2])] # sort by highest scoring one.
+    subset = subset[np.argsort(subset[:,-2])] # sort by highest scoring one in ASCENDING order
     for n in range(1):
         for i in range(conf.n_classes):
             index = subset[-n-1][i]
@@ -1122,7 +1225,10 @@ def do_inference(hmap, paf, conf, thre1, thre2):
             # cv2.fillConvexPoly(cur_canvas, polygon, colors[i])
             # canvas = cv2.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
 
-    mappings -= conf.op_label_scale/4 # For some reason, cv2.imresize maps (x,y) to (8*x+4,8*y+4). sigh.
+    # XXXX commented out but check this
+    # mappings -= conf.op_label_scale/4 # For some reason,
+    # cv2.imresize maps (x,y) to (8*x+4,8*y+4). sigh.
+    # XXX NOTE this output is returned relative to padded im
     return mappings
 
 def model_files(conf, name):

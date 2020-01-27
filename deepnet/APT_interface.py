@@ -1462,6 +1462,7 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
     unet_conf = np.zeros([n, conf.n_classes])
     n_batches = int(math.ceil(float(n) / bsize))
     labeled_locs = np.zeros([n, conf.n_classes, 2])
+
     info = []
     if return_ims:
         all_ims = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
@@ -1477,6 +1478,9 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
             all_f[ndx, ...] = next_db[0]
             labeled_locs[cur_start + ndx, ...] = next_db[1]
             info.append(next_db[2])
+
+        # note all_f[ndx+1:, ...] for the last batch will be cruft
+
         # base_locs, hmaps = pred_fn(all_f)
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict['locs']
@@ -1515,46 +1519,107 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
         return pred_locs, labeled_locs, info, extrastuff
 
 
-def classify_db_all(model_type, conf, db_file, model_file=None):
-    ''' Classifies examples in DB'''
+def classify_db2(conf, read_fn, pred_fn, n, return_ims=False, **kwargs):
+    '''Trying to simplify/generalize classify_db'''
+
+    logging.info("Ignoring kwargs: {}".format(kwargs.keys()))
+
+    bsize = conf.batch_size
+    n_batches = int(math.ceil(float(n) / bsize))
+
+    all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
+    labeled_locs = np.zeros([n, conf.n_classes, 2])
+    info = []
+    #pred_locs = np.zeros([n, conf.n_classes, 2])
+    #mdn_locs = np.zeros([n, conf.n_classes, 2])
+    #unet_locs = np.zeros([n, conf.n_classes, 2])
+    #mdn_conf = np.zeros([n, conf.n_classes])
+    #unet_conf = np.zeros([n, conf.n_classes])
+
+    ret_dict_all = {}
+
+    for cur_b in range(n_batches):
+        cur_start = cur_b * bsize
+        ppe = min(n - cur_start, bsize)
+        for ndx in range(ppe):
+            next_db = read_fn()
+            all_f[ndx, ...] = next_db[0]
+            labeled_locs[cur_start + ndx, ...] = next_db[1]
+            info.append(next_db[2])
+
+        # note all_f[ppe+1:, ...] for the last batch will be cruft
+
+        ret_dict = pred_fn(all_f)
+
+        fields = ret_dict.keys()
+        if cur_b == 0:
+            for k in fields:
+                val = ret_dict[k]
+                valshape = val.shape
+                assert valshape[:2] == (bsize, conf.n_classes), \
+                    "Key {}, value has unexpected shape {}".format(k, valshape)
+                bigvalshape = (n,) + valshape[1:]
+                bigval = np.zeros(bigvalshape)
+                bigval[:] = np.nan
+                ret_dict_all[k] = bigval
+            if return_ims:
+                ret_dict_all['ims'] = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
+        else:
+            assert all([x in ret_dict_all for x in fields])
+
+        #base_locs = ret_dict['locs']
+
+        for ndx in range(ppe):
+            for k in fields:
+                ret_dict_all[k][cur_start + ndx, ...] = ret_dict[k][ndx, ...]
+                if return_ims:
+                    ret_dict_all['ims'][cur_start + ndx, ...] = all_f[ndx, ...]
+
+    return ret_dict_all, labeled_locs, info
+
+
+def classify_db_all(model_type, conf, db_file, model_file=None,
+                    classify_fcn=classify_db  # alternatively, classify_db2
+                    ):
+    ''' Classifies examples in DB.'''
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
 
     if model_type == 'openpose' or model_type == 'sb':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'unet':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'mdn':
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'leap':
         leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        ret = classify_db(conf, leap_gen, pred_fn, n)
+        ret = classify_fcn(conf, leap_gen, pred_fn, n)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'deeplabcut':
         read_fn, n = deepcut.train.get_read_fn(conf, db_file)
-        ret = classify_db(conf, read_fn, pred_fn, n)
+        ret = classify_fcn(conf, read_fn, pred_fn, n)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     else:
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        ret = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
 

@@ -368,7 +368,8 @@ def train_ours(args):
 
 
 def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=False,
-                    return_hm=False, hm_dec=1, hm_floor=0.1, hm_nclustermax=1):
+                    classify_fcn='classify_db',
+                    **kwargs):
     cur_out = []
     extra_str = ''
     if model_type not in ['leap', 'openpose', 'sb', 'dpk']:
@@ -377,17 +378,16 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
     #     extra_str = '.h5'
     ts = [os.path.getmtime(f + extra_str) for f in model_files]
 
+    classify_db_fcn = getattr(apt, classify_fcn)
+
     for mndx, m in enumerate(model_files):
         # pred, label, gt_list = apt.classify_gt_data(conf, curm, out_file, m)
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
-        ret_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N,
-                                   return_hm=return_hm,
-                                   hm_dec=hm_dec,
-                                   hm_floor=hm_floor,
-                                   hm_nclustermax=hm_nclustermax)
+        ret_list = classify_db_fcn(conf, read_fn, pred_fn, tf_iterator.N,
+                                   **kwargs)
         pred, label, gt_list = ret_list[:3]
         if model_type == 'mdn':
             extra_stuff = ret_list[3:]
