@@ -61,6 +61,20 @@ classdef BGClient < handle
       
       assert(isa(resultCallback,'function_handle'));
       
+      if ismethod(computeObj,'copyAndDetach')
+        % AL20191218
+        % Some computeObjs have properties that don't deep-copy well over
+        % to the background worker via parfeval. Examples might be large UI
+        % objects containing java handles etc.
+        %
+        % To deal with this, computeObjs may optionally copy and mutate
+        % themselves to make themselves palatable for transmission through
+        % parfeval and subsequent computation in the bg.
+        %
+        % Note computeObj doesn't do anything in this class besides get 
+        % transmitted over via parfeval.
+        computeObj = computeObj.copyAndDetach();
+      end
       obj.cbkResult = resultCallback;
       obj.computeObj = computeObj; % will be deep-copied onto worker
       obj.computeObjMeth = computeObjMeth;

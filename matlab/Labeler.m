@@ -1258,7 +1258,9 @@ classdef Labeler < handle
         obj.hFig = [];
       end
       be = obj.trackDLBackEnd;
-      delete(be);
+      if ~isempty(be)
+        be.shutdown();
+      end
     end
     
   end
@@ -1878,9 +1880,16 @@ classdef Labeler < handle
         end
       end
       
-      % clean information we shouldn't save from AWS EC2
-      if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd),
-        s.trackDLBackEnd.awsec2 = [];
+      % Older comment: clean information we shouldn't save from AWS EC2
+      % AL 20191217: setting .awsec2 to [] breaks training, trackDLBackEnd 
+      % is a handle to a live object. 
+      %
+      % We do a deep-copy of the backend here as we are serializing the 
+      % proj either for saving or a stripped lbl etc and i) the saved 
+      % objects need sanitation and ii) conceptually the serialized object
+      % does not share handle identity with other 'live' handles to obj.
+      if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd)
+        s.trackDLBackEnd = s.trackDLBackEnd.copyAndDetach();
       end
       
       switch obj.labelMode
@@ -3294,6 +3303,22 @@ classdef Labeler < handle
       % KB 20190214: all parameters are combined now
       if ~isTrackParams,
         s.trackParams = Labeler.trackGetParamsFromStruct(s);
+      end
+      
+      % KB 20191218: replaced scale_range with scale_factor_range
+      if isstruct(s.trackParams) && isfield(s.trackParams,'ROOT') && ...
+          isstruct(s.trackParams.ROOT) && isfield(s.trackParams.ROOT,'DeepTrack') && ...
+          isstruct(s.trackParams.ROOT.DeepTrack) && isfield(s.trackParams.ROOT.DeepTrack,'DataAugmentation') && ...
+          isstruct(s.trackParams.ROOT.DeepTrack.DataAugmentation) && ...
+          ~isfield(s.trackParams.ROOT.DeepTrack.DataAugmentation,'scale_factor_range') && ...
+          isfield(s.trackParams.ROOT.DeepTrack.DataAugmentation,'scale_range'),
+        if s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_range ~= 0,
+          warningNoTrace(['"Scale range" data augmentation parameter has been replaced by "Scale factor range". ' ...
+            'These are very similar, so we have auto-populated "Scale factor range" based on your '...
+            '"Scale range" parameter. However, these are not the same. Please examine "Scale factor range" '...
+            'in the Tracking parameters GUI.']);
+        end
+        s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1+s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_range;
       end
       
       % KB 20190331: adding in post-processing parameters if missing
@@ -5015,10 +5040,11 @@ classdef Labeler < handle
     % updated as it is assumed that trxfiles on disk do not mutate over the
     % course of a single APT session.
     
-    function [trx,frm2trx] = getTrx(obj,filename,nfrm)
+    function [trx,frm2trx] = getTrx(obj,filename,varargin)
+      % [trx,frm2trx] = getTrx(obj,filename,[nfrm])
       % Get trx data for iMov/iView from .trxCache; load from filesys if
       % necessary      
-      [trx,frm2trx] = Labeler.getTrxCacheStc(obj.trxCache,filename,nfrm);
+      [trx,frm2trx] = Labeler.getTrxCacheStc(obj.trxCache,filename,varargin{:});
     end
     
     function clearTrxCache(obj)
@@ -5039,11 +5065,19 @@ classdef Labeler < handle
       % frm2trx: [nfrm x ntrx] logical. frm2trx(f,i) is true if trx(i) is
       %  live @ frame f
       
+      if nargin < 3,
+        nfrm = [];
+      end
+      
       if trxCache.isKey(filename)
         s = trxCache(filename);
         trx = s.trx;
         frm2trx = s.frm2trx;
+        if isempty(nfrm),
+          nfrm = size(frm2trx,1);
+        end
         szassert(frm2trx,[nfrm numel(trx)]);
+          
       else
         if exist(filename,'file')==0
           % Currently user will have to navigate to iMov to fix
@@ -5258,6 +5292,9 @@ classdef Labeler < handle
       % f2t: [nfrm x nTrx] logical. f2t(f,iTgt) is true iff trx(iTgt) is
       % live at frame f.
       
+      if isempty(nfrm),
+        nfrm = max([trx.endframe]);
+      end
       nTrx = numel(trx);
       f2t = false(nfrm,nTrx);
       for iTgt=1:nTrx
@@ -6998,7 +7035,7 @@ classdef Labeler < handle
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS(obj)
       
-      obj.lastLabelChangeTS = cellfun(@(x) max(x(:)),obj.labeledposTS);
+      obj.lastLabelChangeTS = max(cellfun(@(x) max(x(:)),obj.labeledposTS));
       
     end
     
@@ -7224,6 +7261,8 @@ classdef Labeler < handle
       %
       % Includes nonGT/GT rows per current GT state.
       %
+      % Can return [] indicating "no labels of requested/specified type"
+      %
       % tblMF: See MFTable.FLDSFULLTRX.
       
       [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
@@ -7270,6 +7309,10 @@ classdef Labeler < handle
       end
       
       if tfMFTOnly,
+        return;
+      end
+      
+      if isequal(tblMF,[]) % this would have errored below in call to labelAddLabelsMFTableStc
         return;
       end
       
@@ -8515,14 +8558,24 @@ classdef Labeler < handle
 %     end
     function gtSetUserSuggestions(obj,tblMFT,varargin)
       % Set user-specified/defined GT suggestions
-      % tblMFT: .mov (MovieIndices), .frm, .iTgt
+      %
+      % tblMFT: .mov (MovieIndices), .frm, .iTgt. If [], default to all
+      % labeled GT rows in proj
       
       sortcanonical = myparse(varargin,...
         'sortcanonical',false);
       
+      if isequal(tblMFT,[])
+        fprintf(1,'Defaulting to all labeled GT frames in project...\n');
+        tblMFT = obj.labelGetMFTableLabeled('useTrain',0,'mftonly',true);
+        fprintf(1,'... found %d GT rows.\n',height(tblMFT));
+      end
+      
       if ~istable(tblMFT) && ~all(tblfldscontains(tblMFT,MFTable.FLDSID))
         error('Specified table is not a valid Movie-Frame-Target table.');
       end
+      
+      tblMFT = tblMFT(:,MFTable.FLDSID);
       
       if ~isa(tblMFT.mov,'MovieIndex')
         warningNoTrace('Table .mov is numeric. Assuming positive indices into GT movie list (.movieFilesAllGT).');
@@ -8643,10 +8696,10 @@ classdef Labeler < handle
       assert(isempty(idx) || isscalar(idx));
       tf = ~isempty(idx);
     end
-    function tblGTres = gtComputeGTPerformance(obj,varargin)
-      useLabels2 = myparse(varargin,...
-        'useLabels2',false ... % if true, use labels2 "imported preds" instead of tracking
-        );
+    function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj)
+      % Compile table of GT suggestions with their labels; 
+      % 
+      % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg
       
       tblMFTSugg = obj.gtSuggMFTable;
       mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
@@ -8654,7 +8707,7 @@ classdef Labeler < handle
         TargetSetVariable.AllTgts);    
       tblMFTLbld = mfts.getMFTable(obj);
       
-      [tf,loc] = ismember(tblMFTSugg,tblMFTLbld);
+      [tf,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
       assert(isequal(tf,obj.gtSuggMFTableLbled));
       nSuggLbled = nnz(tf);
       nSuggUnlbled = nnz(~tf);
@@ -8672,7 +8725,36 @@ classdef Labeler < handle
       
       % Labeled GT table, in order of tblMFTSugg
       tblMFT_SuggAndLbled = tblMFTLbld(loc(tf),:);
+    end
+    function tblGTres = gtComputeGTPerformance(obj,varargin)
+      %
+      % Front door entry point for computing gt performance
       
+      [doreport,useLabels2,doui] = myparse(varargin,...
+        'doreport',true, ... % if true, call .gtReport at end
+        'useLabels2',false, ... % if true, use labels2 "imported preds" instead of tracking
+        'doui',true ... % if true, msgbox when done
+        );
+      
+      tObj = obj.tracker;
+      if ~useLabels2 && isa(tObj,'DeepTracker')
+        % Separate codepath here. DeepTrackers run in a separate async
+        % process spawned by shell; trackGT in this process and then
+        % remaining GT computations are done at callback time (in
+        % DeepTracker.m)
+        [tfsucc,msg] = tObj.trackGT();
+        DIALOGTTL = 'GT Tracking';
+        if tfsucc
+          msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
+          msgbox(msg,DIALOGTTL);
+        else
+          msg = sprintf('GT tracking failed: %s',msg);
+          warndlg(msg,DIALOGTTL);
+        end
+        return;
+      end
+
+      tblMFT_SuggAndLbled = obj.gtGetTblSuggAndLbled();
       fprintf(1,'Computing GT performance with %d GT rows.\n',...
         height(tblMFT_SuggAndLbled));
         
@@ -8697,12 +8779,18 @@ classdef Labeler < handle
         tblTrkRes.pTrk = tblTrkRes.p; % .p is imported positions => imported tracking
         tblTrkRes(:,'p') = [];
       else
-        tObj = obj.tracker;
         tObj.track(tblMFT_SuggAndLbled);
         tblTrkRes = tObj.getAllTrackResTable();
       end
 
       tblGTres = obj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblTrkRes);
+      
+      if doreport
+        obj.gtReport();
+      end
+      if doui        
+        msgbox('GT results available in Labeler property ''gtTblRes''.');
+      end
     end
     function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
         tblTrkRes)
@@ -8742,6 +8830,14 @@ classdef Labeler < handle
       pLbl = reshape(pLbl,[nrow npts 2]);
       err = sqrt(sum((pTrk-pLbl).^2,3));
       muerr = mean(err,2);
+      
+      % Future: contingency tbl or other stats for occlusions
+%       tfTrkHasOcc = isfield(tblTrkRes,'pTrkocc');
+%       if tfTrkHasOcc
+%         PTRKOCCTHRESH = 0.5;
+%         pTrkocctf = tblTrkRes.pTrkocc>=PTRKOCCTHRESH;        
+%         docc = pTrkocctf-tfoccLbl;
+%       end        
       
       tblTmp = tblMFT_SuggAndLbled(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
@@ -8821,7 +8917,7 @@ classdef Labeler < handle
       axis(ax,'ij');
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
-      % Montage
+      nmontage = min(nmontage,height(t));
       obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h,'nplot',nmontage);
     end    
     function gtNextUnlabeledUI(obj)
@@ -8851,6 +8947,18 @@ classdef Labeler < handle
 
       [iMov,iMovGT] = Labeler.identifyCommonMovSets(...
         obj.movieFilesAllFull,obj.movieFilesAllGTFull);
+    end
+    function fname = getDefaultFilenameExportGTResults(obj)
+      gtstr = 'gtresults';
+      if ~isempty(obj.projectfile)
+        rawname = ['$projdir/$projfile_' gtstr '.mat'];
+      elseif ~isempty(obj.projname)
+        rawname = ['$projdir/$projname_' gtstr '.mat'];
+      else
+        rawname = ['$projdir/' gtstr '.mat'];
+      end
+      sMacro = obj.baseTrkFileMacros();
+      fname = FSPath.macroReplace(rawname,sMacro);
     end
   end
   methods (Static)
@@ -9686,7 +9794,7 @@ classdef Labeler < handle
       sPrm.ROOT.Track = rmfield(sPrm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
     end
     
-    function trackSetParams(obj,sPrm)
+    function trackSetParams(obj,sPrm,varargin)
       % Set all parameters:
       %  - preproc
       %  - cpr
@@ -9698,6 +9806,7 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
+      [setall] = myparse(varargin,'all',false);
       sPrm = APTParameters.enforceConsistency(sPrm);
 
       [tfOK,msgs] = APTParameters.checkParams(sPrm);
@@ -9709,7 +9818,11 @@ classdef Labeler < handle
       tfPPprmsChanged = ...
         xor(isempty(sPrm0),isempty(sPrm)) || ...
         ~APTParameters.isEqualPreProcParams(sPrm0,sPrm);
-      sPrm = obj.setTrackNFramesParams(sPrm);
+      sPrm = obj.setTrackNFramesParams(sPrm);      
+      if setall,
+        sPrm = obj.setExtraParams(sPrm);
+      end
+      
       obj.trackParams = sPrm;
       
       if tfPPprmsChanged
@@ -9792,7 +9905,7 @@ classdef Labeler < handle
       sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
     end
     
-    function sPrm = trackGetParams(obj)
+    function sPrm = trackGetParams(obj,varargin)
       % Get all parameters:
       %  - preproc
       %  - cpr
@@ -9808,11 +9921,16 @@ classdef Labeler < handle
       
       % Future TODO: As in trackSetParams, currently this is hardcoded when
       % it ideally would just be a generic loop
+      [getall] = myparse(varargin,'all',false);
       
       sPrm = obj.trackParams;
       sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
+      if getall,
+        sPrm = obj.addExtraParams(sPrm);
+      end
+      
     end
     
     function be = trackGetDLBackend(obj)
@@ -9829,8 +9947,12 @@ classdef Labeler < handle
           aws = be.awsec2;
           if isempty(aws),            
             be.awsec2 = AWSec2([],...
-              'SetStatusFun',@(varargin) obj.SetStatus(varargin{:}),...
-              'ClearStatusFun',@(varargin) obj.ClearStatus(varargin{:}));
+              'SetStatusFun',[], ... % @(varargin) obj.SetStatus(varargin{:}),...
+              'ClearStatusFun',[]); % ... %@(varargin) obj.ClearStatus(varargin{:}));
+          else
+            % This codepath occurs on eg projLoad
+            be.awsec2.SetStatusFun = []; % @(varargin) obj.SetStatus(varargin{:});
+            be.awsec2.ClearStatusFun = []; % @(varargin) obj.ClearStatus(varargin{:});
           end
 %           [tfexist,tfrunning] = aws.inspectInstance();
 %           if tfexist
@@ -10270,6 +10392,39 @@ classdef Labeler < handle
       matchstr = String.cellstr2CommaSepList(matchstr);
       sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
 
+    end
+    
+    function sPrmAll = setExtraParams(obj,sPrmAll)
+      
+      if structisfield(sPrmAll,'ROOT.DeepTrack.OpenPose.affinity_graph'),
+        skelstr = sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph;
+        nedge = numel(skelstr);
+        skel = nan(nedge,2);
+        for i = 1:nedge,
+          skel(i,:) = sscanf(skelstr{i},'%d %d');
+        end
+        obj.skeletonEdges = skel;
+        sPrmAll.ROOT.DeepTrack.OpenPose = rmfield(sPrmAll.ROOT.DeepTrack.OpenPose,'affinity_graph');
+        if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.OpenPose)),
+          sPrmAll.ROOT.DeepTrack.OpenPose = '';
+        end
+      end
+
+      % add landmark matches
+      if structisfield(sPrmAll,'ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches'),
+        matchstr = sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches;
+        matchstr = strsplit(matchstr,',');
+        nedge = numel(matchstr);
+        matches = nan(nedge,2);
+        for i = 1:nedge,
+          matches(i,:) = sscanf(matchstr{i},'%d %d');
+        end
+        obj.setFlipLandmarkMatches(matches);
+        sPrmAll.ROOT.DeepTrack.DataAugmentation = rmfield(sPrmAll.ROOT.DeepTrack.DataAugmentation,'flipLandmarkMatches');
+        if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.DataAugmentation)),
+          sPrmAll.ROOT.DeepTrack.DataAugmentation = '';
+        end
+      end
     end
     
     function trackAndExport(obj,mftset,varargin)
@@ -11689,9 +11844,32 @@ classdef Labeler < handle
         obj.(PROPS.MFACI){iMov}(iview).roi = roi;
       end
       
-      % actually in some codepaths nothing changed, but shouldn't hurt
-      obj.preProcNonstandardParamChanged();
+      % KB 20200113: changing roi for movies with labels will require
+      % preproc data to be cleaned out. For now, we are clearing out
+      % trackers all together in this case. 
+      
+      if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
+        obj.preProcNonstandardParamChanged();
+      end
+     
+%       if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
+%         % if this movie has labels, retraining might be necessary
+%         % set timestamp for all labels in this movie to now
+%         obj.reportLabelChange();
+%       end
+%       
+%       % actually in some codepaths nothing changed, but shouldn't hurt
+%       if tfSzChanged,
+%         obj.preProcNonstandardParamChanged();
+%       end
       obj.notify('cropCropsChanged'); 
+    end
+    
+    function reportLabelChange(obj)
+      
+      obj.labeledposNeedsSave = true;
+      obj.lastLabelChangeTS = now;
+
     end
     
     function tfOKSz = cropCheckValidCropSize(obj,iview,widthHeight)

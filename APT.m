@@ -11,7 +11,7 @@ classdef APT
 %     BUILDMCCFILE = 'build.mcc';
 %     BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
 
-    DOCKER_REMOTE_HOST = ''; % Conceptually this prob belongs in DLBackEndClass
+    %DOCKER_REMOTE_HOST = ''; % Conceptually this prob belongs in DLBackEndClass
     %DOCKER_REMOTE_HOST = 'bransonk-ws3'; % Conceptually this prob belongs in DLBackEndClass
     
     % for now, hard-coded to use default loc for git

@@ -56,7 +56,7 @@ strong.regular-font {
     <ul>
       <li><a href="#Download">Download</a></li>
       <li><a href="#Requirements">Requirements</a></li>
-      <li><a href="#Backend">Setting up GPU back ends for deep learning</a></li>
+      <li><a href="#BackEnd">Setting up GPU back ends for deep learning</a></li>
       <li><a href="#Startup">Start-up</a></li>
     </ul>
   </li>
@@ -740,7 +740,7 @@ trx(1) =
     <td><center><i>Original training images</i></center></td>
     <td><center><i>Rotate by up to 15 degrees</i></center></td>
     <td><center><i>Translate by up to 5 pixels</i></center></td>
-    <td><center><i>Scale by a factor of up to 0.1</i></center></td>
+    <td><center><i>Scale by a factor of between 1/1.2 and 1.2</i></center></td>
   </tr>
   <tr>
     <td>
@@ -771,7 +771,7 @@ trx(1) =
 <ul>
   <li><b>Rotate range</b>: Augment by rotating training images and labels by a random angle less than this number of degrees in either direction. If you <i>don't</i> have body tracking orientation available, and you want APT to be invariant to heading direction, you should set this to 180 degrees to rotate by any amount. </li>
   <li><b>Translation range</b>: Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels.</li>
-  <li><b>Scale range</b>: Augment by adjusting image scale by a random amount between (1-this number) to (1+this number). 0 indicates no scale adjustment, 1 indicates scaling by a factor of up to 2.</li>
+  <li><b>Scale range</b>: Augment by adjusting image scale by a random amount between (1/this number) to (this number). 1 indicates no scale adjustment.</li>
   <li><b>Contrast range</b>: Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment</li>
   <li><b>Brightness range</b>: Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.</li>
   <li><b>Flip horizontally</b>: Augment by flipping the training image and labels horizontally (left to right). If you use this, it is important that you set pairs of corresponding landmarks, e.g. the left rear foot part corresponds to the right rear foot part when flipped, by selecting <a href="#FlipLandmarkPairings">"Select landmark flip pairings"</a> from the Track menu. </li>
@@ -785,6 +785,23 @@ trx(1) =
 </p>
 <p>Next, set the <b>"Downsample factor"</b> and <b>"Training batch size"</b> parameters so that the network will fit into memory.</p>
 
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/DownsampleFactor.png"><img width="100%" src="images/DownsampleFactor.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TrainingBatchSize.png"><img width="100%" src="images/TrainingBatchSize.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Memory requirements for different <b>Downsample factors</b></i></center></td>
+    <td><center><i>Memory requirements for different <b>Training batch sizes</b></i></center></td>
+  </tr>
+</table>
+</center>
+
 <p>The area of the input image is computed as follows.</p>
 <ul>
   <li>We need to know the <b>area of the cropped image</b>.
@@ -793,10 +810,10 @@ trx(1) =
       <li>For projects without body tracking, cropping can be specified by selecting <b><a href="#Edit cropping">"Edit cropping"</a></b> from the File menu. By default, the cropped region is the entire video frame. The crop area is (<var>Area<sub>0</sub></var> = <var>width</var>&#183;<var>height<var>).</li>
     </ul>
   </li>
-  <li>If this crop area is large, we can make it smaller by <b>downsampling</b> the image -- shrinking the image in both width and height. This is specified in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> as <b>Downsample factor</b>. Downsizing the image has the <b>negative effect</b> of <b>throwing away details</b> that may be important to finding parts. It also <b>reduces final resolution of the output</b> tracking. We recommend downsampling as little as possible. The input image area is reduced by this downsample factor squared: <var>Area</var> = <var>DownsampleFactor</var><sup>2</sup>&#183;<var>Area</var><sub>0</sub></li>
+  <li>If this crop area is large, we can make it smaller by <b>downsampling</b> the image -- shrinking the image in both width and height. This is specified in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> as <b>Downsample factor</b>. Downsizing the image has the <b>negative effect</b> of <b>throwing away details</b> that may be important to finding parts. It also <b>reduces final resolution of the output</b> tracking. We recommend downsampling as little as possible. The input image area is reduced by this downsample factor squared: <var>Area</var> = <var>DownsampleFactor</var><sup>2</sup>&#183;<var>Area</var><sub>0</sub>. An estimate of the memory required for the current and other Downsample factors is shown in the Parameter visualization window when you select Downsample factor in the Tracking Parameters GUI. </li>
 </ul>
 
-<p>The <b>Training batch size</b> is the number of images the neural network processes at a time during training. Memory requirements <b>increase linearly</b> with the batch size. Neural network performance can degrade with either too large or too small batch sizes. We recommend batch sizes in the range of 2 to 8 images. </p>
+<p>The <b>Training batch size</b> is the number of images the neural network processes at a time during training. Memory requirements <b>increase linearly</b> with the batch size. Neural network performance can degrade with either too large or too small batch sizes. We recommend batch sizes in the range of 2 to 8 images. An estimate of the memory required for the current and other batch sizes is shown in the Parameter visualization window when you select Training batch size in the Tracking Parameters GUI. </p>
 
 <h4>4. Set N. iterations of training</h4>
 

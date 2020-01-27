@@ -74,6 +74,13 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         return;
       end
       
+      [tffound] = lObj.labelFindOneLabeledFrame();
+      if ~tffound,
+        ParameterVisualization.grayOutAxes(hAx,'No frames labeled.');
+        return;
+      end
+        
+      
       %ParameterVisualization.setBusy(hAx,'Computing visualization. Please wait...');
       
       % Choose labeled frames
@@ -132,6 +139,9 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         % this is for paramviz
         tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms);
         nlabeled = size(tblPTrn,1);
+        if nlabeled == 0,
+          return;
+        end
         if nr * nc > nlabeled,
           nc = ceil(sqrt(nlabeled));
           nr = ceil(nlabeled/nc);
@@ -175,9 +185,12 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         nims = cellfun(@(x) size(x,4),obj.initVizInfo.augd.ims);
         ims = cell(sum(nims),1);
         k = 1;
+        nparts = lObj.nLabelPoints;
+        locs = nan(nparts,2,sum(nims));
         for i = 1:numel(obj.initVizInfo.augd.ims),
           for j = 1:size(obj.initVizInfo.augd.ims{i},4),
             ims{k} = obj.initVizInfo.augd.ims{i}(:,:,:,j)/sPrm.ROOT.DeepTrack.ImageProcessing.imax;
+            locs(:,:,k) = permute(obj.initVizInfo.augd.locs{i}(j,:,:),[2,3,1]);
             k = k + 1;
           end
         end
@@ -214,13 +227,19 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       imshow(im,'Parent',hAx);
       hold(hAx,'on');
       for i = 1:nshow,
-        text(toplefts(i,1),toplefts(i,2),...
+        text(toplefts(i,2),toplefts(i,1),...
           sprintf('mov %d, tgt %d, frm %d',...
           obj.initVizInfo.tblPTrn1.mov(i),obj.initVizInfo.tblPTrn1.iTgt(i),...
           obj.initVizInfo.tblPTrn1.frm(i)),...
           'HorizontalAlignment','left','VerticalAlignment','top','Color','c',...
           'Parent',hAx);
       end
+      
+      for i = 1:nparts,
+        plot(hAx,squeeze(locs(i,1,:))+toplefts(:,2)-1,squeeze(locs(i,2,:))+toplefts(:,1)-1,...
+          '.','Color',lObj.labelPointsPlotInfo.Colors(i,:));
+      end
+      
       hAx.XTick = [];
       hAx.YTick = [];
       

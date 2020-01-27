@@ -997,7 +997,10 @@ classdef Shape
       opts.framelbls = [];
       opts.framelblscolor = [1 1 1];
       opts.labelpts = false;
+      opts.labelptsdx = 10;
+      opts.labelptsargs = {'fontweight' 'bold'};
       opts.md = [];
+      opts.pplotargs = {}; % optional PV args for regular markers
       opts.p2 = [];
       opts.p2marker = '+';
       opts.colors = 'jet'; % either colormap name, or [nptsx3]
@@ -1006,6 +1009,7 @@ classdef Shape
       opts.imsHeterogeneousPadColor = 0; % grayscale pad color 
       opts.rois = []; % (opt), [Nx4] roi rectangles will be plotted. Each row is [xlo xhi ylo yhi].
       opts.roisRectangleArgs = {'EdgeColor' [0 1 0] 'LineWidth',2}; % P-Vs used for plotting roi rects
+      opts.ppFcn = []; % Optional preprocessing fcn for images
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -1015,6 +1019,7 @@ classdef Shape
       end
       tfMD = ~isempty(opts.md);
       tfROI = ~isempty(opts.rois);
+      tfpp = ~isempty(opts.ppFcn);
       
       N = numel(I);
       if opts.imsHeterogeneousSz
@@ -1082,8 +1087,12 @@ classdef Shape
             % ok
             break;
           end
-          iIm = iPlot(iPlt);          
-          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = I{iIm};
+          iIm = iPlot(iPlt);
+          Ithis = I{iIm};
+          if tfpp
+            Ithis = opts.ppFcn(Ithis);
+          end
+          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = Ithis;
           
           xytmp = reshape(p(iIm,:),npts,2);
           xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
@@ -1120,8 +1129,14 @@ classdef Shape
       hP1 = gobjects(npts,1);
       hP2 = gobjects(npts,1);
       for ipt=1:npts
-        hP1(ipt) = plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...
-            'wo','MarkerFaceColor',colors(ipt,:));
+        bigx = squeeze(bigP(ipt,1,:));
+        bigy = squeeze(bigP(ipt,2,:));        
+        hP1(ipt) = plot(bigx,bigy,'o','Color',colors(ipt,:),...
+          opts.pplotargs{:});
+        if opts.labelpts
+          text(bigx+opts.labelptsdx,bigy+opts.labelptsdx,num2str(ipt),...
+            'color',colors(ipt,:),opts.labelptsargs{:});
+        end
         if tfP2
           hP2(ipt) = plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
             opts.p2marker,'MarkerFaceColor',colors(ipt,:),...

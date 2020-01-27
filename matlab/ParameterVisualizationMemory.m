@@ -34,7 +34,10 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       if lObj.hasTrx,
         obj.imsz = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius*2+[1,1];
       else
-        rois = lObj.cropGetAllRois;
+        rois = nan(lObj.nmoviesGTaware,4);
+        for i = 1:lObj.nmoviesGTaware,
+          rois(i,:) = lObj.getMovieRoiMovIdx(MovieIndex(i));
+        end
         if isempty(rois),
           ParameterVisualization.grayOutAxes(hAx,'No movie loaded in.');
           return;

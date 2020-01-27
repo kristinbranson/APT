@@ -499,16 +499,27 @@ handles.menu_evaluate_gtloadsuggestions = uimenu('Parent',handles.menu_evaluate,
   'Label','Load GT suggestions',...
   'Tag','menu_evaluate_gtloadsuggestions',...
   'Separator','on');
+handles.menu_evaluate_gtsetsuggestions = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtsetsuggestions_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Set GT suggestions to current GT labels',...
+  'Tag','menu_evaluate_gtsetsuggestions',...
+  'Separator','off');
 handles.menu_evaluate_gtcomputeperf = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperf_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance',...
   'Tag','menu_evaluate_gtcomputeperf',...
-  'Separator','off');
+  'Separator','on');
 handles.menu_evaluate_gtcomputeperfimported = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperfimported_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance (imported predictions)',...
   'Tag','menu_evaluate_gtcomputeperfimported',...
   'Separator','off');
+handles.menu_evaluate_gtexportresults = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtexportresults_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export GT performance results',...
+  'Tag','menu_evaluate_gtexportresults',...
+  'Separator','off');
+
 
 handles.menu_go.Position = 4;
 handles.menu_track.Position = 5;
@@ -1916,7 +1927,7 @@ if ~isfield(handles,'menu_track_backend_config')
     'userdata',DLBackEnd.AWS);
   handles.menu_track_backend_config_docker = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
-    'Label','Local (Docker)',...
+    'Label','Docker',...
     'Callback',@cbkTrackerBackendMenu,...
     'Tag','menu_track_backend_config_docker',...
     'userdata',DLBackEnd.Docker);  
@@ -1955,6 +1966,14 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','(AWS) Configure...',...
     'Callback',@cbkTrackerBackendAWSConfigure,...
     'Tag','menu_track_backend_config_aws_configure');  
+  
+  % KB added menu item to set Docker host
+  handles.menu_track_backend_config_setdockerssh = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(Docker) Set remote host...',...
+    'Callback',@cbkTrackerBackendSetDockerSSH,...
+    'Tag','menu_track_backend_config_setdockerssh');  
+
   
 %   handles.menu_track_backends{end+1,1} = uimenu( ...
 %     'Parent',handles.menu_track_backend_config,...
@@ -2048,6 +2067,7 @@ set(handles.menu_track_backend_config_conda,'checked',onIff(lObj.trackDLBackEnd.
 set(handles.menu_track_backend_config_aws,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
 set(handles.menu_track_backend_config_aws_setinstance,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
 set(handles.menu_track_backend_config_aws_configure,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
+set(handles.menu_track_backend_config_setdockerssh,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
 
 % Menu item ordering getting messed up somewhere
 handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
@@ -2058,6 +2078,7 @@ handles.menu_track_backend_config_conda.Position = 4;
 handles.menu_track_backend_config_moreinfo.Position = 5;
 handles.menu_track_backend_config_aws_setinstance.Position = 6;
 handles.menu_track_backend_config_aws_configure.Position = 7;
+handles.menu_track_backend_config_setdockerssh.Position = 8;
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
@@ -2162,6 +2183,54 @@ if tfsucc
   %aws.checkInstanceRunning('throwErrs',false);
 %   lObj.trackSetDLBackend(be);
 end
+
+function cbkTrackerBackendSetDockerSSH(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+%be = lObj.trackDLBackEnd;
+assert(lObj.trackDLBackEnd.type==DLBackEnd.Docker);
+drh = lObj.trackDLBackEnd.dockerremotehost;
+if isempty(drh),
+  defans = 'Local';
+else
+  defans = 'Remote';
+end
+
+res = questdlg('Run docker on your Local machine, or SSH to a Remote machine?',...
+  'Set Docker Remote Host','Local','Remote','Cancel',defans);
+if strcmpi(res,'Cancel'),
+  return;
+end
+if strcmpi(res,'Remote'),
+  res = inputdlg({'Remote Host Name:'},'Set Docker Remote Host',1,{drh});
+  if isempty(res) || isempty(res{1}),
+    return;
+  end
+  lObj.trackDLBackEnd.dockerremotehost = res{1};
+else
+  lObj.trackDLBackEnd.dockerremotehost = '';
+end
+
+ischange = ~strcmp(drh,lObj.trackDLBackEnd.dockerremotehost);
+
+if ischange,
+  res = questdlg('Test new Docker configuration now?','Test Docker configuration','Yes','No','Yes');
+  if strcmpi(res,'Yes'),
+    try
+      [tfsucc,hedit] = lObj.trackDLBackEnd.testDockerConfig();
+    catch ME,
+      tfsucc = false;
+      disp(getReport(ME));
+    end
+    if ~tfsucc,
+      res = questdlg('Test failed. Revert to previous Docker settings?','Backend test failed','Yes','No','Yes');
+      if strcmpi(res,'Yes'),
+        lObj.trackDLBackEnd.dockerremotehost = drh;
+      end
+    end
+  end
+end
+
 
 function cbkTrackersAllChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -2371,7 +2440,13 @@ oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
 oc2 = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
-handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+try
+  handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+catch ME
+  errordlg(ME.message,'Error while training','modal');
+  disp(getReport(ME));
+  return;
+end
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Training canceled');
   msgbox(msg,'Train');
@@ -2795,13 +2870,24 @@ end
 fname = fullfile(p,f);  
 VARNAME = 'tblLbls';
 s = struct();
-s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); %#ok<STRNU>
+s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); 
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
+
 lObj = handles.labelerObj;
+
+if ~isempty(lObj.tracker) && ~lObj.gtIsGTMode && lObj.labelPosMovieHasLabels(lObj.currMovie),
+  res = questdlg('Frames of the current movie are labeled. Editing the crop region for this movie will cause trackers to be reset. Continue?');
+  if ~strcmpi(res,'Yes'),
+    return;
+  end
+end
+
+SetStatus(handles,'Switching crop mode...');
 lObj.cropSetCropMode(~lObj.cropIsCropMode);
+ClearStatus(handles);
 
 function menu_help_Callback(hObject, eventdata, handles)
 
@@ -3483,8 +3569,8 @@ lObj = handles.labelerObj;
 instructions = ['These part matches are used for data augmentation when training using deep learning. ' ...
                 'To create more training data, we can flip the original images. This requires knowing ' ...
                 'which parts on the left of the animal correspond to the same parts on the right side. ' ...
-                'Use this GUI to select these pairings of parts. Each part can only belong to at most' ...
-                'one pair. Some parts will not be part of any pair, e.g. parts that go down the' ...
+                'Use this GUI to select these pairings of parts. Each part can only belong to at most ' ...
+                'one pair. Some parts will not be part of any pair, e.g. parts that go down the ' ...
                 'mid-line of the animal should not have a mate.'];
 matches = defineLandmarkMatches(lObj,'edges',lObj.flipLandmarkMatches,'instructions',instructions);
 lObj.setFlipLandmarkMatches(matches);
@@ -3843,21 +3929,48 @@ msgstr = sprintf('Loaded GT table with %d rows spanning %d GT movies.',...
   height(tbl),numel(unique(tbl.mov)));
 msgbox(msgstr,'GT Table Loaded');
 
+function menu_evaluate_gtsetsuggestions_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+assert(lObj.gtIsGTMode);
+lObj.gtSetUserSuggestions([]);
+tbl = lObj.gtSuggMFTable;
+msgstr = sprintf('Set GT suggestions table with %d rows spanning %d GT movies.',...
+  height(tbl),numel(unique(tbl.mov)));
+msgbox(msgstr,'GT Table Loaded');
+
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 % next three lines identical to GTManager:pbComputeGT_Callback
-tblGTres = lObj.gtComputeGTPerformance();
-msgbox('Assigned results in Labeler property ''gtTblRes''.');
-lObj.gtReport();
+lObj.gtComputeGTPerformance();
 
 function menu_evaluate_gtcomputeperfimported_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 % next three lines identical to GTManager:pbComputeGT_Callback
-tblGTres = lObj.gtComputeGTPerformance('useLabels2',true);
-msgbox('Assigned results in Labeler property ''gtTblRes''.');
-lObj.gtReport();
+lObj.gtComputeGTPerformance('useLabels2',true);
+
+function menu_evaluate_gtexportresults_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+
+tblRes = lObj.gtTblRes;
+if isempty(tblRes)
+  errordlg('No GT results are currently available.','Export GT Results');
+  return;
+end
+
+%assert(lObj.gtIsGTMode);
+fname = lObj.getDefaultFilenameExportGTResults();
+[f,p] = uiputfile(fname,'Export File');
+if isequal(f,0)
+  return;
+end
+fname = fullfile(p,f);  
+VARNAME = 'tblGT';
+s = struct();
+s.(VARNAME) = tblRes;
+save(fname,'-mat','-struct','s');
+fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
   
 function cbkGtIsGTModeChanged(src,evt)
 lObj = src;
@@ -3867,8 +3980,10 @@ onIffGT = onIff(gt);
 handles.menu_go_gt_frames.Visible = onIffGT;
 handles.menu_evaluate_gtmode.Checked = onIffGT;
 handles.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
+handles.menu_evaluate_gtsetsuggestions.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperf.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
+handles.menu_evaluate_gtexportresults.Visible = onIffGT;
 handles.txGTMode.Visible = onIffGT;
 handles.GTMgr.Visible = onIffGT;
 hlpGTUpdateAxHilite(lObj);
@@ -3950,10 +4065,12 @@ end
 
 function cbkCropIsCropModeChanged(src,evt)
 lObj = src;
+lObj.SetStatus('Switching crop mode...');
 cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
 if lObj.hasMovie
   lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
+lObj.ClearStatus();
 
 function cbkUpdateCropGUITools(src,evt)
 lObj = src;
@@ -3980,6 +4097,7 @@ REGCONTROLS = {
 
 onIfTrue = onIff(tf);
 offIfTrue = onIff(~tf);
+
 %cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
 set(handles.uipanel_cropcontrols,'Visible',onIfTrue);
 set(handles.text_trackerinfo,'Visible',offIfTrue);

@@ -1,9 +1,14 @@
 classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys  
   
+  properties
+    dockerremotehost = '';
+  end
+
   methods
     
-    function obj = BgWorkerObjDocker(varargin)
-      obj@BgWorkerObjLocalFilesys(varargin{:});
+    function obj = BgWorkerObjDocker(nviews,dmcs,backend,varargin)
+      obj@BgWorkerObjLocalFilesys(nviews,dmcs,varargin{:});
+      obj.dockerremotehost = backend.dockerremotehost;
     end
     
     function parseJobID(obj,res,iview,imov)
@@ -24,10 +29,10 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function s = dockercmd(obj)
       
-      if isempty(APT.DOCKER_REMOTE_HOST),
+      if isempty(obj.dockerremotehost),
         s = 'docker';
       else
-        s = sprintf('ssh -t %s docker',APT.DOCKER_REMOTE_HOST);
+        s = sprintf('ssh -t %s docker',obj.dockerremotehost);
       end
 
     end
@@ -178,9 +183,15 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       res = regexp(res,'\n','split');
       res = regexp(res,'^[0-9a-f]+$','once','match');
       l = cellfun(@numel,res);
-      res = res{find(l==64,1)};
-      assert(~isempty(res));
-      containerID = strtrim(res);
+      try
+        res = res{find(l==64,1)};
+        assert(~isempty(res));
+        containerID = strtrim(res);
+      catch ME,
+        warning('Could not parse job id from:\n%s\',res);
+        disp(getReport(ME));
+        containerID = '';
+      end
       
     end
     
