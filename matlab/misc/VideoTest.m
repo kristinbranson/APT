@@ -18,19 +18,26 @@ classdef VideoTest
       % - RAR frame stack
       % - Metadata: movname, matlab ver, computer, host, timestamp, readfcn
       
-      [nmax,nsamp,npass,frms,outdir,ISR3p,ISR3pname,dispmod] = ...
+      [nmax,nsamp,npass,frms,outdir,outdirparent,ISR3p,ISR3pname,dispmod,get_readframe_fcn_preload] = ...
         myparse(varargin,...
         'nmax',200,... % max framenum to read up to. If supplied as empty, read from mov
         'nsamp',60,... % number of random frames to sample in 1..nmax
         'npass',3,... % each frame in nsamp will be read 3 times
         'frms',[],... % random-access frames. all must be less than nmax. if supplied, supercedes nsamp/npass
-        'outdir',[],... % filesys location to put output
+        'outdir',[],... % optional, filesys location to put output
+        'outdirparent',[],... % optional, parent dir for default outdir
         'ISR3p',[],... % optional, externally-generated ISR for comparison.
         'ISR3pname','',... % optional, name for display
-        'dispmod',50 ...
+        'dispmod',50, ...
+        'get_readframe_fcn_preload',[] ...
         );
       
-      [rf1,nf1,fid1,info1] = get_readframe_fcn(mov);
+      if ~isempty(get_readframe_fcn_preload)
+        grfargs = {'preload' true};
+      else
+        grfargs = {};
+      end
+      [rf1,nf1,fid1,info1] = get_readframe_fcn(mov,grfargs{:});
       
       % nmax
       nmaxOrig = nmax;
@@ -70,11 +77,15 @@ classdef VideoTest
       txtinfo.mov = mov;
       txtinfo.frms = frms;
       matinfo.get_readframe_fcn = which('get_readframe_fcn'); %#ok<STRNU>
+      matinfo.get_readframe_fcn_args = grfargs;
 
       if isempty(outdir)
         [movP,movF,movE] = fileparts(mov);
         release = matinfo.ver.Release(2:end-1);
-        outdir = fullfile(movP,sprintf('VideoTest_%s_%s_%s_%s_%s',...
+        if isempty(outdirparent)
+          outdirparent = movP;
+        end
+        outdir = fullfile(outdirparent,sprintf('VideoTest_%s_%s_%s_%s_%s',...
           movF,matinfo.computer,txtinfo.host,release,txtinfo.nowstr));
       end
       
@@ -90,7 +101,7 @@ classdef VideoTest
         fclose(fid1);
       end
 
-      [rf2,nf2,fid2,info2] = get_readframe_fcn(mov);
+      [rf2,nf2,fid2,info2] = get_readframe_fcn(mov,grfargs{:});
       assert(nf1==nf2);
       if isfield(info1,'readerobj')
         info1 = rmfield(info1,'readerobj');
@@ -177,12 +188,13 @@ classdef VideoTest
       fh = fopen(fname,'w');
       fprintf(fh,'%s\n',jsonencode(txtinfo));
       fclose(fh);
-      fprintf(1,'Wrote jsoninfo ''%s''\n',fname);
+      fprintf(1,'Wrote jsoninf/groups/huston/hustonlab/flp-chrimson_experiments/fly_380_to_fly_389_12_9_16_SS02323_and_SS002323POsilenced/SS002323CsChrimson_lexA48A07Kir/fly382/C001H001S0001/VideoTest_C001H001S0001_c_GLNXA64_h11u02.int.janelia.org_R2016b_20200121T213627o ''%s''\n',fname);
     end
     
     function test1gencompare(testdir,varargin)
-      mov = myparse(varargin,...
-        'mov',''); % read from testdir, but can also be supplied if eg on diff platform or movie has moved
+      [mov,test1genargs] = myparse(varargin,...
+        'mov','',...
+        'test1genargs',{}); % read from testdir, but can also be supplied if eg on diff platform or movie has moved
       
       res = load(fullfile(testdir,'matlabres.mat'));
       json = VideoTest.getjson(testdir);
@@ -198,7 +210,8 @@ classdef VideoTest
       end
       VideoTest.test1gen(mov,...
         'nmax',nmax,...
-        'frms',json.frms);
+        'frms',json.frms,...
+        test1genargs{:});
     end
     
     function isconsistent = test1internal(testdir,varargin)
