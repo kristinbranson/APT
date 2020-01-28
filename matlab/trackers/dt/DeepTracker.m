@@ -1056,7 +1056,7 @@ classdef DeepTracker < LabelTracker
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
-        case [DLBackEnd.Conda,DLBackEnd.Docker],
+        case {DLBackEnd.Conda,DLBackEnd.Docker},
           aptroot = APT.Root;
           obj.downloadPretrainedWeights('aptroot',aptroot); 
       end
@@ -4067,7 +4067,7 @@ classdef DeepTracker < LabelTracker
       end
       
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
-        netType,baseargs{:},'filesep',filesep);
+        netType,baseargs{:},'filesep',filesep,'filequote','"');
       
       if ~isempty(outfile),
         basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
