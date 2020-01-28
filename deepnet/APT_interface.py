@@ -1556,24 +1556,32 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False, **kwargs):
             for k in fields:
                 val = ret_dict[k]
                 valshape = val.shape
-                assert valshape[:2] == (bsize, conf.n_classes), \
-                    "Key {}, value has unexpected shape {}".format(k, valshape)
-                bigvalshape = (n,) + valshape[1:]
-                bigval = np.zeros(bigvalshape)
-                bigval[:] = np.nan
-                ret_dict_all[k] = bigval
+                if valshape[:2] == (bsize, conf.n_classes):
+                    bigvalshape = (n,) + valshape[1:]
+                    bigval = np.zeros(bigvalshape)
+                    bigval[:] = np.nan
+                    ret_dict_all[k] = bigval
+                else:
+                    logging.warning("Key {}, value has shape {}. Will not be included in return dict.".format(k, valshape))
+
+            fields_record = ret_dict_all.keys()
+            logging.info("Recording these pred fields: {}".format(fields_record))
+
             if return_ims:
                 ret_dict_all['ims'] = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
         else:
-            assert all([x in ret_dict_all for x in fields])
+            # ret_dict_all, fields_record configured
+            pass
+
+
 
         #base_locs = ret_dict['locs']
 
         for ndx in range(ppe):
-            for k in fields:
+            for k in fields_record:
                 ret_dict_all[k][cur_start + ndx, ...] = ret_dict[k][ndx, ...]
-                if return_ims:
-                    ret_dict_all['ims'][cur_start + ndx, ...] = all_f[ndx, ...]
+            if return_ims:
+                ret_dict_all['ims'][cur_start + ndx, ...] = all_f[ndx, ...]
 
     return ret_dict_all, labeled_locs, info
 

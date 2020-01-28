@@ -79,6 +79,10 @@ class config(object):
         self.op_label_scale = 8
         self.op_im_pady = None  # computed at runtime
         self.op_im_padx = None  # "
+        self.op_imsz_hires = None  # "
+        self.op_imsz_lores = None  # "
+        self.op_imsz_net = None  # "
+        self.op_imsz_pad = None  # "
         self.op_backbone = 'resnet50_8px'
         self.op_backbone_weights = 'imagenet'
         self.op_map_lores_blur_rad = 1.0
@@ -104,6 +108,8 @@ class config(object):
             # is for preproc/input pipeline only; see sb_output_scale for actual ratio
         self.sb_im_pady = None  # computed at runtime
         self.sb_im_padx = None  # "
+        self.sb_imsz_net = None  # "
+        self.sb_imsz_pad = None  # "
         self.sb_base_lr = 4e-5
         self.sb_weight_decay_kernel = 5e-4
         self.sb_backbone = 'ResNet50_8px'
@@ -133,11 +139,13 @@ class config(object):
         self.dpk_growth_rate = 48
         self.dpk_use_pretrained = False
         self.dpk_n_outputs = 1              # (settable at TGTFR._call_-time)
-        self.dpk_use_augmenter = True       # if true, use dpk_augmenter if distort=True
+        self.dpk_use_augmenter = False      # if true, use dpk_augmenter if distort=True
         self.dpk_augmenter = None           # iaa obj
         self.dpk_n_transition_min = 5       # target n_transition=this; in practice could be more if imsz is perfect power of 2 etc
-        self.dpk_im_pady = None
-        self.dpk_im_padx = None
+        self.dpk_im_pady = None             # auto-computed
+        self.dpk_im_padx = None             # auto-computed
+        self.dpk_imsz_net = None            # auto-computed
+        self.dpk_imsz_pad = None            # auto-computed
         self.dpk_use_graph = True           # (immutable after early) bool
         self.dpk_graph = None               # (immutable after early)
         self.dpk_swap_index = None          # (immutable after early)

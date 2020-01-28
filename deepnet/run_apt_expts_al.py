@@ -55,7 +55,13 @@ dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/g
 cache_dir = '/nrs/branson/al/cache'
 #all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'sb', 'dpk']
 #all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet'] #, 'sb', 'dpk']
-all_models = ['openpose']
+all_models = ['deeplabcut', 'dpk', 'mdn', 'openpose', 'sb']
+expname_dict = {'deeplabcut': 'apt_expt',
+                'dpk': 'ntrans5_postrescalefixes',
+                'mdn': 'apt_expt',
+                'openpose': 'apt_expt2',
+                'sb': 'postrescalefixes',
+                }
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/nrs/branson/al/out'
@@ -544,25 +550,8 @@ def run_trainining(exp_name,train_type,view,run_type,
                    **kwargs
                    ):
 
-    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
-    end_cmd = 'train -skip_db -use_cache'
-    cmd_opts = {}
-    cmd_opts['type'] = train_type
-    cmd_opts['view'] = view + 1
-    cmd_opts['train_name'] = train_name
-
-    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)  # this is copied from common_conf
-    conf_str = apt.conf_opts_dict2pvargstr(conf_opts)
-
-    opt_str = ''
-    for k in cmd_opts.keys():
-        opt_str = '{} -{} {} '.format(opt_str, k, cmd_opts[k])
-
-    now_str = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    cur_cmd = common_cmd + conf_str + opt_str + end_cmd
-    cmd_name_base = '{}_view{}_{}_{}_{}'.format(data_type, view, exp_name, train_type, train_name)
-    cmd_name = '{}_{}'.format(cmd_name_base, now_str)
-    precmd = 'export PYTHONPATH="{}"'.format(dpk_py_path) if train_type == 'dpk' else ''
+    precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
+        apt_train_cmd(exp_name, train_type, view, train_name, **kwargs)
 
     if run_type == 'dry':
         print(cmd_name)
@@ -609,6 +598,29 @@ def run_trainining(exp_name,train_type,view,run_type,
         conf = create_conf_help(train_type, view, exp_name, quiet=True, **kwargs)
         check_train_status(cmd_name_base, conf.cachedir)
 
+def apt_train_cmd(exp_name, train_type, view, train_name, **kwargs):
+
+    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
+    end_cmd = 'train -skip_db -use_cache'
+
+    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)  # this is copied from common_conf
+    conf_str = apt.conf_opts_dict2pvargstr(conf_opts)
+
+    cmd_opts = {}
+    cmd_opts['type'] = train_type
+    cmd_opts['view'] = view + 1
+    cmd_opts['train_name'] = train_name
+    opt_str = ''
+    for k in cmd_opts.keys():
+        opt_str = '{} -{} {} '.format(opt_str, k, cmd_opts[k])
+
+    now_str = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+    cur_cmd = common_cmd + conf_str + opt_str + end_cmd
+    cmd_name_base = '{}_view{}_{}_{}_{}'.format(data_type, view, exp_name, train_type, train_name)
+    cmd_name = '{}_{}'.format(cmd_name_base, now_str)
+    precmd = 'export PYTHONPATH="{}"'.format(dpk_py_path) if train_type == 'dpk' else ''
+
+    return precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts
 
 def create_conf_help(train_type, view, exp_name, quiet=False, **kwargs):
     '''
@@ -843,13 +855,17 @@ def create_incremental_dbs(do_split=False):
         for view in range(nviews):
             for tndx in range(len(all_models)):
                 train_type = all_models[tndx]
-                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                conf = create_conf_help(train_type, view, exp_name)
                 mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
                 split_file= os.path.join(mdn_conf.cachedir,'splitinfo.json')
-                if do_split:
-                    assert not os.path.exists(split_file)
+                if do_split and not os.path.exists(split_file):
+                    def convert(o):
+                        if isinstance(o, np.int64): return int(o)
+                        raise TypeError
                     with open(split_file,'w') as f:
-                        json.dump(splits,f)
+                        json.dump(splits,f,default=convert)
+                        print("Wrote split file {}".format(split_file))
 
                 conf.splitType = 'predefined'
                 if train_type == 'deeplabcut':
@@ -859,7 +875,7 @@ def create_incremental_dbs(do_split=False):
                 else:
                     apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
 
-
+   
 ## create invidual animals dbs
 
 def create_individual_animal_db_alice():
@@ -1261,55 +1277,21 @@ def run_mdn_no_unet(run_type = 'status'):
         run_trainining('apt_expt',train_type,view, run_type,train_name='no_unet')
 
 
-def run_incremental_training(run_type='status'):
+def run_incremental_training(run_type='status', **kwargs):
     # Expt where we find out how training error changes with amount of training data
 
     n_rounds = 8
-    info = []
+#    info = []
     for view in range(nviews):
-        r_info = []
+#        r_info = []
         for ndx in range(n_rounds):
             exp_name = '{}_randsplit_round_{}'.format(data_type,ndx)
             cur_info = {}
             for train_type in all_models:
-
-                common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file,exp_name, cache_dir)
-                end_cmd = 'train -skip_db -use_cache'
-                cmd_opts = {}
-                cmd_opts['type'] = train_type
-                cmd_opts['view'] = view + 1
-                conf_opts = common_conf.copy()
-                # conf_opts.update(other_conf[conf_id])
-                conf_opts['save_step'] = conf_opts['dl_steps']// 10
-                if data_type == 'stephen':
-                    conf_opts['batch_size'] = 4
-                if op_af_graph is not None:
-                    conf_opts['op_affinity_graph'] = op_af_graph
-
-                if len(conf_opts) > 0:
-                    conf_str = ' -conf_params'
-                    for k in conf_opts.keys():
-                        conf_str = '{} {} {} '.format(conf_str,k,conf_opts[k])
-                else:
-                    conf_str = ''
-
-                opt_str = ''
-                for k in cmd_opts.keys():
-                    opt_str = '{} -{} {} '.format(opt_str,k,cmd_opts[k])
-
-                cur_cmd = common_cmd + conf_str + opt_str + end_cmd
-                cmd_name = '{}_view{}_{}'.format(exp_name,view,train_type)
-
-                if run_type == 'submit':
-                    print(cur_cmd)
-                    print()
-                    run_jobs(cmd_name,cur_cmd)
-                elif run_type == 'status':
-                    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-                    iter = check_train_status(cmd_name,conf.cachedir)
-                    cur_info[train_type] = iter
-            r_info.append(cur_info)
-        info.append(r_info)
+                expnote = 'incremental training'
+                run_trainining(exp_name, train_type, view, run_type, exp_note=expnote)
+#            r_info.append(cur_info)
+#        info.append(r_info)
 
 
 ## SINGLE animals vs multiple ---- TRAINING ----
@@ -1378,7 +1360,7 @@ def create_gt_db():
 ## ######################  RESULTS
 
 
-def get_normal_results(exp_name='apt_expt',
+def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_name
                        train_name='deepnet',
                        gt_name_use_output=None,  # if supplied, use instead of gt_name
                        last_model_only=False,
@@ -1400,7 +1382,8 @@ def get_normal_results(exp_name='apt_expt',
         gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
         for train_type in all_models:
 
-            conf = create_conf_help(train_type, view, exp_name, **kwargs)
+            exp_name_use = exp_name[train_type] if isinstance(exp_name, dict) else exp_name
+            conf = create_conf_help(train_type, view, exp_name_use, **kwargs)
 
             # compare conf to conf on disk
             cffile = os.path.join(conf.cachedir, 'conf.pickle')

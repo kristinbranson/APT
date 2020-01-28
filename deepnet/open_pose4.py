@@ -913,9 +913,10 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
             for ipt in range(conf.n_classes):
                 hmthis = predhm_clip[ib, :, :, ipt]
                 pks_with_score_this = heatmap.find_peaks(hmthis, thre_hm)
-                pks_with_score_this = np.stack(pks_with_score_this)  # npk x 3
-                irows = min(NCLUSTER_MAX, pks_with_score_this.shape[0])
-                pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
+                if len(pks_with_score_this) > 0:
+                    pks_with_score_this = np.stack(pks_with_score_this)  # npk x 3
+                    irows = min(NCLUSTER_MAX, pks_with_score_this.shape[0])
+                    pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
 
                 a, mu, sig = heatmap.compactify_hmap(hmthis,
                                                      floor=0.1,

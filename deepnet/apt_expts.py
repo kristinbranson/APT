@@ -389,6 +389,8 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
         ret_list = classify_db_fcn(conf, read_fn, pred_fn, tf_iterator.N,
                                    **kwargs)
         pred, label, gt_list = ret_list[:3]
+        if isinstance(pred, dict):
+            pred = pred['locs']
         if model_type == 'mdn':
             extra_stuff = ret_list[3:]
         else:
