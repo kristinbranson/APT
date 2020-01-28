@@ -1,13 +1,12 @@
 classdef DLBackEndClass < matlab.mixin.Copyable
-  % Design unclear but good chance this is a thing
+  % 
+  % APT Backends specify a physical machine/server where GPU code is run.
   %
-  % This thing (maybe) specifies a physical machine/server along with a 
-  % DLBackEnd:
   % * DLNetType: what DL net is run
   % * DLBackEndClass: where/how DL was run
   %
-  % TODO: this should be named 'DLBackEnd' and 'DLBackEnd' should be called
-  % 'DLBackEndType' or something.
+  % Design here still fleshing out (see switchyards, DLBackEndType enum
+  % etc)
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
@@ -131,6 +130,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           obj.testDockerConfig();
         case DLBackEnd.AWS
           obj.testAWSConfig();
+        case DLBackEnd.Conda
+          obj.testCondaConfig();
         otherwise
           msgbox(sprintf('Tests for %s have not been implemented',obj.type),...
             'Not implemented','modal');
@@ -637,6 +638,88 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfsucc = true;      
     end
     
+  end
+  
+  methods % Conda
+    
+    function [tfsucc,hedit] = testCondaConfig(obj)
+      tfsucc = false;
+
+      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
+      hedit.String = {sprintf('%s: Testing Conda Configuration...',datestr(now))}; 
+      drawnow;
+      
+      % activate APT
+      hedit.String{end+1} = ''; drawnow;
+      hedit.String{end+1} = '** Testing activate APT...'; drawnow;
+
+      cmd = 'activate APT';
+      %fprintf(1,'%s\n',cmd);
+      hedit.String{end+1} = cmd; drawnow;
+      [st,res] = system(cmd);
+      reslines = splitlines(res);
+      %reslinesdisp = reslines(1:min(4,end));
+      %hedit.String = [hedit.String; reslinesdisp(:)];
+      if st~=0
+        hedit.String{end+1} = 'FAILURE. Error with ''activate APT''. Does your system path include condabin?'; drawnow;
+        return;
+      end
+      hedit.String{end+1} = 'SUCCESS!'; drawnow;
+      
+   
+      
+%       tfsucc = false;
+%       % In this conditional we assume the apiver numbering scheme continues
+%       % like '1.39', '1.40', ... 
+%       if ~(str2double(clientapiver)>=str2double(obj.dockerapiver))          
+%         hedit.String{end+1} = ...
+%           sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
+%             clientapiver,obj.dockerapiver);
+%         drawnow;
+%         return;
+%       end        
+%       succstr = sprintf('SUCCESS! Your Docker API version is %s.',clientapiver);
+%       hedit.String{end+1} = succstr; drawnow;      
+%       
+%       % APT hello
+%       hedit.String{end+1} = ''; drawnow;
+%       hedit.String{end+1} = '** Testing APT deepnet library...'; drawnow;
+%       deepnetroot = [APT.Root '/deepnet'];
+%       %deepnetrootguard = [filequote deepnetroot filequote];
+%       basecmd = 'python APT_interface.py lbl test hello';
+%       cmd = obj.codeGenDockerGeneral(basecmd,'containerTest',...
+%         'detach',false,...
+%         'bindpath',{deepnetroot});      
+%       RUNAPTHELLO = 1;
+%       if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
+%         %fprintf(1,'%s\n',cmd);
+%         %hedit.String{end+1} = cmd; drawnow;
+%         [st,res] = system(cmd);
+%         reslines = splitlines(res);
+%         reslinesdisp = reslines(1:min(4,end));
+%         hedit.String = [hedit.String; reslinesdisp(:)];
+%         if st~=0
+%           hedit.String{end+1} = 'FAILURE. Error with APT deepnet command.'; drawnow;
+%           return;
+%         end
+%         hedit.String{end+1} = 'SUCCESS!'; drawnow;
+%       end
+      
+      % free GPUs
+      hedit.String{end+1} = ''; drawnow;
+      hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
+      [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
+      if isempty(gpuid)
+        hedit.String{end+1} = 'FAILURE. Could not find free GPUs.'; drawnow;
+        return;
+      end
+      hedit.String{end+1} = sprintf('SUCCESS! Found available GPUs.'); drawnow;
+      
+      hedit.String{end+1} = '';
+      hedit.String{end+1} = 'All tests passed. Conda Backend should work for you.'; drawnow;
+      
+      tfsucc = true;      
+    end
   end
   
   methods % AWS

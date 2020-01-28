@@ -4612,7 +4612,8 @@ classdef DeepTracker < LabelTracker
       [baseargs,condaargs,outfile] = myparse(varargin,...
         'baseargs',{},'condaargs',{},'outfile','');
       
-      baseargs = [{'cache' cache} baseargs];
+      addnlbaseargs = {'cache' cache 'filequote' '"' 'updateWinPaths2LnxContainer' false};
+      baseargs = [addnlbaseargs baseargs];
         
       basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,outtrk,frm0,frm1,baseargs{:});
