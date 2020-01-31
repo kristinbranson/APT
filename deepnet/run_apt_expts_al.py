@@ -51,17 +51,13 @@ cv_info_file = None
 gt_name = ''
 dpk_skel_csv = None
 dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/git/imgaug'
+expname_dict_normaltrain = None
 
 cache_dir = '/nrs/branson/al/cache'
 #all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'sb', 'dpk']
 #all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet'] #, 'sb', 'dpk']
-all_models = ['deeplabcut', 'dpk', 'mdn', 'openpose', 'sb']
-expname_dict = {'deeplabcut': 'apt_expt',
-                'dpk': 'ntrans5_postrescalefixes',
-                'mdn': 'apt_expt',
-                'openpose': 'apt_expt2',
-                'sb': 'postrescalefixes',
-                }
+#all_models = ['deeplabcut', 'dpk', 'mdn', 'openpose', 'sb']
+all_models = ['openpose', 'sb']
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/nrs/branson/al/out'
@@ -89,7 +85,7 @@ common_conf['maxckpt'] = 20
 
 def setup(data_type_in,gpu_device=None):
     global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name, \
-        dpk_skel_csv
+        dpk_skel_csv, expname_dict_normaltrain
     data_type = data_type_in
     if gpu_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(gpu_device)
@@ -101,7 +97,14 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
         op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
         groups = ['']
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        dpk_skel_csv = apt_dpk.skeleton_csvs['alice']
+
+        expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
+                                    'dpk': 'ntrans5_postrescalefixes',
+                                    'mdn': 'apt_expt',
+                                    'openpose': 'apt_expt2',
+                                    'sb': 'postrescalefixes',
+                                    }
 
         if data_type == 'alice_difficult':
             gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_MDNvsDLC_labeled_alMassaged20190809_stripped.lbl'
@@ -117,6 +120,13 @@ def setup(data_type_in,gpu_device=None):
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
         common_conf['trange'] = 20
+
+        expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
+                                    'dpk': 'expt_n_transition_min5',
+                                    'mdn': 'apt_expt',
+                                    'openpose': 'apt_expt',
+                                    'sb': 'apt_expt',
+                                    }
 
     elif data_type == 'roian':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped_newmovielocs.lbl'
@@ -416,7 +426,7 @@ def save_mat(out_exp,out_file):
             dd[u'model_timestamp'] = c[5]
             iter = int(re.search('-(\d*)', c[3]).groups(0)[0])
             dd[u'model_iter'] = iter
-            if type(c[4]) in [list,tuple]:
+            if type(c[4]) in [list,tuple] and len(c[4])>0:
                 dd[u'mdn_pred'] = c[4][0][0]
                 dd[u'unet_pred'] = c[4][0][1]
                 dd[u'mdn_conf'] = c[4][0][2]
@@ -595,8 +605,15 @@ def run_trainining(exp_name,train_type,view,run_type,
         run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir)
     elif run_type == 'status':
         #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        #time0 = time.process_time()
         conf = create_conf_help(train_type, view, exp_name, quiet=True, **kwargs)
+        #time1 = time.process_time()
+        #print("create_conf time is {}".format(time1 - time0))
+
+        #time0 = time.process_time()
         check_train_status(cmd_name_base, conf.cachedir)
+        #time1 = time.process_time()
+        #print("check train status time is {}".format(time1 - time0))
 
 def apt_train_cmd(exp_name, train_type, view, train_name, **kwargs):
 
@@ -634,8 +651,10 @@ def create_conf_help(train_type, view, exp_name, quiet=False, **kwargs):
     conf_opts = run_trainining_conf_helper(train_type, view, kwargs)
     pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
     pvlist = apt.conf_opts_pvargstr2list(pvlist)
+    #time0 = time.process_time()
     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
                            conf_params=pvlist, quiet=quiet)
+    #print("create_conf time is {}".format(time.process_time()-time0))
     return conf
 
 def get_apt_conf(**kwargs):
@@ -1277,19 +1296,30 @@ def run_mdn_no_unet(run_type = 'status'):
         run_trainining('apt_expt',train_type,view, run_type,train_name='no_unet')
 
 
-def run_incremental_training(run_type='status', **kwargs):
+def run_incremental_training(run_type='status', viewidxs=None, roundidxs=None,
+                             modelsrun=None, **kwargs):
     # Expt where we find out how training error changes with amount of training data
 
     n_rounds = 8
+
+    if viewidxs is None:
+        viewidxs = range(nviews)
+
+    if roundidxs is None:
+        roundidxs = range(n_rounds)
+
+    if modelsrun is None:
+        modelsrun = all_models
+
 #    info = []
-    for view in range(nviews):
+    for view in viewidxs:
 #        r_info = []
-        for ndx in range(n_rounds):
+        for ndx in roundidxs:
             exp_name = '{}_randsplit_round_{}'.format(data_type,ndx)
             cur_info = {}
-            for train_type in all_models:
+            for train_type in modelsrun:
                 expnote = 'incremental training'
-                run_trainining(exp_name, train_type, view, run_type, exp_note=expnote)
+                run_trainining(exp_name, train_type, view, run_type, exp_note=expnote, **kwargs)
 #            r_info.append(cur_info)
 #        info.append(r_info)
 
@@ -1463,7 +1493,13 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
     for ndx,out_exp in enumerate(all_view):
         plot_results(out_exp[0])
         plot_hist(out_exp)
-        save_mat(out_exp[0], os.path.join(cache_dir,'{}_view{}_time{}'.format(data_type, ndx, gt_name_use_output)))
+
+        save_file = os.path.join(cache_dir,'{}_view{}_time{}'.format(data_type, ndx, gt_name_use_output))
+        save_filep = save_file+".p"
+        with open(save_filep, 'wb') as f:
+            pickle.dump(out_exp[0], f)
+            print("wrote {}".format(save_filep))
+        save_mat(out_exp[0], save_file)
 
 def get_mdn_no_unet_results():
 ## Normal Training  ------- RESULTS -------
@@ -1719,11 +1755,12 @@ def get_incremental_results():
             train_size = []
             for ndx in range(n_rounds):
                 exp_name = '{}_randsplit_round_{}'.format(data_type, ndx)
-                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                conf = create_conf_help(train_type, view, exp_name)
                 split_data = PoseTools.json_load(os.path.join(conf.cachedir,'splitdata.json'))
                 train_size.append(len(split_data[0]))
-                if op_af_graph is not None:
-                    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+                #if op_af_graph is not None:
+                #    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
                 files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
                 files.sort(key=os.path.getmtime)
                 files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
@@ -1751,7 +1788,7 @@ def get_incremental_results():
             if recomp:
                 afiles = [f.replace('.index', '') for f in r_files]
                 mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
-                with open(out_file,'w') as f:
+                with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,r_files],f)
             else:
                 A = PoseTools.pickle_load(out_file)
