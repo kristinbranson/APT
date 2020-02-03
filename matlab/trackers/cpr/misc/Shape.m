@@ -915,23 +915,38 @@ classdef Shape
       % md - optional, table of MD for I
       
       opts.fig = [];
+      opts.hax = []; % if supplied, overrides opts.fig
       opts.nr = 4;
       opts.nc = 5;
       opts.idxs = [];      
       opts.labelpts = false;
       opts.md = [];
+      opts.p2 = [];
+      opts.p2plotargs = {};
+      opts.cmap = 'jet';
       opts = getPrmDfltStruct(varargin,opts);
-      if isempty(opts.fig)
-        opts.fig = figure('windowstyle','docked');
+      if isempty(opts.hax)
+        if isempty(opts.fig)
+          opts.fig = figure('windowstyle','docked');
+        else
+          figure(opts.fig);
+          clf;
+        end
+        hax = createsubplots(opts.nr,opts.nc,.01);
       else
-        figure(opts.fig);
-        clf;
+        hax = opts.hax;
+        assert(numel(hax)==opts.nr*opts.nc);        
       end
-      tfMD = ~isempty(opts.md);
-      hax = createsubplots(opts.nr,opts.nc,.01);
 
       N = numel(I);
       assert(isequal(size(p),[N mdl.D]));
+      
+      tfp2 = ~isempty(opts.p2);
+      if tfp2
+        assert(isequal(size(opts.p2),[N mdl.D]));
+      end
+
+      tfMD = ~isempty(opts.md);
       if tfMD
         assert(size(opts.md,1)==N);
       end
@@ -947,7 +962,14 @@ classdef Shape
         iPlot = opts.idxs;
       end
         
-      colors = jet(mdl.nfids);
+      if isstr(opts.cmap)
+        colors = feval(opts.cmap,mdl.nfids);
+      else
+        colors = opts.cmap;
+        colorsz = [mdl.nfids 3];
+        assert(isequal(size(colors),colorsz),...
+          sprintf('Color spec must be string colormap or array of size %s',mat2str(colorsz)));
+      end
       for iPlt = 1:nplot
         iIm = iPlot(iPlt);
         im = I{iIm};
@@ -961,6 +983,10 @@ classdef Shape
           if opts.labelpts
             htmp = text(p(iIm,j)+2.5,p(iIm,j+mdl.nfids)+2.5,num2str(j),'Parent',hax(iPlt));
             htmp.Color = [1 1 1];
+          end
+          if tfp2
+            plot(hax(iPlt),opts.p2(iIm,j),opts.p2(iIm,j+mdl.nfids),...
+              'MarkerFaceColor',colors(j,:),opts.p2plotargs{:});
           end
         end
         if tfMD
