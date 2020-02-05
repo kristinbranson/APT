@@ -704,12 +704,13 @@ def training(conf, name='deepnet'):
             predhmval = val_out[-1]
             predhmval = clip_heatmap_with_warn(predhmval)
             # (bsize, npts, 2), (x,y), 0-based
-            predlocsval = heatmap.get_weighted_centroids(predhmval,
-                                                         floor=self.config.op_hmpp_floor,
-                                                         nclustermax=self.config.op_hmpp_nclustermax)
-            gtlocs = heatmap.get_weighted_centroids(val_y[-1],
-                                                    floor=self.config.op_hmpp_floor,
-                                                    nclustermax=self.config.op_hmpp_nclustermax)
+            predlocsval, _ = \
+                heatmap.get_weighted_centroids_with_argmax(predhmval,
+                                                           floor=self.config.op_hmpp_floor,
+                                                           nclustermax=self.config.op_hmpp_nclustermax)
+            gtlocs, _ = heatmap.get_weighted_centroids_with_argmax(val_y[-1],
+                                                                   floor=self.config.op_hmpp_floor,
+                                                                   nclustermax=self.config.op_hmpp_nclustermax)
             tt1 = predlocsval - gtlocs
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))  # [bsize x ncls]
             val_dist = np.nanmean(tt1)  # this dist is in op_scale-downsampled space
@@ -800,7 +801,7 @@ def clip_heatmap_with_warn(predhm):
     '''
 
     :param predhm:
-    :return: clipped predhm; could be same array as predhm if no change
+    :return: clipped predhm; always is a copy
     '''
 
     if np.any(predhm < 0.0):
@@ -812,7 +813,7 @@ def clip_heatmap_with_warn(predhm):
         predhm_clip = predhm.copy()
         predhm_clip[predhm_clip < 0.0] = 0.0
     else:
-        predhm_clip = predhm
+        predhm_clip = predhm.copy()
 
     return predhm_clip
 
@@ -838,7 +839,15 @@ def compare_conf_traindata(conf):
         logging.warning(wstr)
 
 
-def get_pred_fn(conf, model_file=None, name='deepnet'):
+def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
+    '''
+
+    :param conf:
+    :param model_file:
+    :param name:
+    :param edge_ignore: ignore pad + this
+    :return:
+    '''
     #(imnr, imnc) = conf.imsz
     #imnr_use = imszcheckcrop(imnr, 'row')
     #imnc_use = imszcheckcrop(imnc, 'column')
@@ -892,11 +901,35 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         predhm = model_preds[-1]  # this is always the last/final MAP hmap
         predhm_clip = clip_heatmap_with_warn(predhm)
 
+        # ignore edges, mod prehm_clip in-place
+        if edge_ignore > 0:
+            padx0 = conf.op_im_padx // 2
+            padx1 = conf.op_im_padx - padx0
+            pady0 = conf.op_im_pady // 2
+            pady1 = conf.op_im_pady - pady0
+            igx0 = padx0 + edge_ignore
+            igx1 = padx1 + edge_ignore
+            igy0 = pady0 + edge_ignore
+            igy1 = pady1 + edge_ignore
+            bsize = predhm_clip.shape[0]
+            npts = predhm_clip.shape[3]
+            for ib in range(bsize):
+                for ipt in range(npts):
+                    minval = predhm_clip[ib, :, :, ipt].min()
+                    predhm_clip[ib, :igy0, :, ipt] = minval
+                    predhm_clip[ib, :, :igx0, ipt] = minval
+                    predhm_clip[ib, -igy1:, :, ipt] = minval
+                    predhm_clip[ib, :, -igx1:, ipt] = minval
+
         # (bsize, npts, 2), (x,y), 0-based
-        predlocs_argmax = PoseTools.get_pred_locs(predhm)
-        predlocs_wgtcnt = heatmap.get_weighted_centroids(predhm_clip,
-                                                         floor=conf.op_hmpp_floor,
-                                                         nclustermax=conf.op_hmpp_nclustermax)
+        # predlocs_argmax = PoseTools.get_pred_locs(predhm_clip)
+        predlocs_wgtcnt, predlocs_argmax = \
+            heatmap.get_weighted_centroids_with_argmax(predhm_clip,
+                                                       floor=conf.op_hmpp_floor,
+                                                       nclustermax=conf.op_hmpp_nclustermax)
+        #predlocs_wgtcnt0 = heatmap.get_weighted_centroids_with_argmax(predhm_clip,
+        #                                                  floor=0,
+        #                                                  nclustermax=1)
         assert predlocs_argmax.shape == locs_sz
         assert predlocs_wgtcnt.shape == locs_sz
         print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
@@ -918,7 +951,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
                     irows = min(NCLUSTER_MAX, pks_with_score_this.shape[0])
                     pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
 
-                a, mu, sig = heatmap.compactify_hmap(hmthis,
+                a, mu, sig, _ = heatmap.compactify_hmap(hmthis,
                                                      floor=0.1,
                                                      nclustermax=NCLUSTER_MAX)
                 #mu = mu[::-1, :] - 1.0  # now x,y and 0b
@@ -947,6 +980,8 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         predlocs_argmax_hires[..., 1] -= conf.op_im_pady // 2
         predlocs_wgtcnt_hires[..., 0] -= conf.op_im_padx // 2
         predlocs_wgtcnt_hires[..., 1] -= conf.op_im_pady // 2
+        #predlocs_wgtcnt0_hires[..., 0] -= conf.op_im_padx // 2
+        #predlocs_wgtcnt0_hires[..., 1] -= conf.op_im_pady // 2
         pks_with_score[..., 0] -= conf.op_im_padx // 2
         pks_with_score[..., 1] -= conf.op_im_pady // 2
         pks_with_score_cmpt[..., 0] -= conf.op_im_padx // 2
@@ -961,6 +996,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         if retrawpred:
             ret_dict['locs'] = predlocs_wgtcnt_hires
             ret_dict['locs_argmax'] = predlocs_argmax_hires
+            #ret_dict['locs_wgtcnt0'] = predlocs_wgtcnt0_hires
             ret_dict['pred_hmaps'] = model_preds
             ret_dict['ims'] = ims
         else:

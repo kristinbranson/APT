@@ -57,7 +57,10 @@ cache_dir = '/nrs/branson/al/cache'
 #all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'sb', 'dpk']
 #all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet'] #, 'sb', 'dpk']
 #all_models = ['deeplabcut', 'dpk', 'mdn', 'openpose', 'sb']
+#all_models = ['leap']
 all_models = ['openpose', 'sb']
+
+print("Your models are: {}".format(all_models))
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/nrs/branson/al/out'
@@ -124,8 +127,8 @@ def setup(data_type_in,gpu_device=None):
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
                                     'dpk': 'expt_n_transition_min5',
                                     'mdn': 'apt_expt',
-                                    'openpose': 'apt_expt',
-                                    'sb': 'apt_expt',
+                                    'openpose': 'postrescale',
+                                    'sb': 'postrescale',
                                     }
 
     elif data_type == 'roian':
@@ -157,6 +160,18 @@ def setup(data_type_in,gpu_device=None):
         dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
         common_conf['trange'] = 20
+
+        # this is not normaltrain this is cv
+        expname_dict_normaltrain = {'deeplabcut': '',
+                                    'dpk': 'bs4rs2',
+                                    'mdn': '',
+                                    'openpose': 'bs4rs2',
+                                    'sb': 'bs4rs2',
+                                    'unet': '',
+                                    'resnet_unet': '',
+                                    'leap': '',
+                                    }
+
     elif data_type == 'larva':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
         cv_info_file = '/groups/branson/bransonlab/experiments/data/LarvaTrainCVInfo20190419.mat'
@@ -1890,7 +1905,7 @@ def get_no_pretrained_results():
 
 def get_cv_results(num_splits=None,
                    db_from_mdn_dir=False,
-                   exp_name_pfix='',  # prefix for exp_name
+                   exp_name_pfix='',  # prefix for exp_name. can be map from train_type->exp_name_pfix
                    split_idxs=None,
                    ptiles_plot=[50,75,90,95,97]):
     train_name = 'deepnet'
@@ -1917,13 +1932,16 @@ def get_cv_results(num_splits=None,
             ex_loc = None
             out_split = None
             for split in split_idxs:
-                exp_name = '{}cv_split_{}'.format(exp_name_pfix, split)
+                pfix_use = exp_name_pfix[train_type] if isinstance(exp_name_pfix, dict) else exp_name_pfix
+                exp_name = '{}cv_split_{}'.format(pfix_use, split)
+                pfix_use_mdn = exp_name_pfix['mdn'] if isinstance(exp_name_pfix, dict) else exp_name_pfix
+                exp_name_mdn = '{}cv_split_{}'.format(pfix_use_mdn, split)
 
                 # confs only used for .cachedir etc; actual conf used in tracking is loaded from
                 # traindata. so optional kwargs etc unnec
 
                 #mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
-                mdn_conf = create_conf_help('mdn', view, exp_name, quiet=True)
+                mdn_conf = create_conf_help('mdn', view, exp_name_mdn, quiet=True)
                 #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                 conf = create_conf_help(train_type, view, exp_name, quiet=True)
                 #if op_af_graph is not None:

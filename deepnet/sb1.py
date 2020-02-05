@@ -531,12 +531,12 @@ def training(conf, name='deepnet'):
             predhmval = val_out[-1]
             predhmval = clip_heatmap_with_warn(predhmval)
             # (bsize, npts, 2), (x,y), 0-based
-            predlocsval = heatmap.get_weighted_centroids(predhmval,
-                                                         floor=self.config.sb_hmpp_floor,
-                                                         nclustermax=self.config.sb_hmpp_nclustermax)
-            gtlocs = heatmap.get_weighted_centroids(val_y[-1],
-                                                    floor=self.config.sb_hmpp_floor,
-                                                    nclustermax=self.config.sb_hmpp_nclustermax)
+            predlocsval, _ = heatmap.get_weighted_centroids_with_argmax(predhmval,
+                                                                        floor=self.config.sb_hmpp_floor,
+                                                                        nclustermax=self.config.sb_hmpp_nclustermax)
+            gtlocs, _ = heatmap.get_weighted_centroids_with_argmax(val_y[-1],
+                                                                   floor=self.config.sb_hmpp_floor,
+                                                                   nclustermax=self.config.sb_hmpp_nclustermax)
             tt1 = predlocsval - gtlocs  # computed in the output res/space
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))  # [bsize x ncls]
             val_dist = np.nanmean(tt1)  # av over all batches/pts; in output res/space
@@ -636,7 +636,7 @@ def clip_heatmap_with_warn(predhm):
 
     return predhm_clip
 
-def get_pred_fn(conf, model_file=None, name='deepnet'):
+def get_pred_fn(conf, model_file=None, name='deepnet', retrawpred=False):
     #(imnr, imnc) = conf.imsz
     #conf.sb_im_pady, imnr_use = get_im_pad(imnr, 'row') # xxxxxxx
     #conf.sb_im_padx, imnc_use = get_im_pad(imnc, 'column')
@@ -671,7 +671,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
     # thre1 = conf.get('op_param_hmap_thres',0.1)
     # thre2 = conf.get('op_param_paf_thres',0.05)
 
-    def pred_fn(all_f):
+    def pred_fn(all_f, retrawpred=retrawpred):
         '''
 
         :param all_f: raw images NHWC
@@ -692,10 +692,14 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         predhm_clip = clip_heatmap_with_warn(predhm)
 
         # (bsize, npts, 2), (x,y), 0-based
-        predlocs_argmax = PoseTools.get_pred_locs(predhm)
-        predlocs_wgtcnt = heatmap.get_weighted_centroids(predhm_clip,
-                                                         floor=conf.sb_hmpp_floor,
-                                                         nclustermax=conf.sb_hmpp_nclustermax)
+        #predlocs_argmax = PoseTools.get_pred_locs(predhm)
+        predlocs_wgtcnt, predlocs_argmax = \
+            heatmap.get_weighted_centroids_with_argmax(predhm_clip,
+                                                       floor=conf.sb_hmpp_floor,
+                                                       nclustermax=conf.sb_hmpp_nclustermax)
+        #predlocs_wgtcnt0 = heatmap.get_weighted_centroids(predhm_clip,
+        #                                                  floor=0,
+        #                                                  nclustermax=1)
         assert predlocs_argmax.shape == locs_sz
         assert predlocs_wgtcnt.shape == locs_sz
         print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.sb_hmpp_floor, conf.sb_hmpp_nclustermax))
@@ -710,19 +714,30 @@ def get_pred_fn(conf, model_file=None, name='deepnet'):
         totscalefac = netscalefac * conf.rescale
         predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, totscalefac, totscalefac)
         predlocs_wgtcnt_hires = PoseTools.unscale_points(predlocs_wgtcnt, totscalefac, totscalefac)
+        #predlocs_wgtcnt0_hires = PoseTools.unscale_points(predlocs_wgtcnt0, totscalefac, totscalefac)
 
         # undo padding
         predlocs_argmax_hires[..., 0] -= conf.sb_im_padx//2
         predlocs_argmax_hires[..., 1] -= conf.sb_im_pady//2
         predlocs_wgtcnt_hires[..., 0] -= conf.sb_im_padx//2
         predlocs_wgtcnt_hires[..., 1] -= conf.sb_im_pady//2
+        #predlocs_wgtcnt0_hires[..., 0] -= conf.sb_im_padx//2
+        #predlocs_wgtcnt0_hires[..., 1] -= conf.sb_im_pady//2
 
         ret_dict = {}
-        ret_dict['locs'] = predlocs_wgtcnt_hires
-        ret_dict['locs_mdn'] = predlocs_argmax_hires  # XXX hack for now
-        ret_dict['locs_unet'] = predlocs_argmax_hires  # XXX hack for now
-        ret_dict['conf'] = np.max(predhm, axis=(1, 2))
-        ret_dict['conf_unet'] = np.max(predhm, axis=(1, 2))  # XXX hack
+        if retrawpred:
+            ret_dict['locs'] = predlocs_wgtcnt_hires
+            ret_dict['locs_argmax'] = predlocs_argmax_hires
+            #ret_dict['locs_wgtcnt0'] = predlocs_wgtcnt0_hires
+            ret_dict['pred_hmaps'] = predhm_clip
+            ret_dict['ims'] = ims
+        else:
+            # all return args should be [bsize x n_classes x ...]
+            ret_dict['locs'] = predlocs_wgtcnt_hires
+            ret_dict['locs_mdn'] = predlocs_argmax_hires  # XXX hack for now
+            ret_dict['locs_unet'] = predlocs_argmax_hires  # XXX hack for now
+            ret_dict['conf'] = np.max(predhm, axis=(1, 2))
+            ret_dict['conf_unet'] = np.max(predhm, axis=(1, 2))  # XXX hack
 
         return ret_dict
 

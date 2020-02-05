@@ -1502,7 +1502,7 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
                 # all_hmaps[hmapidx, ...] = hmthis
                 hmmu = np.zeros((conf.n_classes, 2))
                 for ipt in range(conf.n_classes):
-                    _, mutmp, _ = heatmap.compactify_hmap(hmthis[:, :, ipt],
+                    _, mutmp, _, _ = heatmap.compactify_hmap(hmthis[:, :, ipt],
                                                           floor=hm_floor,
                                                           nclustermax=hm_nclustermax)
                     hmmu[ipt, :] = mutmp[::-1].flatten() - 1.0

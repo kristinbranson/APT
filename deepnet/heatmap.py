@@ -10,6 +10,7 @@ import scipy.io as sio
 import skimage.measure
 import numpy as np
 import matplotlib.pyplot as plt
+import PoseTools
 
 # prefer packaging module in future
 assert distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"), \
@@ -80,7 +81,7 @@ def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
         xycov = wmc[1,1]/a[ic]
         sig[:, :, ic] = np.array([[xxcov, xycov], [xycov, yycov]])
 
-    return a, mu, sig
+    return a, mu, sig, nclusters
 
 def compactify_hmap_arr(hmagg,offset=1.0,floor=0.0):
     npt, nrtrans, nctrans, nfrm = hmagg.shape
@@ -101,38 +102,48 @@ def compactify_hmap_arr(hmagg,offset=1.0,floor=0.0):
             hm = hmagg[ipt, :, :, f]
             hm = hm + offset
             As[:, ipt, f], mus[:, :, ipt, f], sigs[:, :, :, ipt, f] = \
-                compactify_hmap(hm, floor, nclustermax)
+                compactify_hmap(hm, floor, nclustermax) # XXX API CHANGE
 
     toc = time.time() - tic
     print("Took {} s to compactify".format(toc))
 
     return mus, sigs, As
 
-def get_weighted_centroids(hm, floor=0.0, nclustermax=5):
+def get_weighted_centroids_with_argmax(hm, floor=0.0, nclustermax=5):
     '''
-    Get predicted loc from hmap as weighted centroid (vs argmax).
-
+    Get predicted loc from hmap as weighted centroid, falling back to
+    argmax if nec
 
     :param hm: (bsize, nr, nc, npts)
     :param floor: see compactify_hmap
     :param nclustermax: see compactify_hmap
-    :return: (bsize, npts, 2) (x,y) weighted centroids, 0-based
+    :return: hmmu, hmargmax. Both are (bsize, npts, 2) (x,y), 0-based.
+        hmmu: Weighted-centroids whenever possible, falling back to argmax when no clusters found
+        hmargmax: Always argmax
+
     '''
 
     assert np.all(hm >= 0.0), "Heatmap must be positive semi-def"
     bsize, nr, nc, npts = hm.shape
 
+    hmargmax = PoseTools.get_pred_locs(hm)
     hmmu = np.zeros((bsize, npts, 2))
+    assert hmargmax.shape == hmmu.shape
+
     for ib in range(bsize):
         for ipt in range(npts):
-            _, mutmp, _ = compactify_hmap(hm[ib, :, :, ipt],
-                                          floor=floor,
-                                          nclustermax=nclustermax)
-            # Convert to (x,y), 0-based
-            assert nclustermax==1  # well this is confused
-            hmmu[ib, ipt, :] = mutmp[::-1].flatten() - 1.0
+            _, mutmp, _, nclusters = compactify_hmap(hm[ib, :, :, ipt],
+                                                     floor=floor,
+                                                     nclustermax=nclustermax)
+            if nclusters == 1:
+                # Convert to (x,y), 0-based
+                assert nclustermax == 1  # well this is confused
+                hmmu[ib, ipt, :] = mutmp[::-1].flatten() - 1.0
+            else:
+                # already (x,y), 0b
+                hmmu[ib, ipt, :] = hmargmax[ib, ipt, :]
 
-    return hmmu
+    return hmmu, hmargmax
 
 def find_peaks(map, thre):
     '''
