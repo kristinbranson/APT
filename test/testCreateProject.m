@@ -1,4 +1,4 @@
-addpath('..');
+addpath('../matlab');
 APT.setpath;
 ref_lbl = '/work/mayank/work/FlySpaceTime/multitarget_bubble_expandedbehavior_20180425_fixederrors_fixed.lbl';
 nviews = 1;
@@ -73,8 +73,8 @@ end
 
 %% Start from label file
 
-lObj = Labeler;
-lObj.projLoad(ref_lbl);
+%lObj = Labeler;
+%lObj.projLoad(ref_lbl);
 
 %% Set the algorithm.
 
