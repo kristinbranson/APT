@@ -1056,7 +1056,7 @@ classdef DeepTracker < LabelTracker
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
-        case [DLBackEnd.Conda,DLBackEnd.Docker],
+        case {DLBackEnd.Conda,DLBackEnd.Docker},
           aptroot = APT.Root;
           obj.downloadPretrainedWeights('aptroot',aptroot); 
       end
@@ -3064,11 +3064,18 @@ classdef DeepTracker < LabelTracker
             ivw = ivwjob;
           end
           id = sprintf('%s_mov%d_vwj%d',nowstr,imov,ivwjob);
+          if isempty(frm0) && isempty(frm1),
+            frm0curr = [];
+            frm1curr = [];
+          else
+            frm0curr = frm0(imov);
+            frm1curr = frm1(imov);
+          end
           if isexternal,
             trksysinfo(imov,ivwjob) = TrackJob(obj,backend,...
               'targets',trxids{imov},...
-              'frm0',frm0(imov),...
-              'frm1',frm1(imov),...
+              'frm0',frm0curr,...
+              'frm1',frm1curr,...
               'cropRoi',cropRois{imov},...
               'movfileLcl',movs(imov,:),...
               'trxfileLcl',trxfiles(imov,:),...
@@ -4067,7 +4074,7 @@ classdef DeepTracker < LabelTracker
       end
       
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
-        netType,baseargs{:},'filesep',filesep);
+        netType,baseargs{:},'filesep',filesep,'filequote','"');
       
       if ~isempty(outfile),
         basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
@@ -4612,7 +4619,8 @@ classdef DeepTracker < LabelTracker
       [baseargs,condaargs,outfile] = myparse(varargin,...
         'baseargs',{},'condaargs',{},'outfile','');
       
-      baseargs = [{'cache' cache} baseargs];
+      addnlbaseargs = {'cache' cache 'filequote' '"' 'updateWinPaths2LnxContainer' false};
+      baseargs = [addnlbaseargs baseargs];
         
       basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,outtrk,frm0,frm1,baseargs{:});
