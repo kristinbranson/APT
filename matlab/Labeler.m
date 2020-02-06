@@ -845,6 +845,19 @@ classdef Labeler < handle
       end
       v = movInfo.nframes;
     end
+    function v = getNFramesMovFile(obj,movFile)
+      
+      movfilefull = obj.projLocalizePath(movFile);
+      assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+      
+      mr = obj.movieReader;
+      mr.open(movfilefull);
+      v = mr.nframes;
+      mr.close();
+      
+    end
+    
+    
     function v = get.moviesSelected(obj) %#%GUIREQ
       % Find MovieManager in LabelerGUI
       
