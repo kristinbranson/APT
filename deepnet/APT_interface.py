@@ -10,6 +10,7 @@ import argparse
 import collections
 import datetime
 import json
+import contextlib
 
 from os.path import expanduser
 from random import sample
@@ -1297,24 +1298,24 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc):
     return ret_dict
 
 
-def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
+def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False,**kwargs):
     ''' Returns prediction functions and close functions for different network types
 
     '''
     if model_type == 'dpk':
-        pred_fn, close_fn, model_file = apt_dpk.get_pred_fn(conf, model_file)
+        pred_fn, close_fn, model_file = apt_dpk.get_pred_fn(conf, model_file, **kwargs)
     elif model_type == 'openpose':
-        pred_fn, close_fn, model_file = op.get_pred_fn(conf, model_file,name=name)
+        pred_fn, close_fn, model_file = op.get_pred_fn(conf, model_file,name=name,**kwargs)
     elif model_type == 'sb':
-        pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name)
+        pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name,**kwargs)
     elif model_type == 'unet':
-        pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file,name=name)
+        pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file,name=name,**kwargs)
     elif model_type == 'mdn':
-        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file,name=name,distort=distort)
+        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file,name=name,distort=distort,**kwargs)
     elif model_type == 'leap':
-        pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file,name=name)
+        pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file,name=name,**kwargs)
     elif model_type == 'deeplabcut':
-        pred_fn, close_fn, model_file = deepcut.train.get_pred_fn(conf, model_file,name=name)
+        pred_fn, close_fn, model_file = deepcut.train.get_pred_fn(conf, model_file,name=name,**kwargs)
     else:
         try:
             module_name = 'Pose_{}'.format(model_type)
@@ -1519,8 +1520,15 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
         return pred_locs, labeled_locs, info, extrastuff
 
 
-def classify_db2(conf, read_fn, pred_fn, n, return_ims=False, **kwargs):
+def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
+                 timer_read=None, timer_pred=None,
+                 **kwargs):
     '''Trying to simplify/generalize classify_db'''
+
+    if timer_read is None:
+        timer_read = contextlib.suppress()
+    if timer_pred is None:
+        timer_pred = contextlib.suppress()
 
     logging.info("Ignoring kwargs: {}".format(kwargs.keys()))
 
@@ -1542,14 +1550,16 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False, **kwargs):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
-            next_db = read_fn()
+            with timer_read:
+                next_db = read_fn()
             all_f[ndx, ...] = next_db[0]
             labeled_locs[cur_start + ndx, ...] = next_db[1]
             info.append(next_db[2])
 
         # note all_f[ppe+1:, ...] for the last batch will be cruft
 
-        ret_dict = pred_fn(all_f)
+        with timer_pred:
+            ret_dict = pred_fn(all_f)
 
         fields = ret_dict.keys()
         if cur_b == 0:
@@ -2030,7 +2040,7 @@ def get_unet_pred_fn(conf, model_file=None,name='deepnet'):
     return self.get_pred_fn(model_file)
 
 
-def get_mdn_pred_fn(conf, model_file=None,name='deepnet',distort=False):
+def get_mdn_pred_fn(conf, model_file=None,name='deepnet',distort=False,**kwargs):
     tf.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=name)
     if name == 'deepnet':
@@ -2038,7 +2048,7 @@ def get_mdn_pred_fn(conf, model_file=None,name='deepnet',distort=False):
     else:
         self.train_data_name = None
 
-    return self.get_pred_fn(model_file,distort=distort)
+    return self.get_pred_fn(model_file,distort=distort,**kwargs)
 
 
 def get_latest_model_files(conf, net_type='mdn', name='deepnet'):

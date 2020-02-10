@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+import contextlib
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -251,7 +252,10 @@ def train(cfg,name='deepnet'):
     sess.close()
 
 
-def get_pred_fn(cfg, model_file=None,name='deepnet'):
+def get_pred_fn(cfg, model_file=None,name='deepnet',tmr_pred=None):
+
+    if tmr_pred is None:
+        tmr_pred = contextlib.suppress()
 
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
@@ -268,13 +272,15 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
     sess, inputs, outputs = predict.setup_pose_prediction(cfg, init_weights)
 
     def pred_fn(all_f):
+
         if cfg.img_dim == 1:
             cur_im = np.tile(all_f,[1,1,1,3])
         else:
             cur_im = all_f
         cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.n_classes, 2]), conf=cfg, distort=False, scale=cfg.dlc_rescale)
 
-        cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
+        with tmr_pred:
+            cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
         pose = pose[:,:,:2]*cfg.dlc_rescale

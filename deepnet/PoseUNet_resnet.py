@@ -5,6 +5,7 @@ import convNetBase as CNB
 import PoseTools
 import sys
 import os
+import contextlib
 import tensorflow as tf
 import imageio
 import localSetup
@@ -846,8 +847,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         return (pred_mean+label_mean)/2
 
 
-    def get_pred_fn(self, model_file=None,distort=False):
+    def get_pred_fn(self, model_file=None,distort=False,tmr_pred=None):
         sess, latest_model_file = self.restore_net(model_file)
+
+        if tmr_pred is None:
+            tmr_pred = contextlib.suppress()
 
         conf = self.conf
 
@@ -875,7 +879,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             if pred_occ:
                 out_list.append(self.occ_pred)
 
-            out = sess.run(out_list,self.fd)
+            with tmr_pred:
+                out = sess.run(out_list,self.fd)
 
             pred = out[0]
             cur_input = out[1]

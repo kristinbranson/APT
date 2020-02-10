@@ -16,6 +16,7 @@ import pickle
 import importlib
 import ast
 import copy
+import contextlib
 
 import tensorflow.keras as tfk
 import keras.backend as K
@@ -758,9 +759,12 @@ def train_orig(conf, dg):
 
 #region Predict
 
-def get_pred_fn(conf0, model_file):
+def get_pred_fn(conf0, model_file, tmr_pred=None):
 
     assert model_file is not None, "model_file is currently required"
+
+    if tmr_pred is None:
+        tmr_pred = contextlib.suppress()
 
     conf = copy.deepcopy(conf0)
     exp_dir = conf.cachedir
@@ -787,7 +791,9 @@ def get_pred_fn(conf0, model_file):
         assert ims.shape[1:3] == conf.dpk_imsz_net
         assert ims.shape[3] == conf.img_dim
 
-        predres = pred_model.predict(ims)
+        with tmr_pred:
+            predres = pred_model.predict(ims)
+
         locs = predres[..., :2]  # 3rd/last col is confidence
         confidence = predres[..., 2]
 

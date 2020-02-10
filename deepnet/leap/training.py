@@ -11,6 +11,7 @@ import PoseTools
 import math
 import pickle
 import logging
+import contextlib
 
 import keras
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback,LearningRateScheduler
@@ -529,7 +530,10 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     obs.on_epoch_end(epochs)
 
 
-def get_pred_fn(conf, model_file=None,name='deepnet'):
+def get_pred_fn(conf, model_file=None,name='deepnet',tmr_pred=None):
+
+    if tmr_pred is None:
+        tmr_pred = contextlib.suppress()
 
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf,name)
@@ -547,7 +551,8 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
 
 
         X1 = X1.astype("float32") / 255
-        pred = model.predict(X1,batch_size = X1.shape[0])
+        with tmr_pred:
+            pred = model.predict(X1,batch_size = X1.shape[0])
         pred = np.stack(pred)
         pred = pred[:,:all_f.shape[1],:all_f.shape[2],:]
         base_locs = PoseTools.get_pred_locs(pred)

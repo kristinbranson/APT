@@ -369,6 +369,7 @@ def train_ours(args):
 
 def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=False,
                     classify_fcn='classify_db',
+                    timer_pred_inner=None,
                     **kwargs):
     cur_out = []
     extra_str = ''
@@ -385,7 +386,8 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
+        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort,
+                                               tmr_pred=timer_pred_inner)
         ret_list = classify_db_fcn(conf, read_fn, pred_fn, tf_iterator.N,
                                    **kwargs)
         pred, label, gt_list = ret_list[:3]

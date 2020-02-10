@@ -32,10 +32,12 @@ import multiResData
 import random
 import json
 import tensorflow as tf
+import hdf5storage
 import easydict
 import sys
 import apt_dpk
 import util
+
 
 
 ISPY3 = sys.version_info >= (3, 0)
@@ -56,10 +58,12 @@ expname_dict_normaltrain = None
 cache_dir = '/nrs/branson/al/cache'
 #all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'sb', 'dpk']
 #all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet'] #, 'sb', 'dpk']
-#all_models = ['deeplabcut', 'dpk', 'mdn', 'openpose', 'sb']
-#all_models = ['leap']
-all_models = ['openpose', 'sb']
+all_models = ['deeplabcut', 'dpk', 'mdn'] # , 'openpose', 'sb']
+#all_models = ['mdn']
+all_models = ['leap']
+#all_models = ['openpose', 'sb']
 
+print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))
 
 gpu_model = 'GeForceRTX2080Ti'
@@ -105,6 +109,7 @@ def setup(data_type_in,gpu_device=None):
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
                                     'dpk': 'ntrans5_postrescalefixes',
                                     'mdn': 'apt_expt',
+                                    'leap': 'apt_expt_mayank',
                                     'openpose': 'apt_expt2',
                                     'sb': 'postrescalefixes',
                                     }
@@ -1516,6 +1521,115 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
             print("wrote {}".format(save_filep))
         save_mat(out_exp[0], save_file)
 
+
+def get_normal_pred_speeds(exp_name='apt_expt',  # can be dict of train_type->exp_name
+                           train_name='deepnet',
+                           batch_sizes=[1, 2, 4, 8, 16, 32, 64, 128],
+                           **kwargs):
+
+    times_dict = {}
+    for view in range(nviews):
+        gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
+        for train_type in all_models:
+
+            exp_name_use = exp_name[train_type] if isinstance(exp_name, dict) else exp_name
+            conf = create_conf_help(train_type, view, exp_name_use, **kwargs)
+
+            # compare conf to conf on disk
+            cffile = os.path.join(conf.cachedir, 'conf.pickle')
+            if os.path.exists(cffile):
+                with open(cffile, 'rb') as fh:
+                    conf0 = pickle.load(fh,encoding='latin1')
+                conf0 = conf0['conf']
+            else:
+                cffile = os.path.join(conf.cachedir, 'traindata')
+                assert os.path.exists(cffile), "Cant find conf on disk"
+                with open(cffile, 'rb') as fh:
+                    conf0 = pickle.load(fh,encoding='latin1')
+                conf0 = conf0[-1]
+
+            print("## View {} Net {} Conf Compare (disk vs now)".format(view,train_type))
+            util.dictdiff(vars(conf0), vars(conf))
+
+            assert not conf.normalize_img_mean
+
+            files = get_model_files(conf, train_name)
+
+            print('view {}, net {}. Your models are:'.format(view, train_type))
+            print(files)
+            afiles = [f.replace('.index', '') for f in files]
+            afiles = afiles[-1:]  # last model only
+
+            t_overall = []
+            t_read = []
+            t_pred = []
+            t_pred_inner = []
+            dpredmaxes = []
+            for ib, bsize in enumerate(batch_sizes):
+                conf.batch_size = bsize
+
+                tmr_overall = util.Timer()
+                tmr_read = util.Timer()
+                tmr_pred = util.Timer()
+                tmr_pred_inner = util.Timer()
+                with tmr_overall:
+                    out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,
+                                                    name=train_name,
+                                                    classify_fcn='classify_db2',
+                                                    timer_read=tmr_read,
+                                                    timer_pred=tmr_pred,
+                                                    timer_pred_inner=tmr_pred_inner)
+
+                assert(len(out) == 1)
+                res = classify_db_all_res_to_dict(out[0])
+
+                if ib == 0:
+                    res0 = res
+                    dpredmax = 0.
+                else:
+                    assert ((res['info'] == res0['info']).all())
+                    assert ((res['lbl'] == res0['lbl']).all())
+                    dpred = res['pred'] - res0['pred']
+                    dpredmax = np.max(np.abs(dpred))
+
+                t_overall.append(tmr_overall._recorded_times)
+                t_read.append(tmr_read._recorded_times)
+                t_pred.append(tmr_pred._recorded_times)
+                t_pred_inner.append(tmr_pred_inner._recorded_times)
+                dpredmaxes.append(dpredmax)
+
+            if train_type not in times_dict:
+                times_dict[train_type] = {}
+            times_dict[train_type][view] = {
+                't_overall': t_overall,
+                't_read': t_read,
+                't_pred': t_pred,
+                't_pred_inner': t_pred_inner,
+                'preddiffmaxs': dpredmaxes}
+
+    return times_dict, batch_sizes
+
+def save_pred_speed_output_to_mat(dt, bsizes, matfile):
+    dtsave = {}
+    for net in dt:
+        dtsave[net] = {}
+        for vw in dt[net].keys():
+            vwstr = 'vw{}'.format(vw)
+            dstats = dt[net][vw]
+            FLDSSIMPLE = ['preddiffmaxs', 't_overall']
+            FLDSLISTOFARRS = ['t_pred', 't_pred_inner', 't_read']
+            for k in FLDSSIMPLE:
+                dstats[k] = np.array(dstats[k])
+            for k in FLDSLISTOFARRS:
+                dstats[k] = [np.array(x) for x in dstats[k]]
+            dtsave[net][vwstr] = dstats
+    dtsave['bsizes'] = np.array(bsizes)
+
+    hdf5storage.savemat(matfile, dtsave)
+    print("Saved {}".format(matfile))
+
+
+
 def get_mdn_no_unet_results():
 ## Normal Training  ------- RESULTS -------
     cache_dir = '/nrs/branson/mayank/apt_cache'
@@ -2486,6 +2600,14 @@ def get_label_info(conf):
 
     return info
 
+def classify_db_all_res_to_dict(m):
+    res = {'pred': m[0],
+           'lbl': m[1],
+           'info': m[2],
+           'mdl': m[3],
+           'extra': m[4],
+           'ts': m[5]}
+    return res
 
 def track(movid=0,
                start_ndx=100,
