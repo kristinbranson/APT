@@ -520,7 +520,7 @@ classdef Labeler < handle
   %% Misc
   properties (SetObservable, AbortSet)
     prevFrame = nan;      % last previously VISITED frame
-    currTarget = nan;     % always 1 if proj doesn't have trx
+    currTarget = 1;     % always 1 if proj doesn't have trx
     
     currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
@@ -845,6 +845,19 @@ classdef Labeler < handle
       end
       v = movInfo.nframes;
     end
+    function v = getNFramesMovFile(obj,movFile)
+      
+      movfilefull = obj.projLocalizePath(movFile);
+      assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+      
+      mr = obj.movieReader;
+      mr.open(movfilefull);
+      v = mr.nframes;
+      mr.close();
+      
+    end
+    
+    
     function v = get.moviesSelected(obj) %#%GUIREQ
       % Find MovieManager in LabelerGUI
       

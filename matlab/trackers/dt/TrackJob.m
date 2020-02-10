@@ -148,7 +148,7 @@ classdef TrackJob < handle
       obj.trnstr = trnstrs(obj.ivw);
       
       % currently need to specify frm0 and frm1
-      assert(~isempty(frm0) && ~isempty(frm1));
+      %assert(~isempty(frm0) && ~isempty(frm1));
       obj.frm0 = frm0;
       obj.frm1 = frm1;
             
@@ -208,7 +208,7 @@ classdef TrackJob < handle
         obj.movfileLcl = movfileLcl;
         obj.trkfileLcl = trkfileLcl;
         if obj.tftrx,
-          assert(~isempty(trxids));
+          %assert(~isempty(trxids));
           obj.trxids = trxids;
           obj.trxfileLcl = trxfileLcl;
         else
@@ -333,12 +333,25 @@ classdef TrackJob < handle
         nframestrack = obj.nframestrack;
         return;
       end
+
+      if isempty(obj.frm0) && isempty(obj.frm1),
+        frm0 = 1;
+        frm1 = obj.tObj.lObj.getNFramesMovFile(obj.movfileLcl{1});
+      else
+        frm0 = obj.frm0;
+        frm1 = obj.frm1;
+      end
       
       if ~obj.tftrx,
-        nframestrack = obj.frm1-obj.frm0+1;
+        nframestrack = frm1-frm0+1;
       else
         [~,frm2trx] = obj.tObj.lObj.getTrx(obj.trxfileLcl{1});
-        nframestrack = sum(sum(frm2trx(obj.frm0:obj.frm1,obj.trxids)));
+        if isempty(obj.trxids),
+          trxids = 1:size(frm2trx,2);
+        else
+          trxids = obj.trxids;
+        end
+        nframestrack = sum(sum(frm2trx(frm0:frm1,trxids)));
       end
       obj.nframestrack = nframestrack;
       
