@@ -57,10 +57,10 @@ for i in range(1,nargs,2):
     elif ty=='mostrecentmodel':
         # file is dir containing models
 
-        REPAT = 'deepnet-(?P<iter>\d+).data-'
+        REPAT = 'deepnet-(?P<iter>\d+)'
         reobj = re.compile(REPAT)        
-        globpat = os.path.join(file,'deepnet-*.data-*')        
-        datafiles = glob.glob(globpat)        
+        globpat = os.path.join(file,'deepnet-*')        
+        datafiles = glob.glob(globpat)
 
         maxiter = -1
         for d in datafiles:
