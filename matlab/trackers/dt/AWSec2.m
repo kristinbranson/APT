@@ -962,11 +962,16 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function killRemoteProcess(obj)
-      if isempty(obj.remotePID)
-        error('Unknown PID for remote process.');
-      end
-      
-      cmdremote = sprintf('kill %d',obj.remotePID);
+      % AL 20200213: now do this in a loop, kill until no py processes
+      % remain. For some nets (eg LEAP) multiple py (sub)procs are spawned
+      % and not sure a single kill does the job.
+
+%       if isempty(obj.remotePID)
+%         error('Unknown PID for remote process.');
+%       end
+%       
+%       cmdremote = sprintf('kill %d',obj.remotePID);
+      cmdremote = 'pkill -f python';
       [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
       if tfsucc
         fprintf('Kill command sent.\n\n');
