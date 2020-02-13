@@ -699,7 +699,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function tfsucc = getRemotePythonPID(obj)
-      [tfsucc,res] = obj.cmdInstance('pgrep python','dispcmd',true);
+      [tfsucc,res] = obj.cmdInstance('pgrep -o python','dispcmd',true);
       if tfsucc
         pid = str2double(strtrim(res));
         obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time

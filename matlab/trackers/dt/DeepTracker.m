@@ -564,7 +564,7 @@ classdef DeepTracker < LabelTracker
     % 2. Background monitoring of the train. This can be reset with
     % bgTrnReset().
     
-    function trnResInit(obj)      
+    function trnResInit(obj)
       obj.trnLastDMC = [];
       obj.bgTrnReset();
     end
@@ -980,6 +980,86 @@ classdef DeepTracker < LabelTracker
         otherwise
           assert(false);
       end
+    end
+    
+    function dmc = restoreFromCacheDir(obj,cachedir)
+      % EXPERIMENTAL/DEV use at own risk
+      
+      warningNoTrace('Development/experimental codepath!');
+      fprintf(1,'Setting current tracking parameters; these are assumed to be the same as used to train.\n');
+      obj.setAllParams(obj.lObj.trackGetParams());
+      
+      assert(~obj.lObj.isMultiView,'Currently unsupported for multiview projects.');
+      
+      % Stuff from here on might be a DMC mirror meth
+      
+      dmc = DeepModelChainOnDisk(...
+        'rootDir',cachedir,...
+        'projID',obj.lObj.projname,...
+        'netType',char(obj.trnNetType),...
+        'view',0,...
+        'modelChainID','',...  % tbd
+        'trainID','',... % tbd
+        'trainType',DLTrainType.New,...
+        'iterFinal','',... %tbd
+        'isMultiView',false,...
+        'reader',DeepModelChainReader.createFromBackEnd(obj.lObj.trackDLBackEnd),...
+        'filesep',obj.filesep...
+        );
+      
+      dd = dir(dmc.dirViewLnx);
+      dd = dd(3:end);
+      assert(isscalar(dd),'Multiple model chain IDs found in %s. Cannot restore.',dmc.dirModelChainLnx);
+      dmc.modelChainID = dd.name;
+      
+      dd = dir(fullfile(dmc.dirModelChainLnx,'deepnet-*.index'));
+      tfsucc = dmc.updateCurrInfo();
+      if tfsucc
+        fprintf(1,'Found latest trained model with iteration %d.\n',dmc.iterCurr);
+      else
+        error('Error finding trained model.');
+      end
+      
+      dd = dir(fullfile(dmc.dirProjLnx,'*.lbl'));
+      assert(isscalar(dd),'Could not find a unique stripped lblfile in %s',dmc.rootDir);
+      toks = regexp(dd.name,'(?<mcID>[0-9T]+)_(?<trnID>[0-9T]+).lbl','names');
+      if isempty(toks)
+        error('Could not find a unique stripped lblfile in %s',dmc.rootDir);
+      end
+      if ~strcmp(toks.mcID,dmc.modelChainID)
+        error('ModelChainID mismatch: %s vs %s.',toks.mcID,dmc.modelChainID);
+      end
+      
+      dmc.trainID = toks.trnID;
+      
+      fprintf('Loading stripped lbl %s...\n',dmc.lblStrippedLnx);
+      s = load(dmc.lblStrippedLnx,'-mat');
+      dmc.nLabels = s.nLabels;
+      fprintf('... success, %d labels.\n',s.nLabels);
+      
+      % ok we made it this far; copy the model into the current
+      % DLCacheDir, otherwise APT acts funny, prob due to save machinery
+      % expecting models to live under current cache etc.
+      dmc2 = dmc.copy();
+      dmc2.rootDir = obj.lObj.DLCacheDir;
+      assert(exist(dmc2.dirModelChainLnx,'dir')==0,'Dir %s already exists.',dmc2.dirModelChainLnx);
+      cmd = sprintf('mkdir -p %s',dmc2.dirModelChainLnx);
+      tfsucc = AWSec2.syscmd(cmd,'dispcmd',true);
+      if ~tfsucc
+        error('Failed to create dir %s.',dmc2.dirModelChainLnx);
+      end
+      fprintf(1,'Copying trained model into current cache...\n');
+      [tfsucc,msg] = copyfile(dmc.dirModelChainLnx,dmc2.dirModelChainLnx);
+      if ~tfsucc
+        error('Failed to copy model: %s.',msg);
+      end
+      [tfsucc,msg] = copyfile(dmc.lblStrippedLnx,dmc2.lblStrippedLnx);
+      if ~tfsucc
+        error('Failed to copy model: %s.',msg);
+      end
+      
+      obj.trnLastDMC = dmc2;
+      obj.trainCleanup();
     end
     
   end
