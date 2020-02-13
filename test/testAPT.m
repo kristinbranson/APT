@@ -1,5 +1,8 @@
 classdef testAPT < handle
   
+  % To test:
+  % tt = testAPT(); tt.test_full();
+  
   properties
     lObj = [];
     info = [];
