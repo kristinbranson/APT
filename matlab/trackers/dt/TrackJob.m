@@ -104,7 +104,7 @@ classdef TrackJob < handle
         'rootdirLcl','',...
         'isMultiView',false,... % flag of whether we want to track all views in one track job
         'isExternal',[],...
-        'isRemote',[],... % whether remote files are different from local files
+        'isRemote',[],... % whether remote files are different from local files; if remote, remote filesys is assumed to be *nix
         'nowstr',[],...
         'logfile',{},...
         'errfile',{},...
@@ -315,7 +315,8 @@ classdef TrackJob < handle
             obj.frm0,obj.frm1,...
             baseargs);
           
-          obj.codestr = obj.backend.awsec2.sshCmdGeneralLogged(codestrRem,obj.logfile);
+          logfilelnx = regexprep(obj.logfile,'\\','/'); % maybe this should be generated for lnx upstream
+          obj.codestr = obj.backend.awsec2.sshCmdGeneralLogged(codestrRem,logfilelnx);
            
         otherwise
           error('not implemented back end %s',obj.backend.type);
@@ -451,22 +452,38 @@ classdef TrackJob < handle
 
     
     function setLogErrFiles(obj,varargin)
+      % backend needs to be set before making this call
+      
       [logfile,errfile] = myparse(varargin,'logfile','','errfile',''); %#ok<PROPLC>
       obj.logdir = obj.trkoutdirRem{1};
+      isremote = obj.tfremote;
       if isempty(logfile), %#ok<PROPLC>
-        obj.logfile = fullfile(obj.logdir,[obj.id '.log']);
+        if isremote
+          obj.logfile = [obj.logdir '/' obj.id '.log'];
+        else
+          obj.logfile = fullfile(obj.logdir,[obj.id '.log']);
+        end
       else
         obj.logfile = logfile; %#ok<PROPLC>
       end
       if isempty(errfile), %#ok<PROPLC>
-        obj.errfile = fullfile(obj.logdir,[obj.id '.err']);
+        if isremote
+          obj.errfile = [obj.logdir '/' obj.id '.err'];
+        else
+          obj.errfile = fullfile(obj.logdir,[obj.id '.err']);
+        end
       else
         obj.errfile = errfile; %#ok<PROPLC>
       end
-      obj.ssfile = fullfile(obj.logdir,[obj.id '.aptsnapshot']);
+      if isremote
+        obj.ssfile = [obj.logdir '/' obj.id '.aptsnapshot'];
+      else
+        obj.ssfile = fullfile(obj.logdir,[obj.id '.aptsnapshot']);
+      end
     end
     
     function setRemoteFiles(obj,varargin)
+      % backend needs to be set
       
 %       obj.modelfileRem = cell(1,obj.nView);
 %       for i = 1:obj.nView,
@@ -492,7 +509,7 @@ classdef TrackJob < handle
           
           trnstr0 = obj.trnstr{i};
           trkRemoteRel = [movsha '_' trnstr0 '_' obj.nowstr '.trk'];
-          obj.trkfileRem{i} = fullfile(obj.trkoutdirRem{i},trkRemoteRel);
+          obj.trkfileRem{i} = [obj.trkoutdirRem{i} '/' trkRemoteRel];
           
         end
       end
@@ -598,7 +615,7 @@ classdef TrackJob < handle
       end
     end
     
-     function v = get.movremote(obj)
+    function v = get.movremote(obj)
        if obj.tfmultiview,
          v = obj.movfileRem;
        else

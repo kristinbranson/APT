@@ -112,7 +112,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       aws.killRemoteProcess();
 
       % expect command to fail; fail -> py proc killed
-      pollCbk = @()~aws.cmdInstance('pgrep -o python','dispcmd',true,'failbehavior','silent');
+      %pollCbk = @()~aws.cmdInstance('pgrep -o python','dispcmd',true,'failbehavior','silent');
+      pollCbk = @()aws.getNoPyProcRunning();
       iterWaitTime = 1;
       maxWaitTime = 20;
       tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);

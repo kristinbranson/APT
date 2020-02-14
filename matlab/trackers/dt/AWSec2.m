@@ -708,6 +708,19 @@ classdef AWSec2 < matlab.mixin.Copyable
         warningNoTrace('Failed to ascertain remote PID.');
       end
     end
+    
+    function tfnopyproc = getNoPyProcRunning(obj)
+      % Return true if there appears to be no python process running on
+      % instance
+      [tfsucc,res] = obj.cmdInstance('pgrep -o python',...
+        'dispcmd',true,'failbehavior','silent');
+      
+      % AL 20200213 First clause here is legacy: "expect command to fail; 
+      % fail -> py proc killed". Running today on win10, the cmd always
+      % succeeds whether a py proc is present or not. In latter case,
+      % result is empty.
+      tfnopyproc = ~tfsucc || isempty(res);
+    end
  
     % FUTURE: use rsync if avail. win10 can ask users to setup WSL
     
