@@ -213,7 +213,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
-      
+      % Get free gpus subject to minFreeMem constraint (see optional PVs)
+      %
+      % gpuid: [ngpu] where ngpu<=nrequest, depending on if enough GPUs are available
+      % freemem: [ngpu] etc
+      % gpuInfo: scalar struct
+
       [dockerimg,minFreeMem,condaEnv,verbose] = myparse(varargin,...
         'dockerimg',obj.dockerimgfull,...
         'minfreemem',obj.minFreeMem,...
@@ -279,14 +284,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end      
       
       [freemem,order] = sort(gpuInfo.freemem,'descend');
-      if freemem(min(nrequest,numel(freemem))) < minFreeMem, %#ok<PROPLC>
-        i = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
-        freemem = freemem(1:i);
-        gpuid = gpuInfo.id(order(1:i));
-        return;
-      end
-      freemem = freemem(1:nrequest);
-      gpuid = gpuInfo.id(order(1:nrequest));        
+      gpuid = gpuInfo.id(order);
+      ngpu = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
+      freemem = freemem(1:ngpu);
+      gpuid = gpuid(1:ngpu);
+      
+      ngpureturn = min(ngpu,nrequest);
+      gpuid = gpuid(1:ngpureturn);
+      freemem = freemem(1:ngpureturn);
     end
     
   end
