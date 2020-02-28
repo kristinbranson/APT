@@ -404,6 +404,35 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
 
     return cur_out
 
+def classify_db_all2(conf, db_file, model_files, model_type,
+                     name='deepnet',
+                     classify_fcn='classify_db2',
+                     timer_pred_inner=None,
+                     **kwargs   # fed to classify_db2
+                     ):
+    cur_out = []
+    extra_str = ''
+    if model_type not in ['leap', 'openpose', 'sb', 'dpk']:
+        extra_str = '.index'
+    ts = [os.path.getmtime(f + extra_str) for f in model_files]
+
+    classify_db_fcn = getattr(apt, classify_fcn)
+
+    for mndx, m in enumerate(model_files):
+        # pred, label, gt_list = apt.classify_gt_data(conf, curm, out_file, m)
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,
+                                               name=name,
+                                               tmr_pred=timer_pred_inner)
+        ret_list = classify_db_fcn(conf, read_fn, pred_fn, tf_iterator.N, **kwargs)
+        close_fn()
+        ret_list += (m, ts[mndx])
+        cur_out.append(ret_list)
+
+    return cur_out
+
 def compute_peformance(args):
     H = h5py.File(args.lbl_file,'r')
     nviews = int(apt.read_entry(H['cfg']['NumViews']))

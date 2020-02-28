@@ -142,6 +142,8 @@ def setup(data_type_in,gpu_device=None):
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
         common_conf['rrange'] = 180
         common_conf['trange'] = 5
+
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
         op_af_graph = '\(0,4\),\(1,4\),\(2,4\),\(3,4\)'
@@ -179,12 +181,13 @@ def setup(data_type_in,gpu_device=None):
 
     elif data_type == 'larva':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
-        cv_info_file = '/groups/branson/bransonlab/experiments/data/LarvaTrainCVInfo20190419.mat'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/LarvaTrainCVInfo20190419.mat'
         j = tuple(zip(range(27), range(1, 28)))
         op_af_graph = '{}'.format(j)
         op_af_graph = op_af_graph.replace('(','\(')
         op_af_graph = op_af_graph.replace(')','\)')
         op_af_graph = op_af_graph.replace(' ','')
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
         common_conf['trange'] = 20
         common_conf['rrange'] = 180
 
@@ -500,13 +503,19 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
         else:
             conf_opts['batch_size'] = 4
 
+    if data_type in ['roian']:
+        if train_type in ['dpk', 'openpose', 'sb']:
+            conf_opts['batch_size'] = 4
+            conf_opts['rescale'] = 2
+
     if data_type in ['romain']:
         if train_type in ['mdn', 'resnet_unet']:
             conf_opts['batch_size'] = 2
         elif train_type in ['unet']:
             conf_opts['batch_size'] = 2
             conf_opts['rescale'] = 2
-        elif train_type in ['sb', 'dpk', 'openpose']:
+        elif train_type in ['sb', 'dpk', 'openpose', 'leap']:
+            # added leap random guess, otherwise OOM
             conf_opts['rescale'] = 2
             conf_opts['batch_size'] = 4
         else:
@@ -784,6 +793,49 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
             for sndx in split_idxs:
                 exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)
                 run_trainining(exp_name,train_type,view,run_type, **kwargs)
+
+def my_move(src, destpath):
+    if os.path.exists(src):
+        shutil.move(src,destpath) # COMMENT ME to test
+        #myMove.counter += 1
+    else:
+        print("warning: file {} DNE.".format(src))
+
+def cv_train_backup(run_id, dryrun=False, exp_name_pfix=''):
+    data_info = h5py.File(cv_info_file, 'r')
+    cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
+    n_splits = max(cv_info) + 1
+
+    split_idxs = range(n_splits)
+    view_idxs = range(nviews)
+
+    for view in view_idxs:
+        for train_type in all_models:
+            for sndx in split_idxs:
+                exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)
+                conf = create_conf_help(train_type, view, exp_name)
+                edir = conf.cachedir
+
+                GLOBSKEEP = ['splitdata.json', 'train_TF.tfrecords', 'val_TF.tfrecords']
+                artskeep = []
+                for gl in GLOBSKEEP:
+                    gl = os.path.join(edir,gl)
+                    #print "glob:", gl
+                    artskeep += glob.glob(gl)
+                artsall = glob.glob(os.path.join(edir, '*'))
+                artsbak = set(artsall) - set(artskeep)
+                
+                if dryrun:
+                    print(edir)
+                    for a in artsbak:
+                        print("  {} -> {}".format(a, run_id))
+                else:
+                    arcdir = os.path.join(edir, run_id)
+                    assert not os.path.exists(arcdir)
+                    os.mkdir(arcdir)
+                    for a in artsbak:
+                        my_move(a, arcdir)
+
 
 
 def cv_train_britton(skip_db=True, run_type='status',create_splits=False):
@@ -2092,15 +2144,20 @@ def get_cv_results(num_splits=None,
                     recomp = True
 
                 if recomp:
+                    print("Recomputing {}, vw{}, {}".format(train_type, view, split))
                     afiles = [f.replace('.index', '') for f in files]
 
                     db_file = os.path.join(mdn_conf.cachedir,'val_TF.tfrecords') if \
                                 db_from_mdn_dir else os.path.join(conf.cachedir, 'val_TF.tfrecords')
                     tfile = get_traindata_file_flexible(conf.cachedir, train_name)
+                    print("Loading traindata file {}".format(tfile))
                     tdata = PoseTools.pickle_load(tfile)
-                    mdn_out = apt_expts.classify_db_all(tdata[1],db_file,afiles,train_type,name=train_name)
+                    # latter case LEAP apparently
+                    tdataconf = tdata[1] if isinstance(tdata,list) else tdata
+                    mdn_out = apt_expts.classify_db_all(tdataconf,db_file,afiles,train_type,name=train_name)
                     with open(out_file,'wb') as f:
                         pickle.dump([mdn_out,files],f)
+                    print("Wrote {}".format(out_file))
                 else:
                     A = PoseTools.pickle_load(out_file)
                     mdn_out = A[0]
@@ -2140,6 +2197,97 @@ def get_cv_results(num_splits=None,
         ttl += ': view{}'.format(ndx)
         ax.set_title(ttl)
         save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_cv'.format(data_type,ndx,)))
+
+def get_cv_results_full(db_from_mdn_dir=False,
+                        exp_name_pfix='',  # prefix for exp_name. can be map from train_type->exp_name_pfix
+                        split_idxs=None,  # FOR DEBUGGING ONLY
+                        ):
+    '''
+
+    :param db_from_mdn_dir:
+    :param exp_name_pfix:
+    :return: dict with ret[net][ivw]
+    '''
+
+    train_name = 'deepnet'
+
+    print("Reading splits from {}".format(cv_info_file))
+    data_info = h5py.File(cv_info_file, 'r')
+    cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
+    n_splits = max(cv_info) + 1
+    num_splits = n_splits
+
+    if split_idxs is None:
+        split_idxs = range(num_splits)
+
+    assert gt_lbl is None
+    out_dict = {}
+    for view in range(nviews):
+        for tndx in range(len(all_models)):
+
+            train_type = all_models[tndx]
+
+            if view == 0:
+                assert train_type not in out_dict
+                out_dict[train_type] = {}
+
+            for split in split_idxs:
+                pfix_use = exp_name_pfix[train_type] if isinstance(exp_name_pfix, dict) else exp_name_pfix
+                exp_name = '{}cv_split_{}'.format(pfix_use, split)
+                pfix_use_mdn = exp_name_pfix['mdn'] if isinstance(exp_name_pfix, dict) else exp_name_pfix
+                exp_name_mdn = '{}cv_split_{}'.format(pfix_use_mdn, split)
+
+                # confs only used for .cachedir etc; actual conf used in tracking is loaded from
+                # traindata. so optional kwargs etc unnec
+
+                #mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
+                mdn_conf = create_conf_help('mdn', view, exp_name_mdn, quiet=True)
+                #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                conf = create_conf_help(train_type, view, exp_name, quiet=True)
+                #if op_af_graph is not None:
+                #    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+
+                files = get_model_files(conf, train_name)
+                files = files[-1:]
+                afiles = [f.replace('.index', '') for f in files]
+                assert len(afiles) == 1
+
+                db_file = os.path.join(mdn_conf.cachedir, 'val_TF.tfrecords') if \
+                    db_from_mdn_dir else os.path.join(conf.cachedir, 'val_TF.tfrecords')
+                tfile = get_traindata_file_flexible(conf.cachedir, train_name)
+                tdata = PoseTools.pickle_load(tfile)
+                # latter case LEAP apparently
+                tdataconf = tdata[1] if isinstance(tdata, list) else tdata
+
+                print("###### {}, vw{}, split{}".format(train_type, view, split))
+                print("dbf {}, tdf {}.".format(db_file, tfile))
+                print("model {}.".format(afiles[0]))
+                print("###### ")
+                print(" ")
+                print(" ")
+                time.sleep(8)
+
+                models_out = apt_expts.classify_db_all2(tdataconf, db_file, afiles, train_type,
+                                                        name=train_name,
+                                                        return_ims=True,
+                                                        retrawpred=True
+                                                        )
+                assert len(models_out) == 1
+                ret_dict, lbl_locs, info, mdlfile, mdlts = models_out[0]
+                ret_dict['lbl_locs'] = lbl_locs
+                ret_dict['info'] = np.array(info)
+                ret_dict['mdlfile'] = np.array([mdlfile])
+                ret_dict['mdlts'] = np.array([mdlts])
+
+                if split == 0:
+                    out_dict[train_type][view] = ret_dict
+                else:
+                    netvwd = out_dict[train_type][view]
+                    for k in ret_dict:
+                        assert k in netvwd
+                        netvwd[k] = np.append(netvwd[k], ret_dict[k], axis=0)
+
+    return out_dict
 
 
 ## single vs multiple animal ----RESULTS
@@ -2607,6 +2755,7 @@ def classify_db_all_res_to_dict(m):
            'mdl': m[3],
            'extra': m[4],
            'ts': m[5]}
+    res['err'] = np.sqrt( np.sum( (res['pred']-res['lbl'])**2, axis=2 ))
     return res
 
 def track(movid=0,
@@ -2679,3 +2828,14 @@ def track(movid=0,
                                )
         tf.reset_default_graph()
 
+def traindatadictdiff(exp1, exp2):
+    tdfcn = lambda x: os.path.join(x, 'traindata')
+    tdf1 = tdfcn(exp1)
+    tdf2 = tdfcn(exp2)
+    td1 = PoseTools.pickle_load(tdf1)
+    td2 = PoseTools.pickle_load(tdf2)
+    c1 = td1[-1]
+    c2 = td2[-1]
+    util.dictdiff(vars(c1), vars(c2))
+
+    return c1, c2

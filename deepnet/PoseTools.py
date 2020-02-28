@@ -926,7 +926,7 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     plt.figure(); plt.imshow(im_s,cmap=cmap)
 
 
-def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11):
+def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11, hiliteptcolor=None):
     import matplotlib.pyplot as plt
     from matplotlib import cm
     count = float(len(ndx))
@@ -948,8 +948,9 @@ def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=Non
             ax[idx].scatter(locs[ndx[idx], :, 0], locs[ndx[idx], :, 1],
                             c=rgba, marker='.', alpha=0.25)
             plt.sca(ax[idx])
+            clr = rgba[hilitept,:] if hiliteptcolor is None else hiliteptcolor
             plt.plot(locs[ndx[idx], hilitept, 0], locs[ndx[idx], hilitept, 1],
-                     c=rgba[hilitept,:], marker='.', markersize=12)
+                     c=clr, marker='.', markersize=12)
         else:
             ax[idx].scatter(locs[ndx[idx],:,0],locs[ndx[idx],:,1],c=rgba,marker='.', s=mrkrsz)
         if predlocs is not None:
@@ -957,8 +958,9 @@ def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=Non
                 ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
                                 c=rgba, marker='+', alpha=0.25)
                 #plt.sca(ax[idx])
+                clr = rgba[hilitept, :] if hiliteptcolor is None else hiliteptcolor
                 plt.plot(predlocs[ndx[idx], hilitept, 0], predlocs[ndx[idx], hilitept, 1],
-                         c=rgba[hilitept,:], marker='+', markersize=12)
+                         c=clr, marker='+', markersize=12)
             else:
                 ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
                                 c=rgba, marker='+', s=mrkrsz)

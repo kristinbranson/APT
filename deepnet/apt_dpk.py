@@ -69,6 +69,8 @@ skeleton_csvs = {
             '/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw0.csv',
             '/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw1.csv',
         ],
+    'roian': ['/groups/branson/bransonlab/apt/experiments/data/roian_dpk_skeleton.csv'],
+    'larva': ['/groups/branson/bransonlab/apt/experiments/data/larva_dpk_skeleton.csv'],
     'dpkfly':    ['/groups/branson/home/leea30/git/dpkd/datasets/fly/skeleton.csv'],
     'dpklocust': ['/groups/branson/home/leea30/git/dpkd/datasets/locust/skeleton.csv'],
     'dpkzebra':  ['/groups/branson/home/leea30/git/dpkd/datasets/zebra/skeleton.csv'],

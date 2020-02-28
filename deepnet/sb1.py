@@ -636,7 +636,7 @@ def clip_heatmap_with_warn(predhm):
 
     return predhm_clip
 
-def get_pred_fn(conf, model_file=None, name='deepnet', retrawpred=False):
+def get_pred_fn(conf, model_file=None, name='deepnet', retrawpred=False, **kwargs):
     #(imnr, imnc) = conf.imsz
     #conf.sb_im_pady, imnr_use = get_im_pad(imnr, 'row') # xxxxxxx
     #conf.sb_im_padx, imnc_use = get_im_pad(imnc, 'column')

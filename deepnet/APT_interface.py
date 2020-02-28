@@ -1522,7 +1522,7 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
 
 def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
                  timer_read=None, timer_pred=None,
-                 **kwargs):
+                 **kwargs):  # fed to pred_fn
     '''Trying to simplify/generalize classify_db'''
 
     if timer_read is None:
@@ -1530,7 +1530,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
     if timer_pred is None:
         timer_pred = contextlib.suppress()
 
-    logging.info("Ignoring kwargs: {}".format(kwargs.keys()))
+    #logging.info("Ignoring kwargs: {}".format(kwargs.keys()))
 
     bsize = conf.batch_size
     n_batches = int(math.ceil(float(n) / bsize))
@@ -1559,14 +1559,14 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
         # note all_f[ppe+1:, ...] for the last batch will be cruft
 
         with timer_pred:
-            ret_dict = pred_fn(all_f)
+            ret_dict = pred_fn(all_f, **kwargs)
 
         fields = ret_dict.keys()
         if cur_b == 0:
             for k in fields:
                 val = ret_dict[k]
                 valshape = val.shape
-                if valshape[:2] == (bsize, conf.n_classes):
+                if valshape[0] == bsize:
                     bigvalshape = (n,) + valshape[1:]
                     bigval = np.zeros(bigvalshape)
                     bigval[:] = np.nan
@@ -1574,11 +1574,11 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
                 else:
                     logging.warning("Key {}, value has shape {}. Will not be included in return dict.".format(k, valshape))
 
-            fields_record = ret_dict_all.keys()
-            logging.info("Recording these pred fields: {}".format(fields_record))
+            fields_record = list(ret_dict_all.keys())
+            logging.warning("Recording these pred fields: {}".format(fields_record))
 
             if return_ims:
-                ret_dict_all['ims'] = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
+                ret_dict_all['ims_raw'] = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
         else:
             # ret_dict_all, fields_record configured
             pass
@@ -1591,7 +1591,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
             for k in fields_record:
                 ret_dict_all[k][cur_start + ndx, ...] = ret_dict[k][ndx, ...]
             if return_ims:
-                ret_dict_all['ims'][cur_start + ndx, ...] = all_f[ndx, ...]
+                ret_dict_all['ims_raw'][cur_start + ndx, ...] = all_f[ndx, ...]
 
     return ret_dict_all, labeled_locs, info
 
