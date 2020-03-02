@@ -670,23 +670,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         return;
       end
       hedit.String{end+1} = 'SUCCESS!'; drawnow;
-      
-   
-      
-%       tfsucc = false;
-%       % In this conditional we assume the apiver numbering scheme continues
-%       % like '1.39', '1.40', ... 
-%       if ~(str2double(clientapiver)>=str2double(obj.dockerapiver))          
-%         hedit.String{end+1} = ...
-%           sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
-%             clientapiver,obj.dockerapiver);
-%         drawnow;
-%         return;
-%       end        
-%       succstr = sprintf('SUCCESS! Your Docker API version is %s.',clientapiver);
-%       hedit.String{end+1} = succstr; drawnow;      
-%       
-%       % APT hello
+        
+%       TODO Mar2020: Consider adding APT hello
 %       hedit.String{end+1} = ''; drawnow;
 %       hedit.String{end+1} = '** Testing APT deepnet library...'; drawnow;
 %       deepnetroot = [APT.Root '/deepnet'];
