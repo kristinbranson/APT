@@ -1,25 +1,31 @@
 classdef testAPT < handle
   
-  % To test:
-  % tt = testAPT(); tt.test_full();
+  % Simplest way to test:
+  % testObj = testAPT(); 
+  % testObj.test_full('name','alice','nets',{'mdn','deeplabcut'});
+  
+  % If you want to interact with GUI before training:
+  % testObj = testAPT();
+  % testObj.setup_test('name','alice');
+  % Mess with GUI
+  % testObj.test_train('net_type','mdn',...
+  %        'backend','docker','niters',1000,'test_tracking',true)
+  
+  
   
   properties
     lObj = [];
     info = [];
     old_lbl = [];
+    path_setup_done = false;
   end
   
   methods (Static)
-    
-    function setup()
-      addpath('..');
-      APT.setpath;
-    end
-    
+        
     function create_bundle(varargin)
       % creates a targz to upload to Drobox
       name = myparse(varargin,'name','alice');
-      testAPT.setup()
+      self.setup_path()
       info = testAPT.get_info(name);
       ref_lbl = info.ref_lbl;
       exp_dir_base = info.exp_dir_base;
@@ -66,6 +72,15 @@ classdef testAPT < handle
   
   methods
     
+    function setup_path(self)
+      if ~self.path_setup_done
+        addpath('..');
+        APT.setpath;
+        self.path_setup_done = true;
+      end
+      
+    end
+
     function get_info(self,name)
       info = struct;
       if strcmp(name,'alice')      
@@ -161,30 +176,33 @@ classdef testAPT < handle
     end
     
     function test_full(self,varargin)
+      self.setup_path();
+      [name,all_nets,backend] = myparse(varargin,'name','alice','nets',{'mdn'},'backend','docker');
+      self.test_setup('name',name);
+
+      if ischar(all_nets)
+        all_nets = {all_nets};
+      end
+      for nndx = 1:numel(all_nets)
+        self.test_train('nets',all_nets(nndx),'backend',backend);
+      end
+    end
+    
+    function test_setup(self,varargin)
+      self.setup_path();
       [name] = myparse(varargin,'name','alice');
-      testAPT.setup();
       self.get_info(name);
       self.load_lbl();
       old_lbl = self.old_lbl;
       if ~self.exist_files()
         self.setup_data();
-      end
-      
+      end      
       lObj = self.create_project();
       self.lObj = lObj;
       self.add_movies();
-%      testAPT.add_labels(old_lbl,lObj,info);
       self.add_labels_quick();      
-      self.setup_alg('mdn')
-      self.set_params(self.info.has_trx,1000,self.info.sz);
-      self.set_backend('docker');
-      self.test_train();
-      while self.lObj.tracker.bgTrnIsRunning(),        
-        pause(10);
-      end
-      self.test_track();
     end
-    
+      
     function lObj = create_project(self)
      % Create the new project
       info = self.info;
@@ -280,15 +298,13 @@ classdef testAPT < handle
           end    
       end
     end
-    
-    
+        
     function lObj = setup_lbl(self,ref_lbl)
       % Start from label file
 
       lObj = Labeler;
       lObj.projLoad(ref_lbl);
     end
-
 
     function setup_alg(self,alg)
       % Set the algorithm.
@@ -334,8 +350,17 @@ classdef testAPT < handle
 
     end
     
+    
     % train
-    function test_train(self)
+    function test_train(self,varargin)
+      [net_type,backend,niters,test_tracking,block] = myparse(varargin,...
+            'net_type','mdn','backend','docker',...
+            'niters',1000,'test_tracking',true,'block',true);
+          
+      self.setup_alg(net_type)
+      self.set_params(self.info.has_trx,niters,self.info.sz);
+      self.set_backend(backend);
+
       lObj = self.lObj;
       handles = lObj.gdata;
       oc1 = onCleanup(@()ClearStatus(handles));
@@ -347,6 +372,17 @@ classdef testAPT < handle
         msg = wbObj.cancelMessage('Training canceled');
         msgbox(msg,'Train');
       end
+      
+      if block
+        % block while training
+        while self.lObj.tracker.bgTrnIsRunning()
+          pause(10);
+        end
+        if test_tracking
+          self.test_track();
+        end
+      end
+      
     end
     
     function test_track(self)
@@ -355,4 +391,5 @@ classdef testAPT < handle
     end
     
   end
+    
 end
