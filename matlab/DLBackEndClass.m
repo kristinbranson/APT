@@ -213,7 +213,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
-      
+      % Get free gpus subject to minFreeMem constraint (see optional PVs)
+      %
+      % gpuid: [ngpu] where ngpu<=nrequest, depending on if enough GPUs are available
+      % freemem: [ngpu] etc
+      % gpuInfo: scalar struct
+
       [dockerimg,minFreeMem,condaEnv,verbose] = myparse(varargin,...
         'dockerimg',obj.dockerimgfull,...
         'minfreemem',obj.minFreeMem,...
@@ -279,14 +284,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end      
       
       [freemem,order] = sort(gpuInfo.freemem,'descend');
-      if freemem(min(nrequest,numel(freemem))) < minFreeMem, %#ok<PROPLC>
-        i = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
-        freemem = freemem(1:i);
-        gpuid = gpuInfo.id(order(1:i));
-        return;
-      end
-      freemem = freemem(1:nrequest);
-      gpuid = gpuInfo.id(order(1:nrequest));        
+      gpuid = gpuInfo.id(order);
+      ngpu = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
+      freemem = freemem(1:ngpu);
+      gpuid = gpuid(1:ngpu);
+      
+      ngpureturn = min(ngpu,nrequest);
+      gpuid = gpuid(1:ngpureturn);
+      freemem = freemem(1:ngpureturn);
     end
     
   end
@@ -665,23 +670,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         return;
       end
       hedit.String{end+1} = 'SUCCESS!'; drawnow;
-      
-   
-      
-%       tfsucc = false;
-%       % In this conditional we assume the apiver numbering scheme continues
-%       % like '1.39', '1.40', ... 
-%       if ~(str2double(clientapiver)>=str2double(obj.dockerapiver))          
-%         hedit.String{end+1} = ...
-%           sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
-%             clientapiver,obj.dockerapiver);
-%         drawnow;
-%         return;
-%       end        
-%       succstr = sprintf('SUCCESS! Your Docker API version is %s.',clientapiver);
-%       hedit.String{end+1} = succstr; drawnow;      
-%       
-%       % APT hello
+        
+%       TODO Mar2020: Consider adding APT hello
 %       hedit.String{end+1} = ''; drawnow;
 %       hedit.String{end+1} = '** Testing APT deepnet library...'; drawnow;
 %       deepnetroot = [APT.Root '/deepnet'];

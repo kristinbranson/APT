@@ -708,6 +708,19 @@ classdef AWSec2 < matlab.mixin.Copyable
         warningNoTrace('Failed to ascertain remote PID.');
       end
     end
+    
+    function tfnopyproc = getNoPyProcRunning(obj)
+      % Return true if there appears to be no python process running on
+      % instance
+      [tfsucc,res] = obj.cmdInstance('pgrep -o python',...
+        'dispcmd',true,'failbehavior','silent');
+      
+      % AL 20200213 First clause here is legacy: "expect command to fail; 
+      % fail -> py proc killed". Running today on win10, the cmd always
+      % succeeds whether a py proc is present or not. In latter case,
+      % result is empty.
+      tfnopyproc = ~tfsucc || isempty(res);
+    end
  
     % FUTURE: use rsync if avail. win10 can ask users to setup WSL
     
@@ -962,11 +975,16 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function killRemoteProcess(obj)
-      if isempty(obj.remotePID)
-        error('Unknown PID for remote process.');
-      end
-      
-      cmdremote = sprintf('kill %d',obj.remotePID);
+      % AL 20200213: now do this in a loop, kill until no py processes
+      % remain. For some nets (eg LEAP) multiple py (sub)procs are spawned
+      % and not sure a single kill does the job.
+
+%       if isempty(obj.remotePID)
+%         error('Unknown PID for remote process.');
+%       end
+%       
+%       cmdremote = sprintf('kill %d',obj.remotePID);
+      cmdremote = 'pkill -f python';
       [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
       if tfsucc
         fprintf('Kill command sent.\n\n');

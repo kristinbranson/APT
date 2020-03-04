@@ -236,8 +236,8 @@ class PoseDataset:
 
             im_sz = image.shape
             if scale != 1:
-                o1 = img.shape[0]//scale
-                o2 = img.shape[1]//scale
+                o1 = image.shape[0]//scale
+                o2 = image.shape[1]//scale
                 img = transform.resize(image, [o1,o2])
             else:
                 img = image
