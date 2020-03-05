@@ -287,8 +287,10 @@ function [hPropsPane,parameters] = propertiesGUI(hParent, parameters, filename, 
   %drawnow; pause(0.05);
   pane = javaObjectEDT(com.jidesoft.grid.PropertyPane(grid));
   customizePropertyPane(pane);
+  warnst = warning('off','MATLAB:ui:javacomponent:FunctionToBeRemoved');
   [jPropsPane, hPropsPane_] = javacomponent(pane, pos, hParent);
- 
+  warning(warnst);
+    
   % A callback for touching the mouse
   hgrid = handle(grid, 'CallbackProperties');
   set(hgrid, 'MousePressedCallback', {@MousePressedCallback, hFig});
