@@ -1,5 +1,4 @@
 .apt.mat
-pref.yaml
 Manifest.txt
 *.asv
 *.avi
@@ -11,11 +10,9 @@ Manifest.txt
 *.trk
 *.mat
 *.lbl
-test_201*
-ppfigs
-ppgrid*
 untitled*
 tmp*
 gt/TrackingResults*
 gt/figs*
-build
+deepnet/.idea*
+deepnet/pretrained/*
