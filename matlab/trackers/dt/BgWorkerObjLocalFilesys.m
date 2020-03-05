@@ -7,7 +7,10 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
   %
   
   properties
-    jobID % [nmov x nviewJobs] bsub jobID; or docker cellstr containerID
+    % Each element of jobID corresponds to a DL process. Since serial
+    % tracking across movies and views is possible, a single DL process may 
+    % track across multiple moviesets or views.
+    jobID % [nmovjob x nviewJobs] bsub jobID; or docker cellstr containerID
     
     killPollIterWaitTime = 1; % sec
     killPollMaxWaitTime = 12; % sec
@@ -82,19 +85,14 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
     end
     
     function res = queryMyJobsStatus(obj)
+      % returns cellstr array same size as .jobID [nmovjob x nviewJobs]
       
-      jobids = obj.jobID;
-      nvw = obj.nviews;
-      %assert(isequal(nvw,numel(jobids)));
-      
-      res = repmat({''},[1,nvw]);
-      for ivw=1:numel(jobids),
-        res{ivw} = obj.queryJobStatus(jobids(ivw));
-      end
-      
+      res = cellfun(@obj.queryJobStatus,obj.jobID,'uni',0);
     end
     
     function tfIsRunning = getIsRunning(obj)
+      % tfIsRunning: same size as .jobID
+      
       ids = obj.jobID;
       tfIsRunning = true(size(ids));
       try
