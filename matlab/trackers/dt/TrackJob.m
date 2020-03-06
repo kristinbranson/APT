@@ -119,7 +119,7 @@ classdef TrackJob < handle
         'targets',[],...
         'frm0',[],...
         'frm1',[],...
-        'cropRoi',[],...
+        'cropRoi',[],... % serialmode: either [], or [nmovset x 4]
         'tMFTConc',[],...
         'lblfileLcl','',...
         'movfileLcl',{},...
@@ -286,7 +286,9 @@ classdef TrackJob < handle
       if isempty(cropRoi),
         obj.cropRoi = [];
       elseif obj.tfserialmultimov
-        szassert(cropRoi,[obj.nSerialMov 4]);
+        if ~isempty(cropRoi)
+          szassert(cropRoi,[obj.nSerialMov 4]);
+        end
         obj.cropRoi = cropRoi;
       else
         if iscell(cropRoi),
@@ -571,7 +573,6 @@ classdef TrackJob < handle
 %       for i = 1:obj.nView,
 %         obj.modelfileRem{i} = obj.dmcRem(i).lblStrippedLnx;
 %       end
-      assert(~obj.tfserialmultimov);
       
       obj.movfileRem = obj.movfileLcl;
       obj.trxfileRem = obj.trxfileLcl;

@@ -1099,7 +1099,7 @@ classdef DeepTracker < LabelTracker
         gpuids = obj.getFreeGPUs(nvw);
         if numel(gpuids) < nvw,
           if nvw == 1,
-            error('No GPUs with sufficient RAM available locally');
+              error('No GPUs with sufficient RAM available locally');
           else
             gpuids = gpuids(1);
             isMultiViewTrain = true;
@@ -1781,6 +1781,53 @@ classdef DeepTracker < LabelTracker
   end
   
   %% Track  
+  methods (Static)
+    function [gpuids,isMultiView,isSerialMultiMov] = ...
+                        trackGPUAllocate(nmovset,nview,gpuidsall)
+      % Decide how to break up a batch tracking job across GPUs
+      %
+      % We take as given a (conceptual) [nmovset x nview] array of movies 
+      % to be tracked. Meanwhile the GPUs available are provided in gpuids.
+      %
+      % gpuidsall should be ordered in reverse GPU desirability, ie earlier
+      % GPUs are used first.
+      %
+      % gpuids: GPUs to use; shape determined by isMultiView/isSerialMultiMov.
+      % isMultiView: true if tracking across views is done serially for each movset
+      % isSerialMultiMov: true if tracking across movs is done serially
+      %   (assumes nview==1 currently)
+
+      nmovs = nmovset*nview;
+      ngpuall = numel(gpuidsall);
+      if ngpuall>=nmovs
+        % track all movs in parallel
+        gpuids = gpuidsall(1:nmovs);
+        gpuids = reshape(gpuids,[nmovset nview]);
+        isMultiView = false;
+        isSerialMultiMov = false;
+      elseif ngpuall>=nmovset 
+        % each movset gets a GPU, serial tracking across views.
+        % Note this is theoretical atm as callers probably have nmovset==1
+        % when nview>1.
+        gpuids = gpuidsall(1:nmovset);
+        gpuids = gpuids(:);
+        isMultiView = true;
+        isSerialMultiMov = false;
+      elseif nview==1     
+        gpuids = gpuidsall(1);
+        isMultiView = false;
+        isSerialMultiMov = true;
+      else
+        % Shouldn't come up yet 
+        assert(false,'Unsupported tracking modality');
+      end
+      
+      fprintf(1,'Allocating %d*%d movs to track across %d available gpus:\n',...
+        nmovset,nview,ngpuall);
+      fprintf(1,'... using %d gpus, multiview=%d, serialmov=%d\n',...
+        numel(gpuids),isMultiView,isSerialMultiMov);
+    end
+  end
   methods
     
     % Tracking timeline
@@ -1792,7 +1839,7 @@ classdef DeepTracker < LabelTracker
     % - Spawn track shell call.
     % - When tracking is done for a view, movIdx2trkfile is updated.
     % - When tracking is done for all views, we stop the bgMonitor and we
-    % are done.    
+    % are done.
     
     function track(obj,tblMFT,varargin)
       % Apply trained tracker to the specified frames.
@@ -1843,7 +1890,8 @@ classdef DeepTracker < LabelTracker
         assert(all(size(trkfiles)==size(movfiles)),'Output trk files must be input');
 
         if isempty(cropRois),
-          cropRois = repmat({CropInfo.empty(0,0)},nmovies,1);
+          % Note this format differs from ~isexternal branch
+          cropRois = repmat({[]},nmovies,1);
         end
         
         if isempty(targets),
@@ -1863,7 +1911,7 @@ classdef DeepTracker < LabelTracker
           end
         end
         
-        if ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
+        if obj.lObj.nview>1 && ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
           msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. '
           uiwait(msgbox(msg,'3D Reconciliation','modal'));
         end
@@ -1977,8 +2025,8 @@ classdef DeepTracker < LabelTracker
                
         if obj.lObj.cropProjHasCrops
           assert(~tftrx);
-        cropInfo = obj.lObj.getMovieFilesAllCropInfoMovIdx(mIdx);
-        cropRois = cat(1,cropInfo.roi);
+          cropInfo = obj.lObj.getMovieFilesAllCropInfoMovIdx(mIdx);
+          cropRois = cat(1,cropInfo.roi);
         else
           cropRois = [];
         end        
@@ -2024,31 +2072,17 @@ classdef DeepTracker < LabelTracker
         case {DLBackEnd.Docker,DLBackEnd.Conda},
 
           isMultiViewTrack = false;
+          isSerialMultiMovTrack = false;
           if isexternal,
             % TODO: see docker track other branch below
-            gpuids = obj.getFreeGPUs(nmovies*nviews);
-            if isempty(gpuids),
+            gpuidsall = obj.getFreeGPUs(nmovies*nviews);
+            if isempty(gpuidsall),
               warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
               return;
-            elseif numel(gpuids) < nmovies*nviews,
-              isMultiViewTrack = true;
-              nMoviesTrack = numel(gpuids);
-            else
-              nMoviesTrack = nmovies;
             end
-            if nMoviesTrack < nmovies,
-              res = questdlg([{sprintf('%d GPUs found locally. Only %d movies can be tracked simultaneously.',numel(gpuids),nMoviesTrack)
-                'Track the following subset of movies?'}
-                reshape(movfiles(1:nMoviesTrack,:),[nMoviesTrack*nviews,1])],...
-                'Track a subset of movies?','Track','Cancel','Cancel');
-              if strcmpi(res,'Cancel'),
-                return;
-              end
-              movfiles = movfiles(1:nMoviesTrack,:);
-              trxfiles = trxfiles(1:nMoviesTrack,:);
-              trkfiles = trkfiles(1:nMoviesTrack,:);
-              nmovies = nMoviesTrack;
-            end
+            
+            [gpuids,isMultiViewTrack,isSerialMultiMovTrack] = ...
+                        DeepTracker.trackGPUAllocate(nmovies,nviews,gpuidsall);
           else
             if obj.trkDockerCPU
               gpuids = [];
@@ -2086,7 +2120,8 @@ classdef DeepTracker < LabelTracker
             end
           end
           
-          args = {'isMultiView',isMultiViewTrack};
+          args = {'isMultiView',isMultiViewTrack,...
+                  'isSerialMultiMov',isSerialMultiMovTrack};
           if isempty(gpuids)
             args = [args {'isgpu' false}];
           end
@@ -3068,7 +3103,8 @@ classdef DeepTracker < LabelTracker
 %     
     function tfSuccess = trkSpawn(obj,backend,mIdx,tMFTConc,dlLblFile,...
         cropRois,baseArgs,frm0,frm1,varargin)
-      % cropRois: [nmovtrk x 4] if isSerialMultiMov
+      % cropRois: if isexternal, [nmovset] cell of rois; 
+      %           each el is either [] or [nTotalView 4]
       
       tfSuccess = false;
       
@@ -3083,7 +3119,8 @@ classdef DeepTracker < LabelTracker
                      ... % [], a [ntargets] vector, or a [nmovie] cell array 
         'trkfiles',{},... 
         'isgpu',true,...
-        'gpuids',[],... % optional, but if supplied, precisely the right number of gpus must be specified 
+        'gpuids',[],... % optional, but if supplied, precisely the right 
+                    ... % number of gpus must be specified ie nMovJobs*nViewJobs
         'isMultiView',false,...
         'isSerialMultiMov',false,... % track external movies serially with a 
                                  ... % single DL call. if true, must have 
@@ -3132,6 +3169,7 @@ classdef DeepTracker < LabelTracker
       cacheDir = obj.lObj.DLCacheDir;
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       
+      % see CodeGen comment below, maybe dont need to massage baseArgs here
       switch backend.type
         case DLBackEnd.Bsub
           if backend.deepnetrunlocal
@@ -3163,20 +3201,32 @@ classdef DeepTracker < LabelTracker
         if ~isempty(frm0) || ~isempty(frm1),
           assert(isscalar(frm0) && isscalar(frm1));
         end
+        % this is dumb; cropRoi format conversion
+        if obj.lObj.cropProjHasCrops
+          assert(nView==1);
+          cropRois = cat(1,cropRois{:}); % size check done in TrackJob
+        else
+          assert(all(cellfun(@isempty,cropRois)));
+          cropRois = [];
+        end
         trksysinfo = TrackJob(obj,backend,...
           'targets',trxids,...
           'frm0',frm0,...
           'frm1',frm1,...
-          'cropRoi',cropRois,... % size check done in TrackJob
+          'cropRoi',cropRois,... 
           'movfileLcl',movs,...
           'trxfileLcl',trxfiles,...
           'trkfileLcl',trkfiles,...
           'isMultiView',isMultiView,...
+          'isSerialMultiMov',true,...
           'ivw',iviewSerialMultiMov,...
           'rootdirLcl',cacheDir,...
           'nowstr',id);
         trksysinfo.prepareFiles();
         
+        baseArgs = [baseArgs,{'serialmode' true}]; 
+        % see CodeGen comment below, maybe dont need to massage baseArgs here
+
         fprintf('View %d: %d trkfiles to be written, first to %s\n',...
           iviewSerialMultiMov,numel(trkfiles),trksysinfo.trkfileLcl{1});
       else
@@ -3240,6 +3290,9 @@ classdef DeepTracker < LabelTracker
       end
       % Each trksysinfo(imovjob,ivwjob) represents one job that will be run 
       % on a single GPU
+      % AL: CodeGen is probably fully determined by a TrackJob+BackEnd?
+      % If so maybe details, need to specify baseArgs etc dont need to be 
+      % here
       for imovjob = 1:nMovJobs,
         for ivwjob = 1:nViewJobs,
           switch backend.type
@@ -3833,7 +3886,7 @@ classdef DeepTracker < LabelTracker
       try,
       
       % res is nMovies x nViews
-      [nMovies,nViews] = size(res);
+      [nMovSets,nViews] = size(res);
       isexternal = res(1).isexternal;
       
       for i = 1:numel(obj.trkSysInfo),
@@ -3841,43 +3894,55 @@ classdef DeepTracker < LabelTracker
       end
 
       if isexternal,
-        % AL: guessing here didn't test
-        for i=1:nMovies*nViews,
+        for i=1:nMovSets*nViews,
           fprintf('Tracking complete for %s, results saved to %s.\n',...
             res(i).movfile,res(i).trkfile);
         end
-        %return;
-      end
-      mIdx = repmat(MovieIndex(1),[1,nViews]);
-      tffound = false([1,nViews]);
-      for i = 1:nMovies,
-        [tffound(i),mIdx(i)] = obj.lObj.getMovIdxMovieFilesAllFull({res(i,:).movfile});
-        if ~tffound(i) && ~isexternal,
-          warning('Tracked movie [ %s] does not correspond to any movie in the lbl file',sprintf('%s ',res(i,:).movfile));
-        end
-      end
-      for i = 1:nMovies,
-        if ~tffound(i),
-          % conservative, take no action for now
-          continue;
-        end
-        % we perform this check b/c while tracking has been running in
-        % the bg, the project could have been updated, movies
-        % renamed/reordered etc.
+      else
+        % AL20200305: we do postproc and update obj.trackRes here. For now
+        % now putting this in the ~isexternal branch; "external" tracking
+        % will never update DeepTracker results even if the movies are
+        % present in the proj etc.
         
-        trkfiles = [obj.trkSysInfo(i,:).trkfileLcl]';
-        obj.trkPostProcIfNec(mIdx(i),trkfiles);
-        obj.trackResAddTrkfile(mIdx(i),trkfiles);
-        if mIdx(i)==obj.lObj.currMovIdx
-          obj.trackCurrResUpdate();
-          obj.newLabelerFrame();
-          if ~isexternal,
-            fprintf('Tracking complete for current movie at %s.\n',datestr(now));
+        assert(nMovSets==1); % currently true for nonexternal tracking; to be lifted later
+        mIdx = repmat(MovieIndex(1),nMovSets,1);
+        tffound = false(nMovSets,1);
+        for i = 1:nMovSets,
+          % This line might be fragile wrt user input for external tracking
+          [tffound(i),mIdx(i)] = obj.lObj.getMovIdxMovieFilesAllFull({res(i,:).movfile});
+          if ~tffound(i) % && ~isexternal,
+            warning('Tracked movie [%s] does not correspond to any movie in the lbl file',...
+              sprintf('%s ',res(i,:).movfile));
           end
-        else
-          if ~isexternal,
-            iMov = mIdx.get();
-            fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
+        end
+        
+        for i = 1:nMovSets,
+          if ~tffound(i),
+            % conservative, take no action for now
+            continue;
+          end
+          % we perform this check b/c while tracking has been running in
+          % the bg, the project could have been updated, movies
+          % renamed/reordered etc.
+          
+          % obj.trkSysInfo(i,:) has either
+          % 1. nview els, each of which has a scalar cellstr .trkfileLcl;  OR
+          % 2. 1 el, which has a [nview] cellstr .trkfileLcl
+          trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
+          trkfiles = trkfiles(:);
+          obj.trkPostProcIfNec(mIdx(i),trkfiles);
+          obj.trackResAddTrkfile(mIdx(i),trkfiles);
+          if mIdx(i)==obj.lObj.currMovIdx
+            obj.trackCurrResUpdate();
+            obj.newLabelerFrame();
+            if ~isexternal, % always true
+              fprintf('Tracking complete for current movie at %s.\n',datestr(now));
+            end
+          else
+            if ~isexternal, % always true
+              iMov = mIdx.get();
+              fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
+            end
           end
         end
       end
@@ -4533,7 +4598,7 @@ classdef DeepTracker < LabelTracker
       % - trxtrk is unsupplied, or [nmov] array
       % - view is a *scalar* and *must be supplied*
       % - croproi is unsupplied, or [xlo1 xhi1 ylo1 yhi1 xlo2 ... yhi_nmov] or row vec of [4*nmov]
-      % - model_file is unsupplied, or [nmov] cellstr      
+      % - model_file is unsupplied, or [1] cellstr, or [nmov] cellstr      
       
       [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
         updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,tfserialmode] = ...
@@ -4585,7 +4650,11 @@ classdef DeepTracker < LabelTracker
           szassert(croproi,[nmovserialmode 4]);
         end
         if tfmodel
-          assert(numel(model_file)==nmovserialmode);
+          if isscalar(model_file)
+            model_file = repmat(model_file,nmovserialmode,1);
+          else
+            assert(numel(model_file)==nmovserialmode);
+          end
         end        
       else
         if tfview % view specified. track a single movie

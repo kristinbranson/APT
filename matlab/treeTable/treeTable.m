@@ -78,11 +78,11 @@ function jtable = treeTable(varargin)
       paramsStruct = processArgs(varargin{:});
 
       if isa(handle(paramsStruct.container), 'figure')
-          pnContainerPos = getpixelposition(paramsStruct.container,0);  % Fix for Matlab 7.0.4 as per Sebastian Hölz
+          pnContainerPos = getpixelposition(paramsStruct.container,0);  % Fix for Matlab 7.0.4 as per Sebastian Hï¿½lz
           pnContainerPos(1:2) = 0;
       else
           try
-              pnContainerPos = getpixelposition(paramsStruct.container,1);  % Fix for Matlab 7.0.4 as per Sebastian Hölz
+              pnContainerPos = getpixelposition(paramsStruct.container,1);  % Fix for Matlab 7.0.4 as per Sebastian Hï¿½lz
           catch
               pnContainerPos = getpixelposition(paramsStruct.container);  % Fix for uiextras.Panel
           end
@@ -196,12 +196,14 @@ function jtable = treeTable(varargin)
           % Present the tree-table within a scrollable viewport on-screen
           scroll = javaObjectEDT(JScrollPane(jtable));
           hParent = paramsStruct.container;
+          warnst = warning('off','MATLAB:ui:javacomponent:FunctionToBeRemoved');
           try
               % HG2 sometimes needs double(), sometimes not, so try both of them...
               [jhscroll,hcontainer] = javacomponent(scroll, tablePosition, double(hParent));
           catch
               [jhscroll,hcontainer] = javacomponent(scroll, tablePosition, hParent);
           end
+          warning(warnst);
           set(hcontainer,'units','normalized','pos',[0,0,1,1]);  % this will resize the table whenever its container is resized
           pause(0.05);
       catch

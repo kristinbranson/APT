@@ -1701,6 +1701,11 @@ classdef Labeler < handle
         end
         name = resp{1};
       end
+      % AL empty projnames can cause trouble lets just set a default now if 
+      % nec
+      if isempty(name)
+        name = 'APTproject';
+      end
 
       obj.isinit = true;
 

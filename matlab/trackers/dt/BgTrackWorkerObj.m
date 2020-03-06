@@ -98,7 +98,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj.killFiles = cell(obj.nMovJobs,obj.nViewJobs);
       for imovjb = 1:obj.nMovJobs,
         for ivwjb = 1:obj.nViewJobs,
-          if obj.nMovJob > 1, % nMovJob==nMovies
+          if obj.nMovJobs > 1, % nMovJob==nMovies
             obj.killFiles{imovjb,ivwjb} = sprintf('%s.mov%d_vwjb%d.KILLED',...
               logfiles{imovjb,ivwjb},imovjb,ivwjb);
           else
