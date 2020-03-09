@@ -130,7 +130,7 @@ classdef testAPT < handle
       info = self.info;
       [data_dir, lbl_file] = self.get_file_paths();
       if ~exist(lbl_file,'file')
-        testAPT.setup_data(info);
+        self.setup_data(info);
       end
       old_lbl = loadLbl(lbl_file);
       old_lbl.movieFilesAll = FSPath.macroReplace(old_lbl.movieFilesAll,old_lbl.projMacros);
