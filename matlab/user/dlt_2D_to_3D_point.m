@@ -1,4 +1,5 @@
-function [P,err,Pfront,Pside,ptfront_re,ptside_re] = dlt_2D_to_3D_point(dlt_front,dlt_side,ptfront,ptside,varargin)
+function [P,err,Pfront,Pside,ptfront_re,ptside_re] = ...
+  dlt_2D_to_3D_point(dlt_front,dlt_side,ptfront,ptside,varargin)
 
 [geometricerror,Sfront,Sside] = myparse(varargin,'geometricerror',true,...
   'Sfront',[],'Sside',[]);
