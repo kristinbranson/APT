@@ -130,7 +130,7 @@ classdef testAPT < handle
       info = self.info;
       [data_dir, lbl_file] = self.get_file_paths();
       if ~exist(lbl_file,'file')
-        self.setup_data(info);
+        self.setup_data();
       end
       old_lbl = loadLbl(lbl_file);
       old_lbl.movieFilesAll = FSPath.macroReplace(old_lbl.movieFilesAll,old_lbl.projMacros);
@@ -162,7 +162,7 @@ classdef testAPT < handle
     
     function setup_data(self)
       info = self.info;
-      cacheDir = get_cache_dir(info);
+      cacheDir = testAPT.get_cache_dir();
       out_file = fullfile(tempdir,[info.proj_name '_data.tar.gz']); 
       if exist(out_file,'file')
         try
