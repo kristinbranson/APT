@@ -631,7 +631,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         self.joint = True
 
-        learning_rate = self.conf.get('mdn_learning_rate_multiplier',1.)*0.0001
+        learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)
+        logging.info('Learning Rate {}'.format(learning_rate))
         super(self.__class__, self).train(
             create_network=self.create_network,
             loss=self.loss,

@@ -398,13 +398,15 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
         val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
-    base_lr = 4e-5  # 2e-5
+    base_lr = conf.get('leap_base_lr',4e-5) * conf.get('learning_rate_multiplier',1.)
+ # 2e-5
     momentum = 0.9
     weight_decay = 5e-4
     lr_policy = "step"
     gamma = conf.gamma          #0.333
     step_size = conf.decay_steps # 6000 # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
     save_time = conf.get('save_time',None)
+    logging.info('Learning Rate {}'.format(base_lr))
 
     def step_decay(epoch):
         initial_lrate = base_lr

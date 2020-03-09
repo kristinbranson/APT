@@ -523,7 +523,8 @@ def training(conf,name='deepnet'):
     # training outputs
     #massage_conf(conf)
 
-    base_lr = 4e-5  # 2e-5
+    base_lr = conf.get('op_base_lr',4e-5) * conf.get('learning_rate_multiplier',1.)
+ # 2e-5
     momentum = 0.9
     weight_decay = 5e-4
     lr_policy = "step"
@@ -535,6 +536,8 @@ def training(conf,name='deepnet'):
     max_iter = conf.dl_steps/iterations_per_epoch
     restart = True
     last_epoch = 0
+
+    logging.info('Learning Rate {}'.format(base_lr))
 
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, 'For open-pose save steps must be a multiple of display steps'
