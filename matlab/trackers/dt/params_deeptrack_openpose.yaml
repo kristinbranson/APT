@@ -14,6 +14,7 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - OpenPose:
     - ['','',false,OpenPose settings.,'','']
+    - op_base_lr: ['Base Learning Rate',float,true,'Base learning rate for training openpose networks. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.00004',0.00004,'','Developer','',true]
     # - affinity_graph: ['Affinity skeleton',string,true,'Affinity map to be used for open-pose. Pair of points should be separated by space and each pair should be separated by comma. eg: 1 2, 3 2, 3 4','1 2, 2 3, 3 4','','Important','isOpenPose']  
 
 

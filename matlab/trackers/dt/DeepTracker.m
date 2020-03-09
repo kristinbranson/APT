@@ -33,6 +33,7 @@ classdef DeepTracker < LabelTracker
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
     deepnetgitbranch % transient/unmanaged. set me to use/run a diff branch
+    skip_dlgs % MK: Skip save/delete dialogs for testing.
   end
   properties
     containerBindPaths % cellstr of bind paths for sing/docker
@@ -264,6 +265,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
       
       obj.trkVizer = TrackingVisualizerHeatMap(lObj);
+      obj.skip_dlgs = false;
     end
     function delete(obj)
       obj.trnResInit();
@@ -738,9 +740,11 @@ classdef DeepTracker < LabelTracker
       
       if obj.isTrkFiles(),
         
-        res = questdlg('Tracking results exist for previous deep trackers. When training stops, these will be deleted. Continue training?','Continue training?','Yes','No','Cancel','Yes');
-        if ~strcmpi(res,'Yes'),
-          return;
+        if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+          res = questdlg('Tracking results exist for previous deep trackers. When training stops, these will be deleted. Continue training?','Continue training?','Yes','No','Cancel','Yes');
+          if ~strcmpi(res,'Yes'),
+            return;
+          end
         end
         
       end
@@ -1988,14 +1992,16 @@ classdef DeepTracker < LabelTracker
         isCurr = obj.checkTrackingResultsCurrent();
         if ~isCurr,
           
-          res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Cancel','Delete');
-          if strcmpi(res,'Cancel'),
-            return;
-          end
-          if strcmpi(res,'Retrack'),
-            tblMFTRetrack = obj.getTrackedMFT();
-            ism = ismember(tblMFTRetrack,tblMFT);
-            tblMFT = [tblMFT;tblMFTRetrack(~ism,:)];
+          if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+            res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Cancel','Delete');
+            if strcmpi(res,'Cancel'),
+              return;
+            end
+            if strcmpi(res,'Retrack'),
+              tblMFTRetrack = obj.getTrackedMFT();
+              ism = ismember(tblMFTRetrack,tblMFT);
+              tblMFT = [tblMFT;tblMFTRetrack(~ism,:)];
+            end
           end
           obj.cleanOutOfDateTrackingResults(isCurr);
         end
@@ -4081,13 +4087,16 @@ classdef DeepTracker < LabelTracker
       isCurr = obj.checkTrackingResultsCurrent();
       if ~isCurr,
         
-        res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
         obj.cleanOutOfDateTrackingResults(isCurr);
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
-        if strcmpi(res,'Retrack'),
-          tblMFTRetrack = obj.getTrackedMFT();
-          obj.track(tblMFTRetrack);
+        
+        if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+          res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
+          if strcmpi(res,'Retrack'),
+            tblMFTRetrack = obj.getTrackedMFT();
+            obj.track(tblMFTRetrack);
+          end
         end
 
       end
@@ -4095,16 +4104,17 @@ classdef DeepTracker < LabelTracker
       % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
       obj.updateTrackerInfo();
       
-      res = questdlg(sprintf('Training stopped after %d / %d iterations. Save trained model to file?',...
-        obj.trackerInfo.iterCurr,obj.trackerInfo.iterFinal),'Save?','Save','Save as...','No','Save');
-      if strcmpi(res,'Save'),
-        obj.lObj.projSaveSmart();
-        obj.lObj.projAssignProjNameFromProjFileIfAppropriate();
-      elseif strcmpi(res,'Save as...'),
-        obj.lObj.projSaveAs();
-        obj.lObj.projAssignProjNameFromProjFileIfAppropriate();
+      if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+        res = questdlg(sprintf('Training stopped after %d / %d iterations. Save trained model to file?',...
+          obj.trackerInfo.iterCurr,obj.trackerInfo.iterFinal),'Save?','Save','Save as...','No','Save');
+        if strcmpi(res,'Save'),
+          obj.lObj.projSaveSmart();
+          obj.lObj.projAssignProjNameFromProjFileIfAppropriate();
+        elseif strcmpi(res,'Save as...'),
+          obj.lObj.projSaveAs();
+          obj.lObj.projAssignProjNameFromProjFileIfAppropriate();
+        end
       end
-      
     end
     
     function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)

@@ -91,7 +91,7 @@ strong.regular-font {
       <li><a href="#Navigating in space">Navigating in space</a></li>
     </ul>
   </li>
-  <li><a href="#Labeling parts">Manually labeling training data</a>
+  <li><a href="#Labeling parts">Labeling training data</a>
     <ul>
       <li><a href="#Sequential mode">Sequential labeling mode</a></li>
       <li><a href="#Template mode">Template labeling mode</a></li>
@@ -116,6 +116,7 @@ strong.regular-font {
 <li><a href="#Exporting manual labels">Exporting manual labels</a></li>
 <li><a href="#Cross validation">Cross validation</a></li>
 <li><a href="#Ground-Truthing mode">Ground-Truthing mode</a></li>
+<li><a href="#FAQ">Frequently asked questions</a></li>
 <li><a href="appendices.html">Appendices</a></li>
 
 </ul>
@@ -255,7 +256,7 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
 <p>APT makes it easy to train a tracker then predict on a sequence of frames. The first test of whether the tracker is working is the <b>eye-ball test</b> -- just look at the predictions and see if, by eye, they look accurate. If it is easy to find frames that the tracker is performing poorly on, then we recommend annotating these frames, adding them to the training set, and re-training. </p>
 <p>Once APT has passed the eye-ball test, you can use <a href="#Cross Validation">cross-validation</a> to estimate accuracy quantitatively. The gold standard for accuracy estimation is <a href="#Groundtruthing">ground truthing</a>, in which you manually annotate new frames, and quantitatively compare APT's predictions to manual labels.</p>
 <h3>How do I set tracking parameters?</h3>
-<p>Before you click the Train button, there are some tracking parameters that are important to set. The menu Track -> Configure tracking parameters will open a window to help set Tracking Parameters. For each new application, it is important that you set the Tracking Parameters labeled as <b>Important</b>. Information on tracking parameters is <a href="#TODO">here</a>.</p>
+<p>Before you click the Train button, there are some parameters that are important to set. You can select the <a href="#Algorithm">tracking algorithm</a> from the Track->Tracking algorithm menu. You can select the backend on which all GPU computations will be performed from the <a href="#Select backend">Track->GPU/Backend Configuration</a> menu. Parameters related to the currently selected algorithm can be set from the Tracking Parameters GUI, accessed from the <a href="#Tracking parameters">Track -> Configure tracking parameters</a> menu. For each new application, it is important that you set the Tracking Parameters labeled as <b>Important</b>. Information on tracking parameters is <a href="#Tracking parameters">here</a>.</p>
 
 <hr class="h2-divider">
 
@@ -445,7 +446,7 @@ The <b><a href="#Labeling window">Labeling window</a></b> shows the current fram
 
 <hr class="h2-divider">
 
-<h2><a id="Labeling parts">Manually labeling training data</a></h2>
+<h2><a id="Labeling parts">Labeling training data</a></h2>
 
 <p>One of the main goals of the APT user interface is allowing easy and efficient labeling of training data. To this end, we have implemented a few different labeling modes. You can select different labeling modes from the <b>Label</b> menu.</p>
 
@@ -676,6 +677,24 @@ trx(1) =
 
 <h2><a id="Tracking parameters">Tracking parameters</a></h2>
 
+<h3><a id="Algorithm">Tracking algorithm</a></h3>
+<p>APT includes implementations of several tracking algorithms that you can select from the <b>Track->Tracking algorithm</b> menu. A quantitative comparison of the performance of these algorithms on a variety of data sets is below. Higher numbers are better. These are preliminary results, and these numbers will be updated soon.</p>
+<center>
+  <a href="images/AlgorithmComparison.png"><img src="images/AlgorithmComparison.png" width="75%"></a>
+</center>
+
+<table>
+  <tr>
+    <td><b>Algorithm</b></td><td><b>Citation</b></td><td><b>Description</b></td>
+  </tr>
+  <tr>
+    <td>Cascaded Pose Regression (CPR)</td><td><a href="https://pdollar.github.io/files/papers/DollarCVPR10pose.pdf">Dollar, Welinder, Perona, 2010</a></td><td>CPR is <i>not</i> a deep learning algorithm, but is instead based on a type regressor called random ferns (related to random forests). From an initial guess of the pose, it iteratively refines its estimate based on features computed in a reference frame determined based on the original pose. We recommend using this algorithm if you <i>do not have access to a GPU</i>.</td></tr>
+  <tr><td>Deep Convolutional Network - MDN</td><td>Kabra, Lee, Branson, in preparation.</td><td>MDN, which stands for Mixture Density Network, is a deep convolutional net whose architecture combines a <a href="https://en.wikipedia.org/wiki/U-Net">U-Net</a>, a <a href="https://en.wikipedia.org/wiki/Residual_neural_network">Residual network</a>, and a <a href="https://publications.aston.ac.uk/id/eprint/373/1/NCRG_94_004.pdf">Mixture Density Network</a>. We and our collaborators use this network architecture in our experiments, and it achieves the highest accuracy in nearly all of our experiments.</td></tr>
+<!--  (<a href="https://arxiv.org/abs/1505.04597">Ronneberger, Fischer, Brox, 2015</a>, <a href="https://en.wikipedia.org/wiki/U-Net">Wikipedia</a>), a Residual Network (<a href="https://arxiv.org/abs/1512.03385">He, Zhang, Ren, Sun, 2015</a>)
+-->
+
+</table>
+
 <p>APT's performance depends critically on setting several tracking parameters well. Several of these parameters must be changed with each new tracking application. To access the tracking parameters, select <b>"Configure tracking parameters..."</b> from the Tracking menu.</p>
 
 <center><a id="TrackingParametersGUI" href="images/TrackingParametersGUI.png"><img src="images/TrackingParametersGUI.png"></a></center>
@@ -830,35 +849,104 @@ trx(1) =
 
 <hr class="h2-divider">
 
-<h2><a id="Training"> Training </a></h2>
+<h2><a id="Training">Training</a></h2>
 
-Click the Train button.
+<p>Once you have:
+<ul>
+  <li><a href="#Labeling parts">Labeled enough training examples</a></li>
+  <li><a href="#Tracking algorithm">Selected a tracking algorithm</a></li>
+  <li><a href="#Select backend">Selected a GPU backend</a></li>
+</ul>
+Click the <b>Train</b> button on the <a href="#GUI">bottom left</a> to begin training a tracker. This will bring up a window in which you can see the training progress.</p>
 
+<h3><a id="Training Monitor">Training Monitor</a></h3>
+
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/TrainingMonitor.png"><img width="100%" src="images/TrainingMonitor.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TrainingMonitorComplete.png"><img width="100%" src="images/TrainingMonitorComplete.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Training in progress</i></center></td>
+    <td><center><i>Training complete</i></center></td>
+  </tr>
+</table>
+</center>
+
+<p>You can watch training progress in the Training Monitor window.</p>
+<p>The top plot shows the <b>Training loss</b> being minimized as a function of number of training iterations on the current training batch. This should generally be decreasing with more iterations of training, but may occasionally waiver, as this is the training loss on only a sample of the training data (the current batch), and because we are using stochastic gradient descent for optimization. If training loss is <b>not</b> decreasing, then something is likely going wrong. If it seems to have plateaued, this could be a sign that training has converged and the tracker will not improve with more iterations of training.</p>
+<p>The second plot shows the average Euclidean <b>distance</b> between the current landmark predictions and the manual labels. Again, this should generally trend down with more iterations of training. </p>
+<p>The green text shows information about the <b>training status</b>, including whether training is running, how many iterations of training have been complete, and when the monitor was last updated. </p>
+<p>The text window shows <b>information about the training jobs</b> that depends on the item selected from the pop-up menu at the bottom:
+  <ul>
+    <li><b>List all jobs</b>: Provide status of all jobs running. </li>
+    <li><b>Show training jobs' status</b>: Provide more detailed information about the training job(s) started within this APT session. </li>
+    <li><b>Update training monitor plots</b>: Force an update to the training monitor, which is otherwise updated on a timer.</li>
+    <li><b>Show log files</b>: Show the contents of the training log file. </li>
+    <li><b>Show error messages</b>: Show error messages indicating why training failed.</li>
+  </ul>
+</p>
+<p>The <b>Stop training</b> can be pushed at any time to stop training. Stopping training requires a sequence of events to happen which could take a few seconds, so please be patient and only press this button once. </p>
+<p>Trackers are saved at fixed intervals of iterations (by default 1,000 iterations, see tracking parameter <i>Training tracker save interval</i>). The most recent tracker can be used any time to track frames by clicking the <a href="#Tracking">Track</a> button. This allows you to preview the tracker's performance without waiting for training to finish. This in-progress tracker will likely not work as well as the tracker when training is complete, but it can give you a sense of how well the tracker will work and which types of examples are currently difficult for the tracker and should be added to the training data set. </p>
 
 <hr class="h2-divider">
 
-<h2><a id="Tracking"> Tracking </a></h2>
+<h2><a id="Tracking">Tracking</a></h2>
 
-Track button
-Click Track. You can change what frames you want it to track with the drop down menu below the blue "Track" button. After you choose what frames you want to track, press "Track". Watch progress in MATLAB command line. 
- 
- <p>Tracking options in the Track dropdown menu:</p>
+<p>Once a tracker has been trained (or training is in progress), click the <b>Track</b> button on the <a href="#GUI">bottom left</a> to use the tracker. </p>
+<p>The <b>Frames to track</b> pop-up menu specifies which frames will be tracked. </p>
 <ul>
-<li>Current target, labeled frames</li>
-<li>Current target, all frames</li>
-<li>Current target, all frames, every 10 frames</li>
-<li>Current target, selected frames</li>
-<li>Current target, selected frames, every 10 frames</li>
-<li>Current target, within 100 frames of current frame</li>
-<li>Current target, within 100 frames of current frame, every 10 frames</li>
-<li>All targets, labeled frames</li>
-<li>All targets, all frames</li>
-<li>All targets, all frames, every 10 frames</li>
-<li>All targets, selected frames</li>
-<li>All targets, selected frames, every 10 frames</li>
-<li>All targets, within 100 frames of current frame</li>
-<li>All targets, within 100 frames of current frame, every 10 frames</li>
+  <li><a href="#Multitarget">Multi-target</a> projects:
+    <ul>
+      <li><b>Cur targ</b>: Frames from the currently selected animal</li>
+      <li><b>All targ</b>: Frames from all targets in the current movie</li>
+    </ul>
+  </li>
+  <li>Single target projects: Frames from the current movie</li>
+  <li><b>Labeled frames / Lab fr</b>: Frames that are manually labeled</li>
+  <li><b>All frames / All fr</b>: All frames</li>
+  <li><b>Selected frames / Sel fr</b>: Frames that have been selected using the <b>Select</b> button and the timeline</li>
+  <li><b>Nearest X frames / Within X frames of current frame/ +/- X fr</b>: Frames within X frames of the currently selected frame.</li>
 </ul>
+
+<h3><a id="Tracking Monitor">Tracking Monitor</a></h3>
+
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/TrackingMonitor.png"><img width="100%" src="images/TrackingMonitor.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TrackingMonitorComplete.png"><img width="100%" src="images/TrackingMonitorComplete.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Tracking in progress</i></center></td>
+    <td><center><i>Tracking complete</i></center></td>
+  </tr>
+</table>
+</center>
+
+<p>You can monitor progress in the <b>Tracking Monitor</b>.</p>
+<p>The top, blue text shows information about <b>which tracker</b> is being used for tracking.</p>
+<p>The colored bar(s) show the number of frames that have been tracked for each movie being tracked.</p>
+<p>The green text shows information about tracking progress.</p>
+<p>The text window shows <b>information about the tracking jobs</b> that depends on the item selected from the pop-up menu at the bottom:
+  <ul>
+    <li><b>List all jobs</b>: Provide status of all jobs running. </li>
+    <li><b>Show tracking jobs' status</b>: Provide more detailed information about the tracking job(s) started within this APT session. </li>
+    <li><b>Update tracking monitor plots</b>: Force an update to the tracking monitor, which is otherwise updated on a timer.</li>
+    <li><b>Show log files</b>: Show the contents of the tracking log files. </li>
+    <li><b>Show error messages</b>: Show error messages indicating why tracking failed.</li>
+  </ul>
+</p>
+
 
 <hr class="h2-divider">
 
@@ -935,8 +1023,26 @@ Along with various plots, the Labeler property .gtTblRes provides a results tabl
 
 <p>Save the project to preserve your GT movie list, the list of GT frames with their labels, and the GT results.</p>
 
+<hr class="h2-divider">
 
+<h2><a id="FAQ">Frequently Asked Questions</a></h2>
 
+<h4>I'm a Janelian and when testing the <a href="LocalBackEnd.html#DockerLocalBackEnd">Docker</a> backend, I get the following permission error:</h4>
+  <code>docker: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.35/containers/create: dial unix /var/run/docker.sock: connect: permission denied.See 'docker run --help'.</code>
+
+<ol>
+  <li>From the command line, check that root is the owner of <code>/var/run/docker.sock</code>:
+    <pre>$ ls -hl /var/run/docker.sock</pre>
+    The output will look like:
+    <pre>srw-rw---- 1 root root 0 Feb 27 17:21 /var/run/docker.sock=</pre>
+  </li>
+  <li>Change the owner of <code>/var/run/docker.sock</code> to yourself:
+    <pre>$ sudo chown bransonk /var/run/docker.sock</pre>
+  </li>
+  <li>Start the docker daemon:
+    <pre>$ sudo dockerd &</pre>
+  </li>
+</ol>
 
 <footer>
 <hr class="h1-divider">
