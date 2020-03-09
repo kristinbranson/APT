@@ -55,6 +55,7 @@ common_conf['rrange'] = 10
 common_conf['trange'] = 5
 common_conf['brange'] = '\(-0.1,0.1\)'
 common_conf['crange'] = '\(0.9,1.1\)'
+common_conf['scale_factor_range'] = 1.2
 common_conf['mdn_use_unet_loss'] = True
 common_conf['dl_steps'] = 40000
 common_conf['decay_steps'] = 20000
@@ -62,7 +63,7 @@ common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
 common_conf['normalize_img_mean'] = False
 common_conf['adjust_contrast'] = False
-common_conf['maxckpt'] = 20
+common_conf['maxckpt'] = 50
 
 
 def setup(data_type_in,gpu_device=None):

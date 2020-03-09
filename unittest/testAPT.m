@@ -93,6 +93,8 @@ classdef testAPT < handle
         info.proj_name = 'alice_test';
         info.sz = 90;
         info.bundle_link = 'https://www.dropbox.com/s/u5p27rdi7kczv78/alice_test_data.tar.gz?dl=1';
+        info.op_graph = [1 3; 1 2; 3 17; 2 12; 3 4; 4 10; 10 11; 11 16; 10 6; 8 6; 5 8; 8 9; 9 13;6 14;6 15; 6 7];
+
       else
         error('Unrecognized test name');
       end
@@ -177,20 +179,22 @@ classdef testAPT < handle
     
     function test_full(self,varargin)
       self.setup_path();
-      [name,all_nets,backend] = myparse(varargin,'name','alice','nets',{'mdn'},'backend','docker');
+      [name,all_nets,backend,params] = myparse(varargin,'name','alice',...
+        'nets',{'mdn'},'backend','docker','params',{});
       self.test_setup('name',name);
 
       if ischar(all_nets)
         all_nets = {all_nets};
       end
       for nndx = 1:numel(all_nets)
-        self.test_train('nets',all_nets(nndx),'backend',backend);
+        self.test_train('nets',all_nets(nndx),'backend',backend,'params',params);
       end
     end
     
     function test_setup(self,varargin)
       self.setup_path();
-      [name] = myparse(varargin,'name','alice');
+      [name,target_trk] = myparse(varargin,'name','alice',...
+        'target_trk',MFTSetEnum.CurrMovAllTgtsNearCurrFrame);
       self.get_info(name);
       self.load_lbl();
       old_lbl = self.old_lbl;
@@ -200,9 +204,19 @@ classdef testAPT < handle
       lObj = self.create_project();
       self.lObj = lObj;
       self.add_movies();
-      self.add_labels_quick();      
-    end
+      self.add_labels_quick();  
       
+      if self.info.has_trx
+        trkTypes = MFTSetEnum.TrackingMenuTrx;
+      else
+        trkTypes = MFTSetEnum.TrackingMenuNoTrx;
+      end
+      trk_pum_ndx = find(trkTypes == target_trk );      
+      set(self.lObj.gdata.pumTrack,'Value',trk_pum_ndx);
+      self.lObj.setSkeletonEdges(self.info.op_graph);
+    end
+    
+        
     function lObj = create_project(self)
      % Create the new project
       info = self.info;
@@ -324,15 +338,18 @@ classdef testAPT < handle
       lObj.trackSetCurrentTracker(tndx);
     end
     
-    function set_params(self, has_trx, dl_steps,sz)
+    function set_params(self, has_trx, dl_steps,sz,params)
       lObj = self.lObj;
       % set some params
       tPrm = APTParameters.defaultParamsTree;
       sPrm = tPrm.structize;      
-      sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = 1000;
+      sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
       sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = sz;
-      if has_trx,        
+      if has_trx
         sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = has_trx;
+      end
+      for ndx = 1:2:numel(params)
+        sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
       end
       lObj.trackSetParams(sPrm);
 
@@ -344,6 +361,10 @@ classdef testAPT < handle
       % Set the Backend
       if strcmp(backend,'docker')
         beType = DLBackEnd.Docker;
+      elseif strcmp(backend,'bsub')
+        beType = DLBackEnd.Bsub;
+      elseif strcmp(backend,'conda')
+        beType = DLBackEnd.Conda;
       end
       be = DLBackEndClass(beType,lObj.trackGetDLBackend);
       lObj.trackSetDLBackend(be);
@@ -353,12 +374,13 @@ classdef testAPT < handle
     
     % train
     function test_train(self,varargin)
-      [net_type,backend,niters,test_tracking,block] = myparse(varargin,...
+      [net_type,backend,niters,test_tracking,block,params] = myparse(varargin,...
             'net_type','mdn','backend','docker',...
-            'niters',1000,'test_tracking',true,'block',true);
+            'niters',1000,'test_tracking',true,'block',true,...
+            'params',{});
           
       self.setup_alg(net_type)
-      self.set_params(self.info.has_trx,niters,self.info.sz);
+      self.set_params(self.info.has_trx,niters,self.info.sz,params);
       self.set_backend(backend);
 
       lObj = self.lObj;
@@ -367,6 +389,7 @@ classdef testAPT < handle
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,handles.figure);
+      handles.labelerObj.tracker.skip_dlgs = true;
       handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
       if wbObj.isCancel
         msg = wbObj.cancelMessage('Training canceled');
@@ -375,19 +398,29 @@ classdef testAPT < handle
       
       if block
         % block while training
+        pause(2);
         while self.lObj.tracker.bgTrnIsRunning()
           pause(10);
         end
+        pause(2);
         if test_tracking
-          self.test_track();
+          self.test_track('block',block);
         end
       end
       
     end
     
-    function test_track(self)
+    function test_track(self,varargin)
+      [block] = myparse(varargin,'block',true);
       kk = LabelerGUI('get_local_fn','pbTrack_Callback');
-      kk(self.lObj.gdata.pbTrack,[],self.lObj.gdata);
+      kk(self.lObj.gdata.pbTrack,[],self.lObj.gdata);      
+      if block,
+        pause(2);
+        while self.lObj.tracker.bgTrkIsRunning()
+          pause(10);
+        end
+        pause(2);
+      end
     end
     
   end

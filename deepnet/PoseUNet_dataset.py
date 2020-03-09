@@ -578,11 +578,12 @@ class PoseUNet(PoseCommon):
         return tf.nn.l2_loss(pred - inputs[-1]) + self.wt_decay_loss()
 
     def train_unet(self,restore=False):
-
+        learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('unet_base_lr',0.0001)
+        logging.info('Learning Rate {}'.format(learning_rate))
         PoseCommon.train(self,
             create_network=self.create_network,
             loss=self.loss,
-            learning_rate=0.0001,restore=restore)
+            learning_rate=learning_rate,restore=restore)
 
     def get_pred_fn(self, model_file=None):
         try:

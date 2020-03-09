@@ -47,6 +47,7 @@ class config(object):
         self.normalize_batch_mean = False
         self.perturb_color = False
         self.flipLandmarkMatches = {}
+        self.learning_rate_multiplier = 1.
 
         # ----- Data parameters
         # l1_cropsz = 0
