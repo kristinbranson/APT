@@ -1883,6 +1883,7 @@ classdef DeepTracker < LabelTracker
       % track an external movie
       if isexternal
         movfiles = tblMFT;
+        % cropRois: if tfexternal, cell array of [nviewx4]
         [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
@@ -1898,8 +1899,10 @@ classdef DeepTracker < LabelTracker
           cropRois = repmat({[]},nmovies,1);
         end
         
+        tfdefaulttgts = false;
         if isempty(targets),
           targets = repmat({[]},[nmovies,1]);
+          tfdefaulttgts = true;
         end
         
         trkfilesexist = cellfun(@exist,trkfiles);
@@ -2089,6 +2092,10 @@ classdef DeepTracker < LabelTracker
             
             [gpuids,isMultiViewTrack,isSerialMultiMovTrack] = ...
                         DeepTracker.trackGPUAllocate(nmovies,nviews,gpuidsall);
+            
+            if isSerialMultiMovTrack && tfdefaulttgts
+              targets = []; % otherwise default val is a [nmovset] cell array
+            end
           else
             if obj.trkDockerCPU
               gpuids = [];
@@ -2137,7 +2144,8 @@ classdef DeepTracker < LabelTracker
               args = [args,{'trxfiles',trxfiles,'targets',targets}];
             end
             tfSuccess = obj.trkSpawn(backend,[],[],dlLblFileLcl,...
-              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,'gpuids',gpuids,args{:});
+              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,...
+              'trkfiles',trkfiles,'gpuids',gpuids,args{:});
           else
             tfSuccess = obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});

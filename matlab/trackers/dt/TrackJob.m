@@ -43,7 +43,7 @@ classdef TrackJob < handle
                      % if ~tfserialmultimov, cellstr [nView] corresponding to .ivw (currently APT only supports single-view projs with trx);
                      % if tfserialmultimov, [nSerialMov] corresponding to .movfileLcl
     trkfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
-    trkoutdirLcl = {}; % cellstr, [nView] corresponding to .ivw. UNUSED if .tfexternal
+    trkoutdirLcl = {}; % cellstr, [nView] corresponding to .ivw. STILL USED for errfile if .tfexternal
     parttrkfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
     trkfilestr = {}; % cellstr, [nView] shortnames for trkfileLcl. UNUSED if .tfexternal
     rootdirLcl = '';
@@ -234,20 +234,22 @@ classdef TrackJob < handle
         obj.trkoutdirRem{i} = obj.dmcRem(i).dirTrkOutLnx;
       end
       
-      if obj.tfexternal
+      %if obj.tfexternal
         % .trkoutdirLcl will be unused
+        %obj.trkoutdirLcl = cell(1,obj.nView);
+      %else
+      
+      % in case of obj.tfexternal, trkoutdirLcl still used for trk errfile
+      if isempty(trkoutdirLcl),
         obj.trkoutdirLcl = cell(1,obj.nView);
-      else
-        if isempty(trkoutdirLcl),
-          obj.trkoutdirLcl = cell(1,obj.nView);
-          for i = 1:obj.nView,
-            obj.trkoutdirLcl{i} = obj.dmcLcl(i).dirTrkOutLnx;
-          end
-        else
-          assert(numel(trkoutdirLcl)==obj.nView);
-          obj.trkoutdirLcl = trkoutdirLcl;
+        for i = 1:obj.nView,
+          obj.trkoutdirLcl{i} = obj.dmcLcl(i).dirTrkOutLnx;
         end
+      else
+        assert(numel(trkoutdirLcl)==obj.nView);
+        obj.trkoutdirLcl = trkoutdirLcl;
       end
+      %end
       
       if obj.tfexternal,
         assert(~isempty(movfileLcl) && ~isempty(trkfileLcl));
@@ -603,9 +605,10 @@ classdef TrackJob < handle
     
     function checkCreateDirs(obj)
 
-      if ~obj.tfexternal
-        TrackJob.checkCreateDir(obj.trkoutdirLcl,'trk cache dir');
-      end
+      %if ~obj.tfexternal
+      % still used if tfexternal for errfile
+      TrackJob.checkCreateDir(obj.trkoutdirLcl,'trk cache dir');
+      %end
       if obj.tfremote,
         obj.mkdirRemFun(obj.remoteDataDirRel,'descstr','data');
         for i=1:numel(obj.trkoutdirRem)
