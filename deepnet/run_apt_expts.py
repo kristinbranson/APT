@@ -2220,3 +2220,33 @@ def track(movid=0,
                                )
         tf.reset_default_graph()
 
+
+def create_mat_file():
+    from scipy import io as sio
+    exp_name = 'apt_expt'
+    train_type = 'mdn'
+    for view in range(nviews):
+        gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        train_db_file = os.path.join(conf.cachedir,'train_TF.tfrecords')
+        H = multiResData.read_and_decode_without_session(train_db_file,conf,())
+        ims = np.array(H[0])
+        locs = apt.to_mat(np.array(H[1]))
+        info = apt.to_mat(np.array(H[2]))
+        G = multiResData.read_and_decode_without_session(gt_file,conf,())
+        ims_gt = np.array(G[0])
+        locs_gt = apt.to_mat(np.array(G[1]))
+        info_gt = apt.to_mat(np.array(G[2]))
+        out_file = os.path.join(cache_dir,proj_name,'data_view{}.mat'.format(view))
+        help_text = '''
+        ims: Training images
+        locs: Landmark location for the training images
+        info: Information about the examples.
+        ims_gt: Ground truth images
+        locs_gt: Landmark location for the GT images.
+        info_gt: Information about the examples.
+                    
+        '''
+        sio.savemat(out_file,{'ims':ims,'locs':locs,'info':info,'ims_gt':ims_gt,'locs_gt':locs_gt,'info_gt':info_gt,'help':help_text})
+
+

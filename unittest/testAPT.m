@@ -21,40 +21,122 @@ classdef testAPT < handle
   end
   
   methods (Static)
-        
-    function create_bundle(varargin)
-      % creates a targz to upload to Drobox
-      name = myparse(varargin,'name','alice');
-      self.setup_path()
-      info = testAPT.get_info(name);
-      ref_lbl = info.ref_lbl;
-      exp_dir_base = info.exp_dir_base;
-      
-      proj_name = [name '_test'];
-      old_lbl = loadLbl(ref_lbl);
-      old_lbl.movieFilesAll = FSPath.macroReplace(old_lbl.movieFilesAll,struct('dataroot',exp_dir_base));
-      old_lbl.movieFilesAllGT = FSPath.macroReplace(old_lbl.movieFilesAllGT,struct('dataroot',exp_dir_base));
+            
+    function create_lbl_sh()
+      % For Stephen's projects, we select 5 movies from the label file, add
+      % and create a new project based on them. The labels are selected
+      % from trk files. This project then becomes the old_lbl. As usual
+      % the naming old_lbl becomes non-sensical, but we will continue to
+      % use it to expose the limitations of our foresight. I say "ours"
+      % because I refuse to believe I'm alone in this.
+      A = loadLbl('/groups/branson/bransonlab/apt/experiments/data/sh_trn5017_20200121.lbl');
 
-      tdir = fullfile(tempname,'alice_test');
-      mkdir(tdir);
-      all_m = old_lbl.movieFilesAll;
-      for ndx = 1:numel(all_m)
-        [~,exp_name] = fileparts(fileparts(all_m{ndx}));
-        outdir = fullfile(tdir,exp_name);
-        if ~exist(outdir,'dir'),
-          mkdir(outdir);
-        end
-        copyfile(all_m{ndx},outdir);
-        if info.has_trx
-          trx_file_name = old_lbl.trxFilesAll{ndx};
-          trx_file_name = strrep(trx_file_name,'$movdir',fullfile(exp_dir_base,exp_name));
-          copyfile(trx_file_name,outdir);
-        end
+      info = struct();
+      info.npts = 5;
+      info.nviews = 2;
+      info.has_trx = false;
+      info.proj_name = 'sh_test';
+      cfg = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfg.NumViews = info.nviews;
+      cfg.NumLabelPoints = info.npts;
+      cfg.Trx.HasTrx = info.has_trx;
+      cfg.ViewNames = {};
+      cfg.LabelPointNames = {};
+      cfg.Track.Enable = true;
+      cfg.ProjectName = info.proj_name;
+      FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
+      cfg.View = repmat(cfg.View,cfg.NumViews,1); 
+      for i=1:numel(cfg.View)
+        cfg.View(i) = ProjectSetup('structLeavesStr2Double',cfg.View(i),FIELDS2DOUBLIFY);
       end
-      copyfile(info.ref_lbl,tdir);
-      tar(fullfile(tempdir,[proj_name '_data.tar.gz']),tdir,tdir);
-      rmdir(tdir);
+
+      lObj = Labeler;
+      lObj.initFromConfig(cfg);
+      lObj.projNew(cfg.ProjectName);
+      lObj.notify('projLoaded');
+
+      PROPS = lObj.gtGetSharedProps();
+      % select 7 movie sets from > 512, because movies < 512 don't have ortho
+      % cal calibrations
+      mov_lbl = [571 653 609 634 729]; 
+      lbl_space = 20;
+      for ndx = 1:numel(mov_lbl)
+        cur_ndx = mov_lbl(ndx);
+        cur_movs = {};
+        trk_files = {};
+        for mndx = 1:info.nviews
+          in_mov = A.movieFilesAll{cur_ndx,mndx};
+          cur_movs{mndx} = FSPath.macroReplace(in_mov,A.projMacros);
+          trk_files{mndx} = strrep(cur_movs{mndx},'.avi','.trk');
+        end
+        lObj.movieSetAdd(cur_movs);  
+        if ndx == 1
+            lObj.movieSet(1,'isFirstMovie',true);
+        else
+            lObj.movieSet(ndx);    
+        end
+        crObj = A.viewCalibrationData{cur_ndx};
+        lObj.viewCalSetCurrMovie(crObj);
+        for iview = 1:info.nviews
+          roi = A.movieFilesAllCropInfo{cur_ndx}(iview).roi;
+          % Set the crops
+          lObj.(PROPS.MFACI){ndx}(iview).roi = roi;
+        end
+        lObj.notify('cropCropsChanged'); 
+
+        % Add the labels from trk file.
+        cur_l = lObj.labeledpos{ndx};
+        ss = size(cur_l);
+        all_trk = {};
+        for mndx = 1:info.nviews
+          trk_in = load(trk_files{mndx},'-mat');
+          cc = trk_in.pTrk;
+          cur_idx = 1:lbl_space:size(cc,3);
+          all_trk{end+1} = cc(:,:,cur_idx);
+        end
+        p = cat(1,all_trk{:});
+        p = reshape(p,[], size(p,3))';
+        npts = numel(cur_idx);
+        tgt = ones(npts,1);
+        frm = cur_idx';
+        occ = false(npts,ss(1));
+        tbl = table(frm,tgt,p,occ,'VariableNames',{'frm','iTgt','p','tfocc'});
+        lObj.labelPosBulkImportTblMov(tbl,ndx);
+
+      end
+
+      % Two movies without labels.
+      mov_nlbl = [545 694]; 
+      for ndx = 1:numel(mov_nlbl)
+        cur_ndx = mov_nlbl(ndx);
+        cur_movs = {};
+        trk_files = {};
+        for mndx = 1:info.nviews
+          in_mov = A.movieFilesAll{cur_ndx,mndx};
+          cur_movs{mndx} = FSPath.macroReplace(in_mov,A.projMacros);
+          trk_files{mndx} = strrep(cur_movs{mndx},'.avi','.trk');
+        end
+        lObj.movieSetAdd(cur_movs);  
+        lObj.movieSet(ndx+numel(mov_lbl));    
+        crObj = A.viewCalibrationData{cur_ndx};
+        lObj.viewCalSetCurrMovie(crObj);
+        for iview = 1:info.nviews
+          roi = A.movieFilesAllCropInfo{cur_ndx}(iview).roi;
+          % Set the crops
+          lObj.(PROPS.MFACI){ndx+numel(mov_lbl)}(iview).roi = roi;
+        end
+        lObj.notify('cropCropsChanged'); 
+
+      end
+
+      uc_fn = LabelerGUI('get_local_fn','set_use_calibration');
+      uc_fn(lObj.gdata,true);
+      dstr = datestr(now,'YYYYmmDD');
+      out_file = fullfile('/groups/branson/bransonlab/mayank/APT_projects/',...
+        sprintf('sh_test_lbl_%s.lbl',dstr));
+      lObj.projSaveRaw(out_file);
     end
+    
     
     function cdir = get_cache_dir()
       if ispc
@@ -71,6 +153,61 @@ classdef testAPT < handle
   
   
   methods
+    
+    function testObj = testAPT(varargin)
+      testObj.setup_path();
+      [name] = myparse(varargin,'name','alice');
+      testObj.get_info(name);      
+    end
+    
+    function exp_name = get_exp_name(self,pin)
+      % For alice we care only about the directory one level above eg.
+      % GMRxx
+      % For Stephen we care about the whole path from flp-xxx
+      info = self.info;
+      exp_dir_base = info.exp_dir_base;
+      if strcmp(info.name,'alice')
+        [~,exp_name] = fileparts(fileparts(pin));
+      elseif strcmp(info.name,'stephen')
+        exp_name = fileparts(strrep(pin,exp_dir_base,''));
+      end
+      
+    end
+    
+    function create_bundle(self)
+      % creates a targz to upload to Drobox
+      info = self.info;
+      ref_lbl = info.ref_lbl;
+      exp_dir_base = info.exp_dir_base;
+      
+      proj_name = info.proj_name;
+      old_lbl = loadLbl(ref_lbl);
+      old_lbl.movieFilesAll = FSPath.macroReplace(old_lbl.movieFilesAll,struct('dataroot',exp_dir_base));
+      old_lbl.movieFilesAllGT = FSPath.macroReplace(old_lbl.movieFilesAllGT,struct('dataroot',exp_dir_base));
+
+      tdir = fullfile(tempname,proj_name);
+      mkdir(tdir);
+      all_m = old_lbl.movieFilesAll;
+      for ndx = 1:size(all_m,1)
+        for iview = 1:info.nviews
+          exp_name = self.get_exp_name(all_m{ndx,iview});
+          outdir = fullfile(tdir,exp_name);
+          if ~exist(outdir,'dir'),
+            mkdir(outdir);
+          end
+          copyfile(all_m{ndx,iview},outdir);
+          if info.has_trx
+            trx_file_name = old_lbl.trxFilesAll{ndx};
+            trx_file_name = strrep(trx_file_name,'$movdir',fullfile(exp_dir_base,exp_name));
+            copyfile(trx_file_name,outdir);
+          end
+        end
+      end
+      copyfile(info.ref_lbl,tdir);
+      tar(fullfile(tempdir,[proj_name '_data.tar.gz']),tdir,tdir);
+      rmdir(tdir);
+    end
+
     
     function setup_path(self)
       if ~self.path_setup_done
@@ -94,7 +231,20 @@ classdef testAPT < handle
         info.sz = 90;
         info.bundle_link = 'https://www.dropbox.com/s/u5p27rdi7kczv78/alice_test_data.tar.gz?dl=1';
         info.op_graph = [1 3; 1 2; 3 17; 2 12; 3 4; 4 10; 10 11; 11 16; 10 6; 8 6; 5 8; 8 9; 9 13;6 14;6 15; 6 7];
+        info.name = 'alice';
 
+      elseif strcmp(name,'stephen')
+        info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
+        info.nviews = 2;
+        info.npts = 5;
+        info.has_trx = false;
+        info.proj_name = 'stephen_test';
+        info.sz = [];
+        info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
+        info.op_graph = [1 5; 1 3; 3 4; 4 2];
+        info.name = 'stephen';
+        
       else
         error('Unrecognized test name');
       end
@@ -130,31 +280,35 @@ classdef testAPT < handle
       info = self.info;
       [data_dir, lbl_file] = self.get_file_paths();
       if ~exist(lbl_file,'file')
-        testAPT.setup_data(info);
+        self.setup_data();
       end
       old_lbl = loadLbl(lbl_file);
       old_lbl.movieFilesAll = FSPath.macroReplace(old_lbl.movieFilesAll,old_lbl.projMacros);
       old_lbl.movieFilesAllGT = FSPath.macroReplace(old_lbl.movieFilesAllGT,old_lbl.projMacros);
       all_m = old_lbl.movieFilesAll;
-      for ndx = 1:numel(old_lbl.movieFilesAll)
-        [tt,mov_name,mext] = fileparts(all_m{ndx});
-        [~,exp_name] = fileparts(tt);
-        old_lbl.movieFilesAll{ndx} = fullfile(data_dir,exp_name,[mov_name mext]);
-        if info.has_trx
-          trx_file_name = old_lbl.trxFilesAll{ndx};
-          trx_file_name = strrep(trx_file_name,'$movdir',fullfile(data_dir,exp_name));
-          old_lbl.trxFilesAll{ndx} = trx_file_name;
+      for ndx = 1:size(old_lbl.movieFilesAll,1)
+        for iview = 1:info.nviews
+          [tt,mov_name,mext] = fileparts(all_m{ndx,iview});
+          exp_name = self.get_exp_name(all_m{ndx,iview});
+          old_lbl.movieFilesAll{ndx,iview} = fullfile(data_dir,exp_name,[mov_name mext]);
+          if info.has_trx
+            trx_file_name = old_lbl.trxFilesAll{ndx};
+            trx_file_name = strrep(trx_file_name,'$movdir',fullfile(data_dir,exp_name));
+            old_lbl.trxFilesAll{ndx} = trx_file_name;
+          end
         end
       end
       all_m = old_lbl.movieFilesAllGT;
-      for ndx = 1:numel(all_m)
-        [tt,mov_name,mext] = fileparts(all_m{ndx});
-        [~,exp_name] = fileparts(tt);
-        old_lbl.movieFilesAllGT{ndx} = fullfile(data_dir,exp_name,[mov_name mext]);
-        if info.has_trx
-          trx_file_name = old_lbl.trxFilesAllGT{ndx};
-          trx_file_name = strrep(trx_file_name,'$movdir',fullfile(data_dir,exp_name));
-          old_lbl.trxFilesAllGT{ndx} = trx_file_name;
+      for ndx = 1:size(all_m,1)
+        for iview = 1:info.nviews
+          [tt,mov_name,mext] = fileparts(all_m{ndx,iview});
+          exp_name = self.get_exp_name(all_m{ndx,iview});
+          old_lbl.movieFilesAllGT{ndx,iview} = fullfile(data_dir,exp_name,[mov_name mext]);
+          if info.has_trx
+            trx_file_name = old_lbl.trxFilesAllGT{ndx};
+            trx_file_name = strrep(trx_file_name,'$movdir',fullfile(data_dir,exp_name));
+            old_lbl.trxFilesAllGT{ndx} = trx_file_name;
+          end
         end
       end
       self.old_lbl = old_lbl;
@@ -162,7 +316,7 @@ classdef testAPT < handle
     
     function setup_data(self)
       info = self.info;
-      cacheDir = get_cache_dir(info);
+      cacheDir = testAPT.get_cache_dir();
       out_file = fullfile(tempdir,[info.proj_name '_data.tar.gz']); 
       if exist(out_file,'file')
         try
@@ -178,10 +332,9 @@ classdef testAPT < handle
     end
     
     function test_full(self,varargin)
-      self.setup_path();
-      [name,all_nets,backend,params] = myparse(varargin,'name','alice',...
+      [all_nets,backend,params] = myparse(varargin,...
         'nets',{'mdn'},'backend','docker','params',{});
-      self.test_setup('name',name);
+      self.test_setup();
 
       if ischar(all_nets)
         all_nets = {all_nets};
@@ -193,9 +346,8 @@ classdef testAPT < handle
     
     function test_setup(self,varargin)
       self.setup_path();
-      [name,target_trk] = myparse(varargin,'name','alice',...
-        'target_trk',MFTSetEnum.CurrMovAllTgtsNearCurrFrame);
-      self.get_info(name);
+      [target_trk] = myparse(varargin,...
+        'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame);
       self.load_lbl();
       old_lbl = self.old_lbl;
       if ~self.exist_files()
@@ -220,8 +372,7 @@ classdef testAPT < handle
     function lObj = create_project(self)
      % Create the new project
       info = self.info;
-      lObj = Labeler;
-      cfg = Labeler.cfgGetLastProjectConfigNoView;
+      cfg = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       cfg.NumViews = info.nviews;
       cfg.NumLabelPoints = info.npts;
       cfg.Trx.HasTrx = info.has_trx;
@@ -230,12 +381,15 @@ classdef testAPT < handle
       cfg.Track.Enable = true;
       cfg.ProjectName = info.proj_name;
       FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
-      for i=1:numel(cfg.View)  
+      cfg.View = repmat(cfg.View,cfg.NumViews,1); 
+      for i=1:numel(cfg.View)
         cfg.View(i) = ProjectSetup('structLeavesStr2Double',cfg.View(i),FIELDS2DOUBLIFY);
       end
 
+      lObj = Labeler;
       lObj.initFromConfig(cfg);
       lObj.projNew(cfg.ProjectName);
+      lObj.notify('projLoaded');
     end
     
     function add_movies(self)
@@ -244,14 +398,37 @@ classdef testAPT < handle
       old_lbl = self.old_lbl;
       info = self.info;
       nmov = size(old_lbl.movieFilesAll,1);
-      for ndx = 1:nmov
+      PROPS = lObj.gtGetSharedProps();
+      for ndx = 1:nmov        
           if info.has_trx
               lObj.movieAdd(old_lbl.movieFilesAll{ndx,1},old_lbl.trxFilesAll{ndx,1});
+              if ndx == 1
+                lObj.movieSet(1,'isFirstMovie',true);
+              else
+                lObj.movieSet(ndx);
+              end
+
           else
-              lobj.movieSetAdd(old_lbl.movieFilesAll(ndx,:));
+              lObj.movieSetAdd(old_lbl.movieFilesAll(ndx,:));
+              if ndx == 1
+                lObj.movieSet(1,'isFirstMovie',true);
+              else
+                lObj.movieSet(ndx);
+              end
+              if ~isempty(old_lbl.viewCalibrationData{ndx})
+                crObj = old_lbl.viewCalibrationData{ndx};                
+                lObj.viewCalSetCurrMovie(crObj);
+              end
+              for iview = 1:info.nviews
+                if ~isempty(old_lbl.movieFilesAllCropInfo{ndx}(iview))
+                  roi = old_lbl.movieFilesAllCropInfo{ndx}(iview).roi;
+                  % Set the crops
+                  lObj.(PROPS.MFACI){ndx}(iview).roi = roi;
+                end
+              end
+              lObj.notify('cropCropsChanged'); 
           end
       end
-      lObj.movieSet(1,'isFirstMovie',true);
     end
     
     function add_labels_quick(self)
