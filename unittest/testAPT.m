@@ -563,7 +563,7 @@ classdef testAPT < handle
 
       lObj = self.lObj;
       handles = lObj.gdata;
-      oc1 = onCleanup(@()ClearStatus(handles));
+      %oc1 = onCleanup(@()ClearStatus(handles));
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,handles.figure);
