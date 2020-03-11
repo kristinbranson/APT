@@ -39,7 +39,6 @@ import apt_dpk
 import util
 
 
-
 ISPY3 = sys.version_info >= (3, 0)
 
 data_type = None
@@ -56,12 +55,7 @@ dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/g
 expname_dict_normaltrain = None
 
 cache_dir = '/nrs/branson/al/cache'
-#all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose', 'resnet_unet', 'sb', 'dpk']
-#all_models = ['mdn', 'deeplabcut', 'unet', 'resnet_unet'] #, 'sb', 'dpk']
-all_models = ['deeplabcut', 'dpk', 'mdn'] # , 'openpose', 'sb']
-#all_models = ['mdn']
-all_models = ['leap']
-#all_models = ['openpose', 'sb']
+all_models = ['openpose']
 
 print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))
@@ -217,6 +211,7 @@ def run_jobs(cmd_name,
              cur_cmd,
              redo=False,
              run_dir='/groups/branson/home/leea30/git/apt.dpk1920/deepnet',
+             queue='gpu_any',
              precmd='',
              logdir=sdir):
     logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
@@ -243,6 +238,7 @@ def run_jobs(cmd_name,
         PoseTools.submit_job(cmd_name, cur_cmd, logdir,
                              gpu_model=gpu_model,
                              run_dir=run_dir,
+                             queue=queue,
                              precmd=precmd)
     else:
         print('NOT submitting job {}'.format(cmd_name))
@@ -525,6 +521,18 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
         conf_opts['batch_size'] = 4
         conf_opts['adjust_contrast'] = True
         conf_opts['clahe_grid_size'] = 20
+
+        if train_type in ['openpose']:
+            conf_opts['op_backbone'] = '\\"vgg\\"'
+            conf_opts['batch_size'] = 2
+            conf_opts['op_hires'] = True
+            conf_opts['op_hires_ndeconv'] = 1
+            #conf_opts['rescale'] = 1
+            #conf_opts['batch_size'] = 4
+
+        if train_type in ['sb', 'dpk']:
+            conf_opts['rescale'] = 4
+            conf_opts['batch_size'] = 4
         if train_type in ['unet', 'resnet_unet', 'leap']:
             conf_opts['rescale'] = 2
             conf_opts['batch_size'] = 2
@@ -532,7 +540,7 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
             conf_opts['batch_size'] = 4
             conf_opts['rescale'] = 2
             conf_opts['mdn_use_unet_loss'] = True
-            # conf_opts['mdn_learning_rate'] = 0.0001
+            conf_opts['mdn_learning_rate'] = 0.0001
 
     if data_type == 'stephen':
         conf_opts['batch_size'] = 4
@@ -586,6 +594,7 @@ def run_trainining(exp_name,train_type,view,run_type,
                    train_name='deepnet',
                    cp_from_existing_exp=None,  # short expname same dir as exp_name
                    exp_note='',
+                   queue='gpu_any',
                    **kwargs
                    ):
 
@@ -631,7 +640,7 @@ def run_trainining(exp_name,train_type,view,run_type,
 
         print(cur_cmd)
         print()
-        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir)
+        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir, queue=queue)
     elif run_type == 'status':
         #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         #time0 = time.process_time()
@@ -725,6 +734,7 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                       exp_name_pfix='',  # prefix for exp_name
                       split_idxs=None,  # optional list of split indices to run (0-based)
                       view_idxs=None,  # optional list of view indices to run (0-based)
+                      queue='gpu_any',
                       **kwargs):
     assert data_type in ['romain','larva','roian','carsen']
 
@@ -792,7 +802,7 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
         for train_type in all_models:
             for sndx in split_idxs:
                 exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)
-                run_trainining(exp_name,train_type,view,run_type, **kwargs)
+                run_trainining(exp_name,train_type,view,run_type, queue=queue, **kwargs)
 
 def my_move(src, destpath):
     if os.path.exists(src):
@@ -816,7 +826,7 @@ def cv_train_backup(run_id, dryrun=False, exp_name_pfix=''):
                 conf = create_conf_help(train_type, view, exp_name)
                 edir = conf.cachedir
 
-                GLOBSKEEP = ['splitdata.json', 'train_TF.tfrecords', 'val_TF.tfrecords']
+                GLOBSKEEP = ['splitdata.json', 'train_TF.tfrecords', 'val_TF.tfrecords', 'run*']
                 artskeep = []
                 for gl in GLOBSKEEP:
                     gl = os.path.join(edir,gl)
@@ -829,6 +839,8 @@ def cv_train_backup(run_id, dryrun=False, exp_name_pfix=''):
                     print(edir)
                     for a in artsbak:
                         print("  {} -> {}".format(a, run_id))
+                    for a in artskeep:
+                        print("  Kept: {}".format(a))
                 else:
                     arcdir = os.path.join(edir, run_id)
                     assert not os.path.exists(arcdir)
