@@ -107,6 +107,7 @@ class config(object):
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30
+        self.cachedir = None
 
         # ----- Legacy
         # self.scale = 2
