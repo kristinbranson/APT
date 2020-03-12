@@ -2319,7 +2319,9 @@ classdef DeepTracker < LabelTracker
         baseargsaug = [baseargs {'model_file' trksysinfo(ivw).modelfile}];
         bsubargs = {'outfile' logfile};
         sshargs = {};
-        singBind = obj.genContainerMountPath('aptroot',aptroot);
+        listfileroot = fileparts(listfiles{ivw});        
+        singBind = obj.genContainerMountPath('aptroot',aptroot,...
+          'extra',{listfileroot});
         singargs = {'bindpath',singBind};
         repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
         repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
