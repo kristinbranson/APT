@@ -55,7 +55,7 @@ for f = fldsOver(:)',f=f{1}; %#ok<FXSET>
       baseused = [baseused;newBU]; %#ok<AGROW>
     end
   elseif isstruct(sbase.(f)) && ~isstruct(sover.(f))
-    warning('structoverlay:badval','Ignoring non-struct value of ''%s''.',...
+    warningNoTrace('structoverlay:nonstruct','Ignoring non-struct value of ''%s''.',...
       newpath );
     baseused{end+1,1} = newpath; %#ok<AGROW>
   else % sbase.(f) is not a struct
