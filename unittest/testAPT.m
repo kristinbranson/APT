@@ -5,8 +5,8 @@ classdef testAPT < handle
   % testObj.test_full('name','alice','nets',{'mdn','deeplabcut'});
   
   % If you want to interact with GUI before training:
-  % testObj = testAPT();
-  % testObj.setup_test('name','alice');
+  % testObj = testAPT('name','alice');
+  % testObj.test_setup();
   % Mess with GUI
   % testObj.test_train('net_type','mdn',...
   %        'backend','docker','niters',1000,'test_tracking',true)
