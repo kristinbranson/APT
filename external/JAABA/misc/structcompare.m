@@ -75,11 +75,7 @@ for i = 1:numel(fns),
       if ~all(issamecurr),
         fprintf('%s(%d): struct mismatch.\n',fn,j);
         issame(i) = false;
-        break;
       end
-    end
-    if ~issame(i),
-      break;
     end
     
   elseif strcmp(class1,'cell'), %#ok<ISCEL>
