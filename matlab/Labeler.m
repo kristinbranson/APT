@@ -3140,21 +3140,28 @@ classdef Labeler < handle
       % 20190207: added nLabels to dmc
       % 20190404: remove .trnName, .trnNameLbl as these dup DMC
       for i = 1:numel(s.trackerData),
-        if isfield(s.trackerData{i},'trnLastDMC'),
-          for j = 1:numel(s.trackerData{i}.trnLastDMC),
-            dmc = s.trackerData{i}.trnLastDMC(j);
-            if isempty(dmc.nLabels) && (isempty(dmc.reader) || ~dmc.isRemote)
-              % dmc.reader is empty for legacy projs; which will be assumed 
-              % to be local in DeepTracker/modernizeSaveToken
-              try
-                fprintf('Modernize: Reading nLabels for deep tracker\n');
-                dmc.readNLabels();
-              catch ME
-                warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
-              end
-            end
-          end
-        end
+        
+%         AL20200312: This update will never work in the regular 
+%         projLoad codepath because at this time the dmcs do not have 
+%         their .rootDirs updated appropriately for the newly-exploded
+%         bundled models. For now skip this update, .nLabels appears
+%         noncritical (used for display/cosmetics only)
+%         if isfield(s.trackerData{i},'trnLastDMC'),
+%           for j = 1:numel(s.trackerData{i}.trnLastDMC),
+%             dmc = s.trackerData{i}.trnLastDMC(j);
+%             if isempty(dmc.nLabels) && (isempty(dmc.reader) || ~dmc.isRemote)
+%               % dmc.reader is empty for legacy projs; which will be assumed 
+%               % to be local in DeepTracker/modernizeSaveToken
+%               try
+%                 fprintf('Modernize: Reading nLabels for deep tracker\n');
+%                 dmc.readNLabels();
+%               catch ME
+%                 warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
+%               end
+%             end
+%           end
+%         end
+
         if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
           if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
             assert(all(strcmp(s.trackerData{i}.trnName,...

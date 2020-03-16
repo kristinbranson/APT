@@ -1880,19 +1880,24 @@ classdef DeepTracker < LabelTracker
       
       obj.bgTrkReset();
         
-      % track an external movie
+      % track an external movie. See trackGPUAllocate for supported
+      % tracking modalities.
       if isexternal
         movfiles = tblMFT;
         % cropRois: if tfexternal, cell array of [nviewx4]
-        [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
-          'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
+        [trxfiles,trkfiles,f0,f1,cropRois,targets,iview] = myparse(varargin,...
+          'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{},...
+          'iview',nan... % used only if tfSerialMultiMov; CURRENTLY UNSUPPORTED
+          );
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
         [nmovies,nviews] = size(movfiles); 
         
         if obj.lObj.hasTrx,
           assert(all(size(trxfiles)==size(movfiles)),'Trx files must be input');
         end
-        assert(all(size(trkfiles)==size(movfiles)),'Output trk files must be input');
+        if ~isequal(size(trkfiles),size(movfiles))
+          error('Output trkfile array must have exactly the same size as input movie array.');
+        end
 
         if isempty(cropRois),
           % Note this format differs from ~isexternal branch
@@ -2319,7 +2324,9 @@ classdef DeepTracker < LabelTracker
         baseargsaug = [baseargs {'model_file' trksysinfo(ivw).modelfile}];
         bsubargs = {'outfile' logfile};
         sshargs = {};
-        singBind = obj.genContainerMountPath('aptroot',aptroot);
+        listfileroot = fileparts(listfiles{ivw});        
+        singBind = obj.genContainerMountPath('aptroot',aptroot,...
+          'extra',{listfileroot});
         singargs = {'bindpath',singBind};
         repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
         repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
@@ -3213,7 +3220,9 @@ classdef DeepTracker < LabelTracker
           assert(isnumeric(trxids));
         end
         if ~isempty(frm0) || ~isempty(frm1),
-          assert(isscalar(frm0) && isscalar(frm1));
+          if ~(isscalar(frm0) && isscalar(frm1))
+            error('''frm0'' and ''frm1'' specifications should be scalars that apply to all movies when tracking multiple movies serially.');
+          end
         end
         % this is dumb; cropRoi format conversion
         if obj.lObj.cropProjHasCrops

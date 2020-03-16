@@ -25,9 +25,25 @@ function APTCluster(varargin)
 
 startTime = tic;
 
+% smoke/diagnostic test for when deployed
+% APTCluster hello
+% APTCluster hello diag
+if strcmp(varargin{1},'hello')
+  disp('### APTCluster hello! ###');
+  if numel(varargin)>1 && strcmp(varargin{2},'diag')
+    croot = ctfroot;
+    aptroot = APT.getRoot;
+    fprintf(1,'ctfroot is %s, aptroot is %s\n',croot,aptroot);
+    cmd = sprintf('find %s',croot);
+    system(cmd);
+  end
+  
+  return
+end
+
 lblFile = varargin{1};
 action = varargin{2};
-  
+
 if exist(lblFile,'file')==0
   error('APTCluster:file','Cannot find project file: ''%s''.',lblFile);
 end
@@ -53,6 +69,12 @@ switch action
     end
     if lObj.gtIsGTMode
       lObj.gtSetGTMode(false,'warnChange',true);
+    end
+    
+    [tCPR,iTrk] = lObj.trackGetTracker('cpr');
+    if tCPR~=lObj.tracker
+      fprintf(1,'Setting tracker to CPR.\n');
+      lObj.trackSetCurrentTracker(iTrk);
     end
         
     retrainArgs = cell(1,0);
