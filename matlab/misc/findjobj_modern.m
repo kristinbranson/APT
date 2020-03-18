@@ -186,7 +186,10 @@ function [handles,levels,parentIdx,listing] = findjobj_modern(container,varargin
             elseif ishghandle(container) % && ~isa(container,'java.awt.Container')
                 container = container(1);  % another current limitation...
                 hFig = ancestor(container,'figure');
-                oldWarn = warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame');  % R2008b compatibility
+                oldWarn = [ ...
+                    warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame'); ...  % R2008b compatibility
+                    warning('off', 'MATLAB:ui:javaframe:PropertyToBeRemoved'); ...
+                    ];
                 try hJavaFrame = get(hFig,'JavaFrame'); catch, hJavaFrame = []; end
                 warning(oldWarn);
                 if isempty(hJavaFrame)  % alert if trying to use with web-based (not Java-based) uifigure
@@ -486,9 +489,13 @@ function [handles,levels,parentIdx,listing] = findjobj_modern(container,varargin
         end
         try
             % If invalid RootPane - try another method...
-            warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame');  % R2008b compatibility
+            warnst = [...
+                warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame');  ... % R2008b compatibility
+                warning('off','MATLAB:ui:javaframe:PropertyToBeRemoved'); ...
+                ];
             jFrame = get(hFig,'JavaFrame');
-            jAxisComponent = get(jFrame,'AxisComponent');
+            warning(warnst);
+            jAxisComponent = get(jFrame,'AxisComponent');            
             jRootPane = jAxisComponent.getParent.getParent.getRootPane;
         catch
             % Never mind
@@ -3392,7 +3399,9 @@ function jControl = findjobj_fast(hControl, jContainer)
             jControl = [];
             return
         end
+        warnst = warning('off','MATLAB:ui:javaframe:PropertyToBeRemoved');
         try jContainer = hParent.JavaFrame.getGUIDEView; catch, jContainer = []; end
+        warning(warnst);
     end
     if isempty(jContainer)
         hFig = ancestor(hControl,'figure');

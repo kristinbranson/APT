@@ -414,8 +414,10 @@ classdef Table < hgsetget
             
             % Draw table in scroll pane
             jScrollPane = javaObjectEDT('javax.swing.JScrollPane', jTable);
+            warnst = warning('off','MATLAB:ui:javacomponent:FunctionToBeRemoved');
             [jScrollPane, hContainer] = javacomponent(...
                 jScrollPane, [], hPanel);
+            warning(warnst);
             set(hContainer,'Units','normalized','Position',[0 0 1 1])
             
             % Draw table in scroll pane

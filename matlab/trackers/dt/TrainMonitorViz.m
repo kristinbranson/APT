@@ -409,8 +409,7 @@ classdef TrainMonitorViz < handle
       
       ss = {};
       raw = obj.trainWorkerObj.queryMyJobsStatus();
-      nview = numel(raw);
-      for i = 1:nview,
+      for i = 1:numel(raw),
         snew = strsplit(raw{i},'\n');
         ss(end+1:end+numel(snew)) = snew;
       end

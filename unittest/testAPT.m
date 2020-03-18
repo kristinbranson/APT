@@ -5,8 +5,8 @@ classdef testAPT < handle
   % testObj.test_full('name','alice','nets',{'mdn','deeplabcut'});
   
   % If you want to interact with GUI before training:
-  % testObj = testAPT();
-  % testObj.setup_test('name','alice');
+  % testObj = testAPT('name','alice');
+  % testObj.test_setup();
   % Mess with GUI
   % testObj.test_train('net_type','mdn',...
   %        'backend','docker','niters',1000,'test_tracking',true)
@@ -139,14 +139,15 @@ classdef testAPT < handle
     
     
     function cdir = get_cache_dir()
-      if ispc
-        userDir = winqueryreg('HKEY_CURRENT_USER',...
-          ['Software\Microsoft\Windows\CurrentVersion\' ...
-          'Explorer\Shell Folders'],'Personal');
-      else
-        userDir = char(java.lang.System.getProperty('user.home'));
-      end
-      cdir = fullfile(userDir,'.apt');
+      cdir = APT.getdlcacheroot;
+%       if ispc
+%         userDir = winqueryreg('HKEY_CURRENT_USER',...
+%           ['Software\Microsoft\Windows\CurrentVersion\' ...
+%           'Explorer\Shell Folders'],'Personal');
+%       else
+%         userDir = char(java.lang.System.getProperty('user.home'));
+%       end
+%       cdir = fullfile(userDir,'.apt');
     end
     
   end
@@ -562,7 +563,7 @@ classdef testAPT < handle
 
       lObj = self.lObj;
       handles = lObj.gdata;
-      oc1 = onCleanup(@()ClearStatus(handles));
+      %oc1 = onCleanup(@()ClearStatus(handles));
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,handles.figure);

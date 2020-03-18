@@ -61,7 +61,7 @@ classdef TrackMonitorViz < handle
       obj.trackWorkerObj = trackWorkerObj;
       obj.backEnd = backEnd;
       nMovies = numel(nFramesToTrack);
-      obj.nFramesToTrack = repmat(nFramesToTrack,nview);
+      obj.nFramesToTrack = repmat(nFramesToTrack,nview); % AL202002: this mega-tiling is prob not what we want
       nJobs = nMovies*nview;
       if ~exist('jobDescs','var'),
         jobDescs = cell(nMovies,nview);
@@ -461,8 +461,7 @@ classdef TrackMonitorViz < handle
       
       ss = {};
       raw = obj.trackWorkerObj.queryMyJobsStatus();
-      nview = numel(raw);
-      for i = 1:nview,
+      for i = 1:numel(raw),
         snew = strsplit(raw{i},'\n');
         ss(end+1:end+numel(snew)) = snew;
       end

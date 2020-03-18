@@ -2217,44 +2217,82 @@ def run(args):
                 assert len(
                     args.crop_loc) == 4 * nviews, 'cropping location should be specified as xlo xhi ylo yhi for all the views'
             views = range(nviews)
+
+            for view_ndx, view in enumerate(views):
+                conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,
+                                   conf_params=args.conf_params)
+                if args.crop_loc is not None:
+                    crop_loc = [int(x) for x in args.crop_loc]
+                    # crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
+                    # KB 20190123: crop_loc was being decremented twice, removed one
+                    crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :]
+                else:
+                    crop_loc = None
+
+                classify_movie_all(args.type,
+                                   conf=conf,
+                                   mov_file=args.mov[view_ndx],
+                                   trx_file=args.trx[view_ndx],
+                                   out_file=args.out_files[view_ndx],
+                                   start_frame=args.start_frame,
+                                   end_frame=args.end_frame,
+                                   skip_rate=args.skip,
+                                   trx_ids=args.trx_ids,
+                                   name=name,
+                                   save_hmaps=args.hmaps,
+                                   crop_loc=crop_loc,
+                                   model_file=args.model_file[view_ndx],
+                                   train_name=args.train_name
+                                   )
         else:
+            nmov = len(args.mov)
+            def checklen(x, varstr):
+                assert len(x) == nmov, "Number of {} ({}) must match number of movies ({})".format(varstr, len(x), nmov)
             if args.trx is None:
-                args.trx = [None]
-            if args.model_file is None:
-                args.model_file = [None]
-            assert len(args.mov) == 1, 'Number of movie files should be one when view is specified'
-            assert len(args.trx) == 1, 'Number of trx files should be one when view is specified'
-            assert len(args.model_file) == 1, 'Number of model files should be one when view is specified'
-            assert len(args.out_files) == 1, 'Number of out files should be one when view is specified'
-            if args.crop_loc is not None:
-                assert len(args.crop_loc) == 4, 'cropping location should be specified as xlo xhi ylo yhi'
-            views = [args.view]
-
-        for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
-            if args.crop_loc is not None:
-                crop_loc = [int(x) for x in args.crop_loc]
-                # crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
-                # KB 20190123: crop_loc was being decremented twice, removed one
-                crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :]
+                args.trx = [None] * nmov
             else:
-                crop_loc = None
+                checklen(args.trx, 'trx')
+            if args.model_file is None:
+                args.model_file = [None] * nmov
+            elif len(args.model_file) == 1:
+                args.model_file = args.model_file * nmov
+            else:
+                checklen(args.model_file, 'model files')
+            checklen(args.out_files, 'output files')
+            if args.crop_loc is None:
+                crop_loc_list = [None] * nmov
+            else:
+                assert len(args.crop_loc) == 4*nmov, 'cropping location should be specified (for given view) as xlo1 xhi1 ylo1 yhi1 xlo2 xhi2 ...'
+                args.crop_loc = [int(x) for x in args.crop_loc]
+                crop_loc_list = []
+                for imov in range(nmov):
+                    croparr = np.array(args.crop_loc[imov * 4:(imov + 1) * 4])
+                    crop_loc_list.append(croparr)
 
-            classify_movie_all(args.type,
-                               conf=conf,
-                               mov_file=args.mov[view_ndx],
-                               trx_file=args.trx[view_ndx],
-                               out_file=args.out_files[view_ndx],
-                               start_frame=args.start_frame,
-                               end_frame=args.end_frame,
-                               skip_rate=args.skip,
-                               trx_ids=args.trx_ids,
-                               name=name,
-                               save_hmaps=args.hmaps,
-                               crop_loc=crop_loc,
-                               model_file=args.model_file[view_ndx],
-                               train_name=args.train_name
-                               )
+            # AL for now require single view spec to not break bkwds
+            # args.view
+
+            for ndx in range(nmov):
+                conf = create_conf(lbl_file, args.view, name,
+                                   net_type=args.type,
+                                   cache_dir=args.cache,
+                                   conf_params=args.conf_params)
+                logging.info('Classifying movie {}: {}'.format(ndx, args.mov[ndx]))
+                classify_movie_all(args.type,
+                                   conf=conf,
+                                   mov_file=args.mov[ndx],
+                                   trx_file=args.trx[ndx],
+                                   out_file=args.out_files[ndx],
+                                   start_frame=args.start_frame,
+                                   end_frame=args.end_frame,
+                                   skip_rate=args.skip,
+                                   trx_ids=args.trx_ids,
+                                   name=name,
+                                   save_hmaps=args.hmaps,
+                                   crop_loc=crop_loc_list[ndx],
+                                   model_file=args.model_file[ndx],
+                                   train_name=args.train_name
+                                   )
 
     elif args.sub_name == 'gt_classify':
         if args.view is None:

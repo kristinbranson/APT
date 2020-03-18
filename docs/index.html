@@ -193,7 +193,8 @@ Instructions for setting up each of these back ends:
   <li><a href="JaneliaBackEnd.html">Janelia Cluster GPU back end</a></li>
 </ul>
 
-
+<p>You can select which backend APT will use from the <b>Track->GPU/Backend Configuration</b> menu. </p>
+<center><a href="images/TrackingBackends.png"><img src="images/TrackingBackends.png" width="50%"></a></center>
 
 <!--
 <hr class="h2-divider">
@@ -256,7 +257,7 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
 <p>APT makes it easy to train a tracker then predict on a sequence of frames. The first test of whether the tracker is working is the <b>eye-ball test</b> -- just look at the predictions and see if, by eye, they look accurate. If it is easy to find frames that the tracker is performing poorly on, then we recommend annotating these frames, adding them to the training set, and re-training. </p>
 <p>Once APT has passed the eye-ball test, you can use <a href="#Cross Validation">cross-validation</a> to estimate accuracy quantitatively. The gold standard for accuracy estimation is <a href="#Groundtruthing">ground truthing</a>, in which you manually annotate new frames, and quantitatively compare APT's predictions to manual labels.</p>
 <h3>How do I set tracking parameters?</h3>
-<p>Before you click the Train button, there are some parameters that are important to set. You can select the <a href="#Algorithm">tracking algorithm</a> from the Track->Tracking algorithm menu. You can select the backend on which all GPU computations will be performed from the <a href="#Select backend">Track->GPU/Backend Configuration</a> menu. Parameters related to the currently selected algorithm can be set from the Tracking Parameters GUI, accessed from the <a href="#Tracking parameters">Track -> Configure tracking parameters</a> menu. For each new application, it is important that you set the Tracking Parameters labeled as <b>Important</b>. Information on tracking parameters is <a href="#Tracking parameters">here</a>.</p>
+<p>Before you click the Train button, there are some parameters that are important to set. You can select the <a href="#Algorithm">tracking algorithm</a> from the Track->Tracking algorithm menu. You can select the backend on which all GPU computations will be performed from the <a href="#Backend">Track->GPU/Backend Configuration</a> menu. Parameters related to the currently selected algorithm can be set from the Tracking Parameters GUI, accessed from the <a href="#Tracking parameters">Track -> Configure tracking parameters</a> menu. For each new application, it is important that you set the Tracking Parameters labeled as <b>Important</b>. Information on tracking parameters is <a href="#Tracking parameters">here</a>.</p>
 
 <hr class="h2-divider">
 
@@ -678,6 +679,10 @@ trx(1) =
 <h2><a id="Tracking parameters">Tracking parameters</a></h2>
 
 <h3><a id="Algorithm">Tracking algorithm</a></h3>
+<center>
+  <a href="images/TrackingAlgorithms.png"><img src="images/TrackingAlgorithms.png" width="40%"></a>
+</center>
+
 <p>APT includes implementations of several tracking algorithms that you can select from the <b>Track->Tracking algorithm</b> menu. A quantitative comparison of the performance of these algorithms on a variety of data sets is below. Higher numbers are better. These are preliminary results, and these numbers will be updated soon.</p>
 <center>
   <a href="images/AlgorithmComparison.png"><img src="images/AlgorithmComparison.png" width="75%"></a>
@@ -685,14 +690,17 @@ trx(1) =
 
 <table>
   <tr>
-    <td><b>Algorithm</b></td><td><b>Citation</b></td><td><b>Description</b></td>
+    <td><b>Algorithm</b></td><td><b>Citation</b></td><td><b>GPU memory</b></td><td><b>Description</b></td>
   </tr>
   <tr>
-    <td>Cascaded Pose Regression (CPR)</td><td><a href="https://pdollar.github.io/files/papers/DollarCVPR10pose.pdf">Dollar, Welinder, Perona, 2010</a></td><td>CPR is <i>not</i> a deep learning algorithm, but is instead based on a type regressor called random ferns (related to random forests). From an initial guess of the pose, it iteratively refines its estimate based on features computed in a reference frame determined based on the original pose. We recommend using this algorithm if you <i>do not have access to a GPU</i>.</td></tr>
-  <tr><td>Deep Convolutional Network - MDN</td><td>Kabra, Lee, Branson, in preparation.</td><td>MDN, which stands for Mixture Density Network, is a deep convolutional net whose architecture combines a <a href="https://en.wikipedia.org/wiki/U-Net">U-Net</a>, a <a href="https://en.wikipedia.org/wiki/Residual_neural_network">Residual network</a>, and a <a href="https://publications.aston.ac.uk/id/eprint/373/1/NCRG_94_004.pdf">Mixture Density Network</a>. We and our collaborators use this network architecture in our experiments, and it achieves the highest accuracy in nearly all of our experiments.</td></tr>
+    <td>Cascaded Pose Regression (CPR)</td><td><a href="https://pdollar.github.io/files/papers/DollarCVPR10pose.pdf">Dollar, Welinder, Perona, 2010</a></td><td>None</td><td>CPR is <i>not</i> a deep learning algorithm, but is instead based on a type regressor called random ferns (related to random forests). From an initial guess of the pose, it iteratively refines its estimate based on features computed in a reference frame determined based on the original pose. We recommend using this algorithm if you <i>do not have access to a GPU</i>.</td></tr>
+  <tr><td>Deep Convolutional Network - MDN</td><td>Our method</td><td>High</td><td>MDN, which stands for Mixture Density Network, is a deep convolutional net whose architecture combines a <a href="https://en.wikipedia.org/wiki/U-Net">U-Net</a>, a <a href="https://en.wikipedia.org/wiki/Residual_neural_network">Residual network</a>, and a <a href="https://publications.aston.ac.uk/id/eprint/373/1/NCRG_94_004.pdf">Mixture Density Network</a>. We and our collaborators use this network architecture in our experiments, and it achieves the highest accuracy in most of our experiments.</td></tr>
+  <tr><td>Deep Convolutional Network - DeepLabCut</td><td><a href="http://www.mousemotorlab.org/deeplabcut">Link</a></td><td>Medium</td></tr>
+  <tr><td>Deep Convolutional Network - Unet</td><td><a href="https://arxiv.org/abs/1505.04597">Ronneberger, Fischer, Brox, 2015</a></td><td>Highest</td></tr>
+  <tr><td>Deep Convolutional Network - OpenPose</td><td><a href="https://github.com/CMU-Perceptual-Computing-Lab/openpose">Link</a></td><td>Medium</td></tr>
+  <tr><td>Deep Convolutional Network - LEAP</td><td><a href="https://github.com/talmo/leap">Link</a></td><td>Low</td></tr>
 <!--  (<a href="https://arxiv.org/abs/1505.04597">Ronneberger, Fischer, Brox, 2015</a>, <a href="https://en.wikipedia.org/wiki/U-Net">Wikipedia</a>), a Residual Network (<a href="https://arxiv.org/abs/1512.03385">He, Zhang, Ren, Sun, 2015</a>)
 -->
-
 </table>
 
 <p>APT's performance depends critically on setting several tracking parameters well. Several of these parameters must be changed with each new tracking application. To access the tracking parameters, select <b>"Configure tracking parameters..."</b> from the Tracking menu.</p>
@@ -844,6 +852,44 @@ trx(1) =
 <i>Examples of pairs of matching landmarks to swap when flipping during data augmentation. Note that some landmarks are unpaired. These do not need to be swapped.</i></center>
 <p>If you selected <b>"Flip horizontally"</b> or <b>"Flip vertically"</b> above, it is important that you <b>specify corresponding pairs</b> of landmarks after this flip occurs. For example, after flipping both the image and the manual annotations, the left rear foot should be where the right rear foot is, and vice-versa. To do this, select <b>"Select landmark flip pairings"</b> from the Track menu.</p>
 
+<h3><a id="Example Tracking Parameters">Example Tracking Parameters</a></h3>
+<center>
+<table id="table_params" width="90%">
+  <tr><th>Parameter</th><th>10 flies</th><th>Single fly head</th><th>Single fly</th><th>2 mice</th><th>Single mouse</th><th>Single larva</th></tr>
+  <tr><th>Target ROI: Radius</th><td><img src="images/TrackingParameterExamples_TargetROIRadius_10flies.png" width="100px"/><br/>90</td><td>N/A</td><td>N/A</td><td><img src="images/TrackingParameterExamples_TargetROIRadius_2mice.png" width="100px"/><br/>200</td><td>N/A</td><td><img src="images/TrackingParameterExamples_TargetROIRadius_larva.png" width="100px"/><br/>520</td></tr>
+  <tr><th>Tracking Algorithm</th><td>MDN</td><td>MDN</td><td>MDN</td><td>MDN</td><td>DeepLabCut</td><td>MDN</td></tr>
+  <tr><th>Target ROI: Align using trajectory theta</th><td>Yes</td><td>N/A</td><td>N/A</td><td>No</td><td>N/A</td><td>No</td></tr>
+  <tr><th>Image Processing: Downsample factor</th><td>1</td><td>1</td><td>2</td><td>1</td><td>1</td><td>2</td></tr>
+  <tr><th>Gradient Descent: Training batch size</th><td>8</td><td>4</td><td>2</td><td>8</td><td>8</td><td>4</td></tr>
+  <tr><th>Data Augmentation: Rotate range</th><td>10</td><td>10</td><td>10</td><td>180</td><td>10</td><td>180</td></tr>
+  <tr><th>Data Augmentation: Translation range</th><td>5</td><td>20</td><td>20</td><td>10</td><td>20</td><td>20</td></tr>
+  <tr><th>Data Augmentation: Scale factor range</th><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td></tr>
+  <tr><th>Data Augmentation: Contrast range</th><td>0.09</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Data Augmentation: Brightness range</th><td>0.09</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Data Augmentation: Flip horizontally</th><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Data Augmentation: Flip vertically</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+
+  <tr><th>Image Processing: Histogram equalization</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>Yes</td></tr>
+  <tr><th>Image Processing: Brightness normalization</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Gradient Descent: N. iterations of training</th><td>60000</td><td>60000</td><td>60000</td><td>60000</td><td>60000</td><td>60000</td></tr>
+  <tr><th>MDN: Ignore occluded landmarks</th><td>No</td><td>No</td><td>No</td><td>Yes</td><td>No</td><td>No</td></tr>
+  <tr><th>MDN: Predict occluded</th><td>No</td><td>No</td><td>No</td><td>Yes</td><td>No</td><td>No</td></tr>
+
+  <tr><th>Target ROI: Pad background</th><td>0</td><td>N/A</td><td>N/A</td><td>0</td><td>N/A</td><td>0</td></tr>
+  <tr><th>Saving: Training tracker save interval</th><td>1000</td><td>1000</td><td>1000</td><td>1000</td><td>1000</td><td>1000</td></tr>
+  <tr><th>Image Processing: Neighborhood size for histogram equalization</th><td>20</td><td>20</td><td>20</td><td>20</td><td>20</td><td>20</td></tr>  
+  <tr><th>Image Processing: Max pixel value</th><td>255</td><td>255</td><td>255</td><td>255</td><td>255</td><td>255</td></tr>
+  <tr><th>Gradient Descent: N. warm restarts</th><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+  <tr><th>Gradient Descent: Learning rate decay iterations</th><td>25000</td><td>25000</td><td>25000</td><td>25000</td><td>25000</td><td>25000</td></tr>
+  <tr><th>Gradient Descent: Learning rate decay (gamma)</th><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Gradient Descent: Number of test examples</th><td>24</td><td>24</td><td>24</td><td>24</td><td>24</td><td>24</td></tr>
+  <tr><th>Data Augmentation: Perturb color</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Data Augmentation: Check landmarks during augmentation</th><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+  <tr><th>Loss Function: Label uncertainty radius</th><td>3</td><td>3</td><td>3</td><td>3</td><td>3</td><td>3</td></tr>
+  
+</table>
+</center>
+
 <!-- <a href="tracking_parameters.html#CPR">CPR Tracking parameters</a> 
 -->
 
@@ -946,7 +992,7 @@ Click the <b>Train</b> button on the <a href="#GUI">bottom left</a> to begin tra
     <li><b>Show error messages</b>: Show error messages indicating why tracking failed.</li>
   </ul>
 </p>
-
+<p>At any time, you can push the <b>Stop tracking</b> button to stop tracking. Stopping tracking requires a sequence of events to happen which could take a few seconds, so please be patient and only press this button once. <b>No</b> intermediate results will be available if tracking is stopped prematurely. </p>
 
 <hr class="h2-divider">
 
@@ -1047,7 +1093,7 @@ Along with various plots, the Labeler property .gtTblRes provides a results tabl
 <footer>
 <hr class="h1-divider">
 <center>
-<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated December 2, 2019</i>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated March 11, 2020</i>
 </center>
 </footer>
 
