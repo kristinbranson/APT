@@ -3458,6 +3458,22 @@ classdef Labeler < handle
       s.trkResGT = cell(nmovGT,nvw,0);
       s.trkResViz = cell(0,1);
     end
+    
+    function data = stcLoadLblFile(fname)
+      tname = tempname;
+      try
+        untar(fname,tname);
+        data = load(fullfile(tname,'label_file.lbl'),'-mat');
+        rmdir(tname,'s');
+      catch ME,
+        if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile'),
+          data = load(fname,'-mat');
+        else
+          throw(ME);
+        end
+      end
+    end
+    
   end 
   
   %% Movie

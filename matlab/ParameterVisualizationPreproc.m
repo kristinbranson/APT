@@ -163,10 +163,12 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       nshow = size(obj.initVizInfo.tblPTrn1,1);
       
       s = strsplit(propFullName,'.');
+      nparts = lObj.nLabelPoints;
       
       % todo: figure out what to do with multiple views, reuse lbl file
       if strcmpi(s{1},'ImageProcessing'),
         ims = obj.initVizInfo.ppd.I;
+        locs = permute(reshape(obj.initVizInfo.ppd.pGT,[numel(ims),nparts,2]),[2,3,1]);
       elseif strcmpi(s{1},'DeepTrack') && strcmpi(s{2},'DataAugmentation'),
         if ~isfield(obj.initVizInfo,'augd') || isempty(obj.initVizInfo.augd) || ...
             ~APTParameters.isEqualDeepTrackDataAugParams(obj.initVizInfo.sPrm,sPrm),
@@ -185,7 +187,6 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         nims = cellfun(@(x) size(x,4),obj.initVizInfo.augd.ims);
         ims = cell(sum(nims),1);
         k = 1;
-        nparts = lObj.nLabelPoints;
         locs = nan(nparts,2,sum(nims));
         for i = 1:numel(obj.initVizInfo.augd.ims),
           for j = 1:size(obj.initVizInfo.augd.ims{i},4),

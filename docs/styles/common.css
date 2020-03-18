@@ -111,6 +111,24 @@ table
     table-layout: fixed;
 }
 
+#table_params { 
+  border: solid thin; 
+  border-collapse: collapse; 
+}
+#table_params th, 
+#table_params td { 
+  border: solid thin;
+  padding: 0.5rem 2rem;
+  vertical-align: middle; 
+  text-align: center; 
+}
+#table_params th { 
+  font-weight: bold; 
+}
+#table_params th { 
+  padding: 0.2em; 
+}
+
 footer 
 {
     margin-top: 2em;

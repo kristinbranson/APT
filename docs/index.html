@@ -852,6 +852,44 @@ trx(1) =
 <i>Examples of pairs of matching landmarks to swap when flipping during data augmentation. Note that some landmarks are unpaired. These do not need to be swapped.</i></center>
 <p>If you selected <b>"Flip horizontally"</b> or <b>"Flip vertically"</b> above, it is important that you <b>specify corresponding pairs</b> of landmarks after this flip occurs. For example, after flipping both the image and the manual annotations, the left rear foot should be where the right rear foot is, and vice-versa. To do this, select <b>"Select landmark flip pairings"</b> from the Track menu.</p>
 
+<h3><a id="Example Tracking Parameters">Example Tracking Parameters</a></h3>
+<center>
+<table id="table_params" width="90%">
+  <tr><th>Parameter</th><th>10 flies</th><th>Single fly head</th><th>Single fly</th><th>2 mice</th><th>Single mouse</th><th>Single larva</th></tr>
+  <tr><th>Target ROI: Radius</th><td><img src="images/TrackingParameterExamples_TargetROIRadius_10flies.png" width="100px"/><br/>90</td><td>N/A</td><td>N/A</td><td><img src="images/TrackingParameterExamples_TargetROIRadius_2mice.png" width="100px"/><br/>200</td><td>N/A</td><td><img src="images/TrackingParameterExamples_TargetROIRadius_larva.png" width="100px"/><br/>520</td></tr>
+  <tr><th>Tracking Algorithm</th><td>MDN</td><td>MDN</td><td>MDN</td><td>MDN</td><td>DeepLabCut</td><td>MDN</td></tr>
+  <tr><th>Target ROI: Align using trajectory theta</th><td>Yes</td><td>N/A</td><td>N/A</td><td>No</td><td>N/A</td><td>No</td></tr>
+  <tr><th>Image Processing: Downsample factor</th><td>1</td><td>1</td><td>2</td><td>1</td><td>1</td><td>2</td></tr>
+  <tr><th>Gradient Descent: Training batch size</th><td>8</td><td>4</td><td>2</td><td>8</td><td>8</td><td>4</td></tr>
+  <tr><th>Data Augmentation: Rotate range</th><td>10</td><td>10</td><td>10</td><td>180</td><td>10</td><td>180</td></tr>
+  <tr><th>Data Augmentation: Translation range</th><td>5</td><td>20</td><td>20</td><td>10</td><td>20</td><td>20</td></tr>
+  <tr><th>Data Augmentation: Scale factor range</th><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td></tr>
+  <tr><th>Data Augmentation: Contrast range</th><td>0.09</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Data Augmentation: Brightness range</th><td>0.09</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Data Augmentation: Flip horizontally</th><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Data Augmentation: Flip vertically</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+
+  <tr><th>Image Processing: Histogram equalization</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>Yes</td></tr>
+  <tr><th>Image Processing: Brightness normalization</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Gradient Descent: N. iterations of training</th><td>60000</td><td>60000</td><td>60000</td><td>60000</td><td>60000</td><td>60000</td></tr>
+  <tr><th>MDN: Ignore occluded landmarks</th><td>No</td><td>No</td><td>No</td><td>Yes</td><td>No</td><td>No</td></tr>
+  <tr><th>MDN: Predict occluded</th><td>No</td><td>No</td><td>No</td><td>Yes</td><td>No</td><td>No</td></tr>
+
+  <tr><th>Target ROI: Pad background</th><td>0</td><td>N/A</td><td>N/A</td><td>0</td><td>N/A</td><td>0</td></tr>
+  <tr><th>Saving: Training tracker save interval</th><td>1000</td><td>1000</td><td>1000</td><td>1000</td><td>1000</td><td>1000</td></tr>
+  <tr><th>Image Processing: Neighborhood size for histogram equalization</th><td>20</td><td>20</td><td>20</td><td>20</td><td>20</td><td>20</td></tr>  
+  <tr><th>Image Processing: Max pixel value</th><td>255</td><td>255</td><td>255</td><td>255</td><td>255</td><td>255</td></tr>
+  <tr><th>Gradient Descent: N. warm restarts</th><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+  <tr><th>Gradient Descent: Learning rate decay iterations</th><td>25000</td><td>25000</td><td>25000</td><td>25000</td><td>25000</td><td>25000</td></tr>
+  <tr><th>Gradient Descent: Learning rate decay (gamma)</th><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Gradient Descent: Number of test examples</th><td>24</td><td>24</td><td>24</td><td>24</td><td>24</td><td>24</td></tr>
+  <tr><th>Data Augmentation: Perturb color</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Data Augmentation: Check landmarks during augmentation</th><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+  <tr><th>Loss Function: Label uncertainty radius</th><td>3</td><td>3</td><td>3</td><td>3</td><td>3</td><td>3</td></tr>
+  
+</table>
+</center>
+
 <!-- <a href="tracking_parameters.html#CPR">CPR Tracking parameters</a> 
 -->
 

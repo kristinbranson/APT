@@ -589,6 +589,9 @@ classdef CPRData < handle
             end
             
           end
+          if exist('mr','variable') && mr.isOpen
+            mr.close();
+          end
         end
         if tfWB
           wbObj.endPeriod();
