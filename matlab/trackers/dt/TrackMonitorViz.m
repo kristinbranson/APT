@@ -40,6 +40,8 @@ classdef TrackMonitorViz < handle
       'Show log files'...
       'Show error messages'}});
     minFracComplete = .001;
+    axsIsBulkMode = false; % if true, waitbar is in "bulk mode"
+    nmovBulkThreshold = 12; % if you are tracking more than this many movies, you get bulk mode
   end
   
   
@@ -62,7 +64,7 @@ classdef TrackMonitorViz < handle
       obj.backEnd = backEnd;
       nMovies = numel(nFramesToTrack);
       obj.nFramesToTrack = repmat(nFramesToTrack,nview); % AL202002: this mega-tiling is prob not what we want
-      nJobs = nMovies*nview;
+      nmov = nMovies*nview;
       if ~exist('jobDescs','var'),
         jobDescs = cell(nMovies,nview);
         for imov = 1:nMovies,
@@ -94,43 +96,51 @@ classdef TrackMonitorViz < handle
       obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
+      obj.axsIsBulkMode = nmov > obj.nmovBulkThreshold;
+      
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
       obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
-	  % set info about current tracker
+      % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
       obj.htrackerInfo.String = s;
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
-      handles.axes_wait.YLim = [0,nJobs];
-      handles.axes_wait.XLim = [0,1+obj.minFracComplete];
+      if obj.axsIsBulkMode
+        axposn = handles.axes_wait.Position;
+        whr = axposn(3)/axposn(4);
+        
+      else
+        handles.axes_wait.YLim = [0,nmov];
+        handles.axes_wait.XLim = [0,1+obj.minFracComplete];
+      end
       handles.axes_wait.XTick = [];
       handles.axes_wait.YTick = [];
       hold(handles.axes_wait,'on');
 
-      clrs = lines(nJobs);
-      obj.hline = gobjects(nJobs,1);
-      obj.htext = gobjects(nJobs,1);
-      for ijob = 1:nJobs,
-        obj.hline(ijob) = patch([0,0,1,1,0]*obj.minFracComplete,...
-          ijob-[0,1,1,0,0],clrs(ijob,:),...
+      clrs = lines(nmov);
+      obj.hline = gobjects(nmov,1);
+      obj.htext = gobjects(nmov,1);
+      for imov = 1:nmov,
+        obj.hline(imov) = patch([0,0,1,1,0]*obj.minFracComplete,...
+          imov-[0,1,1,0,0],clrs(imov,:),...
           'Parent',handles.axes_wait,...
           'EdgeColor','w');
-        if nJobs > 1,
-          sview = jobDescs{ijob};
+        if nmov > 1,
+          sview = jobDescs{imov};
         else
           sview = '';
         end
-        obj.htext(ijob) = text((1+obj.minFracComplete)/2,ijob-.5,...
-          sprintf('0/%d frames tracked%s',obj.nFramesToTrack(ijob),sview),...
+        obj.htext(imov) = text((1+obj.minFracComplete)/2,imov-.5,...
+          sprintf('0/%d frames tracked%s',obj.nFramesToTrack(imov),sview),...
           'Color','w','HorizontalAlignment','center',...
           'VerticalAlignment','middle','Parent',handles.axes_wait);
       end
       
       obj.resLast = [];
-      obj.parttrkfileTimestamps = zeros(1,nJobs);
-      obj.nFramesTracked = zeros(1,nJobs);
+      obj.parttrkfileTimestamps = zeros(1,nmov);
+      obj.nFramesTracked = zeros(1,nmov);
       obj.isKilled = false;
       drawnow;
             
@@ -425,9 +435,7 @@ classdef TrackMonitorViz < handle
           return;
       end
       %handles.text_clusterinfo.ForegroundColor = 'w';
-    end
-    
-    
+    end    
     
     function ss = getLogFilesContents(obj)
       
