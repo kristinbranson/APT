@@ -19,6 +19,111 @@ classdef TrackJob < handle
 %      (Currently only implemented/checked for .tfexternal=true and .tfremote=false)
 
 
+% Bulk Deep Tracking Impl Manifesto 20200318
+%
+% The MovieSet Array (MSA).
+% 
+% mov1vw1 mov1vw2 ...
+% mov2vw1 mov2vw2
+% ...
+% movNvw1 movNvw2
+% 
+% This is a [nmovset x nview] array of movies to be tracked.
+% Note the distinction between nmovset and nmov=nmovset*nview.
+% 
+% Associated with each movie is (optionally):
+% * trxfile
+% * output/trkfile
+% * crop
+%
+% This is the most common set of movies-to-be-tracked by far, but eg a 
+% non-rectangular subset is possible in principle.
+% 
+% Job breakup.
+% 
+% The MSA can be quite large eg hundreds, maybe thousands of rows. It
+% needs to be split up/parallelized across DL nodes.  How this is done
+% is constrained by the number of DL nodes available, eg: 
+% 
+% * If nnode is very large eg nnode>=nmov, then each individual movie
+% can be processed on its own node.  
+% * If nnodes is large eg nnode>=nmovset, then each movieset or row of
+% the MSA can be processed on its own node, with views processed
+% serially on the node. Alternatively, one full column/view of the MSA
+% can be processed with one movie per node.  
+% * If nnode is small eg nnode<nmovset, then one can imagine
+% partitioning the MSA and assigning regions to each node.  
+% * If nnode==1 then any processing will necessarily run serially.
+% 
+% The current MSA partitioning modalities available are
+% listed/maintained in TrackJob.m with some further implementation
+% specifics/constraints in DeepTracker. Each TrackJob represents a
+% single tracking task on a single DL host.
+% 
+% Single-job API (APT_interf), MSA slicing.
+% 
+% On a single DL host, APT_interf can be run on a given chunk/region of
+% the MSA. Currently APT_interf supports:
+% - single row of movset array, ie one movieset across views
+% - single column of movset array (eg specified single view 
+%   if proj is MV)
+% 
+% Within these modalities, APT_interf's api supports specification of an
+% arbitrary number of movies, along with their associated trxfiles,
+% crops etc.
+% 
+% The target-frame (TF) array.
+% 
+% We drill down within the MSA to a single movie or element in the MSA.
+% 
+% For a given movie, the (target, frame) array is a 2d non-rectangular 
+% array representing all available (t,f) tuples for that movie. Any given 
+% movie has an arbitrary number of targets; each target is live for an 
+% arbitrary number of frames.
+%
+% When tracking a movie one might want to track some subset of the full TF
+% array which we call the TFset.
+% 
+% APTinterf track API, non-listfile.
+% 
+% Currently: f0/f1 specs are scalars, as are targets. That means that we
+% enable tracking a fixed rectangular TFset across all movies (within a 
+% single DL proc).
+% 
+% Next update: accept vectorized f0, f1, targets (last with argparse
+% trick) This enables arbitrary startframe, endframe, and targets for
+% each movie. This enables the TFset to vary across movies, the remaining 
+% limitation being that the TFset must still be rectangular for any given 
+% movie (constrained by trx availability etc).
+% 
+% Future: this limitation can be lifted in the future via a further 
+% 'append-style' arg that follows some syntax/encoding, eg:
+% APT -movs mov1 mov2 mov3 -trxs trx1 trx2 trx3 -outs out1 out out3 ...
+% -mtf 1 -mtf 2 3 -mtf 3 1 10 100 =>
+% * track mov1 in entirety, all tgts
+% * track mov2, tgt 3, all frames
+% * track mov3, tgt 1, frames [10,100] etc
+% 
+% this can be expanded a lot depending on effort, eg -mtf 3 1-4 10 100 
+% 
+% in which case probably effectively anything ie a fully arbitrary tfset is 
+% for each movie is possible with effort.
+%
+% The MTF array.
+% Connecting the MSA with the TF array is the MTF array which is a non-
+% rectangular 3d array containing all available (mov,tgt,frm) triples. For
+% multiview projects the movie implicitly carries a view index.
+% 
+% APTinterf track API, listfile (json).
+% Using the -listfile argument potentially enables i) tracking a fully-
+% arbitrary MTFset while ii) keeping a convenient record on disk of what 
+% was run, for posterity and avoiding long cmdlines etc. However at this
+% point the full functionality is theoretically available in the regular
+% cmdline API of APT_interf and the listfile can be viewed as syntactic 
+% sugar.
+
+
+
   properties
     
     tObj = [];
