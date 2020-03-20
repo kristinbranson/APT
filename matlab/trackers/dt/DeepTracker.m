@@ -3265,13 +3265,23 @@ classdef DeepTracker < LabelTracker
             if isempty(frm0) && isempty(frm1),
               frm0curr = [];
               frm1curr = [];
+            elseif isscalar(frm0) && isscalar(frm1)
+              % scalar expand. could allow one empty
+              frm0curr = frm0;
+              frm1curr = frm1;
             else
               frm0curr = frm0(imov);
               frm1curr = frm1(imov);
             end
             if isexternal,
+              if isnumeric(trxids)
+                % scalar expand
+                trxidscurr = trxids;
+              else
+                trxidscurr = trxids{imov};
+              end
               trksysinfo(imov,ivwjob) = TrackJob(obj,backend,...
-                'targets',trxids{imov},...
+                'targets',trxidscurr,...
                 'frm0',frm0curr,...
                 'frm1',frm1curr,...
                 'cropRoi',cropRois{imov},...
