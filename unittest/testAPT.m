@@ -543,6 +543,8 @@ classdef testAPT < handle
         beType = DLBackEnd.Bsub;
       elseif strcmp(backend,'conda')
         beType = DLBackEnd.Conda;
+      elseif strcmp(backend,'aws')
+        beType = DLBackEnd.AWS;
       end
       be = DLBackEndClass(beType,lObj.trackGetDLBackend);
       lObj.trackSetDLBackend(be);

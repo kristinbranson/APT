@@ -1102,7 +1102,7 @@ classdef DeepTracker < LabelTracker
         % how many gpus do we have available?
         gpuids = obj.getFreeGPUs(nvw);
         if numel(gpuids) < nvw,
-          if nvw == 1,
+          if nvw == 1 || numel(gpuids)<1,
               error('No GPUs with sufficient RAM available locally');
           else
             gpuids = gpuids(1);
