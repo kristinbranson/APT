@@ -13,7 +13,7 @@ classdef TrackMonitorViz < handle
     trackWorkerObj = [];
     backEnd % scalar DLBackEnd
     parttrkfileTimestamps = [];
-    nFramesTracked = [];
+    nFramesTracked = []; % [nmov]. not used if bulkAxsIsBulkMode=true
     nFramesToTrack = 0;
     jobDescs = {};
     actions = struct(...
@@ -40,13 +40,26 @@ classdef TrackMonitorViz < handle
       'Show log files'...
       'Show error messages'}});
     minFracComplete = .001;
-    axsIsBulkMode = false; % if true, waitbar is in "bulk mode"
-    nmovBulkThreshold = 12; % if you are tracking more than this many movies, you get bulk mode
+    
+    % bulk mode 
+    bulkAxsIsBulkMode = false; % if true, waitbar is in "bulk mode"
+    bulkNmovThreshold = 10; % if you are tracking more than this many movies, you get bulk mode
+    bulkIndNrow; % number of rows in bulk indicator grid
+    bulkIndNcol; % number of cols in bulk indicator grid
+    bulkMovTracked; % [nmov] logical indicator vec
+    bulkAxLblStrArgs = {...
+      'HorizontalAlignment' 'center' ...
+      'FontSize' 22 ...
+      'Color' [1 1 1]};
   end
-  
   
   properties (Constant)
     DEBUG = false;
+    COLOR_AXSWAIT_KILLED = [0.5 0.5 0.5];
+    COLOR_AXSWAIT_BULK_UNTRACKED = [0.1 0.1 0.1];
+    % could have diff colors for diff views done would be fun
+    COLOR_AXSWAIT_BULK_TRACKED = [0 0 1];
+    COLOR_AXSWAIT_BULK_EDGE = [0.4 0.4 0.4];
   end
   
   methods (Static)
@@ -96,7 +109,7 @@ classdef TrackMonitorViz < handle
       obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
-      obj.axsIsBulkMode = nmov > obj.nmovBulkThreshold;
+      obj.bulkAxsIsBulkMode = nmov > obj.bulkNmovThreshold;
       
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
@@ -107,43 +120,74 @@ classdef TrackMonitorViz < handle
       obj.htrackerInfo.String = s;
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
-      if obj.axsIsBulkMode
-        axposn = handles.axes_wait.Position;
-        whr = axposn(3)/axposn(4);
+      
+      axwait = handles.axes_wait;
+      if obj.bulkAxsIsBulkMode
+        pbaspect(axwait,'auto');
+        axwait.DataAspectRatio = [1 1 1]; % "axis equal"
+        axwait.Units = 'pixels';
+        axposn = axwait.Position;
+        axwait.Units = 'normalized';
+        whr = axposn(3)/axposn(4);        
+        [obj.bulkIndNrow,obj.bulkIndNcol] = TrackMonitorViz.getIndicatorGridSz(nmov,whr);        
         
-      else
-        handles.axes_wait.YLim = [0,nmov];
-        handles.axes_wait.XLim = [0,1+obj.minFracComplete];
-      end
-      handles.axes_wait.XTick = [];
-      handles.axes_wait.YTick = [];
-      hold(handles.axes_wait,'on');
+        % Setting .DataAspectRatio and axis lims => .PlotBoxAspectRatio
+        % will react
+        axis(axwait,[0.5 obj.bulkIndNcol+1.5 1 obj.bulkIndNrow+1]);
+        axwait.Visible = 'off';
+        axwait.YDir = 'reverse';
+        %axis(axwait,'equal');    
+        axactual = axis(axwait);
+        axxmid = sum(axactual(1:2))/2;
+        axymid = sum(axactual(3:4))/2;
+        lblstr = sprintf('%d movies to track',nmov);
 
-      clrs = lines(nmov);
-      obj.hline = gobjects(nmov,1);
-      obj.htext = gobjects(nmov,1);
-      for imov = 1:nmov,
-        obj.hline(imov) = patch([0,0,1,1,0]*obj.minFracComplete,...
-          imov-[0,1,1,0,0],clrs(imov,:),...
-          'Parent',handles.axes_wait,...
-          'EdgeColor','w');
-        if nmov > 1,
-          sview = jobDescs{imov};
-        else
-          sview = '';
+        %obj.hline = gobjects(nmov,1);
+        obj.htext = text(axxmid,axymid,lblstr,'Parent',axwait,...
+          obj.bulkAxLblStrArgs{:});
+        obj.htext.Position(3) = 1; % Stack above patches created below
+        
+        obj.bulkMovTracked = false(nmov,1);
+      else
+        axwait.YLim = [0,nmov];
+        axwait.XLim = [0,1+obj.minFracComplete];
+        obj.hline = gobjects(nmov,1);
+        obj.htext = gobjects(nmov,1);
+      end
+      axwait.XTick = [];
+      axwait.YTick = [];
+      hold(axwait,'on');
+
+      if obj.bulkAxsIsBulkMode
+        obj.hline = TrackMonitorViz.makeIndicatorPatches(nmov,...
+          obj.bulkIndNrow,obj.bulkIndNcol,axwait,...
+          obj.COLOR_AXSWAIT_BULK_UNTRACKED,...
+          {'EdgeColor',obj.COLOR_AXSWAIT_BULK_EDGE});        
+        % obj.htext initted above
+      else
+        clrs = lines(nmov);
+        for imov = 1:nmov,
+          obj.hline(imov) = patch([0,0,1,1,0]*obj.minFracComplete,...
+            imov-[0,1,1,0,0],clrs(imov,:),...
+            'Parent',handles.axes_wait,...
+            'EdgeColor','w');
+          if nmov > 1,
+            sview = jobDescs{imov};
+          else
+            sview = '';
+          end
+          obj.htext(imov) = text((1+obj.minFracComplete)/2,imov-.5,...
+            sprintf('0/%d frames tracked%s',obj.nFramesToTrack(imov),sview),...
+            'Color','w','HorizontalAlignment','center',...
+            'VerticalAlignment','middle','Parent',handles.axes_wait);          
         end
-        obj.htext(imov) = text((1+obj.minFracComplete)/2,imov-.5,...
-          sprintf('0/%d frames tracked%s',obj.nFramesToTrack(imov),sview),...
-          'Color','w','HorizontalAlignment','center',...
-          'VerticalAlignment','middle','Parent',handles.axes_wait);
       end
       
       obj.resLast = [];
       obj.parttrkfileTimestamps = zeros(1,nmov);
       obj.nFramesTracked = zeros(1,nmov);
       obj.isKilled = false;
-      drawnow;
-            
+      drawnow;            
     end
     
     function delete(obj)
@@ -183,7 +227,7 @@ classdef TrackMonitorViz < handle
             
       TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
       TrackMonitorViz.debugfprintf('N. frames tracked: ');
-      nJobs = numel(res);
+      nJobs = numel(res); 
 
       % always update info about current tracker, as labels may have changed
       s = obj.dtObj.getTrackerInfoString();
@@ -197,61 +241,72 @@ classdef TrackMonitorViz < handle
           (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
            || isdone;
 
-        if isupdate,          
-          try
-            if isfield(res(ijob),'parttrkfileNfrmtracked')
-              % for AWS and any worker that figures this out on its own
-              obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
-                res(ijob).trkfileNfrmtracked);
+        if isupdate,
+          if obj.bulkAxsIsBulkMode
+            % just update indicator based on isdone; dont try to get
+            % nframes tracked, etc            
+            if isdone
+              set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED);
+              obj.bulkMovTracked(ijob) = true;
             else
-              didload = false;
-              warnstate = warning('query','MATLAB:load:variableNotFound');
-              warning('off','MATLAB:load:variableNotFound');
-              if isdone,
-                try
-                  ptrk = load(res(ijob).trkfile,'pTrk','-mat');
-                  didload = true;
-                catch,
-                  warning('isdone = true and could not load pTrk');
-                end
+              % none
+            end            
+          else
+            try
+              if isfield(res(ijob),'parttrkfileNfrmtracked')
+                % for AWS and any worker that figures this out on its own
+                obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
+                  res(ijob).trkfileNfrmtracked);
               else
-                try
-                  ptrk = load(res(ijob).parttrkfile,'pTrk','-mat');
-                  didload = true;
-                catch,
+                didload = false;
+                warnstate = warning('query','MATLAB:load:variableNotFound');
+                warning('off','MATLAB:load:variableNotFound');
+                if isdone,
+                  try
+                    ptrk = load(res(ijob).trkfile,'pTrk','-mat');
+                    didload = true;
+                  catch,
+                    warning('isdone = true and could not load pTrk');
+                  end
+                else
+                  try
+                    ptrk = load(res(ijob).parttrkfile,'pTrk','-mat');
+                    didload = true;
+                  catch,
+                  end
                 end
-              end
-              if didload && isfield(ptrk,'pTrk'),
-                try
-                  obj.nFramesTracked(ijob) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
-                catch ME
-                  warning(getReport(ME));
+                if didload && isfield(ptrk,'pTrk'),
+                  try
+                    obj.nFramesTracked(ijob) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
+                  catch ME
+                    warning(getReport(ME));
+                  end
                 end
+                warning(warnstate.state,warnstate.identifier);
               end
-              warning(warnstate.state,warnstate.identifier);
+             
+              if nJobs > 1,
+                sview = obj.jobDescs{ijob};
+              else
+                sview = '';
+              end
+              set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',obj.nFramesTracked(ijob),obj.nFramesToTrack(ijob),sview));
+              fracComplete = obj.minFracComplete + (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
+              set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);              
+            catch ME,
+              fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
             end
-            
-            if nJobs > 1,
-              sview = obj.jobDescs{ijob};
-            else
-              sview = '';
-            end
-            set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',obj.nFramesTracked(ijob),obj.nFramesToTrack(ijob),sview));
-            fracComplete = obj.minFracComplete + (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
-            set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);
-            
-          catch ME,
-            fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
           end
-
         end
         
         if res(ijob).killFileExists,
           obj.isKilled = true;
-          set(obj.hline(ijob),'FaceColor',[.5,.5,.5]);
+          set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
           obj.hfig.UserData = 'killed';
         end
-        TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
+        if ~obj.bulkAxsIsBulkMode
+          TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
+        end
       end
       TrackMonitorViz.debugfprintf('\n');
       TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc);
@@ -261,8 +316,7 @@ classdef TrackMonitorViz < handle
       end
       
       obj.updateErrDisplay(res);
-      [tfSucc,msg] = obj.updateAnn(res);
-      
+      [tfSucc,msg] = obj.updateAnn(res);      
     end
     
     function [tfSucc,status] = updateAnn(obj,res)
@@ -324,7 +378,10 @@ classdef TrackMonitorViz < handle
         status = 'Error while tracking.';
         tfSucc = false;
       elseif isLogFile,
-        if nJobs > 1,
+        if obj.bulkAxsIsBulkMode
+          status = sprintf('Tracking in progress. %d/%d movies tracked.',...
+            nnz(obj.bulkMovTracked),numel(obj.bulkMovTracked));
+        elseif nJobs > 1,
           status = sprintf('Tracking in progress. %s frames tracked.',mat2str(obj.nFramesTracked));
         else
           status = sprintf('Tracking in progress. %d frames tracked.',obj.nFramesTracked);
@@ -529,6 +586,74 @@ classdef TrackMonitorViz < handle
       
     end
     
+    function [nrowind,ncolind] = ...
+        getsizeTrackVizIndicatorGrid(nmov, width2height)
+      % We create a grid of movie-is-done indicators, one ind per mov
+      % [nrowind x ncolind]
+      %
+      % The point here is that we want square indicators with a fixed 1:1
+      % w/h ratio for each indicator. So a given sized display area (eg the
+      % rectangular waitbar region) can fit either one row of big squares,
+      % or two rows of smaller squares, etc. The size of the grid  
+      % 
+      % ncolind/nrowind ~ whr
+      % ncolind*nrowind >= nmov
+      % => nrowind^2>=nmov/whr
+      
+      nrowind = ceil(sqrt(nmov/width2height));
+      ncolind = ceil(nrowind*width2height);
+    end
+    function [gridnrow,gridncol] = getIndicatorGridSz(nmov,width2height)
+      for gridnrow=1:100
+        % We try using nrows 
+        gridncol = ceil(nmov/gridnrow);
+        widthtotal = 1; % say
+        sqsz = widthtotal/gridncol; 
+        heighttotal = sqsz*gridnrow;
+        
+        heightavail = widthtotal/width2height;
+        heightextra = heightavail-heighttotal;
+        tfcanfitnewrow = heightextra>sqsz;
+        if tfcanfitnewrow % && (gridnrow==1 || mod(nmov,gridncol)>0)
+          % none; continue, add a row try again
+        else
+          break;
+        end
+      end
+    end
+    function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)
+      hpch = gobjects(nmov,1);
+      for imov = 1:nmov
+        irow = ceil(imov/gridncol);
+        icol = rem(imov-1,gridncol)+1;
+        xpch = [icol icol icol+1 icol+1];
+        ypch = [irow irow+1 irow+1 irow];
+        hpch(imov) = patch(xpch,ypch,clr,'Parent',ax,pchargs{:});
+      end
+    end
+    function mm = testIndPches(ax,n1)
+      hfig = ancestor(ax,'figure');
+      for nmov=1:n1
+        cla(ax);
+        pbaspect(ax,'auto');
+        ax.DataAspectRatio = [1 1 1]; % "axis equal"
+        
+        %pbar = ax.PlotBoxAspectRatio;    
+        ax.Units = 'pixels';
+        axposn = ax.Position;
+        ax.Units = 'normalized';
+        whr = axposn(3)/axposn(4);
+        fprintf('Axis whr is %.2f\n',whr);
+        
+        [gridnrow,gridncol] = TrackMonitorViz.getIndicatorGridSz(nmov,whr);
+        hpch = TrackMonitorViz.makeIndicatorPatches(nmov,...
+          gridnrow,gridncol,ax,[1 0 0],{});
+        axis(ax,[0.5 gridncol+1.5 1 gridnrow+1]);
+        
+        drawnow;
+        mm(nmov) = getframe(hfig);
+        %input(num2str(nmov));
+      end
+    end
   end
-    
 end
