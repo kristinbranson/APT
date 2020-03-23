@@ -589,7 +589,7 @@ classdef CPRData < handle
             end
             
           end
-          if exist('mr','variable') && mr.isOpen
+          if exist('mr','var') && mr.isOpen
             mr.close();
           end
         end
