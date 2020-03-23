@@ -1893,7 +1893,8 @@ classdef DeepTracker < LabelTracker
         [nmovies,nviews] = size(movfiles); 
         
         if obj.lObj.hasTrx,
-          assert(all(size(trxfiles)==size(movfiles)),'Trx files must be input');
+          assert(all(size(trxfiles)==size(movfiles)),...
+            'Trx files must be input and size(trxfiles) must match size(movfiles).');
         end
         if ~isequal(size(trkfiles),size(movfiles))
           error('Output trkfile array must have exactly the same size as input movie array.');
