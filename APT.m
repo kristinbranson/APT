@@ -20,7 +20,8 @@ classdef APT
 
     % hardcoded name of AWS security group
     AWS_SECURITY_GROUP = 'apt_dl';
-    AMI = 'ami-0168f57fb900185e1';  
+    % AMI = 'ami-0168f57fb900185e1';  TF 1.6
+    AMI = 'ami-094a08ff1202856d6';
   end
   
   methods (Static)
