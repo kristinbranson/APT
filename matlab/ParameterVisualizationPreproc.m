@@ -163,7 +163,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       nshow = size(obj.initVizInfo.tblPTrn1,1);
       
       s = strsplit(propFullName,'.');
-      nparts = lObj.nLabelPoints;
+      nparts = lObj.nPhysPoints;
+      nview = lObj.nview;
       
       % todo: figure out what to do with multiple views, reuse lbl file
       if strcmpi(s{1},'ImageProcessing'),
@@ -185,14 +186,14 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           obj.initVizInfo.sPrm = sPrm;
         end
         nims = cellfun(@(x) size(x,4),obj.initVizInfo.augd.ims);
-        ims = cell(sum(nims),1);
-        k = 1;
-        locs = nan(nparts,2,sum(nims));
-        for i = 1:numel(obj.initVizInfo.augd.ims),
-          for j = 1:size(obj.initVizInfo.augd.ims{i},4),
-            ims{k} = obj.initVizInfo.augd.ims{i}(:,:,:,j)/sPrm.ROOT.DeepTrack.ImageProcessing.imax;
-            locs(:,:,k) = permute(obj.initVizInfo.augd.locs{i}(j,:,:),[2,3,1]);
-            k = k + 1;
+        assert(all(nims==nims(1)));
+        nims = nims(1);
+        ims = cell(nims,nview);
+        locs = nan([nparts,2,nims,nview]);
+        for i = 1:nview,
+          for j = 1:nims,
+            ims{j,i} = obj.initVizInfo.augd.ims{i}(:,:,:,j)/sPrm.ROOT.DeepTrack.ImageProcessing.imax;
+            locs(:,:,j,i) = permute(obj.initVizInfo.augd.locs{i}(j,:,:),[2,3,1]);
           end
         end
       else
@@ -206,39 +207,51 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           imsz{i}(end+1) = 1;
         end
       end
-      maxr = max(cellfun(@(x) x(:,1),imsz));
+      maxr = max(max(cellfun(@(x) x(:,1),imsz)));
+      maxchn = max(max(cellfun(@(x) x(:,3),imsz)));
+      toplefts = nan([nshow,2,nview]);
       maxc = max(cellfun(@(x) x(:,2),imsz));
-      maxchn = max(cellfun(@(x) x(:,3),imsz));
-      im = zeros([maxr*nr,maxc*nc,maxchn],class(ims{1}));
-      toplefts = nan(nshow,2);
-      for i = 1:nshow,
-        [r,c] = ind2sub([nr,nc],i);
-        offr = (r-1)*maxr;
-        offc = (c-1)*maxc;
-        imcurr = ims{i};
-        if imsz{i}(3) < maxchn,
-          imcurr = repmat(imcurr(:,:,1),[1,1,maxchn]);
+      im = zeros([maxr*nr,sum(maxc*nc),maxchn],class(ims{1}));
+      for vwi = 1:nview,
+        offvw = sum(maxc(1:vwi-1)*nc);
+        for i = 1:nshow,
+          [r,c] = ind2sub([nr,nc],i);
+          offr = (r-1)*maxr;
+          offc = offvw+(c-1)*maxc(vwi);
+          imcurr = ims{i,vwi};
+          if imsz{i,vwi}(3) < maxchn,
+            imcurr = repmat(imcurr(:,:,1),[1,1,maxchn]);
+          end
+          im(offr+1:offr+imsz{i,vwi}(1),offc+1:offc+imsz{i,vwi}(2),:) = imcurr;
+          toplefts(i,:,vwi) = [offr,offc]+1;
         end
-        im(offr+1:offr+imsz{i}(1),offc+1:offc+imsz{i}(2),:) = imcurr;
-        toplefts(i,:) = [offr,offc]+1;
-      end      
+      end
       
       cla(hAx);
       hold(hAx,'off');
       imshow(im,'Parent',hAx);
       hold(hAx,'on');
       for i = 1:nshow,
-        text(toplefts(i,2),toplefts(i,1),...
-          sprintf('mov %d, tgt %d, frm %d',...
-          obj.initVizInfo.tblPTrn1.mov(i),obj.initVizInfo.tblPTrn1.iTgt(i),...
-          obj.initVizInfo.tblPTrn1.frm(i)),...
-          'HorizontalAlignment','left','VerticalAlignment','top','Color','c',...
-          'Parent',hAx);
+        if lObj.hasTrx,
+          targs = sprintf('tgt %d, ',obj.initVizInfo.tblPTrn1.iTgt(i));
+        else
+          targs = '';
+        end
+        for j = 1:nview,
+          text(toplefts(i,2,j),toplefts(i,1,j),...
+            sprintf('mov %d, %sfrm %d',...
+            obj.initVizInfo.tblPTrn1.mov(i),targs,...
+            obj.initVizInfo.tblPTrn1.frm(i)),...
+            'HorizontalAlignment','left','VerticalAlignment','top','Color','c',...
+            'Parent',hAx);
+        end
       end
       
       for i = 1:nparts,
-        plot(hAx,squeeze(locs(i,1,:))+toplefts(:,2)-1,squeeze(locs(i,2,:))+toplefts(:,1)-1,...
+        for vwi = 1:nview,
+          plot(hAx,squeeze(locs(i,1,:,vwi))+toplefts(:,2,vwi)-1,squeeze(locs(i,2,:,vwi))+toplefts(:,1,vwi)-1,...
           '.','Color',lObj.labelPointsPlotInfo.Colors(i,:));
+        end
       end
       
       hAx.XTick = [];

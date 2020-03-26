@@ -25,7 +25,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.init(hAx,lObj,propFullName,sPrm);    
     end
     
-    function getProjImsz(obj,lObj)
+    function getProjImsz(obj,lObj,sPrm)
       % sets .imsz
       
       if lObj.hasTrx,
@@ -59,7 +59,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       set(hAx,'Units','normalized','Position',obj.axPos);
       
       obj.initSuccessful = false;
-      obj.getProjImsz(lObj);
+      obj.getProjImsz(lObj,sPrm);
       obj.downsample = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
       
       obj.nettype = lObj.tracker.algorithmName;
