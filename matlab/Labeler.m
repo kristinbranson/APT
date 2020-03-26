@@ -1812,41 +1812,45 @@ classdef Labeler < handle
       fprintf('Saved modified project file %s.\n',fname);
     end
         
-    function [success,lblfname] = projSaveAs(obj)
+    function [success,lblfname] = projSaveAs(obj,lblfname)
       % Saves a .lbl file, prompting user for filename.
 
-      if ~isempty(obj.projectfile)
-        filterspec = obj.projectfile;
-      else
-        % Guess a path/location for save
-        lastLblFile = RC.getprop('lastLblFile');
-        if isempty(lastLblFile)
-          if obj.hasMovie
-            savepath = fileparts(obj.moviefile);
+      if nargin <= 1,
+        if ~isempty(obj.projectfile)
+          filterspec = obj.projectfile;
+        else
+          % Guess a path/location for save
+          lastLblFile = RC.getprop('lastLblFile');
+          if isempty(lastLblFile)
+            if obj.hasMovie
+              savepath = fileparts(obj.moviefile);
+            else
+              savepath = pwd;
+            end
           else
-            savepath = pwd;          
+            savepath = fileparts(lastLblFile);
           end
-        else
-          savepath = fileparts(lastLblFile);
+          
+          if ~isempty(obj.projname)
+            projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
+          else
+            projfile = sprintf(obj.DEFAULT_LBLFILENAME,'APTProject');
+          end
+          filterspec = fullfile(savepath,projfile);
         end
-
-        if ~isempty(obj.projname)
-          projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
-        else
-          projfile = sprintf(obj.DEFAULT_LBLFILENAME,'APTProject');
+        
+        [lblfname,pth] = uiputfile(filterspec,'Save label file');
+        if isequal(lblfname,0)
+          lblfname = [];
+          success = false;
+          return;
         end
-        filterspec = fullfile(savepath,projfile);
-      end
-      
-      [lblfname,pth] = uiputfile(filterspec,'Save label file');
-      if isequal(lblfname,0)
-        lblfname = [];
-        success = false;
-      else
         lblfname = fullfile(pth,lblfname);
-        success = true;
-        obj.projSaveRaw(lblfname);
-      end      
+      end
+
+      success = true;
+      obj.projSaveRaw(lblfname);
+
     end
     
     function [success,lblfname] = projSaveSmart(obj)
