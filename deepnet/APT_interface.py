@@ -444,8 +444,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
             xlo, xhi, ylo, yhi = PoseTools.get_crop_loc(lbl, 0, view)
             conf.imsz = (int(yhi - ylo + 1), int(xhi - xlo + 1))
         else:
-            vid_nr = int(read_entry(lbl[lbl['movieInfoAll'][0, 0]]['info']['nr']))
-            vid_nc = int(read_entry(lbl[lbl['movieInfoAll'][0, 0]]['info']['nc']))
+            vid_nr = int(read_entry(lbl[lbl['movieInfoAll'][view, 0]]['info']['nr']))
+            vid_nc = int(read_entry(lbl[lbl['movieInfoAll'][view, 0]]['info']['nc']))
             conf.imsz = (vid_nr, vid_nc)
     conf.labelfile = lbl_file
     conf.sel_sz = min(conf.imsz)
