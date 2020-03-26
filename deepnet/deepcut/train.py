@@ -224,7 +224,7 @@ def train(cfg,name='deepnet'):
             end = time.time()
             # print('Time to train: {}'.format(end-start))
             start = end
-            print("iteration: {} loss: {} dist: {}  lr: {}"
+            logging.info("iteration: {} loss: {} dist: {}  lr: {}"
                          .format(it, "{0:.4f}".format(average_loss),
                                  '{0:.2f}'.format(dd.mean()), current_lr))
             train_info['step'].append(it)
@@ -247,7 +247,7 @@ def train(cfg,name='deepnet'):
                        latest_filename=os.path.basename(ckpt_file))
 
     coord.request_stop()
-    coord.join([thread],stop_grace_period_secs=60)
+    coord.join([thread],stop_grace_period_secs=60,ignore_live_threads=True)
     sess.close()
 
 

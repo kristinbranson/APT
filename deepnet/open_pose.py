@@ -707,6 +707,7 @@ def training(conf,name='deepnet'):
     # force saving in case the max iter doesn't match the save step.
     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(max_iter*iterations_per_epoch)))))
     obs.on_epoch_end(max_iter-1)
+    K.clear_session()
 
 
 def get_pred_fn(conf, model_file=None,name='deepnet'):

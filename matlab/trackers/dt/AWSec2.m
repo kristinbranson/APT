@@ -41,7 +41,7 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (Constant)
-    cmdEnv = 'LD_LIBRARY_PATH=: ';
+    cmdEnv = 'sleep 5;LD_LIBRARY_PATH=: AWS_PAGER=';
   end
   
   methods

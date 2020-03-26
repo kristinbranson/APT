@@ -529,6 +529,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     model.save(str(os.path.join(run_path, name + '-{}'.format(conf.dl_steps))))
     # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
     obs.on_epoch_end(epochs)
+    K.clear_session()
 
 
 def get_pred_fn(conf, model_file=None,name='deepnet'):

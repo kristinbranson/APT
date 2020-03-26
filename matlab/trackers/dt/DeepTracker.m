@@ -1102,7 +1102,7 @@ classdef DeepTracker < LabelTracker
         % how many gpus do we have available?
         gpuids = obj.getFreeGPUs(nvw);
         if numel(gpuids) < nvw,
-          if nvw == 1,
+          if nvw == 1 || numel(gpuids)<1,
               error('No GPUs with sufficient RAM available locally');
           else
             gpuids = gpuids(1);
@@ -1893,7 +1893,8 @@ classdef DeepTracker < LabelTracker
         [nmovies,nviews] = size(movfiles); 
         
         if obj.lObj.hasTrx,
-          assert(all(size(trxfiles)==size(movfiles)),'Trx files must be input');
+          assert(all(size(trxfiles)==size(movfiles)),...
+            'Trx files must be input and size(trxfiles) must match size(movfiles).');
         end
         if ~isequal(size(trkfiles),size(movfiles))
           error('Output trkfile array must have exactly the same size as input movie array.');
@@ -3265,13 +3266,23 @@ classdef DeepTracker < LabelTracker
             if isempty(frm0) && isempty(frm1),
               frm0curr = [];
               frm1curr = [];
+            elseif isscalar(frm0) && isscalar(frm1)
+              % scalar expand. could allow one empty
+              frm0curr = frm0;
+              frm1curr = frm1;
             else
               frm0curr = frm0(imov);
               frm1curr = frm1(imov);
             end
             if isexternal,
+              if isnumeric(trxids)
+                % scalar expand
+                trxidscurr = trxids;
+              else
+                trxidscurr = trxids{imov};
+              end
               trksysinfo(imov,ivwjob) = TrackJob(obj,backend,...
-                'targets',trxids{imov},...
+                'targets',trxidscurr,...
                 'frm0',frm0curr,...
                 'frm1',frm1curr,...
                 'cropRoi',cropRois{imov},...

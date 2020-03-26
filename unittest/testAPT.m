@@ -333,15 +333,17 @@ classdef testAPT < handle
     end
     
     function test_full(self,varargin)
-      [all_nets,backend,params] = myparse(varargin,...
-        'nets',{'mdn'},'backend','docker','params',{});
+      [all_nets,backend,params,aws_params] = myparse(varargin,...
+        'nets',{'mdn'},'backend','docker','params',{},...
+        'aws_params',struct());
       self.test_setup();
 
       if ischar(all_nets)
         all_nets = {all_nets};
       end
       for nndx = 1:numel(all_nets)
-        self.test_train('nets',all_nets(nndx),'backend',backend,'params',params);
+        self.test_train('nets',all_nets(nndx),'backend',backend,...
+          'params',params,'aws_params',aws_params);
       end
     end
     
@@ -533,7 +535,7 @@ classdef testAPT < handle
 
     end
     
-    function set_backend(self,backend)
+    function set_backend(self,backend,aws_params)
       lObj = self.lObj;
 
       % Set the Backend
@@ -543,23 +545,48 @@ classdef testAPT < handle
         beType = DLBackEnd.Bsub;
       elseif strcmp(backend,'conda')
         beType = DLBackEnd.Conda;
+      elseif strcmp(backend,'aws')
+        beType = DLBackEnd.AWS;
       end
       be = DLBackEndClass(beType,lObj.trackGetDLBackend);
       lObj.trackSetDLBackend(be);
-
+      if strcmp(backend,'aws')
+        aobj = lObj.trackDLBackEnd.awsec2;
+        aobj.setPemFile(aws_params.pemFile);
+        aobj.setKeyName(aws_params.keyName);
+        if isfield('instanceID',aws_params) && ...
+            isfield('instanceType',aws_params) &&...
+            isempty(aws_params.instanceID) && ...
+            isfield(aws_params.instanceType)
+          aobj.setInstanceID(...
+            aws_params.instanceID,aws_params.instanceType);
+        else
+          tf = aobj.launchInstance();
+          if ~tf
+            reason = 'Could not launch AWS EC2 instance.';
+            return;
+          end
+          instanceID = aobj.instanceID;
+          instanceType = aobj.instanceType;
+          aobj.setInstanceID(instanceID,instanceType);
+  
+        end
+        
+      end
     end
     
     
     % train
     function test_train(self,varargin)
-      [net_type,backend,niters,test_tracking,block,params] = myparse(varargin,...
+      [net_type,backend,niters,test_tracking,block,params,...
+        aws_params] = myparse(varargin,...
             'net_type','mdn','backend','docker',...
             'niters',1000,'test_tracking',true,'block',true,...
-            'params',{});
+            'params',{},'aws_params',struct());
           
       self.setup_alg(net_type)
       self.set_params(self.info.has_trx,niters,self.info.sz,params);
-      self.set_backend(backend);
+      self.set_backend(backend,aws_params);
 
       lObj = self.lObj;
       handles = lObj.gdata;
@@ -589,7 +616,11 @@ classdef testAPT < handle
     end
     
     function test_track(self,varargin)
-      [block] = myparse(varargin,'block',true);
+      [block,backend,aws_params] = myparse(varargin,'block',true,...
+        'backend','','aws_params',struct);
+      if ~isempty(backend),
+        self.set_backend(backend,aws_params);
+      end
       kk = LabelerGUI('get_local_fn','pbTrack_Callback');
       kk(self.lObj.gdata.pbTrack,[],self.lObj.gdata);      
       if block,
