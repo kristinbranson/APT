@@ -35,6 +35,16 @@ ISPY3 = sys.version_info >= (3, 0)
 
 # name = 'open_pose'
 
+def update_conf(conf):
+    '''
+    Update conf in-place
+    :param conf:
+    :return:
+    '''
+
+    if conf.normalize_img_mean:
+        conf.normalize_img_mean = False
+        logging.warning("Turning off normalize_img_mean. Openpose does its own normalization.")
 
 # ---------------------
 # ----- Optimizer -----

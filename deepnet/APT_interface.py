@@ -678,7 +678,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.use_pretrained_weights = False
 
     conf.unet_rescale = conf.rescale
-    #conf.op_rescale = conf.rescale
+    conf.op_rescale = conf.rescale  # not used by op4
     conf.dlc_rescale = conf.rescale
     conf.leap_rescale = conf.rescale
 
