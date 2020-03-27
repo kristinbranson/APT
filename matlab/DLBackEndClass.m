@@ -325,7 +325,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         hedit.String{end+1} = 'FAILURE. Error with ping command.'; drawnow;
         return;
       end
-      m = regexp(result,' (\d+) received, (\d+)% packet loss','tokens','once');
+      % tried to make this robust to mac output
+      m = regexp(result,' (\d+) [^,]*received','tokens','once');
       if isempty(m),
         hedit.String{end+1} = 'FAILURE. Could not parse ping output.'; drawnow;
         return;
