@@ -69,6 +69,7 @@ common_conf['rrange'] = 10
 common_conf['trange'] = 5
 common_conf['brange'] = '\(-0.1,0.1\)'
 common_conf['crange'] = '\(0.9,1.1\)'
+common_conf['scale_factor_range'] = 1.2
 common_conf['mdn_use_unet_loss'] = True
 common_conf['dl_steps'] = 40000
 common_conf['decay_steps'] = 20000
@@ -76,7 +77,7 @@ common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
 common_conf['normalize_img_mean'] = False
 common_conf['adjust_contrast'] = False
-common_conf['maxckpt'] = 20
+common_conf['maxckpt'] = 50
 
 
 def setup(data_type_in,gpu_device=None):
@@ -2422,4 +2423,34 @@ def track(movid=0,
                                model_file=model_file
                                )
         tf.reset_default_graph()
+
+
+def create_mat_file():
+    from scipy import io as sio
+    exp_name = 'apt_expt'
+    train_type = 'mdn'
+    for view in range(nviews):
+        gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        train_db_file = os.path.join(conf.cachedir,'train_TF.tfrecords')
+        H = multiResData.read_and_decode_without_session(train_db_file,conf,())
+        ims = np.array(H[0])
+        locs = apt.to_mat(np.array(H[1]))
+        info = apt.to_mat(np.array(H[2]))
+        G = multiResData.read_and_decode_without_session(gt_file,conf,())
+        ims_gt = np.array(G[0])
+        locs_gt = apt.to_mat(np.array(G[1]))
+        info_gt = apt.to_mat(np.array(G[2]))
+        out_file = os.path.join(cache_dir,proj_name,'data_view{}.mat'.format(view))
+        help_text = '''
+        ims: Training images
+        locs: Landmark location for the training images
+        info: Information about the examples.
+        ims_gt: Ground truth images
+        locs_gt: Landmark location for the GT images.
+        info_gt: Information about the examples.
+                    
+        '''
+        sio.savemat(out_file,{'ims':ims,'locs':locs,'info':info,'ims_gt':ims_gt,'locs_gt':locs_gt,'info_gt':info_gt,'help':help_text})
+
 

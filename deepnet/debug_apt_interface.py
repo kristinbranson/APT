@@ -1,4 +1,4 @@
-cmd = '-name 20191206T024459 -view 1 -cache /groups/branson/home/kabram/.apt/tp0812543a_6893_40b2_befd_90409dbe6afe -err_file /groups/branson/home/kabram/.apt/tp0812543a_6893_40b2_befd_90409dbe6afe/test1/20191206T024459view0_20191206T0245171.err -type mdn /groups/branson/home/kabram/.apt/tp0812543a_6893_40b2_befd_90409dbe6afe/test1/20191206T024459_20191206T024517.lbl train -use_cache -skip_db'
+cmd = '-name 20200318T094825 -conf_params dl_steps 100 -cache /groups/branson/home/kabram/.apt/tp17f8408c_b91a_48a8_89d8_39c54aa5fa9f -type mdn /groups/branson/home/bransonk/.apt/tp7784a5ec_74be_4503_a288_4fadc2ab78e5/sh4992/20200325T160019_20200325T160107.lbl train -use_cache'
 
 import APT_interface as apt
 apt.main(cmd.split())

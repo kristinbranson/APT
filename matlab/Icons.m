@@ -7,6 +7,16 @@ end
 
 function d = lclInitGfxDir()
 d = fullfile(APT.getRoot,'gfx');
+% PNGSHOULDEXIST = 'playsegmentblack.png';
+% if exist(fullfile(d,PNGSHOULDEXIST),'file')==0
+%   % might occur in compiled/deployed matlab. The gfx dir will be located in
+%   % a different place in exploded ctf
+%   d = which(PNGSHOULDEXIST); 
+%   if isempty(d)
+%     error('Could not find %s on path.',PNGSHOULDEXIST);
+%   end
+%   d = fileparts(d);
+% end
 end
 
 function s = lclInitIms()

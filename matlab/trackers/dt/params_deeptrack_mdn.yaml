@@ -15,6 +15,7 @@ ROOT:
   - MDN:
     - ['','',false,Mixture Density Network (MDN) parameters,'','']
     - mdn_use_unet_loss: ['Train UNet and MDN networks',boolean,true,'Train network to optimize a combination of the UNet and MDN loss functions. ',1,'','Developer','',true]
+    - mdn_base_lr: ['Base Learning Rate',float,true,'Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.0001',0.0001,'','Developer','',true]
     - mdn_pred_dist: ['Predict confidence',boolean,true,'Predict confidence for MDN predictions.',0,'','Developer','',true]
     - ignore_occluded: ['Ignore occluded landmarks',boolean,true,'Do not train on landmarks labeled as occluded.',0,'','Beginner','',true]
     - predict_occluded: ['Predict occluded',boolean,true,'Predict whether landmarks are occluded or not. This parameter only has an effect if occluded landmarks *are* ignored',0,'','Beginner','',true]

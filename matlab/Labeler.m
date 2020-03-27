@@ -850,11 +850,10 @@ classdef Labeler < handle
       movfilefull = obj.projLocalizePath(movFile);
       assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
       
-      mr = obj.movieReader;
+      mr = MovieReader;
       mr.open(movfilefull);
       v = mr.nframes;
       mr.close();
-      
     end
     
     
@@ -1701,6 +1700,11 @@ classdef Labeler < handle
         end
         name = resp{1};
       end
+      % AL empty projnames can cause trouble lets just set a default now if 
+      % nec
+      if isempty(name)
+        name = 'APTproject';
+      end
 
       obj.isinit = true;
 
@@ -1808,41 +1812,45 @@ classdef Labeler < handle
       fprintf('Saved modified project file %s.\n',fname);
     end
         
-    function [success,lblfname] = projSaveAs(obj)
+    function [success,lblfname] = projSaveAs(obj,lblfname)
       % Saves a .lbl file, prompting user for filename.
 
-      if ~isempty(obj.projectfile)
-        filterspec = obj.projectfile;
-      else
-        % Guess a path/location for save
-        lastLblFile = RC.getprop('lastLblFile');
-        if isempty(lastLblFile)
-          if obj.hasMovie
-            savepath = fileparts(obj.moviefile);
+      if nargin <= 1,
+        if ~isempty(obj.projectfile)
+          filterspec = obj.projectfile;
+        else
+          % Guess a path/location for save
+          lastLblFile = RC.getprop('lastLblFile');
+          if isempty(lastLblFile)
+            if obj.hasMovie
+              savepath = fileparts(obj.moviefile);
+            else
+              savepath = pwd;
+            end
           else
-            savepath = pwd;          
+            savepath = fileparts(lastLblFile);
           end
-        else
-          savepath = fileparts(lastLblFile);
+          
+          if ~isempty(obj.projname)
+            projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
+          else
+            projfile = sprintf(obj.DEFAULT_LBLFILENAME,'APTProject');
+          end
+          filterspec = fullfile(savepath,projfile);
         end
-
-        if ~isempty(obj.projname)
-          projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
-        else
-          projfile = sprintf(obj.DEFAULT_LBLFILENAME,'APTProject');
+        
+        [lblfname,pth] = uiputfile(filterspec,'Save label file');
+        if isequal(lblfname,0)
+          lblfname = [];
+          success = false;
+          return;
         end
-        filterspec = fullfile(savepath,projfile);
-      end
-      
-      [lblfname,pth] = uiputfile(filterspec,'Save label file');
-      if isequal(lblfname,0)
-        lblfname = [];
-        success = false;
-      else
         lblfname = fullfile(pth,lblfname);
-        success = true;
-        obj.projSaveRaw(lblfname);
-      end      
+      end
+
+      success = true;
+      obj.projSaveRaw(lblfname);
+
     end
     
     function [success,lblfname] = projSaveSmart(obj)
@@ -3136,21 +3144,28 @@ classdef Labeler < handle
       % 20190207: added nLabels to dmc
       % 20190404: remove .trnName, .trnNameLbl as these dup DMC
       for i = 1:numel(s.trackerData),
-        if isfield(s.trackerData{i},'trnLastDMC'),
-          for j = 1:numel(s.trackerData{i}.trnLastDMC),
-            dmc = s.trackerData{i}.trnLastDMC(j);
-            if isempty(dmc.nLabels) && (isempty(dmc.reader) || ~dmc.isRemote)
-              % dmc.reader is empty for legacy projs; which will be assumed 
-              % to be local in DeepTracker/modernizeSaveToken
-              try
-                fprintf('Modernize: Reading nLabels for deep tracker\n');
-                dmc.readNLabels();
-              catch ME
-                warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
-              end
-            end
-          end
-        end
+        
+%         AL20200312: This update will never work in the regular 
+%         projLoad codepath because at this time the dmcs do not have 
+%         their .rootDirs updated appropriately for the newly-exploded
+%         bundled models. For now skip this update, .nLabels appears
+%         noncritical (used for display/cosmetics only)
+%         if isfield(s.trackerData{i},'trnLastDMC'),
+%           for j = 1:numel(s.trackerData{i}.trnLastDMC),
+%             dmc = s.trackerData{i}.trnLastDMC(j);
+%             if isempty(dmc.nLabels) && (isempty(dmc.reader) || ~dmc.isRemote)
+%               % dmc.reader is empty for legacy projs; which will be assumed 
+%               % to be local in DeepTracker/modernizeSaveToken
+%               try
+%                 fprintf('Modernize: Reading nLabels for deep tracker\n');
+%                 dmc.readNLabels();
+%               catch ME
+%                 warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
+%               end
+%             end
+%           end
+%         end
+
         if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
           if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
             assert(all(strcmp(s.trackerData{i}.trnName,...
@@ -3447,6 +3462,22 @@ classdef Labeler < handle
       s.trkResGT = cell(nmovGT,nvw,0);
       s.trkResViz = cell(0,1);
     end
+    
+    function data = stcLoadLblFile(fname)
+      tname = tempname;
+      try
+        untar(fname,tname);
+        data = load(fullfile(tname,'label_file.lbl'),'-mat');
+        rmdir(tname,'s');
+      catch ME,
+        if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile'),
+          data = load(fname,'-mat');
+        else
+          throw(ME);
+        end
+      end
+    end
+    
   end 
   
   %% Movie

@@ -296,7 +296,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
     
-    % if nLabels not set, try to read it from the stripped lbl file
+    % read nLabels from the stripped lbl file
     function readNLabels(obj)
       if ~isempty(obj.lblStrippedLnx)
         s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');

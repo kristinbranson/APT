@@ -47,6 +47,7 @@ class config(object):
         self.normalize_batch_mean = False
         self.perturb_color = False
         self.flipLandmarkMatches = {}
+        self.learning_rate_multiplier = 1.
 
         # ----- Data parameters
         # l1_cropsz = 0
@@ -174,6 +175,7 @@ class config(object):
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30
+        self.cachedir = None
 
         # ----- Legacy
         # self.scale = 2

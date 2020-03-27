@@ -25,28 +25,41 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.init(hAx,lObj,propFullName,sPrm);    
     end
     
+    function getProjImsz(obj,lObj,sPrm)
+      % sets .imsz
+      
+      if lObj.hasTrx,
+        obj.imsz = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius*2+[1,1];
+      else
+        nmov = lObj.nmoviesGTaware;
+        rois = nan(nmov,lObj.nview,4);
+        for i = 1:nmov,
+          rois(i,:,:) = lObj.getMovieRoiMovIdx(MovieIndex(i));
+        end
+        if isempty(rois),
+          ParameterVisualization.grayOutAxes(hAx,'No movie loaded in.');
+          return;
+        end
+        
+        if lObj.isMultiView
+          warningNoTrace('Memory analysis based on first view only.');
+        end
+        rois = reshape(rois(:,1,:),nmov,4);
+        
+        hs = rois(:,4)-rois(:,3)+1;
+        ws = rois(:,2)-rois(:,1)+1;
+        assert(all(hs==hs(1)) && all(ws==ws(1)));
+        obj.imsz = [hs(1),ws(1)];
+      end
+    end
+    
     function init(obj,hAx,lObj,propFullName,sPrm)
       %fprintf('init\n');
       obj.axPos = [.1,.1,.85,.85];
       set(hAx,'Units','normalized','Position',obj.axPos);
       
       obj.initSuccessful = false;
-      if lObj.hasTrx,
-        obj.imsz = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius*2+[1,1];
-      else
-        rois = nan(lObj.nmoviesGTaware,4);
-        for i = 1:lObj.nmoviesGTaware,
-          rois(i,:) = lObj.getMovieRoiMovIdx(MovieIndex(i));
-        end
-        if isempty(rois),
-          ParameterVisualization.grayOutAxes(hAx,'No movie loaded in.');
-          return;
-        end
-        hs = rois(:,4)-rois(:,3)+1;
-        ws = rois(:,2)-rois(:,1)+1;
-        assert(all(hs==hs(1)) && all(ws==ws(1)));
-        obj.imsz = [hs(1),ws(1)];
-      end
+      obj.getProjImsz(lObj,sPrm);
       obj.downsample = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
       
       obj.nettype = lObj.tracker.algorithmName;

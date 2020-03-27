@@ -156,17 +156,17 @@ def adjust_contrast(in_img, conf):
         return in_img
 
 
-def process_image(frame_in, conf):
-    #     cropx = (framein.shape[0] - conf.imsz[0])/2
-    #     cropy = (framein.shape[1] - conf.imsz[1])/2
-    #     if cropx > 0:
-    #         framein = framein[cropx:-cropx,:,:]
-    #     if cropy > 0:
-    #         framein = framein[:,cropy:-cropy,:]
-    frame_in = crop_images(frame_in, conf)
-    frame_in = frame_in[np.newaxis, :, :, 0:1]
-    x0, x1, x2 = multi_scale_images(frame_in, conf.rescale, conf.scale, conf.l1_cropsz)
-    return x0, x1, x2
+# def process_image(frame_in, conf):
+#     #     cropx = (framein.shape[0] - conf.imsz[0])/2
+#     #     cropy = (framein.shape[1] - conf.imsz[1])/2
+#     #     if cropx > 0:
+#     #         framein = framein[cropx:-cropx,:,:]
+#     #     if cropy > 0:
+#     #         framein = framein[:,cropy:-cropy,:]
+#     frame_in = crop_images(frame_in, conf)
+#     frame_in = frame_in[np.newaxis, :, :, 0:1]
+#     x0, x1, x2 = multi_scale_images(frame_in, conf.rescale, conf.scale, conf.l1_cropsz)
+#     return x0, x1, x2
 
 
 def crop_images(frame_in, conf):

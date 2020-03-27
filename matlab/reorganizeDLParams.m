@@ -98,7 +98,7 @@ for i = order,
     fns = fieldnames(ts_specific_flat);
     for j = 1:numel(fns),
       if ts_specific_flat.(fns{j}) < 0,
-        warningNoTrace(sprintf('Could not find %s parameter %s in loaded project, using default value',char(s.trackerData{i}.trnNetType),fns{i}));
+        warningNoTrace(sprintf('Could not find %s parameter %s in loaded project, using default value',char(s.trackerData{i}.trnNetType),fns{j}));
       end
     end
   end

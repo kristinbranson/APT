@@ -7,7 +7,8 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
     end
     
     function parseJobID(obj,res,iview,imov)
-      
+      % sets/initializes .jobID for given mov(job)/view(job)
+
       if nargin < 4,
         imov = 1;
       end
