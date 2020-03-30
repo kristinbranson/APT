@@ -479,7 +479,11 @@ classdef DeepTracker < LabelTracker
       else
         % AL 20190713 leave s.sPrmAll empty for untrained trackers
         tfTrained = isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC);
-        assert(~tfTrained,'Apparent trained tracker with no parameters.');
+        if ~tfTrained,
+          warning('Apparent trained tracker with no parameters, setting trnLastDMC = []');
+          s.trnLastDMC = [];
+        end
+        % assert(~tfTrained,'Apparent trained tracker with no parameters.');
         % s.sPrmAll = sPrmDflt;
         % Let's leave s.sPrmAll empty for now
       end
@@ -916,10 +920,15 @@ classdef DeepTracker < LabelTracker
         sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler,'throwwarnings',false);
         args = {'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
         
-        isParamChange = ~APTParameters.isEqualFilteredStructProperties(...
-          obj.sPrmAll,sPrmAllAsSet,args{:});
-        isParamChangeLbler = ~APTParameters.isEqualFilteredStructProperties(...
-          obj.sPrmAll,sPrmAllLabeler,args{:});        
+        if isempty(obj.sPrmAll),
+          isParamChange = true;
+          isParamChangeLbler = true;
+        else
+          isParamChange = ~APTParameters.isEqualFilteredStructProperties(...
+            obj.sPrmAll,sPrmAllAsSet,args{:});
+          isParamChangeLbler = ~APTParameters.isEqualFilteredStructProperties(...
+            obj.sPrmAll,sPrmAllLabeler,args{:});
+        end
         if isParamChange,
           s = 'Yes';
         else
@@ -1389,12 +1398,12 @@ classdef DeepTracker < LabelTracker
           if backEnd.deepnetrunlocal
             aptroot = APT.Root;
             %DeepTracker.downloadPretrainedExec(aptroot);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+            %DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
             aptroot = [cacheDir '/APT'];
             DeepTracker.cloneJRCRepoIfNec(cacheDir);
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+            %DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
         case DLBackEnd.Docker
         case DLBackEnd.Conda
