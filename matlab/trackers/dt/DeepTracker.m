@@ -4189,15 +4189,25 @@ classdef DeepTracker < LabelTracker
       end      
     end
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
-      [host,bg,prefix,sshoptions] = myparse(varargin,...
+      [host,bg,prefix,sshoptions,timeout] = myparse(varargin,...
         'host',DeepTracker.jrchost,... % 'logfile','/dev/null',...
         'bg',true,...
         'prefix',DeepTracker.jrcprefix,...
-        'sshoptions','-o "StrictHostKeyChecking no"');
+        'sshoptions','-o "StrictHostKeyChecking no"',...
+        'timeout',[]);
       
       if ~isempty(prefix),
         remotecmd = [prefix,'; ',remotecmd];
       end
+      if ~isempty(timeout),
+        sshoptions1 = ['-o "ConnectTimeout ',num2str(timeout),'"'];
+        if ~ischar(sshoptions) || isempty(sshoptions),
+          sshoptions = sshoptions1;
+        else
+          sshoptions = [sshoptions,' ',sshoptions1];
+        end
+      end
+          
       if ~ischar(sshoptions) || isempty(sshoptions),
         sshcmd = 'ssh';
       else

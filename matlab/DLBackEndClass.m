@@ -325,7 +325,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         hedit.String{end+1} = 'FAILURE. Error with ping command.'; drawnow;
         return;
       end
-      m = regexp(result,' (\d+) received, (\d+)% packet loss','tokens','once');
+      % tried to make this robust to mac output
+      m = regexp(result,' (\d+) [^,]*received','tokens','once');
       if isempty(m),
         hedit.String{end+1} = 'FAILURE. Could not parse ping output.'; drawnow;
         return;
@@ -343,8 +344,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
       
       remotecmd = sprintf('touch "%s"; if [ -e "%s" ]; then rm -f "%s" && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
-      cmd1 = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host,'bg',false);
-      cmd = sprintf('timeout 20 %s',cmd1);
+      timeout = 20;
+      cmd1 = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host,'bg',false,'timeout',timeout);
+      %cmd = sprintf('timeout 20 %s',cmd1);
+      cmd = cmd1;
       hedit.String{end+1} = cmd; drawnow;
       [status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
