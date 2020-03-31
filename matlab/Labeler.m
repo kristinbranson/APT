@@ -2626,6 +2626,17 @@ classdef Labeler < handle
       %obj.clearTempDir();
     end
     
+    function projExportTrainData(obj,outfile)
+      
+      [tfsucc,tblPTrn,s] = ...
+        obj.trackCreateDeepTrackerStrippedLbl();
+      if ~tfsucc,
+        error('Could not collect data for exporting.');
+      end
+      save(outfile,'-mat','-v7.3','-struct','s');
+      
+    end
+    
     function projClearTempDir(obj) % throws
       if isempty(obj.projTempDir)
         return;
@@ -3477,7 +3488,7 @@ classdef Labeler < handle
         end
       end
     end
-    
+        
   end 
   
   %% Movie
@@ -6703,6 +6714,19 @@ classdef Labeler < handle
       if tfok
         rawtrkname = rawtrkname{1};
       end
+    end
+    
+    function fname = getDefaultFilenameExportStrippedLbl(obj)
+      lblstr = 'TrainData';
+      if ~isempty(obj.projectfile)
+        rawname = ['$projdir/$projfile_' lblstr '.lbl'];
+      elseif ~isempty(obj.projname)
+        rawname = ['$projdir/$projname_' lblstr '.lbl'];
+      else
+        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.lbl'];
+      end
+      sMacro = obj.baseTrkFileMacros();
+      fname = FSPath.macroReplace(rawname,sMacro);
     end
     
     function fname = getDefaultFilenameExportLabelTable(obj)

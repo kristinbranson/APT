@@ -479,7 +479,7 @@ classdef DeepTracker < LabelTracker
       else
         % AL 20190713 leave s.sPrmAll empty for untrained trackers
         tfTrained = isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC);
-        if ~tfTrained,
+        if tfTrained,
           warning('Apparent trained tracker with no parameters, setting trnLastDMC = []');
           s.trnLastDMC = [];
         end

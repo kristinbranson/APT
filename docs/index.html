@@ -107,7 +107,10 @@ strong.regular-font {
   </li>
   <li><a href="#Tracking parameters">Tracking parameters</a>
     <ul>
-      <li><a href="#Deep learning parameter guide">Guide to setting tracking parameters: deep learning</a></li>
+      <li><a href="#Algorithm">Tracking algorithm</a></li>
+      <a href="#Configure tracking parameters">Configure tracking parameters</a></li>
+  <li><a href="#Deep learning parameter guide">Guide to setting tracking parameters: deep learning</a></li>
+  <li><a href="#Example Tracking Parameters">Example Tracking Parameters</a></li>
     </ul>
   </li>
 <li><a href="#Training">Training</a></li>
@@ -257,7 +260,7 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
 <p>APT makes it easy to train a tracker then predict on a sequence of frames. The first test of whether the tracker is working is the <b>eye-ball test</b> -- just look at the predictions and see if, by eye, they look accurate. If it is easy to find frames that the tracker is performing poorly on, then we recommend annotating these frames, adding them to the training set, and re-training. </p>
 <p>Once APT has passed the eye-ball test, you can use <a href="#Cross Validation">cross-validation</a> to estimate accuracy quantitatively. The gold standard for accuracy estimation is <a href="#Groundtruthing">ground truthing</a>, in which you manually annotate new frames, and quantitatively compare APT's predictions to manual labels.</p>
 <h3>How do I set tracking parameters?</h3>
-<p>Before you click the Train button, there are some parameters that are important to set. You can select the <a href="#Algorithm">tracking algorithm</a> from the Track->Tracking algorithm menu. You can select the backend on which all GPU computations will be performed from the <a href="#Backend">Track->GPU/Backend Configuration</a> menu. Parameters related to the currently selected algorithm can be set from the Tracking Parameters GUI, accessed from the <a href="#Tracking parameters">Track -> Configure tracking parameters</a> menu. For each new application, it is important that you set the Tracking Parameters labeled as <b>Important</b>. Information on tracking parameters is <a href="#Tracking parameters">here</a>.</p>
+<p>Before you click the Train button, there are some parameters that are important to set. You can select the <a href="#Algorithm">tracking algorithm</a> from the Track->Tracking algorithm menu. You can select the backend on which all GPU computations will be performed from the <a href="#BackEnd">Track->GPU/Backend Configuration</a> menu. Parameters related to the currently selected algorithm can be set from the Tracking Parameters GUI, accessed from the <a href="#Tracking parameters">Track -> Configure tracking parameters</a> menu. For each new application, it is important that you set the Tracking Parameters labeled as <b>Important</b>. Information on tracking parameters is <a href="#Tracking parameters">here</a>.</p>
 
 <hr class="h2-divider">
 
@@ -703,6 +706,8 @@ trx(1) =
 -->
 </table>
 
+<h3><a id="Configure tracking parameters">Configure tracking parameters</a></h3>
+
 <p>APT's performance depends critically on setting several tracking parameters well. Several of these parameters must be changed with each new tracking application. To access the tracking parameters, select <b>"Configure tracking parameters..."</b> from the Tracking menu.</p>
 
 <center><a id="TrackingParametersGUI" href="images/TrackingParametersGUI.png"><img src="images/TrackingParametersGUI.png"></a></center>
@@ -853,6 +858,7 @@ trx(1) =
 <p>If you selected <b>"Flip horizontally"</b> or <b>"Flip vertically"</b> above, it is important that you <b>specify corresponding pairs</b> of landmarks after this flip occurs. For example, after flipping both the image and the manual annotations, the left rear foot should be where the right rear foot is, and vice-versa. To do this, select <b>"Select landmark flip pairings"</b> from the Track menu.</p>
 
 <h3><a id="Example Tracking Parameters">Example Tracking Parameters</a></h3>
+<p>Below, we list parameters we have used in our tracking projects.</p>
 <center>
 <table id="table_params" width="90%">
   <tr><th>Parameter</th><th>10 flies</th><th>Single fly head</th><th>Single fly</th><th>2 mice</th><th>Single mouse</th><th>Single larva</th></tr>
@@ -862,11 +868,11 @@ trx(1) =
   <tr><th>Image Processing: Downsample factor</th><td>1</td><td>1</td><td>2</td><td>1</td><td>1</td><td>2</td></tr>
   <tr><th>Gradient Descent: Training batch size</th><td>8</td><td>4</td><td>2</td><td>8</td><td>8</td><td>4</td></tr>
   <tr><th>Data Augmentation: Rotate range</th><td>10</td><td>20</td><td>10</td><td>180</td><td>10</td><td>180</td></tr>
-  <tr><th>Data Augmentation: Translation range</th><td>5</td><td>20</td><td>20</td><td>10</td><td>20</td><td>20</td></tr>
+  <tr><th>Data Augmentation: Translation range</th><td>5</td><td>20</td><td>20</td><td>10</td><td>20</td><td>30</td></tr>
   <tr><th>Data Augmentation: Scale factor range</th><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td></tr>
   <tr><th>Data Augmentation: Contrast range</th><td>0.09</td><td>0.2</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
   <tr><th>Data Augmentation: Brightness range</th><td>0.09</td><td>0.2</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
-  <tr><th>Data Augmentation: Flip horizontally</th><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Data Augmentation: Flip horizontally</th><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>Yes</td></tr>
   <tr><th>Data Augmentation: Flip vertically</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
 
   <tr><th>Image Processing: Histogram equalization</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>Yes</td></tr>
@@ -900,8 +906,9 @@ trx(1) =
 <p>Once you have:
 <ul>
   <li><a href="#Labeling parts">Labeled enough training examples</a></li>
-  <li><a href="#Tracking algorithm">Selected a tracking algorithm</a></li>
-  <li><a href="#Select backend">Selected a GPU backend</a></li>
+  <li><a href="#BackEnd">Selected a GPU backend</a></li>
+  <li><a href="#Algorithm">Selected a tracking algorithm</a></li>
+  <li><a href="#Tracking parameters">Set tracking parameters</a></li>
 </ul>
 Click the <b>Train</b> button on the <a href="#GUI">bottom left</a> to begin training a tracker. This will bring up a window in which you can see the training progress.</p>
 
