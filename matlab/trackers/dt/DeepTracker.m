@@ -2176,7 +2176,7 @@ classdef DeepTracker < LabelTracker
               cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles);
           else
             obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
-              cropRois,hmapArgs,f0,f1);
+              cropRois,hmapArgs,f0,f1,'isMultiView',true);
           end
         otherwise
           assert(false);
