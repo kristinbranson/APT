@@ -1057,7 +1057,7 @@ classdef DeepTracker < LabelTracker
       dmc2.rootDir = obj.lObj.DLCacheDir;
       assert(exist(dmc2.dirModelChainLnx,'dir')==0,'Dir %s already exists.',dmc2.dirModelChainLnx);
       cmd = sprintf('mkdir -p %s',dmc2.dirModelChainLnx);
-      tfsucc = AWSec2.syscmd(cmd,'dispcmd',true);
+      tfsucc = DeepTracker.syscmd(cmd,'dispcmd',true);
       if ~tfsucc
         error('Failed to create dir %s.',dmc2.dirModelChainLnx);
       end
@@ -3621,7 +3621,7 @@ classdef DeepTracker < LabelTracker
       if ismac
         file = strrep(file,' ','\ ');
         shacmd = sprintf('MD5 %s',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         res = strtrim(res);
         toks = regexp(res,' ','split');
         sha = toks{end};        
@@ -3629,13 +3629,13 @@ classdef DeepTracker < LabelTracker
       elseif isunix
         file = strrep(file,' ','\ ');
         shacmd = sprintf('md5sum %s',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
         shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,'\n','split');
         sha = toks{2};
         sha = regexprep(sha,' ','');
@@ -4170,7 +4170,10 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static) % train/track codegen
-    
+    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
+      [tfsucc,res,warningstr] = AWSec2.syscmd(cmd,varargin{:},...
+        'setenvcmd','LD_LIBRARY_PATH=: ');
+    end
     function downloadPretrainedWeights(varargin) 
       aptroot = myparse(varargin,...
         'aptroot',APT.Root...
@@ -4442,7 +4445,7 @@ classdef DeepTracker < LabelTracker
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-      [~,res] = AWSec2.syscmd(cmd,...
+      [~,res] = DeepTracker.syscmd(cmd,...
         'dispcmd',true,...
         'failbehavior','err');
     end      
@@ -4483,7 +4486,7 @@ classdef DeepTracker < LabelTracker
       % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
       updatecmd = DeepTracker.updateAPTRepoCmd('aptparent',cacheRoot);
       updatecmd = DeepTracker.codeGenSSHGeneral(updatecmd,'bg',false);
-      [~,res] = AWSec2.syscmd(updatecmd,...
+      [~,res] = DeepTracker.syscmd(updatecmd,...
         'dispcmd',true,...
         'failbehavior','err');
     end
@@ -4496,7 +4499,7 @@ classdef DeepTracker < LabelTracker
     function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
       cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
       cmd = DeepTracker.codeGenSSHGeneral(cmd,'bg',false);
-      [~,res] = AWSec2.syscmd(cmd,...
+      [~,res] = DeepTracker.syscmd(cmd,...
         'dispcmd',true,...
         'failbehavior','err');
     end
@@ -4514,7 +4517,7 @@ classdef DeepTracker < LabelTracker
       aptrootexistscmd = DeepTracker.codeGenSSHGeneral(aptrootexistscmd,...
         'bg',false);
       
-      [~,res] = AWSec2.syscmd(aptrootexistscmd,...
+      [~,res] = DeepTracker.syscmd(aptrootexistscmd,...
         'dispcmd',true,...
         'failbehavior','err');
       res = strtrim(res);
@@ -4526,7 +4529,7 @@ classdef DeepTracker < LabelTracker
         case 'n'
           cloneaptcmd = sprintf('git clone %s %s',DeepTracker.jrcprodrepo,aptroot);
           cloneaptcmd = DeepTracker.codeGenSSHGeneral(cloneaptcmd,'bg',false);
-          [~,res] = AWSec2.syscmd(cloneaptcmd,...
+          [~,res] = DeepTracker.syscmd(cloneaptcmd,...
             'dispcmd',true,...
             'failbehavior','err');
           fprintf('Cloned JRC/APT repo into %s.\n',aptroot);
