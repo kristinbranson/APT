@@ -140,6 +140,15 @@ handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import
 moveMenuItemAfter(handles.menu_file_export_labels_table,...
   handles.menu_file_export_labels_trks);
 
+handles.menu_file_export_stripped_lbl = uimenu('Parent',handles.menu_file_import_export_advanced,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_stripped_lbl_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export Training Data...',...
+  'Tag','menu_file_export_stripped_lbl',...
+  'Checked','off',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_file_export_stripped_lbl,...
+  handles.menu_file_export_labels_table);
+
 handles.menu_file_crop_mode = uimenu('Parent',handles.menu_file,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_crop_mode_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Edit cropping',...
@@ -2873,6 +2882,19 @@ s = struct();
 s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); 
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
+
+function menu_file_export_stripped_lbl_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+fname = lObj.getDefaultFilenameExportStrippedLbl();
+[f,p] = uiputfile(fname,'Export File');
+if isequal(f,0)
+  return;
+end
+fname = fullfile(p,f);
+SetStatus(handles,sprintf('Exporting training data to %s',fname));
+lObj.projExportTrainData(obj,fname)
+fprintf('Saved training data to file ''%s''.\n',fname);
+ClearStatus(handles);
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
 

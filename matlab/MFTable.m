@@ -43,6 +43,11 @@ classdef MFTable
       
       assert(istable(tbl));
       assert(isa(keymap,'containers.Map'));
+      if isempty(tbl),
+        tblNew = tbl;
+        tfRm = false(0,1);
+        return;
+      end
       
       keys = tbl{:,keyfld};
       tfMovIdx = isa(keys,'MovieIndex');

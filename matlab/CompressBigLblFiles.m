@@ -246,7 +246,7 @@ for j = 1:nviews,
     i = idx(ii);
     imcurr = allims{i,j};
     if isgrayscale && (size(imcurr,3) > 1),
-      assert(all(all(all(imcurr(:,:,1)==imcurr,1),2),3));
+      %assert(all(all(all(imabsdiff(repmat(imcurr(:,:,1),[1,1,3]),imcurr)<=2,1),2),3));
       imcurr = imcurr(:,:,1);
     end
     writeVideo(vidobjs{j},imcurr);
@@ -260,12 +260,9 @@ if isempty(newprojectfile),
   newprojectfile = fullfile(outdir,sprintf('%s_compress%s.lbl',name,datestr(now,'yyyymmdd')));
 end
 lObj.projSaveAs(newprojectfile);
+lObj.trackInitAllTrackers();
 lObj.movieRmAll();
-if lObj.isMultiView,
-  lObj.movieAdd(outmovfiles{1});
-else
-  lObj.movieSetAdd(outmovfiles);
-end
+lObj.movieSetAdd(outmovfiles);
 tblMF1 = removevars(tblMF1,'mov');
 lObj.labelPosBulkImportTblMov(tblMF1);
 lObj.projSaveSmart();
