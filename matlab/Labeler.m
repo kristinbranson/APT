@@ -11919,7 +11919,12 @@ classdef Labeler < handle
       
       if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
         obj.preProcNonstandardParamChanged();
+      else
+        % clear CPR cache in any case, even unlabeled movies pose a problem 
+        % as tracking frames can be cached
+        obj.preProcInitData();
       end
+
      
 %       if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
 %         % if this movie has labels, retraining might be necessary
