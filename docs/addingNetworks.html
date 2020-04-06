@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT Documentation</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all"
+href="styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen"
+href="styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print"
+href="styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8"
+media="projection" href="styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1><a id="adding_networks">Adding Networks to APT</a></h1>
+<br>
+<p>There are two ways of adding new networks to APT:</p>
+<ul>
+<li> The easiest way is to inherit <a href="#posebase">PoseBase</a> where you only need to define the network.
+<li> If more flexiblity is required then you can inherit <a href="#posebasegeneral">PoseBaseGeneral</a>. In this case, the code will provide a tensorflow dataset object which can be used to generate the augmented training examples (images and labeled landmark location).
+</ul>
+
+<p>To add your network <i>mynet</i>, create a new file <i>Pose_mynet.py</i> and define a new class of the same name (i.e., <i>Pose_mynet</i>). Class <i>Pose_mynet</i> should inherit from <i>PoseBase</i> or <i>PoseBaseGeneral</i>. Eg:</p>
+<pre><code>
+  from PoseBase import PoseBase
+  class Pose_mynet(PoseBase):
+      def train(self):
+      ...
+</code></pre>
+<p>
+The <i>Pose_mynet</i> object can access configuration settings that were set by the user in APT GUI in self.conf object. Some of the useful configuration settings are:</p>
+<ul>
+    <li> imsz: 2 element tuple specifying the size of the input image.
+    <li> img_dim: Number of channels in input image.
+    <li> batch_size: Batch size defined by user.
+    <li> rescale: How much to downsample the input image before feeding into the network.
+    <li> dl_steps: Number of steps to run training for.
+</ul>
+<p>Details of other settings can be found APT/tracker/dt/params_deeptrack.yaml.</p>
+
+<p>If you would like add parameters specifically for your network in APT GUI, then can create a new configuration settings file APT/trackers/dt/params_mynet.yaml. These parameters will be available in APT GUI when user selects mynet in APT.</p>
+
+<p> To use pretrained weights (eg. Imagenet weights), put the location of the pretrained weights in self.pretrained_weights in the __init__ function. When the weights are initialized, for all variables whose names and sizes match the variables saved in the pretrained weights file will get their weights initialized to the ones saved in the pretrained file. </p>
+<pre><code>
+    def __init__(self,conf):
+        PoseBase.__init__(self,conf)
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        wt_dir = os.path.join(script_dir, 'pretrained')
+        self.pretrained_weights =  os.path.join(wt_dir,'resnet_v1_50.ckpt')
+</code></pre>
+
+
+<h2><a id="posebase">Inheriting PoseBase</a></h2>
+
+    <p>If the network generates heatmaps for each landmark, then you only need to override create_network function and supply the appropriate hmaps_downsample to the __init__ function when you inherit. For example in case of openpose since the final heatmap output is downsampled by 8, self.hmaps_downsample should be set to 8.</p>
+
+    <p>If your networks produces output other than only heatmaps, you'll have to override</p>
+    <ul>
+        <li> <a href="#pb_create_network">create_network</a> - Function that creates the network.
+        <li> <a href="#pb_convert_locs_to_targets">convert_locs_to_targets</a> - Convert x,y locations to network target e.g., from x,y locations to heatmaps.
+        <li> <a href="#pb_convert_preds_to_locs">convert_preds_to_locs</a> - Convert the networks output (eg heatmaps) to x,y landmark locations.
+        <li> <a href="#pb_conf">get_conf_from_preds</a> - Get prediction confidence (or scores) from predictions. Eg., Maximum heatmap value for each landmark.
+        <li> <a href="#pb_loss">loss</a> - Define the loss function to be optimized.
+    </ul>
+    <p>In addition, if you want to change the training procedure, you'll have to override</p>
+    <ul>
+        <li> <a href="#pb_train">train</a> -If you want to different learning rate schedule or optimizer.
+        <li> <a href="#pb_get_pred_fn">get_pred_fn</a> - To create a prediction function that will take a batch of input images and return the predictions on them. Override this function if you override train function.
+        <li> <a href="#pb_preproc">pre_proc</a> - How image preprocessing is done.
+    </ul>
+
+    <h3><a id="pb_create_network"> Defining create_network function:</a></h3>
+        Inputs<br>
+        <br>
+        <!-- <ul>
+          <li> None
+        </ul> -->
+        Outputs
+        <ul>
+          <li> List of prediction tensors (e.g. heatmaps).
+        </ul>
+        <p>The tensors containing the training examples are provided as a list in self.inputs.
+        By default, for batch size B, and image size H x W x C:</p>
+        <ul>
+            <li> self.inputs[0] tensor has the images. If the image downsample factor is s then the size of this tensor is [B, H//s, W//s, C].
+            <li> self.inputs[1] tensor has the locations in an array of [B, N, 2]
+            <li> self.inputs[2] tensor has the [movie_id, frame_id, animal_id] information. Mostly useful for debugging.
+            <li> self.inputs[3] tensor has the heatmaps, which in most cases will be used for computing the loss.
+        </ul>
+        <p>Information about whether it is training phase or test phase for batch norm is available in self.ph['phase_train']
+        If preproc function is overridden, then self.inputs will have the outputs of preproc function.
+        This function must return the network's output such as the predicted heatmaps.</p>
+
+        <p>If the network output's heatmap and this is the only function that is overridden, then the network will trained using l2 loss between the target and output heatmaps. The network will be trained using Adam optimizer with an exponetially decaying learning rate.</p>
+        <pre><code>
+        def create_network(self):
+            in = self.inputs[0]
+            l1 = tf.layers.Conv2D(64,3)(in)
+            l2 = tf.layers.Conv2D(64,3)(l2)
+            return l2
+        </code></pre>
+
+    <h3><a id="pb_convert_locs_to_targets"> Defining convert_locs_to_target function </a></h3>
+        Inputs
+        <ul>
+            <li>locs: Labeled part locations as B x N x 2
+        </ul>
+        Outputs
+        <ul>
+            <li> List of targets.
+        </ul>
+        <p>Override this function to change how labels are converted into targets. You can use PoseTools.create_label_images to generate the target heatmaps. You can use PoseTools.create_affinity_labels to generate the target part affinity field heatmaps.</p>
+
+        <p>Both the inputs and outputs are numpy arrays. This function will be injected into tensorflow dataset pipeline using tf.dataset.map.</p>
+
+        <p>Return the results as a list. This list will be supplied as the first argument to the loss function.</p>
+        <pre><code>
+          def convert_locs_to_targets(self,locs):
+              conf = self.conf
+              hmaps_rescale = self.hmaps_downsample
+              hsz = [ math.ceil( (i // conf.rescale)/hmaps_rescale) for i in conf.imsz]
+              # Creates target heatmaps by placing gaussians with sigma label_blur_rad at location locs.
+              hmaps = PoseTools.create_label_images(locs/hmaps_rescale, hsz, 1, conf.label_blur_rad)
+              return [hmaps]
+    </code></pre>
+
+    <h3><a id="pb_convert_preds_to_locs"> Defining convert_preds_to_locs function </a></h3>
+        Inputs<br>
+        <ul>
+            <li> pred: Output of network as python/numpy arrays
+        </ul>
+        Outputs<br>
+        <ul>
+            <li>locs: 2D landmark locations as B x N x 2
+        </ul>
+
+        Override this function to write your function to convert the networks output (as numpy array) to locations. Note the locations should be in input images scale i.e., not downsampled by self.rescale
+        <pre><code>
+          def convert_preds_to_locs(self, pred):
+              return PoseTools.get_pred_locs(pred)*self.hmaps_downsample
+        </code></pre>
+
+        <h3><a id="pb_conf"> Defining get_conf_from_preds function:</a></h3>
+            Inputs<br>
+            <ul>
+                <li>pred: Has the output of network created in define_network. It'll be a list if networks output was a list.
+            </ul>
+            Outputs<br>
+            <ul>
+                <li>conf: A numpy array of size [B,N]
+            </ul>
+            <p>APT uses confidence values are postprocessing and for browsing difficult examples.</p>
+
+            <pre><code>
+              def get_conf_from_preds(self, pred):
+                  # if pred are heatmaps
+                  return np.max(pred, axis=(1, 2))
+            </code></pre>
+
+
+    <h3><a id="pb_loss"> Defining loss function:</a></h3>
+        Inputs<br>
+        <ul>
+            <li>targets: Has the targets (e.g hmaps/pafs) created in convert_locs_to_targets
+            <li>pred: Has the output of network created in define_network. It'll be a list if networks output was a list.
+        </ul>
+        Outputs<br>
+        <ul>
+            <li>loss: The loss function to be optimized.
+        </ul>
+        <p>Override this function to define your own loss function.</p>
+        <pre><code>
+          def loss(self,targets, pred):
+              hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred))/ self.conf.n_classes/ self.conf.batch_size
+              return hmap_loss
+        </code></pre>
+
+    <h3><a id="pb_train">Defining train  function</a></h3>
+        Inputs<br>
+        <ul>
+            <li>restore: Whether to start training from previously saved model or start from scratch.
+        </ul>
+        Outputs<br>
+        <br>
+
+        <p>By default this function trains the network my minimizing the loss function using Adam optimizer along with gradient norm clipping. The learning rate schedule is exponential decay: lr = conf.learning_rate*(conf.gamma**(float(cur_step)/conf.decay_steps))</p>
+
+        <p>Override this function to implement a different training function. If you override this, you need to override the get_pred_fn as well. For saving the models, call self.create_saver() after creating the network but before creating a session to setup the saver. Call self.save(sess, step_no)  every self.conf.save_step to save intermediate models. At the end of training, again call self.save(sess, self.conf.dl_steps) to save the final model. During prediction (get_pred_fn), you can restore the latest model by calling self.create_saver() after creating the network but before creating a session, and then calling self.restore(sess). In most cases, if you use self.create_saver(), then you don't need to override get_pred_fn().<p>
+
+        <p>If you want to use your own saver, the train function should save models to self.conf.cachedir every self.conf.save_step. Also save a final model at the end of the training with step number self.conf.dl_steps. APT expects the model files to be named 'deepnet-<step_no>' (i.e., follow the format used by tf.train.Saver for saving models e.g. deepnet-10000.index). If you write your own saver, then you'll have to override get_pred_fn() for restoring the model.</p>
+
+        <p>Before each training step call self.fd_train() which will setup the data generator to generate augmented input images in self.inputs from training database during the next call to sess.run. This also sets the self.ph['phase_train'] to True for batch norm. Use self.fd_val() will generate non-augmented inputs from training DB and to set the self.ph['phase_train'] to false for batch norm.</p>
+
+        <p>To view updated training status in APT, call self.update_and_save_td(step,sess) after each training step. Note update_and_save_td uses the output of loss function to find the loss and convert_preds_to_locs function to find the distance between prediction and labeled locations.</p>
+
+    <h3><a id="pb_train">Defining get_pred_fn</a></h3>
+        Inputs<br>
+        <ul>
+            <li>model_file: Model_file to use. If not specified the latest trained should be used.
+        </ul>
+        Outputs:<br>
+        <ul>
+            <li> pred_fn: Create a prediction function that takes a batch of images of size [B,H,W,C] and returns the pose prediction as a python array of size [B, N,2]. The pose prediction must be returned as dictionary with key 'locs'. The input images are raw and need to be preprocessed (eg. Downsampled or contrast adjusted).
+            <li> close_fn: Function to clean up at the end. For example, to close tensorflow sessions.
+            <li>model_file_used: Returns the model file that is used for prediction.
+        </ul>
+
+        <p>Create a prediction function that takes a batch of images of size [B,H,W,C] and returns the pose prediction as a python array of size [B, N,2]. This function should create the network, start a tensorflow session and load the latest model. If you used self.create_saver() for saving the models, you can restore the latest model by calling self.create_saver() after creating the network but before creating a session, and then calling self.restore(sess). Example:</p>
+        <pre><code>
+def get_pred_fn(self, model_file=None):
+    sess, latest_model_file = self.restore_net_common(model_file=model_file)
+    conf = self.conf
+
+    def pred_fn(all_f):
+        # all_f will have size [B,H,W,C]
+        bsize = conf.batch_size
+        xs, locs_in = PoseTools.preprocess_ims(all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf, distort=False, scale=self.conf.rescale)
+        self.fd[self.inputs[0]] = xs
+        self.fd_val()
+        pred = sess.run(self.pred, self.fd)
+        base_locs = self.convert_preds_to_locs(pred)
+        base_locs = base_locs * conf.rescale
+        ret_dict = {}
+        ret_dict['locs'] = base_locs
+        return ret_dict
+</code></pre>
+
+<h3><a id="pb_preproc">Defining preproc_func function (Optional)</a></h3>
+    Inputs<br>
+    <ul>
+        <li>ims: Input image as B x H x W x C
+        <li>locs: Labeled part locations as B x N x 2
+        <li>info: Information about the input as B x 3. (:,0) is the movie number, (:,1) is the frame number and (:,2) is the animal number (if the project has trx).
+        <li>distort: Whether to augment the data or not.
+    </ul>
+    Output (Default)<br>
+    <ul>
+        <li> List with augmented images, augmented labeled locations, input information, heatmaps.
+    </ul>
+    <p>Override this function to change how images are preprocessed. Ensure that the return objects are float32. This function is added into tensorflow dataset pipeline using tf.dataset.map. The outputs returned by this function are available as tf tensors in self.inputs list in the same order.</p>
+
+    <pre><code>
+      import PoseTools
+      def preproc_func(self, ims, locs, info, distort):
+          conf = self.conf
+          # Scale and augment the training image and labels
+          ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
+          out = self.convert_locs_to_targets(locs)
+          # Return the results as float32.
+          out_32 = [o.astype('float32') for o in out]
+          return [ims.astype('float32'), locs.astype('float32'), info.astype('float32')] + out_32
+
+    </code></pre>
+
+<p>For more control over training, you can also override the following functions:</p>
+
+
+<h2><a id="posebasegeneral"> Inheriting PoseBaseGeneral</a></h2>
+    <p>This class provides more flexibility for adding your own networks to APT.</p>
+    <p>The function that need to overridden are:</p>
+    <ul>
+        <li><a href="#pbg_convert_locs">convert_locs_to_target</a> - create target outputs (e.g. heatmaps) from x,y locations that you want the network the predict.
+          <li><a href="#pbg_convert_preds">convert_preds_to_locs</a> - convert the output of network to x,y locations E.g From output heatmaps to x,y predictions.
+        <li><a href="#pbg_train">train</a> - create the network, train and save trained models.
+        <li><a href="#pbg_load">load_model</a> - setup the network for prediction by restoring the network.
+    </ul>
+    <p>We use the tensorflow dataset pipeline to read and process the input images for faster training. For this, image preprocessing and target creation (e.g. generating heatmaps) functions have to be defined individually so that they can be injected into the dataset pipeline.</p>
+
+    <p>Override <a href="pbg_preprocess">preprocess_ims</a> if you want to define your own image pre-processing function. By default, it'll down sample the input image (if specified by the user), augment the images using the augmentation parameters, and normalize contrast using CLAHE (again if specified by the user).</p>
+
+    <h3><a id="pbg_convert_locs">Defining convert_locs_to_target</a></h3>
+        Inputs<br>
+        <ul>
+            <li>locs: A numpy array of size B x N x 2, where B is the batch size, N is the number of landmarks and locs[:,:,0] are x locations, while locs[:,:,1] are the y locations of the landmarks.
+        </ul>
+        Outputs
+        <ul>
+            <li>target_list: The targets also should be numpy arrays, and the first dimension should correspond to the batch.
+        </ul>
+        <p>Override this function to convert labels into targets (e.g. heatmaps). You can use PoseTools.create_label_images to generate the target heatmaps. You can use PoseTools.create_affinity_labels to generate the target part affinity field heatmaps. Return the results as a list. This list will be available as tensors self.inputs[3], self.inputs[4] and so on for computing the loss.</p>
+        <pre><code>
+          def convert_locs_to_targets(self,locs):
+              conf = self.conf
+              hmaps_rescale = self.hmaps_downsample
+              hsz = [ math.ceil( (i // conf.rescale)/hmaps_rescale) for i in conf.imsz]
+              # Creates target heatmaps by placing gaussians with sigma label_blur_rad at location locs.
+              hmaps = PoseTools.create_label_images(locs/hmaps_rescale, hsz, 1, conf.label_blur_rad)
+              return [hmaps]
+    </code></pre>
+
+
+    <h3><a id="pbg_convert_preds">Defining convert_preds_to_locs</a></h3>
+        Inputs
+        <ul>
+            <li>preds: Output of the network. Eg Heatmaps.
+        </ul>
+        Outputs
+        <ul>
+        <li> numpy array of size [B,N,2] with x,y locations where B is the batch_size, N is the number of landmarks. [:,:,0] should be the x location, while [:,:,1] should be the y locations.
+        </ul>
+
+          <p>Convert the output prediction of network to x,y locations. The output should be in the same scale as input image. If you downsampled the input image, then the x,y location should for the downsampled image. Eg. From heatmap output to x,y locations.</p>
+
+          <pre><code>
+            def convert_preds_to_locs(self, pred):
+                return PoseTools.get_pred_locs(pred)*downsample_factor
+          </code></pre>
+
+    <h3><a id="pbg_train">Defining train function</a></h3>
+        Inputs<br>
+        Outputs<br>
+
+        <p>Implement network creation and and its training in this function. The input and output tensors are in available in self.inputs.
+        self.inputs[0] has the downsampled, preprocessed and augmented images as B x H//s x W//s x C, where s is the downsample factor.
+        self.inputs[1] has the landmark positions as B x N x 2
+        self.inputs[2] has information about the movie number, frame number and trx number as B x 3
+        self.inputs[3] onwards has the outputs that are produced by convert_locs_to_targets
+        The train function should save models to self.conf.cachedir every self.conf.save_step. Also save a final model at the end of the training with step number self.conf.dl_steps. APT expects the model files to be named 'deepnet-<step_no>' (i.e., follow the format used by tf.train.Saver for saving models e.g. deepnet-10000.index).
+        To view updated training metrics in APT training update window, call self.append_td(step,train_loss,train_dist) every self.conf.display_step. train_loss is the current training loss, while train_dist is the mean pixel distance between the predictions and labels.</p>
+
+    <h3><a id="pbg_load">Defining load_model</a></h3>
+        Inputs
+        <ul>
+            <li>im_input: Input tensor that will have the preprocessed image for prediction.
+            <li>mode_file: Model file to be used for prediction. If None, then use the latest model. If not supplied then set the default value to None.
+        </ul>
+        Outputs
+        <ul>
+        <li> network_out: Network's prediction tensor. The value of this tensor is given as input to convert_preds_to_locs to get the x,y pose location.
+        <li> sess: Current TF session.
+        <li> model_file_used: Model file used for initializing  the network.
+        </ul>
+
+      <p>Setup up prediction function.
+          During prediction, the input image (after preprocessing) will be available in the im_input tensor. Return the prediction/output tensor and the TF session object, and the model file that was used to load the model. (Return model_file if that is used to load the model)</p>
+
+          <p>In this function, setup the network, load the saved weights from the model_file. If model_file is None load the weights from the latest model. The placeholders (if any) used during training, should be converted to constant tensors.</p>
+
+
+</body>

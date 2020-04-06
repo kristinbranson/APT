@@ -1,0 +1,14 @@
+absdx
+absdy
+dx
+dy
+max_velmag
+mean_dx
+mean_dy
+mean_velmag
+occluded
+std_dx
+std_dy
+velmag
+x
+y

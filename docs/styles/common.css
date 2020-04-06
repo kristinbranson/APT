@@ -103,6 +103,32 @@ table
 	border-collapse: collapse;
 }
 
+#table_align
+{
+    margin: 0em;
+    border-collapse: collapse;
+    border-spacing: 0px;
+    table-layout: fixed;
+}
+
+#table_params { 
+  border: solid thin; 
+  border-collapse: collapse; 
+}
+#table_params th, 
+#table_params td { 
+  border: solid thin;
+  padding: 0.5rem 2rem;
+  vertical-align: middle; 
+  text-align: center; 
+}
+#table_params th { 
+  font-weight: bold; 
+}
+#table_params th { 
+  padding: 0.2em; 
+}
+
 footer 
 {
     margin-top: 2em;
@@ -148,3 +174,17 @@ hr {
 /* Replacement for html 3 u tag */
 .u {text-decoration: underline;}
 
+li.important{
+    color:#A41D24
+}
+
+
+li.beginner{
+    color:#0590B7
+}
+li.advanced{
+    color:#582F96
+}
+li.developer{
+    color:#627561
+}

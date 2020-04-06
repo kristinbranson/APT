@@ -52,28 +52,76 @@ strong.regular-font {
 <h2>Contents</h2>
 
 <ul>
-<li><a href="#Download">Download</a></li>
-<li><a href="#Requirements">Requirements</a></li>
-<!--
-<li><a href="#Install">Installation</a></li>
--->
-<li><a href="#Startup">Start-up</a></li>
-<li><a href="#Setting up a new project">Setting up a new project</a></li>
-<li><a href="#Opening an existing project">Opening an existing project</a></li>
-<li><a href="#Navigating in APT">Navigating in APT</a></li>
-<li><a href="#Labeling points">Labeling points</a></li>
-<li><a href="#Setting the tracking parameters">Setting the tracking parameters</a></li>
+  <li><a href="#Download">APT set up</a>
+    <ul>
+      <li><a href="#Download">Download</a></li>
+      <li><a href="#Requirements">Requirements</a></li>
+      <li><a href="#BackEnd">Setting up GPU back ends for deep learning</a></li>
+      <li><a href="#Startup">Start-up</a></li>
+    </ul>
+  </li>
+  <li><a href="#How to">How to train a part tracker with machine learning</a>
+    <ul>
+      <li><a href="#Which parts">Which parts should you label?</a></li>
+      <li><a href="#Which frames">Training data: Which frames should you label?</a></li>
+      <li><a href="#How many frames">How many frames do I need to label?</a></li>
+      <li><a href="#Is it working">How do I tell if it is working?</a></li>
+    </ul>
+  </li>
+  <li><a href="#Project Types">APT project types</a>
+    <ul>
+      <li><a href="#Multitarget">Single vs multi-animal</a></li>
+      <li><a href="#Body tracking">Body tracking</a></li>
+      <li><a href="#MultiView">Single vs multi-view</a></li>
+    </ul>
+  </li>
+  <li><a href="#APT Projects">APT projects</a>
+    <ul>
+      <li><a href="#APT Project file">APT project file</a></li>
+      <li><a href="#Setting up a new project">Creating a new project</a></li>
+      <li><a href="#Manage Movies">Adding, switching, and removing movies</a></li>
+      <li><a href="#Opening an existing project">Opening an existing project</a></li>
+      <li><a href="#SaveProject">Saving a project to file</a></li>
+    </ul>
+  </li>
+  <li><a href="#GUI">APT user interface</a></li>
+  <li><a href="#Navigating in APT">Navigating in APT</a>
+    <ul>
+      <li><a href="#Navigating in time">Navigating in time</a></li>
+      <li><a href="#Navigating in space">Navigating in space</a></li>
+    </ul>
+  </li>
+  <li><a href="#Labeling parts">Labeling training data</a>
+    <ul>
+      <li><a href="#Sequential mode">Sequential labeling mode</a></li>
+      <li><a href="#Template mode">Template labeling mode</a></li>
+      <li><a href="#Multiview mode">Multiview labeling mode</a></li>
+      <li><a href="#Multiview streamlined mode">Streamlined multiview labeling mode</a></li>
+    </ul>
+  </li>
+  <li><a href="#Body tracking requirements">Body-tracking project requirements</a></li>
+  <li><a href="#Multiview requirements">Multiview project requirements</a>
+  <ul>
+    <li><a href="#Calibration files">Calibration files</a></li>
+  </ul>
+  </li>
+  <li><a href="#Tracking parameters">Tracking parameters</a>
+    <ul>
+      <li><a href="#Deep learning parameter guide">Guide to setting tracking parameters: deep learning</a></li>
+    </ul>
+  </li>
 <li><a href="#Training">Training</a></li>
 <li><a href="#Tracking">Tracking</a></li>
 <li><a href="#Exporting tracking results">Exporting tracking results</a></li>
 <li><a href="#Exporting manual labels">Exporting manual labels</a></li>
 <li><a href="#Cross validation">Cross validation</a></li>
 <li><a href="#Ground-Truthing mode">Ground-Truthing mode</a></li>
+<li><a href="#FAQ">Frequently asked questions</a></li>
 <li><a href="appendices.html">Appendices</a></li>
 
 </ul>
 
-<hr class="h2-divider">
+<hr class="h2-divider"/>
 
 <h2><a id="Download">Download</a></h2>
 
@@ -110,13 +158,43 @@ strong.regular-font {
 
 <h3>GPU</h3>
 
-<p>A <a href="https://lambdalabs.com/blog/best-gpu-tensorflow-2080-ti-vs-v100-vs-titan-v-vs-1080-ti-benchmark">GPU</a> is required to train a deep-learning based tracker. APT can use any of:
+<p>A <a href="https://developer.nvidia.com/cuda-gpus">CUDA-enabled</a> <a href="https://lambdalabs.com/blog/best-gpu-tensorflow-2080-ti-vs-v100-vs-titan-v-vs-1080-ti-benchmark">GPU</a> is required to train a deep-learning based tracker. This GPU can be:
 <ul>
-<li>GPUs on your local machine via Docker.</li>
-<li>GPUs on the Amazon Cloud (AWS).</li>
-<li>The Janelia GPU cluster.</li>
+<li>On your local machine.</li>
+<li>On the Amazon Cloud (AWS).</li>
+<li>On the Janelia GPU cluster (Janelians-only).</li>
 </ul>
-We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more information about setting up each of these back ends is <a href="#BackEnd">here</a>. 
+We refer to this as the <a href="#BackEnd"><b>back end</b></a>, and more information about setting up each of these back ends is <a href="#BackEnd">here</a>.</p>
+
+<p>If you choose to use a <b>local back end</b>, your local machine must have an NVIDIA GPU with <a href="https://en.wikipedia.org/wiki/CUDA#GPUs_supported">Compute Capability >= 3.0</a>. The best GPUs for deep learning are constantly changing (some benchmark info is <a href="https://lambdalabs.com/blog/tag/benchmarks/">here</a>). It is important for this GPU to have sufficient memory. All GPUs we have used have at least 12GB of RAM. In our lab, we have used the following GPUs:
+<ul>
+<li>V100</li>
+<li>2080 Ti</li>
+<li>Titan Xp (older)</li>
+<li>Titan X (older)</li>
+<li>1080 Ti (older)</li>
+</ul>
+</p>
+
+<hr class="h2-divider">
+
+<h2><a id="BackEnd">Setting up GPU back ends for deep learning</a></h2>
+
+<p>The <b>GPU back end</b> is where and how GPU-based deep-learning computations are performed. Which back end to choose depends on your resources:
+<ul>
+<li>If you are at Janelia, we recommend using the <b><a href="JaneliaBackEnd.html">Janelia GPU cluster</a></b> back end.</li>
+<li>If you have one or many CUDA-enabled GPUs in your local machine, we recommend using the <b><a href="LocalBackEnd.html">local</a></b> back end. </li>
+<li>Otherwise, we reccommend using the <b><a href="AWSBackEnd.html">AWS</a></b> back end to train on the Amazon Cloud.</li>
+</ul>
+Instructions for setting up each of these back ends:
+<ul>
+  <li><a href="LocalBackEnd.html">Local GPU back end</a></li>
+  <li><a href="AWSBackEnd.html">AWS GPU back end</a></li>
+  <li><a href="JaneliaBackEnd.html">Janelia Cluster GPU back end</a></li>
+</ul>
+
+<p>You can select which backend APT will use from the <b>Track->GPU/Backend Configuration</b> menu. </p>
+<center><a href="images/TrackingBackends.png"><img src="images/TrackingBackends.png" width="50%"></a></center>
 
 <!--
 <hr class="h2-divider">
@@ -143,7 +221,7 @@ APT is a MATLAB-based program. To run it:
 </li>
 
 <li> Run <b>StartAPT</b> on the command line to start APT:
-<pre>>> lObj = StartAPT; 
+<pre>>> StartAPT; 
 </pre>
 </li>
 The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will then appear. 
@@ -151,69 +229,275 @@ The <a href="images/apt_open_screen.png" target="_blank">main APT GUI</a> will t
 
 <hr class="h2-divider">
 
-<h2><a id="BackEnd">GPU Back ends</a></h2>
-
-To train and track using deep learning, APT can either use GPUs on your local machine, or remote GPUs in the Amazon Cloud (AWS) or on Janelia's GPU cluster (Janelians-only). 
-
-<hr class="h2-divider">
-
-<h2><a id="Setting up a new project"> Setting up a new project </a></h2>
-From the File dropdown menu, select "New Project...".  This will pop up a <a href="images/apt_new_project_dialog.png" target="_blank"> New Project dialog. </a>  Enter a project name, the number of body points to detect, the number of views, and check the "body tracking" box if your animal(s) are tracked. Click "Create Project".  This will open a <a href="images/apt_new_project_add_movies.png" target="_blank">Manage Movies dialog.</a>  Click "Add Movie" and select the first movie to add.  If you selected body tracking, you will also be prompted to select the tracking file associated with this movie.  You may add additional movies at any time.  The Manage Movies dialog box can be used to add more movies and also navigate between movies during labeling. Close or minimize the Manage Movie window. Select "Save as ..." from the File dropdown menu and save your project. This will save a .lbl file with your project in it.
-
-<hr class="h2-divider">
-
-<h2><a id="Opening an existing project"> Opening an existing project </a></h2>
-
-Use "Load Project" from the File dropdown menu and select the .lbl file to load. If the locations of the movies in the project has changed since you last opened the project it will prompt for their new locations.  
-
-
-<hr class="h2-divider">
-
-<h2><a id="Navigating in APT"> Navigating in APT </a></h2>
-
-The  <a href="images/apt_gui_layout_develop_labeled.png" target="_blank"> <b> GUI is divided into several sections.</b> </a>  Hovering over different components will reveal tooltips.
-
-To navigate through the video in the Labeling window:
-a/d, -/=, or the left and right arrow keys all move one frame left/right respectively. Using these keys while holding down the ctrl button uses 10 frames steps (this default step size can be changed in the Go dropdown menu, under "Navigation preferences..."). You can also navigate using the mouse and the navigation bar under the image.  Clicking on the bar to the left or right of the slider jumps by 100 frames.  Single clicks on the arrows at the ends of the navigation bar moves by a single frame.  Holding the end arrows down steps through the movie a frame at a time. To look at only labeled frames, hold the shift button while using the right and left arrow keys.
-<br>
-<br>
-Useful view options for multi-target projects with tracking and orientation:<br>
-<i>From the View dropdown menu:</i><br>
-Center video on target  - keeps current target in the center of the view<br>
-Rotate video so target always points up - does just that<br>
-Zoom out/full images or unzoom button - view full image <br>
-<br>
-In the Target table window: <br>
-Use slider bar above ‘unzoom’ to adjust zoom, not the magnifier +/- <br>
-Zoom slider bar - adjust zoom then ‘set’, ‘recall’ will change back to ‘set’ value after changing movies. 
-
-<p>To just look at labeled frames, holding the shift button while using the right and left arrow keys will move through only the labeled frames, skipping the unlabeled ones. </p>
-
+<h2><a id="How to">How to train a part tracker with machine learning</a></h2>
+<h3>Overview</h3>
+<p>APT uses machine learning to estimate the positions in each video frame of multiple specified animal parts. For example, a <b>part</b> could be the tip of the tarsus of the left front leg of a fly, or the base of a mouse's tail.</p>
+<p>To train APT, you must label the locations of these parts in many sample images. The collection of video frames and corresponding manual labels is called the <b>training data set</b>. </p>
+<p>APT's machine learning algorithm will then learn a classifier which can <b>predict</b> part locations from just the video frame. It chooses the parameters of the classifier so that it is as accurate as possible on the training data. </p>
+<p>This learned classifier can then be used to track frames, animals, and videos that it wasn't trained on, producing <b>trajectories</b> -- the locations of each part for each animal over sequences of frames.</p>
+<p>APT gives you a lot of freedom -- you must choose which parts to label and which frames, videos, and animals to include in your training data. You can also choose different machine learning algorithms, each of which include multiple hyperparameters that can affect their performance. Below, we outline some principles to consider to get APT to work well.</p>
+<h3><a id="#Which parts">Which parts should you label?</a></h3>
+<p>The first choice you must make is which parts you want to label. The first thing to consider is <b>what you are going to do with the output trajectories</b>, should tracking be successful. We try to think through the exact computations we will do with the output trajectories before deciding which parts to label. </p>
+<p>The second thing to consider is how <b>reliably</b> you can manually label each part. That is, if you were to ask two people to label the part in the same image, how much <b>inter-annotator disagreement</b> will there be? As a rule of thumb, if it is hard for you to do the task, it will be also be hard for APT. We have found it easier to label parts that correspond to specific anatomical locations on the animal regardless of what angle you are viewing the animal from. For example, the tip of a mouse's left ear is a specific anatomical location, while the top of the mouse's head might be a more view-dependent feature. </p>
+<p>It is also important to consider <b>how easy it is</b> to identify that specific anatomical location from images. For example, the left front shoulder joint of a mouse is a specific anatomical location, but it is quite difficult to localize visually through all the blobbiness of a mouse. It is also important to think about how easy it is to localize the part from the types of video you have recorded. For instance, it is perhaps hard to label the big toe of the front left foot of a mouse in video taken from above a mouse, since the foot is <b>often occluded</b> by the body of the mouse. It is best if you do not need to guess where the part is, but can reliably localize the part.</p>
+<center><a href="images/PartChoices.png"><img src="images/PartChoices.png" width="90%"></a><br/>
+  <i>Example part choices for a variety of tracking projects</i>
+</center>
+<h3><a id="Which frames">Training data: Which frames should you label?</a></h3>
+<p>Using APT, you can choose to label whichever frames you like. Here, we describe some best practices for choosing frames to label.</p>
+<p>Choose a <b>diverse set of frames</b> to label that are <b>representative</b> of all the types of videos you want your tracker to work on. If you want your tracker to work on many different animals, then you should <b>label different animals</b>, otherwise your tracker may overfit to specific characteristics of the one individual you labeled. Similarly, if you want your tracker to work in many different videos, then you should <b>label frames in multiple videos</b>, otherwise the tracker may overfit to specific characteristics of individual videos.</p>
+<p>In general, you want to think about all the different ways you might want to use the tracker, and make sure that all of those are represented in your training data. APT makes it easy to add multiple videos to your <a href="#APT Projects">APT Project</a> and to navigate to different frames and different animals.</p>
+<p>You should label frames in which the animal is in a variety of <b>different poses</b>. Labeling multiple really similar looking frames may not be very helpful. This is because each really similar frame does not provide much extra information beyond the original. A particular case of this are frames that are temporally near each other, e.g. frame 1 and frame 2 of a video, which will look very similar. </p>
+<p>If you <b>only have a few animals</b> in your experiments, then it is feasible to include training examples from all of them, and we recommend doing this. Similarly, if you <b>only have a few videos</b> that you want your tracker to run on, then it is feasible to include training examples from all of them, and we recommend doing this. Otherwise, you will want your tracker to generalize to animals and/or videos you did not train on, so you should <b>train on enough different animals/videos that APT can learn all the ways that animals/videos can differ from each other</b> -- it must <b>learn what properties of animals/videos it should ignore</b>.</p>
+<h3><a id="How many frames">How many frames do I need to label?</a></h3>
+<p>The number of frames you need to label depends on many things, including how hard the task is. We believe that the best way to tell if you have labeled enough frames is to <b>train a tracker</b> and then <b>evaluate how well it is working</b>.</p>
+<h3><a id="Is it working">How do I tell if it is working?</a></h3>
+<p>To tell if your tracker is working, you need to <b>test it on video sequences representative of those you want to use it on</b>. It is important to devise a good set of test videos that <b>represent how you plan on using your tracker</b>. In particular, it is important that the test video sequences be <b>as different from your training data</b> as the videos you ultimately want to use the tracker on. The tracker will <b>overfit to the training data</b>, and will likely perform close to perfectly on frames in your training data set, and it will likely also overfit to examples very similar to your training examples. So, since temporally adjacent frames are very similar, your tracker will likely work better on frames temporally near training frames. </p>
+<p>If you want to use your tracker on videos that you did not train it on, then it is important to test it on <b>videos from which you haven't included any training data</b>. Similarly, if you want it to work on animals that you did not train it on, then you should test it on <b>animals you didn't train it on</b>. If you are evaluating on animals and videos that you trained on, then you should select frames temporally far from training frames for evaluation. </p>
+<p>APT makes it easy to train a tracker then predict on a sequence of frames. The first test of whether the tracker is working is the <b>eye-ball test</b> -- just look at the predictions and see if, by eye, they look accurate. If it is easy to find frames that the tracker is performing poorly on, then we recommend annotating these frames, adding them to the training set, and re-training. </p>
+<p>Once APT has passed the eye-ball test, you can use <a href="#Cross Validation">cross-validation</a> to estimate accuracy quantitatively. The gold standard for accuracy estimation is <a href="#Groundtruthing">ground truthing</a>, in which you manually annotate new frames, and quantitatively compare APT's predictions to manual labels.</p>
+<h3>How do I set tracking parameters?</h3>
+<p>Before you click the Train button, there are some parameters that are important to set. You can select the <a href="#Algorithm">tracking algorithm</a> from the Track->Tracking algorithm menu. You can select the backend on which all GPU computations will be performed from the <a href="#Backend">Track->GPU/Backend Configuration</a> menu. Parameters related to the currently selected algorithm can be set from the Tracking Parameters GUI, accessed from the <a href="#Tracking parameters">Track -> Configure tracking parameters</a> menu. For each new application, it is important that you set the Tracking Parameters labeled as <b>Important</b>. Information on tracking parameters is <a href="#Tracking parameters">here</a>.</p>
 
 <hr class="h2-divider">
 
-<h2><a id="Labeling points"> Labeling points </a></h2>
+<h2><a id="Project Types">APT project categories</a></h2>
 
-Labeling modes:
-There are different labeling modes, which you can switch between in the Label dropdown menu.
+      <center><br/><a href="images/ExampleProjectCategories.png"><img src="images/ExampleProjectCategories.png" width="90%"></a><br/>
+      <i>Example APT project categories</i></center><br/>
 
+
+<p>APT can be used to track a wide variety of different configurations. The following important distinctions are made:
+  <ul>
+    <li><b><a href="images/SingleVsMultiAnimal.png" id="Multitarget">Single animal or multi-animal videos?</a></b>
+      Does each video contain exactly one animal, or does it contain multiple animals? Currently, <a href="#Body tracking">body-tracking</a> pre-processing is necessary for multi-animal tracking.
+      <center><br/><a href="images/MultiTargetBodyTrackingInterface.png"><img src="images/MultiTargetBodyTrackingInterface.png" width="50%"></a><br/>
+      <i>Screenshot of APT interface for multi-animal tracking with body tracking</i></center><br/>
+    </li>
+    <li><b><a id="Body tracking">Body tracking available?</a></b> It can be helpful to pre-process the video using a body-tracking algorithm, which <b>tracks the centroid and/or orientation of each animal</b> in the video. There are many body-tracking algorithms free to download, for example <a href="http://ctrax.sourceforge.net/">Ctrax</a>, <a href="http://www.vision.caltech.edu/Tools/FlyTracker/">FlyTracker</a>, <a href="https://idtracker.ai/en/latest/">idtracker</a>, and <a href="http://motr.janelia.org/">motr</a>. When body tracking is available, APT can crop a box around the localized animal and only search for parts in this box. Body tracking is currently <b>required for multi-animal part tracking</b>. It is important when video frames are high resolution and each animal fills only a small region of the frame, e.g. when an animal is freely moving in a large arena. This is because deep learning algorithms are <b>memory limited</b>, and images either need to be cropped based on body tracking or downsampled, which can cause loss of tracking resolution. Finally, if body orientation tracking is available and reliable, the <b>cropped images can be aligned according to this orientation</b>, simplifying the part tracking problem.
+      <center><br/><a href="images/CroppedAndAligned.png"><img src="images/CroppedAndAligned.png" width="50%"></a><br/>
+	<i>Images cropped and aligned based on Ctrax body tracking.</i></center><br/>
+    </li>
+    <li><a id="MultiView"><b>Single or multi-view recording?</b></a> To track parts in 3-D, we need to record from multiple, synced and calibrated cameras. 
+      <center><br/><a href="images/MultiViewLabeling.png"><img src="images/MultiViewLabeling.png" width="50%"></a><br/>
+	<i>Example multi-view recording.</i></center><br/>
+    </li>
+  </ul>
+
+<hr class="h2-divider">
+
+<h2><a id="APT Projects">APT projects</a></h2>
+<h3><a id="APT Project file">APT project file</a></h3>
+
+<p>APT stores all information relevant to a given tracking problem in a <b>project file</b> with the extension <b>.lbl</b>. This includes:
+  <ul>
+    <li>The locations of all videos used for training</li>
+    <li>The manually-entered training labels</li>
+    <li>All trained trackers</li>
+    <li>All parameters, including those about how to train trackers or label</li>
+    <li>All information related to groundtruthing.</li>
+  </ul>
+</p>
+
+<h3><a id="Setting up a new project">Creating a new project</a></h3>
+<p>From the <b>File</b> dropdown menu, select <b>"New Project..."</b>.  This will pop up a <a href="images/apt_new_project_dialog.png" target="_blank"><b>New Project dialog</b></a>. Enter the following information:
 <ul>
-<li><b>Sequential mode:</b><br>
-Allows you to just click your points in order; points are automatically accepted once you click the last point.  You can edit placement after you finish by:
-<ul>
-<li>Clicking and dragging a point</li>
-<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from '+' to 'x' (Numbers above 10 are accessed by `(back quote) + number key).</li>
-<li>Activating a point with the number keys and moving with arrow keys. Hitting the number key again will toggle the point back to '+'. If you hold down the shift key while you click, the point will be recorded as an 'o' instead of a '+', indicating an occluded point.</li> 
+  <li><b>Project name</b>: Name for your project. This name is used when identifying windows and various files associated with this project. </li>
+  <li><b>Number of Points</b>: Number of <a href="#What parts">parts</a> to track.</li>
+  <li><a href="#MultiView"><b>Number of Views</b></a>: Number of cameras used to record the animal(s) simultaneously. This is 1 for single-view projects. See <a href="#MultiView">APT project categories</a> above. </li>
+  <li><a href="#BodyTracking"><b>Has body tracking</b></a>: Whether body tracking pre-processing is available. See <a href="#BodyTracking">APT project categories</a> above.
 </ul>
-</li>
+</p>
+<p>Clicking "Copy Settings From..." allows you to copy the project settings from an existing .lbl file. Clicking the "Advanced" button shows more parameters you can set. </p>
+    <p>Once you have set all the parameters to define your project type, click "<b>Create Project</b>" to create the project. This will then open the <a href="#Manage Movies">Manage Movies</a>. Click "<b>Add Movie</b>" and select the first movie to add.  If you selected <a href="#BodyTracking">body tracking</a>, you will also be prompted to select the body-tracking file associated with this movie. You may add additional movies at any time. The Manage Movies dialog box can be used to add more movies and also navigate between movies during labeling. Close or minimize the Manage Movies window. </p>
+    <p>We recommend saving your project now. Select "<b>Save as...</b>" from the <b>File</b> dropdown menu and save your project. This will save a <b>.lbl</b> file with your project in it.</p>
+<center><a href="images/apt_new_project_dialog.png"><img width="25%" src="images/apt_new_project_dialog.png"/></a></center>
 
-<li><b>Template mode:</b><br>
-The first frame will have unassigned label points in random locations on the image (white pluses with colored numbers next to them). On subsequent frames the points will be where they were on the previous frame. To label the frame, move the pluses to where they should belong on the target.  You can drag and drop a point with the mouse or you can select (or unselect) a point with its associated number key (1-9).  When a point is selected it changes from a plus to an x.  A selected point can be moved using the arrow keys (helpful for fine-tuning positions).  Shift plus the arrow keys moves the selected point in larger jumps.  When a point is selected, a mouse click anywhere on the image will move the selected point to that location. Once you are happy with the positions of the points, click the accept button, the 's' key or the space bar to save the labels for the current frame.  
+<h3><a id="Manage Movies">Adding, switching, and removing movies</a></h3>
+    <p>To <a href="#AddMovie">add</a>, or <a href="#SwitchMovie">switch</a> which movie you are labeling, or <a href="#RemoveMovie">remove</a> a movie, select "<b>Manage Movies</b>" from the <b>File</b> menu.</p>
+    <p>The Manage Movies dialog has a row for each movie (or set of corresponding movies, for multi-view projects). This includes:
+      <ul>
+	<li>Movie: Path to the movie file.</li>
+	<li>Trx: Path to the body tracking file (for <a href="#Body tracking">body-tracking</a> projects).</li>
+	<li>Has Labels: Whether any manual labels have been added to this movie.</li>
+      </ul>
+      Macros may be used here and are identified by $, for example, $movdir stands for the directory containing the video.
+    </p>
+<center>
+<table id="table_align" style="width:80%">
+  <tr>
+    <td>
+      <center><a href="images/ManageMovies.png"><img width="100%" src="images/ManageMovies.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/ManageMoviesMultiView.png"><img width="100%" src="images/ManageMoviesMultiView.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Manage Movies dialog, single view, with body tracking</i></center></td>
+    <td><center><i>Manage Movies dialog, multi-view</i></center></td>
+  </tr>
+</table>
+</center>
 
-</li>
+<p>To <a id="AddMovie"><b>add</b></a> a movie, click "<b>Add Movie</b>".</p>
+<ul>
+  <li>If your project has <a href="#BodyTracking"><b>body tracking</b></a>, you will first <a href="images/AddVideoSingleView.png">select a video to add</a> and then <a href="images/AddBodyTracking.png">select a MAT file containing the body tracking information</a>.
+  </li>
+  <li>If your project is a <href="#MultiView"><b>multi-view project</b></a>, you must select sets of corresponding videos, one for each view. Please make sure to select these in order. APT assumes that the first video selected corresponds to the first view, and so on. </li>
+</ul>
+<center>
+<table id="table_align" style="width:80%">
+  <tr>
+    <td>
+      <center><a href="images/AddVideoSingleView.png"><img width="100%" src="images/AddVideoSingleView.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/AddBodyTracking.png"><img width="100%" src="images/AddBodyTracking.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/AddMovieMultiView.png"><img width="100%" src="images/AddMovieMultiView.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Add video dialog, single view</i></center></td>
+    <td><center><i>Add body tracking MAT-file dialog</i></center></td>
+    <td><center><i>Add video dialog, multi-view</i></center></td>
+  </tr>
+</table>
+</center>
+</p>
+<p>To <a id="SwitchMovie"><b>switch to labeling a different movie</b></a>, select the movie in the main dialog, then click "<b>Switch to Movie</b>". Alternatively, you can double-click on the movie in the main dialog.</p>
+<p>To <a id="RemoveMovie"><b>remove a movie from the project</b></a>, select the movie in the main dialog, then click "<b>Remove Movie</b>". </p>
 
+<h3><a id="Opening an existing project">Opening an existing project</a></h3>
 
-<li><b>High throughput mode:</b><br>
+<p>Select "<b>Load Project</b>" from the File dropdown menu and select the <b>.lbl</b> file to open. Because of their size, APT .lbl files do not store the video directly, but instead store a link to the file location. If you have moved the videos since you last saved the project, APT will complain and prompt you for its new location. </p>
+
+<h3><a id="SaveProject">Saving a project to file</a></h3>
+
+<p>To <b>save</b> your project, from the File menu, select "<b>Save Project</b>" or "<b>Save Project As...</b>" to save to a new file location. We recommend saving often to not lose your work.</p>
+
+<hr class="h2-divider">
+
+<h2><a id="GUI">APT user interface</a></h2>
+
+<p>The <a href="images/APTGUILayout.png"><b>Graphical User Interface</b></a> (GUI) is divided into several sections. Hovering over different components will reveal tooltips.</p>
+
+<center><a href="images/APTGUILayout.png"><img width="80%" src="images/APTGUILayout.png"/></a></center>
+
+<p>GUI components:</p>
+<ul>
+  <li><b><a id="Labeling window">Labeling window</a></b>: This is the main window for viewing the current frame and animal, adding and modifying manual label, and inspecting trackers' predictions.</li>
+  <li><b><a id="Status bar">Status bar</a></b>: This bar shows what APT is currently doing. If the text is green, then GUI is idle. If the text is magenta, then it is busy, and information about what it is busy doing is written here. When training or tracking in the background, information about processes running in the background is also presented here.</li>
+  <li><b><a id="Reference frame">Reference frame</a></b>: This window shows an example label, and can be helpful for remembering what each part number corresponds to.</li>
+  <li><b><a id="Target table">Target table</a></b>: For <a href="#Multitarget">multi-target</a> projects with <a href="#BodyTracking">body tracking</a>, this table has a row for each animal in the current video, and indicates whether that animal is already labeled in the current frame or not. The row corresponding to the currently selected animal is highlighted in blue. </li>
+  <li><b><a id="Target zoom">Target zoom</a></b>: For projects with <a href="#BodyTracking">body tracking</a>, when <a href="#Center video on target">Center video on target</a> is selected, these tools can be used to control zoom. See <a href="#Navigating in space">Navigating in space</a>. </li>
+  <li><b><a id="Labels table">Labels table</a></b>: This table has a row for each frame labeled in the current video. For each labeled frame, it shows Frame (frame number), Tgts (how many animals are labeled in that frame), and Pts (how many parts are labeled in that frame). </li>
+  <li><b><a id="Project save state">Project save state</a></b>: Whether all information in the current APT project has been saved to the .lbl file (Saved), or if there are changes not yet saved (Unsaved changes).</li>
+  <li><b><a id="Current tracker">Current tracker</a></b>: Information about the current tracker, including which tracker is currently selected, how it was trained, and whether new labels have been added since it was last trained.</li>
+  <li><b><a id="Clear button">Clear button</a></b>: Clear label for current animal and current frame.</li>
+  <li><b><a id="Label state button">Label state button</a></b>: In <a href="#Template mode">template labeling mode</a>, this button can be used to indicate that labeling is complete for the current frame and animal. In <a href="#Sequential mode">sequential labeling mode</a>, it indicates whether the frame and animal has been completely labeled or not.</li>
+  <li><b><a id="Train button">Train button</a></b>: Start training a tracker from the current training data.</li>
+  <li><b><a id="Track button">Track button</a></b>: Start tracking the <a href="#Frames to track">selected frames</a> with the <a href="#Current tracker">current tracker</a>.</li>
+  <li><b><a id="Frames to track">Frames to track</a></b>: Which frames will be tracked when the "Track" button is pressed.</li>
+  <li><b><a id="Select frames to track">Select frames to track</a></b>: These buttons can be used to select a set of frames to track from the <a href="#Label timeline">Label</a> or <a href="Property timeline">property</a> timeline.</li>
+  <li><b><a id="Label timeline">Label timeline</a></b>: Timeline showing which frames have been labeled. The center frame of the timeline is always the current frame, and is indicated by the white vertical bar. Colors indicate which parts have been labeled in each frame, and black indicates that the frame has not been labeled.</li>
+  <li><b><a id="Property timeline">Property timeline</a></b>: Timeline showing a derived property for the current window of frames. This can be a property computed from either manual labels or the tracker's predictions, for example the inter-frame movement of each landmark, or the tracker's confidence. This can be used to find and navigate to frames for which tracking may not be working well.</li>
+</ul>
+
+<hr class="h2-divider">
+
+<h2><a id="Navigating in APT">Navigating in APT</a></h2>
+
+<h3><a id="Navigating in time">Navigating in time</a></h3>
+The <b><a href="#Labeling window">Labeling window</a></b> shows the current frame. You can navigate through the video in time in the following ways.
+<ul>
+  <li>You can use the <b>Frame Slider</b> or <b>Frame Number</b> text box to navigate to different frames of the video. You can move one frame forward or backward by clicking the arrows around the Frame Slider. Clicking on the bar to the left or right of the slider jumps by 100 frames. </li>
+  <li>You can use the the <b>left and right arrow keys</b>, <b>a/d</b>, or <b>-/=</b> to move one frame <b>backward/forward</b>, respectively. </li>
+  <li>Pressing these keys while holding down the <b>ctrl</b> button moves 10 frames backward/forward (this default step size can be changed in the Go dropdown menu, under "Navigation preferences..."). </li>
+  <li>To navigate to the <b>previous/next labeled frame</b>, hold down the <b>shift</b> key while pressing the right and left arrow keys.</li>
+  <li>Clicking on the <b><a href="#Label timeline">Label timeline</a></b> or <b><a href="#Property timeline">Property timeline</a></b> will take you to the corresponding frame.</li>
+  <li>Clicking on the <b><a href="#Labels table">Labels table</a></b> will take you to the corresponding frame.</li>
+</ul>
+<h3><a id="Switching targets">Switching animals</a></h3>
+<p>For <a href="#Multitarget">multi-target</a> projects with <a href="#BodyTracking">body tracking</a>, each individual animal in the frame (refered to as a target) can be labeled and tracked. You can switch which animal is in focus in the following ways.
+  <ul>
+    <li><b>Double-click</b> on the animal in the Labeling Window.</li>
+    <li>Click on the corresponding row of the <b>Target Table</b>.</li>
+  </ul>
+</p>
+<h3><a id="Navigating in space">Navigating in space</a></h3>
+<p>You can zoom and pan in space using the magnifying glass and hand tools in the tool bar on the top left. </p>
+<p>For projects with <a href="#BodyTracking">body tracking</a>, there are several methods to keep the current animal in view.</p>
+<p><i>From the View dropdown menu:</i>
+<ul>
+  <li><b><a id="Center video on target">Center video on target</a></b>: keeps current animal in the center of the Labeling window as you navigate in time, switch animals in focus, etc.</li>
+  <li><b>Rotate video so target always points up</b>: as above, but also rotates the image so that the animal is always pointed up. This is only relevant when orientation is available in body tracking. Note that selecting this </li>
+  <li><b>Zoom out/full image(s)</b>: Zoom out to show the whole video frame in the default orientation. </li>
+</ul>
+</p>
+<p>Using the <a id="Target zoom controls" href="#Target zoom"><b>Target zoom</b></a> controls (for projects with body tracking in <a href="#Center video on target">Center video on target</a> mode:
+  <ul>
+    <li>The <b>slider bar</b> sets the current amount of <b>zoom</b> around the in-focus animal. To set the current amount of zoom as the default amount, click the <b>"Set"</b> button.</li>
+    <li>The <b>Unzoom</b> button zooms out until the whole frame is in view.</li>
+    <li>The <b>Recall</b> button sets the current zoom to the default amount, as defined by clicking the Set button.</li>
+  </ul>
+</p>
+
+<hr class="h2-divider">
+
+<h2><a id="Labeling parts">Labeling training data</a></h2>
+
+<p>One of the main goals of the APT user interface is allowing easy and efficient labeling of training data. To this end, we have implemented a few different labeling modes. You can select different labeling modes from the <b>Label</b> menu.</p>
+
+<h3><a id="Sequential mode">Sequential labeling mode</a></h3>
+<p>In sequential labeling mode, when you decide to label an animal and frame, you must click and label all points in sequential order. We recommend using this mode if you have <b>memorized the part order</b> (you can look at the <a href="#Reference frame">reference frame</a> for a reminder) and most of the parts are in quite variable locations. <b>We use this mode for almost all of our projects.</b></p>
+<p>To begin labeling an animal/frame, <b>click on the location of part 1</b> in the <a href="#Labeling window">labeling window</a>. Then, <b>sequentially click</b> to label parts 2, 3, ... until you have <b>labeled all parts</b>.</p>
+<p>You can <b>edit placement</b> of any landmark after you finish initially positioning all parts in the following ways:
+  <ul>
+    <li>Clicking and <b>dragging</b> the part.</li>
+    <li>Selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can tell that a part has been selected because its <b>marker will change from a '+' to an 'x'</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. Re-typing the identifying number will toggle the part to be <b>unselected</b> again. </li>
+  </ul>
+</p>
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button.</p>
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
+
+<h3><a id="Template mode">Template labeling mode</a></h3>
+<p>In template mode, all the parts are placed in a pre-specified location, and you select and move individual parts. This mode is useful if it is hard to remember the parts in order (e.g. if there are a <i>lot</i> of parts), or if many of the parts don't move much. </p>
+
+<p>When you navigate to an unlabeled frame, all the parts will appear as white '+'es. As you modify them, they will be colored.</p>
+<center>
+<table id="table_align" style="width:50%">
+  <tr>
+    <td>
+      <center><a href="images/TemplateModeUnlabeledZ.png"><img width="100%" src="images/TemplateModeUnlabeledZ.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TemplateModePartiallyLabeled.png"><img width="100%" src="images/TemplateModePartiallyLabeled.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Template mode: Unlabeled frame</i></center></td>
+    <td><center><i>Partially labeled frame</i></center></td>
+  </tr>
+</table>
+</center>
+<p>The <b>initial locations</b> of the parts in a given frame is based on the last labeled frame you have navigated to. If you have <a href="#Body Tracking">body tracking</a>, then the template will translate and/or rotate with the body track. If no frames have been labeled yet, the initial part locations will be random.</p>
+<p>You can <b>modify</b> the label of any part in the following ways:
+  <ul>
+    <li><b>Clicking</b> a part to select it. You can tell that a part has been selected because its <b>marker will change from a '+' to an 'x'</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. </li>
+    <li>Clicking and <b>dragging</b> the part.</li>
+    <li>Selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b>. Re-typing the identifying number will toggle the part to be <b>unselected</b> again. </li>
+  </ul>
+</p>
+<p>Once you have <b>finished labeling</b> the animal and frame, <b>click the red <a href="#Label state button">"Accept"</a></b> button to let APT know that this frame is now completely labeled. You can also press the keyboard shortcut 's' or the space bar. The Accept button will change to green and read "Labeled". All parts will change to be colored '+'es. </p>
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button. The green <a href="#Label state button">"Labeled"</a> button will change back to a red "Accept" button. </p>
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
+
+<!-- <li><b>High throughput mode:</b><br>
 
 In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced. The number of frames to advance is set in 'Set Frame Increment' in the Label dropdown menu. When the end of the movie is reached, the labeling point is incremented, until all labeling for all points is complete. You may manually change the current labeling point in 'Set Labeling Point' in the Label dropdown menu.
 
@@ -221,74 +505,494 @@ Right-clicking the current point offers options for repeatedly accepting the cur
 
 </li>
 
-
-<li><b>Multiview calibrated:</b><br>
-
-For calibrated labeling, first go to Setup> Load Calibration File to load a calibration file. This enables calibrated labeling, where epipolar lines and reconstructed points are shown to assist in labeling multi-camera data.
-
-The number keys 0-9 select a physical point. Each view has its own projection of this point and the selected point will be indicated on all views. After a point is selected, clicking on any view will jump the point in that view to the clicked location. Epipolar lines will be projected in the other views. The point in the first/original view is now adjustable by click-dragging, or with the arrow or -arrow keys. The epipolar lines should live-update as the first point is adjusted.
-
-For projects with three or more views: Clicking on a second view jumps the selected point in the second view to the clicked location. With the point anchored in two views, reconstructed best-guesses for the point are shown in all remaining views. The reconstruction shows three points indicating a spread of possible locations based on the first two clicked locations. The middle point is the most likely location.
-
-Spacebar toggles the anchoring state of a point in a view. Anchored points have the letter 'a' appended to their text label. When a point is anchored, epipolar lines or reconstructed points are shown in the other views. Points that are shown as 'x' rather than '+' are adjustable with the arrow keys (fine adjustment) or -arrow keys (coarse adjustment).
-
-When all points are in their desired locations, the Accept button (or 's' hotkey) accepts the labels.
-
-</li>
-</ul>
+-->
 
 
-Once you have a reasonable number of frames labeled you are ready to train a classifier.</p>
+<h3><a id="Multiview mode">Multiview labeling mode</a></h3>
 
-To remove frames (useful for making a subset, or if you change your mind about how something should be labeled), you can just click the "Clear" button on that frame (next to the Accepted button), and those points will go back to unassigned.
+<p><a href="#MultiView">Multi-view</a> projects require parts to be labeled in each view. There is an extra <a href="#Label frame">label frame</a> for each additional view. Multiview labeling mode must be used for all multi-view projects. </p>
+<center><a href="images/MultiViewLabelFrames.png"><img src="images/MultiViewLabelFrames.png" width="75%"></a><br/>
+  <i>Label frames for a project with 2 views</i>
+</center>
+
+<p>Multi-view labeling mode is most similar to <a href="#Template mode">template labeling mode</a>. When you navigate to an unlabeled frame, all the parts are placed in a pre-specified location in all views, and will appear as white '+'es. As you modify them, they will be colored. When a part is selected for modification, it is <b>selected in all views</b> simultaneously. </p>
+
+<p>The <b>initial locations</b> of the parts in a given frame is based on the last labeled frame you have navigated to. If no frames have been labeled yet, the initial part locations will be random.</p>
+<p>You can <b>modify</b> the label of any part in the following ways:
+  <ul>
+    <li>If no other part is selected, you can <b>click</b> a part to select it. You can tell that a part has been selected because its number will be bolded and surrounded by a <b>white rectangle</b>. After a part is selected, you can <b>click a new location</b> to move the part to that location. Note that you can click in any view to modify the label in that view. </li>
+    <li>If no other part is selected, you can click and <b>drag</b> the part to a new location.</li>
+    <li>You can selecting a point by <b>typing its identifying number</b>. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. You can then <b>click a new location</b> to move the part to that location. Alternatively, you can use the <b>arrow keys</b> to move the part in the currently in-focus view. Re-typing the identifying number or the space bar will toggle the part to be <b>unselected</b> again. </li>
+  </ul>
+</p>
+<p>Once you have <b>finished labeling</b> the animal and frame, <b>click the red <a href="#Label state button">"Accept"</a></b> button to let APT know that this frame is now completely labeled. You can also press the keyboard shortcut 's' or the space bar. The Accept button will change to green and read "Labeled". All parts will change to be colored '+'es. </p>
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button. The green <a href="#Label state button">"Labeled"</a> button will change back to a red "Accept" button. </p>
+<p>If your cameras are <b>calibrated</b>, you can load this calibration information into APT by selecting <a id="Load calibration file"><b>Load calibration file</b></a> from the <b>Label</b> menu. Calibration file types are detailed <a href="#Calibration files">here</a>. When a part is selected in one view by clicking on it, the calibration information is used to compute the <a href="http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/OWENS/LECT10/node3.html">epipolar line</a> on which the part in other views should lie. This is shown in all other views. </p>
+<center><a href="images/MultiViewLabelingCalibrated.png"><img src="images/MultiViewLabelingCalibrated.png" width="75%"></a><br/>
+  <i>Two-view project with calibration: the blue line in View 2 indicates the epipolar line based on the label in View 1.</i>
+</center>
+
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
+
+<h3><a id="Multiview streamlined mode">Streamlined multiview labeling mode</a></h3>
+
+<p>The <b>streamlined</b> version of multiview labeling is very similar to standard <a href="Multiview mode">multiview labeling mode</a>, with a few features to reduce the number of clicks necessary. Streamlined mode can be selected by choosing <b>"Streamlined"</b> from the Label menu.</p>
+
+<p>The main <b>differences</b> from standard multiview labeling are the following:
+  <ul>
+    <li><b>No template is shown</b> when you navigate to an unlabeled frame. Instead, you must <b>select a part by typing its identifying number</b>.</li>
+    <li>Once all parts have been annotated in all views, the label for the frame is <b>automatically accepted</b> -- you do not need to click the <b>"Accept"</b> button.</li>
+  </ul>
+</p>
+
+<!--
+<p>A full description of multiview streamlined mode follows.</p>
 
 
+<p>When you navigate to an <b>unlabeled frame</b>, no parts will be shown. To being annotating, type <b>type the identifying number</b> for the part you want to label. Initially, parts 1-10 correspond to keys 1-9,0. Typing a <b>`(back quote)</b> will toggle to access the next 10 landmark points, i.e. 11-20 correspond to 1-9,0. You can type `(back quote) again to toggle back to 1-10. The mapping is indicated in green on the left side of the <a href="#GUI">GUI</a>. </p>
+
+<p>Click the location of the part in <b>each view</b>. Clicking again in the view will move the part to the selected view. You can also modify the location of the part by <b>clicking and dragging</b> the part, or by using the <b>arrow keys</b>. </p>
+
+<p>Then, <b>type the identifying number</b> for the next part you want to label, and repeat, until you have labeled all parts in the frame. </p>
+
+<p>At any time, you can <b>modify</b> a part's annotation by typing its identifying number, and clicking, dragging, or using the arrow keys. You can tell that a part has been selected because its number will be bolded and surrounded by a <b>white rectangle</b>.
+
+<p>Once all parts have been annotated in all views, the <a href="#Label state button">label state button</a> automatically toggles to <b>"Accepted"</b>. 
+
+<p>You can <b>remove labels</b> from the current animal and frame by clicking the <b><a href="#Clear button">Clear</a></b> button. The green <a href="#Label state button">"Labeled"</a> button will change back to a red "Accept" button. </p>
+
+<p>If your cameras are <b>calibrated</b>, you can load this calibration information into APT by selecting <b>Load calibration file</b> from the <b>Label</b> menu. Calibration file types are detailed <a href="#Calibration files">here</a>. When a part is selected in one view by clicking on it, the calibration information is used to compute the <a href="http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/OWENS/LECT10/node3.html">epipolar line</a> on which the part in other views should lie. This is shown in all other views. </p>
+
+<p>If you change frames in the middle of labeling a frame, the locations of the parts you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="#GUI"><b>Play context</b></a> button. </p>
+<p>To label that a part is <a href="#Occluded"><b>occluded</b></a>, hold down the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. </p>
+
+-->
 
 <hr class="h2-divider">
 
-<h2><a id="Setting the tracking parameters"> Setting the tracking parameters </a></h2>
+<h2><a id="Body tracking requirements">Body-tracking project requirements</a></h2>
 
-How well APT works depends critically on getting the tracking parameters set well for the particular application.  Each tracker has different parameters.  
+<p>As described <a href="#Body tracking">above</a>, APT can use <b>trajectories</b> indicating the centroid and/or orientation of each animal in each frame to preprocess the videos. These trajectories are computed using other tracking software, and are stored in <b>MAT files</b>, <a href="#Manage Movies">one for each video</a>. </p>
 
-<p>Select 'Configure tracking parameters' from the Track dropdown menu. This will popup a <a href="images/apt_track_configure_tracking_parameters.png" target="_blank"> <b>tracking parameters window.</b></a></p>
+<h3><a id="Trx file format">Trx file format</a></h3>
+<p>APT expects body tracking data in the trx file format which is a MATLAB .mat file containing a variable <b><code>trx</code></b>. <code>trx</code> is an array of structs with an element for each animal (i.e., <code>length(trx)</code> is the number of animals/trajectories in the video). The struct for each trajectory <code>i</code>, <code>trx(i)</code>, has the following fields:
+  <ul>
+    <li><code>x</code>: x-coordinate of the animal in pixels (1 x <code>nframes</code>). Thus, <code>trx(i).x(t)</code> is the x-position of animal <code>i</code> in frame <code>t</code> of the animal's trajectory (which corresponds to video frame <code>trx(i).firstframe + t - 1</code>).</li>
+    <li><code>y</code>: y-coordinate of the animal in pixels (1 x <code>nframes</code>).</li>
+    <li><code>theta</code>: Orientation of the animal (head) in radians (1 x <code>nframes</code>).</li>
+    <li><code>a</code>: 1/4 of the major-axis length in pixels (1 x <code>nframes</code>).</li>
+    <li><code>b</code>: 1/4 of the minor-axis length in pixels (1 x <code>nframes</code>).</li>
+    <li><code>nframes</code>: Number of frames in the trajectory of the current animal (scalar).</li>
+    <li><code>firstframe</code>: First frame of the animal's trajectory (scalar).</li>
+    <li><code>endframe</code>: Last frame of the animal's trajectory (scalar).</li>
+    <li><code>off</code>: Offset for computing index into x, y, etc. Always equal to <code>1 - firstframe</code> (scalar).
+  </ul>
+</p>
+<p>If your tracker does not track the orientation (<code>theta</code>), the major-axis length (<code>a</code>) or the minor axis length (<code>b</code>), set these values to <code>NaN</code>.</p>
+<!--In these cases: (theta missing) theta alignment, and (theta,a,b missing) Neighbor Masking can not be used.-->
 
-What displays will depend on what type of tracking you are using.  Clicking on each option will produce a description of that option at the bottom of the page. Note that many of the default options are selections from dropdown menus, click the current option to see the other options. 
+<p>Below is the <code>trx</code> struct for a movie with 1500 frames and two animals. The first trajectory has data for the entire movie. The second trajectory is tracked for the second half of the movie (frames 750:1500).</p>
 
-<p>Once you have set the parameters to what you would like, hit the Apply button.</p>
+<pre>  
+trx(1) = 
+          x: [1×1500 double]
+          y: [1×1500 double]
+          a: [1×1500 double]
+          b: [1×1500 double]
+      theta: [1×1500 double]
+ firstframe: 1
+   endframe: 1500
+    nframes: 1500
+        off: 0 
 
-<a href="tracking_parameters.html#CPR">CPR Tracking parameters</a>
+
+ trx(2) = 
+          x: [1×751 double]
+          y: [1×751 double]
+          a: [1×751 double]
+          b: [1×751 double]
+      theta: [1×751 double]
+ firstframe: 750
+   endframe: 1500
+    nframes: 751
+        off: -749 
+</pre>
+
+<h3><a id="Body tracking cropping">Body-tracking-based image cropping</a></h3>
+
+<p>APT uses body tracking information to crop and/or rotate the image around the tracked animals and improve tracking performance. For each body trajectory in each frame, APT crops a square centered at the body tracking centroid (<code>trx(i).x(t),trx(i).y(t)</code> above). The width of this square is defined as twice the <b>ImageProcessing:Body Tracking:Target ROI:Radius</b> parameter. The square can also be rotated according to be aligned with the animal's body orientation (<code>trx(i).theta(t)</code> above). This is particularly important when recording video from <b>overhead</b>, as we want APT to track in the same way regardless of which direction the animal is facing. To rotate the crop based on orientation, select the parameter <b>ImageProcessing:Body Tracking:Target ROI:Align using trajectory theta</b>.</p>
+
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/NotRotatedCrops.png"><img width="100%" src="images/NotRotatedCrops.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/RotatedCrops.png"><img width="100%" src="images/RotatedCrops.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Squares cropped around body tracking centroid, <br/><b>not</b> rotated to align with body axis</i></center></td>
+    <td><center><i>Cropped squares rotated to align with body axis</i></center></td>
+  </tr>
+</table>
+</center>
+
+
+<p>These transformations can improve tracking in a few ways:
+  <ul>
+    <li>Cropping reduces the size of the image the tracker searches over and operates on. We have found this to be very important because deep learning algorithms are <b>memory limited</b>, and images either need to be cropped based on body tracking or downsampled, which can cause loss of tracking resolution. Note that APT can also crop around a static location, see <a href="#Cropping">Cropping movies</a>. </li>
+    <li>Centering the cropped image on a single animal is also essential for tracking individuals in videos containing <b>multiple animals</b>. </li>
+    <li>For overhead views of animals, by aligning with the body orientation, APT can be <b>invariant</b> to the animal's orientation in the environment -- the tracker can operate the same regardless of which direction the animal is facing. Otherwise, APT must learn to identify the orientation of the animal, and that this orientation should not affect tracking.</li>
+  </ul>
+</p>
 
 <hr class="h2-divider">
 
-<h2><a id="Training"> Training </a></h2>
+<h2><a id="Multiview requirements">Multiview project requirements</a></h2>
 
-Click the Train button.
+<p>If a <a href="#Setting up a new project">project is set up</a> to have <b><var>N</var> > 1 views</b>, then videos are <a href="#AddMovie">added</a> to the project as sets of <var>N</var>.</p>
+<p>Frames in these videos should be <b>synchronized</b> -- e.g. frame 123 in video 1 should have been recorded at the same time as frame 123 in video 2. Ideally, all videos should have the same number of frames. If this is not the case for some reason, APT will use the length of the shortest video.</p>
 
+<h3><a id="Calibration files">Calibration files</a></h2>
 
+<p>Camera calibration information can be used to <a href="#Load calibration file">help during <b>manual labeling</b></a>. It is also used when <b>tracking to reconstruct the 3-d part positions</b> from corresponding 2-d predicted part positions in each view.</p>
+<p>We currently support 3 types of calibration files. They are all for pairs of cameras with correspondences defined using images of a checkerboard pattern. 
+  <ul>
+    <li><b><a href="https://www.mathworks.com/help/vision/ug/stereo-camera-calibrator-app.html">Matlab Stereo Camera Calibration App</a></b>: Using this app, select "<b>Export Camera Parameters - Export Parameters to Workspace</b>", and save the variable <b>"stereoParameters"</b> to a MAT file. This MAT file can then be loaded in to APT. </li>
+    <li><b><a href="http://www.vision.caltech.edu/bouguetj/calib_doc/">Caltech Calibration Toolbox</a></b>: 
+	<ul>
+	  <li>Calibrate each camera individually using the <a href="http://www.vision.caltech.edu/bouguetj/calib_doc/htmls/example.html">calib_gui</a>.</li>
+	  <li>Combine these calibrations to get a stereo calibration using the <a href="http://www.vision.caltech.edu/bouguetj/calib_doc/htmls/example5.html">stereo_gui</a>.</li>
+	  <li>Click <b>"Save stereo calib results"</b> to save to a MAT file. This MAT file can then be loaded into APT. </li>
+	</ul>
+    </li>
+    <li><b><a href="https://github.com/kristinbranson/APT/blob/master/user/orthocam/README_StereoCalibration.md">OrthoCam</a></b>: OrthoCam is based on MATLAB's Camera calibration App, but performs the stereo calibration in a weak perspective regime -- when the depth of field is much smaller than the camera-to-pbject distance <var>&Delta;z</var> &lt;&lt; <var>z</var>. The MAT file produced by Orthocam can be loaded into APT.</li>
+  </ul>
+</p>
+
+      
 <hr class="h2-divider">
 
-<h2><a id="Tracking"> Tracking </a></h2>
+<h2><a id="Tracking parameters">Tracking parameters</a></h2>
 
-Track button
-Click Track. You can change what frames you want it to track with the drop down menu below the blue "Track" button. After you choose what frames you want to track, press "Track". Watch progress in MATLAB command line. 
- 
- <p>Tracking options in the Track dropdown menu:</p>
+<h3><a id="Algorithm">Tracking algorithm</a></h3>
+<center>
+  <a href="images/TrackingAlgorithms.png"><img src="images/TrackingAlgorithms.png" width="40%"></a>
+</center>
+
+<p>APT includes implementations of several tracking algorithms that you can select from the <b>Track->Tracking algorithm</b> menu. A quantitative comparison of the performance of these algorithms on a variety of data sets is below. Higher numbers are better. These are preliminary results, and these numbers will be updated soon.</p>
+<center>
+  <a href="images/AlgorithmComparison.png"><img src="images/AlgorithmComparison.png" width="75%"></a>
+</center>
+
+<table>
+  <tr>
+    <td><b>Algorithm</b></td><td><b>Citation</b></td><td><b>GPU memory</b></td><td><b>Description</b></td>
+  </tr>
+  <tr>
+    <td>Cascaded Pose Regression (CPR)</td><td><a href="https://pdollar.github.io/files/papers/DollarCVPR10pose.pdf">Dollar, Welinder, Perona, 2010</a></td><td>None</td><td>CPR is <i>not</i> a deep learning algorithm, but is instead based on a type regressor called random ferns (related to random forests). From an initial guess of the pose, it iteratively refines its estimate based on features computed in a reference frame determined based on the original pose. We recommend using this algorithm if you <i>do not have access to a GPU</i>.</td></tr>
+  <tr><td>Deep Convolutional Network - MDN</td><td>Our method</td><td>High</td><td>MDN, which stands for Mixture Density Network, is a deep convolutional net whose architecture combines a <a href="https://en.wikipedia.org/wiki/U-Net">U-Net</a>, a <a href="https://en.wikipedia.org/wiki/Residual_neural_network">Residual network</a>, and a <a href="https://publications.aston.ac.uk/id/eprint/373/1/NCRG_94_004.pdf">Mixture Density Network</a>. We and our collaborators use this network architecture in our experiments, and it achieves the highest accuracy in most of our experiments.</td></tr>
+  <tr><td>Deep Convolutional Network - DeepLabCut</td><td><a href="http://www.mousemotorlab.org/deeplabcut">Link</a></td><td>Medium</td></tr>
+  <tr><td>Deep Convolutional Network - Unet</td><td><a href="https://arxiv.org/abs/1505.04597">Ronneberger, Fischer, Brox, 2015</a></td><td>Highest</td></tr>
+  <tr><td>Deep Convolutional Network - OpenPose</td><td><a href="https://github.com/CMU-Perceptual-Computing-Lab/openpose">Link</a></td><td>Medium</td></tr>
+  <tr><td>Deep Convolutional Network - LEAP</td><td><a href="https://github.com/talmo/leap">Link</a></td><td>Low</td></tr>
+<!--  (<a href="https://arxiv.org/abs/1505.04597">Ronneberger, Fischer, Brox, 2015</a>, <a href="https://en.wikipedia.org/wiki/U-Net">Wikipedia</a>), a Residual Network (<a href="https://arxiv.org/abs/1512.03385">He, Zhang, Ren, Sun, 2015</a>)
+-->
+</table>
+
+<p>APT's performance depends critically on setting several tracking parameters well. Several of these parameters must be changed with each new tracking application. To access the tracking parameters, select <b>"Configure tracking parameters..."</b> from the Tracking menu.</p>
+
+<center><a id="TrackingParametersGUI" href="images/TrackingParametersGUI.png"><img src="images/TrackingParametersGUI.png"></a></center>
+
+<p>We have divided parameters into the following categories:
+  <ul>
+    <li><b>Important</b>: These parameters should be adjusted <b>with each new tracking application</b>. </li>
+    <li><b>Beginner</b>: We recommend that <b>everyone</b> consider and adjust these parameters. They may not need to be changed from one application to another. </li>
+    <li><b>Advanced</b>: We recommend these parameters be modified only by advanced users, or with help from developers.</li>
+    <li><b>Developer</b>: We don't recommend modifying these parameters. They may be works-in-progress or obsolete. </li>
+  </ul>
+  At the bottom of the GUI, you can select which of these parameters to show. In the example above, we select "Beginner", which limits parameters made visible to Important and Beginner. Once you have set the parameters to what you would like, hit the Apply button. </p>
+</p>
+
+<p>Next, we describe our process for setting parameters for a new project. We also provide a table with values chosen for a variety of applications.</p>
+
+<h3><a id="Deep learning parameter guide">Guide to setting tracking parameters: deep learning</a></h3>
+  
+<h4>1. Set cropping parameters.</h4>
+
+<p>For <b><a href="#Body tracking">Body tracking projects</a></b>, <a href="#Body tracking cropping">cropping</a> parameters are accessed within the <a href="#TrackingParametersGUI">"Tracking parameters" GUI</a>:
 <ul>
-<li>Current target, labeled frames</li>
-<li>Current target, all frames</li>
-<li>Current target, all frames, every 10 frames</li>
-<li>Current target, selected frames</li>
-<li>Current target, selected frames, every 10 frames</li>
-<li>Current target, within 100 frames of current frame</li>
-<li>Current target, within 100 frames of current frame, every 10 frames</li>
-<li>All targets, labeled frames</li>
-<li>All targets, all frames</li>
-<li>All targets, all frames, every 10 frames</li>
-<li>All targets, selected frames</li>
-<li>All targets, selected frames, every 10 frames</li>
-<li>All targets, within 100 frames of current frame</li>
-<li>All targets, within 100 frames of current frame, every 10 frames</li>
+  <li><b>Target ROI: Radius</b>: As described <a href="#Body tracking cropping">above</a>, set the radius of the square cropped around the body tracking centroid. A preview of the box is shown in the right panel. Select a radius here so that all parts of the animal will always be within the box. APT will only predict parts to be within this box. Selecting a box that is too large will result in lower resolution output predictions.
+    <center><a href="images/TargetROIRadius.png"><img src="images/TargetROIRadius.png"></a><br/>
+      <i>Preview of Target ROI:Radius parameter</i></center>
+  </li>
+  <li><b>Target ROI: Align using trajectory theta</b>: As described <a href="#Body tracking cropping">above</a>, decide whether you want to align the square cropped around the body tracking centroid with the tracked body orientation. We recommend doing this when (a) orientation of the animal is accurately tracked and (b) tracking should be invariant to this orientation, i.e. there is no semantic difference between directions in the video. For example, in video recorded from overhead, we want our tracker to work the same for an animal facing up, left, right, or down. </li>
 </ul>
+</p>
+
+<p>For projects <b>without body tracking</b>, cropping can be modified by selecting <b>"Edit cropping"</b> from the File menu. Here, you can set a <b>single, static crop box for each movie</b>.</p>
+<ul>
+  <li>To create the initial crop box, click <b>"Adjust Size"</b>. This will place a box whose corners you can drag around. </li>
+  <li>Click <b>"Done Adjusting"</b> when you have finished adjusting this box.</li>
+  <li>The <b>same size box</b> is required for all videos for a given view in a project. Thus, when you switch to a different movie, by default, you can drag around the location of the box, but not change its size. </li>
+  <li>To change the size of the crop box, click "Adjust Size". This will <b>change the size of the crop box for all movies</b> for a given view.</li>
+  <li>When you are done, click "Finish". The main view will now zoom in to this crop region. </li>
+</ul>
+<center><a href="images/EditCropping.png"><img src="images/EditCropping.png" width="50%"></a><br/>
+  <i>Interface to edit crop region for the current movie</i>
+</center>
+
+<h4>2. Set data augmentation parameters</h4>
+<p>APT can be trained that tracking should be <b>invariant</b> to certain kinds of perturbations through data augmentation. Here, each training example is randomly perturbed every time it is seen during training. This effectively increases the size of your training set, and allows trackers to be trained from smaller amounts of manual annotation.</p>
+
+<center>
+<table id="table_align" style="width:100%">
+  <tr>
+    <td>
+      <center><a href="images/DataAugmentationNone.png"><img width="100%" src="images/DataAugmentationNone.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/DataAugmentationRotate.png"><img width="100%" src="images/DataAugmentationRotate.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/DataAugmentationTranslate.png"><img width="100%" src="images/DataAugmentationTranslate.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/DataAugmentationScale.png"><img width="100%" src="images/DataAugmentationScale.png"/></a></center>
+    </td>
+  <tr>
+    <td><center><i>Original training images</i></center></td>
+    <td><center><i>Rotate by up to 15 degrees</i></center></td>
+    <td><center><i>Translate by up to 5 pixels</i></center></td>
+    <td><center><i>Scale by a factor of between 1/1.2 and 1.2</i></center></td>
+  </tr>
+  <tr>
+    <td>
+      <center><a href="images/DataAugmentationContrast.png"><img width="100%" src="images/DataAugmentationContrast.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/DataAugmentationBrightness.png"><img width="100%" src="images/DataAugmentationBrightness.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/DataAugmentationFlip.png"><img width="100%" src="images/DataAugmentationFlip.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/DataAugmentationAll.png"><img width="100%" src="images/DataAugmentationAll.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Adjust image contrast by a factor of up to 0.1</i></center></td>
+    <td><center><i>Adjust image brightness by a factor of up to 0.1</i></center></td>
+    <td><center><i>Flip horizontally over the body axis</i></center></td>
+    <td><center><i>All transformations applied simultaneously</i></center></td>
+  </tr>
+
+</table>
+</center>
+
+<p>A variety of different types of perturbations are available. You should set the data augmentation parameters so that the perturbations reflect variation you expect to see in videos you want to run your tracker on. For example, if some of your videos are darker than others, you should set the "Brightness range" parameter so that it can transform images from a bright video to look like images in a dark video. APT's data augmentation module performs the following types of perturbations:</p>
+
+<ul>
+  <li><b>Rotate range</b>: Augment by rotating training images and labels by a random angle less than this number of degrees in either direction. If you <i>don't</i> have body tracking orientation available, and you want APT to be invariant to heading direction, you should set this to 180 degrees to rotate by any amount. </li>
+  <li><b>Translation range</b>: Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels.</li>
+  <li><b>Scale range</b>: Augment by adjusting image scale by a random amount between (1/this number) to (this number). 1 indicates no scale adjustment.</li>
+  <li><b>Contrast range</b>: Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment</li>
+  <li><b>Brightness range</b>: Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.</li>
+  <li><b>Flip horizontally</b>: Augment by flipping the training image and labels horizontally (left to right). If you use this, it is important that you set pairs of corresponding landmarks, e.g. the left rear foot part corresponds to the right rear foot part when flipped, by selecting <a href="#FlipLandmarkPairings">"Select landmark flip pairings"</a> from the Track menu. </li>
+  <li><b>Flip vertically</b>: Augment by flipping the training image ang labels vertically (top to bottom). If you use this, it is important that you set pairs of corresponding landmarks, e.g. the left rear foot part corresponds to the right rear foot part when flipped, by selecting <a href="#FlipLandmarkPairings">"Select landmark flip pairings"</a> from the Track menu. </li>
+</ul>
+
+<h4>3. Set memory-related parameters</h4>
+
+<p>To train a deep neural network, it must fit within your GPU's memory. The amount of memory necessary is proportional to the <b>product</b> of the <b>area of the input image</b> in pixels times the neural network's <b>batch size</b>:
+<var>Memory</var> &#8733; <var>Area</var>&#183;<var>BatchSize</var>.
+</p>
+<p>Next, set the <b>"Downsample factor"</b> and <b>"Training batch size"</b> parameters so that the network will fit into memory.</p>
+
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/DownsampleFactor.png"><img width="100%" src="images/DownsampleFactor.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TrainingBatchSize.png"><img width="100%" src="images/TrainingBatchSize.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Memory requirements for different <b>Downsample factors</b></i></center></td>
+    <td><center><i>Memory requirements for different <b>Training batch sizes</b></i></center></td>
+  </tr>
+</table>
+</center>
+
+<p>The area of the input image is computed as follows.</p>
+<ul>
+  <li>We need to know the <b>area of the cropped image</b>.
+    <ul>
+      <li>For body-tracking projects, crop area is specified by the <a href="#Target ROI Radius">Target ROI Radius</a>, and the area of the image in pixels is computed as <b><var>Area</var><sub>0</sub> = 4&#183;<var>Radius</var><sup>2</sup></b>.</li>
+      <li>For projects without body tracking, cropping can be specified by selecting <b><a href="#Edit cropping">"Edit cropping"</a></b> from the File menu. By default, the cropped region is the entire video frame. The crop area is (<var>Area<sub>0</sub></var> = <var>width</var>&#183;<var>height<var>).</li>
+    </ul>
+  </li>
+  <li>If this crop area is large, we can make it smaller by <b>downsampling</b> the image -- shrinking the image in both width and height. This is specified in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> as <b>Downsample factor</b>. Downsizing the image has the <b>negative effect</b> of <b>throwing away details</b> that may be important to finding parts. It also <b>reduces final resolution of the output</b> tracking. We recommend downsampling as little as possible. The input image area is reduced by this downsample factor squared: <var>Area</var> = <var>DownsampleFactor</var><sup>2</sup>&#183;<var>Area</var><sub>0</sub>. An estimate of the memory required for the current and other Downsample factors is shown in the Parameter visualization window when you select Downsample factor in the Tracking Parameters GUI. </li>
+</ul>
+
+<p>The <b>Training batch size</b> is the number of images the neural network processes at a time during training. Memory requirements <b>increase linearly</b> with the batch size. Neural network performance can degrade with either too large or too small batch sizes. We recommend batch sizes in the range of 2 to 8 images. An estimate of the memory required for the current and other batch sizes is shown in the Parameter visualization window when you select Training batch size in the Tracking Parameters GUI. </p>
+
+<h4>4. Set N. iterations of training</h4>
+
+<p>Switch the <a href="#TrackingParametersGUI">Tracking parameters GUI</a> to show "<b>Beginner</b>" parameters. Set "<b>N. iterations of training</b>" in the <a href="#TrackingParametersGUI">Tracking parameters GUI</a>. This is the number of the tracker is trained for, and training time increases linearly with number of iterations. Longer training generally works better, but takes longer and has diminishing returns. During training, you can examine whether training has converged, and decide to stop training at any time.</p>
+  
+<h4>5. Set landmark flip pairings</h4>
+
+<center><a id="FlipLandmarkPairings" href="images/FlipLandmarkPairings.png"><img src="images/FlipLandmarkPairings.png" width="25%"></a><br/>
+<i>Examples of pairs of matching landmarks to swap when flipping during data augmentation. Note that some landmarks are unpaired. These do not need to be swapped.</i></center>
+<p>If you selected <b>"Flip horizontally"</b> or <b>"Flip vertically"</b> above, it is important that you <b>specify corresponding pairs</b> of landmarks after this flip occurs. For example, after flipping both the image and the manual annotations, the left rear foot should be where the right rear foot is, and vice-versa. To do this, select <b>"Select landmark flip pairings"</b> from the Track menu.</p>
+
+<h3><a id="Example Tracking Parameters">Example Tracking Parameters</a></h3>
+<center>
+<table id="table_params" width="90%">
+  <tr><th>Parameter</th><th>10 flies</th><th>Single fly head</th><th>Single fly</th><th>2 mice</th><th>Single mouse</th><th>Single larva</th></tr>
+  <tr><th>Target ROI: Radius</th><td><img src="images/TrackingParameterExamples_TargetROIRadius_10flies.png" width="100px"/><br/>90</td><td>N/A</td><td>N/A</td><td><img src="images/TrackingParameterExamples_TargetROIRadius_2mice.png" width="100px"/><br/>200</td><td>N/A</td><td><img src="images/TrackingParameterExamples_TargetROIRadius_larva.png" width="100px"/><br/>520</td></tr>
+  <tr><th>Tracking Algorithm</th><td>MDN</td><td>MDN</td><td>MDN</td><td>MDN</td><td>DeepLabCut</td><td>MDN</td></tr>
+  <tr><th>Target ROI: Align using trajectory theta</th><td>Yes</td><td>N/A</td><td>N/A</td><td>No</td><td>N/A</td><td>No</td></tr>
+  <tr><th>Image Processing: Downsample factor</th><td>1</td><td>1</td><td>2</td><td>1</td><td>1</td><td>2</td></tr>
+  <tr><th>Gradient Descent: Training batch size</th><td>8</td><td>4</td><td>2</td><td>8</td><td>8</td><td>4</td></tr>
+  <tr><th>Data Augmentation: Rotate range</th><td>10</td><td>10</td><td>10</td><td>180</td><td>10</td><td>180</td></tr>
+  <tr><th>Data Augmentation: Translation range</th><td>5</td><td>20</td><td>20</td><td>10</td><td>20</td><td>20</td></tr>
+  <tr><th>Data Augmentation: Scale factor range</th><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td><td>1.2</td></tr>
+  <tr><th>Data Augmentation: Contrast range</th><td>0.09</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Data Augmentation: Brightness range</th><td>0.09</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Data Augmentation: Flip horizontally</th><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Data Augmentation: Flip vertically</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+
+  <tr><th>Image Processing: Histogram equalization</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>Yes</td></tr>
+  <tr><th>Image Processing: Brightness normalization</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Gradient Descent: N. iterations of training</th><td>60000</td><td>60000</td><td>60000</td><td>60000</td><td>60000</td><td>60000</td></tr>
+  <tr><th>MDN: Ignore occluded landmarks</th><td>No</td><td>No</td><td>No</td><td>Yes</td><td>No</td><td>No</td></tr>
+  <tr><th>MDN: Predict occluded</th><td>No</td><td>No</td><td>No</td><td>Yes</td><td>No</td><td>No</td></tr>
+
+  <tr><th>Target ROI: Pad background</th><td>0</td><td>N/A</td><td>N/A</td><td>0</td><td>N/A</td><td>0</td></tr>
+  <tr><th>Saving: Training tracker save interval</th><td>1000</td><td>1000</td><td>1000</td><td>1000</td><td>1000</td><td>1000</td></tr>
+  <tr><th>Image Processing: Neighborhood size for histogram equalization</th><td>20</td><td>20</td><td>20</td><td>20</td><td>20</td><td>20</td></tr>  
+  <tr><th>Image Processing: Max pixel value</th><td>255</td><td>255</td><td>255</td><td>255</td><td>255</td><td>255</td></tr>
+  <tr><th>Gradient Descent: N. warm restarts</th><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+  <tr><th>Gradient Descent: Learning rate decay iterations</th><td>25000</td><td>25000</td><td>25000</td><td>25000</td><td>25000</td><td>25000</td></tr>
+  <tr><th>Gradient Descent: Learning rate decay (gamma)</th><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td><td>0.1</td></tr>
+  <tr><th>Gradient Descent: Number of test examples</th><td>24</td><td>24</td><td>24</td><td>24</td><td>24</td><td>24</td></tr>
+  <tr><th>Data Augmentation: Perturb color</th><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+  <tr><th>Data Augmentation: Check landmarks during augmentation</th><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+  <tr><th>Loss Function: Label uncertainty radius</th><td>3</td><td>3</td><td>3</td><td>3</td><td>3</td><td>3</td></tr>
+  
+</table>
+</center>
+
+<!-- <a href="tracking_parameters.html#CPR">CPR Tracking parameters</a> 
+-->
+
+<hr class="h2-divider">
+
+<h2><a id="Training">Training</a></h2>
+
+<p>Once you have:
+<ul>
+  <li><a href="#Labeling parts">Labeled enough training examples</a></li>
+  <li><a href="#Tracking algorithm">Selected a tracking algorithm</a></li>
+  <li><a href="#Select backend">Selected a GPU backend</a></li>
+</ul>
+Click the <b>Train</b> button on the <a href="#GUI">bottom left</a> to begin training a tracker. This will bring up a window in which you can see the training progress.</p>
+
+<h3><a id="Training Monitor">Training Monitor</a></h3>
+
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/TrainingMonitor.png"><img width="100%" src="images/TrainingMonitor.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TrainingMonitorComplete.png"><img width="100%" src="images/TrainingMonitorComplete.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Training in progress</i></center></td>
+    <td><center><i>Training complete</i></center></td>
+  </tr>
+</table>
+</center>
+
+<p>You can watch training progress in the Training Monitor window.</p>
+<p>The top plot shows the <b>Training loss</b> being minimized as a function of number of training iterations on the current training batch. This should generally be decreasing with more iterations of training, but may occasionally waiver, as this is the training loss on only a sample of the training data (the current batch), and because we are using stochastic gradient descent for optimization. If training loss is <b>not</b> decreasing, then something is likely going wrong. If it seems to have plateaued, this could be a sign that training has converged and the tracker will not improve with more iterations of training.</p>
+<p>The second plot shows the average Euclidean <b>distance</b> between the current landmark predictions and the manual labels. Again, this should generally trend down with more iterations of training. </p>
+<p>The green text shows information about the <b>training status</b>, including whether training is running, how many iterations of training have been complete, and when the monitor was last updated. </p>
+<p>The text window shows <b>information about the training jobs</b> that depends on the item selected from the pop-up menu at the bottom:
+  <ul>
+    <li><b>List all jobs</b>: Provide status of all jobs running. </li>
+    <li><b>Show training jobs' status</b>: Provide more detailed information about the training job(s) started within this APT session. </li>
+    <li><b>Update training monitor plots</b>: Force an update to the training monitor, which is otherwise updated on a timer.</li>
+    <li><b>Show log files</b>: Show the contents of the training log file. </li>
+    <li><b>Show error messages</b>: Show error messages indicating why training failed.</li>
+  </ul>
+</p>
+<p>The <b>Stop training</b> can be pushed at any time to stop training. Stopping training requires a sequence of events to happen which could take a few seconds, so please be patient and only press this button once. </p>
+<p>Trackers are saved at fixed intervals of iterations (by default 1,000 iterations, see tracking parameter <i>Training tracker save interval</i>). The most recent tracker can be used any time to track frames by clicking the <a href="#Tracking">Track</a> button. This allows you to preview the tracker's performance without waiting for training to finish. This in-progress tracker will likely not work as well as the tracker when training is complete, but it can give you a sense of how well the tracker will work and which types of examples are currently difficult for the tracker and should be added to the training data set. </p>
+
+<hr class="h2-divider">
+
+<h2><a id="Tracking">Tracking</a></h2>
+
+<p>Once a tracker has been trained (or training is in progress), click the <b>Track</b> button on the <a href="#GUI">bottom left</a> to use the tracker. </p>
+<p>The <b>Frames to track</b> pop-up menu specifies which frames will be tracked. </p>
+<ul>
+  <li><a href="#Multitarget">Multi-target</a> projects:
+    <ul>
+      <li><b>Cur targ</b>: Frames from the currently selected animal</li>
+      <li><b>All targ</b>: Frames from all targets in the current movie</li>
+    </ul>
+  </li>
+  <li>Single target projects: Frames from the current movie</li>
+  <li><b>Labeled frames / Lab fr</b>: Frames that are manually labeled</li>
+  <li><b>All frames / All fr</b>: All frames</li>
+  <li><b>Selected frames / Sel fr</b>: Frames that have been selected using the <b>Select</b> button and the timeline</li>
+  <li><b>Nearest X frames / Within X frames of current frame/ +/- X fr</b>: Frames within X frames of the currently selected frame.</li>
+</ul>
+
+<h3><a id="Tracking Monitor">Tracking Monitor</a></h3>
+
+<center>
+<table id="table_align" style="width:75%">
+  <tr>
+    <td>
+      <center><a href="images/TrackingMonitor.png"><img width="100%" src="images/TrackingMonitor.png"/></a></center>
+    </td>
+    <td>
+      <center><a href="images/TrackingMonitorComplete.png"><img width="100%" src="images/TrackingMonitorComplete.png"/></a></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><i>Tracking in progress</i></center></td>
+    <td><center><i>Tracking complete</i></center></td>
+  </tr>
+</table>
+</center>
+
+<p>You can monitor progress in the <b>Tracking Monitor</b>.</p>
+<p>The top, blue text shows information about <b>which tracker</b> is being used for tracking.</p>
+<p>The colored bar(s) show the number of frames that have been tracked for each movie being tracked.</p>
+<p>The green text shows information about tracking progress.</p>
+<p>The text window shows <b>information about the tracking jobs</b> that depends on the item selected from the pop-up menu at the bottom:
+  <ul>
+    <li><b>List all jobs</b>: Provide status of all jobs running. </li>
+    <li><b>Show tracking jobs' status</b>: Provide more detailed information about the tracking job(s) started within this APT session. </li>
+    <li><b>Update tracking monitor plots</b>: Force an update to the tracking monitor, which is otherwise updated on a timer.</li>
+    <li><b>Show log files</b>: Show the contents of the tracking log files. </li>
+    <li><b>Show error messages</b>: Show error messages indicating why tracking failed.</li>
+  </ul>
+</p>
+<p>At any time, you can push the <b>Stop tracking</b> button to stop tracking. Stopping tracking requires a sequence of events to happen which could take a few seconds, so please be patient and only press this button once. <b>No</b> intermediate results will be available if tracking is stopped prematurely. </p>
 
 <hr class="h2-divider">
 
@@ -365,13 +1069,31 @@ Along with various plots, the Labeler property .gtTblRes provides a results tabl
 
 <p>Save the project to preserve your GT movie list, the list of GT frames with their labels, and the GT results.</p>
 
+<hr class="h2-divider">
 
+<h2><a id="FAQ">Frequently Asked Questions</a></h2>
 
+<h4>I'm a Janelian and when testing the <a href="LocalBackEnd.html#DockerLocalBackEnd">Docker</a> backend, I get the following permission error:</h4>
+  <code>docker: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.35/containers/create: dial unix /var/run/docker.sock: connect: permission denied.See 'docker run --help'.</code>
+
+<ol>
+  <li>From the command line, check that root is the owner of <code>/var/run/docker.sock</code>:
+    <pre>$ ls -hl /var/run/docker.sock</pre>
+    The output will look like:
+    <pre>srw-rw---- 1 root root 0 Feb 27 17:21 /var/run/docker.sock=</pre>
+  </li>
+  <li>Change the owner of <code>/var/run/docker.sock</code> to yourself:
+    <pre>$ sudo chown bransonk /var/run/docker.sock</pre>
+  </li>
+  <li>Start the docker daemon:
+    <pre>$ sudo dockerd &</pre>
+  </li>
+</ol>
 
 <footer>
 <hr class="h1-divider">
 <center>
-<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated June 5, 2018</i>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated March 11, 2020</i>
 </center>
 </footer>
 

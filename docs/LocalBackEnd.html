@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT Documentation - Local GPU Back End</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all" 
+href="styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen" 
+href="styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print" 
+href="styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" 
+media="projection" href="styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+
+
+<h1><a href="index.html">APT Documentation</a>: Local GPU Back End</h1>
+
+<p>We use <b><a href="#CondaLocalBackEnd">Conda</a></b> to install dependencies on Windows OS and <b><a href="#DockerLocalBackEnd">Docker</a></b> containers to provide dependencies on Linux.</p>
+
+<hr class="h2-divider">
+
+<p>
+<h2>Contents</h2>
+<ul>
+<li><a href="#DockerLocalBackEnd">Docker setup - Linux</a></li>
+<li><a href="#CondaLocalBackEnd">Conda setup - Windows</a></li>
+</ul>
+</p>
+
+<hr class="h2-divider">
+
+<h2><a id="DockerLocalBackEnd">Docker setup - Linux</a></h2>
+
+<b>Requirements</b>:
+<ul>
+  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 418.39</a></li>
+  <li> <a href="https://docs.docker.com/install/">Docker</a></li> 
+  <li> <a href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a></li>
+</ul>
+The following instructions will take you, step-by-step, through installing and configuring these requirements. 
+<ul>
+  <li>
+    Install <b>CUDA</b> <a href="https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver">version >= 418.39</a>. This can be done by downloading and installing either the
+    <ul>
+      <li><a href="https://developer.nvidia.com/cuda-downloads">CUDA Toolkit</a> or</li>
+      <li><a href="https://www.nvidia.com/Download/index.aspx">CUDA driver</a> only.</li>
+    </ul>
+  </li>
+  <li>
+    Install <b><a href="https://docs.docker.com/install/">Docker</a></b> (>=19.03) following the <a href="https://docs.docker.com/install/">instructions on Docker's website</a>. The free Community Edition is fine. 
+  </li>
+  <li>
+    Set up Docker so that it <b>does not require sudo</b> privileges as described here: <a href="https://docs.docker.com/install/linux/linux-postinstall/">Manage Docker as a non-root user</a>.
+  </li>
+  <li>
+    Install <b><a href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a></b>.
+  </li>
+  <li>
+    Download the latest pre-built APT docker container by running the following in a Linux terminal:
+    <pre>docker pull bransonlabapt/apt_docker:latest</pre>
+  </li>
+  <li>Test. Here are some test commands you can try to check that everything is working as expected:
+    <ul>
+      <li>
+	Test your Docker installation:
+	<pre>docker run hello-world</pre>
+      </li>
+      <li>
+	Test your nvidia-docker installation:
+	<pre> docker run --gpus all nvidia/cuda:9.0-base nvidia-smi <!--docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi--></pre>
+      </li>
+    </ul>
+  </li>
+</ul>
+
+<p>To use this back end within APT, select <b>Local (Docker)</b> under the <b>Track > GPU/Backend Configuration</b> menu. You can test that everything hooks up between Docker and APT by selecting menu item <b>Track > GPU/Backend Configuration > Test backend configuration</b>. </p>
+
+<hr class="h2-divider">
+
+<h2><a id="CondaLocalBackEnd">Conda setup - Windows</a></h2>
+
+<b>Requirements</b>:
+<ul>
+  <li> <https://www.anaconda.com/distribution/>Anaconda Python 3.7</a></li>
+  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 418.39</a></li>
+<li>Python modules installed with Conda: tensorflow-gpu=1.13.1, keras=2.2.4, opencv=3.4.4 hdf5storage=0.1.15 imageio=2.5.0 scikit-image=0.15.0 matplotlib=3.0.3 future=0.17.1 easydict=1.9</li>
+</ul>
+The following instructions will take you, step-by-step, through installing and configuring these requirements. 
+<ul>
+  <li>
+    Install <https://www.anaconda.com/distribution/><b>Anaconda Python 3.7</b> version for Windows</a>.
+</li>
+  <li>
+    Install <b>CUDA</b> <a href="https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver">version >= 418.39</a>. This can be done by downloading and installing either the
+    <ul>
+      <li><a href="https://developer.nvidia.com/cuda-downloads">CUDA Toolkit</a> or</li>
+      <li><a href="https://www.nvidia.com/Download/index.aspx">CUDA driver</a> only.</li>
+    </ul>
+  <li>
+    The following is done at an Anaconda prompt (Start Menu > Anaconda3 > Anaconda Prompt):
+    <ul>
+      <li>
+	<b>Update Conda</b>:
+	<pre>conda update conda
+conda upgrade --all</pre>
+      </li>
+    <li>
+    Create and activate the <b>APT environment</b>. 
+    <pre>conda create --name APT
+conda activate APT</pre>
+    </li>
+    <li><b>Install dependencies</b>.
+    <pre>conda install -c anaconda tensorflow-gpu=1.13.1 keras=2.2.4
+conda install -c conda-forge opencv=3.4.4 hdf5storage=0.1.15 imageio=2.5.0 scikit-image=0.15.0 matplotlib=3.0.3 future=0.17.1 easydict=1.9</pre>
+    </li>
+    </ul>
+</ul>
+
+<p>To use this back end within APT, select <b>Local (Conda)</b> under the <b>Track > GPU/Backend Configuration</b> menu. You can test that everything hooks up between Conda and APT by selecting menu item <b>Track > GPU/Backend Configuration > Test backend configuration</b>. </p>
+
+
+<footer>
+<hr class="h1-divider">
+<center>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated August 22, 2019</i>
+</center>
+</footer>
+
+
+</body>

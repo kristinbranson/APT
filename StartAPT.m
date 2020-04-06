@@ -1,6 +1,3 @@
 function apt = StartAPT
-if APT.pathNotConfigured
-  fprintf('Configuring your path ...\n');
-  APT.setpath;
-end
+APT.setpathsmart;
 apt = Labeler();

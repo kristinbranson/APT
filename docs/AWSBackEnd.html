@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT Documentation - AWS GPU Back End</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all" 
+href="styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen" 
+href="styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print" 
+href="styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" 
+media="projection" href="styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+
+
+<h1><a href="index.html">APT Documentation</a>: AWS GPU Back End</h1>
+
+<p>The information below will guide you through understanding, setting up, and configuring <a href="https://aws.amazon.com/ec2/">Amazon Web Services Elastic Cloud Compute (AWS EC2)</a> for use with APT. After you are done with the setup, APT will be able to perform deep learning training and inference in the cloud.</p>
+
+<hr class="h2-divider">
+
+<p>
+<h2>Contents</h2>
+<ul>
+<li><a href="#Requirements">Requirements</a></li>
+<li><a href="#EC2">About EC2 instances</a></li>
+<li><a href="#EC2Setup">EC2 Setup</a></li>
+<li><a href="#ManagingEC2">Managing EC2</a></li>
+</ul>
+</p>
+
+<hr class="h2-divider">
+
+<h2><a id="Requirements">Requirements</a></h2>
+
+The steps below will walk you through obtaining the following:
+<ul>
+  <li><b>Windows-only: <a href="https://gitforwindows.org/">Git</a></b>. Follow the installation instructions and install to the <b>default location</b> <code>C:\Program Files\Git</code>. To communicate with EC2, we use the ssh and scp packaged with Git. You can also use Git to download the latest version of APT.</li>
+<!--
+  <li><b>Windows-only: <a href="https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/certutil">certUtil</a></b>. This should come with your OS.</li>
+  <li><b>Linux-only: ssh and scp</b>. These should come with your OS.</li>
+-->
+  <li>An <a href="#EC2"><b>AWS EC2 account</b></a> with access to <code>p2.xlarge</code> instances. Instructions to set this up are <a href="#EC2Setup">below</a>.</li>
+  <li><b>AWS Command Line Interface (CLI)</b>: install instructions <a href="https://docs.aws.amazon.com/cli/latest/userguide/installing.html">here</a>. We used the following:
+    <ul>
+      <li>Windows: <a href="https://docs.aws.amazon.com/cli/latest/userguide/install-windows.html#install-msi-on-windows">MSI installer</a>.</li>
+      <li>Linux: <a href="https://docs.aws.amazon.com/cli/latest/userguide/install-bundle.html#install-bundle-other">awscli-bundle.zip</a>
+    </ul>
+  </li>
+</ul>
+
+<!--
+Depending on your platform, APT also requires some utilities in order to communicate with EC2. 
+
+* Windows
+  * ssh and scp. A version of these utilities is distributed with a typical Windows Git installation at `c:\Program Files\Git\usr\bin\ssh.exe` and `...\scp.exe`. Currently these paths are **hardcoded** so these utilities must live precisely in those locations! 
+  * (future) For ssh and scp, just go with what's on the PATH.
+  * (future) maybe support rsync 
+  * The utility `certUtil.exe` is used to compute hashes over files. This should be present in standard Windows installs. To confirm, open a cmd window (terminal) in Windows and type `where certUtil`.
+-->
+
+<hr class="h2-divider">
+
+<h2><a id="EC2">About EC2 instances</a></h2>
+
+You can think of an <b>EC2 instance</b> (as configured below) as a computer with a GPU in the cloud that is under your control. It is your "GPU in the cloud". An instance has:
+<ul>
+<li>An <b>instance ID</b>, which uniquely identifies it.</li>
+<li>A (public) <b>IP address</b> so you can connect to it via <a href="https://en.wikipedia.org/wiki/Secure_Shell">ssh</a>, examine its processes and filesystem contents. </li>
+<li>A <b>state</b> that is either <code>RUNNING</code>, <code>STOPPED</code>, or <code>TERMINATED</code>:
+  <ul>
+    <li>If the state is <code>RUNNING</code>, your instance is either actively computing or ready to do so. You are paying about $1/hour.</li>
+    <li>A state of <code>STOPPED</code> is analogous to having your desktop workstation in "hibernation" or "sleep" mode. No computations are being carried out, but any previous computations (trained models) etc are saved in the remote filesystem. You are paying a very low price based on the amount of disk storage ("EBS" storage in AWS-speak) that has been allocated for your instance. For 50GB of storage (the current default), you are paying $5/month.</li>
+    <li>A state of <code>TERMINATED</code> means your that instance has ceased to exist and returned to the ephemeral protoplasm of the cloud! Any and all state is destroyed at termination, so before you terminate an instance, make sure you tell APT to download all your trained models. As you might guess, terminated instances do not cost anything.</li>
+  </ul>
+</ul>
+
+<p>Since <code>STOPPED</code> instances are inexpensive, APT is currently designed around the idea that you will create an EC2 instance and "leave it up" for a stretch of time (eg weeks, maybe even a month or two) while you do a bunch of work for a project. During this time, you can iteratively label, train, and track within APT over multiple sessions. Between active working sessions, your instance is <code>STOPPED</code>, and all APT state including trained models and movies/trxfiles to be tracked is preserved. After a time, you will reach a stopping point for the project, and you can instruct APT to download your trained models to your local workstation. (Tracking results are currently downloaded immediately after each tracking session.) When the download is complete, you can terminate the EC2 instance.</p>
+
+<p>APT automates starting/stopping your instance (TODO: check), starting/stopping training and tracking processes, and so on. However, it is inevitable that APT will at times become disconnected from what is happening in the cloud. At these times, manually managing the EC2 instance by eg ssh-ing into the instance and killing processes, or manually stopping an instance via the AWS dashboard will be necessary. More information on how to do this is <a href="#Manipulate">here</a>.</p>
+
+<p>Be proactive and check on your instance!</p>
+
+<hr class="h2-divider">
+
+<h2><a id="EC2Setup">EC2 Setup</a></h2>
+
+<h3><a id="AWSAccountSetup">AWS account setup</a></h3>
+
+<ul>
+  <li><b><a href="https://aws.amazon.com/">Create an AWS account</a></b> and set up the payment system. This is the <b>root account</b> for AWS. You can create an account <a href="https://aws.amazon.com/">here</a>.</li>
+  <li><b><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html#id_users_create_console">Create an IAM user</a></b> (or users) from within the root account:
+    <ul>
+      <li>Choose a <b>user name</b> and set the <b>Access type</b> to <b>Programmatic Access</b>.
+	<center><a href="aws_setup_screenshots/Add%20user%201%20Screenshot%20from%202018-09-25%2013_45_06.png"><img width=50% src="aws_setup_screenshots/Add%20user%201%20Screenshot%20from%202018-09-25%2013_45_06.png"/></a></center>
+      </li>
+      <li>To set permissions, select <b>Attach existing policies directly</b>, and add <b>Administrator Access</b> and <b>IAMUserChangePassword</b> permissions.
+	<center><a href="aws_setup_screenshots/Add%20user%203%20Screenshot%20from%202018-09-25%2013_49_25.png"><img width=50% src="aws_setup_screenshots/Add%20user%203%20Screenshot%20from%202018-09-25%2013_49_25.png"/></a></center>
+      </li>
+    </ul>
+  <li><b><a href="https://console.aws.amazon.com/ec2">Login</a></b> to the AWS user account using the console.</li>
+</ul>
+<h3><a id="Connect2AWS">Connect your computer to your account</a></h3>
+<ul>
+  <li><b><a id="AWSAccessKey">Create Access Keys</a></b>. Access keys are a sort of pair of login and password that are required to start an instance. 
+    <ul>
+      <li>To create a new Access Key pair for an IAM user, open the <a href="https://console.aws.amazon.com/iam">IAM console</a> or look for IAM under <b>Services</b> then <b>Security, Identity & Compliance</b> on your console home page.</li>
+      <li>Click <b>Users</b> in the <b>Details</b> pane, click the appropriate IAM user, and then click <b>Create Access Key</b> on the <b>Security Credentials</b> tab. 
+	<center><a href="aws_setup_screenshots/Access%20Keys%202%20Screenshot%20from%202018-09-25%2013_54_35.png"><img width=50% src="aws_setup_screenshots/Access%20Keys%202%20Screenshot%20from%202018-09-25%2013_54_35.png"/></a></center></li>
+      <li><b>Save</b> the access keys anywhere (e.g. in your <code>$HOME/.ssh</code> folder). 
+	<center><a href="aws_setup_screenshots/Access%20Keys%203%20Screenshot%20from%202018-09-25%2013_57_07.png"><img width=50% src="aws_setup_screenshots/Access%20Keys%203%20Screenshot%20from%202018-09-25%2013_57_07.png"/></a></center></li>
+      <li>On Linux, change the permission to be <b>read-only</b> using <pre>chmod 400 path/to/access_key.csv</pre></li>
+    </ul>
+  <li>If you do not already have one, create an <a href="https://www.ssh.com/ssh/public-key-authentication"><b>ssh key pair</b></a>. Note that this ssh key pair is different than the above Access Keys. The <b>ssh key pair</b> is used to ssh into a running instance while <b>Access Keys</b> are required to create an instance.
+    <ul>
+      <li>Go to the <a href="https://console.aws.amazon.com/ec2"><b>EC2 console</b></a> or look for <b>EC2</b> under <b>Services - Compute</b> on your console home page. </li>
+      <li>On the left, click on <b>Key Pairs</b> under <b>Network & Security</b> and then use the <b>Create Key Pair</b> button. Make note of the name and stored location of your key pair, you will need to refer to it when using APT.</li>
+      <li>Save the key pair in your <code>$HOME/.ssh</code> folder.</li>
+      <li>On Linux, change the permissions to read-only using <code>chmod 400 ~/.ssh/key_pair.pem</code>.</li>
+    </ul>
+  <li>Alternatively, if you already have an <a href="https://www.ssh.com/ssh/public-key-authentication"><b>ssh key pair</b></a>, you can <b>import your public key</b> by clicking <b>Import Key Pair</b>. Make note of the name and stored location of your key pair, you will need to refer to it when using APT. </li>
+  <li>Increase the number of instances you can create of type <code>p2.xlarge</code>. <code>p2.xlarge</code> is the basic instance type that has a GPU useful for training APT trackers. Using <code>p2.xlarge</code> costs $0.90/hr. To do this, in the <a href="https://console.aws.amazon.com/ec2">EC2 console</a>, use the <b>Limits</b> option on the left and request a limit increase for p2.xlarge. We suggest increasing the limit to at least 2 instances so that you can train on one instance and track on the other. Note that this step seems to take a day or so because Amazon does verifications. You can, however, continue with the rest of the set up while you wait for this increase to be verified.</li>
+  <li>Install the <b>AWS Command Line Interface (CLI)</b> following the instructions <a href="https://docs.aws.amazon.com/cli/latest/userguide/installing.html">here</a>.
+    <ul>
+      <li>Windows: I installed <a href="https://docs.aws.amazon.com/cli/latest/userguide/install-windows.html#install-msi-on-windows">using the MSI installer</a>.</li>
+      <li>Linux: I installed using the <a href="https://docs.aws.amazon.com/cli/latest/userguide/install-bundle.html#install-bundle-other">bundled installer</a>.</li>
+    </ul>
+  </li>
+  <li>Configure the AWS CLI following <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html#cli-quick-configuration">these instructions</a> in a terminal/command prompt. As part of this, you'll need to enter your <a href="#AWSAccessKey">AWS Access Key</a>. For Janelians, the default region is <code>us-east-1, Northern Virginia</code>. Choose the default output format as json.
+    <center><a href="aws_setup_screenshots/Configure%20AWS%20CLI%20Screenshot%20from%202018-09-25%2014_40_17.png"><img width=50% src="aws_setup_screenshots/Configure%20AWS%20CLI%20Screenshot%20from%202018-09-25%2014_40_17.png"/></a></center></li>
+  <li>Check your CLI setup. To do this, in your terminal, type the following command:
+    <pre>aws ec2 describe-regions --output table</pre>
+    The output should be something like:
+<pre>
+----------------------------------------------------------
+|                     DescribeRegions                    |
++--------------------------------------------------------+
+||                        Regions                       ||
+|+-----------------------------------+------------------+|
+||             Endpoint              |   RegionName     ||
+|+-----------------------------------+------------------+|
+||  ec2.ap-south-1.amazonaws.com     |  ap-south-1      ||
+||  ec2.eu-west-3.amazonaws.com      |  eu-west-3       ||
+||  ec2.eu-west-2.amazonaws.com      |  eu-west-2       ||
+</pre>
+<li>If it has not been done by someone in your group, create a <b>security group</b> named <code>apt_dl</code>. The security group defines the basic firewall for the instance that will be launched using the CLI. Our security group, which <i>must</i> be named <code>apt_dl</code>, will allow instances to accept ssh connections from any IP address. Enter the following in your terminal/command prompt. 
+<pre>
+$ aws ec2 create-security-group --group-name apt_dl --description "Basic security group for APT deep learning"
+{
+    "GroupId": "sg-b018ced5"
+}
+$ aws ec2 authorize-security-group-ingress --group-name apt_dl --protocol tcp --port 22 --cidr 0.0.0.0/0
+</pre>
+You do not need to do this if another user on your account has already created this security group. The following command will tell you if a the apt_dl security group has already been created:
+<pre>
+  aws ec2 describe-security-groups --group-names apt_dl
+</pre>
+</li>
+  <li>Once the increase to the number of instances is approved, check that you can launch and ssh into an instance using the EC2 console. Follow the instructions below to
+    <ul>
+      <li><a href="#Launch">Launch an EC2 instance.</a></li>
+      <li><a href="#Monitor">Monitor your EC2 instance.</a></li>
+      <li><a href="#Terminate">Terminate your EC2 instance.</a></li>
+    </ul>
+  </li>
+</ul>
+
+<hr class="h2-divider">
+
+<h2><a id="ManagingEC2">Managing EC2</a></h2>
+
+<p>From the <a href="https://console.aws.amazon.com/ec2">EC2 console</a>, you can <a href="#Launch">Start</a>, <a href="#Monitor">Monitor</a>, and <a href="#Manipulate">Manipulate</a> instances. </p>
+
+<h3><a id="Launch">Launching an APT-compatible instance</a></h3>
+
+To launch an instance:
+<ul>
+  <li>Use the <b>Launch Instance</b> button on your <a href="https://console.aws.amazon.com/ec2">EC2 console</a> page.</li>
+  <li>Select the APT Amazon Machine Image (AMI) <b>AMI-APT (ami-0168f57fb900185e1)</b> that contains everything needed to run APT. You can find this by searching for <code>0168f57fb900185e1</code> within <b>Community AMIs</b>.
+      <center><a href="aws_setup_screenshots/Find%20AMI%20Screenshot%20from%202018-09-25%2017_29_13.png"><img width=50% src="aws_setup_screenshots/Find%20AMI%20Screenshot%20from%202018-09-25%2017_29_13.png"/></a></center>
+  </li>
+  <li>
+    Select <b>p2.xlarge</b> as the instance type.
+    <center><a href="aws_setup_screenshots/AMI%20Instance%20Type%20Screenshot%20from%202018-09-25%2016_39_11.png"><img width=50% src="aws_setup_screenshots/AMI%20Instance%20Type%20Screenshot%20from%202018-09-25%2016_39_11.png"/></a></center>
+  </li>
+  <li>Click <b>Review and launch</b>. It will then prompt you for a key pair. Select the <b>ssh key pair</b> you created/uploaded previously.
+      <center><a href="aws_setup_screenshots/Launch%20Status%20Screenshot%20from%202018-09-25%2016_42_57.png"><img width=50% src="aws_setup_screenshots/Launch%20Status%20Screenshot%20from%202018-09-25%2016_42_57.png"/></a></center>
+  </li>
+</ul>
+
+<h3><a id="Monitor">Monitoring EC2 instances</a></h3>
+
+<p>To see information about all your EC2 instances, go to the <a href="https://console.aws.amazon.com/ec2">EC2 console</a> and use the <b>Instances</b> option, and select any launched instance from the table. </p>
+<p>You can connect to a <code>RUNNING</code> instance using ssh. Find the instance's IP address (<b>IPv4 Public IP</b>). Use the IP address to ssh into the machine using
+  <pre>
+    ssh -i ~/.ssh/[key_pair.pem] ubuntu@[IPaddress]
+  </pre>
+  Replace [key_pair.pem] with the ssh key pair you created and downloaded previously. If instead you imported an existing key into Amazon, you can replace this with your private key file. Here is a screenshot of sshing to an EC2 instance on Windows:
+  <center><a href="aws_setup_screenshots/Windows_ssh_to_EC2_Instance_2019-08-22.PNG"><img width=50% src="aws_setup_screenshots/Windows_ssh_to_EC2_Instance_2019-08-22.PNG"/></a></center>
+</p>
+
+<h3><a id="Monitor">Manipulating EC2 instances</a></h3>
+    
+<p>Use the <b>Actions</b> button at the top of the instances page, to <b>Terminate</b> the machine from the <b>Instance State</b> menu. </p>
+
+<center><a href="aws_setup_screenshots/Actions_Screenshot_20190822.PNG"><img width=50% src="aws_setup_screenshots/Actions_Screenshot_20190822.PNG"/></a></center>
+
+<!--
+## Other APT System Requirements
+
+Depending on your platform, APT also requires some utilities in order to communicate with EC2. 
+
+* Windows
+  * ssh and scp. A version of these utilities is distributed with a typical Windows Git installation at `c:\Program Files\Git\usr\bin\ssh.exe` and `...\scp.exe`. Currently these paths are **hardcoded** so these utilities must live precisely in those locations! 
+  * (future) For ssh and scp, just go with what's on the PATH.
+  * (future) maybe support rsync 
+  * The utility `certUtil.exe` is used to compute hashes over files. This should be present in standard Windows installs. To confirm, open a cmd window (terminal) in Windows and type `where certUtil`.
+-->
+
+<footer>
+<hr class="h1-divider">
+<center>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated December 20, 2019</i>
+</center>
+</footer>
+
+
+</body>

@@ -3,26 +3,54 @@ classdef APT
   properties (Constant)
     Root = fileparts(mfilename('fullpath'));
     MANIFESTFILE = 'Manifest.txt';
-    SnapshotScript = fullfile(APT.Root,'repo_snapshot.sh');
+    SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh');
     
     BUILDSNAPSHOTFILE = 'build.snapshot';
     BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
     
     BUILDMCCFILE = 'build.mcc';
     BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
+
+    %DOCKER_REMOTE_HOST = ''; % Conceptually this prob belongs in DLBackEndClass
+    %DOCKER_REMOTE_HOST = 'bransonk-ws3'; % Conceptually this prob belongs in DLBackEndClass
+    
+    % for now, hard-coded to use default loc for git
+    WINSCPCMD = 'C:\Program Files\Git\usr\bin\scp.exe';
+    WINSSHCMD = 'C:\Program Files\Git\usr\bin\ssh.exe';
+
+    % hardcoded name of AWS security group
+    AWS_SECURITY_GROUP = 'apt_dl';
+    AMI = 'ami-0168f57fb900185e1';  
   end
   
   methods (Static)
     
+    function root = getRoot()
+      % root: the folder containing APT.m. When deployed, it is
+      % assumed the tree under root matches the dev repo
+      root = fileparts(mfilename('fullpath'));   
+    end
+    
     function m = readManifest()
+
+      % KB 20190422 - Manifest no longer needed but can be used by
+      % power-users
+      
       fname = fullfile(APT.Root,APT.MANIFESTFILE);
       if exist(fname,'file')==0
-        error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
+        m = struct;
+      else
+        tmp = importdata(fname);
+        tmp = regexp(tmp,',','split');
+        tmp = cat(1,tmp{:});
+        m = cell2struct(tmp(:,2),tmp(:,1));
       end
-      tmp = importdata(fname);
-      tmp = regexp(tmp,',','split');
-      tmp = cat(1,tmp{:});
-      m = cell2struct(tmp(:,2),tmp(:,1));
+      
+      % overwrite these fields to default locs if read in from Manifest
+      root = APT.Root;
+      m.jaaba = fullfile(root,'external','JAABA');
+      m.piotr = fullfile(root,'external','PiotrDollarToolbox');
+      m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');      
     end
   
     function [p,jp] = getpath()
@@ -32,7 +60,8 @@ classdef APT
       m = APT.readManifest;
       
       root = APT.Root;
-      cprroot = fullfile(root,'trackers','cpr');
+      mlroot = fullfile(root,'matlab');
+      cprroot = fullfile(mlroot,'trackers','cpr');
       if isfield(m,'jaaba')
         jaabaroot = m.jaaba;
       elseif isfield(m,'jctrax')
@@ -42,13 +71,9 @@ classdef APT
       end
       if isfield(m,'piotr')
         pdolroot = m.piotr;
-      else
-        pdolroot = '';
       end      
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
-      else
-        camroot = '';
       end
       
       if isempty(pdolroot)
@@ -57,20 +82,29 @@ classdef APT
         %warndlg(warnstr,'CPR/Tracking dependency missing','modal');        
       end
       
+      if verLessThan('matlab','9.3')
+        visionpath = 'vision_pre17b';
+      else
+        visionpath = 'vision_postinc17b';
+      end
       aptpath = { ...
         root; ...
-        fullfile(root,'util'); ...
-        fullfile(root,'misc'); ...
-        fullfile(root,'private_imuitools'); ...
-        fullfile(root,'netlab'); ...
-        fullfile(root,'user'); ...
-        fullfile(root,'user/orthocam'); ...
-        fullfile(root,'YAMLMatlab_0.4.3'); ...
-        fullfile(root,'JavaTableWrapper'); ...
-        fullfile(root,'propertiesGUI'); ...
-        fullfile(root,'treeTable'); ...
-        fullfile(root,'jsonlab-1.2','jsonlab'); ...
-        fullfile(root,'test'); ...
+        mlroot; ...
+        fullfile(mlroot,'util'); ...
+        fullfile(mlroot,'misc'); ...
+        fullfile(mlroot,'private_imuitools'); ...
+        fullfile(root,'external','netlab'); ...
+        fullfile(mlroot,'user'); ...
+        fullfile(mlroot,'user','orthocam'); ...
+        fullfile(mlroot,'user','orthocam',visionpath); ...
+        fullfile(mlroot,'YAMLMatlab_0.4.3'); ...
+        fullfile(mlroot,'JavaTableWrapper'); ...
+        fullfile(mlroot,'propertiesGUI'); ...
+        fullfile(mlroot,'treeTable'); ...
+        fullfile(mlroot,'jsonlab-1.2','jsonlab'); ...
+        fullfile(root,'unittest'); ...
+        fullfile(mlroot,'compute_landmark_features'); ...
+        fullfile(mlroot,'compute_landmark_transforms'); ...
         };
       
       cprpath = { ...
@@ -81,6 +115,10 @@ classdef APT
         fullfile(cprroot,'romain'); ...
         };
       
+      dtpath = { ...
+        fullfile(mlroot,'trackers','dt'); ...
+        };
+
       jaabapath = { ...
         fullfile(jaabaroot,'filehandling'); ...
         fullfile(jaabaroot,'misc'); ...
@@ -92,7 +130,7 @@ classdef APT
       tfRm = cellfun(@(x) ~isempty(regexp(x,'__MACOSX','once')) || ...
                           ~isempty(regexp(x,'\.git','once')) || ...
                           ~isempty(regexp(x,'[\\/]doc','once')) || ...
-                          ~isempty(regexp(x,'[\\/]external','once')) || ...
+                          ~isempty(regexp(x,'PiotrDollarToolbox[\\/]external','once')) || ...
                           isempty(x), pdolpath);
       pdolpath(tfRm,:) = [];
 
@@ -100,13 +138,13 @@ classdef APT
       campath = regexp(campath,pathsep,'split');
       campath = campath(~cellfun(@isempty,campath));
      
-      p = [aptpath(:);jaabapath(:);cprpath(:);pdolpath(:);campath(:)];
+      p = [aptpath(:);jaabapath(:);cprpath(:);dtpath(:);pdolpath(:);campath(:)];
       
       jp = {...
         fullfile(root,'java','APTJava.jar'); ...
-        fullfile(root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
-        fullfile(root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
-        fullfile(root,'treeTable')};
+        fullfile(mlroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
+        fullfile(mlroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
+        fullfile(mlroot,'treeTable')};
     end
     
     function jaabapath = getjaabapath()
@@ -121,6 +159,7 @@ classdef APT
     function setpath()
       
       [p,jp] = APT.getpath();
+      addpath(fullfile(APT.Root,'matlab')); % for javaaddpathstatic
       cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
       
@@ -147,10 +186,52 @@ classdef APT
 
 %       javaaddpath(jp);
     end
+    
+    function setpathsmart()
+      % Don't set MATLAB path if it appears it is already set
+      % "smart" in quotes, of course
+      
+      if isdeployed
+        return;
+      end
+        
+      [p,jp] = APT.getpath();
+      if APT.matlabPathNotConfigured
+        fprintf('Configuring your MATLAB path ...\n');
+        addpath(p{:},'-begin');
+      end
+      cellfun(@javaaddpathstatic,jp);
+      %MK 20190506 Add stuff to systems path for aws cli
+      if ismac
+        setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
+      end
+    end
   
-    function tf = pathNotConfigured()
+    function tf = matlabPathNotConfigured()
       tf = exist('moveMenuItemAfter','file')==0 || ...
         exist('ReadYaml','file')==0;
+    end
+    
+    function pposetf = getpathdl()
+      r = APT.Root;
+      pposetf = fullfile(r,'deepnet');
+    end
+    
+    function cacheDir = getdlcacheroot()
+      
+      m = APT.readManifest;
+      if isfield(m,'dltemproot')
+        cacheDir = m.dltemproot;
+      else
+        if ispc
+          userDir = winqueryreg('HKEY_CURRENT_USER',...
+            ['Software\Microsoft\Windows\CurrentVersion\' ...
+            'Explorer\Shell Folders'],'Personal');
+        else
+          userDir = char(java.lang.System.getProperty('user.home'));
+        end
+        cacheDir = fullfile(userDir,'.apt');
+      end
     end
     
     function s = codesnapshot
@@ -200,10 +281,12 @@ classdef APT
       end      
     end
     
-    function buildAPTCluster(varargin)
+    function buildAPTCluster(varargin) 
       [incsinglethreaded,bindirname] = myparse(varargin,...
         'incsinglethreaded',true,...
-        'bindirname',[]... % custom binary output dir, eg '20180709.feature.deeptrack'. Still located underneath Manifest:build dir
+        'bindirname',[] ... % custom binary output dir, eg 
+          ... % '20180709.feature.deeptrack'. Still located underneath 
+          ... % Manifest:build dir
         );
       today = datestr(now,'yyyymmdd');
       if isempty(bindirname)
@@ -234,7 +317,9 @@ classdef APT
       Ipth = [repmat({'-I'},numel(pth),1) pth];
       Ipth = Ipth';      
       aptroot = APT.Root;
-      cprroot = fullfile(aptroot,'trackers','cpr');
+      mlroot = fullfile(aptroot,'matlab');
+      cprroot = fullfile(mlroot,'trackers','cpr');
+      dtroot = fullfile(mlroot,'trackers','dt');
       jaabapath = APT.getjaabapath();
       Ipthjaaba = [repmat({'-I'},numel(jaabapath),1) jaabapath];
       Ipthjaaba = Ipthjaaba';      
@@ -251,24 +336,55 @@ classdef APT
         end
       end
       
+      % AL20181011, R2016b. Building on the cluster complains that no 
+      % licenses are avail for certain products (eg toolbox/controls) even 
+      % though those products are unnecessary and even if those products 
+      % are explicitly removed from the MATLAB path before building. The 
+      % dependency analysis must be getting confused and adding those paths 
+      % back in etc etc. 
+      %
+      % Building on a branson-ws works better. It could be that the cluster
+      % has more installed toolboxes/products, some of which don't have 
+      % licenses etc. 
+      %
+      % AVOID ADDING the -N compilation option if possible, it does cause
+      % breakage without the auto dependency analysis to configure the path
+      % or add dependencies etc. Building on a branson-WS does not require
+      % the -N flag currently.
+      %
+      % Update 20181126. Building on the cluster with 16b still fails, but
+      % it works with 18b.
+      
       mccProjargs = struct();
       mccProjargs.APTCluster = { ...
         '-W','main',...
         '-w','enable',...
         '-T','link:exe',...
         '-d',fullfile(aptroot,BUILDOUTDIR),... %        '-v',...
-        fullfile(aptroot,'APTCluster.m'),...
+        fullfile(mlroot,'APTCluster.m'),... %'-N' see note above 20181011
         Ipth{:},...
         '-a',fullfile(aptroot,'gfx'),...
-        '-a',fullfile(aptroot,'config.default.yaml'),...
-        '-a',fullfile(aptroot,'misc','darkjet.m'),...
-        '-a',fullfile(aptroot,'misc','lightjet.m'),...
-        '-a',fullfile(cprroot,'params_apt.yaml'),... %        '-a',fullfile(cprroot,'param.example.yaml'),...
+        '-a',fullfile(mlroot,'config.default.yaml'),...
+        '-a',fullfile(mlroot,InfoTimeline.TLPROPFILESTR),...
+        '-a',fullfile(mlroot,'params_preprocess.yaml'),...
+        '-a',fullfile(mlroot,'params_track.yaml'),...
+        '-a',fullfile(mlroot,'params_postprocess.yaml'),...
+        '-a',fullfile(mlroot,'landmark_features.yaml'),...        
+        '-a',fullfile(mlroot,'misc','darkjet.m'),...
+        '-a',fullfile(mlroot,'misc','lightjet.m'),...
+        '-a',fullfile(cprroot,'params_cpr.yaml'),... %        '-a',fullfile(cprroot,'param.example.yaml'),...
         '-a',fullfile(cprroot,'misc','CPRLabelTracker.m'),...
         '-a',fullfile(cprroot,'misc','CPRBlurPreProc.m'),...
-        '-a',fullfile(aptroot,'LabelerGUI_lnx.fig'),... 
-        '-a',fullfile(aptroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'),...
-        '-a',fullfile(aptroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'),...
+        '-a',fullfile(dtroot,'params_deeptrack_dlc.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_unet.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_openpose.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_mdn.yaml'),...
+        '-a',fullfile(dtroot,'params_deeptrack_leap.yaml'),...
+        '-a',fullfile(dtroot,'DeepTracker.m'),...        
+        '-a',fullfile(mlroot,'LabelerGUI_lnx.fig'),... 
+        '-a',fullfile(mlroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'),...
+        '-a',fullfile(mlroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'),...
         '-a',fullfile(aptroot,'java','APTJava.jar')...       
         }; %#ok<CCAT>
       mccProjargs.GetMovieNFrames = {...
@@ -276,8 +392,8 @@ classdef APT
         '-w','enable',...
         '-T','link:exe',...
         '-d',fullfile(aptroot,BUILDOUTDIR),... %        '-v',...
-        fullfile(aptroot,'misc','GetMovieNFrames.m'),...
-        Ipthjaaba{:}};
+        fullfile(mlroot,'misc','GetMovieNFrames.m'),...
+        Ipthjaaba{:}}; %#ok<CCAT>
         
       bldnames = fieldnames(buildIfo);
       projs = fieldnames(mccProjargs);
@@ -292,7 +408,7 @@ classdef APT
         end
       end
       for bld=bldnames(:)',bld=bld{1}; %#ok<FXSET>
-        for prj=projs(:)',prj=prj{1};
+        for prj=projs(:)',prj=prj{1}; %#ok<FXSET>
           projfull = [prj '_' bld];
           fprintf('Building: %s...\n',projfull);
           pause(2);
@@ -304,7 +420,6 @@ classdef APT
           fprintf('Writing mcc args to file: %s...\n',APT.BUILDMCCFULLFILE);
           cellstrexport(mccArgs,APT.BUILDMCCFULLFILE);
         
-          today = datestr(now,'yyyymmdd');
           fprintf('BEGIN BUILD on %s\n',today);
           pause(2.0);
           mcc(mccArgs{:});

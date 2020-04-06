@@ -1,0 +1,47 @@
+---
+
+FeatureClasses:
+  
+  SignedSymmetric:
+    TransTypes: [none,abs,mean,median,abs_mean,abs_median,std,min,max,min_abs,max_abs]
+  NonNegative:
+    TransTypes: [none,mean,median,std,min,max]
+
+Features:
+  dx:
+    FeatureClass: SignedSymmetric
+    CoordSystem: Global
+
+  dx_body:
+    FeatureClass: SignedSymmetric
+    CoordSystem: Body
+
+  dy:
+    FeatureClass: SignedSymmetric
+    CoordSystem: Global
+
+  dy_body:
+    FeatureClass: SignedSymmetric
+    CoordSystem: Body
+
+  velmag:
+    FeatureClass: NonNegative
+    CoordSystem: Global
+
+  x:
+    FeatureClass: NonNegative
+    CoordSystem: Global
+
+  x_body:
+    FeatureClass: NonNegative
+    CoordSystem: Body
+
+  y:
+    FeatureClass: NonNegative
+    CoordSystem: Global
+
+  y_body:
+    FeatureClass: NonNegative
+    CoordSystem: Body
+
+...
