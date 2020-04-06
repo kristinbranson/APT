@@ -2633,6 +2633,7 @@ classdef Labeler < handle
       if ~tfsucc,
         error('Could not collect data for exporting.');
       end
+      % preProcData_P is [nLabels,nViews,nParts,2]
       save(outfile,'-mat','-v7.3','-struct','s');
       
     end
@@ -6719,11 +6720,11 @@ classdef Labeler < handle
     function fname = getDefaultFilenameExportStrippedLbl(obj)
       lblstr = 'TrainData';
       if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' lblstr '.lbl'];
+        rawname = ['$projdir/$projfile_' lblstr '.mat'];
       elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' lblstr '.lbl'];
+        rawname = ['$projdir/$projname_' lblstr '.mat'];
       else
-        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.lbl'];
+        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.mat'];
       end
       sMacro = obj.baseTrkFileMacros();
       fname = FSPath.macroReplace(rawname,sMacro);

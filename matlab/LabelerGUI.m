@@ -2892,7 +2892,7 @@ if isequal(f,0)
 end
 fname = fullfile(p,f);
 SetStatus(handles,sprintf('Exporting training data to %s',fname));
-lObj.projExportTrainData(obj,fname)
+lObj.projExportTrainData(fname)
 fprintf('Saved training data to file ''%s''.\n',fname);
 ClearStatus(handles);
 

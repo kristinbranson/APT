@@ -152,6 +152,8 @@ classdef TrackJob < handle
     parttrkfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
     trkfilestr = {}; % cellstr, [nView] shortnames for trkfileLcl. UNUSED if .tfexternal
     rootdirLcl = '';
+    listfilestr = '';
+    listfileLcl = '';
     
     lblfileRem = '';
     movfileRem = {};
@@ -160,6 +162,7 @@ classdef TrackJob < handle
     trkoutdirRem = {};
     parttrkfileRem = {};
     rootdirRem = '';
+    listfileRem = '';
         
     tfmultiview = false;
     tfserialmultimov = false;
@@ -176,6 +179,9 @@ classdef TrackJob < handle
     frm1 = []; % currently must be scalar
     cropRoi = []; % either [], or [nView x 4], or (if tfserialmultimov) [nSerialMov x 4]
     nframestrack = []; % after set via getNFramesTrack, [nmovsettrk]
+    isContiguous = true; % whether to track a contiguous interval of frames 
+                         % or to specify a table of individual frames to
+                         % track
     
     nView = 0; % number of views in this job
     nSerialMov = 0; % number of movies; applicable if tfserialmov
@@ -218,7 +224,7 @@ classdef TrackJob < handle
       [ivw,trxids,frm0,frm1,cropRoi,tMFTConc,...
         lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,trkoutdirLcl,rootdirLcl,...
         isMultiView,isSerialMultiMov,isExternal,isRemote,nowstr,logfile,...
-        errfile,modelChainID] = ...
+        errfile,modelChainID,isContiguous] = ...
         myparse(varargin,...
         'ivw',[],...
         'targets',[],...
@@ -239,7 +245,8 @@ classdef TrackJob < handle
         'nowstr',[],...
         'logfile',{},...
         'errfile',{},...
-        'modelChainID',''...
+        'modelChainID','',...
+        'isContiguous',[]...
         );
 
       obj.tObj = tObj;
@@ -265,7 +272,18 @@ classdef TrackJob < handle
         % all views will be tracked.
         assert(isequal(obj.ivw(:)',1:obj.nTotalView));
       end
-      
+      if isempty(isContiguous),
+        if isempty(tMFTConc),
+          isContiguous = true;
+          assert(~isempty(frm0) && ~isempty(frm1));
+        elseif isempty(frm0) || isempty(frm1),
+          isContiguous = false;
+          assert(~isempty(tMFTConc));
+        else
+          isContiguous = TrackJob.isMFTContiguous(tMFTConc,frm0,frm1);
+        end
+      end
+      obj.isContiguous = isContiguous;
       obj.setBackEnd(backend);
       obj.nView = numel(obj.ivw);
       obj.tftrx = obj.tObj.lObj.hasTrx;
@@ -406,6 +424,8 @@ classdef TrackJob < handle
         obj.cropRoi = cropRoi(obj.ivw,:);
       end
       
+      obj.setLocalFiles();
+      
       obj.setRemoteFiles();
 
       obj.setPartTrkFiles();
@@ -420,6 +440,9 @@ classdef TrackJob < handle
       
       obj.checkCreateDirs();
       obj.checkLocalFiles();
+      if ~obj.isContiguous,
+        obj.createLocalListFile();
+      end
       obj.checkCreateRemotes();
       obj.deletePartTrkFiles();
       
@@ -438,16 +461,15 @@ classdef TrackJob < handle
       containerName = obj.id;
       baseargs = obj.getBaseArgs(baseargs);
 
+      fileargs = {obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
+            obj.movfileRem,obj.trkfileRem};
       switch obj.backend.type,
         
         case DLBackEnd.Bsub,
           
           bsubargs = [bsubargs,{'outfile' obj.logfile}];
           obj.codestr = DeepTracker.trackCodeGenSSHBsubSing(...
-            obj.modelChainID,obj.rootdirRem,...
-            obj.lblfileRem,...
-            obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
+            fileargs{:},...
             obj.frm0,obj.frm1,...
             'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
             'sshargs',sshargs);
@@ -459,10 +481,9 @@ classdef TrackJob < handle
           end
           obj.codestr = ...
             DeepTracker.trackCodeGenDocker(obj.backend,...
-            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
-             obj.frm0,obj.frm1,...
-             'baseargs',baseargs,'mntPaths',mntpaths,...
+            fileargs{:},...
+            obj.frm0,obj.frm1,...
+            'baseargs',baseargs,'mntPaths',mntpaths,...
              'containerName',obj.containerName,...
              'dockerargs',dockerargs);
           
@@ -470,8 +491,7 @@ classdef TrackJob < handle
                 
           [obj.codestr] = ...
             DeepTracker.trackCodeGenConda(...
-            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
+            fileargs{:},...
             obj.frm0,obj.frm1,...
             'baseargs',[baseargs,{'filesep',obj.tObj.filesep}],...
             'outfile',obj.logfile,...
@@ -481,8 +501,7 @@ classdef TrackJob < handle
           
           codestrRem = ...
             DeepTracker.trackCodeGenAWS(...
-            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
+            fileargs{:},...
             obj.frm0,obj.frm1,...
             baseargs);
           
@@ -581,6 +600,76 @@ classdef TrackJob < handle
       
     end
 
+    function setDefaultLocalListFile(obj)
+      i = obj.ivw; 
+      trnstr0 = obj.trnstr{i};
+      obj.listfilestr = [ 'TrackList_' trnstr0 '_' obj.nowstr '.json'];
+      obj.listfileLcl = fullfile(obj.rootdirLcl{i},obj.listfilestr{i});      
+    end
+    
+    function createLocalListFile(obj)
+      
+      % {
+      %   "movieFiles": [
+      %     "/path/to/mov1.avi",
+      %     "/path/to/mov2.avi"
+      %   ],
+      %   "trxFiles": [
+      %     "/path/to/trx1.mat",
+      %     "/path/to/trx2.mat"
+      %   ],
+      %   "toTrack": [
+      %     [1,1,1],
+      %     [1,1,2],
+      %     [1,1,3],
+      %     [2,1,[1,2501]]
+      %     ]
+      % }
+      
+      assert(~obj.isContiguous);
+      obj.setDefaultLocalListFile();
+      listinfo = struct;
+      listinfo.movieFiles = obj.movfileRem;
+      if obj.tftrx,
+        listinfo.trxFiles = obj.trxfileRem;
+      else
+        listinfo.trxFiles = {};
+      end
+
+      % which movie index does each row correspond to?
+      [ism,idxm] = ismember(obj.tMFTConc.mov,obj.movfileLcl);
+      assert(all(ism));
+     
+      listinfo.toTrack = cell(0,1);
+      for mi = 1:numel(obj.movfileRem),
+        idx1 = find(idxm==mi);
+        if isempty(idx1),
+          continue;
+        end
+        [t,~,idxt] = unique(obj.tMFTConc.iTgt(idx1));
+        for ti = 1:numel(t),
+          idx2 = idxt==ti;
+          idxcurr = idx1(idx2);
+          f = unique(obj.tMFTConc.frm(idxcurr));
+          df = diff(f);
+          istart = [1;find(df~=1)+1];
+          iend = [istart(2:end)-1;numel(f)];
+          for i = 1:numel(istart),
+            if istart(i) == iend(i),
+              fcurr = f(istart(i));
+            else
+              fcurr = [f(istart(i)),f(iend(i))+1];
+            end
+            listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
+          end
+        end
+      end
+
+      fid = fopen(obj.listfileLcl,'w');
+      fprintf(fid,jsonencode(listinfo));
+      fclose(fid);
+      
+    end
     
     function setBackEnd(obj,backend)
       obj.backend = backend;
@@ -673,6 +762,10 @@ classdef TrackJob < handle
       end
     end
     
+    function setLocalFiles(obj,varargin)
+      obj.setDefaultLocalListFile();
+    end
+    
     function setRemoteFiles(obj,varargin)
       % backend needs to be set
       
@@ -684,6 +777,7 @@ classdef TrackJob < handle
       obj.movfileRem = obj.movfileLcl;
       obj.trxfileRem = obj.trxfileLcl;
       obj.trkfileRem = obj.trkfileLcl;
+      obj.listfileRem = obj.listfileLcl;
       if obj.tfremote,
         for i = 1:obj.nView,
           mov = obj.movfileLcl{i};
@@ -733,6 +827,9 @@ classdef TrackJob < handle
       obj.checkUploadFiles(obj.movfileLcl,obj.movfileRem,'Movie file');
       if obj.tftrx,
         obj.checkUploadFiles(obj.trxfileLcl,obj.trxfileRem,'Trx file');
+      end
+      if ~obj.isContiguous,
+        obj.checkUploadFiles({obj.listfileLcl},{obj.listfileRem},'Track list json file');
       end
       
     end
@@ -914,7 +1011,26 @@ classdef TrackJob < handle
       
     end
 
-    
+    function isContiguous = isMFTContiguous(tMFTConc,frm0,frm1)
+      isContiguous = true;
+      [m,~,idxm] = unique(tMFTConc.mov);
+      for mi = 1:numel(m),
+        idx1 = find(idxm==mi);
+        [t,~,idxt] = unique(tMFTConc.iTgt(idx1));
+        for ti = 1:numel(t),
+          idx2 = idxt==ti;
+          idxcurr = idx1(idx2);
+          if ~isempty(setxor(tMFTConc.frm(idxcurr),(frm0:frm1)')),
+            isContiguous = false;
+            break;
+          end
+        end
+        if ~isContiguous,
+          break;
+        end
+      end
+    end
+
   end
   
 end
