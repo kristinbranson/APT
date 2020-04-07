@@ -1,4 +1,30 @@
 classdef VideoTest
+  % We have found movie-reading of some JRC vids to be fragile on Linux,
+  % with results varying depending on i) order of frames read, ii) host 
+  % machine, and iii) matlab version.
+  %
+  % This class encapsulates a test whereby frames are read from a movie a)
+  % sequentially, starting from the first frame and b) in random-access.
+  % Frames are written to disk along with metadata.
+  %
+  %
+  % Ex: compare sequential to random-access reads on a single machine.
+  %
+  %   VideoTest.test1gen('/path/to/mov.avi'); % produces VideoTest dir
+  %   VideoTest.test1internal('/path/to/VideoTestDir');
+  %
+  % Ex: compare video-reading across two machines/matlabs
+  %
+  %   % run on machine A
+  %   VideoTest.test1gen('/path/to/mov.avi'); % produces VideoTest dir 
+  %
+  %   % run on machine B
+  %   VideoTest.test1gencompare('/path/to/VideoTestDir');
+  %
+  %   % run on either machine
+  %   dmax = VideoTest.test1compare('/path/to/VideoTestDirA',...
+  %                                 '/path/to/VideoTestDirB');  
+  
   methods (Static)
     
     function outdir = test1gen(mov,varargin)
@@ -18,7 +44,8 @@ classdef VideoTest
       % - RAR frame stack
       % - Metadata: movname, matlab ver, computer, host, timestamp, readfcn
       
-      [nmax,nsamp,npass,frms,outdir,outdirparent,ISR3p,ISR3pname,dispmod,get_readframe_fcn_preload] = ...
+      [nmax,nsamp,npass,frms,outdir,outdirparent,ISR3p,ISR3pname,dispmod,...
+        get_readframe_fcn_preload] = ...
         myparse(varargin,...
         'nmax',200,... % max framenum to read up to. If supplied as empty, read from mov
         'nsamp',60,... % number of random frames to sample in 1..nmax
@@ -180,15 +207,21 @@ classdef VideoTest
         end
       end
             
+      json = txtinfo;
       fname = fullfile(outdir,'matlabres.mat');
-      save(fname,'ISR','IRAR','matinfo');
+      save(fname,'ISR','IRAR','matinfo','json');
       fprintf(1,'Wrote matinfo ''%s''\n',fname);
       
-      fname = fullfile(outdir,'info.json');
-      fh = fopen(fname,'w');
-      fprintf(fh,'%s\n',jsonencode(txtinfo));
-      fclose(fh);
-      fprintf(1,'Wrote jsoninf/groups/huston/hustonlab/flp-chrimson_experiments/fly_380_to_fly_389_12_9_16_SS02323_and_SS002323POsilenced/SS002323CsChrimson_lexA48A07Kir/fly382/C001H001S0001/VideoTest_C001H001S0001_c_GLNXA64_h11u02.int.janelia.org_R2016b_20200121T213627o ''%s''\n',fname);
+      % The json contents are duped in the matfile bc older matlabs don't 
+      % have builtin json encode/decode. Having it as a json may be useful 
+      % when not running MATLAB
+      if exist('jsonencode','builtin')>0
+        fname = fullfile(outdir,'info.json');
+        fh = fopen(fname,'w');
+        fprintf(fh,'%s\n',jsonencode(json));
+        fclose(fh);
+        fprintf(1,'Wrote jsoninfo ''%s''\n',fname);
+      end
     end
     
     function test1gencompare(testdir,varargin)
@@ -292,12 +325,15 @@ classdef VideoTest
       end
     end
     
-    function test1compare(testdir1,testdir2,varargin)
+    function dmax = test1compare(testdir1,testdir2,varargin)
       % Test comparing test dirs.
       % 
       % test1internal has compared ISR to IRAR for each of testdir1/2.
       % Here we just compare IRAR1 to IRAR2, and IRAR2 to ISR1 when IRAR2
       % doesn't match IRAR1.
+      %
+      % dmax: [nfrms] maximum absolute deviation between corresponding 
+      %   random-access-read ims
       
       plusminus = myparse(varargin,...
         'plusminus',3);
@@ -318,10 +354,13 @@ classdef VideoTest
       frms = json1.frms;
       nfrms = numel(frms);
       assert(isequal(nfrms,numel(res1.IRAR),numel(res2.IRAR)));
+      dmax = zeros(nfrms,1);
       for i=1:nfrms
         f = frms(i);
         if ~isequal(res1.IRAR{i},res2.IRAR{i})
-          fprintf(2,'read idx %d, frame %d: differs!!!!!!!!!!!!!!!!!!!!\n',i,f);
+          fprintf(2,'read idx %d, frame %d: differs!!!!\n',i,f);
+          
+          % look for frame "plusminus"
           frmsplusminus = max(1,f-plusminus):min(numel(res1.ISR),f+plusminus);
           for ff=frmsplusminus
             if isequal(res1.ISR{ff},res2.IRAR{i})
@@ -329,7 +368,11 @@ classdef VideoTest
               break;
             end
           end
+          
+          d = abs(double(res1.IRAR{i}) - double(res2.IRAR{i}));
+          dmax(i) = max(d(:));
         else
+          % dmax(i) already initted to 0
           fprintf(1,'read idx %d, frame %d: OK.\n',i,f);
         end
       end
@@ -338,9 +381,16 @@ classdef VideoTest
     
     function json = getjson(testdir)
       json = fullfile(testdir,'info.json');
-      fh = fopen(json,'r');
-      json = jsondecode(fgetl(fh));
-      fclose(fh);
+      if exist(json,'file')>0 && exist('jsondecode','builtin')>0
+        % Older VideoTest results didnt save in the matfile
+        fh = fopen(json,'r');
+        oc = onCleanup(@()fclose(fh));
+        json = jsondecode(fgetl(fh));
+      else
+        res = fullfile(testdir,'matlabres.mat');        
+        json = load(res,'json');
+        json = json.json;
+      end
     end
     
     function matvspng(testdir)
