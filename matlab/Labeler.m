@@ -9874,7 +9874,9 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
-      [setall] = myparse(varargin,'all',false);
+      [setall] = myparse(varargin,...
+        'all',false... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
+        ); 
       sPrm = APTParameters.enforceConsistency(sPrm);
 
       [tfOK,msgs] = APTParameters.checkParams(sPrm);
@@ -10463,6 +10465,8 @@ classdef Labeler < handle
     end
     
     function sPrmAll = setExtraParams(obj,sPrmAll)
+      % AL 20200409 sets .skeletonEdges and .setFliplandmarkMatches from 
+      % sPrmAll fields. no callsites currently
       
       if structisfield(sPrmAll,'ROOT.DeepTrack.OpenPose.affinity_graph'),
         skelstr = sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph;
