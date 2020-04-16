@@ -10467,6 +10467,8 @@ classdef Labeler < handle
       tfsucc = true;
     end
     
+    % See also Lbl.m for addnl stripped lbl meths
+    
     function sPrmAll = addExtraParams(obj,sPrmAll)
             
       skel = obj.skeletonEdges;
