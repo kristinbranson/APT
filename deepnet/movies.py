@@ -312,6 +312,9 @@ If initpath is a directory and not in interactive mode, it's an error."""
 
                 return frame, stamp
 
+    def get_frame_unbuffered( self, framenumber ):
+        frame, stamp = self.h_mov.get_frame( framenumber )
+        return frame, stamp
 
     def get_n_frames( self ):
         with self.file_lock:
