@@ -95,7 +95,7 @@ def save_td(cfg, train_info,name):
     if name == 'deepnet':
         train_data_file = os.path.join(cfg.cachedir, 'traindata')
     else:
-        train_data_file = os.path.join(cfg.cachedir, name + '_traindata')
+        train_data_file = os.path.join(cfg.cachedir, cfg.expname + '_' + name + '_traindata')
 
     # train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
@@ -238,7 +238,7 @@ def train(cfg,name='deepnet'):
 
         # Save snapshot
         if 'save_time' in cfg.keys() and cfg['save_time'] is not None:
-            if (time.time() - save_start) > cfg['save_time']*60:
+            if (time.time() - save_start) > cfg['save_time']*60 or it==0 or it==max_iter:
                 saver.save(sess, model_name, global_step=it,
                            latest_filename=os.path.basename(ckpt_file))
                 save_start = time.time()

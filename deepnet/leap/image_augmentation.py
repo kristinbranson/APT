@@ -117,6 +117,7 @@ class PairedImageAugmenter(Sequence):
         return len(self.batches)
     
     def __getitem__(self, batch_idx):
+        # print('Getting item, batch {}'.format(batch_idx))
         idx = self.batches[batch_idx]
         X = self.X[idx]
         Y = self.Y[idx]
@@ -126,6 +127,7 @@ class PairedImageAugmenter(Sequence):
         hmap_sigma = min(5,self.conf.label_blur_rad)
         hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
         hmaps = (hmaps+1)/2
+        # print('Got item, batch {}'.format(batch_idx))
         return X, hmaps
     
 class MultiInputOutputPairedImageAugmenter(PairedImageAugmenter):

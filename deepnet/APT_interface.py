@@ -25,7 +25,7 @@ from multiResData import float_feature, int64_feature,bytes_feature,trx_pts, che
 # from multiResData import *
 import leap.training
 from leap.training import train_apt as leap_train
-import open_pose4 as op
+import open_pose as op
 import sb1 as sb
 from deepcut.train import train as deepcut_train
 import deepcut.train
@@ -2096,8 +2096,11 @@ def train_unet(conf, args, restore,split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     tf.reset_default_graph()
-    self = PoseUNet.PoseUNet(conf, name='deepnet')
-    self.train_data_name = 'traindata'
+    self = PoseUNet.PoseUNet(conf, name=args.train_name)
+    if args.train_name == 'deepnet':
+        self.train_data_name = 'traindata'
+    else:
+        self.train_data_name = None
     self.train_unet(restore=restore)
 
 
@@ -2220,6 +2223,7 @@ def train(lblfile, nviews, name, args):
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
                 self = getattr(pose_module, module_name)(conf)
+                self.name = args.train_name
                 self.train_wrapper(restore=restore)
 
         except tf.errors.InternalError as e:

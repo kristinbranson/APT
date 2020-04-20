@@ -637,7 +637,7 @@ class PoseCommon(object):
                     if step % self.conf.save_step == 0:
                         self.save(sess, step)
                 else:
-                    if (time.time() - save_start) > self.conf.save_time*60:
+                    if ((time.time() - save_start) > self.conf.save_time*60) or step==0:
                         save_start = time.time()
                         self.save(sess, step)
 
@@ -655,11 +655,18 @@ class PoseCommon(object):
         training_iters = self.conf.dl_steps
         with tf.Session() as sess:
             start_at = self.init_restore_net(sess, do_restore=restore)
+            start = time.time()
+            save_start = start
             for step in range(start_at, training_iters + 1):
                 self.train_step(step, sess, learning_rate, training_iters)
                 self.update_and_save_td(step,sess)
-                if step % self.conf.save_step == 0:
-                    self.save(sess, step)
+                if self.conf.save_time is None:
+                    if step % self.conf.save_step == 0:
+                        self.save(sess, step)
+                else:
+                    if ((time.time() - save_start) > self.conf.save_time*60) or step==0:
+                        save_start = time.time()
+                        self.save(sess, step)
             logging.info("Optimization Finished!")
             self.save(sess, training_iters)
             self.update_and_save_td(training_iters,sess)
@@ -692,7 +699,7 @@ class PoseCommon(object):
         if self.net_name == 'deepnet':
             train_data_file = os.path.join( self.conf.cachedir,'traindata')
         else:
-            train_data_file = os.path.join( self.conf.cachedir, self.name + '_traindata')
+            train_data_file = os.path.join( self.conf.cachedir, self.conf.expname + '_' + self.name + '_traindata')
         self.save_td(train_data_file)
 
 

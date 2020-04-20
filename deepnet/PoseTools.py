@@ -498,8 +498,8 @@ def randomly_affine(img,locs, conf, group_sz=1):
             # clip scaling to 0.05
             if sfactor < 0.05:
                 sfactor = 0.05
-            dx = (np.random.rand()*2 -1)*conf.trange
-            dy = (np.random.rand()*2 -1)*conf.trange
+            dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
 
             count += 1
             if count > 5:
@@ -1277,7 +1277,7 @@ def datestr():
 def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
                run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',
                sing_image='/misc/local/singularity/branson_allen.simg',
-               precmd=''):
+               precmd='',numcores=2):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
@@ -1288,7 +1288,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
         # f.write('bjobs -uall -m `hostname -s`\n')
         f.write('. /opt/venv/bin/activate\n')
         f.write('cd {}\n'.format(run_dir))
-        f.write('numCores2use={} \n'.format(2))
+        f.write('numCores2use={} \n'.format(numcores))
         f.write('{} \n'.format(precmd))
         f.write('python {}'.format(cmd))
         f.write('\n')
@@ -1301,7 +1301,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n2 -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     with open(bsub_script,'w') as f:
         f.write(cmd)
         f.write('\n')

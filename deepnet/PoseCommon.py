@@ -352,7 +352,7 @@ class PoseCommon(object):
         elif db_type == self.DBType.Train:
             batch_out = sess.run(self.train_dequeue_op)
         else:
-            raise IOError, 'Unspecified DB Type'
+            raise IOError('Unspecified DB Type')
 
         names = [k for k,v in self.q_placeholders]
         batch = {}

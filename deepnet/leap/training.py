@@ -479,7 +479,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             if name == 'deepnet':
                 train_data_file = os.path.join( self.config.cachedir, 'traindata')
             else:
-                train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
+                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -502,12 +502,14 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     # Train!
     epoch0 = 0
     t0_train = time()
+    use_multiprocessing = False if box.shape[0] < 300 else True
+    model.save(str(os.path.join(run_path, name + '-{}'.format(0))))
     training = model.fit_generator(
             train_datagen,
             initial_epoch=epoch0,
             epochs=epochs,
             verbose=0,
-            use_multiprocessing=True,
+            use_multiprocessing=use_multiprocessing,
             workers=4,
             steps_per_epoch=batches_per_epoch,
             max_queue_size=512,
@@ -527,7 +529,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(str(os.path.join(run_path, name + '-{}'.format(conf.dl_steps))))
+    model.save(str(os.path.join(run_path, name + '-{}'.format(int(conf.dl_steps)))))
     # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
     obs.on_epoch_end(epochs)
     K.clear_session()

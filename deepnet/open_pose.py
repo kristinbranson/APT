@@ -662,8 +662,12 @@ def training(conf,name='deepnet'):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             logging.info(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, 'traindata')
-
+            # train_data_file = os.path.join( self.config.cachedir, 'traindata')
+            if name == 'deepnet':
+                train_data_file = os.path.join( self.config.cachedir, 'traindata')
+            else:
+                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
+            # train_data_file = os.path.join(self.config.cachedir,
             json_data = {}
             for x in self.train_info.keys():
                 json_data[x] = np.array(self.train_info[x]).astype(np.float64).tolist()

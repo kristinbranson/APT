@@ -1,4 +1,4 @@
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 
 import sys
 if sys.version_info.major > 2:
@@ -6,41 +6,47 @@ if sys.version_info.major > 2:
 
 ## Accuracy over time.
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
-rae.run_normal_training() #run_type = 'submit' to actually submit jobs.
+#rae.create_normal_dbs()
+rae.run_normal_training(dstr='20200410') #run_type = 'submit' to actually submit jobs.
+rae.run_normal_training(dstr='20200410',queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 import sys
 if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-rae.get_normal_results()
+rae.get_normal_results(dstr='20200410') # queue = 'gpu_tesla'
+rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 import sys
 if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('stephen')
-rae.run_normal_training() #run_type = 'submit' to actually submit jobs.
+#rae.create_normal_dbs()
+rae.run_normal_training(dstr='20200411') #run_type = 'submit' to actually submit jobs.
+rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 import sys
 if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('stephen')
-rae.get_normal_results()
+rae.get_normal_results(dstr='20200411')
+rae.get_normal_results(dstr='20200411',queue='gpu_tesla')
 
 ## Accuracy over training set size
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 import sys
 if sys.version_info.major > 2:
     from importlib import reload
@@ -50,35 +56,35 @@ rae.setup('alice')
 rae.run_incremental_training() #run_type = 'submit' to actually submit jobs.
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
 rae.get_incremental_results()
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 # rae.create_incremental_dbs()
 rae.run_incremental_training() #run_type = 'submit' to actually submit jobs.
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
-rae.get_incremental_results() #run_type = 'submit' to actually submit jobs.
+rae.get_incremental_results(dstr='20200414')
 
 
 ## Single animal vs multiple animal for Stephen
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen','')
 rae.create_run_individual_animal_dbs_stephen(run_type='status') # use run_type='submit' to redo.
 
 ## Results
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 rae.get_individual_animal_results_stephen()
@@ -88,7 +94,7 @@ rae.get_individual_animal_results_stephen()
 out_file = '/groups/branson/home/kabram/temp/stephen_single_fly_results.mat'
 from scipy import io as sio
 import multiResData
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 ss = sio.loadmat(out_file)['out']
 db =['/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/mdn/view_0/apt_expt/train_TF.tfrecords',
 '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/mdn/view_1/apt_expt/train_TF.tfrecords']
@@ -133,7 +139,7 @@ for view in range(2):
     f.tight_layout()
 
 ## deeplabcut augment vs no-augment
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
 for round in range(5):
@@ -141,7 +147,7 @@ for round in range(5):
     rae.run_dlc_augment_training() # run_type='submit'
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
 for round in range(5):
@@ -149,7 +155,7 @@ for round in range(5):
     rae.get_dlc_results()
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 for round in range(5):
@@ -157,7 +163,7 @@ for round in range(5):
     rae.run_dlc_augment_training() #run_type='submit'
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 for round in range(5):
@@ -166,7 +172,7 @@ for round in range(5):
 
 ## Whole dataset training
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
     reload(rae)
     rae.setup(data_type)
@@ -177,14 +183,16 @@ for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
 ## Brits experiments
 
 ## training
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
-    rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
+    # rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
+    rae.cv_train_from_mat(queue='gpu_tesla',dstr='20200417')
+    rae.cv_train_from_mat(dstr='20200417')
 
 ## results
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
@@ -195,13 +203,13 @@ for britnum in range(3):
 
 ## CV Training - all views
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('romain','')
 rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('romain')
 rae.get_cv_results(num_splits=6)
@@ -209,13 +217,13 @@ rae.get_cv_results(num_splits=6)
 
 
 ## Roain's expts
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('roian','')
 rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('roian')
 rae.get_cv_results(num_splits=4)
@@ -223,13 +231,13 @@ rae.get_cv_results(num_splits=4)
 
 ## Larva
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('larva','')
 rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('larva')
 rae.get_cv_results(num_splits=8)
@@ -237,13 +245,13 @@ rae.get_cv_results(num_splits=8)
 
 ## Carsen
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('carsen')
 rae.cv_train_from_mat(skip_db=True,run_type='status')
 
 ## results
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('carsen')
 rae.get_cv_results(num_splits=6)
@@ -252,7 +260,7 @@ rae.get_cv_results(num_splits=6)
 
 ## Active Learning Experiment:
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 import os
 import time
@@ -268,14 +276,14 @@ for r_round in range(15):
         time.sleep(200)
 
 ## results
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen',0)
 rae.get_active_results(num_rounds=15,view=1)
 
 
 ## Original DLC and Leap Training
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 dtypes = ['alice']#,'stephen']
 for dd in dtypes:
     reload(rae)
@@ -285,7 +293,7 @@ for dd in dtypes:
 
 
 ## Results Orig leap vs our leap
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 import sys
 if sys.version_info.major > 2:
     from importlib import reload
@@ -297,13 +305,13 @@ for dd in dtypes:
 
 
 ## Pretrained vs not training
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
 rae.train_no_pretrained()
 
 ## Pretrained vs not results
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 # reload(rae)
 rae.setup('alice')
 rae.get_no_pretrained_results()
@@ -311,14 +319,14 @@ rae.get_no_pretrained_results()
 
 ## Difficult examples
 ## Create the db
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice_difficult')
 rae.create_gt_db()
 
 ##
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 import sys
 if sys.version_info.major > 2:
     from importlib import reload
@@ -328,20 +336,20 @@ rae.get_normal_results()
 
 
 ## LEAP
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('leap_fly')
 rae.create_normal_dbs()
 rae.create_gt_db()
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('leap_fly')
 rae.run_normal_training()
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 # reload(rae)
 rae.setup('leap_fly')
 rae.get_normal_results()
@@ -353,7 +361,7 @@ import PoseTools as pt
 import multiResData
 import apt_expts
 import APT_interface as apt
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 rae.setup('leap_fly')
 view = 0
@@ -384,13 +392,13 @@ out_dict = {'leap':out_leap,'our leap':our_res[0],'leap_orig':orig_leap}
 rae.plot_hist([out_dict,ex_im,ex_loc])
 
 ## mdn with and without unet
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 rae.setup('alice')
 rae.run_mdn_no_unet()
 
 
 ##
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 rae.setup('alice')
 rae.get_mdn_no_unet_results()
 
@@ -454,7 +462,7 @@ for split_num in range(3):
 
 
 ## Original DLC and Leap Training
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 dtypes = ['alice','stephen']
 for dd in dtypes:
     reload(rae)
@@ -464,7 +472,7 @@ for dd in dtypes:
 
 
 ## Results Orig leap vs our leap
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 dtypes = ['alice','stephen']
 for dd in dtypes:
     reload(rae)
@@ -483,7 +491,7 @@ ends = [4850,3075,4025]
 ends = [s-1 for s in ends]
 
 movid = ['/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00020_CsChr_RigB_20150908T133237/movie.ufmf']
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
 for ndx in range(len(starts)):
@@ -500,7 +508,7 @@ starts = [500]
 ends = [1000]
 
 movid = 660
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 for ndx in range(len(starts)):
@@ -516,7 +524,7 @@ for ndx in range(len(starts)):
 movid = 2
 starts = [68745,104640,148094]
 n_frames = 300
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('roian')
 for ndx in range(len(starts)):
@@ -536,7 +544,7 @@ ends = [1100]
 movid = 3
 exp_name = 'cv_split_7'
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('larva')
 for ndx in range(len(starts)):
@@ -552,7 +560,7 @@ starts = [26300]
 ends = [26700]
 movid = 1
 
-import run_apt_expts as rae
+import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('romain')
 for ndx in range(len(starts)):
@@ -574,7 +582,7 @@ for britnum in range(3):
     else:
         movid = 4
 
-    import run_apt_expts as rae
+    import run_apt_expts_2 as rae
     reload(rae)
     rae.setup('brit{}'.format(britnum))
     for ndx in range(len(starts)):

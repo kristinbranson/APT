@@ -24,7 +24,7 @@ def _merge_a_into_b(a, b):
         #    raise KeyError('{} is not a valid config key'.format(k))
 
         # recursively merge dicts
-        if type(v) is edict:
+        if type(v) is edict and k != 'flipLandmarkMatches':
             try:
                 _merge_a_into_b(a[k], b[k])
             except KeyError:

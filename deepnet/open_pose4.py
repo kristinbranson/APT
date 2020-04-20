@@ -598,7 +598,8 @@ def dot(K, L):
 
 def training(conf, name='deepnet'):
 
-    base_lr = conf.op_base_lr
+    # base_lr = conf.op_base_lr
+    base_lr = conf.get('op_base_lr',4e-5) * conf.get('learning_rate_multiplier',1.)
     batch_size = conf.batch_size  # Gines 10
     gamma = conf.gamma  # Gines 1/2
     stepsize = int(conf.decay_steps)  # after each stepsize iterations update learning rate: lr=lr*gamma
@@ -743,7 +744,11 @@ def training(conf, name='deepnet'):
                     p_str += '{:s}:{:.2f} '.format(k, lastval)
             logging.info(p_str)
 
-            train_data_file = os.path.join(self.config.cachedir, 'traindata')
+            if name == 'deepnet':
+                train_data_file = os.path.join( self.config.cachedir, 'traindata')
+            else:
+                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
+            # train_data_file = os.path.join(self.config.cachedir, 'traindata')
 
             json_data = {}
             for x in self.train_info.keys():

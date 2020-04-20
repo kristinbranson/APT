@@ -1,7 +1,47 @@
-cmd = '-name 20200318T094825 -conf_params dl_steps 100 -cache /groups/branson/home/kabram/.apt/tp17f8408c_b91a_48a8_89d8_39c54aa5fa9f -type mdn /groups/branson/home/bransonk/.apt/tp7784a5ec_74be_4503_a288_4fadc2ab78e5/sh4992/20200325T160019_20200325T160107.lbl train -use_cache'
+import run_apt_expts_2 as rae
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
+reload(rae)
+rae.setup('stephen')
+rae.all_models = ['deeplabcut']
+rae.get_normal_results(dstr='20200411')
 
+##
 import APT_interface as apt
+cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl -name alice_randsplit_round_2 -cache /nrs/branson/mayank/apt_cache_2 -conf_params maxckpt 200  batch_size 8   mdn_use_unet_loss False  learning_rate_multiplier 1.0  dl_steps 100000  decay_steps 25000  save_step 5000 leap_multiprocessor False -view 1  -train_name deepnet_20200413  -type leap train -skip_db -use_cache'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 apt.main(cmd.split())
+
+
+
+##
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
+import run_apt_expts_2 as rae
+reload(rae)
+rae.setup('alice')
+#rae.create_normal_dbs()
+rae.get_normal_results(dstr='20200409',queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
+
+##
+
+##
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
+import sys
+sys.path.insert(0,'/groups/branson/home/leea30/git/dpk')
+sys.path.insert(0,'/groups/branson/home/leea30/git/imgaug')
+import run_apt_expts_2 as rae
+reload(rae)
+rae.all_models = ['mdn_unet']
+rae.setup('alice')
+rae.create_normal_dbs()
+rae.run_normal_training(run_type = 'dry') # to actually submit jobs.
+
 
 ##
 import run_apt_expts as rae
@@ -10,12 +50,6 @@ rae.setup('leap_fly')
 rae.create_gt_db()
 
 ##
-import APT_interface as apt
-cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name alice_randsplit_round_4 -cache /nrs/branson/mayank/apt_cache -conf_params use_pretrained_weights False  batch_size 8  trange 5  decay_steps 20000  save_step 4000  rrange 10  adjust_contrast False  mdn_use_unet_loss True  dl_steps 40000  normalize_img_mean False  maxckpt 20  -type mdn  -train_name no_pretrained  -view 1 train -skip_db -use_cache'
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-apt.main(cmd.split())
-
 
 ##
 import run_apt_expts as rae
