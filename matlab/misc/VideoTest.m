@@ -325,7 +325,27 @@ classdef VideoTest
       end
     end
     
-    function dmax = test1compare(testdir1,testdir2,varargin)
+    function tf = isgs(im)
+      tf = true;
+      nchan = size(im,3);
+      for ichan=2:nchan
+        if ~isequal(im(:,:,ichan),im(:,:,1))
+          tf = false;
+          break;
+        end
+      end
+    end
+    
+    function im = convGSIfNec(im)
+      tfgs = VideoTest.isgs(im);
+      if ~tfgs
+        warningNoTrace('converting to gs');
+        im = rgb2gray(im);
+      end
+    end
+    
+    function [dabsmax,imdall,im1rarall,im2rarall] = test1compare(...
+        testdir1,testdir2,varargin)
       % Test comparing test dirs.
       % 
       % test1internal has compared ISR to IRAR for each of testdir1/2.
@@ -335,16 +355,33 @@ classdef VideoTest
       % dmax: [nfrms] maximum absolute deviation between corresponding 
       %   random-access-read ims
       
-      [plusminus,plotworst] = myparse(varargin,...
+      [plusminus,plotworst,plotworstnum,plotworstfignum] = myparse(varargin,...
         'plusminus',3,...
-        'plotworst',true...
+        'plotworst',true,...
+        'plotworstnum',5,...
+        'plotworstfignum',11 ...
         );
       
       resfile1 = fullfile(testdir1,'matlabres.mat');
+      resfile2 = fullfile(testdir2,'matlabres.mat');      
+      if exist(resfile1,'file')>0
+        fprintf(1,'Found matlab results file %s.\n',resfile1);
+      else        
+        warningNoTrace('matlab results file %s dne. Creating from pngs...',...
+          resfile1);
+        VideoTest.pngs2savemat(testdir1);
+      end
+      if exist(resfile2,'file')>0
+        fprintf(1,'Found matlab results file %s.\n',resfile2);
+      else
+        warningNoTrace('matlab results file %s dne. Creating from pngs...',...
+          resfile2);
+        VideoTest.pngs2savemat(testdir2);
+      end
+      
       res1 = load(resfile1,'-mat');
       json1 = VideoTest.getjson(testdir1);
       
-      resfile2 = fullfile(testdir2,'matlabres.mat');
       res2 = load(resfile2,'-mat');
       json2 = VideoTest.getjson(testdir2);
       
@@ -356,34 +393,50 @@ classdef VideoTest
       frms = json1.frms;
       nfrms = numel(frms);
       assert(isequal(nfrms,numel(res1.IRAR),numel(res2.IRAR)));
-      dmax = zeros(nfrms,1);
+      im1rarall = cell(nfrms,1);
+      im2rarall = cell(nfrms,1);
+      imdall = cell(nfrms,1);
+      dabsmax = zeros(nfrms,1);
       for i=1:nfrms
-        f = frms(i);
-        if ~isequal(res1.IRAR{i},res2.IRAR{i})
-          fprintf(2,'read idx %d, frame %d: differs!!!!\n',i,f);
+        f = frms(i);        
+        im1rar = res1.IRAR{i};
+        im2rar = res2.IRAR{i};
+        
+        if size(im1rar,3)~=size(im2rar,3)
+          fprintf(2,'idx %d, frame %d, nchans differ!\n',i,f);
+        end
+
+        % these throw warns if nec
+        im1rar = VideoTest.convGSIfNec(im1rar);
+        im2rar = VideoTest.convGSIfNec(im2rar);
           
+        d = double(im1rar) - double(im2rar);
+        
+        im1rarall{i} = im1rar;
+        im2rarall{i} = im2rar;
+        imdall{i} = d;
+        dabsmax(i) = max(abs(d(:)));
+        
+        if ~isequal(im1rar,im2rar)
           % look for frame "plusminus"
+          fprintf(2,'read idx %d, frame %d: differs!!!!\n',i,f);          
           frmsplusminus = max(1,f-plusminus):min(numel(res1.ISR),f+plusminus);
           for ff=frmsplusminus
-            if isequal(res1.ISR{ff},res2.IRAR{i})
+            if isequal(res1.ISR{ff},im2rar)
               fprintf(2,'... found IRAR2 in ISR1 at delta=%d.\n',ff-f);
               break;
             end
-          end
-          
-          d = abs(double(res1.IRAR{i}) - double(res2.IRAR{i}));
-          dmax(i) = max(d(:));
+          end          
         else
-          % dmax(i) already initted to 0
           fprintf(1,'read idx %d, frame %d: OK.\n',i,f);
         end
       end
       
       if plotworst
-        [dmaxworst,iworst] = max(dmax);
-        VideoTest.plotdiff(res1.IRAR{iworst},res2.IRAR{iworst},...
-          'dmaxval',dmaxworst,...
-          'frame',frms(iworst));
+        VideoTest.plotdiffs(im1rarall,im2rarall,dabsmax,...
+          'nplot',plotworstnum,...
+          'fignum',plotworstfignum,...
+          'frames',frms);
       end
       fprintf(1,'Compared %d RAR frames.\n',nfrms);
     end
@@ -462,46 +515,72 @@ classdef VideoTest
       fprintf(1,'Saved %s.\n',matname);
     end
     
-    function plotdiff(im1,im2,varargin)
-      [dmaxval,frame,fignum] = myparse(varargin,...
-        'dmaxval',nan, ...
-        'frame',nan, ...
+    function hfig = plotdiffs(im1all,im2all,dabsmaxs,varargin)
+      % im1all: [nims] cell arr of image1s
+      % im2all: [nims] cell arr of image2s
+      % dabsmaxs: [nims] array of max, absolute diffs
+      %
+      
+      [nplot,frames,fignum] = myparse(varargin,...
+        'nplot',1,... % plot this many (worst K) diff ims
+        'frames',[], ... % opt, [nims] array of frames (for md/display only)
         'fignum',11 ...
         );
       
-      
-      nchan1 = size(im1,3);
-      nchan2 = size(im2,3);
-      if nchan1~=nchan2
-        fprintf(2,'Number of chans differs XXX TODO!!!!!!!'); 
+      if isempty(frames)
+        frames = nan(size(dabsmaxs));
       end
       
-      if nchan1>1
-        warningNoTrace('Converting rgb 2 grayscale for diff plot.');
-        im1 = rgb2gray(im1);
-        im2 = rgb2gray(im2);
-      end
-      
-%       im1d = double(im1);
-%       im2d = double(im2);
-      
+      assert(all(dabsmaxs>=0));
+      [~,idxall] = sort(dabsmaxs,'descend');
+            
       hfig = figure(fignum);
       clf;
-      axs = mycreatesubplots(2,2,.1);
-      axes(axs(1,1));
-      imagesc(im1);
-      colorbar
-      tstr = sprintf('frm%d. dmax=%.2f',frame,dmaxval);
-      title(tstr,'fontweight','bold');      
-      axes(axs(1,2));
-      imagesc(im2);
-      colorbar
-      linkprop(axs(1,:),'CLim');
-      axes(axs(2,1));
-      dim = double(im1)-double(im2);
-      imagesc(dim);
-      colorbar
-      title('diff img','fontweight','bold');
+      axs = mycreatesubplots(nplot+1,3,.05);
+      for iplot=1:nplot         
+        idx = idxall(iplot);
+        im1 = im1all{idx};
+        im2 = im2all{idx};
+        
+        nchan1 = size(im1,3);
+        nchan2 = size(im2,3);
+        if nchan1~=nchan2
+          fprintf(2,'Number of chans differs (%d vs %d)!',nchan1,nchan2);
+        end
+        if nchan1>1
+          warningNoTrace('Converting im1 to grayscale for diff plot.');
+          im1 = rgb2gray(im1);
+        end
+        if nchan2>1
+          warningNoTrace('Converting im2 to grayscale for diff plot.');
+          im2 = rgb2gray(im2);
+        end
+        
+        axes(axs(iplot,1));
+        imagesc(im1);
+        colorbar
+        tstr = sprintf('frm%d. dabsmax=%.2f',frames(idx),dabsmaxs(idx));
+        title(tstr,'fontweight','bold');      
+        
+        axes(axs(iplot,2));
+        imagesc(im2);
+        colorbar
+        linkprop(axs(iplot,1:2),'CLim');
+        
+        axes(axs(iplot,3));
+        dim = double(im1)-double(im2);
+        imagesc(dim);
+        colorbar
+        title('diff img','fontweight','bold');
+        set(gca,'Tag','diffim');
+      end
+
+      axes(axs(nplot+1,2));
+      nall = numel(dabsmaxs);
+      histogram(dabsmaxs);
+      xlabel('dabsmax','fontweight','bold');
+      tstr = sprintf('all dabsmaxs (n=%d)',nall);
+      title(tstr,'fontweight','bold');
     end
     
   end
