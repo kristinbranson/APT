@@ -47,13 +47,18 @@ for i in range(1,nargs,2):
     elif ty=='nfrmtracked':
         if os.path.exists(file):
             mat = h5py.File(file,'r')
-            pTrk = mat['pTrk'].value
+            if 'pTrk' in mat.keys():
+                f = 'pTrk'
+            elif 'pred_locs' in mat.keys():
+                f = 'pred_locs'
+            else:
+                val = 'DNE'
+                return
+            pTrk = mat[f].value
             if pTrk.ndim==4:
                 val = str(np.count_nonzero(~np.isnan(pTrk[:,:,0,0])))
             else:
                 val = str(np.count_nonzero(~np.isnan(pTrk[:,0,0])))
-        else:
-            val = 'DNE'
     elif ty=='mostrecentmodel':
         # file is dir containing models
 

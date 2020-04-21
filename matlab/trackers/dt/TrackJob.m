@@ -529,6 +529,11 @@ classdef TrackJob < handle
       end
 
       nmovset = obj.nmovsettrk;
+      if ~obj.isContiguous,
+        nframestrack = size(obj.tMFTConc,1);
+        obj.nframestrack = nframestrack;
+        return;
+      end
       
       % get/compute frm0 (scalar) and frm1 ([nmovset])
       if isempty(obj.frm0) && isempty(obj.frm1),
@@ -579,6 +584,10 @@ classdef TrackJob < handle
       if obj.tftrx,
         baseargsaug = [baseargsaug {'trxtrk' obj.trxfileRem 'trxids' obj.trxids}]; 
       end
+      if ~obj.isContiguous,
+        baseargsaug = [baseargsaug {'listfile' obj.listfileRem}]; 
+      end
+        
       
       
     end
@@ -604,7 +613,7 @@ classdef TrackJob < handle
       i = obj.ivw; 
       trnstr0 = obj.trnstr{i};
       obj.listfilestr = [ 'TrackList_' trnstr0 '_' obj.nowstr '.json'];
-      obj.listfileLcl = fullfile(obj.rootdirLcl{i},obj.listfilestr{i});      
+      obj.listfileLcl = fullfile(obj.rootdirLcl,obj.listfilestr);
     end
     
     function createLocalListFile(obj)
@@ -626,48 +635,13 @@ classdef TrackJob < handle
       %     ]
       % }
       
-      assert(~obj.isContiguous);
-      obj.setDefaultLocalListFile();
-      listinfo = struct;
-      listinfo.movieFiles = obj.movfileRem;
       if obj.tftrx,
-        listinfo.trxFiles = obj.trxfileRem;
+        args = {'trxFiles',obj.trxfileRem};
       else
-        listinfo.trxFiles = {};
+        args = {};
       end
-
-      % which movie index does each row correspond to?
-      [ism,idxm] = ismember(obj.tMFTConc.mov,obj.movfileLcl);
-      assert(all(ism));
-     
-      listinfo.toTrack = cell(0,1);
-      for mi = 1:numel(obj.movfileRem),
-        idx1 = find(idxm==mi);
-        if isempty(idx1),
-          continue;
-        end
-        [t,~,idxt] = unique(obj.tMFTConc.iTgt(idx1));
-        for ti = 1:numel(t),
-          idx2 = idxt==ti;
-          idxcurr = idx1(idx2);
-          f = unique(obj.tMFTConc.frm(idxcurr));
-          df = diff(f);
-          istart = [1;find(df~=1)+1];
-          iend = [istart(2:end)-1;numel(f)];
-          for i = 1:numel(istart),
-            if istart(i) == iend(i),
-              fcurr = f(istart(i));
-            else
-              fcurr = [f(istart(i)),f(iend(i))+1];
-            end
-            listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
-          end
-        end
-      end
-
-      fid = fopen(obj.listfileLcl,'w');
-      fprintf(fid,jsonencode(listinfo));
-      fclose(fid);
+      DeepTracker.trackWriteListFile(...
+        obj.movfileRem,obj.movfileLcl,obj.tMFTConc,obj.listfileLcl,args{:});
       
     end
     
@@ -798,6 +772,7 @@ classdef TrackJob < handle
           obj.trkfileRem{i} = [obj.trkoutdirRem{i} '/' trkRemoteRel];
           
         end
+        obj.listfileRem = [obj.dmcRem.dirModelChainLnx '/' obj.listfilestr];
       end
       
     end

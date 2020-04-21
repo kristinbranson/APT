@@ -4580,7 +4580,7 @@ classdef DeepTracker < LabelTracker
         errfile,nettype,view,listfile,varargin)
       % view: 1-based
       
-      [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
+      [deepnetroot,model_file,fs,filequote] = myparse_nocheck(varargin,...
         'deepnetroot',APT.getpathdl,...
         'model_file',[],... 
         'filesep','/',...
@@ -4646,6 +4646,7 @@ classdef DeepTracker < LabelTracker
       
       codestr = String.cellstr2DelimList(code,' ');
     end
+    
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,... % either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
         outtrk,... % either char of [nviewx1] cellstr; or [nmov] in "serial mode"
@@ -4660,9 +4661,10 @@ classdef DeepTracker < LabelTracker
       % - croproi is unsupplied, or [xlo1 xhi1 ylo1 yhi1 xlo2 ... yhi_nmov] or row vec of [4*nmov]
       % - model_file is unsupplied, or [1] cellstr, or [nmov] cellstr      
       
-      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
+      [listfile,cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
         updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,tfserialmode] = ...
-        myparse(varargin,...
+        myparse_nocheck(varargin,...
+        'listfile','',...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trxfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
@@ -4681,10 +4683,11 @@ classdef DeepTracker < LabelTracker
         'serialmode', false ...  % see serialmode above
         );
      
-      tffrm = ~isempty(frm0) && ~isempty(frm1);
+      tflistfile = ~isempty(listfile);
+      tffrm = ~tflistfile && ~isempty(frm0) && ~isempty(frm1);
       tfcache = ~isempty(cache);
-      tftrx = ~isempty(trxtrk);
-      tftrxids = ~isempty(trxids);
+      tftrx = ~tflistfile && ~isempty(trxtrk);
+      tftrxids = ~tflistfile && ~isempty(trxids);
       tfview = ~isempty(view);
       tfcrop = ~isempty(croproi);
       tfmodel = ~isempty(model_file);
@@ -4781,8 +4784,12 @@ classdef DeepTracker < LabelTracker
       codestr = [codestr {'-type' char(nettype) ...
                           [filequote dllbl filequote] ...
                           'track' ...
-                          '-mov' DeepTracker.cellstr2SpaceDelimWithQuote(movtrk,filequote) ...
                           '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
+      if tflistfile
+        codestr = [codestr {'-list_file' [filequote listfile filequote]}];
+      else
+        codestr = [codestr {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(movtrk,filequote)}];
+      end
       if tffrm
         codestr = [codestr {'-start_frame' num2str(frm0) '-end_frame' num2str(frm1)}];
       end
@@ -4807,6 +4814,49 @@ classdef DeepTracker < LabelTracker
       end
       
       codestr = String.cellstr2DelimList(codestr,' ');
+    end
+    
+    function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
+      
+      [trxfileRem] = myparse(varargin,'trxFiles',{});
+      
+      listinfo = struct;
+      listinfo.movieFiles = movfileRem;
+      listinfo.trxFiles = trxfileRem;
+
+      % which movie index does each row correspond to?
+      [ism,idxm] = ismember(tMFTConc.mov,movfileLcl);
+      assert(all(ism));
+     
+      listinfo.toTrack = cell(0,1);
+      for mi = 1:numel(movfileRem),
+        idx1 = find(idxm==mi);
+        if isempty(idx1),
+          continue;
+        end
+        [t,~,idxt] = unique(tMFTConc.iTgt(idx1));
+        for ti = 1:numel(t),
+          idx2 = idxt==ti;
+          idxcurr = idx1(idx2);
+          f = unique(tMFTConc.frm(idxcurr));
+          df = diff(f);
+          istart = [1;find(df~=1)+1];
+          iend = [istart(2:end)-1;numel(f)];
+          for i = 1:numel(istart),
+            if istart(i) == iend(i),
+              fcurr = f(istart(i));
+            else
+              fcurr = [f(istart(i)),f(iend(i))+1];
+            end
+            listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
+          end
+        end
+      end
+
+      fid = fopen(listfileLcl,'w');
+      fprintf(fid,jsonencode(listinfo));
+      fclose(fid);
+      
     end
     
     function codestr = dataAugCodeGenSSHBsubSing(ID,dllbl,cache,errfile,netType,outfile,varargin)
@@ -5259,6 +5309,7 @@ classdef DeepTracker < LabelTracker
       tfHasRes = false(nMov,1);
       for i=1:nMov
         trkfilesI = obj.trackResGetTrkfiles(mIdx(i));
+        movfile = obj.lObj.getMovieFilesAllFullMovIdx(mIdx(i));
         ntrk = size(trkfilesI,1);
         
         if ntrk==0
@@ -5269,7 +5320,7 @@ classdef DeepTracker < LabelTracker
           warningNoTrace('Merging tracking results from %d poseTF trkfiles.\n',ntrk);
         end        
         for ivw=1:nView
-          [trkfilesIobj,tfsuccload] = cellfun(@DeepTracker.hlpLoadTrk,...
+          [trkfilesIobj,tfsuccload] = cellfun(@(f) DeepTracker.hlpLoadTrk(f,'movfile',movfile{ivw}),...
             trkfilesI(:,ivw),'uni',0);
           tfsuccload = cell2mat(tfsuccload);
           trkfilesIobj = trkfilesIobj(tfsuccload);
@@ -5404,15 +5455,16 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static)
     function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
-      [rawload] = myparse(varargin,...
-        'rawload',false...
+      [rawload,movfile] = myparse(varargin,...
+        'rawload',false,...
+        'movfile',''...
         );
             
       try
         if rawload
           trkfileObj = load(tfile,'-mat');
         else
-          trkfileObj = TrkFile.loadsilent(tfile);
+          trkfileObj = TrkFile.loadsilent(tfile,movfile);
         end
         tfsuccload = true;
       catch ME

@@ -41,8 +41,10 @@ import cv2
 import re
 from scipy import io as sio
 import heatmap
+import time # for timing between writing n frames tracked
 
 ISPY3 = sys.version_info >= (3, 0)
+N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
@@ -1182,7 +1184,7 @@ def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):
         crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
 
 
-def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc):
+def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_file=None):
     '''
 
     :param conf:
@@ -1190,7 +1192,9 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc):
     :param cap: Movie object/instance
     :param to_do_list: list of [frm,tgt] sublists (both 0-based) for given movie
     :param trx: trx structure eg first output arg of get_trx_info
-    :param crop_loc:
+    :param crop_loc: crop information
+    :param n_done: Number of frames that have been tracked from the list before this call to classify_list. Default = 0.
+    :param part_file: File to output number of frames tracked to. If None, number of frames tracked not output. Default = None.
     :return: dict of results. locs are in original coords (independent of crop/roi), but 0based
     '''
 
@@ -1200,6 +1204,12 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc):
     n_batches = int(math.ceil(float(n_list) / bsize))
 
     ret_dict = {}
+
+    # if part_file is specified, output count of number of frames tracked 
+    # (n_done) to part_file every N_TRACKED_WRITE_INTERVAL_SEC seconds
+    do_write_n_done = part_file is not None
+    if do_write_n_done:
+        start_time = time.time()
 
     for cur_b in range(n_batches):
         cur_start = cur_b * bsize
@@ -1238,9 +1248,27 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc):
                 else:
                     logging.info("Ignoring return value '{}' with shape {}".format(k, retval.shape))
                     #assert False, "Unexpected number of dims in return val"
-
+        # update count of frames tracked
+        n_done += nrows_pred
+        if do_write_n_done:
+            curr_time = time.time()
+            elapsed_time = curr_time - start_time
+            if elapsed_time >= N_TRACKED_WRITE_INTERVAL_SEC:
+                # output n frames tracked to file
+                write_n_tracked_part_file(n_done,part_file)
+                start_time = curr_time
+            
     return ret_dict
 
+def write_n_tracked_part_file(n_done,part_file):
+    '''
+    write_n_tracked_part_file(n_done,part_file)
+    Output to file part_file the number n_done a string. 
+    This is used for communicating progress of tracking to other processes.
+    '''
+    with open(part_file, 'w') as fh:
+        fh.write("{}".format(n_done))
+    
 
 def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
     ''' Returns prediction functions and close functions for different network types
@@ -1338,6 +1366,8 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
     ret_dict_all['crop_locs'][:] = np.nan
 
     logging.info('Tracking {} rows...'.format(nlist))
+    n_done = 0
+    start_time = time.time()
     for ndx, dir_name in enumerate(local_dirs):
 
         cur_list = [[l[1], l[2]] for l in in_list if l[0] == ndx]
@@ -1358,7 +1388,7 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
             exit(1)
 
         trx, _, _, _ = get_trx_info(trx_files[ndx], conf, 0)
-        ret_dict = classify_list(conf, pred_fn, cap, cur_list, trx, crop_loc)
+        ret_dict = classify_list(conf, pred_fn, cap, cur_list, trx, crop_loc, n_done=n_done, part_file=part_file)
 
         n_cur_list = len(cur_list)  # len of cur_idx; num of rows being processed for curr mov
         for k in ret_dict.keys():
@@ -1381,10 +1411,9 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
         n_done = len([1 for i in in_list if i[0]<=ndx])
         logging.info('Done prediction on {} out of {} GT labeled frames'.format(n_done,len(in_list)))
         if part_file is not None:
-            with open(part_file, 'w') as fh:
-                fh.write("{}".format(n_done))
+            write_n_tracked_part_file(n_done,part_file)
 
-    logging.info('Done prediction on all GT frames')
+    logging.info('Done prediction on all frames')
     lbl.close()
     close_fn()
     return ret_dict_all
@@ -1604,6 +1633,7 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
     success = False
     pred_locs = None
     list_fp = open(list_file,'r')
+    part_file = out_file + '.part' # following classify_movie naming
 
     if not os.path.isfile(list_file):
         print('File %s does not exist'%list_file)
@@ -1613,11 +1643,11 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
 
     # minimal checks
     if 'movieFiles' not in toTrack:
-        print('movieFiles not defined in json file %s'%list_file)
+        logging.exception('movieFiles not defined in json file %s'%list_file)
         return success, pred_locs
     nMovies = len(toTrack['movieFiles'])
     if 'toTrack' not in toTrack:
-        print('toTrack list not defined in json file %s'%list_file)
+        logging.exception('toTrack list not defined in json file %s'%list_file)
         return success, pred_locs
 
     hasTrx = 'trxFiles' in toTrack
@@ -1625,7 +1655,7 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
     if hasTrx:
         nTrx = len(toTrack['trxFiles'])
         if nTrx != nMovies:
-            print('Numbers of movies and trx files do not match')
+            logging.exception('Numbers of movies and trx files do not match')
             return success, pred_locs
         trxFiles = toTrack['trxFiles']
     hasCrops = 'cropLocs' in toTrack
@@ -1633,7 +1663,7 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
     if hasCrops:
         nCrops = len(toTrack['cropLocs'])
         if nCrops != nMovies:
-            print('Number of movie files and cropLocs do not match')
+            logging.exception('Number of movie files and cropLocs do not match')
             return success, pred_locs
         cropLocs = toTrack['cropLocs']
 
@@ -1645,20 +1675,20 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
         tgt = toTrack['toTrack'][i][1]
         frm = toTrack['toTrack'][i][2]
         if mov <= 0 or mov > nMovies:
-            print('toTrack[%d] has out of range movie index %d'%(i,mov))
+            logging.exception('toTrack[%d] has out of range movie index %d'%(i,mov))
             return success, pred_locs
         if tgt <= 0:
-            print('toTrack[%d] has out of range target index %d'%(i,tgt))
+            logging.exception('toTrack[%d] has out of range target index %d'%(i,tgt))
             return success, pred_locs
         if isinstance(frm,int) and frm <= 0:
-            print('toTrack[%d] has out of range frame index %d'%(i,frm))
+            logging.exception('toTrack[%d] has out of range frame index %d'%(i,frm))
             return success, pred_locs
 
         if isinstance(frm,int):
             cur_list.append([mov-1,frm-1,tgt-1])
         elif isinstance(frm,list):
             assert len(frm)==2, 'Invalid frame specification in toTrack[%d]'%(i)
-            print('toTrack[%d] has frm-range specification [%d,%d]. Adding %d frames'%(i,frm[0],frm[1],frm[1]-frm[0]))
+            logging.warning('toTrack[%d] has frm-range specification [%d,%d]. Adding %d frames'%(i,frm[0],frm[1],frm[1]-frm[0]))
             for frmreal in range(frm[0],frm[1]):
                 cur_list.append([mov-1,frmreal-1,tgt-1])
         else:
@@ -1669,14 +1699,33 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
                                      model_file=model_file,
                                      movie_files=toTrack['movieFiles'],
                                      trx_files=trxFiles,
-                                     crop_locs=cropLocs)
+                                     crop_locs=cropLocs,
+                                     part_file=part_file)
+    # print('ret_dict_all.keys' + str(ret_dict_all.keys()))
 
+    # this is copy-pasted from write_trk --
+    # should probably merge these functions at some point
+    ts_shape = ret_dict_all['locs'].shape[:-1]
+    ts = np.ones(ts_shape) * datetime2matlabdn()  # time stamp
+    tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+    
     to_mat_all_locs_in_dict(ret_dict_all)
-    savemat_with_catch_and_pickle(out_file, {'pred_locs': ret_dict_all['locs'],
-                                             'pred_conf': ret_dict_all['conf'],
-                                             'list_file': list_file})
-
-    success = True
+    # output to a temporary file and then rename. 
+    # this is because existence of out_file is a flag that tracking is done
+    # and file might still be being written when file is discovered
+    out_file_tmp = out_file + '.tmp'
+    savemat_with_catch_and_pickle(out_file_tmp, {'pred_locs': ret_dict_all['locs'],
+                                                 'pred_conf': ret_dict_all['conf'],
+                                                 'pred_ts': ts,
+                                                 'pred_tag': tag,
+                                                 'list_file': list_file,
+                                                 'to_track': toTrack   })
+    if os.path.exists(out_file_tmp):
+        os.rename(out_file_tmp,out_file)
+        success = True
+    else:
+        logging.exception("Did not successfully write output to %s"%out_file_tmp)
+        success = False
 
     return success, pred_locs
 
@@ -1774,7 +1823,15 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
             tmp = to_mat(tmp)
         out_dict['pTrk' + k] = tmp
 
-    savemat_with_catch_and_pickle(out_file, out_dict)
+    # output to a temporary file and then rename to real file name.
+    # this is because existence of trk file is a flag that tracking is done for
+    # other processes, and writing may still be in progress when file discovered.
+    out_file_tmp = out_file + '.tmp'
+    savemat_with_catch_and_pickle(out_file_tmp, out_dict)
+    if os.path.exists(out_file_tmp):
+        os.rename(out_file_tmp,out_file)
+    else:
+        logging.exception("Did not successfully write output to %s"%out_file_tmp)
 
 def classify_movie(conf, pred_fn,
                    mov_file='',
