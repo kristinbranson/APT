@@ -3357,10 +3357,8 @@ tObj.showVizReplicates = vsrnew;
 
 function cbkLabels2HideChanged(src,evt)
 lObj = evt.AffectedObject;
-if isempty(lObj.tracker)
-  handles = lObj.gdata;
-  handles.menu_view_hide_predictions.Checked = onIff(lObj.labels2Hide);
-end
+handles = lObj.gdata;
+handles.menu_view_hide_imported_predictions.Checked = onIff(lObj.labels2Hide);
 
 % when trackerInfo is updated, update the tracker info text in the main APT window
 function cbkTrackerInfoChanged(src,evt)

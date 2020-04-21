@@ -283,34 +283,13 @@ classdef DeepTracker < LabelTracker
   end
   
   %% Params
-  methods
+  methods (Static)
     
-    % AL 20190415. Note on DeepTrack.Saving.CacheDir
-    % Currently nothing never refers to
-    % DeepTrackerObj.sPrmAll.Saving.CacheDir. Instead, only lObj.DLCacheDir
-    % and DeepTrackerObj.trnLastDMC(iview).rootDir are used. 
-    %
-    % - (re)train time: DeepTrackerObj uses lObj.DLCacheDir and sets 
-    % .trnLastDMC(:).rootDir to this location.
-    % - track time: currently we assert that lObj.DLCacheDir matches the
-    % .rootDir of any local DMCs to be used
-    
-    function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-        didParamsChange(obj,sPrmAll) % obj const
-      
-      tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
-      tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
-      tfPreProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
-      tfPostProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
-      
-      sOldSpecific = obj.sPrm;
-      netType = obj.trnNetType.prettyString;
-      sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
-      tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
-    end
-    
-    function sPrmAll = massageParamsIfNec(obj,sPrmAll,varargin)
+    function sPrmAll = massageParamsIfNecStc(net,sPrmAll,varargin)
       % net-specific parameter treatments
+      %
+      % net: DLNetType
+      %
       % Openpose currently requires particular constraints between
       % parameters that are not required for other DL trackers. Current
       % treatment is
@@ -329,7 +308,7 @@ classdef DeepTracker < LabelTracker
         'throwwarnings',true...
         );
       
-      net = obj.trnNetType;
+      %net = obj.trnNetType;
       switch net
         case {DLNetType.openpose DLNetType.leap}
           dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
@@ -374,6 +353,38 @@ classdef DeepTracker < LabelTracker
         otherwise
           % none
       end
+    end
+    
+  end
+  methods
+    
+    % AL 20190415. Note on DeepTrack.Saving.CacheDir
+    % Currently nothing never refers to
+    % DeepTrackerObj.sPrmAll.Saving.CacheDir. Instead, only lObj.DLCacheDir
+    % and DeepTrackerObj.trnLastDMC(iview).rootDir are used. 
+    %
+    % - (re)train time: DeepTrackerObj uses lObj.DLCacheDir and sets 
+    % .trnLastDMC(:).rootDir to this location.
+    % - track time: currently we assert that lObj.DLCacheDir matches the
+    % .rootDir of any local DMCs to be used
+    
+    function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+        didParamsChange(obj,sPrmAll) % obj const
+      
+      tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
+      tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
+      tfPreProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      tfPostProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
+      
+      sOldSpecific = obj.sPrm;
+      netType = obj.trnNetType.prettyString;
+      sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
+      tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
+    end
+      
+    function sPrmAll = massageParamsIfNec(obj,sPrmAll,varargin) % obj const
+      net = obj.trnNetType;
+      sPrmAll = DeepTracker.massageParamsIfNecStc(net,sPrmAll,varargin{:});
     end
       
     function setAllParams(obj,sPrmAll)

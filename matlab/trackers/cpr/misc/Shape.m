@@ -1022,6 +1022,7 @@ classdef Shape
       opts.idxs = [];
       opts.framelbls = [];
       opts.framelblscolor = [1 1 1];
+      opts.framelblsbgcolor = [0 0 0];
       opts.labelpts = false;
       opts.labelptsdx = 10;
       opts.labelptsargs = {'fontweight' 'bold'};
@@ -1189,7 +1190,9 @@ classdef Shape
           %iIm = iPlot(iPlt);
           if tfFrameLbls
             h = text( imnc/15+imnc*(iCol-1),imnr/15+imnr*(iRow-1), opts.framelbls{iPlt} );
-            h.Color = opts.framelblscolor;
+            set(h,...
+              'Color',opts.framelblscolor,...
+              'BackgroundColor',opts.framelblsbgcolor);
           end
           if tfROI
             posn = bigROIRectPosn(iPlt,:);
