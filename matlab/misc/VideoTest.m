@@ -472,6 +472,69 @@ classdef VideoTest
       fprintf(1,'Compared %d %s frames.\n',nfrms,typestr);
     end
     
+    function [dpairs,ims,frmstest,pairs] = test2sr(tdirs,varargin)
+      % Compare seq reads across testdirs
+      %
+      % tdirs: cellstr of testdirs (2+)
+      %
+      % dpairs: [nfrmtest x ntdir-choose-2] max abs diff in im
+      % ims: [nfrmtest x ntdir] cell arr of ims
+      % frmstest: [nfrmtest] row labels for d
+      % pairs: [ntdir-choose-2 x 2] indices into tdirs specifying pairwise comparisons
+      
+      nfrmtest = myparse(varargin,...
+        'nfrmtest',10 ...
+        );
+      
+      ntdirs = numel(tdirs);
+      
+      jsons = cellfun(@VideoTest.getjson,tdirs,'uni',0);
+      nmaxused = cellfun(@(x)x.nmaxused,jsons);
+      assert(all(nmaxused==nmaxused(1)));
+      nmaxused = nmaxused(1);
+      
+      fprintf(1,'%d test dirs; nmaxused=%d.\n',ntdirs,nmaxused);
+      
+      frmstest = randsample(nmaxused,nfrmtest);
+      frmstest = [frmstest(:)' 1 nmaxused];
+      frmstest = unique(frmstest);
+      nfrmtest = numel(frmstest);
+      
+      % init
+      npairs = nchoosek(ntdirs,2);
+      dpairs = nan(nfrmtest,npairs);
+      ims = cell(nfrmtest,ntdirs);
+      frmstest = frmstest(:);
+      pairs = nan(npairs,2); 
+      
+      for ifrmtest=1:nfrmtest
+        f = frmstest(ifrmtest);
+        for itdir=1:ntdirs
+          tdir = tdirs{itdir};
+          srname = sprintf('sr_%06d.png',f);
+          srname = fullfile(tdir,srname);
+          im = imread(srname);
+          im = VideoTest.convGSIfNec(im);
+          ims{ifrmtest,itdir} = im;
+        end
+
+        c = 1;
+        for i=1:ntdirs
+        for j=i+1:ntdirs
+          if ifrmtest==1
+            pairs(c,:) = [i j];
+          end
+          im1 = ims{ifrmtest,i};
+          im2 = ims{ifrmtest,j};
+          dim = double(im1)-double(im2);
+          dabsmax = max(abs(dim(:)));
+          dpairs(ifrmtest,c) = dabsmax;
+          c = c+1;
+        end
+        end
+      end
+    end
+    
     function json = getjson(testdir)
       json = fullfile(testdir,'info.json');
       if exist(json,'file')>0 && exist('jsondecode','builtin')>0
