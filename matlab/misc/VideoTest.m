@@ -44,7 +44,7 @@ classdef VideoTest
       % - RAR frame stack
       % - Metadata: movname, matlab ver, computer, host, timestamp, readfcn
       
-      [nmax,nsamp,npass,frms,outdir,outdirparent,ISR3p,ISR3pname,dispmod,...
+      [nmax,nsamp,npass,frms,outdir,outdirID,outdirparent,ISR3p,ISR3pname,dispmod,...
         get_readframe_fcn_preload] = ...
         myparse(varargin,...
         'nmax',200,... % max framenum to read up to. If supplied as empty, read from mov
@@ -52,6 +52,7 @@ classdef VideoTest
         'npass',3,... % each frame in nsamp will be read 3 times
         'frms',[],... % random-access frames. all must be less than nmax. if supplied, supercedes nsamp/npass
         'outdir',[],... % optional, filesys location to put output
+        'outdirID',[],... % optional, keyword/id for auto-gen outdir
         'outdirparent',[],... % optional, parent dir for default outdir
         'ISR3p',[],... % optional, externally-generated ISR for comparison.
         'ISR3pname','',... % optional, name for display
@@ -114,6 +115,9 @@ classdef VideoTest
         end
         outdir = fullfile(outdirparent,sprintf('VideoTest_%s_%s_%s_%s_%s',...
           movF,matinfo.computer,txtinfo.host,release,txtinfo.nowstr));
+        if ~isempty(outdirID)
+          outdir = sprintf('%s_%s',outdir,outdirID);
+        end
       end
       
       % read SR
@@ -247,26 +251,10 @@ classdef VideoTest
         test1genargs{:});
     end
     
-    function isconsistent = test1internal(testdir,varargin)
-      % Test for internal consistency
+    function checkPrintImgMetadata(imCell)
+      % imCell: cell arr of ims
       
-      plusminus = myparse(varargin,...
-        'plusminus',3);
-      
-      resfile = fullfile(testdir,'matlabres.mat');
-      load(resfile,'-mat');
-      json = VideoTest.getjson(testdir);
-      
-      ICOMB = [ISR;IRAR];
-      
-      tfempty = cellfun(@isempty,ICOMB);
-      if any(tfempty)
-        fprintf(2,'Failed reads: %d frames\n',nnz(tfempty));
-      end
-      
-      ICOMBNE = ICOMB(~tfempty);
-      
-      cls = cellfun(@class,ICOMBNE,'uni',0);
+      cls = cellfun(@class,imCell,'uni',0);
       cls = unique(cls);
       if isscalar(cls)
         fprintf(1,'img class: %s\n',cls{1});
@@ -275,7 +263,7 @@ classdef VideoTest
           String.cellstr2CommaSepList(cls));
       end
       
-      chan = cellfun(@(x)size(x,3),ICOMBNE);
+      chan = cellfun(@(x)size(x,3),imCell);
       chanUn = unique(chan);
       if isscalar(chanUn)
         fprintf(1,'num chans: %d\n',chanUn);
@@ -284,7 +272,7 @@ classdef VideoTest
       end
       
       if isequal(chanUn,3)
-        tfgray = cellfun(@(x)isequal(x(:,:,1),x(:,:,2),x(:,:,3)),ICOMBNE);
+        tfgray = cellfun(@(x)isequal(x(:,:,1),x(:,:,2),x(:,:,3)),imCell);
         if all(tfgray)
           fprintf(1,'All ims grayscale.\n');
         elseif ~any(tfgray)
@@ -293,10 +281,30 @@ classdef VideoTest
           fprintf(2,'Grayscale/nongrayscale mix.\n');
         end
       end
+    end
+    
+    function isconsistent = test1internal(testdir,varargin)
+      % Test for internal consistency
+      
+      plusminus = myparse(varargin,...
+        'plusminus',3);
+      
+      [res,json] = VideoTest.loadMatlabResAndJson(testdir);
+      
+      ICOMB = [res.ISR;res.IRAR];
+      
+      tfempty = cellfun(@isempty,ICOMB);
+      if any(tfempty)
+        fprintf(2,'Failed reads: %d frames\n',nnz(tfempty));
+      end
+      
+      ICOMBNE = ICOMB(~tfempty);
+      
+      VideoTest.checkPrintImgMetadata(ICOMBNE);
       
       frms = json.frms;
       nfrms = numel(frms);
-      assert(nfrms==numel(IRAR));
+      assert(nfrms==numel(res.IRAR));
       frmsUn = unique(frms);
       nfrmsUn = numel(frmsUn);
       fprintf(1,'%d frames sampled.\n',nfrmsUn);
@@ -304,16 +312,16 @@ classdef VideoTest
       for i=1:nfrmsUn
         f = frmsUn(i);
         irar = frms==f;
-        imrar = IRAR(irar);
-        if ~isequal(imrar{:})
+        imrar = res.IRAR(irar);
+        if numel(imrar)>1 && ~isequal(imrar{:})
           fprintf(2,'Frame %d, inconsistent within-RAR.\n',f);
-        elseif f>numel(ISR)
+        elseif f>numel(res.ISR)
           fprintf(2,'Frame %d, beyond end of maxframe (SR)\n',f);
-        elseif ~isequal(ISR{f},imrar{1})
+        elseif ~isequal(res.ISR{f},imrar{1})
           fprintf(2,'Frame %d, inconsistent RAR vs SR.\n',f);
-          frmsplusminus = max(1,f-plusminus):min(numel(ISR),f+plusminus);
+          frmsplusminus = max(1,f-plusminus):min(numel(res.ISR),f+plusminus);
           for ff=frmsplusminus
-            if isequal(ISR{ff},imrar{1})
+            if isequal(res.ISR{ff},imrar{1})
               fprintf(2,'... found it at delta=%d.\n',ff-f);
               break;
             end
@@ -326,6 +334,8 @@ classdef VideoTest
     end
     
     function tf = isgs(im)
+      % Returns true for single-chan ims or multi-chan ims where all chans
+      % identical
       tf = true;
       nchan = size(im,3);
       for ichan=2:nchan
@@ -338,13 +348,32 @@ classdef VideoTest
     
     function im = convGSIfNec(im)
       tfgs = VideoTest.isgs(im);
-      if ~tfgs
-        warningNoTrace('converting to gs');
+      nchan = size(im,3);
+      if tfgs 
+        if nchan>1
+          im = im(:,:,1);
+        end
+      else 
+        warningNoTrace('VideoTest:convertgs','converting to gs with rgb2gray');
         im = rgb2gray(im);
       end
     end
     
-    function [dabsmax,imdall,im1rarall,im2rarall] = test1compare(...
+    function [res,json] = loadMatlabResAndJson(testdir)
+      resfile = fullfile(testdir,'matlabres.mat');
+      if exist(resfile,'file')>0
+        fprintf(1,'Found matlab results file %s.\n',resfile);
+      else
+        warningNoTrace('matlab results file %s dne. Creating from pngs...',...
+          resfile);
+        VideoTest.pngs2savemat(testdir);
+      end
+      
+      res = load(resfile,'-mat');
+      json = VideoTest.getjson(testdir);      
+    end
+    
+    function [dabsmax,imdall,im1all,im2all] = test1compare(...
         testdir1,testdir2,varargin)
       % Test comparing test dirs.
       % 
@@ -355,75 +384,77 @@ classdef VideoTest
       % dmax: [nfrms] maximum absolute deviation between corresponding 
       %   random-access-read ims
       
-      [plusminus,plotworst,plotworstnum,plotworstfignum] = myparse(varargin,...
+      [cmpSR,plusminus,plotworst,plotworstnum,plotworstfignum] = myparse(varargin,...
+        'cmpSR',false,... % if true, compare SR images rather than RAR
         'plusminus',3,...
         'plotworst',true,...
         'plotworstnum',5,...
         'plotworstfignum',11 ...
         );
       
-      resfile1 = fullfile(testdir1,'matlabres.mat');
-      resfile2 = fullfile(testdir2,'matlabres.mat');      
-      if exist(resfile1,'file')>0
-        fprintf(1,'Found matlab results file %s.\n',resfile1);
-      else        
-        warningNoTrace('matlab results file %s dne. Creating from pngs...',...
-          resfile1);
-        VideoTest.pngs2savemat(testdir1);
-      end
-      if exist(resfile2,'file')>0
-        fprintf(1,'Found matlab results file %s.\n',resfile2);
-      else
-        warningNoTrace('matlab results file %s dne. Creating from pngs...',...
-          resfile2);
-        VideoTest.pngs2savemat(testdir2);
-      end
-      
-      res1 = load(resfile1,'-mat');
-      json1 = VideoTest.getjson(testdir1);
-      
-      res2 = load(resfile2,'-mat');
-      json2 = VideoTest.getjson(testdir2);
+      [res1,json1] = VideoTest.loadMatlabResAndJson(testdir1);
+      [res2,json2] = VideoTest.loadMatlabResAndJson(testdir2);
       
       if ~isequal(json1.frms,json2.frms)
         error('Test dirs %s and %s were run on different random-access frames.\n',...
           testdir1,testdir2);
       end
+      
+      fprintf(1,'### TestDir 1 ###\n');
+      VideoTest.checkPrintImgMetadata([res1.ISR;res1.IRAR]);
+      fprintf(1,'### TestDir 2 ###\n');
+      VideoTest.checkPrintImgMetadata([res2.ISR;res2.IRAR]);
 
-      frms = json1.frms;
-      nfrms = numel(frms);
-      assert(isequal(nfrms,numel(res1.IRAR),numel(res2.IRAR)));
-      im1rarall = cell(nfrms,1);
-      im2rarall = cell(nfrms,1);
+      if cmpSR
+        assert(numel(res1.ISR)==numel(res2.ISR));
+        nfrms = numel(res1.ISR);
+        frms = 1:nfrms;
+        typestr = 'SR';
+      else
+        frms = json1.frms;
+        nfrms = numel(frms);
+        assert(isequal(nfrms,numel(res1.IRAR),numel(res2.IRAR)));
+        typestr = 'RAR';
+      end
+      im1all = cell(nfrms,1);
+      im2all = cell(nfrms,1);
       imdall = cell(nfrms,1);
       dabsmax = zeros(nfrms,1);
       for i=1:nfrms
-        f = frms(i);        
-        im1rar = res1.IRAR{i};
-        im2rar = res2.IRAR{i};
+        f = frms(i);
+        if cmpSR
+          im1 = res1.ISR{f};
+          im2 = res2.ISR{f};          
+        else
+          im1 = res1.IRAR{i};
+          im2 = res2.IRAR{i};
+        end
         
-        if size(im1rar,3)~=size(im2rar,3)
+        if size(im1,3)~=size(im2,3)
           fprintf(2,'idx %d, frame %d, nchans differ!\n',i,f);
         end
 
         % these throw warns if nec
-        im1rar = VideoTest.convGSIfNec(im1rar);
-        im2rar = VideoTest.convGSIfNec(im2rar);
+        im1 = VideoTest.convGSIfNec(im1);
+        im2 = VideoTest.convGSIfNec(im2);
           
-        d = double(im1rar) - double(im2rar);
+        d = double(im1) - double(im2);
         
-        im1rarall{i} = im1rar;
-        im2rarall{i} = im2rar;
+        im1all{i} = im1;
+        im2all{i} = im2;
         imdall{i} = d;
         dabsmax(i) = max(abs(d(:)));
         
-        if ~isequal(im1rar,im2rar)
-          % look for frame "plusminus"
-          fprintf(2,'read idx %d, frame %d: differs!!!!\n',i,f);          
+        if ~isequal(im1,im2)
+          % try to find im2 in res1.ISR, "plusminus"
+          fprintf(2,'read idx %d, frame %d: differs!\n',i,f);          
           frmsplusminus = max(1,f-plusminus):min(numel(res1.ISR),f+plusminus);
           for ff=frmsplusminus
-            if isequal(res1.ISR{ff},im2rar)
-              fprintf(2,'... found IRAR2 in ISR1 at delta=%d.\n',ff-f);
+            warnst = warning('off','VideoTest:convertgs');
+            im1sr = VideoTest.convGSIfNec(res1.ISR{ff});
+            warning(warnst);
+            if isequal(im1sr,im2)
+              fprintf(2,'... found im2 in ISR1 at delta=%d.\n',ff-f);
               break;
             end
           end          
@@ -433,12 +464,12 @@ classdef VideoTest
       end
       
       if plotworst
-        VideoTest.plotdiffs(im1rarall,im2rarall,dabsmax,...
+        VideoTest.plotdiffs(im1all,im2all,dabsmax,...
           'nplot',plotworstnum,...
           'fignum',plotworstfignum,...
           'frames',frms);
       end
-      fprintf(1,'Compared %d RAR frames.\n',nfrms);
+      fprintf(1,'Compared %d %s frames.\n',nfrms,typestr);
     end
     
     function json = getjson(testdir)
@@ -513,6 +544,13 @@ classdef VideoTest
       smat = VideoTest.pngs2mat(testdir);
       save(matname,'-mat','-struct','smat');
       fprintf(1,'Saved %s.\n',matname);
+    end
+    
+    function hfig = plotdiff(im1,im2)
+      % single im pair convenience wrapper plotdiffs
+      dim = double(im1)-double(im2);
+      dabsmax = max(abs(dim(:)));
+      hfig = VideoTest.plotdiffs({im1},{im2},dabsmax);
     end
     
     function hfig = plotdiffs(im1all,im2all,dabsmaxs,varargin)
