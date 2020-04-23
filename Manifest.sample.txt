@@ -1,4 +1,1 @@
 dltemproot,/path/to/dl/cachedir
-jaaba,/path/to/jaaba
-piotr,/path/to/pdollar/toolbox
-cameracalib,/path/to/camera/calibration/toolbox

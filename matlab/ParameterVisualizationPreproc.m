@@ -83,8 +83,14 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       
       %ParameterVisualization.setBusy(hAx,'Computing visualization. Please wait...');
       
-      % Choose labeled frames
+      obj.initializeVizInfo();
       
+      obj.update(hAx,lObj,sPrm,propFullName);
+      
+
+    end
+    
+    function initializeVizInfo(obj)
       nr = 3;
       nc = 3;
       
@@ -92,9 +98,6 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       obj.initVizInfo.nr = nr;
       obj.initVizInfo.nc = nc;
       obj.initSuccessful = true;
-
-      obj.update(hAx,lObj,sPrm,propFullName);
-      
 
     end
     
@@ -127,6 +130,10 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       obj.tfUpdating = true;
       
       [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
+      
+      if ~isstruct(obj.initVizInfo),
+        obj.initializeVizInfo();
+      end
       
       nr = obj.initVizInfo.nr;
       nc = obj.initVizInfo.nc;

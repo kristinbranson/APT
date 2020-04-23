@@ -226,6 +226,23 @@ classdef TrackingVisualizerMT < handle
         [obj.hSkel.Visible] = deal(onoffSkel);
       end
     end
+    function hideOtherTargets(obj,iTgtKeep)
+      % iTgtKeep: tgt indices to show, can be vector. hide others
+      if nargin<2 
+        iTgtKeep = obj.iTgtPrimary;
+      end
+      tfon = false(1,obj.nTgts);
+      tfon(iTgtKeep) = true;
+      
+      [obj.hXYPrdRed(:,tfon).Visible] = deal('on');
+      [obj.hXYPrdRed(:,~tfon).Visible] = deal('off');
+      [obj.hXYPrdRedTxt(:,tfon).Visible] = deal('on');
+      [obj.hXYPrdRedTxt(:,~tfon).Visible] = deal('off');
+      if ~isempty(obj.hSkel)
+        [obj.hSkel(:,tfon).Visible] = deal('on');
+        [obj.hSkel(:,~tfon).Visible] = deal('off');
+      end
+    end
     function updateLandmarkColors(obj,ptsClrs)
       npts = obj.nPts;
       szassert(ptsClrs,[npts 3]);

@@ -2626,6 +2626,17 @@ classdef Labeler < handle
       %obj.clearTempDir();
     end
     
+    function projExportTrainData(obj,outfile)
+      
+      [tfsucc,tblPTrn,s] = ...
+        obj.trackCreateDeepTrackerStrippedLbl();
+      if ~tfsucc,
+        error('Could not collect data for exporting.');
+      end
+      save(outfile,'-mat','-v7.3','-struct','s');
+      
+    end
+    
     function projClearTempDir(obj) % throws
       if isempty(obj.projTempDir)
         return;
@@ -3477,7 +3488,7 @@ classdef Labeler < handle
         end
       end
     end
-    
+        
   end 
   
   %% Movie
@@ -6705,6 +6716,19 @@ classdef Labeler < handle
       end
     end
     
+    function fname = getDefaultFilenameExportStrippedLbl(obj)
+      lblstr = 'TrainData';
+      if ~isempty(obj.projectfile)
+        rawname = ['$projdir/$projfile_' lblstr '.lbl'];
+      elseif ~isempty(obj.projname)
+        rawname = ['$projdir/$projname_' lblstr '.lbl'];
+      else
+        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.lbl'];
+      end
+      sMacro = obj.baseTrkFileMacros();
+      fname = FSPath.macroReplace(rawname,sMacro);
+    end
+    
     function fname = getDefaultFilenameExportLabelTable(obj)
       if obj.gtIsGTMode
         lblstr = 'gtlabels';
@@ -7462,19 +7486,26 @@ classdef Labeler < handle
     end
     
     %#%GTOK
-    function tblMF = labelMFTableAddROITrx(obj,tblMF,roiRadius)
+    function tblMF = labelMFTableAddROITrx(obj,tblMF,roiRadius,varargin)
       % Add .pRoi and .roi to tblMF using trx info
       %
       % tblMF.pRoi: Just like tblMF.p, but relative to tblMF.roi (p==1 => 
       %   first row/col of ROI)
-      % tblMF.roi: [nrow x (2*2*nview)]. Raster order {lo,hi},{x,y},view
+      % tblMF.roi: [nrow x (2*2*nview)]. Raster order {lo,hi},{x,y},view      
       
-      tblfldscontainsassert(tblMF,MFTable.FLDSFULLTRX);
-      tblfldsdonotcontainassert(tblMF,{'pRoi' 'roi'});
+      [rmOOB,pfld,proifld] = myparse(varargin,...
+        'rmOOB',true,... % if true, remove rows where shape is outside roi
+        'pfld','p',...  % optional "source" lbl field
+        'proifld','pRoi'... % optional "dest" roi-lbl field
+        );
+      
+      %tblfldscontainsassert(tblMF,MFTable.FLDSFULLTRX);
+      % no requirements beyond as accessed in code
+      tblfldsdonotcontainassert(tblMF,{proifld 'roi'});
       
       nphyspts = obj.nPhysPoints;
       nrow = height(tblMF);
-      p = tblMF.p;
+      p = tblMF.(pfld);
       pTrx = tblMF.pTrx;
       
       tfRmRow = false(nrow,1);
@@ -7485,7 +7516,7 @@ classdef Labeler < handle
         xyTrx = Shape.vec2xy(pTrx(i,:));
         [roiCurr,tfOOBview,xyROIcurr] = ...
           Shape.xyAndTrx2ROI(xy,xyTrx,nphyspts,roiRadius);
-        if any(tfOOBview)
+        if rmOOB && any(tfOOBview)
           warningNoTrace('CPRLabelTracker:oob',...
             'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
             tblMF.mov(i),tblMF.frm(i),tblMF.iTgt(i));
@@ -7496,11 +7527,11 @@ classdef Labeler < handle
         end
       end
       
-      tblMF = [tblMF table(pRoi,roi)];
+      tblMF = [tblMF table(pRoi,roi,'VariableNames',{proifld 'roi'})];
       tblMF(tfRmRow,:) = [];
     end
     
-    function tblMF = labelMFTableAddROICrop(obj,tblMF,doRemoveOOB)
+    function tblMF = labelMFTableAddROICrop(obj,tblMF,varargin)
       % Add .pRoi and .roi to tblMF using crop info
       %
       % tblMF.pRoi: Just like tblMF.p, but relative to tblMF.roi (p==1 => 
@@ -7509,13 +7540,17 @@ classdef Labeler < handle
       %
       % tblMF(out): rows removed if xy are OOB of roi.
       
-      tblfldscontainsassert(tblMF,MFTable.FLDSFULL);
-      tblfldsdonotcontainassert(tblMF,{'pRoi' 'roi'});
-      assert(isa(tblMF.mov,'MovieIndex'));
-      if nargin < 3,
-        doRemoveOOB = true;
-      end
+      [rmOOB,pfld,proifld] = myparse(varargin,...
+        'rmOOB',true,... % if true, remove rows where shape is outside roi
+        'pfld','p',...  % optional "source" lbl field
+        'proifld','pRoi'... % optional "dest" roi-lbl field
+        );
       
+      %tblfldscontainsassert(tblMF,MFTable.FLDSFULL);
+      % no requirements beyond as accessed in code
+      tblfldsdonotcontainassert(tblMF,{proifld 'roi'});
+      assert(isa(tblMF.mov,'MovieIndex'));
+     
       if ~obj.cropProjHasCrops
         error('Project does not contain cropping information.');
       end
@@ -7525,7 +7560,7 @@ classdef Labeler < handle
       nphyspts = obj.nPhysPoints;
       nvw = obj.nview;
       n = height(tblMF);
-      p = tblMF.p;      
+      p = tblMF.(pfld);      
       tfRmRow = false(n,1); % true to rm row due to OOB
       pRoi = nan(size(p));
       roi = nan(n,4*obj.nview);
@@ -7538,7 +7573,7 @@ classdef Labeler < handle
         % See Shape.p2pROI etc
         xy = Shape.vec2xy(p(i,:));
         [xyROI,tfOOBview] = Shape.xy2xyROI(xy,roiCurr,nphyspts);
-        if ~doRemoveOOB,
+        if ~rmOOB,
           tfOOBview(:) = false;
         end
         if any(tfOOBview)
@@ -7552,7 +7587,7 @@ classdef Labeler < handle
         end
       end
       
-      tblMF = [tblMF table(pRoi,roi)];
+      tblMF = [tblMF table(pRoi,roi,'VariableNames',{proifld 'roi'})];
       tblMF(tfRmRow,:) = [];
     end
     
@@ -7806,13 +7841,16 @@ classdef Labeler < handle
             pWithTrx = [p(:,1:nphyspts)     pTrx(:,1) ...
                         p(:,nphyspts+1:end) pTrx(:,2)]; 
             if strcmp(trxCtredRotAlignMeth,'headtail')
-              tObj = obj.tracker;
-              if ~isempty(tObj) && strcmp(tObj.algorithmName,'cpr')
-                iptHead = tObj.sPrm.Reg.rotCorrection.iPtHead;
-                iptTail = tObj.sPrm.Reg.rotCorrection.iPtTail;
-              else
-                error('Cannot use head-tail alignment method; no tracking rotational correction settings available.');              
-              end
+%               tObj = obj.tracker;
+%               if ~isempty(tObj) && strcmp(tObj.algorithmName,'cpr')
+%                 iptHead = tObj.sPrm.Reg.rotCorrection.iPtHead;
+%                 iptTail = tObj.sPrm.Reg.rotCorrection.iPtTail;
+%               else
+              sPrm = obj.trackGetParams;
+              sPrmRotCorr = sPrm.ROOT.CPR.RotCorrection;
+              iptHead = sPrmRotCorr.HeadPoint;
+              iptTail = sPrmRotCorr.TailPoint;
+                %error('Cannot use head-tail alignment method; no tracking rotational correction settings available.');
               pWithTrxAligned = Shape.alignOrientationsOrigin(pWithTrx,iptHead,iptTail); 
               % aligned based on iHead/iTailpts, now with arbitrary offset
               % b/c was rotated about origin. Note the presence of pTrx as
@@ -9300,45 +9338,52 @@ classdef Labeler < handle
     function tblP = preProcCropLabelsToRoiIfNec(obj,tblP,varargin)
       % Add .roi column to table if appropriate/nec
       %
+      % PostConditions:
       % If hasTrx, modify tblP as follows:
       %   - add .roi
-      %   - set .p to be .pRoi, ie relative to ROI
-      %   - set .pAbs to be absolute .p
+      %   - add .pRoi (proifld), p relative to ROI
+      %   - set .pAbs (pabsfld) to the original/absolute .p (pfld)
+      %   - set .p (pfld) to be .pRoi (proifld)
       % If cropProjHasCrops, same as hasTrx.
       % Otherwise:
-      %   - .p will be pAbs
       %   - no .roi
+      %   - set .pAbs (pabsfld) to be .p (pfld)
       
-      [prmpp,doRemoveOOB] = myparse(varargin,'preProcParams',[],...
-        'doRemoveOOB',true);
+      [prmpp,doRemoveOOB,pfld,pabsfld,proifld] = myparse(varargin,...
+        'preProcParams',[],...
+        'doRemoveOOB',true,...
+        'pfld','p',...  % see desc above
+        'pabsfld','pAbs',... % etc
+        'proifld','pRoi'... % 
+        );
       isPreProcParams = ~isempty(prmpp);
       
-      if obj.hasTrx
-        tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
+      if obj.hasTrx || obj.cropProjHasCrops
+        tf = tblfldscontains(tblP,{'roi' proifld pabsfld});
         assert(all(tf) || ~any(tf));
         if ~any(tf)
-          if isPreProcParams,
-            roiRadius = prmpp.TargetCrop.Radius;
+          if obj.hasTrx
+            if isPreProcParams,
+              roiRadius = prmpp.TargetCrop.Radius;
+            else
+              roiRadius = obj.preProcParams.TargetCrop.Radius;
+            end
+            tblP = obj.labelMFTableAddROITrx(tblP,roiRadius,...
+              'rmOOB',doRemoveOOB,...
+              'pfld',pfld,'proifld',proifld);
           else
-            roiRadius = obj.preProcParams.TargetCrop.Radius;
+            tblP = obj.labelMFTableAddROICrop(tblP,...
+              'rmOOB',doRemoveOOB,...
+              'pfld',pfld,'proifld',proifld);
           end
-          tblP = obj.labelMFTableAddROITrx(tblP,roiRadius);
-          tblP.pAbs = tblP.p;
-          tblP.p = tblP.pRoi;
-        end
-      elseif obj.cropProjHasCrops
-        tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
-        assert(all(tf) || ~any(tf));
-        if ~any(tf)
-          tblP = obj.labelMFTableAddROICrop(tblP,doRemoveOOB);
-          tblP.pAbs = tblP.p;
-          tblP.p = tblP.pRoi;        
+          tblP.(pabsfld) = tblP.(pfld);
+          tblP.(pfld) = tblP.(proifld);
         end
       else
-        if tblfldscontains(tblP,'pAbs') % AL20190207 add this now some downstream clients want it
-          assert(isequaln(tblP.p,tblP.pAbs));
+        if tblfldscontains(tblP,pabsfld) % AL20190207 add this now some downstream clients want it
+          assert(isequaln(tblP.(pfld),tblP.(pabsfld)));
         else
-          tblP.pAbs = tblP.p;
+          tblP.(pabsfld) = tblP.(pfld);
         end
         % none; tblP.p is .pAbs. No .roi field.
       end
@@ -9521,10 +9566,12 @@ classdef Labeler < handle
       %
       % data: CPRData handle, equal to obj.preProcData
       % dataIdx. data.I(dataIdx,:) gives the rows corresponding to tblP
-      %   (order preserved)
+      %   (out); order preserved
       % tblP (out): subset of tblP (input), rows for failed reads removed
       % tblPReadFailed: subset of tblP (input) where reads failed
-      % tfReadFailed: indicator vec into tblP (input) for failed reads
+      % tfReadFailed: indicator vec into tblP (input) for failed reads.
+      %   tblP (out) is guaranteed to correspond to tblP (in) with
+      %   tfReadFailed rows removed. (unless early/degenerate/empty return)
       
       % See preProcDataUpdateRaw re 'preProcParams' opt arg. When supplied,
       % .preProcData is not updated.
@@ -9850,7 +9897,9 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
-      [setall] = myparse(varargin,'all',false);
+      [setall] = myparse(varargin,...
+        'all',false... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
+        ); 
       sPrm = APTParameters.enforceConsistency(sPrm);
 
       [tfOK,msgs] = APTParameters.checkParams(sPrm);
@@ -10418,6 +10467,8 @@ classdef Labeler < handle
       tfsucc = true;
     end
     
+    % See also Lbl.m for addnl stripped lbl meths
+    
     function sPrmAll = addExtraParams(obj,sPrmAll)
             
       skel = obj.skeletonEdges;
@@ -10439,6 +10490,8 @@ classdef Labeler < handle
     end
     
     function sPrmAll = setExtraParams(obj,sPrmAll)
+      % AL 20200409 sets .skeletonEdges and .setFliplandmarkMatches from 
+      % sPrmAll fields. no callsites currently
       
       if structisfield(sPrmAll,'ROOT.DeepTrack.OpenPose.affinity_graph'),
         skelstr = sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph;
@@ -10950,13 +11003,15 @@ classdef Labeler < handle
     end
     
     function trackLabelMontage(obj,tbl,errfld,varargin)
-      [nr,nc,h,npts,nphyspts,nplot] = myparse(varargin,...
+      [nr,nc,h,npts,nphyspts,nplot,frmlblclr,frmlblbgclr] = myparse(varargin,...
         'nr',3,...
         'nc',4,...
         'hPlot',[],...
         'npts',obj.nLabelPoints,... % hack
         'nphyspts',obj.nPhysPoints,... % hack
-        'nplot',height(tbl)... % show/include nplot worst rows
+        'nplot',height(tbl),... % show/include nplot worst rows
+        'frmlblclr',[1 1 1], ...
+        'frmlblbgclr',[0 0 0] ...
         );
       
       if nplot>height(tbl)
@@ -10965,29 +11020,25 @@ classdef Labeler < handle
       end
       
       tbl = sortrows(tbl,{errfld},{'descend'});
-      tbl = tbl(1:nplot,:);      
-      
-      % Get pLbl/pTrk, in relative coords if appropriate
-      pLbl = tbl.pLbl; % abs coords
-      pTrk = tbl.pTrk; % etc
-      tfROI = tblfldscontains(tbl,'roi');
-      if tfROI
-        [pLbl,tfOOBview] = Shape.p2pROI(pLbl,tbl.roi,obj.nPhysPoints);
-        nOOB = sum(any(tfOOBview,2));
-        if nOOB>0
-          warningNoTrace('Labels fall outside ROI in %d rows/frames.',nOOB);
-        end
-        
-        [pTrk,tfOOBview] = Shape.p2pROI(pTrk,tbl.roi,obj.nPhysPoints);
-        nOOB = sum(any(tfOOBview,2));
-        if nOOB>0
-          warningNoTrace('Tracked points fall outside ROI in %d rows/frames.',nOOB);
-        end
-      end
+      tbl = tbl(1:nplot,:);
+      tbl = obj.preProcCropLabelsToRoiIfNec(tbl,...
+        'doRemoveOOB',false,...
+        'pfld','pLbl',...
+        'pabsfld','pLblAbs',...
+        'proifld','pLblRoi');
+      tbl(:,'roi') = []; % to satisfy assert in next call
+      tbl = obj.preProcCropLabelsToRoiIfNec(tbl,...
+        'doRemoveOOB',false,...
+        'pfld','pTrk',...
+        'pabsfld','pTrkAbs',...
+        'proifld','pTrkRoi');
 
+      % tbl.pLbl/pTrk now in relative coords if appropriate
+     
       % Create a table to call preProcDataFetch so we can use images in
       % preProc cache.      
       FLDSTMP = {'mov' 'frm' 'iTgt' 'tfoccLbl' 'pLbl'}; % MFTable.FLDSCORE
+      tfROI = tblfldscontains(tbl,'roi');     
       if tfROI
         FLDSTMP = [FLDSTMP 'roi'];
       end
@@ -10997,7 +11048,7 @@ classdef Labeler < handle
 %       end
       tblCacheUpdate = tbl(:,FLDSTMP);
       tblCacheUpdate.Properties.VariableNames(4:5) = {'tfocc' 'p'};
-      tblCacheUpdate.p = pLbl; % corrected for ROI if nec
+      %tblCacheUpdate.p = pLbl; % corrected for ROI if nec
       [ppdata,ppdataIdx,~,~,tfReadFailed] = ...
         obj.preProcDataFetch(tblCacheUpdate,'updateRowsMustMatch',true);
       nReadFailed = nnz(tfReadFailed);
@@ -11007,14 +11058,17 @@ classdef Labeler < handle
         % Would be better to include with "blank" image
       end
       
-      I = ppdata.I(ppdataIdx,:);
-      pLbl(tfReadFailed,:) = [];
-      pTrk(tfReadFailed,:) = [];
-      tblPostRead = tbl(:,{'frm' errfld});
+      I = ppdata.I(ppdataIdx,:);    
+      tblPostRead = tbl(:,{'pLbl' 'pTrk' 'mov' 'frm' 'iTgt' errfld});
       tblPostRead(tfReadFailed,:) = [];
     
-      frmLblsAll = arrayfun(@(x1,x2)sprintf('frm=%d,err=%.2f',x1,x2),...
-        tblPostRead.frm,tblPostRead.(errfld),'uni',0);
+      if obj.hasTrx
+        frmLblsAll = arrayfun(@(zm,zf,zt,ze)sprintf('mov/frm/tgt=%d/%d/%d,err=%.2f',zm,zf,zt,ze),...
+          abs(tblPostRead.mov),tblPostRead.frm,tblPostRead.iTgt,tblPostRead.(errfld),'uni',0);        
+      else
+        frmLblsAll = arrayfun(@(zm,zf,ze)sprintf('mov/frm=%d/%d,err=%.2f',zm,zf,ze),...
+          abs(tblPostRead.mov),tblPostRead.frm,tblPostRead.(errfld),'uni',0);
+      end
       
       nrowsPlot = height(tblPostRead);
       startIdxs = 1:nr*nc:nrowsPlot;
@@ -11025,9 +11079,10 @@ classdef Labeler < handle
           h(end+1,1) = figure('Name','Tracking Error Montage','windowstyle','docked'); %#ok<AGROW>
           pColIdx = (1:nphyspts)+(iView-1)*nphyspts;
           pColIdx = [pColIdx pColIdx+npts]; %#ok<AGROW>
-          Shape.montage(I(:,iView),pLbl(:,pColIdx),'fig',h(end),...
+          Shape.montage(I(:,iView),tblPostRead.pLbl(:,pColIdx),'fig',h(end),...
             'nr',nr,'nc',nc,'idxs',plotIdxs,...
-            'framelbls',frmLblsThis,'framelblscolor',[1 1 .75],'p2',pTrk(:,pColIdx),...
+            'framelbls',frmLblsThis,'framelblscolor',frmlblclr,...
+            'framelblsbgcolor',frmlblbgclr,'p2',tblPostRead.pTrk(:,pColIdx),...
             'p2marker','+','titlestr','Tracking Montage, descending err (''+'' is tracked)');
         end
       end
@@ -11894,7 +11949,12 @@ classdef Labeler < handle
       
       if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
         obj.preProcNonstandardParamChanged();
+      else
+        % clear CPR cache in any case, even unlabeled movies pose a problem 
+        % as tracking frames can be cached
+        obj.preProcInitData();
       end
+
      
 %       if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
 %         % if this movie has labels, retraining might be necessary

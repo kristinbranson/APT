@@ -163,6 +163,9 @@ classdef APT
       addpath(fullfile(APT.Root,'matlab')); % for javaaddpathstatic
       cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
+      if ismac
+        setenv('PATH', [getenv('PATH') ':/usr/local/bin']);
+      end
       
       % AL 20150824, testing of sha 1f65 on R2015a+Linux is reproducably
       % SEGV-ing from a fresh MATLAB start when calling the Labeler()

@@ -746,7 +746,12 @@ else
       alignProp(prop, editor, 'uint32');
       
       if ~isempty(paramVizHandler) 
-        [tf,pvObj] = paramVizHandler.isprop(prop);
+        try
+          [tf,pvObj] = paramVizHandler.isprop(prop);
+        catch
+          tf = false;
+          pvObj = [];
+        end
         if tf
           spinner = get(editor,'Spinner');
           sl = javaObjectEDT('aptjava.SpinnerChangeListener');
@@ -821,7 +826,7 @@ function spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFi
 val = e.spinnerValue;
 propUpdatedCallback(prop,e,propName,hFig,[],paramCheckerFcn,[],ts,val); % not passing paramConstraints yet
 
-if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
+if ~isempty(paramVizHandler) && isvalid(paramVizHandler) && paramVizHandler.isprop(prop)
   global DEBUG_PROPERTIESGUI2;
   if ~isempty(DEBUG_PROPERTIESGUI2) && DEBUG_PROPERTIESGUI2 > 0,
     fprintf('SPINNEREVTCB %s: val = %d, isMultiple = %d\n',datestr(ts,'HH:MM:SS.FFF'),val,isMultipleCall());
