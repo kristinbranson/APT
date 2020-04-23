@@ -513,7 +513,7 @@ classdef VideoTest
       ims = cell(nfrmtest,ntdirs);
       frmstest = frmstest(:);
       pairs = nan(npairs,2); 
-      diff
+      
       for ifrmtest=1:nfrmtest
         f = frmstest(ifrmtest);
         for itdir=1:ntdirs
@@ -561,7 +561,7 @@ classdef VideoTest
       end
     end
     
-    function matvspng(testdir)diff
+    function matvspng(testdir)
       res = load(fullfile(testdir,'matlabres.mat'));
       fh = fopen(fullfile(testdir,'info.json'));
       json = jsondecode(fgetl(fh));
@@ -606,7 +606,7 @@ classdef VideoTest
       dd = dir(fullfile(testdir,'sr_*'));
       srnames = fullfile(testdir,{dd.name}');
       nsr = numel(srnames);
-      smat.ISR = cell(nsr,1);diff
+      smat.ISR = cell(nsr,1);
       for isr=1:nsr
         smat.ISR{isr} = imread(srnames{isr});
       end
