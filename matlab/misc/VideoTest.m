@@ -472,28 +472,35 @@ classdef VideoTest
       fprintf(1,'Compared %d %s frames.\n',nfrms,typestr);
     end
     
-    function [dpairs,ims,frmstest,pairs] = test2sr(tdirs,varargin)
+    function [dpairs,dpairsmu,ims,frmstest,pairs] = test2sr(tdirs,varargin)
       % Compare seq reads across testdirs
       %
       % tdirs: cellstr of testdirs (2+)
       %
-      % dpairs: [nfrmtest x ntdir-choose-2] max abs diff in im
+      % dpairs: [nfrmtest x ntdir-choose2] max abs diff in im
+      % dpairsmu: [ntdir-choose2 x ntdir-choose2] mean(dpairs,1) in
+      %   squareform
       % ims: [nfrmtest x ntdir] cell arr of ims
       % frmstest: [nfrmtest] row labels for d
       % pairs: [ntdir-choose-2 x 2] indices into tdirs specifying pairwise comparisons
       
-      nfrmtest = myparse(varargin,...
-        'nfrmtest',10 ...
+      [nfrmtest,bordercropdmax] = myparse(varargin,...
+        'nfrmtest',10,...
+        'bordercropdmax',0 ... % crop this many px from diff im (ignore differences near edges)
         );
       
       ntdirs = numel(tdirs);
       
       jsons = cellfun(@VideoTest.getjson,tdirs,'uni',0);
       nmaxused = cellfun(@(x)x.nmaxused,jsons);
-      assert(all(nmaxused==nmaxused(1)));
-      nmaxused = nmaxused(1);
+      if ~all(nmaxused==nmaxused(1))
+        warningNoTrace('Differing nmaxused. Using minimum.');
+      end
+      nmaxused = min(nmaxused);
       
-      fprintf(1,'%d test dirs; nmaxused=%d.\n',ntdirs,nmaxused);
+      fprintf(1,'%d test dirs; nmaxused=%d, bordercropdmax=%d\n',...
+        ntdirs,nmaxused,bordercropdmax);
+      pause(5);
       
       frmstest = randsample(nmaxused,nfrmtest);
       frmstest = [frmstest(:)' 1 nmaxused];
@@ -506,7 +513,7 @@ classdef VideoTest
       ims = cell(nfrmtest,ntdirs);
       frmstest = frmstest(:);
       pairs = nan(npairs,2); 
-      
+      diff
       for ifrmtest=1:nfrmtest
         f = frmstest(ifrmtest);
         for itdir=1:ntdirs
@@ -527,12 +534,17 @@ classdef VideoTest
           im1 = ims{ifrmtest,i};
           im2 = ims{ifrmtest,j};
           dim = double(im1)-double(im2);
+          
+          dim = dim(1+bordercropdmax:end-bordercropdmax,...
+                    1+bordercropdmax:end-bordercropdmax);
           dabsmax = max(abs(dim(:)));
           dpairs(ifrmtest,c) = dabsmax;
           c = c+1;
         end
         end
       end
+      
+      dpairsmu = squareform(mean(dpairs,1));
     end
     
     function json = getjson(testdir)
@@ -549,7 +561,7 @@ classdef VideoTest
       end
     end
     
-    function matvspng(testdir)
+    function matvspng(testdir)diff
       res = load(fullfile(testdir,'matlabres.mat'));
       fh = fopen(fullfile(testdir,'info.json'));
       json = jsondecode(fgetl(fh));
@@ -594,7 +606,7 @@ classdef VideoTest
       dd = dir(fullfile(testdir,'sr_*'));
       srnames = fullfile(testdir,{dd.name}');
       nsr = numel(srnames);
-      smat.ISR = cell(nsr,1);
+      smat.ISR = cell(nsr,1);diff
       for isr=1:nsr
         smat.ISR{isr} = imread(srnames{isr});
       end
@@ -609,7 +621,7 @@ classdef VideoTest
       fprintf(1,'Saved %s.\n',matname);
     end
     
-    function hfig = plotdiff(im1,im2)
+    function [hfig,dim,dabsmax] = plotdiff(im1,im2)
       % single im pair convenience wrapper plotdiffs
       dim = double(im1)-double(im2);
       dabsmax = max(abs(dim(:)));
