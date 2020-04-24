@@ -283,34 +283,13 @@ classdef DeepTracker < LabelTracker
   end
   
   %% Params
-  methods
+  methods (Static)
     
-    % AL 20190415. Note on DeepTrack.Saving.CacheDir
-    % Currently nothing never refers to
-    % DeepTrackerObj.sPrmAll.Saving.CacheDir. Instead, only lObj.DLCacheDir
-    % and DeepTrackerObj.trnLastDMC(iview).rootDir are used. 
-    %
-    % - (re)train time: DeepTrackerObj uses lObj.DLCacheDir and sets 
-    % .trnLastDMC(:).rootDir to this location.
-    % - track time: currently we assert that lObj.DLCacheDir matches the
-    % .rootDir of any local DMCs to be used
-    
-    function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-        didParamsChange(obj,sPrmAll) % obj const
-      
-      tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
-      tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
-      tfPreProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
-      tfPostProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
-      
-      sOldSpecific = obj.sPrm;
-      netType = obj.trnNetType.prettyString;
-      sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
-      tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
-    end
-    
-    function sPrmAll = massageParamsIfNec(obj,sPrmAll,varargin)
+    function sPrmAll = massageParamsIfNecStc(net,sPrmAll,varargin)
       % net-specific parameter treatments
+      %
+      % net: DLNetType
+      %
       % Openpose currently requires particular constraints between
       % parameters that are not required for other DL trackers. Current
       % treatment is
@@ -329,7 +308,7 @@ classdef DeepTracker < LabelTracker
         'throwwarnings',true...
         );
       
-      net = obj.trnNetType;
+      %net = obj.trnNetType;
       switch net
         case {DLNetType.openpose DLNetType.leap}
           dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
@@ -374,6 +353,38 @@ classdef DeepTracker < LabelTracker
         otherwise
           % none
       end
+    end
+    
+  end
+  methods
+    
+    % AL 20190415. Note on DeepTrack.Saving.CacheDir
+    % Currently nothing never refers to
+    % DeepTrackerObj.sPrmAll.Saving.CacheDir. Instead, only lObj.DLCacheDir
+    % and DeepTrackerObj.trnLastDMC(iview).rootDir are used. 
+    %
+    % - (re)train time: DeepTrackerObj uses lObj.DLCacheDir and sets 
+    % .trnLastDMC(:).rootDir to this location.
+    % - track time: currently we assert that lObj.DLCacheDir matches the
+    % .rootDir of any local DMCs to be used
+    
+    function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+        didParamsChange(obj,sPrmAll) % obj const
+      
+      tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
+      tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
+      tfPreProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      tfPostProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
+      
+      sOldSpecific = obj.sPrm;
+      netType = obj.trnNetType.prettyString;
+      sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
+      tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
+    end
+      
+    function sPrmAll = massageParamsIfNec(obj,sPrmAll,varargin) % obj const
+      net = obj.trnNetType;
+      sPrmAll = DeepTracker.massageParamsIfNecStc(net,sPrmAll,varargin{:});
     end
       
     function setAllParams(obj,sPrmAll)
@@ -479,7 +490,11 @@ classdef DeepTracker < LabelTracker
       else
         % AL 20190713 leave s.sPrmAll empty for untrained trackers
         tfTrained = isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC);
-        assert(~tfTrained,'Apparent trained tracker with no parameters.');
+        if tfTrained,
+          warning('Apparent trained tracker with no parameters, setting trnLastDMC = []');
+          s.trnLastDMC = [];
+        end
+        % assert(~tfTrained,'Apparent trained tracker with no parameters.');
         % s.sPrmAll = sPrmDflt;
         % Let's leave s.sPrmAll empty for now
       end
@@ -916,10 +931,15 @@ classdef DeepTracker < LabelTracker
         sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler,'throwwarnings',false);
         args = {'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
         
-        isParamChange = ~APTParameters.isEqualFilteredStructProperties(...
-          obj.sPrmAll,sPrmAllAsSet,args{:});
-        isParamChangeLbler = ~APTParameters.isEqualFilteredStructProperties(...
-          obj.sPrmAll,sPrmAllLabeler,args{:});        
+        if isempty(obj.sPrmAll),
+          isParamChange = true;
+          isParamChangeLbler = true;
+        else
+          isParamChange = ~APTParameters.isEqualFilteredStructProperties(...
+            obj.sPrmAll,sPrmAllAsSet,args{:});
+          isParamChangeLbler = ~APTParameters.isEqualFilteredStructProperties(...
+            obj.sPrmAll,sPrmAllLabeler,args{:});
+        end
         if isParamChange,
           s = 'Yes';
         else
@@ -1048,7 +1068,7 @@ classdef DeepTracker < LabelTracker
       dmc2.rootDir = obj.lObj.DLCacheDir;
       assert(exist(dmc2.dirModelChainLnx,'dir')==0,'Dir %s already exists.',dmc2.dirModelChainLnx);
       cmd = sprintf('mkdir -p %s',dmc2.dirModelChainLnx);
-      tfsucc = AWSec2.syscmd(cmd,'dispcmd',true);
+      tfsucc = DeepTracker.syscmd(cmd,'dispcmd',true);
       if ~tfsucc
         error('Failed to create dir %s.',dmc2.dirModelChainLnx);
       end
@@ -1389,12 +1409,12 @@ classdef DeepTracker < LabelTracker
           if backEnd.deepnetrunlocal
             aptroot = APT.Root;
             %DeepTracker.downloadPretrainedExec(aptroot);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+            %DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
             aptroot = [cacheDir '/APT'];
             DeepTracker.cloneJRCRepoIfNec(cacheDir);
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+            %DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
         case DLBackEnd.Docker
         case DLBackEnd.Conda
@@ -2167,7 +2187,7 @@ classdef DeepTracker < LabelTracker
               cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles);
           else
             obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
-              cropRois,hmapArgs,f0,f1);
+              cropRois,hmapArgs,f0,f1,'isMultiView',true);
           end
         otherwise
           assert(false);
@@ -3612,7 +3632,7 @@ classdef DeepTracker < LabelTracker
       if ismac
         file = strrep(file,' ','\ ');
         shacmd = sprintf('MD5 %s',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         res = strtrim(res);
         toks = regexp(res,' ','split');
         sha = toks{end};        
@@ -3620,13 +3640,13 @@ classdef DeepTracker < LabelTracker
       elseif isunix
         file = strrep(file,' ','\ ');
         shacmd = sprintf('md5sum %s',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
         shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,'\n','split');
         sha = toks{2};
         sha = regexprep(sha,' ','');
@@ -4161,7 +4181,10 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static) % train/track codegen
-    
+    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
+      [tfsucc,res,warningstr] = AWSec2.syscmd(cmd,varargin{:},...
+        'setenvcmd','LD_LIBRARY_PATH=: ');
+    end
     function downloadPretrainedWeights(varargin) 
       aptroot = myparse(varargin,...
         'aptroot',APT.Root...
@@ -4189,15 +4212,25 @@ classdef DeepTracker < LabelTracker
       end      
     end
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
-      [host,bg,prefix,sshoptions] = myparse(varargin,...
+      [host,bg,prefix,sshoptions,timeout] = myparse(varargin,...
         'host',DeepTracker.jrchost,... % 'logfile','/dev/null',...
         'bg',true,...
         'prefix',DeepTracker.jrcprefix,...
-        'sshoptions','-o "StrictHostKeyChecking no"');
+        'sshoptions','-o "StrictHostKeyChecking no"',...
+        'timeout',[]);
       
       if ~isempty(prefix),
         remotecmd = [prefix,'; ',remotecmd];
       end
+      if ~isempty(timeout),
+        sshoptions1 = ['-o "ConnectTimeout ',num2str(timeout),'"'];
+        if ~ischar(sshoptions) || isempty(sshoptions),
+          sshoptions = sshoptions1;
+        else
+          sshoptions = [sshoptions,' ',sshoptions1];
+        end
+      end
+          
       if ~ischar(sshoptions) || isempty(sshoptions),
         sshcmd = 'ssh';
       else
@@ -4423,7 +4456,7 @@ classdef DeepTracker < LabelTracker
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-      [~,res] = AWSec2.syscmd(cmd,...
+      [~,res] = DeepTracker.syscmd(cmd,...
         'dispcmd',true,...
         'failbehavior','err');
     end      
@@ -4464,7 +4497,7 @@ classdef DeepTracker < LabelTracker
       % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
       updatecmd = DeepTracker.updateAPTRepoCmd('aptparent',cacheRoot);
       updatecmd = DeepTracker.codeGenSSHGeneral(updatecmd,'bg',false);
-      [~,res] = AWSec2.syscmd(updatecmd,...
+      [~,res] = DeepTracker.syscmd(updatecmd,...
         'dispcmd',true,...
         'failbehavior','err');
     end
@@ -4477,7 +4510,7 @@ classdef DeepTracker < LabelTracker
     function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
       cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
       cmd = DeepTracker.codeGenSSHGeneral(cmd,'bg',false);
-      [~,res] = AWSec2.syscmd(cmd,...
+      [~,res] = DeepTracker.syscmd(cmd,...
         'dispcmd',true,...
         'failbehavior','err');
     end
@@ -4495,7 +4528,7 @@ classdef DeepTracker < LabelTracker
       aptrootexistscmd = DeepTracker.codeGenSSHGeneral(aptrootexistscmd,...
         'bg',false);
       
-      [~,res] = AWSec2.syscmd(aptrootexistscmd,...
+      [~,res] = DeepTracker.syscmd(aptrootexistscmd,...
         'dispcmd',true,...
         'failbehavior','err');
       res = strtrim(res);
@@ -4507,7 +4540,7 @@ classdef DeepTracker < LabelTracker
         case 'n'
           cloneaptcmd = sprintf('git clone %s %s',DeepTracker.jrcprodrepo,aptroot);
           cloneaptcmd = DeepTracker.codeGenSSHGeneral(cloneaptcmd,'bg',false);
-          [~,res] = AWSec2.syscmd(cloneaptcmd,...
+          [~,res] = DeepTracker.syscmd(cloneaptcmd,...
             'dispcmd',true,...
             'failbehavior','err');
           fprintf('Cloned JRC/APT repo into %s.\n',aptroot);
