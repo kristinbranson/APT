@@ -15,6 +15,8 @@ rae.run_normal_training(dstr='20200410',queue='gpu_tesla') #run_type = 'submit' 
 
 ##
 import run_apt_expts_2 as rae
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import sys
 if sys.version_info.major > 2:
     from importlib import reload
@@ -53,20 +55,20 @@ if sys.version_info.major > 2:
 reload(rae)
 rae.setup('alice')
 # rae.create_incremental_dbs()
-rae.run_incremental_training() #run_type = 'submit' to actually submit jobs.
+rae.run_incremental_training(dstr='20200413') #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
-rae.get_incremental_results()
+rae.get_incremental_results(dstr='20200413')
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 # rae.create_incremental_dbs()
-rae.run_incremental_training() #run_type = 'submit' to actually submit jobs.
+rae.run_incremental_training() #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
@@ -184,6 +186,7 @@ for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
 
 ## training
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
