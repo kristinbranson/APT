@@ -1650,7 +1650,7 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
         logging.exception('toTrack list not defined in json file %s'%list_file)
         return success, pred_locs
 
-    hasTrx = 'trxFiles' in toTrack
+    hasTrx = 'trxFiles' in toTrack and toTrack['trxFiles']
     trxFiles = []
     if hasTrx:
         nTrx = len(toTrack['trxFiles'])

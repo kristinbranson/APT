@@ -610,8 +610,9 @@ classdef TrackJob < handle
     end
 
     function setDefaultLocalListFile(obj)
-      i = obj.ivw; 
-      trnstr0 = obj.trnstr{i};
+      % I'm not sure when this has more than one element
+      assert(numel(obj.trnstr)==1);
+      trnstr0 = obj.trnstr{1};
       obj.listfilestr = [ 'TrackList_' trnstr0 '_' obj.nowstr '.json'];
       obj.listfileLcl = fullfile(obj.rootdirLcl,obj.listfilestr);
     end
@@ -669,10 +670,10 @@ classdef TrackJob < handle
     end
     
     function settMFTConc(obj,tMFTConc)
-      % currently tracks from frm0 to frm1 for all targets and one video
-      % this should be fixed!
+      % assumes there is only one video being tracked
       obj.tMFTConc = tMFTConc;
-      obj.movfileLcl = obj.tMFTConc.mov(1,obj.ivw);
+      obj.tMFTConc.mov = obj.tMFTConc.mov(:,obj.ivw);
+      obj.movfileLcl = obj.tMFTConc.mov(1);
       obj.trxids = unique(tMFTConc.iTgt);
       if obj.tObj.lObj.hasTrx,
         obj.trxfileLcl = obj.tMFTConc.trxFile(1,obj.ivw);
@@ -988,7 +989,8 @@ classdef TrackJob < handle
 
     function isContiguous = isMFTContiguous(tMFTConc,frm0,frm1)
       isContiguous = true;
-      [m,~,idxm] = unique(tMFTConc.mov);
+      % assume that each movie for view1 is unique
+      [m,~,idxm] = unique(tMFTConc.mov(:,1));
       for mi = 1:numel(m),
         idx1 = find(idxm==mi);
         [t,~,idxt] = unique(tMFTConc.iTgt(idx1));

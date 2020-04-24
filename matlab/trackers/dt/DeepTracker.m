@@ -2053,9 +2053,9 @@ classdef DeepTracker < LabelTracker
         else
           f0 = tblMFT.frm(1);
           f1 = tblMFT.frm(end);
-          if ~isequal((f0:f1)',tblMFT.frm)
-            warningNoTrace('Tracking additional frames to form continuous sequence.');
-          end
+%           if ~isequal((f0:f1)',tblMFT.frm)
+%             warningNoTrace('Tracking additional frames to form continuous sequence.');
+%           end
         end
                
         if obj.lObj.cropProjHasCrops
