@@ -611,7 +611,7 @@ classdef TrackJob < handle
 
     function setDefaultLocalListFile(obj)
       % I'm not sure when this has more than one element
-      assert(numel(obj.trnstr)==1);
+      %assert(numel(obj.trnstr)==1);
       trnstr0 = obj.trnstr{1};
       obj.listfilestr = [ 'TrackList_' trnstr0 '_' obj.nowstr '.json'];
       obj.listfileLcl = fullfile(obj.rootdirLcl,obj.listfilestr);
@@ -673,7 +673,7 @@ classdef TrackJob < handle
       % assumes there is only one video being tracked
       obj.tMFTConc = tMFTConc;
       obj.tMFTConc.mov = obj.tMFTConc.mov(:,obj.ivw);
-      obj.movfileLcl = obj.tMFTConc.mov(1);
+      obj.movfileLcl = obj.tMFTConc.mov(1,:);
       obj.trxids = unique(tMFTConc.iTgt);
       if obj.tObj.lObj.hasTrx,
         obj.trxfileLcl = obj.tMFTConc.trxFile(1,obj.ivw);

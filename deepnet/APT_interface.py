@@ -1628,13 +1628,20 @@ def to_mat_all_locs_in_dict(ret_dict):
             ret_dict[k] = to_mat(ret_dict[k])
 
 
-def classify_list_file(conf, model_type, list_file, model_file, out_file):
+def classify_list_file(conf, model_type, list_file, model_file, out_file, ivw=0):
 
+    # ivw is the index into movieFiles, trxFiles. It corresponds to view, but
+    # perhaps not absolute view. E.g. if view 1 is the only view being tracked in
+    # this call, then movieFiles should have only one movie per movie set, and
+    # ivw=0.
+    # If views 0 and 1 are tracked in this call to APT_interface, then movieFiles
+    # should have two movies per movie set, and ivw=0 corresponds to view 0 and ivw=1
+    # corresponds to view 1. 
     success = False
     pred_locs = None
     list_fp = open(list_file,'r')
     part_file = out_file + '.part' # following classify_movie naming
-
+    
     if not os.path.isfile(list_file):
         print('File %s does not exist'%list_file)
         return success, pred_locs
@@ -1650,6 +1657,15 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
         logging.exception('toTrack list not defined in json file %s'%list_file)
         return success, pred_locs
 
+    # select the movies & trxfiles corresponding to current view index
+    movieFiles = []
+    for movieset in toTrack['movieFiles']:
+        if isinstance(movieset,list):
+            movieFiles.append(movieset[ivw])
+        else:
+            movieFiles.append(movieset)
+    toTrack['movieFiles'] = movieFiles
+    
     hasTrx = 'trxFiles' in toTrack and toTrack['trxFiles']
     trxFiles = []
     if hasTrx:
@@ -1657,7 +1673,13 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
         if nTrx != nMovies:
             logging.exception('Numbers of movies and trx files do not match')
             return success, pred_locs
-        trxFiles = toTrack['trxFiles']
+        for trxset in toTrack['trxFiles']:
+            if isinstance(trxset,list):
+                trxFiles.append(trxset[ivw])
+            else:
+                trxFiles.append(trxset)
+        toTrack['trxFiles'] = trxFiles
+                
     hasCrops = 'cropLocs' in toTrack
     cropLocs = None
     if hasCrops:
@@ -1697,7 +1719,7 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
     ret_dict_all = classify_list_all(model_type, conf, cur_list,
                                      on_gt=False,
                                      model_file=model_file,
-                                     movie_files=toTrack['movieFiles'],
+                                     movie_files=movieFiles,
                                      trx_files=trxFiles,
                                      crop_locs=cropLocs,
                                      part_file=part_file)
@@ -2237,25 +2259,33 @@ def run(args):
     elif args.sub_name == 'track' and args.list_file is not None:
 
         # KB 20190123: added list_file input option
+
         assert args.mov is None, 'Input list_file should specify movie files'
-        assert nviews == 1 or args.view is not None, 'View must be specified for multiview projects'
+        #assert nviews == 1 or args.view is not None, 'View must be specified for multiview projects'
         assert args.trx is None, 'Input list_file should specify trx files'
         assert args.crop_loc is None, 'Input list_file should specify crop locations'
-        if args.model_file is None:
-            args.model_file = [None]
-        else:
-            assert len(args.model_file)==1, 'Only one model_file can be specified'
-        assert len(args.out_files)==1, 'Exactly one out_file must be specified'
-
+        
         if args.view is None:
-            ivw = 0
+            ivw = range(nviews)
         else:
             ivw = args.view # already converted to 0b
+            if not isinstance(ivw,list):
+                ivw = [ivw]
 
-        conf = create_conf(lbl_file, ivw, name, net_type=args.type,
-                           cache_dir=args.cache,conf_params=args.conf_params)
-        success, pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file[0], args.out_files[0])
-        assert success, 'Error classifying list_file ' + args.list_file
+        nviewstrack = len(ivw)
+
+        assert len(args.out_files) == nviewstrack, 'Number of out files should be same as number of views to track (%d)'%nviewstrack
+        if args.model_file is None:
+            args.model_file = [None] * nviewstrack
+        else:
+            assert len(args.model_file) == nviewstrack, 'Number of model files should be same as the number of views to track (%d)'%nviewstrack
+
+        for view_ndx, view in enumerate(ivw):
+
+            conf = create_conf(lbl_file, view, name, net_type=args.type,
+                               cache_dir=args.cache,conf_params=args.conf_params)
+            success, pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file[view_ndx], args.out_files[view_ndx], ivw=view_ndx)
+            assert success, 'Error classifying list_file ' + args.list_file + 'view ' + str(view)
 
     elif args.sub_name == 'track':
 

@@ -105,7 +105,7 @@ classdef TrkFile < dynamicprops
     % initialize fields from sparse table trk file
     function InitializeTable(obj,s)
 
-      movfiles = cellfun(@char,s.to_track.movieFiles,'Uni',0);
+      [movfiles,nviewstrack] = TrkFile.convertJSONCellMatrix(s.to_track.movieFiles);
 
       n = size(s.pred_locs,1);
       npts = size(s.pred_locs,2);
@@ -767,6 +767,26 @@ classdef TrkFile < dynamicprops
       if didload,
         fprintf('Read %d frames tracked from %s\n',nFramesTracked,tfile);
       end
+    end
+    
+    function [x,nc] = convertJSONCellMatrix(xin)
+      
+      x1 = cell(size(xin));
+      for i = 1:numel(xin),
+        if iscell(xin{i}),
+          x1{i} = cellfun(@char,xin{i},'Uni',0);
+        else
+          x1{i} = {char(xin{i})};
+        end
+      end
+      nc = cellfun(@numel,x1);
+      assert(nc==nc(1));
+      nc = nc(1);
+      x = cell(numel(x1),nc);
+      for i = 1:numel(x1),
+        x(i,:) = x1{i};
+      end
+      
     end
     
   end

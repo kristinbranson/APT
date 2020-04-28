@@ -12428,6 +12428,12 @@ classdef Labeler < handle
       % f: first frame encountered with (non-nan) label, applicable if
       %   tffound==true
       
+      if isempty(lpos),
+        tffound = false;
+        f = f0;
+        return;
+      end
+      
       [npts,d,nfrm,ntgt] = size(lpos); %#ok<ASGLU>
       assert(d==2);
       

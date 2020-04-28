@@ -238,11 +238,15 @@ if false,
 end
 
 [outdir,name] = fileparts(lObj.projectfile);
+if isempty(newprojectfile),
+  newprojectfile = fullfile(outdir,sprintf('%s_compress%s.lbl',name,datestr(now,'yyyymmdd')));
+end
+[~,newname] = fileparts(newprojectfile);
 
 vidobjs = cell(1,nviews);
 outmovfiles = cell(1,nviews);
 for i = 1:nviews,
-  outmovfiles{i} = fullfile(outdir,sprintf('%s_view%d.avi',name,i));
+  outmovfiles{i} = fullfile(outdir,sprintf('%s_view%d.avi',newname,i));
   if isgrayscale,
     format = {'Grayscale AVI'};
   else
@@ -271,9 +275,6 @@ for j = 1:nviews,
   close(vidobjs{j});
 end
 
-if isempty(newprojectfile),
-  newprojectfile = fullfile(outdir,sprintf('%s_compress%s.lbl',name,datestr(now,'yyyymmdd')));
-end
 lObj.projSaveAs(newprojectfile);
 lObj.trackInitAllTrackers();
 lObj.movieRmAll();

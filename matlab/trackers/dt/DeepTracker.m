@@ -2034,8 +2034,16 @@ classdef DeepTracker < LabelTracker
           end
           obj.cleanOutOfDateTrackingResults(isCurr);
         end
-        
+
         % figure out what to track
+        tblMFTTracked = obj.getTrackedMFT();
+        tblMFT0 = tblMFT;
+        tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked);
+        if isempty(tblMFT),
+          msgbox(sprintf('All %d frames previously tracked',size(tblMFT0,1)),'Tracking done');
+          return;
+        end
+        
         tblMFT = MFTable.sortCanonical(tblMFT);
         mIdx = unique(tblMFT.mov);
         if ~isscalar(mIdx)
@@ -4830,17 +4838,31 @@ classdef DeepTracker < LabelTracker
     function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
       
       [trxfileRem] = myparse(varargin,'trxFiles',{});
+      nviews = size(movfileRem,2);
+      ismultiview = nviews > 1;
       
       listinfo = struct;
-      listinfo.movieFiles = movfileRem;
-      listinfo.trxFiles = trxfileRem;
+      if ismultiview,
+        listinfo.movieFiles = cell(size(movfileRem,1),1);
+        for i = 1:size(movfileRem,1),
+          listinfo.movieFiles{i} = movfileRem(i,:);
+        end
+        listinfo.trxFiles = cell(size(trxfileRem,1),1);
+        for i = 1:size(trxfileRem,1),
+          listinfo.trxFiles{i} = trxfileRem(i,:);
+        end
+      else
+        listinfo.movieFiles = movfileRem;
+        listinfo.trxFiles = trxfileRem;
+      end
 
       % which movie index does each row correspond to?
-      [ism,idxm] = ismember(tMFTConc.mov,movfileLcl);
+      % assume first movie is unique
+      [ism,idxm] = ismember(tMFTConc.mov(:,1),movfileLcl(:,1));
       assert(all(ism));
      
       listinfo.toTrack = cell(0,1);
-      for mi = 1:numel(movfileRem),
+      for mi = 1:size(movfileRem,1),
         idx1 = find(idxm==mi);
         if isempty(idx1),
           continue;
