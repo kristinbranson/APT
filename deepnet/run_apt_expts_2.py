@@ -1559,7 +1559,7 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
                 if last_model_only:
                     files = files[-1:]
                 mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type,
-                                                    name=train_name,
+                                                    name=train_name_dstr,
                                                     classify_fcn=classify_fcn,
                                                     return_ims=classify_return_ims)
                 with open(out_file,'wb') as f:

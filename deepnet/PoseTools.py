@@ -1208,8 +1208,8 @@ def get_last_epoch(conf, name):
 
 
 def get_latest_model_file_keras(conf, name):
-    if name != 'deepnet':
-        name = conf.expname + '_' + name
+    #if name != 'deepnet':
+    #    name = conf.expname + '_' + name
     last_epoch = get_last_epoch(conf, name)
     if last_epoch is None:
         return None
@@ -1230,7 +1230,7 @@ def get_latest_model_file_keras(conf, name):
                 files = files[bb:]
             latest_model_file = files[-1]
 
-    return  latest_model_file
+    return latest_model_file
 
 
 def get_crop_loc(lbl,ndx,view, on_gt=False):
