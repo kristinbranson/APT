@@ -1184,6 +1184,21 @@ def pickle_load(filename):
             K = pickle.load(f)
     return K
 
+def pickle_load_series(filename):
+    '''
+    supports "pickle series". questionable no doubt
+    :param filename:
+    :return:
+    '''
+    stuff = []
+    with open(filename,'rb') as f:
+        while True:
+            try:
+                tmp = pickle.load(f,encoding='latin1')
+            except EOFError:
+                break
+            stuff.append(tmp)
+    return stuff
 
 def yaml_load(filename):
     with open(filename,'r') as f:

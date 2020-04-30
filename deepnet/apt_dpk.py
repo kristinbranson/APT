@@ -286,12 +286,20 @@ def create_callbacks(sdn, conf):
                     validation_batch_size=10)
     '''
 
-    # `ReduceLROnPlateau` automatically reduces the learning rate of the optimizer when the validation loss stops improving.This helps the model to reach a better optimum at the end of training.
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="loss", # monitor="val_loss"
-        factor=0.2,
-        verbose=1,
-        patience=20)
+    if conf.dpk_reduce_lr_on_plat:
+        logging.info("LR callback: using reduceLROnPlateau")
+        lr_cbk = tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="loss", # monitor="val_loss"
+            factor=0.2,
+            verbose=1,
+            patience=20)
+    else:
+        logging.info("LR callback: using APT fixed sched")
+        lr_cbk = kerascallbacks.create_lr_sched_callback(
+            conf.display_step,
+            conf.dpk_base_lr_used,
+            conf.gamma,
+            conf.decay_steps)
 
     train_generator = sdn.train_generator(
         n_outputs=sdn.n_outputs,
@@ -332,7 +340,7 @@ def create_callbacks(sdn, conf):
     '''
 
     #callbacks = [early_stop, reduce_lr, model_checkpoint, logger]
-    callbacks = [reduce_lr, aptcbk]
+    callbacks = [lr_cbk, aptcbk]
 
     return callbacks
 
@@ -683,10 +691,17 @@ def compile(conf):
                           n_stacks=conf.dpk_n_stacks,
                           growth_rate=conf.dpk_growth_rate,
                           pretrained=conf.dpk_use_pretrained)
+
+    base_lr = conf.dpk_base_lr_factory if conf.dpk_reduce_lr_on_plat \
+        else conf.learning_rate
+    base_lr_used = base_lr * conf.learning_rate_multiplier
+    conf.dpk_base_lr_used = base_lr_used
+    logging.info("base_lr_used={}".format(base_lr_used))
+
     cbk = create_callbacks(sdn, conf)
 
     optimizer = tf.keras.optimizers.Adam(
-        lr=.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+        lr=base_lr_used, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     sdn.compile(optimizer=optimizer, loss='mse')
 
     return tgtfr, sdn, cbk

@@ -1,17 +1,33 @@
+from __future__ import division
+from __future__ import print_function
+
 import numpy as np
 import h5py
+import math
 import json
 import time
 import os
 import pickle
 import logging
 
-from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.callbacks import Callback, LearningRateScheduler
 from tensorflow.keras import backend as K
 
 import deepposekit.utils.keypoints as dpkkpts
 
 import PoseTools
+
+
+def create_lr_sched_callback(iterations_per_epoch, base_lr, gamma, decaysteps):
+
+    def lr_decay(epoch0b):
+        initial_lrate = base_lr
+        steps = (epoch0b + 1) * iterations_per_epoch
+        lrate = initial_lrate * math.pow(gamma, steps / decaysteps)
+        return lrate
+
+    lratecbk = LearningRateScheduler(lr_decay)
+    return lratecbk
 
 
 class APTKerasCbk(Callback):
