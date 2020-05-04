@@ -154,6 +154,7 @@ classdef TrackJob < handle
     rootdirLcl = '';
     listfilestr = '';
     listfileLcl = '';
+    calibrationfileLcl = {}; % cellstr, [nSerialMov] % KB 20200504: added, but not used yet
     
     lblfileRem = '';
     movfileRem = {};
@@ -968,12 +969,12 @@ classdef TrackJob < handle
       end
     end
     
-    function checkCreateDir(dirlocs,desc)
+    function checkCreateDir(dirlocs,desc,varargin)
       
       if nargin < 2 || ~ischar(desc),
         desc = 'dir';
       end
-      
+      assert(isempty(varargin));
       for i = 1:numel(dirlocs),
         if exist(dirlocs{i},'dir')==0
           [succ,msg] = mkdir(dirlocs{i});

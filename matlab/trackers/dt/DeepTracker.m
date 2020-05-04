@@ -1821,6 +1821,7 @@ classdef DeepTracker < LabelTracker
       % isSerialMultiMov: true if tracking across movs is done serially
       %   (assumes nview==1 currently)
 
+      % this can be made much better!
       nmovs = nmovset*nview;
       ngpuall = numel(gpuidsall);
       if ngpuall>=nmovs
@@ -1841,9 +1842,18 @@ classdef DeepTracker < LabelTracker
         gpuids = gpuidsall(1);
         isMultiView = false;
         isSerialMultiMov = true;
+      elseif ngpuall >= nview,
+        % each view gets a gpu
+        gpuids = gpuidsall(1:nview);
+        isMultiView = false;
+        isSerialMultiMov = true;
       else
-        % Shouldn't come up yet 
-        assert(false,'Unsupported tracking modality');
+        % put everything on one gpu
+        gpuids = gpuidsall(1);
+        isMultiView = true;
+        isSerialMultiMov = true;
+%         % Shouldn't come up yet 
+%         assert(false,'Unsupported tracking modality');
       end
       
       fprintf(1,'Allocating %d*%d movs to track across %d available gpus:\n',...
@@ -1905,9 +1915,10 @@ classdef DeepTracker < LabelTracker
       if isexternal
         movfiles = tblMFT;
         % cropRois: if tfexternal, cell array of [nviewx4]
-        [trxfiles,trkfiles,f0,f1,cropRois,targets,iview] = myparse(varargin,...
+        [trxfiles,trkfiles,f0,f1,cropRois,targets,iview,calibrationfiles] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{},...
-          'iview',nan... % used only if tfSerialMultiMov; CURRENTLY UNSUPPORTED
+          'iview',nan,... % used only if tfSerialMultiMov; CURRENTLY UNSUPPORTED
+          'calibrationfiles',{}...
           );
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
         [nmovies,nviews] = size(movfiles); 
@@ -3158,8 +3169,9 @@ classdef DeepTracker < LabelTracker
       
       tfSuccess = false;
       
+      nView = obj.lObj.nview;
       [movs,trxfiles,trxids,trkfiles,isgpu,gpuids,isMultiView,...
-        isSerialMultiMov,iviewSerialMultiMov] = ...
+        isSerialMultiMov,viewSerialMultiMovs] = ...
         myparse(varargin,...
         'movfiles',{},...
         'trxfiles',{},...% used when tfexternal. Either {}, or a 
@@ -3175,12 +3187,11 @@ classdef DeepTracker < LabelTracker
         'isSerialMultiMov',false,... % track external movies serially with a 
                                  ... % single DL call. if true, must have 
                                  ... % (tfexternal && ~isMultiView)
-        'iviewSerialMultiMov',1 ... % used if isSerialMultiMov=true. view index (1b) to track
+        'iviewSerialMultiMov',1:nView ... % used if isSerialMultiMov=true. view index (1b) to track
         );
       
       isexternal = ~isempty(movs);
 
-      nView = obj.lObj.nview;
       tftrx = obj.lObj.hasTrx;
       
       if isexternal,
@@ -3244,43 +3255,60 @@ classdef DeepTracker < LabelTracker
       % trksysinfo/TrackJob
       if isSerialMultiMov
         assert(isexternal && ~isMultiView);
-        id = sprintf('%s_%dmovs_vw%d',nowstr,nMovies,iviewSerialMultiMov);
-        if ~isempty(trxids)
-          assert(isnumeric(trxids));
-        end
-        if ~isempty(frm0) || ~isempty(frm1),
-          if ~(isscalar(frm0) && isscalar(frm1))
-            error('''frm0'' and ''frm1'' specifications should be scalars that apply to all movies when tracking multiple movies serially.');
+        for ivwjob = 1:numel(viewSerialMultiMovs),
+          ivw = viewSerialMultiMovs(ivwjob);
+          id = sprintf('%s_%dmovs_vw%d',nowstr,nMovies,ivw);
+          if ~isempty(trxids)
+            assert(isnumeric(trxids));
           end
+          if ~isempty(frm0) || ~isempty(frm1),
+            if ~(isscalar(frm0) && isscalar(frm1))
+              error('''frm0'' and ''frm1'' specifications should be scalars that apply to all movies when tracking multiple movies serially.');
+            end
+          end
+          % this is dumb; cropRoi format conversion
+          if ~isempty(cropRois),%obj.lObj.cropProjHasCrops
+            cropRois_curr = nan(nMovies,4);
+            for imv = 1:nMovies,
+              if size(cropRois{imv},1) >= ivw,
+                cropRois_curr(imv,:) = cropRois{imv}(ivw,:);
+              end
+            end
+            %           assert(nView==1);
+            %           cropRois = cat(1,cropRois{:}); % size check done in TrackJob
+          else
+            assert(all(cellfun(@(x) isempty(x) || all(isnan(x)),cropRois)));
+            cropRois_curr = [];
+          end
+          movs_curr = movs(:,ivw);
+          if ~isempty(trxfiles),
+            trxfiles_curr = trxfiles(:,ivw);
+          else
+            trxfiles_curr = {};
+          end
+          trkfiles_curr = trkfiles(:,ivw);
+          trksysinfo(ivwjob) = TrackJob(obj,backend,...
+            'targets',trxids,...
+            'frm0',frm0,...
+            'frm1',frm1,...
+            'cropRoi',cropRois_curr,...
+            'movfileLcl',movs_curr,...
+            'trxfileLcl',trxfiles_curr,...
+            'trkfileLcl',trkfiles_curr,...
+            'isMultiView',isMultiView,...
+            'isSerialMultiMov',true,...
+            'ivw',ivw,...
+            'rootdirLcl',cacheDir,...
+            'nowstr',id); %#ok<AGROW>
+          trksysinfo(ivwjob).prepareFiles();
+          fprintf('View %d: %d trkfiles to be written, first to %s\n',...
+            ivw,numel(trkfiles_curr),trksysinfo(ivwjob).trkfileLcl{1});
+
         end
-        % this is dumb; cropRoi format conversion
-        if obj.lObj.cropProjHasCrops
-          assert(nView==1);
-          cropRois = cat(1,cropRois{:}); % size check done in TrackJob
-        else
-          assert(all(cellfun(@isempty,cropRois)));
-          cropRois = [];
-        end
-        trksysinfo = TrackJob(obj,backend,...
-          'targets',trxids,...
-          'frm0',frm0,...
-          'frm1',frm1,...
-          'cropRoi',cropRois,... 
-          'movfileLcl',movs,...
-          'trxfileLcl',trxfiles,...
-          'trkfileLcl',trkfiles,...
-          'isMultiView',isMultiView,...
-          'isSerialMultiMov',true,...
-          'ivw',iviewSerialMultiMov,...
-          'rootdirLcl',cacheDir,...
-          'nowstr',id);
-        trksysinfo.prepareFiles();
         
         baseArgs = [baseArgs,{'serialmode' true}]; 
         % see CodeGen comment below, maybe dont need to massage baseArgs here
 
-        fprintf('View %d: %d trkfiles to be written, first to %s\n',...
-          iviewSerialMultiMov,numel(trkfiles),trksysinfo.trkfileLcl{1});
       else
         for imov = 1:nMovies,
           for ivwjob = 1:nViewJobs,
@@ -3442,10 +3470,15 @@ classdef DeepTracker < LabelTracker
         partfiles = reshape(cat(1,trksysinfo.parttrkfileRem),[nMovies,nView]);
         movfiles = reshape(cat(1,trksysinfo.movfileLcl),[nMovies,nView]);
       elseif isSerialMultiMov
-        outfiles = trksysinfo.trkfileRem(:);
-        partfiles = trksysinfo.parttrkfileRem(:);
-        movfiles = trksysinfo.movfileLcl(:);
-        assert(nView==1,'Serial tracking supported for single-view only.');
+        outfiles = cell(nMovies,numel(trksysinfo));
+        partfiles = cell(nMovies,numel(trksysinfo));
+        movfiles = cell(nMovies,numel(trksysinfo));
+        for ivwjob = 1:numel(trksysinfo),
+          outfiles(:,ivwjob) = trksysinfo(ivwjob).trkfileRem(:);
+          partfiles(:,ivwjob) = trksysinfo(ivwjob).parttrkfileRem(:);
+          movfiles(:,ivwjob) = trksysinfo(ivwjob).movfileLcl(:);
+        end
+        %assert(nView==1,'Serial tracking supported for single-view only.');
       else
         outfiles = reshape([trksysinfo.trkfileRem],size(trksysinfo));
         partfiles = reshape([trksysinfo.parttrkfileRem],size(trksysinfo));
@@ -3599,11 +3632,13 @@ classdef DeepTracker < LabelTracker
         nframes = trksysinfo.getNFramesTrack();
       else
         [nmovsets,nvjobs] = size(trksysinfo); %#ok<ASGLU>
-        nframes = nan(nmovsets,1);
-        for i = 1:nmovsets
+        maxNSerialMov = max([trksysinfo.nSerialMov]);        
+        nframes = nan(maxNSerialMov,nmovsets);
+        for i = 1:nmovsets,
           % works if trksysinfo is multiview or not          
-          nframes(i) = trksysinfo(i,1).getNFramesTrack();
+          nframes(1:trksysinfo(i,1).nSerialMov,i) = trksysinfo(i,1).getNFramesTrack();
         end
+        nframes = nframes(:);
       end
     end
 
@@ -3956,6 +3991,13 @@ classdef DeepTracker < LabelTracker
       end
 
       if isexternal,
+          % postprocessing is currently not implemented for external -- we can easily fix this! TODO
+%         for i = 1:nMovSets,
+%           movfiles = [obj.trkSysInfo(i,:).movfileLcl];
+%           trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
+%           calibrationfiles = [obj.trkSysInfo(i,:).calibrationfileLcl];
+%           obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfiles',calibrationfiles);
+%         end
         for i=1:nMovSets*nViews,
           fprintf('Tracking complete for %s, results saved to %s.\n',...
             res(i).movfile,res(i).trkfile);

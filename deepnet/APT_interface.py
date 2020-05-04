@@ -1105,6 +1105,11 @@ def create_cv_split_files(conf, n_splits=3):
 def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc):
     bsize = conf.batch_size
     all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
+    # KB 20200504: sometimes crop_loc might be specified as nans when
+    # we want no cropping to happen for reasons. 
+    if crop_loc is not None and np.any(np.isnan(np.array(crop_loc))):
+        crop_loc = None
+        
     for cur_t in range(len(to_do_list)):
         cur_entry = to_do_list[cur_t]
         trx_ndx = cur_entry[1]

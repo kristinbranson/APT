@@ -838,7 +838,7 @@ switch lower(state),
     set(handles.menu_file_save,'Enable','off');
     set(handles.menu_file_shortcuts,'Enable','off');
     set(handles.menu_file_new,'Enable','on');
-    set(handles.menu_file_quick_open,'Enable','on');
+    set(handles.menu_file_quick_open,'Enable','on','Visible','on');
     
     set(handles.tbAdjustCropSize,'Enable','off');
     set(handles.pbClearAllCrops,'Enable','off');
@@ -876,6 +876,10 @@ switch lower(state),
     set(handles.menu_evaluate,'Enable','on');
     set(handles.menu_go,'Enable','on');
     set(handles.menu_help,'Enable','on');
+    
+    % KB 20200504: I think this is confusing when a project is already open
+    set(handles.menu_file_quick_open,'Visible','off');
+
     
     set(handles.tbAdjustCropSize,'Enable','on');
     set(handles.pbClearAllCrops,'Enable','on');
@@ -2394,7 +2398,7 @@ if ~tfSetOccurred
   set(hObject,'Value',sldval);
 end
 
-fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+%fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -2660,6 +2664,7 @@ lObj.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
 
 function pbRecallZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
+% TODO this is broken!!
 lObj.videoCenterOnCurrTarget();
 lObj.videoZoom(lObj.targetZoomRadiusDefault);
 

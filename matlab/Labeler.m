@@ -11908,6 +11908,17 @@ classdef Labeler < handle
         error('No movie selected.');
       end
       
+      obj.cropSetNewRoi(iMov,iview,roi);
+    end
+      
+    function cropSetNewRoi(obj,iMov,iview,roi)
+      % Set new crop/roi for input movie iMov (GT-aware).
+      %
+      % If the crop size has changed, update crops sizes for all movies.
+      % 
+      % roi: [1x4]. [xlo xhi ylo yhi]. See defns at top of CropInfo.m
+      % KB added 20200504
+      
       movIfo = obj.movieInfoAllGTaware{iMov,iview}.info;
       imnc = movIfo.nc;
       imnr = movIfo.nr;
