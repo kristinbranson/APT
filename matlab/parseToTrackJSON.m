@@ -79,10 +79,10 @@ for i = 1:nmovies,
   end
   
   % frames to track
-  if isfield(toTrack(i),'frame0'),
+  if isfield(toTrack(i),'frame0') && ~isempty(toTrack(i).frame0),
     f0s(i) = toTrack(i).frame0;
   end
-  if isfield(toTrack(i),'frame1'),
+  if isfield(toTrack(i),'frame1') && ~isempty(toTrack(i).frame1),
     f1s(i) = toTrack(i).frame1;
   end
   

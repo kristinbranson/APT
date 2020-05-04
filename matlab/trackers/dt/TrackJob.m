@@ -222,6 +222,10 @@ classdef TrackJob < handle
     
     function obj = TrackJob(tObj,backend,varargin)
       
+      if nargin == 0,
+        return;
+      end
+      
       [ivw,trxids,frm0,frm1,cropRoi,tMFTConc,...
         lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,trkoutdirLcl,rootdirLcl,...
         isMultiView,isSerialMultiMov,isExternal,isRemote,nowstr,logfile,...
@@ -537,17 +541,22 @@ classdef TrackJob < handle
       end
       
       % get/compute frm0 (scalar) and frm1 ([nmovset])
-      if isempty(obj.frm0) && isempty(obj.frm1),
-        frm0 = 1;
+      if isempty(obj.frm0) || isnan(obj.frm0),
+        frm0 = ones(nmovset,1);
+      else
+        frm0 = repmat(obj.frm0,nmovset,1);
+      end
+      if isempty(obj.frm1) || isnan(obj.frm1) || isinf(obj.frm1),
         frm1 = nan(nmovset,1);
-        lObj = obj.tObj.lObj;
-        for imovset=1:nmovset
-          % if .tfmultiview, this will go off the view1 mov
+      else
+        frm1 = repmat(obj.frm1,nmovset,1);
+      end
+      lObj = obj.tObj.lObj;
+      for imovset=1:nmovset
+        % if .tfmultiview, this will go off the view1 mov
+        if isnan(frm1(imovset)),
           frm1(imovset) = lObj.getNFramesMovFile(obj.movfileLcl{imovset});
         end
-      else
-        frm0 = obj.frm0;
-        frm1 = repmat(obj.frm1,nmovset,1);
       end
       
       if ~obj.tftrx,

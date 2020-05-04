@@ -3320,8 +3320,8 @@ classdef DeepTracker < LabelTracker
             end
             id = sprintf('%s_mov%d_vwj%d',nowstr,imov,ivwjob);
             if isempty(frm0) && isempty(frm1),
-              frm0curr = [];
-              frm1curr = [];
+              frm0curr = 1;
+              frm1curr = inf;
             elseif isscalar(frm0) && isscalar(frm1)
               % scalar expand. could allow one empty
               frm0curr = frm0;
@@ -3337,14 +3337,16 @@ classdef DeepTracker < LabelTracker
               else
                 trxidscurr = trxids{imov};
               end
+              % for whatever reason, cropRoi is indexed by view within
+              % TrackJob, but rest of arguments are not
               trksysinfo(imov,ivwjob) = TrackJob(obj,backend,...
                 'targets',trxidscurr,...
                 'frm0',frm0curr,...
                 'frm1',frm1curr,...
-                'cropRoi',cropRois{imov},...
-                'movfileLcl',movs(imov,:),...
-                'trxfileLcl',trxfiles(imov,:),...
-                'trkfileLcl',trkfiles(imov,:),...
+                'cropRoi',cropRois{imov},... 
+                'movfileLcl',movs(imov,ivw),...
+                'trxfileLcl',trxfiles(imov,ivw),...
+                'trkfileLcl',trkfiles(imov,ivw),...
                 'isMultiView',isMultiView,...
                 'ivw',ivw,...
                 'rootdirLcl',cacheDir,...
@@ -3632,11 +3634,11 @@ classdef DeepTracker < LabelTracker
         nframes = trksysinfo.getNFramesTrack();
       else
         [nmovsets,nvjobs] = size(trksysinfo); %#ok<ASGLU>
-        maxNSerialMov = max([trksysinfo.nSerialMov]);        
+        maxNSerialMov = max([trksysinfo.nmovsettrk]);        
         nframes = nan(maxNSerialMov,nmovsets);
         for i = 1:nmovsets,
           % works if trksysinfo is multiview or not          
-          nframes(1:trksysinfo(i,1).nSerialMov,i) = trksysinfo(i,1).getNFramesTrack();
+          nframes(1:trksysinfo(i,1).nmovsettrk,i) = trksysinfo(i,1).getNFramesTrack();
         end
         nframes = nframes(:);
       end
@@ -4746,6 +4748,11 @@ classdef DeepTracker < LabelTracker
      
       tflistfile = ~isempty(listfile);
       tffrm = ~tflistfile && ~isempty(frm0) && ~isempty(frm1);
+      if tffrm, % ignore frm if it doesn't limit things
+        if frm0 == 1 && isinf(frm1),
+          tffrm = false;
+        end
+      end
       tfcache = ~isempty(cache);
       tftrx = ~tflistfile && ~isempty(trxtrk);
       tftrxids = ~tflistfile && ~isempty(trxids);
