@@ -1954,11 +1954,12 @@ classdef DeepTracker < LabelTracker
             return;
           end
         end
-        
-        if obj.lObj.nview>1 && ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
-          msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. '
-          uiwait(msgbox(msg,'3D Reconciliation','modal'));
-        end
+
+        % KB 20200504 Now supported!!
+%         if obj.lObj.nview>1 && ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
+%           msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. ';
+%           uiwait(msgbox(msg,'3D Reconciliation','modal'));
+%         end
       end
       
       if ~isexternal && isempty(tblMFT)
@@ -2113,7 +2114,8 @@ classdef DeepTracker < LabelTracker
             end
             % this is not going to work for multiple movies. TODO: fix
             tfSuccess = obj.trkSpawn(backend,[],[],dlLblFileLcl,...
-              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,args{:});
+              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,...
+              'calibrationfiles',calibrationfiles,args{:});
           else
             tfSuccess = obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1);
@@ -2190,7 +2192,8 @@ classdef DeepTracker < LabelTracker
             end
             tfSuccess = obj.trkSpawn(backend,[],[],dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'movfiles',movfiles,...
-              'trkfiles',trkfiles,'gpuids',gpuids,args{:});
+              'trkfiles',trkfiles,'calibrationfiles',calibrationfiles,...
+              'gpuids',gpuids,args{:});
           else
             tfSuccess = obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});
@@ -2203,7 +2206,8 @@ classdef DeepTracker < LabelTracker
         case DLBackEnd.AWS
           if isexternal,
             tfSuccess = obj.trkSpawn(backend,[],[],dlLblFileLcl,...
-              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles);
+              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,...
+              'calibrationfiles',calibrationfiles);
           else
             obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'isMultiView',true);
@@ -3170,7 +3174,7 @@ classdef DeepTracker < LabelTracker
       tfSuccess = false;
       
       nView = obj.lObj.nview;
-      [movs,trxfiles,trxids,trkfiles,isgpu,gpuids,isMultiView,...
+      [movs,trxfiles,trxids,trkfiles,calibrationfiles,isgpu,gpuids,isMultiView,...
         isSerialMultiMov,viewSerialMultiMovs] = ...
         myparse(varargin,...
         'movfiles',{},...
@@ -3180,6 +3184,7 @@ classdef DeepTracker < LabelTracker
         'targets',[],... % used when tfexternal. trxids to track. Either
                      ... % [], a [ntargets] vector, or a [nmovie] cell array 
         'trkfiles',{},... 
+        'calibrationfiles',{},... % cell array with one entry per movie, empty if no calibration
         'isgpu',true,...
         'gpuids',[],... % optional, but if supplied, precisely the right 
                     ... % number of gpus must be specified ie nMovJobs*nViewJobs
@@ -3295,6 +3300,7 @@ classdef DeepTracker < LabelTracker
             'movfileLcl',movs_curr,...
             'trxfileLcl',trxfiles_curr,...
             'trkfileLcl',trkfiles_curr,...
+            'calibrationfileLcl',calibrationfiles,...
             'isMultiView',isMultiView,...
             'isSerialMultiMov',true,...
             'ivw',ivw,...
@@ -3330,6 +3336,13 @@ classdef DeepTracker < LabelTracker
               frm0curr = frm0(imov);
               frm1curr = frm1(imov);
             end
+            
+            if isempty(calibrationfiles),
+              calibrationfile_curr = '';
+            else
+              calibrationfile_curr = calibrationfiles{imov};
+            end
+            
             if isexternal,
               if isnumeric(trxids)
                 % scalar expand
@@ -3339,6 +3352,7 @@ classdef DeepTracker < LabelTracker
               end
               % for whatever reason, cropRoi is indexed by view within
               % TrackJob, but rest of arguments are not
+              
               trksysinfo(imov,ivwjob) = TrackJob(obj,backend,...
                 'targets',trxidscurr,...
                 'frm0',frm0curr,...
@@ -3347,6 +3361,7 @@ classdef DeepTracker < LabelTracker
                 'movfileLcl',movs(imov,ivw),...
                 'trxfileLcl',trxfiles(imov,ivw),...
                 'trkfileLcl',trkfiles(imov,ivw),...
+                'calibrationfileLcl',calibrationfile_curr,...
                 'isMultiView',isMultiView,...
                 'ivw',ivw,...
                 'rootdirLcl',cacheDir,...
@@ -3993,13 +4008,14 @@ classdef DeepTracker < LabelTracker
       end
 
       if isexternal,
-          % postprocessing is currently not implemented for external -- we can easily fix this! TODO
-%         for i = 1:nMovSets,
-%           movfiles = [obj.trkSysInfo(i,:).movfileLcl];
-%           trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
-%           calibrationfiles = [obj.trkSysInfo(i,:).calibrationfileLcl];
-%           obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfiles',calibrationfiles);
-%         end
+        for i = 1:nMovSets,
+          movfiles = [obj.trkSysInfo(i,:).movfileLcl];
+          trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
+          calibrationfile = obj.trkSysInfo(i,1).calibrationfileLcl;
+          cropROIs = cat(1,obj.trkSysInfo(i,:).cropRoi);
+          obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfile',calibrationfile,...
+            'cropROIS',cropROIs);
+        end
         for i=1:nMovSets*nViews,
           fprintf('Tracking complete for %s, results saved to %s.\n',...
             res(i).movfile,res(i).trkfile);
@@ -4104,19 +4120,38 @@ classdef DeepTracker < LabelTracker
     function trkPostProcIfNec(obj,mIdx,trkfiles,varargin) % obj const
       % When appropriate, perform postprocessing and re-save trkfiles in
       % place.
-      
-      pp3dtype = myparse(varargin,...
-        'pp3dtype',obj.sPrmAll.ROOT.PostProcess.reconcile3dType ...
+            
+      [pp3dtype,calibrationfile,rois] = myparse(varargin,...
+        'pp3dtype',obj.sPrmAll.ROOT.PostProcess.reconcile3dType, ...
+        'calibrationfile','',...
+        'cropROIs',[]...
         );
+      
+      isexternal = ~isnumeric(mIdx);
       
       do3dreconcile = ~strcmp(pp3dtype,'none');      
       nvw = obj.lObj.nview;
       %npts = obj.lObj.nPhysPoints;
       
       if do3dreconcile && nvw==2
-        vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
-        if isempty(vcd)
-          moviestr = obj.lObj.moviePrettyStr(mIdx);
+        if ~isempty(calibrationfile) || (~obj.lObj.viewCalProjWide && isexternal),
+          assert(~isempty(calibrationfile));
+          vcd = CalRig.loadCreateCalRigObjFromFile(calibrationfile);
+        else
+          vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
+        end
+        if isempty(vcd),
+          if isexternal,
+            if iscell(mIdx),
+              moviestr = mIdx{1};
+            elseif ischar(mIdx),
+              moviestr = mIdx;
+            else
+              moviestr = 'external movie';
+            end
+          else
+            moviestr = obj.lObj.moviePrettyStr(mIdx);
+          end
           warningNoTrace('Cannot perform 3D postprocessing; calibration data unset for %s.',moviestr);
           return;
         end
@@ -4135,7 +4170,9 @@ classdef DeepTracker < LabelTracker
         
         trk1 = trks{1};
         trk2 = trks{2};                
-        rois = obj.lObj.getMovieRoiMovIdx(mIdx);
+        if ~isexternal,
+          rois = obj.lObj.getMovieRoiMovIdx(mIdx);
+        end
         
         try
           [trk1save,trk2save] = PostProcess.triangulate(trk1,trk2,...

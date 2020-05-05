@@ -9,7 +9,7 @@
 	    "view_1": "/groups/branson/bransonlab/apt/experiments/data/multiview_sh_trk_20200423/NMNchrimsonFLIPout_fly125_trial3_S0001_view1.apt.trk",
 	    "view_2": "/groups/branson/bransonlab/apt/experiments/data/multiview_sh_trk_20200423/NMNchrimsonFLIPout_fly125_trial3_S0001_view2.apt.trk"
 	},
-	"calibration_file": "/nearline/huston/flp-chrimson_experiments_pre_2020_videos/fly_119_to_132_7_11_14_NMNchrimsonFLIPout/DLTs_fly119_to_132_7_11_14.mat",
+	"calibration_file": "/groups/huston/hustonlab/flp-chrimson_experiments/fly_119_to_132_7_11_14_NMNchrimsonFLIPout/DLTs_fly119_to_132_7_11_14.mat",
 	"trx_files": [],
 	 "crop_rois": {
 	     "view_1": [1,230,109,458],
@@ -28,7 +28,7 @@
 	    "view_1": "/groups/branson/bransonlab/apt/experiments/data/multiview_sh_trk_20200423/norpAmales_fly341_S0006_view1.apt.trk",
 	    "view_2": "/groups/branson/bransonlab/apt/experiments/data/multiview_sh_trk_20200423/norpAmales_fly341_S0006_view2.apt.trk"
 	},
-	"calibration_file": "/nearline/huston/flp-chrimson_experiments_pre_2020_videos/fly_333_to_348_15_8_16_SS00325_norpAmales/DLTs_15_8_16_fly_333_to_348_better.mat",
+	"calibration_file": "/groups/huston/hustonlab/flp-chrimson_experiments/fly_333_to_348_15_8_16_SS00325_norpAmales/DLTs_15_8_16_fly_333_to_348_better.mat",
 	 "trx_files": [],
 	 "crop_rois": {
 	     "view_1": [1,230,136,485],
@@ -47,7 +47,7 @@
 	    "view_1": "/groups/branson/bransonlab/apt/experiments/data/multiview_sh_trk_20200423/SS002323POsilenced_fly382_S0008_view1.apt.trk",
 	    "view_2": "/groups/branson/bransonlab/apt/experiments/data/multiview_sh_trk_20200423/SS002323POsilenced_fly382_S0008_view2.apt.trk"
 	},
-	"calibration_file": "/nearline/huston/flp-chrimson_experiments_pre_2020_videos/fly_380_to_fly_389_12_9_16_SS02323_and_SS002323POsilenced/DLTs_380_to_389_12_9_16.mat",
+	"calibration_file": "/groups/huston/hustonlab/flp-chrimson_experiments/fly_380_to_fly_389_12_9_16_SS02323_and_SS002323POsilenced/DLTs_380_to_389_12_9_16.mat",
 	 "trx_files": [],
 	 "crop_rois": {
 	     "view_1": [106,335,45,394],
