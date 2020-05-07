@@ -595,6 +595,8 @@ def training(conf, name='deepnet'):
     obs = OutputObserver(conf, [train_di2, val_di])
     callbacks_list = [lrate, obs]  #checkpoint,
 
+    # Epsilon: could just leave un-speced, None leads to default in tf1.14 at least
+    # Decay: 0.0 bc lr schedule handled above by callback/LRScheduler
     optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)

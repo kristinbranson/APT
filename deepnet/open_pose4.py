@@ -779,6 +779,8 @@ def training(conf, name='deepnet'):
 
     # optimizer = MultiSGD(lr=base_lr, momentum=momentum, decay=0.0, nesterov=False, lr_mult=lr_mult)#, clipnorm=1.)
     # Mayank 20190423 - Adding clipnorm so that the loss doesn't go to zero.
+    # Epsilon: could just leave un-speced, None leads to default in tf1.14 at least
+    # Decay: 0.0 bc lr schedule handled above by callback/LRScheduler
     optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)

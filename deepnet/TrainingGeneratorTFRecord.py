@@ -13,19 +13,13 @@ __all__ = ["TrainingGeneratorTFRecord"]
 
 class TrainingGeneratorTFRecord:
     """
-    Generates data for training a model.
-    
-    Automatically loads annotated data and produces
-    augmented images and confidence maps for each keypoint.
+    TrainingGenerator mock class for use with APT. Reads from tfrecords
+    rather than using a dpk DataGenerator; otherwise acts like a
+    TrainingGenerator.
 
-    Parameters
+
+    Parameters (from TrainingGenerator; now set from APT conf)
     ----------
-    generator: deepposekit.io.BaseGenerator
-        An instance of BaseGenerator (deepposekit.io.BaseGenerator) object.
-        The output of the generator must be `(images, keypoints)`, where images
-        are a numpy array of shape (n_images, height, width, channels), and 
-        keypoints are a numpy array of shape (n_images, n_keypoints, 2), where
-        2 is the row, column coordinates of the keypoints in each image.
     downsample_factor : int, default = 0
         The factor for determining the output shape of the confidence
         maps for estimating keypoints. This is determined as
@@ -78,7 +72,7 @@ class TrainingGeneratorTFRecord:
         self.downsample_factor = downsample_factor
         conf.dpk_output_sigma = conf.dpk_input_sigma / 2.0 ** downsample_factor
 
-        if conf.dpk_output_sigma<0.5:
+        if conf.dpk_output_sigma < 0.5:
             logging.warning("Small output sigma: dpk_output_sigma={}".format(conf.dpk_output_sigma))
 
         valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
@@ -153,11 +147,12 @@ class TrainingGeneratorTFRecord:
     # def _init_data(self):
 
 
-    def get_generator(self, validation, confidence, infinite=True, **kwargs):
+    def get_generator(self, validation, confidence, shuffle=None, infinite=True, **kwargs):
         '''
 
         :param validation:
         :param confidence:
+        :param shuffle: opt, if not provided is based on validation
         :param infinite:
             validation_data+infinite notes:
             * for fit_generator, validation_data, we want infinite as the validation_steps is specified and K will just
@@ -175,13 +170,17 @@ class TrainingGeneratorTFRecord:
             ppfcn = 'ims_locs_preprocess_dpk_noconf_nodistort'
             assert self.conf.dpk_n_outputs == 1
 
-        tfrfilename = self.valtfr if validation else self.trntfr
         falseIfValid = False if validation else True
+
+        if shuffle is None:
+            shuffle = falseIfValid
+
+        tfrfilename = self.valtfr if validation else self.trntfr
         g = opdata.make_data_generator(
             tfrfilename,
             self.conf,
             falseIfValid,
-            falseIfValid,  # note, shuffling can skip a lot of records if infinite=False
+            shuffle,  # note, shuffling can skip a lot of records if infinite=False
             ppfcn,
             infinite=infinite,
             **kwargs,
