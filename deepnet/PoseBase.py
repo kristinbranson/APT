@@ -75,7 +75,7 @@ class PoseBase(PoseCommon):
         return tf.global_variables()
 
 
-    def preproc_func(self, ims, locs, info, distort):
+    def preproc_func(self,*args, distort=True):
         '''
         Override this function to change how images are preprocessed. Ensure that the return objects are float32.
         This function is added into tensorflow dataset pipeline using tf.py_func. The outputs returned by this function are available tf tensors in self.inputs array.
@@ -87,11 +87,16 @@ class PoseBase(PoseCommon):
         Returns:
             List as [augmented images, augmented labeled locations, input information, heatmaps]
         '''
+        ims,locs,info = args[:3]
+        if len(args)>3:
+            occ = args[3]
+        else:
+            occ = np.zeros(locs.shape[:-1])
 
         conf = self.conf
         # Scale and augment the training image and labels
         ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
-        out = self.convert_locs_to_targets(locs)
+        out = self.convert_locs_to_targets(locs,occ)
         # Return the results as float32.
         out_32 = [o.astype('float32') for o in out]
         return [ims.astype('float32'), locs.astype('float32'), info.astype('float32')] + out_32
@@ -123,7 +128,7 @@ class PoseBase(PoseCommon):
         return None
 
 
-    def convert_locs_to_targets(self,locs):
+    def convert_locs_to_targets(self,locs,occ):
         '''
         Override this function to change how labels are converted into target heatmaps.
         You can use PoseTools.create_label_images to generate the target heatmaps.
@@ -216,13 +221,13 @@ class PoseBase(PoseCommon):
 
         self.find_input_sizes()
 
-        def train_pp(ims,locs,info):
-            return self.preproc_func(ims,locs,info, True)
-        def val_pp(ims,locs,info):
-            return self.preproc_func(ims,locs,info, False)
+        def train_pp(*args):
+            return self.preproc_func(*args, distort=True)
+        def val_pp(*args):
+            return self.preproc_func(*args, distort = False)
 
-        self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
-        self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes ))
+        self.train_py_map = lambda *args: tuple(tf.py_func( train_pp,args, self.input_dtypes))
+        self.val_py_map = lambda *args: tuple(tf.py_func( val_pp, args, self.input_dtypes ))
 
         self.setup_train()
         self.set_input_sizes()

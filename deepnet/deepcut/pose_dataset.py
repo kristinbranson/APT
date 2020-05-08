@@ -329,6 +329,9 @@ class PoseDataset:
                 j_x = np.asscalar(joint_pt[0])
                 j_y = np.asscalar(joint_pt[1])
 
+                if np.isnan(j_x) or np.isnan(j_y):
+                    continue
+
                 # don't loop over entire heatmap, but just relevant locations
                 j_x_sm = round((j_x - half_stride) / stride)
                 j_y_sm = round((j_y - half_stride) / stride)

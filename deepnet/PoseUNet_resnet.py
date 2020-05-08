@@ -470,8 +470,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 n_x = loc_shape[2]
                 n_y = loc_shape[1]
                 x_off, y_off = np.meshgrid(np.arange(n_x), np.arange(n_y))
-                x_off = np.tile(x_off[np.newaxis,:,:,np.newaxis],[loc_shape[0],1,1,1])
-                y_off = np.tile(y_off[np.newaxis,:,:,np.newaxis], [loc_shape[0],1,1,1])
+                # x_off = np.tile(x_off[np.newaxis,:,:,np.newaxis],[loc_shape[0],1,1,1])
+                # y_off = np.tile(y_off[np.newaxis,:,:,np.newaxis], [loc_shape[0],1,1,1])
+                # no need for tiling because of broadcasting
+                x_off = x_off[np.newaxis,:,:,np.newaxis]
+                y_off = y_off[np.newaxis,:,:,np.newaxis]
 
                 in_filt = loc_shape[-1]
 

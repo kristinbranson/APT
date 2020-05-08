@@ -170,7 +170,11 @@ def to_mat(in_data):
 
 def tf_serialize(data):
     # serialize data for writing to tf records file.
-    frame_in, cur_loc, info = data
+    frame_in, cur_loc, info = data[:3]
+    if len(data)>3:
+        occ = data[3]
+    else:
+        occ = np.zeros(cur_loc.shape[:-1])
     rows, cols, depth = frame_in.shape
     expid, fnum, trxid = info
     image_raw = frame_in.tostring()
@@ -183,7 +187,9 @@ def tf_serialize(data):
         'locs': float_feature(cur_loc.flatten()),
         'expndx': float_feature(expid),
         'ts': float_feature(fnum),
-        'image_raw': bytes_feature(image_raw)}))
+        'image_raw': bytes_feature(image_raw),
+        'occ':float_feature(occ),
+    }))
 
     return example.SerializeToString()
 
@@ -934,7 +940,8 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
 
         if occ_as_nan:
             cur_locs[cur_occ] = np.nan
-        cur_out([cur_frame, cur_locs, info])
+        cur_occ = cur_occ.astype('float')
+        cur_out([cur_frame, cur_locs, info,cur_occ])
 
         if cur_out is out_fns[1] and split:
             val_count += 1
