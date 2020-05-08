@@ -154,6 +154,11 @@ class config(object):
         self.dpk_output_shape = None        # (computed at TGTFR/init) conf map output shape
         self.dpk_output_sigma = None        # (computed at TGTFR/init) target hmap gaussian                                         sd in output coords
         self.dpk_input_sigma = 5.0          # (immutable after early) target hmap gaussian                                          sd in input coords
+        self.dpk_base_lr_factory = .001
+        self.dpk_base_lr_used = None        # (auto-computed at compile-time; actual base lr used)
+        self.dpk_reduce_lr_on_plat = True   # True is as published for dpk, using K cbk (starting from dpk_base_lr_used);
+                                            # False is APT-style scheduled (using learning_rate, decay_steps, gamma)
+
 
         # ============== EXTRA ================
 

@@ -433,7 +433,7 @@ def get_output_scale(model):
 
 def training(conf, name='deepnet'):
 
-    base_lr = conf.sb_base_lr
+    base_lr = conf.sb_base_lr * conf.get('learning_rate_multiplier',1.)
     batch_size = conf.batch_size
     gamma = conf.gamma
     stepsize = int(conf.decay_steps)
@@ -595,6 +595,8 @@ def training(conf, name='deepnet'):
     obs = OutputObserver(conf, [train_di2, val_di])
     callbacks_list = [lrate, obs]  #checkpoint,
 
+    # Epsilon: could just leave un-speced, None leads to default in tf1.14 at least
+    # Decay: 0.0 bc lr schedule handled above by callback/LRScheduler
     optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)
@@ -658,7 +660,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet', retrawpred=False, **kwarg
         max(1.0, conf.sb_blur_rad_input_res / float(conf.sb_output_scale))
     logging.info('Model output scale is {}, blurrad_input/output is {}/{}'.format(conf.sb_output_scale, conf.sb_blur_rad_input_res, conf.sb_blur_rad_output_res))
 
-    op.compare_conf_traindata(conf)
+    op.compare_conf_traindata(conf, name)
 
     # TODO: Theoretically probably should deep-copy conf since it is used in the returned fn
 

@@ -53,27 +53,26 @@ outtouch = os.path.join(bubtouchroot, 'out' + kwtouch)
 exptouch = 'cvi_trn4702_tst180__split1' # trn4702, tst180
 
 cacheroot = '/nrs/branson/al/cache'
-dpk_fly_h5 = '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release.h5'
 
 isotri='/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
 isotrilocs = np.array([[226., 107.], [180., 446.], [283., 445.]])
 isotriswapidx = np.array([-1, 2, 1])
 
 skeleton_csvs = {
-    'alice': ['/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'],
+    'alice': ['/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'],
     'stephen': [
-            '/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw0_side.csv',
-            '/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw1_front.csv',
+            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw0_side.csv',
+            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw1_front.csv',
         ],
     'romain': [
-            '/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw0.csv',
-            '/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw1.csv',
+            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw0.csv',
+            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw1.csv',
         ],
-    'roian': ['/groups/branson/bransonlab/apt/experiments/data/roian_dpk_skeleton.csv'],
-    'larva': ['/groups/branson/bransonlab/apt/experiments/data/larva_dpk_skeleton.csv'],
-    'dpkfly':    ['/groups/branson/home/leea30/git/dpkd/datasets/fly/skeleton.csv'],
-    'dpklocust': ['/groups/branson/home/leea30/git/dpkd/datasets/locust/skeleton.csv'],
-    'dpkzebra':  ['/groups/branson/home/leea30/git/dpkd/datasets/zebra/skeleton.csv'],
+    'roian': ['/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/roian_dpk_skeleton.csv'],
+    'larva': ['/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/larva_dpk_skeleton.csv'],
+    'dpkfly':    ['/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets/fly/skeleton.csv'],
+    'dpklocust': ['/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets/locust/skeleton.csv'],
+    'dpkzebra':  ['/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets/zebra/skeleton.csv'],
 }
 
 
@@ -286,12 +285,20 @@ def create_callbacks(sdn, conf):
                     validation_batch_size=10)
     '''
 
-    # `ReduceLROnPlateau` automatically reduces the learning rate of the optimizer when the validation loss stops improving.This helps the model to reach a better optimum at the end of training.
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="loss", # monitor="val_loss"
-        factor=0.2,
-        verbose=1,
-        patience=20)
+    if conf.dpk_reduce_lr_on_plat:
+        logging.info("LR callback: using reduceLROnPlateau")
+        lr_cbk = tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="loss", # monitor="val_loss"
+            factor=0.2,
+            verbose=1,
+            patience=20)
+    else:
+        logging.info("LR callback: using APT fixed sched")
+        lr_cbk = kerascallbacks.create_lr_sched_callback(
+            conf.display_step,
+            conf.dpk_base_lr_used,
+            conf.gamma,
+            conf.decay_steps)
 
     train_generator = sdn.train_generator(
         n_outputs=sdn.n_outputs,
@@ -332,48 +339,10 @@ def create_callbacks(sdn, conf):
     '''
 
     #callbacks = [early_stop, reduce_lr, model_checkpoint, logger]
-    callbacks = [reduce_lr, aptcbk]
+    callbacks = [lr_cbk, aptcbk]
 
     return callbacks
 
-def create_callbacks_orig(sdn, conf):
-    logging.info("configing callbacks")
-
-    # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
-    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    logfile = 'log{}.h5'.format(nowstr)
-    logger = deepposekit.callbacks.Logger(
-                    filepath=os.path.join(conf.cachedir, logfile),
-                    validation_batch_size=10)
-
-    # `ReduceLROnPlateau` automatically reduces the learning rate of the optimizer when the validation loss stops improving.This helps the model to reach a better optimum at the end of training.
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss", # monitor="val_loss"
-        factor=0.2,
-        verbose=1,
-        patience=20)
-
-    # `ModelCheckpoint` automatically saves the model when the validation loss improves at the end of each epoch. This allows you to automatically save the best performing model during training, without having to evaluate the performance manually.
-    ckptfile = 'ckpt{}.h5'.format(nowstr)
-    ckpt = os.path.join(conf.cachedir, ckptfile)
-    model_checkpoint = deepposekit.callbacks.ModelCheckpoint(
-        ckpt,
-        monitor="val_loss",  # monitor="val_loss"
-        verbose=1,
-        save_best_only=True,
-    )
-
-    # `EarlyStopping` automatically stops the training session when the validation loss stops improving for a set number of epochs, which is set with the `patience` argument. This allows you to save time when training your model if there's not more improvment.
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss",  # monitor="val_loss"
-        min_delta=0.001,
-        patience=100,
-        verbose=1
-    )
-
-    callbacks = [early_stop, reduce_lr, model_checkpoint, logger]
-    return callbacks
-    #callbacks = [reduce_lr, aptcbk]
 
 #endregion
 
@@ -413,31 +382,6 @@ lr/stopping/etc vs earlystop/bestsave etc) do not make significant differences.
 '''
 
 #region Configurations
-
-def get_rae_normal_conf():
-    '''
-    Get 'normal'/base conf from run_apt_exps.
-
-    Also massages/replaces a few "string props" with their numeric/literal versions.
-    :return:
-    '''
-
-    importlib.reload(rae)
-    rae.setup('alice')  # actual dset shouldn't matter, just a single-view proj
-    out = rae.run_normal_training(run_type='dry')
-    conf_dict = out['dpk_vw0'][0]
-
-    # special-case massage gah
-    conf_dict['brange'] = ast.literal_eval(conf_dict['brange'].replace("\\", ""))
-    conf_dict['crange'] = ast.literal_eval(conf_dict['crange'].replace("\\", ""))
-
-    conf = poseConfig.config()
-    for k in conf_dict.keys():
-        v = conf_dict[k]
-        print('Overriding param {} <= {}'.format(k, v))
-        setattr(conf, k, conf_dict[k])
-
-    return conf
 
 def compute_padding_imsz_net(imsz, rescale, n_transition_min):
     '''
@@ -568,11 +512,14 @@ def skel_graph_test(ty):
 
 
 def print_dpk_conf(conf):
+    PFIXESSKIP = ['unet_', 'mdn_', 'op_', 'sb_','dlc_', 'rnn_', 'save_']
     print("### CONF ###")
     keys = vars(conf).keys()
     for k in keys:
+        if any([k.startswith(x) for x in PFIXESSKIP]):
+            continue
         v = getattr(conf, k)
-        if isinstance(v, list) and v[0] == '__FOO_UNUSED__':
+        if isinstance(v, list) and len(v)>0 and v[0] == '__FOO_UNUSED__':
             pass
         else:
             print("{} -> {}".format(k, v))
@@ -585,7 +532,9 @@ def print_dpk_conf(conf):
 #region Augment
 
 def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
-    if imgaugtype == 'dpkfly':  # similar to fly dset in dpk ppr; currently simplified
+    if imgaugtype == 'dpkfly':
+        # Take step3 ex nb, slightly mod to match ppr desc;
+        # do not add additional steps described in ppr
         augmenter = []
 
         augmenter.append(FlipAxis(data_generator_or_swap_index, axis=0))  # flip image up-down
@@ -627,28 +576,34 @@ def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
 
 #endregion
 
-def apt_db_from_datagen(dg, split_file, dpkconf):
+def apt_db_from_datagen(dg, train_tf, split_file=None, val_tf=None):
     '''
-    Create APT-style train/val tfrecords from a DPK-style DataGenerator
+    Create APT-style train/val tfrecords from a DPK DataGenerator
     :param dg: DataGenerator instance
-    :param split_file: json containing 'val_idx' field that lists 0b row indices for val split
-    :param conf: APT conf (for specification of APT db locs)
+    :param train_tf: full path, training tfrecord to be written; include .tfrecords extension
+    :param split_file: (opt) json containing 'val_idx' field that lists 0b row indices for val split
+    :param val_tf: (opt) like train_tf, val db if split_file spec'ed
     :return:
     '''
 
-    with open(split_file) as fp:
-        js = json.load(fp)
-    val_idx = js['val_idx']
-    nval = len(val_idx)
     n = len(dg)
-    assert all((x < n for x in val_idx))
-    print("Read json file {}. Found {} val_idx elements. Datagenerator has {} els.".format(
-        split_file, nval, n))
+
+    dosplit = split_file is not None
+    if dosplit:
+        with open(split_file) as fp:
+            js = json.load(fp)
+        val_idx = js['val_idx']
+        nval = len(val_idx)
+        assert all((x < n for x in val_idx))
+        print("Read json file {}. Found {} val_idx elements. Datagenerator has {} els.".format(
+            split_file, nval, n))
 
     print("Datagenerator image/keypt shapes are {}, {}.".format(
         dg.compute_image_shape(), dg.compute_keypoints_shape() ) )
 
-    env, val_env = multiResData.create_envs(dpkconf, True)
+    env = tf.python_io.TFRecordWriter(train_tf)
+    if dosplit:
+        val_env = tf.python_io.TFRecordWriter(val_tf)
 
     count = 0
     val_count = 0
@@ -658,7 +613,7 @@ def apt_db_from_datagen(dg, split_file, dpkconf):
         info = [int(idx), int(idx), int(idx)]
 
         towrite = apt.tf_serialize([im[0, ...], loc[0, ...], info])
-        if idx in val_idx:
+        if dosplit and idx in val_idx:
             val_env.write(towrite)
             val_count += 1
         else:
@@ -670,11 +625,6 @@ def apt_db_from_datagen(dg, split_file, dpkconf):
 
     print('%d,%d number of examples added to the training db and val db' % (count, val_count))
 
-    split_file_dst = os.path.join(dpkconf.cachedir,
-                                  dpkconf.valfilename+"."+os.path.basename(split_file))
-    shutil.copyfile(split_file, split_file_dst)
-    print('Copied split file {} -> {}'.format(split_file, split_file_dst))
-
 #region Train
 
 def compile(conf):
@@ -683,10 +633,17 @@ def compile(conf):
                           n_stacks=conf.dpk_n_stacks,
                           growth_rate=conf.dpk_growth_rate,
                           pretrained=conf.dpk_use_pretrained)
+
+    base_lr = conf.dpk_base_lr_factory if conf.dpk_reduce_lr_on_plat \
+        else conf.learning_rate
+    base_lr_used = base_lr * conf.learning_rate_multiplier
+    conf.dpk_base_lr_used = base_lr_used
+    logging.info("base_lr_used={}".format(base_lr_used))
+
     cbk = create_callbacks(sdn, conf)
 
     optimizer = tf.keras.optimizers.Adam(
-        lr=.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+        lr=base_lr_used, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     sdn.compile(optimizer=optimizer, loss='mse')
 
     return tgtfr, sdn, cbk
@@ -719,43 +676,6 @@ def train(conf):
         epochs=conf.dl_steps // conf.display_step,
         steps_per_epoch=conf.display_step,
         validation_steps=nvalbatch, )  # default validation_freq of 1 seems fine # validation_freq=10)
-
-def train_orig(conf, dg):
-    print_dpk_conf(conf)
-
-    augmenter = conf.dpk_augmenter
-    train_generator = deepposekit.io.TrainingGenerator(
-                        generator=dg,
-                        downsample_factor=conf.dpk_downsample_factor,
-                        augmenter=augmenter,
-                        sigma=conf.dpk_input_sigma,
-                        validation_split=0.1,
-                        use_graph=True,
-                        random_seed=1,
-                        graph_scale=conf.dpk_graph_scale)
-    sdn = StackedDenseNet(train_generator,
-                          n_stacks=conf.dpk_n_stacks,
-                          growth_rate=conf.dpk_growth_rate,
-                          pretrained=conf.dpk_use_pretrained)
-    cbk = create_callbacks_orig(sdn, conf)
-
-    optimizer = tf.keras.optimizers.Adam(
-        lr=.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
-    sdn.compile(optimizer=optimizer, loss='mse')
-
-    tgconf = train_generator.get_config()
-    sdnconf = sdn.get_config()
-    conf_file = os.path.join(conf.cachedir, 'conf.pickle')
-    with open(conf_file, 'wb') as fh:
-        pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
-    logging.info("Saved confs to {}".format(conf_file))
-
-    sdn.fit(
-        batch_size=conf.batch_size,
-        validation_batch_size=conf.batch_size,
-        callbacks=cbk,
-        epochs=conf.dpk_origtrain_nsteps,
-        steps_per_epoch=None)
 
 #endregion
 
@@ -895,118 +815,9 @@ def load_apt_cpkt(exp_dir, mdlfile):
 
 #endregion
 
-#region Script/Cmdline API
-
-def parseargs(argv):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--expname',
-                        required=True,
-                        help='Experiment name')
-    parser.add_argument('--dset',
-                        choices=['dpkfly', 'bub'],  # bub obsolete, move to rae
-                        default='dpkfly',
-                        help='(DPK) dataset name; doubles as projname')
-    #parser.add_argument('--datasrc',
-    #                    choices=['h5', 'tgtfr'],
-    #                    default='tgtfr',
-    #                    help='Data source/input pipeline. If tgtfr, train/val dbs must be present under expname in cache')
-    parser.add_argument('--traintype',
-                        choices=['orig', 'apt'],
-                        default='apt',
-                        help='If orig, use h5 data input and original training/callbacks; else use tgtfr input and apt training/callbacks')
-    parser.add_argument('--augtype',
-                        choices=['imgaug', 'posetools'],
-                        default='posetools',
-                        help='Imgaug choice, applicable only when traintype==apt')
-    parser.add_argument('--cacheroot',
-                        default=cacheroot)
-    parser.add_argument('--compileonly',
-                        action='store_true',
-                        help="Don't train just compile")
-    #parser.add_argument('--dpkloc',
-    #                    default='/groups/branson/home/leea30/git/dpk',
-    #                    help='location of dpk repo/dependency')
-    #parser.add_argument('--imgaugloc',
-    #                    default='/groups/branson/home/leea30/git/imgaug',
-    #                    help='location of imgaug repo/dependency')
-
-    args = parser.parse_args(argv)
-    return args
-
-def main(argv):
-
-    args = parseargs(argv)
-
-    projname = args.dset
-
-
-    if args.dset == 'dpkfly':
-        h5file = dpk_fly_h5
-        dg = deepposekit.io.DataGenerator(h5file)
-
-        conf = get_rae_normal_conf()
-        conf = update_conf_dpk(conf,
-                               dg.graph,
-                               dg.swap_index,
-                               n_keypoints=dg.n_keypoints,
-                               imshape=dg.compute_image_shape(),
-                               useimgaug=(args.augtype == 'imgaug'),
-                               imgaugtype=args.dset)
-
-        dpk_origtrain_nsteps = 400
-
-    elif args.dset == 'alice':
-        assert False, "xxx move this stuff into rae"
-
-
-        augmenter = make_imgaug_augmenter(dg.swap_index)
-
-        cdpk = update_conf_dpk(dg, args.cacheroot, projname, args.expname)
-
-        dpk_origtrain_nsteps = None  # cannot run origtrain with bub
-
-    else:
-        assert False
-
-    if args.traintype == 'orig':
-        assert not args.compileonly, "Not implemented"
-        assert conf.dpk_use_augmenter == True, "Orig training requires ia augmenter"
-        assert dpk_origtrain_nsteps is not None
-        setattr(conf, 'dpk_origtrain_nsteps', dpk_origtrain_nsteps)
-
-        train_orig(conf, dg)
-        return None
-    else:  # apt impl/train
-        if args.compileonly:
-            _, sdn, cbks = compile(conf)
-            return conf, sdn, cbks
-        else:
-            train(conf)
-
-#endregion
-
 if __name__ == "__main__" and len(sys.argv) > 1:
     main(sys.argv[1:])
 else:
     pass
 
-    '''
-    h5file = dpk_fly_h5
-    dg = deepposekit.io.DataGenerator(h5file)
-    cdpk = apt_dpk_conf(dg, cacheroot, 'testproj', 'testexp')
-    augmenter = make_augmenter(dg)
-    sdn, cbks = train(cdpk, augmenter, compileonly=True)
-
-    import cv2
-
-    im = cv2.imread(isotri)
-    loc = isotrilocs
-    im = im[np.newaxis, ...]
-    loc = loc[np.newaxis, ...]
-    (im_lr, locs_lr), (im_ud, locs_ud), (im_lria, locs_lria), (im_udia, locs_udia) = check_flips(im,loc,isotriswapidx)
-
-    PoseTools.show_result(im, range(1), loc, fignum=10, mrkrsz=200)
-    PoseTools.show_result(im_udia, range(1), locs_udia, fignum=11, mrkrsz=200)
-    PoseTools.show_result(im_lria, range(1), locs_lria, fignum=12, mrkrsz=200)
-    '''
 

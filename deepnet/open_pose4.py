@@ -596,6 +596,12 @@ def dot(K, L):
    assert len(K) == len(L), 'lens do not match: {} vs {}'.format(len(K), len(L))
    return sum(i[0] * i[1] for i in zip(K, L))
 
+def get_train_data_filename(conf, name):
+    tdf = 'traindata' if name == 'deepnet' else conf.expname + '_' + name + '_traindata'
+    train_data_file = os.path.join(conf.cachedir, tdf)
+    return train_data_file
+
+
 def training(conf, name='deepnet'):
 
     # base_lr = conf.op_base_lr
@@ -744,11 +750,7 @@ def training(conf, name='deepnet'):
                     p_str += '{:s}:{:.2f} '.format(k, lastval)
             logging.info(p_str)
 
-            if name == 'deepnet':
-                train_data_file = os.path.join( self.config.cachedir, 'traindata')
-            else:
-                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
-            # train_data_file = os.path.join(self.config.cachedir, 'traindata')
+            train_data_file = get_train_data_filename(self.config, name)
 
             json_data = {}
             for x in self.train_info.keys():
@@ -777,6 +779,8 @@ def training(conf, name='deepnet'):
 
     # optimizer = MultiSGD(lr=base_lr, momentum=momentum, decay=0.0, nesterov=False, lr_mult=lr_mult)#, clipnorm=1.)
     # Mayank 20190423 - Adding clipnorm so that the loss doesn't go to zero.
+    # Epsilon: could just leave un-speced, None leads to default in tf1.14 at least
+    # Decay: 0.0 bc lr schedule handled above by callback/LRScheduler
     optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)
@@ -822,14 +826,15 @@ def clip_heatmap_with_warn(predhm):
 
     return predhm_clip
 
-def compare_conf_traindata(conf):
+def compare_conf_traindata(conf, name):
     '''
     Compare given conf to one on disk
     :param conf:
     :return:
     '''
-    cdir = conf.cachedir
-    tdfile = os.path.join(cdir, 'traindata')
+
+    #cdir = conf.cachedir
+    tdfile = get_train_data_filename(conf, name)
     if os.path.exists(tdfile):
         with open(tdfile, 'rb') as f:
             td = pickle.load(f, encoding='latin1')
@@ -859,7 +864,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
     #imszuse = (imnr_use, imnc_use)
     #conf.imszuse = imszuse
 
-    compare_conf_traindata(conf)
+    compare_conf_traindata(conf, name)
 
     # TODO: Theoretically probably should deep-copy conf since it is used in the returned fn
 
