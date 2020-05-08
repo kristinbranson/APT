@@ -2343,7 +2343,7 @@ classdef DeepTracker < LabelTracker
           for f=gtprops(:)',f=f{1}; %#ok<FXSET>
             lds.(f) = snew.(f);
           end
-          save(dlLblFileLcl,'-mat','-struct','lds');
+          save(dlLblFileLcl,'-mat','-v7.3','-struct','lds');
           fprintf('Resaved stripped lbl with updated GT state.\n');
         end
       end
