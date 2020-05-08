@@ -158,7 +158,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
             PAT = '(?<numfrmstrked>[0-9]+)';
             toks = regexp(tmp,PAT,'names','once');
             if ~isempty(toks)
-              parttrkfileNfrmtracked(i) = str2double(toks{1}.numfrmstrked);
+              parttrkfileNfrmtracked(i) = str2double(toks.numfrmstrked);
             end
           end
         end

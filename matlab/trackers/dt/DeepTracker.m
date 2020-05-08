@@ -2283,8 +2283,12 @@ classdef DeepTracker < LabelTracker
       obj.updateTrackerInfo();
     end
     
-    function trksysinfo = track2_genBaseTrkInfo(obj,taskKeywords)
+    function trksysinfo = track2_genBaseTrkInfo(obj,taskKeywords,varargin)
       % taskKeyword: arbitrary string/keyword for log/errfiles etc
+
+      gtResaveStrippedLbl = myparse(varargin,...
+        'gtResaveStrippedLbl',false ... % if true, resave *GT props to stripped lbl
+        );
 
       nvw = obj.lObj.nview;
       assert(numel(taskKeywords)==nvw);
@@ -2304,6 +2308,45 @@ classdef DeepTracker < LabelTracker
       dlLblFileLcl = dlLblFileLcl{1};
       assert(exist(dlLblFileLcl,'file')>0,...
         'Can''t find stripped lbl file: %s\n',dlLblFileLcl);
+      
+      if gtResaveStrippedLbl
+        % Modify&resave stripped lbl if nec, as GT movies labels etc
+        % may have changed since training. Currently we classify/track GT
+        % using APT_interf -classify_gt which reads GT rows from the
+        % stripped lbl. Alternatively we could just make a listfile etc and
+        % track the "normal" way which would prob be better.
+
+        lds = load(dlLblFileLcl,'-mat');
+        snew = obj.lObj.projGetSaveStruct('macroreplace',true,...
+                                          'massageCropProps',true,...
+                                          'savepropsonly',true);
+        gtprops = obj.lObj.SAVEPROPS_GTCLASSIFY;
+        somethingGTchanged = ~isequaln(structrestrictflds(lds,gtprops),...
+                                       structrestrictflds(snew,gtprops));        
+        if somethingGTchanged
+          % Note simply re-creating the entire stripped lbl might alter
+          % training data (movies labels etc) which would be highly
+          % undesirable.
+          
+          fprintf('GT state has changed since train...\n');
+        
+          % back up existing stripped lbl jic
+          nowstr = datestr(now,'yyyymmddTHHMMSS');
+          lblbak = sprintf('%s_%s.bak',dlLblFileLcl,nowstr);         
+          [succ,msg] = copyfile(dlLblFileLcl,lblbak);
+          if ~succ
+            error('Error resaving stripped lbl: %s',msg);
+          end
+          fprintf('Backed up stripped lbl: %s.\n',dlLblFileLcl);
+
+          %% load and resave.
+          for f=gtprops(:)',f=f{1}; %#ok<FXSET>
+            lds.(f) = snew.(f);
+          end
+          save(dlLblFileLcl,'-mat','-struct','lds');
+          fprintf('Resaved stripped lbl with updated GT state.\n');
+        end
+      end
 
       %%% Code/PTW %%% 
       
@@ -2562,7 +2605,7 @@ classdef DeepTracker < LabelTracker
       
       nvw = obj.lObj.nview;
       kw = repmat({'GT'},nvw,1);
-      trksysinfo = obj.track2_genBaseTrkInfo(kw);
+      trksysinfo = obj.track2_genBaseTrkInfo(kw,'gtResaveStrippedLbl',true);
       
       trksysinfo = obj.track2_codegen_gt(trksysinfo);
       
