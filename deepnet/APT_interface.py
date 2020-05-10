@@ -157,6 +157,22 @@ def convert(in_data,to_python):
         out_data = in_data+offset
     return out_data
 
+def parse_frame_arg(framein,nMovies,defaultval):
+    if framein == []:
+        frameout = [defaultval] * nMovies
+    else:
+        if not isinstance(framein,list):
+            if framein < 0:
+                frameout = [np.Inf] * nMovies
+            else:
+                frameout = [framein] * nMovies
+        else:
+            frameout = map(lambda x: np.Inf if (x < 0) else x,framein)
+            if len(frameout) < nMovies:
+                frameout = frameout + [defaultval]*(nMovies-len(frameout))
+    assert len(frameout) == nMovies
+    return frameout
+
 def to_py(in_data):
     return convert(in_data,to_python=True)
 
@@ -1874,6 +1890,19 @@ def classify_movie(conf, pred_fn,
                    crop_loc=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
 
+    logging.info('classify_movie:')
+    logging.info('mov_file: %s'%mov_file)
+    logging.info('out_file: %s'%out_file)
+    logging.info('trx_file: %s'%trx_file)
+    logging.info('start_frame: '+str(start_frame))
+    logging.info('end_frame: '+str(end_frame))
+    logging.info('skip_rate: '+str(skip_rate))
+    logging.info('trx_ids: '+str(trx_ids))    
+    logging.info('model_file: %s'%model_file)
+    logging.info('name: %s'%name)
+    logging.info('save_hmaps: '+str(save_hmaps))
+    logging.info('crop_loc: '+str(crop_loc))
+    
     cap = movies.Movie(mov_file)
     sz = (cap.get_height(), cap.get_width())
     n_frames = int(cap.get_n_frames())
@@ -2185,14 +2214,14 @@ def parse_args(argv):
                                  help="movie(s) to track", nargs='+') # KB 20190123 removed required because list_file does not require mov
     parser_classify.add_argument("-trx", dest="trx",
                                  help='trx file for above movie', default=None, nargs='*')
-    parser_classify.add_argument('-start_frame', dest='start_frame', help='start tracking from this frame', type=int,
+    parser_classify.add_argument('-start_frame', dest='start_frame', help='start tracking from this frame', nargs='*',type=int,
                                  default=1)
-    parser_classify.add_argument('-end_frame', dest='end_frame', help='end frame for tracking', type=int, default=-1)
+    parser_classify.add_argument('-end_frame', dest='end_frame', help='end frame for tracking', nargs='*',type=int, default=-1)
     parser_classify.add_argument('-skip_rate', dest='skip', help='frames to skip while tracking', default=1, type=int)
     parser_classify.add_argument('-out', dest='out_files', help='file to save tracking results to', required=True,
                                  nargs='+')
     parser_classify.add_argument('-trx_ids', dest='trx_ids', help='only track these animals', nargs='*', type=int,
-                                 default=[])
+                                 default=[], action='append')
     parser_classify.add_argument('-hmaps', dest='hmaps', help='generate heatmpas', action='store_true')
     parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given xlo xhi ylo yhi', nargs='*', type=int,
                                  default=None)
@@ -2224,10 +2253,17 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     if args.view is not None:
         args.view = convert(args.view,to_python=True)
-    if args.sub_name == 'track':
-        if len(args.trx_ids) > 0:
-            args.trx_ids = to_py(args.trx_ids)
+    if args.sub_name == 'track' and args.mov is not None:
+        nmov = len(args.mov)
+        args.trx_ids = parse_trx_ids_arg(args.trx_ids,nmov)
         args.start_frame = to_py(args.start_frame)
+        args.start_frame = parse_frame_arg(args.start_frame,nmov,0)
+        args.end_frame = parse_frame_arg(args.end_frame,nmov,np.Inf)
+
+        #logging.info('trx_ids = ' + str(args.trx_ids))
+        #logging.info('start_frame = ' + str(args.start_frame))
+        #logging.info('end_frame = ' + str(args.start_frame))
+            
         args.crop_loc = to_py(args.crop_loc)
 
     if args.sub_name != 'test':
@@ -2240,6 +2276,27 @@ def parse_args(argv):
             args.type = 'mdn'
     return args
 
+def parse_trx_ids_arg(trx_ids,nmovies):
+
+    logging.info('PARSE_TRX_IDS: Input nmovies = %d, trx_ids = '%nmovies + str(trx_ids))
+    # make trx_ids a list of lists, with one element for each movie
+    if trx_ids == []: # not input
+        trx_ids_out = [[]]*nmovies
+    elif isinstance(trx_ids,int): # one id
+        trx_ids_out = [[to_py(trx_ids)]]*nmovies
+    elif isinstance(trx_ids,list):
+        if isinstance(trx_ids[0],int):
+            trx_ids_out = [to_py(trx_ids)]*nmovies
+        else: # should be a list
+            trx_ids_out = list(map(to_py,trx_ids))
+            if len(trx_ids_out) < nmovies:
+                trx_ids_out = trx_ids_out + []*(nmovies-len(trx_ids_out))
+    else:
+        raise ValueError('Type for trx_ids is not handled')
+
+    logging.info('Output trx_ids = ' + str(trx_ids_out))
+    return trx_ids_out
+    
 def run(args):
     name = args.name
 
@@ -2326,10 +2383,10 @@ def run(args):
                                    mov_file=args.mov[view_ndx],
                                    trx_file=args.trx[view_ndx],
                                    out_file=args.out_files[view_ndx],
-                                   start_frame=args.start_frame,
-                                   end_frame=args.end_frame,
+                                   start_frame=args.start_frame[view_ndx],
+                                   end_frame=args.end_frame[view_ndx],
                                    skip_rate=args.skip,
-                                   trx_ids=args.trx_ids,
+                                   trx_ids=args.trx_ids[view_ndx],
                                    name=name,
                                    save_hmaps=args.hmaps,
                                    crop_loc=crop_loc,
@@ -2375,10 +2432,10 @@ def run(args):
                                    mov_file=args.mov[ndx],
                                    trx_file=args.trx[ndx],
                                    out_file=args.out_files[ndx],
-                                   start_frame=args.start_frame,
-                                   end_frame=args.end_frame,
+                                   start_frame=args.start_frame[ndx],
+                                   end_frame=args.end_frame[ndx],
                                    skip_rate=args.skip,
-                                   trx_ids=args.trx_ids,
+                                   trx_ids=args.trx_ids[ndx],
                                    name=name,
                                    save_hmaps=args.hmaps,
                                    crop_loc=crop_loc_list[ndx],

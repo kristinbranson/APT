@@ -176,8 +176,8 @@ classdef TrackJob < handle
     
     tMFTConc = [];
     trxids = {};
-    frm0 = []; % currently must be scalar
-    frm1 = []; % currently must be scalar
+    frm0 = []; % scalar or (if tfserialmultimov) nSerialMov x 1 vector
+    frm1 = []; % scalar or (if tfserialmultimov) nSerialMov x 1 vector
     cropRoi = []; % either [], or [nView x 4], or (if tfserialmultimov) [nSerialMov x 4]
     nframestrack = []; % after set via getNFramesTrack, [nmovsettrk]
     isContiguous = true; % whether to track a contiguous interval of frames 
@@ -407,8 +407,6 @@ classdef TrackJob < handle
           end
         end
       else
-        % currently tracks from frm0 to frm1 for all targets and one video
-        % this should be fixed!
         assert(~isempty(tMFTConc));
         obj.settMFTConc(tMFTConc);
       end
@@ -541,43 +539,54 @@ classdef TrackJob < handle
       end
       
       % get/compute frm0 (scalar) and frm1 ([nmovset])
-      if isempty(obj.frm0) || isnan(obj.frm0),
-        frm0 = ones(nmovset,1);
-      else
-        frm0 = repmat(obj.frm0,nmovset,1);
+      f0 = obj.frm0;
+      f0(isnan(f0)) = 1;
+      if isempty(f0),
+        f0 = ones(nmovset,1);
+      elseif numel(f0)==1,
+        f0 = repmat(f0,nmovset,1);
       end
-      if isempty(obj.frm1) || isnan(obj.frm1) || isinf(obj.frm1),
-        frm1 = nan(nmovset,1);
-      else
-        frm1 = repmat(obj.frm1,nmovset,1);
+      f1 = obj.frm1;
+      f1(isinf(obj.frm1)) = nan;
+      if isempty(f1),
+        f1 = nan(nmovset,1);
+      elseif numel(f1) == 1,
+        f1 = repmat(f1,nmovset,1);
       end
       lObj = obj.tObj.lObj;
       for imovset=1:nmovset
         % if .tfmultiview, this will go off the view1 mov
-        if isnan(frm1(imovset)),
-          frm1(imovset) = lObj.getNFramesMovFile(obj.movfileLcl{imovset});
+        if isnan(f1(imovset)),
+          f1(imovset) = lObj.getNFramesMovFile(obj.movfileLcl{imovset});
         end
       end
       
       if ~obj.tftrx,
-        nframestrack = frm1-frm0+1;
+        nframestrack = f1-f0+1;
       else
         nframestrack = nan(nmovset,1);
         for imovset=1:nmovset
           % multiview-projs-with-trx currently not supported in APT so
           % .trxfileLcl is either a scalar cell or a [nmovset] cell
           [~,frm2trx] = obj.tObj.lObj.getTrx(obj.trxfileLcl{imovset});
-          if isempty(obj.trxids),
-            trxids = 1:size(frm2trx,2);
-          else
-            trxids = obj.trxids;
+          trxids1 = obj.getTrxIds(imovset);
+          if isempty(trxids1),
+            trxids1 = 1:size(frm2trx,2);
           end
-          nframestrack(imovset) = sum(sum(frm2trx(frm0:frm1(imovset),trxids)));
+          nframestrack(imovset) = sum(sum(frm2trx(f0(imovset):f1(imovset),trxids1)));
         end
       end
             
       obj.nframestrack = nframestrack;
       
+    end
+    
+    function trxids = getTrxIds(obj,imovset)
+      if iscell(obj.trxids),
+        trxids = obj.trxids{imovset};
+      else
+        trxids = obj.trxids;
+      end
     end
     
     function baseargsaug = getBaseArgs(obj,baseargsaug)
