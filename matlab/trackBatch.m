@@ -16,28 +16,7 @@ assert(~isempty(jsonfile));
 [movfiles,trkfiles,trxfiles,cropRois,calibrationfiles,targets,f0s,f1s] = ...
   parseToTrackJSON(jsonfile,lObj);
 
-% currently dumb -- f0 and f1 must be scalars that apply to all movies
-% TODO: fix this
-if isempty(f0s),
-  f0 = [];
-else
-  if isnan(f0s(1)),
-    f0 = [];
-  else
-    f0 = f0s(1);
-  end
-end
-if isempty(f1s),
-  f1 = [];
-else
-  if isnan(f1s(1)),
-    f1 = [];
-  else
-    f1 = f1s(1);
-  end
-end    
-
 % call tracker.track to do the real tracking
 lObj.tracker.track(movfiles,'trxfiles',trxfiles,'trkfiles',trkfiles,...
   'cropRois',cropRois,'calibrationfiles',calibrationfiles,...
-  'targets',targets,'f0',f0,'f1',f1);
+  'targets',targets,'f0',f0s,'f1',f1s);

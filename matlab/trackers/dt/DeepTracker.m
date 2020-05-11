@@ -3258,7 +3258,7 @@ classdef DeepTracker < LabelTracker
       if isexternal
         % "defaults"
         if isSerialMultiMov
-          assert(isnumeric(trxids)); % applies to all movies
+          %assert(isnumeric(trxids)); % applies to all movies
         else
           % Conceptually trxids applies to all views
           if isempty(trxids)
@@ -3306,14 +3306,14 @@ classdef DeepTracker < LabelTracker
         for ivwjob = 1:numel(viewSerialMultiMovs),
           ivw = viewSerialMultiMovs(ivwjob);
           id = sprintf('%s_%dmovs_vw%d',nowstr,nMovies,ivw);
-          if ~isempty(trxids)
-            assert(isnumeric(trxids));
-          end
-          if ~isempty(frm0) || ~isempty(frm1),
-            if ~(isscalar(frm0) && isscalar(frm1))
-              error('''frm0'' and ''frm1'' specifications should be scalars that apply to all movies when tracking multiple movies serially.');
-            end
-          end
+%           if ~isempty(trxids)
+%             assert(isnumeric(trxids));
+%           end
+%           if ~isempty(frm0) || ~isempty(frm1),
+%             if ~(isscalar(frm0) && isscalar(frm1))
+%               error('''frm0'' and ''frm1'' specifications should be scalars that apply to all movies when tracking multiple movies serially.');
+%             end
+%           end
           % this is dumb; cropRoi format conversion
           if ~isempty(cropRois),%obj.lObj.cropProjHasCrops
             cropRois_curr = nan(nMovies,4);
@@ -3348,7 +3348,7 @@ classdef DeepTracker < LabelTracker
             'isSerialMultiMov',true,...
             'ivw',ivw,...
             'rootdirLcl',cacheDir,...
-            'nowstr',id); %#ok<AGROW>
+            'nowstr',id); %#ok<AGROW> % HERE
           trksysinfo(ivwjob).prepareFiles();
           fprintf('View %d: %d trkfiles to be written, first to %s\n',...
             ivw,numel(trkfiles_curr),trksysinfo(ivwjob).trkfileLcl{1});
@@ -4829,7 +4829,7 @@ classdef DeepTracker < LabelTracker
       tflistfile = ~isempty(listfile);
       tffrm = ~tflistfile && ~isempty(frm0) && ~isempty(frm1);
       if tffrm, % ignore frm if it doesn't limit things
-        if frm0 == 1 && isinf(frm1),
+        if all(frm0 == 1) && all(isinf(frm1)),
           tffrm = false;
         end
       end
@@ -4837,7 +4837,7 @@ classdef DeepTracker < LabelTracker
       tftrx = ~tflistfile && ~isempty(trxtrk);
       tftrxids = ~tflistfile && ~isempty(trxids);
       tfview = ~isempty(view);
-      tfcrop = ~isempty(croproi);
+      tfcrop = ~isempty(croproi) && ~all(any(isnan(croproi),2),1);
       tfmodel = ~isempty(model_file);
       tflog = ~isempty(log_file);
       
@@ -4939,15 +4939,23 @@ classdef DeepTracker < LabelTracker
         codestr = [codestr {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(movtrk,filequote)}];
       end
       if tffrm
-        codestr = [codestr {'-start_frame' num2str(frm0) '-end_frame' num2str(frm1)}];
+        frm0(isnan(frm0)) = 1;
+        frm1(isinf(frm1)|isnan(frm1)) = -1;
+        sfrm0 = sprintf('%d ',frm0); sfrm0 = sfrm0(1:end-1);
+        sfrm1 = sprintf('%d ',frm1); sfrm1 = sfrm1(1:end-1);
+        codestr = [codestr {'-start_frame' sfrm0 '-end_frame' sfrm1}];
       end
       if tftrx
         codestr = [codestr {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(trxtrk,filequote)}];
         if tftrxids
-          trxids = num2cell(trxids); % 1-based for APT_interface
-          trxidstr = sprintf('%d ',trxids{:});
-          trxidstr = trxidstr(1:end-1);
-          codestr = [codestr {'-trx_ids' trxidstr}];
+          if ~iscell(trxids),
+            trxids = {trxids};
+          end
+          for i = 1:numel(trxids),
+            trxidstr = sprintf('%d ',trxids{i});
+            trxidstr = trxidstr(1:end-1);
+            codestr = [codestr {'-trx_ids' trxidstr}]; %#ok<AGROW>
+          end
         end
       end
       if tfcrop
