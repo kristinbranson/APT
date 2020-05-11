@@ -5920,10 +5920,10 @@ classdef DeepTracker < LabelTracker
         % relabel movie indices
         obj.movIdx2trkfile = mapKeyRemap(obj.movIdx2trkfile,mIdxOrig2New);
         
-        % this might not be nec b/c the preds for current movie might not
-        % ever change
-        obj.trackCurrResUpdate();
-        obj.newLabelerFrame();
+        % skip this stuff; current movie can never be removed so preds for
+        % current movie should not change
+        %obj.trackCurrResUpdate();
+        %obj.newLabelerFrame();
       end      
     end
     function labelerMoviesReordered(obj,edata)

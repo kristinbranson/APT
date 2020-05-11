@@ -50,23 +50,6 @@ classdef CPRLabelTracker < LabelTracker
   %   .pTrx [1x2*nview] (x,y) trx center/coord for target
   %   .roi [1x2*2*nview] square ROI in each view
   
-  %% Data
-  properties
-    
-    % Cached/working dataset. Contains all I/p/md for frames that have been
-    % seen before by the tracker.
-    % - Can be used for both training and tracking.
-    %
-    % - All frames have an image, but need not have labels (p).
-    % - If applicable, all frames are HE-ed the same way.
-    % - If applicable, all frames are PP-ed the same way.
-    %
-    % MD fields: .mov, .frm, .iTgt, .tfocc, (optional) .pTrx, (optional) .roi. 
-    %data
-    
-    % Timestamp, last data modification (for any reason)
-    %dataTS
-  end
   
   %% Training Data Selection
   properties (SetObservable,SetAccess=private)
@@ -2370,11 +2353,7 @@ classdef CPRLabelTracker < LabelTracker
       mIdx = keys(vals==0);
       mIdx = MovieIndex(mIdx);
       assert(isscalar(mIdx)); % for now
-      
-%       % .data*. Remove any removed movies from .data cache, relabel MD.mov
-%       obj.data.movieRemap(mIdxOrig2New);
-%     AL: Now done in Labeler
-      
+            
       % trnData*. If a movie is being removed that is in trnDataTblP, to be 
       % safe we invalidate any trained tracker and tracking results.
       tfRm = obj.trnDataTblP.mov==mIdx;

@@ -901,7 +901,16 @@ classdef InfoTimeline < handle
             data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
               lpostag(:,:,iTgt),bodytrx,pcode);
           case 'Predictions'
-            data = obj.tracker.getPropValues(pcode);
+            % AL 20200511 hack, initialization ordering. If the timeline
+            % pum has 'Predictions' selected and a new project is loaded,
+            % the trackers are not updated (via
+            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
+            % call which leads here.
+            if isvalid(obj.tracker)
+              data = obj.tracker.getPropValues(pcode);
+            else
+              data = nan(obj.npts,1);
+            end
           otherwise
             error('Unknown data type %s',ptype);
         end
