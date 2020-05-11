@@ -5911,8 +5911,9 @@ classdef DeepTracker < LabelTracker
   methods
     function labelerMovieRemoved(obj,edata)
       mIdxOrig2New = edata.mIdxOrig2New;
-      tfLabeledRowRemoved = ~isempty(edata.mIdxRmedHadLbls);
-      if tfLabeledRowRemoved
+      tfLabeledTrainingRowRemoved = ~isempty(edata.mIdxRmedHadLbls) && ...
+                                    edata.mIdxRmedHadLbls>0; % negative indices indicate GT movie(s)
+      if tfLabeledTrainingRowRemoved
         warningNoTrace('Labeled row(s) removed from project. Clearing trained tracker and tracking results.');
         obj.initHook();
       else

@@ -3918,50 +3918,12 @@ end
 ClearStatus(handles);
 
 function menu_evaluate_gtloadsuggestions_Callback(hObject,eventdata,handles)
-gtsuggmat = RC.getprop('gtsuggestionsmat');
-if isempty(gtsuggmat)
-  gtsuggmat = pwd;
-end
-[fname,pth] = uigetfile('*.mat','Load GT Table',gtsuggmat);
-if isequal(fname,0)
-  return;
-end
-fname = fullfile(pth,fname);
-
 lObj = handles.labelerObj;
-assert(lObj.gtIsGTMode);
-tbl = MFTable.loadTableFromMatfile(fname);
-if ~isnumeric(tbl.mov)
-  [tffound,mIdx] = lObj.getMovIdxMovieFilesAllFull(tbl.mov,'gt',true);
-  if any(~tffound)
-    errstrs = {'Moviesets in table not found in project:'};
-    movstrsnotfound = MFTable.formMultiMovieIDArray(tbl.mov(~tffound,:),...
-      'separator',',','checkseparator',false);
-    errstrs = [errstrs; movstrsnotfound];
-    errordlg(errstrs,'Moviesets not found');
-    return;
-  end
-  
-  szassert(mIdx,[height(tbl) 1]);
-  assert(isa(mIdx,'MovieIndex'));
-  [~,gt] = mIdx.get();
-  assert(all(gt));
-  tbl.mov = mIdx;
-end
-
-lObj.gtSetUserSuggestions(tbl);
-msgstr = sprintf('Loaded GT table with %d rows spanning %d GT movies.',...
-  height(tbl),numel(unique(tbl.mov)));
-msgbox(msgstr,'GT Table Loaded');
+LabelerGT.loadSuggestionsUI(lObj);
 
 function menu_evaluate_gtsetsuggestions_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
-assert(lObj.gtIsGTMode);
-lObj.gtSetUserSuggestions([]);
-tbl = lObj.gtSuggMFTable;
-msgstr = sprintf('Set GT suggestions table with %d rows spanning %d GT movies.',...
-  height(tbl),numel(unique(tbl.mov)));
-msgbox(msgstr,'GT Table Loaded');
+LabelerGT.setSuggestionsToLabeledUI(lObj);
 
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;

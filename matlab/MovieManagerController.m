@@ -116,7 +116,7 @@ classdef MovieManagerController < handle
         @(s,e)obj.notify('tableClicked'));
       
       % Copy stuff onto GT tab
-      HANDLES = {'uipanel1' 'pbSwitch' 'pbAdd' 'pbRm'};
+      HANDLES = {'uipanel1' 'pbSwitch' 'pbNextUnlabeled' 'pbAdd' 'pbRm'};
       for tag=HANDLES,tag=tag{1}; %#ok<FXSET>
         h = copyobj(mmgd.(tag),hT2);
         h.Tag = tag;
@@ -126,11 +126,11 @@ classdef MovieManagerController < handle
           hpbs{2}(end+1,1) = h;
         end
       end
-      % Special case, pbSwitch
-      gdata(2).pbSwitch.String = 'GT Frames';
-      gdata(2).pbSwitch.Tag = 'pbGTFrames';
-      gdata(2).pbGTFrames = gdata(2).pbSwitch;
-      gdata(2).pbSwitch = [];
+      % Special case, pbNextUnlabeled->GT Frames
+      gdata(2).pbNextUnlabeled.String = 'GT Frames';
+      gdata(2).pbNextUnlabeled.Tag = 'pbGTFrames';
+      gdata(2).pbGTFrames = gdata(2).pbNextUnlabeled;
+      gdata(2).pbNextUnlabeled = [];
       tblGT = MovieManagerTable.create(obj.labeler.nview,gdata(2).uipanel1,...
         tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
       obj.listeners{end+1,1} = addlistener(tblGT,'tableClicked',...
