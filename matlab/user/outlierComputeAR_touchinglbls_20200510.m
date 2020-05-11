@@ -1,6 +1,6 @@
 function [suspscore,tblsusp,diagstr] = outlierComputeAR_touchinglbls_20200510(lObj)
-
-FILE = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/TouchingFlies/newlabelslist_20200510.mat';
+FILE = '/Volumes/APT_data_flybubble/APTprojects/newlabelslist_20200510.mat';
+% FILE = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/TouchingFlies/newlabelslist_20200510.mat';
 %FILE = 'f:\arHackNavTable20171220\multitarget_bubble_expandedbehavior_20171206_cv_outlierlist.mat';
 
 fprintf('Loading file: %s\n',FILE);

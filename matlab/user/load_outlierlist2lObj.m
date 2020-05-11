@@ -1,0 +1,2 @@
+lObj.suspSetComputeFcn(@outlierComputeAR_touchinglbls_20200510);
+lObj.suspComputeUI
