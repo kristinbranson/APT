@@ -3981,9 +3981,13 @@ classdef Labeler < handle
         
         obj.prevAxesMovieRemap(edata.mIdxOrig2New);
         
+        % Note, obj.currMovie is not yet updated when this event goes out
         notify(obj,'movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
+          % AL 20200511. this may be overkill, maybe can just set 
+          % .currMovie directly as the current movie itself cannot be 
+          % rm-ed. A lot (if not all) state update here prob unnec
           obj.movieSet(obj.currMovie-1);
         end
       end
