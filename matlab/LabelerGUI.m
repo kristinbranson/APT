@@ -352,6 +352,14 @@ handles.menu_track_training_data_montage = uimenu(...
 moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_set_landmark_matches);
 delete(handles.menu_track_select_training_data);
 
+handles.menu_track_batch_track = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Track multiple videos...',...
+  'Tag','menu_track_batch_track',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_batch_track_Callback',h,evtdata,guidata(h)),...
+  'Separator','on');
+moveMenuItemAfter(handles.menu_track_batch_track,handles.menu_track_training_data_montage);
+
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
 
 handles.menu_track_trainincremental = handles.menu_track_retrain;
@@ -364,7 +372,8 @@ handles.menu_track_trainincremental.Visible = 'off';
 
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
   'Label','Export current tracking results',...
-  'Tag','menu_track_export_base');  
+  'Tag','menu_track_export_base',...
+  'Separator','on');  
 moveMenuItemAfter(handles.menu_track_export_base,handles.menu_track_track_and_export);
 handles.menu_track_export_current_movie = uimenu('Parent',handles.menu_track_export_base,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_current_movie_Callback',hObject,eventdata,guidata(hObject)),...
@@ -2031,8 +2040,9 @@ if tfTracker
   handles.menu_track_cpr_view_diagnostics.Visible = onOffCpr;
   
   % FUTURE TODO, enable for DL
-  handles.menu_track_training_data_montage.Enable = onOffCpr;
-  handles.menu_track_track_and_export.Enable = onOffCpr;
+  % I think these are obsolete, semi-removing them
+  handles.menu_track_training_data_montage.Visible = onOffCpr;
+  handles.menu_track_track_and_export.Visible = onOffCpr;
   isDL = ~iscpr;
   onOffDL = onIff(isDL);
   handles.menu_track_backend_config.Visible = onOffDL;
@@ -3808,6 +3818,27 @@ if ~tfok
 end
 SetStatus(handles,'Tracking...');
 handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
+ClearStatus(handles);
+
+function menu_track_batch_track_Callback(hObject,eventdata,handles)
+
+persistent jsonfile;
+if isempty(jsonfile),
+  jsonfile = '';
+end
+
+[filename,pathname] = uigetfile('*.json','Select json batch tracking file',jsonfile);
+if ~ischar(filename),
+  return;
+end
+jsonfile1 = fullfile(pathname,filename);
+if ~exist(jsonfile1,'file'),
+  warndlg(sprintf('File %s does not exist',jsonfile1));
+  return;
+end
+jsonfile = jsonfile1;
+SetStatus(handles,'Tracking a batch of videos...');
+trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
 ClearStatus(handles);
 
 function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
