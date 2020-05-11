@@ -8700,36 +8700,40 @@ classdef Labeler < handle
         tblMFT.mov = MovieIndex(tblMFT.mov,true);
       end
       
-      [tf,tfGT] = tblMFT.mov.isConsistentSet();
-      if ~(tf && tfGT)
-        error('All MovieIndices in input table must reference GT movies.');
-      end
-      
-      n0 = height(tblMFT);
-      n1 = height(unique(tblMFT(:,MFTable.FLDSID)));
-      if n0~=n1
-        error('Input table appears to contain duplicate rows.');
-      end
-      
-      if sortcanonical
-        tblMFT2 = MFTable.sortCanonical(tblMFT);
-        if ~isequal(tblMFT2,tblMFT)
-          warningNoTrace('Sorting table into canonical row ordering.');
-          tblMFT = tblMFT2;
-        end        
+      if isempty(tblMFT)
+        % pass
       else
-        % UI requires sorting by movies; hopefully the movie sort leaves 
-        % row ordering otherwise undisturbed. This appears to be the case
-        % in 2017a.
-        %
-        % See issue #201. User has a gtSuggestions table that is not fully 
-        % sorted by movie, but with a desired random row order within each 
-        % movie. A full/canonical sorting would be undesireable.
-        tblMFT2 = sortrows(tblMFT,{'mov'},{'descend'}); % descend as gt movieindices are negative
-        if ~isequal(tblMFT2,tblMFT)
-          warningNoTrace('Sorting table by movie.');
-          tblMFT = tblMFT2;
-        end        
+        [tf,tfGT] = tblMFT.mov.isConsistentSet();
+        if ~(tf && tfGT)
+          error('All MovieIndices in input table must reference GT movies.');
+        end
+        
+        n0 = height(tblMFT);
+        n1 = height(unique(tblMFT(:,MFTable.FLDSID)));
+        if n0~=n1
+          error('Input table appears to contain duplicate rows.');
+        end
+        
+        if sortcanonical
+          tblMFT2 = MFTable.sortCanonical(tblMFT);
+          if ~isequal(tblMFT2,tblMFT)
+            warningNoTrace('Sorting table into canonical row ordering.');
+            tblMFT = tblMFT2;
+          end
+        else
+          % UI requires sorting by movies; hopefully the movie sort leaves
+          % row ordering otherwise undisturbed. This appears to be the case
+          % in 2017a.
+          %
+          % See issue #201. User has a gtSuggestions table that is not fully
+          % sorted by movie, but with a desired random row order within each
+          % movie. A full/canonical sorting would be undesireable.
+          tblMFT2 = sortrows(tblMFT,{'mov'},{'descend'}); % descend as gt movieindices are negative
+          if ~isequal(tblMFT2,tblMFT)
+            warningNoTrace('Sorting table by movie.');
+            tblMFT = tblMFT2;
+          end
+        end
       end
       
       obj.gtSuggMFTable = tblMFT;
