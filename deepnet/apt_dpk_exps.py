@@ -5,23 +5,29 @@ import datetime
 import argparse
 import logging
 import pickle
+import glob
 
 import tensorflow as tf
 import imgaug as ia
+import numpy as np
+import h5py
+import matplotlib.pyplot as plt
 
 import APT_interface as apt
 import deepposekit as dpk
 import apt_dpk
+import PoseTools as pt
+import TrainingGeneratorTFRecord as TGTFR
 
 
 dbs = {
-    'dpkfly': {'h5dset': '/home/al/git/dpkd/datasets/fly/annotation_data_release.h5',
-               'slbl': '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
+    'dpkfly': {'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
+               'slbl': '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
                 }
 }
 
-#alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
-alcache = '/dat0/apt/cache'
+alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
+#alcache = '/dat0/apt/cache'
 
 '''
 def get_rae_normal_conf():
@@ -50,7 +56,7 @@ def get_rae_normal_conf():
     return conf
 '''
 
-def create_callbacks_exp1orig(conf):
+def create_callbacks_exp1orig_train(conf):
     logging.info("configing callbacks")
 
     # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
@@ -101,7 +107,7 @@ def checkattr_with_warnoverride(conf, prop, val):
         logging.warning("Overriding conf.{}, using value={}".format(prop, val))
     return val
 
-def exp1orig(expname, dset, cacheroot, shortdebugrun=False):
+def exp1orig_train(expname, dset, cacheroot, shortdebugrun=False):
 
     iaver = ia.__version__
     dpkver = dpk.__version__
@@ -159,7 +165,7 @@ def exp1orig(expname, dset, cacheroot, shortdebugrun=False):
                                      pretrained=dpk_use_pretrained,
                                      )
 
-    callbacks = create_callbacks_exp1orig(conf)
+    callbacks = create_callbacks_exp1orig_train(conf)
 
     # compile
     '''
@@ -197,6 +203,219 @@ def exp1orig(expname, dset, cacheroot, shortdebugrun=False):
         steps_per_epoch=None,  # validation_steps=VALSTEPS,
     )
 
+def simple_dpk_generator(dg, indices, bsize, ):
+    '''
+    bare-bones data generator from DataGenerator
+    :param dg: dpk DataGenerator
+    :param indices: list of indices to produce
+    :param bsize:
+    :return: generator fn, yields ims, locs, idx
+    '''
+
+    ngen = len(indices)
+    print("simple gen, n_dg={}, n={}".format(len(dg), ngen))
+
+    igen0 = 0
+    while igen0 < ngen:
+        igen1 = min(igen0+bsize, ngen)
+        nshort = igen0+bsize-igen1
+        idx = indices[igen0:igen1]
+        X, y = dg[idx]
+        yield X, y, idx
+        igen0 += bsize
+
+    return
+
+def simple_tgtfr_generator(conf, bsize):
+    '''
+    Adaptor
+    :param conf:
+    :param bsize:
+    :return:
+    '''
+
+    conf.batch_size = bsize
+    tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
+    g = tgtfr(batch_size=bsize, validation=True,
+              confidence=False, infinite=False, debug=True)
+    while True:
+        ims, tgts, locs, info = next(g)
+        assert len(ims) == 1
+        ims = ims[0]
+        assert np.array_equal(tgts, locs)
+        info = info[:, 0].copy()
+        yield ims, locs, info
+
+def exp1orig_assess(dset, cacheroot, expname,
+                    validxs = None,  # normally read from conf.pickle
+                    bsize=16,
+                    doplot=True,
+                    gentype='tgtfr'):
+    h5dset = dbs[dset]['h5dset']
+    slbl = dbs[dset]['slbl']
+
+    dg = dpk.io.DataGenerator(h5dset)
+
+    # make a conf just to get the path to the expdir
+    expname = expname if expname else 'dpkorig'
+    NET = 'dpksdn'
+    conf = apt.create_conf(slbl, 0, expname,
+                           cacheroot, NET, quiet=False)
+    # this conf-updating is actually prob unnec but prob doesnt hurt
+    conf = apt_dpk.update_conf_dpk(conf,
+                                   dg.graph,
+                                   dg.swap_index,
+                                   n_keypoints=dg.n_keypoints,
+                                   imshape=dg.compute_image_shape(),
+                                   useimgaug=True,
+                                   imgaugtype=dset)
+
+    expdir = conf.cachedir
+    cpth5 = glob.glob(os.path.join(expdir,'ckpt*h5'))
+    cpth5.sort()
+    if len(cpth5) > 1:
+        print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
+    cpth5 = cpth5[-1]
+
+    sdn = dpk.models.load_model(cpth5, generator=dg)
+
+    '''
+    assert sdn.train_generator.generator.datapath == pic['tg']['datapath']
+    for f in ['val_index', 'index', 'train_index',]:
+        assert np.array_equal( getattr(sdn.train_generator, f), pic['tg'][f] ), \
+            "mismatch in field {}".format(f)
+    '''
+
+    validxs_specified = validxs is not None
+
+    if gentype == 'tgtfr':
+        if validxs_specified:
+            print("Ignoring validxs spec; reading val_TF.tfrecords")
+        g = simple_tgtfr_generator(conf, bsize)
+    elif gentype == 'dg':
+        if not validxs_specified:
+            print("Reading val idxs from conf.pickle")
+            pic = os.path.join(expdir, 'conf.pickle')
+            pic = pt.pickle_load(pic)
+            validxs = pic['tg']['val_index']
+        g = simple_dpk_generator(dg, validxs, bsize)
+    else:
+        assert False
+
+    eres = evaluate(sdn.predict_model, g)
+    euc_coll, euc_coll_cols, euc_coll_colcnt = \
+        collapse_swaps(eres['euclidean'], dg.swap_index)
+    eres['euc_coll'] = euc_coll
+    eres['euc_coll_cols'] = euc_coll_cols
+    eres['euc_coll_colcnt'] = euc_coll_colcnt
+    eres['euc_coll_ptiles5090'] = np.percentile(euc_coll, [50,90], axis=0).T
+
+    nval = eres['euclidean'].shape[0]
+
+    if doplot:
+        plt.rcParams.update({'font.size': 26})
+        plt.figure()
+        plt.boxplot(eres['euc_coll'], labels=eres['euc_coll_cols'])
+        plt.title('{} {}. ntst={}'.format(dset, expname, nval))
+        plt.xlabel('kpt/pair')
+        plt.ylabel('L2err')
+        plt.grid(axis='y')
+
+
+    return eres
+
+def evaluate(predmodel, gen):
+    '''
+
+    :param gen: generator object as simple_dpk_generator
+    :param batch_size:
+    :return:
+    '''
+
+    # see dpk BaseModel/evaluate
+
+    y_true_list = []
+    y_pred_list = []
+    confidence_list = []
+    y_error_list = []
+    euclidean_list = []
+    idx_list = []
+    for X, y_true, idxs in gen:
+
+        y_true_list.append(y_true)
+        idx_list.append(idxs)
+
+        y_pred = predmodel.predict_on_batch(X)
+        confidence_list.append(y_pred[..., -1])
+        y_pred_coords = y_pred[..., :2]
+        y_pred_list.append(y_pred_coords)
+
+        errors = dpk.utils.keypoints.keypoint_errors(y_true, y_pred_coords)
+        y_error, euclidean, mae, mse, rmse = errors
+        y_error_list.append(y_error)
+        euclidean_list.append(euclidean)
+
+        # note, final batch may be "wrong-sized" but that works fine;
+        # in fact generator need not produce constant-sized bches at all.
+        logging.info(".")
+
+    y_true = np.concatenate(y_true_list)
+    y_pred = np.concatenate(y_pred_list)
+    confidence = np.concatenate(confidence_list)
+    y_error = np.concatenate(y_error_list)
+    euclidean = np.concatenate(euclidean_list)
+
+    evaluation_dict = {
+        "y_true": y_true,
+        "y_pred": y_pred,
+        "y_error": y_error,
+        "euclidean": euclidean,
+        "confidence": confidence,
+        "idxs": idx_list
+    }
+
+    return evaluation_dict
+
+def collapse_swaps(x, swap_index):
+    # x: [n x nkpt] data arr
+
+    assert x.ndim == 2
+
+    colkeep = []
+    for i, j in enumerate(swap_index):
+        if j == -1:
+            # this col has no swap partner
+            colkeep.append((i, 1))
+        elif i < j:
+            assert swap_index[j] == i
+            x[:, i] += x[:, j]
+            colkeep.append((i, 2))
+
+    colkeep, cnt = zip(*colkeep)
+    xcollapsed = x[:, colkeep]/np.array(cnt)
+    return xcollapsed, colkeep, cnt
+
+def dpkfly_fix_h5(dset, skel):
+    h5dset0 = dbs[dset]['h5dset']
+    h5dset = os.path.splitext(h5dset0)
+    h5dset = h5dset[0] + '_AL' + h5dset[1]
+
+    print("orig h5: {}".format(h5dset0))
+    print("new h5: {}".format(h5dset))
+
+    h50 = h5py.File(h5dset0, 'r')
+    h5 = h5py.File(h5dset, 'w')
+
+    for k in ['annotated', 'annotations', 'images']:
+        x = np.array(h50[k])
+        h5.create_dataset(k, data=x)
+
+    h5.create_dataset('skeleton', data=skel)
+
+    h50.close()
+    h5.close()
+
+
 
 def parseargs(argv):
     parser = argparse.ArgumentParser()
@@ -212,8 +431,8 @@ def parseargs(argv):
     #                    default='tgtfr',
     #                    help='Data source/input pipeline. If tgtfr, train/val dbs must be present under expname in cache')
     parser.add_argument('--exptype',
-                        choices=['exp1orig'],
-                        default='exp1orig',
+                        choices=['exp1orig_train'],
+                        default='exp1orig_train',
                         )
     parser.add_argument('--debugrun',
                         default=False,
@@ -240,8 +459,8 @@ def parseargs(argv):
 
 if __name__ == "__main__":
     args = parseargs(sys.argv[1:])
-    if args.exptype == 'exp1orig':
-        exp1orig(args.expname, args.dset, args.cacheroot,
+    if args.exptype == 'exp1orig_train':
+        exp1orig_train(args.expname, args.dset, args.cacheroot,
                  shortdebugrun=args.debugrun)
     else:
         assert False

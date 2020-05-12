@@ -815,9 +815,3 @@ def load_apt_cpkt(exp_dir, mdlfile):
 
 #endregion
 
-if __name__ == "__main__" and len(sys.argv) > 1:
-    main(sys.argv[1:])
-else:
-    pass
-
-

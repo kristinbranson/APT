@@ -544,17 +544,40 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
         for b_ndx in range(batch_size):
             # TODO: strange shuffle
             n_skip = np.random.randint(30) if shuffle else 0
-            for _ in range(n_skip + 1):
-                record = iterator_read_next()
+            try:
+                for _ in range(n_skip + 1):
+                    record = iterator_read_next()
+            except StopIteration:
+                # did not make it to next record for this batch;
+                # will only occur if infinite == False
+                break
 
             recon_img, locs, info = parse_record(record, conf.n_classes)
             all_ims.append(recon_img)
             all_locs.append(locs)
             all_info.append(info)
 
+        if not all_ims:
+            # we couldn't read anything anymore; exit generator
+            return
+
         imsraw = np.stack(all_ims)  # [bsize x height x width x depth]
         locsraw = np.stack(all_locs)  # [bsize x ncls x 2]
         info = np.stack(all_info)  # [bsize x 3]
+
+        nread = imsraw.shape[0]
+        assert nread == batch_size
+        '''
+        AL: need to check that all preproc fns are insensitive to the bsize, esp
+        eg if imsraw.shape[0] disagrees with conf.batch_size. one place this is not
+        true is in pt.normalize_mean (see preprocess_ims). seems best if the preproc 
+        fns never require a certain bsize and just operate whatever the 0th dim is.
+        tfclipped = nread < batch_size
+        if tfclipped:
+            nshort = batch_size-nread
+            imsraw = np.pad(imsraw, ((0, nshort), (0, 0), (0, 0), (0, 0)) )
+            locsraw = np.pad(locsraw, ((0, nshort), (0, 0), (0, 0)) )
+        '''
 
         ims, locs, targets = ims_locs_proc_fn(imsraw, locsraw, conf, distort)
         # targets should be a list here
