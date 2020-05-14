@@ -1,4 +1,4 @@
-function [movfiles,trkfiles,trxfiles,cropRois,calibrationfiles,targets,f0s,f1s] = parseToTrackJSON(jsonfile,lObj)
+function toTrackOut = parseToTrackJSON(jsonfile,lObj)
 
 res = jsondecode(fileread(jsonfile));
 assert(isfield(res,'toTrack'));
@@ -85,6 +85,16 @@ for i = 1:nmovies,
   if isfield(toTrack(i),'frame1') && ~isempty(toTrack(i).frame1),
     f1s(i) = toTrack(i).frame1;
   end
+  
+  toTrackOut = struct;
+  toTrackOut.movfiles = movfiles;
+  toTrackOut.trkfiles = trkfiles;
+  toTrackOut.trxfiles = trxfiles;
+  toTrackOut.cropRois = cropRois;
+  toTrackOut.calibrationfiles = calibrationfiles;
+  toTrackOut.targets = targets;
+  toTrackOut.f0s = f0s;
+  toTrackOut.f1s = f1s;
   
 end
 
