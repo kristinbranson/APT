@@ -45,7 +45,8 @@ for i = 1:size(toTrack.movfiles,1),
       end
     end
     
-    if numel(x) == 1
+    if isempty(x),
+    elseif numel(x) == 1
       if ~doignore,
         if iscell(x),
           res.toTrack{i}.(fnout) = x{1};
@@ -70,4 +71,7 @@ for i = 1:size(toTrack.movfiles,1),
   
 end
 
+if size(toTrack.movfiles,1) == 1,
+  res.toTrack = res.toTrack{1};
+end
 saveJSONfile(res,jsonfile);

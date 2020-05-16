@@ -282,9 +282,9 @@ classdef TrackBatchGUI < handle
         obj.toTrack.trxfiles(moviei,:) = repmat({''},[1,nview]);
       end
       if isfield(movdata,'calibrationfiles'),
-        obj.toTrack.calibrationfiles{moviei} = movdata.calibrationfiles;
+        obj.toTrack.calibrationfiles{moviei,1} = movdata.calibrationfiles;
       else
-        obj.toTrack.calibrationfiles{moviei} = '';
+        obj.toTrack.calibrationfiles{moviei,1} = '';
       end
       if isfield(movdata,'cropRois') && ~isempty(movdata.cropRois),
         obj.toTrack.cropRois(moviei,:) = movdata.cropRois;
@@ -292,19 +292,19 @@ classdef TrackBatchGUI < handle
         obj.toTrack.cropRois(moviei,:) = repmat({[]},[1,nview]);
       end
       if isfield(movdata,'targets'),
-        obj.toTrack.targets{moviei} = movdata.targets;
+        obj.toTrack.targets{moviei,1} = movdata.targets;
       else
-        obj.toTrack.targets{moviei} = [];
+        obj.toTrack.targets{moviei,1} = [];
       end
       if isfield(movdata,'f0s'),
-        obj.toTrack.f0s(moviei) = movdata.f0s;
+        obj.toTrack.f0s(moviei,1) = movdata.f0s;
       else
-        obj.toTrack.f0s(moviei) = 1;
+        obj.toTrack.f0s(moviei,1) = 1;
       end
       if isfield(movdata,'f1s'),
-        obj.toTrack.f1s(moviei) = movdata.f1s;
+        obj.toTrack.f1s(moviei,1) = movdata.f1s;
       else
-        obj.toTrack.f1s(moviei) = inf;
+        obj.toTrack.f1s(moviei,1) = inf;
       end
       if moviei < obj.nmovies,
         obj.nmovies = moviei;
@@ -326,6 +326,10 @@ classdef TrackBatchGUI < handle
       [movdataout,dostore] = movdetailsobj.run();
       if dostore,
         obj.setMovData(moviei,movdataout);
+        % should only happen when using the first item
+        if moviei > obj.nmovies,
+          obj.nmovies = moviei;
+        end
       end
       obj.setNotBusy();
     end
