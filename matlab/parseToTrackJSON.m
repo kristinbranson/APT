@@ -59,7 +59,9 @@ for i = 1:nmovies,
   
   % calibration file - multiview only
   %if needCalibration,
+  if isfield(toTrack,'calibration_file')
     calibrationfiles{i} = toTrack(i).calibration_file;
+  end
   %end
   
   if hasCrop && ~isempty(toTrack(i).crop_rois),
