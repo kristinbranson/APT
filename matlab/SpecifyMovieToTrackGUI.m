@@ -74,6 +74,15 @@ classdef SpecifyMovieToTrackGUI < handle
       if obj.docalibrate && ~isfield(obj.movdata,'calibrationfiles'),
         obj.movdata.calibrationfiles = '';
       end
+      if ~isfield(obj.movdata,'targets'),
+        obj.movdata.targets = [];
+      end
+      if ~isfield(obj.movdata,'f0s'),
+        obj.movdata.f0s = [];
+      end
+      if ~isfield(obj.movdata,'f1s'),
+        obj.movdata.f1s = [];
+      end
       
       obj.rowinfo = struct;
       obj.rowinfo.movie = struct;
@@ -300,15 +309,25 @@ classdef SpecifyMovieToTrackGUI < handle
       
       key = 'f0s';
       i = [];
+      if ~isfield(obj.movdata,'f0s'),
+        val = [];
+      else
+        val = obj.movdata.f0s;
+      end
       str = [obj.rowinfo.f0s.prompt,':'];
-      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,obj.movdata.f0s,...
+      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,val,...
         'Start of frame interval to track',obj.rowinfo.targets.hasdetails);
       rowi = rowi + 1;
       
       key = 'f1s';
       i = [];
+      if ~isfield(obj.movdata,'f1s'),
+        val = [];
+      else
+        val = obj.movdata.f1s;
+      end
       str = [obj.rowinfo.f1s.prompt,':'];
-      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,obj.movdata.f1s,...
+      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,val,...
         'End of frame interval to track',obj.rowinfo.targets.hasdetails);
       rowi = rowi + 1; %#ok<NASGU>
 
