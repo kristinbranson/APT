@@ -27,7 +27,7 @@ classdef SpecifyMovieToTrackGUI < handle
 
       obj.nview = obj.lObj.nview;
       obj.hastrx = obj.lObj.hasTrx;
-      obj.iscrop = true;
+      obj.iscrop = ~obj.hastrx;
       %obj.iscrop = obj.lObj.cropIsCropMode; % to do: allow cropping when trained without cropping?
       obj.docalibrate = obj.nview > 1 && ~strcmpi(obj.lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
       if obj.iscrop,
@@ -112,12 +112,36 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.rowinfo.crop.arraysize = [1,4];      
       obj.rowinfo.crop.isvalperview = true;
       
+      obj.rowinfo.targets = struct;
+      obj.rowinfo.targets.prompt = 'Targets (optional)';
+      obj.rowinfo.targets.movdatafield = 'targets';
+      obj.rowinfo.targets.type = 'array';
+      obj.rowinfo.targets.isvalperview = false;
+      obj.rowinfo.targets.isoptional = true;
+      obj.rowinfo.targets.hasdetails = false;
+      
+      obj.rowinfo.f0s = struct;
+      obj.rowinfo.f0s.prompt = 'Start frame (optional)';
+      obj.rowinfo.f0s.movdatafield = 'f0s';
+      obj.rowinfo.f0s.type = 'number';
+      obj.rowinfo.f0s.isvalperview = false;
+      obj.rowinfo.f0s.isoptional = true;
+      obj.rowinfo.f0s.hasdetails = false;
+      
+      obj.rowinfo.f1s = struct;
+      obj.rowinfo.f1s.prompt = 'End frame (optional)';
+      obj.rowinfo.f1s.movdatafield = 'f1s';
+      obj.rowinfo.f1s.type = 'number';
+      obj.rowinfo.f1s.isvalperview = false;
+      obj.rowinfo.f1s.isoptional = true;
+      obj.rowinfo.f1s.hasdetails = false;
+      
     end
     
     function createGUI(obj)
       
       % movies, trks, trx, crop, calibration
-      obj.nfields = 2*obj.nview + double(obj.hastrx)*obj.nview + double(obj.iscrop)*obj.nview + double(obj.nview>1);
+      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + double(obj.iscrop)*obj.nview + double(obj.nview>1) + 2;
       figname = 'Specify movie to track';
       
       obj.colorinfo.backgroundcolor = [0,0,0];
@@ -264,6 +288,31 @@ classdef SpecifyMovieToTrackGUI < handle
           rowi = rowi + 1;
         end
       end
+      
+      if obj.hastrx,
+        key = 'targets';
+        i = [];
+        str = [obj.rowinfo.targets.prompt,':'];
+        obj.addRow(obj.posinfo.rowys(rowi),key,i,str,obj.movdata.targets,...
+          'List of target ids, e.g. 1 3 7',obj.rowinfo.targets.hasdetails);
+        rowi = rowi + 1;
+      end
+      
+      key = 'f0s';
+      i = [];
+      str = [obj.rowinfo.f0s.prompt,':'];
+      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,obj.movdata.f0s,...
+        'Start of frame interval to track',obj.rowinfo.targets.hasdetails);
+      rowi = rowi + 1;
+      
+      key = 'f1s';
+      i = [];
+      str = [obj.rowinfo.f1s.prompt,':'];
+      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,obj.movdata.f1s,...
+        'End of frame interval to track',obj.rowinfo.targets.hasdetails);
+      rowi = rowi + 1; %#ok<NASGU>
+
+      
     end
     
     function isgood = checkRowValue(obj,key,iview)
@@ -275,37 +324,36 @@ classdef SpecifyMovieToTrackGUI < handle
       else
         isoptional = false;
       end
+      val = obj.movdata.(ri.movdatafield);
+      if ~isempty(iview),
+        val = val{iview};
+      end
       if strcmpi(ri.type,'inputfile'),
-        val = obj.movdata.(ri.movdatafield);
-        if ~isempty(iview),
-          val = val{iview};
-        end
         if isoptional && isempty(val),
           isgood = true;
         else
           isgood = exist(val,'file')>0;
         end
       elseif strcmpi(ri.type,'outputfile'),
-        val = obj.movdata.(ri.movdatafield);
-        if ~isempty(iview),
-          val = val{iview};
-        end
         if ~isempty(val),
           p = fileparts(val);
           isgood = isempty(p) || (exist(p,'dir')>0);
         end
       elseif strcmpi(key,'crop'),
-        if isempty(obj.movdata.(ri.movdatafield)) || isempty(obj.movdata.(ri.movdatafield){iview}),
+        if isempty(val),
           isgood = ~obj.lObj.cropIsCropMode;
         else
-          val = obj.movdata.(ri.movdatafield){iview};
           isgood = numel(val) == 4;
           if obj.lObj.cropIsCropMode && isgood,
             isgood = ~any(isnan(val));
           end
         end
+      elseif strcmpi(key,'targets'),
+        isgood = all(val>0);
+      elseif ismember(key,{'f0s','f1s'}),
+        isgood = isempty(val) || ((numel(val) == 1) && (isnan(val) || (val > 0)));
       else
-        warning('Unhandled type %s, setting isgood = true',ri.key);
+        warning('Unhandled type %s, setting isgood = true',key);
       end
       if isempty(iview),
         i = 1;
@@ -319,13 +367,18 @@ classdef SpecifyMovieToTrackGUI < handle
       end
       set(obj.gdata.(key).rowedit(i),'ForegroundColor',color);
       set(obj.gdata.(key).rowtext(i),'ForegroundColor',color);
-      set(obj.gdata.(key).rowpb(i),'ForegroundColor',color);
+      if isfield(obj.gdata.(key),'rowpb'),
+        set(obj.gdata.(key).rowpb(i),'ForegroundColor',color);
+      end
     end
     
-    function addRow(obj,rowy,key,iview,textstr,editval,edittt)
+    function addRow(obj,rowy,key,iview,textstr,editval,edittt,hasdetails)
       
       if ~exist('edittt','var'),
         edittt = '';
+      end
+      if ~exist('hasdetails','var'),
+        hasdetails = true;
       end
       if isempty(iview),
         tag = key;
@@ -346,12 +399,15 @@ classdef SpecifyMovieToTrackGUI < handle
       if strcmpi(key,'crop') && all(isnan(editval)),
         editval = '';
       end
+      if ismember(key,{'f0s','f1s'}) && all(isnan(editval)),
+        editval = '';
+      end
       if ischar(editval),
         editvalstr = editval;
       elseif strcmpi(key,'crop'),
         editvalstr = sprintf('%d  ',editval);
       else
-        editvalstr = num2str(editval);
+        editvalstr = num2str(editval(:)');
       end
       cbk = @(hObject,eventdata)obj.rowedit_Callback(hObject,eventdata,key,iview);
       obj.gdata.(key).rowedit(i) = ...
@@ -363,15 +419,17 @@ classdef SpecifyMovieToTrackGUI < handle
         'HorizontalAlignment','left',...
         'Parent',obj.gdata.fig,...
         'Callback',cbk);
-      cbk = @(hObject,eventdata)obj.details_pb_Callback(hObject,eventdata,key,iview);
-      obj.gdata.(key).rowpb(i) = ...
-        uicontrol('Style','pushbutton','String','...',...
-        'ForegroundColor','w','BackgroundColor',obj.colorinfo.editfilecolor,'FontWeight','normal',...
-        'Units','normalized','Position',[obj.posinfo.detailsbuttonx,rowy,obj.posinfo.detailsbuttonw,obj.posinfo.rowh],...
-        'Tag',['pb_',tag],...
-        'HorizontalAlignment','center',...
-        'Parent',obj.gdata.fig,...
-        'Callback',cbk);
+      if hasdetails,
+        cbk = @(hObject,eventdata)obj.details_pb_Callback(hObject,eventdata,key,iview);
+        obj.gdata.(key).rowpb(i) = ...
+          uicontrol('Style','pushbutton','String','...',...
+          'ForegroundColor','w','BackgroundColor',obj.colorinfo.editfilecolor,'FontWeight','normal',...
+          'Units','normalized','Position',[obj.posinfo.detailsbuttonx,rowy,obj.posinfo.detailsbuttonw,obj.posinfo.rowh],...
+          'Tag',['pb_',tag],...
+          'HorizontalAlignment','center',...
+          'Parent',obj.gdata.fig,...
+          'Callback',cbk);
+      end
       obj.isgood.(key)(i) = obj.checkRowValue(key,iview);
       
     end
@@ -385,6 +443,11 @@ classdef SpecifyMovieToTrackGUI < handle
         if isempty(val),
           set(hObject,'String','');
           return;
+        end
+      elseif ismember(obj.rowinfo.(key).type,{'number'}),
+        val = str2double(val);
+        if isnan(val),
+          set(hObject,'String','');
         end
       elseif ismember(obj.rowinfo.(key).type,{'inputfile','outputfile'}),
       else
