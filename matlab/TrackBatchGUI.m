@@ -53,10 +53,10 @@ classdef TrackBatchGUI < handle
         obj.toTrack.targets = {};
       end
       if ~isfield(obj.toTrack,'f0s'),
-        obj.toTrack.f0s = {};
+        obj.toTrack.f0s = [];
       end
       if ~isfield(obj.toTrack,'f1s'),
-        obj.toTrack.f1s = {};
+        obj.toTrack.f1s = [];
       end
       obj.nmovies = size(obj.toTrack.movfiles,1);
     end
@@ -331,6 +331,9 @@ classdef TrackBatchGUI < handle
     end
     function pb_delete_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
+      if itemi == 1 && moviei > obj.nmovies,
+        return;
+      end
       
       obj.toTrack.movfiles(moviei,:) = [];
       obj.toTrack.trkfiles(moviei,:) = [];
