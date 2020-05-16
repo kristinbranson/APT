@@ -846,6 +846,13 @@ classdef Labeler < handle
         v = ifo.nframes;
       end
     end
+    function [ncmin,nrmin] = getMinMovieWidthHeight(obj)
+      movInfos = [obj.movieInfoAll; obj.movieInfoAllGT];
+      nrall = cellfun(@(x)x.info.nr,movInfos); % [(nmov+nmovGT) x nview]
+      ncall = cellfun(@(x)x.info.nc,movInfos); % etc
+      nrmin = min(nrall,[],1); % [1xnview]
+      ncmin = min(ncall,[],1); % [1xnview]      
+    end
     function v = getNFramesMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();

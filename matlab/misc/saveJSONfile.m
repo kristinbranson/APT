@@ -82,7 +82,7 @@ end
     % if this is an array and not a string then iterate on every
     % element, if this is a single element write it
     if length(currentElementValue) > 1 && ~ischar(currentElementValue)
-      writefun(' "%s" : [',currentField);
+      writefun('"%s" : [',currentField);
       if isnumeric(currentElementValue),
         scurr = sprintf('%g,',currentElementValue);
         scurr = scurr(1:end-1);
@@ -120,8 +120,8 @@ end
       else
         writefun('"%s" : %g' , currentField,currentElementValue);
       end
-    elseif isempty(currentElementValue)
-      writefun('"%s" : null' , currentField,currentElementValue);
+%     elseif isempty(currentElementValue)
+%       writefun('"%s" : null' , currentField,currentElementValue);
     else %ischar or something else ...
       writefun('"%s" : "%s"' , currentField,currentElementValue);
     end

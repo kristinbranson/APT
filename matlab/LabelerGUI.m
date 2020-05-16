@@ -3822,24 +3822,28 @@ ClearStatus(handles);
 
 function menu_track_batch_track_Callback(hObject,eventdata,handles)
 
-persistent jsonfile;
-if isempty(jsonfile),
-  jsonfile = '';
-end
-
-[filename,pathname] = uigetfile('*.json','Select json batch tracking file',jsonfile);
-if ~ischar(filename),
-  return;
-end
-jsonfile1 = fullfile(pathname,filename);
-if ~exist(jsonfile1,'file'),
-  warndlg(sprintf('File %s does not exist',jsonfile1));
-  return;
-end
-jsonfile = jsonfile1;
-SetStatus(handles,'Tracking a batch of videos...');
-trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
-ClearStatus(handles);
+lObj = handles.labelerObj;
+tbobj = TrackBatchGUI(lObj);
+[toTrack] = tbobj.run();
+% 
+% persistent jsonfile;
+% if isempty(jsonfile),
+%   jsonfile = '';
+% end
+% 
+% [filename,pathname] = uigetfile('*.json','Select json batch tracking file',jsonfile);
+% if ~ischar(filename),
+%   return;
+% end
+% jsonfile1 = fullfile(pathname,filename);
+% if ~exist(jsonfile1,'file'),
+%   warndlg(sprintf('File %s does not exist',jsonfile1));
+%   return;
+% end
+% jsonfile = jsonfile1;
+% SetStatus(handles,'Tracking a batch of videos...');
+% trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
+% ClearStatus(handles);
 
 function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;

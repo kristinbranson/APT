@@ -16,7 +16,8 @@ classdef SpecifyMovieToTrackGUI < handle
     rowinfo = struct;
     isgood = struct;
     cropwh = [];
-    movieReader = [];
+    movieReader = {};
+    dostore = false;
   end
   methods
     function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata)
@@ -28,12 +29,13 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.hastrx = obj.lObj.hasTrx;
       obj.iscrop = true;
       %obj.iscrop = obj.lObj.cropIsCropMode; % to do: allow cropping when trained without cropping?
-      obj.docalibrate = obj.nview > 1 && (obj.lObj.trackParams.ROOT.PostProcess.reconcile3dType);
+      obj.docalibrate = obj.nview > 1 && ~strcmpi(obj.lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
       if obj.iscrop,
         if obj.lObj.cropIsCropMode,
           obj.cropwh = obj.lObj.cropGetCurrentCropWidthHeightOrDefault();
         else
-          obj.cropwh = [];
+          [minnc,minnr] = obj.lObj.getMinMovieWidthHeight();
+          obj.cropwh = [minnc(:)-1,minnr(:)-1];
         end
       end
 
@@ -47,9 +49,10 @@ classdef SpecifyMovieToTrackGUI < handle
       
     end
     
-    function movdata = run(obj)
+    function [movdata,dostore] = run(obj)
       uiwait(obj.gdata.fig);
       movdata = obj.movdata;
+      dostore = obj.dostore;
     end
     
     function initMovData(obj,movdata)
@@ -100,9 +103,10 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.rowinfo.cal.ext = '*.*';
       obj.rowinfo.cal.type = 'inputfile';
       obj.rowinfo.cal.isvalperview = false;
+      obj.rowinfo.cal.isoptional = ~obj.docalibrate;
       
       obj.rowinfo.crop = struct;
-      obj.rowinfo.crop.prompt = 'Crop ROI (x,y,w,h)';
+      obj.rowinfo.crop.prompt = 'Crop ROI (x1,x2,y1,y2)';
       obj.rowinfo.crop.movdatafield = 'cropRois';
       obj.rowinfo.crop.type = 'array';
       obj.rowinfo.crop.arraysize = [1,4];      
@@ -221,7 +225,7 @@ classdef SpecifyMovieToTrackGUI < handle
       if obj.nview > 1,
         tag = 'cal';
         i = [];
-        if docalibration
+        if obj.docalibrate,
           str = 'Calibration file:';
         else
           str = 'Calibration file (optional):';
@@ -247,9 +251,9 @@ classdef SpecifyMovieToTrackGUI < handle
         key = 'crop';
         for i = 1:obj.nview,
           if obj.nview > 1,
-            str = sprintf('Crop box (x,y,w,h) view %d:',i);
+            str = sprintf('%s view %d:',obj.rowinfo.crop.prompt,i);
           else
-            str = 'Crop box (x,y,w,h):';
+            str = sprintf('%s:',obj.rowinfo.crop.prompt);
           end
           if isempty(obj.movdata.cropRois),
             croproi = [];
@@ -260,19 +264,27 @@ classdef SpecifyMovieToTrackGUI < handle
           rowi = rowi + 1;
         end
       end
-           
     end
     
     function isgood = checkRowValue(obj,key,iview)
       
       isgood = false;
       ri = obj.rowinfo.(key);
+      if isfield(ri,'isoptional'),
+        isoptional = ri.isoptional;
+      else
+        isoptional = false;
+      end
       if strcmpi(ri.type,'inputfile'),
         val = obj.movdata.(ri.movdatafield);
         if ~isempty(iview),
           val = val{iview};
         end
-        isgood = exist(val,'file')>0;
+        if isoptional && isempty(val),
+          isgood = true;
+        else
+          isgood = exist(val,'file')>0;
+        end
       elseif strcmpi(ri.type,'outputfile'),
         val = obj.movdata.(ri.movdatafield);
         if ~isempty(iview),
@@ -283,7 +295,7 @@ classdef SpecifyMovieToTrackGUI < handle
           isgood = isempty(p) || (exist(p,'dir')>0);
         end
       elseif strcmpi(key,'crop'),
-        if isempty(obj.movdata.(ri.movdatafield)),
+        if isempty(obj.movdata.(ri.movdatafield)) || isempty(obj.movdata.(ri.movdatafield){iview}),
           isgood = ~obj.lObj.cropIsCropMode;
         else
           val = obj.movdata.(ri.movdatafield){iview};
@@ -336,6 +348,8 @@ classdef SpecifyMovieToTrackGUI < handle
       end
       if ischar(editval),
         editvalstr = editval;
+      elseif strcmpi(key,'crop'),
+        editvalstr = sprintf('%d  ',editval);
       else
         editvalstr = num2str(editval);
       end
@@ -368,6 +382,10 @@ classdef SpecifyMovieToTrackGUI < handle
       val = get(hObject,'String');
       if ismember(obj.rowinfo.(key).type,{'array'}),
         val = str2num(val); %#ok<ST2NM>
+        if isempty(val),
+          set(hObject,'String','');
+          return;
+        end
       elseif ismember(obj.rowinfo.(key).type,{'inputfile','outputfile'}),
       else
         error('Callback for %s not implemented',key);
@@ -463,26 +481,30 @@ classdef SpecifyMovieToTrackGUI < handle
       end
       
       % movie reader
-      if isempty(obj.movieReader),
-        obj.movieReader = MovieReader;
-        obj.movieReader.flipVert = obj.lObj.movieInvert(iview);
-        obj.movieReader.forceGrayscale = obj.lObj.movieForceGrayscale;
-        obj.movieReader.open(obj.movdata.movfiles{iview});
+      if isempty(obj.movieReader) || numel(obj.movieReader) < iview || ...
+          isempty(obj.movieReader{iview}),
+        obj.movieReader{iview} = MovieReader;
+        obj.movieReader{iview}.flipVert = obj.lObj.movieInvert(iview);
+        obj.movieReader{iview}.forceGrayscale = obj.lObj.movieForceGrayscale;
+        obj.movieReader{iview}.open(obj.movdata.movfiles{iview});
       end
       
       cropRoi = obj.movdata.cropRois{iview};
       if isempty(cropRoi) || all(isnan(cropRoi)),
         if isempty(obj.cropwh),
-          cropRoi = [1,1,obj.movieReader.nc,obj.movieReader.nr];
+          cropRoi = [ceil(obj.movieReader{iview}.nc/4),ceil(3*obj.movieReader{iview}.nc/4),...
+            ceil(obj.movieReader{iview}.nr/4),ceil(3*obj.movieReader{iview}.nr/4)];
         else
-          x = max(1,obj.movieReader.nc/2-obj.cropwh(iview,1)/2);
-          y = max(1,obj.movieReader.nr/2-obj.cropwh(iview,2)/2);
-          cropRoi = [x,y,obj.cropwh(iview,:)];
+          x1 = max(1,round(obj.movieReader{iview}.nc/2-obj.cropwh(iview,1)/2));
+          y1 = max(1,round(obj.movieReader{iview}.nr/2-obj.cropwh(iview,2)/2));
+          x2 = x1 + obj.cropwh(iview,1) - 1;
+          y2 = y1 + obj.cropwh(iview,2) - 1;
+          cropRoi = [x1,x2,y1,y2];
         end
       end
       
-      fr = ceil(obj.movieReader.nframes/2);
-      im = obj.movieReader.readframe(fr);      
+      fr = ceil(obj.movieReader{iview}.nframes/2);
+      im = obj.movieReader{iview}.readframe(fr);      
       obj.gdata.crop.fig = figure(...
         'name','Specify crop region by dragging box',...
         'NumberTitle','off',...
@@ -522,56 +544,13 @@ classdef SpecifyMovieToTrackGUI < handle
       else
         interactionsallowed = 'translate';
       end
-      obj.gdata.crop.rect = images.roi.Rectangle(hax,'Position',cropRoi,...
+      pos = [cropRoi(1),cropRoi(3),cropRoi(2)-cropRoi(1)+1,cropRoi(4)-cropRoi(3)+1];
+      obj.gdata.crop.rect = images.roi.Rectangle(hax,'Position',pos,...
         'InteractionsAllowed',interactionsallowed,...
         'Deletable',false);
 
       uiwait(obj.gdata.crop.fig);
       
-%       if isempty(iview),
-%         i = 1;
-%       else
-%         i = iview;
-%       end
-% 
-%       ri = obj.rowinfo.(key);
-%       strti = ri.prompt;
-%       if obj.nview > 1 && ~isempty(iview),
-%         strti = sprintf('%s view %d',strti,iview);
-%       end
-%       defaultval = obj.movdata.(ri.movdatafield);
-%       if ~isempty(iview),
-%         defaultval = defaultval{iview};
-%       end
-%       if isempty(defaultval),
-%         defaultval = lastpath;
-%       end
-%       filterspec = ri.ext;
-%       isinput = strcmpi(ri.type,'inputfile');
-%       if isinput,
-%         [filename,pathname] = uigetfile(filterspec,strti,defaultval);
-%       else
-%         [filename,pathname] = uiputfile(filterspec,strti,defaultval);
-%       end
-%       if ~ischar(filename),
-%         return;
-%       end
-%       file = fullfile(pathname,filename);
-%       ex = exist(file,'file');
-%       if isinput && ~ex,
-%         errdlg(sprintf('File %s does not exist',file));
-%         return;
-%       end
-%       if isempty(iview),
-%         obj.movdata.(ri.movdatafield) = file;
-%       else
-%         obj.movdata.(ri.movdatafield){iview} = file;
-%       end
-%       
-%       set(obj.gdata.rowedit.(key)(i),'String',file);
-%       lastpath = pathname;
-%       obj.isgood.(key)(i) = obj.checkRowValue(key,iview);
-%       
     end
     
     function pb_control_Callback(obj,h,e,tag)
@@ -588,6 +567,7 @@ classdef SpecifyMovieToTrackGUI < handle
           uiwait(errordlg('Fields marked in red have missing or incorrect values. Correct them or press the Cancel button'));
           return;
         end
+        obj.dostore = true;
       end
       if ismember(lower(tag),{'done','cancel'}),
         delete(obj.gdata.fig);
@@ -602,8 +582,17 @@ classdef SpecifyMovieToTrackGUI < handle
       if isfield(obj.gdata.crop,'rect'),
         if dosave,
           pos = obj.gdata.crop.rect.Position;
-          obj.setCropRoi(iview,pos,h);
-          obj.movdata.cropRois{iview} = pos;
+          x1 = round(pos(1));
+          y1 = round(pos(2));
+          if isempty(obj.cropwh),
+            x2 = round(x1 + pos(3) - 1);
+            y2 = round(y1 + pos(4) - 1);
+          else
+            x2 = x1 + obj.cropwh(1)-1;
+            y2 = y1 + obj.cropwh(2)-1;
+          end
+          
+          obj.setCropRoi(iview,[x1,x2,y1,y2],h);
         end
         delete(obj.gdata.crop.rect);
         obj.gdata.crop.rect = [];
@@ -621,7 +610,7 @@ classdef SpecifyMovieToTrackGUI < handle
       end
       obj.movdata.cropRois{iview} = pos;
       if h ~= obj.gdata.crop.rowedit(iview),
-        obj.gdata.crop.rowedit(iview).String = sprintf('%.1f  ',pos);
+        obj.gdata.crop.rowedit(iview).String = sprintf('%d  ',pos);
         obj.checkRowValue('crop',iview);
       end
     end

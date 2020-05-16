@@ -15,16 +15,16 @@ end
 nviews = lObj.nview;
 nmovies = numel(toTrack);
 
-assert(all(isfield(toTrack,{'movie_files','output_files'})));
+assert(all(isfield(toTrack,{'movie_files','output_files'})),'movie_files and output_files must be specified');
 
 needCalibration = lObj.isMultiView && ...
   ~strcmpi(lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
 if needCalibration,
-  assert(isfield(toTrack,'calibration_file'));
+  assert(isfield(toTrack,'calibration_file','calibration_file must be specified'));
 end
 needTrx = lObj.hasTrx;
 if needTrx,
-  assert(isfield(toTrack,'trx_files'));
+  assert(isfield(toTrack,'trx_files'),'trx_files must be specified');
 end
 hasCrop = isfield(toTrack,'crop_rois');
 % 
@@ -58,9 +58,9 @@ for i = 1:nmovies,
   end
   
   % calibration file - multiview only
-  if needCalibration,
+  %if needCalibration,
     calibrationfiles{i} = toTrack(i).calibration_file;
-  end
+  %end
   
   if hasCrop && ~isempty(toTrack(i).crop_rois),
     cropRois_curr = parseViews(toTrack(i).crop_rois,nviews,false);

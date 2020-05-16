@@ -1,4 +1,4 @@
-classdef SelectTrackBatchGUI < handle
+classdef TrackBatchGUI < handle
 
   properties
     toTrack = [];
@@ -10,10 +10,11 @@ classdef SelectTrackBatchGUI < handle
     posinfo = struct;
     gdata = struct;
     nmovies_per_page = 10;
+    isbusy = false;
   end
   
   methods
-    function obj = SelectTrackBatchGUI(lObj,varargin)
+    function obj = TrackBatchGUI(lObj,varargin)
 
       obj.lObj = lObj;
       obj.hParent = obj.lObj.gdata.figure;
@@ -24,6 +25,11 @@ classdef SelectTrackBatchGUI < handle
       
       obj.createGUI();
       
+    end
+    
+    function toTrack = run(obj)
+      uiwait(obj.gdata.fig);
+      toTrack = obj.toTrack;
     end
     
     function initData(obj,toTrack)
@@ -254,14 +260,20 @@ classdef SelectTrackBatchGUI < handle
         movdata.trkfiles = obj.toTrack.trkfiles(moviei,:);
         movdata.trxfiles = obj.toTrack.trxfiles(moviei,:);
         movdata.calibrationfiles = obj.toTrack.calibrationfiles{moviei};
-        movdata.cropRois = obj.toTrack.cropRois{moviei};
+        movdata.cropRois = obj.toTrack.cropRois(moviei,:);
         movdata.targets = obj.toTrack.targets{moviei};
-        movdata.f0s = obj.toTrack.f0s{moviei};
-        movdata.f1s = obj.toTrack.f1s{moviei};
+        movdata.f0s = obj.toTrack.f0s(moviei);
+        if iscell(movdata.f0s),
+          movdata.f0s = movdata.f0s{1};
+        end
+        movdata.f1s = obj.toTrack.f1s(moviei);
+        if iscell(movdata.f1s),
+          movdata.f1s = movdata.f1s{1};
+        end
       end
     end
     function setMovData(obj,moviei,movdata)
-      nview = size(obj.lObj.nview);
+      nview = obj.lObj.nview;
       obj.toTrack.movfiles(moviei,:) = movdata.movfiles;
       obj.toTrack.trkfiles(moviei,:) = movdata.trkfiles;
       if isfield(movdata,'trxfiles'),
@@ -285,14 +297,17 @@ classdef SelectTrackBatchGUI < handle
         obj.toTrack.targets{moviei} = [];
       end
       if isfield(movdata,'f0s'),
-        obj.toTrack.f0s{moviei} = movdata.f0s;
+        obj.toTrack.f0s(moviei) = movdata.f0s;
       else
-        obj.toTrack.f0s{moviei} = [];
+        obj.toTrack.f0s(moviei) = 1;
       end
       if isfield(movdata,'f1s'),
-        obj.toTrack.f1s{moviei} = movdata.f1s;
+        obj.toTrack.f1s(moviei) = movdata.f1s;
       else
-        obj.toTrack.f1s{moviei} = [];
+        obj.toTrack.f1s(moviei) = inf;
+      end
+      if moviei < obj.nmovies,
+        obj.nmovies = moviei;
       end
       itemi = obj.movie2ItemIdx(moviei);
       if isempty(itemi),
@@ -303,12 +318,16 @@ classdef SelectTrackBatchGUI < handle
       obj.setRowVisible(itemi,'on');
       
     end
-    function pb_details_Callback(obj,h,e,itemi)
+    function pb_details_Callback(obj,h,e,itemi) %#ok<*INUSL>
+      obj.setBusy();
       moviei = obj.item2MovieIdx(itemi);
       movdata = obj.getMovData(moviei);
       movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,movdata);
-      movdataout = movdetailsobj.run();
-      obj.setMovData(moviei,movdataout);
+      [movdataout,dostore] = movdetailsobj.run();
+      if dostore,
+        obj.setMovData(moviei,movdataout);
+      end
+      obj.setNotBusy();
     end
     function pb_delete_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
@@ -320,6 +339,7 @@ classdef SelectTrackBatchGUI < handle
       obj.toTrack.targets(moviei) = [];
       obj.toTrack.f0s(moviei) = [];
       obj.toTrack.f1s(moviei) = [];
+      obj.toTrack.cropRois(moviei,:) = [];
       obj.nmovies = obj.nmovies - 1;
       obj.setNPages();
       if obj.page > obj.npages,
@@ -329,7 +349,7 @@ classdef SelectTrackBatchGUI < handle
       
     end
           
-    function pb_add_Callback(obj,h,e)
+    function pb_add_Callback(obj,h,e) %#ok<*INUSD>
       movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig);
       movdataout = movdetailsobj.run();
       if ~isfield(movdataout,'movfiles') || isempty(movdataout.movfiles) || ...
@@ -375,8 +395,18 @@ classdef SelectTrackBatchGUI < handle
         case 'cancel',
           delete(obj.gdata.fig);
         case {'load','save'},
+          if strcmpi(tag,'save'),
+            if obj.nmovies == 0,
+              uiwait(errordlg('No movies selected.'));
+              return;
+            end
+          end
           obj.loadOrSaveToFile(tag);
         case 'track',
+          if obj.nmovies == 0,
+            uiwait(errordlg('No movies selected.'));
+            return;
+          end
           res = questdlg('Save list of movies to track for reference?');
           if strcmpi(res,'Cancel'),
             return;
@@ -411,11 +441,27 @@ classdef SelectTrackBatchGUI < handle
       lastpath = jsonfile;
       if strcmpi(tag,'load'),
         try
-          toTrack = parseToTrackJSON(jsonfile,obj.lObj);
+          toTrack = parseToTrackJSON(jsonfile,obj.lObj); %#ok<*PROPLC>
         catch ME,
           warning('Error loading from jsonfile %s:\n%s',jsonfile,getReport(ME));
-          uiwait(errordlg('Could not load from jsonfile (see console for error'));
+          uiwait(errordlg(sprintf('Could not load from jsonfile:\n%s',...
+            getReport(ME,'basic','hyperlinks','off'))));
           return;
+        end
+        % cropRois is read in as a nview x 4 matrix
+        if isfield(toTrack,'cropRois'),
+          if size(toTrack.cropRois,2) < obj.lObj.nview && ...
+              size(toTrack.cropRois,2) == 1,
+            cropRois = toTrack.cropRois;
+            toTrack.cropRois = cell(size(cropRois,1),obj.lObj.nview);
+            for i = 1:size(cropRois,1),
+              if size(cropRois{i},1) == obj.lObj.nview,
+                for j = 1:obj.lObj.nview,
+                  toTrack.cropRois{i,j} = cropRois{i}(j,:);
+                end
+              end
+            end
+          end
         end
         obj.toTrack = toTrack;
         obj.nmovies = size(obj.toTrack.movfiles,1);
@@ -428,6 +474,23 @@ classdef SelectTrackBatchGUI < handle
       success = true;
     end
 
+    function setBusy(obj,val)
+      if nargin < 2,
+        val = true;
+      end
+      obj.isbusy = val;
+      controls = [obj.gdata.button_delete,obj.gdata.button_details,...
+        obj.gdata.button_control,obj.gdata.button_page,obj.gdata.button_add];
+      isvisible = strcmpi(get(controls,'visible'),'on');
+      if val,
+        set(controls(isvisible),'Enable','off');
+      else
+        set(controls(isvisible),'Enable','on');
+      end
+    end
+    function setNotBusy(obj)
+      obj.setBusy(false);
+    end
     function edit_movie_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       set(h,'String',obj.toTrack.movfiles{moviei,1});

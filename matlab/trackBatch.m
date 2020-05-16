@@ -26,8 +26,17 @@ if iscell(toTrack.f1s),
 else
   f1s = toTrack.f1s;
 end
+if size(toTrack.cropRois,2) > 1,
+  cropRois = cell(size(toTrack.cropRois,1),1);
+  for i = 1:size(toTrack.cropRois,1),
+    cropRois{i} = cat(1,toTrack.cropRois{i,:});
+  end
+else
+  cropRois = toTrack.cropRois;
+end
+    
 
 % call tracker.track to do the real tracking
 lObj.tracker.track(toTrack.movfiles,'trxfiles',toTrack.trxfiles,'trkfiles',toTrack.trkfiles,...
-  'cropRois',toTrack.cropRois,'calibrationfiles',toTrack.calibrationfiles,...
+  'cropRois',cropRois,'calibrationfiles',toTrack.calibrationfiles,...
   'targets',toTrack.targets,'f0',f0s,'f1',f1s);
