@@ -156,8 +156,11 @@ classdef BgTrackWorkerObj < BgWorkerObj
           if obj.partFileIsTextStatus
             tmp = obj.fileContents(parttrkfile);
             PAT = '(?<numfrmstrked>[0-9]+)';
-            toks = regexp(tmp,PAT,'names');
+            toks = regexp(tmp,PAT,'names','once');
             if ~isempty(toks)
+              if iscell(toks),
+                toks = toks{1};
+              end
               parttrkfileNfrmtracked(i) = str2double(toks.numfrmstrked);
             end
           end

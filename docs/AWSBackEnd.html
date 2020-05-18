@@ -125,7 +125,7 @@ You can think of an <b>EC2 instance</b> (as configured below) as a computer with
   <li>If you do not already have one, create an <a href="https://www.ssh.com/ssh/public-key-authentication"><b>ssh key pair</b></a>. Note that this ssh key pair is different than the above Access Keys. The <b>ssh key pair</b> is used to ssh into a running instance while <b>Access Keys</b> are required to create an instance.
     <ul>
       <li>Go to the <a href="https://console.aws.amazon.com/ec2"><b>EC2 console</b></a> or look for <b>EC2</b> under <b>Services - Compute</b> on your console home page. </li>
-      <li>On the left, click on <b>Key Pairs</b> under <b>Network & Security</b> and then use the <b>Create Key Pair</b> button. Make note of the name and stored location of your key pair, you will need to refer to it when using APT.</li>
+      <li>On the left, click on <a id="Key Pairs"><b>Key Pairs</b></a> under <b>Network & Security</b> and then use the <b>Create Key Pair</b> button. <b>Make note of the name and stored location of your key pair, you will need to refer to it when using APT</b>.</li>
       <li>Save the key pair in your <code>$HOME/.ssh</code> folder.</li>
       <li>On Linux, change the permissions to read-only using <code>chmod 400 ~/.ssh/key_pair.pem</code>.</li>
     </ul>
@@ -178,6 +178,29 @@ You do not need to do this if another user on your account has already created t
 
 <hr class="h2-divider">
 
+<h2><a id="Connecting APT to AWS">Connecting APT to AWS</a></h2>
+
+<p>To set APT to use the AWS backend for training and tracking:
+  <ul>
+    <li>From APT's <b>Track</b> menu, select <b>Track->GPU/Backend Configuration->AWS Cloud</b>. 
+      <center><a href="images/TrackingBackends.png"><img src="images/TrackingBackends.png" width="50%"></a></center>
+    </li>
+    <li>Select <b>Track->GPU/Backend Configuration->(AWS) Configure</b> to configure. Here, you must enter information about how to log into AWS. Enter the <b>name</b> and <b>location</b> of your <a href="#Key Pair">AWS key</a>.
+      <center><a href="aws_setup_screenshots/AWS EC2 Config 2020-04-14 135134.png"><img src="aws_setup_screenshots/AWS EC2 Config 2020-04-14 135134.png" width="50%"></a></center>
+      <ul>
+	<li><b>Name</b>: You can look up the name of your key on the <a href="https://console.aws.amazon.com/ec2"><b>EC2 console</b></a> under <b>Network & Security</b> and <b>Key Pairs</b>.
+	  <center><a href="aws_setup_screenshots/EC2 Key Pairs 2020-04-14 134343.png"><img src="aws_setup_screenshots/EC2 Key Pairs 2020-04-14 134343.png" width="50%"></a></center>
+	</li>
+	<li><b>Location</b>: Where you saved your private key, usually <code>$HOME/.ssh</code>.</li>
+      </ul>
+    </li>
+    <li>Set which EC2 <a href="#EC2">Instance</a> APT will use. You have the option of launcing a new instance (Launch New) or attaching to an existing instance (Attach to Existing). </li>
+    <li>Optionally, you can test that everything worked correctly by selecting <b>Track->GPU/Backend Configuration->Test backend configuration</b>.</li>
+  </ul>
+</p>
+
+<hr class="h2-divider"/>
+
 <h2><a id="ManagingEC2">Managing EC2</a></h2>
 
 <p>From the <a href="https://console.aws.amazon.com/ec2">EC2 console</a>, you can <a href="#Launch">Start</a>, <a href="#Monitor">Monitor</a>, and <a href="#Manipulate">Manipulate</a> instances. </p>
@@ -187,7 +210,7 @@ You do not need to do this if another user on your account has already created t
 To launch an instance:
 <ul>
   <li>Use the <b>Launch Instance</b> button on your <a href="https://console.aws.amazon.com/ec2">EC2 console</a> page.</li>
-  <li>Select the APT Amazon Machine Image (AMI) <b>AMI-APT (ami-0168f57fb900185e1)</b> that contains everything needed to run APT. You can find this by searching for <code>0168f57fb900185e1</code> within <b>Community AMIs</b>.
+  <li>Select the APT Amazon Machine Image (AMI) <b>bransonlab_apt_ami_[latest version]</b>. Currently, the latest AMI is bransonlab_apt_ami_tf113_20190419 (ami-094a08ff1202856d6)</b>. This contains everything needed to run APT. You can find this by searching for <code>bransonlab_apt_ami</code> within <b>Community AMIs</b>.
       <center><a href="aws_setup_screenshots/Find%20AMI%20Screenshot%20from%202018-09-25%2017_29_13.png"><img width=50% src="aws_setup_screenshots/Find%20AMI%20Screenshot%20from%202018-09-25%2017_29_13.png"/></a></center>
   </li>
   <li>

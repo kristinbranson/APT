@@ -1,7 +1,7 @@
 function varargout = GTManager(varargin)
 % Movie table GUI
 
-% Last Modified by GUIDE v2.5 24-Sep-2018 18:50:06
+% Last Modified by GUIDE v2.5 08-May-2020 20:24:42
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -35,6 +35,30 @@ function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL
 % 3c. Labeler prop listeners update GTTable selection, expand/collapse
 %   (frame, target etc)
 
+handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
+  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_suggest_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Auto-generate GT Frames',...
+  'Tag','menu_gtframes_suggest',...
+  'Checked','off',...
+  'Visible','on');
+handles.menu_gtframes_setlabeled = uimenu('Parent',handles.menu_get_gt_frames,...
+  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_setlabeled_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Set GT Frames to Current GT Labels',...
+  'Tag','menu_gtframes_setlabeled',...
+  'Checked','off',...
+  'Visible','on');
+handles.menu_gtframes_load = uimenu('Parent',handles.menu_get_gt_frames,...
+  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_load_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Load GT Frames from file',...
+  'Tag','menu_gtframes_load',...
+  'Checked','off',...
+  'Visible','on');
+
+
+%moveMenuItemAfter(handles.menu_file_export_labels_table,...
+%  handles.menu_file_export_labels_trks);
+
+
 lObj = varargin{1};
 if isdeployed || ~lObj.isgui,
   % AL 20171215. Compiled APTCluster on 15b, GTManager throws "Java tables
@@ -62,6 +86,10 @@ end
 
 h = findall(handles.figure1,'-property','Units');
 set(h,'Units','normalized');
+
+% enabled when gt table set
+h = findall(handles.figure1,'style','pushbutton');
+set(h,'Enable','off');
 
 cbkNavDataRow = @(iData)cbkTreeTableDataRowNaved(hObject,iData);
 % The Data table of this NTT has fields mov/frm/iTgt/hasLbl/GTerr. mov is
@@ -146,6 +174,10 @@ ntt.setData(tbl,'prettyHdrs',PRETTYCOLS);
 handles.navTreeTblMovIdxs = tblMovIdxs;
 guidata(hObject,handles);
 
+pbEnable = onIff(~isempty(tbl));
+h = findall(handles.figure1,'style','pushbutton');
+set(h,'Enable',pbEnable);
+
 function cbkGTSuggMFTableLbledUpdated(hObject,src,evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
@@ -210,7 +242,9 @@ lclNavToMFT(lObj,mftRow);
 function lclNavToMFT(lObj,mftRow)
 iMov = mftRow.mov.get();
 if iMov~=lObj.currMovie
+  lObj.SetStatus(sprintf('Switching to GT movie %d...',iMov));
   lObj.movieSet(iMov);
+  lObj.ClearStatus();
 end
 lObj.setFrameAndTarget(mftRow.frm,mftRow.iTgt);
 
@@ -219,70 +253,22 @@ lObj.setFrameAndTarget(mftRow.frm,mftRow.iTgt);
 % handles = guidata(hMMobj);
 % imovs = handles.navTreeTbl.getSelectedMovies();
 
-function pbSuggestGTFrames_Callback(hObject, eventdata, handles)
-lObj = handles.labeler;
-
-if ~isempty(lObj.gtSuggMFTable) && any(lObj.gtSuggMFTableLbled)
-  qmsg = 'One or more GT frames have been labeled. These labels will not be used/considered if new suggestions are generated.';
-  resp = questdlg(qmsg,'GT labels exist','OK, proceed','Cancel','OK, proceed');
-  if isempty(resp)
-    resp = 'Cancel';
-  end
-  switch resp
-    case 'OK, proceed'
-      % none
-    case 'Cancel'
-      return;
-    otherwise
-      assert(false);
-  end
-end
-
-% Note, any existing labels are not deleted. On gtCompute these other
-% labels are not currently used however.
-
-gtsg = GTSuggest(lObj);
-if ~isempty(gtsg)
-  tblGT = gtsg.generate(lObj);
-  lObj.gtSetUserSuggestions(tblGT,'sortcanonical',true);
-else
-  % user canceled or similar
-end
-
-% DEFAULT_NSAMP = 40;
-% PROMPT = 'Enter desired number of frames to label';
-% NAME = 'GT Suggest';
-% resp = inputdlg(PROMPT,NAME,1,{num2str(DEFAULT_NSAMP)});
-% if isempty(resp)
-%   return;
-% end
-% nGT = str2double(resp{1});
-% if isnan(nGT) || nGT<=0 || round(nGT)~=nGT
-%   error('Invalid number of frames.');
-% end
-
-
-% function pbSwitch_Callback(~,~,handles)
-% % Switch to selected row (mov/frm/tgt)
-% 
-% ntt = handles.navTreeTbl;
-% iData = ntt.getSelectedDataRow();
-% if isempty(iData)
-%   msgbox('Please select a row in the table.','No row selected');
-%   return;
-% end
-% if numel(iData)>1
-%   warningNoTrace('Multiple rows selected. Using first selected row.');
-%   iData = iData(1);
-% end
-% mftRow = ntt.treeTblData(iData,:);
-% mftRow.mov = handles.navTreeTblMovIdxs(iData);
-% lObj = handles.labeler;
-% lclNavToMFT(lObj,mftRow);
+function menu_gtframes_suggest_Callback(hObject, eventdata, handles)
+LabelerGT.generateSuggestionsUI(handles.labeler);
+function menu_gtframes_setlabeled_Callback(hObject, eventdata, handles)
+LabelerGT.setSuggestionsToLabeledUI(handles.labeler);
+function menu_gtframes_load_Callback(hObject, eventdata, handles)
+LabelerGT.loadSuggestionsUI(handles.labeler);
 
 function pbNextUnlabeled_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
 ntt = handles.navTreeTbl;
+% if ntt.isEmpty()
+%   msgbox('Groundtruthing frames have not been set. See the "Get GT Frames" menu.',...
+%     'No GT frames set');
+%   return;
+% end
+
 iDataSel = ntt.getSelectedDataRow();
 if isempty(iDataSel)
   iDataSel = 0;
@@ -307,7 +293,37 @@ else
   lclNavToMFT(lObj,mftRow)
 end
 
+function pbGoSelected_Callback(hObject, eventdata, handles)
+% Switch to selected row (mov/frm/tgt)
+
+ntt = handles.navTreeTbl;
+% if ntt.isEmpty()
+%   msgbox('Groundtruthing frames have not been set. See the "Get GT Frames" menu.',...
+%     'No GT frames set');
+%   return
+% end
+
+iData = ntt.getSelectedDataRow();
+if isempty(iData)
+  msgbox('Please select a row in the table.','No row selected');
+  return;
+end
+if numel(iData)>1
+  warningNoTrace('Multiple rows selected. Using first selected row.');
+  iData = iData(1);
+end
+mftRow = ntt.treeTblData(iData,:);
+mftRow.mov = handles.navTreeTblMovIdxs(iData);
+lObj = handles.labeler;
+lclNavToMFT(lObj,mftRow);
 
 function pbComputeGT_Callback(hObject, eventdata, handles)
+% ntt = handles.navTreeTbl;
+% if ntt.isEmpty()
+%   msgbox('Groundtruthing frames have not been set. See the "Get GT Frames" menu.',...
+%     'No GT frames set');
+%   return;
+% end
+
 lObj = handles.labeler;
 lObj.gtComputeGTPerformance();

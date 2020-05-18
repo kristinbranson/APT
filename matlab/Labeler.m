@@ -43,6 +43,17 @@ classdef Labeler < handle
       'labeledpostag' 'log'
       'labeledposMarked' 'log'
       'labeledpostagGT' 'log'};
+    SAVEPROPS_GTCLASSIFY = { ... % these props are resaved into stripped lbls pre gt-classify
+      'movieFilesAllGT'
+      'movieInfoAllGT'
+      'movieFilesAllGTCropInfo'
+      'movieFilesAllGTHistEqLUT'
+      'trxFilesAllGT'
+      'viewCalibrationDataGT'
+      'labeledposGT'
+      'labeledpostagGT'
+      'labeledposTSGT'
+      'labeledpos2GT'};
     
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};     
@@ -834,6 +845,13 @@ classdef Labeler < handle
         ifo = obj.movieInfoAllGTaware{obj.currMovie,1};
         v = ifo.nframes;
       end
+    end
+    function [ncmin,nrmin] = getMinMovieWidthHeight(obj)
+      movInfos = [obj.movieInfoAll; obj.movieInfoAllGT];
+      nrall = cellfun(@(x)x.info.nr,movInfos); % [(nmov+nmovGT) x nview]
+      ncall = cellfun(@(x)x.info.nc,movInfos); % etc
+      nrmin = min(nrall,[],1); % [1xnview]
+      ncmin = min(ncall,[],1); % [1xnview]      
     end
     function v = getNFramesMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
@@ -1868,10 +1886,15 @@ classdef Labeler < handle
       % Warning: if .preProcSaveData is true, then s.preProcData is a
       % handle (shallow copy) to obj.preProcData
       
-      [sparsify,forceIncDataCache,forceExcDataCache] = myparse(varargin,...
+      [sparsify,forceIncDataCache,forceExcDataCache,macroreplace,...
+        savepropsonly,massageCropProps] = ...
+        myparse(varargin,...
         'sparsify',true,...
         'forceIncDataCache',false,... % include .preProcData* and .ppdb even if .preProcSaveData is false
-        'forceExcDataCache',false ... 
+        'forceExcDataCache',false, ... 
+        'macroreplace',false, ... % if true, use mfaFull/tfaFull for mfa/tfa
+        'savepropsonly',false, ... % if true, just get the .SAVEPROPS with no further massage
+        'massageCropProps',false ... % if true, structize crop props
         );
       assert(~(forceExcDataCache&&forceIncDataCache));      
 
@@ -1899,6 +1922,25 @@ classdef Labeler < handle
         for f=obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
           s.(f) = obj.(f);
         end
+      end
+      
+      if macroreplace
+        s.movieFilesAll = obj.movieFilesAllFull;
+        s.movieFilesAllGT = obj.movieFilesAllGTFull;
+        s.trxFilesAll = obj.trxFilesAllFull;
+        s.trxFilesAllGT = obj.trxFilesAllGTFull;
+      end
+      if massageCropProps
+        cellOfObjArrs2CellOfStructArrs = ...
+          @(x)cellfun(@(y)arrayfun(@struct,y),x,'uni',0); % note, y can be []
+        warnst = warning('off','MATLAB:structOnObject');
+        s.movieFilesAllCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllCropInfo);
+        s.movieFilesAllGTCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllGTCropInfo);
+        warning(warnst);
+        s.cropProjHasCrops = obj.cropProjHasCrops;
+      end
+      if savepropsonly
+        return
       end
       
       % Older comment: clean information we shouldn't save from AWS EC2
@@ -2633,6 +2675,7 @@ classdef Labeler < handle
       if ~tfsucc,
         error('Could not collect data for exporting.');
       end
+      % preProcData_P is [nLabels,nViews,nParts,2]
       save(outfile,'-mat','-v7.3','-struct','s');
       
     end
@@ -3945,9 +3988,13 @@ classdef Labeler < handle
         
         obj.prevAxesMovieRemap(edata.mIdxOrig2New);
         
+        % Note, obj.currMovie is not yet updated when this event goes out
         notify(obj,'movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
+          % AL 20200511. this may be overkill, maybe can just set 
+          % .currMovie directly as the current movie itself cannot be 
+          % rm-ed. A lot (if not all) state update here prob unnec
           obj.movieSet(obj.currMovie-1);
         end
       end
@@ -6719,11 +6766,11 @@ classdef Labeler < handle
     function fname = getDefaultFilenameExportStrippedLbl(obj)
       lblstr = 'TrainData';
       if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' lblstr '.lbl'];
+        rawname = ['$projdir/$projfile_' lblstr '.mat'];
       elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' lblstr '.lbl'];
+        rawname = ['$projdir/$projname_' lblstr '.mat'];
       else
-        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.lbl'];
+        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.mat'];
       end
       sMacro = obj.baseTrkFileMacros();
       fname = FSPath.macroReplace(rawname,sMacro);
@@ -8664,36 +8711,40 @@ classdef Labeler < handle
         tblMFT.mov = MovieIndex(tblMFT.mov,true);
       end
       
-      [tf,tfGT] = tblMFT.mov.isConsistentSet();
-      if ~(tf && tfGT)
-        error('All MovieIndices in input table must reference GT movies.');
-      end
-      
-      n0 = height(tblMFT);
-      n1 = height(unique(tblMFT(:,MFTable.FLDSID)));
-      if n0~=n1
-        error('Input table appears to contain duplicate rows.');
-      end
-      
-      if sortcanonical
-        tblMFT2 = MFTable.sortCanonical(tblMFT);
-        if ~isequal(tblMFT2,tblMFT)
-          warningNoTrace('Sorting table into canonical row ordering.');
-          tblMFT = tblMFT2;
-        end        
+      if isempty(tblMFT)
+        % pass
       else
-        % UI requires sorting by movies; hopefully the movie sort leaves 
-        % row ordering otherwise undisturbed. This appears to be the case
-        % in 2017a.
-        %
-        % See issue #201. User has a gtSuggestions table that is not fully 
-        % sorted by movie, but with a desired random row order within each 
-        % movie. A full/canonical sorting would be undesireable.
-        tblMFT2 = sortrows(tblMFT,{'mov'},{'descend'}); % descend as gt movieindices are negative
-        if ~isequal(tblMFT2,tblMFT)
-          warningNoTrace('Sorting table by movie.');
-          tblMFT = tblMFT2;
-        end        
+        [tf,tfGT] = tblMFT.mov.isConsistentSet();
+        if ~(tf && tfGT)
+          error('All MovieIndices in input table must reference GT movies.');
+        end
+        
+        n0 = height(tblMFT);
+        n1 = height(unique(tblMFT(:,MFTable.FLDSID)));
+        if n0~=n1
+          error('Input table appears to contain duplicate rows.');
+        end
+        
+        if sortcanonical
+          tblMFT2 = MFTable.sortCanonical(tblMFT);
+          if ~isequal(tblMFT2,tblMFT)
+            warningNoTrace('Sorting table into canonical row ordering.');
+            tblMFT = tblMFT2;
+          end
+        else
+          % UI requires sorting by movies; hopefully the movie sort leaves
+          % row ordering otherwise undisturbed. This appears to be the case
+          % in 2017a.
+          %
+          % See issue #201. User has a gtSuggestions table that is not fully
+          % sorted by movie, but with a desired random row order within each
+          % movie. A full/canonical sorting would be undesireable.
+          tblMFT2 = sortrows(tblMFT,{'mov'},{'descend'}); % descend as gt movieindices are negative
+          if ~isequal(tblMFT2,tblMFT)
+            warningNoTrace('Sorting table by movie.');
+            tblMFT = tblMFT2;
+          end
+        end
       end
       
       obj.gtSuggMFTable = tblMFT;
@@ -8779,9 +8830,12 @@ classdef Labeler < handle
       tf = ~isempty(idx);
     end
     function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj)
-      % Compile table of GT suggestions with their labels; 
+      % Compile table of GT suggestions with their labels.
       % 
-      % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg
+      % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg. To
+      % be included, a row must be i) labeled for at least one pt/coord and
+      % ii) in gtSuggMFTable
+
       
       tblMFTSugg = obj.gtSuggMFTable;
       mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
@@ -8789,24 +8843,37 @@ classdef Labeler < handle
         TargetSetVariable.AllTgts);    
       tblMFTLbld = mfts.getMFTable(obj);
       
-      [tf,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
-      assert(isequal(tf,obj.gtSuggMFTableLbled));
-      nSuggLbled = nnz(tf);
-      nSuggUnlbled = nnz(~tf);
+      [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
+
+      % tblMFTLbld includes rows where any pt/coord is labeled;
+      % obj.gtSuggMFTableLbled is only true if all pts/coords labeled 
+      tfSuggFullyLbled = obj.gtSuggMFTableLbled;
+      assert(all(tfSuggAnyLbl(tfSuggFullyLbled)));
+      tfSuggPartiallyLbled = tfSuggAnyLbl & ~tfSuggFullyLbled;
+      tfSuggUnLbled = ~tfSuggAnyLbl;
+      
+      nSuggUnlbled = nnz(tfSuggUnLbled);
       if nSuggUnlbled>0
         warningNoTrace('Labeler:gt',...
           '%d suggested GT frames have not been labeled.',nSuggUnlbled);
       end
+
+      nSuggPartiallyLbled = nnz(tfSuggPartiallyLbled);
+      if nSuggPartiallyLbled>0
+        warningNoTrace('Labeler:gt',...
+          '%d suggested GT frames have only been partially labeled.',nSuggPartiallyLbled);
+      end
       
+      nSuggAnyLbled = nnz(tfSuggAnyLbl);
       nTotGTLbled = height(tblMFTLbld);
-      if nTotGTLbled>nSuggLbled
+      if nTotGTLbled>nSuggAnyLbled
         warningNoTrace('Labeler:gt',...
           '%d labeled GT frames were not in list of suggestions. These labels will NOT be used in assessing GT performance.',...
-          nTotGTLbled-nSuggLbled);
+          nTotGTLbled-nSuggAnyLbled);
       end
       
       % Labeled GT table, in order of tblMFTSugg
-      tblMFT_SuggAndLbled = tblMFTLbld(loc(tf),:);
+      tblMFT_SuggAndLbled = tblMFTLbld(loc(tfSuggAnyLbl),:);
     end
     function tblGTres = gtComputeGTPerformance(obj,varargin)
       %
@@ -8875,7 +8942,7 @@ classdef Labeler < handle
       end
     end
     function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
-        tblTrkRes)
+        tblTrkRes,varargin)
       % Compute GT performance 
       % 
       % tblMFT_SuggAndLbled: MFTable, no shape/label field (eg .p or
@@ -8886,9 +8953,15 @@ classdef Labeler < handle
       % At the moment, all rows of tblMFT_SuggAndLbled must be in tblTrkRes
       % (wrt MFTable.FLDSID). ie, there must be tracking results for all
       % suggested/labeled rows.
+      %
+      % All position-fields (.pTrk, .pLbl, .pTrx) in output/result are in 
+      % absolute coords.
       % 
       % Assigns .gtTblRes.
 
+      pTrkOccThresh = myparse(varargin,...
+        'pTrkOccThresh',0.5 ... % threshold for predicted occlusions
+        );
       
       [tf,loc] = tblismember(tblMFT_SuggAndLbled,tblTrkRes,MFTable.FLDSID);
       if ~all(tf)
@@ -8911,14 +8984,17 @@ classdef Labeler < handle
       pTrk = reshape(pTrk,[nrow npts 2]);
       pLbl = reshape(pLbl,[nrow npts 2]);
       err = sqrt(sum((pTrk-pLbl).^2,3));
-      muerr = mean(err,2);
       
-      % Future: contingency tbl or other stats for occlusions
+      tflblinf = any(isinf(pLbl),3); % [nrow x npts] fully-occ indicator mat; lbls currently coded as inf
+      err(tflblinf) = nan; % treat fully-occ err as nan here
+      muerr = nanmean(err,2); % and ignore in meanL2err
+      
+      % ctab for occlusion pred
+%       % this is not adding value yet
 %       tfTrkHasOcc = isfield(tblTrkRes,'pTrkocc');
-%       if tfTrkHasOcc
-%         PTRKOCCTHRESH = 0.5;
-%         pTrkocctf = tblTrkRes.pTrkocc>=PTRKOCCTHRESH;        
-%         docc = pTrkocctf-tfoccLbl;
+%       if tfTrkHasOcc        
+%         pTrkocctf = tblTrkRes.pTrkocc>=pTrkOccThresh;
+%         szassert(pTrkocctf,size(tflblinf));
 %       end        
       
       tblTmp = tblMFT_SuggAndLbled(:,{'p' 'pTS' 'tfocc' 'pTrx'});
@@ -9338,6 +9414,11 @@ classdef Labeler < handle
     function tblP = preProcCropLabelsToRoiIfNec(obj,tblP,varargin)
       % Add .roi column to table if appropriate/nec
       %
+      % Preconds: One of these must hold
+      %   - proifld and pabsfld are both not fields/cols
+      %     - if roi is present as a field, its existing value is checked/confirmed
+      %   - None of {roi, proifld, pabsfld} are present
+      %
       % PostConditions:
       % If hasTrx, modify tblP as follows:
       %   - add .roi
@@ -9359,9 +9440,19 @@ classdef Labeler < handle
       isPreProcParams = ~isempty(prmpp);
       
       if obj.hasTrx || obj.cropProjHasCrops
-        tf = tblfldscontains(tblP,{'roi' proifld pabsfld});
-        assert(all(tf) || ~any(tf));
-        if ~any(tf)
+        % at the end of this branch, all fields .roi, proifld, pabsfld must
+        % be added
+        
+        tf2pflds = tblfldscontains(tblP,{proifld pabsfld});
+        tfroi = tblfldscontains(tblP,'roi');
+        %assert(all(tf2pflds) || ~any(tf2pflds));
+        if ~any(tf2pflds)
+          if tfroi
+            % save existing .roi fld and confirm it matches the one that
+            % will be added below
+            roi0 = tblP.roi;
+            tblP(:,'roi') = [];
+          end
           if obj.hasTrx
             if isPreProcParams,
               roiRadius = prmpp.TargetCrop.Radius;
@@ -9376,8 +9467,13 @@ classdef Labeler < handle
               'rmOOB',doRemoveOOB,...
               'pfld',pfld,'proifld',proifld);
           end
+          if tfroi
+            assert(isequaln(roi0,tblP.roi));
+          end
           tblP.(pabsfld) = tblP.(pfld);
           tblP.(pfld) = tblP.(proifld);
+        else % one of the two fields exists
+          assert(all(tf2pflds) && tfroi);
         end
       else
         if tblfldscontains(tblP,pabsfld) % AL20190207 add this now some downstream clients want it
@@ -10345,12 +10441,12 @@ classdef Labeler < handle
       % 
 
       if isempty(ppdata),
-        s = obj.projGetSaveStruct('forceIncDataCache',true);
+        s = obj.projGetSaveStruct('forceIncDataCache',true,...
+          'macroreplace',true,'massageCropProps',true);
       else
-        s = obj.projGetSaveStruct('forceExcDataCache',true);
+        s = obj.projGetSaveStruct('forceExcDataCache',true,...
+          'macroreplace',true,'massageCropProps',true);
       end
-      s.movieFilesAll = obj.movieFilesAllFull;
-      s.trxFilesAll = obj.trxFilesAllFull;
       
       nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
       nchan = unique(nchan);
@@ -10362,14 +10458,6 @@ classdef Labeler < handle
 %       if nchan>1
 %         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
 %       end
-      
-      cellOfObjArrs2CellOfStructArrs = ...
-        @(x)cellfun(@(y)arrayfun(@struct,y),x,'uni',0); % note, y can be []
-      warnst = warning('off','MATLAB:structOnObject');
-      s.movieFilesAllCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllCropInfo);
-      s.movieFilesAllGTCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllGTCropInfo);
-      warning(warnst);
-      s.cropProjHasCrops = obj.cropProjHasCrops;
       
       if ~isempty(ppdata)
         ppdbITrn = true(ppdata.N,1);
@@ -11021,12 +11109,12 @@ classdef Labeler < handle
       
       tbl = sortrows(tbl,{errfld},{'descend'});
       tbl = tbl(1:nplot,:);
+      
       tbl = obj.preProcCropLabelsToRoiIfNec(tbl,...
         'doRemoveOOB',false,...
         'pfld','pLbl',...
         'pabsfld','pLblAbs',...
         'proifld','pLblRoi');
-      tbl(:,'roi') = []; % to satisfy assert in next call
       tbl = obj.preProcCropLabelsToRoiIfNec(tbl,...
         'doRemoveOOB',false,...
         'pfld','pTrk',...
@@ -11907,6 +11995,17 @@ classdef Labeler < handle
         error('No movie selected.');
       end
       
+      obj.cropSetNewRoi(iMov,iview,roi);
+    end
+      
+    function cropSetNewRoi(obj,iMov,iview,roi)
+      % Set new crop/roi for input movie iMov (GT-aware).
+      %
+      % If the crop size has changed, update crops sizes for all movies.
+      % 
+      % roi: [1x4]. [xlo xhi ylo yhi]. See defns at top of CropInfo.m
+      % KB added 20200504
+      
       movIfo = obj.movieInfoAllGTaware{iMov,iview}.info;
       imnc = movIfo.nc;
       imnr = movIfo.nr;
@@ -12426,6 +12525,12 @@ classdef Labeler < handle
       % tffound: logical
       % f: first frame encountered with (non-nan) label, applicable if
       %   tffound==true
+      
+      if isempty(lpos),
+        tffound = false;
+        f = f0;
+        return;
+      end
       
       [npts,d,nfrm,ntgt] = size(lpos); %#ok<ASGLU>
       assert(d==2);
