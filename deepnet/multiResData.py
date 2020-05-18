@@ -1075,7 +1075,7 @@ def read_and_decode_rnn(filename_queue, conf):
     return image, locs, [expndx, ts]
 
 
-def read_and_decode_without_session(filename, conf, indices=(0,)):
+def read_and_decode_without_session(filename, conf, indices=(0,), skip_ims=False):
     # reads the tf record db. Returns entries at location indices
     # If indices is empty, then it reads the whole database.
     # Instead of conf, n_classes can be also be given
@@ -1110,7 +1110,8 @@ def read_and_decode_without_session(filename, conf, indices=(0,)):
         else:
             trx_ndx = 0
 
-        all_ims.append(reconstructed_img)
+        if not skip_ims:
+            all_ims.append(reconstructed_img)
         all_locs.append(locs)
         all_info.append([expid, t, trx_ndx])
 

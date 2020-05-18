@@ -2,6 +2,7 @@ from __future__ import division
 from __future__ import print_function
 
 import time
+import collections.abc
 
 import numpy as np
 
@@ -12,6 +13,13 @@ def dictsubsetpfix(d, pfix):
 
 
 def dictdiff(d1, d2, print_fcn=print):
+    if not isinstance(d1, collections.abc.Mapping):
+        print("using vars(d1)")
+        d1 = vars(d1)
+    if not isinstance(d2, collections.abc.Mapping):
+        print("using vars(d2)")
+        d2 = vars(d2)
+
     k1 = set(d1.keys())
     k2 = set(d2.keys())
 

@@ -272,7 +272,7 @@ def check_flips(im, locs, dpk_swap_index):
 
 #region Callbacks
 
-def create_callbacks(sdn, conf):
+def create_callbacks(conf, sdn, runname='deepnet'):
 
     logging.warning("configing callbacks")
 
@@ -300,20 +300,23 @@ def create_callbacks(sdn, conf):
             conf.gamma,
             conf.decay_steps)
 
+    # training, infinite, shuffling
     train_generator = sdn.train_generator(
         n_outputs=sdn.n_outputs,
         batch_size=conf.batch_size,
         validation=False,
         confidence=True
     )
-    #self.conf.dpk_n_outputs = n_outputs
+    # val, infinite, nonshuffled, tgts-as-kpts
     keypoint_generator = sdn.train_generator(
         n_outputs=1,
         batch_size=conf.batch_size,
         validation=True,
-        confidence=False
+        confidence=False,
+        infinite=True,  # use "infinite" val generators here, for logging val_dist only
     )
-    aptcbk = kerascallbacks.APTKerasCbk(conf, (train_generator, keypoint_generator))
+    aptcbk = kerascallbacks.APTKerasCbk(conf, (train_generator, keypoint_generator),
+                                        runname=runname)
 
 
     # `ModelCheckpoint` automatically saves the model when the validation loss improves at the end of each epoch. This allows you to automatically save the best performing model during training, without having to evaluate the performance manually.
@@ -512,9 +515,14 @@ def skel_graph_test(ty):
 
 
 def print_dpk_conf(conf):
-    PFIXESSKIP = ['unet_', 'mdn_', 'op_', 'sb_','dlc_', 'rnn_', 'save_']
+    PFIXESSKIP = ['unet_', 'mdn_', 'op_', 'sb_','dlc_', 'rnn_',
+                  'save_', 'leap_', 'att_', 'clahe_grid',
+                  'holdoutratio', 'cos_steps', 'LEAP', 'do_time',
+                  'Unet', 'DeepLabCut', 'max_n_animals',
+                  'time_window_size', 'selpts', 'fulltrainfilename',
+                  'valdatafilename', 'valratio', 'valfilename']
     print("### CONF ###")
-    keys = vars(conf).keys()
+    keys = sorted(vars(conf).keys())
     for k in keys:
         if any([k.startswith(x) for x in PFIXESSKIP]):
             continue
@@ -576,7 +584,7 @@ def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
 
 #endregion
 
-def apt_db_from_datagen(dg, train_tf, split_file=None, val_tf=None):
+def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
     '''
     Create APT-style train/val tfrecords from a DPK DataGenerator
     :param dg: DataGenerator instance
@@ -588,6 +596,7 @@ def apt_db_from_datagen(dg, train_tf, split_file=None, val_tf=None):
 
     n = len(dg)
 
+    '''
     dosplit = split_file is not None
     if dosplit:
         with open(split_file) as fp:
@@ -597,12 +606,15 @@ def apt_db_from_datagen(dg, train_tf, split_file=None, val_tf=None):
         assert all((x < n for x in val_idx))
         print("Read json file {}. Found {} val_idx elements. Datagenerator has {} els.".format(
             split_file, nval, n))
+    '''
+    doval = val_idx is not None
+    assert doval is (val_tf is not None)
 
     print("Datagenerator image/keypt shapes are {}, {}.".format(
         dg.compute_image_shape(), dg.compute_keypoints_shape() ) )
 
     env = tf.python_io.TFRecordWriter(train_tf)
-    if dosplit:
+    if doval:
         val_env = tf.python_io.TFRecordWriter(val_tf)
 
     count = 0
@@ -613,7 +625,7 @@ def apt_db_from_datagen(dg, train_tf, split_file=None, val_tf=None):
         info = [int(idx), int(idx), int(idx)]
 
         towrite = apt.tf_serialize([im[0, ...], loc[0, ...], info])
-        if dosplit and idx in val_idx:
+        if doval and idx in val_idx:
             val_env.write(towrite)
             val_count += 1
         else:
@@ -638,25 +650,26 @@ def compile(conf):
         else conf.learning_rate
     base_lr_used = base_lr * conf.learning_rate_multiplier
     conf.dpk_base_lr_used = base_lr_used
-    logging.info("base_lr_used={}".format(base_lr_used))
-
-    cbk = create_callbacks(sdn, conf)
+    logging.info("apt_dpk compile: base_lr_used={}".format(base_lr_used))
 
     optimizer = tf.keras.optimizers.Adam(
         lr=base_lr_used, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     sdn.compile(optimizer=optimizer, loss='mse')
 
-    return tgtfr, sdn, cbk
+    return tgtfr, sdn
 
-def train(conf):
+def train(conf,
+          create_cbks_fcn=create_callbacks,
+          runname='deepnet'):
     print_dpk_conf(conf)
 
-    conf_file = os.path.join(conf.cachedir, 'conf.pickle')
+    conf_file = os.path.join(conf.cachedir, '{}.conf.pickle'.format(runname))
     with open(conf_file, 'wb') as fh:
         pickle.dump({'conf': conf}, fh)
     logging.info("Saved conf to {}".format(conf_file))
 
-    tgtfr, sdn, cbk = compile(conf)
+    tgtfr, sdn = compile(conf)
+    cbks = create_cbks_fcn(conf, sdn, runname=runname)
 
     tgconf = tgtfr.get_config()
     sdnconf = sdn.get_config()
@@ -664,6 +677,7 @@ def train(conf):
         pickle.dump({'tg': tgconf, 'sdn': sdnconf}, fh)
     logging.info("Saved other confs to {}".format(conf_file))
 
+    # XXX valbatch stuff, valsteps stuff. See apt_dpk_exps
     nval = tgtfr.n_validation
     nvalbatch = nval // conf.batch_size
     nvalbatch = min(nvalbatch, conf.dpk_max_val_batches)
@@ -672,7 +686,7 @@ def train(conf):
     sdn.fit(
         batch_size=conf.batch_size,
         validation_batch_size=conf.batch_size,
-        callbacks=cbk,
+        callbacks=cbks,
         epochs=conf.dl_steps // conf.display_step,
         steps_per_epoch=conf.display_step,
         validation_steps=nvalbatch, )  # default validation_freq of 1 seems fine # validation_freq=10)
