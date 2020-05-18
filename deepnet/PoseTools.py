@@ -573,7 +573,7 @@ def create_label_images_slow(locs, im_sz, scale, blur_rad):
     return  out
 
 
-def create_label_images(locs, im_sz, scale, blur_rad):
+def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     '''
 
     :param locs: original, hi-res locs

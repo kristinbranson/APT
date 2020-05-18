@@ -1,3 +1,13 @@
+''' So, ahem, this code is ugly. Quite ugly. And frankly very little is my fault. It is entirely to agonizingly bad project management by tensorflow. From distressingly incomplete documentation, haphazarad functionality finally topped with ever changing framework, the code couldn't be any better when trying to be backward compatible. An example of TFs bad management is their still ridiculous documentation eg: https://www.tensorflow.org/api_docs/python/tf/io/parse_single_example
+
+I particularly had difficulty with saving/restoring and building the data pipeline as TF moved from first feed dict to threads to datasets and then to eager execution.
+
+And with TF deciding to move to Keras framework from 2.0, TF continues to transform us into monsters where we will have to partake in uglyfying the world.
+
+MK 20200505
+
+'''
+
 from __future__ import division
 from __future__ import print_function
 
@@ -343,7 +353,8 @@ class PoseCommon(object):
                           'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
                           'expndx': tf.FixedLenFeature([], dtype=tf.float32),
                           'ts': tf.FixedLenFeature([], dtype=tf.float32),
-                          'image_raw': tf.FixedLenFeature([], dtype=tf.string)
+                          'image_raw': tf.FixedLenFeature([], dtype=tf.string),
+                          'occ':tf.FixedLenFeature(shape=[conf.n_classes],default_value=np.zeros(conf.n_classes),dtype=tf.float32),
                           })
             image = tf.decode_raw(features['image_raw'], tf.uint8)
             trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
@@ -353,7 +364,10 @@ class PoseCommon(object):
             exp_ndx = tf.cast(features['expndx'], tf.float32)
             ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
             info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
-            return image, locs, info
+            occ = tf.cast(features['occ'],tf.bool)
+
+            return image , locs, info, occ
+
 
         train_db = os.path.join(self.conf.cachedir, self.conf.trainfilename) + '.tfrecords'
         train_dataset = tf.data.TFRecordDataset(train_db)

@@ -24,6 +24,9 @@ reload(rae)
 rae.setup('alice')
 rae.get_normal_results(dstr='20200410') # queue = 'gpu_tesla'
 rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
+rae.setup('alice_difficult')
+rae.get_normal_results(dstr='20200410') # queue = 'gpu_tesla'
+rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
 
 ##
 import run_apt_expts_2 as rae
@@ -68,13 +71,94 @@ import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 # rae.create_incremental_dbs()
-rae.run_incremental_training() #run_type = 'submit'
+rae.run_incremental_training(dstr='20200414') #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 rae.get_incremental_results(dstr='20200414')
+
+## Whole dataset training
+
+import run_apt_expts_2 as rae
+for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
+    reload(rae)
+    rae.setup(data_type)
+    # rae.create_normal_dbs()
+    rae.run_normal_training() #run_type = 'submit') # to actually submit jobs.
+
+
+## Brits experiments
+
+## training
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+for britnum in range(3):
+    rae.setup('brit{}'.format(britnum))
+    # rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
+    rae.cv_train_from_mat(queue='gpu_tesla',dstr='20200417')
+    rae.cv_train_from_mat(dstr='20200417')
+
+## results
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+for britnum in range(3):
+    rae.setup('brit{}'.format(britnum))
+    rae.get_cv_results(queue='gpu_tesla',dstr='20200417',db_from_mdn_dir=True)
+    rae.get_cv_results(queue='gpu_rtx',dstr='20200417',db_from_mdn_dir=True)
+
+
+## Romains experiments
+
+## CV Training - all views
+
+import run_apt_expts_2 as rae
+reload(rae)
+rae.setup('romain','')
+rae.cv_train_from_mat() # skip_db=False,run_type='submit'
+
+## results
+import run_apt_expts_2 as rae
+reload(rae)
+rae.setup('romain')
+rae.get_cv_results(num_splits=6)
+
+
+
+## Roain's expts
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+rae.setup('roian','')
+rae.cv_train_from_mat(dstr='20200430') # skip_db=False,run_type='submit'
+rae.cv_train_from_mat(dstr='20200430',queue='gpu_tesla') # skip_db=False,run_type='submit'
+
+## results
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+rae.setup('roian','')
+rae.get_cv_results(queue='gpu_rtx',dstr='20200430',db_from_mdn_dir=True)
+rae.get_cv_results(queue='gpu_tesla',dstr='20200430',db_from_mdn_dir=True)
+
+## Larva
+from importlib import reload
+import run_apt_expts_2 as rae
+reload(rae)
+rae.setup('larva','')
+rae.cv_train_from_mat(dstr='20200428') # skip_db=False,run_type='submit'
+rae.cv_train_from_mat(dstr='20200428',queue='gpu_tesla_large') # skip_db=False,run_type='submit'
+
+## results
+import run_apt_expts_2 as rae
+reload(rae)
+rae.setup('larva')
+rae.get_cv_results(dstr='20200428',db_from_mdn_dir=True) # skip_db=False,run_type='submit'
+rae.get_cv_results(dstr='20200428',queue='gpu_tesla_large',db_from_mdn_dir=True) #
+
 
 
 ## Single animal vs multiple animal for Stephen
@@ -171,79 +255,6 @@ rae.setup('stephen')
 for round in range(5):
     rae.dlc_aug_use_round = round
     rae.get_dlc_results()
-
-## Whole dataset training
-
-import run_apt_expts_2 as rae
-for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
-    reload(rae)
-    rae.setup(data_type)
-    # rae.create_normal_dbs()
-    rae.run_normal_training() #run_type = 'submit') # to actually submit jobs.
-
-
-## Brits experiments
-
-## training
-import run_apt_expts_2 as rae
-from importlib import reload
-reload(rae)
-for britnum in range(3):
-    rae.setup('brit{}'.format(britnum))
-    # rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
-    rae.cv_train_from_mat(queue='gpu_tesla',dstr='20200417')
-    rae.cv_train_from_mat(dstr='20200417')
-
-## results
-import run_apt_expts_2 as rae
-reload(rae)
-for britnum in range(3):
-    rae.setup('brit{}'.format(britnum))
-    rae.get_cv_results(num_splits=3)
-
-
-## Romains experiments
-
-## CV Training - all views
-
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('romain','')
-rae.cv_train_from_mat() # skip_db=False,run_type='submit'
-
-## results
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('romain')
-rae.get_cv_results(num_splits=6)
-
-
-
-## Roain's expts
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('roian','')
-rae.cv_train_from_mat() # skip_db=False,run_type='submit'
-
-## results
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('roian')
-rae.get_cv_results(num_splits=4)
-
-
-## Larva
-
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('larva','')
-rae.cv_train_from_mat() # skip_db=False,run_type='submit'
-
-## results
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('larva')
-rae.get_cv_results(num_splits=8)
 
 
 ## Carsen

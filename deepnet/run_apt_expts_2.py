@@ -93,6 +93,7 @@ common_conf['batch_size'] = 8
 # common_conf['normalize_img_mean'] = False
 # common_conf['adjust_contrast'] = False
 common_conf['maxckpt'] = 200 # Save all models
+common_conf['ignore_occluded'] = False
 
 
 def setup(data_type_in,gpu_device=None):
@@ -146,9 +147,11 @@ def setup(data_type_in,gpu_device=None):
                                     }
 
     elif data_type == 'roian':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped_newmovielocs.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped_newmovielocs.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423.lbl_mdn.lbl'
         # op_af_graph = '\(0,1\),\(0,2\),\(0,3\)'
-        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
+        # cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/roian_xval_20200428.mat'
         # common_conf['rrange'] = 180
         # common_conf['trange'] = 5
 
@@ -193,7 +196,8 @@ def setup(data_type_in,gpu_device=None):
 
     elif data_type == 'larva':
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/gtParamMassage20200409/Larva94A04_CM_fixedmovies_20200331_mdn.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/gtParamMassage20200409/Larva94A04_CM_fixedmovies_20200331_mdn.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/Larva94A04_CM_fixedmovies_20200331.lbl_mdn.lbl'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/LarvaTrainCVInfo20190419.mat'
         # j = tuple(zip(range(27), range(1, 28)))
         # op_af_graph = '{}'.format(j)
@@ -232,7 +236,7 @@ def run_jobs(cmd_name,
              run_dir=job_run_dir,
              queue='gpu_any',
              precmd='',
-             logdir=sdir):
+             logdir=sdir,nslots=3):
     logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
     errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 
@@ -258,7 +262,8 @@ def run_jobs(cmd_name,
                              # gpu_model=gpu_model,
                              run_dir=run_dir,
                              queue=queue,
-                             precmd=precmd,numcores=7)
+                             precmd=precmd,numcores=nslots,
+                             timeout=80*60)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
@@ -381,7 +386,7 @@ def plot_results1(data_in,ylim=None,xlim=None):
         mt = []
         for o in data_in[k]:
             dd = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
-            mm.append(np.percentile(dd, ps, axis=0))
+            mm.append(np.nanpercentile(dd, ps, axis=0))
             mt.append(o[-1])
         if len(mt) == 0:
             continue
@@ -430,7 +435,7 @@ def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     for idx,k in enumerate(data_in.keys()):
         o = data_in[k][-1]
         dd = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
-        mm = np.percentile(dd, ps, axis=0)
+        mm = np.nanpercentile(dd, ps, axis=0)
 
         n = dd.shape[0]
 
@@ -525,9 +530,11 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
                 conf_opts['batch_size'] = 4
 
         if data_type in ['roian']:
-            if train_type in ['dpk', 'openpose', 'sb']:
+            if train_type in ['dpk', 'openpose', 'sb','mdn_unet','resnet_unet','unet']:
                 conf_opts['batch_size'] = 4
                 conf_opts['rescale'] = 2
+            if train_type in ['mdn','deeplabcut','leap']:
+                conf_opts['batch_size'] = 4
 
         if data_type in ['romain']:
             if train_type in ['mdn_unet']:
@@ -560,12 +567,12 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
             if train_type in ['sb', 'dpk']:
                 conf_opts['rescale'] = 4
                 conf_opts['batch_size'] = 4
-            if train_type in ['unet', 'resnet_unet', 'leap']:
+            if train_type in ['unet', 'resnet_unet']:
                 conf_opts['rescale'] = 4
                 conf_opts['batch_size'] = 4
-            if train_type in ['mdn_unet']:
-                    conf_opts['batch_size'] = 4
-                    conf_opts['rescale'] = 2
+            if train_type in ['mdn_unet','mdn','leap']:
+                conf_opts['batch_size'] = 4
+                conf_opts['rescale'] = 2
 
         if data_type == 'stephen':
             conf_opts['batch_size'] = 4
@@ -581,9 +588,15 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
                 conf_opts['batch_size'] = 4
             else:
                 conf_opts['batch_size'] = 8
-    elif gpu_queue == 'gpu_tesla':
+    elif gpu_queue in ['gpu_tesla' or 'gpu_tesla_large']:
         if data_type in ['romain']:
             conf_opts['batch_size'] = 4
+        if data_type in ['larva']:
+            conf_opts['batch_size'] = 4
+        if data_type in ['roian']:
+            if train_type in ['resnet_unet','unet']:
+                conf_opts['batch_size'] = 4
+
 
 
     # if op_af_graph is not None:
@@ -639,10 +652,11 @@ def run_trainining(exp_name,train_type,view,run_type,
                    **kwargs
                    ):
 
-    gpu_str = '_tesla' if queue == 'gpu_tesla' else ''
+    gpu_str = '_tesla' if queue in ['gpu_tesla','gpu_tesla_large'] else ''
     train_name_dstr = train_name + gpu_str + '_' + dstr
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
         apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue,**kwargs)
+    nslots = 10 if train_type == 'leap' else 4
 
     if run_type == 'dry':
         print(cmd_name)
@@ -683,7 +697,7 @@ def run_trainining(exp_name,train_type,view,run_type,
 
         print(cur_cmd)
         print()
-        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir, queue=queue)
+        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir, queue=queue,nslots=nslots)
     elif run_type == 'status':
         #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         #time0 = time.process_time()
@@ -781,17 +795,17 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
     assert data_type in ['romain','larva','roian','carsen','brit0','brit1','brit2']
 
     data_info = h5py.File(cv_info_file, 'r')
-    cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
+    cv_info = apt.to_py(np.squeeze(data_info['cvi']).astype('int'))
     n_splits = max(cv_info) + 1
     conf = apt.create_conf(lbl_file,0,'cv_dummy',cache_dir,'mdn')
     lbl_movies, _ = multiResData.find_local_dirs(conf)
     in_movies = [PoseTools.read_h5_str(data_info[k]) for k in data_info['movies'][0,:]]
     assert lbl_movies == in_movies or data_type in ['romain','roian']
     label_info = get_label_info(conf)
-    fr_info = apt.to_py(data_info['frame'].value[:,0].astype('int'))
-    m_info = apt.to_py(data_info['movieidx'].value[:,0].astype('int'))
+    fr_info = apt.to_py(np.squeeze(data_info['frame']).astype('int'))
+    m_info = apt.to_py(np.squeeze(data_info['movieidx']).astype('int'))
     if 'target' in data_info.keys():
-        t_info = apt.to_py(data_info['target'].value[:,0].astype('int'))
+        t_info = apt.to_py(np.squeeze(data_info['target']).astype('int'))
         in_info = [(a,b,c) for a,b,c in zip(m_info,fr_info,t_info)]
     else:
         in_info = [(a,b,0) for a,b in zip(m_info,fr_info)]
@@ -1577,7 +1591,7 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
 
     for ndx,out_exp in enumerate(all_view):
         plot_results(out_exp[0])
-        plot_hist(out_exp)
+        plot_hist(out_exp,ps=[75,90,95,97])
 
         save_file = os.path.join(results_dir,'{}_{}_view{}_time{}'.format(data_type, train_name_dstr, ndx, gt_name_use_output))
         save_filep = save_file+".p"
@@ -1901,7 +1915,7 @@ def get_incremental_results(dstr=PoseTools.datestr(),queue='gpu_rtx'):
 
     for ndx,ii in enumerate(all_view):
         plot_results(ii,ylim=15)
-        save_mat(ii,os.path.join(cache_dir,'{}_{}_view{}_trainsize'.format(data_type,train_name_dstr, ndx,)))
+        save_mat(ii,os.path.join(results_dir,'{}_{}_view{}_trainsize'.format(data_type,train_name_dstr, ndx,)))
 
 
 def get_no_pretrained_results():
@@ -1959,8 +1973,12 @@ def get_cv_results(num_splits=None,
                    db_from_mdn_dir=False,
                    exp_name_pfix='',  # prefix for exp_name. can be map from train_type->exp_name_pfix
                    split_idxs=None,
+                   queue='gpu_rtx',
+                   dstr = PoseTools.get_datestr(),
                    ptiles_plot=[50,75,90,95,97]):
     train_name = 'deepnet'
+    gpu_str = '_tesla' if queue == 'gpu_tesla' else ''
+    train_name = train_name + gpu_str + '_' + dstr
     if num_splits == None:
         print("Reading splits from {}".format(cv_info_file))
         data_info = h5py.File(cv_info_file, 'r')
@@ -2006,7 +2024,7 @@ def get_cv_results(num_splits=None,
                     print("Recomputing {}, vw{}, {}".format(train_type, view, split))
                     db_file = os.path.join(mdn_conf.cachedir,'val_TF.tfrecords') if \
                                 db_from_mdn_dir else os.path.join(conf.cachedir, 'val_TF.tfrecords')
-                    tfile = get_traindata_file_flexible(conf.cachedir, train_name)
+                    tfile = get_traindata_file_flexible(conf.cachedir, train_name,conf.expname)
                     print("Loading traindata file {}".format(tfile))
                     tdata = PoseTools.pickle_load(tfile)
                     # latter case LEAP apparently
@@ -2053,7 +2071,9 @@ def get_cv_results(num_splits=None,
         ttl = ax.get_title()
         ttl += ': view{}'.format(ndx)
         ax.set_title(ttl)
-        save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_cv'.format(data_type,ndx,)))
+        out_mat_file = os.path.join(results_dir,'{}_{}_view{}_cv'.format(data_type,train_name, ndx,))
+        save_mat(out_exp[0],out_mat_file)
+        # save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_cv'.format(data_type,ndx,)))
 
 def get_cv_results_full(db_from_mdn_dir=False,
                         exp_name_pfix='',  # prefix for exp_name. can be map from train_type->exp_name_pfix

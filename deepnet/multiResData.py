@@ -1089,6 +1089,7 @@ def read_and_decode_without_session(filename, conf, indices=(0,), skip_ims=False
     all_ims = []
     all_locs = []
     all_info = []
+    all_occ = []
     for ndx, record in enumerate(xx):
         if (len(indices) > 0) and (indices.count(ndx) is 0):
             continue
@@ -1109,14 +1110,20 @@ def read_and_decode_without_session(filename, conf, indices=(0,), skip_ims=False
             trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
         else:
             trx_ndx = 0
+        if 'occ' in example.features.feature.keys():
+            occ = np.array(example.features.feature['occ'].float_list.value)
+            occ = occ.reshape([n_classes,])
+        else:
+            occ = np.zeros([n_classes,])
 
         if not skip_ims:
             all_ims.append(reconstructed_img)
         all_locs.append(locs)
         all_info.append([expid, t, trx_ndx])
+        all_occ.append(occ)
 
     xx.close()
-    return all_ims, all_locs, all_info
+    return all_ims, all_locs, all_info, all_occ
 
 def read_tfrecord_metadata(filename):
     # reads metadata off the first entry in a tf record db.

@@ -366,6 +366,8 @@ def create_affinity_labels(locs, imsz, graph,scale=1):
             for x,y in zz.T:
                 if x >= out.shape[2] or y >= out.shape[1]:
                     continue
+                if np.isnan(x) or np.isnan(y):
+                    continue
                 out[cur,int(y),int(x),ndx*2] = dx
                 out[cur,int(y),int(x),ndx*2+1] = dy
 
@@ -377,6 +379,9 @@ def create_label_images(locs, imsz,scale=1):
     out = np.zeros([n_ex,imsz[0],imsz[1],n_out])
     for cur in range(n_ex):
         for ndx in range(n_out):
+            if np.isnan(locs[cur,ndx,0]) or np.isnan(locs[cur,ndx,1]):
+                continue
+
             x,y = np.meshgrid(range(imsz[1]),range(imsz[0]))
             x = x-locs[cur,ndx,0]
             y = y - locs[cur,ndx,1]

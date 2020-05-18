@@ -1,21 +1,38 @@
-
-##
 import run_apt_expts_2 as rae
-import sys
-if sys.version_info.major > 2:
-    from importlib import reload
+from importlib import reload
 reload(rae)
-rae.setup('stephen')
-rae.all_models = ['deeplabcut']
-rae.get_normal_results(dstr='20200411')
+rae.setup('roian','')
+rae.cv_train_from_mat(dstr='20200430') # skip_db=False,run_type='submit'
 
 ##
+import run_apt_expts as rae
 import APT_interface as apt
-cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl -name alice_randsplit_round_2 -cache /nrs/branson/mayank/apt_cache_2 -conf_params maxckpt 200  batch_size 8   mdn_use_unet_loss False  learning_rate_multiplier 1.0  dl_steps 100000  decay_steps 25000  save_step 5000 leap_multiprocessor False -view 1  -train_name deepnet_20200413  -type leap train -skip_db -use_cache'
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327.lbl_mdn.lbl -name cv_split_0 -cache /groups/branson/bransonlab/mayank/apt_cache_2 -conf_params learning_rate_multiplier 1.0  batch_size 2  dl_steps 100  save_step 5000  maxckpt 200  mdn_use_unet_loss False  decay_steps 25000  -type mdn  -view 1  -train_name test_occ train -skip_db -use_cache'
 apt.main(cmd.split())
 
+##
+from importlib import reload
+reload(rae)
+rae.setup('roian','')
+rae.cv_train_from_mat(dstr='20200430',skip_db=False,run_type='submit',create_splits=True)
+rae.cv_train_from_mat(dstr='20200430',queue='gpu_tesla',run_type='submit')
+
+
+##
+import PoseTools as pt
+import run_apt_expts_2 as rae
+for split in range(5):
+    f, ax = plt.subplots(2, 4)
+    ax = ax.flatten()
+    for ndx,m in enumerate(rae.all_models):
+        # tf = '/groups/branson/bransonlab/mayank/apt_cache_2/wheel_rig_tracker_feb_2017_cam2/{}/view_0/cv_split_{}/wheel_rig_tracker_feb_2017_cam2_deepnet_20200417_traindata'.format(m,split)
+        tf ='/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/{}/view_0/cv_split_{}/four_points_180806_deepnet_20200430_traindata'.format(m,split)
+        A = pt.pickle_load(tf)
+        ax[ndx].plot(A[0]['step'][50:],A[0]['val_dist'][50:])
+        ax[ndx].plot(A[0]['step'][50:],A[0]['train_dist'][50:])
+        ax[ndx].set_title(m)
 
 
 ##
