@@ -31,9 +31,11 @@ def create_lr_sched_callback(iterations_per_epoch, base_lr, gamma, decaysteps):
 
 
 class APTKerasCbk(Callback):
-    def __init__(self, conf, dataits):
-        # trnDI should produce y=hmaps, n_outputs=<as training>
-        # val DI here should produce y=locs, n_outputs=1
+    def __init__(self, conf, dataits, runname='deepnet'):
+        # dataits: (trnDG, valDG)
+        #
+        # trnDG: training generator. should produce y=hmaps, n_outputs=<as training>
+        # valDG: val generator. should produce y=locs, n_outputs=1
 
         self.train_di, self.val_di = dataits
         self.train_info = {}
@@ -43,14 +45,12 @@ class APTKerasCbk(Callback):
         self.train_info['train_loss_K'] = []  # scalar loss as reported by K
         self.train_info['train_loss_full'] = []  # full loss, layer by layer
         self.train_info['val_dist'] = []
-        #self.train_info['val_loss'] = []  # etc
-        #self.train_info['val_loss_K'] = []
-        #self.train_info['val_loss_full'] = []
         self.train_info['lr'] = []
         self.config = conf
         self.pred_model = None
         # self.model is training model
         self.save_start = time.time()
+        self.runname = runname
 
     def pass_model(self, dpkmodel):
         logging.info("Set pred_model on APTKerasCbk")
@@ -133,8 +133,6 @@ class APTKerasCbk(Callback):
         with open(train_data_file, 'wb') as td:
             pickle.dump([self.train_info, conf], td, protocol=2)
 
-        name = 'deepnet'
-
         if step % conf.save_step == 0:
             train_model.save(str(os.path.join(
-                conf.cachedir, name + '-{}'.format(int(step)))))
+                conf.cachedir, self.runname + '-{}'.format(int(step)))))

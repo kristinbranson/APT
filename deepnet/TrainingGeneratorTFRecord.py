@@ -90,6 +90,10 @@ class TrainingGeneratorTFRecord:
         valmddict = mrd.read_tfrecord_metadata(valtfr)
         for k in ['height', 'width', 'depth']:
             assert trnmddict[k] == valmddict[k]
+
+        logging.info("TGTFR. Using trn={}, ntrn={}".format(trntfr, self.n_train))
+        logging.info("TGTFR. Using val={}, nval={}".format(valtfr, self.n_validation))
+
         # as far as TGTFR and all DPK-related, the ims have post-pad, post-rescale sz
         self.height = conf.dpk_imsz_net[0]
         self.width = conf.dpk_imsz_net[1]
@@ -106,7 +110,7 @@ class TrainingGeneratorTFRecord:
         # self.swap_index = self.generator.swap_index
 
         # self.on_epoch_end()
-        g = self.get_generator(False, True, debug=True)
+        g = self.get_generator(validation=False, confidence=True, debug=True, silent=True)
         ims0, tgts0, locs0, info0 = next(g)
         if isinstance(tgts0, list):
             tgts0 = tgts0[0]
@@ -147,7 +151,7 @@ class TrainingGeneratorTFRecord:
     # def _init_data(self):
 
 
-    def get_generator(self, validation, confidence, shuffle=None, infinite=True, **kwargs):
+    def get_generator(self, validation, confidence, shuffle=None, infinite=None, **kwargs):
         '''
 
         :param validation:
@@ -164,23 +168,29 @@ class TrainingGeneratorTFRecord:
         :param kwargs:
         :return:
         '''
+
+        tfrfilename = self.valtfr if validation else self.trntfr
+        distort = not validation
+
         if confidence:
             ppfcn = 'ims_locs_preprocess_dpk'
         else:
             ppfcn = 'ims_locs_preprocess_dpk_noconf_nodistort'
             assert self.conf.dpk_n_outputs == 1
 
-        falseIfValid = False if validation else True
-
         if shuffle is None:
-            shuffle = falseIfValid
+            shuffle = not validation
 
-        tfrfilename = self.valtfr if validation else self.trntfr
+        if infinite is None:
+            infinite = True  # not validation
+
+        assert not (shuffle and not infinite)  # shuffling can skip a lot of records
+
         g = opdata.make_data_generator(
             tfrfilename,
             self.conf,
-            falseIfValid,
-            shuffle,  # note, shuffling can skip a lot of records if infinite=False
+            distort,
+            shuffle,
             ppfcn,
             infinite=infinite,
             **kwargs,

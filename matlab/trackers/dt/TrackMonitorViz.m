@@ -258,31 +258,26 @@ classdef TrackMonitorViz < handle
                 obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
                   res(ijob).trkfileNfrmtracked);
               else
-                didload = false;
-                warnstate = warning('query','MATLAB:load:variableNotFound');
-                warning('off','MATLAB:load:variableNotFound');
+%                 warnstate = warning('query','MATLAB:load:variableNotFound');
+%                 warning('off','MATLAB:load:variableNotFound');
                 if isdone,
-                  try
-                    ptrk = load(res(ijob).trkfile,'pTrk','-mat');
-                    didload = true;
-                  catch,
-                    warning('isdone = true and could not load pTrk');
-                  end
+                  tfile = res(ijob).trkfile;
                 else
-                  try
-                    ptrk = load(res(ijob).parttrkfile,'pTrk','-mat');
-                    didload = true;
-                  catch,
+                  tfile = res(ijob).parttrkfile;
+                end
+                %fprintf('TrkMonitorViz.resultsReceived: tfile = %s\n',tfile);
+                try
+                  [obj.nFramesTracked(ijob),didload] = TrkFile.getNFramesTracked(tfile);
+                  if ~didload && isdone,
+                    warning('isdone = true and could not load trk file to count nFramesTracked');
+                  end
+                catch ME,
+                  if isdone,
+                    warning('Could not compute number of frames tracked:\n%s',getReport(ME));
                   end
                 end
-                if didload && isfield(ptrk,'pTrk'),
-                  try
-                    obj.nFramesTracked(ijob) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
-                  catch ME
-                    warning(getReport(ME));
-                  end
-                end
-                warning(warnstate.state,warnstate.identifier);
+
+%                 warning(warnstate.state,warnstate.identifier);
               end
              
               if nJobs > 1,

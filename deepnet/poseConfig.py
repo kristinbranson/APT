@@ -138,7 +138,7 @@ class config(object):
         self.dpk_downsample_factor = 2      # (immutable after early) integer downsample                                            *power* for output shape
         self.dpk_n_stacks = 2
         self.dpk_growth_rate = 48
-        self.dpk_use_pretrained = False
+        self.dpk_use_pretrained = True
         self.dpk_n_outputs = 1              # (settable at TGTFR._call_-time)
         self.dpk_use_augmenter = False      # if true, use dpk_augmenter if distort=True
         self.dpk_augmenter = None           # iaa obj

@@ -477,8 +477,22 @@ def ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locsraw, conf, distort):
 def ims_locs_preprocess_dummy(imsraw, locsraw, conf, distort):
     return imsraw, locsraw, None
 
-def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=False, infinite=True):
+def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
+                   debug=False,
+                   infinite=True,
+                   instrumented=False,
+                   instrumentedname=None):
     '''
+
+    Generator that reads from tfrecords and returns preprocessed batches: ims, tgts etc.
+
+    For infinite generators, batches will always have size conf.batch_size.
+
+    For finite generators, the last batch can be "clipped",
+
+    The targets that are computed/returned depend on the preproc fn.
+
+
 
     :param conf: A deep-copy should be passed in so that the generator is unaffected by chances to conf
     :param db_type:
@@ -499,8 +513,11 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
     batch_size = conf.batch_size
     N = PoseTools.count_records(filename)
 
-    logging.warning("tfdatagen data gen. file={}, distort/shuf={}/{}, ppfun={}, N={}".format(
-        filename, distort, shuffle, ims_locs_proc_fn.__name__, N))
+    if instrumented and (instrumentedname is None):
+        instrumentedname = "Unnamed-{}".format(os.path.basename(filename))
+
+    #logging.warning("tfdatagen data gen. file={}, distort/shuf/inf={}/{}/{}, ppfun={}, N={}".format(
+    #    filename, distort, shuffle, infinite, ims_locs_proc_fn.__name__, N))
 
     # Py 2.x workaround nested functions outer variable rebind
     # https://www.python.org/dev/peps/pep-3104/#new-syntax-in-the-binding-outer-scope
@@ -514,7 +531,6 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
         if ns.iterator:
             ns.iterator.close()
         ns.iterator = tf.python_io.tf_record_iterator(filename)
-        # print('========= Resetting ==========')
 
     def iterator_read_next():
         if not ns.iterator:
@@ -535,8 +551,6 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
                 raise
         return record
 
-    #ns.iterator = tf.python_io.tf_record_iterator(filename)
-
     while True:
         all_ims = []
         all_locs = []
@@ -544,20 +558,70 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
         for b_ndx in range(batch_size):
             # TODO: strange shuffle
             n_skip = np.random.randint(30) if shuffle else 0
-            for _ in range(n_skip + 1):
-                record = iterator_read_next()
+            try:
+                for _ in range(n_skip + 1):
+                    record = iterator_read_next()
+            except StopIteration:
+                # did not make it to next record for this batch;
+                # will only occur if infinite == False
+                break
 
             recon_img, locs, info = parse_record(record, conf.n_classes)
             all_ims.append(recon_img)
             all_locs.append(locs)
             all_info.append(info)
 
-        imsraw = np.stack(all_ims)  # [bsize x height x width x depth]
-        locsraw = np.stack(all_locs)  # [bsize x ncls x 2]
-        info = np.stack(all_info)  # [bsize x 3]
+        if not all_ims:
+            # we couldn't read a single new row anymore; exit generator
+            if instrumented:
+                logging.warning("tfdatagen:{} returning".format(instrumentedname))
+            return
+
+        imsraw = np.stack(all_ims)  # [nread x height x width x depth]
+        locsraw = np.stack(all_locs)  # [nread x ncls x 2]
+        info = np.stack(all_info)  # [nread x 3]
+
+        nread = imsraw.shape[0]
+        # we read at least one new row, ie nread>0.
+        # nread==batch_size typically. nread<batch_size only
+        # for the last batch when infinite=false.
+        tfclippedbatch = nread < batch_size
+
+        if tfclippedbatch:
+            logging.warning("Last batch, size={}. padding for now.".format(nread))
+
+            '''
+            AL: need to check that all preproc fns are insensitive to the bsize, esp
+            eg if imsraw.shape[0] disagrees with conf.batch_size. one place this is not
+            true is in pt.normalize_mean (see preprocess_ims). seems best if the preproc 
+            fns never require a certain bsize and just operate whatever the 0th dim is.
+            '''
+            nshort = batch_size-nread
+            imsraw = np.pad(imsraw, ((0, nshort), (0, 0), (0, 0), (0, 0)),
+                            mode='constant')
+            locsraw = np.pad(locsraw, ((0, nshort), (0, 0), (0, 0)),
+                             mode='constant')
+            # info = ... dont pad
 
         ims, locs, targets = ims_locs_proc_fn(imsraw, locsraw, conf, distort)
         # targets should be a list here
+
+        if tfclippedbatch:
+            assert ims.shape[0] == batch_size
+            assert locs.shape[0] == batch_size
+            ims = ims[:nread, ...]
+            locs = locs[:nread, ...]
+            if isinstance(targets, list):
+                for ndx, tgt in enumerate(targets):
+                    assert tgt.shape[0] == batch_size
+                    targets[ndx] = tgt[:nread, ...]
+            else:
+                assert targets.shape[0] == batch_size
+                targets = targets[:nread, ...]
+
+        if instrumented:
+            logging.warning("tfdatagen:{} yielding {}, ifo[0]={}".format(
+                instrumentedname, ims.shape[0], info[0, 0]))
 
         if debug:
             yield [ims], targets, locs, info
@@ -565,10 +629,12 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, debug=
             yield [ims], targets
             # (inputs, targets)
 
-def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, **kwargs):
+def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn,
+                        silent=False, **kwargs):
     conf = copy.deepcopy(conf0)
-    logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
-        tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
+    if not silent:
+        logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
+            tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
 
 if __name__ == "__main__":

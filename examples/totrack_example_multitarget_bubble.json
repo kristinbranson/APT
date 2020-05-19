@@ -1,0 +1,36 @@
+{"toTrack":
+ [
+    {
+	"movie_files": {
+	    "view_1": "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00038_CsChr_RigB_20150729T150617/movie.ufmf"
+	},
+	"output_files": {
+	    "view_1": "/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_trk_20200317/cx_GMR_SS00038_CsChr_RigB_20150729T150617.apt.trk"
+	},
+	"calibration_file": [],
+	"trx_files": {
+	    "view_1": "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00038_CsChr_RigB_20150729T150617/registered_trx.mat"
+	},
+	"crop_rois": [],
+	"targets": [1,2],	
+	"frame0": 10501,
+	"frame1": 10600
+    },
+
+    {
+	"movie_files": {
+	    "view_1": "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf"
+	},
+	"output_files": {
+	    "view_1": "/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_trk_20200317/cx_GMR_SS00030_CsChr_RigC_20150826T144616.apt.trk"
+	},
+	"calibration_file": [],
+	"trx_files": {
+	    "view_1": "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/registered_trx.mat"
+	},
+	"targets": [4],
+	"frame0": 10701,
+	"frame1": 10800
+    }
+ ]
+}

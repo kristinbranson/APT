@@ -3253,8 +3253,6 @@ classdef PostProcess < handle
       assert(isequal(size(ptrk1),size(ptrk2)),...
         'Trkfiles contain position arrays with inconsistent sizes.');
       
-      szassert(rois,[nvw 4]);
-      
       if ~isa(crig,'CalRig')
         error('Expected ''crig'' to be a CalRig instance.');
       end
@@ -3305,6 +3303,10 @@ classdef PostProcess < handle
           
         case 'experimental'
           %rois = obj.lObj.getMovieRoiMovIdx(mIdx);
+          
+          if ~isempty(rois),
+            szassert(rois,[nvw 4]);
+          end
           
           [X,ptrkrp,tMD,isspecial,prefview] = viewpref3drecon(...
             trk1,trk2,crig,'roisEPline',rois,'dxyz',DXYZ,...
