@@ -86,7 +86,9 @@ APT contains code from the following sources:
 * external/PiotrDollarToolbox
   https://pdollar.github.io/toolbox/
   Piotr Dollar
-* matlab/misc/inputdlgWithBrowse.m
-  Modified MATLAB code. 
+* matlab/misc/inputdlgWithBrowse.m (original: inputdlg.m)
+  matlab/misc/imcontrast_kb.m (original: imcontrast.m)
+  matlab/private_imuitools/*.m (requirements for imcontrast.m)
+  Modified MATLAB code.
 
 
