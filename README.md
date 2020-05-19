@@ -25,3 +25,40 @@ APT is being developed in the Branson lab by Allen Lee, Mayank Kabra, Kristin Br
 ### License
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [GNU General Public License (version 3)](http://GNU_GPL_v3.html) for more details.
 
+### Sources
+
+APT contains code from the following sources:
+
+* matlab/javaaddpathstatic.m:
+  http://stackoverflow.com/questions/19625073/how-to-run-clojure-from-matlab/22524112#22524112
+  Andrew Janke
+* matlab/propertiesGUI
+  http://undocumentedmatlab.com/articles/propertiesgui
+  Yair M. Altman: altmany(at)gmail.com
+* matlab/JavaTableWrapper
+  https://www.mathworks.com/matlabcentral/fileexchange/49994-java-table-wrapper-for-user-interfaces
+  Robyn Jackey
+* matlab/private_imuitools
+  MATLAB 2011
+* matlab/treeTable
+  http://undocumentedmatlab.com/articles/treetable
+  Yair M. Altman: altmany(at)gmail.com
+* matlab/YAMLMatlab_0.4.3
+  https://code.google.com/archive/p/yamlmatlab/
+  Jiri Cigler, Jan Siroky, Pavel Tomasko
+* matlab/misc/saveJSONfile.m
+  https://www.mathworks.com/matlabcentral/fileexchange/50965-structure-to-json
+  Lior Kirsch
+* external/JAABA
+  http://jaaba.sourceforge.net/
+  Mayank Kabra, Kristin Branson, et al.
+* external/CameraCalibrationToolbox
+  http://www.vision.caltech.edu/bouguetj/calib_doc/
+  Jean-Yves Bouguet
+* external/netlab
+  https://www.mathworks.com/matlabcentral/fileexchange/2654-netlab
+  Ian T. Nabney
+* external/PiotrDollarToolbox
+  https://pdollar.github.io/toolbox/
+  Piotr Dollar
+

@@ -140,6 +140,15 @@ handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import
 moveMenuItemAfter(handles.menu_file_export_labels_table,...
   handles.menu_file_export_labels_trks);
 
+handles.menu_file_export_stripped_lbl = uimenu('Parent',handles.menu_file_import_export_advanced,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_stripped_lbl_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export Training Data...',...
+  'Tag','menu_file_export_stripped_lbl',...
+  'Checked','off',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_file_export_stripped_lbl,...
+  handles.menu_file_export_labels_table);
+
 handles.menu_file_crop_mode = uimenu('Parent',handles.menu_file,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_crop_mode_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Edit cropping',...
@@ -343,6 +352,14 @@ handles.menu_track_training_data_montage = uimenu(...
 moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_set_landmark_matches);
 delete(handles.menu_track_select_training_data);
 
+handles.menu_track_batch_track = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Track multiple videos...',...
+  'Tag','menu_track_batch_track',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_batch_track_Callback',h,evtdata,guidata(h)),...
+  'Separator','on');
+moveMenuItemAfter(handles.menu_track_batch_track,handles.menu_track_training_data_montage);
+
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
 
 handles.menu_track_trainincremental = handles.menu_track_retrain;
@@ -355,7 +372,8 @@ handles.menu_track_trainincremental.Visible = 'off';
 
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
   'Label','Export current tracking results',...
-  'Tag','menu_track_export_base');  
+  'Tag','menu_track_export_base',...
+  'Separator','on');  
 moveMenuItemAfter(handles.menu_track_export_base,handles.menu_track_track_and_export);
 handles.menu_track_export_current_movie = uimenu('Parent',handles.menu_track_export_base,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_current_movie_Callback',hObject,eventdata,guidata(hObject)),...
@@ -829,7 +847,7 @@ switch lower(state),
     set(handles.menu_file_save,'Enable','off');
     set(handles.menu_file_shortcuts,'Enable','off');
     set(handles.menu_file_new,'Enable','on');
-    set(handles.menu_file_quick_open,'Enable','on');
+    set(handles.menu_file_quick_open,'Enable','on','Visible','on');
     
     set(handles.tbAdjustCropSize,'Enable','off');
     set(handles.pbClearAllCrops,'Enable','off');
@@ -867,6 +885,10 @@ switch lower(state),
     set(handles.menu_evaluate,'Enable','on');
     set(handles.menu_go,'Enable','on');
     set(handles.menu_help,'Enable','on');
+    
+    % KB 20200504: I think this is confusing when a project is already open
+    set(handles.menu_file_quick_open,'Visible','off');
+
     
     set(handles.tbAdjustCropSize,'Enable','on');
     set(handles.pbClearAllCrops,'Enable','on');
@@ -2018,8 +2040,9 @@ if tfTracker
   handles.menu_track_cpr_view_diagnostics.Visible = onOffCpr;
   
   % FUTURE TODO, enable for DL
-  handles.menu_track_training_data_montage.Enable = onOffCpr;
-  handles.menu_track_track_and_export.Enable = onOffCpr;
+  % I think these are obsolete, semi-removing them
+  handles.menu_track_training_data_montage.Visible = onOffCpr;
+  handles.menu_track_track_and_export.Visible = onOffCpr;
   isDL = ~iscpr;
   onOffDL = onIff(isDL);
   handles.menu_track_backend_config.Visible = onOffDL;
@@ -2385,7 +2408,7 @@ if ~tfSetOccurred
   set(hObject,'Value',sldval);
 end
 
-fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+%fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -2651,6 +2674,7 @@ lObj.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
 
 function pbRecallZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
+% TODO this is broken!!
 lObj.videoCenterOnCurrTarget();
 lObj.videoZoom(lObj.targetZoomRadiusDefault);
 
@@ -2873,6 +2897,19 @@ s = struct();
 s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); 
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
+
+function menu_file_export_stripped_lbl_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+fname = lObj.getDefaultFilenameExportStrippedLbl();
+[f,p] = uiputfile(fname,'Export File');
+if isequal(f,0)
+  return;
+end
+fname = fullfile(p,f);
+SetStatus(handles,sprintf('Exporting training data to %s',fname));
+lObj.projExportTrainData(fname)
+fprintf('Saved training data to file ''%s''.\n',fname);
+ClearStatus(handles);
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
 
@@ -3335,10 +3372,8 @@ tObj.showVizReplicates = vsrnew;
 
 function cbkLabels2HideChanged(src,evt)
 lObj = evt.AffectedObject;
-if isempty(lObj.tracker)
-  handles = lObj.gdata;
-  handles.menu_view_hide_predictions.Checked = onIff(lObj.labels2Hide);
-end
+handles = lObj.gdata;
+handles.menu_view_hide_imported_predictions.Checked = onIff(lObj.labels2Hide);
 
 % when trackerInfo is updated, update the tracker info text in the main APT window
 function cbkTrackerInfoChanged(src,evt)
@@ -3785,6 +3820,31 @@ SetStatus(handles,'Tracking...');
 handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
 ClearStatus(handles);
 
+function menu_track_batch_track_Callback(hObject,eventdata,handles)
+
+lObj = handles.labelerObj;
+tbobj = TrackBatchGUI(lObj);
+[toTrack] = tbobj.run();
+% 
+% persistent jsonfile;
+% if isempty(jsonfile),
+%   jsonfile = '';
+% end
+% 
+% [filename,pathname] = uigetfile('*.json','Select json batch tracking file',jsonfile);
+% if ~ischar(filename),
+%   return;
+% end
+% jsonfile1 = fullfile(pathname,filename);
+% if ~exist(jsonfile1,'file'),
+%   warndlg(sprintf('File %s does not exist',jsonfile1));
+%   return;
+% end
+% jsonfile = jsonfile1;
+% SetStatus(handles,'Tracking a batch of videos...');
+% trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
+% ClearStatus(handles);
+
 function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 iMov = lObj.currMovie;
@@ -3893,50 +3953,12 @@ end
 ClearStatus(handles);
 
 function menu_evaluate_gtloadsuggestions_Callback(hObject,eventdata,handles)
-gtsuggmat = RC.getprop('gtsuggestionsmat');
-if isempty(gtsuggmat)
-  gtsuggmat = pwd;
-end
-[fname,pth] = uigetfile('*.mat','Load GT Table',gtsuggmat);
-if isequal(fname,0)
-  return;
-end
-fname = fullfile(pth,fname);
-
 lObj = handles.labelerObj;
-assert(lObj.gtIsGTMode);
-tbl = MFTable.loadTableFromMatfile(fname);
-if ~isnumeric(tbl.mov)
-  [tffound,mIdx] = lObj.getMovIdxMovieFilesAllFull(tbl.mov,'gt',true);
-  if any(~tffound)
-    errstrs = {'Moviesets in table not found in project:'};
-    movstrsnotfound = MFTable.formMultiMovieIDArray(tbl.mov(~tffound,:),...
-      'separator',',','checkseparator',false);
-    errstrs = [errstrs; movstrsnotfound];
-    errordlg(errstrs,'Moviesets not found');
-    return;
-  end
-  
-  szassert(mIdx,[height(tbl) 1]);
-  assert(isa(mIdx,'MovieIndex'));
-  [~,gt] = mIdx.get();
-  assert(all(gt));
-  tbl.mov = mIdx;
-end
-
-lObj.gtSetUserSuggestions(tbl);
-msgstr = sprintf('Loaded GT table with %d rows spanning %d GT movies.',...
-  height(tbl),numel(unique(tbl.mov)));
-msgbox(msgstr,'GT Table Loaded');
+LabelerGT.loadSuggestionsUI(lObj);
 
 function menu_evaluate_gtsetsuggestions_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
-assert(lObj.gtIsGTMode);
-lObj.gtSetUserSuggestions([]);
-tbl = lObj.gtSuggMFTable;
-msgstr = sprintf('Set GT suggestions table with %d rows spanning %d GT movies.',...
-  height(tbl),numel(unique(tbl.mov)));
-msgbox(msgstr,'GT Table Loaded');
+LabelerGT.setSuggestionsToLabeledUI(lObj);
 
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;

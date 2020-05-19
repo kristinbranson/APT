@@ -6,10 +6,10 @@ if exist('get_readframe_fcn','file') == 0,
   APT.setpath;
 end  
 
-[matfile,outfile,lObj,i0,i1,DEBUG,doexit,newprojectfile,isgrayscale] = ...
+[matfile,outfile,lObj,i0,i1,DEBUG,doexit,newprojectfile,isgrayscale,sourceinfoonly] = ...
   myparse(varargin,'matfile','','outfile','','lObj',[],...
   'i0',1,'i1',inf,'debug',false,'doexit',false,...
-  'newprojectfile','','isgrayscale',true);
+  'newprojectfile','','isgrayscale',true,'sourceinfoonly',false);
 
 if ischar(i0),
   i0 = str2double(i0);
@@ -68,6 +68,7 @@ end
 isset = false(size(tblMF,1),nviews);
 isbad = false(size(tblMF,1),1);
 allims = cell(size(tblMF,1),nviews);
+sourceTblMF = tblMF;
 for i = i0:i1,
 % could not read video 445 for stephen
 %   if i == 445,
@@ -80,60 +81,70 @@ for i = i0:i1,
     continue;
   end
   newTblMF(off+1:off+numel(idx),:) = tblMF(idx,:);
-  for vwi = 1:nviews,
-    try
-      [readframe] = get_readframe_fcn(movfiles{i,vwi});
-    catch ME,
-      isbad(off+off:numel(idx)) = true;
-      warning('Could not open movie %s:\n%s',movfiles{i,vwi},getReport(ME));
-      continue;
-    end
-    for j = 1:numel(idx),
-      counter = off + j;
-      k = idx(j);
-      f = tblMF.frm(k);
-      im = readframe(f);
-      if isCrop,
-        im = im(cropROIs(i,3,vwi):cropROIs(i,4,vwi),cropROIs(i,1,vwi):cropROIs(i,2,vwi),:);
-      end
-      if DEBUG,
-        imcrops{vwi} = im;
-      end
-      allims{counter,vwi} = im;
-      %imwrite(im,fullfile(outmovdirs{vwi},sprintf('%05d.png',counter)),'png');
-      %writeVideo(vidobjs{vwi},im);
-      newTblMF.mov(counter) = 1;
-      newTblMF.frm(counter) = counter;
-      p = reshape(tblMF.p(k,:),[npts,nviews,2]); % p is npts x nviews x 2
-      p = reshape(p(:,vwi,:),[npts,2]);
-      if isCrop,
-        p(:,1) = p(:,1) - cropROIs(i,1,vwi) + 1;
-        p(:,2) = p(:,2) - cropROIs(i,3,vwi) + 1;
-      end
-      for d = 1:2,
-        newTblMF.p(counter,sub2ind([npts,nviews,2],1:npts,vwi+zeros(1,npts),d+zeros(1,npts))) = p(:,d)';
-      end
-      isset(counter,vwi) = true;
-    end
-    clear readframe;
-  end
-  if DEBUG,
-    j = numel(idx);
-    counter = off + j;
-    clf;
-    p = reshape(newTblMF.p(counter,:),[npts,nviews,2]);
+  sourceTblMF(off+1:off+numel(idx),:) = tblMF(idx,:);
+  if ~sourceinfoonly,
     for vwi = 1:nviews,
-      subplot(1,nviews,vwi);
-      imagesc(imcrops{vwi}); axis image; colormap gray; hold on;
-      plot(p(:,vwi,1),p(:,vwi,2),'r.');
+      try
+        [readframe] = get_readframe_fcn(movfiles{i,vwi});
+      catch ME,
+        isbad(off+off:numel(idx)) = true;
+        warning('Could not open movie %s:\n%s',movfiles{i,vwi},getReport(ME));
+        continue;
+      end
+      for j = 1:numel(idx),
+        counter = off + j;
+        k = idx(j);
+        f = tblMF.frm(k);
+        im = readframe(f);
+        if isCrop,
+          im = im(cropROIs(i,3,vwi):cropROIs(i,4,vwi),cropROIs(i,1,vwi):cropROIs(i,2,vwi),:);
+        end
+        if DEBUG,
+          imcrops{vwi} = im;
+        end
+        allims{counter,vwi} = im;
+        %imwrite(im,fullfile(outmovdirs{vwi},sprintf('%05d.png',counter)),'png');
+        %writeVideo(vidobjs{vwi},im);
+        newTblMF.mov(counter) = 1;
+        newTblMF.frm(counter) = counter;
+        p = reshape(tblMF.p(k,:),[npts,nviews,2]); % p is npts x nviews x 2
+        p = reshape(p(:,vwi,:),[npts,2]);
+        if isCrop,
+          p(:,1) = p(:,1) - cropROIs(i,1,vwi) + 1;
+          p(:,2) = p(:,2) - cropROIs(i,3,vwi) + 1;
+        end
+        for d = 1:2,
+          newTblMF.p(counter,sub2ind([npts,nviews,2],1:npts,vwi+zeros(1,npts),d+zeros(1,npts))) = p(:,d)';
+        end
+        isset(counter,vwi) = true;
+      end
+      clear readframe;
     end
-    input(num2str(counter));
+    if DEBUG,
+      j = numel(idx);
+      counter = off + j;
+      clf;
+      p = reshape(newTblMF.p(counter,:),[npts,nviews,2]);
+      for vwi = 1:nviews,
+        subplot(1,nviews,vwi);
+        imagesc(imcrops{vwi}); axis image; colormap gray; hold on;
+        plot(p(:,vwi,1),p(:,vwi,2),'r.');
+      end
+      input(num2str(counter));
+    end
   end
   off = off + numel(idx);
 end
 
+newTblMF(off+1:end,:) = [];
+sourceTblMF(off+1:end,:) = [];
+
 if ~isempty(outfile),
-  save(outfile,'newTblMF','isset','isbad','allims','i0','i1');
+  if sourceinfoonly,
+    save(outfile,'sourceTblMF','movfiles');
+  else
+    save(outfile,'sourceTblMF','movfiles','newTblMF','isset','isbad','allims','i0','i1');
+  end
 end
 % 
 % for i = 1:nviews,
@@ -142,6 +153,10 @@ end
 
 if doexit,
   exit;
+end
+
+if sourceinfoonly,
+  return;
 end
 
 if isempty(lObj),
@@ -223,11 +238,15 @@ if false,
 end
 
 [outdir,name] = fileparts(lObj.projectfile);
+if isempty(newprojectfile),
+  newprojectfile = fullfile(outdir,sprintf('%s_compress%s.lbl',name,datestr(now,'yyyymmdd')));
+end
+[~,newname] = fileparts(newprojectfile);
 
 vidobjs = cell(1,nviews);
 outmovfiles = cell(1,nviews);
 for i = 1:nviews,
-  outmovfiles{i} = fullfile(outdir,sprintf('%s_view%d.avi',name,i));
+  outmovfiles{i} = fullfile(outdir,sprintf('%s_view%d.avi',newname,i));
   if isgrayscale,
     format = {'Grayscale AVI'};
   else
@@ -246,7 +265,7 @@ for j = 1:nviews,
     i = idx(ii);
     imcurr = allims{i,j};
     if isgrayscale && (size(imcurr,3) > 1),
-      assert(all(all(all(imcurr(:,:,1)==imcurr,1),2),3));
+      %assert(all(all(all(imabsdiff(repmat(imcurr(:,:,1),[1,1,3]),imcurr)<=2,1),2),3));
       imcurr = imcurr(:,:,1);
     end
     writeVideo(vidobjs{j},imcurr);
@@ -256,16 +275,10 @@ for j = 1:nviews,
   close(vidobjs{j});
 end
 
-if isempty(newprojectfile),
-  newprojectfile = fullfile(outdir,sprintf('%s_compress%s.lbl',name,datestr(now,'yyyymmdd')));
-end
 lObj.projSaveAs(newprojectfile);
+lObj.trackInitAllTrackers();
 lObj.movieRmAll();
-if lObj.isMultiView,
-  lObj.movieAdd(outmovfiles{1});
-else
-  lObj.movieSetAdd(outmovfiles);
-end
+lObj.movieSetAdd(outmovfiles);
 tblMF1 = removevars(tblMF1,'mov');
 lObj.labelPosBulkImportTblMov(tblMF1);
 lObj.projSaveSmart();

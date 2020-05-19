@@ -43,6 +43,11 @@ classdef MFTable
       
       assert(istable(tbl));
       assert(isa(keymap,'containers.Map'));
+      if isempty(tbl),
+        tblNew = tbl;
+        tfRm = false(0,1);
+        return;
+      end
       
       keys = tbl{:,keyfld};
       tfMovIdx = isa(keys,'MovieIndex');
@@ -100,6 +105,25 @@ classdef MFTable
       tblReg = sortrows(tblReg,sortvars,{'ascend' 'ascend' 'ascend'});
       tblGT = sortrows(tblGT,sortvars,{'descend' 'ascend' 'ascend'});
       tbl = [tblReg; tblGT];
+    end
+    
+    function [tblnew,tfNew] = tblDiff(tbl0,tbl1)
+      % Remove entried of tbl1 in tbl0
+      %
+      % tbl0, tbl1: MF tables
+      %
+      % tblnew: new frames (rows of tbl0 whose (mov,frm,iTgt) are not in 
+      %   tbl1)
+      
+      FLDSID = MFTable.FLDSID;
+      tblnew = tbl0;
+      tfNew = true(size(tbl0,1),1);
+      if isempty(tbl1) || isempty(tbl0),
+        return;
+      end
+      
+      tfNew = ~tblismember(tbl0,tbl1,FLDSID);
+      tblnew = tbl0(tfNew,:);
     end
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
