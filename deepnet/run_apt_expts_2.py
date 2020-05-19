@@ -588,7 +588,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
                 conf_opts['batch_size'] = 4
             else:
                 conf_opts['batch_size'] = 8
-    elif gpu_queue in ['gpu_tesla' or 'gpu_tesla_large']:
+    elif gpu_queue in ['gpu_tesla','gpu_tesla_large']:
         if data_type in ['romain']:
             conf_opts['batch_size'] = 4
         if data_type in ['larva']:
