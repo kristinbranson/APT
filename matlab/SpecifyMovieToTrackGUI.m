@@ -77,11 +77,20 @@ classdef SpecifyMovieToTrackGUI < handle
       if ~isfield(obj.movdata,'targets'),
         obj.movdata.targets = [];
       end
+      if iscell(obj.movdata.targets),
+        obj.movdata.targets = cell2mat(obj.movdata.targets);
+      end
       if ~isfield(obj.movdata,'f0s'),
         obj.movdata.f0s = [];
       end
+      if iscell(obj.movdata.f0s),
+        obj.movdata.f0s = obj.movdata.f0s{1};
+      end
       if ~isfield(obj.movdata,'f1s'),
         obj.movdata.f1s = [];
+      end
+      if iscell(obj.movdata.f1s),
+        obj.movdata.f1s = obj.movdata.f1s{1};
       end
       
       obj.rowinfo = struct;
