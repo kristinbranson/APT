@@ -1,5 +1,7 @@
 % Copyright 2015 The MathWorks, Inc.
 
+% Modified by Allen Lee
+   
 %% Create a figure with a table inside
 f = figure('Position',[1 250 560 420],'NumberTitle','off',...
     'Toolbar','none','Menubar','none','Name','Java Table Wrapper - Column Format Examples');

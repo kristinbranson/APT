@@ -148,6 +148,8 @@ function [handles,levels,parentIdx,listing] = findjobj_modern(container,varargin
 % Programmed and Copyright by Yair M. Altman: altmany(at)gmail.com
 % $Revision: 1.51 $  $Date: 2018/09/21 14:27:18 $
 
+% Modified by Kristin Branson
+																										   
     % Ensure Java AWT is enabled
     error(javachk('awt'));
 
