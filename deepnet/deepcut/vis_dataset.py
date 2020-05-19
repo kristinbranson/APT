@@ -1,5 +1,6 @@
 """
-Adapted for APT from DeepLabCut2.0 Toolbox (deeplabcut.org)
+Modified by Mayank Kabra
+Adapted from DeepLabCut2.0 Toolbox (deeplabcut.org)
 
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs

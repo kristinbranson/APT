@@ -1,4 +1,7 @@
-'''Adapated from original by Mayank Kabra'''
+''' Modified by Mayank Kabra
+From LEAP https://github.com/talmo/leap
+Talmo Pereira
+'''
 import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')

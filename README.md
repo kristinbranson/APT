@@ -28,7 +28,13 @@ This program is free software: you can redistribute it and/or modify it under th
 ### Sources
 
 APT contains code from the following sources:
-
+* deepnet/deepcut:
+  https://github.com/AlexEMG/DeepLabCut
+  A. & M. Mathis Labs
+  DeepLabCut2.0 Toolbox (deeplabcut.org) 
+* deepnet/leap
+  https://github.com/talmo/leap
+  Talmo Pereira: talmo(at)princeton.edu
 * matlab/javaaddpathstatic.m:
   http://stackoverflow.com/questions/19625073/how-to-run-clojure-from-matlab/22524112#22524112
   Andrew Janke
@@ -61,4 +67,5 @@ APT contains code from the following sources:
 * external/PiotrDollarToolbox
   https://pdollar.github.io/toolbox/
   Piotr Dollar
+
 
