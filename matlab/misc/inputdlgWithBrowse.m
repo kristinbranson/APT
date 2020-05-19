@@ -1,5 +1,5 @@
 function Answer=inputdlgWithBrowse(Prompt, Title, NumLines, DefAns, Resize, BrowseInfo)
-%INPUTDLG Input dialog box.
+%INPUTDLGWITHBROWSE Input dialog box.
 %  ANSWER = INPUTDLG(PROMPT) creates a modal dialog box that returns user
 %  input for multiple prompts in the cell array ANSWER. PROMPT is a cell
 %  array containing the PROMPT strings.

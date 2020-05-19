@@ -86,5 +86,7 @@ APT contains code from the following sources:
 * external/PiotrDollarToolbox
   https://pdollar.github.io/toolbox/
   Piotr Dollar
+* matlab/misc/inputdlgWithBrowse.m
+  Modified MATLAB code. 
 
 
