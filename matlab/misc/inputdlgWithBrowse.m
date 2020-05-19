@@ -48,6 +48,8 @@ function Answer=inputdlgWithBrowse(Prompt, Title, NumLines, DefAns, Resize, Brow
 
 %  Copyright 1994-2014 The MathWorks, Inc.
 
+% Modified by Allen Lee, Kristin Branson
+  
 %%%%%%%%%%%%%%%%%%%%
 %%% Nargin Check %%%
 %%%%%%%%%%%%%%%%%%%%

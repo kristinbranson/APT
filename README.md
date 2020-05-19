@@ -35,26 +35,45 @@ APT contains code from the following sources:
 * deepnet/leap
   https://github.com/talmo/leap
   Talmo Pereira: talmo(at)princeton.edu
+* matlab/trackers/cpr
+  http://www.vision.caltech.edu/xpburgos/ICCV13/code/rcpr_v1.zip
+  X.P. Burgos-Artizzu, P.Perona, and Piotr Dollar 
 * matlab/javaaddpathstatic.m:
   http://stackoverflow.com/questions/19625073/how-to-run-clojure-from-matlab/22524112#22524112
   Andrew Janke
-* matlab/propertiesGUI
-  http://undocumentedmatlab.com/articles/propertiesgui
-  Yair M. Altman: altmany(at)gmail.com
 * matlab/JavaTableWrapper
   https://www.mathworks.com/matlabcentral/fileexchange/49994-java-table-wrapper-for-user-interfaces
   Robyn Jackey
-* matlab/private_imuitools
-  MATLAB 2011
+* matlab/jsonlab-1.2
+  https://www.mathworks.com/matlabcentral/fileexchange/33381-jsonlab-a-toolbox-to-encode-decode-json-files
+  Qianqian Fang
+* matlab/private_imuitools, matlab/misc/imcontrast_kb.m, matlab/misc/inputdlgWithBrowse.m,
+  matlab/trackers/cpr/misc/matlabkmeans.m, matlab/user/orthocam
+  MATLAB
+* matlab/propertiesGUI
+  http://undocumentedmatlab.com/articles/propertiesgui
+  Yair M. Altman: altmany(at)gmail.com
 * matlab/treeTable
   http://undocumentedmatlab.com/articles/treetable
   Yair M. Altman: altmany(at)gmail.com
 * matlab/YAMLMatlab_0.4.3
   https://code.google.com/archive/p/yamlmatlab/
   Jiri Cigler, Jan Siroky, Pavel Tomasko
+* matlab/misc/ellipsedraw
+  https://www.mathworks.com/matlabcentral/fileexchange/3224-ellipsedraw1-0
+  Lei Wang
+* matlab/misc/findjobj_modern.m
+  https://www.mathworks.com/matlabcentral/fileexchange/14317-findjobj-find-java-handles-of-matlab-graphic-objects
+  Yair Altman
+* matlab/misc/glob.m
+  https://www.mathworks.com/matlabcentral/fileexchange/40149-expand-wildcards-for-files-and-directory-names
+  Peter van den Biggelaar
 * matlab/misc/saveJSONfile.m
   https://www.mathworks.com/matlabcentral/fileexchange/50965-structure-to-json
   Lior Kirsch
+* matlab/misc/whereisjavaclassloadingfrom.m
+  https://stackoverflow.com/questions/4376565/java-jpa-class-for-matlab/4380622#4380622
+  Andrew Janke
 * external/JAABA
   http://jaaba.sourceforge.net/
   Mayank Kabra, Kristin Branson, et al.

@@ -60,6 +60,8 @@ function hfigure = imcontrast_kb(handle)
 %   Copyright 1993-2011 The MathWorks, Inc.
 %   $Revision: 1.1.8.42 $  $Date: 2011/11/09 16:49:50 $
 
+% Modified by Allen Lee, Kristin Branson
+
 % Do sanity checking on handles and take care of the zero-argument case.
 if (nargin == 0)
     handle = get(0, 'CurrentFigure');

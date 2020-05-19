@@ -1,4 +1,9 @@
 classdef CalRigZhang2CamBase < CalRig
+
+% Technique taken from
+% Z. Zhang, "A flexible new technique for camera calibration," in IEEE Transactions on
+% Pattern Analysis and Machine Intelligence, vol. 22, no. 11, pp. 1330-1334, Nov. 2000,
+% doi: 10.1109/34.888718.
   
   properties 
     % Abstract in CalRig

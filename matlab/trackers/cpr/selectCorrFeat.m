@@ -34,6 +34,8 @@ function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
+% Modified by Allen Lee, Kristin Branson
+
 [N,D] = size(pTar);
 F = size(ftrs,2);
 
