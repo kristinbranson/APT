@@ -1,3 +1,4 @@
+''' Apadted from original for APT by Mayank Kabra '''
 import numpy as np
 import h5py
 import os
@@ -11,6 +12,7 @@ import PoseTools
 import math
 import pickle
 import logging
+import contextlib
 
 import keras
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback,LearningRateScheduler
@@ -478,7 +480,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             if name == 'deepnet':
                 train_data_file = os.path.join( self.config.cachedir, 'traindata')
             else:
-                train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
+                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -501,12 +503,14 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     # Train!
     epoch0 = 0
     t0_train = time()
+    use_multiprocessing = False if box.shape[0] < 300 else True
+    model.save(str(os.path.join(run_path, name + '-{}'.format(0))))
     training = model.fit_generator(
             train_datagen,
             initial_epoch=epoch0,
             epochs=epochs,
             verbose=0,
-            use_multiprocessing=True,
+            use_multiprocessing=use_multiprocessing,
             workers=4,
             steps_per_epoch=batches_per_epoch,
             max_queue_size=512,
@@ -526,13 +530,16 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(str(os.path.join(run_path, name + '-{}'.format(conf.dl_steps))))
+    model.save(str(os.path.join(run_path, name + '-{}'.format(int(conf.dl_steps)))))
     # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
     obs.on_epoch_end(epochs)
     K.clear_session()
 
 
-def get_pred_fn(conf, model_file=None,name='deepnet'):
+def get_pred_fn(conf, model_file=None,name='deepnet',tmr_pred=None):
+
+    if tmr_pred is None:
+        tmr_pred = contextlib.suppress()
 
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf,name)
@@ -550,7 +557,8 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
 
 
         X1 = X1.astype("float32") / 255
-        pred = model.predict(X1,batch_size = X1.shape[0])
+        with tmr_pred:
+            pred = model.predict(X1,batch_size = X1.shape[0])
         pred = np.stack(pred)
         pred = pred[:,:all_f.shape[1],:all_f.shape[2],:]
         base_locs = PoseTools.get_pred_locs(pred)

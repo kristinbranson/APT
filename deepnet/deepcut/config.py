@@ -1,3 +1,17 @@
+"""
+Adapted for APT from DeepLabCut2.0 Toolbox (deeplabcut.org)
+DeepLabCut2.0 Toolbox (deeplabcut.org)
+© A. & M. Mathis Labs
+https://github.com/AlexEMG/DeepLabCut
+
+Please see AUTHORS for contributors.
+https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+Licensed under GNU Lesser General Public License v3.0
+
+Adapted from DeeperCut by Eldar Insafutdinov
+https://github.com/eldar/pose-tensorflow
+
+"""
 import os
 import pprint
 import logging
@@ -24,7 +38,7 @@ def _merge_a_into_b(a, b):
         #    raise KeyError('{} is not a valid config key'.format(k))
 
         # recursively merge dicts
-        if type(v) is edict:
+        if type(v) is edict and k != 'flipLandmarkMatches':
             try:
                 _merge_a_into_b(a[k], b[k])
             except KeyError:
