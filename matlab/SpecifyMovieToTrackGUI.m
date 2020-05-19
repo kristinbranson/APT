@@ -478,6 +478,11 @@ classdef SpecifyMovieToTrackGUI < handle
           set(hObject,'String','');
         end
       elseif ismember(obj.rowinfo.(key).type,{'inputfile','outputfile'}),
+        file = java.io.File(val);
+        if ~file.isAbsolute,
+          val = char(file.getCanonicalPath());
+          set(hObject,'String',val);
+        end
       else
         error('Callback for %s not implemented',key);
       end
