@@ -1,6 +1,5 @@
 function writeToTrackJSON(toTrack,jsonfile)
 
-fns = fieldnames(toTrack);
 
 dict = struct;
 dict.movfiles = 'movie_files';
@@ -12,6 +11,8 @@ dict.targets = 'targets';
 dict.f0s = 'frame0';
 dict.f1s = 'frame1';
 nview = size(toTrack.movfiles,2);
+
+fns = fieldnames(dict);
 
 res = struct;
 res.toTrack = cell(size(toTrack.movfiles,1),1);

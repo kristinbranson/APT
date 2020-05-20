@@ -764,9 +764,9 @@ classdef TrkFile < dynamicprops
           didload = false;
         end
       end
-      if didload,
-        fprintf('Read %d frames tracked from %s\n',nFramesTracked,tfile);
-      end
+%       if didload,
+%         fprintf('Read %d frames tracked from %s\n',nFramesTracked,tfile);
+%       end
     end
     
     function [x,nc] = convertJSONCellMatrix(xin)

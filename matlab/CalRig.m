@@ -5,7 +5,11 @@ classdef CalRig < handle
     viewNames % [nviews]. cellstr viewnames
     %viewRois % [nviews x 4]. viewRois(iView,:) gives [xlo xhi ylo yhi]
   end
-    
+
+  properties
+    sourceFile = '';
+  end
+  
   methods (Abstract)
     
     % iView1: view index for anchor point
@@ -141,6 +145,8 @@ classdef CalRig < handle
         error('CalRig:load',...
           'Calibration file ''%s'' has unrecognized contents.',fname);
       end
+      obj.sourceFile = fname;
+      
     end
   end
   

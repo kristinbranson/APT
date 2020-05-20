@@ -43,7 +43,7 @@ function ysSum = regApply(p,X,regInfo,regPrm,ftrPrm)
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
-% ALOK
+% Modified by Allen Lee, Kristin Branson
 
 type = regPrm.type;
 K = regPrm.K;

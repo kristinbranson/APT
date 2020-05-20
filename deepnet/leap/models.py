@@ -1,3 +1,6 @@
+''' Modified by Mayank Kabra 
+From LEAP https://github.com/talmo/leap by Talmo Pereira
+'''
 import keras
 from keras import backend as K
 from keras.models import Model

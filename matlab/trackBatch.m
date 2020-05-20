@@ -34,6 +34,9 @@ if size(toTrack.cropRois,2) > 1,
 else
   cropRois = toTrack.cropRois;
 end
+if ~iscell(toTrack.targets) && size(toTrack.movfiles,1) == 1,
+  toTrack.targets = {toTrack.targets};
+end
     
 
 % call tracker.track to do the real tracking
