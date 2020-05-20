@@ -47,9 +47,6 @@ APT contains code from the following sources:
 * matlab/jsonlab-1.2
   https://www.mathworks.com/matlabcentral/fileexchange/33381-jsonlab-a-toolbox-to-encode-decode-json-files
   Qianqian Fang
-* matlab/private_imuitools, matlab/misc/imcontrast_kb.m, matlab/misc/inputdlgWithBrowse.m,
-  matlab/trackers/cpr/misc/matlabkmeans.m, matlab/user/orthocam
-  MATLAB
 * matlab/propertiesGUI
   http://undocumentedmatlab.com/articles/propertiesgui
   Yair M. Altman: altmany(at)gmail.com
@@ -88,7 +85,8 @@ APT contains code from the following sources:
   Piotr Dollar
 * matlab/misc/inputdlgWithBrowse.m (original: inputdlg.m)
   matlab/misc/imcontrast_kb.m (original: imcontrast.m)
-  matlab/private_imuitools/*.m (requirements for imcontrast.m)
+  matlab/private_imuitools/\*.m (requirements for imcontrast.m)
+  matlab/user/orthocam/\*
   Modified MATLAB code.
 
 
