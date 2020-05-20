@@ -1947,7 +1947,16 @@ classdef DeepTracker < LabelTracker
         trkfilesexist = cellfun(@exist,trkfiles);
         if any(trkfilesexist(:)),
           trkfilesdelete = trkfiles(trkfilesexist>0);
-          res = questdlg([{'The following output trk files already exist. Delete them?'};trkfilesdelete(:)],'Delete existing trk files?','Delete','Cancel','Cancel');
+          trkfilesdelete = trkfilesdelete(:);
+          ndel = numel(trkfilesdelete);
+          MAXTRKFILESDEL = 8;
+          if ndel <= MAXTRKFILESDEL
+            qstr = [{'The following output trk files already exist. Delete them?'};trkfilesdelete];
+          else
+            qstr = sprintf('The following output trk files (%d total) already exist. Delete them?',ndel);
+            qstr = [{qstr}; trkfilesdelete(1:MAXTRKFILESDEL); {'...<snip>...'}];
+          end
+          res = questdlg(qstr,'Delete existing trk files?','Delete','Cancel','Cancel');
           if strcmpi(res,'Delete'),
             for i = 1:numel(trkfilesdelete),
               delete(trkfilesdelete{i});
