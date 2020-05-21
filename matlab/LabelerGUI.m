@@ -360,6 +360,20 @@ handles.menu_track_batch_track = uimenu(...
   'Separator','on');
 moveMenuItemAfter(handles.menu_track_batch_track,handles.menu_track_training_data_montage);
 
+handles.menu_track_current_movie = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Track current movie...',...
+  'Tag','menu_track_current_movie',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_current_movie_Callback',h,evtdata,guidata(h)));
+moveMenuItemAfter(handles.menu_track_current_movie,handles.menu_track_batch_track);
+
+handles.menu_track_all_movies = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Track all movies in project...',...
+  'Tag','menu_track_all_movies',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_all_movies_Callback',h,evtdata,guidata(h)));
+moveMenuItemAfter(handles.menu_track_all_movies,handles.menu_track_current_movie);
+
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
 
 handles.menu_track_trainincremental = handles.menu_track_retrain;
@@ -370,25 +384,29 @@ handles.menu_track_trainincremental.Tag = 'menu_track_trainincremental';
 handles.menu_track_trainincremental.Visible = 'off';
 %handles.menu_track_track_and_export.Separator = 'off';
 
-handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
-  'Label','Export current tracking results',...
-  'Tag','menu_track_export_base',...
-  'Separator','on');  
-moveMenuItemAfter(handles.menu_track_export_base,handles.menu_track_track_and_export);
-handles.menu_track_export_current_movie = uimenu('Parent',handles.menu_track_export_base,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_current_movie_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Current movie only',...
-  'Tag','menu_track_export_current_movie');  
-handles.menu_track_export_all_movies = uimenu('Parent',handles.menu_track_export_base,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_all_movies_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','All movies',...
-  'Tag','menu_track_export_all_movies'); 
+% handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
+%   'Label','Export current tracking results',...
+%   'Tag','menu_track_export_base',...
+%   'Separator','on');  
+% moveMenuItemAfter(handles.menu_track_export_base,handles.menu_track_track_and_export);
+% handles.menu_track_export_current_movie = uimenu('Parent',handles.menu_track_export_base,...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_current_movie_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Label','Current movie only',...
+%   'Tag','menu_track_export_current_movie');  
+
+% Moved this to File menu
+handles.menu_file_export_all_movies = uimenu('Parent',handles.menu_file_importexport,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_all_movies_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export Predictions to Trk Files (All Movies)...',...
+  'Tag','menu_file_export_all_movies'); 
+moveMenuItemAfter(handles.menu_file_export_all_movies,handles.menu_file_export_labels2_trk_curr_mov);
 
 handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracking_results_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Clear tracking results',...
-  'Tag','menu_track_clear_tracking_results');  
-moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_export_base);
+  'Tag','menu_track_clear_tracking_results',...
+  'Separator','on');  
+moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_all_movies);
 
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
@@ -1916,12 +1934,14 @@ menuTrks = cell(nTrker,1);
 for i=1:nTrker  
   algName = tObjs{i}.algorithmName;
   algLabel = tObjs{i}.algorithmNamePretty;
+  enable = onIff(~strcmp(algName,'openpose'));
   mnu = uimenu( ...
     'Parent',handles.menu_track_tracking_algorithm,...
     'Label',algLabel,...
     'Callback',@cbkTrackerMenu,...
     'Tag',sprintf('menu_track_%s',algName),...
     'UserData',i,...
+    'enable',enable,...
     'Position',i);
   menuTrks{i} = mnu;
 end
@@ -3825,6 +3845,7 @@ function menu_track_batch_track_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tbobj = TrackBatchGUI(lObj);
 [toTrack] = tbobj.run();
+
 % 
 % persistent jsonfile;
 % if isempty(jsonfile),
@@ -3845,19 +3866,40 @@ tbobj = TrackBatchGUI(lObj);
 % trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
 % ClearStatus(handles);
 
-function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
+function menu_track_all_movies_Callback(hObject,eventdata,handles)
+
 lObj = handles.labelerObj;
-iMov = lObj.currMovie;
-if iMov==0
-  error('LabelerGUI:noMov','No movie currently set.');
-end
-[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
-if ~tfok
+mIdx = lObj.allMovIdx();
+toTrackIn = lObj.mIdx2TrackList(mIdx);
+tbobj = TrackBatchGUI(lObj,'toTrack',toTrackIn);
+[toTrackOut] = tbobj.run(); %#ok<NASGU>
+% todo: import predictions
+
+function menu_track_current_movie_Callback(hObject,eventdata,handles)
+
+lObj = handles.labelerObj;
+mIdx = lObj.currMovIdx;
+toTrackIn = lObj.mIdx2TrackList(mIdx);
+mdobj = SpecifyMovieToTrackGUI(lObj,lObj.gdata.figure,toTrackIn);
+[toTrackOut,dostore] = mdobj.run();
+if ~dostore,
   return;
 end
-lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
+trackBatch('lObj',lObj,'toTrack',toTrackOut);
 
-function menu_track_export_all_movies_Callback(hObject,eventdata,handles)
+% function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
+% lObj = handles.labelerObj;
+% iMov = lObj.currMovie;
+% if iMov==0
+%   error('LabelerGUI:noMov','No movie currently set.');
+% end
+% [tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
+% if ~tfok
+%   return;
+% end
+% lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
+
+function menu_file_export_all_movies_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 nMov = lObj.nmoviesGTaware;
 if nMov==0

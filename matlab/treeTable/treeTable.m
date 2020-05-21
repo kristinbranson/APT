@@ -67,6 +67,8 @@ function jtable = treeTable(varargin)
 % Programmed and Copyright by Yair M. Altman: altmany(at)gmail.com
 % $Revision: 1.4 $  $Date: 2013/08/06 14:31:16 $
 
+% Modified by Allen Lee
+
   %try
       % Ensure that java swing is enabled...
       if ~usejava('swing')

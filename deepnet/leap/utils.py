@@ -1,4 +1,6 @@
-''' Adapted from original by Mayank Kabra'''
+''' Modified by Mayank Kabra 
+From LEAP https://github.com/talmo/leap by Talmo Pereira
+'''
 import os
 import numpy as np
 import re
