@@ -57,11 +57,15 @@ class Pose_resnet_unet(PoseBase):
 
         im, locs, info, hmap = self.inputs
 
+        if self.conf.get('pretrain_freeze_bnorm', True):
+            pretrain_update_bnorm = False
+        else:
+            pretrain_update_bnorm = self.ph['phase_train']
+
         if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 net, end_points = resnet_v1.resnet_v1_50(im,
-                                          global_pool=False, is_training=self.ph[
-                                          'phase_train'])
+                                          global_pool=False, is_training=pretrain_update_bnorm)
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
                            'block3/unit_5/bottleneck_v1', 'block4']
                 down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
@@ -73,7 +77,7 @@ class Pose_resnet_unet(PoseBase):
         elif self.resnet_source == 'official_tf':
             mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             im = tf.placeholder(tf.float32, [8, 512, 512, 3])
-            resnet_out = mm(im, True)
+            resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
             ex_down_layers = conv(self.inputs[0], 64)
             down_layers.insert(0, ex_down_layers)
