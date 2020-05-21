@@ -1,6 +1,7 @@
 """
-DeepLabCut2.0 Toolbox (deeplabcut.org)
-© A. & M. Mathis Labs
+Modified by Mayank Kabra
+Adapted from DeepLabCut2.0 Toolbox (deeplabcut.org)
+Copyright A. & M. Mathis Labs
 https://github.com/AlexEMG/DeepLabCut
 
 Please see AUTHORS for contributors.
