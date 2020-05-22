@@ -7539,7 +7539,6 @@ classdef Labeler < handle
       tblMF = table(mov,frm,iTgt,p,pTS,tfocc,pTrx);
     end
     
-    %#%GTOK
     function tblMF = labelMFTableAddROITrx(obj,tblMF,roiRadius,varargin)
       % Add .pRoi and .roi to tblMF using trx info
       %
@@ -7555,34 +7554,53 @@ classdef Labeler < handle
       
       %tblfldscontainsassert(tblMF,MFTable.FLDSFULLTRX);
       % no requirements beyond as accessed in code
+      
       tblfldsdonotcontainassert(tblMF,{proifld 'roi'});
       
       nphyspts = obj.nPhysPoints;
       nrow = height(tblMF);
       p = tblMF.(pfld);
       pTrx = tblMF.pTrx;
+      xy = Shape.vecs2xys(p.'); % [npts x 2 x nrow]
+      xyTrx = Shape.vecs2xys(pTrx.'); % [ntrxpts x 2 x nrow]
       
-      tfRmRow = false(nrow,1);
-      pRoi = nan(size(p));
-      roi = nan(nrow,4*obj.nview);
-      for i=1:nrow
-        xy = Shape.vec2xy(p(i,:));
-        xyTrx = Shape.vec2xy(pTrx(i,:));
-        [roiCurr,tfOOBview,xyROIcurr] = ...
-          Shape.xyAndTrx2ROI(xy,xyTrx,nphyspts,roiRadius);
-        if rmOOB && any(tfOOBview)
-          warningNoTrace('CPRLabelTracker:oob',...
-            'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
-            tblMF.mov(i),tblMF.frm(i),tblMF.iTgt(i));
-          tfRmRow(i) = true;
-        else
-          pRoi(i,:) = Shape.xy2vec(xyROIcurr);
-          roi(i,:) = roiCurr;
-        end
-      end
+      [roi,tfOOBview,xyRoi] = Shape.xyAndTrx2ROI(xy,xyTrx,nphyspts,roiRadius);
+      % roi: [nrow x 4*nview]
+      % tfOOBview: [nrow x nview]
+      % xyRoi: [npts x 2 x nrow]
+      npts = obj.nLabelPoints;
+      szassert(xyRoi,[npts 2 nrow]);
+      pRoi = reshape(xyRoi,npts*2,nrow).'; % [nrow x D]
       
       tblMF = [tblMF table(pRoi,roi,'VariableNames',{proifld 'roi'})];
-      tblMF(tfRmRow,:) = [];
+
+      if rmOOB
+        tfRmrow = any(tfOOBview,2);
+        nrm = nnz(tfRmrow);
+        if nrm>0
+          warningNoTrace('Labeler:oob',...
+            '%d rows with shape out of bounds of target ROI. These rows will be discarded.',nrm);
+          tblMF(tfRmRow,:) = [];
+        end
+      end
+                    
+%       pRoi = nan(size(p));
+%       roi = nan(nrow,4*obj.nview);
+%       for i=1:nrow
+%         xy = Shape.vec2xy(p(i,:));
+%         xyTrx = Shape.vec2xy(pTrx(i,:));
+%          [roiCurr,tfOOBview,xyROIcurr] = ...
+%            Shape.xyAndTrx2ROI(xy,xyTrx,nphyspts,roiRadius);
+%         if rmOOB && any(tfOOBview)
+%           warningNoTrace('CPRLabelTracker:oob',...
+%             'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
+%             tblMF.mov(i),tblMF.frm(i),tblMF.iTgt(i));
+%           tfRmRow(i) = true;
+%         else
+%           pRoi(i,:) = Shape.xy2vec(xyROIcurr);
+%           roi(i,:) = roiCurr;
+%         end
+%       end
     end
     
     function tblMF = labelMFTableAddROICrop(obj,tblMF,varargin)
@@ -7877,9 +7895,12 @@ classdef Labeler < handle
         n = size(p,1);
         switch trxCtredRotAlignMeth
           case 'none'
+            % AL20200522: this can all be optimized now, see eg 
+            % .xyAndTrx2ROI vectorized api and .labelMFTableAddROITrx
             for i=1:n
               xyRow = Shape.vec2xy(p(i,:));
               xyTrxRow = Shape.vec2xy(pTrx(i,:));
+
               [~,tfOOB,xyRoi] = Shape.xyAndTrx2ROI(xyRow,xyTrxRow,...
                 nphyspts,roiRadius);
               if tfOOB
@@ -8044,7 +8065,7 @@ classdef Labeler < handle
         % some without.
         assert(all( all(tfTfafEmpty,2) | all(~tfTfafEmpty,2) ),...
           'Unexpected trxFilesAllFull specification.');
-        tfMovHasTrx = all(~tfTfafEmpty,2); % tfTfafMovEmpty(i) indicates whether movie i has trxfiles
+        tfMovHasTrx = all(~tfTfafEmpty,2); % tfTfafMovEmpty(i) indicates whether movie i has trxfiles        
       else
         nView = 1;
       end
@@ -8063,23 +8084,24 @@ classdef Labeler < handle
 
       npts = size(lpos{1},1);
       
-      pAcc = nan(0,npts*2);
-      pTSAcc = -inf(0,npts);
-      tfoccAcc = false(0,npts);
-      pTrxAcc = nan(0,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
-      thetaTrxAcc = nan(0,nView);
-      aTrxAcc = nan(0,nView);
-      bTrxAcc = nan(0,nView);
+      pAcc = nan(nrow,npts*2);
+      pTSAcc = -inf(nrow,npts);
+      tfoccAcc = false(nrow,npts);
+      pTrxAcc = nan(nrow,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
+      thetaTrxAcc = nan(nrow,nView);
+      aTrxAcc = nan(nrow,nView);
+      bTrxAcc = nan(nrow,nView);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       iMovsAll = tblMF.mov.get;
+      frmsAll = tblMF.frm;
+      iTgtAll = tblMF.iTgt;
       
       iMovsUnique = unique(iMovsAll);
       nRowsComplete = 0;
       
       for movIdx = 1:numel(iMovsUnique),
         iMov = iMovsUnique(movIdx);
-        rowsCurr = find(iMovsAll == iMov);
-        
+        rowsCurr = find(iMovsAll == iMov); % absolute row indices into tblMF
         
         lposI = lpos{iMov};
         lpostagI = lpostag{iMov};
@@ -8092,10 +8114,13 @@ classdef Labeler < handle
         if tfTrx && tfMovHasTrx(iMov)
           [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
             trxCache,trxFilesAllFull(iMov,:),nfrms);
+          
+          assert(isscalar(trxI),'Multiview projs with trx currently unsupported.');
+          trxI = trxI{1};
         end
         
         for jrow = 1:numel(rowsCurr),
-          irow = rowsCurr(jrow);
+          irow = rowsCurr(jrow); % absolute row index into tblMF
           
           if tfWB && toc(wbtime) >= maxwbtime,
             wbtime = tic;
@@ -8106,8 +8131,8 @@ classdef Labeler < handle
           end
           
           %tblrow = tblMF(irow,:);
-          frm = tblMF.frm(irow);
-          iTgt = tblMF.iTgt(irow);
+          frm = frmsAll(irow);
+          iTgt = iTgtAll(irow);
           
           if frm<1 || frm>nfrms
             tfInvalid(irow) = true;
@@ -8127,38 +8152,49 @@ classdef Labeler < handle
           lposIFrmTgt = lposI(:,:,frm,iTgt);
           lpostagIFrmTgt = lpostagI(:,frm,iTgt);
           lposTSIFrmTgt = lposTSI(:,frm,iTgt);
-          pAcc(end+1,:) = Shape.xy2vec(lposIFrmTgt); %#ok<AGROW>
-          pTSAcc(end+1,:) = lposTSIFrmTgt'; %#ok<AGROW>
-          tfoccAcc(end+1,:) = lpostagIFrmTgt'; %#ok<AGROW>
+          pAcc(irow,:) = lposIFrmTgt(:).'; % Shape.xy2vec(lposIFrmTgt);
+          pTSAcc(irow,:) = lposTSIFrmTgt'; 
+          tfoccAcc(irow,:) = lpostagIFrmTgt'; 
           
           if tfTrx && tfMovHasTrx(iMov)
-            xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
-            ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
-            pTrxAcc(end+1,:) = [xtrxs(:)' ytrxs(:)']; %#ok<AGROW>
-            thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
-            thetaTrxAcc(end+1,:) = thetas(:)'; %#ok<AGROW>
+            %xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
+            %ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
+            trxItgt = trxI(iTgt);
+            frmabs = frm + trxItgt.off;
+            xtrxs = trxItgt.x(frmabs);
+            ytrxs = trxItgt.y(frmabs);
             
-            as = cellfun(@(xx)xx(iTgt).a(frm+xx(iTgt).off),trxI);
-            bs = cellfun(@(xx)xx(iTgt).b(frm+xx(iTgt).off),trxI);
-            aTrxAcc(end+1,:) = as(:)'; %#ok<AGROW>
-            bTrxAcc(end+1,:) = bs(:)'; %#ok<AGROW>
+            pTrxAcc(irow,:) = [xtrxs(:)' ytrxs(:)']; 
+            %thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
+            thetas = trxItgt.theta(frmabs);
+            thetaTrxAcc(irow,:) = thetas(:)'; 
+            
+%             as = cellfun(@(xx)xx(iTgt).a(frm+xx(iTgt).off),trxI);
+%             bs = cellfun(@(xx)xx(iTgt).b(frm+xx(iTgt).off),trxI);
+            as = trxItgt.a(frmabs);
+            bs = trxItgt.b(frmabs);            
+            aTrxAcc(irow,:) = as(:)'; 
+            bTrxAcc(irow,:) = bs(:)'; 
           else
-            pTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
-            thetaTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
-            aTrxAcc(end+1,:) = nan; %#ok<AGROW>
-            bTrxAcc(end+1,:) = nan; %#ok<AGROW>
+            % none; these arrays pre-initted to nan
+            
+%             pTrxAcc(irow,:) = nan; % singleton exp
+%             thetaTrxAcc(irow,:) = nan; % singleton exp
+%             aTrxAcc(irow,:) = nan; 
+%             bTrxAcc(irow,:) = nan; 
           end
           nRowsComplete = nRowsComplete + 1;
         end
       end
       
-      if any(tfInvalid)
-        warningNoTrace('Removed %d invalid rows of MFTable.',nnz(tfInvalid));
-      end
-      tblMF = tblMF(~tfInvalid,:);
       tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,...
         'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx'});
       tblMF = [tblMF tLbl];
+      
+      if any(tfInvalid)
+        warningNoTrace('Removed %d invalid rows of MFTable.',nnz(tfInvalid));
+        tblMF = tblMF(~tfInvalid,:);
+      end       
     end
     
     function tblMF = lblFileGetLabels(lblfile,varargin)
