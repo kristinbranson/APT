@@ -21,7 +21,8 @@ import resnet_official
 import urllib
 import tarfile
 import math
-from open_pose2 import upsample_init_value
+from upsamp import upsample_init_value
+
 
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
