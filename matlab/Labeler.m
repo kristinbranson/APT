@@ -11128,7 +11128,7 @@ classdef Labeler < handle
         
         lposTrk = xy(:,:,iTgt);
         occTrk = occ(:,iTgt);
-        tfnan = isnan(xy);
+        tfnan = isnan(xy); % hmm wonder why look at all of xy rather than just lposTrk
         tf = any(~tfnan(:));
       end
     end
@@ -13602,6 +13602,18 @@ classdef Labeler < handle
 %         obj.labels2VizUpdate();
 %       end
 %     end
+
+    function [tf,lpos2] = labels2IsCurrMovFrmLbled(obj,iTgt)
+      % tf: scalar logical, true if tracker has results/predictions for 
+      %   currentMov/frm/iTgt 
+      % lpos2: [nptsx2] landmark coords
+     
+      PROPS = obj.gtGetSharedProps();
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      lpos2 = obj.(PROPS.LPOS2){iMov}(:,:,frm,iTgt);
+      tf = any(~isnan(lpos2(:)));      
+    end
     
     function labels2SetCurrMovie(obj,lpos)
       % Works in both reg/GT mode
