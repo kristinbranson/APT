@@ -258,6 +258,12 @@ handles.menu_view_hide_imported_predictions = uimenu('Parent',handles.menu_view,
   'Tag','menu_view_hide_imported_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_imported_predictions,handles.menu_view_hide_predictions);
+handles.menu_view_show_imported_preds_curr_target_only = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_imported_preds_curr_target_only_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Show imported predictions only for current target',...
+  'Tag','menu_view_show_imported_preds_curr_target_only',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_hide_imported_predictions);
 
 handles.menu_view_edit_skeleton = uimenu('Parent',handles.menu_view,...
   'Label','Edit skeleton...',...
@@ -645,6 +651,7 @@ listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabe
 listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
+listeners{end+1,1} = addlistener(lObj,'labels2ShowCurrTargetOnly','PostSet',@cbkLabels2ShowCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
@@ -3325,9 +3332,9 @@ function menu_view_hide_imported_predictions_Callback(hObject, eventdata, handle
 lObj = handles.labelerObj;
 lObj.labels2VizToggle();
 
-% function menu_view_showhide_advanced_hidepredtxtlbls_Callback(hObject, eventdata, handles)
-% lObj = handles.labelerObj;
-% lObj.toggleShowPredTxtLbl();
+function menu_view_show_imported_preds_curr_target_only_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.labels2VizSetShowCurrTargetOnly(~lObj.labels2ShowCurrTargetOnly);
 
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
 handles.menu_track_cpr_show_replicates.Checked = ...
@@ -3394,6 +3401,12 @@ function cbkLabels2HideChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
 handles.menu_view_hide_imported_predictions.Checked = onIff(lObj.labels2Hide);
+
+function cbkLabels2ShowCurrTargetOnlyChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+handles.menu_view_show_imported_preds_curr_target_only.Checked = ...
+    onIff(lObj.labels2ShowCurrTargetOnly);
 
 % when trackerInfo is updated, update the tracker info text in the main APT window
 function cbkTrackerInfoChanged(src,evt)

@@ -361,6 +361,7 @@ classdef Labeler < handle
     
     labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
     labels2Hide;          % scalar logical
+    labels2ShowCurrTargetOnly;  % scalar logical, transient
     
     labeledposGT          % like .labeledpos    
     labeledposTSGT        % like .labeledposTS
@@ -1478,6 +1479,7 @@ classdef Labeler < handle
       obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
             
       obj.labels2Hide = false;
+      obj.labels2ShowCurrTargetOnly = false;
 
       obj.skeletonEdges = zeros(0,2);
       obj.showSkeleton = false;
@@ -5666,7 +5668,7 @@ classdef Labeler < handle
     function setShowSkeleton(obj,tf)
       obj.showSkeleton = logical(tf);
       obj.lblCore.updateShowSkeleton();
-      obj.labeledpos2trkViz.updateHideVizHideText();
+      obj.labeledpos2trkViz.updateShowHideAll();
     end
     function setFlipLandmarkMatches(obj,matches)
       obj.flipLandmarkMatches = matches;
@@ -13740,7 +13742,8 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
         [obj.nLabelPoints,2,obj.nTargets]);
-      obj.labeledpos2trkViz.updateTrackRes(lpos2,iTgt);
+      tv = obj.labeledpos2trkViz;
+      tv.updateTrackRes(lpos2,iTgt);
       
       if dotrkres
         trkres = obj.trkResGTaware;
@@ -13782,14 +13785,10 @@ classdef Labeler < handle
     
     function labels2VizShowHideUpdate(obj)
       tfHide = obj.labels2Hide;
-%       tfShowTxt = obj.showPredTxtLbl;
       txtprops = obj.predPointsPlotInfo.TextProps;
-      tfHideTxt = strcmp(txtprops.Visible,'off');
-
+      tfHideTxt = strcmp(txtprops.Visible,'off');      
       tv = obj.labeledpos2trkViz;
-      tv.setHideViz(tfHide);
-      tv.setHideTextLbls(tfHideTxt);
-      tv.updateHideVizHideText();
+      tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly);
     end
     
     function labels2VizShow(obj)
@@ -13808,6 +13807,11 @@ classdef Labeler < handle
       else
         obj.labels2VizHide();
       end
+    end
+
+    function labels2VizSetShowCurrTargetOnly(obj,tf)
+      obj.labels2ShowCurrTargetOnly = tf;
+      obj.labels2VizShowHideUpdate();
     end
      
   end
