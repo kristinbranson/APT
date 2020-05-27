@@ -1,0 +1,48 @@
+From 9c00b1e3d9e590f016414f1a118eb93b262cd89e Mon Sep 17 00:00:00 2001
+From: Mayank Kabra <kabram@janelia.hhmi.org>
+Date: Wed, 27 May 2020 06:01:27 -0400
+Subject: [PATCH] Minor edit
+
+---
+ deeplabcut/pose_estimation_tensorflow/train.py | 25 +++++++++++--------------
+ 1 file changed, 11 insertions(+), 14 deletions(-)
+
+diff --git a/deeplabcut/pose_estimation_tensorflow/train.py b/deeplabcut/pose_estimation_tensorflow/train.py
+index 94dd8df..735fac2 100644
+--- a/deeplabcut/pose_estimation_tensorflow/train.py
++++ b/deeplabcut/pose_estimation_tensorflow/train.py
+@@ -261,20 +261,17 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
+         train_writer.add_summary(summary, it)
+ 
+         if it % display_iters == 0 and it>0:
+-            if False:
+-                cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
+-                pred = [cur_out['part_pred'],cur_out['locref']]
+-                scmap, locref = predict.extract_cnn_output(pred, cfg)
+-
+-                # Extract maximum scoring location from the heatmap, assume 1 person
+-                loc_pred = predict.argmax_pose_predict(scmap, locref, cfg.stride)
+-                if loc_pred.ndim == 2:
+-                    loc_pred = loc_pred[np.newaxis,np.newaxis,...]
+-                loc_in = batch_out[Batch.locs]
+-                dd = np.sqrt(np.sum(np.square(loc_pred[:,:,:,:2]-loc_in),axis=-1))
+-                dd = dd/cfg.global_scale
+-            else:
+-                dd = np.array([0])
++            cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
++            pred = [cur_out['part_pred'],cur_out['locref']]
++            scmap, locref = predict.extract_cnn_output(pred, cfg)
++
++            # Extract maximum scoring location from the heatmap, assume 1 person
++            loc_pred = predict.argmax_pose_predict(scmap, locref, cfg.stride)
++            if loc_pred.ndim == 2:
++                loc_pred = loc_pred[np.newaxis,np.newaxis,...]
++            loc_in = batch_out[Batch.locs]
++            dd = np.sqrt(np.sum(np.square(loc_pred[:,:,:,:2]-loc_in),axis=-1))
++            dd = dd/cfg.global_scale
+             average_loss = cum_loss / display_iters
+             cum_loss = 0.0
+             logging.info("iteration: {} dist: {:.2f} loss: {} lr: {}"
+-- 
+2.7.4
+

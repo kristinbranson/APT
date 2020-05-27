@@ -126,10 +126,10 @@ def normalize_mean(in_img, conf):
                     to_add = old_div(((np.random.rand(conf.batch_size) - 0.5) * conf.imax), 8)
                     xx[:, :, :, dim] += to_add[:, np.newaxis, np.newaxis]
     # elif not hasattr(conf, 'normalize_batch_mean') or conf.normalize_batch_mean:
-    elif conf.normalize_batch_mean:
-        # subtract the batch mean if the variable is not defined.
-        # don't know why I have it. :/
-        xx = zz - zz.mean()
+    # elif conf.normalize_batch_mean:
+    #     # subtract the batch mean if the variable is not defined.
+    #     # don't know why I have it. :/
+    #     xx = zz - zz.mean()
     else:
         xx = zz
 #     xx = xx.astype('uint8')
