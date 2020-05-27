@@ -1,0 +1,591 @@
+From 0543f04a1ef7a6a07e9a2f56998d677f0243c6de Mon Sep 17 00:00:00 2001
+From: Mayank Kabra <kabram@janelia.hhmi.org>
+Date: Wed, 27 May 2020 06:19:25 -0400
+Subject: [PATCH] Changes to adapt to APT
+
+---
+ leap/__init__.py           |   7 --
+ leap/image_augmentation.py | 105 +++++++++++++++++----
+ leap/layers.py             |  10 +-
+ leap/training.py           | 230 ++++++++++++++++++++++++++++++++++++++-------
+ leap/utils.py              |  15 ++-
+ 5 files changed, 300 insertions(+), 67 deletions(-)
+
+diff --git a/leap/__init__.py b/leap/__init__.py
+index 1cdf4d1..e69de29 100644
+--- a/leap/__init__.py
++++ b/leap/__init__.py
+@@ -1,7 +0,0 @@
+-from . import image_augmentation
+-from . import layers
+-from . import models
+-from . import predict_box
+-from . import training
+-from . import utils
+-from . import viz
+\ No newline at end of file
+diff --git a/leap/image_augmentation.py b/leap/image_augmentation.py
+index 73b0d6d..3c0bf88 100644
+--- a/leap/image_augmentation.py
++++ b/leap/image_augmentation.py
+@@ -2,6 +2,8 @@ import cv2
+ import numpy as np
+ import keras
+ from keras.utils import Sequence
++import PoseTools
++import easydict
+ 
+ def transform_imgs(X, theta=(-180,180), scale=1.0):
+     """ Transforms sets of images with the same random transformation across each channel. """
+@@ -25,8 +27,8 @@ def transform_imgs(X, theta=(-180,180), scale=1.0):
+     T = cv2.getRotationMatrix2D(ctr, theta, scale)
+     
+     # Make sure we don't overwrite the inputs
+-    X = [x.copy() for x in X]
+-    
++    X = [x.copy()/255 for x in X] # Because I don't normalize while loading anymore MK 20200511
++
+     # Apply to each image
+     for i in range(len(X)):
+         if X[i].ndim == 2:
+@@ -44,34 +46,105 @@ def transform_imgs(X, theta=(-180,180), scale=1.0):
+     return X
+ 
+ 
++def transform_imgs_locs(X, locs, theta=(-180, 180), scale=1.0):
++    """ Transforms sets of images with the same random transformation across each channel. """
++
++    # Sample random rotation and scale if range specified
++    if not np.isscalar(theta):
++        theta = np.ptp(theta) * np.random.rand() + np.min(theta)
++    if not np.isscalar(scale):
++        scale = np.ptp(scale) * np.random.rand() + np.min(scale)
++
++    X, locs = PoseTools.preprocess_ims()
++    # Standardize X input to a list
++    single_img = type(X) == np.ndarray
++    if single_img:
++        X = [X,]
++
++    # Find image parameters
++    img_size = X[0].shape[:2]
++    ctr = (img_size[0] / 2, img_size[0] / 2)
++
++    # Compute affine transformation matrix
++    T = cv2.getRotationMatrix2D(ctr, theta, scale)
++
++    # Make sure we don't overwrite the inputs
++    X = [x.copy() for x in X]
++
++    # Apply to each image
++    for i in range(len(X)):
++        if X[i].ndim == 2:
++            # Single channel image
++            X[i] = cv2.warpAffine(X[i], T, img_size[::-1])
++        else:
++            # Multi-channel image
++            for c in range(X[i].shape[-1]):
++                X[i][...,c] = cv2.warpAffine(X[i][...,c], T, img_size[::-1])
++
++    # Pull the single image back out of the list
++    if single_img:
++        X = X[0]
++
++    return X
++
++
+ class PairedImageAugmenter(Sequence):
+-    def __init__(self, X, Y, batch_size=32, shuffle=False, theta=(-180,180), scale=1.0):
++    def __init__(self, X, Y, conf, shuffle=False):
++        if len(X) < conf.batch_size:
++            rmat = np.ones(X.ndim).astype('int')
++            rmat[0] = conf.batch_size
++            X = np.tile(X,rmat)
++            rmat = np.ones(Y.ndim).astype('int')
++            rmat[0] = conf.batch_size
++            Y = np.tile(Y,rmat)
+         self.X = X
+         self.Y = Y
+-        self.batch_size = batch_size
+-        self.theta = theta
+-        self.scale = scale
+-        
++        self.batch_size = conf.batch_size
++        self.theta = conf.rrange
++        self.scale = (1/conf.scale_factor_range,conf.scale_factor_range)
++        self.conf = conf
++
+         self.num_samples = len(X)
+         all_idx = np.arange(self.num_samples)
+         if shuffle:
+             np.random.shuffle(all_idx)
+-        
+-        self.batches = np.array_split(all_idx, np.ceil(self.num_samples / self.batch_size))
++
++        if self.num_samples < self.batch_size:
++            all_idx = np.tile(all_idx,self.batch_size)
++            self.batches = np.array_split(all_idx,self.num_samples)
++        else:
++            self.batches = np.array_split(all_idx, np.ceil(self.num_samples / self.batch_size))
+         
+     def __len__(self):
+         return len(self.batches)
+     
+     def __getitem__(self, batch_idx):
++        # print('Getting item, batch {}'.format(batch_idx))
+         idx = self.batches[batch_idx]
+         X = self.X[idx]
+         Y = self.Y[idx]
+-        
+-        for i in range(len(X)):
+-            X[i], Y[i] = transform_imgs((X[i],Y[i]), theta=self.theta, scale=self.scale)
+-        return X, Y
+ 
+-    
++        if self.conf.use_leap_preprocessing:
++            if Y.ndim==4:
++                # This is to our implemenmtation vs orig
++                # print('Not generating hmaps!!!')
++                hmaps = np.transpose(Y,(0,3,2,1))
++            else:
++                hmap_sigma = 5
++                hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
++                hmaps = (hmaps+1)/2
++            for i in range(len(X)):
++                X[i], hmaps[i] = transform_imgs((X[i], hmaps[i]), theta=self.theta, scale=self.scale)
++
++        else:
++            X, Y = PoseTools.preprocess_ims(X,Y,self.conf,True,self.conf.rescale)
++            X = X.astype('float')/255.
++            hmap_sigma = min(5,self.conf.label_blur_rad)
++            hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
++            hmaps = (hmaps+1)/2
++        # print('Got item, batch {}'.format(batch_idx))
++        return X, hmaps
++
+ class MultiInputOutputPairedImageAugmenter(PairedImageAugmenter):
+     def __init__(self, input_names, output_names, *args, **kwargs):
+         if type(input_names) != list:
+@@ -80,9 +153,9 @@ class MultiInputOutputPairedImageAugmenter(PairedImageAugmenter):
+             output_names = [output_names,]
+         self.input_names = input_names
+         self.output_names = output_names
+-        super().__init__(*args, **kwargs)
++        super(MultiInputOutputPairedImageAugmenter,self).__init__(*args, **kwargs)
+         
+     def __getitem__(self, batch_idx):
+-        X,Y = super().__getitem__(batch_idx)
++        X,Y = super(MultiInputOutputPairedImageAugmenter,self).__getitem__(batch_idx)
+         return ({k: X for k in self.input_names}, {k: Y for k in self.output_names})
+     
+\ No newline at end of file
+diff --git a/leap/layers.py b/leap/layers.py
+index 9103408..4669d66 100644
+--- a/leap/layers.py
++++ b/leap/layers.py
+@@ -35,8 +35,6 @@ from keras.backend import tf
+ 
+ from keras.layers import Conv2D, Add
+ 
+-from packaging.version import parse as parse_version
+-
+ __all__ = ['UpSampling2D', 'Maxima2D']
+ 
+ 
+@@ -119,8 +117,8 @@ class UpSampling2D(Layer):
+     @interfaces.legacy_upsampling2d_support
+     def __init__(self, size=(2, 2), data_format=None, interpolation='nearest', **kwargs):
+         super(UpSampling2D, self).__init__(**kwargs)
+-        # Update to K.normalize_data_format after keras 2.2.0
+-        if parse_version(keras.__version__) > parse_version("2.2.0"):
++        vv = keras.__version__.split('.')
++        if int(vv[0])>=2 and int(vv[1])>=2 and int(vv[2])>0:
+             self.data_format = K.normalize_data_format(data_format)
+         else:
+             self.data_format = conv_utils.normalize_data_format(data_format)
+@@ -231,8 +229,8 @@ class Maxima2D(Layer):
+ 
+     def __init__(self, data_format=None, **kwargs):
+         super(Maxima2D, self).__init__(**kwargs)
+-        # Update to K.normalize_data_format after keras 2.2.0
+-        if parse_version(keras.__version__) > parse_version("2.2.0"):
++        vv = keras.__version__.split('.')
++        if int(vv[0])>=2 and int(vv[1])>=2 and int(vv[2])>0:
+             self.data_format = K.normalize_data_format(data_format)
+         else:
+             self.data_format = conv_utils.normalize_data_format(data_format)
+diff --git a/leap/training.py b/leap/training.py
+index 762c190..92f3af5 100644
+--- a/leap/training.py
++++ b/leap/training.py
+@@ -6,13 +6,21 @@ from scipy.io import loadmat, savemat
+ import re
+ import shutil
+ import clize
++import json
++import PoseTools
++import math
++import pickle
++import logging
++import contextlib
+ 
+ import keras
+-from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback
++from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback,LearningRateScheduler
++from keras.callbacks import Callback
++import keras.backend as K
+ 
+ from leap import models
+ from leap.image_augmentation import PairedImageAugmenter, MultiInputOutputPairedImageAugmenter
+-from leap.viz import show_pred, show_confmap_grid, plot_history
++#from leap.viz import show_pred, show_confmap_grid, plot_history
+ from leap.utils import load_dataset
+ 
+ 
+@@ -64,7 +72,7 @@ def create_run_folders(run_name, base_path="models", clean=False):
+ 
+ class LossHistory(keras.callbacks.Callback):
+     def __init__(self, run_path):
+-        super().__init__()
++        super(LossHistory,self).__init__()
+         self.run_path = run_path
+ 
+     def on_train_begin(self, logs={}):
+@@ -79,7 +87,7 @@ class LossHistory(keras.callbacks.Callback):
+                 {k: [x[k] for x in self.history] for k in self.history[0].keys()})
+ 
+         # Plot graph
+-        plot_history(self.history, save_path=os.path.join(self.run_path, "history.png"))
++        # plot_history(self.history, save_path=os.path.join(self.run_path, "history.png"))
+ 
+ 
+ def create_model(net_name, img_size, output_channels, **kwargs):
+@@ -96,9 +104,9 @@ def create_model(net_name, img_size, output_channels, **kwargs):
+ 
+     return compile_model(img_size, output_channels, **kwargs)
+ 
+-def train(data_path, *,
++def train(data_path,
+     base_output_path="models",
+-    run_name=None,
++    run_name='deepnet',
+     data_name=None,
+     net_name="leap_cnn",
+     clean=False,
+@@ -121,6 +129,7 @@ def train(data_path, *,
+     save_every_epoch=False,
+     amsgrad=False,
+     upsampling_layers=False,
++    conf=None
+     ):
+     """
+     Trains the network and saves the intermediate results to an output directory.
+@@ -155,16 +164,16 @@ def train(data_path, *,
+     # Load
+     print("data_path:", data_path)
+     box, confmap = load_dataset(data_path, X_dset=box_dset, Y_dset=confmap_dset)
+-    viz_sample = (box[viz_idx], confmap[viz_idx])
+     box, confmap, val_box, val_confmap, train_idx, val_idx = train_val_split(box, confmap, val_size=val_size, shuffle=preshuffle)
+     print("box.shape:", box.shape)
+     print("val_box.shape:", val_box.shape)
+ 
+     # Pull out metadata
+-    img_size = box.shape[1:]
+-    num_output_channels = confmap.shape[-1]
+-    print("img_size:", img_size)
+-    print("num_output_channels:", num_output_channels)
++    img_size = np.array(box.shape[1:])
++    img_size[0] = img_size[0]//conf.rescale
++    img_size[1] = img_size[1]//conf.rescale
++
++    num_output_channels = conf.n_classes
+ 
+     # Build run name if needed
+     if data_name == None:
+@@ -186,8 +195,8 @@ def train(data_path, *,
+         print("Could not find model:", net_name)
+         return
+ 
+-    # Initialize run directories
+-    run_path = create_run_folders(run_name, base_path=base_output_path, clean=clean)
++    # Initialize run
++    run_path = base_output_path
+     savemat(os.path.join(run_path, "training_info.mat"),
+             {"data_path": data_path, "val_idx": val_idx, "train_idx": train_idx,
+              "base_output_path": base_output_path, "run_name": run_name, "data_name": data_name,
+@@ -200,30 +209,99 @@ def train(data_path, *,
+              "save_every_epoch": save_every_epoch, "amsgrad": amsgrad, "upsampling_layers": upsampling_layers})
+ 
+     # Save initial network
+-    model.save(os.path.join(run_path, "initial_model.h5"))
++    model.save(str(os.path.join(run_path, "initial_model.h5")))
+ 
+     # Data generators/augmentation
+     input_layers = model.input_names
+     output_layers = model.output_names
+     if len(input_layers) > 1 or len(output_layers) > 1:
+-        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
+-        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
++        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, conf, shuffle=True)
++        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, conf, shuffle=True)
+     else:
+-        train_datagen = PairedImageAugmenter(box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
+-        val_datagen = PairedImageAugmenter(val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
++        train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
++        val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
+ 
+-    # Initialize training callbacks
+     history_callback = LossHistory(run_path=run_path)
+     reduce_lr_callback = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
+                                           patience=reduce_lr_patience, verbose=1, mode="auto",
+                                           epsilon=reduce_lr_min_delta, cooldown=reduce_lr_cooldown,
+                                           min_lr=reduce_lr_min_lr)
+-    if save_every_epoch:
+-        checkpointer = ModelCheckpoint(filepath=os.path.join(run_path, "weights/weights.{epoch:03d}-{val_loss:.9f}.h5"), verbose=1, save_best_only=False)
+-    else:
+-        checkpointer = ModelCheckpoint(filepath=os.path.join(run_path, "best_model.h5"), verbose=1, save_best_only=True)
+-    viz_grid_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: show_confmap_grid(model, *viz_sample, plot=True, save_path=os.path.join(run_path, "viz_confmaps/confmaps_%03d.png" % epoch), show_figure=False))
+-    viz_pred_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: show_pred(model, *viz_sample, save_path=os.path.join(run_path, "viz_pred/pred_%03d.png" % epoch), show_figure=False))
++
++
++    # checkpointer = ModelCheckpoint(model_file, verbose=0, save_best_only=False,period=save_step)
++    save_time = conf.get('save_time', None)
++    class OutputObserver(Callback):
++        def __init__(self, conf, dis):
++            self.train_di, self.val_di = dis
++            self.train_info = {}
++            self.train_info['step'] = []
++            self.train_info['train_dist'] = []
++            self.train_info['train_loss'] = []
++            self.train_info['val_dist'] = []
++            self.train_info['val_loss'] = []
++            self.config = conf
++            self.force = False
++            self.train_ndx = 0
++            self.val_ndx  = 0
++            self.start_time = time()
++
++        def on_epoch_end(self, epoch, logs={}):
++            step = epoch*conf.display_step
++            val_x, val_y = self.val_di[self.val_ndx]
++            self.val_ndx += 1
++            if self.val_ndx >= len(self.val_di):
++                self.val_ndx = 0
++            val_out = self.model.predict(val_x)
++            val_loss = self.model.evaluate(val_x, val_y, verbose=0)
++            train_x, train_y = self.train_di[self.train_ndx]
++            self.train_ndx += 1
++            if self.train_ndx >= len(self.train_di):
++                self.train_ndx = 0
++            train_out = self.model.predict(train_x)
++            train_loss = self.model.evaluate(train_x, train_y, verbose=0)
++
++            # dist only for last layer
++            tt1 = PoseTools.get_pred_locs(val_out) - \
++                  PoseTools.get_pred_locs(val_y)
++            tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
++            val_dist = np.nanmean(tt1)
++            tt1 = PoseTools.get_pred_locs(train_out) - \
++                  PoseTools.get_pred_locs(train_y)
++            tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
++            train_dist = np.nanmean(tt1)
++            self.train_info['val_dist'].append(val_dist)
++            self.train_info['val_loss'].append(val_loss*10000)
++            self.train_info['train_dist'].append(train_dist)
++            self.train_info['train_loss'].append(train_loss*10000)
++            self.train_info['step'].append(int(step))
++
++            p_str = ''
++            for k in self.train_info.keys():
++                p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
++            print(p_str)
++
++            if run_name == 'deepnet':
++                train_data_file = os.path.join( self.config.cachedir, 'traindata')
++            else:
++                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + run_name + '_traindata')
++
++            json_data = {}
++            for x in self.train_info.keys():
++                json_data[x] = np.array(self.train_info[x]).astype(np.float64).tolist()
++            with open(train_data_file + '.json', 'w') as json_file:
++                json.dump(json_data, json_file)
++            with open(train_data_file, 'wb') as train_data_file:
++                pickle.dump([self.train_info, conf], train_data_file, protocol=2)
++
++            if save_time is None:
++                if step % conf.save_step == 0:
++                    model.save(str(os.path.join(run_path,run_name + '-{}'.format(step))))
++            else:
++                if time() - self.start_time > conf.save_time*60:
++                    self.start_time = time()
++                    model.save(str(os.path.join(run_path, run_name + '-{}'.format(step))))
++
++    obs = OutputObserver(conf,[train_datagen,val_datagen])
+ 
+     # Train!
+     epoch0 = 0
+@@ -232,7 +310,7 @@ def train(data_path, *,
+             train_datagen,
+             initial_epoch=epoch0,
+             epochs=epochs,
+-            verbose=1,
++            verbose=0,
+     #         use_multiprocessing=True,
+     #         workers=8,
+             steps_per_epoch=batches_per_epoch,
+@@ -242,10 +320,8 @@ def train(data_path, *,
+             validation_steps=val_batches_per_epoch,
+             callbacks = [
+                 reduce_lr_callback,
+-                checkpointer,
+-                history_callback,
+-                viz_pred_callback,
+-                viz_grid_callback
++                # checkpointer,
++                obs
+             ]
+         )
+ 
+@@ -254,11 +330,98 @@ def train(data_path, *,
+     print("Total runtime: %.1f mins" % (elapsed_train / 60))
+ 
+     # Save final model
+-    model.history = history_callback.history
+-    model.save(os.path.join(run_path, "final_model.h5"))
++    model.save(str(os.path.join(run_path, run_name + '-{}'.format(int(conf.dl_steps)))))
++    obs.on_epoch_end(epochs)
++    K.clear_session()
++
++
++def get_read_fn(conf, data_path):
++
++    batch_size = 1
++    rotate_angle = 0
++    net_name = conf.leap_net_name
++    box_dset="box"
++    confmap_dset="joints"
++    filters=64
++
++    box, confmap = load_dataset(data_path, X_dset=box_dset, Y_dset=confmap_dset)
++
++    # Pull out metadata
++    img_size = box.shape[1:]
++    num_output_channels = confmap.shape[-1]
++
++    # Create network
++    model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=False, upsampling_layers=False, summary=False)
++    if model is None:
++        print("Could not find model:", net_name)
++        return
++
++    input_layers = model.input_names
++    output_layers = model.output_names
++    if len(input_layers) > 1 or len(output_layers) > 1:
++        datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, conf, shuffle=False)
++    else:
++        datagen = PairedImageAugmenter(box, confmap, conf, shuffle=False)
++
++    cur_ex = [0]
++    def read_fn():
++        im, hmap = datagen[cur_ex[0]]
++        cur_ex[0] += 1
++        locs = PoseTools.get_pred_locs(hmap)
++        info = [0,0,0]
++        return im, locs, info
++
++    n_db = box.shape[0]
++
++    return read_fn, n_db
++
++
++
++def get_pred_fn(conf, model_file=None,name='deepnet',tmr_pred=None):
+ 
++    if tmr_pred is None:
++        tmr_pred = contextlib.suppress()
+ 
++    if model_file is None:
++        latest_model_file = PoseTools.get_latest_model_file_keras(conf,name)
++    else:
++        latest_model_file = model_file
++    model = keras.models.load_model(str(latest_model_file))
++
++    def pred_fn(all_f):
++        newY = int(np.ceil(float(all_f.shape[1]) / 32) * 32)
++        newX = int(np.ceil(float(all_f.shape[2]) / 32) * 32)
++        X1 = np.zeros([all_f.shape[0], newY, newX, all_f.shape[3]]).astype('float32')
++        X1[:, :all_f.shape[1], :all_f.shape[2], :] = all_f
++
++        X1, _ = PoseTools.preprocess_ims(X1, in_locs=np.zeros([X1.shape[0], conf.n_classes, 2]), conf=conf, distort=False, scale=conf.rescale)
++
++
++        X1 = X1.astype("float32") / 255
++        with tmr_pred:
++            pred = model.predict(X1,batch_size = X1.shape[0])
++        pred = np.stack(pred)
++        pred = pred[:,:all_f.shape[1],:all_f.shape[2],:]
++        base_locs = PoseTools.get_pred_locs(pred)
++        base_locs = base_locs * conf.rescale
+ 
++        ret_dict = {}
++        ret_dict['locs'] = base_locs
++        ret_dict['hmaps'] = pred
++        ret_dict['conf'] = np.max(pred, axis=(1, 2))
++        return ret_dict
++
++    close_fn = K.clear_session
++
++    return pred_fn, close_fn, latest_model_file
++
++
++def model_files(conf, name):
++    latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
++    if latest_model_file is None:
++        return None
++    traindata_file = PoseTools.get_train_data_file(conf,name)
++    return [latest_model_file, traindata_file + '.json']
+ 
+ 
+ if __name__ == "__main__":
+@@ -266,4 +429,5 @@ if __name__ == "__main__":
+     # plt.ioff()
+ 
+     # Wrapper for running from commandline
+-    clize.run(train)
++    #clize.run(train)
++    pass
+diff --git a/leap/utils.py b/leap/utils.py
+index cac4928..455cdc8 100644
+--- a/leap/utils.py
++++ b/leap/utils.py
+@@ -58,7 +58,7 @@ def load_dataset(data_path, X_dset="box", Y_dset="confmaps", permute=(0,3,2,1)):
+     # Adjust dimensions
+     t0 = time()
+     X = preprocess(X, permute)
+-    Y = preprocess(Y, permute)
++    # Y = preprocess(Y, permute)
+     print("Permuted and normalized data. [%.1fs]" % (time() - t0))
+     
+     return X, Y
+@@ -74,7 +74,12 @@ def preprocess(X, permute=(0,3,2,1)):
+     X = np.transpose(X, permute)
+     
+     # Normalize
+-    if X.dtype == "uint8":
+-        X = X.astype("float32") / 255
+-    
+-    return X
+\ No newline at end of file
++    # if X.dtype == "uint8":
++    #     X = X.astype("float32") / 255
++
++    newY = int(np.ceil(float(X.shape[1])/32)*32)
++    newX = int(np.ceil(float(X.shape[2])/32)*32)
++    X1 = np.zeros([X.shape[0],newY,newX,X.shape[3]]).astype('float32')
++    X1[:,:X.shape[1],:X.shape[2],:] = X
++                
++    return X1
+-- 
+2.7.4
+
