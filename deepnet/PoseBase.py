@@ -256,8 +256,10 @@ class PoseBase(PoseCommon):
         To view updated training status in APT, call self.update_and_save_td(step,sess) after each training step. Note update_and_save_td uses the output of loss function to find the loss and convert_preds_to_locs function to find the distance between prediction and labeled locations.
         '''
 
-        base_lr = self.conf.learning_rate
-        PoseCommon.train_quick(self, learning_rate=base_lr,restore=restore)
+#        base_lr = self.conf.learning_rate
+         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('base_lr',0.0001)
+
+        PoseCommon.train_quick(self, learning_rate=learning_rate,restore=restore)
 
 
 
