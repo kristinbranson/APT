@@ -5,7 +5,7 @@ from time import time
 from scipy.io import loadmat, savemat
 import re
 import shutil
-import clize
+# import clize
 import json
 import PoseTools
 import math

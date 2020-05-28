@@ -645,7 +645,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     conf.unet_rescale = conf.rescale
     conf.op_rescale = conf.rescale
-    conf.dlc_rescale = conf.rescale
+    # conf.dlc_rescale = conf.rescale
     conf.leap_rescale = conf.rescale
 
     assert not(conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
@@ -2201,17 +2201,17 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
     'all_joints': [[i] for i in range(conf.n_classes)],
     'all_joints_names': ['part_{}'.format(i) for i in range(conf.n_classes)],
     'dataset_type': 'default', #conf.dlc_augmentation_type,
-    'global_scale': 1. / conf.dlc_rescale,
+    'global_scale': 1. / conf.rescale,
     'scale_jitter_lo': min(1/conf.scale_factor_range,conf.scale_factor_range),
     'scale_jitter_up': max(1/conf.scale_factor_range,conf.scale_factor_range),
     'net_type': 'resnet_50',
     'pos_dist_thresh': 17,
-    'intermediate_supervision': False,
-    'intermediate_supervision_layer': 12,
-    'location_refinement': True,
-    'locref_huber_loss': True,
-    'locref_loss_weight': 0.05,
-    'locref_stdev': 7.2801,
+    'intermediate_supervision': conf.dlc_intermediate_supervision, # False
+    'intermediate_supervision_layer': conf.dlc_intermediate_supervision_layer, #12,
+    'location_refinement': conf.dlc_location_refinement, # True,
+    'locref_huber_loss': conf.dlc_locref_huber_loss, #True,
+    'locref_loss_weight': conf.dlc_locref_loss_weight, # 0.05,
+    'locref_stdev': conf.dlc_locref_stdev, #7.2801,
     'img_dim':conf.img_dim,
     'dlc_use_apt_preprocess':conf.dlc_use_apt_preprocess,
     'scale_factor_range':conf.scale_factor_range,
