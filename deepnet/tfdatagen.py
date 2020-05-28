@@ -21,6 +21,8 @@ if ISPY3:
     import deepposekit as dpk
 
 
+
+
 def distsquaredpts2limb(zz, startxy, sehat):
     '''
     compute squared distance from pt to line
@@ -451,9 +453,9 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
         targets = locs.copy()
 
     if not __ims_locs_preprocess_dpk_has_run__:
-        str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}, nmaps = {}'
+        str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}'
         logging.info(str.format(distort, conf.dpk_use_augmenter,
-                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs, nmaps))
+                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
         __ims_locs_preprocess_dpk_has_run__ = True
 
     return ims, locs, targets
@@ -591,10 +593,8 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             logging.warning("Last batch, size={}. padding for now.".format(nread))
 
             '''
-            AL: need to check that all preproc fns are insensitive to the bsize, esp
-            eg if imsraw.shape[0] disagrees with conf.batch_size. one place this is not
-            true is in pt.normalize_mean (see preprocess_ims). seems best if the preproc 
-            fns never require a certain bsize and just operate whatever the 0th dim is.
+            AL: PoseTools.preprocess_ims (and downstream) should be insensitive to the bsize, 
+            esp eg if imsraw.shape[0] disagrees with conf.batch_size. 
             '''
             nshort = batch_size-nread
             imsraw = np.pad(imsraw, ((0, nshort), (0, 0), (0, 0), (0, 0)),
@@ -614,7 +614,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             if isinstance(targets, list):
                 for ndx, tgt in enumerate(targets):
                     assert tgt.shape[0] == batch_size
-                    targets[ndx] = tgt[:nread, ...]
+                    targets[ndx] = tgt[:nread, ... ]
             else:
                 assert targets.shape[0] == batch_size
                 targets = targets[:nread, ...]
@@ -636,6 +636,100 @@ def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn,
         logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
+
+def create_tf_datasets(conf0,
+                       is_val=False,  # True for val, False for trn
+                       is_raw=False,  # True for raw, False for preprocessed
+                       distort=True,  # applies only if is_raw=True
+                       shuffle=True,
+                       infinite=True,
+                       dobatch=True,
+                       drawconf=True,
+                       shufflebsize=100,
+                       ):
+    '''
+    Create train/val TFRecordDatasets. This is basically PoseBaseGeneral/create_datasets
+    (or PoseCommon_dataset) but we are doing some experimenting/massaging.
+
+    cf C+P from PoseCommon_dataset
+    '''
+
+    conf = copy.deepcopy(conf0)
+
+    def _parse_function(serialized_example):
+        '''
+        C+P from PoseBaseGeneral
+        '''
+        features = tf.parse_single_example(
+            serialized_example,
+            features={'height': tf.FixedLenFeature([], dtype=tf.int64),
+                      'width': tf.FixedLenFeature([], dtype=tf.int64),
+                      'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                      'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                      'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
+                      'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                      'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                      'image_raw': tf.FixedLenFeature([], dtype=tf.string), #   'occ': tf.FixedLenFeature(shape=[conf.n_classes], default_value=None, dtype=tf.float32),
+                      })
+        image = tf.decode_raw(features['image_raw'], tf.uint8)
+        trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
+        image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+
+        locs = tf.cast(features['locs'], tf.float32)
+        exp_ndx = tf.cast(features['expndx'], tf.float32)
+        ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
+        info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
+        #occ = tf.cast(features['occ'], tf.bool)
+        return image, locs, info # , occ
+
+    def pp_dpk_conf(imsraw, locsraw):
+        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+                                                       locsraw,
+                                                       conf,
+                                                       distort,
+                                                       draw_conf_maps=True)
+        return ims.astype('float32'), tgts.astype('float32')
+
+    def pp_dpk_noconf(imsraw, locsraw):
+        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+                                                       locsraw,
+                                                       conf,
+                                                       distort,
+                                                       draw_conf_maps=False)
+        return ims.astype('float32'), tgts.astype('float32')
+
+    train_db = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+    if is_val:
+        val_db = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
+        if os.path.exists(val_db) and os.path.getsize(val_db) > 0:
+            logging.info("Val DB exists: Data for validation from:{}".format(val_db))
+        else:
+            logging.warning("Val DB does not exist: Data for validation from:{}".format(train_db))
+            val_db = train_db
+        dbfile = val_db
+    else:
+        dbfile = train_db
+
+    ds = tf.data.TFRecordDataset(dbfile)
+    ds = ds.map(map_func=_parse_function)
+    if infinite:
+        ds = ds.repeat()
+    if shuffle:
+        ds = ds.shuffle(buffer_size=shufflebsize)
+    if dobatch:
+        ds = ds.batch(conf.batch_size)
+    if is_raw:
+        pass
+        # raw parse; return image, locs, info, occ
+    else:
+        ppfunc = pp_dpk_conf if drawconf else pp_dpk_noconf
+        def dataAugPyFunc(ims, locs, info):
+            return tuple(tf.py_func(ppfunc, [ims, locs], [tf.float32, ] * 2))
+
+        ds = ds.map(map_func=dataAugPyFunc)
+
+    return ds
+
 
 if __name__ == "__main__":
 
