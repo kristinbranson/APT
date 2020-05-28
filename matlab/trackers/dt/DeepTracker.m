@@ -1915,10 +1915,12 @@ classdef DeepTracker < LabelTracker
       if isexternal
         movfiles = tblMFT;
         % cropRois: if tfexternal, cell array of [nviewx4]
-        [trxfiles,trkfiles,f0,f1,cropRois,targets,iview,calibrationfiles] = myparse(varargin,...
+        [trxfiles,trkfiles,f0,f1,cropRois,targets,iview,...
+          calibrationfiles,calibrationdata] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{},...
           'iview',nan,... % used only if tfSerialMultiMov; CURRENTLY UNSUPPORTED
-          'calibrationfiles',{}...
+          'calibrationfiles',{},...
+          'calibrationdata',{}...
           );
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
         [nmovies,nviews] = size(movfiles); 
@@ -1945,7 +1947,16 @@ classdef DeepTracker < LabelTracker
         trkfilesexist = cellfun(@exist,trkfiles);
         if any(trkfilesexist(:)),
           trkfilesdelete = trkfiles(trkfilesexist>0);
-          res = questdlg([{'The following output trk files already exist. Delete them?'};trkfilesdelete(:)],'Delete existing trk files?','Delete','Cancel','Cancel');
+          trkfilesdelete = trkfilesdelete(:);
+          ndel = numel(trkfilesdelete);
+          MAXTRKFILESDEL = 8;
+          if ndel <= MAXTRKFILESDEL
+            qstr = [{'The following output trk files already exist. Delete them?'};trkfilesdelete];
+          else
+            qstr = sprintf('The following output trk files (%d total) already exist. Delete them?',ndel);
+            qstr = [{qstr}; trkfilesdelete(1:MAXTRKFILESDEL); {'...<snip>...'}];
+          end
+          res = questdlg(qstr,'Delete existing trk files?','Delete','Cancel','Cancel');
           if strcmpi(res,'Delete'),
             for i = 1:numel(trkfilesdelete),
               delete(trkfilesdelete{i});
@@ -4385,14 +4396,16 @@ classdef DeepTracker < LabelTracker
         '/groups/branson/home'
         '/nrs/branson'
         '/scratch'};      
+      dobj = DLBackEndClass(1);
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/misc/local/singularity/branson_cuda10_mayank.simg');
-      
+        'singimg',sprintf('docker://%s:%s', dobj.dockerimgroot ,dobj.dockerimgtag));
+      %'/misc/local/singularity/branson_cuda10_mayank.simg');
+      delete(dobj);
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
-      codestr = sprintf('singularity exec --nv %s %s bash -c ". /opt/venv/bin/activate && %s"',...
+      codestr = sprintf('singularity exec --nv %s %s bash -c "%s"',...
         Bflagsstr,singimg,basecmd);
     end
     
@@ -5911,18 +5924,19 @@ classdef DeepTracker < LabelTracker
   methods
     function labelerMovieRemoved(obj,edata)
       mIdxOrig2New = edata.mIdxOrig2New;
-      tfLabeledRowRemoved = ~isempty(edata.mIdxRmedHadLbls);
-      if tfLabeledRowRemoved
+      tfLabeledTrainingRowRemoved = ~isempty(edata.mIdxRmedHadLbls) && ...
+                                    edata.mIdxRmedHadLbls>0; % negative indices indicate GT movie(s)
+      if tfLabeledTrainingRowRemoved
         warningNoTrace('Labeled row(s) removed from project. Clearing trained tracker and tracking results.');
         obj.initHook();
       else
         % relabel movie indices
         obj.movIdx2trkfile = mapKeyRemap(obj.movIdx2trkfile,mIdxOrig2New);
         
-        % this might not be nec b/c the preds for current movie might not
-        % ever change
-        obj.trackCurrResUpdate();
-        obj.newLabelerFrame();
+        % skip this stuff; current movie can never be removed so preds for
+        % current movie should not change
+        %obj.trackCurrResUpdate();
+        %obj.newLabelerFrame();
       end      
     end
     function labelerMoviesReordered(obj,edata)

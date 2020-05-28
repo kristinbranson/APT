@@ -2,7 +2,7 @@
 Modified by Mayank Kabra
 
 Adapted from DeepLabCut2.0 Toolbox (deeplabcut.org)
-© A. & M. Mathis Labs
+copyright A. & M. Mathis Labs
 https://github.com/AlexEMG/DeepLabCut
 
 Please see AUTHORS for contributors.
@@ -178,7 +178,7 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         cfg['batch_size']=1 #in case this was edited for analysis.-
 
     dataset = create_dataset(cfg)
-    # kk = dataset.next_batch() # for debugging
+    kk = dataset.next_batch() # for debugging
     batch_spec = get_batch_spec(cfg)
     batch, enqueue_op, placeholders = setup_preloading(batch_spec)
     net = pose_net(cfg)
@@ -294,9 +294,9 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
             saver.save(sess, model_name, global_step=it)
 
     lrf.close()
-    sess.close()
     coord.request_stop()
     coord.join([thread],stop_grace_period_secs=60,ignore_live_threads=True)
+    sess.close()
 
     #return to original path.
     os.chdir(str(start_path))

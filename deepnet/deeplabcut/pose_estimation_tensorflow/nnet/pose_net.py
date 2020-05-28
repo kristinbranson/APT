@@ -1,13 +1,17 @@
-'''
+"""
 Modified by Mayank Kabra
+Adapted from DeepLabCut2.0 Toolbox (deeplabcut.org)
+Copyright A. & M. Mathis Labs
+https://github.com/AlexEMG/DeepLabCut
 
-Adapted from deeplabcut
+Please see AUTHORS for contributors.
+https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+Licensed under GNU Lesser General Public License v3.0
 
-Adopted: DeeperCut by Eldar Insafutdinov
+Adapted from DeeperCut by Eldar Insafutdinov
 https://github.com/eldar/pose-tensorflow
 
-'''
-
+"""
 import re
 import tensorflow as tf
 import tensorflow.contrib.slim as slim

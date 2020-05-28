@@ -2,7 +2,7 @@
 Modified by Mayank Kabra
 
 Original from DeepLabCut2.0 Toolbox (deeplabcut.org)
-© A. & M. Mathis Labs
+copyright A. & M. Mathis Labs
 https://github.com/AlexEMG/DeepLabCut
 
 Please see AUTHORS for contributors.
@@ -42,8 +42,9 @@ else: #standard use [wxpython supported]
 if os.environ.get('Colab', default=False) == 'True':
     print("Project loaded in colab-mode. Apparently Colab has trouble loading statsmodels, so the smoothing & outlier frame extraction is disabled. Sorry!")
 else:
+    pass
     # from deeplabcut.refine_training_dataset import extract_outlier_frames, merge_datasets
-    from deeplabcut.post_processing import filterpredictions, analyzeskeleton
+    #    from deeplabcut.post_processing import filterpredictions, analyzeskeleton
 
 
 # Train, evaluate & predict functions / require TF

@@ -138,6 +138,7 @@ function [hPropsPane,parameters] = propertiesGUI(hParent, parameters, filename, 
 
 % Programmed and Copyright by Yair M. Altman: altmany(at)gmail.com
 % $Revision: 1.15 $  $Date: 2015/03/12 12:37:46 $
+% Minor modifications for new Matlab version compatibility by Allen Lee. 
 
   % Get the initial data
   global test_data

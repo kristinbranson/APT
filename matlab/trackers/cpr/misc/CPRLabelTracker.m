@@ -50,23 +50,6 @@ classdef CPRLabelTracker < LabelTracker
   %   .pTrx [1x2*nview] (x,y) trx center/coord for target
   %   .roi [1x2*2*nview] square ROI in each view
   
-  %% Data
-  properties
-    
-    % Cached/working dataset. Contains all I/p/md for frames that have been
-    % seen before by the tracker.
-    % - Can be used for both training and tracking.
-    %
-    % - All frames have an image, but need not have labels (p).
-    % - If applicable, all frames are HE-ed the same way.
-    % - If applicable, all frames are PP-ed the same way.
-    %
-    % MD fields: .mov, .frm, .iTgt, .tfocc, (optional) .pTrx, (optional) .roi. 
-    %data
-    
-    % Timestamp, last data modification (for any reason)
-    %dataTS
-  end
   
   %% Training Data Selection
   properties (SetObservable,SetAccess=private)
@@ -1810,8 +1793,46 @@ classdef CPRLabelTracker < LabelTracker
       end
       tblfldscontainsassert(tblMFT,MFTable.FLDSID);
       assert(isa(tblMFT.mov,'MovieIndex'));
-      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE)) % odd condition, prob not really what we want to check
+      
+      nFrmTrk = size(tblMFT,1);
+      iChunkStarts = 1:movChunkSize:nFrmTrk;
+      nChunk = numel(iChunkStarts);
+      isMultiChunk = nChunk>1;
+      
+      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
+        %if ~isMultiChunk
         tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
+        % AL 20200521 very long/multitarget movies were slowed way down by 
+        % the following label compilation steps. Did some optim so hopefully
+        % better now; alternatively, could possibly skip these steps as per 
+        % commented out code.
+%         else
+%           npts = obj.lObj.nLabelPoints; % includes all views
+%           pdummy = nan(nFrmTrk,npts*2);
+%           tfoccdummy = false(nFrmTrk,npts);
+%           tblMFT.p = pdummy;
+%           tblMFT.tfocc = tfoccdummy;
+%           
+%           obj.lObj.preProcInitData();
+%           ocMultiChunkPPDB = onCleanup(@()obj.lObj.preProcInitData());
+%           % We add dummy labels/occ with the right size to tblMFT. The
+%           % preProcDB will get updated with this bogus info, but the
+%           % onCleanup here will guarantee it gets cleaned up. Note in the 
+%           % multichunk case we are also calling preProcInitData() after 
+%           % every chunk during the regular codepath. Note:
+%           %
+%           % * The OC should work with ctrl-C (in addition to any harderr) 
+%           % * Even if the OC were not to work, the preProcData DB might be
+%           % fine as the normal update machinery does check the .p/.tfocc
+%           % values for updated labels etc.
+%           % * The dummy fields we are adding here might not encompass all
+%           % metadata fields added during normal operation; hence the
+%           % immediate call to .preProcInitData
+%         end  
+        % We need this call even if multiChunk is true for metadata eg:
+        % .thetaTrx is used for aligning to orientation during RC
+        % propagation
+        % .roi gets used (added to trkfile) as metadata
         tblMFT = obj.lObj.preProcCropLabelsToRoiIfNec(tblMFT);
       end
       if obj.lObj.hasTrx || obj.lObj.cropProjHasCrops
@@ -1824,9 +1845,7 @@ classdef CPRLabelTracker < LabelTracker
       % want to run hlpTrackWrapupViz.
       oc = onCleanup(@()hlpTrackWrapupViz(obj));
       
-      nFrmTrk = size(tblMFT,1);
-      iChunkStarts = 1:movChunkSize:nFrmTrk;
-      nChunk = numel(iChunkStarts);
+
       if tfWB && nChunk>1
         wbObj.startPeriod('Tracking chunks','shownumden',true,'denominator',nChunk);
         oc2 = onCleanup(@()wbObj.endPeriod());
@@ -1836,7 +1855,7 @@ classdef CPRLabelTracker < LabelTracker
       
       for iChunk=1:nChunk
         
-        if tfWB && nChunk>1
+        if tfWB && isMultiChunk
           wbObj.updateFracWithNumDen(iChunk);
         end
         
@@ -1848,7 +1867,7 @@ classdef CPRLabelTracker < LabelTracker
         
         %%% data
         
-        if nChunk>1
+        if isMultiChunk
           % In this case we assume we are dealing with a 'big movie' and
           % don't preserve/cache data
           obj.lObj.preProcInitData();
@@ -2370,11 +2389,7 @@ classdef CPRLabelTracker < LabelTracker
       mIdx = keys(vals==0);
       mIdx = MovieIndex(mIdx);
       assert(isscalar(mIdx)); % for now
-      
-%       % .data*. Remove any removed movies from .data cache, relabel MD.mov
-%       obj.data.movieRemap(mIdxOrig2New);
-%     AL: Now done in Labeler
-      
+            
       % trnData*. If a movie is being removed that is in trnDataTblP, to be 
       % safe we invalidate any trained tracker and tracking results.
       tfRm = obj.trnDataTblP.mov==mIdx;

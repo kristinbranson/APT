@@ -248,6 +248,14 @@ classdef LabelCoreTemplate < LabelCore
         return;
       end
       
+      [tflbl2,lpos2] = lObj.labels2IsCurrMovFrmLbled(iTgt1);
+      if tflbl2
+        occ2 = false(size(lpos2,1),1); % currently labeledpos2 has no occ/tag fld
+        obj.assignLabelCoords(lpos2,'lblTags',occ2);
+        obj.enterAdjust(LabelCoreTemplateResetType.RESETPREDICTED,false);
+        return;
+      end      
+      
       if iTgt0==iTgt1 % same target, new frame
         if lObj.hasTrx
           % existing points are aligned onto new frame based on trx at

@@ -1,7 +1,19 @@
-'''
-Source: DeeperCut by Eldar Insafutdinov
+"""
+Modified by Mayank Kabra
+Adapted from DeepLabCut2.0 Toolbox (deeplabcut.org)
+
+DeepLabCut2.0 Toolbox (deeplabcut.org)
+copyright A. & M. Mathis Labs
+https://github.com/AlexEMG/DeepLabCut
+
+Please see AUTHORS for contributors.
+https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+Licensed under GNU Lesser General Public License v3.0
+
+Adapted from DeeperCut by Eldar Insafutdinov
 https://github.com/eldar/pose-tensorflow
-'''
+
+"""
 import tensorflow as tf
 vers = (tf.__version__).split('.')
 if int(vers[0])==1 and int(vers[1])>12:

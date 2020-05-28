@@ -25,7 +25,7 @@ from multiResData import float_feature, int64_feature,bytes_feature,trx_pts, che
 # from multiResData import *
 import leap.training
 from leap.training import train as leap_train
-import open_pose
+# import open_pose
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
@@ -171,7 +171,7 @@ def parse_frame_arg(framein,nMovies,defaultval):
             else:
                 frameout = [framein] * nMovies
         else:
-            frameout = map(lambda x: np.Inf if (x < 0) else x,framein)
+            frameout = list(map(lambda x: np.Inf if (x < 0) else x,framein))
             if len(frameout) < nMovies:
                 frameout = frameout + [defaultval]*(nMovies-len(frameout))
     assert len(frameout) == nMovies
@@ -1895,7 +1895,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
     else:
         logging.exception("Did not successfully write output to %s"%out_file_tmp)
 
-def classify_movie(conf, pred_fn,
+def classify_movie(conf, pred_fn, model_type,
                    mov_file='',
                    out_file='',
                    trx_file=None,
@@ -1927,6 +1927,7 @@ def classify_movie(conf, pred_fn,
     n_frames = int(cap.get_n_frames())
     T, first_frames, end_frames, n_trx = get_trx_info(trx_file, conf, n_frames)
     trx_ids = get_trx_ids(trx_ids, n_trx, conf.has_trx_file)
+    conf.batch_size = 1 if model_type == 'deeplabcut' else conf.batch_size
     bsize = conf.batch_size
     flipud = conf.flipud
 
@@ -2075,7 +2076,7 @@ def classify_movie_all(model_type, **kwargs):
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
     logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
-        classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
+        classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
         close_fn()
         logging.exception('Could not track movie')
@@ -2227,6 +2228,7 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
                  'use_scale_factor_range':conf.use_scale_factor_range,
                  'imsz':conf.imsz,
                  'imax':conf.imax,
+                 'check_bounds_distort': conf.check_bounds_distort,
 
     # 'minsize':minsz,
     #              'leftwidth':wd_x,

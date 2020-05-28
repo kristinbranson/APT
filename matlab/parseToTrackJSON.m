@@ -1,4 +1,4 @@
-function [movfiles,trkfiles,trxfiles,cropRois,calibrationfiles,targets,f0s,f1s] = parseToTrackJSON(jsonfile,lObj)
+function toTrackOut = parseToTrackJSON(jsonfile,lObj)
 
 res = jsondecode(fileread(jsonfile));
 assert(isfield(res,'toTrack'));
@@ -15,16 +15,16 @@ end
 nviews = lObj.nview;
 nmovies = numel(toTrack);
 
-assert(all(isfield(toTrack,{'movie_files','output_files'})));
+assert(all(isfield(toTrack,{'movie_files','output_files'})),'movie_files and output_files must be specified');
 
 needCalibration = lObj.isMultiView && ...
   ~strcmpi(lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
 if needCalibration,
-  assert(isfield(toTrack,'calibration_file'));
+  assert(isfield(toTrack,'calibration_file','calibration_file must be specified'));
 end
 needTrx = lObj.hasTrx;
 if needTrx,
-  assert(isfield(toTrack,'trx_files'));
+  assert(isfield(toTrack,'trx_files'),'trx_files must be specified');
 end
 hasCrop = isfield(toTrack,'crop_rois');
 % 
@@ -58,9 +58,11 @@ for i = 1:nmovies,
   end
   
   % calibration file - multiview only
-  if needCalibration,
+  %if needCalibration,
+  if isfield(toTrack,'calibration_file')
     calibrationfiles{i} = toTrack(i).calibration_file;
   end
+  %end
   
   if hasCrop && ~isempty(toTrack(i).crop_rois),
     cropRois_curr = parseViews(toTrack(i).crop_rois,nviews,false);
@@ -85,6 +87,16 @@ for i = 1:nmovies,
   if isfield(toTrack(i),'frame1') && ~isempty(toTrack(i).frame1),
     f1s(i) = toTrack(i).frame1;
   end
+  
+  toTrackOut = struct;
+  toTrackOut.movfiles = movfiles;
+  toTrackOut.trkfiles = trkfiles;
+  toTrackOut.trxfiles = trxfiles;
+  toTrackOut.cropRois = cropRois;
+  toTrackOut.calibrationfiles = calibrationfiles;
+  toTrackOut.targets = targets;
+  toTrackOut.f0s = f0s;
+  toTrackOut.f1s = f1s;
   
 end
 

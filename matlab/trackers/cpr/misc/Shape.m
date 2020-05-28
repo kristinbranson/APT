@@ -6,7 +6,8 @@ classdef Shape
       % xy: [nptsx2]
       % p: [1x2*npts]
       assert(size(xy,2)==2);
-      p = [xy(:,1);xy(:,2)]';
+      %p = [xy(:,1);xy(:,2)]';
+      p = xy(:).';
     end
     
     function xy = vec2xy(p)
@@ -718,51 +719,42 @@ classdef Shape
       % Currently we do this with a fixed radius and warn if a shape falls 
       % outside the ROI.
       % 
-      % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is 
+      % xy: [npt x 2 x n] xy coords. npt=nphysPts*nview, raster order is 
       %   ipt,iview. Can be nans
-      % xyTrx: [nviewx2] xy coords of trx center for this shape
+      % xyTrx: [nview x 2 x n] xy coords of trx center for this shape
       % nphysPts: scalar
       % radius: roi square radius, in px, must be integer
       %
-      % roi: [1x4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      % roi: [n x 4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
       %   Square roi based on xyTrx.
       %   NOTE: roi may be outside range of image, eg xlo could be negative
       %   or xhi could exceed number of cols.
-      % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
+      % tfOOBview: [n x nview] logical. If true, shape is out-of-bounds of
       %   trx ROI box in that view. A shape with nan coords is not 
       %   considered OOB.
-      % xyRoi: [nptx2] xy coords relative to ROIs; x==1 => first col of
-      %   ROI etc.
+      % xyRoi: [npt x 2 x n] xy coords relative to ROIs; x==1 => first col 
+      %   of ROI etc.
       
-      [npt,d] = size(xy);
+      [npt,d,n] = size(xy);
       assert(d==2);
       nview = npt/nphysPts;
-      szassert(xyTrx,[nview 2]);
+      szassert(xyTrx,[nview 2 n]);
       validateattributes(radius,{'numeric'},{'positive' 'integer'});
       
-      roi = nan(1,4*nview);
-      tfOOBview = false(1,nview);
-      xyRoi = nan(npt,2);
+      roi = nan(n,4*nview);
       for iview=1:nview
-        x0 = round(xyTrx(iview,1));
-        y0 = round(xyTrx(iview,2));
+        x0 = round(xyTrx(iview,1,:)); % [1 x 1 x n]
+        y0 = round(xyTrx(iview,2,:)); % etc
         xlo = x0-radius;
         xhi = x0+radius;
         ylo = y0-radius;
         yhi = y0+radius;
         
-        % Could factor this + call xy2xyROI
-        ipts = (1:nphysPts)+nphysPts*(iview-1);
-        xs = xy(ipts,1);
-        ys = xy(ipts,2);
-        tfOOBx = xs<xlo | xs>xhi;
-        tfOOBy = ys<ylo | ys>yhi;
-
-        roi((1:4)+4*(iview-1)) = [xlo xhi ylo yhi];
-        tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
-        xyRoi(ipts,1) = xs-xlo+1;
-        xyRoi(ipts,2) = ys-ylo+1;
+        roicols = (1:4) + (iview-1)*4;
+        roi(:,roicols) = [xlo(:) xhi(:) ylo(:) yhi(:)];
       end
+      
+      [xyRoi,tfOOBview] = Shape.xy2xyROI(xy,roi,nphysPts);
     end
     
     function [xyRoi,tfOOBview] = xy2xyROI(xy,roi,nphyspts)

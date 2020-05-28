@@ -3,7 +3,7 @@
 Modified by Mayank Kabra
 
 Original by DeepLabCut2.0 Toolbox (deeplabcut.org)
-© A. & M. Mathis Labs
+copyright A. & M. Mathis Labs
 https://github.com/AlexEMG/DeepLabCut
 Please see AUTHORS for contributors.
 

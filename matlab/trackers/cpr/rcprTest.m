@@ -38,6 +38,8 @@ function [p,pRT,p_t,fail] = rcprTest( Is, regModel, varargin )
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
+% Modified by Allen Lee, Kristin Branson
+
 dfs = {'pInit',[],'RT1',1,'regPrm','REQ','verbose',1,...
   'initData',[],'prunePrm',struct('prune',0)};
 [pIni,RT1,regPrm,verbose,initD,prunePrm] = getPrmDflt(varargin,dfs,1);

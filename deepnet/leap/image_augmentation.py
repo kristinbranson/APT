@@ -1,3 +1,6 @@
+''' Modified by Mayank Kabra
+From LEAP https://github.com/talmo/leap by Talmo Pereira
+'''
 import cv2
 import numpy as np
 import keras
@@ -158,4 +161,4 @@ class MultiInputOutputPairedImageAugmenter(PairedImageAugmenter):
     def __getitem__(self, batch_idx):
         X,Y = super(MultiInputOutputPairedImageAugmenter,self).__getitem__(batch_idx)
         return ({k: X for k in self.input_names}, {k: Y for k in self.output_names})
-    
+

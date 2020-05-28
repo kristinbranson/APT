@@ -1,6 +1,8 @@
 """
-DeepLabCut2.0 Toolbox (deeplabcut.org)
-© A. & M. Mathis Labs
+modified by Mayank Kabra
+
+Adapated from DeepLabCut2.0 Toolbox (deeplabcut.org)
+copyright A. & M. Mathis Labs
 https://github.com/AlexEMG/DeepLabCut
 Please see AUTHORS for contributors.
 
@@ -15,13 +17,13 @@ import matplotlib as mpl
 import platform
 from pathlib import Path
 
-if os.environ.get('DLClight', default=False) == 'True':
-    mpl.use('AGG') #anti-grain geometry engine #https://matplotlib.org/faq/usage_faq.html
-    pass
-elif platform.system() == 'Darwin':
-    mpl.use('WXAgg')
-else:
-    mpl.use('TkAgg') #TkAgg
+#if os.environ.get('DLClight', default=False) == 'True':
+#    mpl.use('AGG') #anti-grain geometry engine #https://matplotlib.org/faq/usage_faq.html
+#    pass
+#elif platform.system() == 'Darwin':
+#    mpl.use('WXAgg')
+#else:
+#    mpl.use('TkAgg') #TkAgg
 import matplotlib.pyplot as plt
 
 def get_cmap(n, name='hsv'):

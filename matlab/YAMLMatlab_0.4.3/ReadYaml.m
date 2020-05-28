@@ -24,6 +24,9 @@
 %                        ordinary matrix whenever possible (1).
 %   dictionary       ... Dictionary of of labels that will be replaced,
 %                        struct is expected
+
+% Modified by Allen Lee
+								
 function result = ReadYaml(filename, nosuchfileaction, makeords, treatasdata, dictionary)
     if ~exist('nosuchfileaction','var')
         nosuchfileaction = 0;

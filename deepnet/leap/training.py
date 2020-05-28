@@ -1,3 +1,6 @@
+''' Modified by Mayank Kabra
+From LEAP https://github.com/talmo/leap by Talmo Pereira
+'''
 import numpy as np
 import h5py
 import os
@@ -306,6 +309,8 @@ def train(data_path,
     # Train!
     epoch0 = 0
     t0_train = time()
+    use_multiprocessing = False if box.shape[0] < 300 else True
+    model.save(str(os.path.join(run_path, run_name + '-{}'.format(0))))
     training = model.fit_generator(
             train_datagen,
             initial_epoch=epoch0,
