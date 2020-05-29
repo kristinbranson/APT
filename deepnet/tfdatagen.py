@@ -446,10 +446,11 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
             y[..., conf.n_classes:] *= conf.dpk_graph_scale  # scale grps, limbs, globals
 
         if conf.dpk_n_outputs > 1:
-            y = [y for idx in range(conf.dpk_n_outputs)]
+            y = [y for _ in range(conf.dpk_n_outputs)]
 
         targets = y
     else:
+        assert conf.dpk_n_outputs == 1
         targets = locs.copy()
 
     if not __ims_locs_preprocess_dpk_has_run__:
@@ -638,6 +639,7 @@ def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn,
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
 
 def create_tf_datasets(conf0,
+                       n_outputs,
                        is_val=False,  # True for val, False for trn
                        is_raw=False,  # True for raw, False for preprocessed
                        distort=True,  # applies only if is_raw=True
@@ -655,6 +657,7 @@ def create_tf_datasets(conf0,
     '''
 
     conf = copy.deepcopy(conf0)
+    conf.dpk_n_outputs = 1  # outputs are handled here rather than in pp methods
 
     def _parse_function(serialized_example):
         '''
@@ -722,14 +725,56 @@ def create_tf_datasets(conf0,
         pass
         # raw parse; return image, locs, info, occ
     else:
-        ppfunc = pp_dpk_conf if drawconf else pp_dpk_noconf
-        def dataAugPyFunc(ims, locs, info):
-            return tuple(tf.py_func(ppfunc, [ims, locs], [tf.float32, ] * 2))
+        # iss1: set_shape
+        # iss2: returning output list/tuple
+        if drawconf:
+            def dataAugPyFunc(ims, locs, info):
+                # not sure why we need call to tuple
+                ims, tgts = tuple(tf.py_func(pp_dpk_conf, [ims, locs], [tf.float32, ] * 2))
+                ims.set_shape([None,] * 4)  # ims
+                tgts.set_shape([None,] * 4)  # confmaps/tgts
+                tgtslist = tuple([tgts for _ in range(n_outputs)])
 
-        ds = ds.map(map_func=dataAugPyFunc)
+                # print("The shape of res[1] is {}".format(res[1].shape))
+                return ims, tgtslist
+
+            ds = ds.map(map_func=dataAugPyFunc)
+        else:
+            def dataAugPyFunc(ims, locs, info):
+                res = tuple(tf.py_func(pp_dpk_noconf, [ims, locs], [tf.float32, ] * 2))
+                res[0].set_shape([None, ] * 4)  # ims
+                res[1].set_shape([None, ] * 3)  # locs
+                return res
+
+            ds = ds.map(map_func=dataAugPyFunc)
+            assert n_outputs == 1
 
     return ds
 
+def read_ds_idxed(ds, indices):
+    it = ds.make_one_shot_iterator()
+    nextel = it.get_next()
+    c = 0
+    res = []
+    with tf.Session() as sess:
+        while True:
+            restmp = sess.run(nextel)
+            if c in indices:
+                res.append(restmp)
+                print("Got {}".format(c))
+            c += 1
+            if all([c>x for x in indices]):
+                break
+    return res
+
+def xylist2xyarr(xylist, xisscalarlist=False):
+    x, y  = zip(*xylist)
+    if xisscalarlist:
+        assert all([len(z)==1 for z in x])
+        x = [z[0] for z in x]
+    x = np.concatenate(x,axis=0)
+    y = np.concatenate(y,axis=0)
+    return x, y
 
 if __name__ == "__main__":
 
