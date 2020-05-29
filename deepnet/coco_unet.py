@@ -170,7 +170,7 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         train_dataset = train_dataset.shuffle(buffer_size=100)
 #train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=20)
 #       train_dataset = train_dataset.batch(self.conf.batch_size)
-        train_dataset = train_dataset.apply(tf.contrib.data.map_and_batch(map_func=py_map_train, batch_size=self.conf.batch_size,num_parallel_batches=15))
+        train_dataset = train_dataset.apply(tensorflow.contrib.data.map_and_batch(map_func=py_map_train, batch_size=self.conf.batch_size,num_parallel_batches=15))
         train_dataset = train_dataset.prefetch(buffer_size=100)
 
         val_dataset = val_dataset.repeat()
