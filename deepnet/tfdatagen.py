@@ -725,8 +725,10 @@ def create_tf_datasets(conf0,
         pass
         # raw parse; return image, locs, info, occ
     else:
-        # iss1: set_shape
-        # iss2: returning output list/tuple
+        # TF issues encountered
+        # * set_shape after py_func. https://github.com/tensorflow/tensorflow/issues/24520
+        # * ds.map concats lists into Tensors. use a tuple
+        #   https://github.com/tensorflow/tensorflow/issues/20698
         if drawconf:
             def dataAugPyFunc(ims, locs, info):
                 # not sure why we need call to tuple

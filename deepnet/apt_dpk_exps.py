@@ -593,11 +593,14 @@ def exp2orig_create_tfrs(expname_from, cacheroot, dset, expname=None):
     print("writing to {}, {}".format(train_tf, val_tf))
     apt_dpk.apt_db_from_datagen(dg, train_tf, val_idx=validx0b, val_tf=val_tf)
 
-def exp2orig_train(expname, dset, cacheroot,
+def exp2orig_train(expname,
+                   dset,
+                   cacheroot,
                    runname='deepnet',
                    shortdebugrun=False,
                    returnsdn=False,  # return model right before calling fit()
                    bsize=16,
+                   usetfdata=True,
                    ):
 
     iaver = ia.__version__
@@ -610,6 +613,7 @@ def exp2orig_train(expname, dset, cacheroot,
     h5dset = dbs[dset]['h5dset']
     dg = dpk.io.DataGenerator(h5dset)
     conf = exp1orig_create_base_conf(expname, cacheroot, dset)
+    # conf.img_dim=1?
     conf = apt_dpk.update_conf_dpk(conf,
                                    dg.graph,
                                    dg.swap_index,
@@ -618,6 +622,8 @@ def exp2orig_train(expname, dset, cacheroot,
                                    useimgaug=True,
                                    imgaugtype=dset)
     update_conf_rae(conf)
+
+    conf.dpk_use_tfdata = usetfdata
 
     # try to match exp1orig
     conf.batch_size = bsize
@@ -647,19 +653,49 @@ def exp2orig_train(expname, dset, cacheroot,
         epochs = 8
     else:
         epochs = conf.dl_steps // conf.display_step
+    steps_per_epoch = conf.display_step
 
     if returnsdn:
         return sdn
 
-    sdn.fit(
-        batch_size=conf.batch_size,
-        validation_batch_size=conf.batch_size,
-        callbacks=cbks,
-        epochs=epochs,
-        steps_per_epoch=conf.display_step,
-        validation_steps=nvalbatch, # max_queue_size=1,
-        verbose=2
-    )
+    if conf.dpk_use_tfdata:
+        # separate 'manual' fit for tfdata. this mirror sdn.fit()
+
+        dstrn = sdn.train_generator(sdn.n_outputs,
+                                    bsize,
+                                    validation=False,
+                                    confidence=True,
+                                    shuffle=True,
+                                    infinite=True)
+        dsval = sdn.train_generator(sdn.n_outputs,
+                                    bsize,
+                                    validation=True,
+                                    confidence=True,
+                                    shuffle=False,
+                                    infinite=False)
+        sdn.activate_callbacks(cbks)
+
+        train_model = sdn.train_model
+
+        train_model.fit(dstrn,
+                        epochs=epochs,
+                        steps_per_epoch=steps_per_epoch,
+                        verbose=2,
+                        callbacks=cbks,
+                        validation_data=dsval,
+                        validation_steps=nvalbatch,
+                        )
+
+    else:
+        sdn.fit(
+            epochs=epochs,
+            steps_per_epoch=steps_per_epoch,
+            batch_size=conf.batch_size,
+            verbose=2,
+            callbacks=cbks,
+            validation_steps=nvalbatch, # max_queue_size=1,
+            validation_batch_size=conf.batch_size,
+        )
 
     '''
     AL20200514. K.Model.fit_generator() issues: 

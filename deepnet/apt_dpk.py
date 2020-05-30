@@ -641,6 +641,8 @@ def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
 
 def compile(conf):
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
+    logging.info("tgtfr.use_tfdata: {}".format(tgtfr.use_tfdata))
+
     sdn = StackedDenseNet(tgtfr,
                           n_stacks=conf.dpk_n_stacks,
                           growth_rate=conf.dpk_growth_rate,

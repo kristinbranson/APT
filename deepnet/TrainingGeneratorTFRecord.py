@@ -120,7 +120,7 @@ class TrainingGeneratorTFRecord:
         self.keypoints_shape = locs0.shape[1:]
         assert self.keypoints_shape == (conf.n_classes, 2,)
 
-        self.use_tfdata = False  # set to True to use tfdatas instead of generators
+        self.use_tfdata = conf.dpk_use_tfdata  # set to True to use tfdatas instead of generators
 
         #self.batch_size = 32
         #self.n_outputs = 1
@@ -374,7 +374,8 @@ class TrainingGeneratorTFRecord:
             "random_seed": self.random_seed,
             "augmenter": self.conf.dpk_use_augmenter,
             "image_shape": self.image_shape,
-            "keypoints_shape": self.keypoints_shape
+            "keypoints_shape": self.keypoints_shape,
+            "use_tfdata": self.use_tfdata,
         }
         return config  # xxxAL image_height
         #base_config = self.generator.get_config()
