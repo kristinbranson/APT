@@ -312,10 +312,11 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
         info = info[:, 0].copy()
         yield ims, locs, info
 
-def exp1orig_assess_set(dset, cacheroot, expnamebase, runrange, **kwargs):
+def exp1orig_assess_set(dset, cacheroot, expnamebase, runrange,
+                        runpat='{}_run{}',**kwargs):
     eresall = []
     for run in runrange:
-        expname = "{}_run{}".format(expnamebase, run)
+        expname = runpat.format(expnamebase, run)
         eres = exp1orig_assess(dset, cacheroot, expname, **kwargs)
         eresall.append(eres)
 
