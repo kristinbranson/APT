@@ -764,15 +764,22 @@ classdef Labeler < handle
     end
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
       % Warning: Expensive to call. Call me once and then index rather than
-      % using a compound indexing-expr.
-      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      % using a compound indexing-expr.      
+      assert(all(isa(mIdx,'MovieIndex')));
       [iMov,gt] = mIdx.get();
-      if gt
-        v = obj.trxFilesAllGTFull(iMov,:);
-      else
-        v = obj.trxFilesAllFull(iMov,:);
+      n = numel(iMov);
+      v = cell(n,obj.nview);
+      tfaf = obj.trxFilesAllFull;
+      tfafGT = obj.trxFilesAllGTFull;
+      for i=1:n
+        if gt
+          v(i,:) = tfafGT(iMov(i),:);
+        else
+          v(i,:) = tfaf(iMov(i),:);
+        end
       end
     end
+    
     function v = get.hasMovie(obj)
       v = obj.hasProject && obj.movieReader(1).isOpen;
     end    
@@ -11970,17 +11977,28 @@ classdef Labeler < handle
         tfhascrop = false;
         roi = [];
       else
-        PROPS = obj.gtGetSharedProps();
-        cropInfo = obj.(PROPS.MFACI){iMov};
-        if isempty(cropInfo)
-          tfhascrop = false;
-          roi = [];
-        else
-          tfhascrop = true;
-          roi = cat(1,cropInfo.roi);
-          szassert(roi,[obj.nview 4]);
-        end
+        [tfhascrop,roi] = obj.cropGetCropMovieIdx(iMov);
       end      
+    end
+    
+    function [tfhascrop,roi] = cropGetCropMovieIdx(obj,iMov)
+      % Current crop per GT mode
+      %
+      %
+      % tfhascrop: scalar logical.
+      % roi: [nview x 4]. Applies only when tfhascrop==true; otherwise
+      %   indeterminate. roi(ivw,:) is [xlo xhi ylo yhi]. 
+      
+      PROPS = obj.gtGetSharedProps();
+      cropInfo = obj.(PROPS.MFACI){iMov};
+      if isempty(cropInfo)
+        tfhascrop = false;
+        roi = [];
+      else
+        tfhascrop = true;
+        roi = cat(1,cropInfo.roi);
+        szassert(roi,[obj.nview 4]);
+      end
     end
     
     function cropSetNewRoiCurrMov(obj,iview,roi)
@@ -14045,6 +14063,56 @@ classdef Labeler < handle
       handles = obj.gdata;
       handles.depHandles(end+1,1) = h;
       guidata(obj.hFig,handles);      
+    end
+    
+    function v = allMovIdx(obj)
+      
+      v = MovieIndex(1:obj.nmoviesGTaware,obj.gtIsGTMode);
+      
+    end
+    
+    % make a toTrack struct from selected movies in the project amenable to
+    % TrackBatchGUI
+    function toTrack = mIdx2TrackList(obj,mIdx)
+      
+      if nargin < 2 || isempty(mIdx),
+        mIdx = obj.allMovIdx();
+      end
+      nget = numel(mIdx);
+      toTrack = struct(...
+        'movfiles', {cell(nget,obj.nview)},...
+        'trkfiles', {cell(nget,obj.nview)},...
+        'trxfiles', {cell(nget,obj.nview)},...
+        'cropRois', {cell(nget,obj.nview)},...
+        'calibrationfiles', {cell(nget,1)},...
+        'calibrationdata',{cell(nget,1)},...
+        'targets', {cell(nget,1)},...
+        'f0s', {cell(nget,1)},...
+        'f1s', {cell(nget,1)});
+      toTrack.movfiles = obj.getMovieFilesAllFullMovIdx(mIdx);
+      toTrack.trxfiles = obj.getTrxFilesAllFullMovIdx(mIdx);
+      for i = 1:nget,        
+        if obj.cropProjHasCrops,
+          [tfhascrop,roi] = obj.cropGetCropMovieIdx(mIdx(i));
+          if tfhascrop,
+            for j = 1:obj.nview,
+              toTrack.cropRois{i,j} = roi(j,:);
+            end
+          end
+        end
+        vcd = obj.getViewCalibrationDataMovIdx(mIdx(i));
+        if ~isempty(vcd),
+          toTrack.calibrationfiles{i} = vcd.sourceFile;
+          toTrack.calibrationdata{i} = vcd;
+        end
+      end
+      
+      rawname = obj.defaultExportTrkRawname();
+      [tfok,trkfiles] = obj.getTrkFileNamesForExportUI(toTrack.movfiles,rawname,'noUI',true);
+      if tfok,
+        toTrack.trkfiles = trkfiles;
+      end
+
     end
     
   end

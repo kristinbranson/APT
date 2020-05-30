@@ -59,6 +59,8 @@ function varargout = shapeGt( action, varargin )
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
+% Modified by Allen Lee, Kristin Branson
+
 varargout = cell(1,max(1,nargout));
 [varargout{:}] = feval(action,varargin{:});
 end

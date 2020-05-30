@@ -110,6 +110,7 @@ class TrainingGeneratorTFRecord:
         # self.swap_index = self.generator.swap_index
 
         # self.on_epoch_end()
+        # we get a row here just to figure out shapes/sizes
         g = self.get_generator(validation=False, confidence=True, debug=True, silent=True)
         ims0, tgts0, locs0, info0 = next(g)
         if isinstance(tgts0, list):
@@ -118,6 +119,8 @@ class TrainingGeneratorTFRecord:
         self.n_output_channels = tgts0.shape[-1]
         self.keypoints_shape = locs0.shape[1:]
         assert self.keypoints_shape == (conf.n_classes, 2,)
+
+        self.use_tfdata = conf.dpk_use_tfdata  # set to True to use tfdatas instead of generators
 
         #self.batch_size = 32
         #self.n_outputs = 1
@@ -150,6 +153,29 @@ class TrainingGeneratorTFRecord:
 
     # def _init_data(self):
 
+    def get_tfdataset(self, validation, confidence, n_outputs, shuffle=None, infinite=None):
+        distort = not validation
+
+        if not confidence:
+            assert n_outputs == 1
+
+        if shuffle is None:
+            shuffle = not validation
+
+        if infinite is None:
+            infinite = True
+
+        #assert not (shuffle and not infinite)  # shuffling can skip a lot of records
+
+        ds = opdata.create_tf_datasets(self.conf,
+                                       n_outputs,
+                                       is_val=validation,
+                                       distort=distort,
+                                       shuffle=shuffle,
+                                       infinite=infinite,
+                                       drawconf=confidence,
+                                       )
+        return ds
 
     def get_generator(self, validation, confidence, shuffle=None, infinite=None, **kwargs):
         '''
@@ -182,7 +208,7 @@ class TrainingGeneratorTFRecord:
             shuffle = not validation
 
         if infinite is None:
-            infinite = True  # not validation
+            infinite = True
 
         assert not (shuffle and not infinite)  # shuffling can skip a lot of records
 
@@ -226,8 +252,6 @@ class TrainingGeneratorTFRecord:
             Otherwise, generates keypoints.
 
         """
-        # This is dumb, this is only set here to pass into tfdatagen.data_generator; it shouldn't persist
-        self.conf.dpk_n_outputs = n_outputs
         logging.warning('Ignoring batch specification of {}, conf batchsize is {}'.format(batch_size, self.conf.batch_size))
         #self.batch_size = batch_size
         '''
@@ -252,7 +276,14 @@ class TrainingGeneratorTFRecord:
         if self.augmenter:
             self_copy.augmenter.reseed()
         '''
-        return self.get_generator(validation, confidence, **kwargs)
+        if self.use_tfdata:
+            return self.get_tfdataset(validation, confidence, n_outputs, **kwargs)
+        else:
+            # This is dumb, this is only set here to pass into tfdatagen.data_generator;
+            # it shouldn't persist
+            # (conf gets deepcopied when gen is made)
+            self.conf.dpk_n_outputs = n_outputs
+            return self.get_generator(validation, confidence, **kwargs)
 
     '''
     def __getitem__(self, index):
@@ -343,7 +374,8 @@ class TrainingGeneratorTFRecord:
             "random_seed": self.random_seed,
             "augmenter": self.conf.dpk_use_augmenter,
             "image_shape": self.image_shape,
-            "keypoints_shape": self.keypoints_shape
+            "keypoints_shape": self.keypoints_shape,
+            "use_tfdata": self.use_tfdata,
         }
         return config  # xxxAL image_height
         #base_config = self.generator.get_config()

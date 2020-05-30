@@ -120,9 +120,11 @@ def normalize_mean(in_img, conf):
         mm = zz.mean(axis=(1,2))
         xx = zz - mm[:, np.newaxis, np.newaxis,:]
         if conf.img_dim == 3:
+            bsize_actual = zz.shape[0]
             if conf.perturb_color:
                 for dim in range(3):
-                    to_add = old_div(((np.random.rand(conf.batch_size) - 0.5) * conf.imax), 8)
+                    # AL: Why 8 in denominator?
+                    to_add = old_div(((np.random.rand(bsize_actual) - 0.5) * conf.imax), 8)
                     xx[:, :, :, dim] += to_add[:, np.newaxis, np.newaxis]
     # elif not hasattr(conf, 'normalize_batch_mean') or conf.normalize_batch_mean:
     elif conf.normalize_batch_mean:

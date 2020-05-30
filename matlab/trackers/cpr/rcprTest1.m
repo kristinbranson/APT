@@ -37,6 +37,8 @@ function [p,p_t,fail] = rcprTest1( Is, regModel, p, regPrm, ftrPrm, iniData, ...
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
+% Modified by Allen Lee, Kristin Branson
+
 % Apply each single stage regressor starting from shape p.
 model = regModel.model;
 %T=regModel.T;

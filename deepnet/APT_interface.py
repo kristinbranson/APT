@@ -25,7 +25,7 @@ from multiResData import float_feature, int64_feature,bytes_feature,trx_pts, che
 # from multiResData import *
 import leap.training
 from leap.training import train_apt as leap_train
-import open_pose as op
+#import open_pose as op
 import sb1 as sb
 from deepcut.train import train as deepcut_train
 import deepcut.train

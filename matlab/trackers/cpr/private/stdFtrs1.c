@@ -9,6 +9,8 @@
   X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
   ICCV'13, Sydney, Australia  */
 
+// Modified by Allen Lee, Kristin Branson
+
 #include <mex.h>
 #include <math.h>
 

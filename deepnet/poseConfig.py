@@ -158,6 +158,7 @@ class config(object):
         self.dpk_base_lr_used = None        # (auto-computed at compile-time; actual base lr used)
         self.dpk_reduce_lr_on_plat = True   # True is as published for dpk, using K cbk (starting from dpk_base_lr_used);
                                             # False is APT-style scheduled (using learning_rate, decay_steps, gamma)
+        self.dpk_use_tfdata = False
 
 
         # ============== EXTRA ================
