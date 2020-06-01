@@ -770,6 +770,15 @@ end
 ClearStatus(handles);
 EnableControls(handles,'noproject');
 
+if ismac % Change color of buttons 
+ toChange = {'pbClear','tbAccept','pbTrain','pbTrack',...
+     'pumTrack','tbTLSelectMode','pbClearSelection',...
+     'pumInfo_labels','pumInfo'};
+ for ndx = 1:numel(toChange)
+     set(handles.(toChange{ndx}),'ForegroundColor',[1.0,0.0,1.0]);
+ end
+end
+
 guidata(hObject, handles);
 
 fprintf('Labeler GUI created.\n');
