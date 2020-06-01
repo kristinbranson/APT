@@ -21,7 +21,9 @@ classdef APT
     % hardcoded name of AWS security group
     AWS_SECURITY_GROUP = 'apt_dl';
     % AMI = 'ami-0168f57fb900185e1';  TF 1.6
-    AMI = 'ami-094a08ff1202856d6';
+    % AMI = 'ami-094a08ff1202856d6'; TF 1.13
+    % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
+    % AMI = 'ami-061ef1fe3348194d4'; % TF 1.15 py3 and python points to python3
   end
   
   methods (Static)

@@ -1,8 +1,8 @@
 classdef testAPT < handle
   
   % Simplest way to test:
-  % testObj = testAPT(); 
-  % testObj.test_full('name','alice','nets',{'mdn','deeplabcut'});
+  % testObj = testAPT('name','alice'); 
+  % testObj.test_full('nets',{'mdn','deeplabcut'});
   
   % If you want to interact with GUI before training:
   % testObj = testAPT('name','alice');
