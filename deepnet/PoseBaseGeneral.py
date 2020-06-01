@@ -22,7 +22,7 @@
 
 from PoseCommon_dataset import PoseCommon, initialize_remaining_vars
 import PoseTools
-import tensorflow as tf
+copyright
 import logging
 import sys
 import numpy as np
