@@ -17,7 +17,13 @@ import pickle
 import h5py
 import errno
 import PoseTools
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import movies
 import json
 

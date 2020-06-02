@@ -2,7 +2,13 @@ from PoseBase import PoseBase
 import PoseTools
 import os
 import tarfile
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import tensorflow.contrib.slim as slim
 import urllib
 import resnet_official
@@ -123,7 +129,7 @@ class Pose_resnet_unet(PoseBase):
         n_filt = X.get_shape().as_list()[-1]
         n_out = self.conf.n_classes
         weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=tensorflow.contrib.layers.xavier_initializer())
         biases = tf.get_variable("out_biases", n_out,
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')

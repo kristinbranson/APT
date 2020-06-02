@@ -14,7 +14,13 @@ import math, h5py
 # import caffe
 from scipy import misc
 from scipy import ndimage
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import multiResData
 import tempfile
 #import cv2
@@ -125,10 +131,10 @@ def normalize_mean(in_img, conf):
                     to_add = old_div(((np.random.rand(conf.batch_size) - 0.5) * conf.imax), 8)
                     xx[:, :, :, dim] += to_add[:, np.newaxis, np.newaxis]
     # elif not hasattr(conf, 'normalize_batch_mean') or conf.normalize_batch_mean:
-    elif conf.normalize_batch_mean:
-        # subtract the batch mean if the variable is not defined.
-        # don't know why I have it. :/
-        xx = zz - zz.mean()
+    # elif conf.normalize_batch_mean:
+    #     # subtract the batch mean if the variable is not defined.
+    #     # don't know why I have it. :/
+    #     xx = zz - zz.mean()
     else:
         xx = zz
 #     xx = xx.astype('uint8')
@@ -1252,7 +1258,7 @@ def get_crop_loc(lbl,ndx,view, on_gt=False):
     ''' return crop loc in 0-indexed format
     For indexing add 1 to xhi and yhi.
     '''
-    from APT_interface_mdn import read_entry
+    from APT_interface import read_entry
     # this is unnecessarily ugly just because matlab.
     if lbl['cropProjHasCrops'][0, 0] == 1:
         nviews = int(read_entry(lbl['cfg']['NumViews']))

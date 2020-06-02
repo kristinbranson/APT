@@ -30,7 +30,7 @@ from six import reraise as raise_
 
 def conv_relu(x_in, kernel_shape, train_phase):
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
+                              initializer=tensorflow.contrib.layers.xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -42,7 +42,7 @@ def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
     in_dim = x_in.get_shape().as_list()[3]
     kernel_shape = [3, 3, in_dim, n_filt]
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
+                              initializer=tensorflow.contrib.layers.xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -63,7 +63,7 @@ def conv_relu3_noscaling(x_in, n_filt, train_phase):
     weights = tf.get_variable(
         "weights", kernel_shape,
         initializer=
-        tf.contrib.layers.variance_scaling_initializer())
+        tensorflow.contrib.layers.variance_scaling_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')

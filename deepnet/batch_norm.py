@@ -20,7 +20,7 @@ DATA_FORMAT_NHWC = 'NHWC'
 
 
 def batch_norm(x, phase_train, scope='batch_norm'):
-    # return tf.contrib.layers.batch_norm(x,center=True,scale=True,
+    # return tensorflow.contrib.layers.batch_norm(x,center=True,scale=True,
     #                                     is_training=phase_train,
     #                                     scope=tf.get_variable_scope())
 

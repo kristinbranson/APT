@@ -128,8 +128,8 @@ class config(object):
         self.leap_net_name = "leap_cnn"
 
         # ----- Deep Lab Cut
-        self.dlc_train_img_dir = 'deepcut_train'
-        self.dlc_train_data_file = 'deepcut_data.mat'
+        self.dlc_train_img_dir = 'train'
+        self.dlc_train_data_file = 'train_data.p'
         self.dlc_augment = True
 
         # ---- dpk

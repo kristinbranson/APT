@@ -1,4 +1,4 @@
-''' Modified by Mayank Kabra 
+''' Modified by Mayank Kabra
 From LEAP https://github.com/talmo/leap by Talmo Pereira
 '''
 import cv2
@@ -30,8 +30,8 @@ def transform_imgs(X, theta=(-180,180), scale=1.0):
     T = cv2.getRotationMatrix2D(ctr, theta, scale)
     
     # Make sure we don't overwrite the inputs
-    X = [x.copy() for x in X]
-    
+    X = [x.copy()/255 for x in X] # Because I don't normalize while loading anymore MK 20200511
+
     # Apply to each image
     for i in range(len(X)):
         if X[i].ndim == 2:
@@ -62,7 +62,7 @@ def transform_imgs_locs(X, locs, theta=(-180, 180), scale=1.0):
     # Standardize X input to a list
     single_img = type(X) == np.ndarray
     if single_img:
-        X = [X, ]
+        X = [X,]
 
     # Find image parameters
     img_size = X[0].shape[:2]
@@ -82,7 +82,7 @@ def transform_imgs_locs(X, locs, theta=(-180, 180), scale=1.0):
         else:
             # Multi-channel image
             for c in range(X[i].shape[-1]):
-                X[i][..., c] = cv2.warpAffine(X[i][..., c], T, img_size[::-1])
+                X[i][...,c] = cv2.warpAffine(X[i][...,c], T, img_size[::-1])
 
     # Pull the single image back out of the list
     if single_img:
@@ -103,6 +103,8 @@ class PairedImageAugmenter(Sequence):
         self.X = X
         self.Y = Y
         self.batch_size = conf.batch_size
+        self.theta = conf.rrange
+        self.scale = (1/conf.scale_factor_range,conf.scale_factor_range)
         self.conf = conf
 
         self.num_samples = len(X)
@@ -125,14 +127,27 @@ class PairedImageAugmenter(Sequence):
         X = self.X[idx]
         Y = self.Y[idx]
 
-        X, Y = PoseTools.preprocess_ims(X,Y,self.conf,True,self.conf.rescale)
-        X = X.astype('float')/255.
-        hmap_sigma = min(5,self.conf.label_blur_rad)
-        hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
-        hmaps = (hmaps+1)/2
+        if self.conf.use_leap_preprocessing:
+            if Y.ndim==4:
+                # This is to our implemenmtation vs orig
+                # print('Not generating hmaps!!!')
+                hmaps = np.transpose(Y,(0,3,2,1))
+            else:
+                hmap_sigma = 5
+                hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
+                hmaps = (hmaps+1)/2
+            for i in range(len(X)):
+                X[i], hmaps[i] = transform_imgs((X[i], hmaps[i]), theta=self.theta, scale=self.scale)
+
+        else:
+            X, Y = PoseTools.preprocess_ims(X,Y,self.conf,True,self.conf.rescale)
+            X = X.astype('float')/255.
+            hmap_sigma = min(5,self.conf.label_blur_rad)
+            hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
+            hmaps = (hmaps+1)/2
         # print('Got item, batch {}'.format(batch_idx))
         return X, hmaps
-    
+
 class MultiInputOutputPairedImageAugmenter(PairedImageAugmenter):
     def __init__(self, input_names, output_names, *args, **kwargs):
         if type(input_names) != list:
@@ -146,4 +161,4 @@ class MultiInputOutputPairedImageAugmenter(PairedImageAugmenter):
     def __getitem__(self, batch_idx):
         X,Y = super(MultiInputOutputPairedImageAugmenter,self).__getitem__(batch_idx)
         return ({k: X for k in self.input_names}, {k: Y for k in self.output_names})
-    
+

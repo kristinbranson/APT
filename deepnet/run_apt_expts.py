@@ -1117,7 +1117,8 @@ def run_dlc_augment_training(run_type = 'status'):
 def train_deepcut_orig(run_type='status'):
     train_type = 'deeplabcut'
     cache_dir = '/nrs/branson/mayank/apt_cache'
-    dlc_cmd = '/groups/branson/bransonlab/mayank/apt_expts/deepcut/pose-tensorflow/train.py'
+    # dlc_cmd = '/groups/branson/bransonlab/mayank/apt_expts/deepcut/pose-tensorflow/train.py'
+    dlc_cmd = os.path.join(apt_expts.deepcut_dir,'run_train.py')
 
     for view in range(nviews):
         for round in range(8):
