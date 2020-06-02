@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from itertools import islice
 import time
 
+import mpl_toolkits.axes_grid1 as axg1
+
 import PoseTools
 import heatmap
 
@@ -777,6 +779,48 @@ def xylist2xyarr(xylist, xisscalarlist=False):
     x = np.concatenate(x,axis=0)
     y = np.concatenate(y,axis=0)
     return x, y
+
+
+def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
+            share_all=True, label_mode='1', cmap='viridis', locsmrkr='.',
+            locsmrkrsz=16):
+    from matplotlib import cm
+
+    #ims = np.moveaxis(ims0, 0, -1)
+    #ims = ims[:, :, 0, :]
+    ims = ims0
+
+    nim = ims.shape[2]
+    nplotr = int(np.floor(np.sqrt(nim)))
+    nplotc = int(np.ceil(nim / nplotr))
+
+    fig = plt.figure(fignum, figsize=figsize)
+    grid = axg1.ImageGrid(fig, 111,  # similar to subplot(111)
+                          nrows_ncols=(nplotr, nplotc),
+                          axes_pad=axes_pad,  # pad between axes in inch.
+                          share_all=share_all,
+                          label_mode=label_mode,
+                          cbar_mode='each',
+                          )
+
+    for iim in range(nim):
+        him = grid[iim].imshow(ims[..., iim], cmap=cmap)
+        cb = grid.cbar_axes[iim].colorbar(him)
+        cb.ax.tick_params(color='r')
+        plt.setp(plt.getp(cb.ax, 'yticklabels'), color='w')
+        if iim == 0:
+            cb0 = cb
+        if locs is not None:
+            jetmap = cm.get_cmap('jet')
+            rgba = jetmap(np.linspace(0, 1, locs.shape[1]))
+            grid[iim].scatter(locs[iim, :, 0], locs[iim, :, 1], c=rgba,
+                              marker=locsmrkr, s=locsmrkrsz)
+
+    for iim in range(nim, nplotr * nplotc):
+        grid[iim].imshow(np.zeros(ims.shape[0:2]))
+
+    plt.show()
+    return fig, grid, cb0
 
 if __name__ == "__main__":
 

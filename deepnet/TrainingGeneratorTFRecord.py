@@ -153,7 +153,7 @@ class TrainingGeneratorTFRecord:
 
     # def _init_data(self):
 
-    def get_tfdataset(self, validation, confidence, n_outputs, shuffle=None, infinite=None):
+    def get_tfdataset(self, validation, confidence, n_outputs, shuffle=None, infinite=None, **kwargs):
         distort = not validation
 
         if not confidence:
@@ -166,6 +166,9 @@ class TrainingGeneratorTFRecord:
             infinite = True
 
         #assert not (shuffle and not infinite)  # shuffling can skip a lot of records
+
+        for k in kwargs:
+            logging.info("Ignoring kwarg: {}".format(k))
 
         ds = opdata.create_tf_datasets(self.conf,
                                        n_outputs,
