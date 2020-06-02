@@ -1477,8 +1477,8 @@ class PoseUNet_resnet_lowres(PoseUNet_resnet):
             resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
             ex_down_layers = conv(self.inputs[0], 64)
-pwd
-n_filts = [32, 64, 64, 128, 256, 512, 1024]
+            down_layers.insert(0, ex_down_layers)
+            n_filts = [32, 64, 64, 128, 256, 512, 1024]
 
 
         with tf.variable_scope(self.net_name):
