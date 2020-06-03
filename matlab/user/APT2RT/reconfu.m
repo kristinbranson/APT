@@ -13,6 +13,8 @@ function [H] = reconfu(A,L)
 % Last change:  November 29, 1996
 % Version:      1.1
 
+% From https://isbweb.org/software/movanal/kinemat/
+  
 n=size(A,2);
 % check whether the numbers of cameras agree for A and L
 if 2*n~=size(L,2); disp('the # of cameras given in A and L do not agree')
