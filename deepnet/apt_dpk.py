@@ -816,7 +816,7 @@ def load_apt_cpkt(exp_dir, mdlfile):
     conf = conf_dict['conf']
     model_config = conf_dict['sdn']
 
-    tgtfr, sdn, cbk = compile(conf)
+    tgtfr, sdn = compile(conf)
 
     sdn.__init_train_model__()
     sdn.train_model.load_weights(mdl_wgts_file)

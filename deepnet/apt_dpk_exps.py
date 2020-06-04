@@ -22,6 +22,7 @@ import PoseTools as pt
 import TrainingGeneratorTFRecord as TGTFR
 import kerascallbacks
 import run_apt_expts_2 as rae
+import util
 
 logr = logging.getLogger()
 logr.setLevel(logging.DEBUG)
@@ -347,12 +348,16 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
         info = info[:, 0].copy()
         yield ims, locs, info
 
-def exp1orig_assess_set(dset, cacheroot, expnamebase, runrange,
-                        runpat='{}_run{}',**kwargs):
+def exp1orig_assess_set(expnamebase,
+                        runrange=range(5),
+                        dset='dpkfly',
+                        cacheroot=alcache,
+                        runpat='{}_run{}',
+                        **kwargs):
     eresall = []
     for run in runrange:
         expname = runpat.format(expnamebase, run)
-        eres = exp1orig_assess(dset, cacheroot, expname, **kwargs)
+        eres = exp1orig_assess(expname, dset, cacheroot, **kwargs)
         eresall.append(eres)
 
     euc_coll_ptiles50s = np.vstack([x['euc_coll_ptiles5090'][:, 0] for x in eresall]).T
@@ -360,11 +365,23 @@ def exp1orig_assess_set(dset, cacheroot, expnamebase, runrange,
 
     return eresall, euc_coll_ptiles50s, euc_coll_ptiles90s
 
-def exp1orig_assess(dset, cacheroot, expname,
+def get_latest_ckpt_h5(expdir):
+    cpth5 = glob.glob(os.path.join(expdir, 'ckpt*h5'))
+    cpth5.sort()
+    if len(cpth5) > 1:
+        print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
+    cpth5 = cpth5[-1]
+    return cpth5
+
+def exp1orig_assess(expname,
+                    dset='dpkfly',
+                    cacheroot=alcache,
                     validxs = None,  # normally read from conf.pickle
                     bsize=16,
                     doplot=True,
-                    gentype='tgtfr'):
+                    gentype='tgtfr',
+                    useaptcpt=False, # if true, use most recent deepnet-xxxxx cpt
+                    ):
 
     h5dset = dbs[dset]['h5dset']
     slbl = dbs[dset]['slbl']
@@ -386,26 +403,29 @@ def exp1orig_assess(dset, cacheroot, expname,
                                    imgaugtype=dset)
 
     expdir = conf.cachedir
-    cpth5 = glob.glob(os.path.join(expdir,'ckpt*h5'))
-    cpth5.sort()
-    if len(cpth5) > 1:
-        print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
-    cpth5 = cpth5[-1]
 
-    if gentype == 'dg':
-        loadmodelgen = None # dg
-    elif gentype == 'tgtfr':
-        loadmodelgen = None
+    if useaptcpt:
+        cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
+        sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
+
+        print("conf vs conf_saved:")
+        util.dictdiff(conf, conf_saved)
     else:
-        assert False
-    try:
-        sdn = dpk.models.load_model(cpth5, generator=loadmodelgen)
-    except KeyError:
-        if loadmodelgen is not None:
-            print("Warning: load_model failed with non-None gentype. trying with loadmodelgen=none")
-            sdn = dpk.models.load_model(cpth5, generator=None)
+        cpth5 = get_latest_ckpt_h5(expdir)
+        if gentype == 'dg':
+            loadmodelgen = None # dg
+        elif gentype == 'tgtfr':
+            loadmodelgen = None
         else:
-            raise
+            assert False
+        try:
+            sdn = dpk.models.load_model(cpth5, generator=loadmodelgen)
+        except KeyError:
+            if loadmodelgen is not None:
+                print("Warning: load_model failed with non-None gentype. trying with loadmodelgen=none")
+                sdn = dpk.models.load_model(cpth5, generator=None)
+            else:
+                raise
 
     '''
     The TG is randomly initted at creation/load_model time I think so the various
@@ -510,10 +530,12 @@ def evaluate(predmodel, gen):
 
     return evaluation_dict
 
-def collapse_swaps(x, swap_index):
+def collapse_swaps(x0, swap_index):
     # x: [n x nkpt] data arr
 
-    assert x.ndim == 2
+    assert x0.ndim == 2
+
+    x = np.copy(x0)
 
     colkeep = []
     for i, j in enumerate(swap_index):
