@@ -176,6 +176,8 @@ def parse_frame_arg(framein,nMovies,defaultval):
                 frameout = [np.Inf] * nMovies
             else:
                 frameout = [framein] * nMovies
+        elif len(framein) == 1:
+            frameout = framein * nMovies
         else:
             frameout = list(map(lambda x: np.Inf if (x < 0) else x,framein))
             if len(frameout) < nMovies:
