@@ -640,6 +640,33 @@ def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn,
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
 
+thecounter=0
+'''
+The TFData/keras/tf sucks log!
+These are in tf1.14
+
+Using a tfds as val data in K.fit(), val_steps should be settable to None/default as "run entire ds".
+This does not work but setting verbose=0 is a suggested workaround ?!?!?!
+https://github.com/tensorflow/tensorflow/issues/28995
+maybe fixed in tf1.15
+
+Setting val_iter to "one more than ceil(len(tfds))" causes the entire train to get canceled at epoch
+end; but passing ceil(len(tfds)) or less, the valds gets auto-reset/reinitialized whenever necessary.
+
+There is no way to instrument a tfds to know when records are pulled, py_funcs get called etc since
+I guess it runs off in C++ or in some other universe.
+
+In general, even as of tf2.2/Apr2020, K is not robust to cases when the len(valds) is not evenly 
+divisible by val bsize 
+https://github.com/tensorflow/tensorflow/issues/38596, 38165, downstream/refd issues
+
+When using a val set even with K seqs, the last/clipped valbatch (when len(valds) is not evenly
+divisible by valbsize) is just skipped rather than run and of course there is no notice/doc of this.
+
+In K cbks, the log dict when using fit_generator gives the correct bsize for both trn and val/test 
+steps, in the 'size' field of the logs dict. When using a tfds for val, the 'size' is always 1 (??!!).
+'''
+
 def create_tf_datasets(conf0,
                        n_outputs,
                        is_val=False,  # True for val, False for trn
@@ -717,10 +744,10 @@ def create_tf_datasets(conf0,
 
     ds = tf.data.TFRecordDataset(dbfile)
     ds = ds.map(map_func=_parse_function)
-    if infinite:
-        ds = ds.repeat()
     if shuffle:
         ds = ds.shuffle(buffer_size=shufflebsize)
+    if infinite:
+        ds = ds.repeat()
     if dobatch:
         ds = ds.batch(conf.batch_size)
     if is_raw:
