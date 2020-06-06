@@ -1,3 +1,12 @@
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+rae.setup('alice')
+rae.all_models = ['deeplabcut']
+#rae.create_normal_dbs()
+dstr = '20200604'
+rae.run_normal_training(dstr=dstr,run_type = 'dry')
+##
 import test.test_apt
 test.test_apt.main()
 
@@ -24,12 +33,7 @@ train_dlc('/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2/examples/op
 ##
 from deeplabcut.pose_estimation_tensorflow import training
 training.train_network('/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2/examples/openfield-Pranav-2018-10-30/config_apt.yaml',displayiters=100,saveiters=5000,maxiters=10000,shuffle=1)
-##
-cmd = '-no_except  -name 20200514T081006 -view 1 -cache /groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b -type deeplabcut /groups/branson/home/kabram/.apt/tpb0c90511_c3bc_47e1_8231_9424a04ae6ff/alice_test/20200515T060036_20200515T060230.lbl train -use_cache -skip_db'
-import APT_interface as apt
-apt.main(cmd.split())
-
-# leap
+## leap
 cmd = '-name 20200512T050857 -view 1 -cache /groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b -type leap /groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b/alice_test/20200512T050857_20200512T051052.lbl train -use_cache -skip_db'
 import APT_interface as apt
 apt.main(cmd.split())

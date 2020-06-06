@@ -28,7 +28,7 @@ from multiResData import float_feature, int64_feature,bytes_feature,trx_pts, che
 import leap.training
 from leap.training import train as leap_train
 #import open_pose as op
-import sb1 as sb
+# import sb1 as sb
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
@@ -51,7 +51,7 @@ import math
 import cv2
 import re
 from scipy import io as sio
-import heatmap
+# import heatmap
 import time # for timing between writing n frames tracked
 import tarfile
 import urllib
@@ -59,8 +59,8 @@ import urllib
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
-if ISPY3:
-    import apt_dpk
+# if ISPY3:
+#     import apt_dpk
 
 
 def savemat_with_catch_and_pickle(filename, out_dict):
@@ -1395,6 +1395,7 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False,*
             pose_module = __import__(module_name)
             tf.reset_default_graph()
             self = getattr(pose_module, module_name)(conf)
+            self.name = name
             pred_fn, close_fn, model_file = self.get_pred_fn(model_file)
         except ImportError:
             raise ImportError('Undefined type of network')
@@ -1595,7 +1596,7 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
 
 
 def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
-                 timer_read=None, timer_pred=None,
+                 timer_read=None, timer_pred=None, ignore_hmaps=False,
                  **kwargs):  # fed to pred_fn
     '''Trying to simplify/generalize classify_db'''
 
@@ -1638,6 +1639,8 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
         fields = ret_dict.keys()
         if cur_b == 0:
             for k in fields:
+                if ignore_hmaps and 'hmap' in k:
+                    continue
                 val = ret_dict[k]
                 valshape = val.shape
                 if valshape[0] == bsize:
@@ -2320,12 +2323,12 @@ def train_deepcut(conf, args, split_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache,split_file=split_file)
 
-    script_dir = os.path.dirname(os.path.realpath(__file__))
     cfg_dict = create_dlc_cfg_dict(conf,args.train_name)
     deepcut_train(cfg_dict,
       displayiters=conf.display_step,
       saveiters=conf.save_step,
-      maxiters=cfg_dict['dlc_train_steps'])
+      maxiters=cfg_dict['dlc_train_steps'],
+                  max_to_keep=conf.maxckpt)
     tf.reset_default_graph()
 
 
@@ -2404,6 +2407,7 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
                  'use_scale_factor_range':conf.use_scale_factor_range,
                  'imsz':conf.imsz,
                  'imax':conf.imax,
+                 'rescale':conf.rescale,
                  'check_bounds_distort': conf.check_bounds_distort,
 
     # 'minsize':minsz,
@@ -2468,6 +2472,7 @@ def train(lblfile, nviews, name, args):
                 train_deepcut(conf,args, split_file=split_file)
             elif net_type == 'dpk':
                 train_dpk(conf, args, split, split_file=split_file)
+
             else:
                 if not args.skip_db:
                     create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)

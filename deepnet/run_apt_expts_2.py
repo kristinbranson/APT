@@ -8,7 +8,8 @@ from __future__ import division
 # data_type = 'stephen'
 # data_type = 'roian'
 # data_type = 'brit2'
-
+import matplotlib
+matplotlib.use('TkAgg')
 import APT_interface as apt
 import h5py
 import PoseTools
@@ -67,7 +68,7 @@ elif getpass.getuser() == 'al':
 else:
     assert False, "Add your cache and out directory"
 
-all_models = ['mdn','mdn_unet','openpose','deeplabcut','leap','resnet_unet','unet']
+all_models = ['mdn','mdn_unet','deeplabcut','leap','resnet_unet','unet','leap_orig','deeplabcut_orig'] #,'openpose'
 
 print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))
@@ -94,7 +95,32 @@ common_conf['batch_size'] = 8
 # common_conf['adjust_contrast'] = False
 common_conf['maxckpt'] = 200 # Save all models
 common_conf['ignore_occluded'] = False
+common_conf['pretrain_freeze_bnorm'] = True
 
+# These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
+
+# for leap
+common_conf['use_leap_preprocessing'] = False
+common_conf['leap_val_size'] = 0.15
+common_conf['leap_preshuffle'] = True
+common_conf['leap_filters'] = 64
+common_conf['leap_val_batches_per_epoch'] = 10
+common_conf['leap_reduce_lr_factor'] = 0.1
+common_conf['leap_reduce_lr_patience'] = 3
+common_conf['leap_reduce_lr_min_delta'] = 1e-5
+common_conf['leap_reduce_lr_cooldown'] = 0
+common_conf['leap_reduce_lr_min_lr'] = 1e-10
+common_conf['leap_amsgrad'] = False
+common_conf['leap_upsampling'] = False
+
+# for deeplabcut.
+common_conf['dlc_intermediate_supervision'] = False
+common_conf['dlc_intermediate_supervision_layer'] = 12
+common_conf['dlc_location_refinement'] = True
+common_conf['dlc_locref_huber_loss'] = True
+common_conf['dlc_locref_loss_weight'] = 0.05
+common_conf['dlc_locref_stdev'] = 7.2801
+common_conf['dlc_use_apt_preprocess'] = True
 
 def setup(data_type_in,gpu_device=None):
     global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name, \
@@ -277,12 +303,12 @@ def get_tstr(tin):
 def get_traindata_file_flexible(cache_dir, run_name,expname):
     tfile0 = os.path.join(cache_dir, 'traindata')
     tfile1 = os.path.join(cache_dir, expname + '_' + run_name + '_traindata')
-    if os.path.exists(tfile1):
-        return tfile1
-    assert os.path.exists(tfile0) != os.path.exists(tfile1), \
-        'Exactly one traindata file must exist: {} or {}'.format(tfile0, tfile1)
-    tfile = tfile0 if os.path.exists(tfile0) else tfile1
-    return tfile
+    tfile2 = os.path.join(cache_dir, run_name + '_traindata')
+    all_f = [tfile0,tfile1,tfile2]
+    a = [ff for ff in all_f if os.path.exists(ff)]
+    assert len(a)==1, 'Exactly one traindata file must exist: {} or {} or {}'.format(tfile0, tfile1, tfile2)
+    return a[0]
+
 
 def get_log_files(logdir, cmd_name_base, ext):
     g = os.path.join(logdir, 'opt_{}_*.{}'.format(cmd_name_base, ext))
@@ -520,7 +546,9 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
 
     conf_opts = common_conf.copy()
     # conf_opts.update(other_conf[conf_id])
+
     conf_opts['save_step'] = conf_opts['dl_steps'] // 20
+
     if gpu_queue == 'gpu_rtx':
 
         if data_type in ['brit0', 'brit1', 'brit2']:
@@ -570,7 +598,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
             if train_type in ['unet', 'resnet_unet']:
                 conf_opts['rescale'] = 4
                 conf_opts['batch_size'] = 4
-            if train_type in ['mdn_unet','mdn','leap']:
+            if train_type in ['mdn_unet','leap']:
                 conf_opts['batch_size'] = 4
                 conf_opts['rescale'] = 2
 
@@ -588,6 +616,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
                 conf_opts['batch_size'] = 4
             else:
                 conf_opts['batch_size'] = 8
+
     elif gpu_queue in ['gpu_tesla','gpu_tesla_large']:
         if data_type in ['romain']:
             conf_opts['batch_size'] = 4
@@ -608,15 +637,18 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
 
-    return set_training_params(conf_opts)
+    return set_training_params(conf_opts,train_type)
 
 
-def set_training_params(conf_opts):
+def set_training_params(conf_opts,train_type='mdn'):
     bsz = conf_opts['batch_size']
     default_bsz = 8
     conf_opts['dl_steps'] = common_conf['dl_steps']*default_bsz//bsz
     conf_opts['decay_steps'] = common_conf['decay_steps']*default_bsz//bsz
     conf_opts['learning_rate_multiplier'] = bsz/float(default_bsz)
+    if train_type == 'deeplabcut':
+        conf_opts['dl_steps'] = None
+        conf_opts['save_step'] = 8*conf_opts['save_step']
     return conf_opts
 
 
@@ -778,9 +810,9 @@ def create_normal_dbs():
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
             conf = create_conf_help(train_type, view, exp_name)
-            if train_type == 'deeplabcut':
+            if 'deeplabcut' in train_type:
                 apt.create_deepcut_db(conf,split=False,use_cache=True)
-            elif train_type == 'leap':
+            elif 'leap' in train_type:
                 apt.create_leap_db(conf,split=False,use_cache=True)
             else:
                 apt.create_tfrecord(conf,split=False,use_cache=True)
@@ -847,9 +879,9 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                     conf = create_conf_help(train_type, view, exp_name, **kwargs)
                     #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                     conf.splitType = 'predefined'
-                    if train_type == 'deeplabcut':
+                    if 'deeplabcut' in train_type:
                         apt.create_deepcut_db(conf, split=True, split_file=split_file, use_cache=True)
-                    elif train_type == 'leap':
+                    elif 'leap' in train_type:
                         apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
                     else:
                         apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
@@ -920,9 +952,9 @@ def cv_train_britton(skip_db=True, run_type='status'):
                 for train_type in all_models:
                     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                     conf.splitType = 'predefined'
-                    if train_type == 'deeplabcut':
+                    if 'deeplabcut' in train_type:
                         apt.create_deepcut_db(conf, split=True, split_file=split_file, use_cache=True)
-                    elif train_type == 'leap':
+                    elif 'leap' in train_type:
                         apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
                     else:
                         apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
@@ -951,9 +983,9 @@ def create_cv_dbs():
                 cur_split_file = os.path.join(common_conf.cachedir, 'cv_split_fold_{}.json'.format(split))
                 conf = apt.create_conf(lbl_file, view, 'cv_split_{}'.format(split), cache_dir, train_type)
                 conf.splitType = 'predefined'
-                if train_type == 'deeplabcut':
+                if 'deeplabcut' in train_type:
                     apt.create_deepcut_db(conf,split=True,use_cache=True,split_file=cur_split_file)
-                elif train_type == 'leap':
+                elif 'leap' in train_type:
                     apt.create_leap_db(conf,split=True,use_cache=True,split_file=cur_split_file)
                 else:
                     apt.create_tfrecord(conf,split=True,use_cache=True,split_file=cur_split_file)
@@ -1011,9 +1043,9 @@ def create_incremental_dbs(do_split=False):
                         print("Wrote split file {}".format(split_file))
 
                 conf.splitType = 'predefined'
-                if train_type == 'deeplabcut':
+                if 'deeplabcut' in train_type:
                     apt.create_deepcut_db(conf, split=True, split_file=split_file,use_cache=True)
-                elif train_type == 'leap':
+                elif 'leap' in train_type:
                     apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
                 else:
                     apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
@@ -1543,13 +1575,15 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
         for train_type in all_models:
             exp_name_use = exp_name[train_type] if isinstance(exp_name, dict) else exp_name
             conf = create_conf_help(train_type, view, exp_name_use, **kwargs)
-
+            conf.batch_size = 1
             # compare conf to conf on disk
             cffile = os.path.join(conf.cachedir, 'conf.pickle')
             if os.path.exists(cffile):
                 with open(cffile, 'rb') as fh:
                     conf0 = pickle.load(fh,encoding='latin1')
                 conf0 = conf0['conf']
+            elif train_type == 'deeplabcut_orig':
+                conf0 = conf
             else:
                 # cffile = os.path.join(conf.cachedir, 'traindata')
                 cffile = get_traindata_file_flexible(conf.cachedir, train_name_dstr, conf.expname)
@@ -1563,7 +1597,7 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
 
             assert not conf.normalize_img_mean
 
-            files = get_model_files(conf,train_name_dstr,1000)
+            files = get_model_files(conf,train_name_dstr,1000,net=train_type)
             print('view {}, net {}. Your models are:'.format(view, train_type))
             print(files)
 
@@ -1575,7 +1609,7 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
                 mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type,
                                                     name=train_name_dstr,
                                                     classify_fcn=classify_fcn,
-                                                    return_ims=classify_return_ims)
+                                                    return_ims=classify_return_ims,ignore_hmaps=True)
                 with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,files],f)
                 print("Wrote {}".format(out_file))
@@ -2340,9 +2374,9 @@ def run_active_learning(round_num,add_type='active',view=0):
 
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         conf.splitType = 'predefined'
-        if train_type == 'deeplabcut':
+        if 'deeplabcut' in train_type:
             apt.create_deepcut_db(conf, split=True, use_cache=True, split_file=out_file)
-        elif train_type == 'leap':
+        elif 'leap' in train_type:
             apt.create_leap_db(conf, split=True, use_cache=True, split_file=out_file)
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_file)
@@ -2394,9 +2428,9 @@ def run_active_learning(round_num,add_type='active',view=0):
             json.dump(new_splits,f)
 
         conf.splitType = 'predefined'
-        if train_type == 'deeplabcut':
+        if 'deeplabcut' in train_type:
             apt.create_deepcut_db(conf, split=True, use_cache=True, split_file=out_split_file)
-        elif train_type == 'leap':
+        elif 'leap' in train_type:
             apt.create_leap_db(conf, split=True, use_cache=True, split_file=out_split_file)
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_split_file)
@@ -2528,7 +2562,11 @@ def do_recompute(out_file,files):
     return recomp
 
 
-def get_model_files(conf,train_name='deepnet',n_max=10):
+def get_model_files(conf,train_name='deepnet',n_max=10,net='mdn'):
+    if net == 'leap_orig':
+        train_name = 'deepnet'
+    elif net == 'deeplabcut_orig':
+        train_name = 'snapshot'
     files1 = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
     files2 = glob.glob(os.path.join(conf.cachedir, "{}_202[0-9][0-9][0-9][0-9][0-9]-[0-9]*").format(train_name)) # Dont think  Ineed to worry beyond current decade.
     files = files1 + files2

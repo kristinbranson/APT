@@ -1297,7 +1297,7 @@ def datestr():
 
 def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
                run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',
-               sing_image='/misc/local/singularity/branson_allen.simg',
+               sing_image='docker://bransonlabapt/apt_docker:tf1.15_py3',
                precmd='',numcores=2):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')

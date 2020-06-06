@@ -260,7 +260,7 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         cum_loss += loss_val
         train_writer.add_summary(summary, it)
 
-        if it % display_iters == 0 and it>0:
+        if it % display_iters == 0:
             cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
             pred = [cur_out['part_pred'],cur_out['locref']]
             scmap, locref = predict.extract_cnn_output(pred, cfg)

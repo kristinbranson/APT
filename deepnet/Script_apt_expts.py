@@ -7,11 +7,15 @@ if sys.version_info.major > 2:
 ## Accuracy over time.
 
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('alice')
 #rae.create_normal_dbs()
-rae.run_normal_training(dstr='20200410') #run_type = 'submit' to actually submit jobs.
-rae.run_normal_training(dstr='20200410',queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
+dstr = '20200604'
+rae.run_normal_training(dstr=dstr) #run_type = 'submit' to actually submit jobs.
+# rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
+
+#dstr = 20200410 for old
 
 ##
 import run_apt_expts_2 as rae
@@ -22,11 +26,12 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-rae.get_normal_results(dstr='20200410') # queue = 'gpu_tesla'
-rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
+dstr = '20200604' # '20200410'
+rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
+# rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
 rae.setup('alice_difficult')
-rae.get_normal_results(dstr='20200410') # queue = 'gpu_tesla'
-rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
+rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
+# rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
 
 ##
 import run_apt_expts_2 as rae
@@ -35,9 +40,10 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('stephen')
+dstr = '20200605'
 #rae.create_normal_dbs()
-rae.run_normal_training(dstr='20200411') #run_type = 'submit' to actually submit jobs.
-rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
+rae.run_normal_training(dstr=dstr) #run_type = 'submit'
+# rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
 
 ##
 import run_apt_expts_2 as rae
@@ -57,7 +63,7 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-# rae.create_incremental_dbs()
+rae.create_incremental_dbs()
 rae.run_incremental_training(dstr='20200413') #run_type = 'submit'
 
 ##

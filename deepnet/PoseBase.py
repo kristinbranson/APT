@@ -263,7 +263,7 @@ class PoseBase(PoseCommon):
         '''
 
 #        base_lr = self.conf.learning_rate
-         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('base_lr',0.0001)
+        learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('base_lr',0.0001)
 
         PoseCommon.train_quick(self, learning_rate=learning_rate,restore=restore)
 

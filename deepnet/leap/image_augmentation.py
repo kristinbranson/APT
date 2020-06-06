@@ -128,6 +128,7 @@ class PairedImageAugmenter(Sequence):
         Y = self.Y[idx]
 
         if self.conf.use_leap_preprocessing:
+            # print('Using orig data aug')
             if Y.ndim==4:
                 # This is to our implemenmtation vs orig
                 # print('Not generating hmaps!!!')
