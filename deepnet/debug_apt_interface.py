@@ -1,11 +1,14 @@
 import run_apt_expts_2 as rae
-from importlib import reload
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import sys
+if sys.version_info.major > 2:
+    from importlib import reload
 reload(rae)
 rae.setup('alice')
-rae.all_models = ['deeplabcut']
-#rae.create_normal_dbs()
-dstr = '20200604'
-rae.run_normal_training(dstr=dstr,run_type = 'dry')
+rae.all_models = 'deeplabcut_orig'
+dstr = '20200604' # '20200410'
+rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
 ##
 import test.test_apt
 test.test_apt.main()

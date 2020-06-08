@@ -4,16 +4,11 @@ from __future__ import division
 ##  #######################        SETUP
 
 
-# data_type = 'alice'
-# data_type = 'stephen'
-# data_type = 'roian'
-# data_type = 'brit2'
 import matplotlib
 matplotlib.use('TkAgg')
 import APT_interface as apt
 import h5py
 import PoseTools
-import os
 import shutil
 import subprocess
 import time
@@ -22,13 +17,10 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
-import apt_expts
-import os
 import ast
 import apt_expts
 import os
 import pickle
-import multiResData
 import multiResData
 import random
 import json
@@ -37,8 +29,9 @@ import hdf5storage
 import easydict
 import sys
 import getpass
-import apt_dpk as apt_dpk   # using local copy for now. Revert back when feature/aldl is merged.
+import apt_dpk as apt_dpk
 import util as util
+import time
 
 
 ISPY3 = sys.version_info >= (3, 0)
@@ -684,6 +677,7 @@ def run_trainining(exp_name,train_type,view,run_type,
                    **kwargs
                    ):
 
+    time.sleep(5) # five second time to figure out if I really wanted to submit the job
     gpu_str = '_tesla' if queue in ['gpu_tesla','gpu_tesla_large'] else ''
     train_name_dstr = train_name + gpu_str + '_' + dstr
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
@@ -2565,8 +2559,6 @@ def do_recompute(out_file,files):
 def get_model_files(conf,train_name='deepnet',n_max=10,net='mdn'):
     if net == 'leap_orig':
         train_name = 'deepnet'
-    elif net == 'deeplabcut_orig':
-        train_name = 'snapshot'
     files1 = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
     files2 = glob.glob(os.path.join(conf.cachedir, "{}_202[0-9][0-9][0-9][0-9][0-9]-[0-9]*").format(train_name)) # Dont think  Ineed to worry beyond current decade.
     files = files1 + files2

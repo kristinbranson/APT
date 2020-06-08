@@ -63,27 +63,32 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-rae.create_incremental_dbs()
-rae.run_incremental_training(dstr='20200413') #run_type = 'submit'
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+# rae.create_incremental_dbs()
+alice_incr_dstr = '20200608'
+rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
-rae.get_incremental_results(dstr='20200413')
+alice_incr_dstr = '20200608'
+rae.get_incremental_results(dstr=alice_incr_dstr)
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
 # rae.create_incremental_dbs()
-rae.run_incremental_training(dstr='20200414') #run_type = 'submit'
+stephen_incr_dstr = '20200608' # '20200414'
+rae.run_incremental_training(dstr=stephen_incr_dstr) #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('stephen')
-rae.get_incremental_results(dstr='20200414')
+stephen_incr_dstr = '20200608' # '20200414'
+rae.get_incremental_results(dstr=stephen_incr_dstr)
 
 ## Whole dataset training
 
