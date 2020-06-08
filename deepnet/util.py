@@ -3,10 +3,12 @@ from __future__ import print_function
 
 import time
 import collections.abc
-
+import json
 import numpy as np
 
 from keras import backend as K
+
+import h5py
 
 def dictsubsetpfix(d, pfix):
     return dict((k, d[k]) for k in d if k.startswith(pfix))
@@ -40,6 +42,72 @@ def dictdiff(d1, d2, print_fcn=print):
             print("{}: values differ, {} vs {}".format(kk, v1, v2))
 
     print_fcn("{} total common keys checked".format(len(k)))
+
+def h5diffattrs(x1, x2, path):
+    mismatch = []
+    a1 = x1.attrs
+    a2 = x2.attrs
+    lista1 = list(a1)
+    assert lista1 == list(a2)
+    print("{}: checking {} attrs: {}".format(path, len(lista1), lista1))
+    for a in a1:
+        v1 = a1.get(a)
+        v2 = a2.get(a)
+        assert type(v1) == type(v2)
+        if isinstance(v1, bytes):
+            try:
+                v1 = json.loads(v1.decode('utf-8'))
+                v2 = json.loads(v2.decode('utf-8'))
+                tfmatch = (v1 == v2)
+            except json.decoder.JSONDecodeError:
+                tfmatch = (v1 == v2)
+        elif isinstance(v1, np.ndarray):
+            tfmatch = np.array_equal(v1, v2)
+        else:
+            assert False
+
+        if not tfmatch:
+            print('!!! attr mismatch: {}'.format(a))
+            mismatch += [path + '#' + a]
+
+    return mismatch
+
+
+def h5diffgrps(g1, g2, path):
+    mismatch = []
+
+    mismatch += h5diffattrs(g1, g2, path)
+    for k in g1:
+        assert k in g2
+        v1 = g1[k]
+        v2 = g2[k]
+        path2 = path + "." + k
+        isg1 = isinstance(v1, h5py.Group)
+        isg2 = isinstance(v2, h5py.Group)
+        assert isg1 == isg2
+        if isg1:
+            print("{}: group, entering".format(path2))
+            mismatch += h5diffgrps(v1, v2, path2)
+        else:
+            assert v1.shape == v2.shape
+            assert v1.dtype == v2.dtype
+            mismatch += h5diffattrs(v1, v2, path2)
+            if np.allclose(np.array(v1),np.array(v2)):
+                print("{}: CLOSE!! val. shape={}, dtype={}.".format(path2, v1.shape, v1.dtype))
+            else:
+                print("{}: val. shape={}, dtype={}.".format(path2, v1.shape, v1.dtype))
+    return mismatch
+
+def h5diff(h1, h2):
+    '''
+    uni-directional compare. run it the other way too
+    :param h1:
+    :param h2:
+    :return:
+    '''
+    with h5py.File(h1, 'r') as f1, h5py.File(h2, 'r') as f2:
+        mismatch = h5diffgrps(f1, f2, '')
+    return mismatch
 
 
 class TimerError(Exception):

@@ -641,6 +641,8 @@ def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
 
 def compile(conf):
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
+    logging.info("tgtfr.use_tfdata: {}".format(tgtfr.use_tfdata))
+
     sdn = StackedDenseNet(tgtfr,
                           n_stacks=conf.dpk_n_stacks,
                           growth_rate=conf.dpk_growth_rate,
@@ -814,7 +816,7 @@ def load_apt_cpkt(exp_dir, mdlfile):
     conf = conf_dict['conf']
     model_config = conf_dict['sdn']
 
-    tgtfr, sdn, cbk = compile(conf)
+    tgtfr, sdn = compile(conf)
 
     sdn.__init_train_model__()
     sdn.train_model.load_weights(mdl_wgts_file)

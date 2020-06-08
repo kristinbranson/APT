@@ -22,8 +22,9 @@ import PoseTools as pt
 import TrainingGeneratorTFRecord as TGTFR
 import kerascallbacks
 import run_apt_expts_2 as rae
+import util
 
-logr = logging.getLogger(__name__)
+logr = logging.getLogger()
 logr.setLevel(logging.DEBUG)
 
 dbs = {
@@ -127,6 +128,7 @@ def create_callbacks_exp2orig_train(conf, sdn, runname='deepnet'):
         save_best_only=True,
     )
 
+    '''
     tg = sdn.train_generator(
         n_outputs=sdn.n_outputs,
         batch_size=conf.batch_size,
@@ -143,8 +145,22 @@ def create_callbacks_exp2orig_train(conf, sdn, runname='deepnet'):
         instrumentedname='KCbkVal'
     )
     aptcbk = kerascallbacks.APTKerasCbk(conf, (tg, vg), runname=runname)
+    '''
 
-    cbks = [reduce_lr, model_checkpoint, aptcbk]
+    # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
+    # step3_train_model.ipynb: patience=100, min_delta=.001
+    # Use min_delta=0.0 here it is more conservative
+    early_stop = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss",  # monitor="val_loss"
+        min_delta=0.0,
+        patience=100,
+        verbose=1
+    )
+
+    logfile = 'trn{}.log'.format(nowstr)
+    logfile = os.path.join(conf.cachedir, logfile)
+    loggercbk = tf.keras.callbacks.CSVLogger(logfile)
+    cbks = [reduce_lr, model_checkpoint, loggercbk, early_stop]
     return cbks
 
 def update_conf_rae(conf):
@@ -175,7 +191,10 @@ def exp1orig_create_base_conf(expname, cacheroot, dset):
 
 def exp1orig_train(expname, dset, cacheroot,
                    runname='deepnet',
-                   shortdebugrun=False):
+                   expname_trnvalsplit=None, # exp should exist 'alongside' expname; conf.pickle in this exp used
+                                             #  to set val_index and train_index
+                   shortdebugrun=False,
+                   ):
 
     iaver = ia.__version__
     dpkver = dpk.__version__
@@ -220,6 +239,23 @@ def exp1orig_train(expname, dset, cacheroot,
                                validation_split=VALSPLIT,
                                graph_scale=conf.dpk_graph_scale,
                                random_seed=0)
+    if expname_trnvalsplit is not None and len(expname_trnvalsplit) > 0:
+        expparent = os.path.dirname(conf.cachedir)
+        edir_trnvalsplit = os.path.join(expparent, expname_trnvalsplit)
+        picf = os.path.join(edir_trnvalsplit, 'conf.pickle')
+        pic0 = pt.pickle_load(picf)
+
+        val_index_new = pic0['tg']['val_index']
+        trn_index_new = pic0['tg']['train_index']
+        assert len(val_index_new) == len(tg.val_index)
+        assert len(trn_index_new) == len(tg.train_index)
+        tg.val_index = val_index_new
+        tg.train_index = trn_index_new
+        tg.val_index.sort()
+        tg.train_index.sort()
+        logr.info("read train/val idxs ({}/{}) from {}".format(len(trn_index_new),
+                                                               len(val_index_new),
+                                                               picf))
 
     assert conf.dpk_n_stacks == 2
     assert conf.dpk_growth_rate == 48
@@ -240,7 +276,7 @@ def exp1orig_train(expname, dset, cacheroot,
     DECAY = 0.0  # LR modulated via callback
     assert conf.dpk_base_lr_factory == .001
     optimizer = tf.keras.optimizers.Adam(
-        lr=conf.dpk_base_lr_factory, beta_1=0.9, beta_2=0.999,
+        lr=conf.dpk_base_lr_factory, beta_1=0.9, beta_2=0.999, epsilon=None,
         decay=DECAY, amsgrad=False)
     sdn.compile(optimizer=optimizer, loss='mse')
 
@@ -253,7 +289,7 @@ def exp1orig_train(expname, dset, cacheroot,
     logr.info("Saved confs to {}".format(conf_file))
 
     bsize = checkattr_with_warnoverride(conf, 'batch_size', 16)
-    VALBSIZE = 10  # step3 ipynb
+    VALBSIZE = bsize # 10  # step3 ipynb
 
     if shortdebugrun:
         logr.warning('SHORT DEBUG RUN!!')
@@ -312,23 +348,40 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
         info = info[:, 0].copy()
         yield ims, locs, info
 
-def exp1orig_assess_set(dset, cacheroot, expnamebase, runrange, **kwargs):
+def exp1orig_assess_set(expnamebase,
+                        runrange=range(5),
+                        dset='dpkfly',
+                        cacheroot=alcache,
+                        runpat='{}_run{}',
+                        **kwargs):
     eresall = []
     for run in runrange:
-        expname = "{}_run{}".format(expnamebase, run)
-        eres = exp1orig_assess(dset, cacheroot, expname, **kwargs)
+        expname = runpat.format(expnamebase, run)
+        eres = exp1orig_assess(expname, dset, cacheroot, **kwargs)
         eresall.append(eres)
 
-    euc_coll_ptiles50s = np.vstack([eresall[x]['euc_coll_ptiles5090'][:, 0] for x in range(5)]).T
-    euc_coll_ptiles90s = np.vstack([eresall[x]['euc_coll_ptiles5090'][:, 1] for x in range(5)]).T
+    euc_coll_ptiles50s = np.vstack([x['euc_coll_ptiles5090'][:, 0] for x in eresall]).T
+    euc_coll_ptiles90s = np.vstack([x['euc_coll_ptiles5090'][:, 1] for x in eresall]).T
 
     return eresall, euc_coll_ptiles50s, euc_coll_ptiles90s
 
-def exp1orig_assess(dset, cacheroot, expname,
+def get_latest_ckpt_h5(expdir):
+    cpth5 = glob.glob(os.path.join(expdir, 'ckpt*h5'))
+    cpth5.sort()
+    if len(cpth5) > 1:
+        print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
+    cpth5 = cpth5[-1]
+    return cpth5
+
+def exp1orig_assess(expname,
+                    dset='dpkfly',
+                    cacheroot=alcache,
                     validxs = None,  # normally read from conf.pickle
                     bsize=16,
                     doplot=True,
-                    gentype='tgtfr'):
+                    gentype='tgtfr',
+                    useaptcpt=False, # if true, use most recent deepnet-xxxxx cpt
+                    ):
 
     h5dset = dbs[dset]['h5dset']
     slbl = dbs[dset]['slbl']
@@ -350,26 +403,29 @@ def exp1orig_assess(dset, cacheroot, expname,
                                    imgaugtype=dset)
 
     expdir = conf.cachedir
-    cpth5 = glob.glob(os.path.join(expdir,'ckpt*h5'))
-    cpth5.sort()
-    if len(cpth5) > 1:
-        print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
-    cpth5 = cpth5[-1]
 
-    if gentype == 'dg':
-        loadmodelgen = dg
-    elif gentype == 'tgtfr':
-        loadmodelgen = None
+    if useaptcpt:
+        cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
+        sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
+
+        print("conf vs conf_saved:")
+        util.dictdiff(conf, conf_saved)
     else:
-        assert False
-    try:
-        sdn = dpk.models.load_model(cpth5, generator=loadmodelgen)
-    except KeyError:
-        if loadmodelgen is not None:
-            print("Warning: load_model failed with non-None gentype. trying with loadmodelgen=none")
-            sdn = dpk.models.load_model(cpth5, generator=None)
+        cpth5 = get_latest_ckpt_h5(expdir)
+        if gentype == 'dg':
+            loadmodelgen = None # dg
+        elif gentype == 'tgtfr':
+            loadmodelgen = None
         else:
-            raise
+            assert False
+        try:
+            sdn = dpk.models.load_model(cpth5, generator=loadmodelgen)
+        except KeyError:
+            if loadmodelgen is not None:
+                print("Warning: load_model failed with non-None gentype. trying with loadmodelgen=none")
+                sdn = dpk.models.load_model(cpth5, generator=None)
+            else:
+                raise
 
     '''
     The TG is randomly initted at creation/load_model time I think so the various
@@ -474,10 +530,12 @@ def evaluate(predmodel, gen):
 
     return evaluation_dict
 
-def collapse_swaps(x, swap_index):
+def collapse_swaps(x0, swap_index):
     # x: [n x nkpt] data arr
 
-    assert x.ndim == 2
+    assert x0.ndim == 2
+
+    x = np.copy(x0)
 
     colkeep = []
     for i, j in enumerate(swap_index):
@@ -513,7 +571,9 @@ def dpkfly_fix_h5(dset, skel):
     h50.close()
     h5.close()
 
-def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit):
+def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit,
+                           expname_trnvalsplit=None):
+
     conf = exp1orig_create_base_conf(expname, cacheroot, dset)
     edir = conf.cachedir
 
@@ -522,7 +582,12 @@ def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit):
     errfile = os.path.join(edir, '{}.err'.format(expname))
     nslots = 2
     queue = 'gpu_any'
-    scriptcmd = os.path.join(aldeepnet, 'run_apt_dpk_exps_orig2.sh {} {}'.format(expname, exptype))
+
+    argstr = '--expname {} --exptype {}'.format(expname, exptype)
+    if expname_trnvalsplit is not None:
+        argstr += ' --expname_trnvalsplit {}'.format(expname_trnvalsplit)
+    scriptcmd = os.path.join(aldeepnet, 'run_apt_dpk_exps_orig2.sh {}'.format(argstr))
+
     bsubscript = os.path.join(edir, '{}.bsub.sh'.format(expname))
     expnotefile = os.path.join(edir, 'EXPNOTE')
 
@@ -560,6 +625,18 @@ def exp1orig_train_bsub_codegen(
         expname = nowstr + "_run{}".format(irun)
         exp_train_bsub_codegen(expname, cacheroot, dset, expnote, submit)
 
+def exp2orig_train_bsub_codegen(
+        run_dstr,
+        run_range,
+        run_pat='dpkorig_{}_run{}',
+        cacheroot=alcache,
+        dset='dpkfly',
+        expnote=None,
+        submit=False,
+    ):
+    for irun in run_range:
+        expname = run_pat.format(run_dstr,irun)
+        exp_train_bsub_codegen(expname, 'exp2orig_train', cacheroot, dset, expnote, submit)
 
 
 
@@ -593,11 +670,15 @@ def exp2orig_create_tfrs(expname_from, cacheroot, dset, expname=None):
     print("writing to {}, {}".format(train_tf, val_tf))
     apt_dpk.apt_db_from_datagen(dg, train_tf, val_idx=validx0b, val_tf=val_tf)
 
-def exp2orig_train(expname, dset, cacheroot,
+def exp2orig_train(expname,
+                   dset,
+                   cacheroot,
                    runname='deepnet',
                    shortdebugrun=False,
                    returnsdn=False,  # return model right before calling fit()
                    bsize=16,
+                   usetfdata=True,
+                   **kwargs
                    ):
 
     iaver = ia.__version__
@@ -610,6 +691,7 @@ def exp2orig_train(expname, dset, cacheroot,
     h5dset = dbs[dset]['h5dset']
     dg = dpk.io.DataGenerator(h5dset)
     conf = exp1orig_create_base_conf(expname, cacheroot, dset)
+    # conf.img_dim=1?
     conf = apt_dpk.update_conf_dpk(conf,
                                    dg.graph,
                                    dg.swap_index,
@@ -618,6 +700,8 @@ def exp2orig_train(expname, dset, cacheroot,
                                    useimgaug=True,
                                    imgaugtype=dset)
     update_conf_rae(conf)
+
+    conf.dpk_use_tfdata = usetfdata
 
     # try to match exp1orig
     conf.batch_size = bsize
@@ -647,19 +731,49 @@ def exp2orig_train(expname, dset, cacheroot,
         epochs = 8
     else:
         epochs = conf.dl_steps // conf.display_step
+    steps_per_epoch = conf.display_step
 
     if returnsdn:
         return sdn
 
-    sdn.fit(
-        batch_size=conf.batch_size,
-        validation_batch_size=conf.batch_size,
-        callbacks=cbks,
-        epochs=epochs,
-        steps_per_epoch=conf.display_step,
-        validation_steps=nvalbatch, # max_queue_size=1,
-        verbose=2
-    )
+    if conf.dpk_use_tfdata:
+        # separate 'manual' fit for tfdata. this mirror sdn.fit()
+
+        dstrn = sdn.train_generator(sdn.n_outputs,
+                                    bsize,
+                                    validation=False,
+                                    confidence=True,
+                                    shuffle=True,
+                                    infinite=True)
+        dsval = sdn.train_generator(sdn.n_outputs,
+                                    bsize,
+                                    validation=True,
+                                    confidence=True,
+                                    shuffle=False,
+                                    infinite=False)
+        sdn.activate_callbacks(cbks)
+
+        train_model = sdn.train_model
+
+        train_model.fit(dstrn,
+                        epochs=epochs,
+                        steps_per_epoch=steps_per_epoch,
+                        verbose=2,
+                        callbacks=cbks,
+                        validation_data=dsval,
+                        validation_steps=nvalbatch,
+                        )
+
+    else:
+        sdn.fit(
+            epochs=epochs,
+            steps_per_epoch=steps_per_epoch,
+            batch_size=conf.batch_size,
+            verbose=2,
+            callbacks=cbks,
+            validation_steps=nvalbatch, # max_queue_size=1,
+            validation_batch_size=conf.batch_size,
+        )
 
     '''
     AL20200514. K.Model.fit_generator() issues: 
@@ -724,6 +838,7 @@ def parseargs(argv):
                         default='exp1orig_train',
                         )
     parser.add_argument('--runname', default='deepnet')
+    parser.add_argument('--expname_trnvalsplit', default='')
     parser.add_argument('--debugrun',
                         default=False,
                         action='store_true')
@@ -753,7 +868,8 @@ if __name__ == "__main__":
         trainfcn = globals()[args.exptype]
         trainfcn(args.expname, args.dset, args.cacheroot,
                  runname=args.runname,
-                 shortdebugrun=args.debugrun)
+                 shortdebugrun=args.debugrun,
+                 expname_trnvalsplit=args.expname_trnvalsplit)
     else:
         assert False
 else:

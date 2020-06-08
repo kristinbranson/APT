@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from itertools import islice
 import time
 
+import mpl_toolkits.axes_grid1 as axg1
+
 import PoseTools
 import heatmap
 
@@ -19,6 +21,8 @@ ISPY3 = sys.version_info >= (3, 0)
 
 if ISPY3:
     import deepposekit as dpk
+
+
 
 
 def distsquaredpts2limb(zz, startxy, sehat):
@@ -444,16 +448,17 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
             y[..., conf.n_classes:] *= conf.dpk_graph_scale  # scale grps, limbs, globals
 
         if conf.dpk_n_outputs > 1:
-            y = [y for idx in range(conf.dpk_n_outputs)]
+            y = [y for _ in range(conf.dpk_n_outputs)]
 
         targets = y
     else:
+        assert conf.dpk_n_outputs == 1
         targets = locs.copy()
 
     if not __ims_locs_preprocess_dpk_has_run__:
-        str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}, nmaps = {}'
+        str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}'
         logging.info(str.format(distort, conf.dpk_use_augmenter,
-                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs, nmaps))
+                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
         __ims_locs_preprocess_dpk_has_run__ = True
 
     return ims, locs, targets
@@ -591,10 +596,8 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             logging.warning("Last batch, size={}. padding for now.".format(nread))
 
             '''
-            AL: need to check that all preproc fns are insensitive to the bsize, esp
-            eg if imsraw.shape[0] disagrees with conf.batch_size. one place this is not
-            true is in pt.normalize_mean (see preprocess_ims). seems best if the preproc 
-            fns never require a certain bsize and just operate whatever the 0th dim is.
+            AL: PoseTools.preprocess_ims (and downstream) should be insensitive to the bsize, 
+            esp eg if imsraw.shape[0] disagrees with conf.batch_size. 
             '''
             nshort = batch_size-nread
             imsraw = np.pad(imsraw, ((0, nshort), (0, 0), (0, 0), (0, 0)),
@@ -614,7 +617,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             if isinstance(targets, list):
                 for ndx, tgt in enumerate(targets):
                     assert tgt.shape[0] == batch_size
-                    targets[ndx] = tgt[:nread, ...]
+                    targets[ndx] = tgt[:nread, ... ]
             else:
                 assert targets.shape[0] == batch_size
                 targets = targets[:nread, ...]
@@ -636,6 +639,215 @@ def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn,
         logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
+
+thecounter=0
+'''
+The TFData/keras/tf sucks log!
+These are in tf1.14
+
+Using a tfds as val data in K.fit(), val_steps should be settable to None/default as "run entire ds".
+This does not work but setting verbose=0 is a suggested workaround ?!?!?!
+https://github.com/tensorflow/tensorflow/issues/28995
+maybe fixed in tf1.15
+
+Setting val_iter to "one more than ceil(len(tfds))" causes the entire train to get canceled at epoch
+end; but passing ceil(len(tfds)) or less, the valds gets auto-reset/reinitialized whenever necessary.
+
+There is no way to instrument a tfds to know when records are pulled, py_funcs get called etc since
+I guess it runs off in C++ or in some other universe.
+
+In general, even as of tf2.2/Apr2020, K is not robust to cases when the len(valds) is not evenly 
+divisible by val bsize 
+https://github.com/tensorflow/tensorflow/issues/38596, 38165, downstream/refd issues
+
+When using a val set even with K seqs, the last/clipped valbatch (when len(valds) is not evenly
+divisible by valbsize) is just skipped rather than run and of course there is no notice/doc of this.
+
+In K cbks, the log dict when using fit_generator gives the correct bsize for both trn and val/test 
+steps, in the 'size' field of the logs dict. When using a tfds for val, the 'size' is always 1 (??!!).
+'''
+
+def create_tf_datasets(conf0,
+                       n_outputs,
+                       is_val=False,  # True for val, False for trn
+                       is_raw=False,  # True for raw, False for preprocessed
+                       distort=True,  # applies only if is_raw=True
+                       shuffle=True,
+                       infinite=True,
+                       dobatch=True,
+                       drawconf=True,
+                       shufflebsize=100,
+                       ):
+    '''
+    Create train/val TFRecordDatasets. This is basically PoseBaseGeneral/create_datasets
+    (or PoseCommon_dataset) but we are doing some experimenting/massaging.
+
+    cf C+P from PoseCommon_dataset
+    '''
+
+    conf = copy.deepcopy(conf0)
+    conf.dpk_n_outputs = 1  # outputs are handled here rather than in pp methods
+
+    def _parse_function(serialized_example):
+        '''
+        C+P from PoseBaseGeneral
+        '''
+        features = tf.parse_single_example(
+            serialized_example,
+            features={'height': tf.FixedLenFeature([], dtype=tf.int64),
+                      'width': tf.FixedLenFeature([], dtype=tf.int64),
+                      'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                      'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                      'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
+                      'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                      'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                      'image_raw': tf.FixedLenFeature([], dtype=tf.string), #   'occ': tf.FixedLenFeature(shape=[conf.n_classes], default_value=None, dtype=tf.float32),
+                      })
+        image = tf.decode_raw(features['image_raw'], tf.uint8)
+        trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
+        image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+
+        locs = tf.cast(features['locs'], tf.float32)
+        exp_ndx = tf.cast(features['expndx'], tf.float32)
+        ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
+        info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
+        #occ = tf.cast(features['occ'], tf.bool)
+        return image, locs, info # , occ
+
+    def pp_dpk_conf(imsraw, locsraw):
+        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+                                                       locsraw,
+                                                       conf,
+                                                       distort,
+                                                       draw_conf_maps=True)
+        return ims.astype('float32'), tgts.astype('float32')
+
+    def pp_dpk_noconf(imsraw, locsraw):
+        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+                                                       locsraw,
+                                                       conf,
+                                                       distort,
+                                                       draw_conf_maps=False)
+        return ims.astype('float32'), tgts.astype('float32')
+
+    train_db = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+    if is_val:
+        val_db = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
+        if os.path.exists(val_db) and os.path.getsize(val_db) > 0:
+            logging.info("Val DB exists: Data for validation from:{}".format(val_db))
+        else:
+            logging.warning("Val DB does not exist: Data for validation from:{}".format(train_db))
+            val_db = train_db
+        dbfile = val_db
+    else:
+        dbfile = train_db
+
+    ds = tf.data.TFRecordDataset(dbfile)
+    ds = ds.map(map_func=_parse_function)
+    if shuffle:
+        ds = ds.shuffle(buffer_size=shufflebsize)
+    if infinite:
+        ds = ds.repeat()
+    if dobatch:
+        ds = ds.batch(conf.batch_size)
+    if is_raw:
+        pass
+        # raw parse; return image, locs, info, occ
+    else:
+        # TF issues encountered
+        # * set_shape after py_func. https://github.com/tensorflow/tensorflow/issues/24520
+        # * ds.map concats lists into Tensors. use a tuple
+        #   https://github.com/tensorflow/tensorflow/issues/20698
+        if drawconf:
+            def dataAugPyFunc(ims, locs, info):
+                # not sure why we need call to tuple
+                ims, tgts = tuple(tf.py_func(pp_dpk_conf, [ims, locs], [tf.float32, ] * 2))
+                ims.set_shape([None,] * 4)  # ims
+                tgts.set_shape([None,] * 4)  # confmaps/tgts
+                tgtslist = tuple([tgts for _ in range(n_outputs)])
+
+                # print("The shape of res[1] is {}".format(res[1].shape))
+                return ims, tgtslist
+
+            ds = ds.map(map_func=dataAugPyFunc)
+        else:
+            def dataAugPyFunc(ims, locs, info):
+                res = tuple(tf.py_func(pp_dpk_noconf, [ims, locs], [tf.float32, ] * 2))
+                res[0].set_shape([None, ] * 4)  # ims
+                res[1].set_shape([None, ] * 3)  # locs
+                return res
+
+            ds = ds.map(map_func=dataAugPyFunc)
+            assert n_outputs == 1
+
+    return ds
+
+def read_ds_idxed(ds, indices):
+    it = ds.make_one_shot_iterator()
+    nextel = it.get_next()
+    c = 0
+    res = []
+    with tf.Session() as sess:
+        while True:
+            restmp = sess.run(nextel)
+            if c in indices:
+                res.append(restmp)
+                print("Got {}".format(c))
+            c += 1
+            if all([c>x for x in indices]):
+                break
+    return res
+
+def xylist2xyarr(xylist, xisscalarlist=False):
+    x, y  = zip(*xylist)
+    if xisscalarlist:
+        assert all([len(z)==1 for z in x])
+        x = [z[0] for z in x]
+    x = np.concatenate(x,axis=0)
+    y = np.concatenate(y,axis=0)
+    return x, y
+
+
+def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
+            share_all=True, label_mode='1', cmap='viridis', locsmrkr='.',
+            locsmrkrsz=16):
+    from matplotlib import cm
+
+    #ims = np.moveaxis(ims0, 0, -1)
+    #ims = ims[:, :, 0, :]
+    ims = ims0
+
+    nim = ims.shape[2]
+    nplotr = int(np.floor(np.sqrt(nim)))
+    nplotc = int(np.ceil(nim / nplotr))
+
+    fig = plt.figure(fignum, figsize=figsize)
+    grid = axg1.ImageGrid(fig, 111,  # similar to subplot(111)
+                          nrows_ncols=(nplotr, nplotc),
+                          axes_pad=axes_pad,  # pad between axes in inch.
+                          share_all=share_all,
+                          label_mode=label_mode,
+                          cbar_mode='each',
+                          )
+
+    for iim in range(nim):
+        him = grid[iim].imshow(ims[..., iim], cmap=cmap)
+        cb = grid.cbar_axes[iim].colorbar(him)
+        cb.ax.tick_params(color='r')
+        plt.setp(plt.getp(cb.ax, 'yticklabels'), color='w')
+        if iim == 0:
+            cb0 = cb
+        if locs is not None:
+            jetmap = cm.get_cmap('jet')
+            rgba = jetmap(np.linspace(0, 1, locs.shape[1]))
+            grid[iim].scatter(locs[iim, :, 0], locs[iim, :, 1], c=rgba,
+                              marker=locsmrkr, s=locsmrkrsz)
+
+    for iim in range(nim, nplotr * nplotc):
+        grid[iim].imshow(np.zeros(ims.shape[0:2]))
+
+    plt.show()
+    return fig, grid, cb0
 
 if __name__ == "__main__":
 
