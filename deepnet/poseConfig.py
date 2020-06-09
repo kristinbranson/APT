@@ -10,6 +10,15 @@ import logging
 
 class config(object):
     # ----- Names
+    DATAAUG_FLDS = {
+        'adjust_contrast': ['adjust_contrast', 'clahe_grid_size'],
+        'scale_images': ['rescale'],
+        'flip': ['horz_flip', 'vert_flip', 'flipLandmarkMatches'],
+        'affine': ['use_scale_factor_range', 'scale_range', 'scale_factor_range',
+                   'rrange', 'trange', 'rescale', 'check_bounds_distort'],
+        'adjust': ['brange', 'crange', 'imax'],
+        'normalize': ['normalize_img_mean', 'img_dim', 'perturb_color', 'imax', 'normalize_batch_mean'],
+    }
 
     # ----- Network parameters
     def __init__(self):
@@ -219,6 +228,12 @@ class config(object):
             logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
             setattr(self,name,default)
         return getattr(self,name,default)
+
+    def print_dataaug_flds(self):
+        for cat, flds in self.DATAAUG_FLDS.items():
+            print('## {} ##'.format(cat))
+            for f in flds:
+                print('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
 
 # -- alice fly --

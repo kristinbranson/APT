@@ -487,6 +487,9 @@ def read_skel_csv(skel_csv):
     swap_index = skeleton[:, 1]
     return graph, swap_index
 
+def swap_index_to_flip_landmark_matches(swap_idx):
+    flm = {str(idx): val for (idx, val) in enumerate(list(swap_idx)) if val != -1}
+    return flm
 
 def update_conf_dpk_skel_csv(conf_base, skel_csv):
     graph, swap_index = read_skel_csv(skel_csv)

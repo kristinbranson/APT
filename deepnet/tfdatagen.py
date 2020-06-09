@@ -838,7 +838,8 @@ def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
         if iim == 0:
             cb0 = cb
         if locs is not None:
-            jetmap = cm.get_cmap('jet')
+            assert locs.shape[0] == nim
+            jetmap = cm.get_cmap('spring')
             rgba = jetmap(np.linspace(0, 1, locs.shape[1]))
             grid[iim].scatter(locs[iim, :, 0], locs[iim, :, 1], c=rgba,
                               marker=locsmrkr, s=locsmrkrsz)
