@@ -189,10 +189,13 @@ def exp1orig_create_base_conf(expname, cacheroot, dset):
                            cacheroot, NET, quiet=False)
     return conf
 
-def exp1orig_train(expname, dset, cacheroot,
+def exp1orig_train(expname,
+                   dset,
+                   cacheroot,
                    runname='deepnet',
                    expname_trnvalsplit=None, # exp should exist 'alongside' expname; conf.pickle in this exp used
                                              #  to set val_index and train_index
+                   valbsize=10,
                    shortdebugrun=False,
                    ):
 
@@ -289,8 +292,8 @@ def exp1orig_train(expname, dset, cacheroot,
     logr.info("Saved confs to {}".format(conf_file))
 
     bsize = checkattr_with_warnoverride(conf, 'batch_size', 16)
-    VALBSIZE = bsize # 10  # step3 ipynb
-
+    #VALBSIZE = bsize # 10  # step3 ipynb
+    logr.info("your valbsize is {}".format(valbsize))
     if shortdebugrun:
         logr.warning('SHORT DEBUG RUN!!')
         EPOCHS = 100
@@ -298,7 +301,7 @@ def exp1orig_train(expname, dset, cacheroot,
         EPOCHS = 1000
     sdn.fit(
         batch_size=bsize,
-        validation_batch_size=VALBSIZE,
+        validation_batch_size=valbsize,
         callbacks=callbacks,
         epochs=EPOCHS,
         steps_per_epoch=None,  # validation_steps=VALSTEPS,
@@ -572,7 +575,7 @@ def dpkfly_fix_h5(dset, skel):
     h5.close()
 
 def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit,
-                           expname_trnvalsplit=None):
+                           **kwargs):
 
     conf = exp1orig_create_base_conf(expname, cacheroot, dset)
     edir = conf.cachedir
@@ -584,8 +587,8 @@ def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit,
     queue = 'gpu_any'
 
     argstr = '--expname {} --exptype {}'.format(expname, exptype)
-    if expname_trnvalsplit is not None:
-        argstr += ' --expname_trnvalsplit {}'.format(expname_trnvalsplit)
+    for k in kwargs:
+        argstr += ' --{} {}'.format(k, kwargs[k])
     scriptcmd = os.path.join(aldeepnet, 'run_apt_dpk_exps_orig2.sh {}'.format(argstr))
 
     bsubscript = os.path.join(edir, '{}.bsub.sh'.format(expname))
@@ -839,6 +842,7 @@ def parseargs(argv):
                         )
     parser.add_argument('--runname', default='deepnet')
     parser.add_argument('--expname_trnvalsplit', default='')
+    parser.add_argument('--valbsize', default=10, type=int)
     parser.add_argument('--debugrun',
                         default=False,
                         action='store_true')
@@ -869,7 +873,8 @@ if __name__ == "__main__":
         trainfcn(args.expname, args.dset, args.cacheroot,
                  runname=args.runname,
                  shortdebugrun=args.debugrun,
-                 expname_trnvalsplit=args.expname_trnvalsplit)
+                 expname_trnvalsplit=args.expname_trnvalsplit,
+                 valbsize=args.valbsize)
     else:
         assert False
 else:
