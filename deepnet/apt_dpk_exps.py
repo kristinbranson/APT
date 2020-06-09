@@ -814,12 +814,39 @@ def exp2orig_train(expname,
     New obs. Above was running in Pycharm Console; in raw cmdline run, max_queue_size
     does not seem to affect the num of calls to valgen, but it is still off in that the valgen
     is called once more than expected.
-
-    
-    
     '''
 
+def exp2_set_posetools_aug_config_leapfly(conf):
+    c = conf
+    LEAPFLY_IMSZ = 192
 
+    c.adjust_contrast = False
+    c.rescale = 1.0
+
+    # flip
+    c.horz_flip = True
+    c.vert_flip = True
+    c.flipLandmarkMatches = apt_dpk.swap_index_to_flip_landmark_matches(c.dpk_swap_index)
+
+    # affine
+    c.use_scale_factor_range = True
+    c.scale_factor_range: 1.1
+    c.rrange = 180
+    c.trange = np.round(.05 * LEAPFLY_IMSZ )
+    c.check_bounds_distort = True
+    # (no shear)
+
+    # adjust ##
+    c.brange = [-.001,.001]  # set me?
+    c.crange = [-.001,.001]  # set me?
+    c.imax = 255.0
+
+    # normalize
+    c.normalize_img_mean = False
+    c.img_dim = 1
+    c.perturb_color = False
+    # imax: 255.0
+    c.normalize_batch_mean = False
 
 
 
