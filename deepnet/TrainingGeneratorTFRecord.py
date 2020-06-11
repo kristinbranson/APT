@@ -280,7 +280,7 @@ class TrainingGeneratorTFRecord:
             "random_seed": self.random_seed,
             "use_augmenter": self.conf.dpk_use_augmenter,
             "augmenter_type": self.conf.dpk_augmenter_type,
-            'augmenter': self.conf.dpk_augmenter,
+            "augmenter": repr(self.conf.dpk_augmenter),
             "image_shape": self.image_shape,
             "keypoints_shape": self.keypoints_shape,
             "use_tfdata": self.use_tfdata,
