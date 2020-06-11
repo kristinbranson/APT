@@ -1,5 +1,6 @@
 
 import os
+import copy
 import numpy as np
 
 import logging
@@ -7,6 +8,7 @@ import logging
 import multiResData as mrd
 import PoseTools
 import tfdatagen as opdata
+import apt_dpk
 
 __all__ = ["TrainingGeneratorTFRecord"]
 
@@ -57,13 +59,15 @@ class TrainingGeneratorTFRecord:
 
     def __init__(
         self,
-        conf,
+        conf0,
         random_seed=None,
     ):
 
         self.random_seed = random_seed
         if self.random_seed:
             np.random.seed(self.random_seed)
+
+        conf = copy.deepcopy(conf0)
 
         self.conf = conf
 
@@ -109,51 +113,34 @@ class TrainingGeneratorTFRecord:
         # self.graph = self.generator.graph
         # self.swap_index = self.generator.swap_index
 
+        if conf.dpk_use_augmenter:
+            augtype = conf.dpk_augmenter_type['type']
+            conf.dpk_augmenter = apt_dpk.make_imgaug_augmenter(
+                augtype, conf.dpk_swap_index
+            )
+            logging.info("TGTFR. created dpk_augmenter, type {}, swapidx {}.".format(
+                augtype, conf.dpk_swap_index))
+
         # self.on_epoch_end()
         # we get a row here just to figure out shapes/sizes
         g = self.get_generator(validation=False, confidence=True, debug=True, silent=True)
         ims0, tgts0, locs0, info0 = next(g)
         if isinstance(tgts0, list):
             tgts0 = tgts0[0]
-        # tgts0 can be a list if conf.dpk_n_outputs > 1. dpk_n_outputs can mutate later but n_output_channels should not change
+        # tgts0 can be a list if conf.dpk_n_outputs > 1.
+        # dpk_n_outputs can mutate later but n_output_channels should not change
         self.n_output_channels = tgts0.shape[-1]
         self.keypoints_shape = locs0.shape[1:]
         assert self.keypoints_shape == (conf.n_classes, 2,)
+        logging.info("TGTFR. n_output_chans={}".format(self.n_output_channels))
 
         self.use_tfdata = getattr(conf, 'dpk_use_tfdata', True) # set to True to use tfdatas instead of generators
 
-        #self.batch_size = 32
-        #self.n_outputs = 1
-        #self.use_graph = use_graph
-        #self.graph_scale = graph_scale
-        #self.confidence = True
-        #self._init_augmenter(augmenter)
-        #self._init_data()
-        #self.on_epoch_end()
+        logging.info("TGTFR. use_tfdata: {}".format(self.use_tfdata))
 
-    # def _init_augmenter(self, augmenter):
-    #     if isinstance(augmenter, type(None)):
-    #         self.augmenter = augmenter
-    #     elif isinstance(augmenter, iaa.Augmenter):
-    #         self.augmenter = augmenter
-    #     elif isinstance(augmenter, list):
-    #         if isinstance(augmenter[0], iaa.Augmenter):
-    #             self.augmenter = iaa.Sequential(augmenter)
-    #         else:
-    #             raise TypeError(
-    #                 """`augmenter` must be class Augmenter
-    #                         (imgaug.augmenters.Augmenter)
-    #                         or list of Augmenters"""
-    #             )
-    #     else:
-    #         raise ValueError(
-    #             """augmenter must be class
-    #                          Augmenter, list of Augmenters, or None"""
-    #         )
+    def get_tfdataset(self, batch_size, validation, confidence, n_outputs,
+                      shuffle=None, infinite=None, **kwargs):
 
-    # def _init_data(self):
-
-    def get_tfdataset(self, validation, confidence, n_outputs, shuffle=None, infinite=None, **kwargs):
         distort = not validation
 
         if not confidence:
@@ -171,6 +158,7 @@ class TrainingGeneratorTFRecord:
             logging.info("Ignoring kwarg: {}".format(k))
 
         ds = opdata.create_tf_datasets(self.conf,
+                                       batch_size,
                                        n_outputs,
                                        is_val=validation,
                                        distort=distort,
@@ -182,6 +170,8 @@ class TrainingGeneratorTFRecord:
 
     def get_generator(self, validation, confidence, shuffle=None, infinite=None, **kwargs):
         '''
+
+        uses batch_size as in self.conf.batch_size
 
         :param validation:
         :param confidence:
@@ -236,7 +226,7 @@ class TrainingGeneratorTFRecord:
     '''
 
     def __call__(self, n_outputs=1, batch_size=32, validation=False, confidence=True, **kwargs):
-        """ Sets the number of outputs and the batch size,
+        """
         Return a generator
 
         Parameters
@@ -255,38 +245,49 @@ class TrainingGeneratorTFRecord:
             Otherwise, generates keypoints.
 
         """
-        logging.warning('Ignoring batch specification of {}, conf batchsize is {}'.format(batch_size, self.conf.batch_size))
-        #self.batch_size = batch_size
-        '''
-        if validation:
-            if self.n_validation is 0 and self.validation_split is 0:
-                warnings.warn(
-                    "`validation_split` is 0, so there will be no validation step. "
-                    "callbacks that rely on `val_loss` should be switched to `loss` or removed."
-                )
-            if self.n_validation is 0 and self.validation_split is not 0:
-                warnings.warn(
-                    "`validation_split` is too small, so there will be no validation step. "
-                    "`validation_split` should be increased or "
-                    "callbacks that rely on `val_loss` should be switched to 'loss' or removed."
-                )
-        '''
-        #self.validation = validation
-        #self.confidence = confidence
-        '''
-        self.on_epoch_end()
-        self_copy = copy.deepcopy(self)
-        if self.augmenter:
-            self_copy.augmenter.reseed()
-        '''
+
+        if batch_size != self.conf.batch_size:
+            logging.warning('batch specification ({}) differs from conf.batch_size ({})!'.format(
+                batch_size, self.conf.batch_size))
+
         if self.use_tfdata:
-            return self.get_tfdataset(validation, confidence, n_outputs, **kwargs)
+            return self.get_tfdataset(batch_size, validation, confidence, n_outputs, **kwargs)
         else:
             # This is dumb, this is only set here to pass into tfdatagen.data_generator;
-            # it shouldn't persist
-            # (conf gets deepcopied when gen is made)
+            # it shouldn't persist. however self.conf is a deepcopied/separate obj now
+
+            assert False, "Now unsupported; need batch_size input"
             self.conf.dpk_n_outputs = n_outputs
             return self.get_generator(validation, confidence, **kwargs)
+
+    def get_config(self):
+        #if self.augmenter:
+        #    augmenter = True
+        #else:
+        #    augmenter = False
+        config = {
+            "n_train": self.n_train,
+            "n_validation": self.n_validation,
+            # "validation_split": self.validation_split,
+            "downsample_factor": self.downsample_factor,
+            "output_shape": self.conf.dpk_output_shape,
+            "n_output_channels": self.n_output_channels,
+            # "shuffle": self.shuffle,
+            #"sigma": self.sigma,
+            "output_sigma": self.conf.dpk_output_sigma,
+            "use_graph": self.conf.dpk_use_graph,
+            "graph_scale": self.conf.dpk_graph_scale,
+            "random_seed": self.random_seed,
+            "use_augmenter": self.conf.dpk_use_augmenter,
+            "augmenter_type": self.conf.dpk_augmenter_type,
+            'augmenter': self.conf.dpk_augmenter,
+            "image_shape": self.image_shape,
+            "keypoints_shape": self.keypoints_shape,
+            "use_tfdata": self.use_tfdata,
+        }
+        return config  # xxxAL image_height
+        #base_config = self.generator.get_config()
+        #return dict(list(config.items()) + list(base_config.items()))
 
     '''
     def __getitem__(self, index):
@@ -357,29 +358,3 @@ class TrainingGeneratorTFRecord:
         return X, y
     '''
 
-    def get_config(self):
-        #if self.augmenter:
-        #    augmenter = True
-        #else:
-        #    augmenter = False
-        config = {
-            "n_train": self.n_train,
-            "n_validation": self.n_validation,
-            # "validation_split": self.validation_split,
-            "downsample_factor": self.downsample_factor,
-            "output_shape": self.conf.dpk_output_shape,
-            "n_output_channels": self.n_output_channels,
-            # "shuffle": self.shuffle,
-            #"sigma": self.sigma,
-            "output_sigma": self.conf.dpk_output_sigma,
-            "use_graph": self.conf.dpk_use_graph,
-            "graph_scale": self.conf.dpk_graph_scale,
-            "random_seed": self.random_seed,
-            "augmenter": self.conf.dpk_use_augmenter,
-            "image_shape": self.image_shape,
-            "keypoints_shape": self.keypoints_shape,
-            "use_tfdata": self.use_tfdata,
-        }
-        return config  # xxxAL image_height
-        #base_config = self.generator.get_config()
-        #return dict(list(config.items()) + list(base_config.items()))

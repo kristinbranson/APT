@@ -8,6 +8,7 @@ import pickle
 import glob
 import subprocess
 import logging
+import inspect
 
 import tensorflow as tf
 import imgaug as ia
@@ -574,8 +575,12 @@ def dpkfly_fix_h5(dset, skel):
     h50.close()
     h5.close()
 
-def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit,
-                           **kwargs):
+def exp_train_bsub_codegen(expname, dset, cacheroot, # mandatory apt_dpk_exps args
+                           exptype, # exp1orig_train or exp2orig_train
+                           expnote,
+                           submit,  # True to actually launch
+                           **kwargs  # addnl args to apt_dpk_exps
+                           ):
 
     conf = exp1orig_create_base_conf(expname, cacheroot, dset)
     edir = conf.cachedir
@@ -586,13 +591,18 @@ def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit,
     nslots = 2
     queue = 'gpu_any'
 
-    argstr = '--expname {} --exptype {}'.format(expname, exptype)
-    for k in kwargs:
-        argstr += ' --{} {}'.format(k, kwargs[k])
+    argstr = '--expname {} --dset {} --cacheroot {} {}'.format(
+        expname, dset, cacheroot, exptype)
+    for k, v in kwargs.items():
+        argstr += ' --{} {}'.format(k, v)
     scriptcmd = os.path.join(aldeepnet, 'run_apt_dpk_exps_orig2.sh {}'.format(argstr))
 
     bsubscript = os.path.join(edir, '{}.bsub.sh'.format(expname))
     expnotefile = os.path.join(edir, 'EXPNOTE')
+
+    ssscript = os.path.join(aldeepnet, '..', 'matlab', 'repo_snapshot.sh')
+    ssfile = os.path.join(edir, '{}.aptss'.format(expname))
+    sscmd = "{} > {}".format(ssscript, ssfile)
 
     code = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W 2160 -gpu "num=1" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson /misc/local/singularity/branson_allen.simg {}"' '''.format(
         jobname, logfile, errfile, nslots, queue, scriptcmd)
@@ -610,36 +620,34 @@ def exp_train_bsub_codegen(expname, exptype, cacheroot, dset, expnote, submit,
                 f.write(expnote)
                 f.write('\n')
             print("Wrote {}".format(expnotefile))
+        subprocess.call(sscmd, shell=True)
+        print('Wrote apt snapshot: {}'.format(sscmd))
         subprocess.call(code, shell=True)
         print('submitted {}'.format(expname))
     else:
         print(code)
 
 
-def exp1orig_train_bsub_codegen(
-        nruns=5,
-        cacheroot=alcache,
-        dset='dpkfly',
-        expnote=None,
-        submit=False
-):
-    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    for irun in range(nruns):
-        expname = nowstr + "_run{}".format(irun)
-        exp_train_bsub_codegen(expname, cacheroot, dset, expnote, submit)
-
-def exp2orig_train_bsub_codegen(
-        run_dstr,
-        run_range,
+def exp12orig_train_bsub_codegen(
+        exptype,  # exp1orig_train or exp2orig_train
+        run_dstr,  # eg 'dpkorig_20200512'
+        run_range,  # eg range(4)
         run_pat='dpkorig_{}_run{}',
         cacheroot=alcache,
         dset='dpkfly',
         expnote=None,
         submit=False,
+        **kwargs    # addnl args apt_dpk_exps
     ):
     for irun in run_range:
-        expname = run_pat.format(run_dstr,irun)
-        exp_train_bsub_codegen(expname, 'exp2orig_train', cacheroot, dset, expnote, submit)
+        expname = run_pat.format(run_dstr, irun)
+        exp_train_bsub_codegen(expname,
+                               dset,
+                               cacheroot,
+                               exptype,
+                               expnote,
+                               submit,
+                               **kwargs)
 
 
 
@@ -681,6 +689,8 @@ def exp2orig_train(expname,
                    returnsdn=False,  # return model right before calling fit()
                    bsize=16,
                    usetfdata=True,
+                   useimgaug=True,  # if false, use PoseTools
+                   valbsize=10,
                    **kwargs
                    ):
 
@@ -694,17 +704,20 @@ def exp2orig_train(expname,
     h5dset = dbs[dset]['h5dset']
     dg = dpk.io.DataGenerator(h5dset)
     conf = exp1orig_create_base_conf(expname, cacheroot, dset)
-    # conf.img_dim=1?
+    # conf.img_dim=1? think unnec now in slbl
     conf = apt_dpk.update_conf_dpk(conf,
                                    dg.graph,
                                    dg.swap_index,
                                    n_keypoints=dg.n_keypoints,
                                    imshape=dg.compute_image_shape(),
-                                   useimgaug=True,
+                                   useimgaug=useimgaug,
                                    imgaugtype=dset)
     update_conf_rae(conf)
 
     conf.dpk_use_tfdata = usetfdata
+    if not useimgaug:
+        assert dset == 'dpkfly'
+        exp2_set_posetools_aug_config_leapfly(conf)
 
     # try to match exp1orig
     conf.batch_size = bsize
@@ -716,6 +729,13 @@ def exp2orig_train(expname,
     cbks = create_callbacks_exp2orig_train(conf, sdn, runname=runname)
 
     apt_dpk.print_dpk_conf(conf)
+    if not useimgaug:
+        conf.print_dataaug_flds()
+    conf_tgtfr = tgtfr.conf
+    util.dictdiff(conf, conf_tgtfr)
+    #for k, v in vars(conf_tgtfr).items():
+    #    if not v == getattr(conf, k):
+    #        print("TGTFR conf different field: {} -> {}".format(k, v))
 
     tgconf = tgtfr.get_config()
     sdnconf = sdn.get_config()
@@ -726,8 +746,9 @@ def exp2orig_train(expname,
 
     # validation bsize needs to be spec'd for K fit_generator since the val
     # data comes as a generator (with no len() call) vs a K Sequence
-    nvalbatch = int(np.ceil(tgtfr.n_validation / conf.batch_size))
-    logr.info("nval={}, nvalbatch={}".format(tgtfr.n_validation, nvalbatch))
+    nvalbatch = int(np.ceil(tgtfr.n_validation / valbsize))
+    logr.info("nval={}, nvalbatch={}, valbsize={}".format(
+        tgtfr.n_validation, nvalbatch, valbsize))
 
     if shortdebugrun:
         logr.warning('SHORT DEBUG RUN!!')
@@ -749,7 +770,7 @@ def exp2orig_train(expname,
                                     shuffle=True,
                                     infinite=True)
         dsval = sdn.train_generator(sdn.n_outputs,
-                                    bsize,
+                                    valbsize,
                                     validation=True,
                                     confidence=True,
                                     shuffle=False,
@@ -768,6 +789,7 @@ def exp2orig_train(expname,
                         )
 
     else:
+        assert False, "prob non-op due to datagen"
         sdn.fit(
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
@@ -830,7 +852,7 @@ def exp2_set_posetools_aug_config_leapfly(conf):
 
     # affine
     c.use_scale_factor_range = True
-    c.scale_factor_range: 1.1
+    c.scale_factor_range = 1.1
     c.rrange = 180
     c.trange = np.round(.05 * LEAPFLY_IMSZ )
     c.check_bounds_distort = True
@@ -849,6 +871,44 @@ def exp2_set_posetools_aug_config_leapfly(conf):
     c.normalize_batch_mean = False
 
 
+def parse_sig(sig):
+    for k in sig.parameters:
+        p = sig.parameters[k]
+        dv = p.default
+        print("{}: dv={}".format(k, dv))
+
+def parse_sig_and_add_args(sig, parser, skipargs):
+    for k in sig.parameters:
+        if k in skipargs:
+            continue
+        p = sig.parameters[k]
+        dv = p.default
+        try:
+            if isinstance(dv, bool):
+                parser.add_argument('--{}'.format(k),
+                                    default=dv,
+                                    type=int,
+                                    help="default={}".format(dv),
+                                    )
+                print("Added bool arg {}".format(k))
+            elif isinstance(dv, int):
+                parser.add_argument('--{}'.format(k),
+                                    default=dv,
+                                    type=int,
+                                    help="default={}".format(dv),
+                                    )
+                print("Added int arg {}".format(k))
+            else:
+                parser.add_argument('--{}'.format(k),
+                                    default=dv,
+                                    help="default={}".format(dv),
+                                    )
+                print("Added arg {}".format(k))
+        except argparse.ArgumentError:
+            print("Skipping arg {}".format(k))
+
+
+
 
 def parseargs(argv):
     parser = argparse.ArgumentParser()
@@ -859,49 +919,37 @@ def parseargs(argv):
                         choices=['dpkfly'],  # bub obsolete, move to rae
                         default='dpkfly',
                         help='(DPK) dataset name; doubles as projname')
-    #parser.add_argument('--datasrc',
-    #                    choices=['h5', 'tgtfr'],
-    #                    default='tgtfr',
-    #                    help='Data source/input pipeline. If tgtfr, train/val dbs must be present under expname in cache')
-    parser.add_argument('--exptype',
-                        choices=['exp1orig_train', 'exp2orig_train'],
-                        default='exp1orig_train',
-                        )
+    parser.add_argument('--cacheroot',
+                        default=alcache)
+    SKIP_ARGS = ['expname', 'dset', 'cacheroot', 'kwargs']
+    subparsers = parser.add_subparsers(help='exptype', dest='exptype')
+    parser1 = subparsers.add_parser('exp1orig_train')
+    sig1 = inspect.signature(exp1orig_train)
+    parse_sig_and_add_args(sig1, parser1, SKIP_ARGS)
+    parser2 = subparsers.add_parser('exp2orig_train')
+    sig2 = inspect.signature(exp2orig_train)
+    parse_sig_and_add_args(sig2, parser2, SKIP_ARGS)
+
+    '''
     parser.add_argument('--runname', default='deepnet')
     parser.add_argument('--expname_trnvalsplit', default='')
     parser.add_argument('--valbsize', default=10, type=int)
     parser.add_argument('--debugrun',
                         default=False,
                         action='store_true')
-    # parser.add_argument('--augtype',
-    #                     choices=['imgaug', 'posetools'],
-    #                     default='posetools',
-    #                     help='Imgaug choice, applicable only when traintype==apt')
-    parser.add_argument('--cacheroot',
-                        default=alcache)
-    #parser.add_argument('--compileonly',
-    #                    action='store_true',
-    #                    help="Don't train just compile")
-    #parser.add_argument('--dpkloc',
-    #                    default='/groups/branson/home/leea30/git/dpk',
-    #                    help='location of dpk repo/dependency')
-    #parser.add_argument('--imgaugloc',
-    #                    default='/groups/branson/home/leea30/git/imgaug',
-    #                    help='location of imgaug repo/dependency')
-
+    '''
     args = parser.parse_args(argv)
     return args
 
 
 if __name__ == "__main__":
     args = parseargs(sys.argv[1:])
+    print("args are:")
+    print(args)
+    argsdict = vars(args)
     if args.exptype == 'exp1orig_train' or args.exptype == 'exp2orig_train':
         trainfcn = globals()[args.exptype]
-        trainfcn(args.expname, args.dset, args.cacheroot,
-                 runname=args.runname,
-                 shortdebugrun=args.debugrun,
-                 expname_trnvalsplit=args.expname_trnvalsplit,
-                 valbsize=args.valbsize)
+        trainfcn(**argsdict)
     else:
         assert False
 else:

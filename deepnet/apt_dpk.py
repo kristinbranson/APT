@@ -476,7 +476,7 @@ def update_conf_dpk(conf_base,
     conf.dpk_swap_index = swap_index
 
     conf.dpk_use_augmenter = useimgaug
-    conf.dpk_augmenter = make_imgaug_augmenter(imgaugtype, swap_index) if useimgaug else None
+    conf.dpk_augmenter_type = {'type': imgaugtype} if useimgaug else None
 
     return conf
 
@@ -644,7 +644,6 @@ def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
 
 def compile(conf):
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
-    logging.info("tgtfr.use_tfdata: {}".format(tgtfr.use_tfdata))
 
     sdn = StackedDenseNet(tgtfr,
                           n_stacks=conf.dpk_n_stacks,

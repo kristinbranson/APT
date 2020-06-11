@@ -668,6 +668,7 @@ steps, in the 'size' field of the logs dict. When using a tfds for val, the 'siz
 '''
 
 def create_tf_datasets(conf0,
+                       bsize,  # mandatory arg overrides conf0.batch_size
                        n_outputs,
                        is_val=False,  # True for val, False for trn
                        is_raw=False,  # True for raw, False for preprocessed
@@ -686,6 +687,7 @@ def create_tf_datasets(conf0,
     '''
 
     conf = copy.deepcopy(conf0)
+    conf.batch_size = bsize
     conf.dpk_n_outputs = 1  # outputs are handled here rather than in pp methods
 
     def _parse_function(serialized_example):
