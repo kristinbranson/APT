@@ -71,6 +71,15 @@ APT contains code from the following sources:
 * matlab/misc/whereisjavaclassloadingfrom.m
   https://stackoverflow.com/questions/4376565/java-jpa-class-for-matlab/4380622#4380622
   Andrew Janke
+* matlab/user/APT2RT
+  http://www.mathworks.com/matlabcentral/fileexchange/22422-absolute-orientation
+  Christian Wengert
+  http://www.mathworks.com/matlabcentral/fileexchange/35475-quaternions
+  Przemyslaw Baranski
+  https://www.mathworks.com/matlabcentral/fileexchange/24484-geom3d
+  David Legland
+  https://isbweb.org/software/movanal/kinemat/
+  Christoph Reinschmidt, Ton van den Bogert
 * external/JAABA
   http://jaaba.sourceforge.net/
   Mayank Kabra, Kristin Branson, et al.
