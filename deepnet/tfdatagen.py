@@ -794,7 +794,7 @@ def read_ds_idxed(ds, indices):
             restmp = sess.run(nextel)
             if c in indices:
                 res.append(restmp)
-                print("Got {}".format(c))
+                #print("Got {}".format(c))
             c += 1
             if all([c>x for x in indices]):
                 break

@@ -9,6 +9,7 @@ import glob
 import subprocess
 import logging
 import inspect
+import getpass
 
 import tensorflow as tf
 import imgaug as ia
@@ -28,15 +29,23 @@ import util
 logr = logging.getLogger()
 logr.setLevel(logging.DEBUG)
 
-dbs = {
-    'dpkfly': {'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
-               'slbl': '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
-                }
-}
-
-alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
-aldeepnet = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
-#alcache = '/dat0/apt/cache'
+user = getpass.getuser()
+if user=='leea30':
+    dbs = {
+        'dpkfly': {'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
+                   'slbl': '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
+                   }
+    }
+    alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
+    aldeepnet = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
+elif user=='al':
+    dbs = {
+        'dpkfly': {'h5dset': '/home/al/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
+                   'slbl': '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
+                   }
+    }
+    alcache = '/dat0/apt/cache'
+    aldeepnet = '/home/al/git/APT_aldl/deepnet'
 
 '''
 def get_rae_normal_conf():
@@ -110,7 +119,9 @@ def create_callbacks_exp1orig_train(conf):
     callbacks = [reduce_lr, model_checkpoint, early_stop]
     return callbacks
 
-def create_callbacks_exp2orig_train(conf, sdn, runname='deepnet'):
+def create_callbacks_exp2orig_train(conf, sdn,
+                                    valbsize, nvalbatch,
+                                    runname='deepnet'):
 
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
         monitor="val_loss",
@@ -148,6 +159,7 @@ def create_callbacks_exp2orig_train(conf, sdn, runname='deepnet'):
     aptcbk = kerascallbacks.APTKerasCbk(conf, (tg, vg), runname=runname)
     '''
 
+
     # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
     # step3_train_model.ipynb: patience=100, min_delta=.001
     # Use min_delta=0.0 here it is more conservative
@@ -161,7 +173,23 @@ def create_callbacks_exp2orig_train(conf, sdn, runname='deepnet'):
     logfile = 'trn{}.log'.format(nowstr)
     logfile = os.path.join(conf.cachedir, logfile)
     loggercbk = tf.keras.callbacks.CSVLogger(logfile)
-    cbks = [reduce_lr, model_checkpoint, loggercbk, early_stop]
+
+    tgtfr = sdn.train_generator
+    dsval_kps = tgtfr(n_outputs=1,
+                      batch_size=valbsize,
+                      validation=True,
+                      confidence=False,
+                      infinite=False)
+    logfilevdist = 'trn{}.vdist.log'.format(nowstr)
+    logfilevdist = os.path.join(conf.cachedir, logfilevdist)
+    logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
+    logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
+    vdistcbk = kerascallbacks.ValDistLogger(dsval_kps,
+                                            logfilevdist,
+                                            logfilevdistlong,
+                                            nvalbatch)
+
+    cbks = [reduce_lr, model_checkpoint, loggercbk, early_stop, vdistcbk]
     return cbks
 
 def update_conf_rae(conf):
@@ -372,8 +400,11 @@ def exp1orig_assess_set(expnamebase,
 def get_latest_ckpt_h5(expdir):
     cpth5 = glob.glob(os.path.join(expdir, 'ckpt*h5'))
     cpth5.sort()
-    if len(cpth5) > 1:
+    if len(cpth5) == 0:
+        print("No ckpts found in {}".format(expdir))
+    elif len(cpth5) > 1:
         print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
+
     cpth5 = cpth5[-1]
     return cpth5
 
@@ -385,6 +416,8 @@ def exp1orig_assess(expname,
                     doplot=True,
                     gentype='tgtfr',
                     useaptcpt=False, # if true, use most recent deepnet-xxxxx cpt
+                    returnsdn=False, # if true, early-return with just loaded sdn ready to predict
+                    net='dpksdn',
                     ):
 
     h5dset = dbs[dset]['h5dset']
@@ -394,9 +427,8 @@ def exp1orig_assess(expname,
 
     # make a conf just to get the path to the expdir
     expname = expname if expname else 'dpkorig'
-    NET = 'dpksdn'
     conf = apt.create_conf(slbl, 0, expname,
-                           cacheroot, NET, quiet=False)
+                           cacheroot, net, quiet=False)
     # this conf-updating is actually prob unnec but prob doesnt hurt
     conf = apt_dpk.update_conf_dpk(conf,
                                    dg.graph,
@@ -430,6 +462,10 @@ def exp1orig_assess(expname,
                 sdn = dpk.models.load_model(cpth5, generator=None)
             else:
                 raise
+        conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
+        conf_saved = pt.pickle_load(conf_saved_f)
+        print("conf vs conf_saved:")
+        util.dictdiff(conf, conf_saved['conf'])
 
     '''
     The TG is randomly initted at creation/load_model time I think so the various
@@ -440,6 +476,9 @@ def exp1orig_assess(expname,
         assert np.array_equal( getattr(sdn.train_generator, f), pic['tg'][f] ), \
             "mismatch in field {}".format(f)
     '''
+
+    if returnsdn:
+        return sdn, conf_saved, conf
 
     validxs_specified = validxs is not None
 
@@ -682,8 +721,8 @@ def exp2orig_create_tfrs(expname_from, cacheroot, dset, expname=None):
     apt_dpk.apt_db_from_datagen(dg, train_tf, val_idx=validx0b, val_tf=val_tf)
 
 def exp2orig_train(expname,
-                   dset,
-                   cacheroot,
+                   dset='dpkfly',
+                   cacheroot=alcache,
                    runname='deepnet',
                    shortdebugrun=False,
                    returnsdn=False,  # return model right before calling fit()
@@ -726,7 +765,13 @@ def exp2orig_train(expname,
     ### see apt_dpk.train
 
     tgtfr, sdn = apt_dpk.compile(conf)
-    cbks = create_callbacks_exp2orig_train(conf, sdn, runname=runname)
+    assert tgtfr is sdn.train_generator
+    # validation bsize needs to be spec'd for K fit_generator since the val
+    # data comes as a generator (with no len() call) vs a K Sequence
+    nvalbatch = int(np.ceil(tgtfr.n_validation / valbsize))
+    cbks = create_callbacks_exp2orig_train(conf, sdn,
+                                           valbsize, nvalbatch,
+                                           runname=runname)
 
     apt_dpk.print_dpk_conf(conf)
     if not useimgaug:
@@ -744,18 +789,16 @@ def exp2orig_train(expname,
         pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
     logr.info("Saved confs to {}".format(conf_file))
 
-    # validation bsize needs to be spec'd for K fit_generator since the val
-    # data comes as a generator (with no len() call) vs a K Sequence
-    nvalbatch = int(np.ceil(tgtfr.n_validation / valbsize))
     logr.info("nval={}, nvalbatch={}, valbsize={}".format(
         tgtfr.n_validation, nvalbatch, valbsize))
 
     if shortdebugrun:
         logr.warning('SHORT DEBUG RUN!!')
         epochs = 8
+        steps_per_epoch = 3
     else:
         epochs = conf.dl_steps // conf.display_step
-    steps_per_epoch = conf.display_step
+        steps_per_epoch = conf.display_step
 
     if returnsdn:
         return sdn
