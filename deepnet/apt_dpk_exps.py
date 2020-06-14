@@ -1,4 +1,3 @@
-
 import sys
 import os
 import datetime
@@ -30,7 +29,7 @@ logr = logging.getLogger()
 logr.setLevel(logging.DEBUG)
 
 user = getpass.getuser()
-if user=='leea30':
+if user == 'leea30':
     dbs = {
         'dpkfly': {'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
                    'slbl': '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
@@ -38,7 +37,7 @@ if user=='leea30':
     }
     alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
     aldeepnet = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
-elif user=='al':
+elif user == 'al':
     dbs = {
         'dpkfly': {'h5dset': '/home/al/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
                    'slbl': '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
@@ -74,6 +73,7 @@ def get_rae_normal_conf():
     return conf
 '''
 
+
 def create_callbacks_exp1orig_train(conf):
     logr.info("configing callbacks")
 
@@ -90,7 +90,7 @@ def create_callbacks_exp1orig_train(conf):
     Guess prefer the ipynb for now, am thinking it is 'ahead'
     '''
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss", # monitor="val_loss"
+        monitor="val_loss",  # monitor="val_loss"
         factor=0.2,
         verbose=1,
         patience=20,
@@ -119,10 +119,10 @@ def create_callbacks_exp1orig_train(conf):
     callbacks = [reduce_lr, model_checkpoint, early_stop]
     return callbacks
 
+
 def create_callbacks_exp2orig_train(conf, sdn,
                                     valbsize, nvalbatch,
                                     runname='deepnet'):
-
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
         monitor="val_loss",
         factor=0.2,
@@ -159,7 +159,6 @@ def create_callbacks_exp2orig_train(conf, sdn,
     aptcbk = kerascallbacks.APTKerasCbk(conf, (tg, vg), runname=runname)
     '''
 
-
     # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
     # step3_train_model.ipynb: patience=100, min_delta=.001
     # Use min_delta=0.0 here it is more conservative
@@ -192,6 +191,7 @@ def create_callbacks_exp2orig_train(conf, sdn,
     cbks = [reduce_lr, model_checkpoint, loggercbk, early_stop, vdistcbk]
     return cbks
 
+
 def update_conf_rae(conf):
     '''
     set/update RAE-related steps for apt-style train
@@ -209,6 +209,7 @@ def checkattr_with_warnoverride(conf, prop, val):
     if not val0 == val:
         logr.warning("Overriding conf.{}, using value={}".format(prop, val))
     return val
+
 
 def exp1orig_create_base_conf(expname, cacheroot, dset):
     slbl = dbs[dset]['slbl']
@@ -337,6 +338,7 @@ def exp1orig_train(expname,
         verbose=2
     )
 
+
 def simple_dpk_generator(dg, indices, bsize, ):
     '''
     bare-bones data generator from DataGenerator
@@ -351,14 +353,15 @@ def simple_dpk_generator(dg, indices, bsize, ):
 
     igen0 = 0
     while igen0 < ngen:
-        igen1 = min(igen0+bsize, ngen)
-        nshort = igen0+bsize-igen1
+        igen1 = min(igen0 + bsize, ngen)
+        nshort = igen0 + bsize - igen1
         idx = indices[igen0:igen1]
         X, y = dg[idx]
         yield X, y, idx
         igen0 += bsize
 
     return
+
 
 def simple_tgtfr_val_kpt_generator(conf, bsize):
     '''
@@ -380,6 +383,7 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
         info = info[:, 0].copy()
         yield ims, locs, info
 
+
 def exp1orig_assess_set(expnamebase,
                         runrange=range(5),
                         dset='dpkfly',
@@ -397,6 +401,7 @@ def exp1orig_assess_set(expnamebase,
 
     return eresall, euc_coll_ptiles50s, euc_coll_ptiles90s
 
+
 def get_latest_ckpt_h5(expdir):
     cpth5 = glob.glob(os.path.join(expdir, 'ckpt*h5'))
     cpth5.sort()
@@ -408,18 +413,18 @@ def get_latest_ckpt_h5(expdir):
     cpth5 = cpth5[-1]
     return cpth5
 
+
 def exp1orig_assess(expname,
                     dset='dpkfly',
                     cacheroot=alcache,
-                    validxs = None,  # normally read from conf.pickle
+                    validxs=None,  # normally read from conf.pickle
                     bsize=16,
                     doplot=True,
                     gentype='tgtfr',
-                    useaptcpt=False, # if true, use most recent deepnet-xxxxx cpt
-                    returnsdn=False, # if true, early-return with just loaded sdn ready to predict
+                    useaptcpt=False,  # if true, use most recent deepnet-xxxxx cpt
+                    returnsdn=False,  # if true, early-return with just loaded sdn ready to predict
                     net='dpksdn',
                     ):
-
     h5dset = dbs[dset]['h5dset']
     slbl = dbs[dset]['slbl']
 
@@ -449,7 +454,7 @@ def exp1orig_assess(expname,
     else:
         cpth5 = get_latest_ckpt_h5(expdir)
         if gentype == 'dg':
-            loadmodelgen = None # dg
+            loadmodelgen = None  # dg
         elif gentype == 'tgtfr':
             loadmodelgen = None
         else:
@@ -505,7 +510,7 @@ def exp1orig_assess(expname,
     eres['euc_coll'] = euc_coll
     eres['euc_coll_cols'] = euc_coll_cols
     eres['euc_coll_colcnt'] = euc_coll_colcnt
-    eres['euc_coll_ptiles5090'] = np.percentile(euc_coll, [50,90], axis=0).T
+    eres['euc_coll_ptiles5090'] = np.percentile(euc_coll, [50, 90], axis=0).T
 
     nval = eres['euclidean'].shape[0]
 
@@ -518,8 +523,8 @@ def exp1orig_assess(expname,
         plt.ylabel('L2err')
         plt.grid(axis='y')
 
-
     return eres
+
 
 def evaluate(predmodel, gen):
     '''
@@ -538,7 +543,6 @@ def evaluate(predmodel, gen):
     euclidean_list = []
     idx_list = []
     for X, y_true, idxs in gen:
-
         y_true_list.append(y_true)
         idx_list.append(idxs)
 
@@ -573,6 +577,7 @@ def evaluate(predmodel, gen):
 
     return evaluation_dict
 
+
 def collapse_swaps(x0, swap_index):
     # x: [n x nkpt] data arr
 
@@ -591,8 +596,9 @@ def collapse_swaps(x0, swap_index):
             colkeep.append((i, 2))
 
     colkeep, cnt = zip(*colkeep)
-    xcollapsed = x[:, colkeep]/np.array(cnt)
+    xcollapsed = x[:, colkeep] / np.array(cnt)
     return xcollapsed, colkeep, cnt
+
 
 def dpkfly_fix_h5(dset, skel):
     h5dset0 = dbs[dset]['h5dset']
@@ -614,13 +620,13 @@ def dpkfly_fix_h5(dset, skel):
     h50.close()
     h5.close()
 
-def exp_train_bsub_codegen(expname, dset, cacheroot, # mandatory apt_dpk_exps args
-                           exptype, # exp1orig_train or exp2orig_train
+
+def exp_train_bsub_codegen(expname, dset, cacheroot,  # mandatory apt_dpk_exps args
+                           exptype,  # exp1orig_train or exp2orig_train
                            expnote,
                            submit,  # True to actually launch
                            **kwargs  # addnl args to apt_dpk_exps
                            ):
-
     conf = exp1orig_create_base_conf(expname, cacheroot, dset)
     edir = conf.cachedir
 
@@ -676,8 +682,8 @@ def exp12orig_train_bsub_codegen(
         dset='dpkfly',
         expnote=None,
         submit=False,
-        **kwargs    # addnl args apt_dpk_exps
-    ):
+        **kwargs  # addnl args apt_dpk_exps
+):
     for irun in run_range:
         expname = run_pat.format(run_dstr, irun)
         exp_train_bsub_codegen(expname,
@@ -687,7 +693,6 @@ def exp12orig_train_bsub_codegen(
                                expnote,
                                submit,
                                **kwargs)
-
 
 
 def exp2orig_create_tfrs(expname_from, cacheroot, dset, expname=None):
@@ -720,6 +725,7 @@ def exp2orig_create_tfrs(expname_from, cacheroot, dset, expname=None):
     print("writing to {}, {}".format(train_tf, val_tf))
     apt_dpk.apt_db_from_datagen(dg, train_tf, val_idx=validx0b, val_tf=val_tf)
 
+
 def exp2orig_train(expname,
                    dset='dpkfly',
                    cacheroot=alcache,
@@ -732,7 +738,6 @@ def exp2orig_train(expname,
                    valbsize=10,
                    **kwargs
                    ):
-
     iaver = ia.__version__
     dpkver = dpk.__version__
     assert iaver == '0.2.9', "Your imgaug version is {}".format(iaver)
@@ -839,7 +844,7 @@ def exp2orig_train(expname,
             batch_size=conf.batch_size,
             verbose=2,
             callbacks=cbks,
-            validation_steps=nvalbatch, # max_queue_size=1,
+            validation_steps=nvalbatch,  # max_queue_size=1,
             validation_batch_size=conf.batch_size,
         )
 
@@ -881,6 +886,7 @@ def exp2orig_train(expname,
     is called once more than expected.
     '''
 
+
 def exp2_set_posetools_aug_config_leapfly(conf):
     c = conf
     LEAPFLY_IMSZ = 192
@@ -897,13 +903,13 @@ def exp2_set_posetools_aug_config_leapfly(conf):
     c.use_scale_factor_range = True
     c.scale_factor_range = 1.1
     c.rrange = 180
-    c.trange = np.round(.05 * LEAPFLY_IMSZ )
+    c.trange = np.round(.05 * LEAPFLY_IMSZ)
     c.check_bounds_distort = True
     # (no shear)
 
     # adjust ##
-    c.brange = [-.001,.001]  # set me?
-    c.crange = [-.001,.001]  # set me?
+    c.brange = [-.001, .001]  # set me?
+    c.crange = [-.001, .001]  # set me?
     c.imax = 255.0
 
     # normalize
@@ -919,6 +925,7 @@ def parse_sig(sig):
         p = sig.parameters[k]
         dv = p.default
         print("{}: dv={}".format(k, dv))
+
 
 def parse_sig_and_add_args(sig, parser, skipargs):
     for k in sig.parameters:
@@ -949,8 +956,6 @@ def parse_sig_and_add_args(sig, parser, skipargs):
                 print("Added arg {}".format(k))
         except argparse.ArgumentError:
             print("Skipping arg {}".format(k))
-
-
 
 
 def parseargs(argv):
