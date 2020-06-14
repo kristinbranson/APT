@@ -795,7 +795,7 @@ def read_ds_idxed(ds, indices):
             restmp = sess.run(nextel)
             if c in indices:
                 res.append(restmp)
-                print("Got {}".format(c))
+                #print("Got {}".format(c))
             c += 1
             if all([c>x for x in indices]):
                 break
@@ -814,6 +814,20 @@ def xylist2xyarr(xylist, xisscalarlist=False):
 def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
             share_all=True, label_mode='1', cmap='viridis', locsmrkr='.',
             locsmrkrsz=16):
+    '''
+
+    :param ims0: [nr x nc x N] (assumed b/w)
+    :param locs:
+    :param fignum:
+    :param figsize:
+    :param axes_pad:
+    :param share_all:
+    :param label_mode:
+    :param cmap:
+    :param locsmrkr:
+    :param locsmrkrsz:
+    :return:
+    '''
     from matplotlib import cm
 
     #ims = np.moveaxis(ims0, 0, -1)
