@@ -123,7 +123,12 @@ class TrainingGeneratorTFRecord:
 
         # self.on_epoch_end()
         # we get a row here just to figure out shapes/sizes
-        g = self.get_generator(validation=False, confidence=True, debug=True, silent=True)
+        # batch_size not important
+        g = self.get_generator(batch_size=self.conf.batch_size,
+                               validation=False,
+                               confidence=True,
+                               debug=True,
+                               silent=True)
         ims0, tgts0, locs0, info0 = next(g)
         if isinstance(tgts0, list):
             tgts0 = tgts0[0]
@@ -168,10 +173,10 @@ class TrainingGeneratorTFRecord:
                                        )
         return ds
 
-    def get_generator(self, validation, confidence, shuffle=None, infinite=None, **kwargs):
+    def get_generator(self, batch_size, validation, confidence,
+                      shuffle=None, infinite=None, **kwargs):
         '''
 
-        uses batch_size as in self.conf.batch_size
 
         :param validation:
         :param confidence:
@@ -208,6 +213,7 @@ class TrainingGeneratorTFRecord:
         g = opdata.make_data_generator(
             tfrfilename,
             self.conf,
+            batch_size,
             distort,
             shuffle,
             ppfcn,
@@ -256,9 +262,11 @@ class TrainingGeneratorTFRecord:
             # This is dumb, this is only set here to pass into tfdatagen.data_generator;
             # it shouldn't persist. however self.conf is a deepcopied/separate obj now
 
-            assert False, "Now unsupported; need batch_size input"
             self.conf.dpk_n_outputs = n_outputs
-            return self.get_generator(validation, confidence, **kwargs)
+            return self.get_generator(batch_size,
+                                      validation,
+                                      confidence,
+                                      **kwargs)
 
     def get_config(self):
         #if self.augmenter:

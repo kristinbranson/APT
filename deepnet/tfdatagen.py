@@ -632,9 +632,10 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             yield [ims], targets
             # (inputs, targets)
 
-def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn,
+def make_data_generator(tfrfilename, conf0, bsize, distort, shuffle, ims_locs_proc_fn,
                         silent=False, **kwargs):
     conf = copy.deepcopy(conf0)
+    conf.batch_size = bsize
     if not silent:
         logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
