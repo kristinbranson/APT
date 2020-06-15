@@ -9,6 +9,7 @@ import subprocess
 import logging
 import inspect
 import getpass
+import random
 
 import tensorflow as tf
 import imgaug as ia
@@ -24,6 +25,7 @@ import TrainingGeneratorTFRecord as TGTFR
 import kerascallbacks
 import run_apt_expts_2 as rae
 import util
+import multiResData as mrd
 
 logr = logging.getLogger()
 logr.setLevel(logging.DEBUG)
@@ -72,6 +74,127 @@ def get_rae_normal_conf():
 
     return conf
 '''
+
+
+def split_tfr_proper(tfrsrc, tfrdst0, tfrdst1, n0, npts):
+    '''
+    Split an existing tfr into two tfrs
+    :param tfrsrc: src tfrecords file
+    :param tfrdst0: first dst tfrecords file (to be created)
+    :param tfrdst1: second dst tfrecords file (to be created)
+    :param n0: number of rows to write to first dst (remaining rows are written to second dst)
+    :param npts: num kpts or n_classes (for decoding tfr)
+    :return:
+    '''
+
+
+    # read the src
+    ims, locs, info, occ = mrd.read_and_decode_without_session(tfrsrc,
+                                                               npts,
+                                                               indices=())
+
+    # gen a split
+    n = len(ims)
+    # n0 = int(np.round(frac0*n))
+    n1 = n - n0
+    print("{} orig els. split into {}/{} for 0/1".format(n, n0, n1))
+    s0 = set(random.sample(range(n), n0))
+    s1 = set(range(n)) - s0
+
+    envs = (tf.python_io.TFRecordWriter(tfrdst0),
+            tf.python_io.TFRecordWriter(tfrdst1))
+
+    for i in range(n):
+        towrite = apt.tf_serialize([ims[i], locs[i], info[i], occ[i]])
+        ienv = int(i in s1)  # 1=set1, 0=set0
+        envwrite = envs[ienv]
+        envwrite.write(towrite)
+
+        if i % 100 == 99:
+            print('Wrote {} rows'.format(i + 1))
+
+    print('Wrote {} rows'.format(i + 1))
+
+
+def split_tfr_with_rename(trntfr0, valtfr0, ntrnnew, npts):
+    '''
+    for exp3, holdout-a-proper-dev-set
+    :param trntfr0: original train_TF
+    :param valtfr0: original val_TF
+    :param ntrnnew: how many records to hold in new train_TF
+
+    1. back up train_TF
+    2. rename val->test
+    3. create new train/val from orig train_TF
+    :return:
+    '''
+
+    expdir = os.path.dirname(trntfr0)
+    tsttfr1 = os.path.join(expdir, 'test_TF.tfrecords')
+    trntfrbak = os.path.join(expdir, 'train_bak_TF.tfrecords')
+    # valtfrbak = os.path.join(expdir,'val_bak_TF.tfrecords')
+
+    assert not os.path.exists(tsttfr1)
+    assert not os.path.exists(trntfrbak)
+    # assert not os.path.exists(valtfrbak)
+
+    # orig val becomes new tst
+    os.rename(valtfr0, tsttfr1)
+    print("Renamed {}->{}".format(valtfr0, tsttfr1))
+
+    # orig trn becomes trnbak`
+    os.rename(trntfr0, trntfrbak)
+    print("Renamed {}->{}".format(trntfr0, trntfrbak))
+
+    assert not os.path.exists(trntfr0)
+    assert not os.path.exists(valtfr0)
+
+    # split orig trn into new trn/val
+    split_tfr_proper(trntfrbak, trntfr0, valtfr0, ntrnnew, npts)
+    print("Wrote new tfrs {} and {}".format(trntfr0, valtfr0))
+
+
+def verify_split_tfr(trntfr0, valtfr0, trntfr1, valtfr1, tsttfr1, npts):
+    '''
+    Verify results of split_tfr_with_rename
+    trntfr0: original train.tfrecords
+    valtfr0: original val.tfrecords
+    trntfr1: new etc
+    '''
+
+    def check_ims_locs_ifo_occ(ims0, locs0, ifo0, occ0,
+                               ims1, locs1, ifo1, occ1):
+        assert np.array_equal(np.concatenate(ims0), np.concatenate(ims1))
+        assert np.array_equal(np.concatenate(locs0), np.concatenate(locs1))
+        assert np.array_equal(np.concatenate(occ0), np.concatenate(occ1))
+        assert ifo0 == ifo1
+        print("Checking n={}".format(len(ims0)))
+
+    imst0, locst0, ifot0, occt0 = mrd.read_and_decode_without_session(trntfr0, npts, indices=())
+    imsv0, locsv0, ifov0, occv0 = mrd.read_and_decode_without_session(valtfr0, npts, indices=())
+    imst1, locst1, ifot1, occt1 = mrd.read_and_decode_without_session(trntfr1, npts, indices=())
+    imsv1, locsv1, ifov1, occv1 = mrd.read_and_decode_without_session(valtfr1, npts, indices=())
+    imstst1, locstst1, ifotst1, occtst1 = mrd.read_and_decode_without_session(tsttfr1, npts, indices=())
+
+    check_ims_locs_ifo_occ(imsv0, locsv0, ifov0, occv0,
+                           imstst1, locstst1, ifotst1, occtst1)
+    print("Verified that old val is new tst")
+
+    # combine trn1 and val1
+    ims1tot = imst1 + imsv1
+    locs1tot = locst1 + locsv1
+    ifo1tot = ifot1 + ifov1
+    occ1tot = occt1 + occv1
+    idxsorted = sorted(range(len(ifo1tot)), key=lambda k: ifo1tot[k])
+    ims1totS = [ims1tot[x] for x in idxsorted]
+    locs1totS = [locs1tot[x] for x in idxsorted]
+    ifo1totS = [ifo1tot[x] for x in idxsorted]
+    occ1totS = [occ1tot[x] for x in idxsorted]
+
+    # old trn isnow trn/val
+    check_ims_locs_ifo_occ(imst0, locst0, ifot0, occt0,
+                           ims1totS, locs1totS, ifo1totS, occ1totS)
+    print("Verified that old trn is now new trn/val combined")
 
 
 def create_callbacks_exp1orig_train(conf):
