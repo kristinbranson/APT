@@ -202,7 +202,7 @@ class ValDistLogger(Callback):
         # log summary/main stats to logshort
         logshort = self.logshort
         tflogexists = os.path.exists(logshort)
-        print("writing {} and {}".format(logshort, self.loglong))
+        #print("writing {} and {}".format(logshort, self.loglong))
         with open(logshort, 'a') as f:
             writer = csv.writer(f)
             if not tflogexists:

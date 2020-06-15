@@ -682,7 +682,7 @@ def exp12orig_train_bsub_codegen(
         dset='dpkfly',
         expnote=None,
         submit=False,
-        **kwargs  # addnl args apt_dpk_exps
+        **kwargs  # addnl args apt_dpk_exps. if eg useimgaug, use 0 and 1 NOT False/True
 ):
     for irun in run_range:
         expname = run_pat.format(run_dstr, irun)
