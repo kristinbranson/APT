@@ -12,6 +12,7 @@ import apt_dpk
 
 __all__ = ["TrainingGeneratorTFRecord"]
 
+logr = logging.getLogger('APT')
 
 class TrainingGeneratorTFRecord:
     """
@@ -77,13 +78,13 @@ class TrainingGeneratorTFRecord:
         conf.dpk_output_sigma = conf.dpk_input_sigma / 2.0 ** downsample_factor
 
         if conf.dpk_output_sigma < 0.5:
-            logging.warning("Small output sigma: dpk_output_sigma={}".format(conf.dpk_output_sigma))
+            logr.warning("Small output sigma: dpk_output_sigma={}".format(conf.dpk_output_sigma))
 
         valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
         assert os.path.exists(trntfr), "path {} not found".format(trntfr)
         if not os.path.exists(valtfr):
-            logging.info("Cannot find val db; using train db {}".format(trntfr))
+            logr.info("Cannot find val db; using train db {}".format(trntfr))
             valtfr = trntfr
 
         self.trntfr = trntfr
@@ -95,8 +96,8 @@ class TrainingGeneratorTFRecord:
         for k in ['height', 'width', 'depth']:
             assert trnmddict[k] == valmddict[k]
 
-        logging.info("TGTFR. Using trn={}, ntrn={}".format(trntfr, self.n_train))
-        logging.info("TGTFR. Using val={}, nval={}".format(valtfr, self.n_validation))
+        logr.info("TGTFR. Using trn={}, ntrn={}".format(trntfr, self.n_train))
+        logr.info("TGTFR. Using val={}, nval={}".format(valtfr, self.n_validation))
 
         # as far as TGTFR and all DPK-related, the ims have post-pad, post-rescale sz
         self.height = conf.dpk_imsz_net[0]
@@ -118,7 +119,7 @@ class TrainingGeneratorTFRecord:
             conf.dpk_augmenter = apt_dpk.make_imgaug_augmenter(
                 augtype, conf.dpk_swap_index
             )
-            logging.info("TGTFR. created dpk_augmenter, type {}, swapidx {}.".format(
+            logr.info("TGTFR. created dpk_augmenter, type {}, swapidx {}.".format(
                 augtype, conf.dpk_swap_index))
 
         # self.on_epoch_end()
@@ -137,11 +138,11 @@ class TrainingGeneratorTFRecord:
         self.n_output_channels = tgts0.shape[-1]
         self.keypoints_shape = locs0.shape[1:]
         assert self.keypoints_shape == (conf.n_classes, 2,)
-        logging.info("TGTFR. n_output_chans={}".format(self.n_output_channels))
+        logr.info("TGTFR. n_output_chans={}".format(self.n_output_channels))
 
         self.use_tfdata = getattr(conf, 'dpk_use_tfdata', True) # set to True to use tfdatas instead of generators
 
-        logging.info("TGTFR. use_tfdata: {}".format(self.use_tfdata))
+        logr.info("TGTFR. use_tfdata: {}".format(self.use_tfdata))
 
     def get_tfdataset(self, batch_size, validation, confidence, n_outputs,
                       shuffle=None, infinite=None, **kwargs):
@@ -160,7 +161,7 @@ class TrainingGeneratorTFRecord:
         #assert not (shuffle and not infinite)  # shuffling can skip a lot of records
 
         for k in kwargs:
-            logging.info("Ignoring kwarg: {}".format(k))
+            logr.info("Ignoring kwarg: {}".format(k))
 
         ds = opdata.create_tf_datasets(self.conf,
                                        batch_size,
@@ -253,7 +254,7 @@ class TrainingGeneratorTFRecord:
         """
 
         if batch_size != self.conf.batch_size:
-            logging.warning('batch specification ({}) differs from conf.batch_size ({})!'.format(
+            logr.warning('batch specification ({}) differs from conf.batch_size ({})!'.format(
                 batch_size, self.conf.batch_size))
 
         if self.use_tfdata:

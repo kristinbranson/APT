@@ -230,11 +230,12 @@ class config(object):
             setattr(self,name,default)
         return getattr(self,name,default)
 
-    def print_dataaug_flds(self):
+    def print_dataaug_flds(self, printfcn=None):
+        printfcn = logging.info if printfcn is None else printfcn
         for cat, flds in self.DATAAUG_FLDS.items():
             print('## {} ##'.format(cat))
             for f in flds:
-                print('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
+                printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
 
 # -- alice fly --

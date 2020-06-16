@@ -19,6 +19,8 @@ import deepposekit.utils.keypoints as dpkkpts
 import tfdatagen
 import PoseTools
 
+logr = logging.getLogger('APT')
+
 
 def create_lr_sched_callback(iterations_per_epoch, base_lr, gamma, decaysteps):
 
@@ -55,7 +57,7 @@ class APTKerasCbk(Callback):
         self.runname = runname
 
     def pass_model(self, dpkmodel):
-        logging.info("Set pred_model on APTKerasCbk")
+        #logging.info("Set pred_model on APTKerasCbk")
         self.pred_model = dpkmodel.predict_model
 
     def on_epoch_end(self, epoch, logs={}):
@@ -122,7 +124,7 @@ class APTKerasCbk(Callback):
                 p_str += '{:s}:<list {} els>'.format(k, len(lastval))
             else:
                 p_str += '{:s}:{:.2f} '.format(k, lastval)
-        logging.info(p_str)
+        logr.info(p_str)
 
         conf = self.config
         train_data_file = os.path.join(self.config.cachedir, 'traindata')

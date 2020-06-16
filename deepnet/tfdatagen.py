@@ -23,6 +23,7 @@ if ISPY3:
     import deepposekit as dpk
 
 
+logr = logging.getLogger('APT')
 
 
 def distsquaredpts2limb(zz, startxy, sehat):
@@ -94,7 +95,7 @@ def create_affinity_labels(locs, imsz, graph,
     else:
         if tubeblursig is not None:
             pass
-            #logging.warning('Tubeblur is False; ignoring tubeblursig value')
+            #logr.warning('Tubeblur is False; ignoring tubeblursig value')
         tuberad = tubewidth / 2.0
 
     nlimb = len(graph)
@@ -338,7 +339,7 @@ def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort, gen_target_hmaps=True
     targets = [label_map_outres,]
 
     if not __ims_locs_preprocess_sb_has_run__:
-        logging.info('sb preprocess. sb_out_scale={}, imszuse={}, imszout={}, blurradout={}'.format(conf.sb_output_scale, imszuse, imsz_out, conf.sb_blur_rad_output_res))
+        logr.info('sb preprocess. sb_out_scale={}, imszuse={}, imszout={}, blurradout={}'.format(conf.sb_output_scale, imszuse, imsz_out, conf.sb_blur_rad_output_res))
         __ims_locs_preprocess_sb_has_run__ = True
 
     return ims, locs, targets
@@ -457,7 +458,7 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
 
     if not __ims_locs_preprocess_dpk_has_run__:
         str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}'
-        logging.info(str.format(distort, conf.dpk_use_augmenter,
+        logr.info(str.format(distort, conf.dpk_use_augmenter,
                      conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
         __ims_locs_preprocess_dpk_has_run__ = True
 
@@ -521,7 +522,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
     if instrumented and (instrumentedname is None):
         instrumentedname = "Unnamed-{}".format(os.path.basename(filename))
 
-    #logging.warning("tfdatagen data gen. file={}, distort/shuf/inf={}/{}/{}, ppfun={}, N={}".format(
+    #logr.warning("tfdatagen data gen. file={}, distort/shuf/inf={}/{}/{}, ppfun={}, N={}".format(
     #    filename, distort, shuffle, infinite, ims_locs_proc_fn.__name__, N))
 
     # Py 2.x workaround nested functions outer variable rebind
@@ -579,7 +580,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
         if not all_ims:
             # we couldn't read a single new row anymore; exit generator
             if instrumented:
-                logging.warning("tfdatagen:{} returning".format(instrumentedname))
+                logr.warning("tfdatagen:{} returning".format(instrumentedname))
             return
 
         imsraw = np.stack(all_ims)  # [nread x height x width x depth]
@@ -593,7 +594,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
         tfclippedbatch = nread < batch_size
 
         if tfclippedbatch:
-            logging.warning("Last batch, size={}. padding for now.".format(nread))
+            logr.warning("Last batch, size={}. padding for now.".format(nread))
 
             '''
             AL: PoseTools.preprocess_ims (and downstream) should be insensitive to the bsize, 
@@ -623,7 +624,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
                 targets = targets[:nread, ...]
 
         if instrumented:
-            logging.warning("tfdatagen:{} yielding {}, ifo[0]={}".format(
+            logr.warning("tfdatagen:{} yielding {}, ifo[0]={}".format(
                 instrumentedname, ims.shape[0], info[0, 0]))
 
         if debug:
@@ -637,7 +638,7 @@ def make_data_generator(tfrfilename, conf0, bsize, distort, shuffle, ims_locs_pr
     conf = copy.deepcopy(conf0)
     conf.batch_size = bsize
     if not silent:
-        logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
+        logr.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
 
@@ -737,9 +738,9 @@ def create_tf_datasets(conf0,
     if is_val:
         val_db = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if os.path.exists(val_db) and os.path.getsize(val_db) > 0:
-            logging.info("Val DB exists: Data for validation from:{}".format(val_db))
+            logr.info("Val DB exists: Data for validation from:{}".format(val_db))
         else:
-            logging.warning("Val DB does not exist: Data for validation from:{}".format(train_db))
+            logr.warning("Val DB does not exist: Data for validation from:{}".format(train_db))
             val_db = train_db
         dbfile = val_db
     else:

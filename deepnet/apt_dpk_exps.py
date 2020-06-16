@@ -27,8 +27,7 @@ import run_apt_expts_2 as rae
 import util
 import multiResData as mrd
 
-logr = logging.getLogger()
-logr.setLevel(logging.DEBUG)
+logr = logging.getLogger('APT')
 
 user = getpass.getuser()
 if user == 'leea30':
@@ -573,7 +572,7 @@ def exp1orig_assess(expname,
         sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
 
         print("conf vs conf_saved:")
-        util.dictdiff(conf, conf_saved)
+        util.dictdiff(conf, conf_saved, logr.info)
     else:
         cpth5 = get_latest_ckpt_h5(expdir)
         if gentype == 'dg':
@@ -593,7 +592,7 @@ def exp1orig_assess(expname,
         conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
         conf_saved = pt.pickle_load(conf_saved_f)
         print("conf vs conf_saved:")
-        util.dictdiff(conf, conf_saved['conf'])
+        util.dictdiff(conf, conf_saved['conf'], logr.info)
 
     '''
     The TG is randomly initted at creation/load_model time I think so the various
@@ -612,15 +611,15 @@ def exp1orig_assess(expname,
 
     if gentype == 'tgtfr':
         if validxs_specified:
-            print("Ignoring validxs spec; reading val_TF.tfrecords")
+            logr.info("Ignoring validxs spec; reading val_TF.tfrecords")
         g = simple_tgtfr_val_kpt_generator(conf, bsize)
     elif gentype == 'dg':
         if not validxs_specified:
-            print("Reading val idxs from conf.pickle")
+            logr.info("Reading val idxs from conf.pickle")
             pic = os.path.join(expdir, '*conf.pickle')
             pic = glob.glob(pic)
             assert len(pic) == 1
-            print("Found conf.pickle: {}".format(pic[0]))
+            logr.info("Found conf.pickle: {}".format(pic[0]))
             pic = pt.pickle_load(pic[0])
             validxs = pic['tg']['val_index']
         g = simple_dpk_generator(dg, validxs, bsize)
@@ -903,9 +902,9 @@ def exp2orig_train(expname,
 
     apt_dpk.print_dpk_conf(conf)
     if not useimgaug:
-        conf.print_dataaug_flds()
+        conf.print_dataaug_flds(logr.info)
     conf_tgtfr = tgtfr.conf
-    util.dictdiff(conf, conf_tgtfr)
+    util.dictdiff(conf, conf_tgtfr, logr.info)
     #for k, v in vars(conf_tgtfr).items():
     #    if not v == getattr(conf, k):
     #        print("TGTFR conf different field: {} -> {}".format(k, v))
@@ -1043,6 +1042,11 @@ def exp2_set_posetools_aug_config_leapfly(conf):
     c.normalize_batch_mean = False
 
 
+def test():
+    logr.debug('debug')
+    logr.info('info')
+    logr.warning('warn')
+
 def parse_sig(sig):
     for k in sig.parameters:
         p = sig.parameters[k]
@@ -1115,12 +1119,14 @@ def parseargs(argv):
 
 if __name__ == "__main__":
     args = parseargs(sys.argv[1:])
-    print("args are:")
-    print(args)
+    logr.info("args are:")
+    logr.info(args)
     argsdict = vars(args)
     if args.exptype == 'exp1orig_train' or args.exptype == 'exp2orig_train':
         trainfcn = globals()[args.exptype]
         trainfcn(**argsdict)
+    elif args.exptype == 'test':
+        test()
     else:
         assert False
 else:
