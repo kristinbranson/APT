@@ -23,6 +23,7 @@ if ISPY3:
     import deepposekit as dpk
 
 
+logr = logging.getLogger('APT')
 
 
 def distsquaredpts2limb(zz, startxy, sehat):
@@ -94,7 +95,7 @@ def create_affinity_labels(locs, imsz, graph,
     else:
         if tubeblursig is not None:
             pass
-            #logging.warning('Tubeblur is False; ignoring tubeblursig value')
+            #logr.warning('Tubeblur is False; ignoring tubeblursig value')
         tuberad = tubewidth / 2.0
 
     nlimb = len(graph)
@@ -338,7 +339,7 @@ def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort, gen_target_hmaps=True
     targets = [label_map_outres,]
 
     if not __ims_locs_preprocess_sb_has_run__:
-        logging.info('sb preprocess. sb_out_scale={}, imszuse={}, imszout={}, blurradout={}'.format(conf.sb_output_scale, imszuse, imsz_out, conf.sb_blur_rad_output_res))
+        logr.info('sb preprocess. sb_out_scale={}, imszuse={}, imszout={}, blurradout={}'.format(conf.sb_output_scale, imszuse, imsz_out, conf.sb_blur_rad_output_res))
         __ims_locs_preprocess_sb_has_run__ = True
 
     return ims, locs, targets
@@ -457,7 +458,7 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
 
     if not __ims_locs_preprocess_dpk_has_run__:
         str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}'
-        logging.info(str.format(distort, conf.dpk_use_augmenter,
+        logr.info(str.format(distort, conf.dpk_use_augmenter,
                      conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
         __ims_locs_preprocess_dpk_has_run__ = True
 
@@ -521,7 +522,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
     if instrumented and (instrumentedname is None):
         instrumentedname = "Unnamed-{}".format(os.path.basename(filename))
 
-    #logging.warning("tfdatagen data gen. file={}, distort/shuf/inf={}/{}/{}, ppfun={}, N={}".format(
+    #logr.warning("tfdatagen data gen. file={}, distort/shuf/inf={}/{}/{}, ppfun={}, N={}".format(
     #    filename, distort, shuffle, infinite, ims_locs_proc_fn.__name__, N))
 
     # Py 2.x workaround nested functions outer variable rebind
@@ -579,7 +580,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
         if not all_ims:
             # we couldn't read a single new row anymore; exit generator
             if instrumented:
-                logging.warning("tfdatagen:{} returning".format(instrumentedname))
+                logr.warning("tfdatagen:{} returning".format(instrumentedname))
             return
 
         imsraw = np.stack(all_ims)  # [nread x height x width x depth]
@@ -593,7 +594,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
         tfclippedbatch = nread < batch_size
 
         if tfclippedbatch:
-            logging.warning("Last batch, size={}. padding for now.".format(nread))
+            logr.warning("Last batch, size={}. padding for now.".format(nread))
 
             '''
             AL: PoseTools.preprocess_ims (and downstream) should be insensitive to the bsize, 
@@ -623,7 +624,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
                 targets = targets[:nread, ...]
 
         if instrumented:
-            logging.warning("tfdatagen:{} yielding {}, ifo[0]={}".format(
+            logr.warning("tfdatagen:{} yielding {}, ifo[0]={}".format(
                 instrumentedname, ims.shape[0], info[0, 0]))
 
         if debug:
@@ -632,11 +633,12 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             yield [ims], targets
             # (inputs, targets)
 
-def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn,
+def make_data_generator(tfrfilename, conf0, bsize, distort, shuffle, ims_locs_proc_fn,
                         silent=False, **kwargs):
     conf = copy.deepcopy(conf0)
+    conf.batch_size = bsize
     if not silent:
-        logging.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
+        logr.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
     return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
 
@@ -668,6 +670,7 @@ steps, in the 'size' field of the logs dict. When using a tfds for val, the 'siz
 '''
 
 def create_tf_datasets(conf0,
+                       bsize,  # mandatory arg overrides conf0.batch_size
                        n_outputs,
                        is_val=False,  # True for val, False for trn
                        is_raw=False,  # True for raw, False for preprocessed
@@ -686,6 +689,7 @@ def create_tf_datasets(conf0,
     '''
 
     conf = copy.deepcopy(conf0)
+    conf.batch_size = bsize
     conf.dpk_n_outputs = 1  # outputs are handled here rather than in pp methods
 
     def _parse_function(serialized_example):
@@ -734,9 +738,9 @@ def create_tf_datasets(conf0,
     if is_val:
         val_db = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if os.path.exists(val_db) and os.path.getsize(val_db) > 0:
-            logging.info("Val DB exists: Data for validation from:{}".format(val_db))
+            logr.info("Val DB exists: Data for validation from:{}".format(val_db))
         else:
-            logging.warning("Val DB does not exist: Data for validation from:{}".format(train_db))
+            logr.warning("Val DB does not exist: Data for validation from:{}".format(train_db))
             val_db = train_db
         dbfile = val_db
     else:
@@ -792,7 +796,7 @@ def read_ds_idxed(ds, indices):
             restmp = sess.run(nextel)
             if c in indices:
                 res.append(restmp)
-                print("Got {}".format(c))
+                #print("Got {}".format(c))
             c += 1
             if all([c>x for x in indices]):
                 break
@@ -811,6 +815,20 @@ def xylist2xyarr(xylist, xisscalarlist=False):
 def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
             share_all=True, label_mode='1', cmap='viridis', locsmrkr='.',
             locsmrkrsz=16):
+    '''
+
+    :param ims0: [nr x nc x N] (assumed b/w)
+    :param locs:
+    :param fignum:
+    :param figsize:
+    :param axes_pad:
+    :param share_all:
+    :param label_mode:
+    :param cmap:
+    :param locsmrkr:
+    :param locsmrkrsz:
+    :return:
+    '''
     from matplotlib import cm
 
     #ims = np.moveaxis(ims0, 0, -1)
@@ -838,7 +856,8 @@ def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
         if iim == 0:
             cb0 = cb
         if locs is not None:
-            jetmap = cm.get_cmap('jet')
+            assert locs.shape[0] == nim
+            jetmap = cm.get_cmap('spring')
             rgba = jetmap(np.linspace(0, 1, locs.shape[1]))
             grid[iim].scatter(locs[iim, :, 0], locs[iim, :, 1], c=rgba,
                               marker=locsmrkr, s=locsmrkrsz)

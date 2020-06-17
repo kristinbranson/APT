@@ -76,6 +76,19 @@ skeleton_csvs = {
 }
 
 
+def setup_apt_logger():
+    logr = logging.getLogger('APT')
+    logr.setLevel(logging.DEBUG)
+    logr.propagate = False
+    formatter = logging.Formatter(' %(name)s/%(levelname)s/%(asctime)s %(module)s/%(funcName)s/%(lineno)d %(message)s')
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    logr.addHandler(ch)
+
+setup_apt_logger()
+
+logr = logging.getLogger('APT')
+
 def viz_targets(ims, tgts, npts, ngrps, ibatch=0):
     '''
 
@@ -274,7 +287,7 @@ def check_flips(im, locs, dpk_swap_index):
 
 def create_callbacks(conf, sdn, runname='deepnet'):
 
-    logging.warning("configing callbacks")
+    logr.warning("configing callbacks")
 
     # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
     nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
@@ -286,14 +299,14 @@ def create_callbacks(conf, sdn, runname='deepnet'):
     '''
 
     if conf.dpk_reduce_lr_on_plat:
-        logging.info("LR callback: using reduceLROnPlateau")
+        logr.info("LR callback: using reduceLROnPlateau")
         lr_cbk = tf.keras.callbacks.ReduceLROnPlateau(
             monitor="loss", # monitor="val_loss"
             factor=0.2,
             verbose=1,
             patience=20)
     else:
-        logging.info("LR callback: using APT fixed sched")
+        logr.info("LR callback: using APT fixed sched")
         lr_cbk = kerascallbacks.create_lr_sched_callback(
             conf.display_step,
             conf.dpk_base_lr_used,
@@ -469,14 +482,14 @@ def update_conf_dpk(conf_base,
     conf.dpk_im_padx, conf.dpk_im_pady, conf.dpk_imsz_pad, conf.dpk_imsz_net = \
         compute_padding_imsz_net(conf.imsz, conf.rescale, conf.dpk_n_transition_min)
 
-    logging.info("DPK size stuff: imsz={}, imsz_pad={}, imsz_net={}, rescale={}, n_trans_min={}".format(
+    logr.info("DPK size stuff: imsz={}, imsz_pad={}, imsz_net={}, rescale={}, n_trans_min={}".format(
         conf.imsz, conf.dpk_imsz_pad, conf.dpk_imsz_net, conf.rescale, conf.dpk_n_transition_min))
 
     conf.dpk_graph = graph
     conf.dpk_swap_index = swap_index
 
     conf.dpk_use_augmenter = useimgaug
-    conf.dpk_augmenter = make_imgaug_augmenter(imgaugtype, swap_index) if useimgaug else None
+    conf.dpk_augmenter_type = {'type': imgaugtype} if useimgaug else None
 
     return conf
 
@@ -487,6 +500,9 @@ def read_skel_csv(skel_csv):
     swap_index = skeleton[:, 1]
     return graph, swap_index
 
+def swap_index_to_flip_landmark_matches(swap_idx):
+    flm = {str(idx): val for (idx, val) in enumerate(list(swap_idx)) if val != -1}
+    return flm
 
 def update_conf_dpk_skel_csv(conf_base, skel_csv):
     graph, swap_index = read_skel_csv(skel_csv)
@@ -530,7 +546,7 @@ def print_dpk_conf(conf):
         if isinstance(v, list) and len(v)>0 and v[0] == '__FOO_UNUSED__':
             pass
         else:
-            print("{} -> {}".format(k, v))
+            logr.info("{} -> {}".format(k, v))
 
     print("### CONF END ###")
 
@@ -641,7 +657,6 @@ def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
 
 def compile(conf):
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
-    logging.info("tgtfr.use_tfdata: {}".format(tgtfr.use_tfdata))
 
     sdn = StackedDenseNet(tgtfr,
                           n_stacks=conf.dpk_n_stacks,
@@ -652,7 +667,7 @@ def compile(conf):
         else conf.learning_rate
     base_lr_used = base_lr * conf.learning_rate_multiplier
     conf.dpk_base_lr_used = base_lr_used
-    logging.info("apt_dpk compile: base_lr_used={}".format(base_lr_used))
+    logr.info("apt_dpk compile: base_lr_used={}".format(base_lr_used))
 
     optimizer = tf.keras.optimizers.Adam(
         lr=base_lr_used, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
@@ -668,7 +683,7 @@ def train(conf,
     conf_file = os.path.join(conf.cachedir, '{}.conf.pickle'.format(runname))
     with open(conf_file, 'wb') as fh:
         pickle.dump({'conf': conf}, fh)
-    logging.info("Saved conf to {}".format(conf_file))
+    logr.info("Saved conf to {}".format(conf_file))
 
     tgtfr, sdn = compile(conf)
     cbks = create_cbks_fcn(conf, sdn, runname=runname)
@@ -677,13 +692,13 @@ def train(conf,
     sdnconf = sdn.get_config()
     with open(conf_file, 'ab') as fh:
         pickle.dump({'tg': tgconf, 'sdn': sdnconf}, fh)
-    logging.info("Saved other confs to {}".format(conf_file))
+    logr.info("Saved other confs to {}".format(conf_file))
 
     # XXX valbatch stuff, valsteps stuff. See apt_dpk_exps
     nval = tgtfr.n_validation
     nvalbatch = nval // conf.batch_size
     nvalbatch = min(nvalbatch, conf.dpk_max_val_batches)
-    logging.info("n_validation={}, n_validationbatch={}".format(nval, nvalbatch))
+    logr.info("n_validation={}, n_validationbatch={}".format(nval, nvalbatch))
     assert nvalbatch > 0, 'Number of validation batches must be greater than 0.'
     sdn.fit(
         batch_size=conf.batch_size,
@@ -709,7 +724,7 @@ def get_pred_fn(conf0, model_file, tmr_pred=None):
     sdn, conf_saved, _ = load_apt_cpkt(exp_dir, model_file)
 
     print("Comparing conf to conf_saved:")
-    util.dictdiff(vars(conf), vars(conf_saved))
+    util.dictdiff(vars(conf), vars(conf_saved), logr.info)
 
     pred_model = sdn.predict_model
 

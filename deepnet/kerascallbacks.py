@@ -9,13 +9,17 @@ import time
 import os
 import pickle
 import logging
+import csv
 
 from tensorflow.keras.callbacks import Callback, LearningRateScheduler
 from tensorflow.keras import backend as K
 
 import deepposekit.utils.keypoints as dpkkpts
 
+import tfdatagen
 import PoseTools
+
+logr = logging.getLogger('APT')
 
 
 def create_lr_sched_callback(iterations_per_epoch, base_lr, gamma, decaysteps):
@@ -53,7 +57,7 @@ class APTKerasCbk(Callback):
         self.runname = runname
 
     def pass_model(self, dpkmodel):
-        logging.info("Set pred_model on APTKerasCbk")
+        #logging.info("Set pred_model on APTKerasCbk")
         self.pred_model = dpkmodel.predict_model
 
     def on_epoch_end(self, epoch, logs={}):
@@ -120,7 +124,7 @@ class APTKerasCbk(Callback):
                 p_str += '{:s}:<list {} els>'.format(k, len(lastval))
             else:
                 p_str += '{:s}:{:.2f} '.format(k, lastval)
-        logging.info(p_str)
+        logr.info(p_str)
 
         conf = self.config
         train_data_file = os.path.join(self.config.cachedir, 'traindata')
@@ -136,3 +140,78 @@ class APTKerasCbk(Callback):
         if step % conf.save_step == 0:
             train_model.save(str(os.path.join(
                 conf.cachedir, self.runname + '-{}'.format(int(step)))))
+
+class ValDistLogger(Callback):
+    def __init__(self, dsval_kps, logshort, loglong, nbatch_total):
+        '''
+            dsval_kps: tfdata Dataset that produces (ims, locs). Make sure batchsize
+            evenly divides nval. This dsval will be run repeatedly/re-initted via
+            hidden K machinery
+            
+            logshort: filename for summary/txt stats
+
+            loglong: filename for full/binary stats
+
+            nbatch_total: total number of (full) batches in dsval_kps. Could infer this...
+        '''
+
+        self.dsval_ims = dsval_kps.map(map_func=lambda ims, locs: ims)
+        self.dsval_locs = dsval_kps.map(map_func=lambda ims, locs: locs)
+        self.logshort = logshort
+        self.loglong = loglong
+        self.nbatch = nbatch_total
+        self.pred_model = None
+
+        self.metrics = {
+            'epoch': [],
+            'dallmu': [],
+            'dallptl105090': [],
+            'dmu': [],
+            'dptl105090': [],
+        }
+
+    def pass_model(self, dpk_model):
+        #logging.info("Set pred_model on APTKerasCbk")
+        self.pred_model = dpk_model.predict_model
+
+    def on_epoch_end(self, epoch, logs={}):
+        preds = self.pred_model.predict(self.dsval_ims, verbose=0)
+        locs = tfdatagen.read_ds_idxed(self.dsval_locs, range(self.nbatch))
+        locs = np.concatenate(locs, axis=0)
+        predsonly = preds[:, :, :2]
+        assert predsonly.shape == locs.shape, \
+            "preds.shape ({}) doesn't match locs.shape ({})".format(predsonly.shape, locs.shape)
+
+        d2 = (predsonly - locs) ** 2  # 3rd col of preds is confidence
+        d = np.sqrt(np.sum(d2, axis=-1))  # [nval x nkpt]
+
+        PTLS = [10, 50, 90]
+        dallmu = np.mean(d)
+        dallptl105090 = np.percentile(d, PTLS)
+        dmu = np.mean(d, axis=0)  # [nkpt] mean over bches
+        dptl105090 = np.percentile(d, PTLS, axis=0)  # [3 x nkpt]
+
+        # total ncols: 1 + 3 + nkpt + 3*nkpt = 4 + 4*nkpt
+
+        # too big for a single giant csv
+        # save stuff in running arrays for binary/full log
+        self.metrics['epoch'].append(epoch)
+        self.metrics['dallmu'].append(dallmu)
+        self.metrics['dallptl105090'].append(dallptl105090)
+        self.metrics['dmu'].append(dmu)
+        self.metrics['dptl105090'].append(dptl105090)
+
+        # log summary/main stats to logshort
+        logshort = self.logshort
+        tflogexists = os.path.exists(logshort)
+        #print("writing {} and {}".format(logshort, self.loglong))
+        with open(logshort, 'a') as f:
+            writer = csv.writer(f)
+            if not tflogexists:
+                HEADER = ['vdistallmu', 'vdistall10ptl', 'vdistall50ptl', 'vdistall90ptl']
+                writer.writerow(HEADER)
+            row = [dallmu] + list(dallptl105090)
+            writer.writerow(row)
+
+        with open(self.loglong, 'wb') as f:
+            pickle.dump(self.metrics, f, protocol=2)

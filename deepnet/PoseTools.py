@@ -238,7 +238,7 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
             for ll in range(locs.shape[2]):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
-                    match = pairs[ll]
+                    match = pairs[str_ll]
                     locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, match , 1]
                     locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
                 else:
@@ -515,7 +515,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
                 sane = True
                 do_rotate = False
 
-            rot_mat = cv2.getRotationMatrix2D((float(conf.imsz[1])/2,float(conf.imsz[0])/2 ), rangle, sfactor)
+            rot_mat = cv2.getRotationMatrix2D((cols/2,rows/2), rangle, sfactor)
             rot_mat[0,2] += dx
             rot_mat[1,2] += dy
             lr = np.matmul(orig_locs,rot_mat[:,:2].T)
