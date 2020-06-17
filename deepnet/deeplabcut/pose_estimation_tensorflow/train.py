@@ -270,7 +270,10 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
             if loc_pred.ndim == 2:
                 loc_pred = loc_pred[np.newaxis,np.newaxis,...]
             loc_in = batch_out[Batch.locs]
-            dd = np.sqrt(np.sum(np.square(loc_pred[:,:,:,:2]-loc_in),axis=-1))
+            if loc_pred.shape[2] == loc_in.shape[2]:
+                dd = np.sqrt(np.sum(np.square(loc_pred[:,:,:,:2]-loc_in),axis=-1))
+            else:
+                dd = np.array([0])
             dd = dd/cfg.global_scale
             average_loss = cum_loss / display_iters
             cum_loss = 0.0

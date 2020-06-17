@@ -1,3 +1,9 @@
+
+cmd = '-no_except /groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.trn606.lbl -name romain_compare -cache /nrs/branson/mayank/apt_cache -conf_params rrange 10 trange 5 scale_factor_range 1.2 mdn_use_unet_loss False img_dim 1 dl_steps 200000 batch_size 2 save_step 5000 learning_rate_multiplier 0.25 decay_steps 100000 maxckpt 100 adjustContrast True  -train_name mdn_official -type mdn_joint train -skip_db -use_cache'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
 import run_apt_expts_2 as rae
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -13,10 +19,6 @@ rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
 import test.test_apt
 test.test_apt.main()
 
-##
-cmd = '-no_except -name 20200528T080857 -view 1 -cache /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647 -model_files /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647/alice_test/deeplabcut/view_0/20200528T080857/deepnet-1000 -type deeplabcut /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647/alice_test/20200528T080857_20200528T081023.lbl track -out /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647/alice_test/deeplabcut/view_0/20200528T080857/trk/movie_trn20200528T080857_iter1000_20200528T081729_mov1_vwj1.trk -mov /groups/branson/home/kabram/.apt/alice_test/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf -start_frame 1 -end_frame 51 -trx /groups/branson/home/kabram/.apt/alice_test/cx_GMR_SS00238_CsChr_RigC_20151007T150343/registered_trx.mat -trx_ids 1'
-import APT_interface as apt
-apt.main(cmd.split())
 
 ##
 import APT_interface as apt
