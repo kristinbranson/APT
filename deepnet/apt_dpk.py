@@ -17,6 +17,7 @@ import importlib
 import ast
 import copy
 import contextlib
+import getpass
 
 import tensorflow.keras as tfk
 import keras.backend as K
@@ -41,7 +42,7 @@ import run_apt_expts as rae
 import deepposekit.io.utils as dpkut
 import deepposekit.utils.keypoints
 import util
-
+import apt_dpk_exps as ade
 
 
 bubtouchroot = '/groups/branson/home/leea30/apt/ar_flybub_touching_op_20191111'
@@ -58,21 +59,29 @@ isotri='/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
 isotrilocs = np.array([[226., 107.], [180., 446.], [283., 445.]])
 isotriswapidx = np.array([-1, 2, 1])
 
+if getpass.getuser() == 'al':
+    aptexptsdata = '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data'
+    dpkdsets = '/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets'
+else:
+    aptexptsdata = '/groups/branson/bransonlab/apt/experiments/data'
+    dpkdsets = '/groups/branson/home/leea30/git/dpkd/datasets'
+
+
 skeleton_csvs = {
-    'alice': ['/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_dpk_skeleton.csv'],
+    'alice': [os.path.join(aptexptsdata, 'multitarget_bubble_dpk_skeleton.csv')],
     'stephen': [
-            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw0_side.csv',
-            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/sh_dpk_skeleton_vw1_front.csv',
+            os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
+            os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv'),
         ],
     'romain': [
-            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw0.csv',
-            '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/romain_dpk_skeleton_vw1.csv',
+            os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw0.csv'),
+            os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw1.csv'),
         ],
-    'roian': ['/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/roian_dpk_skeleton.csv'],
-    'larva': ['/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data/larva_dpk_skeleton.csv'],
-    'dpkfly':    ['/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets/fly/skeleton.csv'],
-    'dpklocust': ['/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets/locust/skeleton.csv'],
-    'dpkzebra':  ['/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets/zebra/skeleton.csv'],
+    'roian': [os.path.join(aptexptsdata, 'roian_dpk_skeleton.csv')],
+    'larva': [os.path.join(aptexptsdata, 'larva_dpk_skeleton.csv')],
+    'dpkfly':    [os.path.join(dpkdsets, 'fly/skeleton.csv')],
+    'dpklocust': [os.path.join(dpkdsets, 'locust/skeleton.csv')],
+    'dpkzebra':  [os.path.join(dpkdsets, 'zebra/skeleton.csv')],
 }
 
 
@@ -298,6 +307,7 @@ def create_callbacks(conf, sdn, runname='deepnet'):
                     validation_batch_size=10)
     '''
 
+    assert conf.dpk_reduce_lr_on_plat
     if conf.dpk_reduce_lr_on_plat:
         logr.info("LR callback: using reduceLROnPlateau")
         lr_cbk = tf.keras.callbacks.ReduceLROnPlateau(
@@ -663,43 +673,97 @@ def compile(conf):
                           growth_rate=conf.dpk_growth_rate,
                           pretrained=conf.dpk_use_pretrained)
 
-    base_lr = conf.dpk_base_lr_factory if conf.dpk_reduce_lr_on_plat \
-        else conf.learning_rate
-    base_lr_used = base_lr * conf.learning_rate_multiplier
-    conf.dpk_base_lr_used = base_lr_used
-    logr.info("apt_dpk compile: base_lr_used={}".format(base_lr_used))
+    if conf.dpk_train_style == 'dpk':  # as in their ppr
+        assert conf.dpk_reduce_lr_on_plat
+        conf.dpk_base_lr_used = conf.dpk_base_lr_factory
+    else:
+        assert False, 'Todo'
+        assert conf.dpk_reduce_lr_on_plat
+        base_lr = conf.dpk_base_lr_factory if conf.dpk_reduce_lr_on_plat \
+            else conf.learning_rate
+        base_lr_used = base_lr * conf.learning_rate_multiplier
+        conf.dpk_base_lr_used = base_lr_used
+
+    logr.info("apt_dpk compile: base_lr_used={}".format(conf.dpk_base_lr_used))
 
     optimizer = tf.keras.optimizers.Adam(
-        lr=base_lr_used, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+        lr=conf.dpk_base_lr_used, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     sdn.compile(optimizer=optimizer, loss='mse')
 
     return tgtfr, sdn
 
-def train(conf,
-          create_cbks_fcn=create_callbacks,
-          runname='deepnet'):
-    print_dpk_conf(conf)
+def train(conf, # create_cbks_fcn=create_callbacks,
+          runname='deepnet',
+          ):
 
-    conf_file = os.path.join(conf.cachedir, '{}.conf.pickle'.format(runname))
-    with open(conf_file, 'wb') as fh:
-        pickle.dump({'conf': conf}, fh)
-    logr.info("Saved conf to {}".format(conf_file))
+    assert conf.dpk_use_tfdata
 
     tgtfr, sdn = compile(conf)
-    cbks = create_cbks_fcn(conf, sdn, runname=runname)
+    assert tgtfr is sdn.train_generator
+
+    # conf.batch_size was already set coming in
+    ntrn = tgtfr.n_train
+    nbatch_per_epoch = int(np.ceil(ntrn / conf.batch_size))
+    conf.display_step = nbatch_per_epoch  # "steps per epoch"
+    conf.save_step = conf.save_step // nbatch_per_epoch * nbatch_per_epoch  # align saving on epoch boundaries
+
+    nval = tgtfr.n_validation
+    valbsize = conf.dpk_val_batch_size
+    assert nval % valbsize == 0, \
+        "val bsize ({}) must evenly divide nvalidation ({})!".format(valbsize, nval)
+    # this empirically appears to be important no idea why
+    nvalbatch = nval // valbsize
+    logr.info("nval={}, nvalbatch={}, valbsize={}".format(
+        nval, nvalbatch, valbsize))
+    cbks = ade.create_callbacks_exp2orig_train(conf,
+                                               sdn,
+                                               valbsize=valbsize,
+                                               nvalbatch=nvalbatch,
+                                               runname=runname)
+
+    print_dpk_conf(conf)
+    if not conf.dpk_use_augmenter:
+        conf.print_dataaug_flds(logr.info)
+    conf_tgtfr = tgtfr.conf
+    util.dictdiff(conf, conf_tgtfr, logr.info)
 
     tgconf = tgtfr.get_config()
     sdnconf = sdn.get_config()
-    with open(conf_file, 'ab') as fh:
-        pickle.dump({'tg': tgconf, 'sdn': sdnconf}, fh)
-    logr.info("Saved other confs to {}".format(conf_file))
+    conf_file = os.path.join(conf.cachedir, '{}.conf.pickle'.format(runname))
+    with open(conf_file, 'wb') as fh:
+        pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
+    logr.info("Saved confs to {}".format(conf_file))
 
-    # XXX valbatch stuff, valsteps stuff. See apt_dpk_exps
-    nval = tgtfr.n_validation
-    nvalbatch = nval // conf.batch_size
-    nvalbatch = min(nvalbatch, conf.dpk_max_val_batches)
-    logr.info("n_validation={}, n_validationbatch={}".format(nval, nvalbatch))
-    assert nvalbatch > 0, 'Number of validation batches must be greater than 0.'
+    epochs = conf.dl_steps // conf.display_step
+    steps_per_epoch = conf.display_step
+    bsize = conf.batch_size
+
+    assert conf.dpk_use_tfdata
+
+    dstrn = sdn.train_generator(sdn.n_outputs,
+                                bsize,
+                                validation=False,
+                                confidence=True,
+                                shuffle=True,
+                                infinite=True)
+    dsval = sdn.train_generator(sdn.n_outputs,
+                                valbsize,
+                                validation=True,
+                                confidence=True,
+                                shuffle=False,
+                                infinite=False)
+    sdn.activate_callbacks(cbks)
+
+    train_model = sdn.train_model
+    train_model.fit(dstrn,
+                    epochs=epochs,
+                    steps_per_epoch=steps_per_epoch,
+                    verbose=2,
+                    callbacks=cbks,
+                    validation_data=dsval,
+                    validation_steps=nvalbatch,
+                    )
+    '''
     sdn.fit(
         batch_size=conf.batch_size,
         validation_batch_size=conf.batch_size,
@@ -707,6 +771,7 @@ def train(conf,
         epochs=conf.dl_steps // conf.display_step,
         steps_per_epoch=conf.display_step,
         validation_steps=nvalbatch, )  # default validation_freq of 1 seems fine # validation_freq=10)
+    '''
 
 #endregion
 

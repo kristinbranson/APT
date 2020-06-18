@@ -114,6 +114,38 @@ def split_tfr_proper(tfrsrc, tfrdst0, tfrdst1, n0, npts):
 
     print('Wrote {} rows'.format(i + 1))
 
+def split_tfr_proper_normal_exp(expdir, frac, npts):
+    '''
+    For 'regular' apt exps
+
+    1. backup train_TF.tfrecords
+    2. create a new train_TF.tfrecords with frac*ntrn rows randomly selected
+    3. put other rows into val_TF.tfrecords
+
+    :param expdir:
+    :param frac: fraction of orig train_TF.tfrecords to put in new train_TF
+    :param npts:
+    :return:
+    '''
+
+    trntfr = os.path.join(expdir, 'train_TF.tfrecords')
+    valtfr = os.path.join(expdir, 'val_TF.tfrecords')
+    trntfrbak = os.path.join(expdir, 'train_bak_TF.tfrecords')
+    assert os.path.exists(trntfr)
+    assert not os.path.exists(valtfr)
+    assert not os.path.exists(trntfrbak)
+
+    os.rename(trntfr, trntfrbak)
+    logr.info("Renamed {}->{}".format(trntfr, trntfrbak))
+
+    ntrn0 = pt.count_records(trntfrbak)
+    ntrn = int(np.round(frac * ntrn0))
+    logr.info('Orig train had {} rows. New train/val will have {}/{}.'.format(
+        ntrn0, ntrn, ntrn0-ntrn))
+
+    split_tfr_proper(trntfrbak, trntfr, valtfr, ntrn, npts)
+    logr.info("Wrote new tfrs {} and {}".format(trntfr, valtfr))
+
 
 def split_tfr_with_rename(trntfr0, valtfr0, ntrnnew, npts):
     '''
@@ -242,14 +274,37 @@ def create_callbacks_exp1orig_train(conf):
     return callbacks
 
 
-def create_callbacks_exp2orig_train(conf, sdn,
-                                    valbsize, nvalbatch,
-                                    runname='deepnet'):
+def create_callbacks_exp2orig_train(conf,
+                                    sdn,
+                                    valbsize,
+                                    nvalbatch,
+                                    runname='deepnet',
+                                    ):
+    '''
+    This is a "standard" DPK-style train
+    :param conf:
+    :param sdn:
+    :param valbsize:
+    :param nvalbatch:
+    :param runname:
+    :return:
+    '''
+
+    if conf.dpk_reduce_lr_style == 'ppr':
+        lr_patience = 10
+        lr_min_delta = .001
+    elif conf.dpk_reduce_lr_style == 'ipynb':
+        lr_patience = 20
+        lr_min_delta = 1e-4
+    else:
+        assert False
+    logr.info('dpk_lr_style: {}'.format(conf.dpk_reduce_lr_style))
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
         monitor="val_loss",
         factor=0.2,
         verbose=1,
-        patience=20,
+        patience=lr_patience,
+        min_delta=lr_min_delta,
     )
 
     nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
@@ -262,32 +317,29 @@ def create_callbacks_exp2orig_train(conf, sdn,
         save_best_only=True,
     )
 
-    '''
-    tg = sdn.train_generator(
-        n_outputs=sdn.n_outputs,
-        batch_size=conf.batch_size,
-        validation=False,
-        confidence=True,
-        instrumentedname='KCbkTrn'
+    ckpt_reg = 'cpkt{}'.format(nowstr)
+    ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
+    model_checkpoint_reg = tf.keras.callbacks.ModelCheckpoint(
+        ckpt_reg,
+        save_freq=conf.save_step,  # save every this many batches
     )
-    vg = sdn.train_generator(
-        n_outputs=1,
-        batch_size=conf.batch_size,
-        validation=True,
-        confidence=False,
-        infinite=True,  # infinite, only for logging val_dist
-        instrumentedname='KCbkVal'
-    )
-    aptcbk = kerascallbacks.APTKerasCbk(conf, (tg, vg), runname=runname)
-    '''
 
-    # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
-    # step3_train_model.ipynb: patience=100, min_delta=.001
-    # Use min_delta=0.0 here it is more conservative
+    if conf.dpk_early_stop_style == 'ppr':
+        es_patience = 50
+        es_min_delta = 0.0
+    elif conf.dpk_early_stop_style == 'ipynb':
+        es_patience = 100
+        es_min_delta = .001
+    else:
+        # "original" exp2, pre 20200616
+        #es_patience = 100
+        #es_min_delta = 0.0
+        assert False
+    logr.info('dpk_early_stop_style: {}'.format(conf.dpk_early_stop_style))
     early_stop = tf.keras.callbacks.EarlyStopping(
         monitor="val_loss",  # monitor="val_loss"
-        min_delta=0.0,
-        patience=100,
+        min_delta=es_min_delta,
+        patience=es_patience,
         verbose=1
     )
 
@@ -310,7 +362,8 @@ def create_callbacks_exp2orig_train(conf, sdn,
                                             logfilevdistlong,
                                             nvalbatch)
 
-    cbks = [reduce_lr, model_checkpoint, loggercbk, early_stop, vdistcbk]
+    cbks = [reduce_lr, model_checkpoint, model_checkpoint_reg,
+            loggercbk, early_stop, vdistcbk]
     return cbks
 
 
@@ -858,6 +911,8 @@ def exp2orig_train(expname,
                    usetfdata=True,
                    useimgaug=True,  # if false, use PoseTools
                    valbsize=10,
+                   reduce_lr_style='ipynb',
+                   early_stop_style='ipynb',
                    **kwargs
                    ):
     iaver = ia.__version__
@@ -884,6 +939,9 @@ def exp2orig_train(expname,
     if not useimgaug:
         assert dset == 'dpkfly'
         exp2_set_posetools_aug_config_leapfly(conf)
+    conf.dpk_val_batch_size = valbsize  # not actually used anywhere
+    conf.dpk_reduce_lr_style = reduce_lr_style
+    conf.dpk_early_stop_style = early_stop_style
 
     # try to match exp1orig
     conf.batch_size = bsize
@@ -896,8 +954,10 @@ def exp2orig_train(expname,
     # validation bsize needs to be spec'd for K fit_generator since the val
     # data comes as a generator (with no len() call) vs a K Sequence
     nvalbatch = int(np.ceil(tgtfr.n_validation / valbsize))
-    cbks = create_callbacks_exp2orig_train(conf, sdn,
-                                           valbsize, nvalbatch,
+    cbks = create_callbacks_exp2orig_train(conf,
+                                           sdn,
+                                           valbsize,
+                                           nvalbatch,
                                            runname=runname)
 
     apt_dpk.print_dpk_conf(conf)
@@ -905,9 +965,6 @@ def exp2orig_train(expname,
         conf.print_dataaug_flds(logr.info)
     conf_tgtfr = tgtfr.conf
     util.dictdiff(conf, conf_tgtfr, logr.info)
-    #for k, v in vars(conf_tgtfr).items():
-    #    if not v == getattr(conf, k):
-    #        print("TGTFR conf different field: {} -> {}".format(k, v))
 
     tgconf = tgtfr.get_config()
     sdnconf = sdn.get_config()

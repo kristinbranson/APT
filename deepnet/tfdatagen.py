@@ -679,7 +679,7 @@ def create_tf_datasets(conf0,
                        infinite=True,
                        dobatch=True,
                        drawconf=True,
-                       shufflebsize=100,
+                       shufflebsize=5000,
                        ):
     '''
     Create train/val TFRecordDatasets. This is basically PoseBaseGeneral/create_datasets
