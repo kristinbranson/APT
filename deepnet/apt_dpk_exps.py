@@ -318,7 +318,13 @@ def create_callbacks_exp2orig_train(conf,
     )
 
     ckpt_reg = 'cpkt{}'.format(nowstr)
-    ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
+    # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
+    #
+    # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
+    # and the metrics get cleared every epoch. note save_freq is in batches, so with
+    # save_freq!='epoch' the saving occurs at random points during an epoch. Val metrics
+    # are prob computed only at epoch end.
+    ckpt_reg += '-{epoch:05d}.h5'
     model_checkpoint_reg = tf.keras.callbacks.ModelCheckpoint(
         ckpt_reg,
         save_freq=conf.save_step,  # save every this many batches

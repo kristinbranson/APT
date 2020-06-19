@@ -239,7 +239,7 @@ class config(object):
     def print_dataaug_flds(self, printfcn=None):
         printfcn = logging.info if printfcn is None else printfcn
         for cat, flds in self.DATAAUG_FLDS.items():
-            print('## {} ##'.format(cat))
+            printfcn('## {} ##'.format(cat))
             for f in flds:
                 printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 

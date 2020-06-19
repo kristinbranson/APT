@@ -208,9 +208,9 @@ class ValDistLogger(Callback):
         with open(logshort, 'a') as f:
             writer = csv.writer(f)
             if not tflogexists:
-                HEADER = ['vdistallmu', 'vdistall10ptl', 'vdistall50ptl', 'vdistall90ptl']
+                HEADER = ['epoch', 'vdistallmu', 'vdistall10ptl', 'vdistall50ptl', 'vdistall90ptl']
                 writer.writerow(HEADER)
-            row = [dallmu] + list(dallptl105090)
+            row = [epoch, dallmu] + list(dallptl105090)
             writer.writerow(row)
 
         with open(self.loglong, 'wb') as f:

@@ -734,7 +734,9 @@ def train(conf, # create_cbks_fcn=create_callbacks,
         pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
     logr.info("Saved confs to {}".format(conf_file))
 
-    epochs = conf.dl_steps // conf.display_step
+    #epochs = conf.dl_steps // conf.display_step
+    epochs = 500
+    logr.warning("Hardcoded epochs={} for the moment".format(epochs))
     steps_per_epoch = conf.display_step
     bsize = conf.batch_size
 
