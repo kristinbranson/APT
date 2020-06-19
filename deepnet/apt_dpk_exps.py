@@ -329,11 +329,13 @@ def create_callbacks_exp2orig_train(conf,
         es_min_delta = 0.0
     elif conf.dpk_early_stop_style == 'ipynb':
         es_patience = 100
-        es_min_delta = .001
+        # we have preferred this as it is more conservative. all exp2 runs
+        # prior to 20200617 (except *_pprcbks_* have used this)
+        es_min_delta = 0.0
+
+        # this is what DPK actually has in its ipynb.
+        # es_min_delta = .001
     else:
-        # "original" exp2, pre 20200616
-        #es_patience = 100
-        #es_min_delta = 0.0
         assert False
     logr.info('dpk_early_stop_style: {}'.format(conf.dpk_early_stop_style))
     early_stop = tf.keras.callbacks.EarlyStopping(
@@ -547,6 +549,7 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
     '''
 
     conf.batch_size = bsize
+    conf.dpk_use_tfdata = False
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
     g = tgtfr(batch_size=bsize, validation=True, shuffle=False,
               confidence=False, infinite=False, debug=True)
@@ -593,7 +596,7 @@ def exp1orig_assess(expname,
                     dset='dpkfly',
                     cacheroot=alcache,
                     validxs=None,  # normally read from conf.pickle
-                    bsize=16,
+                    bsize=10,
                     doplot=True,
                     gentype='tgtfr',
                     useaptcpt=False,  # if true, use most recent deepnet-xxxxx cpt
@@ -1124,22 +1127,22 @@ def parse_sig_and_add_args(sig, parser, skipargs):
                                     type=int,
                                     help="default={}".format(dv),
                                     )
-                print("Added bool arg {}".format(k))
+                logr.info("Added bool arg {}".format(k))
             elif isinstance(dv, int):
                 parser.add_argument('--{}'.format(k),
                                     default=dv,
                                     type=int,
                                     help="default={}".format(dv),
                                     )
-                print("Added int arg {}".format(k))
+                logr.info("Added int arg {}".format(k))
             else:
                 parser.add_argument('--{}'.format(k),
                                     default=dv,
                                     help="default={}".format(dv),
                                     )
-                print("Added arg {}".format(k))
+                logr.info("Added arg {}".format(k))
         except argparse.ArgumentError:
-            print("Skipping arg {}".format(k))
+            logr.info("Skipping arg {}".format(k))
 
 
 def parseargs(argv):

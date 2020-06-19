@@ -679,7 +679,6 @@ def create_tf_datasets(conf0,
                        infinite=True,
                        dobatch=True,
                        drawconf=True,
-                       shufflebsize=5000,
                        ):
     '''
     Create train/val TFRecordDatasets. This is basically PoseBaseGeneral/create_datasets
@@ -749,6 +748,13 @@ def create_tf_datasets(conf0,
     ds = tf.data.TFRecordDataset(dbfile)
     ds = ds.map(map_func=_parse_function)
     if shuffle:
+        try:
+            shufflebsize = conf.dpk_tfdata_shuffle_bsize
+        except AttributeError:
+            shufflebsize = 5000
+            logr.warning("dpk_tfdata_shuffle_bsize not present in conf. using default value of {}".format(
+                shufflebsize))
+
         ds = ds.shuffle(buffer_size=shufflebsize)
     if infinite:
         ds = ds.repeat()

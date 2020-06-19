@@ -547,7 +547,7 @@ def print_dpk_conf(conf):
                   'Unet', 'DeepLabCut', 'max_n_animals',
                   'time_window_size', 'selpts', 'fulltrainfilename',
                   'valdatafilename', 'valratio', 'valfilename']
-    print("### CONF ###")
+    logr.info("### CONF ###")
     keys = sorted(vars(conf).keys())
     for k in keys:
         if any([k.startswith(x) for x in PFIXESSKIP]):
@@ -558,7 +558,7 @@ def print_dpk_conf(conf):
         else:
             logr.info("{} -> {}".format(k, v))
 
-    print("### CONF END ###")
+    logr.info("### CONF END ###")
 
 
 #endregion

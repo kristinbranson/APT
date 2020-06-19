@@ -16,10 +16,10 @@ def dictsubsetpfix(d, pfix):
 
 def dictdiff(d1, d2, print_fcn=print):
     if not isinstance(d1, collections.abc.Mapping):
-        print("using vars(d1)")
+        print_fcn("using vars(d1)")
         d1 = vars(d1)
     if not isinstance(d2, collections.abc.Mapping):
-        print("using vars(d2)")
+        print_fcn("using vars(d2)")
         d2 = vars(d2)
 
     k1 = set(d1.keys())
@@ -39,7 +39,7 @@ def dictdiff(d1, d2, print_fcn=print):
         if isinstance(tf, np.ndarray):
             tf = np.all(tf)
         if not tf:
-            print("{}: values differ, {} vs {}".format(kk, v1, v2))
+            print_fcn("{}: values differ, {} vs {}".format(kk, v1, v2))
 
     print_fcn("{} total common keys checked".format(len(k)))
 

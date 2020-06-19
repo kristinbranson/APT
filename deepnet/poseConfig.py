@@ -171,9 +171,10 @@ class config(object):
                                             # False is APT-style scheduled (using learning_rate, decay_steps, gamma)
         self.dpk_reduce_lr_style = 'ipynb'  # either 'ppr' or 'ipynb'
         self.dpk_early_stop_style = 'ipynb' # either 'ppr' or 'ipynb'
-        self.dpk_use_tfdata = False
+        self.dpk_use_tfdata = True
         self.dpk_train_style = 'dpk'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
         self.dpk_val_batch_size = 10
+        self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
 
 
         # ============== EXTRA ================
