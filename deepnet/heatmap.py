@@ -69,6 +69,7 @@ def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
     if distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"):
         rp = skimage.measure.regionprops(lbls, intensity_image=hm)
     else:
+        assert False, "Test this!!"
         rp = skimage.measure.regionprops(np.transpose(lbls), intensity_image=hm)
     rp.sort(key=lambda x: x.max_intensity, reverse=True)
 

@@ -852,7 +852,7 @@ def predict_stuff(sdn, ims, locsgt, hmfloor=0.1, hmncluster=1):
     npts = sdnconf['keypoints_shape'][0]
     unscalefac = 2**sdnconf['downsample_factor']
 
-    assert False, "need to preproc ims"
+    assert False, "need to preproc ims; heatmap updates"
     yt = mt.predict(ims)
     yhm = op4.clip_heatmap_with_warn(yt[-1][..., :npts])
     locsTlo = hm.get_weighted_centroids(yhm, hmfloor, hmncluster)

@@ -59,8 +59,8 @@ import urllib
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
-# if ISPY3:
-#     import apt_dpk
+if ISPY3:
+    import apt_dpk
 
 
 def savemat_with_catch_and_pickle(filename, out_dict):
