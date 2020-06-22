@@ -494,6 +494,15 @@ for dd in dtypes:
     rae.get_leap_results()
 
 
+## Orig DPK
+import run_apt_expts_2 as rae
+dtypes = ['alice', 'stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.train_dpk_orig()
+
+
 ## Videos for results
 
 
