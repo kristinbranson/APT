@@ -1,0 +1,10 @@
+# From Deep Learning Base AMI (Ubuntu 18.04) Version 24.0 (ami-0e60fa461a16192c0
+sudo -H pip3 install https://files.pythonhosted.org/packages/32/ca/58e40e5077fa2a92004f398d705a288e958434f123938f4ce75ffe25b64b/tensorflow_gpu-1.15.2-cp36-cp36m-manylinux2010_x86_64.whl
+pip install opencv-python keras==2.2.4 matplotlib imageio h5py EasyDict scipy future scikit-image hdf5storage clize packaging ruamel.yaml statsmodels tqdm
+# alias python=python3 in .bashrc
+sudo -H apt install python3-tk tcl-dev tk-dev
+sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 1 
+# python now points to python3 by default
+git clone https://github.com/kristinbranson/APT.git
+cd APT/deepnet
+python ./download_pretrained.py

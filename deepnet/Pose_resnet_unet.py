@@ -2,7 +2,13 @@ from PoseBase import PoseBase
 import PoseTools
 import os
 import tarfile
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import tensorflow.contrib.slim as slim
 import urllib
 import resnet_official
@@ -20,7 +26,7 @@ class Pose_resnet_unet(PoseBase):
 
         self.conf.use_pretrained_weights = True
 
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
         if self.resnet_source == 'official_tf':
             url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -75,10 +81,10 @@ class Pose_resnet_unet(PoseBase):
                 n_filts = [32, 64, 64, 128, 256, 512]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
-            im = tf.placeholder(tf.float32, [8, 512, 512, 3])
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=64, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
+            down_layers.pop(2) # remove one of the layers of size imsz/4, imsz/4 at index 2
             ex_down_layers = conv(self.inputs[0], 64)
             down_layers.insert(0, ex_down_layers)
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
@@ -123,7 +129,7 @@ class Pose_resnet_unet(PoseBase):
         n_filt = X.get_shape().as_list()[-1]
         n_out = self.conf.n_classes
         weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=tensorflow.contrib.layers.xavier_initializer())
         biases = tf.get_variable("out_biases", n_out,
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')

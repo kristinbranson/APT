@@ -13,8 +13,10 @@ import matplotlib.pyplot as plt
 import PoseTools
 
 # prefer packaging module in future
-assert distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"), \
-    "Unexpected version of skimage; needed for r/c coord conventions"
+## MK 20200608 -- Fixing this based on documentation.
+## TEST THIS!!!!
+# assert distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"), \
+#     "Unexpected version of skimage; needed for r/c coord conventions"
 
 def compactify_hmap_gaussian_test():
     sig = np.array([[10,4],[4,7]])
@@ -64,7 +66,10 @@ def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
 
     hmbw = hm > 0.
     lbls = skimage.measure.label(hmbw, connectivity=1)
-    rp = skimage.measure.regionprops(lbls, intensity_image=hm)
+    if distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"):
+        rp = skimage.measure.regionprops(lbls, intensity_image=hm)
+    else:
+        rp = skimage.measure.regionprops(np.transpose(lbls), intensity_image=hm)
     rp.sort(key=lambda x: x.max_intensity, reverse=True)
 
     a = np.zeros(nclustermax)

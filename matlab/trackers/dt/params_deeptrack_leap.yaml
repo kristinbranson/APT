@@ -14,6 +14,17 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - LEAP:
     - ['','',false,LEAP settings.,'','']
-    - leap_base_lr: ['Base Learning Rate',float,true,'Base learning rate for training leap network. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.00004',0.00004,'','Developer','',true]
-
-
+    #- leap_base_lr: ['Base Learning Rate',float,true,'Base learning rate for training leap network. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.00004',0.00004,'','Developer','',true]
+    - leap_net_name: ['Leap Network Type',string,true,'Network backbone to use for LEAP','leap_cnn','','Advanced','',true]
+    - leap_val_size: ['Leap Val Size',float,true,'Amount of training data set to keep aside as validation for determining the learning rate schedule',0.15,'','Advanced','',true]
+    - leap_preshuffle: ['Preshuffle Dataset',boolean,true,'If True, shuffle the dataset prior to splitting the dataset, otherwise validation set will be the last frames',1,'','Advanced','',true]
+    - leap_filters: ['Number of filters',unsigned,true,'Number of filters to use as baseline for leap networks',64,'','Advanced','',true]
+    - leap_val_batches_per_epoch: ['Val batches',unsigned,true,'Number of batches to use for validation',10,'','Advanced','',true]
+    - leap_reduce_lr_factor: ['LR reduce factor',float,true,'Factor to reduce the learning rate by (see ReduceLROnPlateau in Keras)',0.1,'','Advanced','',true]
+    - leap_reduce_lr_patience: ['LR patience',float,true,'How many epochs to wait before reduction (see ReduceLROnPlateau in Keras)',3,'','Advanced','',true]
+    - leap_reduce_lr_min_delta: ['LR change in error',float,true,' Minimum change in error required before reducing LR (see ReduceLROnPlateau in Keras)',0.00001,'','Advanced','',true]
+    - leap_reduce_lr_cooldown: ['LR cooldown',float,true,'How many epochs to wait after reduction before LR can be reduced again (see ReduceLROnPlateau in Keras)',0,'','Advanced','',true]
+    - leap_reduce_lr_min_lr: ['Minimum LR',float,true,' Minimum that the LR can be reduced down to (see ReduceLROnPlateau in Keras)',1e-10,'','Advanced','',true]
+    - leap_amsgrad: ['Use AMSGrad',boolean,true,'Use AMSGrad variant of optimizer. Can help with training accuracy on rare examples (see Reddi et al., 2018)',0,'','Advanced','',true]
+    - leap_upsampling: ['Use bilinear upsampling',boolean,true,' Use simple bilinear upsampling layers as opposed to learned transposed convolutions',0,'','Advanced','',true]
+    - use_leap_preprocessing: ["Use LEAP's image augmentation",boolean,true,"Use LEAP's image augmentation instead of APT. In this case, image's will be augmented using only rotation and scaling",0,'','Advanced','',true]

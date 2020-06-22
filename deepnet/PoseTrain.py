@@ -5,7 +5,13 @@ from builtins import str
 from builtins import range
 from builtins import object
 from past.utils import old_div
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import os, sys, shutil
 import tempfile, copy, re
 from enum import Enum

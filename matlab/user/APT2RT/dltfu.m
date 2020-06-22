@@ -25,7 +25,7 @@ function [A,avgres] = dltfu(F,L,Cut)
 %               Biomechanics of Human Movement (Edited by Berme and
 %               Cappozzo). pp. 108-127.
 
-
+% From https://isbweb.org/software/movanal/kinemat/
 
 
 if nargin==2; Cut=[]; end;

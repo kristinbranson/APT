@@ -14,7 +14,13 @@ from __future__ import print_function
 from builtins import str
 from builtins import range
 from builtins import object
-import tensorflow as tf
+
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
 import os
 import PoseTools
 import multiResData
@@ -44,7 +50,7 @@ from collections import OrderedDict
 renorm = False
 def conv_relu(x_in, kernel_shape, train_phase):
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
+                              initializer=tensorflow.contrib.layers.xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -59,7 +65,7 @@ def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False, data_f
         in_dim = x_in.get_shape().as_list()[1]
     kernel_shape = [3, 3, in_dim, n_filt]
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
+                              initializer=tensorflow.contrib.layers.xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME',data_format=data_format)
@@ -80,7 +86,7 @@ def conv_shortcut(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
     kernel_shape = [1, 1, in_dim, n_filt]
     with tf.variable_scope('shortcut'):
         weights = tf.get_variable("weights", kernel_shape,
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=tensorflow.contrib.layers.xavier_initializer())
         biases = tf.get_variable("biases", kernel_shape[-1],
                                  initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -95,7 +101,7 @@ def conv_relu3_noscaling(x_in, n_filt, train_phase):
     weights = tf.get_variable(
         "weights", kernel_shape,
         initializer=
-        tf.contrib.layers.variance_scaling_initializer())
+        tensorflow.contrib.layers.variance_scaling_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')

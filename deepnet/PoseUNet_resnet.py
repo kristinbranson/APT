@@ -6,7 +6,12 @@ import PoseTools
 import sys
 import os
 import contextlib
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
 import imageio
 import localSetup
 from scipy.ndimage.interpolation import zoom
@@ -22,55 +27,7 @@ import resnet_official
 import urllib
 import tarfile
 import math
-import keras.backend as K
-# from open_pose2 import upsample_init_value
-
-
-def upsample_filt(alg='nn', dtype=None):
-    if alg == 'nn':
-        x = np.array([[0., 0., 0., 0.],
-                      [0., 1., 1., 0.],
-                      [0., 1., 1., 0.],
-                      [0., 0., 0., 0.]], dtype=dtype)
-    elif alg == 'bl':
-        x = np.array(
-            [[0.0625, 0.1875, 0.1875, 0.0625],
-             [0.1875, 0.5625, 0.5625, 0.1875],
-             [0.1875, 0.5625, 0.5625, 0.1875],
-             [0.0625, 0.1875, 0.1875, 0.0625]], dtype=dtype)
-    else:
-        assert False
-    return x
-
-
-def upsample_init_value(shape, alg='nn', dtype=None):
-    # Return numpy array for initialization value
-
-    print("upsample initializer desired shape: {}".format(shape))
-    f = upsample_filt(alg, dtype)
-
-    filtnr, filtnc, kout, kin = shape
-    assert kout == kin  # for now require equality
-    if kin > kout:
-        wstr = "upsample filter has more inputs ({}) than outputs ({}). Using truncated identity".format(kin, kout)
-        logging.warning(wstr)
-
-    xinit = np.zeros(shape)
-    for i in range(kout):
-        xinit[:, :, i, i] = f
-
-    return xinit
-
-
-def upsample_initializer(shape, alg='nn', dtype=None):
-    xinit = upsample_init_value(shape, alg, dtype)
-    return K.variable(value=xinit, dtype=dtype)
-# could use functools.partial etc
-def upsamp_init_nn(shape, dtype=None):
-    return upsample_initializer(shape, 'nn', dtype)
-def upsamp_init_bl(shape, dtype=None):
-    return upsample_initializer(shape, 'bl', dtype)
-
+from upsamp import upsample_init_value
 
 
 class PoseUNet_resnet(PoseUNet.PoseUNet):
@@ -78,7 +35,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
     def __init__(self, conf, name='unet_resnet'):
         self.conf = conf
         self.out_scale = 1.
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
         use_pretrained = conf.use_pretrained_weights
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
         conf.use_pretrained_weights = use_pretrained
@@ -97,7 +54,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 print('Extracting pretrained weights..')
                 tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
-        else:
+        elif self.resnet_source == 'slim':
             url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
@@ -111,6 +68,8 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 print('Extracting pretrained weights..')
                 tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
 
@@ -147,13 +106,15 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 n_filts = [32, 64, 64, 128, 256, 512]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             im = tf.placeholder(tf.float32, [8, 512, 512, 3])
             resnet_out = mm(im, True)
             down_layers = mm.layers
             ex_down_layers = conv(self.inputs[0], 64)
             down_layers.insert(0, ex_down_layers)
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
         with tf.variable_scope(self.net_name):
@@ -199,7 +160,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
             n_filt = X.get_shape().as_list()[-1]
             n_out = self.conf.n_classes
             weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             biases = tf.get_variable("out_biases", n_out,
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -265,7 +226,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
     def __init__(self, conf, name='umdn_resnet',pad_input=False):
         self.conf = conf
         # self.resnet_source = 'official_tf'
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
         self.offset = float(self.conf.get('mdn_slim_output_stride',32))
         use_pretrained = conf.use_pretrained_weights
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input)
@@ -289,7 +250,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         #         print('Extracting pretrained weights..')
         #         tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
-        else:
+        elif self.resnet_source == 'slim':
             url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
@@ -303,6 +264,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #     print('Extracting pretrained weights..')
             #     tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
     def create_network(self):
@@ -331,7 +294,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             in_dim = x_in.get_shape().as_list()[3]
             kernel_shape = [3, 3, in_dim, n_filt]
             weights = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             biases = tf.get_variable("biases", kernel_shape[-1],
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
@@ -362,7 +325,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 n_filts = [32, 64, 128, 256, 512, 1024]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=17, num_filters=64, kernel_size=7,
+            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=64, kernel_size=7,
                                        conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3],
                                        block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2,
                                        data_format='channels_last', dtype=tf.float32)
@@ -372,6 +335,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             net = down_layers[-1]
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
             # n_filts = [ 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
         if self.conf.mdn_use_unet_loss:
             with tf.variable_scope(self.net_name + '_unet'):
@@ -446,7 +411,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 n_filt = X.get_shape().as_list()[-1]
                 n_out = self.conf.n_classes
-                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tf.contrib.layers.xavier_initializer())
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("out_biases", n_out, initializer=tf.constant_initializer(0.))
                 conv_out = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv_out, biases, name = 'unet_pred')
@@ -471,7 +436,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         with tf.variable_scope(self.net_name):
             if self.conf.get('mdn_regularize_wt',False) is True:
                 wt_scale = self.conf.get('mdn_regularize_wt_scale',0.1)
-                wt_reg = tf.contrib.layers.l2_regularizer(scale=wt_scale)
+                wt_reg = tensorflow.contrib.layers.l2_regularizer(scale=wt_scale)
             else:
                 wt_reg = None
 
@@ -533,7 +498,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 if explicit_offset:
                     # o_locs = ((tf.sigmoid(o_locs) * 2) - 0.5) * locs_offset
-                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * k * n_out],                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * k * n_out],                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
                                                   initializer=tf.constant_initializer(0))
                     o_locs = tf.nn.conv2d(mdn_l, weights_locs,
@@ -555,7 +520,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     locs = tf.reshape(o_locs, [-1, n_x * n_y * k, n_out, 2], name='locs_final')
                 else:
                     mdn_l = tf.concat([mdn_l,x_off,y_off],axis=-1)
-                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt+2, 2 * k * n_out],                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt+2, 2 * k * n_out],                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
                                                   initializer=tf.constant_initializer(0))
                     o_locs = tf.nn.conv2d(mdn_l, weights_locs,
@@ -566,7 +531,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 with tf.variable_scope('layer_scales'):
                     kernel_shape = [1, 1, n_filt_in, n_filt]
                     weights = tf.get_variable("weights", kernel_shape,
-                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases = tf.get_variable("biases", kernel_shape[-1],
                                              initializer=tf.constant_initializer(0))
                     conv = tf.nn.conv2d(X, weights,
@@ -576,7 +541,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 mdn_l = tf.nn.relu(conv + biases)
 
                 weights_scales = tf.get_variable("weights_scales", [1, 1, n_filt, k * n_out],
-                                                 initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                                 initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                 biases_scales = tf.get_variable("biases_scales", k * self.conf.n_classes,
                                                 initializer=tf.constant_initializer(0))
                 o_scales = tf.exp(tf.nn.conv2d(mdn_l, weights_scales,
@@ -604,7 +569,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                             kernel_shape = [1, 1, n_filt_in, n_filt]
 
                         weights = tf.get_variable("weights", kernel_shape,
-                                                  initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                                  initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                         biases = tf.get_variable("biases", kernel_shape[-1],
                                                  initializer=tf.constant_initializer(0))
                         conv = tf.nn.conv2d(X, weights,
@@ -616,7 +581,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 loc_shape = mdn_l.get_shape().as_list()
                 in_filt = loc_shape[-1]
                 weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt, k * n_groups],
-                                                 initializer=tf.contrib.layers.xavier_initializer())
+                                                 initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_logits = tf.get_variable("biases_logits", k * n_groups,
                                                 initializer=tf.constant_initializer(0))
                 logits = tf.nn.conv2d(mdn_l, weights_logits,
@@ -644,7 +609,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 with tf.variable_scope('layer_dist'):
                     kernel_shape = [1, 1, n_filt_in, n_filt]
                     weights = tf.get_variable("weights", kernel_shape,
-                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases = tf.get_variable("biases", kernel_shape[-1],
                                              initializer=tf.constant_initializer(0))
                     conv = tf.nn.conv2d(X_dist, weights,
@@ -654,7 +619,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 mdn_l = tf.nn.relu(conv + biases)
 
                 weights_dist = tf.get_variable("weights_dist", [1, 1, n_filt, k * n_out],
-                                                 initializer=tf.contrib.layers.xavier_initializer())
+                                                 initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_dist = tf.get_variable("biases_dist", k * self.conf.n_classes,
                                                 initializer=tf.constant_initializer(0))
                 o_dist = tf.sigmoid(tf.nn.conv2d(mdn_l, weights_dist,
@@ -699,6 +664,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         in_locs = inputs[1]
         # mdn_loss = self.my_loss(pred, inputs[1])
         mdn_loss = self.l2_loss(pred, in_locs)
+        self.mdn_loss = mdn_loss
         if self.conf.mdn_use_unet_loss:
             # unet_loss = tf.losses.mean_squared_error(inputs[-1], self.unet_pred)
             unet_loss = tf.sqrt(
@@ -718,6 +684,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         # wt regularization loss
         regularizer_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+        self.reg_loss = regularizer_losses
 
         return (mdn_loss + unet_loss + dist_loss + occ_loss + sum(regularizer_losses)) / self.conf.batch_size
 
@@ -1036,7 +1003,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             in_dim = x_in.get_shape().as_list()[3]
             kernel_shape = [3, 3, in_dim, n_filt]
             weights = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             biases = tf.get_variable("biases", kernel_shape[-1],
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
@@ -1066,7 +1033,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 n_filts = [32, 64, 128, 256, 512, 1024]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=17, num_filters=64, kernel_size=7,
+            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=64, kernel_size=7,
                                        conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3],
                                        block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2,
                                        data_format='channels_last', dtype=tf.float32)
@@ -1076,6 +1043,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             net = down_layers[-1]
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
             # n_filts = [ 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
         if self.conf.mdn_use_unet_loss:
             with tf.variable_scope(self.net_name + '_unet'):
@@ -1150,7 +1119,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 n_filt = X.get_shape().as_list()[-1]
                 n_out = self.conf.n_classes
-                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tf.contrib.layers.xavier_initializer())
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("out_biases", n_out, initializer=tf.constant_initializer(0.))
                 conv_out = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv_out, biases, name = 'unet_pred')
@@ -1174,7 +1143,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         with tf.variable_scope(self.net_name):
             if self.conf.get('mdn_regularize_wt',False) is True:
                 wt_scale = self.conf.get('mdn_regularize_wt_scale',0.1)
-                wt_reg = tf.contrib.layers.l2_regularizer(scale=wt_scale)
+                wt_reg = tensorflow.contrib.layers.l2_regularizer(scale=wt_scale)
             else:
                 wt_reg = None
 
@@ -1425,7 +1394,7 @@ class PoseUNet_resnet_lowres(PoseUNet_resnet):
         self.conf = conf
         self.output_stride = self.conf.get('mdn_slim_output_stride', 16)
         self.out_scale = float(self.output_stride/2)
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
 
         def train_pp(ims,locs,info):
             return preproc_func(ims,locs,info, conf,True, out_scale= self.out_scale)
@@ -1472,11 +1441,15 @@ class PoseUNet_resnet_lowres(PoseUNet_resnet):
                 n_filts = [32, 64, 64, 128, 256, 512]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             im = tf.placeholder(tf.float32, [8, 512, 512, 3])
             resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
             ex_down_layers = conv(self.inputs[0], 64)
+            down_layers.insert(0, ex_down_layers)
+            n_filts = [32, 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
         with tf.variable_scope(self.net_name):

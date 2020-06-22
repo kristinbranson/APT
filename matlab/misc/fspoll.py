@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+# FutureWarnings from import corrupting fspoll output/parse
+# alternatively, could eg prefix each 'real' output line with
+# a sentinel or keyword
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import sys
 import os
 import string
