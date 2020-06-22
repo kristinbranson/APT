@@ -16,6 +16,7 @@ import imgaug as ia
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+import pandas as pd
 
 import APT_interface as apt
 import deepposekit as dpk
@@ -30,11 +31,20 @@ import multiResData as mrd
 logr = logging.getLogger('APT')
 
 user = getpass.getuser()
+
+blaptdata = '/groups/branson/bransonlab/apt/experiments/data'
+
 if user == 'leea30':
     dbs = {
-        'dpkfly': {'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
-                   'slbl': '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
-                   }
+        'dpkfly': {
+            'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
+            'slbl': os.path.join(blaptdata, 'leap_dataset_gt_stripped_numchans1.lbl')
+        },
+        'alice': {
+            'slbl': os.path.join(blaptdata,
+                                 'multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'),
+            'skel': os.path.join(blaptdata, 'multitarget_bubble_dpk_skeleton.csv')
+        }
     }
     alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
     aldeepnet = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
@@ -325,9 +335,11 @@ def create_callbacks_exp2orig_train(conf,
     # save_freq!='epoch' the saving occurs at random points during an epoch. Val metrics
     # are prob computed only at epoch end.
     ckpt_reg += '-{epoch:05d}.h5'
-    model_checkpoint_reg = tf.keras.callbacks.ModelCheckpoint(
+    ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
+    model_checkpoint_reg = dpk.callbacks.ModelCheckpoint(
         ckpt_reg,
         save_freq=conf.save_step,  # save every this many batches
+        save_best_only=False,
     )
 
     if conf.dpk_early_stop_style == 'ppr':
@@ -568,7 +580,7 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
         yield ims, locs, info
 
 
-def exp1orig_assess_set(expnamebase,
+def assess_set(expnamebase,
                         runrange=range(5),
                         dset='dpkfly',
                         cacheroot=alcache,
@@ -577,7 +589,7 @@ def exp1orig_assess_set(expnamebase,
     eresall = []
     for run in runrange:
         expname = runpat.format(expnamebase, run)
-        eres = exp1orig_assess(expname, dset, cacheroot, **kwargs)
+        eres = assess(expname, dset, cacheroot, **kwargs)
         eresall.append(eres)
 
     euc_coll_ptiles50s = np.vstack([x['euc_coll_ptiles5090'][:, 0] for x in eresall]).T
@@ -598,63 +610,83 @@ def get_latest_ckpt_h5(expdir):
     return cpth5
 
 
-def exp1orig_assess(expname,
-                    dset='dpkfly',
-                    cacheroot=alcache,
-                    validxs=None,  # normally read from conf.pickle
-                    bsize=10,
-                    doplot=True,
-                    gentype='tgtfr',
-                    useaptcpt=False,  # if true, use most recent deepnet-xxxxx cpt
-                    returnsdn=False,  # if true, early-return with just loaded sdn ready to predict
-                    net='dpksdn',
-                    ):
-    h5dset = dbs[dset]['h5dset']
-    slbl = dbs[dset]['slbl']
+def assess(expname,
+           dset='dpkfly',
+           cacheroot=alcache,
+           validxs=None,
+           tstbsize=10,
+           doplot=True,
+           gentype='tgtfr',
+           ckpt='latest',
+           returnsdn=False,
+           net='dpksdn',
+           ):
+    '''
+    Assess dpk perf with ckpt against val_TF
+    :param expname:
+    :param dset: 'dpkfly', 'alice', etc
+    :param cacheroot:
+    :param validxs: pretty much obsolete; normally read from conf.pickle
+    :param tstbsize:
+    :param doplot:
+    :param gentype:
+    :param ckpt: 'latest','aptlatest',or specific ckpt file (relative path)
+    :param returnsdn:   if true, early-return with just loaded sdn ready to predict
+    :param net:
+    :return:
+    '''
 
-    dg = dpk.io.DataGenerator(h5dset)
-
-    # make a conf just to get the path to the expdir
     expname = expname if expname else 'dpkorig'
-    conf = apt.create_conf(slbl, 0, expname,
-                           cacheroot, net, quiet=False)
-    # this conf-updating is actually prob unnec but prob doesnt hurt
-    conf = apt_dpk.update_conf_dpk(conf,
-                                   dg.graph,
-                                   dg.swap_index,
-                                   n_keypoints=dg.n_keypoints,
-                                   imshape=dg.compute_image_shape(),
-                                   useimgaug=True,
-                                   imgaugtype=dset)
+
+    dsetdb = dbs[dset]
+    isdgdb = 'h5dset' in dsetdb
+    if isdgdb:
+        h5dset = dsetdb['h5dset']
+        slbl = dsetdb['slbl']
+        dg = dpk.io.DataGenerator(h5dset)
+        # make a conf just to get the path to the expdir
+        conf = apt.create_conf(slbl, 0, expname,
+                               cacheroot, net, quiet=False)
+        # this conf-updating is actually prob unnec but prob doesnt hurt
+        conf = apt_dpk.update_conf_dpk(conf,
+                                       dg.graph,
+                                       dg.swap_index,
+                                       n_keypoints=dg.n_keypoints,
+                                       imshape=dg.compute_image_shape(),
+                                       useimgaug=True,
+                                       imgaugtype=dset)
+        # note, useimgaug/imgaugtype def doesnt matter as we will be assessing
+        # on val/non-distorted data
+
+    else:
+        slbl = dsetdb['slbl']
+        skel = dsetdb['skel']
+        conf_params = ['dpk_skel_csv', '"{}"'.format(skel)]
+        conf = apt.create_conf(slbl, 0, expname,
+                               cacheroot, net, quiet=False, conf_params=conf_params)
+
 
     expdir = conf.cachedir
 
-    if useaptcpt:
+    if ckpt == 'aptlatest':
         cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
         sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
 
         print("conf vs conf_saved:")
         util.dictdiff(conf, conf_saved, logr.info)
     else:
-        cpth5 = get_latest_ckpt_h5(expdir)
-        if gentype == 'dg':
-            loadmodelgen = None  # dg
-        elif gentype == 'tgtfr':
-            loadmodelgen = None
+        if ckpt == 'latest':
+            cpth5 = get_latest_ckpt_h5(expdir)
         else:
-            assert False
-        try:
-            sdn = dpk.models.load_model(cpth5, generator=loadmodelgen)
-        except KeyError:
-            if loadmodelgen is not None:
-                print("Warning: load_model failed with non-None gentype. trying with loadmodelgen=none")
-                sdn = dpk.models.load_model(cpth5, generator=None)
-            else:
-                raise
+            cpth5 = os.path.join(expdir, ckpt)
+            assert os.path.exists(cpth5), "ckpt file {} dne".format(cpth5)
+
+        sdn = dpk.models.load_model(cpth5, generator=None)
         conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
         conf_saved = pt.pickle_load(conf_saved_f)
-        print("conf vs conf_saved:")
+        logr.info("conf vs conf_saved:")
         util.dictdiff(conf, conf_saved['conf'], logr.info)
+
 
     '''
     The TG is randomly initted at creation/load_model time I think so the various
@@ -674,7 +706,7 @@ def exp1orig_assess(expname,
     if gentype == 'tgtfr':
         if validxs_specified:
             logr.info("Ignoring validxs spec; reading val_TF.tfrecords")
-        g = simple_tgtfr_val_kpt_generator(conf, bsize)
+        g = simple_tgtfr_val_kpt_generator(conf, tstbsize)
     elif gentype == 'dg':
         if not validxs_specified:
             logr.info("Reading val idxs from conf.pickle")
@@ -684,7 +716,7 @@ def exp1orig_assess(expname,
             logr.info("Found conf.pickle: {}".format(pic[0]))
             pic = pt.pickle_load(pic[0])
             validxs = pic['tg']['val_index']
-        g = simple_dpk_generator(dg, validxs, bsize)
+        g = simple_dpk_generator(dg, validxs, tstbsize)
     else:
         assert False
 
@@ -1118,6 +1150,24 @@ def parse_sig(sig):
         p = sig.parameters[k]
         dv = p.default
         print("{}: dv={}".format(k, dv))
+
+def read_exp(edir):
+    gpat = os.path.join(edir, '*.log')
+    gpatv = os.path.join(edir, '*.vdist.log')
+
+    g = glob.glob(gpat)
+    gv = glob.glob(gpatv)
+    g = set(g) - set(gv)
+    assert len(g) == 1 and len(gv) == 1
+
+    tlog = os.path.join(edir, g.pop())
+    tvlog = os.path.join(edir, gv.pop())
+
+    df = pd.read_csv(tlog)
+    dfv = pd.read_csv(tvlog)
+
+    return df, dfv, tlog, tvlog
+
 
 
 def parse_sig_and_add_args(sig, parser, skipargs):

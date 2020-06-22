@@ -818,13 +818,13 @@ def xylist2xyarr(xylist, xisscalarlist=False):
     return x, y
 
 
-def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
-            share_all=True, label_mode='1', cmap='viridis', locsmrkr='.',
+def montage(ims0, locs=None, locs2=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
+            share_all=True, label_mode='1', cmap='viridis', locsmrkr='.', locs2mrkr='x',
             locsmrkrsz=16):
     '''
 
     :param ims0: [nr x nc x N] (assumed b/w)
-    :param locs:
+    :param locs: [N x npt x 2]
     :param fignum:
     :param figsize:
     :param axes_pad:
@@ -867,6 +867,12 @@ def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
             rgba = jetmap(np.linspace(0, 1, locs.shape[1]))
             grid[iim].scatter(locs[iim, :, 0], locs[iim, :, 1], c=rgba,
                               marker=locsmrkr, s=locsmrkrsz)
+        if locs2 is not None:
+            assert locs2.shape[0] == nim
+            jetmap = cm.get_cmap('spring')
+            rgba = jetmap(np.linspace(0, 1, locs2.shape[1]))
+            grid[iim].scatter(locs2[iim, :, 0], locs2[iim, :, 1], c=rgba,
+                              marker=locs2mrkr, s=locsmrkrsz)
 
     for iim in range(nim, nplotr * nplotc):
         grid[iim].imshow(np.zeros(ims.shape[0:2]))

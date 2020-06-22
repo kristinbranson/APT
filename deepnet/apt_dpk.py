@@ -441,9 +441,10 @@ def compute_padding_imsz_net(imsz, rescale, n_transition_min):
 def update_conf_dpk(conf_base,
                     graph,
                     swap_index,
-                    n_keypoints=None,  # optional. if not provided conf.n_classes can be already set
-                    imshape=None,  # " .imsz, .img_dim "
-                    useimgaug=False,
+                    n_keypoints=None,   # optional. if not provided conf.n_classes can be already set
+                    imshape=None,       # " .imsz, .img_dim "
+                    useimgaug=False,    # maybe TODO. allow None => use preset conf.dpk_use_augmenter,
+                                        # .dpk_augmenter_type.
                     imgaugtype='dpkfly',  # used only if useimgaug==True
                     ):
     '''
@@ -675,7 +676,8 @@ def compile(conf):
 
     if conf.dpk_train_style == 'dpk':  # as in their ppr
         assert conf.dpk_reduce_lr_on_plat
-        conf.dpk_base_lr_used = conf.dpk_base_lr_factory
+        if conf.dpk_base_lr_used is None:
+            conf.dpk_base_lr_used = conf.dpk_base_lr_factory
     else:
         assert False, 'Todo'
         assert conf.dpk_reduce_lr_on_plat
