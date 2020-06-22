@@ -17,6 +17,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import pandas as pd
+from easydict import EasyDict as edict
 
 import APT_interface as apt
 import deepposekit as dpk
@@ -1152,21 +1153,27 @@ def parse_sig(sig):
         print("{}: dv={}".format(k, dv))
 
 def read_exp(edir):
+    conf = os.path.join(edir, '*conf.pickle')
     gpat = os.path.join(edir, '*.log')
     gpatv = os.path.join(edir, '*.vdist.log')
 
+    conf = glob.glob(conf)
     g = glob.glob(gpat)
     gv = glob.glob(gpatv)
     g = set(g) - set(gv)
-    assert len(g) == 1 and len(gv) == 1
+    assert len(conf) <= 1
+    assert len(g) <= 1
+    assert len(gv) <= 1
 
-    tlog = os.path.join(edir, g.pop())
-    tvlog = os.path.join(edir, gv.pop())
+    d = edict({})
+    d.conff = conf.pop() if conf else None
+    d.tlogf = g.pop() if g else None
+    d.tvlogf = gv.pop() if gv else None
+    d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
+    d.tlog = pd.read_csv(d.tlogf) if d.tlogf is not None else None
+    d.tvlog = pd.read_csv(d.tvlogf) if d.tvlogf is not None else None
 
-    df = pd.read_csv(tlog)
-    dfv = pd.read_csv(tvlog)
-
-    return df, dfv, tlog, tvlog
+    return d
 
 
 
