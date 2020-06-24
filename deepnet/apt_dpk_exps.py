@@ -1161,14 +1161,24 @@ def read_exp(edir):
     g = glob.glob(gpat)
     gv = glob.glob(gpatv)
     g = set(g) - set(gv)
-    assert len(conf) <= 1
-    assert len(g) <= 1
-    assert len(gv) <= 1
 
     d = edict({})
-    d.conff = conf.pop() if conf else None
-    d.tlogf = g.pop() if g else None
-    d.tvlogf = gv.pop() if gv else None
+
+    if len(conf) == 1:
+        d.conff = conf.pop()
+    else:
+        d.conff = None
+        logr.warning("{}: nonscalar conff found".format(edir))
+    if len(g) == 1:
+        d.tlogf = g.pop()
+    else:
+        d.tlogf = None
+        logr.warning("{}: nonscalar tlogf found".format(edir))
+    if len(gv) == 1:
+        d.tvlogf = gv.pop()
+    else:
+        d.tvlogf = None
+        logr.warning("{}: nonscalar tvlogf found".format(edir))
     d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
     d.tlog = pd.read_csv(d.tlogf) if d.tlogf is not None else None
     d.tvlog = pd.read_csv(d.tvlogf) if d.tvlogf is not None else None
