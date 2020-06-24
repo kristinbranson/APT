@@ -402,7 +402,7 @@ def randomly_adjust(img, conf, group_sz = 1):
         for g in range(group_sz):
             jj = img[st+g, ...] + bfactor * imax
             jj = np.minimum(imax, (jj - mm) * cfactor + mm)
-            jj = jj.clip(0, imax)
+            jj = jj.clip(0, imax)  # doesn't this make the prev call unnec
             img[st+g, ...] = jj
     return img
 
