@@ -443,9 +443,10 @@ def update_conf_dpk(conf_base,
                     swap_index,
                     n_keypoints=None,   # optional. if not provided conf.n_classes can be already set
                     imshape=None,       # " .imsz, .img_dim "
-                    useimgaug=False,    # maybe TODO. allow None => use preset conf.dpk_use_augmenter,
-                                        # .dpk_augmenter_type.
-                    imgaugtype='dpkfly',  # used only if useimgaug==True
+                    useimgaug=None,     # None => conf.dpk_use_augmenter unchanged, should already be set
+                                        # False/True=> sets conf.dpk_use_augmenter
+                    imgaugtype=None,    # None => conf.dpk_augmenter_type unchanged, should already be set
+                                        # Otherwise sets dpk_augmenter_type
                     ):
     '''
     Massage a given APT conf for dpk. This mostly sets dpk_* props etc.
@@ -499,8 +500,15 @@ def update_conf_dpk(conf_base,
     conf.dpk_graph = graph
     conf.dpk_swap_index = swap_index
 
-    conf.dpk_use_augmenter = useimgaug
-    conf.dpk_augmenter_type = {'type': imgaugtype} if useimgaug else None
+    if useimgaug is not None:
+        conf.dpk_use_augmenter = useimgaug
+    if imgaugtype is not None:
+        conf.dpk_augmenter_type = imgaugtype
+    if conf.dpk_augmenter_type is not None and isinstance(conf.dpk_augmenter_type, str):
+        # convert to dict-form
+        # i) internals use dict for extensibility
+        # ii) external (eg cmdline APT_interface) api might use str for convenience
+        conf.dpk_augmenter_type = {'type': conf.dpk_augmenter_type}
 
     return conf
 
