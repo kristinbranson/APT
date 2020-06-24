@@ -596,6 +596,66 @@ def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
                          )
         augmenter = iaa.Sequential(augmenter)
 
+    elif imgaugtype == 'bub':
+
+        '''
+        ## flip ##
+        horz_flip: True
+        vert_flip: False
+        flipLandmarkMatches: {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8,
+                              '12': 15, '15': 12, '13': 14, '14': 13}
+        ## affine ##
+        use_scale_factor_range: True
+        scale_factor_range: 1.1
+        rrange: 10.0
+        trange: 5.0
+        check_bounds_distort: True
+        ## adjust ##
+        brange: [-0.05, 0.05]
+        crange: [0.95, 1.05]
+        imax: 255.0
+        '''
+
+        augmenter = []
+        # augmenter.append(FlipAxis(data_generator_or_swap_index, axis=0))  # flip image up-down
+        augmenter.append(FlipAxis(data_generator_or_swap_index, axis=1))  # flip image left-right
+
+        sometimes = []
+        sometimes.append(iaa.Affine(scale={"x": (0.95, 1.05), "y": (0.95, 1.05)},
+                                    translate_px={'x': (-5, 5), 'y': (-5, 5)},
+                                    shear=(-8, 8),
+                                    order=ia.ALL,
+                                    cval=ia.ALL,
+                                    mode=ia.ALL)
+                         )
+        sometimes.append(iaa.Affine(scale=(0.9, 1.1),
+                                    mode=ia.ALL,
+                                    order=ia.ALL,
+                                    cval=ia.ALL)
+                         )
+
+        augmenter.append(iaa.Sometimes(0.75, sometimes))
+        augmenter.append(iaa.Affine(rotate=(-10, 10),
+                                    mode=ia.ALL,
+                                    order=ia.ALL,
+                                    cval=ia.ALL)
+                         )
+
+        brightaddrange = (-.05 * 255, .05 * 255)
+        logr.info("Your brightaddrange is {}".format(brightaddrange))
+        augmenter.append(iaa.Add(brightaddrange))
+        # This differs from MK's contrast adjust which goes relative to the actual image mean;
+        # LinearContrast always uses 127 for the mean
+        # Commenting out for now; eyeballing, this is not doing the same thing as PT bc
+        # the bg ends up a brighter white sometimes while PT prob changes around the bg.
+        #augmenter.append(iaa.LinearContrast((0.95, 1.05)))
+        # putting back with reduced contrast, this eyeballs similarly
+        augmenter.append(iaa.LinearContrast((0.975, 1.025)))
+
+        # Note, the Add/LinearContrast can lead to intensity values outside [0,255].
+        # we must clip them later
+
+        augmenter = iaa.Sequential(augmenter)
     else:
         assert False, "Unimplemented"
 
