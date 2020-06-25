@@ -1,7 +1,10 @@
 %% Set parameters
 % set labels mat file
-labelsmatfilename = '/Users/robiea/Data/Labeler/nan_trainingprojects/multitarget_bubble_20200519_20200609_labels_TEST.mat';
-[filePath,fileName] = fileparts(labelsmatfilename);
+fprintf('Select your exported *_labels.mat file \n \n')
+[fileName,filePath] = uigetfile('*.mat','Select your exported *_labels.mat file');
+labelsmatfilename = fullfile(filePath,fileName);
+% labelsmatfilename = '/Users/robiea/Data/Labeler/nan_trainingprojects/multitarget_bubble_20200519_20200609_labels_TEST.mat';
+% [filePath,fileName] = fileparts(labelsmatfilename);
 % set date range: between date1 and date2 in format 'yyyymmdd'
 date1 = '20200519';
 date2 = inf;

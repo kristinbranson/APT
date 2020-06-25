@@ -26,6 +26,6 @@ else
         fdist(i) = sqrt(dx.^2 + dy.^2);
     end   
     [a,b] = sort(fdist);
-    flyID = b(2:end);
+    flyID = liveIDs(b(2:end));
     flydist = a(2:end);
 end
