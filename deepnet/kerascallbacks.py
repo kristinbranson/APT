@@ -10,25 +10,37 @@ import os
 import pickle
 import logging
 import csv
+import datetime
 
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback, LearningRateScheduler
 from tensorflow.keras import backend as K
 
 import deepposekit.utils.keypoints as dpkkpts
+from deepposekit.callbacks import ModelCheckpoint
 
 import tfdatagen
 import PoseTools
 
+
+'''
+Callback defns and callback-set instantiations for training flavors.
+'''
+
 logr = logging.getLogger('APT')
 
 
-def create_lr_sched_callback(iterations_per_epoch, base_lr, gamma, decaysteps):
+def create_lr_sched_callback(steps_per_epoch, base_lr, gamma, decaysteps,
+                             return_decay_fcn=False):
+    logr.info("LR callback: APT fixed sched")
 
     def lr_decay(epoch0b):
-        initial_lrate = base_lr
-        steps = (epoch0b + 1) * iterations_per_epoch
-        lrate = initial_lrate * math.pow(gamma, steps / decaysteps)
+        steps = (epoch0b + 1) * steps_per_epoch
+        lrate = base_lr * math.pow(gamma, steps / decaysteps)
         return lrate
+
+    if return_decay_fcn:
+        return lr_decay
 
     lratecbk = LearningRateScheduler(lr_decay)
     return lratecbk
@@ -215,3 +227,299 @@ class ValDistLogger(Callback):
 
         with open(self.loglong, 'wb') as f:
             pickle.dump(self.metrics, f, protocol=2)
+
+
+
+
+def create_callbacks_exp1orig_train(conf):
+    logr.info("configing callbacks")
+
+    # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
+    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+    # logfile = 'log{}.h5'.format(nowstr)
+    # logger = deepposekit.callbacks.Logger(
+    #                 filepath=os.path.join(conf.cachedir, logfile),
+    #                 validation_batch_size=10)
+
+    '''
+    ppr: patience=10, min_delta=.001
+    step3_train_model.ipynb: patience=20, min_delta=1e-4 (K dflt)
+    Guess prefer the ipynb for now, am thinking it is 'ahead'
+    '''
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+        monitor="val_loss",  # monitor="val_loss"
+        factor=0.2,
+        verbose=1,
+        patience=20,
+    )
+
+    # `ModelCheckpoint` automatically saves the model when the validation loss improves at the end of each epoch. This allows you to automatically save the best performing model during training, without having to evaluate the performance manually.
+    ckptfile = 'ckpt{}.h5'.format(nowstr)
+    ckpt = os.path.join(conf.cachedir, ckptfile)
+    model_checkpoint = ModelCheckpoint(
+        ckpt,
+        monitor="val_loss",  # monitor="val_loss"
+        verbose=1,
+        save_best_only=True,
+    )
+
+    # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
+    # step3_train_model.ipynb: patience=100, min_delta=.001
+    # Use min_delta=0.0 here it is more conservative
+    early_stop = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss",  # monitor="val_loss"
+        min_delta=0.0,
+        patience=100,
+        verbose=1
+    )
+
+    callbacks = [reduce_lr, model_checkpoint, early_stop]
+    return callbacks
+
+
+def create_callbacks_exp2orig_train(conf,
+                                    sdn,
+                                    valbsize,
+                                    nvalbatch,
+                                    runname='deepnet',
+                                    ):
+    '''
+    :param conf:
+    :param sdn:
+    :param valbsize:
+    :param nvalbatch:
+    :param runname:
+    :return:
+    '''
+
+    if conf.dpk_reduce_lr_style == 'ppr':
+        lr_patience = 10
+        lr_min_delta = .001
+    elif conf.dpk_reduce_lr_style == 'ipynb':
+        lr_patience = 20
+        lr_min_delta = 1e-4
+    else:
+        assert False
+    logr.info('dpk_lr_style: {}'.format(conf.dpk_reduce_lr_style))
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+        monitor="val_loss",
+        factor=0.2,
+        verbose=1,
+        patience=lr_patience,
+        min_delta=lr_min_delta,
+    )
+
+    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+    ckptfile = 'ckpt{}.h5'.format(nowstr)
+    ckpt = os.path.join(conf.cachedir, ckptfile)
+    model_checkpoint = ModelCheckpoint(
+        ckpt,
+        monitor="val_loss",
+        verbose=1,
+        save_best_only=True,
+    )
+
+    ckpt_reg = 'cpkt{}'.format(nowstr)
+    # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
+    #
+    # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
+    # and the metrics get cleared every epoch. note save_freq is in batches, so with
+    # save_freq!='epoch' the saving occurs at random points during an epoch. Val metrics
+    # are prob computed only at epoch end.
+    ckpt_reg += '-{epoch:05d}.h5'
+    ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
+    model_checkpoint_reg = ModelCheckpoint(
+        ckpt_reg,
+        save_freq=conf.save_step,  # save every this many batches
+        save_best_only=False,
+    )
+
+    if conf.dpk_early_stop_style == 'ppr':
+        es_patience = 50
+        es_min_delta = 0.0
+    elif conf.dpk_early_stop_style == 'ipynb':
+        es_patience = 100
+        # we have preferred this as it is more conservative. all exp2 runs
+        # prior to 20200617 (except *_pprcbks_* have used this)
+        es_min_delta = 0.0
+
+        # this is what DPK actually has in its ipynb.
+        # es_min_delta = .001
+    elif conf.dpk_early_stop_style == 'ipynb2':
+        es_patience = 50
+        # patience=100 takes forever.
+        es_min_delta = 0.0
+    else:
+        assert False
+    logr.info('dpk_early_stop_style: {}'.format(conf.dpk_early_stop_style))
+    early_stop = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss",  # monitor="val_loss"
+        min_delta=es_min_delta,
+        patience=es_patience,
+        verbose=1
+    )
+
+    logfile = 'trn{}.log'.format(nowstr)
+    logfile = os.path.join(conf.cachedir, logfile)
+    loggercbk = tf.keras.callbacks.CSVLogger(logfile)
+
+    tgtfr = sdn.train_generator
+    dsval_kps = tgtfr(n_outputs=1,
+                      batch_size=valbsize,
+                      validation=True,
+                      confidence=False,
+                      infinite=False)
+    logfilevdist = 'trn{}.vdist.log'.format(nowstr)
+    logfilevdist = os.path.join(conf.cachedir, logfilevdist)
+    logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
+    logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
+    vdistcbk = ValDistLogger(dsval_kps,
+                             logfilevdist,
+                             logfilevdistlong,
+                             nvalbatch)
+
+    cbks = [reduce_lr, model_checkpoint, model_checkpoint_reg,
+            loggercbk, early_stop, vdistcbk]
+    return cbks
+
+
+def create_callbacks(conf,
+                     sdn,
+                     valbsize,
+                     nvalbatch,
+                     runname='deepnet',
+                                    ):
+    '''
+    APT-style train
+    :param conf:
+    :param sdn:
+    :param valbsize:
+    :param nvalbatch:
+    :param runname:
+    :return:
+    '''
+
+    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+
+    lr_cbk = create_lr_sched_callback(
+                conf.display_step,
+                conf.dpk_base_lr_used,
+                conf.gamma,
+                conf.decay_steps)
+
+    ckpt_reg = 'cpkt{}'.format(nowstr)
+    # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
+    #
+    # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
+    # and the metrics get cleared every epoch. note save_freq is in batches, so with
+    # save_freq!='epoch' the saving occurs at random points during an epoch. Val metrics
+    # are prob computed only at epoch end.
+    ckpt_reg += '-{epoch:05d}.h5'
+    ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
+    model_checkpoint_reg = ModelCheckpoint(
+        ckpt_reg,
+        save_freq=conf.save_step,  # save every this many batches
+        save_best_only=False,
+    )
+
+    logfile = 'trn{}.log'.format(nowstr)
+    logfile = os.path.join(conf.cachedir, logfile)
+    loggercbk = tf.keras.callbacks.CSVLogger(logfile)
+
+    tgtfr = sdn.train_generator
+    dsval_kps = tgtfr(n_outputs=1,
+                      batch_size=valbsize,
+                      validation=True,
+                      confidence=False,
+                      infinite=False)
+    logfilevdist = 'trn{}.vdist.log'.format(nowstr)
+    logfilevdist = os.path.join(conf.cachedir, logfilevdist)
+    logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
+    logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
+    vdistcbk = ValDistLogger(dsval_kps,
+                             logfilevdist,
+                             logfilevdistlong,
+                             nvalbatch)
+
+    cbks = [lr_cbk, model_checkpoint_reg, loggercbk, vdistcbk]
+    return cbks
+
+
+def create_callbacks_OLD(conf, sdn, runname='deepnet'):
+    '''
+
+    '''
+
+    logr.warning("configing callbacks")
+
+    # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
+    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+    logfile = 'log{}.h5'.format(nowstr)
+    '''
+    logger = deepposekit.callbacks.Logger(
+                    filepath=os.path.join(outtouch,logfile),
+                    validation_batch_size=10)
+    '''
+
+    assert conf.dpk_reduce_lr_on_plat
+    if conf.dpk_reduce_lr_on_plat:
+        logr.info("LR callback: using reduceLROnPlateau")
+        lr_cbk = tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="loss", # monitor="val_loss"
+            factor=0.2,
+            verbose=1,
+            patience=20)
+    else:
+        lr_cbk = create_lr_sched_callback(
+            conf.display_step,
+            conf.dpk_base_lr_used,
+            conf.gamma,
+            conf.decay_steps)
+
+    # training, infinite, shuffling
+    train_generator = sdn.train_generator(
+        n_outputs=sdn.n_outputs,
+        batch_size=conf.batch_size,
+        validation=False,
+        confidence=True
+    )
+    # val, infinite, nonshuffled, tgts-as-kpts
+    keypoint_generator = sdn.train_generator(
+        n_outputs=1,
+        batch_size=conf.batch_size,
+        validation=True,
+        confidence=False,
+        infinite=True,  # use "infinite" val generators here, for logging val_dist only
+    )
+    aptcbk = apt_dpk_callbacks.APTKerasCbk(conf, (train_generator, keypoint_generator),
+                                        runname=runname)
+
+
+    # `ModelCheckpoint` automatically saves the model when the validation loss improves at the end of each epoch. This allows you to automatically save the best performing model during training, without having to evaluate the performance manually.
+    '''
+    ckptfile = 'ckpt{}.h5'.format(nowstr)
+    ckpt = os.path.join(outtouch, ckptfile)
+    model_checkpoint = deepposekit.callbacks.ModelCheckpoint(
+        ckpt,
+        monitor="val_loss", # monitor="val_loss"
+        verbose=1,
+        save_best_only=True,
+    )
+    '''
+
+    # `EarlyStopping` automatically stops the training session when the validation loss stops improving for a set number of epochs, which is set with the `patience` argument. This allows you to save time when training your model if there's not more improvment.
+    '''
+    early_stop = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss", # monitor="val_loss"
+        min_delta=0.001,
+        patience=100,
+        verbose=1
+    )
+    '''
+
+    #callbacks = [early_stop, reduce_lr, model_checkpoint, logger]
+    callbacks = [lr_cbk, aptcbk]
+
+    return callbacks
+
+
