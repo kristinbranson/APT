@@ -528,7 +528,7 @@ def conf_opts_dict_to_pvlist(conf_opts):
         assert False, "todo"
 '''
 
-def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
+def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
     '''
     Helper function that takes common_conf and further sets up for particular train_type
 
@@ -541,6 +541,41 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
     # conf_opts.update(other_conf[conf_id])
 
     conf_opts['save_step'] = conf_opts['dl_steps'] // 20
+
+    if train_type == 'dpk':
+        assert data_type == 'alice'
+
+        dpk_train_style = kwargs['dpk_train_style']
+        if dpk_train_style == 'dpk':
+            conf_opts['batch_size'] = 16
+            conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
+            conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
+            kwargs['dpk_train_style'] = '\\"dpk\\"'  # copied to conf_opts below
+        elif dpk_train_style == 'apt':
+            conf_opts['batch_size'] = 16
+            conf_opts['dpk_reduce_lr_style'] = '__UNUSED__'
+            conf_opts['dpk_early_stop_style'] = '__UNUSED__'
+            kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
+
+            #nepoch = 300  # hardcoded based on observing dpk-style
+            conf_opts['dl_steps'] = 88125  # 300 epochs, 293.75 spe
+
+            # lr modulation
+            conf_opts['dpk_base_lr_used'] = 0.001
+            conf_opts['gamma'] = 0.2  # matches decay const dpk-style
+            conf_opts['decay_steps'] = 25000
+        else:
+            assert False
+        '''
+        if conf_opts['dpk_use_augmenter']:
+            # conf_opts['dpk_augmenter_type'] = xxx
+            assert False, 'Todo'
+        else:
+            # use PT. conf/conf_opts should have PT dataaug stuff properly config'd
+            pass
+        '''
+        if dpk_skel_csv is not None:
+            conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
 
     if gpu_queue == 'gpu_rtx':
 
@@ -634,6 +669,9 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue,kwargs):
 
 
 def set_training_params(conf_opts,train_type='mdn'):
+    if train_type == 'dpk':
+        return conf_opts
+
     bsz = conf_opts['batch_size']
     default_bsz = 8
     conf_opts['dl_steps'] = common_conf['dl_steps']*default_bsz//bsz
@@ -645,13 +683,18 @@ def set_training_params(conf_opts,train_type='mdn'):
     return conf_opts
 
 
-def cp_exp_bare(src_exp_dir, dst_exp_dir):
+def cp_exp_bare(src_exp_dir, dst_exp_dir, usesymlinks=True):
     '''
     Copy training dbs etc from existing expdir to new empty expdir
     :param src_exp_dir existing expdir
     :param dst_exp_dir: new expdir, created if nec
     :return:
     '''
+
+    if usesymlinks:
+        assert os.path.dirname(src_exp_dir) == os.path.dirname(dst_exp_dir), \
+            "src and dst expdirs must be located in same parent dir"
+        src_exp_dir_base = os.path.basename(src_exp_dir)
 
     if not os.path.exists(dst_exp_dir):
         os.mkdir(dst_exp_dir)
@@ -664,8 +707,13 @@ def cp_exp_bare(src_exp_dir, dst_exp_dir):
         for src in globres:
             fileshort = os.path.basename(src)
             dst = os.path.join(dst_exp_dir, fileshort)
-            shutil.copyfile(src, dst)
-            print("Copied {}->{}".format(src, dst))
+            if usesymlinks:
+                srcrel = os.path.join('..',src_exp_dir_base,fileshort)
+                os.symlink(srcrel, dst)
+                print("Symlinked {}->{}".format(dst, srcrel))
+            else:
+                shutil.copyfile(src, dst)
+                print("Copied {}->{}".format(src, dst))
 
 
 def run_trainining(exp_name,train_type,view,run_type,
@@ -681,7 +729,7 @@ def run_trainining(exp_name,train_type,view,run_type,
     gpu_str = '_tesla' if queue in ['gpu_tesla','gpu_tesla_large'] else ''
     train_name_dstr = train_name + gpu_str + '_' + dstr
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
-        apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue,**kwargs)
+        apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue, **kwargs)
     nslots = 10 if train_type == 'leap' else 4
 
     if run_type == 'dry':
@@ -1423,6 +1471,22 @@ def train_leap_orig(run_type='status',skip_db=True):
             elif run_type == 'status':
                 conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                 check_train_status(cmd_name,conf.cachedir,'asflk')
+
+
+def train_dpk_orig(expname='dpkorig',
+                   run_type='status',
+                   exp_note='DPK_origstyle',
+                   **kwargs
+                   ):
+    global all_models
+    all_models = ['dpk']
+    run_normal_training(expname=expname,
+                        run_type=run_type,
+                        exp_note=exp_note,
+                        dpk_train_style='dpk', #dpk_use_augmenter=0,
+                        **kwargs
+                        )
+
 
 
 def train_no_pretrained(run_type='status'):

@@ -53,4 +53,5 @@ if [ $nocolor = true ]; then
 else
     "$scriptpath/git-graph.sh" | head -n $headn
 fi
+git diff -p --no-ext-diff
 popd >/dev/null

@@ -10,6 +10,7 @@ import logging
 import inspect
 import getpass
 import random
+import collections.abc
 
 import tensorflow as tf
 import imgaug as ia
@@ -24,7 +25,7 @@ import deepposekit as dpk
 import apt_dpk
 import PoseTools as pt
 import TrainingGeneratorTFRecord as TGTFR
-import kerascallbacks
+import apt_dpk_callbacks
 import run_apt_expts_2 as rae
 import util
 import multiResData as mrd
@@ -239,155 +240,6 @@ def verify_split_tfr(trntfr0, valtfr0, trntfr1, valtfr1, tsttfr1, npts):
     print("Verified that old trn is now new trn/val combined")
 
 
-def create_callbacks_exp1orig_train(conf):
-    logr.info("configing callbacks")
-
-    # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
-    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    # logfile = 'log{}.h5'.format(nowstr)
-    # logger = deepposekit.callbacks.Logger(
-    #                 filepath=os.path.join(conf.cachedir, logfile),
-    #                 validation_batch_size=10)
-
-    '''
-    ppr: patience=10, min_delta=.001
-    step3_train_model.ipynb: patience=20, min_delta=1e-4 (K dflt)
-    Guess prefer the ipynb for now, am thinking it is 'ahead'
-    '''
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss",  # monitor="val_loss"
-        factor=0.2,
-        verbose=1,
-        patience=20,
-    )
-
-    # `ModelCheckpoint` automatically saves the model when the validation loss improves at the end of each epoch. This allows you to automatically save the best performing model during training, without having to evaluate the performance manually.
-    ckptfile = 'ckpt{}.h5'.format(nowstr)
-    ckpt = os.path.join(conf.cachedir, ckptfile)
-    model_checkpoint = dpk.callbacks.ModelCheckpoint(
-        ckpt,
-        monitor="val_loss",  # monitor="val_loss"
-        verbose=1,
-        save_best_only=True,
-    )
-
-    # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
-    # step3_train_model.ipynb: patience=100, min_delta=.001
-    # Use min_delta=0.0 here it is more conservative
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss",  # monitor="val_loss"
-        min_delta=0.0,
-        patience=100,
-        verbose=1
-    )
-
-    callbacks = [reduce_lr, model_checkpoint, early_stop]
-    return callbacks
-
-
-def create_callbacks_exp2orig_train(conf,
-                                    sdn,
-                                    valbsize,
-                                    nvalbatch,
-                                    runname='deepnet',
-                                    ):
-    '''
-    This is a "standard" DPK-style train
-    :param conf:
-    :param sdn:
-    :param valbsize:
-    :param nvalbatch:
-    :param runname:
-    :return:
-    '''
-
-    if conf.dpk_reduce_lr_style == 'ppr':
-        lr_patience = 10
-        lr_min_delta = .001
-    elif conf.dpk_reduce_lr_style == 'ipynb':
-        lr_patience = 20
-        lr_min_delta = 1e-4
-    else:
-        assert False
-    logr.info('dpk_lr_style: {}'.format(conf.dpk_reduce_lr_style))
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss",
-        factor=0.2,
-        verbose=1,
-        patience=lr_patience,
-        min_delta=lr_min_delta,
-    )
-
-    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    ckptfile = 'ckpt{}.h5'.format(nowstr)
-    ckpt = os.path.join(conf.cachedir, ckptfile)
-    model_checkpoint = dpk.callbacks.ModelCheckpoint(
-        ckpt,
-        monitor="val_loss",
-        verbose=1,
-        save_best_only=True,
-    )
-
-    ckpt_reg = 'cpkt{}'.format(nowstr)
-    # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
-    #
-    # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
-    # and the metrics get cleared every epoch. note save_freq is in batches, so with
-    # save_freq!='epoch' the saving occurs at random points during an epoch. Val metrics
-    # are prob computed only at epoch end.
-    ckpt_reg += '-{epoch:05d}.h5'
-    ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
-    model_checkpoint_reg = dpk.callbacks.ModelCheckpoint(
-        ckpt_reg,
-        save_freq=conf.save_step,  # save every this many batches
-        save_best_only=False,
-    )
-
-    if conf.dpk_early_stop_style == 'ppr':
-        es_patience = 50
-        es_min_delta = 0.0
-    elif conf.dpk_early_stop_style == 'ipynb':
-        es_patience = 100
-        # we have preferred this as it is more conservative. all exp2 runs
-        # prior to 20200617 (except *_pprcbks_* have used this)
-        es_min_delta = 0.0
-
-        # this is what DPK actually has in its ipynb.
-        # es_min_delta = .001
-    else:
-        assert False
-    logr.info('dpk_early_stop_style: {}'.format(conf.dpk_early_stop_style))
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss",  # monitor="val_loss"
-        min_delta=es_min_delta,
-        patience=es_patience,
-        verbose=1
-    )
-
-    logfile = 'trn{}.log'.format(nowstr)
-    logfile = os.path.join(conf.cachedir, logfile)
-    loggercbk = tf.keras.callbacks.CSVLogger(logfile)
-
-    tgtfr = sdn.train_generator
-    dsval_kps = tgtfr(n_outputs=1,
-                      batch_size=valbsize,
-                      validation=True,
-                      confidence=False,
-                      infinite=False)
-    logfilevdist = 'trn{}.vdist.log'.format(nowstr)
-    logfilevdist = os.path.join(conf.cachedir, logfilevdist)
-    logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
-    logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
-    vdistcbk = kerascallbacks.ValDistLogger(dsval_kps,
-                                            logfilevdist,
-                                            logfilevdistlong,
-                                            nvalbatch)
-
-    cbks = [reduce_lr, model_checkpoint, model_checkpoint_reg,
-            loggercbk, early_stop, vdistcbk]
-    return cbks
-
-
 def update_conf_rae(conf):
     '''
     set/update RAE-related steps for apt-style train
@@ -495,7 +347,7 @@ def exp1orig_train(expname,
                                      pretrained=dpk_use_pretrained,
                                      )
 
-    callbacks = create_callbacks_exp1orig_train(conf)
+    callbacks = apt_dpk_callbacks.create_callbacks_exp1orig_train(conf)
 
     # compile
     '''
@@ -615,12 +467,13 @@ def assess(expname,
            dset='dpkfly',
            cacheroot=alcache,
            validxs=None,
+           usegt_tfr=False,  # if true, use gt.tfrecords instead of val_TF
            tstbsize=10,
            doplot=True,
            gentype='tgtfr',
            ckpt='latest',
            returnsdn=False,
-           net='dpksdn',
+           net='dpk',
            ):
     '''
     Assess dpk perf with ckpt against val_TF
@@ -636,6 +489,7 @@ def assess(expname,
     :param net:
     :return:
     '''
+
 
     expname = expname if expname else 'dpkorig'
 
@@ -663,6 +517,9 @@ def assess(expname,
         slbl = dsetdb['slbl']
         skel = dsetdb['skel']
         conf_params = ['dpk_skel_csv', '"{}"'.format(skel)]
+        # this needed for apt_dpk.update_conf_dpk_skel_csv call
+        # in create_conf
+        assert net == 'dpk'
         conf = apt.create_conf(slbl, 0, expname,
                                cacheroot, net, quiet=False, conf_params=conf_params)
 
@@ -705,8 +562,11 @@ def assess(expname,
     validxs_specified = validxs is not None
 
     if gentype == 'tgtfr':
-        if validxs_specified:
-            logr.info("Ignoring validxs spec; reading val_TF.tfrecords")
+        assert not validxs_specified, "validxs spec'd but reading val_TF.tfrecords"
+        if usegt_tfr:
+            GTTFR = 'gt'
+            logr.info("Overriding {}->{}".format(conf.valfilename, GTTFR))
+            conf.valfilename = GTTFR
         g = simple_tgtfr_val_kpt_generator(conf, tstbsize)
     elif gentype == 'dg':
         if not validxs_specified:
@@ -723,13 +583,15 @@ def assess(expname,
 
     eres = evaluate(sdn.predict_model, g)
     euc_coll, euc_coll_cols, euc_coll_colcnt = \
-        collapse_swaps(eres['euclidean'], dg.swap_index)
+        collapse_swaps(eres['euclidean'], conf.dpk_swap_index)
     eres['euc_coll'] = euc_coll
     eres['euc_coll_cols'] = euc_coll_cols
     eres['euc_coll_colcnt'] = euc_coll_colcnt
     eres['euc_coll_ptiles5090'] = np.percentile(euc_coll, [50, 90], axis=0).T
 
     nval = eres['euclidean'].shape[0]
+
+    eres = edict(eres)
 
     if doplot:
         plt.rcParams.update({'font.size': 26})
@@ -996,11 +858,11 @@ def exp2orig_train(expname,
     # validation bsize needs to be spec'd for K fit_generator since the val
     # data comes as a generator (with no len() call) vs a K Sequence
     nvalbatch = int(np.ceil(tgtfr.n_validation / valbsize))
-    cbks = create_callbacks_exp2orig_train(conf,
-                                           sdn,
-                                           valbsize,
-                                           nvalbatch,
-                                           runname=runname)
+    cbks = apt_dpk_callbacks.create_callbacks_exp2orig_train(conf,
+                                                          sdn,
+                                                          valbsize,
+                                                          nvalbatch,
+                                                          runname=runname)
 
     apt_dpk.print_dpk_conf(conf)
     if not useimgaug:
@@ -1185,6 +1047,46 @@ def read_exp(edir):
 
     return d
 
+def plot_exp_lrs(expdict, showlog=False, enamefilt=None):
+
+    '''
+    :param expdict: easydict where keys are expnames and vals are read_exp outputs
+    :return:
+    '''
+
+    if enamefilt is None:
+        enamefiltuse = lambda x: x.startswith('e00')
+    elif isinstance(enamefilt, collections.abc.Iterable):
+        enamefiltuse = lambda x: x in enamefilt
+    else:
+        enamefiltuse = enamefilt
+
+    enames = list(expdict.keys())
+    enames = [x for x in enames if enamefiltuse(x)]
+    enames.sort()
+    plt.figure()
+    for en in enames:
+        df = expdict[en].tlog
+        y = df.lr
+        if showlog:
+            y = np.log(y)
+        plt.plot(df.epoch, y, label=en)
+    plt.legend()
+
+def show_exp_diags(expdict):
+    enames = list(expdict.keys())
+    enames = [x for x in enames if x.startswith('e00')]
+    enames.sort()
+    for en in enames:
+        df = expdict[en].tlog
+        nepoch = df.epoch.iloc[-1]
+        conf = expdict[en].conf['conf']
+        bsize = conf.batch_size
+        stepsperepoch = conf.display_step
+        rowsperepoch = stepsperepoch*bsize
+        print("{}: bsize={}, nepoch={}, stepsperE={}, rowsperE={}".format(
+            en, bsize, nepoch, stepsperepoch, rowsperepoch
+        ))
 
 
 def parse_sig_and_add_args(sig, parser, skipargs):
