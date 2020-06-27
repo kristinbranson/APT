@@ -513,6 +513,23 @@ for dd in dtypes:
     rae.setup(dd)
     rae.train_dpk_orig()
 
+eres03gt = ade.assess('e00_r03', dset='alice', usegt_tfr=True)
+
+## DPK/bub ia vs pt
+import run_apt_expts_2 as rae
+dtypes = ['alice']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.train_dpk_orig()
+
+## APT- vs DPK-style train
+rae.train_dpk_orig(expname='e00_r06',
+                   run_type='submit',
+                   exp_note='r00 split; dpk_train_style=apt',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt'
+                   )
 
 ## Videos for results
 

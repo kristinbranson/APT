@@ -567,6 +567,11 @@ def assess(expname,
             GTTFR = 'gt'
             logr.info("Overriding {}->{}".format(conf.valfilename, GTTFR))
             conf.valfilename = GTTFR
+            # if this is not true, tgtfr will fall back to train tf
+            assert os.path.exists(os.path.join(conf.cache,
+                                               GTTFR + ".tfrecords"))
+
+
         g = simple_tgtfr_val_kpt_generator(conf, tstbsize)
     elif gentype == 'dg':
         if not validxs_specified:
@@ -1041,9 +1046,23 @@ def read_exp(edir):
     else:
         d.tvlogf = None
         logr.warning("{}: nonscalar tvlogf found".format(edir))
-    d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
-    d.tlog = pd.read_csv(d.tlogf) if d.tlogf is not None else None
-    d.tvlog = pd.read_csv(d.tvlogf) if d.tvlogf is not None else None
+    try:
+        d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
+    except:
+        logr.warning('Could not load {}'.format(d.conff))
+        d.conf = None
+
+    try:
+        d.tlog = pd.read_csv(d.tlogf) if d.tlogf is not None else None
+    except:
+        logr.warning('Could not load {}'.format(d.tlogf))
+        d.tlog = None
+
+    try:
+        d.tvlog = pd.read_csv(d.tvlogf) if d.tvlogf is not None else None
+    except:
+        logr.warning('Could not load {}'.format(d.tvlogf))
+        d.tvlog = None
 
     return d
 

@@ -319,7 +319,7 @@ def create_callbacks_exp2orig_train(conf,
         save_best_only=True,
     )
 
-    ckpt_reg = 'cpkt{}'.format(nowstr)
+    ckpt_reg = 'ckpt{}'.format(nowstr)
     # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
     #
     # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
@@ -407,7 +407,7 @@ def create_callbacks(conf,
                 conf.gamma,
                 conf.decay_steps)
 
-    ckpt_reg = 'cpkt{}'.format(nowstr)
+    ckpt_reg = 'ckpt{}'.format(nowstr)
     # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
     #
     # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
