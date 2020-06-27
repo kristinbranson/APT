@@ -687,9 +687,11 @@ def compile(conf):
         conf.dpk_base_lr_used = conf.dpk_base_lr_factory
         logr.warning("dpk_base_lr_used unspec'd. Using factory default")
     if conf.dpk_train_style == 'dpk':  # as in their ppr
-        assert conf.dpk_reduce_lr_on_plat
+        if not conf.dpk_reduce_lr_on_plat:
+            logr.warning("dpk_train_style=dpk; ignoring dpk_reduce_lr_on_plat=False")
     elif conf.dpk_train_style == 'apt':
-        assert not conf.dpk_reduce_lr_on_plat
+        if conf.dpk_reduce_lr_on_plat:
+            logr.warning("dpk_train_style=apt; ignoring dpk_reduce_lr_on_plat=True")
 
     logr.info("apt_dpk compile: base_lr_used={}".format(conf.dpk_base_lr_used))
 
