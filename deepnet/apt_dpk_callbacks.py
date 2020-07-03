@@ -279,6 +279,7 @@ def create_callbacks_exp1orig_train(conf):
 
 def create_callbacks_exp2orig_train(conf,
                                     sdn,
+                                    use_val,
                                     valbsize,
                                     nvalbatch,
                                     runname='deepnet',
@@ -292,6 +293,8 @@ def create_callbacks_exp2orig_train(conf,
     :return:
     '''
 
+    monitor_qty = 'val_loss' if use_val else 'loss'
+
     if conf.dpk_reduce_lr_style == 'ppr':
         lr_patience = 10
         lr_min_delta = .001
@@ -300,9 +303,10 @@ def create_callbacks_exp2orig_train(conf,
         lr_min_delta = 1e-4
     else:
         assert False
-    logr.info('dpk_lr_style: {}'.format(conf.dpk_reduce_lr_style))
+    logr.info('dpk_lr_style: {}, monitor={}'.format(conf.dpk_reduce_lr_style,
+                                                    monitor_qty))
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss",
+        monitor=monitor_qty,
         factor=0.2,
         verbose=1,
         patience=lr_patience,
@@ -314,7 +318,7 @@ def create_callbacks_exp2orig_train(conf,
     ckpt = os.path.join(conf.cachedir, ckptfile)
     model_checkpoint = ModelCheckpoint(
         ckpt,
-        monitor="val_loss",
+        monitor=monitor_qty,
         verbose=1,
         save_best_only=True,
     )
@@ -351,9 +355,9 @@ def create_callbacks_exp2orig_train(conf,
         es_min_delta = 0.0
     else:
         assert False
-    logr.info('dpk_early_stop_style: {}'.format(conf.dpk_early_stop_style))
+    logr.info('dpk_early_stop_style: {}, monitor_qty={}'.format(conf.dpk_early_stop_style, monitor_qty))
     early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss",  # monitor="val_loss"
+        monitor=monitor_qty,
         min_delta=es_min_delta,
         patience=es_patience,
         verbose=1
@@ -385,8 +389,9 @@ def create_callbacks_exp2orig_train(conf,
 
 def create_callbacks(conf,
                      sdn,
-                     valbsize,
-                     nvalbatch,
+                     do_val,
+                     valbsize,  # only used if do_val==True
+                     nvalbatch,  # "
                      runname='deepnet',
                                     ):
     '''
@@ -426,22 +431,25 @@ def create_callbacks(conf,
     logfile = os.path.join(conf.cachedir, logfile)
     loggercbk = tf.keras.callbacks.CSVLogger(logfile)
 
-    tgtfr = sdn.train_generator
-    dsval_kps = tgtfr(n_outputs=1,
-                      batch_size=valbsize,
-                      validation=True,
-                      confidence=False,
-                      infinite=False)
-    logfilevdist = 'trn{}.vdist.log'.format(nowstr)
-    logfilevdist = os.path.join(conf.cachedir, logfilevdist)
-    logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
-    logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
-    vdistcbk = ValDistLogger(dsval_kps,
-                             logfilevdist,
-                             logfilevdistlong,
-                             nvalbatch)
+    cbks = [lr_cbk, model_checkpoint_reg, loggercbk]
 
-    cbks = [lr_cbk, model_checkpoint_reg, loggercbk, vdistcbk]
+    if do_val:
+        tgtfr = sdn.train_generator
+        dsval_kps = tgtfr(n_outputs=1,
+                          batch_size=valbsize,
+                          validation=True,
+                          confidence=False,
+                          infinite=False)
+        logfilevdist = 'trn{}.vdist.log'.format(nowstr)
+        logfilevdist = os.path.join(conf.cachedir, logfilevdist)
+        logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
+        logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
+        vdistcbk = ValDistLogger(dsval_kps,
+                                 logfilevdist,
+                                 logfilevdistlong,
+                                 nvalbatch)
+        cbks.append(vdistcbk)
+
     return cbks
 
 

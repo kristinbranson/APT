@@ -530,6 +530,20 @@ rae.train_dpk_orig(expname='e00_r06',
                    dpk_use_augmenter=0,
                    dpk_train_style='apt'
                    )
+rae.train_dpk_orig(expname='e01_r00',
+                   run_type='submit',
+                   exp_note='full trainset; apt-style train; no val',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0
+                   )
+## DPK, no val
+rae.train_dpk_orig(expname='e02_r00',
+                   run_type='submit',
+                   exp_note='r02 split; dpktrnonly-style train (no val)',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   )
 
 ## Videos for results
 

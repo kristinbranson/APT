@@ -686,7 +686,7 @@ def compile(conf):
     if conf.dpk_base_lr_used is None:
         conf.dpk_base_lr_used = conf.dpk_base_lr_factory
         logr.warning("dpk_base_lr_used unspec'd. Using factory default")
-    if conf.dpk_train_style == 'dpk':  # as in their ppr
+    if conf.dpk_train_style.startswith('dpk'):
         if not conf.dpk_reduce_lr_on_plat:
             logr.warning("dpk_train_style=dpk; ignoring dpk_reduce_lr_on_plat=False")
     elif conf.dpk_train_style == 'apt':
@@ -728,25 +728,34 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
 
     nval = tgtfr.n_validation
     valbsize = conf.dpk_val_batch_size
-    assert nval % valbsize == 0, \
-        "val bsize ({}) must evenly divide nvalidation ({})!".format(valbsize, nval)
-    # this empirically appears to be important no idea why
-    nvalbatch = nval // valbsize
-    logr.info("nval={}, nvalbatch={}, valbsize={}".format(
-        nval, nvalbatch, valbsize))
+    do_val = valbsize > 0
+    if not do_val:
+        assert conf.dpk_train_style == 'apt'
+        nvalbatch = None
+        logr.warning("valbsize=0; not doing val")
+    else:
+        assert nval % valbsize == 0, \
+            "val bsize ({}) must evenly divide nvalidation ({})!".format(valbsize, nval)
+        # this empirically appears to be important no idea why
+        nvalbatch = nval // valbsize
+        logr.info("nval={}, nvalbatch={}, valbsize={}".format(
+            nval, nvalbatch, valbsize))
 
-    if conf.dpk_train_style == 'dpk':
+    if conf.dpk_train_style.startswith('dpk'):
+        use_val = conf.dpk_train_style != 'dpktrnonly'
         cbks = apt_dpk_callbacks.create_callbacks_exp2orig_train(conf,
-                                                              sdn,
-                                                              valbsize=valbsize,
-                                                              nvalbatch=nvalbatch,
-                                                              runname=runname)
+                                                                 sdn,
+                                                                 use_val=use_val,
+                                                                 valbsize=valbsize,
+                                                                 nvalbatch=nvalbatch,
+                                                                 runname=runname)
     elif conf.dpk_train_style == 'apt':
         cbks = apt_dpk_callbacks.create_callbacks(conf,
-                                               sdn,
-                                               valbsize=valbsize,
-                                               nvalbatch=nvalbatch,
-                                               runname=runname)
+                                                  sdn,
+                                                  do_val=do_val,
+                                                  valbsize=valbsize,
+                                                  nvalbatch=nvalbatch,
+                                                  runname=runname)
     else:
         assert False
 
@@ -774,23 +783,32 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
                                 confidence=True,
                                 shuffle=True,
                                 infinite=True)
-    dsval = sdn.train_generator(sdn.n_outputs,
-                                valbsize,
-                                validation=True,
-                                confidence=True,
-                                shuffle=False,
-                                infinite=False)
+    if do_val:
+        dsval = sdn.train_generator(sdn.n_outputs,
+                                    valbsize,
+                                    validation=True,
+                                    confidence=True,
+                                    shuffle=False,
+                                    infinite=False)
     sdn.activate_callbacks(cbks)
 
     train_model = sdn.train_model
-    train_model.fit(dstrn,
-                    epochs=conf.dpk_epochs_used,
-                    steps_per_epoch=steps_per_epoch,
-                    verbose=2,
-                    callbacks=cbks,
-                    validation_data=dsval,
-                    validation_steps=nvalbatch,
-                    )
+    if do_val:
+        train_model.fit(dstrn,
+                        epochs=conf.dpk_epochs_used,
+                        steps_per_epoch=steps_per_epoch,
+                        verbose=2,
+                        callbacks=cbks,
+                        validation_data=dsval,
+                        validation_steps=nvalbatch,
+                        )
+    else:
+        train_model.fit(dstrn,
+                        epochs=conf.dpk_epochs_used,
+                        steps_per_epoch=steps_per_epoch,
+                        verbose=2,
+                        callbacks=cbks,
+                        )
     '''
     sdn.fit(
         batch_size=conf.batch_size,

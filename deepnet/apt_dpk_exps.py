@@ -11,6 +11,7 @@ import inspect
 import getpass
 import random
 import collections.abc
+import re
 
 import tensorflow as tf
 import imgaug as ia
@@ -451,17 +452,45 @@ def assess_set(expnamebase,
     return eresall, euc_coll_ptiles50s, euc_coll_ptiles90s
 
 
-def get_latest_ckpt_h5(expdir):
-    cpth5 = glob.glob(os.path.join(expdir, 'ckpt*h5'))
-    cpth5.sort()
-    if len(cpth5) == 0:
-        print("No ckpts found in {}".format(expdir))
-    elif len(cpth5) > 1:
-        print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
+def get_latest_ckpt_h5_dpkstyle(expdir):
+    '''
+    dpk-style ES
+    :param expdir:
+    :return:
+    '''
 
-    cpth5 = cpth5[-1]
-    return cpth5
+    repat = 'c[a-z]+[T0-9]+.h5'
+    sre = re.compile(repat)
+    clist = glob.glob(os.path.join(expdir, 'c*.h5'))
+    clist = [x for x in clist if sre.match(os.path.basename(x)) is not None]
 
+    clist.sort()
+    if len(clist) == 0:
+        logr.info("No dpk-style ckpts found in {}".format(expdir))
+        cpt = None
+    elif len(clist) > 1:
+        logr.warning("More than one dpk-style ckpt found!!! Using last one, {}".format(clist[-1]))
+        cpt = clist[-1]
+    else:
+        cpt = clist[0]
+    return cpt
+
+
+def get_latest_ckpt_h5_epoch(expdir):
+    repat = 'c[a-z]+[T0-9]+-[0-9]+.h5'
+    sre = re.compile(repat)
+    clist = glob.glob(os.path.join(expdir, 'c*.h5'))
+    clist = [x for x in clist if sre.match(os.path.basename(x)) is not None]
+
+    clist.sort()
+    if len(clist) == 0:
+        logr.warning("No dpk-style ckpts found in {}".format(expdir))
+        cpt = None
+    elif len(clist) > 1:
+        logr.info("Found {} cpts; using latest {}".format(len(clist), clist[-1]))
+        cpt = clist[-1]
+
+    return cpt
 
 def assess(expname,
            dset='dpkfly',
@@ -471,9 +500,10 @@ def assess(expname,
            tstbsize=10,
            doplot=True,
            gentype='tgtfr',
-           ckpt='latest',
+           ckpt='latest',  # latest=dpk-style ES ckpt
            returnsdn=False,
            net='dpk',
+           dosave=True,
            ):
     '''
     Assess dpk perf with ckpt against val_TF
@@ -484,7 +514,7 @@ def assess(expname,
     :param tstbsize:
     :param doplot:
     :param gentype:
-    :param ckpt: 'latest','aptlatest',or specific ckpt file (relative path)
+    :param ckpt: 'latest'/'best' or 'latestepoch' or specific ckpt file (relative path)
     :param returnsdn:   if true, early-return with just loaded sdn ready to predict
     :param net:
     :return:
@@ -527,19 +557,22 @@ def assess(expname,
     expdir = conf.cachedir
 
     if ckpt == 'aptlatest':
+        assert False, "prob obsolete now"
         cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
         sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
 
         print("conf vs conf_saved:")
         util.dictdiff(conf, conf_saved, logr.info)
     else:
-        if ckpt == 'latest':
-            cpth5 = get_latest_ckpt_h5(expdir)
+        if ckpt in ['latest', 'best']:
+            cpt = get_latest_ckpt_h5_dpkstyle(expdir)
+        elif ckpt in ['latestepoch']:
+            cpt = get_latest_ckpt_h5_epoch(expdir)
         else:
-            cpth5 = os.path.join(expdir, ckpt)
-            assert os.path.exists(cpth5), "ckpt file {} dne".format(cpth5)
+            cpt = os.path.join(expdir, ckpt)
+            assert os.path.exists(cpt), "ckpt file {} dne".format(cpt)
 
-        sdn = dpk.models.load_model(cpth5, generator=None)
+        sdn = dpk.models.load_model(cpt, generator=None)
         conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
         conf_saved = pt.pickle_load(conf_saved_f)
         logr.info("conf vs conf_saved:")
@@ -568,7 +601,7 @@ def assess(expname,
             logr.info("Overriding {}->{}".format(conf.valfilename, GTTFR))
             conf.valfilename = GTTFR
             # if this is not true, tgtfr will fall back to train tf
-            assert os.path.exists(os.path.join(conf.cache,
+            assert os.path.exists(os.path.join(conf.cachedir,
                                                GTTFR + ".tfrecords"))
 
 
@@ -606,6 +639,15 @@ def assess(expname,
         plt.xlabel('kpt/pair')
         plt.ylabel('L2err')
         plt.grid(axis='y')
+
+    if dosave:
+        nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+        cptS = os.path.splitext(os.path.basename(cpt))[0]
+        savefile = os.path.join(expdir, "eres_{}_{}_{}_tstbsz{}.p".format(
+            cptS, conf.valfilename, nowstr, tstbsize))
+        with open(savefile, 'wb') as f:
+            pickle.dump(eres, f)
+        logr.info("Saved {}".format(savefile))
 
     return eres
 
@@ -864,10 +906,11 @@ def exp2orig_train(expname,
     # data comes as a generator (with no len() call) vs a K Sequence
     nvalbatch = int(np.ceil(tgtfr.n_validation / valbsize))
     cbks = apt_dpk_callbacks.create_callbacks_exp2orig_train(conf,
-                                                          sdn,
-                                                          valbsize,
-                                                          nvalbatch,
-                                                          runname=runname)
+                                                             sdn,
+                                                             True,
+                                                             valbsize,
+                                                             nvalbatch,
+                                                             runname=runname)
 
     apt_dpk.print_dpk_conf(conf)
     if not useimgaug:
@@ -1023,29 +1066,30 @@ def read_exp(edir):
     conf = os.path.join(edir, '*conf.pickle')
     gpat = os.path.join(edir, '*.log')
     gpatv = os.path.join(edir, '*.vdist.log')
+    enote = os.path.join(edir, 'EXPNOTE')
+    picfs = os.path.join(edir, '*.p')
 
     conf = glob.glob(conf)
     g = glob.glob(gpat)
     gv = glob.glob(gpatv)
+    en = glob.glob(enote)
+    picfs = glob.glob(picfs)
     g = set(g) - set(gv)
 
     d = edict({})
 
-    if len(conf) == 1:
-        d.conff = conf.pop()
-    else:
-        d.conff = None
-        logr.warning("{}: nonscalar conff found".format(edir))
-    if len(g) == 1:
-        d.tlogf = g.pop()
-    else:
-        d.tlogf = None
-        logr.warning("{}: nonscalar tlogf found".format(edir))
-    if len(gv) == 1:
-        d.tvlogf = gv.pop()
-    else:
-        d.tvlogf = None
-        logr.warning("{}: nonscalar tvlogf found".format(edir))
+    def setfile(dd, theglob, filekey):
+        if len(theglob) == 1:
+            dd[filekey] = theglob.pop()
+        else:
+            dd[filekey] = None
+            logr.warning("{}: nonscalar {} found".format(edir, filekey))
+
+    setfile(d, conf, 'conff')
+    setfile(d, g, 'tlogf')
+    setfile(d, gv, 'tvlogf')
+    setfile(d, en, 'enotef')
+
     try:
         d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
     except:
@@ -1064,7 +1108,39 @@ def read_exp(edir):
         logr.warning('Could not load {}'.format(d.tvlogf))
         d.tvlog = None
 
+    try:
+        if d.enotef is not None:
+            with open(d.enotef, 'r') as f:
+                d.enote = f.read()
+        else:
+            d.enote = None
+    except:
+        logr.warning('Could not load {}'.format(d.enotef))
+        d.enote = None
+
+    for picf in picfs:
+        picfS = os.path.splitext(os.path.basename(picf))[0]
+        d[picfS] = pt.pickle_load(picf)
     return d
+
+def get_all_res_tosave(expdict,):
+    dsave = {}
+
+    for expname in expdict:
+        exp = expdict[expname]
+        for kexp in exp:
+            if kexp.startswith('eres'):
+                # hardcoded randomless
+                kbig = '{}__{}'.format(expname,
+                                       kexp.replace('-','__').replace('eres_','').replace('ckpt','').replace('_tstbsz10', ''))
+                dsave[kbig] = exp[kexp]
+                print("Recorded {}".format(kbig))
+            if kexp == 'enote':
+                kbig = '{}__enote'.format(expname)
+                dsave[kbig] = exp[kexp]
+
+    dsave = util.dict_copy_with_edict_convert(dsave)
+    return dsave
 
 def plot_exp_lrs(expdict, showlog=False, enamefilt=None):
 

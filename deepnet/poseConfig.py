@@ -174,7 +174,7 @@ class config(object):
         self.dpk_epochs_used = None         # set at train-time; actual no of epochs used
         self.dpk_use_tfdata = True
         self.dpk_train_style = 'dpk'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
-        self.dpk_val_batch_size = 10
+        self.dpk_val_batch_size = 10        # use 0 when dpk_train_style='apt' to not do valdist loggin
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
 
 
