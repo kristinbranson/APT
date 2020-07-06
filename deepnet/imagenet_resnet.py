@@ -18,7 +18,9 @@
 
 # All modifications are Copyright 2019 Jacob M. Graving <jgraving@gmail.com>
 
+# From https://github.com/jgraving/deepposekit. See imagenet_resnet_LICENSE
 # Adapted by Allen Lee @ Branson Lab, JRC/HHMI Oct 2019
+
 
 from __future__ import absolute_import
 from __future__ import division

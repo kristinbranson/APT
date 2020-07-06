@@ -505,6 +505,46 @@ for dd in dtypes:
     rae.get_leap_results()
 
 
+## Orig DPK
+import run_apt_expts_2 as rae
+dtypes = ['alice', 'stephen']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.train_dpk_orig()
+
+eres03gt = ade.assess('e00_r03', dset='alice', usegt_tfr=True)
+
+## DPK/bub ia vs pt
+import run_apt_expts_2 as rae
+dtypes = ['alice']
+for dd in dtypes:
+    reload(rae)
+    rae.setup(dd)
+    rae.train_dpk_orig()
+
+## APT- vs DPK-style train
+rae.train_dpk_orig(expname='e00_r06',
+                   run_type='submit',
+                   exp_note='r00 split; dpk_train_style=apt',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt'
+                   )
+rae.train_dpk_orig(expname='e01_r00',
+                   run_type='submit',
+                   exp_note='full trainset; apt-style train; no val',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0
+                   )
+## DPK, no val
+rae.train_dpk_orig(expname='e02_r00',
+                   run_type='submit',
+                   exp_note='r02 split; dpktrnonly-style train (no val)',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   )
+
 ## Videos for results
 
 

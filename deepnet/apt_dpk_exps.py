@@ -10,19 +10,23 @@ import logging
 import inspect
 import getpass
 import random
+import collections.abc
+import re
 
 import tensorflow as tf
 import imgaug as ia
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+import pandas as pd
+from easydict import EasyDict as edict
 
 import APT_interface as apt
 import deepposekit as dpk
 import apt_dpk
 import PoseTools as pt
 import TrainingGeneratorTFRecord as TGTFR
-import kerascallbacks
+import apt_dpk_callbacks
 import run_apt_expts_2 as rae
 import util
 import multiResData as mrd
@@ -30,11 +34,20 @@ import multiResData as mrd
 logr = logging.getLogger('APT')
 
 user = getpass.getuser()
+
+blaptdata = '/groups/branson/bransonlab/apt/experiments/data'
+
 if user == 'leea30':
     dbs = {
-        'dpkfly': {'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
-                   'slbl': '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_numchans1.lbl',
-                   }
+        'dpkfly': {
+            'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
+            'slbl': os.path.join(blaptdata, 'leap_dataset_gt_stripped_numchans1.lbl')
+        },
+        'alice': {
+            'slbl': os.path.join(blaptdata,
+                                 'multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'),
+            'skel': os.path.join(blaptdata, 'multitarget_bubble_dpk_skeleton.csv')
+        }
     }
     alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
     aldeepnet = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
@@ -113,6 +126,38 @@ def split_tfr_proper(tfrsrc, tfrdst0, tfrdst1, n0, npts):
             print('Wrote {} rows'.format(i + 1))
 
     print('Wrote {} rows'.format(i + 1))
+
+def split_tfr_proper_normal_exp(expdir, frac, npts):
+    '''
+    For 'regular' apt exps
+
+    1. backup train_TF.tfrecords
+    2. create a new train_TF.tfrecords with frac*ntrn rows randomly selected
+    3. put other rows into val_TF.tfrecords
+
+    :param expdir:
+    :param frac: fraction of orig train_TF.tfrecords to put in new train_TF
+    :param npts:
+    :return:
+    '''
+
+    trntfr = os.path.join(expdir, 'train_TF.tfrecords')
+    valtfr = os.path.join(expdir, 'val_TF.tfrecords')
+    trntfrbak = os.path.join(expdir, 'train_bak_TF.tfrecords')
+    assert os.path.exists(trntfr)
+    assert not os.path.exists(valtfr)
+    assert not os.path.exists(trntfrbak)
+
+    os.rename(trntfr, trntfrbak)
+    logr.info("Renamed {}->{}".format(trntfr, trntfrbak))
+
+    ntrn0 = pt.count_records(trntfrbak)
+    ntrn = int(np.round(frac * ntrn0))
+    logr.info('Orig train had {} rows. New train/val will have {}/{}.'.format(
+        ntrn0, ntrn, ntrn0-ntrn))
+
+    split_tfr_proper(trntfrbak, trntfr, valtfr, ntrn, npts)
+    logr.info("Wrote new tfrs {} and {}".format(trntfr, valtfr))
 
 
 def split_tfr_with_rename(trntfr0, valtfr0, ntrnnew, npts):
@@ -194,124 +239,6 @@ def verify_split_tfr(trntfr0, valtfr0, trntfr1, valtfr1, tsttfr1, npts):
     check_ims_locs_ifo_occ(imst0, locst0, ifot0, occt0,
                            ims1totS, locs1totS, ifo1totS, occ1totS)
     print("Verified that old trn is now new trn/val combined")
-
-
-def create_callbacks_exp1orig_train(conf):
-    logr.info("configing callbacks")
-
-    # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
-    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    # logfile = 'log{}.h5'.format(nowstr)
-    # logger = deepposekit.callbacks.Logger(
-    #                 filepath=os.path.join(conf.cachedir, logfile),
-    #                 validation_batch_size=10)
-
-    '''
-    ppr: patience=10, min_delta=.001
-    step3_train_model.ipynb: patience=20, min_delta=1e-4 (K dflt)
-    Guess prefer the ipynb for now, am thinking it is 'ahead'
-    '''
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss",  # monitor="val_loss"
-        factor=0.2,
-        verbose=1,
-        patience=20,
-    )
-
-    # `ModelCheckpoint` automatically saves the model when the validation loss improves at the end of each epoch. This allows you to automatically save the best performing model during training, without having to evaluate the performance manually.
-    ckptfile = 'ckpt{}.h5'.format(nowstr)
-    ckpt = os.path.join(conf.cachedir, ckptfile)
-    model_checkpoint = dpk.callbacks.ModelCheckpoint(
-        ckpt,
-        monitor="val_loss",  # monitor="val_loss"
-        verbose=1,
-        save_best_only=True,
-    )
-
-    # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
-    # step3_train_model.ipynb: patience=100, min_delta=.001
-    # Use min_delta=0.0 here it is more conservative
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss",  # monitor="val_loss"
-        min_delta=0.0,
-        patience=100,
-        verbose=1
-    )
-
-    callbacks = [reduce_lr, model_checkpoint, early_stop]
-    return callbacks
-
-
-def create_callbacks_exp2orig_train(conf, sdn,
-                                    valbsize, nvalbatch,
-                                    runname='deepnet'):
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss",
-        factor=0.2,
-        verbose=1,
-        patience=20,
-    )
-
-    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    ckptfile = 'ckpt{}.h5'.format(nowstr)
-    ckpt = os.path.join(conf.cachedir, ckptfile)
-    model_checkpoint = dpk.callbacks.ModelCheckpoint(
-        ckpt,
-        monitor="val_loss",
-        verbose=1,
-        save_best_only=True,
-    )
-
-    '''
-    tg = sdn.train_generator(
-        n_outputs=sdn.n_outputs,
-        batch_size=conf.batch_size,
-        validation=False,
-        confidence=True,
-        instrumentedname='KCbkTrn'
-    )
-    vg = sdn.train_generator(
-        n_outputs=1,
-        batch_size=conf.batch_size,
-        validation=True,
-        confidence=False,
-        infinite=True,  # infinite, only for logging val_dist
-        instrumentedname='KCbkVal'
-    )
-    aptcbk = kerascallbacks.APTKerasCbk(conf, (tg, vg), runname=runname)
-    '''
-
-    # Ppr: patience=50, min_delta doesn't really say, but maybe suggests 0 (K dflt)
-    # step3_train_model.ipynb: patience=100, min_delta=.001
-    # Use min_delta=0.0 here it is more conservative
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss",  # monitor="val_loss"
-        min_delta=0.0,
-        patience=100,
-        verbose=1
-    )
-
-    logfile = 'trn{}.log'.format(nowstr)
-    logfile = os.path.join(conf.cachedir, logfile)
-    loggercbk = tf.keras.callbacks.CSVLogger(logfile)
-
-    tgtfr = sdn.train_generator
-    dsval_kps = tgtfr(n_outputs=1,
-                      batch_size=valbsize,
-                      validation=True,
-                      confidence=False,
-                      infinite=False)
-    logfilevdist = 'trn{}.vdist.log'.format(nowstr)
-    logfilevdist = os.path.join(conf.cachedir, logfilevdist)
-    logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
-    logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
-    vdistcbk = kerascallbacks.ValDistLogger(dsval_kps,
-                                            logfilevdist,
-                                            logfilevdistlong,
-                                            nvalbatch)
-
-    cbks = [reduce_lr, model_checkpoint, loggercbk, early_stop, vdistcbk]
-    return cbks
 
 
 def update_conf_rae(conf):
@@ -421,7 +348,7 @@ def exp1orig_train(expname,
                                      pretrained=dpk_use_pretrained,
                                      )
 
-    callbacks = create_callbacks_exp1orig_train(conf)
+    callbacks = apt_dpk_callbacks.create_callbacks_exp1orig_train(conf)
 
     # compile
     '''
@@ -494,6 +421,7 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
     '''
 
     conf.batch_size = bsize
+    conf.dpk_use_tfdata = False
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
     g = tgtfr(batch_size=bsize, validation=True, shuffle=False,
               confidence=False, infinite=False, debug=True)
@@ -506,7 +434,7 @@ def simple_tgtfr_val_kpt_generator(conf, bsize):
         yield ims, locs, info
 
 
-def exp1orig_assess_set(expnamebase,
+def assess_set(expnamebase,
                         runrange=range(5),
                         dset='dpkfly',
                         cacheroot=alcache,
@@ -515,7 +443,7 @@ def exp1orig_assess_set(expnamebase,
     eresall = []
     for run in runrange:
         expname = runpat.format(expnamebase, run)
-        eres = exp1orig_assess(expname, dset, cacheroot, **kwargs)
+        eres = assess(expname, dset, cacheroot, **kwargs)
         eresall.append(eres)
 
     euc_coll_ptiles50s = np.vstack([x['euc_coll_ptiles5090'][:, 0] for x in eresall]).T
@@ -524,75 +452,132 @@ def exp1orig_assess_set(expnamebase,
     return eresall, euc_coll_ptiles50s, euc_coll_ptiles90s
 
 
-def get_latest_ckpt_h5(expdir):
-    cpth5 = glob.glob(os.path.join(expdir, 'ckpt*h5'))
-    cpth5.sort()
-    if len(cpth5) == 0:
-        print("No ckpts found in {}".format(expdir))
-    elif len(cpth5) > 1:
-        print("Warning: more than one ckpt found. Using last one, {}".format(cpth5[-1]))
+def get_latest_ckpt_h5_dpkstyle(expdir):
+    '''
+    dpk-style ES
+    :param expdir:
+    :return:
+    '''
 
-    cpth5 = cpth5[-1]
-    return cpth5
+    repat = 'c[a-z]+[T0-9]+.h5'
+    sre = re.compile(repat)
+    clist = glob.glob(os.path.join(expdir, 'c*.h5'))
+    clist = [x for x in clist if sre.match(os.path.basename(x)) is not None]
+
+    clist.sort()
+    if len(clist) == 0:
+        logr.info("No dpk-style ckpts found in {}".format(expdir))
+        cpt = None
+    elif len(clist) > 1:
+        logr.warning("More than one dpk-style ckpt found!!! Using last one, {}".format(clist[-1]))
+        cpt = clist[-1]
+    else:
+        cpt = clist[0]
+    return cpt
 
 
-def exp1orig_assess(expname,
-                    dset='dpkfly',
-                    cacheroot=alcache,
-                    validxs=None,  # normally read from conf.pickle
-                    bsize=16,
-                    doplot=True,
-                    gentype='tgtfr',
-                    useaptcpt=False,  # if true, use most recent deepnet-xxxxx cpt
-                    returnsdn=False,  # if true, early-return with just loaded sdn ready to predict
-                    net='dpksdn',
-                    ):
-    h5dset = dbs[dset]['h5dset']
-    slbl = dbs[dset]['slbl']
+def get_latest_ckpt_h5_epoch(expdir):
+    repat = 'c[a-z]+[T0-9]+-[0-9]+.h5'
+    sre = re.compile(repat)
+    clist = glob.glob(os.path.join(expdir, 'c*.h5'))
+    clist = [x for x in clist if sre.match(os.path.basename(x)) is not None]
 
-    dg = dpk.io.DataGenerator(h5dset)
+    clist.sort()
+    if len(clist) == 0:
+        logr.warning("No dpk-style ckpts found in {}".format(expdir))
+        cpt = None
+    elif len(clist) > 1:
+        logr.info("Found {} cpts; using latest {}".format(len(clist), clist[-1]))
+        cpt = clist[-1]
 
-    # make a conf just to get the path to the expdir
+    return cpt
+
+def assess(expname,
+           dset='dpkfly',
+           cacheroot=alcache,
+           validxs=None,
+           usegt_tfr=False,  # if true, use gt.tfrecords instead of val_TF
+           tstbsize=10,
+           doplot=True,
+           gentype='tgtfr',
+           ckpt='latest',  # latest=dpk-style ES ckpt
+           returnsdn=False,
+           net='dpk',
+           dosave=True,
+           ):
+    '''
+    Assess dpk perf with ckpt against val_TF
+    :param expname:
+    :param dset: 'dpkfly', 'alice', etc
+    :param cacheroot:
+    :param validxs: pretty much obsolete; normally read from conf.pickle
+    :param tstbsize:
+    :param doplot:
+    :param gentype:
+    :param ckpt: 'latest'/'best' or 'latestepoch' or specific ckpt file (relative path)
+    :param returnsdn:   if true, early-return with just loaded sdn ready to predict
+    :param net:
+    :return:
+    '''
+
+
     expname = expname if expname else 'dpkorig'
-    conf = apt.create_conf(slbl, 0, expname,
-                           cacheroot, net, quiet=False)
-    # this conf-updating is actually prob unnec but prob doesnt hurt
-    conf = apt_dpk.update_conf_dpk(conf,
-                                   dg.graph,
-                                   dg.swap_index,
-                                   n_keypoints=dg.n_keypoints,
-                                   imshape=dg.compute_image_shape(),
-                                   useimgaug=True,
-                                   imgaugtype=dset)
+
+    dsetdb = dbs[dset]
+    isdgdb = 'h5dset' in dsetdb
+    if isdgdb:
+        h5dset = dsetdb['h5dset']
+        slbl = dsetdb['slbl']
+        dg = dpk.io.DataGenerator(h5dset)
+        # make a conf just to get the path to the expdir
+        conf = apt.create_conf(slbl, 0, expname,
+                               cacheroot, net, quiet=False)
+        # this conf-updating is actually prob unnec but prob doesnt hurt
+        conf = apt_dpk.update_conf_dpk(conf,
+                                       dg.graph,
+                                       dg.swap_index,
+                                       n_keypoints=dg.n_keypoints,
+                                       imshape=dg.compute_image_shape(),
+                                       useimgaug=True,
+                                       imgaugtype=dset)
+        # note, useimgaug/imgaugtype def doesnt matter as we will be assessing
+        # on val/non-distorted data
+
+    else:
+        slbl = dsetdb['slbl']
+        skel = dsetdb['skel']
+        conf_params = ['dpk_skel_csv', '"{}"'.format(skel)]
+        # this needed for apt_dpk.update_conf_dpk_skel_csv call
+        # in create_conf
+        assert net == 'dpk'
+        conf = apt.create_conf(slbl, 0, expname,
+                               cacheroot, net, quiet=False, conf_params=conf_params)
+
 
     expdir = conf.cachedir
 
-    if useaptcpt:
+    if ckpt == 'aptlatest':
+        assert False, "prob obsolete now"
         cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
         sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
 
         print("conf vs conf_saved:")
         util.dictdiff(conf, conf_saved, logr.info)
     else:
-        cpth5 = get_latest_ckpt_h5(expdir)
-        if gentype == 'dg':
-            loadmodelgen = None  # dg
-        elif gentype == 'tgtfr':
-            loadmodelgen = None
+        if ckpt in ['latest', 'best']:
+            cpt = get_latest_ckpt_h5_dpkstyle(expdir)
+        elif ckpt in ['latestepoch']:
+            cpt = get_latest_ckpt_h5_epoch(expdir)
         else:
-            assert False
-        try:
-            sdn = dpk.models.load_model(cpth5, generator=loadmodelgen)
-        except KeyError:
-            if loadmodelgen is not None:
-                print("Warning: load_model failed with non-None gentype. trying with loadmodelgen=none")
-                sdn = dpk.models.load_model(cpth5, generator=None)
-            else:
-                raise
+            cpt = os.path.join(expdir, ckpt)
+            assert os.path.exists(cpt), "ckpt file {} dne".format(cpt)
+
+        sdn = dpk.models.load_model(cpt, generator=None)
         conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
         conf_saved = pt.pickle_load(conf_saved_f)
-        print("conf vs conf_saved:")
+        logr.info("conf vs conf_saved:")
         util.dictdiff(conf, conf_saved['conf'], logr.info)
+
 
     '''
     The TG is randomly initted at creation/load_model time I think so the various
@@ -610,9 +595,17 @@ def exp1orig_assess(expname,
     validxs_specified = validxs is not None
 
     if gentype == 'tgtfr':
-        if validxs_specified:
-            logr.info("Ignoring validxs spec; reading val_TF.tfrecords")
-        g = simple_tgtfr_val_kpt_generator(conf, bsize)
+        assert not validxs_specified, "validxs spec'd but reading val_TF.tfrecords"
+        if usegt_tfr:
+            GTTFR = 'gt'
+            logr.info("Overriding {}->{}".format(conf.valfilename, GTTFR))
+            conf.valfilename = GTTFR
+            # if this is not true, tgtfr will fall back to train tf
+            assert os.path.exists(os.path.join(conf.cachedir,
+                                               GTTFR + ".tfrecords"))
+
+
+        g = simple_tgtfr_val_kpt_generator(conf, tstbsize)
     elif gentype == 'dg':
         if not validxs_specified:
             logr.info("Reading val idxs from conf.pickle")
@@ -622,19 +615,21 @@ def exp1orig_assess(expname,
             logr.info("Found conf.pickle: {}".format(pic[0]))
             pic = pt.pickle_load(pic[0])
             validxs = pic['tg']['val_index']
-        g = simple_dpk_generator(dg, validxs, bsize)
+        g = simple_dpk_generator(dg, validxs, tstbsize)
     else:
         assert False
 
     eres = evaluate(sdn.predict_model, g)
     euc_coll, euc_coll_cols, euc_coll_colcnt = \
-        collapse_swaps(eres['euclidean'], dg.swap_index)
+        collapse_swaps(eres['euclidean'], conf.dpk_swap_index)
     eres['euc_coll'] = euc_coll
     eres['euc_coll_cols'] = euc_coll_cols
     eres['euc_coll_colcnt'] = euc_coll_colcnt
     eres['euc_coll_ptiles5090'] = np.percentile(euc_coll, [50, 90], axis=0).T
 
     nval = eres['euclidean'].shape[0]
+
+    eres = edict(eres)
 
     if doplot:
         plt.rcParams.update({'font.size': 26})
@@ -644,6 +639,15 @@ def exp1orig_assess(expname,
         plt.xlabel('kpt/pair')
         plt.ylabel('L2err')
         plt.grid(axis='y')
+
+    if dosave:
+        nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+        cptS = os.path.splitext(os.path.basename(cpt))[0]
+        savefile = os.path.join(expdir, "eres_{}_{}_{}_tstbsz{}.p".format(
+            cptS, conf.valfilename, nowstr, tstbsize))
+        with open(savefile, 'wb') as f:
+            pickle.dump(eres, f)
+        logr.info("Saved {}".format(savefile))
 
     return eres
 
@@ -858,6 +862,8 @@ def exp2orig_train(expname,
                    usetfdata=True,
                    useimgaug=True,  # if false, use PoseTools
                    valbsize=10,
+                   reduce_lr_style='ipynb',
+                   early_stop_style='ipynb',
                    **kwargs
                    ):
     iaver = ia.__version__
@@ -884,6 +890,9 @@ def exp2orig_train(expname,
     if not useimgaug:
         assert dset == 'dpkfly'
         exp2_set_posetools_aug_config_leapfly(conf)
+    conf.dpk_val_batch_size = valbsize  # not actually used anywhere
+    conf.dpk_reduce_lr_style = reduce_lr_style
+    conf.dpk_early_stop_style = early_stop_style
 
     # try to match exp1orig
     conf.batch_size = bsize
@@ -896,18 +905,18 @@ def exp2orig_train(expname,
     # validation bsize needs to be spec'd for K fit_generator since the val
     # data comes as a generator (with no len() call) vs a K Sequence
     nvalbatch = int(np.ceil(tgtfr.n_validation / valbsize))
-    cbks = create_callbacks_exp2orig_train(conf, sdn,
-                                           valbsize, nvalbatch,
-                                           runname=runname)
+    cbks = apt_dpk_callbacks.create_callbacks_exp2orig_train(conf,
+                                                             sdn,
+                                                             True,
+                                                             valbsize,
+                                                             nvalbatch,
+                                                             runname=runname)
 
     apt_dpk.print_dpk_conf(conf)
     if not useimgaug:
         conf.print_dataaug_flds(logr.info)
     conf_tgtfr = tgtfr.conf
     util.dictdiff(conf, conf_tgtfr, logr.info)
-    #for k, v in vars(conf_tgtfr).items():
-    #    if not v == getattr(conf, k):
-    #        print("TGTFR conf different field: {} -> {}".format(k, v))
 
     tgconf = tgtfr.get_config()
     sdnconf = sdn.get_config()
@@ -1053,6 +1062,127 @@ def parse_sig(sig):
         dv = p.default
         print("{}: dv={}".format(k, dv))
 
+def read_exp(edir):
+    conf = os.path.join(edir, '*conf.pickle')
+    gpat = os.path.join(edir, '*.log')
+    gpatv = os.path.join(edir, '*.vdist.log')
+    enote = os.path.join(edir, 'EXPNOTE')
+    picfs = os.path.join(edir, '*.p')
+
+    conf = glob.glob(conf)
+    g = glob.glob(gpat)
+    gv = glob.glob(gpatv)
+    en = glob.glob(enote)
+    picfs = glob.glob(picfs)
+    g = set(g) - set(gv)
+
+    d = edict({})
+
+    def setfile(dd, theglob, filekey):
+        if len(theglob) == 1:
+            dd[filekey] = theglob.pop()
+        else:
+            dd[filekey] = None
+            logr.warning("{}: nonscalar {} found".format(edir, filekey))
+
+    setfile(d, conf, 'conff')
+    setfile(d, g, 'tlogf')
+    setfile(d, gv, 'tvlogf')
+    setfile(d, en, 'enotef')
+
+    try:
+        d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
+    except:
+        logr.warning('Could not load {}'.format(d.conff))
+        d.conf = None
+
+    try:
+        d.tlog = pd.read_csv(d.tlogf) if d.tlogf is not None else None
+    except:
+        logr.warning('Could not load {}'.format(d.tlogf))
+        d.tlog = None
+
+    try:
+        d.tvlog = pd.read_csv(d.tvlogf) if d.tvlogf is not None else None
+    except:
+        logr.warning('Could not load {}'.format(d.tvlogf))
+        d.tvlog = None
+
+    try:
+        if d.enotef is not None:
+            with open(d.enotef, 'r') as f:
+                d.enote = f.read()
+        else:
+            d.enote = None
+    except:
+        logr.warning('Could not load {}'.format(d.enotef))
+        d.enote = None
+
+    for picf in picfs:
+        picfS = os.path.splitext(os.path.basename(picf))[0]
+        d[picfS] = pt.pickle_load(picf)
+    return d
+
+def get_all_res_tosave(expdict,):
+    dsave = {}
+
+    for expname in expdict:
+        exp = expdict[expname]
+        for kexp in exp:
+            if kexp.startswith('eres'):
+                # hardcoded randomless
+                kbig = '{}__{}'.format(expname,
+                                       kexp.replace('-','__').replace('eres_','').replace('ckpt','').replace('_tstbsz10', ''))
+                dsave[kbig] = exp[kexp]
+                print("Recorded {}".format(kbig))
+            if kexp == 'enote':
+                kbig = '{}__enote'.format(expname)
+                dsave[kbig] = exp[kexp]
+
+    dsave = util.dict_copy_with_edict_convert(dsave)
+    return dsave
+
+def plot_exp_lrs(expdict, showlog=False, enamefilt=None):
+
+    '''
+    :param expdict: easydict where keys are expnames and vals are read_exp outputs
+    :return:
+    '''
+
+    if enamefilt is None:
+        enamefiltuse = lambda x: x.startswith('e00')
+    elif isinstance(enamefilt, collections.abc.Iterable):
+        enamefiltuse = lambda x: x in enamefilt
+    else:
+        enamefiltuse = enamefilt
+
+    enames = list(expdict.keys())
+    enames = [x for x in enames if enamefiltuse(x)]
+    enames.sort()
+    plt.figure()
+    for en in enames:
+        df = expdict[en].tlog
+        y = df.lr
+        if showlog:
+            y = np.log(y)
+        plt.plot(df.epoch, y, label=en)
+    plt.legend()
+
+def show_exp_diags(expdict):
+    enames = list(expdict.keys())
+    enames = [x for x in enames if x.startswith('e00')]
+    enames.sort()
+    for en in enames:
+        df = expdict[en].tlog
+        nepoch = df.epoch.iloc[-1]
+        conf = expdict[en].conf['conf']
+        bsize = conf.batch_size
+        stepsperepoch = conf.display_step
+        rowsperepoch = stepsperepoch*bsize
+        print("{}: bsize={}, nepoch={}, stepsperE={}, rowsperE={}".format(
+            en, bsize, nepoch, stepsperepoch, rowsperepoch
+        ))
+
 
 def parse_sig_and_add_args(sig, parser, skipargs):
     for k in sig.parameters:
@@ -1067,22 +1197,22 @@ def parse_sig_and_add_args(sig, parser, skipargs):
                                     type=int,
                                     help="default={}".format(dv),
                                     )
-                print("Added bool arg {}".format(k))
+                logr.info("Added bool arg {}".format(k))
             elif isinstance(dv, int):
                 parser.add_argument('--{}'.format(k),
                                     default=dv,
                                     type=int,
                                     help="default={}".format(dv),
                                     )
-                print("Added int arg {}".format(k))
+                logr.info("Added int arg {}".format(k))
             else:
                 parser.add_argument('--{}'.format(k),
                                     default=dv,
                                     help="default={}".format(dv),
                                     )
-                print("Added arg {}".format(k))
+                logr.info("Added arg {}".format(k))
         except argparse.ArgumentError:
-            print("Skipping arg {}".format(k))
+            logr.info("Skipping arg {}".format(k))
 
 
 def parseargs(argv):

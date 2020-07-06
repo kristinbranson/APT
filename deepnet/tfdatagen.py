@@ -344,7 +344,7 @@ def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort, gen_target_hmaps=True
 
     return ims, locs, targets
 
-def imgaug_augment(augmenter, images, keypoints):
+def imgaug_augment(augmenter, images, keypoints, clip=True):
     '''
     Apply an imgaug augmenter. C+P dpk/TrainingGenerator/augment; in Py3 can prob just call meth directly
     :param augmenter:
@@ -367,6 +367,11 @@ def imgaug_augment(augmenter, images, keypoints):
 
     images_aug = np.concatenate(images_aug)
     keypoints_aug = np.concatenate(keypoints_aug)
+
+    if clip:
+        # assume uint8s for now
+        images_aug = images_aug.clip(min=0., max=255.)
+
     return images_aug, keypoints_aug
 
 __ims_locs_preprocess_dpk_has_run__ = False
@@ -679,7 +684,6 @@ def create_tf_datasets(conf0,
                        infinite=True,
                        dobatch=True,
                        drawconf=True,
-                       shufflebsize=100,
                        ):
     '''
     Create train/val TFRecordDatasets. This is basically PoseBaseGeneral/create_datasets
@@ -749,6 +753,13 @@ def create_tf_datasets(conf0,
     ds = tf.data.TFRecordDataset(dbfile)
     ds = ds.map(map_func=_parse_function)
     if shuffle:
+        try:
+            shufflebsize = conf.dpk_tfdata_shuffle_bsize
+        except AttributeError:
+            shufflebsize = 5000
+            logr.warning("dpk_tfdata_shuffle_bsize not present in conf. using default value of {}".format(
+                shufflebsize))
+
         ds = ds.shuffle(buffer_size=shufflebsize)
     if infinite:
         ds = ds.repeat()
@@ -802,23 +813,30 @@ def read_ds_idxed(ds, indices):
                 break
     return res
 
-def xylist2xyarr(xylist, xisscalarlist=False):
-    x, y  = zip(*xylist)
+def xylist2xyarr(xylist, xisscalarlist=False, yisscalarlist=False):
+    x, y = zip(*xylist)
     if xisscalarlist:
-        assert all([len(z)==1 for z in x])
+        assert all([len(z) == 1 for z in x])
         x = [z[0] for z in x]
-    x = np.concatenate(x,axis=0)
-    y = np.concatenate(y,axis=0)
+    if yisscalarlist:
+        assert all([len(z) == 1 for z in y])
+        y = [z[0] for z in y]
+    x = np.concatenate(x, axis=0)
+    y = np.concatenate(y, axis=0)
     return x, y
 
 
-def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
-            share_all=True, label_mode='1', cmap='viridis', locsmrkr='.',
-            locsmrkrsz=16):
+def montage(ims0, ims0type='batchlast',
+            locs=None, locs2=None, fignum=1, figsize=(25, 25), axes_pad=0.0,
+            share_all=True, label_mode='1', cmap='viridis',
+            cbclr='g',
+            locsmrkr='.', locs2mrkr='x',
+            locsmrkrsz=16, locscmap='jet'):
     '''
 
-    :param ims0: [nr x nc x N] (assumed b/w)
-    :param locs:
+    :param ims0: [nr x nc x N] (assumed b/w); or [N x nr x nc] see next
+    :param ims0type: 'batchlast' or 'batchfirst' (dflt)
+    :param locs: [N x npt x 2]
     :param fignum:
     :param figsize:
     :param axes_pad:
@@ -831,9 +849,11 @@ def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
     '''
     from matplotlib import cm
 
-    #ims = np.moveaxis(ims0, 0, -1)
-    #ims = ims[:, :, 0, :]
-    ims = ims0
+    if ims0type == 'batchfirst':
+        ims = np.moveaxis(ims0, 0, -1)
+        ims = ims[:, :, 0, :]
+    else:
+        ims = ims0
 
     nim = ims.shape[2]
     nplotr = int(np.floor(np.sqrt(nim)))
@@ -850,17 +870,24 @@ def montage(ims0, locs=None, fignum=1, figsize=(10, 10), axes_pad=0.0,
 
     for iim in range(nim):
         him = grid[iim].imshow(ims[..., iim], cmap=cmap)
+        him.set_clim(0., 255.)
         cb = grid.cbar_axes[iim].colorbar(him)
         cb.ax.tick_params(color='r')
-        plt.setp(plt.getp(cb.ax, 'yticklabels'), color='w')
+        plt.setp(plt.getp(cb.ax, 'yticklabels'), color=cbclr)
         if iim == 0:
             cb0 = cb
         if locs is not None:
             assert locs.shape[0] == nim
-            jetmap = cm.get_cmap('spring')
+            jetmap = cm.get_cmap(locscmap)
             rgba = jetmap(np.linspace(0, 1, locs.shape[1]))
             grid[iim].scatter(locs[iim, :, 0], locs[iim, :, 1], c=rgba,
                               marker=locsmrkr, s=locsmrkrsz)
+        if locs2 is not None:
+            assert locs2.shape[0] == nim
+            jetmap = cm.get_cmap(locscmap)
+            rgba = jetmap(np.linspace(0, 1, locs2.shape[1]))
+            grid[iim].scatter(locs2[iim, :, 0], locs2[iim, :, 1], c=rgba,
+                              marker=locs2mrkr, s=locsmrkrsz)
 
     for iim in range(nim, nplotr * nplotc):
         grid[iim].imshow(np.zeros(ims.shape[0:2]))

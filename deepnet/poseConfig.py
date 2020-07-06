@@ -165,10 +165,18 @@ class config(object):
         self.dpk_output_sigma = None        # (computed at TGTFR/init) target hmap gaussian                                         sd in output coords
         self.dpk_input_sigma = 5.0          # (immutable after early) target hmap gaussian                                          sd in input coords
         self.dpk_base_lr_factory = .001
-        self.dpk_base_lr_used = None        # (auto-computed at compile-time; actual base lr used)
-        self.dpk_reduce_lr_on_plat = True   # True is as published for dpk, using K cbk (starting from dpk_base_lr_used);
+        self.dpk_base_lr_used = None        # typically auto-computed at compile-time; actual base lr used
+        self.dpk_reduce_lr_on_plat = True   # DEPRECATED in favor of dpk_train_style
+                                            # True is as published for dpk, using K cbk (starting from dpk_base_lr_used);
                                             # False is APT-style scheduled (using learning_rate, decay_steps, gamma)
-        self.dpk_use_tfdata = False
+        self.dpk_reduce_lr_style = 'ipynb'  # either 'ppr' or 'ipynb'
+        self.dpk_early_stop_style = 'ipynb' # either 'ppr' or 'ipynb'
+        self.dpk_epochs_used = None         # set at train-time; actual no of epochs used
+        self.dpk_use_tfdata = True
+        self.dpk_train_style = 'dpk'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
+        self.dpk_val_batch_size = 10        # use 0 when dpk_train_style='apt' to not do valdist loggin
+        self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
+
 
 
         # ============== EXTRA ================
@@ -233,7 +241,7 @@ class config(object):
     def print_dataaug_flds(self, printfcn=None):
         printfcn = logging.info if printfcn is None else printfcn
         for cat, flds in self.DATAAUG_FLDS.items():
-            print('## {} ##'.format(cat))
+            printfcn('## {} ##'.format(cat))
             for f in flds:
                 printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
