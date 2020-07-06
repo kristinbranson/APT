@@ -152,7 +152,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                         biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
                         conv_b = X + biases
 
-                        bn = batch_norm(conv_b)
+                        bn = batch_norm(conv_b,is_training=self.ph['phase_train'])
                         X = tf.nn.relu(bn)
 
                 prev_in = X
@@ -642,10 +642,10 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
 
 
-    def get_var_list(self):
-        var_list = tf.global_variables(self.net_name)
-        var_list += tf.global_variables('resnet_')
-        return var_list
+    # def get_var_list(self):
+    #     var_list = tf.global_variables(self.net_name)
+    #     var_list += tf.global_variables('resnet_')
+    #     return var_list
 
 
 
@@ -686,7 +686,10 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         regularizer_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         self.reg_loss = regularizer_losses
 
-        return (mdn_loss + unet_loss + dist_loss + occ_loss + sum(regularizer_losses)) / self.conf.batch_size
+        loss =  mdn_loss + unet_loss + dist_loss + occ_loss + sum(regularizer_losses)
+        if self.conf.get('normalize_loss_batch',False):
+            loss = loss / self.conf.batch_size
+        return loss
 
     def my_loss(self, X, y):
 
@@ -805,10 +808,6 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         cur_comp = []
 
         ll = tf.nn.softmax(mdn_logits, axis=1)
-#         logit_eps = self.conf.mdn_logit_eps_training
-#         ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
-#         ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
-
         ll = tf.stop_gradient(ll)
         # ll now has normalized logits.
         for cls in range(self.conf.n_classes):

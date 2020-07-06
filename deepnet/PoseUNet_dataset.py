@@ -16,6 +16,7 @@ import re
 import json
 import logging
 from tensorflow.contrib.layers import batch_norm
+from upsamp import upsample_init_value
 
 # for tf_unet
 #from tf_unet_layers import (weight_variable, weight_variable_devonc, bias_variable,
@@ -222,9 +223,12 @@ class PoseUNet(PoseCommon):
             # upsample using deconv
             with tf.variable_scope('u_{}'.format(ndx)):
                 X_sh = X.get_shape().as_list()
-                w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
-                for wndx in range(X_sh[-1]):
-                    w_mat[:, :, wndx, wndx] = 1.
+                w_sh = [4, 4, X_sh[-1], X_sh[-1]]
+                w_mat = upsample_init_value(w_sh, alg='bl', dtype=np.float32)
+
+                # w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
+                # for wndx in range(X_sh[-1]):
+                #     w_mat[:, :, wndx, wndx] = 1.
                 w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]], initializer=tf.constant_initializer(w_mat))
                 if self.no_pad:
                     out_shape = [X_sh[0], X_sh[1] * 2 + 2, X_sh[2] * 2 + 2, X_sh[-1]]
@@ -580,7 +584,7 @@ class PoseUNet(PoseCommon):
         return np.nanmean(tt1)
 
     def loss(self, inputs, pred):
-        return tf.nn.l2_loss(pred - inputs[-1]) + self.wt_decay_loss()
+        return tf.nn.l2_loss(pred - inputs[-1])/self.conf.n_classes + self.wt_decay_loss()
 
     def train_unet(self,restore=False):
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('unet_base_lr',0.0001)

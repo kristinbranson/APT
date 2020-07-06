@@ -84,7 +84,7 @@ class Pose_resnet_unet(PoseBase):
             mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=64, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
-            down_layers.pop(2) # remove one of the layers of size imsz/4, imsz/4 at index 2
+            down_layers.pop(1) # remove one of the layers of size imsz/4, imsz/4 at index 1
             ex_down_layers = conv(self.inputs[0], 64)
             down_layers.insert(0, ex_down_layers)
             n_filts = [32, 64, 64, 128, 256, 512, 1024]

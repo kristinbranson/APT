@@ -195,9 +195,10 @@ class PoseCommon(object):
 
 
     def get_var_list(self):
-        var_list = tf.global_variables(self.net_name)
-        for dep_net in self.dep_nets:
-            var_list += dep_net.get_var_list()
+        var_list = tf.global_variables()
+        # var_list = tf.global_variables(self.net_name)
+        # for dep_net in self.dep_nets:
+        #     var_list += dep_net.get_var_list()
         return var_list
 
     def create_saver(self):
@@ -207,13 +208,12 @@ class PoseCommon(object):
         saver['out_file'] = os.path.join(
             self.conf.cachedir,name)
         if self.train_data_name is None:
-            saver['train_data_file'] = os.path.join(
-                self.conf.cachedir,
-                self.conf.expname + '_' + name + '_traindata')
+            if self.name =='deepnet':
+                saver['train_data_file'] = os.path.join(self.conf.cachedir,'traindata')
+            else:
+                saver['train_data_file'] = os.path.join(self.conf.cachedir, self.conf.expname + '_' + name + '_traindata')
         else:
-            saver['train_data_file'] = os.path.join(
-                self.conf.cachedir,
-                self.train_data_name)
+            saver['train_data_file'] = os.path.join(self.conf.cachedir, self.train_data_name)
 
         saver['ckpt_file'] = self.ckpt_file
         var_list = self.get_var_list()
@@ -485,11 +485,18 @@ class PoseCommon(object):
         pretrained_saver.restore(sess, model_file)
 
 
-    def train_step(self, step, sess, learning_rate, training_iters):
+
+    def train_step(self, step, sess, learning_rate, training_iters,step_lr,lr_drop_step_frac):
         cur_step = float(step)
 
-        decay_steps = self.conf.decay_steps
-        cur_lr = learning_rate * (self.conf.gamma ** (cur_step/decay_steps))
+        if step_lr:
+            if cur_step < ( (1 - lr_drop_step_frac)* training_iters):
+                cur_lr = learning_rate
+            else:
+                cur_lr = learning_rate/10
+        else:
+            decay_steps = self.conf.decay_steps
+            cur_lr = learning_rate * (self.conf.gamma ** (cur_step/decay_steps))
         # min_lr = 1e-6
         # min_lr = learning_rate/100
         self.fd[self.ph['learning_rate']] = cur_lr
@@ -529,7 +536,8 @@ class PoseCommon(object):
 
         self.fd_train()
         run_options = tf.RunOptions(report_tensor_allocations_upon_oom=True)
-        sess.run(self.opt, self.fd,options=run_options)
+
+        sess.run(self.opt, self.fd, options=run_options)
 
 
     def create_optimizer(self):
@@ -615,15 +623,18 @@ class PoseCommon(object):
         save_time = self.conf.get('save_time', None)
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
-        with tf.Session(config=config) as sess:
+        with tensorflow.Session(config=config) as sess:
             # train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
             start_at = self.init_restore_net(sess, do_restore=restore)
 
             start = time.time()
             save_start = start
+            step_lr =  self.conf.get('step_lr', True)
+            lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
 
+            logging.info('Starting Training. If the err file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix. LOUSY TF :(')
             for step in range(start_at, training_iters + 1):
-                self.train_step(step, sess, learning_rate, training_iters)
+                self.train_step(step, sess, learning_rate, training_iters,step_lr,lr_drop_step_frac)
                 if step % self.conf.display_step == 0:
                     end = time.time()
                     logging.info('Time required to train: {}'.format(end-start))
@@ -677,8 +688,11 @@ class PoseCommon(object):
             start_at = self.init_restore_net(sess, do_restore=restore)
             start = time.time()
             save_start = start
+            step_lr =  self.conf.get('step_lr', True)
+            lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
+
             for step in range(start_at, training_iters + 1):
-                self.train_step(step, sess, learning_rate, training_iters)
+                self.train_step(step, sess, learning_rate, training_iters,step_lr,lr_drop_step_frac)
                 self.update_and_save_td(step,sess)
                 if self.conf.save_time is None:
                     if step % self.conf.save_step == 0:

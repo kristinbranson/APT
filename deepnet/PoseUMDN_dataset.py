@@ -86,7 +86,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         self.dep_nets = [PoseUNet.PoseUNet(conf, unet_name)]
         self.net_type = net_type
         self.net_name = 'pose_umdn'
-        self.train_data_name = 'traindata'
+        # self.train_data_name = 'traindata'
         self.i_locs = None
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
         self.no_pad = False

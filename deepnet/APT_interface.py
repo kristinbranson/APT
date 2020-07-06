@@ -2481,8 +2481,8 @@ def train(lblfile, nviews, name, args):
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
-                self = getattr(pose_module, module_name)(conf)
-                self.name = args.train_name
+                self = getattr(pose_module, module_name)(conf,args.train_name)
+                # self.name = args.train_name
                 self.train_wrapper(restore=restore)
 
         except tf.errors.InternalError as e:

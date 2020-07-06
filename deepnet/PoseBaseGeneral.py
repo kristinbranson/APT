@@ -50,7 +50,7 @@ class PoseBaseGeneral(PoseCommon):
     '''
 
 
-    def __init__(self, conf):
+    def __init__(self, conf,name='deepnet'):
         '''
         Initialize the pose object.
 
@@ -64,7 +64,7 @@ class PoseBaseGeneral(PoseCommon):
 
         '''
 
-        PoseCommon.__init__(self, conf,name='deepnet')
+        PoseCommon.__init__(self, conf,name=name)
 
 
     def preproc_func(self, ims, locs, info, distort):

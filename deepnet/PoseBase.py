@@ -63,7 +63,7 @@ class PoseBase(PoseCommon):
     '''
 
 
-    def __init__(self, conf, hmaps_downsample=1):
+    def __init__(self, conf, name='deepnet',hmaps_downsample=1):
         ''' Initialize the pose object.
 
         Args:
@@ -72,7 +72,7 @@ class PoseBase(PoseCommon):
 
         '''
 
-        PoseCommon.__init__(self, conf,name='deepnet')
+        PoseCommon.__init__(self, conf,name=name)
         self.hmaps_downsample = hmaps_downsample
         self.conf.use_pretrained_weights = True
         self.pretrained_weights = None
@@ -190,7 +190,9 @@ class PoseBase(PoseCommon):
         :return: The loss function to be optimized.
         Override this to define your own loss function.
         '''
-        hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes/self.conf.batch_size
+        hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes
+        if self.conf.get('normalize_loss_batch',False):
+            hmap_loss = hmap_loss/self.conf.batch_size
 
         return hmap_loss
 

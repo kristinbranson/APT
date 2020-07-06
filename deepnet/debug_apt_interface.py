@@ -1,5 +1,107 @@
+import PoseTools
+import os
+import glob
+import APT_interface as apt
+import apt_expts
+import re
+import run_apt_expts as rae
+import numpy  as np
+from importlib import reload
 
-cmd = '-no_except /groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.trn606.lbl -name romain_compare -cache /nrs/branson/mayank/apt_cache -conf_params rrange 10 trange 5 scale_factor_range 1.2 mdn_use_unet_loss False img_dim 1 dl_steps 200000 batch_size 2 save_step 5000 learning_rate_multiplier 0.25 decay_steps 100000 maxckpt 100 adjustContrast True  -train_name mdn_official -type mdn_joint train -skip_db -use_cache'
+import APT_interface as apt
+
+
+sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.trn606.lbl'
+view = 0
+
+
+reload(apt_expts)
+import PoseUNet_resnet
+reload(PoseUNet_resnet)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+mdn_names = ['mdn_joint_step_more_noise_less',
+             # 'mdn_joint_step_more_noise_less_wasp',
+             # 'mdn_joint_step_more_noise_less_wasp_dil_2',
+             'mdn_joint_step_more_noise_less_wasp_dil_2_skip',
+             'mdn_joint_step_more_noise_less_fpn',
+             # 'mdn_joint_step_more_noise_less_wasp_skip_fpn',
+             'mdn_joint_step_more_noise_less_wasp_skip_fpn_nonorm',
+             'dlc_noapt']
+
+out_dir = '/groups/branson/home/kabram/temp'
+
+out = {}
+db_file = '/nrs/branson/mayank/apt_cache/romainTrackNov18/mdn/view_0/romain_compare/val_TF.tfrecords'
+proj_name = 'romainTrackNov18'
+for n in mdn_names:
+    if 'dlc' in n:
+        ntype = 'deeplabcut'
+    elif 'resunet' in n:
+        ntype = 'resnet_unet'
+    elif 'mdn_unet' in n:
+        ntype = 'mdn_unet'
+    elif 'mdn_joint' in n:
+        ntype = 'mdn_joint'
+    else:
+        ntype = 'mdn'
+
+    if ntype == 'mdn':
+        cdir = os.path.dirname(db_file)
+    else:
+        cdir = '/nrs/branson/mayank/apt_cache/romainTrackNov18/{}/view_0/romain_compare/'.format(ntype)
+
+    if ntype == 'deeplabcut':
+        tfile = os.path.join(cdir, '{}_traindata'.format(n))
+    elif n == 'deepnet':
+        tfile = os.path.join(cdir, 'traindata')
+    else:
+        tfile = os.path.join(cdir, '{}_{}_traindata'.format(proj_name,n))
+
+    if not os.path.exists(tfile):
+        continue
+    A = PoseTools.pickle_load(tfile)
+    if ntype == 'deeplabcut':
+        conf = apt.create_conf(lbl_file, view, 'romain_compare', cache_dir='/nrs/branson/mayank/apt_cache',
+                               net_type='deeplabcut')
+
+        conf.dlc_locref_stdev =        7.2801
+        conf.dlc_locref_loss_weight =        0.05
+        conf.dlc_location_refinement =        True
+        conf.dlc_intermediate_supervision_layer =         12
+        conf.maxckpt =        20
+        conf.dlc_intermediate_supervision =        False
+        conf.dlc_locref_huber_loss =         True
+        conf.dlc_use_apt_preprocess =        True
+        conf.use_scale_factor_range =        True
+        conf.scale_factor_range =        1.3
+        conf.batch_size = 1
+    else:
+        conf = A[1]
+
+    files = glob.glob(os.path.join(cdir, "{}-[0-9]*.index").format(n))
+    files.sort(key=os.path.getmtime)
+    aa = [int(re.search('-(\d*).index', f).groups(0)[0]) for f in files]
+    aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+    if any([a < 0 for a in aa]):
+        bb = int(np.where(np.array(aa) < 0)[0]) + 1
+        files = files[bb:]
+    files = [f.replace('.index', '') for f in files]
+    files = files[-1:]
+    # if len(files) > 12:
+    #     gg = len(files)
+    #     sel = np.linspace(0, len(files) - 1, 12).astype('int')
+    #     files = [files[s] for s in sel]
+
+    mdn_out = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+    out[n] = mdn_out
+
+
+##
+
+
+cmd = '-no_except /groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.trn606.lbl -name romain_compare -cache /nrs/branson/mayank/apt_cache -conf_params rrange 10 trange 5 scale_factor_range 1.2 mdn_use_unet_loss False img_dim 1 dl_steps 100000 batch_size 4 save_step 5000 learning_rate_multiplier 1 step_lr True maxckpt 100 normalize_loss_batch False mdn_pred_dist True -train_name debug -type mdn train -skip_db -use_cache'
 import APT_interface as apt
 apt.main(cmd.split())
 

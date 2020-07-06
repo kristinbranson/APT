@@ -10,6 +10,6 @@ pip install clize packaging ruamel.yaml statsmodels tqdm
 sudo apt install git
 sudo apt install libxtst6 # mainly for pycharm
 sudo apt install python3-pip
-pip install imgaug deepposekit sklearn promise ordereddict
+pip install imgaug deepposekit sklearn promise ordereddict func-timeout
 # for python3.5 for deeplabcut
 #pip install future-fstrings
