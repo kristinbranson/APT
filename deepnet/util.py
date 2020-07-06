@@ -5,10 +5,13 @@ import time
 import collections.abc
 import json
 import numpy as np
+import copy
+from easydict import EasyDict as edict
 
 from keras import backend as K
 
 import h5py
+
 
 def dictsubsetpfix(d, pfix):
     return dict((k, d[k]) for k in d if k.startswith(pfix))
@@ -35,11 +38,14 @@ def dictdiff(d1, d2, print_fcn=print):
     for kk in k:
         v1 = d1[kk]
         v2 = d2[kk]
-        tf = v1 == v2
-        if isinstance(tf, np.ndarray):
-            tf = np.all(tf)
-        if not tf:
-            print_fcn("{}: values differ, {} vs {}".format(kk, v1, v2))
+        try:
+            tf = v1 == v2
+            if isinstance(tf, np.ndarray):
+                tf = np.all(tf)
+            if not tf:
+                print_fcn("{}: values differ, {} vs {}".format(kk, v1, v2))
+        except:
+            print_fcn("Error caught comparing key {}".format(kk))
 
     print_fcn("{} total common keys checked".format(len(k)))
 
@@ -108,6 +114,30 @@ def h5diff(h1, h2):
     with h5py.File(h1, 'r') as f1, h5py.File(h2, 'r') as f2:
         mismatch = h5diffgrps(f1, f2, '')
     return mismatch
+
+def dict_copy_with_edict_convert(d):
+    '''
+    Deep-copy a dict, converting all easydicts to dicts.
+
+    Only easydicts that are direct dict-values are converted.
+
+    Needed for saving to MATfiles, where easydict causes
+    corruption
+
+    :param d: dict or easydict
+    :return: deep-copy of d with all easydicts converted
+    '''
+
+    x = d
+
+    if isinstance(x, dict) or isinstance(x, edict):
+        x2 = dict(x)  # shallow copy
+        for k, v in x2.items():
+            x2[k] = dict_copy_with_edict_convert(v)
+    else:
+        x2 = copy.deepcopy(x)
+
+    return x2
 
 
 class TimerError(Exception):

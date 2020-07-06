@@ -19,8 +19,8 @@ import copy
 import contextlib
 import getpass
 
-import tensorflow.keras as tfk
-import keras.backend as K
+# import tensorflow.keras as tfk
+# import keras.backend as K
 import imgaug.augmenters as iaa
 import imgaug as ia
 import deepposekit.io.DataGenerator
@@ -35,7 +35,7 @@ import open_pose4 as op4
 import heatmap as hm
 import PoseTools
 import multiResData
-import kerascallbacks
+import apt_dpk_callbacks
 import poseConfig
 import APT_interface as apt
 import run_apt_expts as rae
@@ -44,18 +44,17 @@ import deepposekit.utils.keypoints
 import util
 import apt_dpk_exps as ade
 
-
 bubtouchroot = '/groups/branson/home/leea30/apt/ar_flybub_touching_op_20191111'
-lblbubtouch = os.path.join(bubtouchroot,'20191125T170226_20191125T170453.lbl')
-cvitouch = os.path.join(bubtouchroot,'cvi_trn4702_tst180.mat')
+lblbubtouch = os.path.join(bubtouchroot, '20191125T170226_20191125T170453.lbl')
+cvitouch = os.path.join(bubtouchroot, 'cvi_trn4702_tst180.mat')
 kwtouch = '20191125_base_trn4702tst180'
 cdirtouch = os.path.join(bubtouchroot, 'cdir' + kwtouch)
 outtouch = os.path.join(bubtouchroot, 'out' + kwtouch)
-exptouch = 'cvi_trn4702_tst180__split1' # trn4702, tst180
+exptouch = 'cvi_trn4702_tst180__split1'  # trn4702, tst180
 
 cacheroot = '/nrs/branson/al/cache'
 
-isotri='/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
+isotri = '/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
 isotrilocs = np.array([[226., 107.], [180., 446.], [283., 445.]])
 isotriswapidx = np.array([-1, 2, 1])
 
@@ -66,22 +65,21 @@ else:
     aptexptsdata = '/groups/branson/bransonlab/apt/experiments/data'
     dpkdsets = '/groups/branson/home/leea30/git/dpkd/datasets'
 
-
 skeleton_csvs = {
     'alice': [os.path.join(aptexptsdata, 'multitarget_bubble_dpk_skeleton.csv')],
     'stephen': [
-            os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
-            os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv'),
-        ],
+        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
+        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv'),
+    ],
     'romain': [
-            os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw0.csv'),
-            os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw1.csv'),
-        ],
+        os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw0.csv'),
+        os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw1.csv'),
+    ],
     'roian': [os.path.join(aptexptsdata, 'roian_dpk_skeleton.csv')],
     'larva': [os.path.join(aptexptsdata, 'larva_dpk_skeleton.csv')],
-    'dpkfly':    [os.path.join(dpkdsets, 'fly/skeleton.csv')],
+    'dpkfly': [os.path.join(dpkdsets, 'fly/skeleton.csv')],
     'dpklocust': [os.path.join(dpkdsets, 'locust/skeleton.csv')],
-    'dpkzebra':  [os.path.join(dpkdsets, 'zebra/skeleton.csv')],
+    'dpkzebra': [os.path.join(dpkdsets, 'zebra/skeleton.csv')],
 }
 
 
@@ -94,9 +92,11 @@ def setup_apt_logger():
     ch.setFormatter(formatter)
     logr.addHandler(ch)
 
+
 setup_apt_logger()
 
 logr = logging.getLogger('APT')
+
 
 def viz_targets(ims, tgts, npts, ngrps, ibatch=0):
     '''
@@ -106,12 +106,12 @@ def viz_targets(ims, tgts, npts, ngrps, ibatch=0):
     :return:
     '''
 
-    #n_keypoints = data_generator.keypoints_shape[0]
+    # n_keypoints = data_generator.keypoints_shape[0]
     n_keypoints = npts
 
-    #batch = train_generator(batch_size=1, validation=False)[1]
-    #inputs = batch[0]
-    #outputs = batch[1]
+    # batch = train_generator(batch_size=1, validation=False)[1]
+    # inputs = batch[0]
+    # outputs = batch[1]
     inputs = ims
     outputs = tgts
 
@@ -129,33 +129,33 @@ def viz_targets(ims, tgts, npts, ngrps, ibatch=0):
     ax4.imshow(outputs[ibatch, ..., -1], vmin=0)
     plt.show()
 
-    #kp
+    # kp
     minkpthmap = np.min(outputs[ibatch, ..., :npts])
     maxkpthmap = np.max(outputs[ibatch, ..., :npts])
     print("kpthmap min/max is {}/{}".format(minkpthmap, maxkpthmap))
     axnr = 3
-    axnc = math.ceil(npts/axnr)
+    axnc = math.ceil(npts / axnr)
     figkp, axs = plt.subplots(axnr, axnc)
     axsflat = axs.flatten()
     for ipt in range(n_keypoints):
         im = axsflat[ipt].imshow(outputs[ibatch, ..., ipt],
-                            vmin=minkpthmap,
-                            vmax=maxkpthmap)
+                                 vmin=minkpthmap,
+                                 vmax=maxkpthmap)
         axsflat[ipt].set_title("pt{}".format(ipt))
         if ipt == 0:
             figkp.colorbar(im)
     plt.show()
 
-    #grps
-    mingrps = np.min(outputs[ibatch, ..., npts:npts+ngrps])
-    maxgrps = np.max(outputs[ibatch, ..., npts:npts+ngrps])
+    # grps
+    mingrps = np.min(outputs[ibatch, ..., npts:npts + ngrps])
+    maxgrps = np.max(outputs[ibatch, ..., npts:npts + ngrps])
     print("grps min/max is {}/{}".format(mingrps, maxgrps))
     axnr = 1
-    axnc = math.ceil(ngrps/axnr)
+    axnc = math.ceil(ngrps / axnr)
     figgrps, axs = plt.subplots(axnr, axnc)
     axsflat = axs.flatten()
     for i in range(ngrps):
-        im = axsflat[i].imshow(outputs[ibatch, ..., npts+i],
+        im = axsflat[i].imshow(outputs[ibatch, ..., npts + i],
                                vmin=mingrps,
                                vmax=maxgrps)
         axsflat[i].set_title("grp{}".format(i))
@@ -165,15 +165,15 @@ def viz_targets(ims, tgts, npts, ngrps, ibatch=0):
 
     # limbs
     nlimbs = outputs.shape[-1] - npts - ngrps - 2
-    minlimbs = np.min(outputs[ibatch, ..., npts+ngrps:npts+ngrps+nlimbs])
-    maxlimbs = np.max(outputs[ibatch, ..., npts+ngrps:npts+ngrps+nlimbs])
+    minlimbs = np.min(outputs[ibatch, ..., npts + ngrps:npts + ngrps + nlimbs])
+    maxlimbs = np.max(outputs[ibatch, ..., npts + ngrps:npts + ngrps + nlimbs])
     print("limbs min/max is {}/{}".format(minlimbs, maxlimbs))
     axnr = 3
     axnc = math.ceil(nlimbs / axnr)
     figlimbs, axs = plt.subplots(axnr, axnc)
     axsflat = axs.flatten()
     for i in range(nlimbs):
-        im = axsflat[i].imshow(outputs[ibatch, ..., npts+ngrps+i],
+        im = axsflat[i].imshow(outputs[ibatch, ..., npts + ngrps + i],
                                vmin=minlimbs,
                                vmax=maxlimbs)
         axsflat[i].set_title("limb{}".format(i))
@@ -191,12 +191,13 @@ def viz_targets(ims, tgts, npts, ngrps, ibatch=0):
     figglobs, axs = plt.subplots(axnr, axnc)
     axsflat = axs.flatten()
     for i in range(nglobs):
-        im = axsflat[i].imshow(outputs[ibatch, ..., -2+i])
+        im = axsflat[i].imshow(outputs[ibatch, ..., -2 + i])
         axsflat[i].set_title("glob{}".format(i))
         figglobs.colorbar(im, ax=axsflat[i])
     plt.show()
 
     return figkp, figgrps, figlimbs, figglobs
+
 
 def viz_skel(ims, locs, graph):
     image = ims
@@ -221,9 +222,10 @@ def viz_skel(ims, locs, graph):
 
     plt.show()
 
+
 def toymodel(nout):
     X = tfk.Input(shape=(10, 10, 1), name='img')
-    inputs = [X,]
+    inputs = [X, ]
     outputs = []
     for i in range(nout):
         X = tfk.layers.Conv2D(8, 3,
@@ -238,17 +240,17 @@ def toymodel(nout):
     model.compile("adam", "mse")
     return model
 
-def toy(m):
 
+def toy(m):
     nout = len(m.outputs)
     x = tf.constant(np.random.normal(size=(6, 10, 10, 1)))
     y = [tf.constant(np.random.normal(size=(6, 10, 10, 8))) for i in range(nout)]
 
     yp0 = m.predict_on_batch(x)
     yp1 = m.predict_on_batch(x)
-    if nout==1:
-        yp0 = [yp0,]
-        yp1 = [yp1,]
+    if nout == 1:
+        yp0 = [yp0, ]
+        yp1 = [yp1, ]
     losses = m.evaluate(x, y, steps=1)
     with tf.Session().as_default():
         ye0 = [x.eval() for x in y]
@@ -257,18 +259,19 @@ def toy(m):
 
     print('mse of yp0 and yp1 els')
     for x, y in zip(yp0, yp1):
-        print(np.mean((x-y)**2))
+        print(np.mean((x - y) ** 2))
 
     print('mse of ye0 and ye1 els')
     for x, y in zip(ye0, ye1):
-        print(np.mean((x-y)**2))
+        print(np.mean((x - y) ** 2))
 
     print('losses per evaluate: {}'.format(losses))
     print('losses evaled manually:')
     for x, y in zip(ye0, yp0):
-        print(np.mean((x-y)**2))
+        print(np.mean((x - y) ** 2))
 
     return yp0, ye0, losses, x, y
+
 
 def check_flips(im, locs, dpk_swap_index):
     im_lr = im.copy()
@@ -292,85 +295,11 @@ def check_flips(im, locs, dpk_swap_index):
 
     return (im_lr, locs_lr), (im_ud, locs_ud), (im_lria, locs_lria), (im_udia, locs_udia)
 
-#region Callbacks
 
-def create_callbacks(conf, sdn, runname='deepnet'):
-
-    logr.warning("configing callbacks")
-
-    # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).
-    nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
-    logfile = 'log{}.h5'.format(nowstr)
-    '''
-    logger = deepposekit.callbacks.Logger(
-                    filepath=os.path.join(outtouch,logfile),
-                    validation_batch_size=10)
-    '''
-
-    assert conf.dpk_reduce_lr_on_plat
-    if conf.dpk_reduce_lr_on_plat:
-        logr.info("LR callback: using reduceLROnPlateau")
-        lr_cbk = tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="loss", # monitor="val_loss"
-            factor=0.2,
-            verbose=1,
-            patience=20)
-    else:
-        logr.info("LR callback: using APT fixed sched")
-        lr_cbk = kerascallbacks.create_lr_sched_callback(
-            conf.display_step,
-            conf.dpk_base_lr_used,
-            conf.gamma,
-            conf.decay_steps)
-
-    # training, infinite, shuffling
-    train_generator = sdn.train_generator(
-        n_outputs=sdn.n_outputs,
-        batch_size=conf.batch_size,
-        validation=False,
-        confidence=True
-    )
-    # val, infinite, nonshuffled, tgts-as-kpts
-    keypoint_generator = sdn.train_generator(
-        n_outputs=1,
-        batch_size=conf.batch_size,
-        validation=True,
-        confidence=False,
-        infinite=True,  # use "infinite" val generators here, for logging val_dist only
-    )
-    aptcbk = kerascallbacks.APTKerasCbk(conf, (train_generator, keypoint_generator),
-                                        runname=runname)
+# region Callbacks
 
 
-    # `ModelCheckpoint` automatically saves the model when the validation loss improves at the end of each epoch. This allows you to automatically save the best performing model during training, without having to evaluate the performance manually.
-    '''
-    ckptfile = 'ckpt{}.h5'.format(nowstr)
-    ckpt = os.path.join(outtouch, ckptfile)
-    model_checkpoint = deepposekit.callbacks.ModelCheckpoint(
-        ckpt,
-        monitor="val_loss", # monitor="val_loss"
-        verbose=1,
-        save_best_only=True,
-    )
-    '''
-
-    # `EarlyStopping` automatically stops the training session when the validation loss stops improving for a set number of epochs, which is set with the `patience` argument. This allows you to save time when training your model if there's not more improvment.
-    '''
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss", # monitor="val_loss"
-        min_delta=0.001,
-        patience=100,
-        verbose=1
-    )
-    '''
-
-    #callbacks = [early_stop, reduce_lr, model_checkpoint, logger]
-    callbacks = [lr_cbk, aptcbk]
-
-    return callbacks
-
-
-#endregion
+# endregion
 
 '''
 for our dsets:
@@ -407,7 +336,8 @@ lr/stopping/etc vs earlystop/bestsave etc) do not make significant differences.
 
 '''
 
-#region Configurations
+
+# region Configurations
 
 def compute_padding_imsz_net(imsz, rescale, n_transition_min):
     '''
@@ -429,24 +359,25 @@ def compute_padding_imsz_net(imsz, rescale, n_transition_min):
 
     imsz_pad_should_be_divisible_by = int(rescale * 2 ** n_transition_min)
     dsfac = imsz_pad_should_be_divisible_by
-    roundupeven = lambda x: int(np.ceil(x/dsfac)) * dsfac
+    roundupeven = lambda x: int(np.ceil(x / dsfac)) * dsfac
 
     imsz_pad = (roundupeven(imsz[0]), roundupeven(imsz[1]))
     padx = imsz_pad[1] - imsz[1]
     pady = imsz_pad[0] - imsz[0]
-    imsz_net = (int(imsz_pad[0]/rescale), int(imsz_pad[1]/rescale))
+    imsz_net = (int(imsz_pad[0] / rescale), int(imsz_pad[1] / rescale))
 
     return padx, pady, imsz_pad, imsz_net
+
 
 def update_conf_dpk(conf_base,
                     graph,
                     swap_index,
-                    n_keypoints=None,   # optional. if not provided conf.n_classes can be already set
-                    imshape=None,       # " .imsz, .img_dim "
-                    useimgaug=None,     # None => conf.dpk_use_augmenter unchanged, should already be set
-                                        # False/True=> sets conf.dpk_use_augmenter
-                    imgaugtype=None,    # None => conf.dpk_augmenter_type unchanged, should already be set
-                                        # Otherwise sets dpk_augmenter_type
+                    n_keypoints=None,  # optional. if not provided conf.n_classes can be already set
+                    imshape=None,  # " .imsz, .img_dim "
+                    useimgaug=None,  # None => conf.dpk_use_augmenter unchanged, should already be set
+                    # False/True=> sets conf.dpk_use_augmenter
+                    imgaugtype=None,  # None => conf.dpk_augmenter_type unchanged, should already be set
+                    # Otherwise sets dpk_augmenter_type
                     ):
     '''
     Massage a given APT conf for dpk. This mostly sets dpk_* props etc.
@@ -512,6 +443,7 @@ def update_conf_dpk(conf_base,
 
     return conf
 
+
 def read_skel_csv(skel_csv):
     s = dpkut.initialize_skeleton(skel_csv)
     skeleton = s[["tree", "swap_index"]].values
@@ -519,9 +451,11 @@ def read_skel_csv(skel_csv):
     swap_index = skeleton[:, 1]
     return graph, swap_index
 
+
 def swap_index_to_flip_landmark_matches(swap_idx):
     flm = {str(idx): val for (idx, val) in enumerate(list(swap_idx)) if val != -1}
     return flm
+
 
 def update_conf_dpk_skel_csv(conf_base, skel_csv):
     graph, swap_index = read_skel_csv(skel_csv)
@@ -550,7 +484,7 @@ def skel_graph_test(ty):
 
 
 def print_dpk_conf(conf):
-    PFIXESSKIP = ['unet_', 'mdn_', 'op_', 'sb_','dlc_', 'rnn_',
+    PFIXESSKIP = ['unet_', 'mdn_', 'op_', 'sb_', 'dlc_', 'rnn_',
                   'save_', 'leap_', 'att_', 'clahe_grid',
                   'holdoutratio', 'cos_steps', 'LEAP', 'do_time',
                   'Unet', 'DeepLabCut', 'max_n_animals',
@@ -562,7 +496,7 @@ def print_dpk_conf(conf):
         if any([k.startswith(x) for x in PFIXESSKIP]):
             continue
         v = getattr(conf, k)
-        if isinstance(v, list) and len(v)>0 and v[0] == '__FOO_UNUSED__':
+        if isinstance(v, list) and len(v) > 0 and v[0] == '__FOO_UNUSED__':
             pass
         else:
             logr.info("{} -> {}".format(k, v))
@@ -570,9 +504,9 @@ def print_dpk_conf(conf):
     logr.info("### CONF END ###")
 
 
-#endregion
+# endregion
 
-#region Augment
+# region Augment
 
 def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
     if imgaugtype == 'dpkfly':
@@ -656,7 +590,7 @@ def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
         # LinearContrast always uses 127 for the mean
         # Commenting out for now; eyeballing, this is not doing the same thing as PT bc
         # the bg ends up a brighter white sometimes while PT prob changes around the bg.
-        #augmenter.append(iaa.LinearContrast((0.95, 1.05)))
+        # augmenter.append(iaa.LinearContrast((0.95, 1.05)))
         # putting back with reduced contrast, this eyeballs similarly
         augmenter.append(iaa.LinearContrast((0.975, 1.025)))
 
@@ -677,7 +611,8 @@ def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
 
     return augmenter
 
-#endregion
+
+# endregion
 
 def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
     '''
@@ -706,7 +641,7 @@ def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
     assert doval is (val_tf is not None)
 
     print("Datagenerator image/keypt shapes are {}, {}.".format(
-        dg.compute_image_shape(), dg.compute_keypoints_shape() ) )
+        dg.compute_image_shape(), dg.compute_keypoints_shape()))
 
     env = tf.python_io.TFRecordWriter(train_tf)
     if doval:
@@ -732,9 +667,15 @@ def apt_db_from_datagen(dg, train_tf, val_idx=None, val_tf=None):
 
     print('%d,%d number of examples added to the training db and val db' % (count, val_count))
 
-#region Train
+
+# region Train
 
 def compile(conf):
+    '''
+
+    :param conf: .dpk_base_lr_used should already be set
+    :return:
+    '''
     tgtfr = TGTFR.TrainingGeneratorTFRecord(conf)
 
     sdn = StackedDenseNet(tgtfr,
@@ -742,17 +683,15 @@ def compile(conf):
                           growth_rate=conf.dpk_growth_rate,
                           pretrained=conf.dpk_use_pretrained)
 
-    if conf.dpk_train_style == 'dpk':  # as in their ppr
-        assert conf.dpk_reduce_lr_on_plat
-        if conf.dpk_base_lr_used is None:
-            conf.dpk_base_lr_used = conf.dpk_base_lr_factory
-    else:
-        assert False, 'Todo'
-        assert conf.dpk_reduce_lr_on_plat
-        base_lr = conf.dpk_base_lr_factory if conf.dpk_reduce_lr_on_plat \
-            else conf.learning_rate
-        base_lr_used = base_lr * conf.learning_rate_multiplier
-        conf.dpk_base_lr_used = base_lr_used
+    if conf.dpk_base_lr_used is None:
+        conf.dpk_base_lr_used = conf.dpk_base_lr_factory
+        logr.warning("dpk_base_lr_used unspec'd. Using factory default")
+    if conf.dpk_train_style.startswith('dpk'):
+        if not conf.dpk_reduce_lr_on_plat:
+            logr.warning("dpk_train_style=dpk; ignoring dpk_reduce_lr_on_plat=False")
+    elif conf.dpk_train_style == 'apt':
+        if conf.dpk_reduce_lr_on_plat:
+            logr.warning("dpk_train_style=apt; ignoring dpk_reduce_lr_on_plat=True")
 
     logr.info("apt_dpk compile: base_lr_used={}".format(conf.dpk_base_lr_used))
 
@@ -762,34 +701,63 @@ def compile(conf):
 
     return tgtfr, sdn
 
-def train(conf, # create_cbks_fcn=create_callbacks,
+
+def train(conf,  # create_cbks_fcn=create_callbacks,
           runname='deepnet',
           ):
+    '''
+    This is the train the APT_interface calls
 
+    '''
     assert conf.dpk_use_tfdata
 
     tgtfr, sdn = compile(conf)
     assert tgtfr is sdn.train_generator
 
-    # conf.batch_size was already set coming in
+    # These train-related conf fields should be set coming in
+    # .batch_size
+    # .dl_steps
     ntrn = tgtfr.n_train
-    nbatch_per_epoch = int(np.ceil(ntrn / conf.batch_size))
-    conf.display_step = nbatch_per_epoch  # "steps per epoch"
-    conf.save_step = conf.save_step // nbatch_per_epoch * nbatch_per_epoch  # align saving on epoch boundaries
+    steps_per_epoch = int(np.ceil(ntrn / conf.batch_size))
+    conf.display_step = steps_per_epoch
+    conf.save_step = conf.save_step // steps_per_epoch * steps_per_epoch  # align saving on epoch boundaries
+    epochs = conf.dl_steps // conf.display_step
+    conf.dpk_epochs_used = epochs
+    logr.info("ntrain, nepochs, stepsperepoch = {}, {}, {}".format(
+        ntrn, epochs, steps_per_epoch))
 
     nval = tgtfr.n_validation
     valbsize = conf.dpk_val_batch_size
-    assert nval % valbsize == 0, \
-        "val bsize ({}) must evenly divide nvalidation ({})!".format(valbsize, nval)
-    # this empirically appears to be important no idea why
-    nvalbatch = nval // valbsize
-    logr.info("nval={}, nvalbatch={}, valbsize={}".format(
-        nval, nvalbatch, valbsize))
-    cbks = ade.create_callbacks_exp2orig_train(conf,
-                                               sdn,
-                                               valbsize=valbsize,
-                                               nvalbatch=nvalbatch,
-                                               runname=runname)
+    do_val = valbsize > 0
+    if not do_val:
+        assert conf.dpk_train_style == 'apt'
+        nvalbatch = None
+        logr.warning("valbsize=0; not doing val")
+    else:
+        assert nval % valbsize == 0, \
+            "val bsize ({}) must evenly divide nvalidation ({})!".format(valbsize, nval)
+        # this empirically appears to be important no idea why
+        nvalbatch = nval // valbsize
+        logr.info("nval={}, nvalbatch={}, valbsize={}".format(
+            nval, nvalbatch, valbsize))
+
+    if conf.dpk_train_style.startswith('dpk'):
+        use_val = conf.dpk_train_style != 'dpktrnonly'
+        cbks = apt_dpk_callbacks.create_callbacks_exp2orig_train(conf,
+                                                                 sdn,
+                                                                 use_val=use_val,
+                                                                 valbsize=valbsize,
+                                                                 nvalbatch=nvalbatch,
+                                                                 runname=runname)
+    elif conf.dpk_train_style == 'apt':
+        cbks = apt_dpk_callbacks.create_callbacks(conf,
+                                                  sdn,
+                                                  do_val=do_val,
+                                                  valbsize=valbsize,
+                                                  nvalbatch=nvalbatch,
+                                                  runname=runname)
+    else:
+        assert False
 
     print_dpk_conf(conf)
     if not conf.dpk_use_augmenter:
@@ -804,9 +772,6 @@ def train(conf, # create_cbks_fcn=create_callbacks,
         pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
     logr.info("Saved confs to {}".format(conf_file))
 
-    #epochs = conf.dl_steps // conf.display_step
-    epochs = 500
-    logr.warning("Hardcoded epochs={} for the moment".format(epochs))
     steps_per_epoch = conf.display_step
     bsize = conf.batch_size
 
@@ -818,23 +783,32 @@ def train(conf, # create_cbks_fcn=create_callbacks,
                                 confidence=True,
                                 shuffle=True,
                                 infinite=True)
-    dsval = sdn.train_generator(sdn.n_outputs,
-                                valbsize,
-                                validation=True,
-                                confidence=True,
-                                shuffle=False,
-                                infinite=False)
+    if do_val:
+        dsval = sdn.train_generator(sdn.n_outputs,
+                                    valbsize,
+                                    validation=True,
+                                    confidence=True,
+                                    shuffle=False,
+                                    infinite=False)
     sdn.activate_callbacks(cbks)
 
     train_model = sdn.train_model
-    train_model.fit(dstrn,
-                    epochs=epochs,
-                    steps_per_epoch=steps_per_epoch,
-                    verbose=2,
-                    callbacks=cbks,
-                    validation_data=dsval,
-                    validation_steps=nvalbatch,
-                    )
+    if do_val:
+        train_model.fit(dstrn,
+                        epochs=conf.dpk_epochs_used,
+                        steps_per_epoch=steps_per_epoch,
+                        verbose=2,
+                        callbacks=cbks,
+                        validation_data=dsval,
+                        validation_steps=nvalbatch,
+                        )
+    else:
+        train_model.fit(dstrn,
+                        epochs=conf.dpk_epochs_used,
+                        steps_per_epoch=steps_per_epoch,
+                        verbose=2,
+                        callbacks=cbks,
+                        )
     '''
     sdn.fit(
         batch_size=conf.batch_size,
@@ -845,12 +819,12 @@ def train(conf, # create_cbks_fcn=create_callbacks,
         validation_steps=nvalbatch, )  # default validation_freq of 1 seems fine # validation_freq=10)
     '''
 
-#endregion
 
-#region Predict
+# endregion
+
+# region Predict
 
 def get_pred_fn(conf0, model_file, tmr_pred=None):
-
     assert model_file is not None, "model_file is currently required"
 
     if tmr_pred is None:
@@ -890,8 +864,8 @@ def get_pred_fn(conf0, model_file, tmr_pred=None):
         # locs are in imsz_net-space which is post-pad, post rescale
         # Right now we are setting padding in update_conf_dpk so the rescale is precisely used
         locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)  # makes a copy, returns new array
-        locs[..., 0] -= conf.dpk_im_padx//2  # see tfdatagen.pad_ims_black
-        locs[..., 1] -= conf.dpk_im_pady//2
+        locs[..., 0] -= conf.dpk_im_padx // 2  # see tfdatagen.pad_ims_black
+        locs[..., 1] -= conf.dpk_im_pady // 2
 
         ret_dict = {}
         ret_dict['locs'] = locs
@@ -899,9 +873,10 @@ def get_pred_fn(conf0, model_file, tmr_pred=None):
         return ret_dict
 
     def close_fn():
-        K.clear_session()
+        tf.keras.backend.clear_session()
 
     return pred_fn, close_fn, model_file
+
 
 def predict_stuff(sdn, ims, locsgt, hmfloor=0.1, hmncluster=1):
     '''
@@ -918,7 +893,7 @@ def predict_stuff(sdn, ims, locsgt, hmfloor=0.1, hmncluster=1):
 
     sdnconf = sdn.get_config()
     npts = sdnconf['keypoints_shape'][0]
-    unscalefac = 2**sdnconf['downsample_factor']
+    unscalefac = 2 ** sdnconf['downsample_factor']
 
     assert False, "need to preproc ims; heatmap updates"
     yt = mt.predict(ims)
@@ -929,10 +904,11 @@ def predict_stuff(sdn, ims, locsgt, hmfloor=0.1, hmncluster=1):
     locsPhi = mp.predict(ims)
     locsPhi = locsPhi[..., :2]  # 3rd/last col is confidence
 
-    errT = np.sqrt(np.sum((locsgt-locsThi)**2, axis=-1))
-    errP = np.sqrt(np.sum((locsgt-locsPhi)**2, axis=-1))
+    errT = np.sqrt(np.sum((locsgt - locsThi) ** 2, axis=-1))
+    errP = np.sqrt(np.sum((locsgt - locsPhi) ** 2, axis=-1))
 
     return errT, errP, locsThi, locsPhi
+
 
 def conf_load(conf_file):
     '''
@@ -981,5 +957,4 @@ def load_apt_cpkt(exp_dir, mdlfile):
 
     return sdn, conf, model_config
 
-#endregion
-
+# endregion
