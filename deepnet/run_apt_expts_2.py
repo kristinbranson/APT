@@ -61,7 +61,7 @@ elif getpass.getuser() == 'al':
 else:
     assert False, "Add your cache and out directory"
 
-all_models = ['mdn','mdn_unet','deeplabcut','leap','resnet_unet','unet','leap_orig','deeplabcut_orig'] #,'openpose'
+all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint','leap','resnet_unet','unet','leap_orig','deeplabcut_orig'] #,'openpose'
 
 print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))
@@ -89,7 +89,9 @@ common_conf['batch_size'] = 8
 common_conf['maxckpt'] = 200 # Save all models
 common_conf['ignore_occluded'] = False
 common_conf['pretrain_freeze_bnorm'] = True
-
+common_conf['step_lr'] = True
+common_conf['lr_drop_step'] = 0.15
+common_conf['normalize_loss_batch'] = False
 # These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
 
 # for leap
@@ -654,8 +656,6 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
             if train_type in ['resnet_unet','unet']:
                 conf_opts['batch_size'] = 4
 
-
-
     # if op_af_graph is not None:
     #     conf_opts['op_affinity_graph'] = op_af_graph
 
@@ -675,8 +675,8 @@ def set_training_params(conf_opts,train_type='mdn'):
     bsz = conf_opts['batch_size']
     default_bsz = 8
     conf_opts['dl_steps'] = common_conf['dl_steps']*default_bsz//bsz
-    conf_opts['decay_steps'] = common_conf['decay_steps']*default_bsz//bsz
-    conf_opts['learning_rate_multiplier'] = bsz/float(default_bsz)
+    # conf_opts['decay_steps'] = common_conf['decay_steps']*default_bsz//bsz
+    # conf_opts['learning_rate_multiplier'] = bsz/float(default_bsz)
     if train_type == 'deeplabcut':
         conf_opts['dl_steps'] = None
         conf_opts['save_step'] = 8*conf_opts['save_step']

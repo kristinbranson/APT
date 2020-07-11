@@ -1,6 +1,10 @@
 from __future__ import division
 from __future__ import print_function
 
+import os
+os.environ['DLClight'] = 'False'
+#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+
 import logging
 ll = logging.getLogger('matplotlib')
 ll.setLevel(logging.WARNING)
@@ -11,8 +15,6 @@ import collections
 import datetime
 import json
 import contextlib
-import os
-os.environ['DLClight'] = 'False'
 
 from os.path import expanduser
 from random import sample
@@ -55,11 +57,13 @@ from scipy import io as sio
 import time # for timing between writing n frames tracked
 import tarfile
 import urllib
+import getpass
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
-if ISPY3:
+user = getpass.getuser()
+if ISPY3 and user=='leea30':
     import apt_dpk
 
 
@@ -2481,7 +2485,7 @@ def train(lblfile, nviews, name, args):
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
-                self = getattr(pose_module, module_name)(conf,args.train_name)
+                self = getattr(pose_module, module_name)(conf,name=args.train_name)
                 # self.name = args.train_name
                 self.train_wrapper(restore=restore)
 

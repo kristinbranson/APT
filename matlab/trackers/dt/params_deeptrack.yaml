@@ -39,10 +39,10 @@ ROOT:
       - learning_rate_multiplier: ['Learning Rate Multiplier',float,true,'Learning rate multplier for networks other than deeplabcut. If the multiplier is m, and base learning rate is 0.0001 then then learning rate used will be 0.0001*m. Does not apply to LEAP and DeepLabCut.',1.,'','Important','isDeepTrack',true]
       - lr_drop_step: ['Learning Rate Drop',float,true,'At the end of training, the fraction of training steps to train at lower learning rate.',0.15,'','Advanced','isDeepTrack',true]
       - cos_steps: ['OBSOLETE N. warm restarts',unsigned,true,'OBSOLETE Number of times to restart training',2,'','Advanced','isDeepTrack',true]
-      - decay_steps: ['OBSOLETE Learning rate decay iterations',float,true,'OBSOLETE The learning rate is decayed by gamma (below) after this many iterations of training. Does not apply to LEAP and DeepLabCut.',25000,'','Advanced','isDeepTrack',true]
-      - gamma: ['OBSOLETE Learning rate decay (gamma)',float,true,'OBSOLETE Amount to decay the learning rate by after the number of decay iterations above. Does not apply to LEAP and DeepLabCut.',0.1,'','Advanced','isDeepTrack',true]
+      - decay_steps: ['OBSOLETE Learning rate decay iterations',float,true,'OBSOLETE The learning rate is decayed by gamma (below) after this many iterations of training. Does not apply to LEAP and DeepLabCut.',25000,'','Developer','isDeepTrack',true]
+      - gamma: ['OBSOLETE Learning rate decay (gamma)',float,true,'OBSOLETE Amount to decay the learning rate by after the number of decay iterations above. Does not apply to LEAP and DeepLabCut.',0.1,'','Developer','isDeepTrack',true]
       - num_test: ['Number of test examples',unsigned,true,'Number of training examples to use to compute the training error.',24,'','Advanced','isDeepTrack']
-      - normalize_loss_batch: ['Normalize the loss',boolean,true,'Normalize the loss by the batch size. Not normalizing is better',0,'','Advanced','isDeepTrack',true]
+      - normalize_loss_batch: ['Normalize the loss',boolean,true,'Normalize the loss by the batch size. Not normalizing is better',0,'','Developer','isDeepTrack',true]
     - DataAugmentation:
       - ['','',false,'To learn invariances to certain kinds of perturbations, training data can be augmented by randomly perturbing each image during training.','','','','']
       - rrange: ['Rotate range',unsigned,true,'Augment by rotating training images and labels by a random angle less than this number of degrees in either direction.',15,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]

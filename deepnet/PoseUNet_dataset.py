@@ -102,9 +102,9 @@ def find_pad_sz(n_layers,in_sz):
 
 class PoseUNet(PoseCommon):
 
-    def __init__(self, conf, name='pose_unet',pad_input=False):
+    def __init__(self, conf, name='deepnet',pad_input=False):
 
-        PoseCommon.__init__(self, conf, name)
+        PoseCommon.__init__(self, conf, name=name)
         self.down_layers = [] # layers created while down sampling
         self.up_layers = [] # layers created while up sampling
         self.edge_ignore = 10

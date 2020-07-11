@@ -11,7 +11,8 @@ from importlib import reload
 reload(rae)
 rae.setup('alice')
 #rae.create_normal_dbs()
-dstr = '20200604'
+# dstr = '20200604'
+dstr = '20200706'
 rae.run_normal_training(dstr=dstr) #run_type = 'submit' to actually submit jobs.
 # rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
 
@@ -26,7 +27,7 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-dstr = '20200604' # '20200410'
+dstr = '20200706' #'20200604' # '20200410'
 rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
 # rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
 rae.setup('alice_difficult')
@@ -40,7 +41,8 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('stephen')
-dstr = '20200605'
+# dstr = '20200605'
+dstr = '20200706'
 #rae.create_normal_dbs()
 rae.run_normal_training(dstr=dstr) #run_type = 'submit'
 # rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
@@ -52,8 +54,8 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('stephen')
-rae.get_normal_results(dstr='20200411')
-rae.get_normal_results(dstr='20200411',queue='gpu_tesla')
+dstr = '20200706' #'20200411'
+rae.get_normal_results(dstr=dstr)
 
 ## Accuracy over training set size
 
@@ -103,14 +105,6 @@ for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
 ## Brits experiments
 
 ## training
-import run_apt_expts_2 as rae
-from importlib import reload
-reload(rae)
-for britnum in range(3):
-    rae.setup('brit{}'.format(britnum))
-    # rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
-    rae.cv_train_from_mat(queue='gpu_tesla',dstr='20200417')
-    rae.cv_train_from_mat(dstr='20200417')
 
 ## results
 import run_apt_expts_2 as rae

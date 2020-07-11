@@ -21,8 +21,8 @@ from tensorflow.contrib.layers import batch_norm
 
 class Pose_resnet_unet(PoseBase):
 
-    def __init__(self, conf):
-        PoseBase.__init__(self, conf,hmaps_downsample=1)
+    def __init__(self, conf,name='deepnet'):
+        PoseBase.__init__(self, conf,name=name,hmaps_downsample=1)
 
         self.conf.use_pretrained_weights = True
 

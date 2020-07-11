@@ -42,7 +42,9 @@ import run_apt_expts as rae
 import deepposekit.io.utils as dpkut
 import deepposekit.utils.keypoints
 import util
-import apt_dpk_exps as ade
+# user = getpass.getuser()
+# if user == 'leea30':
+#     import apt_dpk_exps as ade
 
 bubtouchroot = '/groups/branson/home/leea30/apt/ar_flybub_touching_op_20191111'
 lblbubtouch = os.path.join(bubtouchroot, '20191125T170226_20191125T170453.lbl')
