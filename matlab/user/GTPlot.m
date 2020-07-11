@@ -99,7 +99,8 @@ classdef GTPlot
       % hFig: figure handle
       % hAxs: [nviews x nsets] axes handles
       
-      [ptiles,hFig,xyLblPlotArgs,setNames,ptileCmap,lineWidth,contourtype,titlefontsize] = ...
+      [ptiles,hFig,xyLblPlotArgs,setNames,ptileCmap,lineWidth,...
+        contourtype,titlefontsize,legfontsize] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
@@ -110,7 +111,8 @@ classdef GTPlot
         'contourtype','circle',... % either 'circle','ellipse','arb'. 
           ... % If ellipse or arb, then err should have size 
           ... % [n x npts x 2 x nviews x nsets] (3rd dim = x/y)
-        'titlefontsize',22 ...
+        'titlefontsize',22, ...
+        'legfontsize',16 ...
         );
       
       [n,npts,nviews,nsets,l2errptls,l2mnerrptls] = ...
@@ -217,7 +219,8 @@ classdef GTPlot
         legends{p} = sprintf('%sth %%ile',num2str(ptiles(p)));
       end
       hl = legend(h,legends);
-      set(hl,'Color','k','TextColor','w','EdgeColor','w');
+      set(hl,'Color','k','TextColor','w','EdgeColor','w',...
+        'fontsize',legfontsize);
       truesize(hFig);            
     end
     
@@ -320,18 +323,25 @@ classdef GTPlot
       % hAxs: [nviews x nsets] axes handles
       
       [ptiles,hFig,lineArgs,setNames,axisArgs,ptnames,...
-        createsubplotsborders,titleArgs,errCellPerView,viewNames] = ...
+        createsubplotsborders,titleArgs,errCellPerView,viewNames,...
+        legendFontSize,errbars,errbarptiles] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
-        'lineArgs',{'m+'},...
+        'lineArgs',{'markersize',20},...
         'setNames',[],...
-        'axisArgs',{'XTicklabelRotation',45,'FontSize' 16},...
+        'axisArgs',{'XTicklabelRotation',45,'FontSize' 20},...
         'ptnames',[],...
         'createsubplotsborders',[.05 0;.12 .12],...
         'titleArgs',{'fontweight','bold'},...
         'errCellPerView',false,...
-        'viewNames',[]... % [nview] cellstr
+        'viewNames',[],... % [nview] cellstr
+        'legendFontSize',10, ...
+        'errbars',[],... % [nptl x npts x nvw] err bars spec'd per 
+                          ... % (pt,vw,ptl). errbar shown is +/- this qty.
+                          ... % errbars are constant across sets.
+        'errbarptiles',[] ... % [nptl] ptiles used for errbars. must match 
+                          ... % ptiles.
         );
       
       [ns,npts,nviews,nsets,l2errptls,l2mnerrptls,nstype] = ...
@@ -367,6 +377,12 @@ classdef GTPlot
         viewNames = arrayfun(@(x,y)sprintf('%s (n=%d)',x{1},y),viewNames(:),ns(:),'uni',0);
       end
       
+      tfEB = ~isempty(errbars);
+      if tfEB
+        assert(isequal(errbarptiles,ptiles));
+        szassert(errbars,[numel(ptiles) npts nviews]);
+      end
+      
       hAxs = createsubplots(nviews,npts+1,createsubplotsborders);
       hAxs = reshape(hAxs,nviews,npts+1);
       for ivw=1:nviews
@@ -383,12 +399,12 @@ classdef GTPlot
             ax = hAxs(ivw,ipt);
             tstr = ptnames{ipt};
             if isscalar(ns) && strcmp(nstype,'scalar') && tfPlot1
-              tstr = sprintf('N=%d. %s',ns,tstr);
+              tstr = sprintf('N=%d\n%s',ns,tstr);
             end
           else
             y = squeeze(l2mnerrptls(:,ivw,:)); % [nptl x nsets]
             ax = hAxs(ivw,npts+1);
-            tstr = 'mean allpts shown';
+            tstr = sprintf('mean\nallpts'); %'mean allpts shown';
           end
           
           axes(ax);
@@ -399,15 +415,28 @@ classdef GTPlot
           args = [args axisArgs]; %#ok<AGROW>
             
           x = 1:nsets; % croptypes
-          h = plot(x,y','.-','markersize',20);
+          h = plot(x,y','.-',lineArgs{:});  % nptl curves plotted
           set(ax,args{:});
           hold(ax,'on');
           ax.ColorOrderIndex = 1;
           
+          if tfEB && ~isinf(ipt)            
+            ybar = errbars(:,ipt,ivw)'; % [1 x nptl]
+            y0 = y'-ybar; % [nsets x nptl]
+            y1 = y'+ybar; % [nsets x nptl]
+            for iset=1:nsets
+            for iptl=1:size(y0,2)
+              plot(x([iset iset]),[y0(iset,iptl) y1(iset,iptl)],':',...
+                'Color',h(iptl).Color,lineArgs{:}); 
+            end
+            end
+            ax.ColorOrderIndex = 1;
+          end
+
           if tfPlot1
             legstrs = strcat(numarr2trimcellstr(ptiles'),'%');
             hLeg = legend(h,legstrs);
-            hLeg.FontSize = 10;
+            hLeg.FontSize = legendFontSize;
             %xlabel('Crop type','fontweight','normal','fontsize',14);
           else
             set(ax,'XTickLabel',[]);

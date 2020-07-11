@@ -3515,8 +3515,18 @@ classdef Labeler < handle
       if ~isfield(s,'trkRes')
         s = Labeler.resetTrkResFieldsStruct(s);
       end
+      if size(s.trkRes,1)~=size(s.movieFilesAll,1) || ...
+         size(s.trkResGT,1)~=size(s.movieFilesAllGT,1) 
+        % AL20200702: we appear to have had a bug in movieSetAdd which 
+        % didn't maintain/update .trkRes/.trkResGT size appropriately. Fix
+        % here at load-time. The .trkRes* infrastructure is power-users only
+        % so probably very few regular users use it.
+        warningNoTrace('Unexpected .trkRes* size. Resetting .trkRes* state. (This is not a commonly-used feature.)');
+        s = Labeler.resetTrkResFieldsStruct(s);   
+      end
     end
     function s = resetTrkResFieldsStruct(s)
+      % see .trackResInit, maybe can combine
       nmov = size(s.movieFilesAll,1);
       nmovGT = size(s.movieFilesAllGT,1);
       nvw = size(s.movieFilesAll,2);
@@ -3829,11 +3839,7 @@ classdef Labeler < handle
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
-      if ~isempty(obj.(PROPS.TRKRES))
-        obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
-      else
-        obj.(PROPS.TRKRES) = cell(1,obj.nview,0);        
-      end
+      obj.(PROPS.TRKRES)(end+1,:,:) = {[]};
       if ~gt
         obj.labeledposMarked{end+1,1} = false(nLblPts,nFrms,nTgt);
       end
