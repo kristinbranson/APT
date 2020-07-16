@@ -739,14 +739,14 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
     mov_split = None
     predefined = None
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
-    elif conf.splitType is 'movie':
+    elif conf.splitType == 'movie':
         nexps = len(local_dirs)
         mov_split = sample(list(range(nexps)), int(nexps * conf.valratio))
         predefined = None
-    elif conf.splitType is 'trx':
+    elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
     for ndx, dir_name in enumerate(local_dirs):
@@ -834,14 +834,14 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
 
     mov_split = None
     predefined = None
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
-    elif conf.splitType is 'movie':
+    elif conf.splitType == 'movie':
         nexps = len(local_dirs)
         mov_split = sample(list(range(nexps)), int(nexps * conf.valratio))
         predefined = None
-    elif conf.splitType is 'trx':
+    elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
     m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
