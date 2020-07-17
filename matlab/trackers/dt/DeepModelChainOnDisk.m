@@ -22,7 +22,17 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
               % restarted arbitrarily many times. This timestamp uniquely
               % identifies a restart
     trainType % scalar DLTrainType
+    
+    
+    
     isMultiView = false; % whether this was trained with one call to APT_interface for all views
+    
+    doSplit = false;
+    splitIdx = nan; % used if doSplit=true
+    % if provided, overrides .lblStrippedName. used for each running splits
+    % wherein a single stripped lbl is used in multiple runs
+    lblStrippedNameOverride = []; 
+    
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
     nLabels % number of labels used to train
@@ -50,6 +60,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     errfileName
     trainLogLnx
     trainLogName
+    splitfileLnx % used only for trainsplit() or xv
+    splitfileName % etc
     viewName
     killTokenLnx
     killTokenName
@@ -87,13 +99,17 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = get.dirAptRootLnx(obj)
       v = [obj.rootDir obj.filesep 'APT'];
     end 
-    function v = get.lblStrippedLnx(obj)      
+    function v = get.lblStrippedLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.lblStrippedName];      
     end
     function v = get.lblStrippedName(obj)
-      v = sprintf('%s_%s.lbl',obj.modelChainID,obj.trainID);
+      if ~isempty(obj.lblStrippedNameOverride)
+        v = obj.lblStrippedNameOverride;
+      else
+        v = sprintf('%s_%s.lbl',obj.modelChainID,obj.trainID);
+      end
     end
-    function v = get.cmdfileLnx(obj)      
+    function v = get.cmdfileLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.cmdfileName];      
     end
     function v = get.cmdfileName(obj)
@@ -102,8 +118,19 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       else
         v = sprintf('%sview%d_%s.cmd',obj.modelChainID,obj.view,obj.trainID);
       end
-    end    
-    function v = get.errfileLnx(obj)      
+    end
+    function v = get.splitfileLnx(obj)
+      v = [obj.dirProjLnx obj.filesep obj.splitfileName];
+    end
+    function v = get.splitfileName(obj)
+      % not sure how multiview works yet
+      if obj.doSplit
+        v = sprintf('%s_view%d_split.json',obj.modelChainID,obj.view);
+      else
+        v = '__NOSPLIT__';
+      end
+    end
+    function v = get.errfileLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.errfileName];      
     end
     function v = get.errfileName(obj)
@@ -437,7 +464,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       iter = str2double(iter{1});
       
     end
-    
+    function mcId = modelChainIDForSplit(mcIdBase,isplit)
+      mcId = sprintf('%s_splt_%03d',mcIdBase,isplit);
+    end
   end
 end
     
