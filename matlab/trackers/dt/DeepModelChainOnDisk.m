@@ -62,6 +62,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainLogName
     splitfileLnx % used only for trainsplit() or xv
     splitfileName % etc
+    valresultsLnx % etc
+    valresultsName % etc
     viewName
     killTokenLnx
     killTokenName
@@ -129,6 +131,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       else
         v = '__NOSPLIT__';
       end
+    end
+    function v = get.valresultsLnx(obj)
+      v = [obj.dirTrkOutLnx obj.filesep obj.valresultsName];
+    end    
+    function v = get.valresultsName(obj)
+      v = sprintf('%s.mat',obj.trainID);
     end
     function v = get.errfileLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.errfileName];      
