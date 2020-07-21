@@ -631,7 +631,8 @@ classdef DeepTracker < LabelTracker
           assert(false);
       end
 
-      trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,obj,trnWrkObj,backEnd.type);
+      trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,obj,trnWrkObj,...
+        backEnd.type,'trainSplits',trainSplits);
                 
       trnMonObj.prepare(trnVizObj,trnWrkObj);
       trnMonObj.start();
@@ -1846,7 +1847,9 @@ classdef DeepTracker < LabelTracker
       [wbObj] = myparse(varargin,...
         'wbObj',[] ...
         );
-      
+                 
+      assert(obj.lObj.nview==1,'Currently only supported for single-view.');
+
       % --- C+P retrain ---
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
@@ -1874,16 +1877,14 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'\n');
       % --- C+P retrain ---
 
-      fprintf(2,'UNCOMMENT ME JRC reqd\n');
-      %assert(trnBackEnd.type==DLBackEnd.Bsub,...
-      %  'Currently only supported for JRC Cluster backend.');
-            
+      assert(trnBackEnd.type==DLBackEnd.Bsub,...
+        'Currently only supported for JRC Cluster backend.');
+      
       obj.setAllParams(lblObj.trackGetParams());
       
       if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
       end
-
 
       slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
       tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
@@ -1903,7 +1904,6 @@ classdef DeepTracker < LabelTracker
         tblSplit(~tf,:) = [];
       end
       
-      
       splits = tblSplit.split;
       assert(isequal(round(splits),splits));
       assert(all(splits>0));
@@ -1913,8 +1913,6 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'Split summary:\n');
       summary(categorical(splits));
       
-      
-      
       obj.bgTrnReset();
       
       cacheDir = obj.lObj.DLCacheDir;
@@ -1922,12 +1920,9 @@ classdef DeepTracker < LabelTracker
       % Currently, cacheDir must be visible on the JRC shared filesys.
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
       
-      
-      assert(obj.lObj.nview==1,'Currently only supported for single-view.');
 
       trnType = DLTrainType.New;
 
-      
       % Base DMC, to be further copied/specified per-split
       dmc = DeepModelChainOnDisk(...
         'rootDir',cacheDir,...
@@ -1943,10 +1938,6 @@ classdef DeepTracker < LabelTracker
         'filesep',obj.filesep,...
         'doSplit',true ...
         );
-
-      
-      
-      
 
       nvw = obj.lObj.nview;
       isMultiViewTrain = false;
@@ -1964,7 +1955,6 @@ classdef DeepTracker < LabelTracker
 %           end
 %         end
 %       end
-      
 
       switch trnBackEnd.type
         case DLBackEnd.Bsub
@@ -1980,15 +1970,12 @@ classdef DeepTracker < LabelTracker
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
         case {DLBackEnd.Conda,DLBackEnd.Docker},
-          
-          fprintf(2,'UNCMT ASSERT JRC \n');
-          %assert(false);
+          assert(false);
           aptroot = APT.Root;
           %obj.downloadPretrainedWeights('aptroot',aptroot); 
       end
             
       trnCmdType = trnType;
-      
 
       % LOOP STUFF
       nowstr = datestr(now,'yyyymmddTHHMMSS');
@@ -2008,9 +1995,7 @@ classdef DeepTracker < LabelTracker
       save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
       fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
 
-      
       %dmc.nLabels = slbl.nLabels;
-
             
       % At this point
       % We have (modelChainID,trainID). stripped lbl is on disk. 
@@ -2025,7 +2010,6 @@ classdef DeepTracker < LabelTracker
           %mntPaths = obj.genContainerMountPath();          
       %end
       
-      fprintf(2,'TYPE DOCKER\n');
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Docker}
           mntPaths = obj.genContainerMountPath('aptroot',aptroot);
@@ -2187,9 +2171,6 @@ classdef DeepTracker < LabelTracker
         end        
         obj.trnSplitLastDMC = dmc;
       end
-      
-      
-      
       
       % Nothing should occur here as failed trnSpawn* will early return
       
