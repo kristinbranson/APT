@@ -825,7 +825,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             sel_comp = [cur_comp[i] for i in gr]
             sel_comp = tf.stack(sel_comp, 1)
             # pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
-            sel_comp = tf.boolean_mask(sel_comp,tf.is_finite(sel_comp))
+            # sel_comp = tf.boolean_mask(sel_comp,tf.is_finite(sel_comp))
+            sel_comp = tf.where(tf.is_finite(sel_comp),sel_comp,tf.zeros_like(sel_comp))
+
             pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
             cur_loss += pp
 
