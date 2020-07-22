@@ -1794,11 +1794,6 @@ classdef CPRLabelTracker < LabelTracker
       tblfldscontainsassert(tblMFT,MFTable.FLDSID);
       assert(isa(tblMFT.mov,'MovieIndex'));
       
-      nFrmTrk = size(tblMFT,1);
-      iChunkStarts = 1:movChunkSize:nFrmTrk;
-      nChunk = numel(iChunkStarts);
-      isMultiChunk = nChunk>1;
-      
       if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
         %if ~isMultiChunk
         tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
@@ -1845,6 +1840,10 @@ classdef CPRLabelTracker < LabelTracker
       % want to run hlpTrackWrapupViz.
       oc = onCleanup(@()hlpTrackWrapupViz(obj));
       
+      nFrmTrk = size(tblMFT,1);
+      iChunkStarts = 1:movChunkSize:nFrmTrk;
+      nChunk = numel(iChunkStarts);
+      isMultiChunk = nChunk>1;
 
       if tfWB && nChunk>1
         wbObj.startPeriod('Tracking chunks','shownumden',true,'denominator',nChunk);

@@ -751,14 +751,14 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
     mov_split = None
     predefined = None
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
-    elif conf.splitType is 'movie':
+    elif conf.splitType == 'movie':
         nexps = len(local_dirs)
         mov_split = sample(list(range(nexps)), int(nexps * conf.valratio))
         predefined = None
-    elif conf.splitType is 'trx':
+    elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
     for ndx, dir_name in enumerate(local_dirs):
@@ -846,14 +846,14 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
 
     mov_split = None
     predefined = None
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
-    elif conf.splitType is 'movie':
+    elif conf.splitType == 'movie':
         nexps = len(local_dirs)
         mov_split = sample(list(range(nexps)), int(nexps * conf.valratio))
         predefined = None
-    elif conf.splitType is 'trx':
+    elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
     m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
@@ -1574,7 +1574,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None):
 
         # raise ValueError('Undefined model type')
 
-    return pred_locs, label_locs, info
+    return pred_locs, label_locs, info, model_file
 
 
 def check_train_db(model_type, conf, out_file):
@@ -2268,7 +2268,9 @@ def train(lblfile, nviews, name, args):
             out_data = []
             for d in in_data:
                 out_data.append((np.array(d)-1).tolist())
-            t_file = os.path.join(tempfile.tempdir,next(tempfile._get_candidate_names()))
+            # tempfile.tempdir returns None for bsub/sing
+            #t_file = os.path.join(tempfile.tempdir,next(tempfile._get_candidate_names()))
+            t_file = args.split_file + ".temp0b"
             with open(t_file,'w') as f:
                 json.dump(out_data,f)
             conf.splitType = 'predefined'
@@ -2312,6 +2314,20 @@ def train(lblfile, nviews, name, args):
             logging.exception('Out of GPU Memory. Either reduce the batch size or scale down the image')
             exit(1)
 
+        if args.classify_val:
+            val_filename = get_valfilename(conf, net_type)
+            db_file = os.path.join(conf.cachedir, val_filename)
+            logging.info("Classifying {}... ".format(db_file))
+            preds, locs, info, model_file = classify_db_all(net_type, conf, db_file)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            info = to_mat(info)
+            out_file = args.classify_val_out
+            logging.info("... done classifying, used model {}. Saving to {}".format(model_file, out_file))
+            out_dict = {'preds': preds, 'locs': locs, 'info': info, 'model_file': model_file}
+            hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("lbl_file",
@@ -2340,7 +2356,13 @@ def parse_args(argv):
                               help='Use cached images in the label file to generate the training data.')
     parser_train.add_argument('-continue', dest='restore', action='store_true',
                               help='Continue from previously unfinished traning. Only for unet')
-    parser_train.add_argument('-split_file', dest='split_file', help='Split file to split data for train and validation', default=None)
+    parser_train.add_argument('-split_file', dest='split_file',
+                              help='Split file to split data for train and validation', default=None)
+    parser_train.add_argument('-classify_val', dest='classify_val',
+                              help='Apply trained model to val db', action='store_true')
+    parser_train.add_argument('-classify_val_out', dest='classify_val_out',
+                              help='Store results of classify_val in this file (specified as a full path).', default=None)
+
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
 
@@ -2431,7 +2453,19 @@ def parse_trx_ids_arg(trx_ids,nmovies):
 
     logging.info('Output trx_ids = ' + str(trx_ids_out))
     return trx_ids_out
-    
+
+def get_valfilename(conf, nettype):
+    if nettype in ['mdn', 'unet', 'openpose']:
+        val_filename = conf.valfilename + '.tfrecords'
+    elif nettype == 'leap':
+        val_filename = 'leap_val.h5'
+    elif nettype == 'deeplabcut':
+        val_filename = 'val_data.p'
+    else:
+        raise ValueError('Unrecognized net type')
+    return val_filename
+
+
 def run(args):
     name = args.name
 
@@ -2634,16 +2668,9 @@ def run(args):
             if args.db_file is not None:
                 db_file = args.db_file
             else:
-                if args.type in ['mdn','unet','openpose']:
-                    val_filename = conf.valfilename + '.tfrecords'
-                elif args.type == 'leap':
-                    val_filename = 'leap_val.h5'
-                elif args.type == 'deeplabcut':
-                    val_filename = 'val_data.p'
-                else:
-                    raise ValueError('Unrecognized net type')
+                val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            preds, locs, info, _ = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
             # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
             preds = to_mat(preds)
