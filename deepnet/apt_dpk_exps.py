@@ -33,24 +33,41 @@ import multiResData as mrd
 
 logr = logging.getLogger('APT')
 
-user = getpass.getuser()
 
+'''
 blaptdata = '/groups/branson/bransonlab/apt/experiments/data'
 
+bubtouchroot = '/groups/branson/home/leea30/apt/ar_flybub_touching_op_20191111'
+lblbubtouch = os.path.join(bubtouchroot, '20191125T170226_20191125T170453.lbl')
+cvitouch = os.path.join(bubtouchroot, 'cvi_trn4702_tst180.mat')
+kwtouch = '20191125_base_trn4702tst180'
+cdirtouch = os.path.join(bubtouchroot, 'cdir' + kwtouch)
+outtouch = os.path.join(bubtouchroot, 'out' + kwtouch)
+exptouch = 'cvi_trn4702_tst180__split1'  # trn4702, tst180
+cacheroot = '/nrs/branson/al/cache'
+
+isotri = '/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
+isotrilocs = np.array([[226., 107.], [180., 446.], [283., 445.]])
+isotriswapidx = np.array([-1, 2, 1])
+'''
+
+user = getpass.getuser()
 if user == 'leea30':
+    aptexptsdata = '/groups/branson/bransonlab/apt/experiments/data'
     dbs = {
         'dpkfly': {
             'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
-            'slbl': os.path.join(blaptdata, 'leap_dataset_gt_stripped_numchans1.lbl')
+            'slbl': os.path.join(aptexptsdata, 'leap_dataset_gt_stripped_numchans1.lbl')
         },
         'alice': {
-            'slbl': os.path.join(blaptdata,
+            'slbl': os.path.join(aptexptsdata,
                                  'multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'),
-            'skel': os.path.join(blaptdata, 'multitarget_bubble_dpk_skeleton.csv')
+            'skel': os.path.join(aptexptsdata, 'multitarget_bubble_dpk_skeleton.csv')
         }
     }
     alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
     aldeepnet = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
+    dpkdsets = '/groups/branson/home/leea30/git/dpkd/datasets'
 elif user == 'al':
     dbs = {
         'dpkfly': {'h5dset': '/home/al/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
@@ -59,6 +76,27 @@ elif user == 'al':
     }
     alcache = '/dat0/apt/cache'
     aldeepnet = '/home/al/git/APT_aldl/deepnet'
+    aptexptsdata = '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data'
+    dpkdsets = '/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets'
+
+
+skeleton_csvs = {
+    'alice': [os.path.join(aptexptsdata, 'multitarget_bubble_dpk_skeleton.csv')],
+    'stephen': [
+        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
+        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv'),
+    ],
+    'romain': [
+        os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw0.csv'),
+        os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw1.csv'),
+    ],
+    'roian': [os.path.join(aptexptsdata, 'roian_dpk_skeleton.csv')],
+    'larva': [os.path.join(aptexptsdata, 'larva_dpk_skeleton.csv')],
+    'dpkfly': [os.path.join(dpkdsets, 'fly/skeleton.csv')],
+    'dpklocust': [os.path.join(dpkdsets, 'locust/skeleton.csv')],
+    'dpkzebra': [os.path.join(dpkdsets, 'zebra/skeleton.csv')],
+}
+
 
 '''
 def get_rae_normal_conf():

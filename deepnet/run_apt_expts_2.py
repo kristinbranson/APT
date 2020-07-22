@@ -29,7 +29,7 @@ import hdf5storage
 import easydict
 import sys
 import getpass
-import apt_dpk as apt_dpk
+import apt_dpk_exps as ade
 import util as util
 import time
 
@@ -130,7 +130,7 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
         # op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
         groups = ['']
-        dpk_skel_csv = apt_dpk.skeleton_csvs['alice']
+        dpk_skel_csv = ade.skeleton_csvs['alice']
 
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
                                     'dpk': 'ntrans5_postrescalefixes',
@@ -152,7 +152,7 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         # for vw2; who knows vw1
         # op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        dpk_skel_csv = ade.skeleton_csvs[data_type]
 
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
@@ -174,7 +174,7 @@ def setup(data_type_in,gpu_device=None):
         # common_conf['rrange'] = 180
         # common_conf['trange'] = 5
 
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
@@ -198,7 +198,7 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14),(12,13),(13,14),(14,18),(18,17),(17,16),(16,15)'
         # op_af_graph = op_af_graph.replace('(','\(')
         # op_af_graph = op_af_graph.replace(')','\)')
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        dpk_skel_csv = ade.skeleton_csvs[data_type]
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
         # common_conf['trange'] = 20
 
@@ -223,7 +223,7 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = op_af_graph.replace('(','\(')
         # op_af_graph = op_af_graph.replace(')','\)')
         # op_af_graph = op_af_graph.replace(' ','')
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        dpk_skel_csv = ade.skeleton_csvs[data_type]
         # common_conf['trange'] = 20
         # common_conf['rrange'] = 180
 
