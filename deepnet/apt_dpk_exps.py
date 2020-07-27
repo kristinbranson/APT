@@ -62,14 +62,14 @@ if user == 'leea30':
         'alice': {
             'slbl': os.path.join(aptexptsdata,
                                  'multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'),
-            'skel': [os.path.join(blaptdata, 'multitarget_bubble_dpk_skeleton.csv')]
+            'skel': [os.path.join(aptexptsdata, 'multitarget_bubble_dpk_skeleton.csv')]
         },
         'stephen': {
-          'slbl': os.path.join(blaptdata,
+          'slbl': os.path.join(aptexptsdata,
                                'sh_trn4992_gtcomplete_cacheddata_updated20200317_stripped_mdn.lbl'),
           'skel': [
-              os.path.join(blaptdata, 'sh_dpk_skeleton_vw0_side.csv'),
-              os.path.join(blaptdata, 'sh_dpk_skeleton_vw1_front.csv')],
+              os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
+              os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv')],
         }
     }
     alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
