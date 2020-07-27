@@ -17,6 +17,11 @@ classdef BgTrainWorkerObj < BgWorkerObj
       obj@BgWorkerObj(varargin{:});
     end
     
+    function f = getTrainCompleteArtifacts(obj)
+      % f: [nview x 1] cellstr of artifacts whose presence indicates train
+      % complete
+      f = {obj.dmcs.trainFinalModelLnx}';
+    end
     
     function sRes = compute(obj) % obj const except for .trnLogLastStep
       % sRes: [nviewx1] struct array.
@@ -25,6 +30,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
       % - Check for completion 
       dmcs = obj.dmcs;
       njobs = numel(dmcs);
+      trainCompleteFiles = obj.getTrainCompleteArtifacts();
       sRes = struct(...
         'pollsuccess',cell(njobs,1),... % if true, remote poll cmd was successful
         'pollts',[],... % datenum time that poll cmd returned
@@ -33,7 +39,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
         'lastTrnIter',[],... % (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
         'contents',[],... % (only if jsonPresent==true) if tfupdate is true, this can contain all json contents.
-        'trainCompletePath',[],... % char, full path to artifact indicating train complete
+        'trainCompletePath',trainCompleteFiles,... % char, full path to artifact indicating train complete
         'tfComplete',[],... % true if trainCompletePath exists
         'errFile',[],... % char, full path to DL err file
         'errFileExists',[],... % true of errFile exists and has size>0
@@ -47,7 +53,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
       for ivw=1:njobs,
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
-        finalmdl = dmc.trainFinalModelLnx;
+        %finalmdl = dmc.trainFinalModelLnx;
         errFile = dmc.errfileLnx;
         logFile = dmc.trainLogLnx;
         killFile = killFiles{ivw};
@@ -56,8 +62,8 @@ classdef BgTrainWorkerObj < BgWorkerObj
         sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.fileExists(json);
-        sRes(ivw).trainCompletePath = finalmdl;
-        sRes(ivw).tfComplete = obj.fileExists(finalmdl);
+        %sRes(ivw).trainCompletePath = finalmdl;
+        sRes(ivw).tfComplete = obj.fileExists(sRes(ivw).trainCompletePath);
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = obj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).logFile = logFile;

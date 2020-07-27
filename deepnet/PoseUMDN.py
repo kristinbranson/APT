@@ -76,7 +76,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             X = tf.stop_gradient(X)
 
         with tf.variable_scope(self.net_name):
-            if self.net_type is 'fixed':
+            if self.net_type == 'fixed':
                 return self.create_network_fixed(X)
             else:
                 return self.create_network1(X)
@@ -496,11 +496,11 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
     def my_loss(self, X, y):
 
-        if self.net_type is 'conv':
+        if self.net_type == 'conv':
             extra_layers = self.conf.mdn_extra_layers
             n_layers_u = len(self.dep_nets.up_layers) + extra_layers
             locs_offset = float(2**n_layers_u)
-        elif self.net_type is 'fixed':
+        elif self.net_type == 'fixed':
             locs_offset = np.mean(self.conf.imsz)/2
         else:
             raise Exception('Unknown net type')
@@ -543,11 +543,11 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
     def compute_dist(self, preds, locs):
 
-        if self.net_type is 'conv':
+        if self.net_type == 'conv':
             extra_layers = self.conf.mdn_extra_layers
             n_layers_u = len(self.dep_nets.up_layers) + extra_layers
             locs_offset = float(2**n_layers_u)
-        elif self.net_type is 'fixed':
+        elif self.net_type == 'fixed':
             locs_offset = np.mean(self.conf.imsz)/2
         else:
             raise Exception('Unknown net type')
@@ -677,11 +677,11 @@ class PoseUMDN(PoseCommon.PoseCommon):
         osz = self.conf.imsz
         self.joint = True
 
-        if self.net_type is 'conv':
+        if self.net_type == 'conv':
             extra_layers = self.conf.mdn_extra_layers
             n_layers_u = len(self.dep_nets.up_layers) + extra_layers
             locs_offset = float(2**n_layers_u)
-        elif self.net_type is 'fixed':
+        elif self.net_type == 'fixed':
             locs_offset = np.mean(self.conf.imsz)/2
         else:
             raise Exception('Unknown net type')
@@ -773,11 +773,11 @@ class PoseUMDN(PoseCommon.PoseCommon):
         else:
             n_frames = n_frames - start_at
 
-        if self.net_type is 'conv':
+        if self.net_type == 'conv':
             extra_layers = self.conf.mdn_extra_layers
             n_layers_u = len(self.dep_nets.up_layers) + extra_layers
             locs_offset = float(2**n_layers_u)
-        elif self.net_type is 'fixed':
+        elif self.net_type == 'fixed':
             locs_offset = np.mean(self.conf.imsz)/2
         else:
             raise Exception('Unknown net type')
