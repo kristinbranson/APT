@@ -718,8 +718,13 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
     # .batch_size
     # .dl_steps
     ntrn = tgtfr.n_train
-    steps_per_epoch = int(np.ceil(ntrn / conf.batch_size))
-    conf.display_step = steps_per_epoch
+
+    if conf.dpk_auto_steps_per_epoch:
+        steps_per_epoch = int(np.ceil(ntrn / conf.batch_size))
+        conf.display_step = steps_per_epoch
+    else:
+        steps_per_epoch = conf.display_step
+
     conf.save_step = conf.save_step // steps_per_epoch * steps_per_epoch  # align saving on epoch boundaries
     epochs = conf.dl_steps // conf.display_step
     conf.dpk_epochs_used = epochs
@@ -730,7 +735,7 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
     valbsize = conf.dpk_val_batch_size
     do_val = valbsize > 0
     if not do_val:
-        assert conf.dpk_train_style == 'apt'
+        assert conf.dpk_train_style in ['apt', 'dpktrnonly']
         nvalbatch = None
         logr.warning("valbsize=0; not doing val")
     else:
@@ -742,11 +747,16 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
             nval, nvalbatch, valbsize))
 
     if conf.dpk_train_style.startswith('dpk'):
-        use_val = conf.dpk_train_style != 'dpktrnonly'
+        use_val_lr_es = conf.dpk_train_style != 'dpktrnonly'
+        if use_val_lr_es:
+            assert do_val
+        else:
+            # Note valbsize can still be > 0 to evaluate/log valdist during trn.
+            pass
         cbks = apt_dpk_callbacks.create_callbacks_exp2orig_train(conf,
                                                                  sdn,
-                                                                 use_val=use_val,
-                                                                 valbsize=valbsize,
+                                                                 use_val=use_val_lr_es,
+                                                                 bsize_valdistlogger=valbsize,
                                                                  nvalbatch=nvalbatch,
                                                                  runname=runname)
     elif conf.dpk_train_style == 'apt':
@@ -772,7 +782,6 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
         pickle.dump({'conf': conf, 'tg': tgconf, 'sdn': sdnconf}, fh)
     logr.info("Saved confs to {}".format(conf_file))
 
-    steps_per_epoch = conf.display_step
     bsize = conf.batch_size
 
     assert conf.dpk_use_tfdata

@@ -515,6 +515,9 @@ for dd in dtypes:
 
 eres03gt = ade.assess('e00_r03', dset='alice', usegt_tfr=True)
 
+# sh
+ade.assess_set2(exps, range(2), 'stephen', usegt_tfr=True,  )
+
 ## DPK/bub ia vs pt
 import run_apt_expts_2 as rae
 dtypes = ['alice']
@@ -543,6 +546,61 @@ rae.train_dpk_orig(expname='e02_r00',
                    exp_note='r02 split; dpktrnonly-style train (no val)',
                    dpk_use_augmenter=0,
                    dpk_train_style='dpktrnonly',
+                   )
+
+rae.train_dpk_orig(expname='e04_r00',
+                   run_type='submit',
+                   exp_note='round 2 of: try to repro previous sh results (feb2020) which were ~1px better than this round. dpktrainonly-style train, no val; smaller bsize, no pretrained?! round 2, also use previous stripped lbl which had different dataaug. round1 diverged during training, both views...',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   dpk_val_batch_size=0,
+                   batch_size=4,
+                   dpk_use_pretrained=0,
+                   brange="\\(-0.1,0.1\\)",
+                   trange=20,
+                   normalize_img_mean=0,
+                   rrange=10,
+                   crange="\\(0.9,1.1\\)"
+                   )
+
+rae.train_dpk_orig(expname='e05_r00',
+                   run_type='submit',
+                   exp_note='figured out (prob) why we are not reproing. rerun e00_r00 split, forcing display_steps (stepsperepoch) to 50. dpk (cheat) trnstyle; bsize=4; ptw',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpk',
+                   dpk_val_batch_size=10,
+                   batch_size=4,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0,
+                   dpk_early_stop_style='\\"ipynb\\"'
+                   )
+
+rae.train_dpk_orig(expname='e08_r00',
+                   run_type='submit',
+                   exp_note='like e05 but wout ptw',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpk',
+                   dpk_val_batch_size=10,
+                   batch_size=4,
+                   dpk_use_pretrained=0,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0,
+                   dpk_early_stop_style='\\"ipynb\\"'
+                   )
+
+rae.train_dpk_orig(expname='e09_r00',
+                   run_type='submit',
+                   exp_note='like e05 but with 1/2 the base lr; apt-style we reduce the base lr when reducing bsize',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpk',
+                   dpk_val_batch_size=10,
+                   batch_size=4,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0,
+                   dpk_early_stop_style='\\"ipynb\\"',
+                   dpk_base_lr_used=.0005
                    )
 
 ## Videos for results

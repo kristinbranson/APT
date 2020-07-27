@@ -46,7 +46,14 @@ if user == 'leea30':
         'alice': {
             'slbl': os.path.join(blaptdata,
                                  'multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'),
-            'skel': os.path.join(blaptdata, 'multitarget_bubble_dpk_skeleton.csv')
+            'skel': [os.path.join(blaptdata, 'multitarget_bubble_dpk_skeleton.csv')]
+        },
+        'stephen': {
+          'slbl': os.path.join(blaptdata,
+                               'sh_trn4992_gtcomplete_cacheddata_updated20200317_stripped_mdn.lbl'),
+          'skel': [
+              os.path.join(blaptdata, 'sh_dpk_skeleton_vw0_side.csv'),
+              os.path.join(blaptdata, 'sh_dpk_skeleton_vw1_front.csv')],
         }
     }
     alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
@@ -88,7 +95,9 @@ def get_rae_normal_conf():
 '''
 
 
-def split_tfr_proper(tfrsrc, tfrdst0, tfrdst1, n0, npts):
+def split_tfr_proper(tfrsrc, tfrdst0, tfrdst1, n0, npts,
+                     ifo0=None
+                     ):
     '''
     Split an existing tfr into two tfrs
     :param tfrsrc: src tfrecords file
@@ -96,7 +105,8 @@ def split_tfr_proper(tfrsrc, tfrdst0, tfrdst1, n0, npts):
     :param tfrdst1: second dst tfrecords file (to be created)
     :param n0: number of rows to write to first dst (remaining rows are written to second dst)
     :param npts: num kpts or n_classes (for decoding tfr)
-    :return:
+    :param ifo0: if provided, must be list of length n0; mft/info to write to tfrdst0
+    :return: ifo0; mft/info written to tfrdst0
     '''
 
 
@@ -104,28 +114,43 @@ def split_tfr_proper(tfrsrc, tfrdst0, tfrdst1, n0, npts):
     ims, locs, info, occ = mrd.read_and_decode_without_session(tfrsrc,
                                                                npts,
                                                                indices=())
+    if ifo0 is None:
+        ifo0 = random.sample(info, n0)
 
-    # gen a split
+    ifo0tup = [tuple(z) for z in ifo0]
+    assert len(ifo0) == n0
+    assert len(set(ifo0tup)) == n0
+    assert all(x in info for x in ifo0)
+
     n = len(ims)
     # n0 = int(np.round(frac0*n))
     n1 = n - n0
     print("{} orig els. split into {}/{} for 0/1".format(n, n0, n1))
-    s0 = set(random.sample(range(n), n0))
-    s1 = set(range(n)) - s0
+    #s0 = set(random.sample(range(n), n0))
+    #s1 = set(range(n)) - s0
 
     envs = (tf.python_io.TFRecordWriter(tfrdst0),
             tf.python_io.TFRecordWriter(tfrdst1))
 
     for i in range(n):
         towrite = apt.tf_serialize([ims[i], locs[i], info[i], occ[i]])
-        ienv = int(i in s1)  # 1=set1, 0=set0
+        #ienv = int(i in s1)  # 1=set1, 0=set0
+        ienv = int(info[i] not in ifo0)  # 1=set1, 0=set0
         envwrite = envs[ienv]
         envwrite.write(towrite)
 
         if i % 100 == 99:
             print('Wrote {} rows'.format(i + 1))
 
-    print('Wrote {} rows'.format(i + 1))
+    envs[0].close()
+    envs[1].close()
+
+    n0wrote = pt.count_records(tfrdst0)
+    n1wrote = pt.count_records(tfrdst1)
+    print('Wrote {} rows to {}'.format(n0wrote, tfrdst0))
+    print('Wrote {} rows to {}'.format(n1wrote, tfrdst1))
+
+    return ifo0
 
 def split_tfr_proper_normal_exp(expdir, frac, npts):
     '''
@@ -451,6 +476,12 @@ def assess_set(expnamebase,
 
     return eresall, euc_coll_ptiles50s, euc_coll_ptiles90s
 
+def assess_set2(expnames, views, dset, **kwargs):
+    for e in expnames:
+        for v in views:
+            logr.info("### {}: view {}".format(e, v))
+            assess(e, dset, v, **kwargs)
+
 
 def get_latest_ckpt_h5_dpkstyle(expdir):
     '''
@@ -494,6 +525,7 @@ def get_latest_ckpt_h5_epoch(expdir):
 
 def assess(expname,
            dset='dpkfly',
+           view=0,
            cacheroot=alcache,
            validxs=None,
            usegt_tfr=False,  # if true, use gt.tfrecords instead of val_TF
@@ -530,7 +562,7 @@ def assess(expname,
         slbl = dsetdb['slbl']
         dg = dpk.io.DataGenerator(h5dset)
         # make a conf just to get the path to the expdir
-        conf = apt.create_conf(slbl, 0, expname,
+        conf = apt.create_conf(slbl, view, expname,
                                cacheroot, net, quiet=False)
         # this conf-updating is actually prob unnec but prob doesnt hurt
         conf = apt_dpk.update_conf_dpk(conf,
@@ -545,12 +577,12 @@ def assess(expname,
 
     else:
         slbl = dsetdb['slbl']
-        skel = dsetdb['skel']
+        skel = dsetdb['skel'][view]
         conf_params = ['dpk_skel_csv', '"{}"'.format(skel)]
         # this needed for apt_dpk.update_conf_dpk_skel_csv call
         # in create_conf
         assert net == 'dpk'
-        conf = apt.create_conf(slbl, 0, expname,
+        conf = apt.create_conf(slbl, view, expname,
                                cacheroot, net, quiet=False, conf_params=conf_params)
 
 
@@ -1123,10 +1155,16 @@ def read_exp(edir):
         d[picfS] = pt.pickle_load(picf)
     return d
 
-def get_all_res_tosave(expdict,):
+def get_all_res_tosave(expdict, explist=None):
     dsave = {}
 
+    if explist is None:
+        explist = sorted(expdict.keys())
+
     for expname in expdict:
+        if not expname in explist:
+            continue
+
         exp = expdict[expname]
         for kexp in exp:
             if kexp.startswith('eres'):

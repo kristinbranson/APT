@@ -54,10 +54,12 @@ if getpass.getuser() == 'kabram':
     sdir = os.path.join(cache_dir,'out')
     results_dir = '/groups/branson/bransonlab/mayank/apt_results'
     job_run_dir = os.path.dirname(os.path.realpath(__file__))
-elif getpass.getuser() == 'al':
-    cache_dir = '/nrs/branson/al/cache'
-    sdir = '/nrs/branson/al/out'
-    job_run_dir = '/groups/branson/home/leea30/git/apt.dpk1920/deepnet'
+elif getpass.getuser() == 'leea30':
+    dlroot = '/groups/branson/bransonlab/apt/dl.al.2020'
+    cache_dir = os.path.join(dlroot, 'cache')
+    sdir = os.path.join(dlroot, 'out')
+    results_dir = os.path.join(dlroot, 'res')
+    job_run_dir = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
 else:
     assert False, "Add your cache and out directory"
 
@@ -127,9 +129,12 @@ def setup(data_type_in,gpu_device=None):
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'
         gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
-        #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
-        # op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
-        groups = ['']
+
+        op_af_graph_mk = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        op_af_graph_al = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
+        op_af_graph_kb_orig = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(3,16\),\(4,11\),\(5,6\),\(5,7\),\(5,9\),\(7,8\),\(5,13\),\(8,12\),\(9,10\),\(5,14\),\(10,15\)'
+        op_af_graph = op_af_graph_kb_orig
+
         dpk_skel_csv = apt_dpk.skeleton_csvs['alice']
 
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
@@ -543,22 +548,34 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
     conf_opts['save_step'] = conf_opts['dl_steps'] // 20
 
     if train_type == 'dpk':
-        assert data_type == 'alice'
+        # nepoch = 300  # hardcoded based on observing dpk-style
+        conf_opts['batch_size'] = 16
+        if data_type == 'alice':
+            # ntrn=4232, 300 epochs, 264.5 steps/ep
+            conf_opts['dl_steps'] = 79500
+        elif data_type == 'stephen':
+            # sh: ntrn=4493, 300 epochs, 281 steps/ep
+            conf_opts['dl_steps'] = 84000
+        else:
+            assert False
 
         dpk_train_style = kwargs['dpk_train_style']
         if dpk_train_style == 'dpk':
-            conf_opts['batch_size'] = 16
             conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
             conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
             kwargs['dpk_train_style'] = '\\"dpk\\"'  # copied to conf_opts below
-        elif dpk_train_style == 'apt':
-            conf_opts['batch_size'] = 16
-            conf_opts['dpk_reduce_lr_style'] = '__UNUSED__'
-            conf_opts['dpk_early_stop_style'] = '__UNUSED__'
-            kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
 
-            #nepoch = 300  # hardcoded based on observing dpk-style
-            conf_opts['dl_steps'] = 88125  # 300 epochs, 293.75 spe
+        elif dpk_train_style == 'dpktrnonly':
+            # like 'dpk', but LR and ES use trn_loss not val_loss
+
+            conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
+            conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
+            kwargs['dpk_train_style'] = '\\"dpktrnonly\\"'  # copied to conf_opts below
+
+        elif dpk_train_style == 'apt':
+            conf_opts['dpk_reduce_lr_style'] = '\\"__UNUSED__\\"'
+            conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
+            kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
 
             # lr modulation
             conf_opts['dpk_base_lr_used'] = 0.001
@@ -577,7 +594,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
         if dpk_skel_csv is not None:
             conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
 
-    if gpu_queue == 'gpu_rtx':
+    elif gpu_queue == 'gpu_rtx':
 
         if data_type in ['brit0', 'brit1', 'brit2']:
             if train_type == 'unet':
@@ -655,12 +672,8 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
                 conf_opts['batch_size'] = 4
 
 
-
-    # if op_af_graph is not None:
-    #     conf_opts['op_affinity_graph'] = op_af_graph
-
-    if dpk_skel_csv is not None:
-        conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
+    if op_af_graph is not None:
+        conf_opts['op_affinity_graph'] = op_af_graph
 
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
@@ -697,7 +710,7 @@ def cp_exp_bare(src_exp_dir, dst_exp_dir, usesymlinks=True):
         src_exp_dir_base = os.path.basename(src_exp_dir)
 
     if not os.path.exists(dst_exp_dir):
-        os.mkdir(dst_exp_dir)
+        os.makedirs(dst_exp_dir)
         print("Created dir {}",format(dst_exp_dir))
 
     GLOBSPECS = ['*.tfrecords', 'splitdata.json']
@@ -1476,6 +1489,7 @@ def train_leap_orig(run_type='status',skip_db=True):
 def train_dpk_orig(expname='dpkorig',
                    run_type='status',
                    exp_note='DPK_origstyle',
+                   dpk_train_style='dpk',  # or 'apt'
                    **kwargs
                    ):
     global all_models
@@ -1483,7 +1497,7 @@ def train_dpk_orig(expname='dpkorig',
     run_normal_training(expname=expname,
                         run_type=run_type,
                         exp_note=exp_note,
-                        dpk_train_style='dpk', #dpk_use_augmenter=0,
+                        dpk_train_style=dpk_train_style, #dpk_use_augmenter=0,
                         **kwargs
                         )
 
@@ -1609,6 +1623,7 @@ def create_gt_db():
 
 def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_name
                        train_name='deepnet',
+                       use_exp_name_save_file=False,  # if True, include exp_name in savefiles
                        gt_name_use_output=None,  # if supplied, use instead of gt_name
                        last_model_only=False,
                        classify_fcn='classify_db2',
@@ -1623,7 +1638,8 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
 
     all_view = []
     gpu_str = '_tesla' if queue == 'gpu_tesla' else ''
-    train_name_dstr = train_name + gpu_str + '_' + dstr
+    dstr = '_' + dstr if dstr else ''
+    train_name_dstr = train_name + gpu_str + dstr
 
     for view in range(nviews):
         out_exp = {}
@@ -1685,7 +1701,10 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
         plot_results(out_exp[0])
         plot_hist(out_exp,ps=[75,90,95,97])
 
-        save_file = os.path.join(results_dir,'{}_{}_view{}_time{}'.format(data_type, train_name_dstr, ndx, gt_name_use_output))
+        save_file = os.path.join(results_dir, '{}_{}_{}_view{}_time{}'.format(data_type, exp_name, train_name_dstr, ndx, gt_name_use_output)) \
+            if use_exp_name_save_file \
+            else os.path.join(results_dir, '{}_{}_view{}_time{}'.format(data_type, train_name_dstr, ndx, gt_name_use_output))
+
         save_filep = save_file+".p"
         with open(save_filep, 'wb') as f:
             pickle.dump(out_exp[0], f)
@@ -2684,6 +2703,11 @@ def decode_db(gt_file,conf):
     ex_im = np.array(H[0][0])[:, :, 0]
     ex_loc = np.array(H[1][0])
     return ex_im, ex_loc
+
+def l2err(pred, lbl, ptiles=(50,90,97)):
+    e = np.sqrt( np.sum( (pred-lbl)**2, axis=2 ))
+    eptls = np.percentile(e, ptiles, axis=0).T
+    return e, eptls
 
 
 def classify_db_all_res_to_dict(m):

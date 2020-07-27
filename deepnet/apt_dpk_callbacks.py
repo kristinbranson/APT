@@ -280,14 +280,15 @@ def create_callbacks_exp1orig_train(conf):
 def create_callbacks_exp2orig_train(conf,
                                     sdn,
                                     use_val,
-                                    valbsize,
+                                    bsize_valdistlogger,
                                     nvalbatch,
                                     runname='deepnet',
                                     ):
     '''
     :param conf:
     :param sdn:
-    :param valbsize:
+    :param use_val: if true, use val_loss for LR/ES modulation. if false, use loss
+    :param bsize_valdistlogger: can be 0 => dont log valdist (eg if no valdist exists)
     :param nvalbatch:
     :param runname:
     :return:
@@ -367,23 +368,26 @@ def create_callbacks_exp2orig_train(conf,
     logfile = os.path.join(conf.cachedir, logfile)
     loggercbk = tf.keras.callbacks.CSVLogger(logfile)
 
-    tgtfr = sdn.train_generator
-    dsval_kps = tgtfr(n_outputs=1,
-                      batch_size=valbsize,
-                      validation=True,
-                      confidence=False,
-                      infinite=False)
-    logfilevdist = 'trn{}.vdist.log'.format(nowstr)
-    logfilevdist = os.path.join(conf.cachedir, logfilevdist)
-    logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
-    logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
-    vdistcbk = ValDistLogger(dsval_kps,
-                             logfilevdist,
-                             logfilevdistlong,
-                             nvalbatch)
-
     cbks = [reduce_lr, model_checkpoint, model_checkpoint_reg,
-            loggercbk, early_stop, vdistcbk]
+            loggercbk, early_stop]
+
+    if bsize_valdistlogger > 0:
+        tgtfr = sdn.train_generator
+        dsval_kps = tgtfr(n_outputs=1,
+                          batch_size=bsize_valdistlogger,
+                          validation=True,
+                          confidence=False,
+                          infinite=False)
+        logfilevdist = 'trn{}.vdist.log'.format(nowstr)
+        logfilevdist = os.path.join(conf.cachedir, logfilevdist)
+        logfilevdistlong = 'trn{}.vdist.pickle'.format(nowstr)
+        logfilevdistlong = os.path.join(conf.cachedir, logfilevdistlong)
+        vdistcbk = ValDistLogger(dsval_kps,
+                                 logfilevdist,
+                                 logfilevdistlong,
+                                 nvalbatch)
+        cbks.append(vdistcbk)
+
     return cbks
 
 
@@ -405,6 +409,7 @@ def create_callbacks(conf,
     '''
 
     nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+
 
     lr_cbk = create_lr_sched_callback(
                 conf.display_step,
