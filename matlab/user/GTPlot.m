@@ -382,9 +382,24 @@ classdef GTPlot
       tfEB = ~isempty(errbars);
       if tfEB
         assert(isequal(errbarptiles,ptiles));
-        szassert(errbars,[numel(ptiles) npts+1 nviews]);
+        assert(ndims(errbars)<=3);
+        if isequal(size(errbars,1,2,3),[numel(ptiles) npts+1 nviews])
+          % none
+        elseif isequal(size(errbars,1,2,3),[numel(ptiles) npts nviews])
+          % add nans for "all means" errbars
+          warningNoTrace('Adding nans for "mean over all pts" errbars');
+          errbars(:,end+1,:) = nan;          
+        else
+          assert(false,'Errbar info has wrong size.');
+        end
+        
+        %l2errptls: [nptl x npts x nvw x nsets]
+        l2errptlsmu = mean(l2errptls,4);
+        l2errptlsdelmu = l2errptls-l2errptlsmu;
+        l2errptlsZS = l2errptlsdelmu./errbars(:,1:npts,:); 
+        % [nptl npts nvw nsets]
       end
-      
+
       hAxs = createsubplots(nviews,npts+1,createsubplotsborders);
       hAxs = reshape(hAxs,nviews,npts+1);
       for ivw=1:nviews
@@ -434,7 +449,7 @@ classdef GTPlot
             for iset=1:nsets
             for iptl=1:size(y0,2)
               plot(x([iset iset]),[y0(iset,iptl) y1(iset,iptl)],':',...
-                'Color',h(iptl).Color,lineArgs{:}); 
+                'Color',h(iptl).Color,'linewidth',3); 
             end
             end
             ax.ColorOrderIndex = 1;
@@ -467,6 +482,43 @@ classdef GTPlot
         linkaxes(hAxs(ivw,:));
         
         hAxs(ivw,1).YLim(1) = 0;
+      end
+      
+      DOSZ = false;
+      if DOSZ
+        hFigZS = figure;
+        hAxsZS = createsubplots(nviews,npts+1,createsubplotsborders);
+        hAxsZS = reshape(hAxsZS,nviews,npts+1);
+        
+        for ivw=1:nviews
+          for ipt=[1:npts inf]
+            if ~isinf(ipt)
+              % [nptl npts nvw nsets]
+              y = squeeze(l2errptlsZS(:,ipt,ivw,:)); % [nptl x nsets]
+              ax = hAxsZS(ivw,ipt);
+              tstr = ptnames{ipt};
+            else
+              y = squeeze(sum(l2errptlsZS(:,:,ivw,:),2)); % [nptl x nsets]
+              ax = hAxsZS(ivw,npts+1);
+              tstr = sprintf('mean\nallpts'); %'mean allpts shown';
+            end
+            
+            szassert(y,[numel(ptiles) nsets]);
+            
+            axes(ax);
+            
+            args = {...
+              'YGrid' 'on' 'XGrid' 'on' 'XLim' [0 nsets+1] 'XTick' 1:nsets ...
+              'XTickLabel' setNames 'TickLabelInterpreter' 'none'};
+            args = [args axisArgs]; %#ok<AGROW>
+            
+            x = 1:nsets; % croptypes
+            h = plot(x,y','.-',lineArgs{:});  % nptl curves plotted
+            set(ax,args{:});
+            hold(ax,'on');
+            ax.ColorOrderIndex = 1;
+          end
+        end
       end
     end
     
