@@ -3113,10 +3113,10 @@ set_use_calibration(handles,true);
 
 RC.saveprop('lastCalibrationFile',fname);
 
-function menu_setup_unlock_all_frames_Callback(hObject, eventdata, handles)
-handles.labelerObj.labelPosSetAllMarked(false);
-function menu_setup_lock_all_frames_Callback(hObject, eventdata, handles)
-handles.labelerObj.labelPosSetAllMarked(true);
+% function menu_setup_unlock_all_frames_Callback(hObject, eventdata, handles)
+% handles.labelerObj.labelPosSetAllMarked(false);
+% function menu_setup_lock_all_frames_Callback(hObject, eventdata, handles)
+% handles.labelerObj.labelPosSetAllMarked(true);
 
 function CloseImContrast(lObj,iAxRead,iAxApply)
 % ReadClim from axRead and apply to axApply
