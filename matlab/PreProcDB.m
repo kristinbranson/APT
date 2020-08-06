@@ -25,6 +25,39 @@ classdef PreProcDB < handle
       obj.dat = CPRData(I,tblP);
       obj.tsLastEdit = now;
     end
+    
+    % AL 20200804. Regarding cropping/rotating-to-up. PreProcDB currently
+    % does these operations itself rather than relying on anything existing
+    % (eg .p, .pRel) in incoming tables. Those fields are used by the CPR 
+    % pipeline. The situation is complicated right now as CPR handles
+    % pp.TargetCrop.AlignUsingTrxTheta differently than the DL pipeline.
+    %
+    %  Inputs/Outputs for cache
+    %
+    %  case: trx, TargetCrop.AlignUsingTrxTheta=true.
+    %   it is assumed that trx are constant, ie (m,f,t) fixes trx.x,y,th. 
+    %   .roi is used but only for the roiRad. (it is centered at the trx 
+    %   but this is not the actual roi of the im). this is a bit silly but
+    %   nbd.
+    %   
+    %   .mft, .pAbs, .tfocc, .roi (for roiRad), prmPP.TargetCrop
+    %        => im-in-cache, p-in-cache
+    % 
+    %  case: trx, AlignUsingTrxTheta=false.
+    %   here .roi is used for cropping, although the .p is again recomputed
+    %   from .pAbs (which seems goodish). MD.roi is the actual roi of the 
+    %   im.
+    %    
+    %  case: crop (no trx)
+    %   should be like trx, AlignUsingTrxTheta=false case.
+    %  
+    %  case: no crop, no trx
+    %
+    %  So in general, it is 
+    %   .mft, .pAbs, .tfocc, .roi, prmPP.TargetCrop => im-in-cache, p-in-cache
+    %  * changing prmPP should clear the cache
+    %  * changing crop defns should clear the cache
+
         
     function [tblNewReadFailed,dataNew] = add(obj,tblNew,lObj,varargin)
       % Add new rows to DB
@@ -37,6 +70,9 @@ classdef PreProcDB < handle
       %   tblNew.p. tblNew.p has often been massaged to be relative to .roi
       %   (when .roi is present). This method does its own cropping to
       %   generate image patches and only it knows how .p must be massaged.
+      %
+      %   AL 20200804. We now store .pAbs in the .dat.MD for comparison to
+      %   incoming rows.
       %
       % tblNewReadFailed: table of failed-to-read rows. Currently subset of
       %   tblNew. If non-empty, then .dat was not updated with these rows 
@@ -60,7 +96,10 @@ classdef PreProcDB < handle
       assert(isstruct(prmpp),'Expected parameters to be struct/value class.');
 
       FLDSREQUIRED = [MFTable.FLDSCORE 'pAbs'];
-      FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask'}];
+      % AL 20200804. Store pAbs in MD. This is the original/raw lbl. We
+      % store this so we can compare incoming rows to see if they need an
+      % update in addAndUpdate().
+      FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask' 'pAbs'}];
       tblfldscontainsassert(tblNew,FLDSREQUIRED);
       
       tblNew.p = tblNew.pAbs;
@@ -132,7 +171,7 @@ classdef PreProcDB < handle
         tblNewMD = tblNew(:,tfColsAllowed);
         tblNewMD = [tblNewMD table(nNborMask)];
         
-        pAbs = tblNewMD.p;
+        pAbs = tblNewMD.p; % atm tblNewMD.p matches tblNewMD.pAbs
         n = height(tblNewMD);
         nPhysPts = lObj.nPhysPoints;
         nView = lObj.nview;
@@ -157,7 +196,7 @@ classdef PreProcDB < handle
           end
         end
         pRel = reshape(pRel,[n nPhysPts*nView*2]);
-        tblNewMD.p = pRel;
+        tblNewMD.p = pRel; % now we have tblNewMD.p (which is prel) and .pAbs
         
         dataNew = CPRData(I,tblNewMD);
         
@@ -168,89 +207,130 @@ classdef PreProcDB < handle
       end
     end
     
-    function updateLabels(obj,tblUp,lObj,varargin)
-      % Update rows, labels (pGT and tfocc) ONLY. images don't change!
-      %
-      % tblUp: updated rows (rows with updated pGT/tfocc).
-      %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
-      %   otherwise used. Other fields ignored, INCLUDING eg .roi and 
-      %   .nNborMask. Ie, you cannot currently update the roi of a row in 
-      %   the cache (whose image has already been fetched)
-      
-      [prmpp,updateRowsMustMatch] = myparse(varargin,...
-        'prmpp',[],... % preprocessing params
-        'updateRowsMustMatch',false ... % if true, assert/check that tblUp matches current data
-        );
-
-      if isempty(prmpp)
-        prmpp = lObj.preProcParams;
-        if isempty(prmpp)
-          error('Please specify preprocessing parameters.');
-        end
-      end
-
-      dataCurr = obj.dat;
-      
-      nUpdate = size(tblUp,1);
-      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
-                   % table indexing API may not be polished
-        [tf,loc] = tblismember(tblUp,dataCurr.MD,MFTable.FLDSID);
-        assert(all(tf));
-        if updateRowsMustMatch
-          assert(isequal(dataCurr.MD{loc,'tfocc'},tblUp.tfocc),...
-            'Unexpected discrepancy in preproc data cache: .tfocc field');
-          if tblfldscontains(tblUp,'roi')
-            assert(isequal(dataCurr.MD{loc,'roi'},tblUp.roi),...
-              'Unexpected discrepancy in preproc data cache: .roi field');
-          end
-          if tblfldscontains(tblUp,'nNborMask')
-            assert(isequal(dataCurr.MD{loc,'nNborMask'},tblUp.nNborMask),...
-              'Unexpected discrepancy in preproc data cache: .nNborMask field');
-          end
-          assert(isequaln(dataCurr.pGT(loc,:),tblUp.p),...
-            'Unexpected discrepancy in preproc data cache: .p field');
-        else
-          fprintf(1,'Updating labels for %d rows...\n',nUpdate);
-          dataCurr.MD{loc,'tfocc'} = tblUp.tfocc; % AL 20160413 throws if nUpdate==0
-          dataCurr.pGT(loc,:) = tblUp.p;
-          % Check .roi, .nNborMask?
-        end
-        
-        obj.tsLastEdit = now;
-      end
-    end
-
-    function [tblAddReadFailed,tfAU,locAU] = addAndUpdate(obj,tblAU,lObj,varargin)
-      % Combo of add/updateLabels
+    function [tblAddReadFailed,tfAU,locAU] = ...
+                        addAndUpdate(obj,tblAU,lObj,varargin)
+      % update DB 
       %
       % tblAU: ("tblAddUpdate")
-      %   - MFTable.FLDSCORE: required.
+      %   - required fields: [MFTable.FLDSCORE 'pAbs']. Note .p is not
+      %   used, .pAbs is. See comments above
       %   - .roi: optional, USED WHEN PRESENT. (prob needs to be either
       %   consistently there or not-there for a given obj or initData()
       %   "session"
-      %   IMPORTANT: if .roi is present, .p (labels) are expected to be 
-      %   relative to the roi.
-      %   - .pTS: optional (if present, deleted)
       %
       % tblAddReadFailed: tbl of failed-read adds. will have height 0 if
       %   everything went well.
       % tfAU: [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID)
       % locAU: 
       
-      [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
-        'wbObj',[],... % WaitBarWithCancel. If cancel, obj unchanged.
-        'updateRowsMustMatch',false,... % See updateLabels
-        'prmpp',[] ...
+      [wbObj,prmpp,verbose] = myparse(varargin,...
+        'wbObj',[], ... % WaitBarWithCancel. If cancel, obj unchanged.
+        'prmpp',[], ...
+        'verbose',true ...
         );
       
-      [tblPnew,tblPupdate] = obj.dat.tblPDiff(tblAU);
-      tblAddReadFailed = obj.add(tblPnew,lObj,'wbObj',wbObj,'prmpp',prmpp);
-      obj.updateLabels(tblPupdate,lObj,...
-        'updateRowsMustMatch',updateRowsMustMatch);
+      FLDSCMP = {'mov' 'frm' 'iTgt' 'tfocc' 'pAbs'};
       
+      tblMD = obj.dat.MD;
+      
+      % similar to MFTable.tblPDiff
+      [tfexistAU,locexist] = tblismember(tblAU,tblMD,MFTable.FLDSID);
+      if height(tblMD)>0
+        % special-case bc tblMD will not have right flds when empty
+        
+        [tfsameAU,locsame] = tblismember(tblAU,tblMD,FLDSCMP);
+        assert(isequal(locsame(tfsameAU),locexist(tfsameAU)));
+        if nnz(tfsameAU)>0
+          % side check, *all* fields must be identical for 'same' rows (eg
+          % including roi, nnbormask etc)
+          fldsshared = intersect(tblflds(tblAU),tblflds(tblMD));
+          assert(isequaln(tblAU(tfsameAU,fldsshared),...
+                          tblMD(locsame(tfsameAU),fldsshared)));
+        end
+      else
+        tfsameAU = false(height(tblAU),1);        
+      end
+      
+      % Types of rows:
+      % new row: new MFT
+      % existing row/same: existing MFT, matching pAbs/tfocc (and
+      %   everything else via side check)
+      % existing row/diff: existing MFT, new lbls
+
+      tfnewAU = ~tfexistAU;
+      tfdiffAU = tfexistAU & ~tfsameAU;
+      locdiffidxsonly = locexist(tfdiffAU);
+      
+      % remove the existing/diff rows and add the new and diff rows.
+      % we used to add new rows and update existing/diff rows, but that
+      % update is nontrivial as we crop/rotate plbls here. theoretically
+      % that could be factored out of the add but keep it simple for now.
+      obj.dat.rmRows(locdiffidxsonly); 
+      tblAUadd = tblAU(tfnewAU | tfdiffAU,:);
+      tblAddReadFailed = obj.add(tblAUadd,lObj,'wbObj',wbObj,'prmpp',prmpp);      
       [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID);
+      
+      if verbose
+        nNew = nnz(tfnewAU);
+        nDiff = nnz(tfdiffAU);
+        nSame = nnz(tfsameAU);
+        fprintf(1,'ppdb addAndUpdate. %d/%d/%d new/diff/same rows.\n',...
+          nNew,nDiff,nSame);
+      end
     end
     
   end
+  
+%     function updateLabels(obj,tblUp,lObj,varargin)
+%       % Update rows, labels (pGT and tfocc) ONLY. images don't change!
+%       %
+%       % tblUp: updated rows (rows with updated pGT/tfocc).
+%       %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
+%       %   otherwise used. Other fields ignored, INCLUDING eg .roi and 
+%       %   .nNborMask. Ie, you cannot currently update the roi of a row in 
+%       %   the cache (whose image has already been fetched)
+%       
+%       [prmpp,updateRowsMustMatch] = myparse(varargin,...
+%         'prmpp',[],... % preprocessing params
+%         'updateRowsMustMatch',false ... % if true, assert/check that tblUp matches current data
+%         );
+% 
+%       if isempty(prmpp)
+%         prmpp = lObj.preProcParams;
+%         if isempty(prmpp)
+%           error('Please specify preprocessing parameters.');
+%         end
+%       end
+% 
+%       dataCurr = obj.dat;
+%       
+%       nUpdate = size(tblUp,1);
+%       if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
+%                    % table indexing API may not be polished
+%         [tf,loc] = tblismember(tblUp,dataCurr.MD,MFTable.FLDSID);
+%         assert(all(tf));
+%         if updateRowsMustMatch
+%           assert(isequal(dataCurr.MD{loc,'tfocc'},tblUp.tfocc),...
+%             'Unexpected discrepancy in preproc data cache: .tfocc field');
+%           if tblfldscontains(tblUp,'roi')
+%             assert(isequal(dataCurr.MD{loc,'roi'},tblUp.roi),...
+%               'Unexpected discrepancy in preproc data cache: .roi field');
+%           end
+%           if tblfldscontains(tblUp,'nNborMask')
+%             assert(isequal(dataCurr.MD{loc,'nNborMask'},tblUp.nNborMask),...
+%               'Unexpected discrepancy in preproc data cache: .nNborMask field');
+%           end
+%           assert(isequaln(dataCurr.pGT(loc,:),tblUp.p),...
+%             'Unexpected discrepancy in preproc data cache: .p field');
+%         else
+%           fprintf(1,'Updating labels for %d rows...\n',nUpdate);
+%           dataCurr.MD{loc,'tfocc'} = tblUp.tfocc; % AL 20160413 throws if nUpdate==0
+%           dataCurr.pGT(loc,:) = tblUp.p;
+%           % Check .roi, .nNborMask?
+%         end
+%         
+%         obj.tsLastEdit = now;
+%       end
+%     end
 
 end

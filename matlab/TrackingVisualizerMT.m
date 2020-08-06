@@ -38,6 +38,7 @@ classdef TrackingVisualizerMT < handle
     iTgtPrimary % [1 x nprimary] tgt indices for 'primary' targets. 
                 % Primariness might typically be eg 'current' but it 
                 % doesn't have to correspond.
+    showOnlyPrimary=false % logical scalar
                 
     skelEdgeColor = [.7,.7,.7];
   end
@@ -154,7 +155,7 @@ classdef TrackingVisualizerMT < handle
       end
       
       % default textPVs do not respect .tfHideViz/.tfHideTxt
-      obj.updateHideVizHideText(); 
+      obj.updateShowHideAll(); 
       
       obj.iTgtPrimary = zeros(1,0);
       
@@ -210,37 +211,54 @@ classdef TrackingVisualizerMT < handle
     end
     function setHideViz(obj,tf)
       obj.tfHideViz = tf;
-      obj.updateHideVizHideText();
+      obj.updateShowHideAll();
     end
     function setHideTextLbls(obj,tf)
       obj.tfHideTxt = tf;
-      obj.updateHideVizHideText();
+      obj.updateShowHideAll();
     end
-    function updateHideVizHideText(obj)
-      onoffViz = onIff(~obj.tfHideViz);
-      [obj.hXYPrdRed.Visible] = deal(onoffViz);
-      onoffTxt = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
-      [obj.hXYPrdRedTxt.Visible] = deal(onoffTxt);
-      if ~isempty(obj.hSkel)
-        onoffSkel = onIff(~obj.tfHideViz && obj.lObj.showSkeleton);
-        [obj.hSkel.Visible] = deal(onoffSkel);
-      end
+    function hideOtherTargets(obj)
+      obj.setShowOnlyPrimary(true);
     end
-    function hideOtherTargets(obj,iTgtKeep)
-      % iTgtKeep: tgt indices to show, can be vector. hide others
-      if nargin<2 
-        iTgtKeep = obj.iTgtPrimary;
-      end
-      tfon = false(1,obj.nTgts);
-      tfon(iTgtKeep) = true;
+    function setShowOnlyPrimary(obj,tf)
+      obj.showOnlyPrimary = tf;
+      obj.updateShowHideAll();      
+    end
+    function setAllShowHide(obj,tfHide,tfHideTxt,tfShowCurrTgtOnly)
+      obj.tfHideViz = tfHide;
+      obj.tfHideTxt = tfHideTxt;
+      obj.showOnlyPrimary = tfShowCurrTgtOnly;
+      %obj.iTgtPrimary = iTgtPrimary;
+      obj.updateShowHideAll();      
+    end
+    function updateShowHideAll(obj)
+      % update .Visible for 
+      % * .hXYPrd* [npts x ntgt]
+      % * .hSkel [nedge x ntgt]
       
-      [obj.hXYPrdRed(:,tfon).Visible] = deal('on');
-      [obj.hXYPrdRed(:,~tfon).Visible] = deal('off');
-      [obj.hXYPrdRedTxt(:,tfon).Visible] = deal('on');
-      [obj.hXYPrdRedTxt(:,~tfon).Visible] = deal('off');
+      % 'overall' on/offness
+      onoffViz = onIff(~obj.tfHideViz);
+      onoffTxt = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
+      onoffSkel = onIff(~isempty(obj.hSkel) && ~obj.tfHideViz && obj.lObj.showSkeleton);
+      % for now, no strong reason .showSkeleton is read off Laberler vs 
+      % alternative; this property is transient (not serializable) for
+      % TrackingVisualizerMT, and there is only one TrackingVisualizerMT
+      % per project
+      
+      if obj.showOnlyPrimary
+        tfTgtOn = false(1,obj.nTgts);
+        tfTgtOn(obj.iTgtPrimary) = true;
+      else
+        tfTgtOn = true(1,obj.nTgts);
+      end
+           
+      [obj.hXYPrdRed(:,tfTgtOn).Visible] = deal(onoffViz);
+      [obj.hXYPrdRed(:,~tfTgtOn).Visible] = deal('off');
+      [obj.hXYPrdRedTxt(:,tfTgtOn).Visible] = deal(onoffTxt);
+      [obj.hXYPrdRedTxt(:,~tfTgtOn).Visible] = deal('off');
       if ~isempty(obj.hSkel)
-        [obj.hSkel(:,tfon).Visible] = deal('on');
-        [obj.hSkel(:,~tfon).Visible] = deal('off');
+        [obj.hSkel(:,tfTgtOn).Visible] = deal(onoffSkel);
+        [obj.hSkel(:,~tfTgtOn).Visible] = deal('off');
       end
     end
     function updateLandmarkColors(obj,ptsClrs)
@@ -277,12 +295,19 @@ classdef TrackingVisualizerMT < handle
         tfOccld = any(isinf(xytgt),2);
         LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);        
       end
-      
-      trajClrCurr = obj.lObj.projPrefs.Trx.TrajColorCurrent;
-      set(hSkl(:,obj.iTgtPrimary),'Color',obj.skelEdgeColor);
-      set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
-      
+            
+      iTgtPrimary0 = obj.iTgtPrimary;
+      iTgtChanged = iTgtPrimary~=iTgtPrimary0;
       obj.iTgtPrimary = iTgtPrimary;
+      
+      if iTgtChanged
+        trajClrCurr = obj.lObj.projPrefs.Trx.TrajColorCurrent;
+        set(hSkl(:,iTgtPrimary0),'Color',obj.skelEdgeColor);
+        set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
+        if obj.showOnlyPrimary
+          obj.updateShowHideAll();
+        end
+      end
     end
     function setMarkerCosmetics(obj,pvargs)
       if isstruct(pvargs)

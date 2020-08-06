@@ -47,9 +47,6 @@ APT contains code from the following sources:
 * matlab/jsonlab-1.2
   https://www.mathworks.com/matlabcentral/fileexchange/33381-jsonlab-a-toolbox-to-encode-decode-json-files
   Qianqian Fang
-* matlab/private_imuitools, matlab/misc/imcontrast_kb.m, matlab/misc/inputdlgWithBrowse.m,
-  matlab/trackers/cpr/misc/matlabkmeans.m, matlab/user/orthocam
-  MATLAB
 * matlab/propertiesGUI
   http://undocumentedmatlab.com/articles/propertiesgui
   Yair M. Altman: altmany(at)gmail.com
@@ -74,6 +71,15 @@ APT contains code from the following sources:
 * matlab/misc/whereisjavaclassloadingfrom.m
   https://stackoverflow.com/questions/4376565/java-jpa-class-for-matlab/4380622#4380622
   Andrew Janke
+* matlab/user/APT2RT
+  http://www.mathworks.com/matlabcentral/fileexchange/22422-absolute-orientation
+  Christian Wengert
+  http://www.mathworks.com/matlabcentral/fileexchange/35475-quaternions
+  Przemyslaw Baranski
+  https://www.mathworks.com/matlabcentral/fileexchange/24484-geom3d
+  David Legland
+  https://isbweb.org/software/movanal/kinemat/
+  Christoph Reinschmidt, Ton van den Bogert
 * external/JAABA
   http://jaaba.sourceforge.net/
   Mayank Kabra, Kristin Branson, et al.
@@ -88,7 +94,8 @@ APT contains code from the following sources:
   Piotr Dollar
 * matlab/misc/inputdlgWithBrowse.m (original: inputdlg.m)
   matlab/misc/imcontrast_kb.m (original: imcontrast.m)
-  matlab/private_imuitools/*.m (requirements for imcontrast.m)
+  matlab/private_imuitools/\*.m (requirements for imcontrast.m)
+  matlab/user/orthocam/\*
   Modified MATLAB code.
 
 

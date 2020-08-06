@@ -22,6 +22,7 @@
 
 import numpy as np
 
+import keras
 import keras.backend as K
 from keras.legacy import interfaces
 from keras.engine import Layer
@@ -116,7 +117,12 @@ class UpSampling2D(Layer):
     @interfaces.legacy_upsampling2d_support
     def __init__(self, size=(2, 2), data_format=None, interpolation='nearest', **kwargs):
         super(UpSampling2D, self).__init__(**kwargs)
-        self.data_format = conv_utils.normalize_data_format(data_format)
+        vv = keras.__version__.split('.')
+        if int(vv[0])>=2 and int(vv[1])>=2 and int(vv[2])>0:
+            self.data_format = K.normalize_data_format(data_format)
+        else:
+            self.data_format = conv_utils.normalize_data_format(data_format)
+
         self.interpolation = interpolation
         self.size = conv_utils.normalize_tuple(size, 2, 'size')
         self.input_spec = InputSpec(ndim=4)
@@ -223,7 +229,11 @@ class Maxima2D(Layer):
 
     def __init__(self, data_format=None, **kwargs):
         super(Maxima2D, self).__init__(**kwargs)
-        self.data_format = conv_utils.normalize_data_format(data_format)
+        vv = keras.__version__.split('.')
+        if int(vv[0])>=2 and int(vv[1])>=2 and int(vv[2])>0:
+            self.data_format = K.normalize_data_format(data_format)
+        else:
+            self.data_format = conv_utils.normalize_data_format(data_format)
         self.input_spec = InputSpec(ndim=4)
 
     def compute_output_shape(self, input_shape):

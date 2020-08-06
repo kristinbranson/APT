@@ -1,0 +1,757 @@
+From 205e4013f7587c6a44f4555b47406911298c4d99 Mon Sep 17 00:00:00 2001
+From: Mayank Kabra <kabram@janelia.hhmi.org>
+Date: Wed, 27 May 2020 05:36:02 -0400
+Subject: [PATCH] Changes to adapt to APT
+
+---
+ deeplabcut/__init__.py                             |  32 ++--
+ deeplabcut/generate_training_dataset/__init__.py   |  26 +--
+ deeplabcut/pose_estimation_tensorflow/__init__.py  |   8 +-
+ .../dataset/pose_dataset.py                        |   5 +
+ .../dataset/pose_defaultdataset.py                 |  98 ++++++-----
+ .../pose_estimation_tensorflow/nnet/pose_net.py    |   5 +
+ .../pose_estimation_tensorflow/nnet/predict.py     |   6 +-
+ deeplabcut/pose_estimation_tensorflow/test.py      |   6 +-
+ deeplabcut/pose_estimation_tensorflow/train.py     | 190 +++++++++++++++++++--
+ .../pose_estimation_tensorflow/util/__init__.py    |   8 +-
+ deeplabcut/refine_training_dataset/__init__.py     |  16 +-
+ deeplabcut/utils/__init__.py                       |   2 +-
+ deeplabcut/utils/auxfun_videos.py                  |   8 +-
+ deeplabcut/utils/auxiliaryfunctions.py             |   8 +-
+ 14 files changed, 316 insertions(+), 102 deletions(-)
+
+diff --git a/deeplabcut/__init__.py b/deeplabcut/__init__.py
+index 1e33e64..d98c601 100644
+--- a/deeplabcut/__init__.py
++++ b/deeplabcut/__init__.py
+@@ -1,5 +1,7 @@
+ """
+-DeepLabCut2.0 Toolbox (deeplabcut.org)
++Modified by Mayank Kabra
++
++Original from DeepLabCut2.0 Toolbox (deeplabcut.org)
+ © A. & M. Mathis Labs
+ https://github.com/AlexEMG/DeepLabCut
+ 
+@@ -27,20 +29,20 @@ else: #standard use [wxpython supported]
+         mpl.use('WXAgg')
+     else:
+         mpl.use('Agg')
+-    from deeplabcut import generate_training_dataset
+-    from deeplabcut import refine_training_dataset
+-    from deeplabcut.generate_training_dataset import label_frames, dropannotationfileentriesduetodeletedimages, comparevideolistsanddatafolders, dropimagesduetolackofannotation
+-    from deeplabcut.generate_training_dataset import multiple_individuals_labeling_toolbox
+-    from deeplabcut.generate_training_dataset import adddatasetstovideolistandviceversa,  dropduplicatesinannotatinfiles
+-    from deeplabcut.gui.launch_script import launch_dlc
+-
+-    from deeplabcut.refine_training_dataset import refine_labels
+-    from deeplabcut.utils import select_crop_parameters
++    # from deeplabcut import generate_training_dataset
++    # from deeplabcut import refine_training_dataset
++    # from deeplabcut.generate_training_dataset import label_frames, dropannotationfileentriesduetodeletedimages, comparevideolistsanddatafolders, dropimagesduetolackofannotation
++    # from deeplabcut.generate_training_dataset import multiple_individuals_labeling_toolbox
++    # from deeplabcut.generate_training_dataset import adddatasetstovideolistandviceversa,  dropduplicatesinannotatinfiles
++    # from deeplabcut.gui.launch_script import launch_dlc
++    #
++    # from deeplabcut.refine_training_dataset import refine_labels
++    # from deeplabcut.utils import select_crop_parameters
+ 
+ if os.environ.get('Colab', default=False) == 'True':
+     print("Project loaded in colab-mode. Apparently Colab has trouble loading statsmodels, so the smoothing & outlier frame extraction is disabled. Sorry!")
+ else:
+-    from deeplabcut.refine_training_dataset import extract_outlier_frames, merge_datasets
++    # from deeplabcut.refine_training_dataset import extract_outlier_frames, merge_datasets
+     from deeplabcut.post_processing import filterpredictions, analyzeskeleton
+ 
+ 
+@@ -53,9 +55,9 @@ from deeplabcut.pose_estimation_tensorflow import export_model
+ from deeplabcut.pose_estimation_3d import calibrate_cameras,check_undistortion,triangulate,create_labeled_video_3d
+ 
+ from deeplabcut.create_project import create_new_project, create_new_project_3d, add_new_videos, load_demo_data, create_pretrained_human_project
+-from deeplabcut.generate_training_dataset import extract_frames, select_cropping_area
+-from deeplabcut.generate_training_dataset import check_labels,create_training_dataset, mergeandsplit, create_training_model_comparison
+-from deeplabcut.utils import create_labeled_video,plot_trajectories, auxiliaryfunctions, convertcsv2h5, convertannotationdata_fromwindows2unixstyle, analyze_videos_converth5_to_csv, auxfun_videos
+-from deeplabcut.utils.auxfun_videos import ShortenVideo, DownSampleVideo
++# from deeplabcut.generate_training_dataset import extract_frames, select_cropping_area
++# from deeplabcut.generate_training_dataset import check_labels,create_training_dataset, mergeandsplit, create_training_model_comparison
++# from deeplabcut.utils import create_labeled_video,plot_trajectories, auxiliaryfunctions, convertcsv2h5, convertannotationdata_fromwindows2unixstyle, analyze_videos_converth5_to_csv, auxfun_videos
++# from deeplabcut.utils.auxfun_videos import ShortenVideo, DownSampleVideo
+ 
+ from deeplabcut.version import __version__, VERSION
+diff --git a/deeplabcut/generate_training_dataset/__init__.py b/deeplabcut/generate_training_dataset/__init__.py
+index 51363bc..fdd8f86 100644
+--- a/deeplabcut/generate_training_dataset/__init__.py
++++ b/deeplabcut/generate_training_dataset/__init__.py
+@@ -1,5 +1,7 @@
+ """
+-DeepLabCut2.0 Toolbox (deeplabcut.org)
++Modified by Mayank Kabra
++
++Original by DeepLabCut2.0 Toolbox (deeplabcut.org)
+ © A. & M. Mathis Labs
+ https://github.com/AlexEMG/DeepLabCut
+ 
+@@ -11,14 +13,14 @@ Licensed under GNU Lesser General Public License v3.0
+ from deeplabcut import DEBUG
+ import os
+ 
+-if os.environ.get('DLClight', default=False) == 'True':
+-    #print("DLC loaded in light mode; you cannot use the labeling GUI!")
+-    pass
+-else:
+-    from deeplabcut.generate_training_dataset.auxfun_drag_label import *
+-    from deeplabcut.generate_training_dataset.labeling_toolbox import *
+-    from deeplabcut.generate_training_dataset.multiple_individuals_labeling_toolbox import *
+-    from deeplabcut.generate_training_dataset.frame_extraction_toolbox import *
+-
+-from deeplabcut.generate_training_dataset.frame_extraction import *
+-from deeplabcut.generate_training_dataset.trainingsetmanipulation import *
++# if os.environ.get('DLClight', default=False) == 'True':
++#     #print("DLC loaded in light mode; you cannot use the labeling GUI!")
++#     pass
++# else:
++#     from deeplabcut.generate_training_dataset.auxfun_drag_label import *
++#     from deeplabcut.generate_training_dataset.labeling_toolbox import *
++#     from deeplabcut.generate_training_dataset.multiple_individuals_labeling_toolbox import *
++#     from deeplabcut.generate_training_dataset.frame_extraction_toolbox import *
++#
++# from deeplabcut.generate_training_dataset.frame_extraction import *
++# from deeplabcut.generate_training_dataset.trainingsetmanipulation import *
+diff --git a/deeplabcut/pose_estimation_tensorflow/__init__.py b/deeplabcut/pose_estimation_tensorflow/__init__.py
+index 92651b8..36baa0e 100644
+--- a/deeplabcut/pose_estimation_tensorflow/__init__.py
++++ b/deeplabcut/pose_estimation_tensorflow/__init__.py
+@@ -23,7 +23,7 @@ from deeplabcut.pose_estimation_tensorflow.train import *
+ from deeplabcut.pose_estimation_tensorflow.training import *
+ 
+ import os
+-if os.environ.get('DLClight', default=False) == 'True':
+-    pass
+-else:
+-    from deeplabcut.pose_estimation_tensorflow.vis_dataset import *
++# if os.environ.get('DLClight', default=False) == 'True':
++#     pass
++# else:
++#     from deeplabcut.pose_estimation_tensorflow.vis_dataset import *
+diff --git a/deeplabcut/pose_estimation_tensorflow/dataset/pose_dataset.py b/deeplabcut/pose_estimation_tensorflow/dataset/pose_dataset.py
+index 6ad4101..a8ddb7e 100755
+--- a/deeplabcut/pose_estimation_tensorflow/dataset/pose_dataset.py
++++ b/deeplabcut/pose_estimation_tensorflow/dataset/pose_dataset.py
+@@ -1,4 +1,8 @@
+ '''
++Modified by Mayank Kabra
++
++Adapted from deeplabcut (deeplabcut.org)
++
+ Adapted from DeeperCut by Eldar Insafutdinov
+ https://github.com/eldar/pose-tensorflow
+ 
+@@ -15,6 +19,7 @@ class Batch(Enum):
+     pairwise_targets = 5
+     pairwise_mask = 6
+     data_item = 7
++    locs = 8
+ 
+ class DataItem:
+     pass
+diff --git a/deeplabcut/pose_estimation_tensorflow/dataset/pose_defaultdataset.py b/deeplabcut/pose_estimation_tensorflow/dataset/pose_defaultdataset.py
+index 2f1730f..5032fe7 100755
+--- a/deeplabcut/pose_estimation_tensorflow/dataset/pose_defaultdataset.py
++++ b/deeplabcut/pose_estimation_tensorflow/dataset/pose_defaultdataset.py
+@@ -1,4 +1,8 @@
+ '''
++Modified by Mayank Kabra
++
++Adapted from deeplabcut
++
+ Adapted from DeeperCut by Eldar Insafutdinov
+ https://github.com/eldar/pose-tensorflow
+ '''
+@@ -8,9 +12,11 @@ import random as rand
+ import numpy as np
+ from numpy import array as arr
+ from numpy import concatenate as cat
++import pickle
+ 
+ import scipy.io as sio
+ from deeplabcut.utils.auxfun_videos import imread, imresize
++import PoseTools as pt
+ #from scipy.misc import imread, imresize
+ 
+ from deeplabcut.pose_estimation_tensorflow.dataset.pose_dataset import Batch, data_to_input, mirror_joints_map, CropImage, DataItem
+@@ -39,18 +45,21 @@ class PoseDataset:
+     def load_dataset(self):
+         cfg = self.cfg
+         file_name = os.path.join(self.cfg.project_path,cfg.dataset)
+-        # Load Matlab file dataset annotation
+-        mlab = sio.loadmat(file_name)
+-        self.raw_data = mlab
+-        mlab = mlab['dataset']
+-
++        if os.path.splitext(file_name)[1] == '.mat':
++            # Load Matlab file dataset annotation
++            mlab = sio.loadmat(file_name)
++            self.raw_data = mlab
++            mlab = mlab['dataset']
++        else:
++            with open(file_name,'rb') as f:
++                mlab = pickle.load(f)
+         num_images = mlab.shape[1]
+ #        print('Dataset has {} images'.format(num_images))
+         data = []
+         has_gt = True
+ 
+         for i in range(num_images):
+-            sample = mlab[0, i]
++            sample = mlab[0,i]
+ 
+             item = DataItem()
+             item.image_id = i
+@@ -167,50 +176,61 @@ class PoseDataset:
+         if self.has_gt:
+             joints = np.copy(data_item.joints)
+ 
+-        if self.cfg.crop: #adapted cropping for DLC
+-            if np.random.rand()<self.cfg.cropratio:
+-                j=np.random.randint(np.shape(joints)[1]) #pick a random joint
+-                joints,image=CropImage(joints,image,joints[0,j,1],joints[0,j,2],self.cfg)
+-                '''
+-                print(joints)
+-                import matplotlib.pyplot as plt
+-                plt.clf()
+-                plt.imshow(image)
+-                plt.plot(joints[0,:,1],joints[0,:,2],'.')
+-                plt.savefig("abc"+str(np.random.randint(int(1e6)))+".png")
+-                '''
+-            else:
+-                pass #no cropping!
+-
+-        img = imresize(image, scale) if scale != 1 else image
+-        scaled_img_size = arr(img.shape[0:2])
+-        if mirror:
+-            img = np.fliplr(img)
++        cfg = self.cfg
++        if cfg.dlc_use_apt_preprocess:
++            # print('!!!!!! Using APT preproc!!!')
++            img, scaled_joints = pt.preprocess_ims(image[np.newaxis,...],joints[:,:,1:],cfg,distort=True,scale=cfg.global_scale)
++            img = img[0,...]
++            # scaled_joints = scaled_joints[0,...]
++            joint_id = [range(scaled_joints.shape[1])]
++        else:
++            # print('!!!!!! NOT Using APT preproc!!!')
++
++            if self.cfg.crop: #adapted cropping for DLC
++                if np.random.rand()<self.cfg.cropratio:
++                    j=np.random.randint(np.shape(joints)[1]) #pick a random joint
++                    joints,image=CropImage(joints,image,joints[0,j,1],joints[0,j,2],self.cfg)
++                    '''
++                    print(joints)
++                    import matplotlib.pyplot as plt
++                    plt.clf()
++                    plt.imshow(image)
++                    plt.plot(joints[0,:,1],joints[0,:,2],'.')
++                    plt.savefig("abc"+str(np.random.randint(int(1e6)))+".png")
++                    '''
++                else:
++                    pass #no cropping!
++
++            img = imresize(image, scale) if scale != 1 else image
++            if mirror:
++                img = np.fliplr(img)
+ 
+-        batch = {Batch.inputs: img}
+ 
+-        if self.has_gt:
+-            stride = self.cfg.stride
++            if self.has_gt:
++                if mirror:
++                    joints = [self.mirror_joints(person_joints, self.symmetric_joints, image.shape[1]) for person_joints in
++                              joints]
+ 
+-            if mirror:
+-                joints = [self.mirror_joints(person_joints, self.symmetric_joints, image.shape[1]) for person_joints in
+-                          joints]
+ 
+-            sm_size = np.ceil(scaled_img_size / (stride * 2)).astype(int) * 2
++                scaled_joints = [person_joints[:, 1:3] * scale for person_joints in joints]
+ 
+-            scaled_joints = [person_joints[:, 1:3] * scale for person_joints in joints]
++                joint_id = [person_joints[:, 0].astype(int) for person_joints in joints]
+ 
+-            joint_id = [person_joints[:, 0].astype(int) for person_joints in joints]
+-            part_score_targets, part_score_weights, locref_targets, locref_mask = self.compute_target_part_scoremap(
++        stride = self.cfg.stride
++        scaled_img_size = arr(img.shape[0:2])
++        sm_size = np.ceil(scaled_img_size / (stride * 2)).astype(int) * 2
++        part_score_targets, part_score_weights, locref_targets, locref_mask = self.compute_target_part_scoremap(
+                 joint_id, scaled_joints, data_item, sm_size, scale)
+ 
+-            batch.update({
++        batch = {Batch.inputs: img}
++        batch.update({
+                 Batch.part_score_targets: part_score_targets,
+                 Batch.part_score_weights: part_score_weights,
+                 Batch.locref_targets: locref_targets,
+-                Batch.locref_mask: locref_mask
++                Batch.locref_mask: locref_mask,
++                Batch.locs: scaled_joints
+             })
+-
++            # print(np.array(scaled_joints).shape,np.array(data_item.joints).shape)
+         batch = {key: data_to_input(data) for (key, data) in batch.items()}
+ 
+         batch[Batch.data_item] = data_item
+@@ -234,6 +254,8 @@ class PoseDataset:
+                 joint_pt = coords[person_id][k, :]
+                 j_x = np.asscalar(joint_pt[0])
+                 j_y = np.asscalar(joint_pt[1])
++                if np.isnan(j_x) or np.isnan(j_y):
++                    continue
+ 
+                 # don't loop over entire heatmap, but just relevant locations
+                 j_x_sm = round((j_x - self.half_stride) / self.stride)
+diff --git a/deeplabcut/pose_estimation_tensorflow/nnet/pose_net.py b/deeplabcut/pose_estimation_tensorflow/nnet/pose_net.py
+index 7723297..a692f8d 100644
+--- a/deeplabcut/pose_estimation_tensorflow/nnet/pose_net.py
++++ b/deeplabcut/pose_estimation_tensorflow/nnet/pose_net.py
+@@ -1,4 +1,8 @@
+ '''
++Modified by Mayank Kabra
++
++Adapted from deeplabcut
++
+ Adopted: DeeperCut by Eldar Insafutdinov
+ https://github.com/eldar/pose-tensorflow
+ 
+@@ -152,6 +156,7 @@ class PoseNet:
+         cfg = self.cfg
+ 
+         heads = self.get_net(batch[Batch.inputs])
++        self.heads = heads
+ 
+         weigh_part_predictions = cfg.weigh_part_predictions
+         part_score_weights = batch[Batch.part_score_weights] if weigh_part_predictions else 1.0
+diff --git a/deeplabcut/pose_estimation_tensorflow/nnet/predict.py b/deeplabcut/pose_estimation_tensorflow/nnet/predict.py
+index 4b20d2e..a97d6c3 100644
+--- a/deeplabcut/pose_estimation_tensorflow/nnet/predict.py
++++ b/deeplabcut/pose_estimation_tensorflow/nnet/predict.py
+@@ -1,4 +1,6 @@
+ '''
++Modified by Mayank Kabra
++
+ Adapted from original predict.py by Eldar Insafutdinov's implementation of [DeeperCut](https://github.com/eldar/pose-tensorflow)
+ 
+ Source: DeeperCut by Eldar Insafutdinov
+@@ -46,10 +48,10 @@ def setup_pose_prediction(cfg):
+ def extract_cnn_output(outputs_np, cfg):
+     ''' extract locref + scmap from network '''
+     scmap = outputs_np[0]
+-    scmap = np.squeeze(scmap)
++    scmap = np.squeeze(scmap,0)
+     locref = None
+     if cfg.location_refinement:
+-        locref = np.squeeze(outputs_np[1])
++        locref = np.squeeze(outputs_np[1],0)
+         shape = locref.shape
+         locref = np.reshape(locref, (shape[0], shape[1], -1, 2))
+         locref *= cfg.locref_stdev
+diff --git a/deeplabcut/pose_estimation_tensorflow/test.py b/deeplabcut/pose_estimation_tensorflow/test.py
+index 7b0bfba..480493f 100644
+--- a/deeplabcut/pose_estimation_tensorflow/test.py
++++ b/deeplabcut/pose_estimation_tensorflow/test.py
+@@ -1,4 +1,8 @@
+ '''
++Modified by Mayank Kabra
++
++Adapted from Deeplabcut (deeplabcur.org)
++
+ Adapted from DeeperCut by Eldar Insafutdinov
+ https://github.com/eldar/pose-tensorflow
+ '''
+@@ -15,7 +19,7 @@ from deeplabcut.pose_estimation_tensorflow.config import load_config
+ from deeplabcut.pose_estimation_tensorflow.dataset.factory import create as create_dataset
+ from deeplabcut.pose_estimation_tensorflow.dataset.pose_dataset import Batch
+ from deeplabcut.pose_estimation_tensorflow.nnet.predict import setup_pose_prediction, extract_cnn_output, argmax_pose_predict
+-from deeplabcut.pose_estimation_tensorflow.util import visualize
++# from deeplabcut.pose_estimation_tensorflow.util import visualize
+ 
+ 
+ def test_net(visualise, cache_scoremaps):
+diff --git a/deeplabcut/pose_estimation_tensorflow/train.py b/deeplabcut/pose_estimation_tensorflow/train.py
+index 865f47d..94dd8df 100644
+--- a/deeplabcut/pose_estimation_tensorflow/train.py
++++ b/deeplabcut/pose_estimation_tensorflow/train.py
+@@ -1,5 +1,7 @@
+ """
+-DeepLabCut2.0 Toolbox (deeplabcut.org)
++Modified by Mayank Kabra
++
++Adapted from DeepLabCut2.0 Toolbox (deeplabcut.org)
+ © A. & M. Mathis Labs
+ https://github.com/AlexEMG/DeepLabCut
+ 
+@@ -28,6 +30,13 @@ from deeplabcut.pose_estimation_tensorflow.dataset.pose_dataset import Batch
+ from deeplabcut.pose_estimation_tensorflow.dataset.factory import create as create_dataset
+ from deeplabcut.pose_estimation_tensorflow.nnet.net_factory import pose_net
+ from deeplabcut.pose_estimation_tensorflow.util.logging import setup_logging
++from deeplabcut.pose_estimation_tensorflow.nnet import predict
++from deeplabcut.utils.auxfun_videos import imread, imresize
++import numpy as np
++import json
++import pickle
++import PoseTools
++import random
+ 
+ 
+ class LearningRate(object):
+@@ -50,7 +59,8 @@ def get_batch_spec(cfg):
+         Batch.part_score_targets: [batch_size, None, None, num_joints],
+         Batch.part_score_weights: [batch_size, None, None, num_joints],
+         Batch.locref_targets: [batch_size, None, None, num_joints * 2],
+-        Batch.locref_mask: [batch_size, None, None, num_joints * 2]
++        Batch.locref_mask: [batch_size, None, None, num_joints * 2],
++        Batch.locs: [batch_size, 1, None, 2]
+     }
+ 
+ def setup_preloading(batch_spec):
+@@ -103,26 +113,85 @@ def get_optimizer(loss_op, cfg):
+ 
+     return learning_rate, train_op
+ 
+-def train(config_yaml,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweights=True,allow_growth=False):
++
++def save_td(cfg, train_info):
++    cachedir = str(Path(cfg.snapshot_prefix).parent)
++    name = Path(cfg.snapshot_prefix).stem
++    if name == 'deepnet':
++        train_data_file = os.path.join(cachedir, 'traindata')
++    else:
++        train_data_file = os.path.join(cachedir, name + '_traindata')
++
++    # train_data_file = os.path.join( cfg.cachedir, 'traindata')
++    json_data = {}
++    for x in train_info.keys():
++        json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
++    with open(train_data_file + '.json', 'w') as json_file:
++        json.dump(json_data, json_file)
++    with open(train_data_file, 'wb') as train_data_file:
++        pickle.dump([train_info, cfg], train_data_file, protocol=2)
++
++
++def get_read_fn(cfg_dict):
++    # Adapted from pose_defaultdataset.next_batch
++    cfg = create_cfg(cfg_dict)
++    cfg.batch_size = 1
++    cfg.shuffle = False
++
++    dataset = create_dataset(cfg)
++
++    n = dataset.num_images
++    def read_fn():
++        imidx, mirror = dataset.next_training_sample()
++        data_item = dataset.get_training_sample(imidx)
++        im_file = data_item.im_path
++        if not os.path.isabs(im_file):
++            ims = imread(os.path.join(cfg.project_path,im_file), mode='RGB')
++        else:
++            ims = imread(im_file,mode='RGB')
++        joints = np.copy(data_item.joints)
++        loc_in = joints[0,:,1:]
++        ims = ims[np.newaxis,...]
++
++        # scale = cfg.global_scale
++        # batch_np = dataset.make_batch(data_item, scale, False)
++
++        if cfg.img_dim == 1:
++            ims = ims[:,:,:,0:1]
++        info = [0, 0, 0]
++        return ims, loc_in, info
++
++    return read_fn, n
++
++
++
++def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweights=True,allow_growth=False):
++
++    random.seed(3)
+     start_path=os.getcwd()
+-    os.chdir(str(Path(config_yaml).parents[0])) #switch to folder of config_yaml (for logging)
++    # os.chdir(str(Path(config_yaml).parents[0])) #switch to folder of config_yaml (for logging)
+     setup_logging()
++    cfg = create_cfg(cfg_dict)
+ 
+-    cfg = load_config(config_yaml)
+     if cfg.dataset_type=='default' or cfg.dataset_type=='tensorpack' or cfg.dataset_type=='deterministic':
+         print("Switching batchsize to 1, as default/tensorpack/deterministic loaders do not support batches >1. Use imgaug loader.")
+         cfg['batch_size']=1 #in case this was edited for analysis.-
+ 
+     dataset = create_dataset(cfg)
++    # kk = dataset.next_batch() # for debugging
+     batch_spec = get_batch_spec(cfg)
+     batch, enqueue_op, placeholders = setup_preloading(batch_spec)
+-    losses = pose_net(cfg).train(batch)
++    net = pose_net(cfg)
++    losses = net.train(batch)
+     total_loss = losses['total_loss']
++    outputs = net.heads
++    train_info = {'train_dist':[],'train_loss':[],'val_dist':[],'val_loss':[],'step':[]}
+ 
+     for k, t in losses.items():
+         TF.summary.scalar(k, t)
+     merged_summaries = TF.summary.merge_all()
+ 
++
+     if 'snapshot' in Path(cfg.init_weights).stem and keepdeconvweights:
+         print("Loading already trained DLC with backbone:", cfg.net_type)
+         variables_to_restore = slim.get_variables_to_restore()
+@@ -178,7 +247,7 @@ def train(config_yaml,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvwe
+     cum_loss = 0.0
+     lr_gen = LearningRate(cfg)
+ 
+-    stats_path = Path(config_yaml).with_name('learning_stats.csv')
++    stats_path = os.path.join(cfg.project_path,'learning_stats.csv')
+     lrf = open(str(stats_path), 'w')
+ 
+     print("Training parameter:")
+@@ -192,13 +261,36 @@ def train(config_yaml,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvwe
+         train_writer.add_summary(summary, it)
+ 
+         if it % display_iters == 0 and it>0:
++            if False:
++                cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
++                pred = [cur_out['part_pred'],cur_out['locref']]
++                scmap, locref = predict.extract_cnn_output(pred, cfg)
++
++                # Extract maximum scoring location from the heatmap, assume 1 person
++                loc_pred = predict.argmax_pose_predict(scmap, locref, cfg.stride)
++                if loc_pred.ndim == 2:
++                    loc_pred = loc_pred[np.newaxis,np.newaxis,...]
++                loc_in = batch_out[Batch.locs]
++                dd = np.sqrt(np.sum(np.square(loc_pred[:,:,:,:2]-loc_in),axis=-1))
++                dd = dd/cfg.global_scale
++            else:
++                dd = np.array([0])
+             average_loss = cum_loss / display_iters
+             cum_loss = 0.0
+-            logging.info("iteration: {} loss: {} lr: {}"
+-                         .format(it, "{0:.4f}".format(average_loss), current_lr))
+-            lrf.write("{}, {:.5f}, {}\n".format(it, average_loss, current_lr))
++            logging.info("iteration: {} dist: {:.2f} loss: {} lr: {}"
++                         .format(it, dd.mean(), "{0:.4f}".format(average_loss), current_lr))
++            lrf.write("{}, {:.2f}, {:.5f}, {}\n".format(it, dd.mean(), average_loss, current_lr))
+             lrf.flush()
+ 
++            train_info['step'].append(it)
++            train_info['train_loss'].append(loss_val)
++            train_info['val_loss'].append(loss_val)
++            train_info['val_dist'].append(dd.mean())
++            train_info['train_dist'].append(dd.mean())
++
++            save_td(cfg, train_info)
++
++
+         # Save snapshot
+         if (it % save_iters == 0 and it != 0) or it == max_iter:
+             model_name = cfg.snapshot_prefix
+@@ -207,10 +299,83 @@ def train(config_yaml,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvwe
+     lrf.close()
+     sess.close()
+     coord.request_stop()
+-    coord.join([thread])
++    coord.join([thread],stop_grace_period_secs=60,ignore_live_threads=True)
++
+     #return to original path.
+     os.chdir(str(start_path))
+ 
++def create_cfg(cfg_dict):
++    curd = os.path.realpath(__file__)
++    bdir = os.path.split(os.path.split(curd)[0])[0]
++    config_yaml = os.path.join(bdir,'pose_cfg.yaml')
++    cfg = load_config(config_yaml)
++    for k in cfg_dict.keys():
++        cfg[k] = cfg_dict[k]
++    return  cfg
++
++def get_pred_fn(cfg_dict, model_file=None):
++
++    cfg = create_cfg(cfg_dict)
++    name = Path(cfg.snapshot_prefix).stem
++
++    if model_file is None:
++        ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
++        latest_ckpt = tf.train.get_checkpoint_state(cfg.cachedir, ckpt_file)
++        model_file = latest_ckpt.model_checkpoint_path
++        init_weights = model_file
++    else:
++        init_weights = model_file
++
++    tf.reset_default_graph()
++    cfg.init_weights = init_weights
++    sess, inputs, outputs = predict.setup_pose_prediction(cfg)
++
++    def pred_fn(all_f):
++        if cfg.img_dim == 1:
++            cur_im = np.tile(all_f,[1,1,1,3])
++        else:
++            cur_im = all_f
++
++        if cfg.dlc_use_apt_preprocess:
++            cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.num_joints, 2]), conf=cfg, distort=False, scale=cfg.global_scale)
++        else:
++            scale = cfg.global_scale
++            nims = []
++            for ndx  in range(all_f.shape[0]):
++                image = cur_im[ndx,...]
++                nims.append(imresize(image, scale) if scale != 1 else image)
++            cur_im = np.array(nims)
++
++        cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
++        scmap, locref = predict.extract_cnn_output(cur_out, cfg)
++        pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
++        pose = pose[np.newaxis,:,:2]*cfg.global_scale
++        ret_dict = {}
++        ret_dict['locs'] = pose
++        ret_dict['hmaps'] = scmap[np.newaxis,...]
++        ret_dict['conf'] = np.max(scmap[np.newaxis,...], axis=(1,2))
++        return ret_dict
++
++    def close_fn():
++        sess.close()
++
++    return pred_fn, close_fn, model_file
++
++def model_files(cfg_dict, name='deepnet'):
++    cfg = create_cfg(cfg_dict)
++    ckpt_file = os.path.join(cfg.project_path, name + '_ckpt')
++    if not os.path.exists(ckpt_file):
++        return []
++    latest_ckpt = tf.train.get_checkpoint_state(cfg.project_path, ckpt_file)
++    latest_model_file = latest_ckpt.model_checkpoint_path
++    import glob
++    all_model_files = glob.glob(latest_model_file + '.*')
++    train_data_file = os.path.join( cfg.project_path, 'traindata')
++    all_model_files.extend([ckpt_file, train_data_file])
++
++    return all_model_files
++
++
+ 
+ if __name__ == '__main__':
+     parser = argparse.ArgumentParser()
+@@ -218,3 +383,6 @@ if __name__ == '__main__':
+     cli_args = parser.parse_args()
+ 
+     train(Path(cli_args.config).resolve())
++
++##
++
+diff --git a/deeplabcut/pose_estimation_tensorflow/util/__init__.py b/deeplabcut/pose_estimation_tensorflow/util/__init__.py
+index 51b9c00..927b174 100644
+--- a/deeplabcut/pose_estimation_tensorflow/util/__init__.py
++++ b/deeplabcut/pose_estimation_tensorflow/util/__init__.py
+@@ -6,7 +6,7 @@ https://github.com/eldar/pose-tensorflow
+ import os
+ from deeplabcut.pose_estimation_tensorflow.util.logging import *
+ 
+-if os.environ.get('DLClight', default=False) == 'True':
+-    pass
+-else:
+-    from deeplabcut.pose_estimation_tensorflow.util.visualize import *
++# if os.environ.get('DLClight', default=False) == 'True':
++#     pass
++# else:
++#     from deeplabcut.pose_estimation_tensorflow.util.visualize import *
+diff --git a/deeplabcut/refine_training_dataset/__init__.py b/deeplabcut/refine_training_dataset/__init__.py
+index 3ec99dd..ce509a6 100644
+--- a/deeplabcut/refine_training_dataset/__init__.py
++++ b/deeplabcut/refine_training_dataset/__init__.py
+@@ -9,12 +9,12 @@ Licensed under GNU Lesser General Public License v3.0
+ """
+ 
+ import os
++#
++# if os.environ.get('DLClight', default=False) == 'True':
++#     #print("DLC loaded in light mode; you cannot use the relabeling GUI!")
++#     pass
++# else:
++#     from deeplabcut.refine_training_dataset.refinement import *
++#     from deeplabcut.refine_training_dataset.auxfun_drag import *
+ 
+-if os.environ.get('DLClight', default=False) == 'True':
+-    #print("DLC loaded in light mode; you cannot use the relabeling GUI!")
+-    pass
+-else:
+-    from deeplabcut.refine_training_dataset.refinement import *
+-    from deeplabcut.refine_training_dataset.auxfun_drag import *
+-
+-from deeplabcut.refine_training_dataset.outlier_frames import *
++# from deeplabcut.refine_training_dataset.outlier_frames import *
+diff --git a/deeplabcut/utils/__init__.py b/deeplabcut/utils/__init__.py
+index d9650ea..68c7afc 100644
+--- a/deeplabcut/utils/__init__.py
++++ b/deeplabcut/utils/__init__.py
+@@ -5,4 +5,4 @@ from deeplabcut.utils.plotting import *
+ 
+ from deeplabcut.utils.conversioncode import *
+ from deeplabcut.utils.frameselectiontools import *
+-from deeplabcut.utils.auxfun_videos import *
+\ No newline at end of file
++# from deeplabcut.utils.auxfun_videos import *
+\ No newline at end of file
+diff --git a/deeplabcut/utils/auxfun_videos.py b/deeplabcut/utils/auxfun_videos.py
+index 0003c7b..90c64cf 100644
+--- a/deeplabcut/utils/auxfun_videos.py
++++ b/deeplabcut/utils/auxfun_videos.py
+@@ -1,6 +1,8 @@
+ #!/usr/bin/env python3
+ """
+-DeepLabCut2.0 Toolbox (deeplabcut.org)
++Modified by Mayank Kabra
++
++Original by DeepLabCut2.0 Toolbox (deeplabcut.org)
+ © A. & M. Mathis Labs
+ https://github.com/AlexEMG/DeepLabCut
+ Please see AUTHORS for contributors.
+@@ -115,8 +117,8 @@ def DownSampleVideo(vname,width=-1,height=200,outsuffix='downsampled',outpath=No
+     newfilename=os.path.join(vidpath,str(Path(vname).stem)+str(outsuffix)+str(Path(vname).suffix))
+     print("Downsampling and saving to name", newfilename)
+     if rotateccw:
+-        command = f"ffmpeg -i {vname} -filter:v scale={width}:{height} transpose=clock -c:a copy {newfilename}"
++        command = "ffmpeg -i {} -filter:v scale={}:{} transpose=clock -c:a copy {}".format(vname,width,height,newfilename)
+     else:
+-        command = f"ffmpeg -i {vname} -filter:v scale={width}:{height} -c:a copy {newfilename}"
++        command = "ffmpeg -i {} -filter:v scale={}:{} -c:a copy {}".format(vname,width,height,newfilename)
+     subprocess.call(command, shell=True)
+     return str(newfilename)
+diff --git a/deeplabcut/utils/auxiliaryfunctions.py b/deeplabcut/utils/auxiliaryfunctions.py
+index 0939cbf..57bef38 100644
+--- a/deeplabcut/utils/auxiliaryfunctions.py
++++ b/deeplabcut/utils/auxiliaryfunctions.py
+@@ -1,5 +1,7 @@
+ """
+-DeepLabCut2.0 Toolbox (deeplabcut.org)
++Modified by Mayank Kabra
++
++Original from DeepLabCut2.0 Toolbox (deeplabcut.org)
+ © A. & M. Mathis Labs
+ https://github.com/AlexEMG/DeepLabCut
+ Please see AUTHORS for contributors.
+@@ -110,13 +112,13 @@ def read_config(configname):
+ 
+     """
+     ruamelFile = ruamel.yaml.YAML()
+-    path = Path(configname)
++    path = str(Path(configname))
+     if os.path.exists(path):
+         try:
+             with open(path, 'r') as f:
+                 cfg = ruamelFile.load(f)
+                 # update path to current location of config.yaml
+-                cfg['project_path'] = configname.replace(f'{os.path.sep}config.yaml', '')
++                cfg['project_path'] = configname.replace('{}config.yaml'.format(os.path.sep), '')
+                 write_config(configname, cfg)
+         except Exception as err:
+             if err.args[2] == "could not determine a constructor for the tag '!!python/tuple'":
+-- 
+2.7.4
+

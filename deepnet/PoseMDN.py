@@ -26,7 +26,7 @@ import convNetBase as CNB
 def conv_relu(X, kernel_shape, trainPhase, sc_name,stride=1):
     with tf.variable_scope(sc_name):
         weights = tf.get_variable("weights", kernel_shape,
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=tensorflow.contrib.layers.xavier_initializer())
         biases = tf.get_variable("biases", kernel_shape[-1],
                                  initializer=tf.constant_initializer(0))
         conv = tf.nn.conv2d(X, weights,
@@ -41,7 +41,7 @@ def fully_conn(X, out_wts, trainPhase, sc_name):
     in_dim = X_flat.get_shape().as_list()[-1]
     with tf.variable_scope(sc_name):
         weights = tf.get_variable("weights", [in_dim, out_wts],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=tensorflow.contrib.layers.xavier_initializer())
         biases = tf.get_variable("biases", [out_wts],
                                  initializer=tf.constant_initializer(0))
         hidden = tf.matmul(X_flat, weights)
@@ -190,11 +190,11 @@ class PoseMDN(PoseTrain):
             in_dim_x = X.get_shape().as_list()[3]
             kernel_shape = [grid_size, grid_size, in_dim_x, 400]
             weights1 = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             weights1 = tf.reshape(weights1, [16*16*in_dim_x,400])
             # weights1 = tf.get_variable("weights1", [in_dim,400],
-            #                            initializer=tf.contrib.keras.initializers.TruncatedNormal(stddev=0.004))
-            #                           # initializer=tf.contrib.layers.xavier_initializer())
+            #                            initializer=tensorflow.contrib.keras.initializers.TruncatedNormal(stddev=0.004))
+            #                           # initializer=tensorflow.contrib.layers.xavier_initializer())
             biases1 = tf.get_variable("biases", 400,
                                      initializer=tf.constant_initializer(0))
             hidden1_b = tf.matmul(x_flat, weights1)
@@ -206,10 +206,10 @@ class PoseMDN(PoseTrain):
 
         with tf.variable_scope('layer_2') as scope:
             # weights2 = tf.get_variable("weights2", [400,400],
-            #                           initializer=tf.contrib.layers.xavier_initializer())
+            #                           initializer=tensorflow.contrib.layers.xavier_initializer())
             kernel_shape = [1, 1, 400, 400]
             weights2 = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             weights2 = tf.reshape(weights2, [400,400])
             biases2 = tf.get_variable("biases", 400,
                                      initializer=tf.constant_initializer(0))
@@ -222,9 +222,9 @@ class PoseMDN(PoseTrain):
 
         with tf.variable_scope('locs'):
             # weights_locs = tf.get_variable("weights_locs", [400,2 *K *n_out],
-            #                           initializer=tf.contrib.layers.xavier_initializer())
+            #                           initializer=tensorflow.contrib.layers.xavier_initializer())
             weights_locs = tf.get_variable("weights_locs", [1, 1, 400, 2 * K * n_out],
-                                           initializer=tf.contrib.layers.xavier_initializer())
+                                           initializer=tensorflow.contrib.layers.xavier_initializer())
             weights_locs = tf.reshape(weights_locs, [400, 2*K*n_out])
             biases_locs = tf.get_variable("biases_locs", 2*K*n_out,
                                      initializer=tf.constant_initializer(0))
@@ -232,9 +232,9 @@ class PoseMDN(PoseTrain):
 
         with tf.variable_scope('scales'):
             # weights_scales = tf.get_variable("weights_scales", [400,K *n_out],
-            #                           initializer=tf.contrib.layers.xavier_initializer())
+            #                           initializer=tensorflow.contrib.layers.xavier_initializer())
             weights_scales = tf.get_variable("weights_scales", [1, 1, 400, K * n_out],
-                                             initializer=tf.contrib.layers.xavier_initializer())
+                                             initializer=tensorflow.contrib.layers.xavier_initializer())
             weights_scales = tf.reshape(weights_scales, [400, K*n_out])
             biases_scales = tf.get_variable("biases_scales", K*n_out,
                                      initializer=tf.constant_initializer(0))
@@ -247,9 +247,9 @@ class PoseMDN(PoseTrain):
 
         with tf.variable_scope('logits'):
             # weights_logits = tf.get_variable("weights_logits", [400,K *n_out],
-            #                           initializer=tf.contrib.layers.xavier_initializer())
+            #                           initializer=tensorflow.contrib.layers.xavier_initializer())
             weights_logits = tf.get_variable("weights_logits", [1, 1, 400, K * n_out],
-                                             initializer=tf.contrib.layers.xavier_initializer())
+                                             initializer=tensorflow.contrib.layers.xavier_initializer())
             weights_logits = tf.reshape(weights_logits, [400, K*n_out])
             biases_logits = tf.get_variable("biases_logits", K*n_out,
                                      initializer=tf.constant_initializer(0))
@@ -469,7 +469,7 @@ class PoseMDN(PoseTrain):
             with tf.variable_scope('layer_1'):
                 kernel_shape = [grid_size, grid_size, l7_shape[3], 400]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(l7_layer, weights,
@@ -482,7 +482,7 @@ class PoseMDN(PoseTrain):
             with tf.variable_scope('layer_2'):
                 kernel_shape = [1, 1, 400, 400]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(mdn_l1, weights,
@@ -494,7 +494,7 @@ class PoseMDN(PoseTrain):
 
             with tf.variable_scope('locs'):
                 weights_locs = tf.get_variable("weights_locs", [1, 1, 400, 2 * k * n_out],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                               initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
                                               initializer=tf.constant_initializer(0))
                 o_locs = tf.nn.conv2d(mdn_l2, weights_locs,
@@ -522,7 +522,7 @@ class PoseMDN(PoseTrain):
 
             with tf.variable_scope('scales'):
                 weights_scales = tf.get_variable("weights_scales", [1, 1, 400, k * n_out],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                               initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_scales = tf.get_variable("biases_scales", k * self.conf.n_classes,
                                               initializer=tf.constant_initializer(0))
                 o_scales = tf.exp(tf.nn.conv2d(mdn_l2, weights_scales,
@@ -540,7 +540,7 @@ class PoseMDN(PoseTrain):
 
             with tf.variable_scope('logits'):
                 weights_logits = tf.get_variable("weights_logits", [1, 1, 400, k * n_out],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                               initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_logits = tf.get_variable("biases_logits", k * self.conf.n_classes,
                                               initializer=tf.constant_initializer(0))
                 logits = tf.nn.conv2d(mdn_l2, weights_logits,
@@ -582,7 +582,7 @@ class PoseMDN(PoseTrain):
             with tf.variable_scope('layer_1'):
                 kernel_shape = [grid_size, grid_size, l7_shape[3], 400]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(l7_layer, weights,
@@ -595,7 +595,7 @@ class PoseMDN(PoseTrain):
             with tf.variable_scope('layer_1b'):
                 kernel_shape = [grid_size2, grid_size2, 400, 400]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(mdn_l1a, weights,
@@ -607,7 +607,7 @@ class PoseMDN(PoseTrain):
             with tf.variable_scope('layer_1c'):
                 kernel_shape = [grid_size3, grid_size3, 400, 400]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(mdn_l1b, weights,
@@ -619,7 +619,7 @@ class PoseMDN(PoseTrain):
             # with tf.variable_scope('layer_1d'):
             #     kernel_shape = [grid_size3, grid_size3, 400, 400]
             #     weights = tf.get_variable("weights", kernel_shape,
-            #                               initializer=tf.contrib.layers.xavier_initializer())
+            #                               initializer=tensorflow.contrib.layers.xavier_initializer())
             #     biases = tf.get_variable("biases", kernel_shape[-1],
             #                              initializer=tf.constant_initializer(0))
             #     conv = tf.nn.conv2d(mdn_l1c, weights,
@@ -631,7 +631,7 @@ class PoseMDN(PoseTrain):
             with tf.variable_scope('layer_2'):
                 kernel_shape = [1, 1, 400, 400]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(mdn_l1c, weights,
@@ -646,7 +646,7 @@ class PoseMDN(PoseTrain):
                 with tf.variable_scope('layer_3'):
                     kernel_shape = [1, 1, 400, 400]
                     weights = tf.get_variable("weights", kernel_shape,
-                                              initializer=tf.contrib.layers.xavier_initializer())
+                                              initializer=tensorflow.contrib.layers.xavier_initializer())
                     biases = tf.get_variable("biases", kernel_shape[-1],
                                              initializer=tf.constant_initializer(0))
                     conv = tf.nn.conv2d(mdn_l2, weights,
@@ -656,7 +656,7 @@ class PoseMDN(PoseTrain):
                 mdn_l3 = tf.nn.relu(conv + biases)
 
                 weights_locs = tf.get_variable("weights_locs", [1, 1, 400, 2 * k * n_out],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                               initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
                                               initializer=tf.constant_initializer(0))
                 o_locs = tf.nn.conv2d(mdn_l3, weights_locs,

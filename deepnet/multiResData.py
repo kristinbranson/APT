@@ -17,7 +17,13 @@ import pickle
 import h5py
 import errno
 import PoseTools
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import movies
 import json
 
@@ -92,7 +98,7 @@ def create_val_data(conf, force=False):
     localdirs, seldirs = find_local_dirs(conf)
     nexps = len(seldirs)
     isval = []
-    if (not hasattr(conf, 'splitType')) or (conf.splitType is 'exp'):
+    if (not hasattr(conf, 'splitType')) or (conf.splitType == 'exp'):
         isval = sample(list(range(nexps)), int(nexps * conf.valratio))
 
     try:
@@ -355,7 +361,7 @@ def create_tf_record_from_lbl(conf, split=True, split_file=None):
     count = 0
     val_count = 0
 
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
     else:
@@ -412,7 +418,7 @@ def create_tf_record_from_lbl(conf, split=True, split_file=None):
 
 
 def create_envs(conf, split, db_type=None):
-    if db_type is 'rnn':
+    if db_type == 'rnn':
         if split:
             train_filename = os.path.join(conf.cachedir, conf.trainfilename_rnn)
             val_filename = os.path.join(conf.cachedir, conf.valfilename_rnn)
@@ -509,12 +515,12 @@ def get_cur_env(envs, split, conf, info, mov_split, trx_split, predefined=None):
     mov_ndx, frame_ndx, trx_ndx = info
     if split:
         if hasattr(conf, 'splitType'):
-            if conf.splitType is 'frame':
+            if conf.splitType == 'frame':
                 cur_env = val_env if np.random.random() < conf.valratio \
                     else env
-            elif conf.splitType is 'trx':
+            elif conf.splitType == 'trx':
                 cur_env = val_env if trx_split[trx_ndx] else env
-            elif conf.splitType is 'predefined':
+            elif conf.splitType == 'predefined':
                 cur_env = val_env if predefined[1].count(info) > 0 else env
             else:
                 cur_env = val_env if mov_split.count(mov_ndx) else env
@@ -682,7 +688,7 @@ def create_tf_record_from_lbl_with_trx(conf, split=True, split_file=None):
     val_count = 0
     sel_pts = int(view * npts_per_view) + conf.selpts
 
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = json.load(split_file)
     else:
@@ -758,7 +764,7 @@ def create_tf_record_time_from_lbl_with_trx(conf, split=True, split_file=None):
     sel_pts = int(view * npts_per_view) + conf.selpts
     tw = conf.time_window_size
 
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = json.load(split_file)
     else:
@@ -859,7 +865,7 @@ def create_tf_record_rnn_from_lbl_with_trx(conf, split=True, split_file=None):
     val_count = 0
     sel_pts = int(view * npts_per_view) + conf.selpts
 
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = json.load(split_file)
     else:

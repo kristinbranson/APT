@@ -24,20 +24,23 @@ methods = ['unet','leap','deeplabcut','openpose']
 out_dir = '/groups/branson/bransonlab/mayank/apt_expts/'
 nsplits = 3
 openpose_dir = '/groups/branson/bransonlab/mayank/apt_expts/open_pose/training'
-deepcut_dir = '/groups/branson/bransonlab/mayank/apt_expts/deepcut'
-leap_dir = '/groups/branson/bransonlab/mayank/apt_expts/leap'
+deepcut_dir = '/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2'
+leap_dir = '/groups/branson/bransonlab/mayank/apt_expts/leap_orig2'
 unet_dir = '/groups/branson/home/kabram/PycharmProjects/poseTF'
-deepcut_default_cfg = '/groups/branson/bransonlab/mayank/PoseTF/cache/apt_interface/multitarget_bubble_view0/test_deepcut/pose_cfg.yaml'
+# deepcut_default_cfg = '/groups/branson/bransonlab/mayank/PoseTF/cache/apt_interface/multitarget_bubble_view0/test_deepcut/pose_cfg.yaml'
 
+deepcut_default_cfg = '/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2/examples/openfield-Pranav-2018-10-30/config.yaml'
 prog_thresholds = [10,100,10]
 
 def create_deepcut_cfg(conf):
     with open(deepcut_default_cfg,'r') as f:
         default_cfg = yaml.load(f)
-    default_cfg['dataset'] = os.path.join(conf.cachedir, 'train_data.p')
+    default_cfg['dataset'] = 'train_data.p'
+    default_cfg['project_path'] = conf.cachedir
     default_cfg['all_joints'] = [[i] for i in range(conf.n_classes)]
     default_cfg['all_joints_names'] = ['part_{}'.format(i) for i in range(conf.n_classes)]
     default_cfg['num_joints'] = conf.n_classes
+    default_cfg['init_weights'] = '/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2/deeplabcut/pose_estimation_tensorflow/models/pretrained/resnet_v1_50.ckpt'
     with open(os.path.join(conf.cachedir, 'pose_cfg.yaml'), 'w') as f:
         yaml.dump(default_cfg, f)
 

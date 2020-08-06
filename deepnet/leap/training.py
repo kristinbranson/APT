@@ -1,4 +1,4 @@
-''' Modified by Mayank Kabra 
+''' Modified by Mayank Kabra
 From LEAP https://github.com/talmo/leap by Talmo Pereira
 '''
 import numpy as np
@@ -8,7 +8,7 @@ from time import time
 from scipy.io import loadmat, savemat
 import re
 import shutil
-#import clize
+# import clize
 import json
 import PoseTools
 import math
@@ -19,15 +19,13 @@ import contextlib
 import keras
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback,LearningRateScheduler
 from keras.callbacks import Callback
+import keras.backend as K
 
 from leap import models
 from leap.image_augmentation import PairedImageAugmenter, MultiInputOutputPairedImageAugmenter
 #from leap.viz import show_pred, show_confmap_grid, plot_history
 from leap.utils import load_dataset
-from keras import backend as K
 
-
-# name = 'leap'
 
 def train_val_split(X, Y, val_size=0.15, shuffle=True):
     """ Splits datasets into training and validation sets. """
@@ -74,6 +72,7 @@ def create_run_folders(run_name, base_path="models", clean=False):
     return run_path
 
 
+
 class LossHistory(keras.callbacks.Callback):
     def __init__(self, run_path):
         super(LossHistory,self).__init__()
@@ -91,7 +90,7 @@ class LossHistory(keras.callbacks.Callback):
                 {k: [x[k] for x in self.history] for k in self.history[0].keys()})
 
         # Plot graph
-        plot_history(self.history, save_path=os.path.join(self.run_path, "history.png"))
+        # plot_history(self.history, save_path=os.path.join(self.run_path, "history.png"))
 
 
 def create_model(net_name, img_size, output_channels, **kwargs):
@@ -108,10 +107,9 @@ def create_model(net_name, img_size, output_channels, **kwargs):
 
     return compile_model(img_size, output_channels, **kwargs)
 
-
 def train(data_path,
     base_output_path="models",
-    run_name=None,
+    run_name='deepnet',
     data_name=None,
     net_name="leap_cnn",
     clean=False,
@@ -133,7 +131,8 @@ def train(data_path,
     reduce_lr_min_lr=1e-10,
     save_every_epoch=False,
     amsgrad=False,
-    upsampling_layers=False
+    upsampling_layers=False,
+    conf=None
     ):
     """
     Trains the network and saves the intermediate results to an output directory.
@@ -168,16 +167,16 @@ def train(data_path,
     # Load
     print("data_path:", data_path)
     box, confmap = load_dataset(data_path, X_dset=box_dset, Y_dset=confmap_dset)
-    viz_sample = (box[viz_idx], confmap[viz_idx])
     box, confmap, val_box, val_confmap, train_idx, val_idx = train_val_split(box, confmap, val_size=val_size, shuffle=preshuffle)
     print("box.shape:", box.shape)
     print("val_box.shape:", val_box.shape)
 
     # Pull out metadata
-    img_size = box.shape[1:]
-    num_output_channels = confmap.shape[-1]
-    print("img_size:", img_size)
-    print("num_output_channels:", num_output_channels)
+    img_size = np.array(box.shape[1:])
+    img_size[0] = img_size[0]//conf.rescale
+    img_size[1] = img_size[1]//conf.rescale
+
+    num_output_channels = conf.n_classes
 
     # Build run name if needed
     if data_name == None:
@@ -190,13 +189,17 @@ def train(data_path,
     print("run_name:", run_name)
 
     # Create network
-    model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=amsgrad, upsampling_layers=upsampling_layers, summary=True)
+    if isinstance(net_name, keras.models.Model):
+        model = net_name
+        net_name = model.name
+    else:
+        model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=amsgrad, upsampling_layers=upsampling_layers, summary=True)
     if model == None:
         print("Could not find model:", net_name)
         return
 
-    # Initialize run directories
-    run_path = create_run_folders(run_name, base_path=base_output_path, clean=clean)
+    # Initialize run
+    run_path = base_output_path
     savemat(os.path.join(run_path, "training_info.mat"),
             {"data_path": data_path, "val_idx": val_idx, "train_idx": train_idx,
              "base_output_path": base_output_path, "run_name": run_name, "data_name": data_name,
@@ -207,187 +210,6 @@ def train(data_path,
              "reduce_lr_patience": reduce_lr_patience, "reduce_lr_min_delta": reduce_lr_min_delta,
              "reduce_lr_cooldown": reduce_lr_cooldown, "reduce_lr_min_lr": reduce_lr_min_lr,
              "save_every_epoch": save_every_epoch, "amsgrad": amsgrad, "upsampling_layers": upsampling_layers})
-
-    # Save initial network
-    model.save(os.path.join(run_path, "initial_model.h5"))
-
-    # Data generators/augmentation
-    input_layers = model.input_names
-    output_layers = model.output_names
-    if len(input_layers) > 1 or len(output_layers) > 1:
-        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
-        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
-    else:
-        train_datagen = PairedImageAugmenter(box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
-        val_datagen = PairedImageAugmenter(val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle))
-
-    # Initialize training callbacks
-    history_callback = LossHistory(run_path=run_path)
-    reduce_lr_callback = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
-                                          patience=reduce_lr_patience, verbose=1, mode="auto",
-                                          epsilon=reduce_lr_min_delta, cooldown=reduce_lr_cooldown,
-                                          min_lr=reduce_lr_min_lr)
-    if save_every_epoch:
-        checkpointer = ModelCheckpoint(filepath=os.path.join(run_path, "weights/weights.{epoch:03d}-{val_loss:.9f}.h5"), verbose=1, save_best_only=False)
-    else:
-        checkpointer = ModelCheckpoint(filepath=os.path.join(run_path, "best_model.h5"), verbose=1, save_best_only=True)
-    viz_grid_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: show_confmap_grid(model, *viz_sample, plot=True, save_path=os.path.join(run_path, "viz_confmaps/confmaps_%03d.png" % epoch), show_figure=False))
-    viz_pred_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: show_pred(model, *viz_sample, save_path=os.path.join(run_path, "viz_pred/pred_%03d.png" % epoch), show_figure=False))
-
-    # Train!
-    epoch0 = 0
-    t0_train = time()
-    training = model.fit_generator(
-            train_datagen,
-            initial_epoch=epoch0,
-            epochs=epochs,
-            verbose=1,
-    #         use_multiprocessing=True,
-    #         workers=8,
-            steps_per_epoch=batches_per_epoch,
-            max_queue_size=512,
-            shuffle=False,
-            validation_data=val_datagen,
-            validation_steps=val_batches_per_epoch,
-            callbacks = [
-                reduce_lr_callback,
-                checkpointer,
-                history_callback,
-                viz_pred_callback,
-                viz_grid_callback
-            ]
-        )
-
-    # Compute total elapsed time for training
-    elapsed_train = time() - t0_train
-    print("Total runtime: %.1f mins" % (elapsed_train / 60))
-
-    # Save final model
-    model.history = history_callback.history
-    model.save(os.path.join(run_path, "final_model.h5"))
-
-
-def set_leap_defaults(conf):
-    conf.label_blur_rad = 5
-    conf.rrange = 5
-    conf.display_steps = 50 # this is same as batches per epoch
-    conf.dl_steps = 50*conf.display_steps
-    conf.batch_size = 50
-
-
-def get_read_fn(conf, data_path):
-
-    batch_size = 1
-    rotate_angle = 0
-    net_name = conf.leap_net_name
-    box_dset="box"
-    confmap_dset="confmaps"
-    filters=64
-
-    box, confmap = load_dataset(data_path, X_dset=box_dset, Y_dset=confmap_dset,permute=range(4))
-
-    # Pull out metadata
-    img_size = box.shape[1:]
-    num_output_channels = confmap.shape[-1]
-
-    # Create network
-    model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=False, upsampling_layers=False, summary=False)
-    if model == None:
-        print("Could not find model:", net_name)
-        return
-
-    input_layers = model.input_names
-    output_layers = model.output_names
-    if len(input_layers) > 1 or len(output_layers) > 1:
-        datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, batch_size=batch_size, shuffle=False, theta=(-rotate_angle, rotate_angle))
-    else:
-        datagen = PairedImageAugmenter(box, confmap, batch_size=batch_size, shuffle=False, theta=(-rotate_angle, rotate_angle))
-
-    cur_ex = [0]
-    def read_fn():
-        im, hmap = datagen[cur_ex[0]]
-        cur_ex[0] += 1
-        locs = PoseTools.get_pred_locs(hmap)
-        info = [0,0,0]
-        return im, locs, info
-
-    n_db = box.shape[0]
-
-    return read_fn, n_db
-
-
-def train_apt(conf, upsampling_layers=False,name='deepnet'):
-
-    """
-    Trains the network and saves the intermediate results to an output directory.
-
-    :param conf: config
-    :param upsampling_layers: Use simple bilinear upsampling layers as opposed to learned transposed convolutions
-    """
-
-    data_path = [os.path.join(conf.cachedir, 'leap_train.h5')]
-    batch_size = conf.batch_size
-    rotate_angle = conf.rrange
-    assert conf.dl_steps % conf.display_step == 0, \
-        'For leap, number of training iterations must be divisible by display step'
-    epochs = conf.dl_steps/conf.display_step
-    batches_per_epoch = conf.display_step
-    val_batches_per_epoch=10
-    assert conf.save_step % conf.display_step == 0, \
-        'For leap, save steps must be divisible by display steps'
-    save_step = conf.save_step/conf.display_step
-    base_output_path = str(conf.cachedir)
-    net_name = conf.leap_net_name
-
-    train_data_file = os.path.join(conf.cachedir, 'traindata')
-    with open(train_data_file, 'wb') as td_file:
-        pickle.dump(conf, td_file, protocol=2)
-    logging.info('Saved config to {}'.format(train_data_file))
-
-    box_dset="box"
-    confmap_dset="joints" #"confmaps" work with locs rather than heatmaps.
-    filters=64
-    reduce_lr_factor=0.1
-    reduce_lr_patience=3
-    reduce_lr_min_delta=1e-5
-    reduce_lr_cooldown=0
-    reduce_lr_min_lr=1e-10
-    amsgrad=True
-
-    # Load
-    print("data_path:", data_path)
-
-    box, confmap = load_dataset(data_path[0], X_dset=box_dset, Y_dset=confmap_dset,permute=range(4))
-    if len(data_path) > 1:
-        val_box, val_confmap = load_dataset(data_path[1], X_dset=box_dset, Y_dset=confmap_dset,permute=range(4))
-    else:
-        val_box = box
-        val_confmap = confmap
-
-    # Pull out metadata
-    img_size = np.array(box.shape[1:])
-    img_size[0] = img_size[0]//conf.rescale
-    img_size[1] = img_size[1]//conf.rescale
-
-    num_output_channels = conf.n_classes
-
-    # Create network
-    model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=amsgrad, upsampling_layers=upsampling_layers, summary=True)
-    if model == None:
-        print("Could not find model:", net_name)
-        return
-
-    # Initialize run
-    run_path = base_output_path
-    savemat(os.path.join(base_output_path, "training_info.mat"),
-            {"data_path": data_path,
-             "base_output_path": base_output_path, #"run_name": run_name,
-             "net_name": net_name, "box_dset": box_dset, "confmap_dset": confmap_dset, "filters": filters, "rotate_angle": rotate_angle,
-             "epochs": epochs, "batch_size": batch_size, "batches_per_epoch": batches_per_epoch,
-             "val_batches_per_epoch": val_batches_per_epoch,"reduce_lr_factor": reduce_lr_factor,
-             "reduce_lr_patience": reduce_lr_patience, "reduce_lr_min_delta": reduce_lr_min_delta,
-             "reduce_lr_cooldown": reduce_lr_cooldown, "reduce_lr_min_lr": reduce_lr_min_lr,
-             "amsgrad": amsgrad, "upsampling_layers": upsampling_layers})
 
     # Save initial network
     model.save(str(os.path.join(run_path, "initial_model.h5")))
@@ -402,33 +224,15 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
         val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
-    base_lr = conf.get('leap_base_lr',4e-5) * conf.get('learning_rate_multiplier',1.)
- # 2e-5
-    momentum = 0.9
-    weight_decay = 5e-4
-    lr_policy = "step"
-    gamma = conf.gamma          #0.333
-    step_size = conf.decay_steps # 6000 # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
-    save_time = conf.get('save_time',None)
-    logging.info('Learning Rate {}'.format(base_lr))
-
-    def step_decay(epoch):
-        initial_lrate = base_lr
-        steps = epoch * batches_per_epoch
-        lrate = initial_lrate * math.pow(gamma, math.floor(steps / step_size))
-        return lrate
-
-    if not conf.get('leap_use_default_lr',False):
-        lrate = LearningRateScheduler(step_decay)
-    else:
-        # Initialize training callbacks
-        lrate = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
+    history_callback = LossHistory(run_path=run_path)
+    reduce_lr_callback = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
                                           patience=reduce_lr_patience, verbose=1, mode="auto",
                                           epsilon=reduce_lr_min_delta, cooldown=reduce_lr_cooldown,
                                           min_lr=reduce_lr_min_lr)
 
-    # checkpointer = ModelCheckpoint(model_file, verbose=0, save_best_only=False,period=save_step)
 
+    # checkpointer = ModelCheckpoint(model_file, verbose=0, save_best_only=False,period=save_step)
+    save_time = conf.get('save_time', None)
     class OutputObserver(Callback):
         def __init__(self, conf, dis):
             self.train_di, self.val_di = dis
@@ -479,10 +283,10 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            if name == 'deepnet':
+            if run_name == 'deepnet':
                 train_data_file = os.path.join( self.config.cachedir, 'traindata')
             else:
-                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
+                train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + run_name + '_traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -492,13 +296,13 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             with open(train_data_file, 'wb') as train_data_file:
                 pickle.dump([self.train_info, conf], train_data_file, protocol=2)
 
-            if conf.save_time is None:
+            if save_time is None:
                 if step % conf.save_step == 0:
-                    model.save(str(os.path.join(run_path,name + '-{}'.format(step))))
+                    model.save(str(os.path.join(run_path,run_name + '-{}'.format(step))))
             else:
                 if time() - self.start_time > conf.save_time*60:
                     self.start_time = time()
-                    model.save(str(os.path.join(run_path, name + '-{}'.format(step))))
+                    model.save(str(os.path.join(run_path, run_name + '-{}'.format(step))))
 
     obs = OutputObserver(conf,[train_datagen,val_datagen])
 
@@ -506,22 +310,21 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     epoch0 = 0
     t0_train = time()
     use_multiprocessing = False if box.shape[0] < 300 else True
-    model.save(str(os.path.join(run_path, name + '-{}'.format(0))))
+    model.save(str(os.path.join(run_path, run_name + '-{}'.format(0))))
     training = model.fit_generator(
             train_datagen,
             initial_epoch=epoch0,
             epochs=epochs,
             verbose=0,
-            use_multiprocessing=use_multiprocessing,
-            workers=4,
+    #         use_multiprocessing=True,
+    #         workers=8,
             steps_per_epoch=batches_per_epoch,
             max_queue_size=512,
             shuffle=False,
             validation_data=val_datagen,
             validation_steps=val_batches_per_epoch,
             callbacks = [
-                # reduce_lr_callback,
-                lrate,
+                reduce_lr_callback,
                 # checkpointer,
                 obs
             ]
@@ -532,10 +335,51 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(str(os.path.join(run_path, name + '-{}'.format(int(conf.dl_steps)))))
-    # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
+    model.save(str(os.path.join(run_path, run_name + '-{}'.format(int(conf.dl_steps)))))
     obs.on_epoch_end(epochs)
     K.clear_session()
+
+
+def get_read_fn(conf, data_path):
+
+    batch_size = 1
+    rotate_angle = 0
+    net_name = conf.leap_net_name
+    box_dset="box"
+    confmap_dset="joints"
+    filters=64
+
+    box, confmap = load_dataset(data_path, X_dset=box_dset, Y_dset=confmap_dset)
+
+    # Pull out metadata
+    img_size = box.shape[1:]
+    num_output_channels = confmap.shape[-1]
+
+    # Create network
+    model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=False, upsampling_layers=False, summary=False)
+    if model is None:
+        print("Could not find model:", net_name)
+        return
+
+    input_layers = model.input_names
+    output_layers = model.output_names
+    if len(input_layers) > 1 or len(output_layers) > 1:
+        datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, conf, shuffle=False)
+    else:
+        datagen = PairedImageAugmenter(box, confmap, conf, shuffle=False)
+
+    cur_ex = [0]
+    def read_fn():
+        im, hmap = datagen[cur_ex[0]]
+        cur_ex[0] += 1
+        locs = PoseTools.get_pred_locs(hmap)
+        info = [0,0,0]
+        return im, locs, info
+
+    n_db = box.shape[0]
+
+    return read_fn, n_db
+
 
 
 def get_pred_fn(conf, model_file=None,name='deepnet',tmr_pred=None):

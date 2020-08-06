@@ -5,7 +5,13 @@ import convNetBase as CNB
 import PoseTools
 import sys
 import os
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import imageio
 import localSetup
 from scipy.ndimage.interpolation import zoom
@@ -21,7 +27,8 @@ import resnet_official
 import urllib
 import tarfile
 import math
-from open_pose2 import upsample_init_value
+from upsamp import upsample_init_value
+
 
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
@@ -146,7 +153,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
             n_filt = X.get_shape().as_list()[-1]
             n_out = self.conf.n_classes
             weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             biases = tf.get_variable("out_biases", n_out,
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -278,7 +285,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             in_dim = x_in.get_shape().as_list()[3]
             kernel_shape = [3, 3, in_dim, n_filt]
             weights = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             biases = tf.get_variable("biases", kernel_shape[-1],
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
@@ -392,7 +399,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 n_filt = X.get_shape().as_list()[-1]
                 n_out = self.conf.n_classes
-                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tf.contrib.layers.xavier_initializer())
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("out_biases", n_out, initializer=tf.constant_initializer(0.))
                 conv_out = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv_out, biases, name = 'unet_pred')
@@ -417,7 +424,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         with tf.variable_scope(self.net_name):
             if self.conf.get('mdn_regularize_wt',False) is True:
                 wt_scale = self.conf.get('mdn_regularize_wt_scale',0.1)
-                wt_reg = tf.contrib.layers.l2_regularizer(scale=wt_scale)
+                wt_reg = tensorflow.contrib.layers.l2_regularizer(scale=wt_scale)
             else:
                 wt_reg = None
 
@@ -476,7 +483,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 if explicit_offset:
                     # o_locs = ((tf.sigmoid(o_locs) * 2) - 0.5) * locs_offset
-                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * k * n_out],                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * k * n_out],                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
                                                   initializer=tf.constant_initializer(0))
                     o_locs = tf.nn.conv2d(mdn_l, weights_locs,
@@ -498,7 +505,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     locs = tf.reshape(o_locs, [-1, n_x * n_y * k, n_out, 2], name='locs_final')
                 else:
                     mdn_l = tf.concat([mdn_l,x_off,y_off],axis=-1)
-                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt+2, 2 * k * n_out],                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                    weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt+2, 2 * k * n_out],                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
                                                   initializer=tf.constant_initializer(0))
                     o_locs = tf.nn.conv2d(mdn_l, weights_locs,
@@ -509,7 +516,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 with tf.variable_scope('layer_scales'):
                     kernel_shape = [1, 1, n_filt_in, n_filt]
                     weights = tf.get_variable("weights", kernel_shape,
-                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases = tf.get_variable("biases", kernel_shape[-1],
                                              initializer=tf.constant_initializer(0))
                     conv = tf.nn.conv2d(X, weights,
@@ -519,7 +526,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 mdn_l = tf.nn.relu(conv + biases)
 
                 weights_scales = tf.get_variable("weights_scales", [1, 1, n_filt, k * n_out],
-                                                 initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                                 initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                 biases_scales = tf.get_variable("biases_scales", k * self.conf.n_classes,
                                                 initializer=tf.constant_initializer(0))
                 o_scales = tf.exp(tf.nn.conv2d(mdn_l, weights_scales,
@@ -547,7 +554,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                             kernel_shape = [1, 1, n_filt_in, n_filt]
 
                         weights = tf.get_variable("weights", kernel_shape,
-                                                  initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                                  initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                         biases = tf.get_variable("biases", kernel_shape[-1],
                                                  initializer=tf.constant_initializer(0))
                         conv = tf.nn.conv2d(X, weights,
@@ -559,7 +566,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 loc_shape = mdn_l.get_shape().as_list()
                 in_filt = loc_shape[-1]
                 weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt, k * n_groups],
-                                                 initializer=tf.contrib.layers.xavier_initializer())
+                                                 initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_logits = tf.get_variable("biases_logits", k * n_groups,
                                                 initializer=tf.constant_initializer(0))
                 logits = tf.nn.conv2d(mdn_l, weights_logits,
@@ -587,7 +594,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 with tf.variable_scope('layer_dist'):
                     kernel_shape = [1, 1, n_filt_in, n_filt]
                     weights = tf.get_variable("weights", kernel_shape,
-                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
                     biases = tf.get_variable("biases", kernel_shape[-1],
                                              initializer=tf.constant_initializer(0))
                     conv = tf.nn.conv2d(X_dist, weights,
@@ -597,7 +604,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 mdn_l = tf.nn.relu(conv + biases)
 
                 weights_dist = tf.get_variable("weights_dist", [1, 1, n_filt, k * n_out],
-                                                 initializer=tf.contrib.layers.xavier_initializer())
+                                                 initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases_dist = tf.get_variable("biases_dist", k * self.conf.n_classes,
                                                 initializer=tf.constant_initializer(0))
                 o_dist = tf.sigmoid(tf.nn.conv2d(mdn_l, weights_dist,
@@ -801,7 +808,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             sel_comp = [cur_comp[i] for i in gr]
             sel_comp = tf.stack(sel_comp, 1)
             # pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
-            sel_comp = tf.boolean_mask(sel_comp,tf.is_finite(sel_comp))
+            # sel_comp = tf.boolean_mask(sel_comp,tf.is_finite(sel_comp))
+            sel_comp = tf.where(tf.is_finite(sel_comp),sel_comp,tf.zeros_like(sel_comp))
+
             pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
             cur_loss += pp
 
@@ -975,7 +984,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             in_dim = x_in.get_shape().as_list()[3]
             kernel_shape = [3, 3, in_dim, n_filt]
             weights = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=tensorflow.contrib.layers.xavier_initializer())
             biases = tf.get_variable("biases", kernel_shape[-1],
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
@@ -1089,7 +1098,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 n_filt = X.get_shape().as_list()[-1]
                 n_out = self.conf.n_classes
-                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tf.contrib.layers.xavier_initializer())
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tensorflow.contrib.layers.xavier_initializer())
                 biases = tf.get_variable("out_biases", n_out, initializer=tf.constant_initializer(0.))
                 conv_out = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv_out, biases, name = 'unet_pred')
@@ -1113,7 +1122,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         with tf.variable_scope(self.net_name):
             if self.conf.get('mdn_regularize_wt',False) is True:
                 wt_scale = self.conf.get('mdn_regularize_wt_scale',0.1)
-                wt_reg = tf.contrib.layers.l2_regularizer(scale=wt_scale)
+                wt_reg = tensorflow.contrib.layers.l2_regularizer(scale=wt_scale)
             else:
                 wt_reg = None
 

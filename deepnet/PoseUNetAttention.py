@@ -92,8 +92,8 @@ class PoseUNetAttention(PoseUNet.PoseUNet):
                     n_channels = ll.get_shape().as_list()[-1]
 
                     # no batch norm for this. 2 fully connected layers to generate the attention weights from scores.
-                    int1 = tf.contrib.layers.fully_connected(self.ph['scores'], n_channels, activation_fn=tf.nn.relu)
-                    wts = tf.sigmoid(tf.contrib.layers.fully_connected(int1, n_channels, activation_fn=None))
+                    int1 = tensorflow.contrib.layers.fully_connected(self.ph['scores'], n_channels, activation_fn=tf.nn.relu)
+                    wts = tf.sigmoid(tensorflow.contrib.layers.fully_connected(int1, n_channels, activation_fn=None))
                     # with sigmoid the weights are > 0 and bounded
 
                     debug_layers.append(wts)

@@ -2,6 +2,8 @@
 
 This is a step-by-step guide to running an OrthoCam stereo camera calibration. OrthoCam is intended to provide a more usable/stable calibration for cameras/rigs which operate in the weak perspective regime. This weak perspective regime is when Δz << z, usually occurring when the camera's angle of view is <10° (according to doi:10.1088/0957-0233/26/9/095203).
 
+**_Note July 2020:_** _We extracted the Orthocam calibration that was integrated with the MATLAB Computer Vision toolbox from this repo. Please open a GitHub issue or contact us if you would like to try using Orthocam. If there is demand we may release this code separately as a calibration tool._
+
 #### Requirements and Setup
 
 * Orthocam calibration requires MATLAB R2016b specifically. The calibration is integrated into the MATLAB Stereo Calibration App.
@@ -104,7 +106,7 @@ Again, *lsqnonlin* is used for the optimization. This optimization is tougher, a
 
 The good news is, with the new Step 3b, these optimizer runs usually run much more smoothly now. The optimizer doesn't have to fight getting patterns that are randomly mirrored back into alignment. 
 
-You can restart/repeat the optimization until the final optimizer message is "Possible minimum found" etc rather than "Maximum iterations/evaluations exceeded". Again, a "good" residual value (3rd column of numbers in display) is say in the range of 1000 or less.
+You can restart/rhttps://github.com/kristinbranson/aptepeat the optimization until the final optimizer message is "Possible minimum found" etc rather than "Maximum iterations/evaluations exceeded". Again, a "good" residual value (3rd column of numbers in display) is say in the range of 1000 or less.
 
 Verify that the reproduction error is good with the stereo calibration. 
 

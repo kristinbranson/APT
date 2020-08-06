@@ -2,7 +2,7 @@
 
 import os
 import tarfile
-import urllib
+import urllib.request as urllib
 
 def download_and_extract(url,script_dir,wt_dir,wt_file,wt_file_gz,name=''):
 

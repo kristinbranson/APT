@@ -1793,8 +1793,41 @@ classdef CPRLabelTracker < LabelTracker
       end
       tblfldscontainsassert(tblMFT,MFTable.FLDSID);
       assert(isa(tblMFT.mov,'MovieIndex'));
-      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE)) % odd condition, prob not really what we want to check
+      
+      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
+        %if ~isMultiChunk
         tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
+        % AL 20200521 very long/multitarget movies were slowed way down by 
+        % the following label compilation steps. Did some optim so hopefully
+        % better now; alternatively, could possibly skip these steps as per 
+        % commented out code.
+%         else
+%           npts = obj.lObj.nLabelPoints; % includes all views
+%           pdummy = nan(nFrmTrk,npts*2);
+%           tfoccdummy = false(nFrmTrk,npts);
+%           tblMFT.p = pdummy;
+%           tblMFT.tfocc = tfoccdummy;
+%           
+%           obj.lObj.preProcInitData();
+%           ocMultiChunkPPDB = onCleanup(@()obj.lObj.preProcInitData());
+%           % We add dummy labels/occ with the right size to tblMFT. The
+%           % preProcDB will get updated with this bogus info, but the
+%           % onCleanup here will guarantee it gets cleaned up. Note in the 
+%           % multichunk case we are also calling preProcInitData() after 
+%           % every chunk during the regular codepath. Note:
+%           %
+%           % * The OC should work with ctrl-C (in addition to any harderr) 
+%           % * Even if the OC were not to work, the preProcData DB might be
+%           % fine as the normal update machinery does check the .p/.tfocc
+%           % values for updated labels etc.
+%           % * The dummy fields we are adding here might not encompass all
+%           % metadata fields added during normal operation; hence the
+%           % immediate call to .preProcInitData
+%         end  
+        % We need this call even if multiChunk is true for metadata eg:
+        % .thetaTrx is used for aligning to orientation during RC
+        % propagation
+        % .roi gets used (added to trkfile) as metadata
         tblMFT = obj.lObj.preProcCropLabelsToRoiIfNec(tblMFT);
       end
       if obj.lObj.hasTrx || obj.lObj.cropProjHasCrops
@@ -1810,6 +1843,8 @@ classdef CPRLabelTracker < LabelTracker
       nFrmTrk = size(tblMFT,1);
       iChunkStarts = 1:movChunkSize:nFrmTrk;
       nChunk = numel(iChunkStarts);
+      isMultiChunk = nChunk>1;
+
       if tfWB && nChunk>1
         wbObj.startPeriod('Tracking chunks','shownumden',true,'denominator',nChunk);
         oc2 = onCleanup(@()wbObj.endPeriod());
@@ -1819,7 +1854,7 @@ classdef CPRLabelTracker < LabelTracker
       
       for iChunk=1:nChunk
         
-        if tfWB && nChunk>1
+        if tfWB && isMultiChunk
           wbObj.updateFracWithNumDen(iChunk);
         end
         
@@ -1831,7 +1866,7 @@ classdef CPRLabelTracker < LabelTracker
         
         %%% data
         
-        if nChunk>1
+        if isMultiChunk
           % In this case we assume we are dealing with a 'big movie' and
           % don't preserve/cache data
           obj.lObj.preProcInitData();

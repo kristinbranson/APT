@@ -1,3 +1,40 @@
+import test.test_apt
+test.test_apt.main()
+
+##
+cmd = '-no_except -name 20200528T080857 -view 1 -cache /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647 -model_files /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647/alice_test/deeplabcut/view_0/20200528T080857/deepnet-1000 -type deeplabcut /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647/alice_test/20200528T080857_20200528T081023.lbl track -out /groups/branson/home/kabram/.apt/tpee1a7726_4b0a_4bbe_82ce_d39571faf647/alice_test/deeplabcut/view_0/20200528T080857/trk/movie_trn20200528T080857_iter1000_20200528T081729_mov1_vwj1.trk -mov /groups/branson/home/kabram/.apt/alice_test/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf -start_frame 1 -end_frame 51 -trx /groups/branson/home/kabram/.apt/alice_test/cx_GMR_SS00238_CsChr_RigC_20151007T150343/registered_trx.mat -trx_ids 1'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
+import APT_interface as apt
+lbl_file = '/groups/branson/home/kabram/.apt/tpb0c90511_c3bc_47e1_8231_9424a04ae6ff/alice_test/20200515T060036_20200515T060230.lbl'
+conf = apt.create_conf(lbl_file,0,'20200514T081006','/groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b','deeplabcut')
+conf.batch_size = 1
+A = apt.classify_db_all('deeplabcut',conf,'/groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b/alice_test/deeplabcut/view_0/20200514T081006/train_data.p','/groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b/alice_test/deeplabcut/view_0/20200514T081006/dlc-models/iteration-0/aptMayYay-trainset95shuffle1/train/snapshot-1000')
+##
+cmd = '-no_except  -name 20200514T081006 -view 1 -cache /groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b -conf_params dl_steps 1000 -type deeplabcut /groups/branson/home/kabram/.apt/tpb0c90511_c3bc_47e1_8231_9424a04ae6ff/alice_test/20200515T060036_20200515T060230.lbl train -use_cache -skip_db'
+import APT_interface as apt
+apt.main(cmd.split())
+
+
+##
+from deeplabcut.pose_estimation_tensorflow.train import  train as train_dlc
+train_dlc('/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2/examples/openfield-Pranav-2018-10-30/dlc-models/iteration-0/openfieldOct30-trainset95shuffle1/train/pose_cfg_apt.yaml',displayiters=100,saveiters=5000,maxiters=10000)
+##
+from deeplabcut.pose_estimation_tensorflow import training
+training.train_network('/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2/examples/openfield-Pranav-2018-10-30/config_apt.yaml',displayiters=100,saveiters=5000,maxiters=10000,shuffle=1)
+##
+cmd = '-no_except  -name 20200514T081006 -view 1 -cache /groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b -type deeplabcut /groups/branson/home/kabram/.apt/tpb0c90511_c3bc_47e1_8231_9424a04ae6ff/alice_test/20200515T060036_20200515T060230.lbl train -use_cache -skip_db'
+import APT_interface as apt
+apt.main(cmd.split())
+
+# leap
+cmd = '-name 20200512T050857 -view 1 -cache /groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b -type leap /groups/branson/home/kabram/.apt/tpbe0cc40c_6a69_44df_b80f_f777e5008a1b/alice_test/20200512T050857_20200512T051052.lbl train -use_cache -skip_db'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
 cmd = '-name 20200318T094825 -conf_params dl_steps 100 -cache /groups/branson/home/kabram/.apt/tp17f8408c_b91a_48a8_89d8_39c54aa5fa9f -type mdn /groups/branson/home/bransonk/.apt/tp7784a5ec_74be_4503_a288_4fadc2ab78e5/sh4992/20200325T160019_20200325T160107.lbl train -use_cache'
 
 import APT_interface as apt

@@ -6,3 +6,6 @@ pip install keras==2.2.4 matplotlib # specific version of keras
 pip install imageio h5py EasyDict future scikit-image hdf5storage
 apt-get install -y ffmpeg x264 x265 # missing libav-tools. 
 sudo apt-get install tcl-dev tk-dev python-tk python3-tk # for matplotlib
+pip install clize packaging ruamel.yaml statsmodels tqdm
+# for python3.5 for deeplabcut
+#pip install future-fstrings

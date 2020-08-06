@@ -9,6 +9,8 @@ import argparse
 import collections
 import datetime
 import json
+import os
+os.environ['DLClight'] = 'False'
 
 from os.path import expanduser
 from random import sample
@@ -22,13 +24,19 @@ import multiResData
 from multiResData import float_feature, int64_feature,bytes_feature,trx_pts, check_fnum
 # from multiResData import *
 import leap.training
-from leap.training import train_apt as leap_train
+from leap.training import train as leap_train
 # import open_pose
-from deepcut.train import train as deepcut_train
-import deepcut.train
+from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
+import deeplabcut.pose_estimation_tensorflow.train
 import ast
 import tempfile
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0]==1 and vv[1]>12:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+
 import sys
 import h5py
 import numpy as np
@@ -42,6 +50,8 @@ import re
 from scipy import io as sio
 import heatmap
 import time # for timing between writing n frames tracked
+import tarfile
+import urllib
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
@@ -166,8 +176,10 @@ def parse_frame_arg(framein,nMovies,defaultval):
                 frameout = [np.Inf] * nMovies
             else:
                 frameout = [framein] * nMovies
+        elif len(framein) == 1:
+            frameout = framein * nMovies
         else:
-            frameout = map(lambda x: np.Inf if (x < 0) else x,framein)
+            frameout = list(map(lambda x: np.Inf if (x < 0) else x,framein))
             if len(frameout) < nMovies:
                 frameout = frameout + [defaultval]*(nMovies-len(frameout))
     assert len(frameout) == nMovies
@@ -641,7 +653,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     conf.unet_rescale = conf.rescale
     conf.op_rescale = conf.rescale
-    conf.dlc_rescale = conf.rescale
+    # conf.dlc_rescale = conf.rescale
     conf.leap_rescale = conf.rescale
 
     assert not(conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
@@ -739,14 +751,14 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
     mov_split = None
     predefined = None
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
-    elif conf.splitType is 'movie':
+    elif conf.splitType == 'movie':
         nexps = len(local_dirs)
         mov_split = sample(list(range(nexps)), int(nexps * conf.valratio))
         predefined = None
-    elif conf.splitType is 'trx':
+    elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
     for ndx, dir_name in enumerate(local_dirs):
@@ -834,14 +846,14 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
 
     mov_split = None
     predefined = None
-    if conf.splitType is 'predefined':
+    if conf.splitType == 'predefined':
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
-    elif conf.splitType is 'movie':
+    elif conf.splitType == 'movie':
         nexps = len(local_dirs)
         mov_split = sample(list(range(nexps)), int(nexps * conf.valratio))
         predefined = None
-    elif conf.splitType is 'trx':
+    elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
     m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
@@ -955,7 +967,7 @@ def create_leap_db(conf, split=False, split_file=None, use_cache=False):
 
         if info.size > 0:
             hf = h5py.File(out_file, 'w')
-            hf.create_dataset('box', data=ims)
+            hf.create_dataset('box', data=np.transpose(ims,(0,3,2,1)))
             # hf.create_dataset('confmaps', data=hmaps)
             hf.create_dataset('joints', data=locs)
             hf.create_dataset('exptID', data=info[:, 0])
@@ -981,7 +993,7 @@ def create_deepcut_db(conf, split=False, split_file=None, use_cache=False):
         for b in range(bp):
             fis[b].write('{}\t{}\t{}\n'.format(count[0], locs[b, 0], locs[b, 1]))
         mod_locs = np.insert(np.array(locs), 0, range(bp), axis=1)
-        save_data.append([img_name, im.shape, mod_locs])
+        save_data.append([[img_name], [(3,)+im.shape], [[mod_locs]]])
         count[0] += 1
 
     bparts = ['part_{}'.format(i) for i in range(conf.n_classes)]
@@ -1021,10 +1033,16 @@ def create_deepcut_db(conf, split=False, split_file=None, use_cache=False):
     [f.close() for f in train_fis]
     [f.close() for f in val_fis]
     with open(os.path.join(conf.cachedir, 'train_data.p'), 'wb') as f:
-        pickle.dump(train_data, f, protocol=2)
+        qq = np.empty([1,len(train_data)],object)
+        for i in range(len(train_data)):
+            qq[0,i] = train_data[i]
+        pickle.dump(qq, f, protocol=2)
     if split:
         with open(os.path.join(conf.cachedir, 'val_data.p'), 'wb') as f:
-            pickle.dump(val_data, f, protocol=2)
+            qq = np.empty([1, len(val_data)], object)
+            for i in range(len(val_data)):
+                qq[0, i] = val_data[i]
+            pickle.dump(qq, f, protocol=2)
 
     # save the split data
     try:
@@ -1304,7 +1322,8 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet',distort=False):
     elif model_type == 'leap':
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file,name=name)
     elif model_type == 'deeplabcut':
-        pred_fn, close_fn, model_file = deepcut.train.get_pred_fn(conf, model_file,name=name)
+        cfg_dict = create_dlc_cfg_dict(conf,name)
+        pred_fn, close_fn, model_file = deeplabcut.pose_estimation_tensorflow.get_pred_fn(cfg_dict, model_file)
     else:
         try:
             module_name = 'Pose_{}'.format(model_type)
@@ -1537,7 +1556,11 @@ def classify_db_all(model_type, conf, db_file, model_file=None):
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'deeplabcut':
-        read_fn, n = deepcut.train.get_read_fn(conf, db_file)
+        cfg_dict = create_dlc_cfg_dict(conf)
+        [p,d] = os.path.split(db_file)
+        cfg_dict['project_path'] = p
+        cfg_dict['dataset'] = d
+        read_fn, n = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
         ret = classify_db(conf, read_fn, pred_fn, n)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
@@ -1551,7 +1574,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None):
 
         # raise ValueError('Undefined model type')
 
-    return pred_locs, label_locs, info
+    return pred_locs, label_locs, info, model_file
 
 
 def check_train_db(model_type, conf, out_file):
@@ -1576,8 +1599,12 @@ def check_train_db(model_type, conf, out_file):
         read_fn, n = leap.training.get_read_fn(conf, db_file)
     elif model_type == 'deeplabcut':
         db_file = os.path.join(conf.cachedir, 'train_data.p')
+        cfg_dict = create_dlc_cfg_dict(conf)
+        [p,d] = os.path.split(db_file)
+        cfg_dict['project_path'] = p
+        cfg_dict['dataset'] = d
         print('Checking db from {}'.format(db_file))
-        read_fn, n = deepcut.train.get_read_fn(conf, db_file)
+        read_fn, n = deeplabcut.train.get_read_fn(cfg_dict)
     else:
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
         print('Checking db from {}'.format(db_file))
@@ -1876,7 +1903,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
     else:
         logging.exception("Did not successfully write output to %s"%out_file_tmp)
 
-def classify_movie(conf, pred_fn,
+def classify_movie(conf, pred_fn, model_type,
                    mov_file='',
                    out_file='',
                    trx_file=None,
@@ -1908,6 +1935,7 @@ def classify_movie(conf, pred_fn,
     n_frames = int(cap.get_n_frames())
     T, first_frames, end_frames, n_trx = get_trx_info(trx_file, conf, n_frames)
     trx_ids = get_trx_ids(trx_ids, n_trx, conf.has_trx_file)
+    conf.batch_size = 1 if model_type == 'deeplabcut' else conf.batch_size
     bsize = conf.batch_size
     flipud = conf.flipud
 
@@ -2038,7 +2066,7 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
     elif net_type == 'openpose':
         files = open_pose.model_files(conf, name)
     elif net_type == 'deeplabcut':
-        files = deepcut.train.model_files(conf, name)
+        files = deeplabcut.pose_estimation_tensorflow.model_files(create_dlc_cfg_dict(conf,name), name)
     else:
         assert False, 'Undefined Net Type'
 
@@ -2056,7 +2084,7 @@ def classify_movie_all(model_type, **kwargs):
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
     logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
-        classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
+        classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
         close_fn()
         logging.exception('Could not track movie')
@@ -2086,9 +2114,34 @@ def train_mdn(conf, args, restore,split, split_file=None):
 
 
 def train_leap(conf, args, split, split_file=None):
+    assert(conf.dl_steps%conf.display_step==0), 'Number of training iterations must be a multiple of display steps for LEAP'
+
     if not args.skip_db:
         create_leap_db(conf, split=split, use_cache=args.use_cache,split_file=split_file)
-    leap_train(conf,name=args.train_name)
+
+    leap_train(data_path=os.path.join(conf.cachedir,'leap_train.h5'),
+    base_output_path=conf.cachedir,
+    run_name=args.train_name,
+    net_name=conf.leap_net_name,
+    box_dset="box",
+    confmap_dset="joints",
+    val_size=conf.leap_val_size,
+    preshuffle=conf.leap_preshuffle,
+    filters=int(conf.leap_filters),
+    rotate_angle=conf.rrange,
+    epochs=conf.dl_steps//conf.display_step,
+    batch_size=conf.batch_size,
+    batches_per_epoch=conf.display_step,
+    val_batches_per_epoch=conf.leap_val_batches_per_epoch,
+    reduce_lr_factor=conf.leap_reduce_lr_factor,
+    reduce_lr_patience=conf.leap_reduce_lr_patience,
+    reduce_lr_min_delta=conf.leap_reduce_lr_min_delta,
+    reduce_lr_cooldown=conf.leap_reduce_lr_cooldown,
+    reduce_lr_min_lr=conf.leap_reduce_lr_min_lr,
+    amsgrad=conf.leap_amsgrad,
+    upsampling_layers=conf.leap_upsampling,
+    conf=conf)
+
     tf.reset_default_graph()
 
 
@@ -2109,9 +2162,90 @@ def train_openpose(conf, args, split, split_file=None):
 def train_deepcut(conf, args, split_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache,split_file=split_file)
-    deepcut_train(conf,name=args.train_name)
+
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    cfg_dict = create_dlc_cfg_dict(conf,args.train_name)
+    deepcut_train(cfg_dict,
+      displayiters=conf.display_step,
+      saveiters=conf.save_step,
+      maxiters=cfg_dict['dlc_train_steps'])
     tf.reset_default_graph()
 
+
+
+
+def create_dlc_cfg_dict(conf,train_name='deepnet'):
+    url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    wt_dir = os.path.join(script_dir, 'pretrained')
+    wt_file = os.path.join(wt_dir, 'resnet_v1_50.ckpt')
+    if hasattr(conf,'tfactor_range'):
+        minsz = max(conf.imsz)/2*(1-conf.tfactor_range)
+        wd_x = conf.imsz[1]*conf.tfactor_range/2
+        wd_y = conf.imsz[0]*conf.tfactor_range/2
+    else:
+        minsz = max(conf.imsz)/2 - conf.trange/2
+        wd_x = conf.trange/2
+        wd_y = conf.trange/2
+    if not os.path.exists(wt_file):
+        print('Downloading pretrained weights..')
+        if not os.path.exists(wt_dir):
+            os.makedirs(wt_dir)
+        sname, header = urllib.urlretrieve(url)
+        tar = tarfile.open(sname, "r:gz")
+        print('Extracting pretrained weights..')
+        tar.extractall(path=wt_dir)
+    pretrained_weights = os.path.join(wt_dir, 'resnet_v1_50.ckpt')
+
+    symmetric_joints = list(range(conf.n_classes))
+    for k in conf.flipLandmarkMatches.keys():
+        symmetric_joints[int(k)] = int(conf.flipLandmarkMatches[k])
+    cfg_dict = { 'snapshot_prefix':os.path.join(conf.cachedir,train_name),
+      'project_path':conf.cachedir,
+    'dataset': conf.dlc_train_data_file,
+    'init_weights': pretrained_weights,
+    'dlc_train_steps': conf.dl_steps,
+    'symmetric_joints': symmetric_joints,
+    'num_joints':conf.n_classes,
+    'all_joints': [[i] for i in range(conf.n_classes)],
+    'all_joints_names': ['part_{}'.format(i) for i in range(conf.n_classes)],
+    'dataset_type': 'default', #conf.dlc_augmentation_type,
+    'global_scale': 1. / conf.rescale,
+    'scale_jitter_lo': min(1/conf.scale_factor_range,conf.scale_factor_range),
+    'scale_jitter_up': max(1/conf.scale_factor_range,conf.scale_factor_range),
+    'net_type': 'resnet_50',
+    'pos_dist_thresh': 17,
+    'intermediate_supervision': conf.dlc_intermediate_supervision, # False
+    'intermediate_supervision_layer': conf.dlc_intermediate_supervision_layer, #12,
+    'location_refinement': conf.dlc_location_refinement, # True,
+    'locref_huber_loss': conf.dlc_locref_huber_loss, #True,
+    'locref_loss_weight': conf.dlc_locref_loss_weight, # 0.05,
+    'locref_stdev': conf.dlc_locref_stdev, #7.2801,
+    'img_dim':conf.img_dim,
+    'dlc_use_apt_preprocess':conf.dlc_use_apt_preprocess,
+    'scale_factor_range':conf.scale_factor_range,
+                 'brange':conf.brange,
+                 'crange':conf.crange,
+                 'trange':conf.trange,
+                 'rrange':conf.rrange,
+                 'horz_flip':conf.horz_flip,
+                 'vert_flip':conf.vert_flip,
+                 'adjust_contrast':conf.adjust_contrast,
+                 'flipLandmarkMatches':conf.flipLandmarkMatches,
+                 'normalize_img_mean':conf.normalize_img_mean,
+                 'use_scale_factor_range':conf.use_scale_factor_range,
+                 'imsz':conf.imsz,
+                 'imax':conf.imax,
+                 'check_bounds_distort': conf.check_bounds_distort,
+
+    # 'minsize':minsz,
+    #              'leftwidth':wd_x,
+    #              'rightwidth':wd_x,
+    #              'topheight':wd_y,
+    #              'bottomheight': wd_y,
+    'mirror': False # switch to cfg.horz_flip if dataset is imgaug
+    }
+    return cfg_dict
 
 def train(lblfile, nviews, name, args):
     ''' Creates training db and calls the appropriate network's training function '''
@@ -2134,7 +2268,9 @@ def train(lblfile, nviews, name, args):
             out_data = []
             for d in in_data:
                 out_data.append((np.array(d)-1).tolist())
-            t_file = os.path.join(tempfile.tempdir,next(tempfile._get_candidate_names()))
+            # tempfile.tempdir returns None for bsub/sing
+            #t_file = os.path.join(tempfile.tempdir,next(tempfile._get_candidate_names()))
+            t_file = args.split_file + ".temp0b"
             with open(t_file,'w') as f:
                 json.dump(out_data,f)
             conf.splitType = 'predefined'
@@ -2159,7 +2295,7 @@ def train(lblfile, nviews, name, args):
                 train_leap(conf, args, split, split_file=split_file)
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
-                    deepcut.train.set_deepcut_defaults(conf)
+                    deeplabcut.train.set_deepcut_defaults(conf)
                 train_deepcut(conf,args, split_file=split_file)
             else:
                 if not args.skip_db:
@@ -2178,6 +2314,20 @@ def train(lblfile, nviews, name, args):
             logging.exception('Out of GPU Memory. Either reduce the batch size or scale down the image')
             exit(1)
 
+        if args.classify_val:
+            val_filename = get_valfilename(conf, net_type)
+            db_file = os.path.join(conf.cachedir, val_filename)
+            logging.info("Classifying {}... ".format(db_file))
+            preds, locs, info, model_file = classify_db_all(net_type, conf, db_file)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            info = to_mat(info)
+            out_file = args.classify_val_out
+            logging.info("... done classifying, used model {}. Saving to {}".format(model_file, out_file))
+            out_dict = {'preds': preds, 'locs': locs, 'info': info, 'model_file': model_file}
+            hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("lbl_file",
@@ -2190,6 +2340,7 @@ def parse_args(argv):
                         default=None,nargs='*')
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
     parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
+    parser.add_argument('-no_except', dest='no_except', help='Dont catch exception. Useful for debugging', action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
     parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
@@ -2205,7 +2356,13 @@ def parse_args(argv):
                               help='Use cached images in the label file to generate the training data.')
     parser_train.add_argument('-continue', dest='restore', action='store_true',
                               help='Continue from previously unfinished traning. Only for unet')
-    parser_train.add_argument('-split_file', dest='split_file', help='Split file to split data for train and validation', default=None)
+    parser_train.add_argument('-split_file', dest='split_file',
+                              help='Split file to split data for train and validation', default=None)
+    parser_train.add_argument('-classify_val', dest='classify_val',
+                              help='Apply trained model to val db', action='store_true')
+    parser_train.add_argument('-classify_val_out', dest='classify_val_out',
+                              help='Store results of classify_val in this file (specified as a full path).', default=None)
+
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
 
@@ -2296,7 +2453,19 @@ def parse_trx_ids_arg(trx_ids,nmovies):
 
     logging.info('Output trx_ids = ' + str(trx_ids_out))
     return trx_ids_out
-    
+
+def get_valfilename(conf, nettype):
+    if nettype in ['mdn', 'unet', 'openpose']:
+        val_filename = conf.valfilename + '.tfrecords'
+    elif nettype == 'leap':
+        val_filename = 'leap_val.h5'
+    elif nettype == 'deeplabcut':
+        val_filename = 'val_data.p'
+    else:
+        raise ValueError('Unrecognized net type')
+    return val_filename
+
+
 def run(args):
     name = args.name
 
@@ -2499,16 +2668,9 @@ def run(args):
             if args.db_file is not None:
                 db_file = args.db_file
             else:
-                if args.type in ['mdn','unet','openpose']:
-                    val_filename = conf.valfilename + '.tfrecords'
-                elif args.type == 'leap':
-                    val_filename = 'leap_val.h5'
-                elif args.type == 'deeplabcut':
-                    val_filename = 'val_data.p'
-                else:
-                    raise ValueError('Unrecognized net type')
+                val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            preds, locs, info, _ = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
             # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
             preds = to_mat(preds)
@@ -2566,10 +2728,13 @@ def main(argv):
     log.addHandler(logh)
     log.setLevel(logging.DEBUG)
 
-    try:
+    if args.no_except:
         run(args)
-    except Exception as e:
-        logging.exception('UNKNOWN: APT_interface errored')
+    else:
+        try:
+            run(args)
+        except Exception as e:
+            logging.exception('UNKNOWN: APT_interface errored')
 
 
 if __name__ == "__main__":

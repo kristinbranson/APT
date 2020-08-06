@@ -226,6 +226,22 @@ classdef CPRData < handle
       end
     end
     
+    function rmRows(obj,idxrm)
+      % remove rows
+      %
+      % idx: index vector, not logical vec
+     
+      obj.MD(idxrm,:) = [];
+      obj.I(idxrm,:) = [];
+      obj.pGT(idxrm,:) = [];
+      obj.bboxes(idxrm,:) = [];
+      if ~isempty(obj.Ipp)
+        obj.Ipp(idxrm,:) = [];
+      end
+      obj.iTrn = setdiff(obj.iTrn,idxrm);
+      obj.iTst = setdiff(obj.iTst,idxrm);    
+    end
+    
     function tfRm = movieRemap(obj,mIdxOrig2New)
       % mIdxOrig2New: containers.Map, int32 keys and values. 
       %   mIdxOrig2New(oldIdx)==newIdx where oldIdx and/or newIdx can be 
