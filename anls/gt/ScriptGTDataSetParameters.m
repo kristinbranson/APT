@@ -7,24 +7,34 @@ cprdir = '/groups/branson/bransonlab/apt/experiments/res/cprgt20190407';
 gtimdata = [];
 assert(exist('exptype','var')>0);
 
-nets = {'openpose','leap','deeplabcut','unet','resnet_unet','mdn','cpropt'};
-legendnames = {'OpenPose','LEAP','DeepLabCut','U-net','Res-U-net','MDN','CPR'};
+nets = {'openpose','leap','leap_orig','deeplabcut','deeplabcut_orig',...
+  'unet','resnet_unet','mdn_joint','mdn','mdn_unet','cpropt'};
+legendnames = {'OpenPose','LEAP', 'LEAP 0','DeepLabCut','DeepLabCut 0',...
+  'U-net','Res-U-net','MDN Joint','MDN','MDN U-net','CPR'};
+% nets = {'openpose','leap','deeplabcut','unet','resnet_unet','mdn','cpropt'};
+% legendnames = {'OpenPose','LEAP','DeepLabCut','U-net','Res-U-net','MDN','CPR'};
+
+
 nnets = numel(nets);
 colors = [
-  0         0.4470    0.7410
-  0.4660    0.6740    0.1880
-  0.8500    0.3250    0.0980
-  0.9290    0.6940    0.1250
-  0.6350    0.0780    0.1840
-  0.4940    0.1840    0.5560
-  0.3010    0.7450    0.9330
+  0         0.4470    0.7410 % openpose
+  0.7330    0.8370    0.5940 % leap  (blend of white and leap)
+  0.4660    0.6740    0.1880 % leap original
+  0.9250    0.6625    0.5490 % dlc (blend of white and dlc)
+  0.8500    0.3250    0.0980 % dlc original 
+  0.9290    0.6940    0.1250 % unet
+  0.6350    0.0780    0.1840 % resnet_unet
+  0.4940    0.1840    0.5560 % mdn joint 
+  0.7470    0.5920    0.7780 % mdn (blend of mdn joint and white) 
+  0.3293    0.1227    0.3707 % mdn unet (blend of mdn joint and black) 
+  0.3010    0.7450    0.9330 % cpr
   ];
 prcs = [50,75,90,95,97];
 
-idxnet = [1 2 3 7 4 5 6];
-nets = nets(idxnet);
-colors = colors(idxnet,:);
-legendnames = legendnames(idxnet);
+% idxnet = [1 2 3 7 4 5 6];
+% nets = nets(idxnet);
+% colors = colors(idxnet,:);
+% legendnames = legendnames(idxnet);
 vwi = 1;
 doAlignCoordSystem = false;
 annoterrfile = '';
@@ -36,24 +46,35 @@ switch exptype,
     if strcmp(exptype,'SHView0'),
       %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view0_trainsize.mat';
       gtfile_trainsize_cpr = fullfile(cprdir,'outputFINAL/stephen_view0_trainsize_withcpr.mat');
+      gtfile_cpr = fullfile(cprdir,'outputFINAL/stephen_view0_trainsize_withcpr.mat');
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view0_trainsize.mat';
-      gtfile_traintime = '/nrs/branson/mayank/apt_cache/stephen_view0_time.mat';
+      gtfile_trainsize = '';
+      gtfile_traintime = '';
+      %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view0_trainsize.mat';
+      %gtfile_traintime = '/nrs/branson/mayank/apt_cache/stephen_view0_time.mat';
+      
+      gtfile_final = '/groups/branson/bransonlab/mayank/apt_results/stephen_deepnet_20200706_view0_time20200708.mat';
       vwi = 1;
       annoterrfile = 'SHView0_AnnErrData20190718.mat';
     else
       %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view1_trainsize.mat';
       gtfile_trainsize_cpr = fullfile(cprdir,'outputFINAL/stephen_view1_trainsize_withcpr.mat');
+      gtfile_cpr = fullfile(cprdir,'outputFINAL/stephen_view1_trainsize_withcpr.mat');
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view1_trainsize.mat';
-      gtfile_traintime = '/nrs/branson/mayank/apt_cache/stephen_view1_time.mat';
+      gtfile_trainsize = '';
+      gtfile_traintime = '';
+
+%       gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view1_trainsize.mat';
+%       gtfile_traintime = '/nrs/branson/mayank/apt_cache/stephen_view1_time.mat';
+      gtfile_final = '/groups/branson/bransonlab/mayank/apt_results/stephen_deepnet_20200706_view1_time20200708.mat';
       vwi = 2;
       annoterrfile = 'SHView1_AnnErrData20190718.mat';
     end
     condinfofile = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190718.mat';
-    gtdata_size = load(gtfile_trainsize);
-    nlabels = size(gtdata_size.(nets{end}){end}.labels,1);
-    npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    gtdata = load(gtfile_final);
+    net1 = find(ismember(fieldnames(gtdata),nets),1);
+    npts = size(gtdata.(nets{net1}){end}.labels,2);
+    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     incondinfo = load(condinfofile);
     conddata = struct;
@@ -73,28 +94,35 @@ switch exptype,
     %     labeltypes = {'all',1};
     %     datatypes = {'all',1};
     maxerr = 60;
-    lblfile = '/groups/branson/home/bransonk/tracking/code/APT/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres_mdn20190214_skeledges.lbl';
+    %lblfile = '/groups/branson/home/bransonk/tracking/code/APT/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres_mdn20190214_skeledges.lbl';
+    lblfile = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20200317.lbl';
     freezeInfo = struct;
     freezeInfo.iMov = 502;
     freezeInfo.iTgt = 1;
     freezeInfo.frm = 746;
-    doplotoverx = true;
+    %doplotoverx = true;
+    doplotoverx = false;
     gtimdata = struct;
     gtimdata.ppdata = incondinfo.ppdata;
     gtimdata.tblPGT = incondinfo.tblPGT;
     
   case 'SH3D'    
     gtfile_trainsize_cpr = '';
+    gtfile_cpr = '';
     gtfile_traintime_cpr = '';
-    gtfile_trainsize = '/groups/branson/home/bransonk/tracking/code/APT/stephen_3D_trainsize20190719.mat';
-    gtfile_traintime = '/groups/branson/home/bransonk/tracking/code/APT/stephen_3D_traintime20190719.mat';
+%     gtfile_trainsize = '/groups/branson/home/bransonk/tracking/code/APT/stephen_3D_trainsize20190719.mat';
+%     gtfile_traintime = '/groups/branson/home/bransonk/tracking/code/APT/stephen_3D_traintime20190719.mat';
+    gtfile_trainsize = '';
+    gtfile_traintime = '';
+    gtfile_final = 'TODO';
     vwi = 1;
     annoterrfile = '/groups/branson/home/bransonk/tracking/code/APT/SH3D_AnnErrData20190719.mat';
 
     condinfofile = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190718.mat';
-    gtdata_size = load(gtfile_trainsize);
-    nlabels = size(gtdata_size.(nets{end}){end}.labels,1);
-    npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    gtdata = load(gtfile_final);
+    net1 = find(ismember(fieldnames(gtdata),nets),1);
+    npts = size(gtdata.(nets{net1}){end}.labels,2);
+    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     incondinfo = load(condinfofile);
     conddata = struct;
@@ -116,7 +144,8 @@ switch exptype,
     maxerr = [];
     lblfile = '/groups/branson/home/bransonk/tracking/code/APT/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres_mdn20190214_skeledges.lbl';
     freezeInfo = [];
-    doplotoverx = true;
+    %doplotoverx = true;
+    doplotoverx = false;
     gtimdata = struct;
     gtimdata.ppdata = incondinfo.ppdata;
     gtimdata.tblPGT = incondinfo.tblPGT;
@@ -125,9 +154,13 @@ switch exptype,
   case 'FlyBubble'
     %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/alice_view0_trainsize.mat';
     gtfile_trainsize_cpr = fullfile(cprdir,'outputFINAL/alice_view0_trainsize_withcpr.mat');
-    gtfile_trainsize = '/nrs/branson/mayank/apt_cache/alice_view0_trainsize.mat';
+    gtfile_cpr = fullfile(cprdir,'outputFINAL/alice_view0_trainsize_withcpr.mat');
+    %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/alice_view0_trainsize.mat';
+    gtfile_trainsize = '';
     %gtfile_traintime = '/nrs/branson/mayank/apt_cache/alice_view0_time.mat';
-    gtfile_traintime = '/nrs/branson/mayank/apt_cache/alice_view0_time.mat';
+    %gtfile_traintime = '/nrs/branson/mayank/apt_cache/alice_view0_time.mat';
+    gtfile_traintime = '';
+    gtfile_final = '/groups/branson/bransonlab/mayank/apt_results/alice_deepnet_20200706_view0_time20200708.mat';
     gtfile_traintime_cpr = '';
     condinfofile = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_condinfo.mat';
     gtimagefile = '/groups/branson/home/bransonk/tracking/code/APT/FlyBubbleGTData20190524.mat';
@@ -149,11 +182,15 @@ switch exptype,
       'same genotype',2
       'different genotype',3
       'all',[1,2,3]};
-    lblfile = '/groups/branson/home/bransonk/tracking/code/APT/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_mdn20190214_skeledges.lbl';
+    %lblfile = '/groups/branson/home/bransonk/tracking/code/APT/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_mdn20190214_skeledges.lbl';
+    lblfile = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317.lbl';
     maxerr = 30;
-    doplotoverx = true;
-    gtdata_size = load(gtfile_trainsize);
-    npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    %doplotoverx = true;
+    doplotoverx = false;
+    gtdata = load(gtfile_final);
+    net1 = find(ismember(nets,fieldnames(gtdata)),1);
+    npts = size(gtdata.(nets{net1}){end}.labels,2);
+    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     annoterrfile = 'AnnotErrData20190614.mat';
     
   case {'RFView0','RFView1'}
@@ -161,20 +198,27 @@ switch exptype,
       %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view0_trainsize.mat';
       gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/romn/out/xv_romnproj_alcpreasyprms_tblcvi_romn_split_romn_20190515T173224.mat';%fullfile(cprdir,'outputFINAL/stephen_view0_trainsize_withcpr.mat');
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/romain_view0_cv.mat';
+      gtfile_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/romn/out/xv_romnproj_alcpreasyprms_tblcvi_romn_split_romn_20190515T173224.mat';%fullfile(cprdir,'outputFINAL/stephen_view0_trainsize_withcpr.mat');
+      %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/romain_view0_cv.mat';
+      gtfile_trainsize = '';
+      %gtfile_final = '/nrs/branson/mayank/apt_cache/romain_view0_cv.mat';
+      gtfile_final = 'TODO';
       gtfile_traintime = '';
       vwi = 1;
     else
       %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view1_trainsize.mat';
       gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/romn/out/xv_romnproj_alcpreasyprms_tblcvi_romn_split_romn_20190515T173224.mat';%fullfile(cprdir,'outputFINAL/stephen_view0_trainsize_withcpr.mat');
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/romain_view1_cv.mat';
+      gtfile_trainsize = '';
+      gtfile_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/romn/out/xv_romnproj_alcpreasyprms_tblcvi_romn_split_romn_20190515T173224.mat';%fullfile(cprdir,'outputFINAL/stephen_view0_trainsize_withcpr.mat');      %gtfile_final = '/nrs/branson/mayank/apt_cache/romain_view1_cv.mat';
+      gtfile_final = 'TODO';
       gtfile_traintime = '';
       vwi = 2;
     end
     condinfofile = '';
-    gtdata_size = load(gtfile_trainsize);
-    nlabels = size(gtdata_size.(nets{end}){end}.labels,1);
-    npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    gtdata = load(gtfile_final);
+    net1 = find(ismember(nets,fieldnames(gtdata)),1);
+    npts = size(gtdata.(nets{net1}){end}.labels,2);
+    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     conddata = [];
     labeltypes = {};
@@ -215,15 +259,19 @@ switch exptype,
   case 'RF3D'
     gtfile_trainsize_cpr = '';
     gtfile_traintime_cpr = '';
-    gtfile_trainsize = '/groups/branson/home/bransonk/tracking/code/APT/RF3D_trainsize20190722.mat';
+    gtfile_final = '';
+    gtfile_trainsize = '';
+    %gtfile_final = '/groups/branson/home/bransonk/tracking/code/APT/RF3D_trainsize20190722.mat';
+    gtfile_final = 'TODO';
     gtfile_traintime = '';
     vwi = 1;
     annoterrfile = '';
     
     condinfofile = '';
-    gtdata_size = load(gtfile_trainsize);
-    nlabels = size(gtdata_size.(nets{end}){end}.labels,1);
-    npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    gtdata = load(gtfile_final);
+    net1 = find(ismember(nets,fieldnames(gtdata)),1);
+    npts = size(gtdata.(nets{net1}){end}.labels,2);
+    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
 
     conddata = [];
     maxerr = [];
@@ -248,11 +296,13 @@ switch exptype,
   case 'Larva',
     
     gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/larv/out/xv_Larva94A04_CM_tbltrn_larv_split_larv_prm_larv_ar_20190515T093243.mat';
-    gtfile_trainsize = '/nrs/branson/mayank/apt_cache/larva_view0_cv.mat';
+    gtfile_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/larv/out/xv_Larva94A04_CM_tbltrn_larv_split_larv_prm_larv_ar_20190515T093243.mat';
+    gtfile_final = 'TODO';
+    gtfile_trainsize = '';
     gtfile_traintime = '';
     gtimagefile = '/groups/branson/home/bransonk/tracking/code/APT/LarvaTrainCVInfo20190419.mat';
-    gtdata_size = load(gtfile_trainsize);
-    nlabels = size(gtdata_size.(nets{end}){end}.labels,1);
+    gtdata = load(gtfile_final);
+    nlabels = size(gtdata.(nets{end}){end}.labels,1);
     
     conddata = [];
     % conditions:
@@ -289,13 +339,16 @@ switch exptype,
     %gtfile_trainsize = '/nrs/branson/mayank/apt_cache/stephen_view0_trainsize.mat';
     gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/sere/out/xv_sere_al_cprparamsbigger_20190514_tblcvi_sere_split_sere_20190515T094434.mat';
     gtfile_traintime_cpr = '';
-    gtfile_trainsize = '/nrs/branson/mayank/apt_cache/roian_view0_cv.mat';
+    gtfile_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/sere/out/xv_sere_al_cprparamsbigger_20190514_tblcvi_sere_split_sere_20190515T094434.mat';    gtfile_trainsize = '';
+    %gtfile_final = '/nrs/branson/mayank/apt_cache/roian_view0_cv.mat';
+    gtfile_final = '/groups/branson/bransonlab/mayank/apt_results/roian_deepnet_20200712_view0_cv20200716.mat';
     gtfile_traintime = '';
     vwi = 1;
     condinfofile = '';
-    gtdata_size = load(gtfile_trainsize);
-    nlabels = size(gtdata_size.(nets{end}){end}.labels,1);
-    npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    gtdata = load(gtfile_final);
+    net1 = find(ismember(nets,fieldnames(gtdata)),1);
+    npts = size(gtdata.(nets{net1}){end}.labels,2);
+    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     conddata = [];
     % conditions:
@@ -332,35 +385,49 @@ switch exptype,
     if strcmp(exptype,'BSView0x'),
       gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam0_tbltrn_brit_vw1_split_brit_vw1_prm_brit_al_20190515T184617.mat';
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit0_view0_cv.mat';
+      gtfile_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam0_tbltrn_brit_vw1_split_brit_vw1_prm_brit_al_20190515T184617.mat';
+      gtfile_trainsize = '';
       gtfile_traintime = '';
+      %gtfile_final = '/nrs/branson/mayank/apt_cache/brit0_view0_cv.mat';
+      gtfile_final = '/groups/branson/bransonlab/mayank/apt_results/brit0_deepnet_20200710_view0_cv20200717.mat';
       vwi = 1;
-      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0.lbl';
+      %lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0.lbl';
+      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327.lbl';
       pttypes = {'Front foot',[1,2]
         'Back foot',[3,4]
         'Tail',5};
     elseif strcmp(exptype,'BSView1x'),
       gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam1_tbltrn_brit_vw2_split_brit_vw2_prm_brit_al_20190515T184622.mat';
+      gtfile_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam1_tbltrn_brit_vw2_split_brit_vw2_prm_brit_al_20190515T184622.mat';
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit1_view0_cv.mat';
+      gtfile_trainsize = '';
       gtfile_traintime = '';
+      %gtfile_final = '/nrs/branson/mayank/apt_cache/brit1_view0_cv.mat';
+      gtfile_final = '/groups/branson/bransonlab/mayank/apt_results/brit1_deepnet_20200710_view0_cv20200717.mat';
       vwi = 1;
-      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam1.lbl';
+      %lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam1.lbl';
+      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam1_20209327_compress20200330.lbl';
       pttypes = {'Front foot',[1,2]};
     else
       gtfile_trainsize_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam2_tbltrn_brit_vw3_split_brit_vw3_prm_brit_al_20190515T184819.mat';
       gtfile_traintime_cpr = '';
-      gtfile_trainsize = '/nrs/branson/mayank/apt_cache/brit2_view0_cv.mat';
+      gtfile_cpr = '/groups/branson/bransonlab/apt/experiments/res/cpr_xv_20190504/brit/out/xv_wheel_rig_tracker_DEEP_cam2_tbltrn_brit_vw3_split_brit_vw3_prm_brit_al_20190515T184819.mat';
+      gtfile_trainsize = '';
       gtfile_traintime = '';
+      %gtfile_final = '/nrs/branson/mayank/apt_cache/brit2_view0_cv.mat';
+      gtfile_final = '/groups/branson/bransonlab/mayank/apt_results/brit2_deepnet_20200710_view0_cv20200717.mat';
+
       vwi = 1;
-      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2.lbl';
+      %lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2.lbl';
+      lblfile = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20209327_compress20200330.lbl';
       pttypes = {'Back foot',[1,2]
         'Tail',3};
     end
     condinfofile = '';
-    gtdata_size = load(gtfile_trainsize);
-    nlabels = size(gtdata_size.(nets{end}){end}.labels,1);
-    npts = size(gtdata_size.(nets{end}){end}.labels,2);
+    gtdata = load(gtfile_final);
+    net1 = find(ismember(nets,fieldnames(gtdata)),1);
+    npts = size(gtdata.(nets{net1}){end}.labels,2);
+    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     conddata = [];
     % conditions:
@@ -409,8 +476,10 @@ switch exptype,
     %       'back leg tarsi',[3,6]};
     
   case 'FlyBubbleMDNvsDLC',
-    gtfile_trainsize = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/GT/MDNvsDLC_20190530.mat';
+    %gtfile_trainsize = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/GT/MDNvsDLC_20190530.mat';
+    gtfile_trainsize = '/groups/branson/bransonlab/mayank/apt_results/alice_difficult_deepnet_20200706_view0_time_diff20200708.mat';
     gtfile_trainsize_cpr = '';
+    gtfile_cpr = '';
     gtfile_traintime = '';
     gtfile_traintime_cpr = '';
     conddata = [];

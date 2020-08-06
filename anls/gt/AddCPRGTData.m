@@ -5,7 +5,8 @@ if ~exist('vwi','var'),
 end
 
 nets = fieldnames(gtdata);
-
+fns0 = fieldnames(gtdata);
+nmodels0 = numel(gtdata.(fns0{1}));
 gtdata_cpr = load(gtfile_cpr);
 if isfield(gtdata_cpr,'xvRes'),
     
@@ -65,8 +66,12 @@ if isfield(gtdata_cpr,'xvRes'),
   gtdata.cpropt{1}.pred = reshape(pTrk(:,:,vwi,:),size(cprlabels));
     
 else
-  newfns = setdiff(fieldnames(gtdata_cpr),fieldnames(gtdata));
+  %newfns = setdiff(fieldnames(gtdata_cpr),fieldnames(gtdata));
+  newfns = intersect(fieldnames(gtdata_cpr),{'cpropt','cprqck'});
   for i = 1:numel(newfns),
     gtdata.(newfns{i}) = gtdata_cpr.(newfns{i});
+    if nmodels0 == 1,
+      gtdata.(newfns{i}) = gtdata.(newfns{i})(end);
+    end
   end
 end
