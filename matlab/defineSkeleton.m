@@ -229,13 +229,16 @@ uiwait(hFig);
       axesProps(end+1:end+2) = {'CameraUpVectorMode','auto'};
     end
     isrotated = freezeInfo.isrotated;
-    lpos = lObj.labeledposGTaware;
     
     iMov = freezeInfo.iMov;
     frm = freezeInfo.frm;
     iTgt = freezeInfo.iTgt;
     
-    pts = lpos{iMov}(:,:,frm,iTgt);
+    lpos = lObj.labeledposGTaware;
+    s = lpos{iMov};
+    [~,p,~] = Labels.isLabeledFT(s,frm,iTgt);
+    pts = reshape(p,numel(p)/2,2);
+    %pts = lpos{iMov}(:,:,frm,iTgt);
     if isrotated,
       pts = [pts,ones(size(pts,1),1)]*freezeInfo.A;
       pts = pts(:,1:2);

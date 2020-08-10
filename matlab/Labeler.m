@@ -410,6 +410,8 @@ classdef Labeler < handle
     labeledpos2CurrMovie;
     labeledpostagCurrMovie;
     
+    labelsCurrMovie;
+    
     nPhysPoints; % number of physical/3D points
   end
   properties (SetObservable)
@@ -1070,6 +1072,15 @@ classdef Labeler < handle
         v = obj.labeledposGT{obj.currMovie};
       else
         v = obj.labeledpos{obj.currMovie};
+      end
+    end
+    function v = get.labelsCurrMovie(obj)
+      if obj.currMovie==0
+        v = [];
+      elseif obj.gtIsGTMode
+        v = obj.labelsGT{obj.currMovie};
+      else
+        v = obj.labels{obj.currMovie};
       end
     end
     function v = get.labeledpos2CurrMovie(obj)
@@ -5885,7 +5896,7 @@ classdef Labeler < handle
       
       PROPS = obj.gtGetSharedProps();
       s = obj.(PROPS.LBL){iMov};
-      [s,tfchanged] = Labels.clearFT(s,iFrm,iTgt);
+      [s,tfchanged] = Labels.rmFT(s,iFrm,iTgt);
       if tfchanged
         % avoid triggering .labeledposNeedsSave if poss
         obj.(PROPS.LBL){iMov} = s;
@@ -6990,6 +7001,28 @@ classdef Labeler < handle
       end
     end
     
+    function ntgts = labelNumLabeledTgts(obj)
+      % subset of labelPosLabeledFramesStats
+      if obj.gtIsGTMode
+        lpos = obj.labelsGT;
+      else
+        lpos = obj.labels;
+      end
+      s = lpos{obj.currMovie};
+      ntgts = Labels.getNumTgts(s,obj.currFrame);
+    end
+    
+    function [xy,occ] = labelMAGetLabelsFrm(obj,frm,ntgtsmax)
+      if obj.gtIsGTMode
+        lpos = obj.labelsGT;
+      else
+        lpos = obj.labels;
+      end
+      s = lpos{obj.currMovie};
+      [p,occ] = Labels.getLabelsF(s,frm,ntgtsmax);
+      xy = reshape(p,size(p,1)/2,2,ntgtsmax);
+      occ = logical(occ);
+    end
     function [tf0] = labelPosMovieHasLabels(obj,iMov,varargin)
       x = rand;
       if x > 0.5
@@ -7019,7 +7052,24 @@ classdef Labeler < handle
       end
       tf = ~isempty(s.p);
     end
-    
+
+    function islabeled = currFrameIsLabeled(obj)
+      islabeled = currFrameIsLabeled_New(obj);
+    end
+    function islabeled = currFrameIsLabeled_New(obj)
+      % "is fully labeled"
+      lpos = obj.labeledposGTaware;
+      s = lpos{obj.currMovie};
+      [tf,p,~] = Labels.isLabeledFT(s,obj.currFrame,obj.currTarget);
+      islabeled = tf && all(~isnan(p));
+    end
+    function islabeled = currFrameIsLabeled_Old(obj)
+      % "is fully labeled"
+      lpos = obj.labeledposGTaware;
+      lpos = lpos{obj.currMovie}(:,:,obj.currFrame,obj.currTarget);
+      islabeled = all(~isnan(lpos(:)));
+    end
+
     % Label Cosmetics notes 20190601
     %
     % - Cosmetics settings live in PV pairs on .labelPointsPlotInfo
@@ -13732,14 +13782,7 @@ classdef Labeler < handle
       end
       
     end
-    
-    function islabeled = currFrameIsLabeled(obj)
-      
-      lpos = obj.labeledposGTaware;
-      lpos = lpos{obj.currMovie}(:,:,obj.currFrame,obj.currTarget);
-      islabeled = all(~isnan(lpos(:)));
-    end
-    
+        
     function prevAxesLabelsUpdate(obj)
       % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on 
       % .prevFrame etc 
@@ -13805,10 +13848,11 @@ classdef Labeler < handle
           else
             iTgt = 1;
           end
-          if size(lpos{paModeInfo.iMov},4) >= iTgt && ...
-              size(lpos{paModeInfo.iMov},3) >= paModeInfo.frm,
-            success = all(all(all(~isnan(lpos{paModeInfo.iMov}(:,:,paModeInfo.frm,iTgt,:)))));
-          end
+          success = Labels.isLabeledFT(lpos{paModeInfo.iMov},paModeInfo.frm,iTgt);
+%           if size(lpos{paModeInfo.iMov},4) >= iTgt && ...
+%               size(lpos{paModeInfo.iMov},3) >= paModeInfo.frm,
+%             success = all(all(all(~isnan(lpos{paModeInfo.iMov}(:,:,paModeInfo.frm,iTgt,:)))));
+%           end
         end
         if success,
           return;
@@ -13924,8 +13968,10 @@ classdef Labeler < handle
       end
       lpos = obj.labeledposGTaware;
       viewi = 1;
-      ptidx = obj.labeledposIPt2View == viewi;
-      poscurr = lpos{ModeInfo.iMov}(ptidx,:,ModeInfo.frm,ModeInfo.iTgt,viewi);
+      ptidx = obj.labeledposIPt2View == viewi;      
+      [~,poscurr,~] = obj.labelPosIsLabeled(ModeInfo.frm,ModeInfo.iTgt);
+      poscurr = poscurr(ptidx,:);
+%       poscurr = lpos{ModeInfo.iMov}(ptidx,:,ModeInfo.frm,ModeInfo.iTgt,viewi);
       if obj.hasTrx,
         poscurr = [poscurr,ones(size(poscurr,1),1)]*ModeInfo.A;
         poscurr = poscurr(:,1:2);
@@ -14111,17 +14157,18 @@ classdef Labeler < handle
       
       if isempty(frm),
         sz = size(obj.labeledposGTaware{1});
-        lpos = nan(sz([1,2]));
-        lpostag = false([sz(1),1]);
+        lpos = nan(obj.nLabelPoints,2);
+        lpostag = false(obj.nLabelPoints,1);
       else
-      lpos = obj.labeledposGTaware;
-      lpostag = obj.labeledpostagGTaware;
-      lpos = lpos{iMov}(:,:,frm,iTgt);
+%         lpos = obj.labeledposGTaware;
+%         lpostag = obj.labeledpostagGTaware;
+%         lpos = lpos{iMov}(:,:,frm,iTgt);
+%         lpostag = lpostag{iMov}(:,frm,iTgt);
+        [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt);      
         if isrotated,
           lpos = [lpos,ones(size(lpos,1),1)]*info.A;
           lpos = lpos(:,1:2);
         end
-      lpostag = lpostag{iMov}(:,frm,iTgt);
       end
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
@@ -14262,7 +14309,7 @@ classdef Labeler < handle
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
         tv.delete();
-      end      
+      end
       tv = TrackingVisualizerMT(obj,'labeledpos2');
       tv.vizInit();
       obj.labeledpos2trkViz = tv;

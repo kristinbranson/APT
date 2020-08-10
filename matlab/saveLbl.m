@@ -1,4 +1,4 @@
-function saveLbl(old_bundled_lbl,new_bundled_lbl,new_lbl_obj)
+function saveLbl(old_bundled_lbl,new_bundled_lbl,new_lbl_obj_savestruct)
 
 tname = tempname;
 mkdir(tname);
@@ -23,7 +23,7 @@ catch ME
   end
 end
 
-save(rawLblFile,'-struct','new_lbl_obj');
+save(rawLblFile,'-struct','new_lbl_obj_savestruct');
 fprintf('Tarring updated project into %s\n',new_bundled_lbl);
 tar([new_bundled_lbl '.tar'],fnames,tname);
 fprintf('... done with tar.\n');

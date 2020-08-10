@@ -169,7 +169,7 @@ classdef InfoTimeline < handle
 %         'PostSet',@obj.cbkLabelUpdated);
       
       listeners{end+1,1} = addlistener(labeler,...
-        {'labeledpos','labeledposGT','labeledpostagGT'},... 
+        {'labeledpos','labeledposGT','labeledpostagGT','labels'},... 
         'PostSet',@obj.cbkLabelUpdated);
       listeners{end+1,1} = addlistener(labeler,...
         'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated);
@@ -892,14 +892,23 @@ classdef InfoTimeline < handle
               bodytrx = [];
             end
             if strcmp(ptype,'Labels'),
-            lpos = labeler.labeledposGTaware{iMov};
+              lpos = labeler.labeledposGTaware{iMov};
               lpostag = labeler.labeledpostagGTaware{iMov};
+              
+              
+              nfrmtot = labeler.nframes;
+              [lpos,lpostag] = Labels.getlabelsT(lpos,iTgt,nfrmtot);
+              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             else
+              assert(false); % xxx ma
               lpos = labeler.labeledpos2GTaware{iMov};
               lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
             end
-            data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
-              lpostag(:,:,iTgt),bodytrx,pcode);
+            data = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
+            % xxx ma note iTgt            
+%             data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
+%               lpostag(:,:,iTgt),bodytrx,pcode);
+
           case 'Predictions'
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
@@ -928,8 +937,12 @@ classdef InfoTimeline < handle
       if isempty(iMov) || iMov==0 || ~labeler.hasMovie
         data = nan(obj.npts,1);
       else
-        data = reshape(all(~isnan(labeler.labeledposGTaware{iMov}(:,:,:,iTgt)),2),[obj.npts,obj.nfrm]);
-        szassert(data,[obj.npts obj.nfrm]);
+        s = labeler.labeledposGTaware{iMov};       
+        [p,~] = Labels.getlabelsT(s,iTgt,obj.nfrm);
+        xy = reshape(p,obj.npts,2,obj.nfrm);
+        data = reshape(all(~isnan(xy),2),obj.npts,obj.nfrm);
+%         data = reshape(all(~isnan(labeler.labeledposGTaware{iMov}(:,:,:,iTgt)),2),[obj.npts,obj.nfrm]);
+%         szassert(data,[obj.npts obj.nfrm]);
       end
     end
     
