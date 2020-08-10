@@ -1,4 +1,4 @@
-classdef LabelCoreSeq < LabelCore
+classdef LabelCoreSeqMA < LabelCore
 % Sequential labeling  
   
   % Label mode 1 (Sequential)
@@ -31,10 +31,19 @@ classdef LabelCoreSeq < LabelCore
     supportsSingleView = true;
     supportsMultiView = false;
     supportsCalibration = false;
-    supportsMultiAnimal = false;
+    supportsMultiAnimal = true;
   end
         
   properties
+    pbNewTgt % create a new target
+    pbDelTgt % delete the current tgt
+    
+    maxNumTgts = 10
+    tv % TrackingVisualizerMT
+    CLR_NEW_TGT = [0.470588235294118 0.670588235294118 0.188235294117647];
+  end
+  properties
+    
     iPtMove; % scalar. Either nan, or index of pt being moved
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
 
@@ -53,9 +62,50 @@ classdef LabelCoreSeq < LabelCore
   
   methods
     
-    function obj = LabelCoreSeq(varargin)
+    %OK
+    function obj = LabelCoreSeqMA(varargin)
       obj = obj@LabelCore(varargin{:});
-      set(obj.tbAccept,'Enable','off');
+      %set(obj.tbAccept,'Enable','off');
+      obj.addMAbuttons();
+      obj.tv = TrackingVisualizerMT(obj.labeler,'lblCoreSeqMA');
+      obj.tv.doPch = true;
+      obj.tv.vizInit('ntgts',obj.maxNumTgts);
+      
+      obj.labeler.currImHud.updateReadoutFields('hasTgt',true);
+      obj.labeler.gdata.axes_curr.Toolbar.Visible = 1; 
+    end
+    function addMAbuttons(obj)
+      btn = obj.tbAccept;
+      pb = uicontrol('style','pushbutton',...
+        'units',btn.Units,...
+        'position',btn.Position,...
+        'fontunits',btn.FontUnits,...
+        'fontsize',btn.FontSize,...
+        'fontweight',btn.FontWeight,...
+        'backgroundcolor',obj.CLR_NEW_TGT,...
+        'string','New Target',...
+        'callback',@(s,e)obj.cbkNewTgt() ...      
+      );
+      obj.pbNewTgt = pb;
+      
+      btn = obj.pbClear;
+      CLR = [0.929411764705882 0.690196078431373 0.129411764705882];
+      pb = uicontrol('style','pushbutton',...
+        'units',btn.Units,...
+        'position',btn.Position,...
+        'fontunits',btn.FontUnits,...
+        'fontsize',btn.FontSize,...
+        'fontweight',btn.FontWeight,...
+        'backgroundcolor',CLR,...
+        'string','Remove Target',...
+        'callback',@(s,e)obj.cbkDelTgt() ... 
+      );
+      obj.pbDelTgt = pb;
+    end
+    
+    function delete(obj)
+      delete(obj.pbNewTgt);
+      delete(obj.pbDelTgt);
     end
     
     function initHook(obj)
@@ -84,19 +134,30 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function clearLabels(obj)
-      obj.beginLabel(true);
+      assert(false,'Nonproduction codepath');
     end
     
     function acceptLabels(obj)
-      obj.beginAccepted(true);
-      obj.labeler.InitializePrevAxesTemplate();
+      fprintf(1,'accept\n');
+      obj.storeLabels();
+      lObj = obj.labeler;
+      lObj.updateTrxTable();
+      lObj.InitializePrevAxesTemplate();
+      lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
+
+%       xy = obj.getLabelCoords(); 
+% 
+%       ntgts = lObj.labelNumLabeledTgts(obj);
+%       lObj.setTargetMA(ntgts+1);
+%       lObj.labelPosSet(xy);
+%       obj.setLabelPosTagFromEstOcc();  
     end
     
     function unAcceptLabels(obj)
-      % this doesn't do anything now
-      %obj.beginAdjust();
+      assert(false,'Nonproduction codepath');
     end
     
+    %OKEND
     function axBDF(obj,src,evt) %#ok<INUSD>
       if ~obj.labeler.isReady,
         return;
@@ -129,7 +190,9 @@ classdef LabelCoreSeq < LabelCore
       end
     end
     
+    % XXX MA
     function axOccBDF(obj,~,~)
+      assert(false,'Unsupported');
       
       if ~obj.labeler.isReady,
         return;
@@ -359,9 +422,33 @@ classdef LabelCoreSeq < LabelCore
         '* S or <space> accepts the labels for the current frame/target.'};
     end
     
+    function updateSkeletonEdges(obj,varargin)
+      updateSkeletonEdges@LabelCore(obj,varargin{:});
+      se = obj.skeletonEdges;
+      obj.tv.initAndUpdateSkeletonEdges(se);
+    end
+    function updateShowSkeleton(obj)
+      tf = obj.labeler.showSkeleton;
+      fprintf(2,'XXX TODO\n');
+    end
   end
   
   methods
+    
+    function cbkNewTgt(obj)
+      lObj = obj.labeler;
+      ntgts = lObj.labelNumLabeledTgts();
+      lObj.setTarget(ntgts+1);
+      lObj.updateTrxTable();
+      lObj.currImHud.hTxtTgt.BackgroundColor = obj.CLR_NEW_TGT;
+    end
+    
+    function cbkDelTgt(obj)
+      lObj = obj.labeler;
+      %ntgts = lObj.labelNumLabeledTgts(obj);
+      lObj.labelPosClearWithCompact_New(); % sets target
+      lObj.updateTrxTable();
+    end
     
     function newFrameTarget(obj,iFrm,iTgt)
       % React to new frame or target. If a frame is not labeled, then start 
@@ -376,73 +463,75 @@ classdef LabelCoreSeq < LabelCore
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
         %fprintf('LabelCoreSeq.newFrameTarget 2: %f\n',toc(ticinfo));ticinfo = tic;
         obj.iPtMove = nan;
-        obj.beginAccepted(false); % Could possibly just call with true arg
+        obj.beginAccepted(); % Could possibly just call with true arg
         %fprintf('LabelCoreSeq.newFrameTarget 3: %f\n',toc(ticinfo));ticinfo = tic;
       else
-        obj.beginLabel(false);
+        obj.beginLabel();
       end
       %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));
+      
+      [xy,occ] = obj.labeler.labelMAGetLabelsFrm(iFrm,obj.maxNumTgts);
+      obj.tv.updateTrackRes(xy,iTgt);
     end
     
-    function beginLabel(obj,tfClearLabels)
+    function beginLabel(obj)
       % Enter Label state and clear all mode1 label state for current
       % frame/target
       
-      set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','Unlabeled','Enable','off','Value',0);
+%       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
+%         'String','Unlabeled','Enable','off','Value',0);
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
       obj.iPtMove = nan;
       obj.tfOcc(:) = false;
       obj.tfEstOcc(:) = false;
       obj.tfSel(:) = false;
-      if tfClearLabels
-        obj.labeler.labelPosClear();
-      end
+%       if tfClearLabels
+%         obj.labeler.labelPosClear();
+%       end
       obj.state = LabelState.LABEL;      
     end
     
-    function adjust2Label(obj)
-      % enter LABEL from ADJUST
-      set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','Unlabeled','Enable','off','Value',0);      
-      obj.iPtMove = nan;
-      obj.state = LabelState.LABEL;      
-    end      
+%     function adjust2Label(obj)
+%       % enter LABEL from ADJUST
+%       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
+%         'String','Unlabeled','Enable','off','Value',0);      
+%       obj.iPtMove = nan;
+%       obj.state = LabelState.LABEL;      
+%     end      
        
-    function beginAdjust(obj)
-      % Enter adjustment state for current frame/target
-      
-      assert(obj.nPtsLabeled==obj.nPts);
-      obj.iPtMove = nan;
-      set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
-        'Value',0,'Enable','off');
-      obj.state = LabelState.ADJUST;
-    end
+%     function beginAdjust(obj)
+%       % Enter adjustment state for current frame/target
+%       
+%       assert(obj.nPtsLabeled==obj.nPts);
+%       obj.iPtMove = nan;
+%       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
+%         'Value',0,'Enable','off');
+%       obj.state = LabelState.ADJUST;
+%     end
     
-    function beginAccepted(obj,tfSetLabelPos)
+    function beginAccepted(obj) %,tfSetLabelPos)
       % Enter accepted state (for current frame)
-      
-      if tfSetLabelPos
-        xy = obj.getLabelCoords();
-        obj.labeler.labelPosSet(xy);
-        obj.setLabelPosTagFromEstOcc();
-      end
+%       
+%       if tfSetLabelPos
+%         xy = obj.getLabelCoords();
+%         obj.labeler.labelPosSet(xy);
+%         obj.setLabelPosTagFromEstOcc();
+%       end
       % KB 20181029: moved this here from beginAdjust as I remove adjust
       % mode
       obj.iPtMove = nan;
       obj.clearSelected();
-      set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
-        'Value',1,'Enable','off');
+%       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
+%         'Value',1,'Enable','off');
       obj.state = LabelState.ACCEPTED;
     end
     
     function storeLabels(obj)
-      
+      fprintf(1,'store\n');
       xy = obj.getLabelCoords();
       obj.labeler.labelPosSet(xy);
-      obj.setLabelPosTagFromEstOcc();
-      
+      obj.setLabelPosTagFromEstOcc();      
     end
     
     % C+P

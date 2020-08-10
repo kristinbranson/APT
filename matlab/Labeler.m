@@ -10,7 +10,7 @@ classdef Labeler < handle
     % non-config props
   	% KB 20190214 - replaced trackDLParams, preProcParams with trackParams
     SAVEPROPS = { ...
-      'VERSION' 'projname' ...
+      'VERSION' 'projname' 'maIsMA' ...
       'movieReadPreLoadMovies' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
       'movieFilesAllGT' 'movieInfoAllGT' ...
@@ -427,7 +427,10 @@ classdef Labeler < handle
   
   %% MA
   properties
-    
+    maIsMA
+    maPtNames % [npt] cellstr; not just MA
+    maPtHeadTail  % [npt] int
+    maRoiRad = 40; % px
   end
   
   %% GT mode
@@ -1020,12 +1023,20 @@ classdef Labeler < handle
       v = obj.getlabeledposGTawareArg(obj.gtIsGTMode);
     end
     function v = getlabeledposGTawareArg(obj,gt)
-      if gt
-        v = obj.labeledposGT;
+      if obj.maIsMA
+        if gt 
+          v = obj.labelsGT;
+        else
+          v = obj.labels;
+        end
       else
-        v = obj.labeledpos;
+        if gt
+          v = obj.labeledposGT;
+        else
+          v = obj.labeledpos;
+        end
       end
-    end
+    end    
     function v = getLabeledPosMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
@@ -1780,6 +1791,7 @@ classdef Labeler < handle
       obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
       obj.viewCalibrationDataGT = [];
+      obj.maIsMA = true; % xxx ma order important
       obj.labelTemplate = []; % order important here
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
@@ -1811,8 +1823,10 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.needsSave = false;
 
+      
+      % xxx todo     
       trkPrefs = obj.projPrefs.Track;
-      if trkPrefs.Enable
+      if trkPrefs.Enable && ~obj.maIsMA
         % Create default trackers
         assert(isempty(obj.trackersAll));
         trkersCreateInfo = LabelTracker.getAllTrackersCreateInfo;
@@ -3182,7 +3196,9 @@ classdef Labeler < handle
       % 20181215 Updated for multiple DeepTrackers
       trkersInfo = LabelTracker.getAllTrackersCreateInfo;
       nDfltTrkers = numel(trkersInfo);
-      if isempty(s.trackerClass)
+      if s.maIsMA
+        % none
+      elseif isempty(s.trackerClass)
         % Add current default trackers to all projs; doesn't hurt to have
         % them there
         s.trackerClass = trkersInfo;
@@ -3196,7 +3212,7 @@ classdef Labeler < handle
         tData{1} = s.trackerData;
         s.trackerData = tData;
         s.currTracker = 1;
-      elseif iscell(s.trackerClass)
+      elseif iscell(s.trackerClass) 
                 
         nExistingTrkers = numel(s.trackerClass);
         if nExistingTrkers==2 % 20181214, only one deeptracker that had mutable trnNetType
@@ -5355,7 +5371,7 @@ classdef Labeler < handle
         obj.frm2trx = Labeler.trxHlpComputeF2t(obj.nframes,trx);
       end
       
-      obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
+      obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx || obj.maIsMA);
       obj.initShowTrx();
     end
        
@@ -5856,11 +5872,11 @@ classdef Labeler < handle
     function labelPosClear(obj)
       x = rand;
       if x > 0.5
-        obj.labelPosClear_Old();
+%         obj.labelPosClear_Old();
         obj.labelPosClear_New();
       else
         obj.labelPosClear_New();
-        obj.labelPosClear_Old();        
+%         obj.labelPosClear_Old();        
       end
     end
     function labelPosClear_Old(obj)
@@ -5910,14 +5926,53 @@ classdef Labeler < handle
       end
     end
     
+    function ntgts = labelPosClearWithCompact_New(obj)
+      % Clear all labels AND TAGS for current movie/frame/target;
+      % AND compactify labels. for MA only
+      %
+      % calls setTarget() at end
+
+      assert(obj.maIsMA);
+      
+      iMov = obj.currMovie;
+      iFrm = obj.currFrame;
+      iTgt = obj.currTarget;      
+      
+      if iTgt==0
+        error('No targets.');
+      end
+      
+      PROPS = obj.gtGetSharedProps();
+      s = obj.(PROPS.LBL){iMov};
+      [s,tfchanged] = Labels.rmFT(s,iFrm,iTgt);
+      [s,tfchanged2,ntgts] = Labels.compact(s,iFrm);
+      if tfchanged || tfchanged2
+        % avoid triggering .labeledposNeedsSave if poss
+        obj.(PROPS.LBL){iMov} = s;
+        obj.labeledposNeedsSave = true;
+      end
+      
+      if ~obj.gtIsGTMode
+        %obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        ts = now;
+        obj.lastLabelChangeTS = ts;
+      end
+      
+      if iTgt>ntgts
+        obj.setTarget(ntgts);
+      else
+        obj.setTarget(iTgt);
+      end
+    end
+    
     function labelPosClearI(obj,iPt)
       x = rand;
       if x > 0.5
-        obj.labelPosClearI_Old(iPt);
+%         obj.labelPosClearI_Old(iPt);
         obj.labelPosClearI_New(iPt);
       else
         obj.labelPosClearI_New(iPt);
-        obj.labelPosClearI_Old(iPt);
+%         obj.labelPosClearI_Old(iPt);
       end
     end
     function labelPosClearI_Old(obj,iPt)
@@ -5970,17 +6025,20 @@ classdef Labeler < handle
     end
     
     function [tf0,lpos0,lpostag0] = labelPosIsLabeled(obj,iFrm,iTrx)
+      % Even if tf0==false, lpos0/lpostag0 will have the right size
+      % filled with nans/false as appropriate
+      
       x = rand;
       if x > 0.5
-        [tf0,lpos0,lpostag0] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
-        [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_New(iFrm,iTrx);
+%         [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
+        [tf0,lpos0,lpostag0] = obj.labelPosIsLabeled_New(iFrm,iTrx);
       else
         [tf0,lpos0,lpostag0] = obj.labelPosIsLabeled_New(iFrm,iTrx);
-        [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
+%         [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
       end
-      assert(tf0==tf1);
-      assert(isequaln(lpos0,lpos1));
-      assert(isequaln(lpostag0,lpostag1));
+%       assert(tf0==tf1);
+%       assert(isequaln(lpos0,lpos1));
+%       assert(isequaln(lpostag0,lpostag1));
       
       lpostag0 = logical(lpostag0); % xxx
     end
@@ -6018,13 +6076,13 @@ classdef Labeler < handle
     function [tf0] = labelPosIsLabeledMov(obj,iMov)
       x = rand;
       if x > 0.5
-        [tf0] = obj.labelPosIsLabeledMov_Old(iMov);
-        [tf1] = obj.labelPosIsLabeledMov_New(iMov);
+%         [tf1] = obj.labelPosIsLabeledMov_Old(iMov);
+        [tf0] = obj.labelPosIsLabeledMov_New(iMov);
       else
         [tf0] = obj.labelPosIsLabeledMov_New(iMov);
-        [tf1] = obj.labelPosIsLabeledMov_Old(iMov);
+%         [tf1] = obj.labelPosIsLabeledMov_Old(iMov);
       end
-      assert(isequal(tf0,tf1));
+%       assert(isequal(tf0,tf1));
     end
     function tf = labelPosIsLabeledMov_Old(obj,iMov)
       % iMov: movie index (row index into .movieFilesAll)
@@ -6050,13 +6108,13 @@ classdef Labeler < handle
     function [tf0] = labelPosIsOccluded(obj,iFrm,iTrx)
       x = rand;
       if x > 0.5
-        [tf0] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
-        [tf1] = obj.labelPosIsOccluded_New(iFrm,iTrx);
+%         [tf1] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
+        [tf0] = obj.labelPosIsOccluded_New(iFrm,iTrx);
       else
         [tf0] = obj.labelPosIsOccluded_New(iFrm,iTrx);
-        [tf1] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
+%         [tf1] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
       end
-      assert(isequal(tf0,tf1));
+%       assert(isequal(tf0,tf1));
     end
     function tf = labelPosIsOccluded_Old(obj,iFrm,iTrx)
       % Here Occluded refers to "pure occluded"
@@ -6099,11 +6157,11 @@ classdef Labeler < handle
             
       x = rand;
       if x > 0.5
-        obj.labelPosSet_Old(xy);
+%         obj.labelPosSet_Old(xy);
         obj.labelPosSet_New(xy);
       else
         obj.labelPosSet_New(xy);
-        obj.labelPosSet_Old(xy);        
+%         obj.labelPosSet_Old(xy);        
       end
     end
     function labelPosSet_Old(obj,xy)
@@ -6143,11 +6201,11 @@ classdef Labeler < handle
             
       x = rand;
       if x > 0.5
-        obj.labelPosSetI_Old(xy,iPt);
+%         obj.labelPosSetI_Old(xy,iPt);
         obj.labelPosSetI_New(xy,iPt);
       else
         obj.labelPosSetI_New(xy,iPt);
-        obj.labelPosSetI_Old(xy,iPt);        
+%         obj.labelPosSetI_Old(xy,iPt);        
       end
     end
     function labelPosSetI_Old(obj,xy,iPt)
@@ -6512,11 +6570,11 @@ classdef Labeler < handle
     function labelPosTagSetI(obj,iPt)
       x = rand;
       if x > 0.5
-        obj.labelPosTagSetI_Old(iPt);
+%         obj.labelPosTagSetI_Old(iPt);
         obj.labelPosTagSetI_New(iPt);
       else
         obj.labelPosTagSetI_New(iPt);
-        obj.labelPosTagSetI_Old(iPt);        
+%         obj.labelPosTagSetI_Old(iPt);        
       end
     end
     function labelPosTagSetI_Old(obj,iPt)
@@ -6552,11 +6610,11 @@ classdef Labeler < handle
     function labelPosTagClearI(obj,iPt)
       x = rand;
       if x > 0.5
-        obj.labelPosTagClearI_Old(iPt);
+%         obj.labelPosTagClearI_Old(iPt);
         obj.labelPosTagClearI_New(iPt);
       else
         obj.labelPosTagClearI_New(iPt);
-        obj.labelPosTagClearI_Old(iPt);        
+%         obj.labelPosTagClearI_Old(iPt);        
       end
     end
     function labelPosTagClearI_Old(obj,iPt)
@@ -6610,17 +6668,17 @@ classdef Labeler < handle
                           labelPosLabeledNeighbor(obj,iFrm,iTrx)
       x = rand;
       if x > 0.5
-        [tfneighbor0,iFrm00,lpos00] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
-        [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_New(iFrm,iTrx);
+%         [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
+        [tfneighbor0,iFrm00,lpos00] = obj.labelPosLabeledNeighbor_New(iFrm,iTrx);
       else
         [tfneighbor0,iFrm00,lpos00] = obj.labelPosLabeledNeighbor_New(iFrm,iTrx);
-        [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
+%         [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
       end
-      assert(isequaln(tfneighbor0,tfneighbor1));
-      if tfneighbor0
-        assert(isequaln(iFrm00,iFrm01));
-        assert(isequaln(lpos00,lpos01));
-      end
+%       assert(isequaln(tfneighbor0,tfneighbor1));
+%       if tfneighbor0
+%         assert(isequaln(iFrm00,iFrm01));
+%         assert(isequaln(lpos00,lpos01));
+%       end
     end
     function [tfneighbor,iFrm0,lpos0] = ...
                           labelPosLabeledNeighbor_Old(obj,iFrm,iTrx) % obj const
@@ -6676,17 +6734,17 @@ classdef Labeler < handle
     function [tffound0,mIdx0,frm0,iTgt0,xyLbl0] = labelFindOneLabeledFrame(obj)
       x = rand;
       if x > 0.5
-        [tffound0,mIdx0,frm0,iTgt0,xyLbl0] = obj.labelFindOneLabeledFrame_Old();
-        [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_New();
+%         [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_Old();
+        [tffound0,mIdx0,frm0,iTgt0,xyLbl0] = obj.labelFindOneLabeledFrame_New();
       else
         [tffound0,mIdx0,frm0,iTgt0,xyLbl0] = obj.labelFindOneLabeledFrame_New();
-        [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_Old();
+%         [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_Old();
       end
-      assert(isequaln(tffound0,tffound1));
-      assert(isequaln(mIdx0,mIdx1));
-      assert(isequaln(frm0,frm1));
-      assert(isequaln(iTgt0,iTgt1));
-      assert(isequaln(xyLbl0,xyLbl1));
+%       assert(isequaln(tffound0,tffound1));
+%       assert(isequaln(mIdx0,mIdx1));
+%       assert(isequaln(frm0,frm1));
+%       assert(isequaln(iTgt0,iTgt1));
+%       assert(isequaln(xyLbl0,xyLbl1));
     end
     function [tffound,mIdx,frm,iTgt,xyLbl] = labelFindOneLabeledFrame_Old(obj)
       % Find one labeled frame, any labeled frame.
@@ -6778,24 +6836,24 @@ classdef Labeler < handle
                                   labelFindOneLabeledFrameEarliest(obj)
       x = rand;
       if x > 0.5
+%         [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
+%                       obj.labelFindOneLabeledFrameEarliest_Old();
         [tffound0,iMov0,frm0,iTgt0,xyLbl0,mints0] = ...
-                      obj.labelFindOneLabeledFrameEarliest_Old();
-        [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
                       obj.labelFindOneLabeledFrameEarliest_New();
       else
         [tffound0,iMov0,frm0,iTgt0,xyLbl0,mints0] = ...
                       obj.labelFindOneLabeledFrameEarliest_New();
-        [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
-                      obj.labelFindOneLabeledFrameEarliest_Old();
+%         [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
+%                       obj.labelFindOneLabeledFrameEarliest_Old();
       end
-      assert(isequaln(tffound0,tffound1));
-      if tffound0
-        assert(isequaln(iMov0,iMov1));
-        assert(isequaln(frm0,frm1));
-        assert(isequaln(iTgt0,iTgt1));
-        assert(isequaln(xyLbl0,xyLbl1));
-        %assert(isequaln(mints0,mints1));
-      end
+%       assert(isequaln(tffound0,tffound1));
+%       if tffound0
+%         assert(isequaln(iMov0,iMov1));
+%         assert(isequaln(frm0,frm1));
+%         assert(isequaln(iTgt0,iTgt1));
+%         assert(isequaln(xyLbl0,xyLbl1));
+%         %assert(isequaln(mints0,mints1));
+%       end
     end
     function [tffound,iMov,frm,iTgt,xyLbl,mints] = ...
                             labelFindOneLabeledFrameEarliest_Old(obj)
@@ -6872,14 +6930,14 @@ classdef Labeler < handle
     function [nTgts0,nPts0] = labelPosLabeledFramesStats(obj,varargin)
       x = rand;
       if x > 0.5
-        [nTgts0,nPts0] = obj.labelPosLabeledFramesStats_Old(varargin{:});
-        [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_New(varargin{:});
+%         [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_Old(varargin{:});
+        [nTgts0,nPts0] = obj.labelPosLabeledFramesStats_New(varargin{:});
       else
         [nTgts0,nPts0] = obj.labelPosLabeledFramesStats_New(varargin{:});
-        [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_Old(varargin{:});
+%         [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_Old(varargin{:});
       end
-      fprintf(1,'lposlblbedFrmsStats: nTgts0 nTgts1 nPts0 nPts1: %d %d %d %d\n',...
-        nTgts0,nTgts1,nPts0,nPts1);
+%       fprintf(1,'lposlblbedFrmsStats: nTgts0 nTgts1 nPts0 nPts1: %d %d %d %d\n',...
+%         nTgts0,nTgts1,nPts0,nPts1);
 %       assert(isequaln(nTgts0,nTgts1));
 %       assert(isequaln(nPts0,nPts1));
     end
@@ -6985,7 +7043,7 @@ classdef Labeler < handle
       
       if tfScalarFrm
         is = find(s.md(1,:)==frms);
-        nTgts = numel(unique(s.md(2,is)));
+        nTgts = numel(is);
         xs = s.p(1:s.npts,is);
         nPts = nnz(~isnan(xs));
       else
@@ -7023,16 +7081,17 @@ classdef Labeler < handle
       xy = reshape(p,size(p,1)/2,2,ntgtsmax);
       occ = logical(occ);
     end
+    
     function [tf0] = labelPosMovieHasLabels(obj,iMov,varargin)
       x = rand;
       if x > 0.5
-        [tf0] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
-        [tf1] = obj.labelPosMovieHasLabels_New(iMov,varargin);
+%         [tf1] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
+        [tf0] = obj.labelPosMovieHasLabels_New(iMov,varargin);
       else
         [tf0] = obj.labelPosMovieHasLabels_New(iMov,varargin);
-        [tf1] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
+%         [tf1] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
       end
-      assert(tf0==tf1);
+%       assert(tf0==tf1);
     end
     function tf = labelPosMovieHasLabels_Old(obj,iMov,varargin)
       gt = myparse(varargin,'gt',obj.gtIsGTMode);
@@ -9029,6 +9088,57 @@ classdef Labeler < handle
 %       tbl = struct2table(s,'AsArray',true);      
 %     end
         
+  end
+  
+  %% MA
+  methods
+    function maSetPtInfo(obj,htEnabled,ptNames,ht)
+      % ht assumed to be correct even if htEnabled==false
+      obj.maPtNames = ptNames;
+      obj.maPtHeadTail = ht;
+    end
+    function roi = maGetRoi(obj,xy)
+      % Compute square roi for keypoints xy using .ma* state
+      %
+      % xy: [npts x 2]
+      %
+      % roi: [4x2] [x(:) y(:)] corners of ractangular roi
+      
+      tfHT = ~isempty(obj.maPtHeadTail);
+      rad = obj.maRoiRad;
+      if tfHT
+        xyHT = xy(obj.maPtHeadTail,:);
+        xyHTmu = nanmean(xyHT,1);
+
+        v = xyHT(1,:)-xyHT(2,:); % assume rows 1/2 are h/t
+        phi = atan2(v(2),v(1)); % azimuth of vec from t->h
+        R = rotationMatrix(-phi);
+        
+        xyc = xy-xyHTmu; % kps centered about HT centroid
+        Rxyc = R*xyc.'; % [2xnpts] vec from t->h should point to positive x
+        minRxyc = min(Rxyc,[],2); % [2x1] min x,y
+        maxRxyc = max(Rxyc,[],2); % etc
+        
+        % form rectangular roi in Rotated coords
+        Rxlo = minRxyc(1) - rad;
+        Rxhi = maxRxyc(1) + rad;
+        Rylo = minRxyc(2) - rad;
+        Ryhi = maxRxyc(2) + rad;
+        Rroi = [Rxlo Rylo; Rxlo Ryhi; Rxhi Ryhi; Rxhi Rylo].';
+        
+        % Roi in original coords
+        roi = R.'*Rroi; 
+        roi = roi.'+xyHTmu;
+      else
+        xymu = nanmean(xy,1);
+        xlo = xymu(1)-rad;
+        xhi = xymu(1)+rad;
+        ylo = xymu(2)-rad;
+        yhi = xymu(2)+rad;
+        roi = [xlo ylo; xlo yhi; xhi yhi; xhi ylo];
+      end
+    end
+      
   end
   
   %% ViewCal
@@ -13089,18 +13199,20 @@ classdef Labeler < handle
       % Set target index, maintaining current movie/frameframe.
       % iTgt: INDEX into obj.trx
       
-      validateattributes(iTgt,{'numeric'},...
-        {'positive' 'integer' '<=' obj.nTargets});
+%       validateattributes(iTgt,{'numeric'},...
+%         {'positive' 'integer' '<=' obj.nTargets});
       
-      frm = obj.currFrame;
-      if ~obj.frm2trx(frm,iTgt)
-        error('Labeler:target',...
-          'Target idx %d is not live at current frame (%d).',iTgt,frm);
+      if obj.hasTrx
+        frm = obj.currFrame;
+        if ~obj.frm2trx(frm,iTgt)
+          error('Labeler:target',...
+            'Target idx %d is not live at current frame (%d).',iTgt,frm);
+        end
       end
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
-      if obj.hasTrx 
+      if obj.hasTrx || obj.maIsMA
         obj.labelsUpdateNewTarget(prevTarget);
         if obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
           obj.videoCenterOnCurrTarget();
@@ -13109,7 +13221,13 @@ classdef Labeler < handle
         end
       end
 %       obj.updateCurrSusp();
-      obj.updateShowTrx();
+      if obj.hasTrx
+        obj.updateShowTrx();
+      end
+    end
+    function setTargetMA(obj,iTgt)
+      % "raw". maybe shldnt be a sep meth
+      obj.currTarget = iTgt;
     end
         
     function setFrameAndTarget(obj,frm,iTgt)
@@ -13117,8 +13235,8 @@ classdef Labeler < handle
       % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
      
-      validateattributes(iTgt,{'numeric'},...
-        {'positive' 'integer' '<=' obj.nTargets});
+%       validateattributes(iTgt,{'numeric'},...
+%         {'positive' 'integer' '<=' obj.nTargets});
 
       if ~obj.isinit && obj.hasTrx && ~obj.frm2trx(frm,iTgt)
         error('Labeler:target',...
@@ -13377,8 +13495,17 @@ classdef Labeler < handle
         obj.selectedFrames = frms;  
       end
     end
-                
+         
     function updateTrxTable(obj)
+      if obj.hasTrx
+        obj.updateTrxTable_Trx();
+      elseif obj.maIsMA
+        obj.updateTrxTable_MA();
+      else
+        % none
+      end
+    end
+    function updateTrxTable_Trx(obj)
       % based on .frm2trxm, .currFrame, .labeledpos
       
       %starttime = tic;
@@ -13424,6 +13551,38 @@ classdef Labeler < handle
       end
 
       %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
+    end
+    function updateTrxTable_MA(obj)
+      tbl = obj.gdata.tblTrx;
+      if ~obj.hasMovie || obj.currMovie==0 % Can occur during movieSet(), when invariants momentarily broken
+        ischange = ~isempty(obj.tblTrxData);
+        if ischange,
+          obj.tblTrxData = zeros(0,2);
+          set(tbl,'Data',cell(0,2));
+        end
+        return;
+      end
+      
+      f = obj.currFrame;
+      s = obj.labelsCurrMovie;      
+      [~,~,ntgts] = Labels.compact(s,f); % piggy-back off compact here, not strictly nec
+      
+      idxLive = (1:ntgts)';
+      tfLbled = true(ntgts,1);
+      tblTrxData = [idxLive tfLbled];
+      ischange = true;
+      if ~isempty(obj.tblTrxData),
+        ischange = ndims(tblTrxData) ~= ndims(obj.tblTrxData) || ...
+          any(size(tblTrxData) ~= size(obj.tblTrxData)) || ...
+          any(tblTrxData(:) ~= obj.tblTrxData(:));
+      end
+      if ischange
+        obj.tblTrxData = tblTrxData;
+        tbldat = [num2cell(idxLive) num2cell(tfLbled)];
+        %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
+        tbl.setDataUnsafe(tbldat);
+        %set(tbl,'Data',tbldat);
+      end
     end
     
     % TODO: Move this into UI
@@ -14330,6 +14489,11 @@ classdef Labeler < handle
       dotrkres = myparse(varargin,...
         'dotrkres',false...
         );
+      
+      if obj.maIsMA
+        % XXX MA
+        return;
+      end
       
       iMov = obj.currMovie;
       frm = obj.currFrame;

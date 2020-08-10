@@ -9,6 +9,7 @@ classdef LabelMode
     HIGHTHROUGHPUT ('HighThroughput')
 %     ERRORCORRECT ('ErrorCorrect')
     MULTIVIEWCALIBRATED2 ('Multiview')
+    MULTIANIMAL ('MultiAnimal')
   end
   methods
     function obj = LabelMode(pStr)

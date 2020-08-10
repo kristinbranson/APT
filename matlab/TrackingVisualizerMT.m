@@ -17,6 +17,8 @@ classdef TrackingVisualizerMT < handle
 
     tfHideViz % scalar, true if tracking res hidden
     tfHideTxt % scalar, if true then hide text even if tfHideViz is false
+    
+    tfShowPch % scalar, if true then show pches
     %tfHideSkel currently interrogate lObj.showSkeleton
     
     % besides colors, txtOffPx, the the show/hide state, other cosmetic 
@@ -35,6 +37,12 @@ classdef TrackingVisualizerMT < handle
             % this needs not match lObj.nTargets.
     hXYPrdRedTxt; % [nPts x ntgt] handle vec, text labels for hXYPrdRed
     hSkel   % [nEdge x ntgt] handle vec, skeleton line handles
+    
+    hPch  % [ntgt] handle vec
+    doPch % if false, don't draw pches at all
+    pchColor = [0.3 0.3 0.3];
+    pchFaceAlpha = 0.25;    
+    
     iTgtPrimary % [1 x nprimary] tgt indices for 'primary' targets. 
                 % Primariness might typically be eg 'current' but it 
                 % doesn't have to correspond.
@@ -78,8 +86,9 @@ classdef TrackingVisualizerMT < handle
       % 
       % See "Construction/Init notes" below      
 
-      postload = myparse(varargin,...
-        'postload',false... % see Construction/Init notes
+      [postload,ntgts] = myparse(varargin,...
+        'postload',false, ... % see Construction/Init notes
+        'ntgts',[] ... % optionally provide known number/max of targets
         );      
       
       obj.deleteGfxHandles();
@@ -87,7 +96,9 @@ classdef TrackingVisualizerMT < handle
       pppi = obj.lObj.predPointsPlotInfo;
 
       npts = numel(obj.ipt2vw);
-      ntgts = obj.lObj.nTargets;
+      if isempty(ntgts)
+        ntgts = obj.lObj.nTargets;
+      end
       if postload
         ptclrs = obj.ptClrs;
       else
@@ -137,6 +148,18 @@ classdef TrackingVisualizerMT < handle
       
       obj.initSkeletonEdges(obj.lObj.skeletonEdges);
       
+      if obj.doPch
+        hPch = gobjects(1,ntgts);
+        clr = obj.pchColor;
+        alp = obj.pchFaceAlpha;
+        for iTgt = 1:ntgts
+          hPch(iTgt) = patch(ax,nan,nan,clr,...
+            'FaceAlpha',alp,...
+            'Tag',sprintf('%s_Pch_%d',pfix,iTgt));
+        end
+        obj.hPch = hPch;
+      end
+      
       if postload
         if isstruct(hXYPrdRed0)
           if numel(hXYPrdRed0)==numel(hTmp)
@@ -169,7 +192,7 @@ classdef TrackingVisualizerMT < handle
       % sedges
       
       nEdge = size(sedges,1);
-      ntgts = obj.lObj.nTargets;
+      ntgts = obj.nTgts;
       ipt2View = obj.ipt2vw;
       ax = obj.hAxs;
       pppi = obj.lObj.predPointsPlotInfo;
@@ -200,7 +223,7 @@ classdef TrackingVisualizerMT < handle
       
       h = obj.hXYPrdRed;
       hSkl = obj.hSkel;
-      ntgts = obj.lObj.nTargets;
+      ntgts = obj.nTgts;
       for iTgt=1:ntgts
         x = get(h(:,iTgt),{'XData'});
         y = get(h(:,iTgt),{'YData'});
@@ -293,7 +316,13 @@ classdef TrackingVisualizerMT < handle
         
         xytgt = xy(:,:,iTgt);
         tfOccld = any(isinf(xytgt),2);
-        LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);        
+        LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);
+        
+        if obj.doPch
+          hP = obj.hPch;
+          roi = obj.lObj.maGetRoi(xytgt);
+          set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));          
+        end
       end
             
       iTgtPrimary0 = obj.iTgtPrimary;
@@ -302,8 +331,12 @@ classdef TrackingVisualizerMT < handle
       
       if iTgtChanged
         trajClrCurr = obj.lObj.projPrefs.Trx.TrajColorCurrent;
-        set(hSkl(:,iTgtPrimary0),'Color',obj.skelEdgeColor);
-        set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
+        if iTgtPrimary0>0
+          set(hSkl(:,iTgtPrimary0),'Color',obj.skelEdgeColor);
+        end
+        if iTgtPrimary>0
+          set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
+        end
         if obj.showOnlyPrimary
           obj.updateShowHideAll();
         end

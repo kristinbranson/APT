@@ -173,12 +173,19 @@ handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
   'Parent',handles.menu_labeling_setup,...
   'Label','Multiview',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multiview_calibrated_mode_2_Callback',hObject,eventdata,guidata(hObject)),...
-  'Tag','menu_setup_multiview_calibrated_mode_2');  
+  'Tag','menu_setup_multiview_calibrated_mode_2');
 delete(handles.menu_setup_multiview_calibrated_mode);
 handles.menu_setup_multiview_calibrated_mode = [];
 delete(handles.menu_setup_tracking_correction_mode);
 handles.menu_setup_tracking_correction_mode = [];
 delete(handles.menu_setup_createtemplate);
+handles.menu_setup_multianimal_mode = uimenu(...
+  'Parent',handles.menu_labeling_setup,...
+  'Label','Multianimal',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multianimal_mode_Callback',hObject,eventdata,guidata(hObject)),...
+  'Tag','menu_setup_multianimal_mode');  
+moveMenuItemAfter(handles.menu_setup_multianimal_mode,...
+  handles.menu_setup_multiview_calibrated_mode_2);
 
 handles.menu_setup_use_calibration = uimenu(...
   'Parent',handles.menu_labeling_setup,...
@@ -214,6 +221,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_template_mode'
    'menu_setup_highthroughput_mode'
    'menu_setup_multiview_calibrated_mode_2'   
+   'menu_setup_multianimal_mode'   
    'menu_setup_streamlined'
    'menu_setup_load_calibration_file'
    'menu_setup_use_calibration'
@@ -581,7 +589,8 @@ LABELMODE_SETUPMENU_MAP = ...
    LabelMode.SEQUENTIAL 'menu_setup_sequential_mode';
    LabelMode.TEMPLATE 'menu_setup_template_mode';
    LabelMode.HIGHTHROUGHPUT 'menu_setup_highthroughput_mode';
-   LabelMode.MULTIVIEWCALIBRATED2 'menu_setup_multiview_calibrated_mode_2'};
+   LabelMode.MULTIVIEWCALIBRATED2 'menu_setup_multiview_calibrated_mode_2'; 
+   LabelMode.MULTIANIMAL 'menu_setup_multianimal_mode'};
 tmp = LABELMODE_SETUPMENU_MAP;
 tmp(:,1) = cellfun(@char,tmp(:,1),'uni',0);
 tmp(2:end,2) = cellfun(@(x)handles.(x),tmp(2:end,2),'uni',0);
@@ -720,6 +729,7 @@ handles.h_singleview_only = [...
    handles.menu_setup_sequential_mode ...
    handles.menu_setup_template_mode ...
    handles.menu_setup_highthroughput_mode ...
+   handles.menu_setup_multianimal_mode ...
    ];
   
 set(handles.output,'Toolbar','figure');
@@ -1552,7 +1562,7 @@ TRX_MENUS = {...
   'menu_view_hide_trajectories'
   'menu_view_plot_trajectories_current_target_only'
   'menu_setup_label_overlay_montage_trx_centered'};
-onOff = onIff(lObj.hasTrx);
+onOff = onIff(lObj.hasTrx || lObj.maIsMA);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
 set(handles.tblTrx,'Enabled',onOff);
 guidata(handles.figure,handles);
@@ -1685,16 +1695,20 @@ hAx.CameraTargetMode = 'auto';
 function hlpUpdateTblTrxHilite(lObj)
 
 try
-  i = find(lObj.currTarget == lObj.tblTrxData(:,1));
-  assert(numel(i) == 1);
-  lObj.gdata.tblTrx.SelectedRows = i;
+  if lObj.maIsMA
+    lObj.gdata.tblTrx.SelectedRows = [];
+  else
+    i = find(lObj.currTarget == lObj.tblTrxData(:,1));
+    assert(numel(i) == 1);
+    lObj.gdata.tblTrx.SelectedRows = i;
+  end
 catch ME
   warningNoTrace('Error caught updating highlight row in Targets Table.');
 end
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
-if lObj.hasTrx && ~lObj.isinit
+if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
   iTgt = lObj.currTarget;
   lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
@@ -2564,7 +2578,7 @@ function cbkTblTrxCellSelection(src,evt) %#ok<*DEFNU>
 
 handles = guidata(src.Parent);
 lObj = handles.labelerObj;
-if ~lObj.hasTrx
+if ~(lObj.hasTrx || lObj.maIsMA)
   return;
 end
 
@@ -2984,6 +2998,8 @@ menuSetupLabelModeCbkGeneric(hObject,handles);
 function menu_setup_highthroughput_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
 function menu_setup_multiview_calibrated_mode_2_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menu_setup_multianimal_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
 function menuSetupLabelModeCbkGeneric(hObject,handles)
 lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
@@ -4535,8 +4551,10 @@ function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 % template only for view 1... 
 
 lObj = handles.labelerObj;
-se = defineSkeleton(lObj,'edges',lObj.skeletonEdges);
-lObj.setSkeletonEdges(se);
+hKP = keypoints('lObj',lObj);
+%se = defineSkeleton(lObj,'edges',lObj.skeletonEdges);
+% lObj.setSkel done on UI close
+%lObj.setSkeletonEdges(se);
 if isempty(lObj.skeletonEdges),
   set(handles.menu_view_showhide_skeleton,'Enable','off','Checked','off');
 else

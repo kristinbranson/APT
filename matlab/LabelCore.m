@@ -24,7 +24,8 @@ classdef LabelCore < handle
   properties (Abstract)
     supportsSingleView % scalar logical
     supportsMultiView % scalar logical
-    supportsCalibration % scalar logical
+    supportsCalibration % scalar logical    
+    supportsMultiAnimal
   end
   
   properties (SetObservable)
@@ -102,6 +103,8 @@ classdef LabelCore < handle
 %           obj = LabelCoreMultiViewCalibrated(labelerObj);
         case LabelMode.MULTIVIEWCALIBRATED2
           obj = LabelCoreMultiViewCalibrated2(labelerObj);
+        case LabelMode.MULTIANIMAL
+          obj = LabelCoreSeqMA(labelerObj);
       end
       
     end

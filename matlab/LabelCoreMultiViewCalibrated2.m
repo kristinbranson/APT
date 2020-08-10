@@ -74,6 +74,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     supportsSingleView = false;
     supportsMultiView = true;
     supportsCalibration = true;
+    supportsMultiAnimal = false;
   end
   
   properties
