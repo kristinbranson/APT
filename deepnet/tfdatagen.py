@@ -98,74 +98,82 @@ def create_affinity_labels(locs, imsz, graph,
             #logr.warning('Tubeblur is False; ignoring tubeblursig value')
         tuberad = tubewidth / 2.0
 
+    locs = locs.copy()
+    if locs.ndim == 3:
+        locs = locs[:,np.newaxis,...]
+
     nlimb = len(graph)
     nbatch = locs.shape[0]
     out = np.zeros([nbatch, imsz[0], imsz[1], nlimb * 2])
     n_steps = 2 * max(imsz)
 
     for cur in range(nbatch):
-        for ndx, e in enumerate(graph):
-            startxy = locs[cur, e[0], :]
-            start_x, start_y = locs[cur, e[0], :]
-            end_x, end_y = locs[cur, e[1], :]
-            assert not (np.isnan(start_x) or np.isnan(start_y) or np.isnan(end_x) or np.isnan(end_y))
-            assert not (np.isinf(start_x) or np.isinf(start_y) or np.isinf(end_x) or np.isinf(end_y))
+        for mndx in range(locs.shape[1]):
+            for ndx, e in enumerate(graph):
+                startxy = locs[cur, mndx, e[0], :]
+                start_x, start_y = locs[cur, mndx, e[0], :]
+                end_x, end_y = locs[cur, mndx, e[1], :]
+                assert not (np.isnan(start_x) or np.isnan(start_y) or np.isnan(end_x) or np.isnan(end_y))
+                assert not (np.isinf(start_x) or np.isinf(start_y) or np.isinf(end_x) or np.isinf(end_y))
+                if (start_x < -1000) or (start_y < -1000):
+                    # multi labeled animal that are not labeled
+                    continue
 
-            ll2 = (start_x - end_x) ** 2 + (start_y - end_y) ** 2
-            ll = np.sqrt(ll2)
+                ll2 = (start_x - end_x) ** 2 + (start_y - end_y) ** 2
+                ll = np.sqrt(ll2)
 
-            if ll == 0:
-                # Can occur if start/end labels identical
-                # Don't update out/PAF
-                continue
+                if ll == 0:
+                    # Can occur if start/end labels identical
+                    # Don't update out/PAF
+                    continue
 
-            costh = (end_x - start_x) / ll
-            sinth = (end_y - start_y) / ll
-            zz = None
-            TUBESTEP = 0.25 # seems like overkill (smaller than nec)
-            ntubestep = int(np.ceil(tubewidth / TUBESTEP + 1))
-            for delta in np.linspace(-tuberad, tuberad, ntubestep):
-                # delta indicates perpendicular displacement from line/limb segment (in px)
+                costh = (end_x - start_x) / ll
+                sinth = (end_y - start_y) / ll
+                zz = None
+                TUBESTEP = 0.25 # seems like overkill (smaller than nec)
+                ntubestep = int(np.ceil(tubewidth / TUBESTEP + 1))
+                for delta in np.linspace(-tuberad, tuberad, ntubestep):
+                    # delta indicates perpendicular displacement from line/limb segment (in px)
 
-                xx = np.round(np.linspace(start_x + delta * sinth, end_x + delta * sinth, n_steps))
-                yy = np.round(np.linspace(start_y - delta * costh, end_y - delta * costh, n_steps))
-                if zz is None:
-                    zz = np.stack([xx, yy])
+                    xx = np.round(np.linspace(start_x + delta * sinth, end_x + delta * sinth, n_steps))
+                    yy = np.round(np.linspace(start_y - delta * costh, end_y - delta * costh, n_steps))
+                    if zz is None:
+                        zz = np.stack([xx, yy])
+                    else:
+                        zz = np.concatenate([zz, np.stack([xx, yy])], axis=1)
+                # zz now has all the pixels that are along the line.
+                # or "tube" of width tubewidth around limb
+                zz = np.unique(zz, axis=1)
+                # zz now has all the unique pixels that are along the line with thickness==tubewidth.
+                # zz shape is (2, n)
+                # zz is rounded, representing px centers; startxy is not rounded
+                if tubeblur:
+                    # since zz is rounded, some points in zz may violate tubeblurclip.
+                    zzdist2 = distsquaredpts2limb2(zz, start_x, start_y, end_x, end_y, ll2)
+                    w = np.exp(-zzdist2/2.0/tubeblursig**2)
+                    # tfwsmall = w < tubeblurclip
+                    # if np.any(tfwsmall):
+                    #     print "Small w vals: {}/{}".format(np.count_nonzero(tfwsmall), tfwsmall.size)
+                    #     print w[tfwsmall]
+                    assert zz.shape[1] == w.size
+
+                    for i in range(w.size):
+                        x, y = zz[:, i]
+                        xint = int(round(x))  # should already be rounded
+                        yint = int(round(y))  # etc
+                        if xint < 0 or xint >= out.shape[2] or yint < 0 or yint >= out.shape[1]:
+                            continue
+                        out[cur, yint, xint, ndx * 2] = w[i] * costh
+                        out[cur, yint, xint, ndx * 2 + 1] = w[i] * sinth
+
                 else:
-                    zz = np.concatenate([zz, np.stack([xx, yy])], axis=1)
-            # zz now has all the pixels that are along the line.
-            # or "tube" of width tubewidth around limb
-            zz = np.unique(zz, axis=1)
-            # zz now has all the unique pixels that are along the line with thickness==tubewidth.
-            # zz shape is (2, n)
-            # zz is rounded, representing px centers; startxy is not rounded
-            if tubeblur:
-                # since zz is rounded, some points in zz may violate tubeblurclip.
-                zzdist2 = distsquaredpts2limb2(zz, start_x, start_y, end_x, end_y, ll2)
-                w = np.exp(-zzdist2/2.0/tubeblursig**2)
-                # tfwsmall = w < tubeblurclip
-                # if np.any(tfwsmall):
-                #     print "Small w vals: {}/{}".format(np.count_nonzero(tfwsmall), tfwsmall.size)
-                #     print w[tfwsmall]
-                assert zz.shape[1] == w.size
-
-                for i in range(w.size):
-                    x, y = zz[:, i]
-                    xint = int(round(x))  # should already be rounded
-                    yint = int(round(y))  # etc
-                    if xint < 0 or xint >= out.shape[2] or yint < 0 or yint >= out.shape[1]:
-                        continue
-                    out[cur, yint, xint, ndx * 2] = w[i] * costh
-                    out[cur, yint, xint, ndx * 2 + 1] = w[i] * sinth
-
-            else:
-                for x, y in zz.T:
-                    xint = int(round(x)) # already rounded?
-                    yint = int(round(y)) # etc
-                    if xint < 0 or xint >= out.shape[2] or yint < 0 or yint >= out.shape[1]:
-                        continue
-                    out[cur, yint, xint, ndx * 2] = costh
-                    out[cur, yint, xint, ndx * 2 + 1] = sinth
+                    for x, y in zz.T:
+                        xint = int(round(x)) # already rounded?
+                        yint = int(round(y)) # etc
+                        if xint < 0 or xint >= out.shape[2] or yint < 0 or yint >= out.shape[1]:
+                            continue
+                        out[cur, yint, xint, ndx * 2] = costh
+                        out[cur, yint, xint, ndx * 2 + 1] = sinth
 
     return out
 
@@ -189,6 +197,32 @@ def parse_record(record, npts):
     info = np.array([expid, t, trx_ndx])
 
     return reconstructed_img, locs, info
+
+def parse_record_multi(record, npts, n_max):
+    example = tf.train.Example()
+    example.ParseFromString(record)
+    height = int(example.features.feature['height'].int64_list.value[0])
+    width = int(example.features.feature['width'].int64_list.value[0])
+    depth = int(example.features.feature['depth'].int64_list.value[0])
+    expid = int(example.features.feature['expndx'].float_list.value[0])
+    t = int(example.features.feature['ts'].float_list.value[0])
+    img_string = example.features.feature['image_raw'].bytes_list.value[0]
+    img_1d = np.fromstring(img_string, dtype=np.uint8)
+    reconstructed_img = img_1d.reshape((height, width, depth))
+    mask_string = example.features.feature['mask'].bytes_list.value[0]
+    mask_1d = np.fromstring(mask_string, dtype=np.uint8)
+    mask = mask_1d.reshape((height, width))
+    reconstructed_img = reconstructed_img * mask[...,np.newaxis]
+    locs = np.array(example.features.feature['locs'].float_list.value)
+    locs = locs.reshape([n_max, npts, 2])
+    if 'trx_ndx' in example.features.feature.keys():
+        trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
+    else:
+        trx_ndx = 0
+    info = np.array([expid, t, trx_ndx])
+
+    return reconstructed_img, locs, info
+
 
 def pad_ims_blur(ims, locs, pady, padx):
     # Similar to PoseTools.pad_ims
@@ -280,13 +314,7 @@ def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmap
 
     label_map_lores = heatmap.create_label_hmap(locs_lores, conf.op_imsz_lores, conf.op_map_lores_blur_rad)
     label_map_hires = heatmap.create_label_hmap(locs_hires, conf.op_imsz_hires, conf.op_map_hires_blur_rad)
-    label_paf_lores = create_affinity_labels(locs_lores,
-                                             conf.op_imsz_lores,
-                                             conf.op_affinity_graph,
-                                             tubewidth=conf.op_paf_lores_tubewidth,
-                                             tubeblur=conf.op_paf_lores_tubeblur,
-                                             tubeblursig=conf.op_paf_lores_tubeblursig,
-                                             tubeblurclip=conf.op_paf_lores_tubeblurclip)
+    label_paf_lores = create_affinity_labels(locs_lores, conf.op_imsz_lores, conf.op_affinity_graph, tubewidth=conf.op_paf_lores_tubewidth, tubeblur=conf.op_paf_lores_tubeblur, tubeblursig=conf.op_paf_lores_tubeblursig, tubeblurclip=conf.op_paf_lores_tubeblurclip)
 
     npafstg = conf.op_paf_nstage
     nmapstg = conf.op_map_nstage
@@ -577,7 +605,10 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
                 # will only occur if infinite == False
                 break
 
-            recon_img, locs, info = parse_record(record, conf.n_classes)
+            if conf.is_multi:
+                recon_img, locs, info = parse_record_multi(record, conf.n_classes,conf.max_n_animals)
+            else:
+                recon_img, locs, info = parse_record(record, conf.n_classes)
             all_ims.append(recon_img)
             all_locs.append(locs)
             all_info.append(info)
@@ -638,10 +669,9 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             yield [ims], targets
             # (inputs, targets)
 
-def make_data_generator(tfrfilename, conf0, bsize, distort, shuffle, ims_locs_proc_fn,
-                        silent=False, **kwargs):
+def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, silent=False, **kwargs):
     conf = copy.deepcopy(conf0)
-    conf.batch_size = bsize
+    # conf.batch_size = bsize
     if not silent:
         logr.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
@@ -722,6 +752,36 @@ def create_tf_datasets(conf0,
         #occ = tf.cast(features['occ'], tf.bool)
         return image, locs, info # , occ
 
+    def _parse_function_multi(serialized_example):
+        max_n = conf.max_n_animals
+        features = tf.parse_single_example(serialized_example,
+            features={'height': tf.FixedLenFeature([], dtype=tf.int64),
+                    'width': tf.FixedLenFeature([], dtype=tf.int64),
+                    'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                    'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                    'locs': tf.FixedLenFeature(shape=[max_n, conf.n_classes, 2], dtype=tf.float32),
+                    'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                    'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                    'image_raw': tf.FixedLenFeature([], dtype=tf.string),
+                    'mask': tf.FixedLenFeature([], dtype=tf.string),
+                    #'occ': tf.FixedLenFeature(shape=[max_n,conf.n_classes], default_value=np.zeros([max_n,conf.n_classes]), dtype=tf.float32),
+                    })
+        image = tf.decode_raw(features['image_raw'], tf.uint8)
+        image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+        mask = tf.decode_raw(features['mask'], tf.uint8)
+        mask = tf.reshape(mask, conf.imsz)
+        image = image*tf.expand_dims(mask,2)
+
+        trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
+        locs = tf.cast(features['locs'], tf.float32)
+        exp_ndx = tf.cast(features['expndx'], tf.float32)
+        ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
+        info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
+#        occ = tf.cast(features['occ'],tf.bool)
+
+        return image , locs, info #, occ
+
+
     def pp_dpk_conf(imsraw, locsraw):
         ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
                                                        locsraw,
@@ -751,7 +811,10 @@ def create_tf_datasets(conf0,
         dbfile = train_db
 
     ds = tf.data.TFRecordDataset(dbfile)
-    ds = ds.map(map_func=_parse_function)
+    if conf.is_multi:
+        ds = ds.map(map_func=_parse_function_multi)
+    else:
+        ds = ds.map(map_func=_parse_function)
     if shuffle:
         try:
             shufflebsize = conf.dpk_tfdata_shuffle_bsize

@@ -61,7 +61,7 @@ elif getpass.getuser() == 'al':
 else:
     assert False, "Add your cache and out directory"
 
-all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint','leap','resnet_unet','unet','leap_orig','deeplabcut_orig'] #,'openpose'
+all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint','leap', 'openpose','resnet_unet','unet','mdn_joint_fpn','leap_orig','deeplabcut_orig']
 
 print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))
@@ -92,6 +92,8 @@ common_conf['pretrain_freeze_bnorm'] = True
 common_conf['step_lr'] = True
 common_conf['lr_drop_step'] = 0.15
 common_conf['normalize_loss_batch'] = False
+common_conf['predict_occluded'] = False
+
 # These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
 
 # for leap
@@ -588,10 +590,10 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
                 conf_opts['batch_size'] = 4
 
         if data_type in ['roian']:
-            if train_type in ['dpk', 'openpose', 'sb','mdn_unet','resnet_unet','unet']:
+            if train_type in ['dpk', 'openpose', 'sb','mdn_unet','resnet_unet','unet','mdn_joint_fpn']:
                 conf_opts['batch_size'] = 4
                 conf_opts['rescale'] = 2
-            if train_type in ['mdn','deeplabcut','leap']:
+            elif train_type in ['mdn','deeplabcut','leap']:
                 conf_opts['batch_size'] = 4
 
         if data_type in ['romain']:
@@ -628,7 +630,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
             if train_type in ['unet', 'resnet_unet']:
                 conf_opts['rescale'] = 4
                 conf_opts['batch_size'] = 4
-            if train_type in ['mdn_unet','leap']:
+            if train_type in ['mdn_unet','leap','mdn_joint_fpn']:
                 conf_opts['batch_size'] = 4
                 conf_opts['rescale'] = 2
 
@@ -652,9 +654,11 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
             conf_opts['batch_size'] = 4
         if data_type in ['larva']:
             conf_opts['batch_size'] = 4
+            conf_opts['rescale'] = 2
         if data_type in ['roian']:
-            if train_type in ['resnet_unet','unet']:
-                conf_opts['batch_size'] = 4
+            conf_opts['batch_size'] = 4
+            # if train_type in ['resnet_unet','unet']:
+            #     conf_opts['batch_size'] = 4
 
     # if op_af_graph is not None:
     #     conf_opts['op_affinity_graph'] = op_af_graph
@@ -725,12 +729,26 @@ def run_trainining(exp_name,train_type,view,run_type,
                    **kwargs
                    ):
 
-    time.sleep(5) # five second time to figure out if I really wanted to submit the job
+    if run_type == 'submit':
+        time.sleep(25) # five second time to figure out if I really wanted to submit the job
     gpu_str = '_tesla' if queue in ['gpu_tesla','gpu_tesla_large'] else ''
     train_name_dstr = train_name + gpu_str + '_' + dstr
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
         apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue, **kwargs)
-    nslots = 10 if train_type == 'leap' else 4
+    if queue in ['gpu_tesla_large']:
+        if train_type == 'leap':
+            nslots = 5
+        elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn','mdn_unet']:
+            nslots = 4
+        else:
+            nslots = 2
+    else:
+        if train_type == 'leap':
+            nslots = 10
+        elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn']:
+            nslots = 7
+        else:
+            nslots = 4
 
     if run_type == 'dry':
         print(cmd_name)
@@ -1664,10 +1682,7 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
             if recomp:
                 if last_model_only:
                     files = files[-1:]
-                mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type,
-                                                    name=train_name_dstr,
-                                                    classify_fcn=classify_fcn,
-                                                    return_ims=classify_return_ims,ignore_hmaps=True)
+                mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type, name=train_name_dstr, classify_fcn=classify_fcn, return_ims=classify_return_ims,ignore_hmaps=True)
                 with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,files],f)
                 print("Wrote {}".format(out_file))
@@ -1978,6 +1993,7 @@ def get_incremental_results(dstr=PoseTools.datestr(),queue='gpu_rtx'):
                 exp_name = '{}_randsplit_round_{}'.format(data_type, ndx)
                 #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                 conf = create_conf_help(train_type, view, exp_name)
+                conf.batch_size = 1
                 split_data = PoseTools.json_load(os.path.join(conf.cachedir,'splitdata.json'))
                 train_size.append(len(split_data[0]))
                 files = get_model_files(conf,train_name_dstr,10)
@@ -2043,7 +2059,6 @@ def get_no_pretrained_results():
                     mdn_out = A[0]
 
 
-                # for x, a 09-Jandhriti
                 # in enumerate(mdn_out):
                 #     a[-1] = train_size[x]
                 #     a[2] = np.array(a[2])
@@ -2074,7 +2089,7 @@ def get_cv_results(num_splits=None,
     if num_splits == None:
         print("Reading splits from {}".format(cv_info_file))
         data_info = h5py.File(cv_info_file, 'r')
-        cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
+        cv_info = apt.to_py(data_info['cvi'].value.flatten().astype('int'))
         n_splits = max(cv_info) + 1
         num_splits = n_splits
 
@@ -2103,9 +2118,10 @@ def get_cv_results(num_splits=None,
                 # traindata. so optional kwargs etc unnec
 
                 #mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
-                mdn_conf = create_conf_help('mdn', view, exp_name_mdn, quiet=True)
+                mdn_conf = create_conf_help('mdn', view, exp_name_mdn, quiet=True,queue=queue)
                 #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-                conf = create_conf_help(train_type, view, exp_name, quiet=True)
+                conf = create_conf_help(train_type, view, exp_name, quiet=True,queue=queue)
+                conf.batch_size = 1
 
                 files = get_model_files(conf,train_name,10)
                 files = files[-1:]
@@ -2121,7 +2137,9 @@ def get_cv_results(num_splits=None,
                     tdata = PoseTools.pickle_load(tfile)
                     # latter case LEAP apparently
                     tdataconf = tdata[1] if isinstance(tdata,list) else tdata
-                    mdn_out = apt_expts.classify_db_all(tdataconf,db_file,files,train_type,name=train_name)
+                    util.dictdiff(vars(tdataconf), vars(conf))
+
+                    mdn_out = apt_expts.classify_db_all(conf,db_file,files,train_type,name=train_name)
                     with open(out_file,'wb') as f:
                         pickle.dump([mdn_out,files],f)
                     print("Wrote {}".format(out_file))

@@ -20,7 +20,7 @@ RUN	apt-get install -y libxtst6
 RUN apt-get install -y git
 RUN apt install -y python3-pip	
 RUN pip install imgaug deepposekit sklearn promise func-timeout
-
+RUN pip install torch torchvision tfrecord
 
 
 # Define default command.

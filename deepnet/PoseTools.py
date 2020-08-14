@@ -42,6 +42,7 @@ from scipy import stats
 import pickle
 import yaml
 import logging
+import time
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -71,12 +72,28 @@ def rescale_points(locs_hires, scalex, scaley):
     Should work fine with scale<1
     '''
 
-    bsize, npts, d = locs_hires.shape
+    locs_hires = locs_hires.copy()
+    if locs_hires.ndim == 3: # hack for multi animal
+        reduce_dim = True
+        locs_hires = locs_hires[:,np.newaxis,...]
+    else:
+        reduce_dim = False
+
+    nan_valid = np.invert(np.isnan(locs_hires))
+    high_valid = locs_hires > -10000  # ridiculosly low values are used for multi animal
+    valid = nan_valid & high_valid
+
+    bsize, nmax, npts, d = locs_hires.shape[-4:]
     assert d == 2
     assert issubclass(locs_hires.dtype.type, np.floating)
     locs_lores = locs_hires.copy()
-    locs_lores[:, :, 0] = (locs_lores[:, :, 0] - float(scalex - 1) / 2) / scalex
-    locs_lores[:, :, 1] = (locs_lores[:, :, 1] - float(scaley - 1) / 2) / scaley
+    locs_lores[..., 0] = (locs_lores[..., 0] - float(scalex - 1) / 2) / scalex
+    locs_lores[..., 1] = (locs_lores[..., 1] - float(scaley - 1) / 2) / scaley
+    locs_lores[~nan_valid] = np.nan
+    locs_lores[~high_valid] = -100000
+
+    if reduce_dim:
+        locs_lores = locs_lores[:,0,...]
     return locs_lores
 
 def unscale_points(locs_lores, scalex, scaley):
@@ -102,19 +119,22 @@ def scale_images(img, locs, scale, conf, **kwargs):
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
 
+    nan_valid = np.invert(np.isnan(locs))
+    high_valid = locs > -10000  # ridiculosly low values are used for multi animal
+    valid = nan_valid & high_valid
+
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
     for ndx in range(sz[0]):
         # use anti_aliasing?
         if sz[3] == 1:
-            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3],
-                                                  preserve_range=True, mode='edge', **kwargs)
+            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
         else:
-            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3],
-                                                  preserve_range= True, mode='edge', **kwargs)
+            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
 
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
     new_locs = rescale_points(locs, scalex_actual, scaley_actual)
+    new_locs[~valid] = -100000
 
     return simg, new_locs
 
@@ -186,6 +206,7 @@ def crop_images(frame_in, conf):
 
 def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
     locs = in_locs.copy()
+
     if locs.ndim == 3:
         reduce_dim = True
         locs = locs[:,np.newaxis,...]
@@ -484,13 +505,15 @@ def randomly_affine(img,locs, conf, group_sz=1):
         orig_locs = locs[st:en, ...]
         orig_im = img[st:en, ...].copy()
         sane = False
-        do_rotate = True
+        do_transform = True
 
         count = 0
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
+        nan_valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
+        high_valid = orig_locs[..., 0] > -10000  # ridiculosly low values are used for multi animal
+        valid = nan_valid & high_valid
         while not sane:
-            valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
 
             if conf.use_scale_factor_range:
@@ -513,7 +536,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
             if count > 5:
                 rangle = 0; dx = 0; dy=0; sfactor = 1
                 sane = True
-                do_rotate = False
+                do_transform = False
 
             rot_mat = cv2.getRotationMatrix2D((cols/2,rows/2), rangle, sfactor)
             rot_mat[0,2] += dx
@@ -529,7 +552,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
                 sane = True
             elif not conf.check_bounds_distort:
                 sane = True
-            elif do_rotate:
+            elif do_transform:
                 continue
 
             for g in range(group_sz):
@@ -539,6 +562,8 @@ def randomly_affine(img,locs, conf, group_sz=1):
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
 
+        lr[~high_valid,0] = -100000
+        lr[~high_valid,1] = -100000
         locs[st:en, ...] = lr
         img[st:en, ...] = out_ii
 
@@ -594,7 +619,11 @@ def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     so is not subpixel-accurate
 
     '''
-    n_classes = len(locs[0])
+    if locs.ndim == 3:
+        locs = locs.copy()
+        locs = locs[:,np.newaxis,...]
+    n_classes = len(locs[0][0])
+    maxn = len(locs[0])
     sz0 = int(im_sz[0] // scale)
     sz1 = int(im_sz[1] // scale)
 
@@ -611,24 +640,25 @@ def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     blur_l = cv2.GaussianBlur(blur_l, (2 * k_size + 1, 2 * k_size + 1), blur_rad)
     blur_l = old_div(blur_l, blur_l.max())
     for cls in range(n_classes):
-        for ndx in range(len(locs)):
-            if np.isnan(locs[ndx][cls][0]) or np.isinf(locs[ndx][cls][0]):
-                continue
-            if np.isnan(locs[ndx][cls][1]) or np.isinf(locs[ndx][cls][1]):
-                continue
-                #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
-            #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
+        for andx in range(maxn):
+            for ndx in range(len(locs)):
+                if np.isnan(locs[ndx][andx][cls][0]) or np.isinf(locs[ndx][andx][cls][0]) or locs[ndx][andx][cls][0]<-1000:
+                    continue
+                if np.isnan(locs[ndx][andx][cls][1]) or np.isinf(locs[ndx][andx][cls][1]) or locs[ndx][andx][cls][0]<-1000:
+                    continue
+                    #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
+                #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
 
-            yy = float(locs[ndx][cls][1]-float(scaley_actual-1)/2)/scaley_actual
-            xx = float(locs[ndx][cls][0]-float(scalex_actual-1)/2)/scalex_actual
-            modlocs0 = int(np.round(yy))  # AL 20200113 not subpixel
-            modlocs1 = int(np.round(xx))  # AL 20200113 not subpixel
-            l0 = min(sz0, max(0, modlocs0 - k_size))
-            r0 = max(0, min(sz0, modlocs0 + k_size + 1))
-            l1 = min(sz1, max(0, modlocs1 - k_size))
-            r1 = max(0, min(sz1, modlocs1 + k_size + 1))
-            label_ims[ndx, l0:r0, l1:r1, cls] = blur_l[(l0 - modlocs0 + k_size):(r0 - modlocs0 + k_size),
-                                                (l1 - modlocs1 + k_size):(r1 - modlocs1 + k_size)]
+                yy = float(locs[ndx][andx][cls][1]-float(scaley_actual-1)/2)/scaley_actual
+                xx = float(locs[ndx][andx][cls][0]-float(scalex_actual-1)/2)/scalex_actual
+                modlocs0 = int(np.round(yy))  # AL 20200113 not subpixel
+                modlocs1 = int(np.round(xx))  # AL 20200113 not subpixel
+                l0 = min(sz0, max(0, modlocs0 - k_size))
+                r0 = max(0, min(sz0, modlocs0 + k_size + 1))
+                l1 = min(sz1, max(0, modlocs1 - k_size))
+                r1 = max(0, min(sz1, modlocs1 + k_size + 1))
+                label_ims[ndx, l0:r0, l1:r1, cls] += blur_l[(l0 - modlocs0 + k_size):(r0 - modlocs0 + k_size),
+                                                    (l1 - modlocs1 + k_size):(r1 - modlocs1 + k_size)]
 
     # label_ims = 2.0 * (label_ims - 0.5)
     label_ims -= 0.5
@@ -752,6 +782,7 @@ def get_pred_locs(pred, edge_ignore=0):
         edge_ignore = 0
     n_classes = pred.shape[3]
     pred_locs = np.zeros([pred.shape[0], n_classes, 2])
+
     for ndx in range(pred.shape[0]):
         for cls in range(n_classes):
             cur_pred = pred[ndx, :, :, cls].copy()
@@ -768,6 +799,7 @@ def get_pred_locs(pred, edge_ignore=0):
 
 
 def get_pred_locs_multi(pred, n_max, sz):
+    sz = int(round(sz))
     pred = pred.copy()
     n_classes = pred.shape[3]
     pred_locs = np.zeros([pred.shape[0], n_max, n_classes, 2])
@@ -1124,18 +1156,25 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     cur_im = ims.copy()
     cur_im = cur_im.astype('uint8')
     xs = adjust_contrast(cur_im, conf)
+    start = time.time()
     xs, locs = scale_images(xs, locs, scale, conf)
+    stime = time.time()
     if distort:
         if conf.horz_flip:
             xs, locs = randomly_flip_lr(xs, locs, conf, group_sz=group_sz)
         if conf.vert_flip:
             xs, locs = randomly_flip_ud(xs, locs, conf, group_sz=group_sz)
+        ftime = time.time()
         xs, locs = randomly_affine(xs, locs, conf, group_sz=group_sz)
+        rtime = time.time()
         # xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
         # xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
         # xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
         xs = randomly_adjust(xs, conf, group_sz=group_sz)
+        ctime = time.time()
     xs = normalize_mean(xs, conf)
+    etime = time.time()
+    # print('Time for aug {}, {}, {}, {}, {}'.format(stime-start,ftime-stime,rtime-ftime,ctime-rtime,etime-ctime))
     return xs, locs
 
 

@@ -223,13 +223,13 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
-    def __init__(self, conf, name='umdn_resnet',pad_input=False):
+    def __init__(self, conf, name='umdn_resnet',pad_input=False, **kwargs):
         self.conf = conf
         # self.resnet_source = 'official_tf'
         self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
         self.offset = float(self.conf.get('mdn_slim_output_stride',32))
         use_pretrained = conf.use_pretrained_weights
-        PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input)
+        PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input,**kwargs)
         conf.use_pretrained_weights = use_pretrained
         self.dep_nets = []
         self.max_dist = 30

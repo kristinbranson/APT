@@ -140,7 +140,7 @@ class PoseCommon(object):
         Val = 2
 
 
-    def __init__(self, conf, name):
+    def __init__(self, conf, name, is_multi=False):
         self.coord = None
         self.threads = None
         self.conf = conf
@@ -186,6 +186,7 @@ class PoseCommon(object):
         self.pad_x = 0
         self.compute_summary = self.conf.get('compute_summary',False)
         self.input_sizes = None
+        self.is_multi = is_multi
 
 
     def get_latest_model_file(self):
@@ -347,23 +348,60 @@ class PoseCommon(object):
     def create_datasets(self):
 
         conf = self.conf
+
+        if not self.is_multi:
+            features_dict = {'height': tf.FixedLenFeature([], dtype=tf.int64),
+                    'width': tf.FixedLenFeature([], dtype=tf.int64),
+                    'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                    'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                    'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
+                    'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                    'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                    'image_raw': tf.FixedLenFeature([], dtype=tf.string),
+                    'occ': tf.FixedLenFeature(shape=[conf.n_classes], default_value=np.zeros(conf.n_classes),
+                                              dtype=tf.float32),
+                    }
+        else:
+            max_n = conf.max_n_animals
+            features_dict = {'height': tf.FixedLenFeature([], dtype=tf.int64),
+                    'width': tf.FixedLenFeature([], dtype=tf.int64),
+                    'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                    'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                    'locs': tf.FixedLenFeature(shape=[max_n, conf.n_classes, 2], dtype=tf.float32),
+                    'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                    'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                    'image_raw': tf.FixedLenFeature([], dtype=tf.string),
+                    'mask': tf.FixedLenFeature([], dtype=tf.string),
+                    'occ': tf.FixedLenFeature(shape=[max_n,conf.n_classes], default_value=np.zeros([max_n,conf.n_classes]), dtype=tf.float32),
+                    }
+
         def _parse_function(serialized_example):
             features = tf.parse_single_example(
                 serialized_example,
-                features={'height': tf.FixedLenFeature([], dtype=tf.int64),
-                          'width': tf.FixedLenFeature([], dtype=tf.int64),
-                          'depth': tf.FixedLenFeature([], dtype=tf.int64),
-                          'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
-                          'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
-                          'expndx': tf.FixedLenFeature([], dtype=tf.float32),
-                          'ts': tf.FixedLenFeature([], dtype=tf.float32),
-                          'image_raw': tf.FixedLenFeature([], dtype=tf.string),
-                          'occ':tf.FixedLenFeature(shape=[conf.n_classes],default_value=np.zeros(conf.n_classes),dtype=tf.float32),
-                          })
+                features=features_dict)
             image = tf.decode_raw(features['image_raw'], tf.uint8)
-            trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
             image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+            trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
+            locs = tf.cast(features['locs'], tf.float32)
+            exp_ndx = tf.cast(features['expndx'], tf.float32)
+            ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
+            info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
+            occ = tf.cast(features['occ'],tf.bool)
 
+            return image , locs, info, occ
+
+
+        def _parse_function_multi(serialized_example):
+            features = tf.parse_single_example(
+                serialized_example,
+                features=features_dict)
+            image = tf.decode_raw(features['image_raw'], tf.uint8)
+            image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+            mask = tf.decode_raw(features['mask'], tf.uint8)
+            mask = tf.reshape(mask, conf.imsz)
+            image = image*tf.expand_dims(mask,2)
+
+            trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
             locs = tf.cast(features['locs'], tf.float32)
             exp_ndx = tf.cast(features['expndx'], tf.float32)
             ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
@@ -382,15 +420,19 @@ class PoseCommon(object):
             logging.warning("Val DB does not exists: Data for validation from:{}".format(train_db))
             val_db = train_db
         val_dataset = tf.data.TFRecordDataset(val_db)
+        if self.is_multi:
+            pfn = _parse_function_multi
+        else:
+            pfn = _parse_function
 
-        train_dataset = train_dataset.map(map_func=_parse_function,num_parallel_calls=5)
+        train_dataset = train_dataset.map(map_func=pfn,num_parallel_calls=5)
         train_dataset = train_dataset.repeat()
         train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
         train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=8)
         train_dataset = train_dataset.prefetch(buffer_size=100)
 
-        val_dataset = val_dataset.map(map_func=_parse_function,num_parallel_calls=2)
+        val_dataset = val_dataset.map(map_func=pfn,num_parallel_calls=2)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
         val_dataset = val_dataset.map(map_func=self.val_py_map,num_parallel_calls=4)
@@ -621,7 +663,7 @@ class PoseCommon(object):
         save_time = self.conf.get('save_time', None)
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
-        with tensorflow.Session(config=config) as sess:
+        with tf.Session(config=config) as sess:
             # train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
             start_at = self.init_restore_net(sess, do_restore=restore)
 
@@ -630,7 +672,10 @@ class PoseCommon(object):
             step_lr =  self.conf.get('step_lr', True)
             lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
 
-            logging.info('Starting Training. If the err file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix. LOUSY TF :(')
+            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix :(')
+            ss = sess.run(self.inputs,self.fd)
+            logging.info('Input shape:{}'.format(ss[0].shape))
+            logging.info('Starting training..')
             for step in range(start_at, training_iters + 1):
                 self.train_step(step, sess, learning_rate, training_iters,step_lr,lr_drop_step_frac)
                 if step % self.conf.display_step == 0:
