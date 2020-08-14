@@ -62,7 +62,13 @@ classdef TrainMonitorViz < handle
   
   methods
     
-    function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd)
+    function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd,...
+        varargin)
+      
+      trainSplits = myparse(varargin,...
+        'trainSplits',false ...
+        );
+      
       lObj = dtObj.lObj;
       obj.dtObj = dtObj;
       obj.trainWorkerObj = trainWorkerObj;
@@ -104,8 +110,12 @@ classdef TrainMonitorViz < handle
         end
       end
       if nview > 1,
-        viewstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
-        legend(obj.haxs(2),h(:,1),viewstrs,'TextColor','w');
+        if trainSplits
+          legstrs = arrayfun(@(x)sprintf('split%d',x),(1:nview)','uni',0);
+        else
+          legstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
+        end
+        legend(obj.haxs(2),h(:,1),legstrs,'TextColor','w');
       end
       set(obj.haxs,'XLimMode','manual','YScale','log');
       obj.hline = h;

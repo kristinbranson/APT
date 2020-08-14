@@ -19,7 +19,7 @@ conf.save_step = 50
 conf.maxckpt = 100
 net = 'nvgg'
 
-if net is 'vgg':
+if net == 'vgg':
     conf.expname = 'head_joint_vgg'
 else:
     conf.expname = 'head_joint_5layers_ssf_lrx50'
@@ -46,7 +46,7 @@ self.ph['base_pred'] = tf.placeholder(
 y_label = self.ph['base_locs'] / self.conf.rescale / self.conf.pool_scale
 self.mdn_label = y_label
 
-if net is 'vgg':
+if net == 'vgg':
     self.create_network_vgg(self.ph['base_pred'])
 else:
     self.create_network_joint(self.ph['base_pred'])

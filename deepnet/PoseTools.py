@@ -904,7 +904,7 @@ def db_info(self, dbType='val',train_type=0):
     if train_type is 1:
         fname = os.path.join(self.conf.cachedir, self.conf.fulltrainfilename + '.tfrecords')
     else:
-        if dbType is 'val':
+        if dbType == 'val':
             fname = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
         else:
             fname = os.path.join(self.conf.cachedir, self.conf.trainfilename + '.tfrecords')
@@ -914,7 +914,7 @@ def db_info(self, dbType='val',train_type=0):
         start_at = self.init_and_restore(sess, True, ['loss', 'dist'])
 
         for step in range(num_val // self.conf.batch_size):
-            if dbType is 'val':
+            if dbType == 'val':
                 self.setup_val(sess)
             else:
                 self.setup_train(sess)
