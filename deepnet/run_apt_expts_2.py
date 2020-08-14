@@ -673,7 +673,6 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
             conf_opts['batch_size'] = 4
             conf_opts['rescale'] = 2
         if data_type in ['roian']:
-<<<<<<< HEAD
             conf_opts['batch_size'] = 4
             # if train_type in ['resnet_unet','unet']:
             #     conf_opts['batch_size'] = 4
@@ -683,14 +682,10 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
 
     if dpk_skel_csv is not None:
         conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
-=======
-            if train_type in ['resnet_unet','unet']:
-                conf_opts['batch_size'] = 4
 
 
     if op_af_graph is not None:
         conf_opts['op_affinity_graph'] = op_af_graph
->>>>>>> 0d839acfd9c821b9e167f695a6251b875181bab8
 
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
