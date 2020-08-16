@@ -37,6 +37,7 @@ import json
 import pickle
 import PoseTools
 import random
+import time
 
 
 class LearningRate(object):
@@ -120,7 +121,7 @@ def save_td(cfg, train_info):
     if name == 'deepnet':
         train_data_file = os.path.join(cachedir, 'traindata')
     else:
-        train_data_file = os.path.join(cachedir, name + '_traindata')
+        train_data_file = os.path.join(cachedir, cfg.expname + '_' + name + '_traindata')
 
     # train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
@@ -178,7 +179,10 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         cfg['batch_size']=1 #in case this was edited for analysis.-
 
     dataset = create_dataset(cfg)
-    kk = dataset.next_batch() # for debugging
+    start = time.time()
+    for n in range(100):
+        kk = dataset.next_batch() # for debugging
+    logging.info('Time for inputting {}'.format( (time.time()-start)/1000))
     batch_spec = get_batch_spec(cfg)
     batch, enqueue_op, placeholders = setup_preloading(batch_spec)
     net = pose_net(cfg)
@@ -261,6 +265,7 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         train_writer.add_summary(summary, it)
 
         if it % display_iters == 0:
+
             cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
             pred = [cur_out['part_pred'],cur_out['locref']]
             scmap, locref = predict.extract_cnn_output(pred, cfg)
@@ -279,8 +284,8 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
             cum_loss = 0.0
             logging.info("iteration: {} dist: {:.2f} loss: {} lr: {}"
                          .format(it, dd.mean(), "{0:.4f}".format(average_loss), current_lr))
-            lrf.write("{}, {:.2f}, {:.5f}, {}\n".format(it, dd.mean(), average_loss, current_lr))
-            lrf.flush()
+            # lrf.write("{}, {:.2f}, {:.5f}, {}\n".format(it, dd.mean(), average_loss, current_lr))
+            # lrf.flush()
 
             train_info['step'].append(it)
             train_info['train_loss'].append(loss_val)

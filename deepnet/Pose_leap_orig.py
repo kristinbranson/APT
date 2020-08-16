@@ -14,8 +14,8 @@ main_script = 'leap/training.py'
 
 class Pose_leap_orig(object):
 
-    def __init__(self,conf):
-        self.name = 'deepnet'
+    def __init__(self,conf,name='deepnet'):
+        self.name = name
         self.conf = conf
 
     def train_wrapper(self,restore=False):

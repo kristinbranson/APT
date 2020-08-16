@@ -800,7 +800,7 @@ def create_incremental_dbs(do_split=False):
                         json.dump(splits,f)
 
                 conf.splitType = 'predefined'
-                if train_type == 'deeplabcut':
+                if train_type == 'deepla`bcut':
                     apt.create_deepcut_db(conf, split=True, split_file=split_file,use_cache=True)
                 elif train_type == 'leap':
                     apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)

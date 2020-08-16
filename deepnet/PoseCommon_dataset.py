@@ -140,7 +140,7 @@ class PoseCommon(object):
         Val = 2
 
 
-    def __init__(self, conf, name):
+    def __init__(self, conf, name, is_multi=False):
         self.coord = None
         self.threads = None
         self.conf = conf
@@ -186,6 +186,7 @@ class PoseCommon(object):
         self.pad_x = 0
         self.compute_summary = self.conf.get('compute_summary',False)
         self.input_sizes = None
+        self.is_multi = is_multi
 
 
     def get_latest_model_file(self):
@@ -195,9 +196,10 @@ class PoseCommon(object):
 
 
     def get_var_list(self):
-        var_list = tf.global_variables(self.net_name)
-        for dep_net in self.dep_nets:
-            var_list += dep_net.get_var_list()
+        var_list = tf.global_variables()
+        # var_list = tf.global_variables(self.net_name)
+        # for dep_net in self.dep_nets:
+        #     var_list += dep_net.get_var_list()
         return var_list
 
     def create_saver(self):
@@ -207,19 +209,16 @@ class PoseCommon(object):
         saver['out_file'] = os.path.join(
             self.conf.cachedir,name)
         if self.train_data_name is None:
-            saver['train_data_file'] = os.path.join(
-                self.conf.cachedir,
-                self.conf.expname + '_' + name + '_traindata')
+            if self.name =='deepnet':
+                saver['train_data_file'] = os.path.join(self.conf.cachedir,'traindata')
+            else:
+                saver['train_data_file'] = os.path.join(self.conf.cachedir, self.conf.expname + '_' + name + '_traindata')
         else:
-            saver['train_data_file'] = os.path.join(
-                self.conf.cachedir,
-                self.train_data_name)
+            saver['train_data_file'] = os.path.join(self.conf.cachedir, self.train_data_name)
 
         saver['ckpt_file'] = self.ckpt_file
         var_list = self.get_var_list()
-        saver['saver'] = (tf.train.Saver(var_list=var_list,
-                                         max_to_keep=self.conf.maxckpt,
-                                         save_relative_paths=True))
+        saver['saver'] = (tf.train.Saver(var_list=var_list, max_to_keep=self.conf.maxckpt, save_relative_paths=True))
         saver['summary_dir'] = os.path.join(self.conf.cachedir,self.conf.expname + '_' + name + '_log')
         self.saver = saver
 
@@ -349,23 +348,60 @@ class PoseCommon(object):
     def create_datasets(self):
 
         conf = self.conf
+
+        if not self.is_multi:
+            features_dict = {'height': tf.FixedLenFeature([], dtype=tf.int64),
+                    'width': tf.FixedLenFeature([], dtype=tf.int64),
+                    'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                    'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                    'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
+                    'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                    'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                    'image_raw': tf.FixedLenFeature([], dtype=tf.string),
+                    'occ': tf.FixedLenFeature(shape=[conf.n_classes], default_value=np.zeros(conf.n_classes),
+                                              dtype=tf.float32),
+                    }
+        else:
+            max_n = conf.max_n_animals
+            features_dict = {'height': tf.FixedLenFeature([], dtype=tf.int64),
+                    'width': tf.FixedLenFeature([], dtype=tf.int64),
+                    'depth': tf.FixedLenFeature([], dtype=tf.int64),
+                    'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
+                    'locs': tf.FixedLenFeature(shape=[max_n, conf.n_classes, 2], dtype=tf.float32),
+                    'expndx': tf.FixedLenFeature([], dtype=tf.float32),
+                    'ts': tf.FixedLenFeature([], dtype=tf.float32),
+                    'image_raw': tf.FixedLenFeature([], dtype=tf.string),
+                    'mask': tf.FixedLenFeature([], dtype=tf.string),
+                    'occ': tf.FixedLenFeature(shape=[max_n,conf.n_classes], default_value=np.zeros([max_n,conf.n_classes]), dtype=tf.float32),
+                    }
+
         def _parse_function(serialized_example):
             features = tf.parse_single_example(
                 serialized_example,
-                features={'height': tf.FixedLenFeature([], dtype=tf.int64),
-                          'width': tf.FixedLenFeature([], dtype=tf.int64),
-                          'depth': tf.FixedLenFeature([], dtype=tf.int64),
-                          'trx_ndx': tf.FixedLenFeature([], dtype=tf.int64, default_value=0),
-                          'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
-                          'expndx': tf.FixedLenFeature([], dtype=tf.float32),
-                          'ts': tf.FixedLenFeature([], dtype=tf.float32),
-                          'image_raw': tf.FixedLenFeature([], dtype=tf.string),
-                          'occ':tf.FixedLenFeature(shape=[conf.n_classes],default_value=np.zeros(conf.n_classes),dtype=tf.float32),
-                          })
+                features=features_dict)
             image = tf.decode_raw(features['image_raw'], tf.uint8)
-            trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
             image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+            trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
+            locs = tf.cast(features['locs'], tf.float32)
+            exp_ndx = tf.cast(features['expndx'], tf.float32)
+            ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
+            info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
+            occ = tf.cast(features['occ'],tf.bool)
 
+            return image , locs, info, occ
+
+
+        def _parse_function_multi(serialized_example):
+            features = tf.parse_single_example(
+                serialized_example,
+                features=features_dict)
+            image = tf.decode_raw(features['image_raw'], tf.uint8)
+            image = tf.reshape(image, conf.imsz + (conf.img_dim,))
+            mask = tf.decode_raw(features['mask'], tf.uint8)
+            mask = tf.reshape(mask, conf.imsz)
+            image = image*tf.expand_dims(mask,2)
+
+            trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
             locs = tf.cast(features['locs'], tf.float32)
             exp_ndx = tf.cast(features['expndx'], tf.float32)
             ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
@@ -384,15 +420,19 @@ class PoseCommon(object):
             logging.warning("Val DB does not exists: Data for validation from:{}".format(train_db))
             val_db = train_db
         val_dataset = tf.data.TFRecordDataset(val_db)
+        if self.is_multi:
+            pfn = _parse_function_multi
+        else:
+            pfn = _parse_function
 
-        train_dataset = train_dataset.map(map_func=_parse_function,num_parallel_calls=5)
+        train_dataset = train_dataset.map(map_func=pfn,num_parallel_calls=5)
         train_dataset = train_dataset.repeat()
         train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
         train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=8)
         train_dataset = train_dataset.prefetch(buffer_size=100)
 
-        val_dataset = val_dataset.map(map_func=_parse_function,num_parallel_calls=2)
+        val_dataset = val_dataset.map(map_func=pfn,num_parallel_calls=2)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
         val_dataset = val_dataset.map(map_func=self.val_py_map,num_parallel_calls=4)
@@ -485,11 +525,18 @@ class PoseCommon(object):
         pretrained_saver.restore(sess, model_file)
 
 
-    def train_step(self, step, sess, learning_rate, training_iters):
+
+    def train_step(self, step, sess, learning_rate, training_iters,step_lr,lr_drop_step_frac):
         cur_step = float(step)
 
-        decay_steps = self.conf.decay_steps
-        cur_lr = learning_rate * (self.conf.gamma ** (cur_step/decay_steps))
+        if step_lr:
+            if cur_step < ( (1 - lr_drop_step_frac)* training_iters):
+                cur_lr = learning_rate
+            else:
+                cur_lr = learning_rate/10
+        else:
+            decay_steps = self.conf.decay_steps
+            cur_lr = learning_rate * (self.conf.gamma ** (cur_step/decay_steps))
         # min_lr = 1e-6
         # min_lr = learning_rate/100
         self.fd[self.ph['learning_rate']] = cur_lr
@@ -529,7 +576,8 @@ class PoseCommon(object):
 
         self.fd_train()
         run_options = tf.RunOptions(report_tensor_allocations_upon_oom=True)
-        sess.run(self.opt, self.fd,options=run_options)
+
+        sess.run(self.opt, self.fd, options=run_options)
 
 
     def create_optimizer(self):
@@ -621,9 +669,15 @@ class PoseCommon(object):
 
             start = time.time()
             save_start = start
+            step_lr =  self.conf.get('step_lr', True)
+            lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
 
+            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix :(')
+            ss = sess.run(self.inputs,self.fd)
+            logging.info('Input shape:{}'.format(ss[0].shape))
+            logging.info('Starting training..')
             for step in range(start_at, training_iters + 1):
-                self.train_step(step, sess, learning_rate, training_iters)
+                self.train_step(step, sess, learning_rate, training_iters,step_lr,lr_drop_step_frac)
                 if step % self.conf.display_step == 0:
                     end = time.time()
                     logging.info('Time required to train: {}'.format(end-start))
@@ -677,8 +731,11 @@ class PoseCommon(object):
             start_at = self.init_restore_net(sess, do_restore=restore)
             start = time.time()
             save_start = start
+            step_lr =  self.conf.get('step_lr', True)
+            lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
+
             for step in range(start_at, training_iters + 1):
-                self.train_step(step, sess, learning_rate, training_iters)
+                self.train_step(step, sess, learning_rate, training_iters,step_lr,lr_drop_step_frac)
                 self.update_and_save_td(step,sess)
                 if self.conf.save_time is None:
                     if step % self.conf.save_step == 0:

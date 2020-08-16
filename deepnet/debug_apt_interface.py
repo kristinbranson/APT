@@ -1,5 +1,247 @@
+## multi animal traning
+import PoseTools
+import re
+import h5py
+import numpy as np
+import APT_interface as apt
+import matplotlib
+matplotlib.use('TkAgg')
 
-cmd = '-no_except /groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.trn606.lbl -name romain_compare -cache /nrs/branson/mayank/apt_cache -conf_params rrange 10 trange 5 scale_factor_range 1.2 mdn_use_unet_loss False img_dim 1 dl_steps 200000 batch_size 2 save_step 5000 learning_rate_multiplier 0.25 decay_steps 100000 maxckpt 100 adjustContrast True  -train_name mdn_official -type mdn_joint train -skip_db -use_cache'
+# op_af = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)' chedk
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+
+n_grid = 4
+sz = np.round(1024/n_grid).astype('int')
+fill_value = 255
+bb_ex = 10 # extra pixels around bb
+buffer = 60 # roughly half the animal size + bb_ex
+max_n = 6
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES']  = '0'
+import Pose_multi_mdn_joint
+import Pose_multi_openpose
+import Pose_multi_mdn_joint_torch
+
+net_type = 'multi_mdn_joint_torch' # 'multi_openpose' #
+conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.rrange = 180
+conf.trange = 50
+conf.max_n_animals = max_n
+conf.imsz = (sz+2*buffer,sz+2*buffer)
+conf.mdn_use_unet_loss = False
+conf.img_dim = 3
+conf.dl_steps = 50000
+conf.op_affinity_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
+# conf.mdn_joint_use_fpn = True
+
+if net_type == 'multi_openpose':
+    conf.rescale = 0.25
+    self = Pose_multi_openpose.Pose_multi_openpose(conf,'50k_highres')
+elif net_type == 'multi_mdn_joint_torch':
+    self = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name='test',is_multi=True)
+else:
+    self = Pose_multi_mdn_joint.Pose_multi_mdn_joint(conf,'50k_low_noise_fpn')
+
+self.train_wrapper()#restore=True)
+
+
+## multi animal training val
+
+import PoseTools
+import re
+import h5py
+import numpy as np
+import APT_interface as apt
+
+op_af = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)'
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+
+n_grid = 4
+sz = np.round(1024/n_grid).astype('int')
+fill_value = 255
+bb_ex = 10 # extra pixels around bb
+buffer = 60 # roughly half the animal size + bb_ex
+max_n = 6
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES']  = '0'
+import Pose_multi_mdn_joint
+import Pose_multi_openpose
+net_type = 'multi_mdn_joint' #'multi_openpose' #
+train_name = '50k_low_noise' # '50k'
+conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.rrange = 180
+conf.trange = 50
+conf.max_n_animals = max_n
+conf.imsz = (sz+2*buffer,sz+2*buffer)
+conf.mdn_use_unet_loss = False
+conf.img_dim = 3
+conf.op_affinity_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
+conf.op_pred_simple = False
+
+db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+
+## OP single animal centered tracking
+import PoseTools
+import os
+import glob
+import APT_interface as apt
+import apt_expts
+import re
+import run_apt_expts as rae
+import multiResData
+import matplotlib
+import numpy as np
+matplotlib.use('TkAgg')
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+out = {}
+db_file = '/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/alice_compare_touch/val_TF.tfrecords'
+cdir = os.path.dirname(db_file)
+cdir = cdir.replace('mdn','openpose')
+ntype = 'openpose'
+n = 'openpose_test'
+tfile = os.path.join(cdir, 'multitarget_bubble_{}_traindata'.format(n))
+
+A = PoseTools.pickle_load(tfile)
+conf = A[1]
+
+files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(n))
+files.sort(key=os.path.getmtime)
+aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
+aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+if any([a < 0 for a in aa]):
+    bb = int(np.where(np.array(aa) < 0)[0]) + 1
+    files = files[bb:]
+files = [f.replace('.index', '') for f in files]
+files = files[-1:]
+mdn_out = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+conf.op_pred_simple = False
+mdn_out1 = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+
+## OP single animal centered training
+import APT_interface as apt
+
+cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name alice_compare_touch -cache /nrs/branson/mayank/apt_cache -conf_params mdn_use_unet_loss False rrange 10 trange 5 img_dim 1 imsz (183,183) dl_steps 50000 step_lr True op_affinity_graph (0,1),(0,5),(1,2),(3,4),(3,5),(5,6),(5,7),(5,9),(3,16),(9,10),(10,15),(9,14),(4,11),(7,8),(8,12),(7,13)  -train_name openpose_test -type openpose train -skip_db -use_cache'
+
+apt.main(cmd.split())
+
+
+##
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'
+cmd = '-no_except {} -name alice_compare_touch -cache /nrs/branson/mayank/apt_cache -conf_params rrange 10 trange 5 img_dim 1 dl_steps 10000  -type openpose train -skip_db -use_cache'.format(lbl_file)
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
+import PoseTools
+import os
+import glob
+import APT_interface as apt
+import apt_expts
+import re
+import run_apt_expts as rae
+import numpy  as np
+from importlib import reload
+
+import APT_interface as apt
+
+
+sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.trn606.lbl'
+view = 0
+
+
+reload(apt_expts)
+import PoseUNet_resnet
+reload(PoseUNet_resnet)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+mdn_names = ['mdn_joint_step_more_noise_less',
+             # 'mdn_joint_step_more_noise_less_wasp',
+             # 'mdn_joint_step_more_noise_less_wasp_dil_2',
+             'mdn_joint_step_more_noise_less_wasp_dil_2_skip',
+             'mdn_joint_step_more_noise_less_fpn',
+             # 'mdn_joint_step_more_noise_less_wasp_skip_fpn',
+             'mdn_joint_step_more_noise_less_wasp_skip_fpn_nonorm',
+             'dlc_noapt']
+
+out_dir = '/groups/branson/home/kabram/temp'
+
+out = {}
+db_file = '/nrs/branson/mayank/apt_cache/romainTrackNov18/mdn/view_0/romain_compare/val_TF.tfrecords'
+proj_name = 'romainTrackNov18'
+for n in mdn_names:
+    if 'dlc' in n:
+        ntype = 'deeplabcut'
+    elif 'resunet' in n:
+        ntype = 'resnet_unet'
+    elif 'mdn_unet' in n:
+        ntype = 'mdn_unet'
+    elif 'mdn_joint' in n:
+        ntype = 'mdn_joint'
+    else:
+        ntype = 'mdn'
+
+    if ntype == 'mdn':
+        cdir = os.path.dirname(db_file)
+    else:
+        cdir = '/nrs/branson/mayank/apt_cache/romainTrackNov18/{}/view_0/romain_compare/'.format(ntype)
+
+    if ntype == 'deeplabcut':
+        tfile = os.path.join(cdir, '{}_traindata'.format(n))
+    elif n == 'deepnet':
+        tfile = os.path.join(cdir, 'traindata')
+    else:
+        tfile = os.path.join(cdir, '{}_{}_traindata'.format(proj_name,n))
+
+    if not os.path.exists(tfile):
+        continue
+    A = PoseTools.pickle_load(tfile)
+    if ntype == 'deeplabcut':
+        conf = apt.create_conf(lbl_file, view, 'romain_compare', cache_dir='/nrs/branson/mayank/apt_cache',
+                               net_type='deeplabcut')
+
+        conf.dlc_locref_stdev =        7.2801
+        conf.dlc_locref_loss_weight =        0.05
+        conf.dlc_location_refinement =        True
+        conf.dlc_intermediate_supervision_layer =         12
+        conf.maxckpt =        20
+        conf.dlc_intermediate_supervision =        False
+        conf.dlc_locref_huber_loss =         True
+        conf.dlc_use_apt_preprocess =        True
+        conf.use_scale_factor_range =        True
+        conf.scale_factor_range =        1.3
+        conf.batch_size = 1
+    else:
+        conf = A[1]
+
+    files = glob.glob(os.path.join(cdir, "{}-[0-9]*.index").format(n))
+    files.sort(key=os.path.getmtime)
+    aa = [int(re.search('-(\d*).index', f).groups(0)[0]) for f in files]
+    aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+    if any([a < 0 for a in aa]):
+        bb = int(np.where(np.array(aa) < 0)[0]) + 1
+        files = files[bb:]
+    files = [f.replace('.index', '') for f in files]
+    files = files[-1:]
+    # if len(files) > 12:
+    #     gg = len(files)
+    #     sel = np.linspace(0, len(files) - 1, 12).astype('int')
+    #     files = [files[s] for s in sel]
+
+    mdn_out = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+    out[n] = mdn_out
+
+
+##
+
+
+cmd = '-no_except /groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.trn606.lbl -name romain_compare -cache /nrs/branson/mayank/apt_cache -conf_params rrange 10 trange 5 scale_factor_range 1.2 mdn_use_unet_loss False img_dim 1 dl_steps 100000 batch_size 4 save_step 5000 learning_rate_multiplier 1 step_lr True maxckpt 100 normalize_loss_batch False mdn_pred_dist True -train_name debug -type mdn train -skip_db -use_cache'
 import APT_interface as apt
 apt.main(cmd.split())
 
@@ -65,12 +307,20 @@ rae.cv_train_from_mat(dstr='20200430',queue='gpu_tesla',run_type='submit')
 ##
 import PoseTools as pt
 import run_apt_expts_2 as rae
-for split in range(5):
+
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+
+cam = 1
+for split in range(5): #(3): #
     f, ax = plt.subplots(2, 4)
     ax = ax.flatten()
     for ndx,m in enumerate(rae.all_models):
-        # tf = '/groups/branson/bransonlab/mayank/apt_cache_2/wheel_rig_tracker_feb_2017_cam2/{}/view_0/cv_split_{}/wheel_rig_tracker_feb_2017_cam2_deepnet_20200417_traindata'.format(m,split)
-        tf ='/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/{}/view_0/cv_split_{}/four_points_180806_deepnet_20200430_traindata'.format(m,split)
+        if m =='deeplabcut':
+            # tf = '/groups/branson/bransonlab/mayank/apt_cache_2/wheel_rig_tracker_feb_2017_cam{}/{}/view_0/cv_split_{}/deepnet_20200710_traindata'.format(cam,m,split)
+            tf ='/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/{}/view_0/cv_split_{}/deepnet_20200712_traindata'.format(m,split)
+        else:
+            # tf = '/groups/branson/bransonlab/mayank/apt_cache_2/wheel_rig_tracker_feb_2017_cam{}/{}/view_0/cv_split_{}/wheel_rig_tracker_feb_2017_cam{}_deepnet_20200710_traindata'.format(cam,m,split,cam)
+            tf ='/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/{}/view_0/cv_split_{}/four_points_180806_deepnet_20200712_traindata'.format(m,split)
         A = pt.pickle_load(tf)
         ax[ndx].plot(A[0]['step'][50:],A[0]['val_dist'][50:])
         ax[ndx].plot(A[0]['step'][50:],A[0]['train_dist'][50:])

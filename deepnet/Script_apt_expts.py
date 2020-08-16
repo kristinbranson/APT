@@ -11,7 +11,8 @@ from importlib import reload
 reload(rae)
 rae.setup('alice')
 #rae.create_normal_dbs()
-dstr = '20200604'
+# dstr = '20200604'
+dstr = '20200706'
 rae.run_normal_training(dstr=dstr) #run_type = 'submit' to actually submit jobs.
 # rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
 
@@ -26,7 +27,7 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-dstr = '20200604' # '20200410'
+dstr = '20200706' #'20200604' # '20200410'
 rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
 # rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
 rae.setup('alice_difficult')
@@ -36,11 +37,11 @@ rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
 ##
 import run_apt_expts_2 as rae
 import sys
-if sys.version_info.major > 2:
-    from importlib import reload
+from importlib import reload
 reload(rae)
 rae.setup('stephen')
-dstr = '20200605'
+# dstr = '20200605'
+dstr = '20200706'
 #rae.create_normal_dbs()
 rae.run_normal_training(dstr=dstr) #run_type = 'submit'
 # rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
@@ -52,8 +53,8 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('stephen')
-rae.get_normal_results(dstr='20200411')
-rae.get_normal_results(dstr='20200411',queue='gpu_tesla')
+dstr = '20200706' #'20200411'
+rae.get_normal_results(dstr=dstr)
 
 ## Accuracy over training set size
 
@@ -65,29 +66,34 @@ reload(rae)
 rae.setup('alice')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 # rae.create_incremental_dbs()
-alice_incr_dstr = '20200608'
+alice_incr_dstr = '20200716' #'20200608'
 rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
-alice_incr_dstr = '20200608'
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+alice_incr_dstr = '20200716' #'20200608'
 rae.get_incremental_results(dstr=alice_incr_dstr)
 
 ##
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('stephen')
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 # rae.create_incremental_dbs()
-stephen_incr_dstr = '20200608' # '20200414'
+stephen_incr_dstr = '20200717' #'20200608' # '20200414'
 rae.run_incremental_training(dstr=stephen_incr_dstr) #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('stephen')
-stephen_incr_dstr = '20200608' # '20200414'
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+stephen_incr_dstr = '20200717' #'20200608' # '20200414'
 rae.get_incremental_results(dstr=stephen_incr_dstr)
 
 ## Whole dataset training
@@ -106,20 +112,26 @@ for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
+dstr = '20200710'
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
+    rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+
     # rae.cv_train_britton() # use skip_db=False, run_type='submit' to actually rerun it
-    rae.cv_train_from_mat(queue='gpu_tesla',dstr='20200417')
-    rae.cv_train_from_mat(dstr='20200417')
+    # rae.cv_train_from_mat(queue='gpu_tesla',dstr=dstr)
+    rae.cv_train_from_mat(dstr=dstr)
 
 ## results
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
+dstr = '20200710'
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
-    rae.get_cv_results(queue='gpu_tesla',dstr='20200417',db_from_mdn_dir=True)
-    rae.get_cv_results(queue='gpu_rtx',dstr='20200417',db_from_mdn_dir=True)
+    rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+
+    # rae.get_cv_results(queue='gpu_tesla',dstr='20200417',db_from_mdn_dir=True)
+    rae.get_cv_results(queue='gpu_rtx',dstr=dstr,db_from_mdn_dir=True)
 
 
 ## Romains experiments
@@ -129,12 +141,16 @@ for britnum in range(3):
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('romain','')
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+
 rae.cv_train_from_mat() # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('romain')
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+
 rae.get_cv_results(num_splits=6)
 
 
@@ -143,31 +159,39 @@ rae.get_cv_results(num_splits=6)
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
+dstr = '20200804' # '20200712'
 rae.setup('roian','')
-rae.cv_train_from_mat(dstr='20200430') # skip_db=False,run_type='submit'
-rae.cv_train_from_mat(dstr='20200430',queue='gpu_tesla') # skip_db=False,run_type='submit'
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+# rae.cv_train_from_mat(dstr=dstr) # skip_db=False,run_type='submit'
+rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla') # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
 rae.setup('roian','')
-rae.get_cv_results(queue='gpu_rtx',dstr='20200430',db_from_mdn_dir=True)
-rae.get_cv_results(queue='gpu_tesla',dstr='20200430',db_from_mdn_dir=True)
+dstr = '20200804' #'20200712'
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+# rae.get_cv_results(queue='gpu_rtx',dstr=dstr,db_from_mdn_dir=True)
+rae.get_cv_results(queue='gpu_tesla',dstr=dstr,db_from_mdn_dir=True)
 
 ## Larva
 from importlib import reload
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('larva','')
-rae.cv_train_from_mat(dstr='20200428') # skip_db=False,run_type='submit'
-rae.cv_train_from_mat(dstr='20200428',queue='gpu_tesla_large') # skip_db=False,run_type='submit'
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+
+dstr =  '20200804' #'20200714' # '20200428'
+rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla_large') # skip_db=False,run_type='submit'
+# rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla_large') # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('larva')
-rae.get_cv_results(dstr='20200428',db_from_mdn_dir=True) # skip_db=False,run_type='submit'
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+# rae.get_cv_results(dstr='20200428',db_from_mdn_dir=True) # skip_db=False,run_type='submit'
 rae.get_cv_results(dstr='20200428',queue='gpu_tesla_large',db_from_mdn_dir=True) #
 
 

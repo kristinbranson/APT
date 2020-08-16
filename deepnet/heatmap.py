@@ -67,10 +67,12 @@ def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
     hmbw = hm > 0.
     lbls = skimage.measure.label(hmbw, connectivity=1)
     if distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"):
+        assert False, 'This is wrong it seems because rp gets converted to x,y again in open_pose4'
         rp = skimage.measure.regionprops(lbls, intensity_image=hm)
     else:
-        assert False, "Test this!!"
-        rp = skimage.measure.regionprops(np.transpose(lbls), intensity_image=hm)
+        # assert False, "Test this!!"
+        rp = skimage.measure.regionprops(lbls, intensity_image=hm)
+        # rp = skimage.measure.regionprops(np.transpose(lbls), intensity_image=np.transpose(hm))
     rp.sort(key=lambda x: x.max_intensity, reverse=True)
 
     a = np.zeros(nclustermax)
@@ -115,7 +117,7 @@ def compactify_hmap_arr(hmagg,offset=1.0,floor=0.0):
 
     return mus, sigs, As
 
-def get_weighted_centroids_with_argmax(hm, floor=0.0, nclustermax=5):
+def get_weighted_centroids_with_argmax(hm, floor=0.0, nclustermax=5,is_multi=False,sz=1):
     '''
     Get predicted loc from hmap as weighted centroid, falling back to
     argmax if nec
@@ -132,8 +134,13 @@ def get_weighted_centroids_with_argmax(hm, floor=0.0, nclustermax=5):
     assert np.all(hm >= 0.0), "Heatmap must be positive semi-def"
     bsize, nr, nc, npts = hm.shape
 
-    hmargmax = PoseTools.get_pred_locs(hm)
-    hmmu = np.zeros((bsize, npts, 2))
+    if is_multi:
+        hmargmax = PoseTools.get_pred_locs_multi(hm,nclustermax,sz=sz)
+        hmmu = np.ones([bsize,nclustermax,npts,2])*np.nan
+    else:
+        hmargmax = PoseTools.get_pred_locs(hm)
+        hmmu = np.zeros((bsize, npts, 2))
+
     assert hmargmax.shape == hmmu.shape
 
     for ib in range(bsize):
@@ -141,9 +148,13 @@ def get_weighted_centroids_with_argmax(hm, floor=0.0, nclustermax=5):
             _, mutmp, _, nclusters = compactify_hmap(hm[ib, :, :, ipt],
                                                      floor=floor,
                                                      nclustermax=nclustermax)
-            if nclusters == 1:
+
+            if is_multi:
+                hmmu[ib, :, ipt, :] = mutmp.T[:, ::-1] - 1.0
+            elif nclusters == 1:
                 # Convert to (x,y), 0-based
-                assert nclustermax == 1  # well this is confused
+                if not is_multi:
+                    assert nclustermax == 1  # well this is confused
                 hmmu[ib, ipt, :] = mutmp[::-1].flatten() - 1.0
             else:
                 # already (x,y), 0b
@@ -189,22 +200,28 @@ def create_label_hmap(locs, imsz, sigma, clip=0.05):
     locs: (nbatch x npts x 2) (x,y) locs, 0-based. (0,0) is the center of the upper-left pixel.
     imsz: [2] (nr, nc) size of heatmap to return
     """
+    locs = locs.copy()
+    if locs.ndim == 3:
+        locs = locs[:,np.newaxis,...]
 
-    bsize, npts, d = locs.shape
+    bsize, n_max, npts, d = locs.shape
     assert d == 2
     out = np.zeros([bsize, imsz[0], imsz[1], npts])
     for cur in range(bsize):
         for ndx in range(npts):
             x, y = np.meshgrid(range(imsz[1]), range(imsz[0]))
-            x0 = locs[cur, ndx, 0]
-            y0 = locs[cur, ndx, 1]
-            assert not (np.isnan(x0) or np.isnan(y0) or np.isinf(x0) or np.isinf(y0))
+            for mndx in range(n_max):
+                x0 = locs[cur, mndx, ndx, 0]
+                y0 = locs[cur, mndx, ndx, 1]
+                assert not (np.isnan(x0) or np.isnan(y0) or np.isinf(x0) or np.isinf(y0))
+                if (x0< -1000) or (y0 < -1000):
+                    continue
 
-            dx = x - x0
-            dy = y - y0
-            d2 = dx**2 + dy**2
-            exp = -d2 / 2.0 / sigma / sigma
-            out[cur, :, :, ndx] = np.exp(exp)
+                dx = x - x0
+                dy = y - y0
+                d2 = dx**2 + dy**2
+                exp = -d2 / 2.0 / sigma / sigma
+                out[cur, :, :, ndx] =np.maximum(out[cur,:,:,ndx],np.exp(exp))
     out[out < clip] = 0.
 
     return out

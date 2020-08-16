@@ -17,6 +17,7 @@ import pickle
 import scipy.io as sio
 from deeplabcut.utils.auxfun_videos import imread, imresize
 import PoseTools as pt
+import time
 #from scipy.misc import imread, imresize
 
 from deeplabcut.pose_estimation_tensorflow.dataset.pose_dataset import Batch, data_to_input, mirror_joints_map, CropImage, DataItem
@@ -171,7 +172,9 @@ class PoseDataset:
 
         #print(im_file, os.getcwd())
         #print(self.cfg.project_path)
+        start = time.time()
         image = imread(os.path.join(self.cfg.project_path,im_file), mode='RGB')
+        iread = time.time()
 
         if self.has_gt:
             joints = np.copy(data_item.joints)
@@ -179,10 +182,11 @@ class PoseDataset:
         cfg = self.cfg
         if cfg.dlc_use_apt_preprocess:
             # print('!!!!!! Using APT preproc!!!')
-            img, scaled_joints = pt.preprocess_ims(image[np.newaxis,...],joints[:,:,1:],cfg,distort=True,scale=cfg.global_scale)
+            img, scaled_joints = pt.preprocess_ims(image[np.newaxis,...],joints[:,:,1:],cfg,distort=True,scale=1/cfg.global_scale)
             img = img[0,...]
             # scaled_joints = scaled_joints[0,...]
             joint_id = [range(scaled_joints.shape[1])]
+            uu = time.time()
         else:
             # print('!!!!!! NOT Using APT preproc!!!')
 
@@ -216,12 +220,14 @@ class PoseDataset:
 
                 joint_id = [person_joints[:, 0].astype(int) for person_joints in joints]
 
+        atime = time.time()
         stride = self.cfg.stride
         scaled_img_size = arr(img.shape[0:2])
         sm_size = np.ceil(scaled_img_size / (stride * 2)).astype(int) * 2
         part_score_targets, part_score_weights, locref_targets, locref_mask = self.compute_target_part_scoremap(
                 joint_id, scaled_joints, data_item, sm_size, scale)
 
+        ttime = time.time()
         batch = {Batch.inputs: img}
         batch.update({
                 Batch.part_score_targets: part_score_targets,

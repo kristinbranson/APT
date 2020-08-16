@@ -534,7 +534,7 @@ def compute_padding_imsz_net(imsz, rescale, bb_ds_scale, ndeconv):
     def checkint(x, name):
         assert isinstance(x, int) or x.is_integer(), "Expect {} to be integral value".format(name)
 
-    checkint(rescale, 'rescale')
+    # checkint(rescale, 'rescale')
     checkint(bb_ds_scale, 'bb_ds_scale')
     checkint(ndeconv, 'ndeconv')
 
@@ -601,6 +601,34 @@ def get_train_data_filename(conf, name):
     train_data_file = os.path.join(conf.cachedir, tdf)
     return train_data_file
 
+def update_op_graph(op_graph):
+    # rearranges so that the new edges are always connected to previous ones.
+    assert  len(op_graph) > 1, 'Openpose affinity graph is empty'
+    new_graph = [op_graph[0]]
+    remaining = []            # edges that remain
+    done = list(op_graph[0])        # nodes that are connected
+    for k in op_graph[1:]:
+        if k[0] in done:
+            done.append(k[1])
+            new_graph.append(k)
+        elif k[1] in done:
+            done.append(k[0])
+            new_graph.append(k)
+        else:
+            remaining.append(k)
+
+        for idx in reversed(range(len(remaining))):
+            j = remaining[idx]
+            if j[0] in done:
+                done.append(j[1])
+                new_graph.append(j)
+                remaining.pop(idx)
+            elif j[1] in done:
+                done.append(j[0])
+                new_graph.append(j)
+                remaining.pop(idx)
+    return  new_graph
+
 
 def training(conf, name='deepnet'):
 
@@ -620,9 +648,13 @@ def training(conf, name='deepnet'):
     # need this to set default
     #save_time = conf.get('save_time', None)
 
-    train_data_file = os.path.join(conf.cachedir, 'traindata')
+    if name == 'deepnet':
+        train_data_file = os.path.join(conf.cachedir, 'traindata')
+    else:
+        train_data_file = os.path.join(conf.cachedir,conf.expname + '_' + name + '_traindata')
+
     with open(train_data_file, 'wb') as td_file:
-        pickle.dump(conf, td_file, protocol=2)
+        pickle.dump([{},conf], td_file, protocol=2)
     logging.info('Saved config to {}'.format(train_data_file))
 
     #model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
@@ -654,6 +686,11 @@ def training(conf, name='deepnet'):
     train_di = tfdatagen.make_data_generator(trntfr, conf, True, True, PREPROCFN)
     train_di2 = tfdatagen.make_data_generator(trntfr, conf, True, True, PREPROCFN)
     val_di = tfdatagen.make_data_generator(trntfr, conf, False, False, PREPROCFN)
+
+    # For debugging data gen pipeline
+    # kk = tfdatagen.make_data_generator(trntfr, conf, True, True, PREPROCFN, debug=True)
+    # while True:
+    #     a = next(kk)
 
     assert conf.op_label_scale == 8
     logging.info("Your label_blur_rads (hi/lo)res are {}/{}".format(
@@ -711,15 +748,17 @@ def training(conf, name='deepnet'):
             predhmval = val_out[-1]
             predhmval = clip_heatmap_with_warn(predhmval)
             # (bsize, npts, 2), (x,y), 0-based
+
+            if self.config.is_multi:
+                nclustermax = self.config.max_n_animals
+            else:
+                nclustermax = self.config.op_hmpp_nclustermax
             predlocsval, _ = \
-                heatmap.get_weighted_centroids_with_argmax(predhmval,
-                                                           floor=self.config.op_hmpp_floor,
-                                                           nclustermax=self.config.op_hmpp_nclustermax)
-            gtlocs, _ = heatmap.get_weighted_centroids_with_argmax(val_y[-1],
-                                                                   floor=self.config.op_hmpp_floor,
-                                                                   nclustermax=self.config.op_hmpp_nclustermax)
+                heatmap.get_weighted_centroids_with_argmax(predhmval, floor=self.config.op_hmpp_floor, nclustermax=nclustermax,sz=self.config.op_map_lores_blur_rad*2,is_multi=self.config.is_multi)
+            gtlocs, _ = heatmap.get_weighted_centroids_with_argmax(val_y[-1], floor=self.config.op_hmpp_floor, nclustermax=nclustermax,sz=self.config.op_map_lores_blur_rad*2,is_multi=self.config.is_multi)
+
             tt1 = predlocsval - gtlocs
-            tt1 = np.sqrt(np.sum(tt1 ** 2, 2))  # [bsize x ncls]
+            tt1 = np.sqrt(np.sum(tt1 ** 2, -1))  # [bsize x ncls]
             val_dist = np.nanmean(tt1)  # this dist is in op_scale-downsampled space
                                         # *self.config.op_label_scale
 
@@ -885,8 +924,9 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
         latest_model_file = model_file
     logging.info("Loading the weights from {}.. ".format(latest_model_file))
     model.load_weights(latest_model_file)
-    thre_hm = conf.get('op_param_hmap_thres',0.1)
     # thre2 = conf.get('op_param_paf_thres',0.05)
+    thre_hm = conf.get('op_param_hmap_thres',0.1)
+    thre_paf = conf.get('op_param_paf_thres',0.05)
 
     def pred_fn(all_f, retrawpred=conf.op_pred_raw):
         '''
@@ -899,8 +939,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
         assert all_f.shape[0] == conf.batch_size
         locs_sz = (conf.batch_size, conf.n_classes, 2)
         locs_dummy = np.zeros(locs_sz)
-        ims, _ = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False,
-                                                        gen_target_hmaps=False)
+        ims, _ = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False, gen_target_hmaps=False)
         model_preds = model.predict(ims)
 
         # all_infered = []
@@ -909,116 +948,18 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
         #     all_infered.append(infered)
 
         predhm = model_preds[-1]  # this is always the last/final MAP hmap
-        predhm_clip = clip_heatmap_with_warn(predhm)
-
-        # ignore edges, mod prehm_clip in-place
-        if edge_ignore > 0:
-            padx0 = conf.op_im_padx // 2
-            padx1 = conf.op_im_padx - padx0
-            pady0 = conf.op_im_pady // 2
-            pady1 = conf.op_im_pady - pady0
-            igx0 = padx0 + edge_ignore
-            igx1 = padx1 + edge_ignore
-            igy0 = pady0 + edge_ignore
-            igy1 = pady1 + edge_ignore
-            bsize = predhm_clip.shape[0]
-            npts = predhm_clip.shape[3]
-            for ib in range(bsize):
-                for ipt in range(npts):
-                    minval = predhm_clip[ib, :, :, ipt].min()
-                    predhm_clip[ib, :igy0, :, ipt] = minval
-                    predhm_clip[ib, :, :igx0, ipt] = minval
-                    predhm_clip[ib, -igy1:, :, ipt] = minval
-                    predhm_clip[ib, :, -igx1:, ipt] = minval
-
-        # (bsize, npts, 2), (x,y), 0-based
-        # predlocs_argmax = PoseTools.get_pred_locs(predhm_clip)
-        predlocs_wgtcnt, predlocs_argmax = \
-            heatmap.get_weighted_centroids_with_argmax(predhm_clip,
-                                                       floor=conf.op_hmpp_floor,
-                                                       nclustermax=conf.op_hmpp_nclustermax)
-        #predlocs_wgtcnt0 = heatmap.get_weighted_centroids_with_argmax(predhm_clip,
-        #                                                  floor=0,
-        #                                                  nclustermax=1)
-        assert predlocs_argmax.shape == locs_sz
-        assert predlocs_wgtcnt.shape == locs_sz
-        print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
-
-        # OTHER OUTPUTS
-        # simple diagnostic in lieu of do_inf for now
-        NCLUSTER_MAX = 5
-        num_peaks = np.zeros((conf.batch_size, conf.n_classes))
-        pks_with_score = np.zeros((conf.batch_size, conf.n_classes,
-                                   NCLUSTER_MAX, 3))  # last D: x, y, score
-        pks_with_score[:] = np.nan
-        pks_with_score_cmpt = pks_with_score.copy()
-        for ib in range(conf.batch_size):
-            for ipt in range(conf.n_classes):
-                hmthis = predhm_clip[ib, :, :, ipt]
-                pks_with_score_this = heatmap.find_peaks(hmthis, thre_hm)
-                if len(pks_with_score_this) > 0:
-                    pks_with_score_this = np.stack(pks_with_score_this)  # npk x 3
-                    irows = min(NCLUSTER_MAX, pks_with_score_this.shape[0])
-                    pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
-
-                a, mu, sig, _ = heatmap.compactify_hmap(hmthis,
-                                                     floor=0.1,
-                                                     nclustermax=NCLUSTER_MAX)
-                #mu = mu[::-1, :] - 1.0  # now x,y and 0b
-                mu -= 1.0
-                a_mu = np.vstack((mu, a)).T
-                assert a_mu.shape == (NCLUSTER_MAX, 3)
-                pks_with_score_cmpt[ib, ipt, :, :] = a_mu
-
-                num_peaks[ib, ipt] = len(pks_with_score_this)
-
-        netscalefac = conf.op_net_inout_scale
-        imnr_net, imnc_net = conf.op_imsz_net
-        assert predhm_clip.shape[1] == imnr_net / netscalefac  # rhs should be integral
-        assert predhm_clip.shape[2] == imnc_net / netscalefac  # "
-
-        totscalefac = netscalefac * conf.rescale  # rescale to net input, then undo rescale
-        predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, totscalefac, totscalefac)
-        predlocs_wgtcnt_hires = PoseTools.unscale_points(predlocs_wgtcnt, totscalefac, totscalefac)
-        pks_with_score[..., :2] = PoseTools.unscale_points(pks_with_score[..., :2],
-                                                           totscalefac, totscalefac)
-        pks_with_score_cmpt[..., :2] = PoseTools.unscale_points(pks_with_score_cmpt[..., :2],
-                                                                totscalefac, totscalefac)
-
-        # undo padding
-        predlocs_argmax_hires[..., 0] -= conf.op_im_padx // 2
-        predlocs_argmax_hires[..., 1] -= conf.op_im_pady // 2
-        predlocs_wgtcnt_hires[..., 0] -= conf.op_im_padx // 2
-        predlocs_wgtcnt_hires[..., 1] -= conf.op_im_pady // 2
-        #predlocs_wgtcnt0_hires[..., 0] -= conf.op_im_padx // 2
-        #predlocs_wgtcnt0_hires[..., 1] -= conf.op_im_pady // 2
-        pks_with_score[..., 0] -= conf.op_im_padx // 2
-        pks_with_score[..., 1] -= conf.op_im_pady // 2
-        pks_with_score_cmpt[..., 0] -= conf.op_im_padx // 2
-        pks_with_score_cmpt[..., 1] -= conf.op_im_pady // 2
-
-        # base_locs = np.array(all_infered)*conf.op_rescale
-        # nanidx = np.isnan(base_locs)
-        # base_locs[nanidx] = raw_locs[nanidx]
-
-        ret_dict = {}
-
-        if retrawpred:
-            ret_dict['locs'] = predlocs_wgtcnt_hires
-            ret_dict['locs_argmax'] = predlocs_argmax_hires
-            #ret_dict['locs_wgtcnt0'] = predlocs_wgtcnt0_hires
-            ret_dict['pred_hmaps'] = model_preds
-            ret_dict['ims'] = ims
+        if conf.get('op_pred_simple',True):
+            ret_dict = pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds)
         else:
-            # all return args should be [bsize x n_classes x ...]
-            ret_dict['locs'] = predlocs_wgtcnt_hires
-            ret_dict['locs_wgtcnt_hires'] = predlocs_wgtcnt_hires
-            ret_dict['locs_argmax_hires'] = predlocs_argmax_hires
-            ret_dict['conf'] = np.max(predhm, axis=(1, 2))
-            ret_dict['num_hm_peaks'] = num_peaks
-            ret_dict['pks_with_score'] = pks_with_score
-            ret_dict['pks_with_score_cmpt'] = pks_with_score_cmpt
-
+            locs = np.ones([predhm.shape[0],conf.max_n_animals,conf.n_classes,2])*np.nan
+            for ndx in range(predhm.shape[0]):
+                cur_locs = do_inference(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
+                locs[ndx,...] = cur_locs
+            ret_dict = {}
+            ret_dict['locs'] = locs * conf.rescale
+            if retrawpred:
+                ret_dict['pred_hmaps'] = model_preds
+                ret_dict['ims'] = ims
 
         return ret_dict
 
@@ -1028,7 +969,116 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
     return pred_fn, close_fn, latest_model_file
 
 
-def do_inference(hmap, paf, conf, thre_hm, thre_paf):
+def pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds):
+    predhm_clip = clip_heatmap_with_warn(predhm)
+    locs_sz = (conf.batch_size, conf.n_classes, 2)
+    thre_hm = conf.get('op_param_hmap_thres',0.1)
+
+    # ignore edges, mod prehm_clip in-place
+    if edge_ignore > 0:
+        padx0 = conf.op_im_padx // 2
+        padx1 = conf.op_im_padx - padx0
+        pady0 = conf.op_im_pady // 2
+        pady1 = conf.op_im_pady - pady0
+        igx0 = padx0 + edge_ignore
+        igx1 = padx1 + edge_ignore
+        igy0 = pady0 + edge_ignore
+        igy1 = pady1 + edge_ignore
+        bsize = predhm_clip.shape[0]
+        npts = predhm_clip.shape[3]
+        for ib in range(bsize):
+            for ipt in range(npts):
+                minval = predhm_clip[ib, :, :, ipt].min()
+                predhm_clip[ib, :igy0, :, ipt] = minval
+                predhm_clip[ib, :, :igx0, ipt] = minval
+                predhm_clip[ib, -igy1:, :, ipt] = minval
+                predhm_clip[ib, :, -igx1:, ipt] = minval
+
+    # (bsize, npts, 2), (x,y), 0-based
+    # predlocs_argmax = PoseTools.get_pred_locs(predhm_clip)
+    predlocs_wgtcnt, predlocs_argmax = \
+        heatmap.get_weighted_centroids_with_argmax(predhm_clip, floor=conf.op_hmpp_floor, nclustermax=conf.op_hmpp_nclustermax)
+    # predlocs_wgtcnt0 = heatmap.get_weighted_centroids_with_argmax(predhm_clip,
+    #                                                  floor=0,
+    #                                                  nclustermax=1)
+    assert predlocs_argmax.shape == locs_sz
+    assert predlocs_wgtcnt.shape == locs_sz
+    print("HMAP POSTPROC, floor={}, nclustermax={}".format(conf.op_hmpp_floor, conf.op_hmpp_nclustermax))
+
+    # OTHER OUTPUTS
+    # simple diagnostic in lieu of do_inf for now
+    NCLUSTER_MAX = 5
+    num_peaks = np.zeros((conf.batch_size, conf.n_classes))
+    pks_with_score = np.zeros((conf.batch_size, conf.n_classes,
+                               NCLUSTER_MAX, 3))  # last D: x, y, score
+    pks_with_score[:] = np.nan
+    pks_with_score_cmpt = pks_with_score.copy()
+    for ib in range(conf.batch_size):
+        for ipt in range(conf.n_classes):
+            hmthis = predhm_clip[ib, :, :, ipt]
+            pks_with_score_this = heatmap.find_peaks(hmthis, thre_hm)
+            if len(pks_with_score_this) > 0:
+                pks_with_score_this = np.stack(pks_with_score_this)  # npk x 3
+                irows = min(NCLUSTER_MAX, pks_with_score_this.shape[0])
+                pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
+
+            a, mu, sig, _ = heatmap.compactify_hmap(hmthis, floor=0.1, nclustermax=NCLUSTER_MAX)
+            # mu = mu[::-1, :] - 1.0  # now x,y and 0b
+            mu -= 1.0
+            a_mu = np.vstack((mu, a)).T
+            assert a_mu.shape == (NCLUSTER_MAX, 3)
+            pks_with_score_cmpt[ib, ipt, :, :] = a_mu
+
+            num_peaks[ib, ipt] = len(pks_with_score_this)
+
+    netscalefac = conf.op_net_inout_scale
+    imnr_net, imnc_net = conf.op_imsz_net
+    assert predhm_clip.shape[1] == imnr_net / netscalefac  # rhs should be integral
+    assert predhm_clip.shape[2] == imnc_net / netscalefac  # "
+
+    totscalefac = netscalefac * conf.rescale  # rescale to net input, then undo rescale
+    predlocs_argmax_hires = PoseTools.unscale_points(predlocs_argmax, totscalefac, totscalefac)
+    predlocs_wgtcnt_hires = PoseTools.unscale_points(predlocs_wgtcnt, totscalefac, totscalefac)
+    pks_with_score[..., :2] = PoseTools.unscale_points(pks_with_score[..., :2], totscalefac, totscalefac)
+    pks_with_score_cmpt[..., :2] = PoseTools.unscale_points(pks_with_score_cmpt[..., :2],
+                                                            totscalefac, totscalefac)
+
+    # undo padding
+    predlocs_argmax_hires[..., 0] -= conf.op_im_padx // 2
+    predlocs_argmax_hires[..., 1] -= conf.op_im_pady // 2
+    predlocs_wgtcnt_hires[..., 0] -= conf.op_im_padx // 2
+    predlocs_wgtcnt_hires[..., 1] -= conf.op_im_pady // 2
+    # predlocs_wgtcnt0_hires[..., 0] -= conf.op_im_padx // 2
+    # predlocs_wgtcnt0_hires[..., 1] -= conf.op_im_pady // 2
+    pks_with_score[..., 0] -= conf.op_im_padx // 2
+    pks_with_score[..., 1] -= conf.op_im_pady // 2
+    pks_with_score_cmpt[..., 0] -= conf.op_im_padx // 2
+    pks_with_score_cmpt[..., 1] -= conf.op_im_pady // 2
+
+    # base_locs = np.array(all_infered)*conf.op_rescale
+    # nanidx = np.isnan(base_locs)
+    # base_locs[nanidx] = raw_locs[nanidx]
+    ret_dict = {}
+
+    if retrawpred:
+        ret_dict['locs'] = predlocs_wgtcnt_hires
+        ret_dict['locs_argmax'] = predlocs_argmax_hires
+        # ret_dict['locs_wgtcnt0'] = predlocs_wgtcnt0_hires
+        ret_dict['pred_hmaps'] = model_preds
+        ret_dict['ims'] = ims
+    else:
+        # all return args should be [bsize x n_classes x ...]
+        ret_dict['locs'] = predlocs_wgtcnt_hires
+        ret_dict['locs_wgtcnt_hires'] = predlocs_wgtcnt_hires
+        ret_dict['locs_argmax_hires'] = predlocs_argmax_hires
+        ret_dict['conf'] = np.max(predhm, axis=(1, 2))
+        ret_dict['num_hm_peaks'] = num_peaks
+        ret_dict['pks_with_score'] = pks_with_score
+        ret_dict['pks_with_score_cmpt'] = pks_with_score_cmpt
+
+    return  ret_dict
+
+def do_inference(hmap, paf, conf,thre_hm,thre_paf):
     '''
 
     :param hmap: hmnr x hmnc x npt
@@ -1044,12 +1094,13 @@ def do_inference(hmap, paf, conf, thre_hm, thre_paf):
     limb_seq = conf.op_affinity_graph
 
     # upscale fac from net output to padded raw image
-    totscalefac = conf.op_net_inout_scale * conf.rescale
+    hmapscalefac = conf.op_net_inout_scale
+    pafscalefac = hmapscalefac * (2**conf.op_hires_ndeconv)
 
     # work at raw input res
-    hmap = cv2.resize(hmap, (0,0), fx=totscalefac, fy=totscalefac,
+    hmap = cv2.resize(hmap, (0,0), fx=hmapscalefac, fy=hmapscalefac,
                       interpolation=cv2.INTER_CUBIC)
-    paf = cv2.resize(paf, (0,0), fx=totscalefac, fy=totscalefac,
+    paf = cv2.resize(paf, (0,0), fx=pafscalefac, fy=pafscalefac,
                      interpolation=cv2.INTER_CUBIC)
 
     npts = hmap.shape[-1]
@@ -1099,15 +1150,13 @@ def do_inference(hmap, paf, conf, thre_hm, thre_paf):
                         continue
                     if norm > max(conf.op_imsz_pad):
                         continue
+
                     # if limbSeq[k][0]==0 and limbSeq[k][1]==1 and norm < 150:
                     #   continue
 
                     vec = np.divide(vec, norm)  # now unit vec from A->B
 
-                    startend = list(zip(np.linspace(candA[i][0], candB[j][0],
-                                                    num=mid_num), \
-                                        np.linspace(candA[i][1], candB[j][1],
-                                                    num=mid_num)))
+                    startend = list(zip(np.linspace(candA[i][0], candB[j][0], num=mid_num),  np.linspace(candA[i][1], candB[j][1], num=mid_num)))
                     # list of mid_num (xm,ym) pts evenly spaced along line seg
                     # from A to B
 
@@ -1121,12 +1170,17 @@ def do_inference(hmap, paf, conf, thre_hm, thre_paf):
 
                     score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1])
                     score_with_dist_prior = sum(score_midpts) / len(score_midpts) # + min( 0.5 * oriImg.shape[0] / norm - 1, 0)
+
+                    if np.linalg.norm(vec) < 3:
+                        # MK 20200803: pts that are very close, use small default values because PAFs would be weird.
+                        score_midpts = np.ones_like(score_midpts)*(thre_paf + 0.05)
+                        score_with_dist_prior = 0.05
+
                     # average dot prod of paf along line seg
                     criterion1 = len(np.nonzero(score_midpts > thre_paf)[0]) > 0.8 * len(score_midpts)  # 80% of dot prods exceed thre_paf
                     criterion2 = score_with_dist_prior > 0
                     if criterion1 and criterion2:
-                        connection_candidate.append([i, j, score_with_dist_prior,
-                                                     score_with_dist_prior + candA[i][2] + candB[j][2]])
+                        connection_candidate.append([i, j, score_with_dist_prior, score_with_dist_prior + candA[i][2] + candB[j][2]])
             # connection_candidate is list of (i, j, average_paf_dotprod, totscore) of
             # accepted candidates where i/j index candA/B resp. connection_candidate could
             # be empty.
@@ -1135,8 +1189,7 @@ def do_inference(hmap, paf, conf, thre_hm, thre_paf):
             # so adding them seems ok
 
             # currently sort by paf-dotprod only (instead of totscore)
-            connection_candidate = sorted(connection_candidate,
-                                          key=lambda x: x[2], reverse=True)
+            connection_candidate = sorted(connection_candidate, key=lambda x: x[2], reverse=True)
             # cols are (pkid_i, pkid_j, paf_dotprod, i, j)
             connection = np.zeros((0, 5))
             for c in range(len(connection_candidate)):
@@ -1223,7 +1276,7 @@ def do_inference(hmap, paf, conf, thre_hm, thre_paf):
                         subset[j1][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
 
                 # if find no partA in the subset, create a new subset
-                elif not found and k < 2:
+                elif not found: # and k < 2:
                     # XXX what if k>=2!?!
                     row = -1 * np.ones(conf.n_classes+2)
                     row[indexA] = partAs[i]
@@ -1255,18 +1308,18 @@ def do_inference(hmap, paf, conf, thre_hm, thre_paf):
 
     # stickwidth = 10 #4
     # print()
-    mappings = np.ones([conf.n_classes,2])*np.nan
+    mappings = np.ones([conf.max_n_animals,conf.n_classes,2])*np.nan
     if subset.shape[0] < 1:
         return mappings
 
     subset = subset[np.argsort(subset[:,-2])] # sort by highest scoring one in ASCENDING order
-    for n in range(1):
+    for n in range(subset.shape[0]):
         for i in range(conf.n_classes):
             index = subset[-n-1][i]
             if index < 0:
-                mappings[i,:] = np.nan
+                mappings[n,i,:] = np.nan
             else:
-                mappings[i,:] = candidate[index.astype(int), :2]
+                mappings[n,i,:] = candidate[index.astype(int), :2]
             # polygon = cv2.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stickwidth), int(angle), 0,
             # 360, 1)
             # cv2.fillConvexPoly(cur_canvas, polygon, colors[i])

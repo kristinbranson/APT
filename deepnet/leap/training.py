@@ -165,9 +165,19 @@ def train(data_path,
     """
 
     # Load
+    use_leap_lr = conf.get('leap_use_default_lr', False)
+
     print("data_path:", data_path)
     box, confmap = load_dataset(data_path, X_dset=box_dset, Y_dset=confmap_dset)
-    box, confmap, val_box, val_confmap, train_idx, val_idx = train_val_split(box, confmap, val_size=val_size, shuffle=preshuffle)
+
+    if use_leap_lr:
+        box, confmap, val_box, val_confmap, train_idx, val_idx = train_val_split(box, confmap, val_size=val_size, shuffle=preshuffle)
+    else:
+        val_box   = box
+        val_confmap = confmap
+        train_idx = np.array([0])
+        val_idx = np.array([0])
+
     print("box.shape:", box.shape)
     print("val_box.shape:", val_box.shape)
 
@@ -224,11 +234,19 @@ def train(data_path,
         train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
         val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
-    history_callback = LossHistory(run_path=run_path)
-    reduce_lr_callback = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
-                                          patience=reduce_lr_patience, verbose=1, mode="auto",
-                                          epsilon=reduce_lr_min_delta, cooldown=reduce_lr_cooldown,
-                                          min_lr=reduce_lr_min_lr)
+    # history_callback = LossHistory(run_path=run_path)
+
+    initial_lr = conf.get('leap_base_lr',0.0001)
+    lr_drop_step_frac = conf.get('lr_drop_step', 0.15)
+
+    def step_decay(cur_epoch):
+        lrate = initial_lr if cur_epoch < ((1-lr_drop_step_frac) * epochs) else initial_lr/10
+        return  lrate
+
+    if not use_leap_lr:
+        reduce_lr_callback = LearningRateScheduler(step_decay)
+    else:
+        reduce_lr_callback = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor, patience=reduce_lr_patience, verbose=1, mode="auto", epsilon=reduce_lr_min_delta, cooldown=reduce_lr_cooldown, min_lr=reduce_lr_min_lr)
 
 
     # checkpointer = ModelCheckpoint(model_file, verbose=0, save_best_only=False,period=save_step)

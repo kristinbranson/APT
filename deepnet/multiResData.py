@@ -593,7 +593,7 @@ def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flip
 
 def crop_patch_trx(conf, im_in, x, y, theta, locs):
     ''' return patch for movies with trx file
-    function for testing test_crop_path_trx
+    function for testing: test_crop_path_trx
     '''
     psz_x = conf.imsz[1]
     psz_y = conf.imsz[0]
@@ -1146,7 +1146,7 @@ def read_tfrecord_metadata(filename):
 
 class tf_reader(object):
 
-    def __init__(self, conf, filename, shuffle):
+    def __init__(self, conf, filename, shuffle, is_multi=False):
         self.conf = conf
         self.file = filename
         self.iterator  = None
@@ -1155,7 +1155,7 @@ class tf_reader(object):
 #        self.vec_num = len(conf.op_affinity_graph)
         self.heat_num = self.conf.n_classes
         self.N = PoseTools.count_records(filename)
-
+        self.is_multi = is_multi
 
     def reset(self):
         if self.iterator:
@@ -1196,11 +1196,19 @@ class tf_reader(object):
             img_1d = np.fromstring(img_string, dtype=np.uint8)
             reconstructed_img = img_1d.reshape((height, width, depth))
             locs = np.array(example.features.feature['locs'].float_list.value)
-            locs = locs.reshape([self.conf.n_classes, 2])
             if 'trx_ndx' in example.features.feature.keys():
                 trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
             else:
                 trx_ndx = 0
+            if not self.is_multi:
+                locs = locs.reshape([self.conf.n_classes, 2])
+            else:
+                mask_string = example.features.feature['mask'].bytes_list.value[0]
+                mask_1d = np.fromstring(mask_string,dtype=np.uint8)
+                mask = mask_1d.reshape((height,width))
+                reconstructed_img = reconstructed_img * mask[...,np.newaxis]
+                locs = locs.reshape([self.conf.max_n_animals,self.conf.n_classes,2])
+
             all_ims.append(reconstructed_img)
             all_locs.append(locs)
             all_info.append(np.array([expid, t, trx_ndx]))

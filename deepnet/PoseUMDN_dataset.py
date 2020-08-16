@@ -81,12 +81,12 @@ def find_pad_sz(n_layers,in_sz):
 class PoseUMDN(PoseCommon.PoseCommon):
 
     def __init__(self, conf, name='pose_umdn',net_type='conv',
-                 unet_name = 'pose_unet',pad_input=False):
-        PoseCommon.PoseCommon.__init__(self, conf, name)
+                 unet_name = 'pose_unet',pad_input=False,**kwargs):
+        PoseCommon.PoseCommon.__init__(self, conf, name,**kwargs)
         self.dep_nets = [PoseUNet.PoseUNet(conf, unet_name)]
         self.net_type = net_type
         self.net_name = 'pose_umdn'
-        self.train_data_name = 'traindata'
+        # self.train_data_name = 'traindata'
         self.i_locs = None
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
         self.no_pad = False
