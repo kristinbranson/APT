@@ -70,6 +70,14 @@ if user == 'leea30':
           'skel': [
               os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
               os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv')],
+        },
+        'roian': {
+            'slbl': '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423.lbl_mdn.lbl',
+            'skel': [os.path.join(aptexptsdata, 'roian_dpk_skeleton.csv')],
+        },
+        'larva': {
+            'slbl': os.path.join(aptexptsdata,'Larva94A04_CM_fixedmovies_20200331.lbl_mdn.lbl'),
+            'skel': [os.path.join(aptexptsdata, 'larva_dpk_skeleton.csv')],
         }
     }
     alcache = '/groups/branson/bransonlab/apt/dl.al.2020/cache'
@@ -88,17 +96,11 @@ elif user == 'al':
 
 
 skeleton_csvs = {
-    'alice': [os.path.join(aptexptsdata, 'multitarget_bubble_dpk_skeleton.csv')],
-    'stephen': [
-        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
-        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv'),
-    ],
     'romain': [
         os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw0.csv'),
         os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw1.csv'),
     ],
-    'roian': [os.path.join(aptexptsdata, 'roian_dpk_skeleton.csv')],
-    'larva': [os.path.join(aptexptsdata, 'larva_dpk_skeleton.csv')],
+    'brit1': [os.path.join(aptexptsdata, 'bs_dpk_skel1.csv')],
     'dpkfly': [os.path.join(dpkdsets, 'fly/skeleton.csv')],
     'dpklocust': [os.path.join(dpkdsets, 'locust/skeleton.csv')],
     'dpkzebra': [os.path.join(dpkdsets, 'zebra/skeleton.csv')],
@@ -503,6 +505,7 @@ def assess_set(expnamebase,
                         cacheroot=alcache,
                         runpat='{}_run{}',
                         **kwargs):
+    assert False, 'api react'
     eresall = []
     for run in runrange:
         expname = runpat.format(expnamebase, run)
@@ -542,6 +545,7 @@ def get_latest_ckpt_h5_dpkstyle(expdir):
         cpt = clist[-1]
     else:
         cpt = clist[0]
+        logr.info("Exactly one dpk-style ckpt found: {}".format(expdir, cpt))
     return cpt
 
 
@@ -630,9 +634,6 @@ def assess(expname,
         assert False, "prob obsolete now"
         cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
         sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
-
-        print("conf vs conf_saved:")
-        util.dictdiff(conf, conf_saved, logr.info)
     else:
         if ckpt in ['latest', 'best']:
             cpt = get_latest_ckpt_h5_dpkstyle(expdir)
@@ -645,8 +646,24 @@ def assess(expname,
         sdn = dpk.models.load_model(cpt, generator=None)
         conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
         conf_saved = pt.pickle_load(conf_saved_f)
-        logr.info("conf vs conf_saved:")
-        util.dictdiff(conf, conf_saved['conf'], logr.info)
+        conf_saved = conf_saved['conf']
+
+    # We are not setting up the conf fully for the data/input pipe; fortunately
+    # we can just take from the saved.
+    FLDS_TO_TAKE_FROM_SAVED = ['rescale']
+    for f in FLDS_TO_TAKE_FROM_SAVED:
+        v0 = getattr(conf_saved, f)
+        v = getattr(conf, f)
+        if v != v0 :
+            logr.warning("## Conf field {} is {}. Taking value {} from saved conf.".format(
+                f, v, v0))
+            setattr(conf, f, v0)
+
+    # conf could have changed! (ie rescale). Need to do this again, doh
+    apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+
+    logr.info("conf vs conf_saved:")
+    util.dictdiff(conf, conf_saved, logr.info)
 
 
     '''
@@ -695,7 +712,9 @@ def assess(expname,
     eres['euc_coll'] = euc_coll
     eres['euc_coll_cols'] = euc_coll_cols
     eres['euc_coll_colcnt'] = euc_coll_colcnt
-    eres['euc_coll_ptiles5090'] = np.percentile(euc_coll, [50, 90], axis=0).T
+    eres['euc_coll_ptls'] = np.percentile(euc_coll, [50, 90, 97], axis=0).T
+    eres['euc_ptls'] = np.percentile(eres['euclidean'], [50, 90, 97], axis=0).T
+    eres['model'] = cpt
 
     nval = eres['euclidean'].shape[0]
 
@@ -1132,18 +1151,25 @@ def parse_sig(sig):
         dv = p.default
         print("{}: dv={}".format(k, dv))
 
-def read_exp(edir):
+def read_exp(edir,read_tfr_info=False,npt=None):
     conf = os.path.join(edir, '*conf.pickle')
     gpat = os.path.join(edir, '*.log')
     gpatv = os.path.join(edir, '*.vdist.log')
     enote = os.path.join(edir, 'EXPNOTE')
     picfs = os.path.join(edir, '*.p')
+    trntfrf = os.path.join(edir, 'train_TF.tfrecords')
+    valtfrf = os.path.join(edir, 'val_TF.tfrecords')
+    gttfrf = os.path.join(edir, 'gt.tfrecords')
 
     conf = glob.glob(conf)
     g = glob.glob(gpat)
     gv = glob.glob(gpatv)
     en = glob.glob(enote)
     picfs = glob.glob(picfs)
+    trntfr = glob.glob(trntfrf)
+    valtfr = glob.glob(valtfrf)
+    gttfr = glob.glob(gttfrf)
+
     g = set(g) - set(gv)
 
     d = edict({})
@@ -1159,6 +1185,15 @@ def read_exp(edir):
     setfile(d, g, 'tlogf')
     setfile(d, gv, 'tvlogf')
     setfile(d, en, 'enotef')
+    setfile(d, trntfr, 'trntfr')
+    setfile(d, valtfr, 'valtfr')
+    setfile(d, gttfr, 'gttfr')
+
+    if read_tfr_info:
+        if d.trntfr is not None:
+            _,_,d.trntfrifo,_ = mrd.read_and_decode_without_session(d.trntfr,npt,(),skip_ims=True)
+        if d.valtfr is not None:
+            _,_,d.valtfrifo,_ = mrd.read_and_decode_without_session(d.valtfr,npt,(),skip_ims=True)
 
     try:
         d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
@@ -1193,6 +1228,15 @@ def read_exp(edir):
         d[picfS] = pt.pickle_load(picf)
     return d
 
+def update_exps(edirdict,**kwargs):
+    for edir in edirdict:
+        if edir == 'root':
+            continue
+        edirlong = os.path.join(edirdict['root'], edir)
+        print(edir)
+        edirdict[edir] = read_exp(edirlong, **kwargs)
+
+
 def get_all_res_tosave(expdict, explist=None):
     dsave = {}
 
@@ -1208,7 +1252,7 @@ def get_all_res_tosave(expdict, explist=None):
             if kexp.startswith('eres'):
                 # hardcoded randomless
                 kbig = '{}__{}'.format(expname,
-                                       kexp.replace('-','__').replace('eres_','').replace('ckpt','').replace('_tstbsz10', ''))
+                                       kexp.replace('-','__').replace('eres_','').replace('ckpt','').replace('_tstbsz', 'tb').replace('2020', ''))
                 dsave[kbig] = exp[kexp]
                 print("Recorded {}".format(kbig))
             if kexp == 'enote':
@@ -1218,31 +1262,57 @@ def get_all_res_tosave(expdict, explist=None):
     dsave = util.dict_copy_with_edict_convert(dsave)
     return dsave
 
-def plot_exp_lrs(expdict, showlog=False, enamefilt=None):
+def plot_exps(expdict, log='tlog', field='loss', showlog=False, enamefilt=None,
+              ylims=None,
+              legdict=None,
+              **kwargs):
 
     '''
     :param expdict: easydict where keys are expnames and vals are read_exp outputs
+    :param field: can be a list
     :return:
     '''
 
+    if not isinstance(field, collections.abc.Iterable):
+        field = [field,]
+
     if enamefilt is None:
-        enamefiltuse = lambda x: x.startswith('e00')
+        enamefiltuse = lambda x: True
+        #enamefiltuse = lambda x: x.startswith('e00')
     elif isinstance(enamefilt, collections.abc.Iterable):
         enamefiltuse = lambda x: x in enamefilt
     else:
         enamefiltuse = enamefilt
 
     enames = list(expdict.keys())
-    enames = [x for x in enames if enamefiltuse(x)]
+    enames = [x for x in enames if enamefiltuse(x) and x!='root']
     enames.sort()
-    plt.figure()
+
+    num_field = len(field)
+    fig, axs = plt.subplots(num_field, sharex=True, sharey=False, gridspec_kw={'hspace': 0})
+
     for en in enames:
-        df = expdict[en].tlog
-        y = df.lr
-        if showlog:
-            y = np.log(y)
-        plt.plot(df.epoch, y, label=en)
+        df = expdict[en][log]
+        if df is None:
+            print("No {} for {}. Skipping".format(log, en))
+            continue
+        for idx, f in enumerate(field):
+            y = df[f]
+            if showlog:
+                y = np.log(y)
+            label = en if legdict is None else legdict[en]
+            axs[idx].plot(df.epoch, y, label=label, **kwargs)
+            axs[idx].grid('on')
+            if ylims is not None and ylims[idx] is not None:
+                axs[idx].set_ylim(ylims[idx])
+
     plt.legend()
+
+
+    # Hide x labels and tick labels for all but bottom plot.
+    for idx, f in enumerate(field):
+        axs[idx].label_outer()
+        axs[idx].set(ylabel=f)
 
 def show_exp_diags(expdict):
     enames = list(expdict.keys())
@@ -1259,6 +1329,26 @@ def show_exp_diags(expdict):
             en, bsize, nepoch, stepsperepoch, rowsperepoch
         ))
 
+def show_exp_trnstyle(expdict):
+    enames = list(expdict.keys())
+    enames = [x for x in enames if x!='root']
+    enames.sort()
+    for en in enames:
+        try:
+            conf = expdict[en].conf['conf']
+            bsize = conf.batch_size
+            trnsty = conf.dpk_train_style
+            baselr = conf.dpk_base_lr_used
+            print("{}: trnsty={}, bsize={}, baselr={}".format(
+                en, trnsty, bsize, baselr,
+            ))
+        except:
+            print("{}: problem".format(en))
+
+
+def printenotes(expdict):
+    es = sorted(expdict.keys())
+    return ["{}: {}".format(x, expdict[x].enote) for x in es if x!='root']
 
 def parse_sig_and_add_args(sig, parser, skipargs):
     for k in sig.parameters:

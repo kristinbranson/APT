@@ -192,6 +192,7 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = '\(\(0,1\),\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_2_cv_info_20200408.mat'
         # common_conf['trange'] = 20
+        dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit2':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20200330_compress20200330.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
@@ -556,6 +557,30 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
         elif data_type == 'stephen':
             # sh: ntrn=4493, 300 epochs, 281 steps/ep
             conf_opts['dl_steps'] = 84000
+        elif data_type == 'roian':
+            conf_opts['dl_steps'] = 50000
+            conf_opts['batch_size'] = 16
+            conf_opts['rescale'] = 2
+            # rn: ntrn~2500, bsize=16 => 164 spe => 300 epochs =>
+                # patience20=3k iters, patience50=7.5k iters
+            #                bsize=8 => 312 spe
+            #                bsize=4 => 625spe => patience=20 is 12.5k iters
+        elif data_type == 'larva':
+            conf_opts['dl_steps'] = 50000
+            conf_opts['batch_size'] = 16
+            conf_opts['rescale'] = 4
+            # ntrn~433
+            #   bsize=16 => 27 spe => pat20=540 iters, pat50=1350 iters
+            #               50 spe    pat20=1k iters   pat50=2.5k iters
+            #   bsize=4 => 108 spe
+        elif data_type == 'brit1':
+            pass
+            # ntrn~1500, roughly like leapfly
+            # bsize=16 => 94 spe => pat20=1880 iters, pat50=4700 iters
+            # bsize=8 => 190 spe => pat20=3700 iters, pat50=10k iters
+            # bsize=4 => 375 spe => pat20=7500 iters, pat50=18750 iters
+            #conf_opts['dl_steps'] = 50000
+            #conf_opts['batch_size'] = 16
         else:
             assert False
 

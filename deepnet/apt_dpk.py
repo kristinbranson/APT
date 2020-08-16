@@ -425,8 +425,9 @@ def update_conf_dpk_skel_csv(conf_base, skel_csv):
     return conf
 
 
-def skel_graph_test(ty):
-    skel_csv = skeleton_csvs[ty]
+def skel_graph_test(skel_csv):
+    '''skel_csv: list of skelcsvs per view'''
+    #skel_csv = skeleton_csvs[ty]
     for idxskel, csv in enumerate(skel_csv):
         print("### View {}".format(idxskel))
         graph, swap_index = read_skel_csv(csv)
