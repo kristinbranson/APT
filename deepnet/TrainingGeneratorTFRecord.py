@@ -214,11 +214,11 @@ class TrainingGeneratorTFRecord:
         g = opdata.make_data_generator(
             tfrfilename,
             self.conf,
-            batch_size,
             distort,
             shuffle,
             ppfcn,
             infinite=infinite,
+            batch_size=batch_size,
             **kwargs,
         )
         return g

@@ -663,7 +663,7 @@ def compile(conf):
     return tgtfr, sdn
 
 
-def train(conf,  # create_cbks_fcn=create_callbacks,
+def train(conf,
           runname='deepnet',
           ):
     '''
@@ -721,7 +721,7 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
                                                                  nvalbatch=nvalbatch,
                                                                  runname=runname)
     elif conf.dpk_train_style == 'apt':
-        cbks = apt_dpk_callbacks.create_callbacks(conf,
+        cbks = apt_dpk_callbacks.create_callbacks_aptsty(conf,
                                                   sdn,
                                                   do_val=do_val,
                                                   valbsize=valbsize,
