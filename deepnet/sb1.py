@@ -36,21 +36,6 @@ import util
 
 ISPY3 = sys.version_info >= (3, 0)
 
-def relu(x): return Activation('relu')(x)
-
-def prelu(x,nm):
-    return PReLU(shared_axes=[1, 2], name=nm)(x)
-
-def conv(x, nf, ks, name, weight_decay):
-    kernel_reg = l2(weight_decay[0]) if weight_decay else None
-    bias_reg = l2(weight_decay[1]) if weight_decay else None
-
-    x = Conv2D(nf, (ks, ks), padding='same', name=name,
-               kernel_regularizer=kernel_reg,
-               bias_regularizer=bias_reg,
-               kernel_initializer=random_normal(stddev=0.01),
-               bias_initializer=constant(0.0))(x)
-    return x
 
 def upsample_filt(alg='nn', dtype=None):
     if alg == 'nn':
