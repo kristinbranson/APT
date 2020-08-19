@@ -42,6 +42,22 @@ import util
 import vgg_cpm
 from vgg_cpm import conv
 
+'''
+Adapted from:
+
+* OpenPose: Realtime Multi-Person 2D Pose Estimation using Part Affinity Fields
+  Zhe Cao, Gines Hidalgo, Tomas Simon, Shin-En Wei, Yaser Sheikh 
+  https://arxiv.org/pdf/1812.08008.pdf
+
+* OpenPose: Whole-Body Pose Estimation
+  Gines Hidalgo
+  CMU-RI-TR-19-015
+  https://www.ri.cmu.edu/publications/openpose-whole-body-pose-estimation/
+  
+'''
+
+
+
 ISPY3 = sys.version_info >= (3, 0)
 
 def prelu(x,nm):
