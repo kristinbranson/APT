@@ -624,6 +624,150 @@ rae.train_dpk_orig(expname='e09_r00',
                    dpk_base_lr_used=.0005
                    )
 
+# roian
+rae.train_dpk_orig(expname='cv_s00_r00',
+                   run_type='submit',
+                   exp_note='roian first try',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0, #dpk_early_stop_style='\\"ipynb2\\"'
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r01',
+                   run_type='submit',
+                   exp_note='roian first try',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1, #                   display_step=50,
+                   dpk_auto_steps_per_epoch=1, #dpk_early_stop_style='\\"ipynb2\\"'
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r02',
+                   run_type='submit',
+                   exp_note='roian first try. dpk-cheat, hand-selected valbsize gah',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpk',
+                   dpk_val_batch_size=12,
+                   dpk_use_pretrained=1, #                   display_step=50,
+                   dpk_auto_steps_per_epoch=1, #dpk_early_stop_style='\\"ipynb2\\"'
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r03',
+                   run_type='submit',
+                   exp_note='trying half base lr',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1, #                   display_step=50,
+                   dpk_auto_steps_per_epoch=1, #dpk_early_stop_style='\\"ipynb2\\"'
+                   dpk_base_lr_used=.001/2,
+                   )
+
+# larva
+
+rae.train_dpk_orig(expname='cv_s00_r00',
+                   run_type='submit',
+                   exp_note='larv first try. apt-style',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0, #                   dpk_early_stop_style='\\"ipynb2\\"'
+                   )
+
+
+rae.train_dpk_orig(expname='cv_s00_r01',
+                   run_type='submit',
+                   exp_note='larv first try',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0, #dpk_early_stop_style='\\"ipynb2\\"'
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r02',
+                   run_type='submit',
+                   exp_note='larv first try. dpk-cheat, hand-selected valbsize gah',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpk',
+                   dpk_val_batch_size=9,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0, #dpk_early_stop_style='\\"ipynb2\\"'
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r03',
+                   run_type='submit',
+                   exp_note='larv first try',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0, #                   dpk_early_stop_style='\\"ipynb2\\"'
+                   dl_steps=200000,
+                   batch_size=4,
+                   )
+
+# bs1
+rae.train_dpk_orig(expname='cv_s00_r00',
+                   run_type='submit',
+                   exp_note='bs first try. apt-style',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0, #                   dpk_early_stop_style='\\"ipynb2\\"'
+                   batch_size=8,
+                   dl_steps=50000,
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r01',
+                   run_type='submit',
+                   exp_note='bs first try. apt-style',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1,
+                   display_step=50,
+                   dpk_auto_steps_per_epoch=0, #                   dpk_early_stop_style='\\"ipynb2\\"'
+                   batch_size=4,
+                   dl_steps=200000,
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r02',
+                   run_type='submit',
+                   exp_note='bsfirst try',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   dpk_val_batch_size=0,
+                   dpk_use_pretrained=1,
+                   display_step=100,
+                   dpk_auto_steps_per_epoch=0, #dpk_early_stop_style='\\"ipynb2\\"'
+                   batch_size=8,
+                   dl_steps=100000,
+                   )
+
+rae.train_dpk_orig(expname='cv_s00_r03',
+                   run_type='submit',
+                   exp_note='bs first try, dpk cheat',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpk',
+                   dpk_val_batch_size=10,
+                   dpk_use_pretrained=1,
+                   display_step=100,
+                   dpk_auto_steps_per_epoch=0, #dpk_early_stop_style='\\"ipynb2\\"'
+                   batch_size=8,
+                   dl_steps=100000,
+                   )
 ## Videos for results
 
 

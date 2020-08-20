@@ -42,48 +42,6 @@ import run_apt_expts as rae
 import deepposekit.io.utils as dpkut
 import deepposekit.utils.keypoints
 import util
-# user = getpass.getuser()
-# if user == 'leea30':
-#     import apt_dpk_exps as ade
-
-bubtouchroot = '/groups/branson/home/leea30/apt/ar_flybub_touching_op_20191111'
-lblbubtouch = os.path.join(bubtouchroot, '20191125T170226_20191125T170453.lbl')
-cvitouch = os.path.join(bubtouchroot, 'cvi_trn4702_tst180.mat')
-kwtouch = '20191125_base_trn4702tst180'
-cdirtouch = os.path.join(bubtouchroot, 'cdir' + kwtouch)
-outtouch = os.path.join(bubtouchroot, 'out' + kwtouch)
-exptouch = 'cvi_trn4702_tst180__split1'  # trn4702, tst180
-
-cacheroot = '/nrs/branson/al/cache'
-
-isotri = '/groups/branson/home/leea30/apt/dpk20191114/isotri.png'
-isotrilocs = np.array([[226., 107.], [180., 446.], [283., 445.]])
-isotriswapidx = np.array([-1, 2, 1])
-
-if getpass.getuser() == 'al':
-    aptexptsdata = '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data'
-    dpkdsets = '/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets'
-else:
-    aptexptsdata = '/groups/branson/bransonlab/apt/experiments/data'
-    dpkdsets = '/groups/branson/home/leea30/git/dpkd/datasets'
-
-skeleton_csvs = {
-    'alice': [os.path.join(aptexptsdata, 'multitarget_bubble_dpk_skeleton.csv')],
-    'stephen': [
-        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
-        os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv'),
-    ],
-    'romain': [
-        os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw0.csv'),
-        os.path.join(aptexptsdata, 'romain_dpk_skeleton_vw1.csv'),
-    ],
-    'roian': [os.path.join(aptexptsdata, 'roian_dpk_skeleton.csv')],
-    'larva': [os.path.join(aptexptsdata, 'larva_dpk_skeleton.csv')],
-    'dpkfly': [os.path.join(dpkdsets, 'fly/skeleton.csv')],
-    'dpklocust': [os.path.join(dpkdsets, 'locust/skeleton.csv')],
-    'dpkzebra': [os.path.join(dpkdsets, 'zebra/skeleton.csv')],
-}
-
 
 def setup_apt_logger():
     logr = logging.getLogger('APT')
@@ -465,8 +423,9 @@ def update_conf_dpk_skel_csv(conf_base, skel_csv):
     return conf
 
 
-def skel_graph_test(ty):
-    skel_csv = skeleton_csvs[ty]
+def skel_graph_test(skel_csv):
+    '''skel_csv: list of skelcsvs per view'''
+    #skel_csv = skeleton_csvs[ty]
     for idxskel, csv in enumerate(skel_csv):
         print("### View {}".format(idxskel))
         graph, swap_index = read_skel_csv(csv)
@@ -704,7 +663,7 @@ def compile(conf):
     return tgtfr, sdn
 
 
-def train(conf,  # create_cbks_fcn=create_callbacks,
+def train(conf,
           runname='deepnet',
           ):
     '''
@@ -762,7 +721,7 @@ def train(conf,  # create_cbks_fcn=create_callbacks,
                                                                  nvalbatch=nvalbatch,
                                                                  runname=runname)
     elif conf.dpk_train_style == 'apt':
-        cbks = apt_dpk_callbacks.create_callbacks(conf,
+        cbks = apt_dpk_callbacks.create_callbacks_aptsty(conf,
                                                   sdn,
                                                   do_val=do_val,
                                                   valbsize=valbsize,

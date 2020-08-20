@@ -46,6 +46,25 @@ def create_lr_sched_callback(steps_per_epoch, base_lr, gamma, decaysteps,
     return lratecbk
 
 
+def create_lr_sched_callback_dropstep(num_epochs,
+                                      base_lr,
+                                      drop_step_fac,
+                                      return_decay_fcn=False
+                                      ):
+
+    def step_decay(cur_epoch):
+        lrate = base_lr if cur_epoch < ((1-drop_step_fac) * num_epochs) \
+                        else base_lr/10.0
+        return lrate
+
+    if return_decay_fcn:
+        return step_decay
+
+    lratecbk = LearningRateScheduler(step_decay)
+    return lratecbk
+
+
+
 class APTKerasCbk(Callback):
     def __init__(self, conf, dataits, runname='deepnet'):
         # dataits: (trnDG, valDG)
@@ -391,7 +410,8 @@ def create_callbacks_exp2orig_train(conf,
     return cbks
 
 
-def create_callbacks(conf,
+def create_callbacks_aptsty(
+                     conf,
                      sdn,
                      do_val,
                      valbsize,  # only used if do_val==True
@@ -410,12 +430,22 @@ def create_callbacks(conf,
 
     nowstr = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
 
-
-    lr_cbk = create_lr_sched_callback(
-                conf.display_step,
-                conf.dpk_base_lr_used,
-                conf.gamma,
-                conf.decay_steps)
+    if conf.step_lr:
+        logr.info("step_lr is ON. lr_drop_step={}".format(
+            conf.lr_drop_step))
+        # LR multiplier shuld be applied to dpk_base_lr_used
+        lr_cbk = create_lr_sched_callback_dropstep(
+            conf.dpk_epochs_used,
+            conf.dpk_base_lr_used,
+            conf.lr_drop_step
+        )
+    else:
+        logr.info("step_lr is OFF")
+        lr_cbk = create_lr_sched_callback(
+                    conf.display_step,
+                    conf.dpk_base_lr_used,
+                    conf.gamma,
+                    conf.decay_steps)
 
     ckpt_reg = 'ckpt{}'.format(nowstr)
     # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'

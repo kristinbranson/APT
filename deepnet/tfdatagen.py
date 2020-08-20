@@ -605,7 +605,8 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
                 # will only occur if infinite == False
                 break
 
-            if conf.is_multi:
+            is_multi = getattr(conf, 'is_multi', False)
+            if is_multi:
                 recon_img, locs, info = parse_record_multi(record, conf.n_classes,conf.max_n_animals)
             else:
                 recon_img, locs, info = parse_record(record, conf.n_classes)
@@ -669,9 +670,12 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             yield [ims], targets
             # (inputs, targets)
 
-def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, silent=False, **kwargs):
+def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, silent=False,
+                        batch_size=None, **kwargs):
     conf = copy.deepcopy(conf0)
-    # conf.batch_size = bsize
+
+    if batch_size is not None:
+        conf.batch_size = batch_size
     if not silent:
         logr.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
             tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
@@ -811,7 +815,8 @@ def create_tf_datasets(conf0,
         dbfile = train_db
 
     ds = tf.data.TFRecordDataset(dbfile)
-    if conf.is_multi:
+    is_multi = getattr(conf, 'is_multi', False)
+    if is_multi:
         ds = ds.map(map_func=_parse_function_multi)
     else:
         ds = ds.map(map_func=_parse_function)

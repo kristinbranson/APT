@@ -4,9 +4,7 @@ from __future__ import division
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Concatenate
 from tensorflow.keras.layers import Activation, Input, Lambda, PReLU
-from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import Conv2DTranspose
-from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import Multiply
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.initializers import random_normal,constant
@@ -41,80 +39,30 @@ import tfdatagen
 import heatmap
 import util
 
-ISPY3 = sys.version_info >= (3, 0)
+import vgg_cpm
+from vgg_cpm import conv
 
-def relu(x): return Activation('relu')(x)
+'''
+Adapted from:
+
+* OpenPose: Realtime Multi-Person 2D Pose Estimation using Part Affinity Fields
+  Zhe Cao, Gines Hidalgo, Tomas Simon, Shin-En Wei, Yaser Sheikh 
+  https://arxiv.org/pdf/1812.08008.pdf
+
+* OpenPose: Whole-Body Pose Estimation
+  Gines Hidalgo
+  CMU-RI-TR-19-015
+  https://www.ri.cmu.edu/publications/openpose-whole-body-pose-estimation/
+  
+'''
+
+
+
+ISPY3 = sys.version_info >= (3, 0)
 
 def prelu(x,nm):
     return PReLU(shared_axes=[1, 2],name=nm)(x)
 
-def conv(x, nf, ks, name, weight_decay):
-    kernel_reg = l2(weight_decay[0]) if weight_decay else None
-    bias_reg = l2(weight_decay[1]) if weight_decay else None
-
-    x = Conv2D(nf, (ks, ks), padding='same', name=name,
-               kernel_regularizer=kernel_reg,
-               bias_regularizer=bias_reg,
-               kernel_initializer=random_normal(stddev=0.01),
-               bias_initializer=constant(0.0))(x)
-    return x
-
-def pooling(x, ks, st, name):
-    x = MaxPooling2D((ks, ks), strides=(st, st), name=name)(x)
-    return x
-
-def vgg_block(x, weight_decay):
-    # Block 1
-    x = conv(x, 64, 3, "conv1_1", (weight_decay, 0))
-    x = relu(x)
-    x = conv(x, 64, 3, "conv1_2", (weight_decay, 0))
-    x = relu(x)
-    x = pooling(x, 2, 2, "pool1_1")
-
-    # Block 2
-    x = conv(x, 128, 3, "conv2_1", (weight_decay, 0))
-    x = relu(x)
-    x = conv(x, 128, 3, "conv2_2", (weight_decay, 0))
-    x = relu(x)
-    x = pooling(x, 2, 2, "pool2_1")
-
-    # Block 3
-    x = conv(x, 256, 3, "conv3_1", (weight_decay, 0))
-    x = relu(x)
-    x = conv(x, 256, 3, "conv3_2", (weight_decay, 0))
-    x = relu(x)
-    x = conv(x, 256, 3, "conv3_3", (weight_decay, 0))
-    x = relu(x)
-    x = conv(x, 256, 3, "conv3_4", (weight_decay, 0))
-    x = relu(x)
-    x = pooling(x, 2, 2, "pool3_1")
-
-    # Block 4
-    x = conv(x, 512, 3, "conv4_1", (weight_decay, 0))
-    x = relu(x)
-    x = conv(x, 512, 3, "conv4_2", (weight_decay, 0))
-    x = relu(x)
-
-    # Additional non vgg layers
-    x = conv(x, 256, 3, "conv4_3_CPM", (weight_decay, 0))
-    x = relu(x)
-    x = conv(x, 128, 3, "conv4_4_CPM", (weight_decay, 0))
-    x = relu(x)
-
-    return x
-
-from_vgg = {
-    'conv1_1': 'block1_conv1',
-    'conv1_2': 'block1_conv2',
-    'conv2_1': 'block2_conv1',
-    'conv2_2': 'block2_conv2',
-    'conv3_1': 'block3_conv1',
-    'conv3_2': 'block3_conv2',
-    'conv3_3': 'block3_conv3',
-    'conv3_4': 'block3_conv4',
-    'conv4_1': 'block4_conv1',
-    'conv4_2': 'block4_conv2'
-}
 def upsample_filt(alg='nn', dtype=None):
     if alg == 'nn':
         x = np.array([[0., 0., 0., 0.],
@@ -205,39 +153,39 @@ def deconv_2x_upsampleinit(x, nf, ks, name, wd, wdmode):
 
     return x
 
-def convblock(x0, nf, namebase, wd_kernel):
+def convblock(x0, nf, namebase, kernel_reg):
     '''
     Three 3x3 convs with PReLU and with results concatenated
 
     :param x0:
     :param nf:
     :param namebase:
-    :param wd_kernel:
+    :param kernel_reg:
     :return:
     '''
-    x1 = conv(x0, nf, 3, "cblock-{}-{}".format(namebase, 1), (wd_kernel, 0))
+    x1 = conv(x0, nf, 3, kernel_reg, name="cblock-{}-{}".format(namebase, 1))
     x1 = prelu(x1, "cblock-{}-{}-prelu".format(namebase, 1))
-    x2 = conv(x1, nf, 3, "cblock-{}-{}".format(namebase, 2), (wd_kernel, 0))
+    x2 = conv(x1, nf, 3, kernel_reg, name="cblock-{}-{}".format(namebase, 2))
     x2 = prelu(x2, "cblock-{}-{}-prelu".format(namebase, 2))
-    x3 = conv(x2, nf, 3, "cblock-{}-{}".format(namebase, 3), (wd_kernel, 0))
+    x3 = conv(x2, nf, 3, kernel_reg, name="cblock-{}-{}".format(namebase, 3))
     x3 = prelu(x3, "cblock-{}-{}-prelu".format(namebase, 3))
     x = Concatenate(name="cblock-{}".format(namebase))([x1, x2, x3])
     return x
 
-def stageCNN(x, nfout, stagety, stageidx, wd_kernel,
+def stageCNN(x, nfout, stagety, stageidx, kernel_reg,
              nfconvblock=128, nconvblocks=5, nf1by1=128):
     # stagety: 'map' or 'paf'
 
     for iCB in range(nconvblocks):
         namebase = "{}-stg{}-cb{}".format(stagety, stageidx, iCB)
-        x = convblock(x, nfconvblock, namebase, wd_kernel)
-    x = conv(x, nf1by1, 1, "{}-stg{}-1by1-1".format(stagety, stageidx), (wd_kernel, 0))
+        x = convblock(x, nfconvblock, namebase, kernel_reg)
+    x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-1by1-1-prelu".format(stagety, stageidx))
-    x = conv(x, nfout, 1, "{}-stg{}-1by1-2".format(stagety, stageidx), (wd_kernel, 0))
+    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
     return x
 
-def stageCNNwithDeconv(x, nfout, stagety, stageidx, wd_kernel,
+def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
                        nfconvblock=128, nconvblocks=5, ndeconvs=2, nf1by1=128):
     '''
     Like stageCNN, but with ndeconvs Deconvolutions to increase imsz by 2**ndeconvs
@@ -245,7 +193,7 @@ def stageCNNwithDeconv(x, nfout, stagety, stageidx, wd_kernel,
     :param nfout:
     :param stagety:
     :param stageidx:
-    :param wd_kernel:
+    :param kernel_reg:
     :param nfconvblock:
     :param nconvblocks:
     :param ndeconvs:
@@ -256,7 +204,7 @@ def stageCNNwithDeconv(x, nfout, stagety, stageidx, wd_kernel,
 
     for iCB in range(nconvblocks):
         namebase = "{}-stg{}-cb{}".format(stagety, stageidx, iCB)
-        x = convblock(x, nfconvblock, namebase, wd_kernel)
+        x = convblock(x, nfconvblock, namebase, kernel_reg)
 
     nfilt = x.shape.as_list()[-1]
     logging.info("Adding {} deconvs with nfilt={}".format(ndeconvs, nfilt))
@@ -267,24 +215,19 @@ def stageCNNwithDeconv(x, nfout, stagety, stageidx, wd_kernel,
         x = deconv_2x_upsampleinit(x, nfilt, DCFILTSZ, dcname, None, 0)
         x = prelu(x, "{}-prelu".format(dcname))
 
-    x = conv(x, nf1by1, 1, "{}-stg{}-1by1-1".format(stagety, stageidx), (wd_kernel, 0))
+    x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-postDC-1by1-1-prelu".format(stagety, stageidx))
-    x = conv(x, nfout, 1, "{}-stg{}-1by1-2".format(stagety, stageidx), (wd_kernel, 0))
+    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
     return x
 
-def apply_mask(x, mask, stage, branch):
-    w_name = "weight_stage%d_L%d" % (stage, branch)
-    w = Multiply(name=w_name)([x, mask])  # vec_weight
-    return w
-
-def get_training_model(imszuse, wd_kernel, backbone='resnet50_8px', backbone_weights=None,
+def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=None,
                        nPAFstg=5, nMAPstg=1,
                        nlimbsT2=38, npts=19, doDC=True, nDC=2):
     '''
 
     :param imszuse: (imnr, imnc) raw image size, possibly adjusted to be 0 mod 8
-    :param wd_kernel: weight decay for l2 reg (applied only to weights not biases)
+    :param kernel_reg:
     :param nlimbsT2:
     :param npts:
     :return: Model.
@@ -326,7 +269,7 @@ def get_training_model(imszuse, wd_kernel, backbone='resnet50_8px', backbone_wei
         imszBB = (imnruse // 8, imncuse // 8)  # imsz post backbone
         #paf_input_shape = imszvgg + (nlimbsT2,)
         #map_input_shape = imszvgg + (npts,)
-        backboneF = vgg_block(img_normalized, wd_kernel)
+        backboneF = vgg_cpm.vgg19_truncated(img_normalized, kernel_reg)
         # sz should be (bsize, imszvgg[0], imszvgg[1], nchans)
         print(backboneF.shape.as_list()[1:])
         assert backboneF.shape.as_list()[1:] == list(imszBB + (128,))
@@ -345,21 +288,21 @@ def get_training_model(imszuse, wd_kernel, backbone='resnet50_8px', backbone_wei
     xpaflist = []
     xstagein = backboneF
     for iPAFstg in range(nPAFstg):
-        xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, wd_kernel)
+        xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, kernel_reg)
         xpaflist.append(xstageout)
         xstagein = Concatenate(name="paf-stg{}".format(iPAFstg))([backboneF, xstageout])
 
     # MAP
     xmaplist = []
     for iMAPstg in range(nMAPstg):
-        xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, wd_kernel)
+        xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, kernel_reg)
         xmaplist.append(xstageout)
         xstagein = Concatenate(name="map-stg{}".format(iMAPstg))([backboneF, xpaflist[-1], xstageout])
 
     xmaplistDC = []
     if doDC:
         # xstagein is ready/good from MAP loop
-        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, wd_kernel, ndeconvs=nDC)
+        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, kernel_reg, ndeconvs=nDC)
         xmaplistDC.append(xstageout)
 
     assert len(xpaflist) == nPAFstg
@@ -414,12 +357,12 @@ def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=Non
 
     return losses, loss_weights, loss_weights_vec
 
-def get_testing_model(imszuse,
+def model_test(imszuse,
                       backbone='resnet50_8px',
                       nPAFstg=5, nMAPstg=1, nlimbsT2=38, npts=19,
                       doDC=True, nDC=2, fullpred=False):
     '''
-    See get_training_model
+    See model_train
     :param imszuse:
     :param nPAFstg:
     :param nMAPstg:
@@ -443,7 +386,7 @@ def get_testing_model(imszuse,
         imszBB = (imnruse // 8, imncuse // 8)  # imsz post backbone
         #paf_input_shape = imszvgg + (nlimbsT2,)
         #map_input_shape = imszvgg + (npts,)
-        backboneF = vgg_block(img_normalized, None)
+        backboneF = vgg_cpm.vgg19_truncated(img_normalized, 0.)
         # sz should be (bsize, imszvgg[0], imszvgg[1], nchans)
         print(backboneF.shape.as_list()[1:])
         assert backboneF.shape.as_list()[1:] == list(imszBB + (128,))
@@ -466,7 +409,7 @@ def get_testing_model(imszuse,
     xpaflist = []
     xstagein = backboneF
     for iPAFstg in range(nPAFstg):
-        # Using None for wd_kernel is nonsensical but shouldn't hurt in test mode
+        # Using None for kernel_reg is nonsensical but shouldn't hurt in test mode
         xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, None)
         xpaflist.append(xstageout)
         xstagein = Concatenate(name="paf-stg{}".format(iPAFstg))([backboneF, xstageout])
@@ -474,7 +417,7 @@ def get_testing_model(imszuse,
     # MAP
     xmaplist = []
     for iMAPstg in range(nMAPstg):
-        # Using None for wd_kernel is nonsensical but shouldn't hurt in test mode
+        # Using None for kernel_reg is nonsensical but shouldn't hurt in test mode
         xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, None)
         xmaplist.append(xstageout)
         xstagein = Concatenate(name="map-stg{}".format(iMAPstg))([backboneF, xpaflist[-1], xstageout])
@@ -657,7 +600,7 @@ def training(conf, name='deepnet'):
     #model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     assert not conf.normalize_img_mean, "OP currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "OP currently performs its own img input norm"
-    model = get_training_model(conf.op_imsz_net,
+    model = model_train(conf.op_imsz_net,
                                conf.op_weight_decay_kernel,
                                backbone=conf.op_backbone,
                                backbone_weights=conf.op_backbone_weights,
@@ -672,8 +615,8 @@ def training(conf, name='deepnet'):
         logging.info("Loading vgg19 weights...")
         vgg_model = VGG19(include_top=False, weights='imagenet')
         for layer in model.layers:
-            if layer.name in from_vgg:
-                vgg_layer_name = from_vgg[layer.name]
+            if layer.name in vgg_cpm.from_vgg:
+                vgg_layer_name = vgg_cpm.from_vgg[layer.name]
                 layer.set_weights(vgg_model.get_layer(vgg_layer_name).get_weights())
                 logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
 
@@ -906,7 +849,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
 
     assert not conf.normalize_img_mean, "OP currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "OP currently performs its own img input norm"
-    model = get_testing_model(conf.op_imsz_net,
+    model = model_test(conf.op_imsz_net,
                               backbone=conf.op_backbone,
                               nPAFstg=conf.op_paf_nstage,
                               nMAPstg=conf.op_map_nstage,

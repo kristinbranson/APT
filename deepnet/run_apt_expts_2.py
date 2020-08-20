@@ -139,7 +139,7 @@ def setup(data_type_in,gpu_device=None):
         op_af_graph_kb_orig = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(3,16\),\(4,11\),\(5,6\),\(5,7\),\(5,9\),\(7,8\),\(5,13\),\(8,12\),\(9,10\),\(5,14\),\(10,15\)'
         op_af_graph = op_af_graph_kb_orig
 
-        dpk_skel_csv = ade.skeleton_csvs['alice']
+        dpk_skel_csv = ade.dbs['alice']['skel']
 
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
                                     'dpk': 'ntrans5_postrescalefixes',
@@ -196,6 +196,7 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = '\(\(0,1\),\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_2_cv_info_20200408.mat'
         # common_conf['trange'] = 20
+        dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit2':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20200330_compress20200330_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
@@ -538,6 +539,84 @@ def conf_opts_dict_to_pvlist(conf_opts):
         assert False, "todo"
 '''
 
+def run_training_conf_helper_dpk(conf_opts, keywordargs):
+    '''
+    dpk, dpk-style train (or more precisely, *not* apt-style train).
+
+    :param conf_opts: modified in place
+    :param keywordargs: modified in place
+    :return: none
+    '''
+
+    dpk_train_style = keywordargs['dpk_train_style']
+
+    # nepoch = 300  # hardcoded based on observing dpk-style
+    conf_opts['batch_size'] = 16
+    if data_type == 'alice':
+        # ntrn=4232, 300 epochs, 264.5 steps/ep
+        conf_opts['dl_steps'] = 79500
+    elif data_type == 'stephen':
+        # sh: ntrn=4493, 300 epochs, 281 steps/ep
+        conf_opts['dl_steps'] = 84000
+    elif data_type == 'roian':
+        conf_opts['dl_steps'] = 50000
+        conf_opts['batch_size'] = 16
+        conf_opts['rescale'] = 2
+        # rn: ntrn~2500, bsize=16 => 164 spe => 300 epochs =>
+        # patience20=3k iters, patience50=7.5k iters
+        #                bsize=8 => 312 spe
+        #                bsize=4 => 625spe => patience=20 is 12.5k iters
+    elif data_type == 'larva':
+        conf_opts['dl_steps'] = 50000
+        conf_opts['batch_size'] = 16
+        conf_opts['rescale'] = 4
+        # ntrn~433
+        #   bsize=16 => 27 spe => pat20=540 iters, pat50=1350 iters
+        #               50 spe    pat20=1k iters   pat50=2.5k iters
+        #   bsize=4 => 108 spe
+    elif data_type == 'brit1':
+        pass
+        # ntrn~1500, roughly like leapfly
+        # bsize=16 => 94 spe => pat20=1880 iters, pat50=4700 iters
+        # bsize=8 => 190 spe => pat20=3700 iters, pat50=10k iters
+        # bsize=4 => 375 spe => pat20=7500 iters, pat50=18750 iters
+        #conf_opts['dl_steps'] = 50000
+        #conf_opts['batch_size'] = 16
+    elif data_type == 'romain':
+        conf_opts['batch_size'] = 4
+        conf_opts['rescale'] = 2
+        conf_opts['dl_steps'] = 200000
+        # ntrn=421,nval=187=11*17
+        #   bsize=4 => 105 spe => pat20=2k steps
+
+        # leapfly: ntrn~1350. bsize=16=>84 spe. pat20=1680 steps
+    else:
+        assert False
+
+    if dpk_train_style == 'dpk':
+        conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
+        conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
+        keywordargs['dpk_train_style'] = '\\"dpk\\"'  # copied to conf_opts below
+
+    elif dpk_train_style == 'dpktrnonly':
+        # like 'dpk', but LR and ES use trn_loss not val_loss
+        conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
+        conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
+        keywordargs['dpk_train_style'] = '\\"dpktrnonly\\"'  # copied to conf_opts below
+
+    else:
+        assert False
+    '''
+    if conf_opts['dpk_use_augmenter']:
+        # conf_opts['dpk_augmenter_type'] = xxx
+        assert False, 'Todo'
+    else:
+        # use PT. conf/conf_opts should have PT dataaug stuff properly config'd
+        pass
+    '''
+
+
+
 def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
     '''
     Helper function that takes common_conf and further sets up for particular train_type
@@ -552,54 +631,25 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
 
     conf_opts['save_step'] = conf_opts['dl_steps'] // 20
 
-    if train_type == 'dpk':
-        # nepoch = 300  # hardcoded based on observing dpk-style
-        conf_opts['batch_size'] = 16
-        if data_type == 'alice':
-            # ntrn=4232, 300 epochs, 264.5 steps/ep
-            conf_opts['dl_steps'] = 79500
-        elif data_type == 'stephen':
-            # sh: ntrn=4493, 300 epochs, 281 steps/ep
-            conf_opts['dl_steps'] = 84000
-        else:
-            assert False
+    if train_type == 'dpk' and kwargs['dpk_train_style'] != 'apt':
+        # 'dpk_orig'
+        run_training_conf_helper_dpk(conf_opts, kwargs)
 
-        dpk_train_style = kwargs['dpk_train_style']
-        if dpk_train_style == 'dpk':
-            conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
-            conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
-            kwargs['dpk_train_style'] = '\\"dpk\\"'  # copied to conf_opts below
+    elif gpu_queue == 'gpu_rtx':
 
-        elif dpk_train_style == 'dpktrnonly':
-            # like 'dpk', but LR and ES use trn_loss not val_loss
-
-            conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
-            conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
-            kwargs['dpk_train_style'] = '\\"dpktrnonly\\"'  # copied to conf_opts below
-
-        elif dpk_train_style == 'apt':
+        if train_type == 'dpk':
             conf_opts['dpk_reduce_lr_style'] = '\\"__UNUSED__\\"'
             conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
             kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
 
-            # lr modulation
+            # TODO: learning_rate_mult, non-alice
+            conf_opts['dpk_base_lr_used'] = 0.0001
+
+            ''' this was older apt-sty
             conf_opts['dpk_base_lr_used'] = 0.001
             conf_opts['gamma'] = 0.2  # matches decay const dpk-style
             conf_opts['decay_steps'] = 25000
-        else:
-            assert False
-        '''
-        if conf_opts['dpk_use_augmenter']:
-            # conf_opts['dpk_augmenter_type'] = xxx
-            assert False, 'Todo'
-        else:
-            # use PT. conf/conf_opts should have PT dataaug stuff properly config'd
-            pass
-        '''
-        if dpk_skel_csv is not None:
-            conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
-
-    elif gpu_queue == 'gpu_rtx':
+            '''
 
         if data_type in ['brit0', 'brit1', 'brit2']:
             if train_type in ['unet','openpose']:
@@ -608,6 +658,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
                 conf_opts['batch_size'] = 4
 
         if data_type in ['roian']:
+            # fix at bs=4,rs=1 maybe have to run on tesla
             if train_type in ['dpk', 'openpose', 'sb','mdn_unet','resnet_unet','unet','mdn_joint_fpn']:
                 conf_opts['batch_size'] = 4
                 conf_opts['rescale'] = 2
@@ -684,7 +735,6 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
     if dpk_skel_csv is not None:
         conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
 
-
     if op_af_graph is not None:
         conf_opts['op_affinity_graph'] = op_af_graph
 
@@ -695,7 +745,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
 
 
 def set_training_params(conf_opts,train_type='mdn'):
-    if train_type == 'dpk':
+    if train_type == 'dpk' and conf_opts['dpk_train_style'] != '\\"apt\\"':
         return conf_opts
 
     bsz = conf_opts['batch_size']
