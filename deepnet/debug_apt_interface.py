@@ -1,4 +1,5 @@
-## multi animal traning
+
+## multi animal training
 import PoseTools
 import re
 import h5py
@@ -23,7 +24,8 @@ import Pose_multi_mdn_joint
 import Pose_multi_openpose
 import Pose_multi_mdn_joint_torch
 
-net_type = 'multi_mdn_joint_torch' # 'multi_openpose' #
+net_type = 'multi_mdn_joint_torch'; name = 'test_fpn'
+# net_type = 'multi_openpose'; name= '50k_resnet'
 conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
 conf.rrange = 180
 conf.trange = 50
@@ -33,13 +35,15 @@ conf.mdn_use_unet_loss = False
 conf.img_dim = 3
 conf.dl_steps = 50000
 conf.op_affinity_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
-# conf.mdn_joint_use_fpn = True
+conf.save_step = 5000
+conf.maxckpt = 10
+conf.mdn_joint_use_fpn = True
 
 if net_type == 'multi_openpose':
-    conf.rescale = 0.25
-    self = Pose_multi_openpose.Pose_multi_openpose(conf,'50k_highres')
+    conf.batch_size = 4
+    self = Pose_multi_openpose.Pose_multi_openpose(conf,'50k_resnet')
 elif net_type == 'multi_mdn_joint_torch':
-    self = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name='test',is_multi=True)
+    self = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name=name,is_multi=True)
 else:
     self = Pose_multi_mdn_joint.Pose_multi_mdn_joint(conf,'50k_low_noise_fpn')
 
@@ -47,12 +51,15 @@ self.train_wrapper()#restore=True)
 
 
 ## multi animal training val
+import matplotlib
+matplotlib.use('TkAgg')
 
 import PoseTools
 import re
 import h5py
 import numpy as np
 import APT_interface as apt
+import torch
 
 op_af = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)'
 lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
@@ -68,8 +75,10 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES']  = '0'
 import Pose_multi_mdn_joint
 import Pose_multi_openpose
-net_type = 'multi_mdn_joint' #'multi_openpose' #
-train_name = '50k_low_noise' # '50k'
+# net_type = 'multi_openpose'; train_name =  '50k_resnet'
+# net_type = 'multi_mdn_joint'; train_name = '50k_low_noise'
+net_type = 'multi_mdn_joint_torch'; train_name = 'test'
+
 conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
 conf.rrange = 180
 conf.trange = 50
@@ -78,10 +87,30 @@ conf.imsz = (sz+2*buffer,sz+2*buffer)
 conf.mdn_use_unet_loss = False
 conf.img_dim = 3
 conf.op_affinity_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
-conf.op_pred_simple = False
 
 db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
 out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+torch.cuda.empty_cache()
+net_type = 'multi_openpose'; train_name =  '50k_resnet'
+conf.cachedir = '/nrs/branson/mayank/apt_cache_2/multitarget_bubble/multi_openpose/view_0/deepnet/'
+out1 = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+
+pp1 = out[0]
+ll1 = out[1]
+dd1 = np.linalg.norm(pp1[:,:,np.newaxis,...]-ll1[:,np.newaxis,...],axis=-1)
+dd1 = np.nanmin(dd1,axis=1)
+valid = ll1[:,:,0,0]>-1000
+dd1_val = dd1[valid,:]
+pp2 = out1[0]
+ll2 = out1[1]
+dd2 = np.linalg.norm(pp2[:,:,np.newaxis,...]-ll2[:,np.newaxis,...],axis=-1)
+dd2 = np.nanmin(dd2,axis=1)
+valid = ll2[:,:,0,0]>-1000
+dd2_val = dd2[valid,:]
+np.nanpercentile(dd1_val,[50,70,90,95,97],axis=0)
+np.nanpercentile(dd2_val,[50,70,90,95,97],axis=0)
+
+
 
 ## OP single animal centered tracking
 import PoseTools
@@ -119,9 +148,14 @@ if any([a < 0 for a in aa]):
     files = files[bb:]
 files = [f.replace('.index', '') for f in files]
 files = files[-1:]
-mdn_out = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
 conf.op_pred_simple = False
-mdn_out1 = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+conf.op_inference_old = False
+mdn_out = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+# conf.op_inference_old = True
+# mdn_out1 = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+conf.op_pred_simple = True
+mdn_out2 = apt_expts.classify_db_all(conf, db_file, files, ntype, name=n)
+
 
 ## OP single animal centered training
 import APT_interface as apt

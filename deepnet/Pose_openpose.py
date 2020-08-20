@@ -5,7 +5,7 @@ class Pose_openpose(object):
     name = 'deepnet'
     conf = None
 
-    def __init__(self,conf,name='deepnet'):
+    def __init__(self,conf,name='deepnet',**kwargs):
         conf.op_backbone = 'resnet50_8px'
         conf.op_backbone_weights = 'imagenet'
         conf.op_map_lores_blur_rad = 1.0

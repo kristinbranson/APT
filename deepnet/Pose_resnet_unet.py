@@ -17,6 +17,7 @@ import convNetBase as CNB
 from PoseCommon_dataset import conv_relu3, conv_relu
 import numpy as np
 from tensorflow.contrib.layers import batch_norm
+from upsamp import upsample_init_value
 
 
 class Pose_resnet_unet(PoseBase):
@@ -110,9 +111,12 @@ class Pose_resnet_unet(PoseBase):
                 layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                 with tf.variable_scope('u_{}'.format(ndx)):
                     X_sh = X.get_shape().as_list()
-                    w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
-                    for wndx in range(X_sh[-1]):
-                        w_mat[:, :, wndx, wndx] = 1.
+                    # w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
+                    # for wndx in range(X_sh[-1]):
+                    #     w_mat[:, :, wndx, wndx] = 1.
+                    w_sh = [4, 4, X_sh[-1], X_sh[-1]]
+                    w_mat = upsample_init_value(w_sh, alg='bl', dtype=np.float32)
+
                     w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]], initializer=tf.constant_initializer(w_mat))
                     out_shape = [X_sh[0], layers_sz[0], layers_sz[1], X_sh[-1]]
                     X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")

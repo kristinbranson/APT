@@ -28,11 +28,9 @@ if sys.version_info.major > 2:
 reload(rae)
 rae.setup('alice')
 dstr = '20200706' #'20200604' # '20200410'
-rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
-# rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
+rae.get_normal_results(dstr=dstr)
 rae.setup('alice_difficult')
-rae.get_normal_results(dstr=dstr) # queue = 'gpu_tesla'
-# rae.get_normal_results(dstr='20200410',queue='gpu_tesla')
+rae.get_normal_results(dstr=dstr)
 
 ##
 import run_apt_expts_2 as rae
@@ -44,7 +42,6 @@ rae.setup('stephen')
 dstr = '20200706'
 #rae.create_normal_dbs()
 rae.run_normal_training(dstr=dstr) #run_type = 'submit'
-# rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
 
 ##
 import run_apt_expts_2 as rae
