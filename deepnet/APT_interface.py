@@ -228,7 +228,7 @@ def tf_serialize(data):
     return example.SerializeToString()
 
 
-def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=False, db_files=()):
+def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=False, db_files=(), max_nsamples=np.Inf):
     # function that creates tfrecords using db_from_lbl
     if not os.path.exists(conf.cachedir):
         os.mkdir(conf.cachedir)
@@ -256,7 +256,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
     if use_cache:
         splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
     else:
-        splits = db_from_lbl(conf, out_fns, split, split_file, on_gt)
+        splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples)
 
     envs[0].close()
     envs[1].close() if split else None
@@ -789,7 +789,7 @@ def get_cur_trx(trx_file, trx_ndx):
     return cur_trx, n_trx
 
 
-def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None):
+def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None, max_nsamples=np.Inf):
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
     # dataset. If split is False, second element is not used and all data is
@@ -827,8 +827,13 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
     elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
+    nsamples = 0
+
     for ndx, dir_name in enumerate(local_dirs):
 
+        if nsamples >= max_nsamples:
+            break
+        
         exp_name = conf.getexpname(dir_name)
         cur_pts = trx_pts(lbl, ndx, on_gt)
         cur_occ = trx_pts(lbl, ndx, on_gt, field_name='labeledpostag')
@@ -854,6 +859,9 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
         for trx_ndx in range(n_trx):
 
+            if nsamples >= max_nsamples:
+                break
+            
             frames = multiResData.get_labeled_frames(lbl, ndx, trx_ndx, on_gt)
             cur_trx, _ = get_cur_trx(trx_files[ndx], trx_ndx)
             for fnum in frames:
@@ -876,6 +884,9 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
                 else:
                     count += 1
                     splits[0].append(info)
+                nsamples += 1
+                if nsamples >= max_nsamples:
+                    break
 
         cap.close()  # close the movie handles
         logging.info('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
