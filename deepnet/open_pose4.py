@@ -902,10 +902,17 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
                     cur_locs = do_inference(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
                 locs[ndx,...] = cur_locs
 
+            # undo rescale
+            locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)
+
+            # undo padding
+            locs[..., 0] -= conf.op_im_padx // 2
+            locs[..., 1] -= conf.op_im_pady // 2
+
             if not conf.is_multi:
                 locs = locs[:,0,...]
             ret_dict = {}
-            ret_dict['locs'] = locs * conf.rescale
+            ret_dict['locs'] = locs  # * conf.rescale
             if retrawpred:
                 ret_dict['pred_hmaps'] = model_preds
                 ret_dict['ims'] = ims
@@ -1080,7 +1087,7 @@ def do_inference(hmap, paf, conf,thre_hm,thre_paf):
     hmapscalefac = conf.op_net_inout_scale
     pafscalefac = hmapscalefac * (2**conf.op_hires_ndeconv)
 
-    # work at raw input res
+    # work at the network input resolution
     hmap = cv2.resize(hmap, (0,0), fx=hmapscalefac, fy=hmapscalefac,
                       interpolation=cv2.INTER_CUBIC)
     paf = cv2.resize(paf, (0,0), fx=pafscalefac, fy=pafscalefac,
