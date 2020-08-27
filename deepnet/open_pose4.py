@@ -979,8 +979,8 @@ def pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds):
                 pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
 
             a, mu, sig, _ = heatmap.compactify_hmap(hmthis, floor=0.1, nclustermax=NCLUSTER_MAX)
-            # mu = mu[::-1, :] - 1.0  # now x,y and 0b
-            mu -= 1.0
+            mu = mu[::-1, :] - 1.0  # now x,y and 0b
+            #mu -= 1.0
             a_mu = np.vstack((mu, a)).T
             assert a_mu.shape == (NCLUSTER_MAX, 3)
             pks_with_score_cmpt[ib, ipt, :, :] = a_mu
@@ -1036,7 +1036,7 @@ def pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds):
 
 
 def is_paf_conn(x_paf,y_paf,pt1,pt2,conf,thre_paf):
-    vec = np.subtract(pt2,pt1)
+    vec = np.subtract(pt2[:2], pt1[:2])
     norm = np.linalg.norm(vec)
     mid_num = 8
 
@@ -1053,11 +1053,13 @@ def is_paf_conn(x_paf,y_paf,pt1,pt2,conf,thre_paf):
     # list of mid_num (xm,ym) pts evenly spaced along line seg
     # from A to B
 
+    # could interpolate paf vals if x_list, y_list are subpx/non-integral
     vec_x = np.array([x_paf[int(round(y_list[ss])), int(round(x_list[ss]))]  for ss in range(mid_num)])
     vec_y = np.array([y_paf[int(round(y_list[ss])), int(round(x_list[ss]))]  for ss in range(mid_num)])
 
     paf_scores = vec_x*vec[0] + vec_y*vec[1]
     scores_mean = sum(paf_scores) / len(paf_scores)
+    # mean of dot(paf, vec) over mid_num pts -- "line integral"
 
     if norm < 3:
         # MK 20200803: pts that are very close, use small default values because PAFs would be weird.

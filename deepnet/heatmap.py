@@ -50,10 +50,10 @@ def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
     :param floor:
     :param nclustermax:
     :return:
-         mu: (2, nclustermax). Each col is (col,row) or (x,y) weighted centroid, 1-based
-
-         (Whether this is row,col or col,row depends on the version of skimage; apparently
-         rc for version >=0.16.0; see skimage.measure doc and assert above)
+        a: (nclustermax) weight/score
+        mu: (2, nclustermax). Each col is (row,col), 1-based
+        sig: (2,2,nclustermax)
+        nclusters: The lesser of nclustermax or the actual number of clusters found
 
     '''
 
@@ -67,12 +67,9 @@ def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
     hmbw = hm > 0.
     lbls = skimage.measure.label(hmbw, connectivity=1)
     if distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"):
-        assert False, 'This is wrong it seems because rp gets converted to x,y again in open_pose4'
-        rp = skimage.measure.regionprops(lbls, intensity_image=hm)
+        rp = skimage.measure.regionprops(lbls, intensity_image=hm, coordinates='rc')
     else:
-        # assert False, "Test this!!"
         rp = skimage.measure.regionprops(lbls, intensity_image=hm)
-        # rp = skimage.measure.regionprops(np.transpose(lbls), intensity_image=np.transpose(hm))
     rp.sort(key=lambda x: x.max_intensity, reverse=True)
 
     a = np.zeros(nclustermax)
@@ -155,6 +152,7 @@ def get_weighted_centroids_with_argmax(hm, floor=0.0, nclustermax=5,is_multi=Fal
                 # Convert to (x,y), 0-based
                 if not is_multi:
                     assert nclustermax == 1  # well this is confused
+                # mutmp is (2,1) so the following works but a little strange
                 hmmu[ib, ipt, :] = mutmp[::-1].flatten() - 1.0
             else:
                 # already (x,y), 0b
