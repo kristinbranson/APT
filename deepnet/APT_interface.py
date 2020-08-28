@@ -235,6 +235,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
 
     if on_gt:
         train_filename = db_files[0]
+        os.makedirs(os.path.dirname(db_files[0]),exist_ok=True)
         env = tf.python_io.TFRecordWriter(train_filename)
         val_env = None
         envs = [env, val_env]
@@ -860,7 +861,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
                 if not check_fnum(fnum, cap, exp_name, ndx):
                     continue
 
-                info = [ndx, fnum, trx_ndx]
+                info = [int(ndx), int(fnum), int(trx_ndx)]
                 cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=trx_split, predefined=predefined)
 
                 frame_in, cur_loc = multiResData.get_patch( cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)

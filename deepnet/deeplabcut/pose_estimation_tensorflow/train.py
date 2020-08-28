@@ -342,7 +342,7 @@ def get_pred_fn(cfg_dict, model_file=None):
             cur_im = all_f
 
         if cfg.dlc_use_apt_preprocess:
-            cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.num_joints, 2]), conf=cfg, distort=False, scale=cfg.global_scale)
+            cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.num_joints, 2]), conf=cfg, distort=False, scale=1/cfg.global_scale)
         else:
             scale = cfg.global_scale
             nims = []
@@ -354,7 +354,7 @@ def get_pred_fn(cfg_dict, model_file=None):
         cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
-        pose = pose[np.newaxis,:,:2]*cfg.global_scale
+        pose = pose[np.newaxis,:,:2]/cfg.global_scale
         ret_dict = {}
         ret_dict['locs'] = pose
         ret_dict['hmaps'] = scmap[np.newaxis,...]

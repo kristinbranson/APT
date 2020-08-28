@@ -94,6 +94,7 @@ common_conf['pretrain_freeze_bnorm'] = True
 common_conf['step_lr'] = True
 common_conf['lr_drop_step'] = 0.15
 common_conf['normalize_loss_batch'] = False
+common_conf['use_scale_factor_range'] = True
 common_conf['predict_occluded'] = False
 
 # These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
@@ -183,7 +184,7 @@ def setup(data_type_in,gpu_device=None):
         # common_conf['rrange'] = 180
         # common_conf['trange'] = 5
 
-        dpk_skel_csv = ade.skeleton_csvs[data_type]
+        # dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
@@ -196,7 +197,7 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = '\(\(0,1\),\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_2_cv_info_20200408.mat'
         # common_conf['trange'] = 20
-        dpk_skel_csv = ade.skeleton_csvs[data_type]
+        # dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit2':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20200330_compress20200330_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
@@ -233,7 +234,8 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = op_af_graph.replace('(','\(')
         # op_af_graph = op_af_graph.replace(')','\)')
         # op_af_graph = op_af_graph.replace(' ','')
-        dpk_skel_csv = ade.skeleton_csvs[data_type]
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.skeleton_csvs[data_type]
         # common_conf['trange'] = 20
         # common_conf['rrange'] = 180
 
@@ -2162,7 +2164,7 @@ def get_cv_results(num_splits=None,
                    dstr = PoseTools.get_datestr(),
                    ptiles_plot=[50,75,90,95,97]):
     train_name = 'deepnet'
-    gpu_str = '_tesla' if queue == 'gpu_tesla' else ''
+    gpu_str = '_tesla' if 'gpu_tesla' in queue else ''
     train_name = train_name + gpu_str + '_' + dstr
     if num_splits == None:
         print("Reading splits from {}".format(cv_info_file))

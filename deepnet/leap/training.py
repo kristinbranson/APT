@@ -234,6 +234,10 @@ def train(data_path,
         train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
         val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
+    # For debugging
+    gg = iter(train_datagen)
+    xx = next(gg)
+
     # history_callback = LossHistory(run_path=run_path)
 
     initial_lr = conf.get('leap_base_lr',0.0001)

@@ -185,12 +185,36 @@ rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla_large') # skip_db=False,run_typ
 
 ## results
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('larva')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 # rae.get_cv_results(dstr='20200428',db_from_mdn_dir=True) # skip_db=False,run_type='submit'
-rae.get_cv_results(dstr='20200428',queue='gpu_tesla_large',db_from_mdn_dir=True) #
+dstr = '20200804' #'20200428'
+rae.get_cv_results(dstr=dstr,queue='gpu_tesla_large',db_from_mdn_dir=True) #
 
+## LEAP
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+rae.setup('leap_fly')
+rae.create_normal_dbs()
+rae.create_gt_db()
+
+##
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+rae.setup('leap_fly')
+dstr  = '20200824'
+rae.run_normal_training(dstr=dstr)
+
+##
+import run_apt_expts_2 as rae
+# reload(rae)
+rae.setup('leap_fly')
+dstr  = '20200824'
+rae.get_normal_results(dstr=dstr)
 
 
 ## Single animal vs multiple animal for Stephen
@@ -381,24 +405,6 @@ rae.setup('alice_difficult')
 rae.get_normal_results()
 
 
-## LEAP
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('leap_fly')
-rae.create_normal_dbs()
-rae.create_gt_db()
-
-##
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('leap_fly')
-rae.run_normal_training()
-
-##
-import run_apt_expts_2 as rae
-# reload(rae)
-rae.setup('leap_fly')
-rae.get_normal_results()
 
 ## Our leap vs leap original
 from scipy import io as sio

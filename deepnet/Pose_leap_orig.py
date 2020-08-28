@@ -24,6 +24,7 @@ class Pose_leap_orig(object):
         in_file = os.path.join(conf.cachedir,'leap_train.h5')
 
         conf.use_leap_preprocessing = True
+        conf.leap_use_default_lr = True
         leap_train(data_path=os.path.join(conf.cachedir, 'leap_train.h5'),
                    base_output_path=conf.cachedir,
                    run_name=self.name,

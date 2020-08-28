@@ -623,7 +623,7 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs):
         A_full = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
 
     A = A_full[:,:2].T
-    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cvc.INTER_CUBIC)
+    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cv2.INTER_LINEAR) #flags=cvc.INTER_CUBIC)
     if rpatch.ndim == 2:
         rpatch = rpatch[:, :, np.newaxis]
 
