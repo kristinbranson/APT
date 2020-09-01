@@ -819,7 +819,11 @@ def create_tf_datasets(conf0,
     if is_multi:
         ds = ds.map(map_func=_parse_function_multi)
     else:
-        ds = ds.map(map_func=_parse_function)
+        ds = ds.map(map_func=_parse_function, num_parallel_calls=5)
+
+    #ds = ds.cache()
+    if infinite:
+        ds = ds.repeat()
     if shuffle:
         try:
             shufflebsize = conf.dpk_tfdata_shuffle_bsize
@@ -828,9 +832,8 @@ def create_tf_datasets(conf0,
             logr.warning("dpk_tfdata_shuffle_bsize not present in conf. using default value of {}".format(
                 shufflebsize))
 
+        #ds = ds.shuffle(buffer_size=100)
         ds = ds.shuffle(buffer_size=shufflebsize)
-    if infinite:
-        ds = ds.repeat()
     if dobatch:
         ds = ds.batch(conf.batch_size)
     if is_raw:
@@ -852,7 +855,7 @@ def create_tf_datasets(conf0,
                 # print("The shape of res[1] is {}".format(res[1].shape))
                 return ims, tgtslist
 
-            ds = ds.map(map_func=dataAugPyFunc)
+            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=8)
         else:
             def dataAugPyFunc(ims, locs, info):
                 res = tuple(tf.py_func(pp_dpk_noconf, [ims, locs], [tf.float32, ] * 2))
@@ -860,9 +863,10 @@ def create_tf_datasets(conf0,
                 res[1].set_shape([None, ] * 3)  # locs
                 return res
 
-            ds = ds.map(map_func=dataAugPyFunc)
+            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=8)
             assert n_outputs == 1
 
+    ds = ds.prefetch(buffer_size=100)
     return ds
 
 def read_ds_idxed(ds, indices):
