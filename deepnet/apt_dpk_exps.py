@@ -548,6 +548,18 @@ def get_latest_ckpt_h5_dpkstyle(expdir):
         logr.info("Exactly one dpk-style ckpt found: {}".format(expdir, cpt))
     return cpt
 
+def get_all_ckpt_h5(expdir):
+    repat = 'c[a-z]+[T0-9]+-[0-9]+.h5'
+    sre = re.compile(repat)
+    clist = glob.glob(os.path.join(expdir, 'c*.h5'))
+    clist = [x for x in clist if sre.match(os.path.basename(x)) is not None]
+
+    clist.sort()
+
+    tslist = [os.path.getmtime(x) for x in clist]
+
+    return clist, tslist
+
 
 def get_latest_ckpt_h5_epoch(expdir):
     repat = 'c[a-z]+[T0-9]+-[0-9]+.h5'
@@ -559,7 +571,7 @@ def get_latest_ckpt_h5_epoch(expdir):
     if len(clist) == 0:
         logr.warning("No dpk-style ckpts found in {}".format(expdir))
         cpt = None
-    elif len(clist) > 1:
+    elif len(clist) >= 1:
         logr.info("Found {} cpts; using latest {}".format(len(clist), clist[-1]))
         cpt = clist[-1]
 
@@ -715,6 +727,7 @@ def assess(expname,
     eres['euc_coll_ptls'] = np.percentile(euc_coll, [50, 90, 97], axis=0).T
     eres['euc_ptls'] = np.percentile(eres['euclidean'], [50, 90, 97], axis=0).T
     eres['model'] = cpt
+    eres['model_ts'] = os.path.getmtime(cpt)
 
     nval = eres['euclidean'].shape[0]
 
@@ -740,6 +753,33 @@ def assess(expname,
 
     return eres
 
+def get_assess_results(edir):
+    clist, tslist = get_all_ckpt_h5(edir)
+
+    pfileall = []
+    pall = []
+    for cptfull, ts in zip(clist, tslist):
+        cpt = os.path.splitext(os.path.basename(cptfull))[0]
+        pat = os.path.join(edir, 'eres_' + cpt + '*')
+        g = glob.glob(pat)
+        if len(g) > 1:
+            g = sorted(g)
+            print(g)
+            pfile = g[-1]
+            print("USING MOST RECENT: {}".format(pfile))
+        else:
+            assert len(g) == 1
+            pfile = g[0]
+
+        print(pfile)
+
+        p = pt.pickle_load(pfile)
+        p = util.dict_copy_with_edict_convert(p)
+        pfileall.append(pfile)
+        pall.append(p)
+
+    res = {'eresfiles': pfileall, 'eres': pall}
+    return res
 
 def evaluate(predmodel, gen):
     '''
@@ -1246,12 +1286,15 @@ def get_all_res_tosave(expdict, explist=None):
     for expname in expdict:
         if not expname in explist:
             continue
+        if expname.startswith('eres'):
+            continue
 
         exp = expdict[expname]
         for kexp in exp:
             if kexp.startswith('eres'):
                 # hardcoded randomless
-                kbig = '{}__{}'.format(expname,
+                kbig = '{}__{}'.format(
+                    expname.replace('stephen','sh'),
                                        kexp.replace('-','__').replace('eres_','').replace('ckpt','').replace('_tstbsz', 'tb').replace('2020', ''))
                 dsave[kbig] = exp[kexp]
                 print("Recorded {}".format(kbig))

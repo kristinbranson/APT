@@ -630,6 +630,10 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
 
     conf_opts['save_step'] = conf_opts['dl_steps'] // 20
 
+    if train_type == 'dpk' and 'dpk_train_style' not in kwargs:
+        kwargs['dpk_train_style'] = 'apt'
+        kwargs['dpk_val_batch_size'] = 0
+
     if train_type == 'dpk' and kwargs['dpk_train_style'] != 'apt':
         # 'dpk_orig'
         run_training_conf_helper_dpk(conf_opts, kwargs)
@@ -641,7 +645,10 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
             conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
             kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
 
-            # TODO: learning_rate_mult, non-alice
+            # We are going to punt on lrmult for dpk, see slack discuss. Note the
+            # keras handling of loss differs from PoseBase. Typically the LR linear
+            # scaling rule would reduce the LR and 1e-4 is already 10x smaller than
+            # the 'default' dpk factory base LR.
             conf_opts['dpk_base_lr_used'] = 0.0001
 
             ''' this was older apt-sty
@@ -718,6 +725,18 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
                 conf_opts['batch_size'] = 8
 
     elif gpu_queue in ['gpu_tesla','gpu_tesla_large']:
+
+        if train_type == 'dpk':
+            conf_opts['dpk_reduce_lr_style'] = '\\"__UNUSED__\\"'
+            conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
+            kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
+
+            # We are going to punt on lrmult for dpk, see slack discuss. Note the
+            # keras handling of loss differs from PoseBase. Typically the LR linear
+            # scaling rule would reduce the LR and 1e-4 is already 10x smaller than
+            # the 'default' dpk factory base LR.
+            conf_opts['dpk_base_lr_used'] = 0.0001
+
         if data_type in ['romain']:
             conf_opts['batch_size'] = 4
         if data_type in ['larva']:
