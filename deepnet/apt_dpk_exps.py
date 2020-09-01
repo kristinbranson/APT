@@ -68,9 +68,9 @@ if user == 'leea30':
           'slbl': os.path.join(aptexptsdata,
                                'sh_trn4992_gtcomplete_cacheddata_updated20200317_stripped_mdn.lbl'),
           'skel': [
-              os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side.csv'),
-              os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front.csv')],
-        },
+              os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw0_side_B.csv'),
+              os.path.join(aptexptsdata, 'sh_dpk_skeleton_vw1_front_B.csv')],
+    },
         'roian': {
             'slbl': '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423.lbl_mdn.lbl',
             'skel': [os.path.join(aptexptsdata, 'roian_dpk_skeleton.csv')],

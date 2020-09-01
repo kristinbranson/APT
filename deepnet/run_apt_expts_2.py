@@ -157,11 +157,14 @@ def setup(data_type_in,gpu_device=None):
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20200317_compress20200325_stripped20200403.lbl'
         # lbl_file = 'sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped_newparams_20200409.lbl' # this has data from 1, but params from 2
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20200317_stripped_mdn.lbl'
+
+
         gt_lbl = lbl_file
         #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         # for vw2; who knows vw1
         # op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
-        dpk_skel_csv = ade.skeleton_csvs[data_type]
+
+        dpk_skel_csv = ade.dbs[data_type]['skel']
 
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
@@ -183,7 +186,7 @@ def setup(data_type_in,gpu_device=None):
         # common_conf['rrange'] = 180
         # common_conf['trange'] = 5
 
-        dpk_skel_csv = ade.skeleton_csvs[data_type]
+        dpk_skel_csv = ade.dbs[data_type]['skel']
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
@@ -233,9 +236,11 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = op_af_graph.replace('(','\(')
         # op_af_graph = op_af_graph.replace(')','\)')
         # op_af_graph = op_af_graph.replace(' ','')
-        dpk_skel_csv = ade.skeleton_csvs[data_type]
         # common_conf['trange'] = 20
         # common_conf['rrange'] = 180
+
+        dpk_skel_csv = ade.dbs[data_type]['skel']
+
 
     elif data_type == 'carsen':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/carsen_dlstripped_20190501T150134.lbl'
