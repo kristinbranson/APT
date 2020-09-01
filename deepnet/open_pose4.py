@@ -276,10 +276,7 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     elif backbone == 'resnet50_8px':
         #imszBB = (imnruse / 8, imncuse / 8)
         #inputshape = img_normalized.shape.as_list()[1:]
-        backboneMdl = imagenet_resnet.ResNet50_8px(include_top=False,
-                                                   weights=backbone_weights,
-                                                   input_tensor=img_normalized,
-                                                   pooling=None)
+        backboneMdl = imagenet_resnet.ResNet50_8px(include_top=False, weights=backbone_weights, input_tensor=img_normalized, pooling=None)
         backboneF = backboneMdl.output
     else:
         assert False, "Unrecognized backbone: {}".format(backbone)
@@ -871,6 +868,9 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
     thre_hm = conf.get('op_param_hmap_thres',0.1)
     thre_paf = conf.get('op_param_paf_thres',0.05)
 
+    op_pred_simple = conf.get('op_pred_simple', False)
+    op_inference_old = conf.get('op_inference_old', False)
+
     def pred_fn(all_f, retrawpred=conf.op_pred_raw):
         '''
 
@@ -891,15 +891,28 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
         #     all_infered.append(infered)
 
         predhm = model_preds[-1]  # this is always the last/final MAP hmap
-        if conf.get('op_pred_simple',True):
+        if op_pred_simple:
             ret_dict = pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds)
         else:
             locs = np.ones([predhm.shape[0],conf.max_n_animals,conf.n_classes,2])*np.nan
             for ndx in range(predhm.shape[0]):
-                cur_locs = do_inference(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
+                if op_inference_old:
+                    cur_locs = do_inference_old(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
+                else:
+                    cur_locs = do_inference(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
                 locs[ndx,...] = cur_locs
+
+            # undo rescale
+            locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)
+
+            # undo padding
+            locs[..., 0] -= conf.op_im_padx // 2
+            locs[..., 1] -= conf.op_im_pady // 2
+
+            if not conf.is_multi:
+                locs = locs[:,0,...]
             ret_dict = {}
-            ret_dict['locs'] = locs * conf.rescale
+            ret_dict['locs'] = locs  # * conf.rescale
             if retrawpred:
                 ret_dict['pred_hmaps'] = model_preds
                 ret_dict['ims'] = ims
@@ -966,8 +979,8 @@ def pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds):
                 pks_with_score[ib, ipt, :irows, :] = pks_with_score_this[:irows, :]
 
             a, mu, sig, _ = heatmap.compactify_hmap(hmthis, floor=0.1, nclustermax=NCLUSTER_MAX)
-            # mu = mu[::-1, :] - 1.0  # now x,y and 0b
-            mu -= 1.0
+            mu = mu[::-1, :] - 1.0  # now x,y and 0b
+            #mu -= 1.0
             a_mu = np.vstack((mu, a)).T
             assert a_mu.shape == (NCLUSTER_MAX, 3)
             pks_with_score_cmpt[ib, ipt, :, :] = a_mu
@@ -1021,7 +1034,196 @@ def pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds):
 
     return  ret_dict
 
+
+def is_paf_conn(x_paf,y_paf,pt1,pt2,conf,thre_paf):
+    vec = np.subtract(pt2[:2], pt1[:2])
+    norm = np.linalg.norm(vec)
+    mid_num = 8
+
+    # failure case when 2 body parts overlaps
+    if norm == 0:
+        return False, 0
+    if norm > max(conf.op_imsz_pad):
+        return False, 0
+
+    vec = np.divide(vec, norm)
+
+    x_list = np.linspace(pt1[0], pt2[0], num=mid_num)
+    y_list = np.linspace(pt1[1], pt2[1], num=mid_num)
+    # list of mid_num (xm,ym) pts evenly spaced along line seg
+    # from A to B
+
+    # could interpolate paf vals if x_list, y_list are subpx/non-integral
+    vec_x = np.array([x_paf[int(round(y_list[ss])), int(round(x_list[ss]))]  for ss in range(mid_num)])
+    vec_y = np.array([y_paf[int(round(y_list[ss])), int(round(x_list[ss]))]  for ss in range(mid_num)])
+
+    paf_scores = vec_x*vec[0] + vec_y*vec[1]
+    scores_mean = sum(paf_scores) / len(paf_scores)
+    # mean of dot(paf, vec) over mid_num pts -- "line integral"
+
+    if norm < 3:
+        # MK 20200803: pts that are very close, use small default values because PAFs would be weird.
+        paf_scores = np.ones_like(paf_scores) * (thre_paf + 0.05)
+        scores_mean = 0.05
+
+    # average dot prod of paf along line seg
+    cond1 = len(np.nonzero(paf_scores > thre_paf)[0]) > 0.6 * len(paf_scores)  # 60% of dot prods exceed thre_paf
+    cond2 = scores_mean > 0
+    return (cond1 and cond2), scores_mean
+
 def do_inference(hmap, paf, conf,thre_hm,thre_paf):
+    '''
+
+    :param hmap: hmnr x hmnc x npt
+    :param paf: hmnr x hmnc x nlimb
+    :param conf:
+    :param thre_hm: scalar float
+    :param thre_paf: scalar float
+    :return:
+    '''
+
+    all_preds = []
+    af_graph = conf.op_affinity_graph
+
+    # upscale fac from net output to padded raw image
+    hmapscalefac = conf.op_net_inout_scale
+    pafscalefac = hmapscalefac * (2**conf.op_hires_ndeconv)
+
+    # work at the network input resolution
+    hmap = cv2.resize(hmap, (0,0), fx=hmapscalefac, fy=hmapscalefac,
+                      interpolation=cv2.INTER_CUBIC)
+    paf = cv2.resize(paf, (0,0), fx=pafscalefac, fy=pafscalefac,
+                     interpolation=cv2.INTER_CUBIC)
+
+    npts = hmap.shape[-1]
+    for part in range(npts):
+        map_ori = hmap[:, :, part]
+        map = map_ori
+        peaks_with_score = heatmap.find_peaks(map, thre_hm)
+        all_preds.append(peaks_with_score)
+
+    # all_preds[part] is list of peaks (x, y, score)
+    assert len(all_preds) == npts
+
+    connection_all = []
+    special_k = []
+
+    n_edges = len(af_graph)
+    assert paf.shape[-1] == n_edges*2
+    score_to_pts = [] # keep track of all PAF scores and its info
+    for k in range(n_edges):
+        x_paf = paf[:,:,k*2]
+        y_paf = paf[:,:,k*2+1]
+        pt1s = all_preds[af_graph[k][0]]
+        pt2s = all_preds[af_graph[k][1]]
+        np1 = len(pt1s)
+        np2 = len(pt2s)
+        if np1 != 0 and np2 != 0:
+            is_conn = []
+            for i in range(np1):
+                for j in range(np2):
+                    conn, score_paf = is_paf_conn(x_paf,y_paf,pt1s[i],pt2s[j],conf,thre_paf)
+                    if conn:
+                        is_conn.append([i, j, score_paf, score_paf+pt1s[i][2] + pt2s[j][2]])
+            # last entry is the total score
+
+            # sort by tot_score
+            is_conn = sorted(is_conn, key=lambda x: x[3], reverse=True)
+            # cols are (i, j, paf_score)
+            sel_conn = np.zeros((0, 3))
+            for c in range(len(is_conn)):
+                i, j, s, ts = is_conn[c]
+                # each part candidate (eg i or j) can only participate in one row/connection.
+                # greedy match, match highest scores first
+                if i not in sel_conn[:, 0] and j not in sel_conn[:, 1]:
+                    sel_conn = np.vstack([sel_conn, [i, j, ts]])
+                    score_to_pts.append([ts,k,sel_conn.shape[0]-1])
+                    if len(sel_conn) >= min(np1, np2):
+                        break
+
+            connection_all.append(sel_conn)
+        else:
+            special_k.append(k)
+            connection_all.append([])
+
+    assert len(connection_all) == n_edges
+
+    targets = np.ones((0, npts)) * np.nan
+    scores = np.zeros([0,2])
+    # XXX what are the invariants for subset if any?
+
+    score_to_pts = sorted(score_to_pts, key=lambda x:x[0], reverse=True)
+    peaks_done = [[] for i in range(npts)]
+
+    for cur_x in score_to_pts:
+        k = cur_x[1]
+        cndx = cur_x[2]
+        i = int(connection_all[k][cndx][0])
+        j = int(connection_all[k][cndx][1])
+        p1,p2 = af_graph[k]
+
+        if i in peaks_done[p1] and j in peaks_done[p2]:
+            cur_t1 = np.where(targets[:,p1]==i)[0][0]
+            cur_t2 = np.where(targets[:,p2]==j)[0][0]
+            if cur_t1 == cur_t2:
+                # Both belong to same target, nothing to do
+                continue
+
+            elif np.all(np.isnan(targets[cur_t1,:]) | np.isnan(targets[cur_t2,:])):
+                # No overlap. Merge
+                cur_t = min(cur_t1,cur_t2)
+                targets[cur_t,:] = np.where(np.isnan(targets[cur_t1,:]),targets[cur_t2,:],targets[cur_t1,:])
+                to_del = cur_t1 + cur_t2 - cur_t # this is smart,isn't it :)
+                targets = np.delete(targets,to_del,0)
+
+        elif i in peaks_done[p1]:
+            cur_t = np.where(targets[:,p1]==i)[0]
+            targets[cur_t,p2] = j
+            peaks_done[p2].append(j)
+        elif j in peaks_done[p2]:
+            cur_t = np.where(targets[:,p2]==j)[0]
+            targets[cur_t,p1] = i
+            peaks_done[p1].append(i)
+        else:
+            # Both belong to none. So create new
+            cur_r = np.ones([1,npts]) *np.nan
+            cur_r[0,p1] = i
+            cur_r[0,p2] = j
+            peaks_done[p1].append(i)
+            peaks_done[p2].append(j)
+            targets = np.vstack([targets,cur_r])
+
+    # delete if the less than 1/2 pts.
+    deleteIdx = np.where(np.sum(~np.isnan(targets),axis=1)<npts/2)[0]
+    targets = np.delete(targets, deleteIdx, axis=0)
+
+    targets_locs = np.ones([conf.max_n_animals, npts, 2]) * np.nan
+    if conf.is_multi:
+        for n_out in range(min(targets.shape[0],conf.max_n_animals)):
+            for p in range(npts):
+                if np.isnan(targets[n_out,p]):
+                    continue
+                cur_i = int(targets[n_out,p])
+                targets_locs[n_out,p,:] = all_preds[p][cur_i][:2]
+
+    else:
+        if targets.shape[0] != 1:
+            # special case for single animal
+            for p in range(npts):
+                if len(all_preds[p]) < 1:
+                    continue
+                kk = sorted(all_preds[p], key=lambda x:x[2], reverse=True)
+                targets_locs[0,p,:] = kk[0][:2]
+        else:
+            for p in range(npts):
+                if np.isnan(targets[0,p]):
+                    continue
+                cur_i = int(targets[0,p])
+                targets_locs[0,p,:] = all_preds[p][cur_i][:2]
+
+    return targets_locs
+
+def do_inference_old(hmap, paf, conf,thre_hm,thre_paf):
     '''
 
     :param hmap: hmnr x hmnc x npt
@@ -1114,7 +1316,7 @@ def do_inference(hmap, paf, conf,thre_hm,thre_paf):
                     score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1])
                     score_with_dist_prior = sum(score_midpts) / len(score_midpts) # + min( 0.5 * oriImg.shape[0] / norm - 1, 0)
 
-                    if np.linalg.norm(vec) < 3:
+                    if norm < 3:
                         # MK 20200803: pts that are very close, use small default values because PAFs would be weird.
                         score_midpts = np.ones_like(score_midpts)*(thre_paf + 0.05)
                         score_with_dist_prior = 0.05

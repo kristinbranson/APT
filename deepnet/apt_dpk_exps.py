@@ -52,8 +52,8 @@ isotriswapidx = np.array([-1, 2, 1])
 '''
 
 user = getpass.getuser()
-if user == 'leea30':
-    aptexptsdata = '/groups/branson/bransonlab/apt/experiments/data'
+aptexptsdata = '/groups/branson/bransonlab/apt/experiments/data'
+if user == 'leea30' or 'kabram':
     dbs = {
         'dpkfly': {
             'h5dset': '/groups/branson/home/leea30/git/dpkd/datasets/fly/annotation_data_release_AL.h5',
@@ -92,7 +92,7 @@ elif user == 'al':
     alcache = '/dat0/apt/cache'
     aldeepnet = '/home/al/git/APT_aldl/deepnet'
     aptexptsdata = '/dat0/jrcmirror/groups/branson/bransonlab/apt/experiments/data'
-    dpkdsets = '/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets'
+dpkdsets = '/dat0/jrcmirror/groups/branson/home/leea30/git/dpkd/datasets'
 
 
 skeleton_csvs = {

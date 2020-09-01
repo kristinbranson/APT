@@ -131,7 +131,7 @@ def setup(data_type_in,gpu_device=None):
 
     if data_type == 'alice' or data_type=='alice_difficult':
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403_new_skl_20200817.lbl'
         gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
 
         op_af_graph_mk = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
@@ -179,7 +179,7 @@ def setup(data_type_in,gpu_device=None):
 
     elif data_type == 'roian':
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped_newmovielocs.lbl'
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423.lbl_mdn.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl'
         # op_af_graph = '\(0,1\),\(0,2\),\(0,3\)'
         # cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/roian_xval_20200428.mat'
@@ -188,7 +188,7 @@ def setup(data_type_in,gpu_device=None):
 
         dpk_skel_csv = ade.dbs[data_type]['skel']
     elif data_type == 'brit0':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327.lbl_mdn.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
         # op_af_graph = '\(0,4\),\(1,4\),\(2,4\),\(3,4\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_1_cv_info_20200408.mat'
@@ -201,7 +201,7 @@ def setup(data_type_in,gpu_device=None):
         # common_conf['trange'] = 20
         dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit2':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20200330_compress20200330.lbl_mdn.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20200330_compress20200330_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
         # op_af_graph = '\(2,0\),\(2,1\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_3_cv_info_20200408.mat'
@@ -247,15 +247,16 @@ def setup(data_type_in,gpu_device=None):
         common_conf['trange'] = 20
         # op_af_graph = '\(\(0,1\),\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/CarsenTrainCVInfo20190514.mat'
+
     elif data_type == 'leap_fly':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_new_skl_20200820.lbl'
         gt_lbl = lbl_file
-        gg = np.array(((1,2),(1,3),(1,4),(4,5),(5,6),(7,8),(8,9),(9,10),(11,12),(12,13),(13,14),(15,16),(16,17),(17,18),(19,20),(20,21),(21,22),(23,24),(24,25),(25,26),(27,28),(28,29),(29,30),(4,31),(4,32),(4,7),(4,19),(5,11),(5,15),(5,23),(5,27)))
-        gg = gg-1
-        op_af_graph = '{}'.format(gg.tolist())
-        op_af_graph = op_af_graph.replace('[','\(')
-        op_af_graph = op_af_graph.replace(']','\)')
-        op_af_graph = op_af_graph.replace(' ','')
+        # gg = np.array(((1,2),(1,3),(1,4),(4,5),(5,6),(7,8),(8,9),(9,10),(11,12),(12,13),(13,14),(15,16),(16,17),(17,18),(19,20),(20,21),(21,22),(23,24),(24,25),(25,26),(27,28),(28,29),(29,30),(4,31),(4,32),(4,7),(4,19),(5,11),(5,15),(5,23),(5,27)))
+        # gg = gg-1
+        # op_af_graph = '{}'.format(gg.tolist())
+        # op_af_graph = op_af_graph.replace('[','\(')
+        # op_af_graph = op_af_graph.replace(']','\)')
+        # op_af_graph = op_af_graph.replace(' ','')
     else:
         lbl_file = ''
 
@@ -663,7 +664,7 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
             '''
 
         if data_type in ['brit0', 'brit1', 'brit2']:
-            if train_type == 'unet':
+            if train_type in ['unet','openpose']:
                 conf_opts['batch_size'] = 2
             else:
                 conf_opts['batch_size'] = 4
