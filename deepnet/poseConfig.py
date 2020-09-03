@@ -173,6 +173,8 @@ class config(object):
         self.dpk_early_stop_style = 'ipynb' # either 'ppr' or 'ipynb'
         self.dpk_epochs_used = None         # set at train-time; actual no of epochs used
         self.dpk_use_tfdata = True
+        self.dpk_tfdata_num_para_calls_parse = 5
+        self.dpk_tfdata_num_para_calls_dataaug = 8
         self.dpk_train_style = 'dpk'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
         self.dpk_val_batch_size = 10        # use 0 when dpk_train_style='apt' to not do valdist loggin
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle

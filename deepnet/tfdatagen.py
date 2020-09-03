@@ -819,7 +819,9 @@ def create_tf_datasets(conf0,
     if is_multi:
         ds = ds.map(map_func=_parse_function_multi)
     else:
-        ds = ds.map(map_func=_parse_function, num_parallel_calls=5)
+        numpara = getattr(conf, 'dpk_tfdata_num_para_calls_parse', 5)
+        ds = ds.map(map_func=_parse_function, num_parallel_calls=numpara)
+        logr.info("num para calls for parse: {}".format(numpara))
 
     #ds = ds.cache()
     if infinite:
@@ -844,6 +846,8 @@ def create_tf_datasets(conf0,
         # * set_shape after py_func. https://github.com/tensorflow/tensorflow/issues/24520
         # * ds.map concats lists into Tensors. use a tuple
         #   https://github.com/tensorflow/tensorflow/issues/20698
+        numpara = getattr(conf, 'dpk_tfdata_num_para_calls_dataaug', 8)
+        logr.info("num para calls for dataaug: {}".format(numpara))
         if drawconf:
             def dataAugPyFunc(ims, locs, info):
                 # not sure why we need call to tuple
@@ -855,7 +859,7 @@ def create_tf_datasets(conf0,
                 # print("The shape of res[1] is {}".format(res[1].shape))
                 return ims, tgtslist
 
-            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=8)
+            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=numpara)
         else:
             def dataAugPyFunc(ims, locs, info):
                 res = tuple(tf.py_func(pp_dpk_noconf, [ims, locs], [tf.float32, ] * 2))
@@ -863,7 +867,7 @@ def create_tf_datasets(conf0,
                 res[1].set_shape([None, ] * 3)  # locs
                 return res
 
-            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=8)
+            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=numpara)
             assert n_outputs == 1
 
     ds = ds.prefetch(buffer_size=100)

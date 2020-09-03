@@ -541,37 +541,6 @@ eres03gt = ade.assess('e00_r03', dset='alice', usegt_tfr=True)
 # SH
 ade.assess_set2(exps, range(2), 'stephen', usegt_tfr=True,  )
 
-# vw0 by time
-clist, tslist = ade.get_all_ckpt_h5(opj(exps.sh0.root,'apt_expt_skel2'))
-for cpt in clist:
-    ade.assess('apt_expt_skel2',
-               dset='stephen',
-               view=0,
-               usegt_tfr=True,
-               doplot=False,
-               ckpt=os.path.basename(cpt),
-               )
-
-edir = opj(exps.sh0.root, 'apt_expt')
-res = ade.get_assess_results(edir)
-resf = opj(exps.sh0.root, 'sh_vw0_time_20200828.mat')
-apt.savemat_with_catch_and_pickle(resf, res)
-
-# vw1 by time
-clist, tslist = ade.get_all_ckpt_h5(opj(exps.sh1.root,'apt_expt'))
-for cpt in clist:
-    ade.assess('apt_expt',
-               dset='stephen',
-               view=1,
-               usegt_tfr=True,
-               doplot=False,
-               ckpt=os.path.basename(cpt),
-               )
-
-edir = opj(exps.sh1.root, 'apt_expt')
-res = ade.get_assess_results(edir)
-resf = opj(exps.sh1.root, 'sh_vw1_time_20200828.mat')
-apt.savemat_with_catch_and_pickle(resf, res)
 
 ## DPK/bub ia vs pt
 import run_apt_expts_2 as rae
@@ -894,6 +863,52 @@ dstr = '20200828'
 rae.run_normal_training(expname='apt_expt_skel2', dstr=dstr, run_type='submit',exp_note='Trying "B" skels jff')
 # rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
 
+
+rae.setup('stephen')
+rae.all_models = ['dpk']
+dstr = '20200901'
+rae.run_normal_training(expname='apt_expt_r02',
+                        dstr=dstr,
+                        run_type='submit',
+                        exp_note='Relative to apt_expt: i) "B" skels (more consistent with our other skels and with dpk ppr); ii) optimized keras/tfdata input pipeline')
+# rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
+
+# vw0 by time
+clist, tslist = ade.get_all_ckpt_h5(opj(exps.sh0.root,'apt_expt_r02'))
+for cpt in clist:
+    ade.assess('apt_expt_r02',
+               dset='stephen',
+               view=0,
+               usegt_tfr=True,
+               doplot=False,
+               ckpt=os.path.basename(cpt),
+               )
+
+edir = opj(exps.sh0.root, 'apt_expt_r02')
+res = ade.get_assess_results(edir)
+resf = opj(exps.sh0.root, 'sh_vw0_time_20200901.mat')
+apt.savemat_with_catch_and_pickle(resf, res)
+
+# vw1 by time
+clist, tslist = ade.get_all_ckpt_h5(opj(exps.sh1.root,'apt_expt_r02'))
+for cpt in clist:
+    ade.assess('apt_expt_r02',
+               dset='stephen',
+               view=1,
+               usegt_tfr=True,
+               doplot=False,
+               ckpt=os.path.basename(cpt),
+               )
+
+edir = opj(exps.sh1.root, 'apt_expt_r02')
+res = ade.get_assess_results(edir)
+resf = opj(exps.sh1.root, 'sh_vw1_time_20200901.mat')
+apt.savemat_with_catch_and_pickle(resf, res)
+
+
+
+
+
 rae.setup('stephen')
 rae.all_models = ['dpk']
 #rae.create_normal_dbs()
@@ -916,10 +931,44 @@ rae.cv_train_from_mat(
     dstr=dstr,
     queue='gpu_tesla') # skip_db=False,run_type='submit'
 
+clist, tslist = ade.get_all_ckpt_h5(opj(exps.ron.root,'r01_cv_split_0'))
+ade.assess('r01_cv_split_0',
+           dset='roian',
+           view=0,
+           usegt_tfr=False,
+           doplot=False,
+           tstbsize=12,
+           ckpt=os.path.basename(clist[-1]),
+           )
+
 rae.setup('larva')
 rae.all_models = ['dpk']
-dstr = '20200831'
-rae.cv_train_from_mat(run_type='submit', dstr=dstr, queue='gpu_tesla', split_idxs=[0,]) # skip_db=False,run_type='submit'
+dstr = '20200903'
+rae.cv_train_from_mat(
+    run_type='submit',
+    dstr=dstr,
+    queue='gpu_tesla',
+    split_idxs=[0,1,2],
+    exp_note='real larva model after picking "best" parallelization',
+    nslots=8,
+    dpk_tfdata_num_para_calls_parse=5,
+    dpk_tfdata_num_para_calls_dataaug=16)
+
+# larva toy model, optimizing parallelization
+rae.setup('larva')
+rae.all_models = ['dpk']
+dstr = '20200902'
+rae.cv_train_from_mat(
+    run_type='submit',
+    exp_name_pfix='para05_',
+    dstr=dstr,
+    queue='gpu_tesla',
+    split_idxs=[0,], # skip_db=False,run_type='submit'
+    exp_note='real larva model titrate parn/slots',
+    nslots=9,
+    dpk_tfdata_num_para_calls_parse=5,
+    dpk_tfdata_num_para_calls_dataaug=18,
+)
 
 ## Videos for results
 
