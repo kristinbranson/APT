@@ -7588,7 +7588,7 @@ classdef Labeler < handle
         if nrm>0
           warningNoTrace('Labeler:oob',...
             '%d rows with shape out of bounds of target ROI. These rows will be discarded.',nrm);
-          tblMF(tfRmRow,:) = [];
+          tblMF(tfRmrow,:) = [];
         end
       end
                     
