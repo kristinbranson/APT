@@ -155,6 +155,7 @@ classdef TrackingVisualizerMT < handle
         for iTgt = 1:ntgts
           hPch(iTgt) = patch(ax,nan,nan,clr,...
             'FaceAlpha',alp,...
+            'PickableParts','none',...
             'Tag',sprintf('%s_Pch_%d',pfix,iTgt));
         end
         obj.hPch = hPch;
@@ -240,6 +241,10 @@ classdef TrackingVisualizerMT < handle
       obj.tfHideTxt = tf;
       obj.updateShowHideAll();
     end
+    function setShowPches(obj,tf)
+      obj.tfShowPch = tf;
+      obj.updateShowHideAll();
+    end
     function hideOtherTargets(obj)
       obj.setShowOnlyPrimary(true);
     end
@@ -282,6 +287,11 @@ classdef TrackingVisualizerMT < handle
       if ~isempty(obj.hSkel)
         [obj.hSkel(:,tfTgtOn).Visible] = deal(onoffSkel);
         [obj.hSkel(:,~tfTgtOn).Visible] = deal('off');
+      end
+      
+      if obj.doPch
+        onoffPch = onIff(obj.tfShowPch);
+        [obj.hPch.Visible] = deal(onoffPch);        
       end
     end
     function updateLandmarkColors(obj,ptsClrs)

@@ -9104,7 +9104,7 @@ classdef Labeler < handle
       %
       % roi: [4x2] [x(:) y(:)] corners of ractangular roi
       
-      tfHT = ~isempty(obj.maPtHeadTail);
+      tfHT = any(obj.maPtHeadTail);
       rad = obj.maRoiRad;
       if tfHT
         xyHT = xy(obj.maPtHeadTail,:);
