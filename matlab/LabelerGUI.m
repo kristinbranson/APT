@@ -2595,7 +2595,7 @@ else
   % addon to existing selection
   rowsnew = setdiff(rows,rowsprev);  
   idxsnew = cell2mat(dat(rowsnew,1));
-  lObj.labelsOtherTargetShowIdxs(idxsnew);
+%   lObj.labelsOtherTargetShowIdxs(idxsnew);
 end
 
 hlpRemoveFocus(src,handles);

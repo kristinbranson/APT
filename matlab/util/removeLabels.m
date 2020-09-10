@@ -30,7 +30,7 @@ for proj = 1:length(p)%for each project
     
     %re-creating empty labeledPos data
     for expi = 1:length(adnew.labeledpos)
-        adnew.labeledposMarked{expi,1} = false(size(adnew.labeledposMarked{expi,1}));
+%         adnew.labeledposMarked{expi,1} = false(size(adnew.labeledposMarked{expi,1}));
         adnew.labeledpos{expi,1} = nan(size(adnew.labeledpos{expi,1}));
         adnew.labeledpostag{expi,1} = cell(size(adnew.labeledpostag{expi,1}));%initializing manual label tags as empty because no manual labels currently exist
         % AL 20171110: .labeledpostag{expi,1} is now a logical array rather

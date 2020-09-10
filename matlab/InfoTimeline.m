@@ -892,10 +892,8 @@ classdef InfoTimeline < handle
               bodytrx = [];
             end
             if strcmp(ptype,'Labels'),
-              lpos = labeler.labeledposGTaware{iMov};
-              lpostag = labeler.labeledpostagGTaware{iMov};
-              
-              
+              lpos = labeler.labelsGTaware{iMov};
+              %lpostag = labeler.labeledpostagGTaware{iMov};
               nfrmtot = labeler.nframes;
               [lpos,lpostag] = Labels.getlabelsT(lpos,iTgt,nfrmtot);
               lpos = reshape(lpos,size(lpos,1)/2,2,[]);
@@ -937,7 +935,7 @@ classdef InfoTimeline < handle
       if isempty(iMov) || iMov==0 || ~labeler.hasMovie
         data = nan(obj.npts,1);
       else
-        s = labeler.labeledposGTaware{iMov};       
+        s = labeler.labelsGTaware{iMov};       
         [p,~] = Labels.getlabelsT(s,iTgt,obj.nfrm);
         xy = reshape(p,obj.npts,2,obj.nfrm);
         data = reshape(all(~isnan(xy),2),obj.npts,obj.nfrm);

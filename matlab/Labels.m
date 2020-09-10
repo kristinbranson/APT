@@ -120,6 +120,14 @@ classdef Labels
         occ = zeros(s.npts,1,Labels.CLS_OCC);
       end
     end
+    function itgts = isLabeledF(s,frm)
+      % Find labeled targets (if any) for frame frm
+      %
+      % itgts: [ntgtlbled] vec of targets that are labeled in frm
+      
+      i = find(s.md(1,:)==frm);
+      itgts = unique(s.md(2,i));
+    end
     function [p,occ] = getlabelsT(s,itgt,nf)
       % get labels/occ for given target.
       % nf: total number of frames for target/mov
