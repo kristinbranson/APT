@@ -13,35 +13,38 @@ classdef Labels
       s.p = nan(npts*2,n); % pos
       s.ts = nan(npts,n); % ts -- time a bout was added
       s.occ = zeros(npts,n,Labels.CLS_OCC); % "tag"
-      s.md = zeros(2,n,Labels.CLS_MD); % frm-tgt. anything else?
+      s.frm = zeros(n,1,Labels.CLS_MD);
+      s.tgt = zeros(n,1,Labels.CLS_MD);
       
-      % size(s.p,2) is the number of labeled rows.
-      
+      % size(s.p,2) is the number of labeled rows.      
     end
     function s = setpFT(s,frm,itgt,xy)
-      i = find(s.md(1,:)==frm & s.md(2,:)==itgt);
+      i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
         % new label
         s.p(:,end+1) = xy(:);
         s.ts(:,end+1) = now;
         s.occ(:,end+1) = 0;
-        s.md(:,end+1) = [frm; itgt];
+        s.frm(end+1,1) = frm;
+        s.tgt(end+1,1) = itgt;
       else
         % updating existing label
         s.p(:,i) = xy(:);
         s.ts(:,i) = now;
         % s.occ(:,i) unchanged
-        % s.md(:,i) unchanged
+        % s.frm(i) "
+        % s.tgt(i) "
       end
     end
     function s = setpFTI(s,frm,itgt,ipt,xy)
-      i = find(s.md(1,:)==frm & s.md(2,:)==itgt);
+      i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
         % new label
         s.p(:,end+1) = nan;
         s.ts(:,end+1) = now;
         s.occ(:,end+1) = 0;
-        s.md(:,end+1) = [frm; itgt];
+        s.frm(end+1,1) = frm;
+        s.tgt(end+1,1) = itgt;
         i = size(s.p,2);
       end
       s.p([ipt ipt+s.npts],i) = xy(:);
@@ -59,13 +62,14 @@ classdef Labels
     function s = setoccvalFTI(s,frm,itgt,ipt,val)
       % creates a new label if nec
       % ipt can be vector
-      i = find(s.md(1,:)==frm & s.md(2,:)==itgt);
+      i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
         % new label
         s.p(:,end+1) = nan;
         s.ts(:,end+1) = now;
         s.occ(:,end+1) = 0;
-        s.md(:,end+1) = [frm; itgt];
+        s.frm(end+1,1) = frm;
+        s.tgt(end+1,1) = itgt;
         i = size(s.p,2);
       end
       s.occ(ipt,i) = val;
@@ -74,22 +78,24 @@ classdef Labels
     function [s,tfchanged] = rmFT(s,frm,itgt)
       % remove labels for given frm/itgt
       
-      i = find(s.md(1,:)==frm & s.md(2,:)==itgt);
+      i = find(s.frm==frm & s.tgt==itgt);
       tfchanged = ~isempty(i); % found our (frm,tgt)
       if tfchanged
         s.p(:,i) = [];
         s.ts(:,i) = [];
         s.occ(:,i) = [];
-        s.md(:,i) = [];
+        s.frm(i,:) = [];
+        s.tgt(i,:) = [];
       end
     end
     function [s,tfchanged] = clearFTI(s,frm,itgt,ipt)
-      i = find(s.md(1,:)==frm & s.md(2,:)==itgt);
+      i = find(s.frm==frm & s.tgt==itgt);
       tfchanged = ~isempty(i); % found our (frm,tgt)
       if tfchanged
         s.p([ipt ipt+s.npts],i) = nan;
         s.ts(ipt,i) = now;
         s.occ(ipt,i) = 0;
+        % s.frm(ipt,1) and s.tgt(ipt,1) unchanged
       end
     end
     function [s,tfchanged,ntgts] = compact(s,frm)
@@ -100,18 +106,21 @@ classdef Labels
       % tfchanged: true if any change/edit was made to s
       % ntgts: number of tgts for frm
       
-      tf = s.md(1,:)==frm;
+      tf = s.frm==frm;
       ntgts = nnz(tf);
-      itgts = s.md(2,tf);
-      tfchanged = ~isequal(sort(itgts),1:ntgts); 
-      % order currently never matters in s.md
+      itgts = s.tgt(tf);
+      tfchanged = ~isequal(sort(itgts),(1:ntgts)'); 
+      % order currently never matters in s.frm, s.tgt
       if tfchanged
-        s.md(2,tf) = 1:ntgts;
+        s.tgt(tf) = (1:ntgts)';
       end
     end
     function [tf,p,occ,ts] = isLabeledFT(s,frm,itgt)
       % Could get "getLabelsFT"
-      i = find(s.md(1,:)==frm & s.md(2,:)==itgt,1);
+      %
+      % p, occ, ts have appropriate size/vals even if tf==false
+      
+      i = find(s.frm==frm & s.tgt==itgt,1);
       tf = ~isempty(i);
       if tf
         p = s.p(:,i);
@@ -128,8 +137,8 @@ classdef Labels
       %
       % itgts: [ntgtlbled] vec of targets that are labeled in frm
       
-      tf = s.md(1,:)==frm;
-      itgts = unique(s.md(2,tf));
+      tf = s.frm==frm;
+      itgts = s.tgt(tf);
     end
     function frms = isLabeledT(s,itgt)
       % Find labeled frames (if any) for target itgt
@@ -137,8 +146,8 @@ classdef Labels
       % frms: [nfrmslbled] vec of frames that are labeled for target itgt.
       %   Not guaranteed to be in any order
       
-      tf = s.md(2,:)==itgt;
-      frms = s.md(1,tf);
+      tf = s.tgt==itgt;
+      frms = s.frm(tf);
     end
     % function getLabelsFT -- see isLabeledFT
     function [p,occ] = getLabelsT(s,itgt,nf)
@@ -150,8 +159,8 @@ classdef Labels
       
       p = nan(2*s.npts,nf);
       occ = false(s.npts,nf);      
-      tf = s.md(2,:)==itgt;
-      frms = s.md(1,tf);
+      tf = s.tgt==itgt;
+      frms = s.frm(tf);
       p(:,frms) = s.p(:,tf);
       occ(:,frms) = s.occ(:,tf);      
     end
@@ -162,8 +171,8 @@ classdef Labels
       % p: [2npts x ntgtslbled], or [2npts x ntgtsmax] if ntgtsmax provided
       % occ: [npts x ntgtslbled], etc
 
-      tf = s.md(1,:)==frm;
-      itgts = s.md(2,tf);
+      tf = s.frm==frm;
+      itgts = s.tgt(tf);
       
       % for MA, itgts will be compaticified ie always equal to 1:max(itgts)
       % but possibly out of order. for now don't rely on compactness in 
@@ -189,12 +198,13 @@ classdef Labels
     end
     function tf = labeledFrames(s,nfrm)
       tf = false(nfrm,1);
-      tf(s.md(1,:)) = true;
+      tf(s.frm) = true;
+      assert(numel(tf)==nfrm);
     end
     function [tf,f0,p0] = findLabelNear(s,frm,itgt)
       % find labeled frame for itgt 'near' frm
-      i = find(s.md(2,:)==itgt);
-      fs = s.md(1,i);
+      i = find(s.tgt==itgt);
+      fs = s.frm(i);
       tf = ~isempty(fs);
       if tf
         d = abs(fs-frm);
@@ -207,8 +217,8 @@ classdef Labels
       end
     end
     function t = totable(s,imov)
-      frm = s.md(1,:)';
-      iTgt = s.md(2,:)';
+      frm = s.frm;
+      iTgt = s.tgt;
       p = s.p';
       pTS = s.ts';
       tfocc = s.occ';
@@ -227,12 +237,15 @@ classdef Labels
       
       n = height(t);
       npts = size(t.p,2)/2;
-      s = Labels.new(npts);
-      s.p = t.p.';
-      s.md(1,1:n) = t.frm.';
-      s.md(2,1:n) = t.iTgt.';
-      s.ts = t.pTS.';
-      s.occ(:,1:n) = t.tfocc.';
+      s = Labels.new(npts,n);      
+      p = t.p.';
+      ts = t.pTS.';
+      occ = t.tfocc.';
+      s.p(:) = p(:);
+      s.ts(:) = ts(:);
+      s.occ(:) = occ(:);
+      s.frm(:) = t.frm;
+      s.tgt(:) = t.iTgt;
     end
     function [lpos,lposTS,lpostag] = toarray(s,varargin)
       % Convert to old-style full arrays
@@ -246,17 +259,17 @@ classdef Labels
         'ntgt',[] ... % num tgts "
         );
       if isempty(nfrm)
-        if isempty(s.md)
+        if isempty(s.frm)
           nfrm = 1;
         else
-          nfrm = max(s.md(1,:));
+          nfrm = max(s.frm);
         end
       end
       if isempty(ntgt)
-        if isempty(s.md)
+        if isempty(s.tgt)
           ntgt = 1;
         else
-          ntgt = max(s.md(2,:));
+          ntgt = max(s.tgt);
         end
       end
       
@@ -264,10 +277,10 @@ classdef Labels
       lposTS = -inf(s.npts,nfrm,ntgt);
       lpostag = false(s.npts,nfrm,ntgt);
 
-      n = size(s.md,2);
+      n = numel(s.frm);
       for i=1:n
-        f = s.md(1,i);
-        itgt = s.md(2,i);
+        f = s.frm(i);
+        itgt = s.tgt(i);
         lpos(:,:,f,itgt) = reshape(s.p(:,i),s.npts,2);
         lposTS(:,f,itgt) = s.ts(:,i);
         lpostag(:,f,itgt) = s.occ(:,i);
@@ -310,8 +323,8 @@ classdef Labels
           s.occ(:,i) = lpostag(:,fi,itgti); % true->1, false->0
         end
       end      
-      s.md(1,:) = frms;
-      s.md(2,:) = itgt;
+      s.frm(:) = frms(:);
+      s.tgt(:) = itgt(:);
     end
   end
   methods (Static)
@@ -1046,7 +1059,7 @@ classdef Labels
   
   methods (Static) % MA
     function ntgt = getNumTgts(s,frm)
-      tf = s.md(1,:)==frm;
+      tf = s.frm==frm;
       ntgt = nnz(tf);  
     end
     function [s,itgt] = addTgtWithP(s,frm,xy)
@@ -1056,7 +1069,8 @@ classdef Labels
       s.p(:,end+1) = xy(:);
       s.ts(:,end+1) = now;
       s.occ(:,end+1) = 0;
-      s.md(:,end+1) = [frm; itgt];
+      s.frm(end+1,1) = frm;
+      s.tgt(end+1,1) = itgt;
     end
   end
 end

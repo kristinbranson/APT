@@ -6881,8 +6881,8 @@ classdef Labeler < handle
       end
       
       % s should be nonempty      
-      frm = s.md(1,1);
-      iTgt = s.md(2,1);
+      frm = s.frm(1);
+      iTgt = s.tgt(1);
       xyLbl = reshape(s.p(:,1),s.npts,2);
       tffound = true;
     end
@@ -6963,8 +6963,8 @@ classdef Labeler < handle
         s = lpos{jmov};        
         [mintscurr,i] = min( min(s.ts,[],1) );
         if mintscurr < mints
-          frm = s.md(1,i);
-          iTgt = s.md(2,i);
+          frm = s.frm(i);
+          iTgt = s.tgt(i);
           p = s.p(:,i);
           iMov = jmov;
           mints = mintscurr;
@@ -7097,7 +7097,7 @@ classdef Labeler < handle
       s = lpos{obj.currMovie};
       
       if tfScalarFrm
-        is = find(s.md(1,:)==frms);
+        is = find(s.frm==frms);
         nTgts = numel(is);
         xs = s.p(1:s.npts,is);
         nPts = nnz(~isnan(xs));
@@ -7106,7 +7106,7 @@ classdef Labeler < handle
         nTgts = zeros(nf,1);
         nPts = zeros(nf,1);
         for i=1:size(s.p,2)
-          f = s.md(1,i);
+          f = s.frm(i);
           nTgts(f) = nTgts(f)+1;
           pf = s.p(1:s.npts,i);
           nPts(f) = nPts(f)+nnz(~isnan(pf));
