@@ -153,13 +153,11 @@ function frms = lclLabeledFrmGetFrms2(lObj,mIdx,nfrm,iTgt)
 frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,true);
 end
 function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
-npts = lObj.nLabelPoints;
+%npts = lObj.nLabelPoints;
 if tfLbls2
-  lpos = lObj.getLabeledPos2MovIdx(mIdx);
+  s = lObj.getLabels2MovIdx(mIdx);
 else
-  lpos = lObj.getLabeledPosMovIdx(mIdx); % [nptsx2xnfrmxntgt]
+  s = lObj.getLabelsMovIdx(mIdx);
 end
-lposTgt = reshape(lpos(:,:,:,iTgt),[2*npts nfrm]);
-tfLbledFrm = any(~isnan(lposTgt),1); % considered labeled if any x- or y-coord is non-nan
-frms = find(tfLbledFrm);
+frms = Labels.isLabeledT(s,iTgt);
 end

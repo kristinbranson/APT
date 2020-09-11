@@ -22,13 +22,13 @@ classdef ShiftArrowMovieNavMode
       switch obj
         case ShiftArrowMovieNavMode.NEXTTIMELINE
           tldata = lObj.gdata.labelTLInfo.tldata;
-          [tffound,f] = Labeler.seekSmallLpos(tldata,f0,dir);
+          [tffound,f] = Labels.seekSmallLpos(tldata,f0,dir);
         case ShiftArrowMovieNavMode.NEXTTIMELINETHRESH
           tldata = lObj.gdata.labelTLInfo.tldata;
-          [tffound,f] = Labeler.seekSmallLposThresh(tldata,f0,dir,thresh,cmp);
+          [tffound,f] = Labels.seekSmallLposThresh(tldata,f0,dir,thresh,cmp);
         case ShiftArrowMovieNavMode.NEXTLABELED
           lpos = lObj.labeledposCurrMovie;
-          [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+          [tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
         case ShiftArrowMovieNavMode.NEXTIMPORTED
           if lObj.gtIsGTMode
             warningNoTrace('No imported labels available in GT mode.');
@@ -37,7 +37,7 @@ classdef ShiftArrowMovieNavMode
           else
             iMov = lObj.currMovie;
             lpos = lObj.labeledpos2{iMov};
-            [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+            [tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
           end
         case ShiftArrowMovieNavMode.NEXTTRACKED
           tObj = lObj.tracker;
@@ -47,7 +47,7 @@ classdef ShiftArrowMovieNavMode
             f = nan;
           else
             lpos = tObj.getTrackingResultsCurrMovie();
-            [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+            [tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
           end
         otherwise
           assert(false);

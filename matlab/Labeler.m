@@ -402,10 +402,13 @@ classdef Labeler < handle
   end
   properties (Dependent)
     labeledposGTaware;
-    labelsGTaware;
     labeledposTSGTaware;
     labeledpostagGTaware;
+    labelsGTaware;
+
     labeledpos2GTaware;
+    labels2GTaware;
+    
     labeledposCurrMovie;
     labeledpos2CurrMovie;
     labeledpostagCurrMovie;
@@ -1049,6 +1052,14 @@ classdef Labeler < handle
         v = obj.labeledpos{iMov};
       end
     end
+    function v = getLabelsMovIdx(obj,mIdx)
+      [iMov,gt] = mIdx.get();
+      if gt
+        v = obj.labelsGT{iMov};
+      else 
+        v = obj.labels{iMov};
+      end
+    end
     function v = getLabeledPos2MovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
@@ -1056,6 +1067,14 @@ classdef Labeler < handle
         v = obj.labeledpos2GT{iMov};
       else 
         v = obj.labeledpos2{iMov};
+      end
+    end
+    function v = getLabels2MovIdx(obj,mIdx)
+      [iMov,gt] = mIdx.get();
+      if gt
+        v = obj.labels2GT{iMov};
+      else 
+        v = obj.labels2{iMov};
       end
     end
     function v = get.labeledposTSGTaware(obj)
@@ -1079,6 +1098,13 @@ classdef Labeler < handle
         v = obj.labeledpos2;
       end
     end
+    function v = get.labels2GTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.labels2GT;
+      else
+        v = obj.labels2;
+      end
+    end    
     function v = get.labeledposCurrMovie(obj)
       if obj.currMovie==0
         v = [];
@@ -5901,11 +5927,11 @@ classdef Labeler < handle
     function labelPosClear(obj)
       x = rand;
       if x > 0.5
-%         obj.labelPosClear_Old();
+        obj.labelPosClear_Old();
         obj.labelPosClear_New();
       else
         obj.labelPosClear_New();
-%         obj.labelPosClear_Old();        
+        obj.labelPosClear_Old();        
       end
     end
     function labelPosClear_Old(obj)
@@ -5997,11 +6023,11 @@ classdef Labeler < handle
     function labelPosClearI(obj,iPt)
       x = rand;
       if x > 0.5
-%         obj.labelPosClearI_Old(iPt);
+        obj.labelPosClearI_Old(iPt);
         obj.labelPosClearI_New(iPt);
       else
         obj.labelPosClearI_New(iPt);
-%         obj.labelPosClearI_Old(iPt);
+        obj.labelPosClearI_Old(iPt);
       end
     end
     function labelPosClearI_Old(obj,iPt)
@@ -6059,15 +6085,15 @@ classdef Labeler < handle
       
       x = rand;
       if x > 0.5
-%         [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
+        [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
         [tf0,lpos0,lpostag0] = obj.labelPosIsLabeled_New(iFrm,iTrx);
       else
         [tf0,lpos0,lpostag0] = obj.labelPosIsLabeled_New(iFrm,iTrx);
-%         [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
+        [tf1,lpos1,lpostag1] = obj.labelPosIsLabeled_Old(iFrm,iTrx);
       end
-%       assert(tf0==tf1);
-%       assert(isequaln(lpos0,lpos1));
-%       assert(isequaln(lpostag0,lpostag1));
+      assert(tf0==tf1);
+      assert(isequaln(lpos0,lpos1));
+      assert(isequaln(lpostag0,lpostag1));
       
       lpostag0 = logical(lpostag0); % xxx
     end
@@ -6105,13 +6131,13 @@ classdef Labeler < handle
     function [tf0] = labelPosIsLabeledMov(obj,iMov)
       x = rand;
       if x > 0.5
-%         [tf1] = obj.labelPosIsLabeledMov_Old(iMov);
+        [tf1] = obj.labelPosIsLabeledMov_Old(iMov);
         [tf0] = obj.labelPosIsLabeledMov_New(iMov);
       else
         [tf0] = obj.labelPosIsLabeledMov_New(iMov);
-%         [tf1] = obj.labelPosIsLabeledMov_Old(iMov);
+        [tf1] = obj.labelPosIsLabeledMov_Old(iMov);
       end
-%       assert(isequal(tf0,tf1));
+      assert(isequal(tf0,tf1));
     end
     function tf = labelPosIsLabeledMov_Old(obj,iMov)
       % iMov: movie index (row index into .movieFilesAll)
@@ -6137,13 +6163,13 @@ classdef Labeler < handle
     function [tf0] = labelPosIsOccluded(obj,iFrm,iTrx)
       x = rand;
       if x > 0.5
-%         [tf1] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
+        [tf1] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
         [tf0] = obj.labelPosIsOccluded_New(iFrm,iTrx);
       else
         [tf0] = obj.labelPosIsOccluded_New(iFrm,iTrx);
-%         [tf1] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
+        [tf1] = obj.labelPosIsOccluded_Old(iFrm,iTrx);
       end
-%       assert(isequal(tf0,tf1));
+      assert(isequal(tf0,tf1));
     end
     function tf = labelPosIsOccluded_Old(obj,iFrm,iTrx)
       % Here Occluded refers to "pure occluded"
@@ -6186,11 +6212,11 @@ classdef Labeler < handle
             
       x = rand;
       if x > 0.5
-%         obj.labelPosSet_Old(xy);
+        obj.labelPosSet_Old(xy);
         obj.labelPosSet_New(xy);
       else
         obj.labelPosSet_New(xy);
-%         obj.labelPosSet_Old(xy);        
+        obj.labelPosSet_Old(xy);        
       end
     end
     function labelPosSet_Old(obj,xy)
@@ -6230,11 +6256,11 @@ classdef Labeler < handle
             
       x = rand;
       if x > 0.5
-%         obj.labelPosSetI_Old(xy,iPt);
+        obj.labelPosSetI_Old(xy,iPt);
         obj.labelPosSetI_New(xy,iPt);
       else
         obj.labelPosSetI_New(xy,iPt);
-%         obj.labelPosSetI_Old(xy,iPt);        
+        obj.labelPosSetI_Old(xy,iPt);        
       end
     end
     function labelPosSetI_Old(obj,xy,iPt)
@@ -6283,7 +6309,7 @@ classdef Labeler < handle
 %       obj.labelPosSetFramesI_New(frms,xy,iPt);      
 %     end
     
-    % XXX TODO
+    % XXX TODO (LabelCoreHT Client)
     function labelPosSetFramesI(obj,frms,xy,iPt)
       % Set labelpos for current movie/target to a single (constant) point
       % across multiple frames
@@ -6579,7 +6605,7 @@ classdef Labeler < handle
 %       obj.labeledposMarked{iMov}(:) = val;
 %     end
         
-    % XXX TODO
+    % XXX TODO (LabelCoreHT client)
     function labelPosSetOccludedI(obj,iPt)
       % Occluded is "pure occluded" here
       iMov = obj.currMovie;
@@ -6599,11 +6625,11 @@ classdef Labeler < handle
     function labelPosTagSetI(obj,iPt)
       x = rand;
       if x > 0.5
-%         obj.labelPosTagSetI_Old(iPt);
+        obj.labelPosTagSetI_Old(iPt);
         obj.labelPosTagSetI_New(iPt);
       else
         obj.labelPosTagSetI_New(iPt);
-%         obj.labelPosTagSetI_Old(iPt);        
+        obj.labelPosTagSetI_Old(iPt);        
       end
     end
     function labelPosTagSetI_Old(obj,iPt)
@@ -6639,11 +6665,11 @@ classdef Labeler < handle
     function labelPosTagClearI(obj,iPt)
       x = rand;
       if x > 0.5
-%         obj.labelPosTagClearI_Old(iPt);
+        obj.labelPosTagClearI_Old(iPt);
         obj.labelPosTagClearI_New(iPt);
       else
         obj.labelPosTagClearI_New(iPt);
-%         obj.labelPosTagClearI_Old(iPt);        
+        obj.labelPosTagClearI_Old(iPt);        
       end
     end
     function labelPosTagClearI_Old(obj,iPt)
@@ -6672,7 +6698,7 @@ classdef Labeler < handle
       obj.(PROPS.LBL){iMov} = s;      
     end
     
-    % XXX TODO
+    % XXX TODO (LabelCoreHT client)
     function labelPosTagSetFramesI(obj,iPt,frms)
       % Set tag for current movie/target, given pt/frames
 
@@ -6683,7 +6709,7 @@ classdef Labeler < handle
       obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = true;
     end
     
-    % XXX TODO
+    % XXX TODO (LabelCoreHT client)
     function labelPosTagClearFramesI(obj,iPt,frms)
       % Clear tags for current movie/target, given pt/frames
       
@@ -6697,17 +6723,17 @@ classdef Labeler < handle
                           labelPosLabeledNeighbor(obj,iFrm,iTrx)
       x = rand;
       if x > 0.5
-%         [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
+        [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
         [tfneighbor0,iFrm00,lpos00] = obj.labelPosLabeledNeighbor_New(iFrm,iTrx);
       else
         [tfneighbor0,iFrm00,lpos00] = obj.labelPosLabeledNeighbor_New(iFrm,iTrx);
-%         [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
+        [tfneighbor1,iFrm01,lpos01] = obj.labelPosLabeledNeighbor_Old(iFrm,iTrx);
       end
-%       assert(isequaln(tfneighbor0,tfneighbor1));
-%       if tfneighbor0
-%         assert(isequaln(iFrm00,iFrm01));
-%         assert(isequaln(lpos00,lpos01));
-%       end
+      assert(isequaln(tfneighbor0,tfneighbor1));
+      if tfneighbor0
+        assert(isequaln(iFrm00,iFrm01));
+        assert(isequaln(lpos00,lpos01));
+      end
     end
     function [tfneighbor,iFrm0,lpos0] = ...
                           labelPosLabeledNeighbor_Old(obj,iFrm,iTrx) % obj const
@@ -6763,17 +6789,17 @@ classdef Labeler < handle
     function [tffound0,mIdx0,frm0,iTgt0,xyLbl0] = labelFindOneLabeledFrame(obj)
       x = rand;
       if x > 0.5
-%         [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_Old();
+        [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_Old();
         [tffound0,mIdx0,frm0,iTgt0,xyLbl0] = obj.labelFindOneLabeledFrame_New();
       else
         [tffound0,mIdx0,frm0,iTgt0,xyLbl0] = obj.labelFindOneLabeledFrame_New();
-%         [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_Old();
+        [tffound1,mIdx1,frm1,iTgt1,xyLbl1] = obj.labelFindOneLabeledFrame_Old();
       end
-%       assert(isequaln(tffound0,tffound1));
-%       assert(isequaln(mIdx0,mIdx1));
-%       assert(isequaln(frm0,frm1));
-%       assert(isequaln(iTgt0,iTgt1));
-%       assert(isequaln(xyLbl0,xyLbl1));
+      assert(isequaln(tffound0,tffound1));
+      assert(isequaln(mIdx0,mIdx1));
+      assert(isequaln(frm0,frm1));
+      assert(isequaln(iTgt0,iTgt1));
+      assert(isequaln(xyLbl0,xyLbl1));
     end
     function [tffound,mIdx,frm,iTgt,xyLbl] = labelFindOneLabeledFrame_Old(obj)
       % Find one labeled frame, any labeled frame.
@@ -6865,24 +6891,24 @@ classdef Labeler < handle
                                   labelFindOneLabeledFrameEarliest(obj)
       x = rand;
       if x > 0.5
-%         [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
-%                       obj.labelFindOneLabeledFrameEarliest_Old();
+        [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
+                      obj.labelFindOneLabeledFrameEarliest_Old();
         [tffound0,iMov0,frm0,iTgt0,xyLbl0,mints0] = ...
                       obj.labelFindOneLabeledFrameEarliest_New();
       else
         [tffound0,iMov0,frm0,iTgt0,xyLbl0,mints0] = ...
                       obj.labelFindOneLabeledFrameEarliest_New();
-%         [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
-%                       obj.labelFindOneLabeledFrameEarliest_Old();
+        [tffound1,iMov1,frm1,iTgt1,xyLbl1,mints1] = ...
+                      obj.labelFindOneLabeledFrameEarliest_Old();
       end
-%       assert(isequaln(tffound0,tffound1));
-%       if tffound0
-%         assert(isequaln(iMov0,iMov1));
-%         assert(isequaln(frm0,frm1));
-%         assert(isequaln(iTgt0,iTgt1));
-%         assert(isequaln(xyLbl0,xyLbl1));
-%         %assert(isequaln(mints0,mints1));
-%       end
+      assert(isequaln(tffound0,tffound1));
+      if tffound0
+        assert(isequaln(iMov0,iMov1));
+        assert(isequaln(frm0,frm1));
+        assert(isequaln(iTgt0,iTgt1));
+        assert(isequaln(xyLbl0,xyLbl1));
+        %assert(isequaln(mints0,mints1));
+      end
     end
     function [tffound,iMov,frm,iTgt,xyLbl,mints] = ...
                             labelFindOneLabeledFrameEarliest_Old(obj)
@@ -6959,14 +6985,14 @@ classdef Labeler < handle
     function [nTgts0,nPts0] = labelPosLabeledFramesStats(obj,varargin)
       x = rand;
       if x > 0.5
-%         [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_Old(varargin{:});
+        [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_Old(varargin{:});
         [nTgts0,nPts0] = obj.labelPosLabeledFramesStats_New(varargin{:});
       else
         [nTgts0,nPts0] = obj.labelPosLabeledFramesStats_New(varargin{:});
-%         [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_Old(varargin{:});
+        [nTgts1,nPts1] = obj.labelPosLabeledFramesStats_Old(varargin{:});
       end
-%       fprintf(1,'lposlblbedFrmsStats: nTgts0 nTgts1 nPts0 nPts1: %d %d %d %d\n',...
-%         nTgts0,nTgts1,nPts0,nPts1);
+      fprintf(1,'lposlblbedFrmsStats: nTgts0 nTgts1 nPts0 nPts1: %d %d %d %d\n',...
+        nTgts0,nTgts1,nPts0,nPts1);
 %       assert(isequaln(nTgts0,nTgts1));
 %       assert(isequaln(nPts0,nPts1));
     end
@@ -7114,13 +7140,13 @@ classdef Labeler < handle
     function [tf0] = labelPosMovieHasLabels(obj,iMov,varargin)
       x = rand;
       if x > 0.5
-%         [tf1] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
+        [tf1] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
         [tf0] = obj.labelPosMovieHasLabels_New(iMov,varargin);
       else
         [tf0] = obj.labelPosMovieHasLabels_New(iMov,varargin);
-%         [tf1] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
+        [tf1] = obj.labelPosMovieHasLabels_Old(iMov,varargin);
       end
-%       assert(tf0==tf1);
+      assert(tf0==tf1);
     end
     function tf = labelPosMovieHasLabels_Old(obj,iMov,varargin)
       gt = myparse(varargin,'gt',obj.gtIsGTMode);
@@ -7141,8 +7167,16 @@ classdef Labeler < handle
       tf = ~isempty(s.p);
     end
 
-    function islabeled = currFrameIsLabeled(obj)
-      islabeled = currFrameIsLabeled_New(obj);
+    function islabeled0 = currFrameIsLabeled(obj)
+      x = rand;
+      if x > 0.5
+        islabeled0 = currFrameIsLabeled_New(obj);
+        islabeled1 = currFrameIsLabeled_Old(obj);
+      else
+        islabeled0 = currFrameIsLabeled_Old(obj);
+        islabeled1 = currFrameIsLabeled_New(obj);
+      end
+      assert(islabeled0==islabeled1);
     end
     function islabeled = currFrameIsLabeled_New(obj)
       % "is fully labeled"
@@ -8132,6 +8166,130 @@ classdef Labeler < handle
           trxFiles = obj.trxFilesAllFull;
         end
           
+        argsTrx = {'trxFilesAllFull',trxFiles,'trxCache',obj.trxCache};
+      else
+        argsTrx = {};
+      end
+      if useLabels2        
+        if isempty(useTrain),
+          lpos = obj.labels2GTaware;
+%           lpos = obj.labeledpos2GTaware;
+%           lpostag = obj.labeledpostagGTaware;
+%           lposTS = obj.labeledposTSGTaware;
+        elseif useTrain == 0,
+          lpos = obj.labels2GT;
+%           lpos = obj.labeledpos2GT;
+%           lpostag = obj.labeledpostagGT;
+%           lposTS = obj.labeledposTSGT;
+        else
+          lpos = obj.labels2;
+%           lpos = obj.labeledpos2;
+%           lpostag = obj.labeledpostag;
+%           lposTS = obj.labeledposTS;
+        end
+%         lpostag = cellfun(@(x)false(size(x)),lpostag,'uni',0);
+%         lposTS = cellfun(@(x)-inf(size(x)),lposTS,'uni',0);
+      else
+        if isempty(useTrain),
+          lpos = obj.labelsGTaware;
+%           lpos = obj.labeledposGTaware;
+%           lpostag = obj.labeledpostagGTaware;
+%           lposTS = obj.labeledposTSGTaware;
+        elseif useTrain == 0,
+          lpos = obj.labelsGT;
+%           lpos = obj.labeledposGT;
+%           lpostag = obj.labeledpostagGT;
+%           lposTS = obj.labeledposTSGT;
+        else
+          lpos = obj.labels;
+%           lpos = obj.labeledpos;
+%           lpostag = obj.labeledpostag;
+%           lposTS = obj.labeledposTS;
+        end
+      end
+      
+      tblMF = Labels.labelAddLabelsMFTableStc(tblMF,lpos,argsTrx{:},...
+        'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % tblMF (return) indeterminate
+        return;
+      end
+      
+      if useMovNames
+        assert(isa(tblMF.mov,'MovieIndex'));
+        tblMF.mov = obj.getMovieFilesAllFullMovIdx(tblMF.mov);
+      end
+    end
+    
+    function tblMF = labelGetMFTableLabeled_Old(obj,varargin)
+      % Compile mov/frm/tgt MFTable; include all labeled frames/tgts. 
+      %
+      % Includes nonGT/GT rows per current GT state.
+      %
+      % Can return [] indicating "no labels of requested/specified type"
+      %
+      % tblMF: See MFTable.FLDSFULLTRX.
+      
+      [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
+        'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
+                   ... % 1. obj logically const (eg except for obj.trxCache)
+                   ... % 2. tblMF (output) indeterminate
+        'useLabels2',false,... % if true, use labels2 instead of labels
+        'useMovNames',false,... % if true, use movieNames instead of movieIndices
+        'tblMFTrestrict',[],... % if supplied, tblMF is the labeled subset 
+                           ... % of tblMFTrestrict (within fields .mov, 
+                           ... % .frm, .tgt). .mov must be a MovieIndex.
+                           ... % tblMF ordering should be as in tblMFTrestrict
+        'useTrain',[],... % whether to use training labels (1) gt labels (0), or whatever current mode is ([])
+        'MFTOnly',false... % if true, only return mov, frm, target
+        ); 
+      tfWB = ~isempty(wbObj);
+      tfRestrict = ~isempty(tblMFTrestrict);
+      
+      if useLabels2
+        if isempty(useTrain)
+          mfts = MFTSetEnum.AllMovAllLabeled2;
+        elseif useTrain
+          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.Labeled2Frm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        else % useGT
+          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.Labeled2Frm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        end
+      else
+        if isempty(useTrain)
+          mfts = MFTSetEnum.AllMovAllLabeled;
+        elseif useTrain
+          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.LabeledFrm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);          
+        else % useGT
+          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.LabeledFrm,...
+                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+        end
+      end
+      tblMF = mfts.getMFTable(obj);
+      
+      if tfRestrict
+        tblMF = MFTable.intersectID(tblMF,tblMFTrestrict);
+      end
+      
+      if tfMFTOnly,
+        return;
+      end
+      
+      if isequal(tblMF,[]) % this would have errored below in call to labelAddLabelsMFTableStc
+        return;
+      end
+      
+      if obj.hasTrx,
+        if isempty(useTrain),
+          trxFiles = obj.trxFilesAllFullGTaware;
+        elseif useTrain == 0,
+          trxFiles = obj.trxFilesAllGTFull;
+        else
+          trxFiles = obj.trxFilesAllFull;
+        end
+          
         argsTrx = {'trxFilesAllFull',trxFiles,...
           'trxCache',obj.trxCache};
       else
@@ -8173,7 +8331,7 @@ classdef Labeler < handle
         
       end
       
-      tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,lpos,lpostag,lposTS,...
+      tblMF = Labels.labelAddLabelsMFTableStc_Old(tblMF,lpos,lpostag,lposTS,...
           argsTrx{:},'wbObj',wbObj);
       if tfWB && wbObj.isCancel
         % tblMF (return) indeterminate
@@ -8346,7 +8504,7 @@ classdef Labeler < handle
       tblMF = [tblMF table(pRoi,roi,'VariableNames',{proifld 'roi'})];
       tblMF(tfRmRow,:) = [];
     end
-    
+
     function tblMF = labelAddLabelsMFTable(obj,tblMF,varargin)
       mIdx = tblMF.mov;
       assert(isa(mIdx,'MovieIndex'));
@@ -8360,7 +8518,23 @@ classdef Labeler < handle
       else
         tfaf = [];
       end
-      tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,...
+      tblMF = Labels.labelAddLabelsMFTableStc(tblMF,obj.(PROPS.LBL),...
+        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:});
+    end
+    function tblMF = labelAddLabelsMFTable_Old(obj,tblMF,varargin)
+      mIdx = tblMF.mov;
+      assert(isa(mIdx,'MovieIndex'));
+      [~,gt] = mIdx.get();
+      assert(all(gt) || all(~gt),...
+        'Currently only all-GT or all-nonGT supported.');
+      gt = gt(1);
+      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      if obj.hasTrx
+        tfaf = obj.(PROPS.TFAF);
+      else
+        tfaf = [];
+      end
+      tblMF = Labels.labelAddLabelsMFTableStc_Old(tblMF,...
         obj.(PROPS.LPOS),obj.(PROPS.LPOSTAG),obj.(PROPS.LPOSTS),...
         'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:});
     end
@@ -8653,469 +8827,6 @@ classdef Labeler < handle
     end
   end
   
-  methods (Static)
-    
-%     function tblMF = labelGetMFTableLabeledStc(lpos,lpostag,lposTS,...
-%         trxFilesAllFull,trxCache)
-%       % Compile MFtable, by default for all labeled mov/frm/tgts
-%       %
-%       % tblMF: [NTrl rows] MFTable, one row per labeled movie/frame/target.
-%       %   MULTIVIEW NOTE: tbl.p* is the 2d/projected label positions, ie
-%       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
-%       %   index, 2. view index, 3. coord index (x vs y)
-%       %   
-%       %   Fields: {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'}
-%       %   Here 'p' is 'pAbs' or absolute position
-%                   
-%       s = structconstruct(MFTable.FLDSFULLTRX,[0 1]);
-%       
-%       nMov = size(lpos,1);
-%       nView = size(trxFilesAllFull,2);
-%       szassert(lpos,[nMov 1]);
-%       szassert(lpostag,[nMov 1]);
-%       szassert(lposTS,[nMov 1]);
-%       szassert(trxFilesAllFull,[nMov nView]);
-%       
-%       for iMov = 1:nMov
-%         lposI = lpos{iMov};
-%         lpostagI = lpostag{iMov};
-%         lposTSI = lposTS{iMov};
-%         [npts,d,nfrms,ntgts] = size(lposI);
-%         assert(d==2);
-%         szassert(lpostagI,[npts nfrms ntgts]);
-%         szassert(lposTSI,[npts nfrms ntgts]);
-%         
-%         [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
-%                                   trxCache,trxFilesAllFull(iMov,:),nfrms);        
-%         cellfun(@(x)assert(numel(x)==ntgts),trxI);        
-%         for f=1:nfrms
-%           for iTgt=1:ntgts
-%             lposIFrmTgt = lposI(:,:,f,iTgt);
-%             % read if any point (in any view) is labeled for this
-%             % (frame,target)
-%             tfReadTgt = any(~isnan(lposIFrmTgt(:)));
-%             if tfReadTgt
-%               assert(frm2trxTotAnd(f,iTgt),'Labeled target is not live.');
-%               lpostagIFrmTgt = lpostagI(:,f,iTgt);
-%               lposTSIFrmTgt = lposTSI(:,f,iTgt);
-%               xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
-%               ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
-%               
-%               s(end+1,1).mov = iMov; %#ok<AGROW> 
-%               s(end).frm = f;
-%               s(end).iTgt = iTgt;
-%               s(end).p = Shape.xy2vec(lposIFrmTgt);
-%               s(end).pTS = lposTSIFrmTgt';
-%               s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
-%               s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
-%             end
-%           end
-%         end
-%       end
-%       tblMF = struct2table(s,'AsArray',true);      
-%     end
-    
-    function tblMF = labelAddLabelsMFTableStc(tblMF,lpos,lpostag,lposTS,...
-        varargin)
-      % Add label/trx information to an MFTable
-      %
-      % tblMF (input): MFTable with flds MFTable.FLDSID. tblMF.mov are 
-      %   MovieIndices. tblMF.mov.get() are indices into lpos,lpostag,lposTS.
-      % lpos...lposTS: as in labelGetMFTableLabeledStc
-      %
-      % tblMF (output): Same rows as tblMF, but with addnl label-related
-      %   fields as in labelGetMFTableLabeledStc
-      
-      [trxFilesAllFull,trxCache,wbObj] = myparse(varargin,...
-        'trxFilesAllFull',[],... % cellstr, indexed by tblMV.mov. if supplied, tblMF will contain .pTrx field
-        'trxCache',[],... % must be supplied if trxFilesAllFull is supplied
-        'wbObj',[]... % optional WaitBarWithCancel. If cancel, tblMF (output) indeterminate
-        );      
-      tfWB = ~isempty(wbObj);
-      
-      assert(istable(tblMF));
-      tblfldscontainsassert(tblMF,MFTable.FLDSID);
-      nMov = size(lpos,1);
-      szassert(lpos,[nMov 1]);
-      szassert(lpostag,[nMov 1]);
-      szassert(lposTS,[nMov 1]);
-      
-      tfTrx = ~isempty(trxFilesAllFull);
-      if tfTrx
-        nView = size(trxFilesAllFull,2);
-        szassert(trxFilesAllFull,[nMov nView]);
-        tfTfafEmpty = cellfun(@isempty,trxFilesAllFull);
-        % Currently, projects allowed to have some movs with trxfiles and
-        % some without.
-        assert(all( all(tfTfafEmpty,2) | all(~tfTfafEmpty,2) ),...
-          'Unexpected trxFilesAllFull specification.');
-        tfMovHasTrx = all(~tfTfafEmpty,2); % tfTfafMovEmpty(i) indicates whether movie i has trxfiles        
-      else
-        nView = 1;
-      end
-  
-      nrow = height(tblMF);
-      
-      if tfWB
-        wbObj.startPeriod('Compiling labels','shownumden',true,...
-          'denominator',nrow);
-        oc = onCleanup(@()wbObj.endPeriod);
-        wbtime = tic;
-        maxwbtime = .1; % update waitbar every second
-      end
-      
-      % Maybe Optimize: group movies together
-
-      npts = size(lpos{1},1);
-      
-      pAcc = nan(nrow,npts*2);
-      pTSAcc = -inf(nrow,npts);
-      tfoccAcc = false(nrow,npts);
-      pTrxAcc = nan(nrow,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
-      thetaTrxAcc = nan(nrow,nView);
-      aTrxAcc = nan(nrow,nView);
-      bTrxAcc = nan(nrow,nView);
-      tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
-      iMovsAll = tblMF.mov.get;
-      frmsAll = tblMF.frm;
-      iTgtAll = tblMF.iTgt;
-      
-      iMovsUnique = unique(iMovsAll);
-      nRowsComplete = 0;
-      
-      for movIdx = 1:numel(iMovsUnique),
-        iMov = iMovsUnique(movIdx);
-        rowsCurr = find(iMovsAll == iMov); % absolute row indices into tblMF
-        
-        lposI = lpos{iMov};
-        lpostagI = lpostag{iMov};
-        lposTSI = lposTS{iMov};
-        [npts,d,nfrms,ntgts] = size(lposI);
-        assert(d==2);
-        szassert(lpostagI,[npts nfrms ntgts]);
-        szassert(lposTSI,[npts nfrms ntgts]);
-        
-        if tfTrx && tfMovHasTrx(iMov)
-          [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
-            trxCache,trxFilesAllFull(iMov,:),nfrms);
-          
-          assert(isscalar(trxI),'Multiview projs with trx currently unsupported.');
-          trxI = trxI{1};
-        end
-        
-        for jrow = 1:numel(rowsCurr),
-          irow = rowsCurr(jrow); % absolute row index into tblMF
-          
-          if tfWB && toc(wbtime) >= maxwbtime,
-            wbtime = tic;
-            tfCancel = wbObj.updateFracWithNumDen(nRowsComplete);
-            if tfCancel
-              return;
-            end
-          end
-          
-          %tblrow = tblMF(irow,:);
-          frm = frmsAll(irow);
-          iTgt = iTgtAll(irow);
-          
-          if frm<1 || frm>nfrms
-            tfInvalid(irow) = true;
-            continue;
-          end
-          
-          if tfTrx && tfMovHasTrx(iMov)
-            tgtLiveInFrm = frm2trxTotAnd(frm,iTgt);
-            if ~tgtLiveInFrm
-              tfInvalid(irow) = true;
-              continue;
-            end
-          else
-            assert(iTgt==1);
-          end
-          
-          lposIFrmTgt = lposI(:,:,frm,iTgt);
-          lpostagIFrmTgt = lpostagI(:,frm,iTgt);
-          lposTSIFrmTgt = lposTSI(:,frm,iTgt);
-          pAcc(irow,:) = lposIFrmTgt(:).'; % Shape.xy2vec(lposIFrmTgt);
-          pTSAcc(irow,:) = lposTSIFrmTgt'; 
-          tfoccAcc(irow,:) = lpostagIFrmTgt'; 
-          
-          if tfTrx && tfMovHasTrx(iMov)
-            %xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
-            %ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
-            trxItgt = trxI(iTgt);
-            frmabs = frm + trxItgt.off;
-            xtrxs = trxItgt.x(frmabs);
-            ytrxs = trxItgt.y(frmabs);
-            
-            pTrxAcc(irow,:) = [xtrxs(:)' ytrxs(:)']; 
-            %thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
-            thetas = trxItgt.theta(frmabs);
-            thetaTrxAcc(irow,:) = thetas(:)'; 
-            
-%             as = cellfun(@(xx)xx(iTgt).a(frm+xx(iTgt).off),trxI);
-%             bs = cellfun(@(xx)xx(iTgt).b(frm+xx(iTgt).off),trxI);
-            as = trxItgt.a(frmabs);
-            bs = trxItgt.b(frmabs);            
-            aTrxAcc(irow,:) = as(:)'; 
-            bTrxAcc(irow,:) = bs(:)'; 
-          else
-            % none; these arrays pre-initted to nan
-            
-%             pTrxAcc(irow,:) = nan; % singleton exp
-%             thetaTrxAcc(irow,:) = nan; % singleton exp
-%             aTrxAcc(irow,:) = nan; 
-%             bTrxAcc(irow,:) = nan; 
-          end
-          nRowsComplete = nRowsComplete + 1;
-        end
-      end
-      
-      tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,...
-        'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx'});
-      tblMF = [tblMF tLbl];
-      
-      if any(tfInvalid)
-        warningNoTrace('Removed %d invalid rows of MFTable.',nnz(tfInvalid));
-        tblMF = tblMF(~tfInvalid,:);
-      end       
-    end
-    
-    function tblMF = lblFileGetLabels(lblfile,varargin)
-      % Get all labeled rows from a lblfile
-      %
-      % lblfile: either char/fullpath, or struct from loaded lblfile
-      
-      quiet = myparse(varargin,...
-        'quiet',false);
-      
-      if quiet
-        wbObj = [];
-      else
-        wbObj = WaitBarWithCancelCmdline('Reading labels');
-      end
-      
-      if ischar(lblfile)
-        lbl = load(lblfile,'-mat');
-      else
-        lbl = lblfile;
-      end
-      lpos = lbl.labeledpos;
-      lpostag = lbl.labeledpostag;
-      lposts = lbl.labeledposTS;
-      
-      tblMF = [];
-      nmov = numel(lpos);
-      for imov=1:nmov
-        lp = lpos{imov};
-        [ipts,d,frm,iTgt] = ind2sub(lp.size,lp.idx);
-        tblI = table(frm,iTgt);
-        tblI = unique(tblI);
-        tblI.mov = MovieIndex(repmat(imov,height(tblI),1));
-        
-        tblMF = [tblMF; tblI];
-      end
-      
-      tblMF = tblMF(:,MFTable.FLDSID);
-      
-      lposfull = cellfun(@SparseLabelArray.full,lpos,'uni',0);
-      lpostagfull = cellfun(@SparseLabelArray.full,lpostag,'uni',0);
-      lpostsfull = cellfun(@SparseLabelArray.full,lposts,'uni',0);
-      
-      sMacro = lbl.projMacros;
-      mfafull = FSPath.fullyLocalizeStandardize(lbl.movieFilesAll,sMacro);
-      tfafull = Labeler.trxFilesLocalize(lbl.trxFilesAll,mfafull);
-            
-      tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,...
-        lposfull,lpostagfull,lpostsfull,...
-        'trxFilesAllFull',tfafull,...
-        'trxCache',containers.Map(),...
-        'wbObj',wbObj);
-      
-      % TODO: gt labels
-    end
-    
-%     % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
-%     % .hasTrx
-%     %#3DOK
-%     function [I,tbl] = lblCompileContentsRaw(...
-%         movieNames,lposes,lpostags,iMovs,frms,varargin)
-%       % Read moviefiles with landmark labels
-%       %
-%       % movieNames: [NxnView] cellstr of movienames
-%       % lposes: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
-%       %   For multiview, npts=nView*NumLabelPoints.
-%       % lpostags: [N] cell array of labeledpostags [npts x nfrms x ntgts]
-%       % iMovs. [M] (row) indices into movieNames to read.
-%       % frms. [M] cell array. frms{i} is a vector of frames to read for
-%       % movie iMovs(i). frms{i} may also be:
-%       %     * 'all' indicating "all frames" 
-%       %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)
-%       %
-%       % I: [NtrlxnView] cell vec of images
-%       % tbl: [NTrl rows] labels/metadata MFTable.
-%       %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
-%       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
-%       %   index, 2. view index, 3. coord index (x vs y)
-%       %
-%       % Optional PVs:
-%       % - hWaitBar. Waitbar object
-%       % - noImg. logical scalar default false. If true, all elements of I
-%       % will be empty.
-%       % - lposTS. [N] cell array of labeledposTS arrays [nptsxnfrms]
-%       % - movieNamesID. [NxnView] Like movieNames (input arg). Use these
-%       % names in tbl instead of movieNames. The point is that movieNames
-%       % may be macro-replaced, platformized, etc; otoh in the MD table we
-%       % might want macros unreplaced, a standard format etc.
-%       % - tblMovArray. Scalar logical, defaults to false. Only relevant for
-%       % multiview data. If true, use array of movies in tbl.mov. Otherwise, 
-%       % use single compactified string ID.
-%       
-%       [hWB,noImg,lposTS,movieNamesID,tblMovArray] = myparse(varargin,...
-%         'hWaitBar',[],...
-%         'noImg',false,...
-%         'lposTS',[],...
-%         'movieNamesID',[],...
-%         'tblMovArray',false);
-%       assert(numel(iMovs)==numel(frms));
-%       for i = 1:numel(frms)
-%         val = frms{i};
-%         assert(isnumeric(val) && isvector(val) || ismember(val,{'all' 'lbl'}));
-%       end
-%       
-%       tfWB = ~isempty(hWB);
-%       
-%       assert(iscellstr(movieNames));
-%       [N,nView] = size(movieNames);
-%       assert(iscell(lposes) && iscell(lpostags));
-%       assert(isequal(N,numel(lposes),numel(lpostags)));
-%       tfLposTS = ~isempty(lposTS);
-%       if tfLposTS
-%         assert(numel(lposTS)==N);
-%       end
-%       for i=1:N
-%         assert(size(lposes{i},1)==size(lpostags{i},1) && ...
-%                size(lposes{i},3)==size(lpostags{i},2));
-%         if tfLposTS
-%           assert(isequal(size(lposTS{i}),size(lpostags{i})));
-%         end
-%       end
-%       
-%       if ~isempty(movieNamesID)
-%         assert(iscellstr(movieNamesID));
-%         szassert(movieNamesID,size(movieNames)); 
-%       else
-%         movieNamesID = movieNames;
-%       end
-%       
-%       for iVw=nView:-1:1
-%         mr(iVw) = MovieReader();
-%       end
-% 
-%       I = [];
-%       % Here, for multiview, mov are for the first movie in each set
-%       s = struct('mov',cell(0,1),'frm',[],'p',[],'tfocc',[]);
-%       
-%       nMov = numel(iMovs);
-%       fprintf('Reading %d movies.\n',nMov);
-%       if nView>1
-%         fprintf('nView=%d.\n',nView);
-%       end
-%       for i = 1:nMov
-%         iMovSet = iMovs(i);
-%         lpos = lposes{iMovSet}; % npts x 2 x nframes
-%         lpostag = lpostags{iMovSet};
-% 
-%         [npts,d,nFrmAll] = size(lpos);
-%         assert(d==2);
-%         if isempty(lpos)
-%           assert(isempty(lpostag));
-%           lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
-%         end
-%         szassert(lpostag,[npts nFrmAll]);
-%         D = d*npts;
-%         % Ordering of d is: {x1,x2,x3,...xN,y1,..yN} which for multiview is
-%         % {xp1v1,xp2v1,...xpnv1,xp1v2,...xpnvk,yp1v1,...}. In other words,
-%         % in decreasing raster order we have 1. pt index, 2. view index, 3.
-%         % coord index (x vs y)
-%         
-%         for iVw=1:nView
-%           movfull = movieNames{iMovSet,iVw};
-%           mr(iVw).open(movfull);
-%         end
-%         
-%         movID = MFTable.formMultiMovieID(movieNamesID(iMovSet,:));
-%         
-%         % find labeled/tagged frames (considering ALL frames for this
-%         % movie)
-%         tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
-%         frmsLbled = find(tfLbled);
-%         tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
-%         ntagged = sum(tftagged,1);
-%         frmsTagged = find(ntagged);
-%         assert(all(ismember(frmsTagged,frmsLbled)));
-% 
-%         frms2Read = frms{i};
-%         if strcmp(frms2Read,'all')
-%           frms2Read = 1:nFrmAll;
-%         elseif strcmp(frms2Read,'lbl')
-%           frms2Read = frmsLbled;
-%         end
-%         nFrmRead = numel(frms2Read);
-%         
-%         ITmp = cell(nFrmRead,nView);
-%         fprintf('  mov(set) %d, D=%d, reading %d frames\n',iMovSet,D,nFrmRead);
-%         
-%         if tfWB
-%           hWB.Name = 'Reading movies';
-%           wbStr = sprintf('Reading movie %s',movID);
-%           waitbar(0,hWB,wbStr);
-%         end
-%         for iFrm = 1:nFrmRead
-%           if tfWB
-%             waitbar(iFrm/nFrmRead,hWB);
-%           end
-%           
-%           f = frms2Read(iFrm);
-% 
-%           if noImg
-%             % none; ITmp(iFrm,:) will have [] els
-%           else
-%             for iVw=1:nView
-%               im = mr(iVw).readframe(f);
-%               if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
-%                 im = rgb2gray(im);
-%               end
-%               ITmp{iFrm,iVw} = im;
-%             end
-%           end
-%           
-%           lblsFrmXY = lpos(:,:,f);
-%           tags = lpostag(:,f);
-%           
-%           if tblMovArray
-%             assert(false,'Unsupported codepath');
-%             %s(end+1,1).mov = movieNamesID(iMovSet,:); %#ok<AGROW>
-%           else
-%             s(end+1,1).mov = iMovSet; %#ok<AGROW>
-%           end
-%           %s(end).movS = movS1;
-%           s(end).frm = f;
-%           s(end).p = Shape.xy2vec(lblsFrmXY);
-%           s(end).tfocc = strcmp('occ',tags(:)');
-%           if tfLposTS
-%             lts = lposTS{iMovSet};
-%             s(end).pTS = lts(:,f)';
-%           end
-%         end
-%         
-%         I = [I;ITmp]; %#ok<AGROW>
-%       end
-%       tbl = struct2table(s,'AsArray',true);      
-%     end
-        
-  end
-  
   %% MA
   methods
     function maSetPtInfo(obj,htEnabled,ptNames,ht)
@@ -9357,26 +9068,26 @@ classdef Labeler < handle
     
   end
   
-  methods (Static)
-    function nptsLbled = labelPosNPtsLbled(lpos)
-      % poor man's export of LabelPosLabeledFramesStats
-      %
-      % lpos: [nPt x d x nFrm x nTgt]
-      % 
-      % nptsLbled: [nFrm]. Number of labeled (non-nan) points for each frame
-      
-      [~,d,nfrm,ntgt] = size(lpos);
-      assert(d==2);
-      assert(ntgt==1,'One target only.');
-      lposnnan = ~isnan(lpos);
-      
-      nptsLbled = nan(nfrm,1);
-      for f = 1:nfrm
-        tmp = all(lposnnan(:,:,f),2); % both x/y must be labeled for pt to be labeled
-        nptsLbled(f) = sum(tmp);
-      end
-    end
-  end
+%   methods (Static)
+%     function nptsLbled = labelPosNPtsLbled(lpos)
+%       % poor man's export of LabelPosLabeledFramesStats
+%       %
+%       % lpos: [nPt x d x nFrm x nTgt]
+%       % 
+%       % nptsLbled: [nFrm]. Number of labeled (non-nan) points for each frame
+%       
+%       [~,d,nfrm,ntgt] = size(lpos);
+%       assert(d==2);
+%       assert(ntgt==1,'One target only.');
+%       lposnnan = ~isnan(lpos);
+%       
+%       nptsLbled = nan(nfrm,1);
+%       for f = 1:nfrm
+%         tmp = all(lposnnan(:,:,f),2); % both x/y must be labeled for pt to be labeled
+%         nptsLbled(f) = sum(tmp);
+%       end
+%     end
+%   end
   
   methods (Access=private)
     
@@ -13320,99 +13031,7 @@ classdef Labeler < handle
       tfSetOccurred = obj.frameUpDF(df);
     end
   end
-  methods (Static) % seek utils
-    function [tffound,f] = seekBigLpos(lpos,f0,df,iTgt)
-      % lpos: [npts x d x nfrm x ntgt]
-      % f0: starting frame
-      % df: frame increment
-      % iTgt: target of interest
-      % 
-      % tffound: logical
-      % f: first frame encountered with (non-nan) label, applicable if
-      %   tffound==true
-      
-      if isempty(lpos),
-        tffound = false;
-        f = f0;
-        return;
-      end
-      
-      [npts,d,nfrm,ntgt] = size(lpos); %#ok<ASGLU>
-      assert(d==2);
-      
-      f = f0+df;
-      while 0<f && f<=nfrm
-        for ipt = 1:npts
-          %for j = 1:2
-          if ~isnan(lpos(ipt,1,f,iTgt))
-            tffound = true;
-            return;
-          end
-          %end
-        end
-        f = f+df;
-      end
-      tffound = false;
-      f = nan;
-    end
-    function [tffound,f] = seekSmallLpos(lpos,f0,df)
-      % lpos: [npts x nfrm]
-      % f0: starting frame
-      % df: frame increment
-      % 
-      % tffound: logical
-      % f: first frame encountered with (non-nan) label, applicable if
-      %   tffound==true
-      
-      [npts,nfrm] = size(lpos);
-      
-      f = f0+df;
-      while 0<f && f<=nfrm
-        for ipt=1:npts
-          if ~isnan(lpos(ipt,f))
-            tffound = true;
-            return;
-          end
-        end
-        f = f+df;
-      end
-      tffound = false;
-      f = nan;
-    end
-    function [tffound,f] = seekSmallLposThresh(lpos,f0,df,th,cmp)
-      % lpos: [npts x nfrm]
-      % f0: starting frame
-      % df: frame increment
-      % th: threshold
-      % cmp: comparitor
-      % 
-      % tffound: logical
-      % f: first frame encountered with (non-nan) label that satisfies 
-      % comparison with threshold, applicable if tffound==true
-      
-      switch cmp
-        case '<',  cmp = @lt;
-        case '<=', cmp = @le;
-        case '>',  cmp = @gt;
-        case '>=', cmp = @ge;
-      end
-          
-      [npts,nfrm] = size(lpos);
-      
-      f = f0+df;
-      while 0<f && f<=nfrm
-        for ipt=1:npts
-          if cmp(lpos(ipt,f),th)
-            tffound = true;
-            return;
-          end
-        end
-        f = f+df;
-      end
-      tffound = false;
-      f = nan;
-    end
-  end
+
   methods
     function tfSetOccurred = frameDown(obj,tfBigstep)
       if tfBigstep
