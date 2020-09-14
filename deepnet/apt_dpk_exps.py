@@ -1277,14 +1277,20 @@ def update_exps(edirdict,**kwargs):
         edirdict[edir] = read_exp(edirlong, **kwargs)
 
 
-def get_all_res_tosave(expdict, explist=None):
+def get_all_res_tosave(expdict, explist=None, exppatre=None):
     dsave = {}
 
     if explist is None:
         explist = sorted(expdict.keys())
 
+    if exppatre is None:
+        exppatre = ''
+    rem = re.compile(exppatre)
+
     for expname in expdict:
         if not expname in explist:
+            continue
+        if rem.search(expname) is None:
             continue
         if expname.startswith('eres'):
             continue
