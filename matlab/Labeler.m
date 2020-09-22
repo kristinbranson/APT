@@ -20,9 +20,7 @@ classdef Labeler < handle
       'cropIsCropMode' ...
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
-      'labels' 'labels2' 'labelsGT' 'labels2GT' ...
-      'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ... % 'labeledposMarked' 
-      'labeledposGT' 'labeledpostagGT' 'labeledposTSGT' 'labeledpos2GT'...
+      'labels' 'labels2' 'labelsGT' 'labels2GT' ...       %'labeledpos2' ...  % 'labeledpos' 'labeledpostag' 'labeledposTS' % 'labeledposMarked'        % 'labeledposGT' 'labeledpostagGT' 'labeledposTSGT'        %'labeledpos2GT'...
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
@@ -32,28 +30,24 @@ classdef Labeler < handle
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
-      'skeletonEdges','showSkeleton','flipLandmarkMatches'...
+      'skeletonEdges' 'showSkeleton' 'flipLandmarkMatches'...
       'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
-    SAVEPROPS_LPOS = {...
-      'labeledpos' 'nan'
-      'labeledposGT' 'nan'
-      'labeledpos2' 'nan'
-      'labeledpos2GT' 'nan'
-      'labeledposTS' 'ts'
-      'labeledposTSGT' 'ts'
-      'labeledpostag' 'log' %      'labeledposMarked' 'log'
-      'labeledpostagGT' 'log'};
+%     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
+%       %'labeledpos2' 'nan'
+%       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
+%       };
     SAVEPROPS_GTCLASSIFY = { ... % these props are resaved into stripped lbls pre gt-classify
       'movieFilesAllGT'
       'movieInfoAllGT'
       'movieFilesAllGTCropInfo'
       'movieFilesAllGTHistEqLUT'
       'trxFilesAllGT'
-      'viewCalibrationDataGT'
-      'labeledposGT'
-      'labeledpostagGT'
-      'labeledposTSGT'
-      'labeledpos2GT'};
+      'viewCalibrationDataGT' 
+      };
+%       'labeledposGT'
+%       'labeledpostagGT'
+%       'labeledposTSGT'
+%       'labeledpos2GT'};
     
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};     
@@ -355,7 +349,6 @@ classdef Labeler < handle
   %% Labeling
   properties (SetObservable)
     labelMode;            % scalar LabelMode. init: C
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
     % Multiview. Right now all 3d pts must live in all views, eg
     % .nLabelPoints=nView*NumLabelPoints. first dim of labeledpos is
     % ordered as {pt1vw1,pt2vw1,...ptNvw1,pt1vw2,...ptNvwK}
@@ -363,22 +356,11 @@ classdef Labeler < handle
     labels2;
     labelsGT;
     labels2GT;
-    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
-%     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
-    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) logical indicating *occludedness*. ("tag" for legacy reasons) init: PN
     
-    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
     labels2Hide;          % scalar logical
-    labels2ShowCurrTargetOnly;  % scalar logical, transient
-    
-    labeledposGT          % like .labeledpos    
-    labeledposTSGT        % like .labeledposTS
-    labeledpostagGT       % like .labeledpostag
-    labeledpos2GT         % like .labeledpos2
-
+    labels2ShowCurrTargetOnly;  % scalar logical, transient    
     skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
-    flipLandmarkMatches = zeros(0,2); % nPairs x 2 matrix containing indices of vertex landmarks
-    
+    flipLandmarkMatches = zeros(0,2); % nPairs x 2 matrix containing indices of vertex landmarks    
   end
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
@@ -401,6 +383,16 @@ classdef Labeler < handle
     needsSave; 
   end
   properties (Dependent)
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
+    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
+%     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
+    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) logical indicating *occludedness*. ("tag" for legacy reasons) init: PN
+    labeledposGT          % like .labeledpos    
+    labeledposTSGT        % like .labeledposTS
+    labeledpostagGT       % like .labeledpostag
+    labeledpos2GT         % like .labeledpos2
+    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
+
     labeledposGTaware;
     labeledposTSGTaware;
     labeledpostagGTaware;
@@ -947,18 +939,35 @@ classdef Labeler < handle
       assert(all(gt) || ~any(gt));
       gt = all(gt);
       
+      [~,v] = obj.getNFrmNTrx(gt,iMov);      
+    end
+    function [nfrms,ntgts] = getNFrmNTrx(obj,gt,iMov)
+      % Both gt, iMov optional
+      %
+      % nfrms, ntgts: [numel(iMov) x 1]
+      
+      if nargin<2
+        gt = false;
+      end
+      if nargin<3
+        nmov = obj.getnmoviesGTawareArg(gt);
+        iMov = 1:nmov;
+      end
+        
       PROPS = obj.gtGetSharedPropsStc(gt);
-      tfaf = obj.(PROPS.TFAF)(iMov,1);
-      mia = obj.(PROPS.MIA)(iMov,1);
-      v = ones(size(iMov));
-      for i=1:numel(v)
-        trxfile = tfaf{i};
+      tfaf = obj.(PROPS.TFAF);
+      mia = obj.(PROPS.MIA);
+      nfrms = zeros(size(iMov));
+      ntgts = ones(size(iMov));
+      
+      for i=1:numel(ntgts)        
+        trxfile = tfaf{iMov(i)};
+        nfrms(i) = mia{iMov(i)}.nframes;
         if isempty(trxfile)
-          % none; v(i) is 1
+          % none; ntgts(i) is 1
         else
-          nfrm = mia{i}.nframes;
-          trxI = obj.getTrx(trxfile,nfrm);
-          v(i) = numel(trxI);
+          trxI = obj.getTrx(trxfile,nfrms(i));
+          ntgts(i) = numel(trxI);
         end
       end
     end
@@ -1022,6 +1031,30 @@ classdef Labeler < handle
       else
         v = obj.movieInfoAll;
       end
+    end
+    function v = get.labeledpos(obj)
+      v = Labels.lObjGetLabeledPos(obj,'labels',false);
+    end
+    function v = get.labeledposTS(obj)
+      [~,v] = Labels.lObjGetLabeledPos(obj,'labels',false);
+    end    
+    function v = get.labeledpostag(obj)
+      [~,~,v] = Labels.lObjGetLabeledPos(obj,'labels',false);
+    end    
+    function v = get.labeledposGT(obj)
+      v = Labels.lObjGetLabeledPos(obj,'labelsGT',true);
+    end
+    function v = get.labeledposTSGT(obj)
+      [~,v] = Labels.lObjGetLabeledPos(obj,'labelsGT',true);
+    end
+    function v = get.labeledpostagGT(obj)
+      [~,~,v] = Labels.lObjGetLabeledPos(obj,'labelsGT',true);
+    end
+    function v = get.labeledpos2GT(obj)
+      v = Labels.lObjGetLabeledPos(obj,'labels2GT',true);
+    end    
+    function v = get.labeledpos2(obj)
+      v = Labels.lObjGetLabeledPos(obj,'labels2',false);
     end
     function v = get.labeledposGTaware(obj)
       v = obj.getlabeledposGTawareArg(obj.gtIsGTMode);
@@ -1246,21 +1279,21 @@ classdef Labeler < handle
   
   methods % prop access
     % CONSIDER get rid of setter, use listeners
-    function set.labeledpos(obj,v)
-      obj.labeledpos = v;
-      if ~obj.isinit %#ok<MCSUP> 
-        obj.updateTrxTable();
-        obj.updateFrameTableIncremental(); 
-      end
-    end
-    function set.labeledposGT(obj,v)
-      obj.labeledposGT = v;
-      if ~obj.isinit %#ok<MCSUP> 
-        obj.updateTrxTable();
-        obj.updateFrameTableIncremental();
-        obj.gtUpdateSuggMFTableLbledIncremental();
-      end
-    end
+%     function set.labeledpos(obj,v)
+%       obj.labeledpos = v;
+%       if ~obj.isinit %#ok<MCSUP> 
+%         obj.updateTrxTable();
+%         obj.updateFrameTableIncremental(); 
+%       end
+%     end
+%     function set.labeledposGT(obj,v)
+%       obj.labeledposGT = v;
+%       if ~obj.isinit %#ok<MCSUP> 
+%         obj.updateTrxTable();
+%         obj.updateFrameTableIncremental();
+%         obj.gtUpdateSuggMFTableLbledIncremental();
+%       end
+%     end
     function set.movieForceGrayscale(obj,v)
       assert(isscalar(v) && islogical(v));
       [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
@@ -1829,25 +1862,25 @@ classdef Labeler < handle
       obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
       obj.viewCalibrationDataGT = [];
-      obj.maIsMA = false; % xxx ma order important
+      obj.maIsMA = false; % xxxMA order important
       obj.labelTemplate = []; % order important here
       obj.movieSetNoMovie(); % order important here
-      obj.labeledpos = cell(0,1);
+%       obj.labeledpos = cell(0,1);
       
       obj.labels = cell(0,1);
       obj.labels2 = cell(0,1);
       obj.labelsGT = cell(0,1);
       obj.labels2GT = cell(0,1);
       
-      obj.labeledposGT = cell(0,1);
-      obj.labeledposTS = cell(0,1);
+%       obj.labeledposGT = cell(0,1);
+%       obj.labeledposTS = cell(0,1);
       obj.lastLabelChangeTS = 0;
-      obj.labeledposTSGT = cell(0,1);
+%       obj.labeledposTSGT = cell(0,1);
 %       obj.labeledposMarked = cell(0,1);
-      obj.labeledpostag = cell(0,1);
-      obj.labeledpostagGT = cell(0,1);
-      obj.labeledpos2 = cell(0,1);
-      obj.labeledpos2GT = cell(0,1);
+%       obj.labeledpostag = cell(0,1);
+%       obj.labeledpostagGT = cell(0,1);
+%       obj.labeledpos2 = cell(0,1);
+%       obj.labeledpos2GT = cell(0,1);
       obj.gtIsGTMode = false;
       obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
       obj.gtSuggMFTableLbled = false(0,1);
@@ -1861,8 +1894,7 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.needsSave = false;
 
-      
-      % xxx todo     
+      % xxxMA todo
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable && ~obj.maIsMA
         % Create default trackers
@@ -1994,8 +2026,9 @@ classdef Labeler < handle
       s.cfg = obj.getCurrentConfig();
       
       if sparsify
-        lposProps = obj.SAVEPROPS_LPOS(:,1);
-        lposPropsType = obj.SAVEPROPS_LPOS(:,2);
+%         lposProps = obj.SAVEPROPS_LPOS(:,1);
+%         lposPropsType = obj.SAVEPROPS_LPOS(:,2);
+        assert(false,'Now unused');
         
         for f=obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
           iLpos = find(strcmp(f,lposProps));
@@ -2068,6 +2101,8 @@ classdef Labeler < handle
         'modificationType','addpoints',... % or 'rmpoints'
         'modificationArg',1 ...
       );
+    
+      assert(false,'ma unsupported.');
       
       s = obj.projGetSaveStruct('sparsify',false,'forceExcDataCache',true);
       
@@ -2088,7 +2123,7 @@ classdef Labeler < handle
       end
       
       % massage/sparsify lpos props
-      lposProps = obj.SAVEPROPS_LPOS;
+%       lposProps = obj.SAVEPROPS_LPOS;
       nprop = size(lposProps,1);
       for iprop=1:nprop
         fld = lposProps{iprop,1};
@@ -2198,7 +2233,7 @@ classdef Labeler < handle
       
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
-      lposProps = obj.SAVEPROPS_LPOS(:,1);
+      lposProps = cell(0,1); %obj.SAVEPROPS_LPOS(:,1);
       for f=LOADPROPS(:)',f=f{1}; %#ok<FXSET>
         if isfield(s,f)          
           if ~any(strcmp(f,lposProps))
@@ -2222,9 +2257,8 @@ classdef Labeler < handle
       end
      
       obj.computeLastLabelChangeTS_Old();
-      fcnAnyNonNan = @(x)any(~isnan(x(:)));
-      obj.movieFilesAllHaveLbls = cellfun(fcnAnyNonNan,obj.labeledpos);
-      obj.movieFilesAllGTHaveLbls = cellfun(fcnAnyNonNan,obj.labeledposGT);      
+      obj.movieFilesAllHaveLbls = cellfun(@Labels.hasLbls,obj.labels);
+      obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
       obj.gtUpdateSuggMFTableLbledComplete();
       
       % need this before setting movie so that .projectroot exists
@@ -3798,14 +3832,15 @@ classdef Labeler < handle
         end
         obj.(PROPS.MFALUT){end+1,1} = [];
         obj.(PROPS.TFA){end+1,1} = tFile;
-        obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
+        %obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         
         obj.(PROPS.LBL){end+1,1} = Labels.new(nlblpts);
+        obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
-        obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
-        obj.(PROPS.LPOSTAG){end+1,1} = false(nlblpts,nfrms,nTgt);
-        obj.(PROPS.LPOS2){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
+%         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
+%         obj.(PROPS.LPOSTAG){end+1,1} = false(nlblpts,nfrms,nTgt);
+%         obj.(PROPS.LPOS2){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           obj.(PROPS.VCD){end+1,1} = [];
         end
@@ -3962,11 +3997,12 @@ classdef Labeler < handle
       end
       obj.(PROPS.MFALUT)(end+1,:) = {[]};
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
-      obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
-      obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
-      obj.(PROPS.LPOSTAG){end+1,1} = false(nLblPts,nFrms,nTgt);
-      obj.(PROPS.LPOS2){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
-      % XXX TODO
+%       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
+%       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
+%       obj.(PROPS.LPOSTAG){end+1,1} = false(nLblPts,nFrms,nTgt);
+%       obj.(PROPS.LPOS2){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
+      obj.(PROPS.LBL){end+1,1} = Labels.new(nLblPts);
+      obj.(PROPS.LBL2){end+1,1} = Labels.new(nLblPts);
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
@@ -4101,10 +4137,12 @@ classdef Labeler < handle
         
         tfOrig = obj.isinit;
         obj.isinit = true; % AL20160808. we do not want set.labeledpos side effects, listeners etc.
-        obj.(PROPS.LPOS)(iMov,:) = []; % should never throw with .isinit==true
-        obj.(PROPS.LPOSTS)(iMov,:) = [];
-        obj.(PROPS.LPOSTAG)(iMov,:) = [];
-        obj.(PROPS.LPOS2)(iMov,:) = [];
+%         obj.(PROPS.LPOS)(iMov,:) = []; % should never throw with .isinit==true
+%         obj.(PROPS.LPOSTS)(iMov,:) = [];
+%         obj.(PROPS.LPOSTAG)(iMov,:) = [];
+%         obj.(PROPS.LPOS2)(iMov,:) = [];
+        obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
+        obj.(PROPS.LBL2)(iMov,:) = [];
 %         if ~gt
 %           obj.labeledposMarked(iMov,:) = [];
 %         end
@@ -6095,7 +6133,7 @@ classdef Labeler < handle
       assert(isequaln(lpos0,lpos1));
       assert(isequaln(lpostag0,lpostag1));
       
-      lpostag0 = logical(lpostag0); % xxx
+      lpostag0 = logical(lpostag0);
     end
     function [tf,lpos,lpostag] = labelPosIsLabeled_Old(obj,iFrm,iTrx)
       % For current movie. Labeled includes fullyOccluded
@@ -7641,50 +7679,23 @@ classdef Labeler < handle
         trkfilesAll,keywords,'uni',0);
     end
     
-    function labelExportTrkGeneric(obj,iMovs,trkfiles,...
-        lposFld,lposTSFld,lposTagFld)
-      % For export given lpos* fields for iMovs into trkfiles. 
+    function labelExportTrkGeneric(obj,iMovs,outfiles,lblsFld)
+      % Export given labels field for iMovs into trkfiles. 
       %
-      % lposTSFld, lposTagFld: can be empty
-      %
-      % The GT-status of obj is irrelevant, iMovs just indexes lposFld*.
-      
-      tfTS = ~isempty(lposTSFld);
-      tfTag = ~isempty(lposTagFld);
-      
+      % The GT-status of obj is irrelevant, iMovs just indexes lblsFld.
+            
       nMov = numel(iMovs);
       nView = obj.nview;
       nPhysPts = obj.nPhysPoints;
       for i=1:nMov
         iMvSet = iMovs(i);
-        lposFull = obj.(lposFld){iMvSet};
-        if tfTS
-          lposTSFull = obj.(lposTSFld){iMvSet};
-        end
-        if tfTag
-          lposTagFull = obj.(lposTagFld){iMvSet};
-        end
-        
+        s = obj.(lblsFld){iMvSet};
         for iView=1:nView
           iPt = (1:nPhysPts) + (iView-1)*nPhysPts;
-          if nView==1
-            assert(nPhysPts==size(lposFull,1));
-          else
-            tmp = find(obj.labeledposIPt2View==iView);
-            assert(isequal(tmp(:),iPt(:)));
-          end
-          
-          args = cell(1,0);
-          if tfTS
-            args = [args {'pTrkTS' lposTSFull(iPt,:,:)}]; %#ok<AGROW>
-          end
-          if tfTag
-            args = [args {'pTrkTag' lposTagFull(iPt,:,:)}]; %#ok<AGROW>
-          end
-
-          trkfile = TrkFile(lposFull(iPt,:,:,:),args{:});
-          trkfile.save(trkfiles{i,iView});
-          fprintf('Saved trkfile: %s\n',trkfiles{i,iView});
+          sview = Labels.indexPts(s,iPt);
+          outf = outfiles{i,iView};
+          save(outf,'-mat','-struct','sview');
+          fprintf('Saved labels: %s\n',outf);
         end
       end
       msgbox(sprintf('Results for %d moviesets exported.',nMov),'Export complete');      
@@ -7712,8 +7723,7 @@ classdef Labeler < handle
       end
       
       PROPS = obj.gtGetSharedProps;
-      obj.labelExportTrkGeneric(iMovs,trkfiles,...
-        PROPS.LPOS,PROPS.LPOSTS,PROPS.LPOSTAG);        
+      obj.labelExportTrkGeneric(iMovs,trkfiles,PROPS.LBL);
     end
     
     function labelImportTrkGeneric(obj,iMovSets,trkfiles,lposFld,...
@@ -7724,6 +7734,8 @@ classdef Labeler < handle
       % trkfiles: [Nxnview] cellstr of trk filenames
       % lpos*Fld: property names for labeledpos, labeledposTS,
       % labeledposTag. Can be empty to not set that prop.
+      
+      assert(false,'ma todo');
       
       nMovSets = numel(iMovSets);
       szassert(trkfiles,[nMovSets obj.nview]);
@@ -9261,6 +9273,7 @@ classdef Labeler < handle
       fcn = @(zm,zf,zt) (nnz(isnan(lposCell{-zm}(:,:,zf,zt)))==0);
       % a mft row is labeled if all pts are either labeled, or estocc, or
       % fullocc (lpos will be inf which is not nan)
+      fprintf(2,'Todo: replace inefficient\n');
       tfAllTgtsLbled = rowfun(fcn,tbl,...
         'InputVariables',{'mov' 'frm' 'iTgt'},...
         'OutputFormat','uni');
@@ -9288,6 +9301,7 @@ classdef Labeler < handle
       nRow = nnz(tfInTbl);
       if nRow>0
         assert(nRow==1);
+        fprintf(2,'Todo: update inefficient\n');
         lposXY = obj.labeledposGT{iMov}(:,:,frm,iTgt);
         obj.gtSuggMFTableLbled(tfInTbl) = nnz(isnan(lposXY))==0;
         obj.notify('gtSuggMFTableLbledUpdated');
@@ -14094,7 +14108,7 @@ classdef Labeler < handle
       end
 
       PROPS = obj.gtGetSharedProps;
-      obj.labelExportTrkGeneric(iMovs,trkfiles,PROPS.LPOS2,[],[]);
+      obj.labelExportTrkGeneric(iMovs,trkfiles,PROPS.LBL2);
     end
     
     function colors = Set2PointColors(obj,colors)
@@ -14155,8 +14169,11 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;
-      lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
-        [obj.nLabelPoints,2,obj.nTargets]);
+%       lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
+%         [obj.nLabelPoints,2,obj.nTargets]);      
+      ntgts = obj.nTargets;
+      p = Labels.getLabelsF(obj.labels2GTaware{iMov},frm,ntgts);
+      lpos2 = reshape(p,[obj.nLabelPoints,2,ntgts]);
       tv = obj.labeledpos2trkViz;
       tv.updateTrackRes(lpos2,iTgt);
       

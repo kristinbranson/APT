@@ -234,8 +234,7 @@ uiwait(hFig);
     frm = freezeInfo.frm;
     iTgt = freezeInfo.iTgt;
     
-    lpos = lObj.labeledposGTaware;
-    s = lpos{iMov};
+    s = lObj.labelsGTaware{iMov};
     [~,p,~] = Labels.isLabeledFT(s,frm,iTgt);
     pts = reshape(p,numel(p)/2,2);
     %pts = lpos{iMov}(:,:,frm,iTgt);

@@ -27,8 +27,9 @@ classdef ShiftArrowMovieNavMode
           tldata = lObj.gdata.labelTLInfo.tldata;
           [tffound,f] = Labels.seekSmallLposThresh(tldata,f0,dir,thresh,cmp);
         case ShiftArrowMovieNavMode.NEXTLABELED
-          lpos = lObj.labeledposCurrMovie;
-          [tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+          %lpos = lObj.labeledposCurrMovie;
+          s = lObj.labelsCurrMovie;
+          [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir);
         case ShiftArrowMovieNavMode.NEXTIMPORTED
           if lObj.gtIsGTMode
             warningNoTrace('No imported labels available in GT mode.');
@@ -36,8 +37,10 @@ classdef ShiftArrowMovieNavMode
             f = nan;
           else
             iMov = lObj.currMovie;
-            lpos = lObj.labeledpos2{iMov};
-            [tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+            %lpos = lObj.labeledpos2{iMov};
+            s = lObj.labels2{iMov};
+            [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir);
+            %[tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
           end
         case ShiftArrowMovieNavMode.NEXTTRACKED
           tObj = lObj.tracker;

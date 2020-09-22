@@ -898,12 +898,11 @@ classdef InfoTimeline < handle
               [lpos,lpostag] = Labels.getLabelsT(lpos,iTgt,nfrmtot);
               lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             else
-              assert(false); % xxx ma
+              assert(false); % xxxMA
               lpos = labeler.labeledpos2GTaware{iMov};
               lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
             end
             data = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
-            % xxx ma note iTgt            
 %             data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
 %               lpostag(:,:,iTgt),bodytrx,pcode);
 

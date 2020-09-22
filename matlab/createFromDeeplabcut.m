@@ -96,7 +96,9 @@ lObj.movieSet(1);
 %%
 
 for ndx = 1:numel(movieidx)
-  lObj.labeledpos{movieidx(ndx)}(:,:,frames(ndx)) = pts(ndx,:,:);
+  lObj.labels{movieidx(ndx)} = Labels.setpFT(lObj.labels{movieidx(ndx)}, ...
+    frames(ndx),1,pts(ndx,:,:));
+  %lObj.labeledpos{movieidx(ndx)}(:,:,frames(ndx)) = pts(ndx,:,:);
 end
 
 s = lObj.projGetSaveStruct();

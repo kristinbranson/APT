@@ -3978,9 +3978,11 @@ else
   if iMov==0
     error('LabelerGUI:setLabels','No movie open.');
   end
-  lpos2 = lObj.labeledpos2{iMov};
-  assert(size(lpos2,4)==1); % "targets" treatment differs from above
-  lpos2xy = lpos2(:,:,frm);
+  %lpos2 = lObj.labeledpos2{iMov};
+  p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+  lpos2xy = reshape(p,lObj.nLabelPoints,2);
+  %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+  %lpos2xy = lpos2(:,:,frm);
   lObj.labelPosSet(lpos2xy);
   
   lObj.lblCore.newFrame(frm,frm,1);
