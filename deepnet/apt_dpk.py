@@ -665,6 +665,7 @@ def compile(conf):
 
 def train(conf,
           runname='deepnet',
+          return_sdn = False,
           ):
     '''
     This is the train the APT_interface calls
@@ -762,6 +763,9 @@ def train(conf,
                                     infinite=False)
     sdn.activate_callbacks(cbks)
 
+    if return_sdn:
+        return sdn
+
     train_model = sdn.train_model
     if do_val:
         train_model.fit(dstrn,
@@ -773,12 +777,49 @@ def train(conf,
                         validation_steps=nvalbatch,
                         )
     else:
-        train_model.fit(dstrn,
-                        epochs=conf.dpk_epochs_used,
-                        steps_per_epoch=steps_per_epoch,
-                        verbose=2,
-                        callbacks=cbks,
-                        )
+
+        if getattr(conf, 'dpk_use_toy_model', False):
+            logr.warning("XXXX USING TOY MODEL")
+
+            # m = ade.toy_model(self.train_model)
+            input_shape = train_model.inputs[0].shape
+            inp = tf.keras.Input(shape=input_shape[1:])
+
+            output_shape = train_model.outputs[0].shape
+
+            dsfac = int(input_shape[1]//output_shape[1])
+            noutchan = output_shape[-1]
+            nout = len(train_model.outputs)
+
+            logr.warning('Toy model dsfac, noutchan, nout = {}, {}, {}'.format(dsfac, noutchan, nout))
+
+            out = tf.keras.layers.MaxPooling2D(pool_size=(dsfac, dsfac))(inp)
+            out = tf.keras.layers.Concatenate(axis=3)([out] * noutchan)
+
+            outs = [out] * nout
+
+            m = tf.keras.Model(inp, outs)
+            m.compile('adam', 'mse')
+            m.fit(dstrn,
+                  epochs=conf.dpk_epochs_used,
+                  steps_per_epoch=steps_per_epoch,
+                  verbose=2,
+                  callbacks=cbks,
+                  )
+
+        else:
+            train_model.fit(dstrn,
+                            epochs=conf.dpk_epochs_used,
+                            steps_per_epoch=steps_per_epoch,
+                            verbose=2,
+                            callbacks=cbks,
+                            )
+    '''
+    ckpt_final = ckpt_savepat.format(epoch=conf.dpk_epochs_used)
+    train_model.save(ckpt_final)
+    logr.info('Saved final ckpt: {}'.format(ckpt_final))
+    '''
+
     '''
     sdn.fit(
         batch_size=conf.batch_size,

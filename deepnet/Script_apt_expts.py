@@ -550,8 +550,11 @@ for dd in dtypes:
 
 eres03gt = ade.assess('e00_r03', dset='alice', usegt_tfr=True)
 
-# sh
+
+
+# SH
 ade.assess_set2(exps, range(2), 'stephen', usegt_tfr=True,  )
+
 
 ## DPK/bub ia vs pt
 import run_apt_expts_2 as rae
@@ -575,6 +578,48 @@ rae.train_dpk_orig(expname='e01_r00',
                    dpk_train_style='apt',
                    dpk_val_batch_size=0
                    )
+
+## APT(new/final) vs DPK, Aug16
+rae.train_dpk_orig(expname='e04_r00',
+                   run_type='submit',
+                   exp_note='r00 split; dpk_train_style=apt (new; step_loss, bsize=8 etc)',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   )
+rae.train_dpk_orig(expname='e04_r01',
+                   run_type='submit',
+                   exp_note='r00 split; dpk_train_style=apt (new; step_loss, bsize=8 etc). no val just as sanity check',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0,
+                   )
+
+## APT(new/final) vs DPK, Aug16, Romn
+rae.train_dpk_orig(expname='cmp_r00',
+                   run_type='submit',
+                   exp_note='dpk_train_style=apt (new; step_loss etc). no val',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='apt',
+                   dpk_val_batch_size=0,
+                   )
+rae.train_dpk_orig(expname='cmp_r01',
+                   run_type='submit',
+                   exp_note='dpk_train_style=dpk',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpk',
+                   dpk_val_batch_size=11,
+                   )
+rae.train_dpk_orig(expname='cmp_r02',
+                   run_type='submit',
+                   exp_note='dpk_train_style=dpktrnonly. probing this as seeing diffs between dpk/cheat and aptnew',
+                   dpk_use_augmenter=0,
+                   dpk_train_style='dpktrnonly',
+                   dpk_val_batch_size=0,
+                   )
+
+
+
+
 ## DPK, no val
 rae.train_dpk_orig(expname='e02_r00',
                    run_type='submit',
@@ -782,6 +827,163 @@ rae.train_dpk_orig(expname='cv_s00_r03',
                    batch_size=8,
                    dl_steps=100000,
                    )
+
+
+## FINAL TRAIN AUG 2020
+rae.setup('alice')
+rae.all_models = ['dpk']
+#rae.create_normal_dbs()
+dstr = '20200818'
+rae.run_normal_training(dstr=dstr,run_type='submit') #run_type = 'submit' to actually submit jobs.
+# rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
+
+import run_apt_expts_2 as rae
+rae.setup('alice')
+rae.all_models = ['dpk']
+#rae.create_normal_dbs()
+dstr = '20200818'
+rae.run_incremental_training(dstr=dstr,run_type='dry') #run_type = 'submit' to actually submit jobs.
+# rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
+
+# ar by time
+clist, tslist = ade.get_all_ckpt_h5(opj(exps.bub.root,'apt_expt_r01'))
+for cpt in clist:
+    ade.assess('apt_expt_r01',
+               dset='alice',
+               view=0,
+               usegt_tfr=True,
+               doplot=False,
+               ckpt=os.path.basename(cpt),
+               )
+
+edir = opj(exps.bub.root,'apt_expt_r01')
+res = ade.get_assess_results(edir)
+resf = opj(exps.bub.root, 'ar_vw0_bytime_20200901.mat')
+apt.savemat_with_catch_and_pickle(resf, res)
+
+
+
+rae.setup('stephen')
+rae.all_models = ['dpk']
+# dstr = '20200605'
+dstr = '20200818'
+#rae.create_normal_dbs()
+rae.run_normal_training(dstr=dstr) #run_type = 'submit'
+# rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
+
+rae.setup('stephen')
+rae.all_models = ['dpk']
+dstr = '20200828'
+rae.run_normal_training(expname='apt_expt_skel2', dstr=dstr, run_type='submit',exp_note='Trying "B" skels jff')
+# rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
+
+
+rae.setup('stephen')
+rae.all_models = ['dpk']
+dstr = '20200901'
+rae.run_normal_training(expname='apt_expt_r02',
+                        dstr=dstr,
+                        run_type='submit',
+                        exp_note='Relative to apt_expt: i) "B" skels (more consistent with our other skels and with dpk ppr); ii) optimized keras/tfdata input pipeline')
+# rae.run_normal_training(queue='gpu_tesla',dstr='20200411')
+
+# vw0 by time
+clist, tslist = ade.get_all_ckpt_h5(opj(exps.sh0.root,'apt_expt_r02'))
+for cpt in clist:
+    ade.assess('apt_expt_r02',
+               dset='stephen',
+               view=0,
+               usegt_tfr=True,
+               doplot=False,
+               ckpt=os.path.basename(cpt),
+               )
+
+edir = opj(exps.sh0.root, 'apt_expt_r02')
+res = ade.get_assess_results(edir)
+resf = opj(exps.sh0.root, 'sh_vw0_time_20200901.mat')
+apt.savemat_with_catch_and_pickle(resf, res)
+
+# vw1 by time
+clist, tslist = ade.get_all_ckpt_h5(opj(exps.sh1.root,'apt_expt_r02'))
+for cpt in clist:
+    ade.assess('apt_expt_r02',
+               dset='stephen',
+               view=1,
+               usegt_tfr=True,
+               doplot=False,
+               ckpt=os.path.basename(cpt),
+               )
+
+edir = opj(exps.sh1.root, 'apt_expt_r02')
+res = ade.get_assess_results(edir)
+resf = opj(exps.sh1.root, 'sh_vw1_time_20200901.mat')
+apt.savemat_with_catch_and_pickle(resf, res)
+
+
+
+
+
+rae.setup('stephen')
+rae.all_models = ['dpk']
+#rae.create_normal_dbs()
+dstr = '20200818'
+rae.run_incremental_training(dstr=dstr,run_type='submit') #run_type = 'submit' to actually submit jobs.
+# rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
+
+rae.setup('roian')
+rae.all_models = ['dpk']
+dstr = '20200828'
+rae.cv_train_from_mat(run_type='submit', dstr=dstr, queue='gpu_tesla') # skip_db=False,run_type='submit'
+
+rae.setup('roian')
+rae.all_models = ['dpk']
+dstr = '20200831'
+rae.cv_train_from_mat(
+    run_type='submit',
+    exp_name_pfix='r01_',
+    split_idxs=[1,2,3,4],
+    dstr=dstr,
+    queue='gpu_tesla') # skip_db=False,run_type='submit'
+
+clist, tslist = ade.get_all_ckpt_h5(opj(exps.ron.root,'r01_cv_split_0'))
+ade.assess('r01_cv_split_0',
+           dset='roian',
+           view=0,
+           usegt_tfr=False,
+           doplot=False,
+           tstbsize=12,
+           ckpt=os.path.basename(clist[-1]),
+           )
+
+rae.setup('larva')
+rae.all_models = ['dpk']
+dstr = '20200903'
+rae.cv_train_from_mat(
+    run_type='submit',
+    dstr=dstr,
+    queue='gpu_tesla',
+    split_idxs=[0,1,2],
+    exp_note='real larva model after picking "best" parallelization',
+    nslots=8,
+    dpk_tfdata_num_para_calls_parse=5,
+    dpk_tfdata_num_para_calls_dataaug=16)
+
+# larva toy model, optimizing parallelization
+rae.setup('larva')
+rae.all_models = ['dpk']
+dstr = '20200902'
+rae.cv_train_from_mat(
+    run_type='submit',
+    exp_name_pfix='para05_',
+    dstr=dstr,
+    queue='gpu_tesla',
+    split_idxs=[0,], # skip_db=False,run_type='submit'
+    exp_note='real larva model titrate parn/slots',
+    nslots=9,
+    dpk_tfdata_num_para_calls_parse=5,
+    dpk_tfdata_num_para_calls_dataaug=18,
+)
+
 ## Videos for results
 
 

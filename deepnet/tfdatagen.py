@@ -324,7 +324,7 @@ def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmap
 
     return ims, locs, targets
 
-__ims_locs_preprocess_sb_has_run__ = False
+#__ims_locs_preprocess_sb_has_run__ = False
 
 def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort, gen_target_hmaps=True):
     '''
@@ -337,7 +337,7 @@ def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort, gen_target_hmaps=True
     :return: ims, locs, targets
     '''
 
-    global __ims_locs_preprocess_sb_has_run__
+    #global __ims_locs_preprocess_sb_has_run__
 
     assert conf.imsz == imsraw.shape[1:3]
 
@@ -366,9 +366,9 @@ def ims_locs_preprocess_sb(imsraw, locsraw, conf, distort, gen_target_hmaps=True
                                                  conf.sb_blur_rad_output_res)
     targets = [label_map_outres,]
 
-    if not __ims_locs_preprocess_sb_has_run__:
-        logr.info('sb preprocess. sb_out_scale={}, imszuse={}, imszout={}, blurradout={}'.format(conf.sb_output_scale, imszuse, imsz_out, conf.sb_blur_rad_output_res))
-        __ims_locs_preprocess_sb_has_run__ = True
+#    if not __ims_locs_preprocess_sb_has_run__:
+#        logr.info('sb preprocess. sb_out_scale={}, imszuse={}, imszout={}, blurradout={#}'.format(conf.sb_output_scale, imszuse, imsz_out, conf.sb_blur_rad_output_res))
+ #       __ims_locs_preprocess_sb_has_run__ = True
 
     return ims, locs, targets
 
@@ -402,7 +402,7 @@ def imgaug_augment(augmenter, images, keypoints, clip=True):
 
     return images_aug, keypoints_aug
 
-__ims_locs_preprocess_dpk_has_run__ = False
+#__ims_locs_preprocess_dpk_has_run__ = False
 
 def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
                                  draw_conf_maps=True):
@@ -423,7 +423,7 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
     conf.rescale:
     conf.dpk_im_pad*   
     '''
-    global __ims_locs_preprocess_dpk_has_run__
+    #global __ims_locs_preprocess_dpk_has_run__
 
     assert conf.imsz == imsraw.shape[1:3]
 
@@ -489,11 +489,11 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
         assert conf.dpk_n_outputs == 1
         targets = locs.copy()
 
-    if not __ims_locs_preprocess_dpk_has_run__:
-        str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}'
-        logr.info(str.format(distort, conf.dpk_use_augmenter,
-                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
-        __ims_locs_preprocess_dpk_has_run__ = True
+#    if not __ims_locs_preprocess_dpk_has_run__:
+#        str = 'dpk preproc. distort={}, use_augmenter={}, use_graph={}, graph_scale={}, n_outputs={}'
+#        logr.info(str.format(distort, conf.dpk_use_augmenter,
+#                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
+#        __ims_locs_preprocess_dpk_has_run__ = True
 
     return ims, locs, targets
 
@@ -819,7 +819,13 @@ def create_tf_datasets(conf0,
     if is_multi:
         ds = ds.map(map_func=_parse_function_multi)
     else:
-        ds = ds.map(map_func=_parse_function)
+        numpara = getattr(conf, 'dpk_tfdata_num_para_calls_parse', 5)
+        ds = ds.map(map_func=_parse_function, num_parallel_calls=numpara)
+        logr.info("num para calls for parse: {}".format(numpara))
+
+    #ds = ds.cache()
+    if infinite:
+        ds = ds.repeat()
     if shuffle:
         try:
             shufflebsize = conf.dpk_tfdata_shuffle_bsize
@@ -828,9 +834,8 @@ def create_tf_datasets(conf0,
             logr.warning("dpk_tfdata_shuffle_bsize not present in conf. using default value of {}".format(
                 shufflebsize))
 
+        #ds = ds.shuffle(buffer_size=100)
         ds = ds.shuffle(buffer_size=shufflebsize)
-    if infinite:
-        ds = ds.repeat()
     if dobatch:
         ds = ds.batch(conf.batch_size)
     if is_raw:
@@ -841,6 +846,8 @@ def create_tf_datasets(conf0,
         # * set_shape after py_func. https://github.com/tensorflow/tensorflow/issues/24520
         # * ds.map concats lists into Tensors. use a tuple
         #   https://github.com/tensorflow/tensorflow/issues/20698
+        numpara = getattr(conf, 'dpk_tfdata_num_para_calls_dataaug', 8)
+        logr.info("num para calls for dataaug: {}".format(numpara))
         if drawconf:
             def dataAugPyFunc(ims, locs, info):
                 # not sure why we need call to tuple
@@ -852,7 +859,7 @@ def create_tf_datasets(conf0,
                 # print("The shape of res[1] is {}".format(res[1].shape))
                 return ims, tgtslist
 
-            ds = ds.map(map_func=dataAugPyFunc)
+            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=numpara)
         else:
             def dataAugPyFunc(ims, locs, info):
                 res = tuple(tf.py_func(pp_dpk_noconf, [ims, locs], [tf.float32, ] * 2))
@@ -860,9 +867,10 @@ def create_tf_datasets(conf0,
                 res[1].set_shape([None, ] * 3)  # locs
                 return res
 
-            ds = ds.map(map_func=dataAugPyFunc)
+            ds = ds.map(map_func=dataAugPyFunc, num_parallel_calls=numpara)
             assert n_outputs == 1
 
+    ds = ds.prefetch(buffer_size=100)
     return ds
 
 def read_ds_idxed(ds, indices):

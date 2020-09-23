@@ -159,12 +159,14 @@ def setup(data_type_in,gpu_device='0'):
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20200317_compress20200325_stripped20200403.lbl'
         # lbl_file = 'sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped_newparams_20200409.lbl' # this has data from 1, but params from 2
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20200317_stripped_mdn.lbl'
+
+
         gt_lbl = lbl_file
         #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         # for vw2; who knows vw1
         # op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
         if getpass.getuser() == 'leea30':
-            dpk_skel_csv = ade.skeleton_csvs[data_type]
+            dpk_skel_csv = ade.dbs[data_type]['skel']
 
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
@@ -186,7 +188,8 @@ def setup(data_type_in,gpu_device='0'):
         # common_conf['rrange'] = 180
         # common_conf['trange'] = 5
 
-        # dpk_skel_csv = ade.skeleton_csvs[data_type]
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs[data_type]['skel']
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
@@ -239,9 +242,11 @@ def setup(data_type_in,gpu_device='0'):
         # op_af_graph = op_af_graph.replace(')','\)')
         # op_af_graph = op_af_graph.replace(' ','')
         if getpass.getuser() == 'leea30':
-            dpk_skel_csv = ade.skeleton_csvs[data_type]
+            dpk_skel_csv = ade.dbs[data_type]['skel']
         # common_conf['trange'] = 20
         # common_conf['rrange'] = 180
+
+
 
     elif data_type == 'carsen':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/carsen_dlstripped_20190501T150134.lbl'
@@ -637,6 +642,10 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
 
     conf_opts['save_step'] = conf_opts['dl_steps'] // 20
 
+    if train_type == 'dpk' and 'dpk_train_style' not in kwargs:
+        kwargs['dpk_train_style'] = 'apt'
+        kwargs['dpk_val_batch_size'] = 0
+
     if train_type == 'dpk' and kwargs['dpk_train_style'] != 'apt':
         # 'dpk_orig'
         run_training_conf_helper_dpk(conf_opts, kwargs)
@@ -648,7 +657,10 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
             conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
             kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
 
-            # TODO: learning_rate_mult, non-alice
+            # We are going to punt on lrmult for dpk, see slack discuss. Note the
+            # keras handling of loss differs from PoseBase. Typically the LR linear
+            # scaling rule would reduce the LR and 1e-4 is already 10x smaller than
+            # the 'default' dpk factory base LR.
             conf_opts['dpk_base_lr_used'] = 0.0001
 
             ''' this was older apt-sty
@@ -725,6 +737,18 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
                 conf_opts['batch_size'] = 8
 
     elif gpu_queue in ['gpu_tesla','gpu_tesla_large']:
+
+        if train_type == 'dpk':
+            conf_opts['dpk_reduce_lr_style'] = '\\"__UNUSED__\\"'
+            conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
+            kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
+
+            # We are going to punt on lrmult for dpk, see slack discuss. Note the
+            # keras handling of loss differs from PoseBase. Typically the LR linear
+            # scaling rule would reduce the LR and 1e-4 is already 10x smaller than
+            # the 'default' dpk factory base LR.
+            conf_opts['dpk_base_lr_used'] = 0.0001
+
         if data_type in ['romain']:
             conf_opts['batch_size'] = 4
         if data_type in ['larva']:
@@ -811,7 +835,8 @@ def run_trainining(exp_name,train_type,view,run_type,
                    cp_from_existing_exp=None,  # short expname same dir as exp_name
                    exp_note='',
                    queue='gpu_rtx',
-                   dstr =  PoseTools.datestr(),
+                   dstr=PoseTools.datestr(),
+                   nslots=None,
                    **kwargs
                    ):
 
@@ -821,25 +846,31 @@ def run_trainining(exp_name,train_type,view,run_type,
     train_name_dstr = train_name + gpu_str + '_' + dstr
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
         apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue, **kwargs)
-    if queue in ['gpu_tesla_large']:
-        if train_type == 'leap':
-            nslots = 5
-        elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn','mdn_unet']:
-            nslots = 4
+    if nslots in None
+        if queue in ['gpu_tesla_large']:
+            if train_type == 'leap':
+                nslots = 5
+            elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn','mdn_unet']:
+                nslots = 4
+            else:
+                nslots = 2
+        elif queue in ['gpu_tesla']:
+            if train_type == 'leap':
+                nslots = 6
+            else:
+                nslots = 4
         else:
-            nslots = 2
-    elif queue in ['gpu_tesla']:
-        if train_type == 'leap':
-            nslots = 6
+            if train_type == 'leap':
+                nslots = 10
+            elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn']:
+                nslots = 7
         else:
-            nslots = 4
-    else:
-        if train_type == 'leap':
-            nslots = 10
-        elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn']:
-            nslots = 7
-        else:
-            nslots = 4
+            if train_type == 'leap':
+                nslots = 10
+            elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn']:
+                nslots = 7
+            else:
+                nslots = 4
 
     if run_type == 'dry':
         print(cmd_name)

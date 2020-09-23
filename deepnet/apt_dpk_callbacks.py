@@ -456,17 +456,52 @@ def create_callbacks_aptsty(
     # are prob computed only at epoch end.
     ckpt_reg += '-{epoch:05d}.h5'
     ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
+    '''
+    use regular keras MCpt instead of dpk.MCpt here.
+    dpk.ModelCheckPoint derives from k.ModelCheckpoint. Instead of the regular K machinery presumably calling 
+    cbk.set_model (eg earlyish during model.fit()), cbk gets manually 'activated'. this sets .model to be the SDN 
+    model and not the train_model. the effect is, when the model is saved, it is the sdn.save->save_model. this first 
+    calls the regular keras model save on the .train_model, but then adds stuff (traingenerator config info) to the h5. 
+    so each h5 has more stuff in it.
+
+    the bug is that in my version of tf/K, the SDN model doesn't have a certain attrib expected of k.Model and so the 
+    dpk.ModelCheckPoint cbk harderrs when training ends.
+    - soln1: don't use dpk.ModelCkpt; use regular k.ModelCheckpoint. don't 'activate' the cbk. set_model gets called in 
+    the normal way at the startish of K.model.fit(). now, the regular train_model.save() gets called which just does a 
+    regular K model save w/out the addnl DPK config info stuff. which should be fine.
+    - soln2: add a prop _ckpt_saved_epoch property to SDN.model which is always None. This probably fixes the breakage 
+    on train_end.
+    - I like soln1 more, as we don't really know what _ckpt_saved_epoch might do in other parts of the code. Its 
+    probably fine, since we have been running this way successfully, but theoretically there could be some interaction 
+    or behavior that is not transparent. Soln1 sticks to raw/vanilla Keras. However this broke our current load codepath.
+    - soln3: add custom callback that just saves the model. Hope callbacks exec in order so it executes before the 
+    ModelCpt cbk crashes.
+    
+    '''
     model_checkpoint_reg = ModelCheckpoint(
         ckpt_reg,
         save_freq=conf.save_step,  # save every this many batches
         save_best_only=False,
     )
 
+    class FinalModelSaver(tf.keras.callbacks.Callback):
+        def __init__(self, sdn, ckpt_fullpath):
+            self.sdn = sdn
+            self.ckpt_fpn = ckpt_fullpath
+
+        def on_train_end(self, logs=None):
+            self.sdn.save(self.ckpt_fpn)
+            logr.info("Saved final model: {}".format(self.ckpt_fpn))
+
+    ckpt_final = ckpt_reg.format(epoch=conf.dpk_epochs_used)
+    final_saver = FinalModelSaver(sdn, ckpt_final)
+    logr.info(("Configuring FinalModelSaver with final cpt {}".format(ckpt_final)))
+
     logfile = 'trn{}.log'.format(nowstr)
     logfile = os.path.join(conf.cachedir, logfile)
     loggercbk = tf.keras.callbacks.CSVLogger(logfile)
 
-    cbks = [lr_cbk, model_checkpoint_reg, loggercbk]
+    cbks = [lr_cbk, final_saver, model_checkpoint_reg, loggercbk]
 
     if do_val:
         tgtfr = sdn.train_generator
