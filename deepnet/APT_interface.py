@@ -2191,7 +2191,7 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
         print('Downloading pretrained weights..')
         if not os.path.exists(wt_dir):
             os.makedirs(wt_dir)
-        sname, header = urllib.urlretrieve(url)
+        sname, header = urllib.request.urlretrieve(url)
         tar = tarfile.open(sname, "r:gz")
         print('Extracting pretrained weights..')
         tar.extractall(path=wt_dir)
