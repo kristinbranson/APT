@@ -211,7 +211,7 @@ classdef testAPT < handle
 
     
     function setup_path(self)
-      if ~self.path_setup_done
+      if ~self.path_setup_done && ~isdeployed
         addpath('..');
         APT.setpath;
         self.path_setup_done = true;

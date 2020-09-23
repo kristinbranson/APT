@@ -31,7 +31,11 @@ classdef APT
     function root = getRoot()
       % root: the folder containing APT.m. When deployed, it is
       % assumed the tree under root matches the dev repo
-      root = fileparts(mfilename('fullpath'));   
+      if isdeployed
+        root = ctfroot;
+      else
+        root = fileparts(mfilename('fullpath'));   
+      end
     end
     
     function m = readManifest()

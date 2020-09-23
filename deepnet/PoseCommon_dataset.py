@@ -425,11 +425,11 @@ class PoseCommon(object):
         else:
             pfn = _parse_function
 
-        train_dataset = train_dataset.map(map_func=pfn,num_parallel_calls=5)
+        train_dataset = train_dataset.map(map_func=pfn,num_parallel_calls=8)
         train_dataset = train_dataset.repeat()
         train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
-        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=8)
+        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=16)
         train_dataset = train_dataset.prefetch(buffer_size=100)
 
         val_dataset = val_dataset.map(map_func=pfn,num_parallel_calls=2)

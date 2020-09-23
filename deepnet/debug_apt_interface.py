@@ -1,12 +1,24 @@
-# import run_apt_expts_2 as rae
-# import APT_interface as apt
-# import os
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-#
-# cmd = '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_new_skl_20200820.lbl -name apt_expt -cache /groups/branson/bransonlab/mayank/apt_cache_2 -conf_params mdn_use_unet_loss False  dl_steps 100000  decay_steps 25000  save_step 5000  batch_size 8  maxckpt 200  ignore_occluded False  pretrain_freeze_bnorm True  step_lr True  lr_drop_step 0.15  normalize_loss_batch False  predict_occluded False  use_leap_preprocessing False  leap_val_size 0.15  leap_preshuffle True  leap_filters 64  leap_val_batches_per_epoch 10  leap_reduce_lr_factor 0.1  leap_reduce_lr_patience 3  leap_reduce_lr_min_delta 1e-05  leap_reduce_lr_cooldown 0  leap_reduce_lr_min_lr 1e-10  leap_amsgrad False  leap_upsampling False  dlc_intermediate_supervision False  dlc_intermediate_supervision_layer 12  dlc_location_refinement True  dlc_locref_huber_loss True  dlc_locref_loss_weight 0.05  dlc_locref_stdev 7.2801  dlc_use_apt_preprocess True  save_time 20  -type leap_orig  -view 1  -train_name deepnet_test train -skip_db -use_cache'
-# apt.main(cmd.split())
+import matplotlib
+matplotlib.use('TkAgg')
+import torch
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+import Pose_coco_mdn_joint
+self = Pose_coco_mdn_joint.Pose_coco_mdn_joint('/nrs/branson/mayank/apt_cache_2/coco')
+self.conf.learning_rate_multiplier = 0.1
+import PoseTools
+# with PoseTools.GuruMeditation():
+self.train_wrapper()
 
-## multi animal training
+
+
+##
+cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403_new_skl_20200817.lbl -name apt_expt -cache /groups/branson/bransonlab/mayank/apt_cache_2 -conf_params mdn_use_unet_loss False  dl_steps 100000  decay_steps 50000  save_step 5000  batch_size 8  maxckpt 200  ignore_occluded False  pretrain_freeze_bnorm True  step_lr False  lr_drop_step 0.15  normalize_loss_batch False  use_scale_factor_range True  predict_occluded False  use_leap_preprocessing False  leap_val_size 0.15  leap_preshuffle True  leap_filters 64  leap_val_batches_per_epoch 10  leap_reduce_lr_factor 0.1  leap_reduce_lr_patience 3  leap_reduce_lr_min_delta 1e-05  leap_reduce_lr_cooldown 0  leap_reduce_lr_min_lr 1e-10  leap_amsgrad False  leap_upsampling False  dlc_intermediate_supervision False  dlc_intermediate_supervision_layer 12  dlc_location_refinement True  dlc_locref_huber_loss True  dlc_locref_loss_weight 0.05  dlc_locref_stdev 7.2801  dlc_use_apt_preprocess True learning_rate_multiplier 3. save_time 20  -type unet  -view 1  -train_name lr_mult_3 train -skip_db -use_cache'
+import APT_interface as apt
+apt.main(cmd.split())
+
+
+## debug opnpose multi
 import PoseTools
 import re
 import h5py
@@ -31,7 +43,7 @@ import Pose_multi_mdn_joint
 import Pose_multi_openpose
 import Pose_multi_mdn_joint_torch
 
-net_type = 'multi_mdn_joint_torch'; name = 'test_fpn_more_conv'
+net_type = 'multi_mdn_joint_torch'; name = 'test_time'
 # net_type = 'multi_openpose'; name= '50k_resnet'
 conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
 conf.rrange = 180
@@ -48,75 +60,107 @@ conf.mdn_joint_use_fpn = True
 
 if net_type == 'multi_openpose':
     conf.batch_size = 4
+    conf.dl_steps = 100000
     self = Pose_multi_openpose.Pose_multi_openpose(conf,'50k_resnet')
 elif net_type == 'multi_mdn_joint_torch':
     self = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name=name,is_multi=True)
 else:
     self = Pose_multi_mdn_joint.Pose_multi_mdn_joint(conf,'50k_low_noise_fpn')
 
-self.train_wrapper(restore=True)
+self.train_wrapper()
 
-
-## multi animal training val
-import matplotlib
-matplotlib.use('TkAgg')
-
-import PoseTools
-import re
-import h5py
-import numpy as np
-import APT_interface as apt
-import torch
-
-op_af = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)'
-lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
-
-n_grid = 4
-sz = np.round(1024/n_grid).astype('int')
-fill_value = 255
-bb_ex = 10 # extra pixels around bb
-buffer = 60 # roughly half the animal size + bb_ex
-max_n = 6
-
+##
+import PoseTools as pt
+import Pose_mdn_joint_fpn
+import multiResData
+import cv2
 import os
-os.environ['CUDA_VISIBLE_DEVICES']  = '0'
-import Pose_multi_mdn_joint
-import Pose_multi_openpose
-# net_type = 'multi_openpose'; train_name =  '50k_resnet'
-# net_type = 'multi_mdn_joint'; train_name = '50k_low_noise'
-net_type = 'multi_mdn_joint_torch'; train_name = 'test_fpn_more_noise'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+A = pt.pickle_load('/groups/branson/bransonlab/mayank/apt_cache_2/multitarget_bubble/mdn_joint_fpn/view_0/apt_expt/multitarget_bubble_deepnet_20200706_traindata')
+conf = A[1]
+conf.batch_size = 1
+self = Pose_mdn_joint_fpn.Pose_mdn_joint_fpn(conf,name='deepnet_20200706')
+pfn = self.get_pred_fn()
 
-conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
-conf.rrange = 180
-conf.trange = 50
-conf.max_n_animals = max_n
-conf.imsz = (sz+2*buffer,sz+2*buffer)
-conf.mdn_use_unet_loss = False
-conf.img_dim = 3
-conf.op_affinity_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
-conf.mdn_joint_use_fpn = True
+db = '/groups/branson/bransonlab/mayank/apt_cache_2/multitarget_bubble/mdn_joint_fpn/view_0/apt_expt/train_TF.tfrecords'
 
-db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
-out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
-torch.cuda.empty_cache()
-net_type = 'multi_openpose'; train_name =  '50k_resnet'
-conf.cachedir = '/nrs/branson/mayank/apt_cache_2/multitarget_bubble/multi_openpose/view_0/deepnet/'
-# out1 = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+B = multiResData.read_and_decode_without_session(db,17,())
+ii = B[0][33]
+## for
+isz = conf.imsz
+rmat = cv2.getRotationMatrix2D((isz[1]/2,isz[0]/2),0,1)
+allo = []
+alli = []
+for x in np.arange(-20,-10,0.5):
+    rmat[0,2] = x
+    curi = cv2.warpAffine(ii,rmat,(int(isz[1]),int(isz[0])))
+    curi = np.tile(curi[np.newaxis,...,np.newaxis],[conf.batch_size,1,1,conf.img_dim])
+    xs, _ = pt.preprocess_ims(curi, in_locs=np.zeros([1, self.conf.n_classes, 2]), conf=self.conf, distort=False, scale=self.conf.rescale)
 
-pp1 = out[0]
-ll1 = out[1]
-dd1 = np.linalg.norm(pp1[:,:,np.newaxis,...]-ll1[:,np.newaxis,...],axis=-1)
-dd1 = np.nanmin(dd1,axis=1)
-valid = ll1[:,:,0,0]>-1000
-dd1_val = dd1[valid,:]
-pp2 = out1[0]
-ll2 = out1[1]
-dd2 = np.linalg.norm(pp2[:,:,np.newaxis,...]-ll2[:,np.newaxis,...],axis=-1)
-dd2 = np.nanmin(dd2,axis=1)
-valid = ll2[:,:,0,0]>-1000
-dd2_val = dd2[valid,:]
-np.nanpercentile(dd1_val,[50,70,90,95,97],axis=0)
-np.nanpercentile(dd2_val,[50,70,90,95,97],axis=0)
+    self.fd[self.inputs[0]] = xs
+    self.fd[self.ph['phase_train']] = False
+    self.fd[self.ph['learning_rate']] = 0
+    out_list = [self.pred, self.inputs]
+    out = self.sess.run(out_list, self.fd)
+    allo.append(out[0])
+    alli.append(xs)
+
+##
+import PoseTools as pt
+import Pose_multi_mdn_joint_torch
+import multiResData
+import cv2
+import os
+import torch
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+A = pt.pickle_load('/nrs/branson/mayank/apt_cache_2/multitarget_bubble/multi_mdn_joint_torch/view_0/deepnet/multitarget_bubble_test_fpn_more_conv_traindata')
+conf = A[1]
+conf.batch_size = 1
+self = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name='test_fpn_more_conv')
+pfn = self.get_pred_fn()
+
+db = '/nrs/branson/mayank/apt_cache_2/multitarget_bubble/multi_mdn_joint_torch/view_0/deepnet/val_TF.tfrecords'
+
+B = multiResData.read_and_decode_without_session_multi(db,17)
+ii = B[0][33]
+## for
+isz = conf.imsz
+rmat = cv2.getRotationMatrix2D((isz[1]/2,isz[0]/2),0,1)
+allo = []
+alli = []
+alll = []
+for x in np.arange(-5,5,0.5):
+    rmat[0,2] = x
+    curi = cv2.warpAffine(ii,rmat,(int(isz[1]),int(isz[0])))
+    curi = np.tile(curi[np.newaxis,...],[conf.batch_size,1,1,1])
+    xs, _ = pt.preprocess_ims(curi, in_locs=np.zeros([1, self.conf.n_classes, 2]), conf=self.conf, distort=False, scale=self.conf.rescale)
+
+    out = self.model({'images':torch.tensor(xs).permute([0,3,1,2])/255.})
+    alll.append(self.get_joint_pred(out))
+    allo.append([oo.detach().cpu().numpy() for oo in out])
+    alli.append(xs)
+
+
+##
+# import run_apt_expts_2 as rae
+# import sys
+# if sys.version_info.major > 2:
+#     from importlib import reload
+# reload(rae)
+# # rae.all_models = ['openpose']
+# rae.setup('stephen')
+# dstr = '20200706' #'20200411'
+# rae.get_normal_results(dstr=dstr)
+
+##
+import run_apt_expts_2 as rae
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+cmd = '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_new_skl_20200820.lbl -name apt_expt -cache /groups/branson/bransonlab/mayank/apt_cache_2 -conf_params mdn_use_unet_loss False  dl_steps 100000  decay_steps 25000  save_step 5000  batch_size 8  maxckpt 200  ignore_occluded False  pretrain_freeze_bnorm True  step_lr True  lr_drop_step 0.15  normalize_loss_batch False  predict_occluded False  use_leap_preprocessing False  leap_val_size 0.15  leap_preshuffle True  leap_filters 64  leap_val_batches_per_epoch 10  leap_reduce_lr_factor 0.1  leap_reduce_lr_patience 3  leap_reduce_lr_min_delta 1e-05  leap_reduce_lr_cooldown 0  leap_reduce_lr_min_lr 1e-10  leap_amsgrad False  leap_upsampling False  dlc_intermediate_supervision False  dlc_intermediate_supervision_layer 12  dlc_location_refinement True  dlc_locref_huber_loss True  dlc_locref_loss_weight 0.05  dlc_locref_stdev 7.2801  dlc_use_apt_preprocess True  use_real_leap False save_time 20  -type leap_orig  -view 1  -train_name deepnet_test train -skip_db -use_cache'
+apt.main(cmd.split())
+
 
 ##
 from tfrecord.torch.dataset import TFRecordDataset

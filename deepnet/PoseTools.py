@@ -1082,8 +1082,6 @@ def tfrecord_to_coco(db_file, conf, img_dir, out_file, categories=None, scale = 
             ann['images'].append({'id':ndx, 'width':conf.imsz[1]*scale, 'height':conf.imsz[0]*scale, 'file_name':im_name})
             ann['annotations'].append({'iscrowd':0,'segmentation':[bbox],'area':area,'image_id':ndx, 'id':ndx,'num_keypoints':conf.n_classes,'bbox':bbox,'keypoints':cur_locs.flatten().tolist(),'category_id':1})
 
-
-
         coord.request_stop()
         coord.join(threads)
     with open(out_file,'w') as f:
@@ -1393,3 +1391,40 @@ def show_result_hist(im,loc,percs):
         for pp in range(percs.shape[0]):
             c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False)
             ax.add_patch(c)
+
+
+def nan_hook(name, grad):
+    # pytorch backward hook to check for nans
+    if np.any(np.isnan(grad.cpu().numpy())):
+        print('{} has NaN grad'.format(name))
+    else:
+        print('{} has normal grad'.format(name))
+
+
+import colorama
+import torch
+import pdb
+import traceback
+from colorama import Fore, Back, Style
+from torch import autograd
+colorama.init()
+class GuruMeditation (autograd.detect_anomaly):
+    def __init__(self):
+        super(GuruMeditation, self).__init__()
+    def __enter__(self):
+        super(GuruMeditation, self).__enter__()
+        return self
+    def __exit__(self, type, value, trace):
+        super(GuruMeditation, self).__exit__()
+        if isinstance(value, RuntimeError):
+          traceback.print_tb(trace)
+          halt(str(value))
+
+def halt(msg):
+    print (Fore.RED + "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")
+    print (Fore.RED + "┃ Software Failure. Press left mouse button to continue ┃")
+    print (Fore.RED + "┃        Guru Meditation 00000004, 0000AAC0             ┃")
+    print (Fore.RED + "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
+    print(Style.RESET_ALL)
+    print (msg)
+    pdb.set_trace()

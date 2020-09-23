@@ -584,7 +584,12 @@ class PoseUNet(PoseCommon):
         return np.nanmean(tt1)
 
     def loss(self, inputs, pred):
-        return tf.nn.l2_loss(pred - inputs[-1])/self.conf.n_classes + self.wt_decay_loss()
+        unet_loss = tf.nn.l2_loss(pred - inputs[-1])/self.conf.n_classes
+        if self.conf.get('normalize_loss_blur_rad',True):
+            unet_loss = unet_loss/self.conf.label_blur_rad
+        if self.conf.get('normalize_loss_batch',False):
+            unet_loss = unet_loss/self.conf.batch_size
+        return  unet_loss
 
     def train_unet(self,restore=False):
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('unet_base_lr',0.0001)

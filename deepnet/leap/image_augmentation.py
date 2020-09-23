@@ -103,7 +103,7 @@ class PairedImageAugmenter(Sequence):
         self.X = X
         self.Y = Y
         self.batch_size = conf.batch_size
-        self.theta = conf.rrange
+        self.theta = (-conf.rrange,conf.rrange)
         self.scale = (1/conf.scale_factor_range,conf.scale_factor_range)
         self.conf = conf
 

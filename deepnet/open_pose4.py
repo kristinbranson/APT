@@ -1090,16 +1090,18 @@ def do_inference(hmap, paf, conf,thre_hm,thre_paf):
     pafscalefac = hmapscalefac * (2**conf.op_hires_ndeconv)
 
     # work at the network input resolution
-    hmap = cv2.resize(hmap, (0,0), fx=hmapscalefac, fy=hmapscalefac,
-                      interpolation=cv2.INTER_CUBIC)
-    paf = cv2.resize(paf, (0,0), fx=pafscalefac, fy=pafscalefac,
-                     interpolation=cv2.INTER_CUBIC)
+    hmap = cv2.resize(hmap, (0,0), fx=hmapscalefac, fy=hmapscalefac, interpolation=cv2.INTER_CUBIC)
+    paf = cv2.resize(paf, (0,0), fx=pafscalefac, fy=pafscalefac, interpolation=cv2.INTER_CUBIC)
 
     npts = hmap.shape[-1]
     for part in range(npts):
         map_ori = hmap[:, :, part]
         map = map_ori
         peaks_with_score = heatmap.find_peaks(map, thre_hm)
+        if len(peaks_with_score) ==0 and not conf.is_multi:
+            ss = PoseTools.get_pred_locs(map[np.newaxis,:,:,np.newaxis]).tolist()[0][0]
+            sc  = map[int(ss[1]),int(ss[0])]
+            peaks_with_score = [[ss[0],ss[1],sc]]
         all_preds.append(peaks_with_score)
 
     # all_preds[part] is list of peaks (x, y, score)
@@ -1217,9 +1219,11 @@ def do_inference(hmap, paf, conf,thre_hm,thre_paf):
         else:
             for p in range(npts):
                 if np.isnan(targets[0,p]):
-                    continue
-                cur_i = int(targets[0,p])
-                targets_locs[0,p,:] = all_preds[p][cur_i][:2]
+                    kk = sorted(all_preds[p], key=lambda x: x[2], reverse=True)
+                    targets_locs[0, p, :] = kk[0][:2]
+                else:
+                    cur_i = int(targets[0,p])
+                    targets_locs[0,p,:] = all_preds[p][cur_i][:2]
 
     return targets_locs
 

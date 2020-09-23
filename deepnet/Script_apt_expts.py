@@ -13,7 +13,7 @@ rae.setup('alice')
 #rae.create_normal_dbs()
 # dstr = '20200604'
 dstr = '20200706'
-rae.run_normal_training(dstr=dstr) #run_type = 'submit' to actually submit jobs.
+rae.run_normal_training(dstr=dstr) #run_type = 'submit'
 # rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
 
 #dstr = 20200410 for old
@@ -136,19 +136,21 @@ for britnum in range(3):
 ## CV Training - all views
 
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('romain','')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-
-rae.cv_train_from_mat() # skip_db=False,run_type='submit'
+dstr = '20200912'
+rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla') # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('romain')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-
-rae.get_cv_results(num_splits=6)
+dstr = '20200912'
+rae.get_cv_results(dstr=dstr)
 
 
 
@@ -166,7 +168,7 @@ rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla') # skip_db=False,run_type='sub
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
-rae.setup('roian','')
+rae.setup('roian')
 dstr = '20200804' #'20200712'
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 # rae.get_cv_results(queue='gpu_rtx',dstr=dstr,db_from_mdn_dir=True)
@@ -220,22 +222,28 @@ rae.get_normal_results(dstr=dstr)
 ## Single animal vs multiple animal for Stephen
 
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
-rae.setup('stephen','')
-rae.create_run_individual_animal_dbs_stephen(run_type='status') # use run_type='submit' to redo.
+rae.setup('stephen')
+dstr = '20200914'
+rae.create_run_individual_animal_dbs_stephen(dstr=dstr)
 
 ## Results
 
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('stephen')
-rae.get_individual_animal_results_stephen()
+dstr = '20200914'
+rae.get_individual_animal_results_stephen(dstr=dstr)
 
 ##
 # Run /groups/branson/bransonlab/mayank/APT_develop/ScriptStephenSingleAnimalResults.m
 out_file = '/groups/branson/home/kabram/temp/stephen_single_fly_results.mat'
 from scipy import io as sio
 import multiResData
+import matplotlib
+matplotlib.use('TkAgg')
 import run_apt_expts_2 as rae
 ss = sio.loadmat(out_file)['out']
 db =['/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/mdn/view_0/apt_expt/train_TF.tfrecords',
@@ -250,7 +258,7 @@ cmap = np.array([[0.5200, 0, 0],
 
 tt = ['same', 'different','random']
 for view in range(2):
-    im, locs, info = multiResData.read_and_decode_without_session(db[view], 5)
+    im, locs, info, occ = multiResData.read_and_decode_without_session(db[view], 5)
     ex_im = np.array(im)[0,...,0]
     ex_loc = np.array(locs)[0,...]
     npts = 5
