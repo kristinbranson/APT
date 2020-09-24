@@ -1,0 +1,25 @@
+name: APT
+channels:
+  - defaults
+  - anaconda
+  - conda-forge
+dependencies:
+  - python=3.6.9
+  - tensorflow-gpu=1.15
+  - keras=2.2.4
+  - h5py
+  - matplotlib
+  - scipy
+  - hdf5storage
+  - easydict
+  - future
+  - imageio
+  - scikit-image
+  - ipython
+  - opencv
+  - tqdm
+  - clize
+  - packaging
+  - statsmodels
+  - ruamel.yaml
+prefix: C:\Users\user\Anaconda3\envs\APT
