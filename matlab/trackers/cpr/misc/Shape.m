@@ -1022,6 +1022,7 @@ classdef Shape
       opts.pplotargs = {}; % optional PV args for regular markers
       opts.p2 = [];
       opts.p2marker = '+';
+      opts.labelpts2 = false;
       opts.colors = 'jet'; % either colormap name, or [nptsx3]
       opts.titlestr = 'Montage';
       opts.imsHeterogeneousSz = false; % if true, pad elements of I to make them the same size. all p's must be nan
@@ -1157,9 +1158,15 @@ classdef Shape
             'color',colors(ipt,:),opts.labelptsargs{:});
         end
         if tfP2
-          hP2(ipt) = plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
+          bigx = squeeze(bigP2(ipt,1,:));
+          bigy = squeeze(bigP2(ipt,2,:));
+          hP2(ipt) = plot(bigx,bigy,...          
             opts.p2marker,'MarkerFaceColor',colors(ipt,:),...
             'MarkerEdgeColor',colors(ipt,:),'linewidth',2);
+          if opts.labelpts && opts.labelpts2
+            text(bigx+opts.labelptsdx,bigy+opts.labelptsdx,num2str(ipt),...
+            'color',colors(ipt,:),opts.labelptsargs{:});
+          end
         end
       end
       hPall = hP1;
