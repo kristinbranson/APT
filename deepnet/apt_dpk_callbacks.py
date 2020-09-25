@@ -251,6 +251,9 @@ class ValDistLogger(Callback):
 
 
 def create_callbacks_exp1orig_train(conf):
+    # Example callback code adapted from DeepPoseKit by Jake Graving et al
+    # https://github.com/jgraving/deepposekit/examples
+
     logr.info("configing callbacks")
 
     # `Logger` evaluates the validation set( or training set if `validation_split = 0` in the `TrainingGenerator`) at the end of each epoch and saves the evaluation data to a HDF5 log file( if `filepath` is set).

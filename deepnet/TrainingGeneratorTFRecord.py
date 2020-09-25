@@ -14,6 +14,10 @@ __all__ = ["TrainingGeneratorTFRecord"]
 
 logr = logging.getLogger('APT')
 
+
+# Adapter class for use with DeepPoseKit. Some code adapted or taken from DeepPoseKit by Jake Graving et al
+# https://github.com/jgraving/deepposekit
+
 class TrainingGeneratorTFRecord:
     """
     TrainingGenerator mock class for use with APT. Reads from tfrecords

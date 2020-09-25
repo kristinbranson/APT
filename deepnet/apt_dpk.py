@@ -261,41 +261,6 @@ def check_flips(im, locs, dpk_swap_index):
 
 # endregion
 
-'''
-for our dsets:
-1. rapt load/reload, then setup.
-2. run_normal_training. this updates common_conf.
-3. run_trainining. this calls run_training_conf_helper which copies common_conf and 
-tweaks for dset/trainingtype, producing conf_opts (a copied/standalone dict).
-4. conf_opts is string-ized and given to APT_interf
-5. APT_interf creates a conf via
- conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params). This requires a lblfile and also does net-specific 
-  tweaks!!!! It also applies/overlays the conf_opts.
-6. This conf is now passed onto train routines
-
-for dpk dsets:
-- Everything can proceed as above, except we need a create_conf that doesn't require
-a lblfile. 
-
-*** RAE+DPK strat ###
-For our existing dsets, we will run through rae since that is where everything is
-and it needs to be reproduceable/preserved for posterity. rae.setup will, for each
-dset, need to configure new/addnl things for dpk: eg the dpk skeleton and swap indices.
-Aug-, Train-related params we will assume we can reuse as-is. (So far this is seems
-to be justified with our replication exps.)
-
-rae calls out to APT_interf (having str-ized all conf_params). APT_interf will need
-to be updated to be able to call out to apt_dpk.py for actual train/predict.
-
-For running on DPK dsets, this needs to be done and proven to ourselves but is less 
-core to our ppr/results. We can have a front-end/submit call in rae that calls apt_dpk
-in a shell. The idea here is to show that our DPK impl repros the ppr result 
-on their dsets; also in particular that using our i) datagen (tfrecords instead of 
-h5), ii) augpipe (PoseTools instead of imgaug), and iii) training (simpler 
-lr/stopping/etc vs earlystop/bestsave etc) do not make significant differences.
-
-'''
-
 
 # region Configurations
 
@@ -471,6 +436,9 @@ def print_dpk_conf(conf):
 
 def make_imgaug_augmenter(imgaugtype, data_generator_or_swap_index):
     if imgaugtype == 'dpkfly':
+        # Example imgaug code adapted from DeepPoseKit by Jake Graving et al
+        # https://github.com/jgraving/deepposekit/examples
+        #
         # Take step3 ex nb, slightly mod to match ppr desc;
         # do not add additional steps described in ppr
         augmenter = []

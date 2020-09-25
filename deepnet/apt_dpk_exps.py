@@ -1477,22 +1477,3 @@ if __name__ == "__main__":
 else:
     pass
 
-'''
-    h5file = dpk_fly_h5
-    dg = deepposekit.io.DataGenerator(h5file)
-    cdpk = apt_dpk_conf(dg, cacheroot, 'testproj', 'testexp')
-    augmenter = make_augmenter(dg)
-    sdn, cbks = train(cdpk, augmenter, compileonly=True)
-
-    import cv2
-
-    im = cv2.imread(isotri)
-    loc = isotrilocs
-    im = im[np.newaxis, ...]
-    loc = loc[np.newaxis, ...]
-    (im_lr, locs_lr), (im_ud, locs_ud), (im_lria, locs_lria), (im_udia, locs_udia) = check_flips(im,loc,isotriswapidx)
-
-    PoseTools.show_result(im, range(1), loc, fignum=10, mrkrsz=200)
-    PoseTools.show_result(im_udia, range(1), locs_udia, fignum=11, mrkrsz=200)
-    PoseTools.show_result(im_lria, range(1), locs_lria, fignum=12, mrkrsz=200)
-    '''
