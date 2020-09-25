@@ -1,3 +1,8 @@
+cmd = '-name 20200925T080001 -view 1 -cache /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800 -type mdn /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800/alice_test/20200925T080001_20200925T080130.lbl train -use_cache -skip_db'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
 import matplotlib
 matplotlib.use('TkAgg')
 import torch

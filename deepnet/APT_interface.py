@@ -117,7 +117,9 @@ def _todict(matobj):
 def h5py_isstring(x):
 
     if type(x) is h5py._hl.dataset.Dataset:
-        return x.dtype == np.dtype('uint64') and len(x.shape) == 1 and x.shape[0] > 1
+        is_str1 = x.dtype == np.dtype('uint64') and len(x.shape) == 1 and x.shape[0] > 1
+        is_str2 = x.attrs['MATLAB_class'] == b'char'
+        return is_str1 or is_str2
     else:
         return False
 
