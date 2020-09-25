@@ -1,20 +1,26 @@
 %%
 
+
+% this should be run from the APT directory
+
 %gtfile = '/nrs/branson/mayank/apt_cache/alice_view0_time.mat';
 
 allexptypes = {'FlyBubble','SHView0','SHView1','SH3D','RFView0','RFView1','RF3D','Roian','BSView0x','BSView1x','BSView2x','Larva','FlyBubbleMDNvsDLC'};
+APT.setpath;
+addpath anls/gt;
 
-exptype = 'FlyBubble';
-cprdir = '/groups/branson/bransonlab/apt/experiments/res/cprgt20190407';
-codedir = fileparts(mfilename('fullpath'));
-savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20190523';
+%savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20190523';
+savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20200727';
+
 
 if ~exist(savedir,'dir'),
   mkdir(savedir);
 end
 dosavefig = true;
-
-for exptypei = 6:numel(allexptypes),
+exptypei = 1;
+forcecompute = false;
+%%
+for exptypei = 1:numel(allexptypes),
 exptype = allexptypes{exptypei};
 
 %% parameters
@@ -24,11 +30,21 @@ ScriptGTDataSetParameters;
 
 %% load in data
 
-if exist(resmatfile,'file'),
+if ~forcecompute && exist(resmatfile,'file'),
   load(resmatfile);
 else
+  
+gtdata = load(gtfile_final);
+fns = fieldnames(gtdata);
+for i = 1:numel(fns),
+  gtdata.(fns{i}) = gtdata.(fns{i})(end);
+end
 
-gtdata_size = load(gtfile_trainsize);
+if isempty(gtfile_trainsize),
+  gtdata_size = [];
+else
+  gtdata_size = load(gtfile_trainsize);
+end
 if isempty(gtfile_traintime),
   gtdata_time = [];
 else
@@ -38,29 +54,32 @@ if ~isempty(annoterrfile),
   annoterrdata = load(annoterrfile);
 end
 
-%% images for overlaying percentile errors 
+%% plotting information
 
-if ~is3d,
-
-if ismember(exptype,{'BSView0x','BSView1x','BSView2x','FlyBubble','FlyBubbleMDNvsDLC'}),
-
-try
-  lObj = load(lblfile,'-mat');
-catch
-  tmploc = tempname;
-  mkdir(tmploc);
-  untar(lblfile,tmploc);
-  lObj = load(fullfile(tmploc,'label_file.lbl'),'-mat');
-  unix(sprintf('rm -r %s',tmploc));
-end
-ptcolors = lObj.cfg.LabelPointsPlot.Colors;
-lObj.labeledpos = cellfun(@SparseLabelArray.full,lObj.labeledpos,'uni',0);
+if ismember(exptype,{'BSView0x','BSView1x','BSView2x','FlyBubble','FlyBubbleMDNvsDLC','SH3D','RF3D','Roian'}),
+  
+  lObj = Labeler.stcLoadLblFile(lblfile);
+  % try
+  %   lObj = load(lblfile,'-mat');
+  % catch
+  %   tmploc = tempname;
+  %   mkdir(tmploc);
+  %   untar(lblfile,tmploc);
+  %   lObj = load(fullfile(tmploc,'label_file.lbl'),'-mat');
+  %   unix(sprintf('rm -r %s',tmploc));
+  % end
+  ptcolors = lObj.cfg.LabelPointsPlot.Colors;
+  lObj.labeledpos = cellfun(@SparseLabelArray.full,lObj.labeledpos,'uni',0);
   
 else
   lObj = StartAPT;
   lObj.projLoad(lblfile);
   ptcolors = lObj.LabelPointColors;
 end
+
+%% images for overlaying percentile errors 
+
+if ~is3d,
 
 % nets = {'openpose','leap','deeplabcut','unet','mdn'};
 % nnets = numel(nets);
@@ -73,7 +92,7 @@ end
 %binedges(end) = inf;
 
 switch exptype,
-  case {'FlyBubble','FlyBubbleMDNvsDLC'},
+  case {'FlyBubble','FlyBubbleMDNvsDLC','Roian'},
     if isstruct(lObj),
       freezeInfo = lObj.cfg.PrevAxes.ModeInfo;
     else
@@ -84,7 +103,7 @@ switch exptype,
       lpos = [lpos,ones(size(lpos,1),1)]*freezeInfo.A;
       lpos = lpos(:,1:2);
     end
-  case {'SHView0','SHView1','Larva','RFView0','RFView1','Roian'},
+  case {'SHView0','SHView1','Larva','RFView0','RFView1'},
     lObj.setMFT(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt);
     vwi = str2double(exptype(end))+1;
     if isnan(vwi),
@@ -106,7 +125,12 @@ switch exptype,
     freezeInfo.axes_curr.CameraViewAngleMode = 'auto';
     npts = size(gtdata_size.mdn{1}.labels,2);
     lpos = lObj.labeledpos{freezeInfo.iMov}((vwi-1)*npts+(1:npts),:,freezeInfo.frm,freezeInfo.iTgt);
-  case {'BSView0x','BSView1x','BSView2x','SHView0','SHView1','Larva','RFView0','RFView1','Roian'},
+    
+    delete(lObj.gdata.figs_all);
+    clear lObj;
+    lObj = Labeler.stcLoadLblFile(lblfile);
+
+  case {'BSView0x','BSView1x','BSView2x'},
 %     if ~isfield(freezeInfo,'i'),
 %       i = find(gtimdata.ppdata.MD.frm == freezeInfo.frm & gtimdata.ppdata.MD.mov == freezeInfo.iMov & ...
 %         gtimdata.ppdata.MD.iTgt == freezeInfo.iTgt);
@@ -125,11 +149,20 @@ switch exptype,
 end
 
 assert(all(~isnan(lpos(:))));
+
+else
+  lpos = [];
+  
 end
 
 %% load in cpr data
 
-if ~isempty(gtfile_trainsize_cpr),  
+
+if ~isempty(gtfile_cpr),
+  gtdata = AddCPRGTData(gtdata,gtfile_cpr,lObj.labeledpos,vwi);
+end
+
+if ~isempty(gtfile_trainsize) && ~isempty(gtfile_trainsize_cpr),  
   gtdata_size = AddCPRGTData(gtdata_size,gtfile_trainsize_cpr,lObj.labeledpos,vwi);
 end
 
@@ -137,24 +170,42 @@ if ~isempty(gtfile_traintime) && ~isempty(gtfile_traintime_cpr),
   gtdata_time = AddCPRGTData(gtdata_time,gtfile_trainsize_cpr,lObj.labeledpos,vwi);
 end
 
-%% which is the main gtdata file
+%% save to results file
 
-if ~isempty(gtdata_time),
-  gtdata = gtdata_time;
-  fns = setdiff(fieldnames(gtdata_size),fieldnames(gtdata_time));
-  for i = 1:numel(fns),
-    gtdata.(fns{i}) = gtdata_size.(fns{i});
-  end
-else
-  gtdata = gtdata_size;
-end
-fns = fieldnames(gtdata);
-for i = 1:numel(fns),
-  gtdata.(fns{i}) = gtdata.(fns{i})(end);
-end
+% which is the main gtdata file
+
+% if ~isempty(gtdata_time),
+%   gtdata = gtdata_time;
+%   fns = setdiff(fieldnames(gtdata_size),fieldnames(gtdata_time));
+%   for i = 1:numel(fns),
+%     gtdata.(fns{i}) = gtdata_size.(fns{i});
+%   end
+% else
+%   gtdata = gtdata_size;
+% end
+% fns = fieldnames(gtdata);
+% for i = 1:numel(fns),
+%   gtdata.(fns{i}) = gtdata.(fns{i})(end);
+% end
 
 save(resmatfile,'gtdata_size','gtdata_time','gtdata','lpos','freezeInfo','annoterrdata','ptcolors','gtimdata','conddata','labeltypes','datatypes','pttypes','lObj');
 
+end
+
+isnet = ismember(nets,fieldnames(gtdata));
+if ~all(isnet),
+  fprintf('No data available for the following networks:\n');
+  fprintf('%s\n',legendnames{~isnet});
+end
+nets(~isnet) = []; %#ok<SAGROW>
+colors(~isnet,:) = []; %#ok<SAGROW>
+legendnames(~isnet) = []; %#ok<SAGROW>
+nnets = numel(nets);
+
+missingnets = setdiff(fieldnames(gtdata),nets);
+if ~isempty(missingnets),
+  fprintf('The following algorithms have results but will not be plotted:\n');
+  fprintf('%s\n',missingnets{:});
 end
 
 %% compute kappa for OKS computation if there is annotation error data
@@ -331,7 +382,7 @@ end
 
 %% plot error percentiles per part type over training set size
 
-if doplotoverx,
+if doplotoverx && ~isempty(gtdata_size),
   PlotPerLandmarkErrorPrctilesOverX('gtdata',gtdata_size,...
     'nets',nets,'legendnames',legendnames,...
     'colors',colors,...
@@ -350,7 +401,7 @@ end
 
 %% plot error percentiles for worst part over training set size
 
-if doplotoverx,
+if doplotoverx && ~isempty(gtdata_size),
   
   for stati = 1,
     switch stati,
@@ -591,33 +642,39 @@ ndatatypes = size(datatypes,1);
 nlabeltypes = size(labeltypes,1);
 
 if nlabeltypes > 1
-  PlotFracInliersPerGroup('gtdata',gtdata,...
-    'net',nets{ndx},'pttypes',pttypes,...
-    'exptype',exptype,...
-    'conddata',conddata,...
-    'labeltypes',labeltypes,'datatypes',datatypes,...
-    'statname',statname,...
-    'savedir',savedir,'dosavefig',dosavefig,...
-    'maxerr',maxerr,...
-    'prcs',prcs,...
-    'maxprc',99.5,...
-    'APthresh',APthresh,...
-    'dataallonly',true);
+  for ndx = 1:nnets,
+    PlotFracInliersPerGroup('gtdata',gtdata,...
+      'net',nets{ndx},'pttypes',pttypes,...
+      'exptype',exptype,...
+      'conddata',conddata,...
+      'labeltypes',labeltypes,'datatypes',datatypes,...
+      'statname',statname,...
+      'savedir',savedir,'dosavefig',dosavefig,...
+      'maxerr',maxerr,...
+      'prcs',prcs,...
+      'maxprc',99.5,...
+      'APthresh',APthresh,...
+      'dataallonly',true);
+  end
 end
 
 if ndatatypes > 1,
-  PlotFracInliersPerGroup('gtdata',gtdata,...
-    'net',nets{ndx},'pttypes',pttypes,...
-    'exptype',exptype,...
-    'conddata',conddata,...
-    'labeltypes',labeltypes,'datatypes',datatypes,...
-    'statname',statname,...
-    'savedir',savedir,'dosavefig',dosavefig,...
-    'maxerr',maxerr,...
-    'prcs',prcs,...
-    'maxprc',99.5,...
-    'APthresh',APthresh,...
-    'labelallonly',true);
+  for ndx = 1:nnets,
+
+    PlotFracInliersPerGroup('gtdata',gtdata,...
+      'net',nets{ndx},'pttypes',pttypes,...
+      'exptype',exptype,...
+      'conddata',conddata,...
+      'labeltypes',labeltypes,'datatypes',datatypes,...
+      'statname',statname,...
+      'savedir',savedir,'dosavefig',dosavefig,...
+      'maxerr',maxerr,...
+      'prcs',prcs,...
+      'maxprc',99.5,...
+      'APthresh',APthresh,...
+      'labelallonly',true);
+    
+  end
 end
 
 if ~isempty(annoterrdata) && nlabeltypes > 1,
@@ -642,7 +699,7 @@ end
 if ~is3d,
   nexamples_random = 5;
   nexamples_disagree = 5;
-  errnets = {'mdn','deeplabcut'};
+  errnets = {'mdn_joint','deeplabcut'};
   hfigs = PlotExamplePredictions('gtdata',gtdata,...
     'gtimdata',gtimdata,...
     'lObj',lObj,...
@@ -654,9 +711,11 @@ if ~is3d,
     'nexamples_random',nexamples_random,...
     'nexamples_disagree',nexamples_disagree,...
     'doAlignCoordSystem',doAlignCoordSystem,...
-    'errnets',errnets);
+    'errnets',errnets,...
+    'MarkerSize',6,...
+    'LineWidth',1.5);
 end
-
+%%
 close all;
 
 end
@@ -833,10 +892,6 @@ if ismember(exptype,{'FlyBubble'}),
   end
 end
   
-%% compare angles
-
-
-
 %% print data set info
 
 strippedLblFile = struct;

@@ -51,7 +51,7 @@ end
 lObj = Labeler('isgui',false);
 set(lObj.hFig,'Visible','off');
 fprintf('APTCluster: ''%s'' on project ''%s''.\n',action,lblFile);
-fprintf('Time to start labeler: %f\n',toc(startTime));
+%fprintf('Time to start labeler: %f\n',toc(startTime));
 startTime = tic;
 switch action
   case 'retrain'
@@ -106,10 +106,21 @@ switch action
       trxfile = '';
       trackArgs = {};
     end      
-    lclTrackAndExportSingleMov(lObj,mov,trxfile,trackArgs);    
+    lclTrackAndExportSingleMov(lObj,mov,trxfile,trackArgs); 
+  case 'track2'
+    % we went astray
+    lObj.projLoad(lblFile,'nomovie',true);
+    movfiles = varargin{3};
+    trxfiles = varargin{4};
+    trkfiles = varargin{5};
+    trackArgs = varargin(6:end);
+    for imov=1:numel(movfiles)
+      args = [{'rawtrkname' trkfiles{imov}} trackArgs(:)'];
+      lclTrackAndExportSingleMov(lObj,movfiles{imov},trxfiles{imov},args);
+    end
   case 'trackbatch'
     lObj.projLoad(lblFile,'nomovie',true);
-    fprintf('Time to load project: %f\n',toc(startTime)); startTime = tic;
+%    fprintf('Time to load project: %f\n',toc(startTime)); startTime = tic;
     movfile = varargin{3};
     if exist(movfile,'file')==0
       error('APTCluster:file','Cannot find batch movie file ''%s''.',movfile);
@@ -119,7 +130,7 @@ switch action
       error('APTCluster:movfile','Error reading batch movie file ''%s''.',movfile);
     end
     nmov = numel(movs);
-    fprintf('Time to read movie info: %f\n',toc(startTime)); startTime = tic;
+%    fprintf('Time to read movie info: %f\n',toc(startTime)); startTime = tic;
     for iMov = 1:nmov
       lclTrackAndExportSingleMov(lObj,movs{iMov},'',{});
     end
@@ -288,10 +299,10 @@ fprintf('Real processing done, total time: %f\n',toc(startTime)); startTime = ti
 
 delete(lObj);
 
-fprintf('Time to close APT: %f\n',toc(startTime)); startTime = tic;
+%fprintf('Time to close APT: %f\n',toc(startTime)); startTime = tic;
 
 close all force;
-fprintf('Time to close everything else: %f\n',toc(startTime)); startTime = tic;
+%fprintf('Time to close everything else: %f\n',toc(startTime)); startTime = tic;
 fprintf('APTCluster finished.\n');
 
 function outfileBase = lclSetParamsApplyPatches(lObj,...
@@ -326,6 +337,10 @@ isClean = false;
 if strcmp(lObj.tracker.algorithmName,'cpr'),
   lObj.cleanUpProjTempDir();
   isClean = true;
+else
+  % set to cpr
+  lObj.trackSetCurrentTracker(1);
+  assert(strcmp(lObj.tracker.algorithmName,'cpr'));
 end
 
 if lObj.gtIsGTMode

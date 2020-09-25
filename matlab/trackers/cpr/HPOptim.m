@@ -12,7 +12,7 @@ classdef HPOptim
   
   methods (Static)
     
-    function aptClusterCmd(roundid,
+    function aptClusterCmd(roundid)
       cmd = sprintf('.../APTCluster.py -n 6 --outdir /groups/branson/bransonlab/apt/tmp/<bsubout> --bindate 20180710.feature.deeptrack --trackargs "tableFile /groups/branson/bransonlab/apt/tmp/<tableFile> tableSplitFile /groups/branson/bransonlab/apt/tmp/<tableSplitFile> paramFile /groups/branson/bransonlab/apt/tmp/<prmBase>" --prmpatchdir %s /groups/branson/bransonlab/apt/experiments/data/sh_trn4523_gt080618_made20180627_cacheddata.lbl xv',pchDir);
       fprintf(1,'Run:\n%s\n',cmd);
     end    

@@ -124,6 +124,9 @@ if isempty(maxerr),
 end
 if isempty(minerr),
   minerr = min(cat(1,sortederrs{:}));
+  if minerr >= maxerr,
+    maxerr = max(cat(1,sortederrs{:}));
+  end
 end
 
 if isempty(figpos),

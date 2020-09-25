@@ -1,7 +1,7 @@
 classdef APT
   
   properties (Constant)
-    Root = fileparts(mfilename('fullpath'));
+    Root = getRootGeneral(); %fileparts(mfilename('fullpath'));
     MANIFESTFILE = 'Manifest.txt';
     SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh');
     
@@ -31,11 +31,7 @@ classdef APT
     function root = getRoot()
       % root: the folder containing APT.m. When deployed, it is
       % assumed the tree under root matches the dev repo
-      if isdeployed
-        root = ctfroot;
-      else
-        root = fileparts(mfilename('fullpath'));   
-      end
+      root = getRootGeneral();
     end
     
     function m = readManifest()
@@ -89,11 +85,11 @@ classdef APT
         %warndlg(warnstr,'CPR/Tracking dependency missing','modal');        
       end
       
-      if verLessThan('matlab','9.3')
-        visionpath = 'vision_pre17b';
-      else
-        visionpath = 'vision_postinc17b';
-      end
+%       if verLessThan('matlab','9.3')
+%         visionpath = 'vision_pre17b';
+%       else
+%         visionpath = 'vision_postinc17b';
+%       end
       aptpath = { ...
         root; ...
         mlroot; ...
@@ -102,8 +98,7 @@ classdef APT
         fullfile(mlroot,'private_imuitools'); ...
         fullfile(root,'external','netlab'); ...
         fullfile(mlroot,'user'); ...
-        fullfile(mlroot,'user','orthocam'); ...
-        fullfile(mlroot,'user','orthocam',visionpath); ...
+        fullfile(mlroot,'user','orthocam'); ... %         fullfile(mlroot,'user','orthocam',visionpath); ...
         fullfile(mlroot,'YAMLMatlab_0.4.3'); ...
         fullfile(mlroot,'JavaTableWrapper'); ...
         fullfile(mlroot,'propertiesGUI'); ...
@@ -503,4 +498,14 @@ classdef APT
     
   end
   
+end
+
+
+function root = getRootGeneral()
+  if isdeployed
+    root = ctfroot;
+  else
+    root = fileparts(mfilename('fullpath'));   
+  end
+
 end
