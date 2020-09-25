@@ -62,7 +62,10 @@ import getpass
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
-user = getpass.getuser()
+try:
+    user = getpass.getuser()
+except KeyError:
+    user = 'err'
 if ISPY3 and user=='leea30':
     import apt_dpk
 

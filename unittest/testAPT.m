@@ -607,7 +607,7 @@ classdef testAPT < handle
         while self.lObj.tracker.bgTrnIsRunning()
           pause(10);
         end
-        pause(2);
+        pause(10);
         if test_tracking
           self.test_track('block',block);
         end
@@ -628,7 +628,7 @@ classdef testAPT < handle
         while self.lObj.tracker.bgTrkIsRunning()
           pause(10);
         end
-        pause(2);
+        pause(10);
       end
     end
     
