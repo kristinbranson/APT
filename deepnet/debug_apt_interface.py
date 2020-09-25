@@ -4,11 +4,12 @@ import torch
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 import Pose_coco_mdn_joint
-self = Pose_coco_mdn_joint.Pose_coco_mdn_joint('/nrs/branson/mayank/apt_cache_2/coco')
+name = 'rescale_3'
+self = Pose_coco_mdn_joint.Pose_coco_mdn_joint('/nrs/branson/mayank/apt_cache_2/coco',name=name,rescale=3)
 self.conf.learning_rate_multiplier = 0.1
 import PoseTools
 # with PoseTools.GuruMeditation():
-self.train_wrapper()
+self.train_wrapper(restore=True)
 
 
 

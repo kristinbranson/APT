@@ -846,7 +846,7 @@ def run_trainining(exp_name,train_type,view,run_type,
     train_name_dstr = train_name + gpu_str + '_' + dstr
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
         apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue, **kwargs)
-    if nslots in None
+    if nslots is None:
         if queue in ['gpu_tesla_large']:
             if train_type == 'leap':
                 nslots = 5
@@ -859,11 +859,6 @@ def run_trainining(exp_name,train_type,view,run_type,
                 nslots = 6
             else:
                 nslots = 4
-        else:
-            if train_type == 'leap':
-                nslots = 10
-            elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn']:
-                nslots = 7
         else:
             if train_type == 'leap':
                 nslots = 10
