@@ -5429,7 +5429,11 @@ classdef DeepTracker < LabelTracker
     
     function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
       
-      [trxfileRem] = myparse(varargin,'trxFiles',{});
+      [trxfileRem,isWinBackend] = myparse(varargin,...
+        'trxFiles',{},...
+        'isWinBackend',false ...
+        );
+      
       nviews = size(movfileRem,2);
       ismultiview = nviews > 1;
       
@@ -5478,6 +5482,10 @@ classdef DeepTracker < LabelTracker
         end
       end
 
+      if isWinBackend
+        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','/');
+        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','/');
+      end
       fid = fopen(listfileLcl,'w');
       fprintf(fid,jsonencode(listinfo));
       fclose(fid);
