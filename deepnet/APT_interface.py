@@ -2151,7 +2151,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
     out_file_tmp = out_file + '.tmp'
     savemat_with_catch_and_pickle(out_file_tmp, out_dict)
     if os.path.exists(out_file_tmp):
-        os.rename(out_file_tmp,out_file)
+        os.replace(out_file_tmp,out_file)
     else:
         logging.exception("Did not successfully write output to %s"%out_file_tmp)
 
@@ -2165,6 +2165,7 @@ def classify_movie(conf, pred_fn, model_type,
                    trx_ids=(),
                    model_file='',
                    name='',
+                   nskip_partfile=400,
                    save_hmaps=False,
                    crop_loc=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
@@ -2270,7 +2271,7 @@ def classify_movie(conf, pred_fn, model_type,
 
         if cur_b % 20 == 19:
             sys.stdout.write('.')
-        if cur_b % 400 == 399:
+        if cur_b % nskip_partfile == nskip_partfile - 1:
             sys.stdout.write('\n')
             write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
 
@@ -2798,6 +2799,8 @@ def run(args):
 
             conf = create_conf(lbl_file, view, name, net_type=args.type,
                                cache_dir=args.cache,conf_params=args.conf_params)
+            # maybe this should be in create_conf
+            conf.batch_size = 1 if args.type == 'deeplabcut' else conf.batch_size
             success, pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file[view_ndx], args.out_files[view_ndx], ivw=view_ndx)
             assert success, 'Error classifying list_file ' + args.list_file + 'view ' + str(view)
 
