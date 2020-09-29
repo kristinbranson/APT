@@ -5483,8 +5483,9 @@ classdef DeepTracker < LabelTracker
       end
 
       if isWinBackend
-        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','/');
-        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','/');
+        % AL20200929. json validity requires escaping backslash
+        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','\\\\');
+        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','\\\\');
       end
       fid = fopen(listfileLcl,'w');
       fprintf(fid,jsonencode(listinfo));
