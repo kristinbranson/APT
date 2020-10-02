@@ -58,16 +58,11 @@ import time # for timing between writing n frames tracked
 import tarfile
 import urllib
 import getpass
+import apt_dpk
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
-try:
-    user = getpass.getuser()
-except KeyError:
-    user = 'err'
-if ISPY3 and user=='leea30':
-    import apt_dpk
 
 
 def savemat_with_catch_and_pickle(filename, out_dict):

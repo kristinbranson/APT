@@ -355,6 +355,7 @@ def update_conf_dpk(conf_base,
 
     conf.dpk_graph = graph
     conf.dpk_swap_index = swap_index
+    conf.dpk_use_graph = graph is not None
 
     if useimgaug is not None:
         conf.dpk_use_augmenter = useimgaug
@@ -383,7 +384,11 @@ def swap_index_to_flip_landmark_matches(swap_idx):
 
 
 def update_conf_dpk_skel_csv(conf_base, skel_csv):
-    graph, swap_index = read_skel_csv(skel_csv)
+    if skel_csv is None:
+        graph = None
+        swap_index = None
+    else:
+        graph, swap_index = read_skel_csv(skel_csv)
     conf = update_conf_dpk(conf_base, graph, swap_index)
     return conf
 

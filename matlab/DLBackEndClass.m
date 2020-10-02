@@ -532,6 +532,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         detachstr
         sprintf('--name %s',containerName);
         '--rm'
+        '--network host'
         };
         mountArgs(:);
         gpuArgs(:);

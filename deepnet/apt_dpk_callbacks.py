@@ -30,6 +30,40 @@ Callback defns and callback-set instantiations for training flavors.
 logr = logging.getLogger('APT')
 
 
+
+class APTModelCheckpoint(ModelCheckpoint):
+    """
+    Keras-style ModelCheckpoint callback with APT-style save freq/naming convention.
+        (Save every N batches, ckpts named with batch number)
+
+    So dumb.
+    https://github.com/tensorflow/tensorflow/issues/38668
+    https://github.com/tensorflow/tensorflow/pull/38669
+    """
+
+    def __init__(self, **kwargs):
+        super(ModelCheckpoint, self).__init__(**kwargs)
+        # in keras ModelCheckpoint
+        # self._samples_seen_since_last_saving = 0
+        self._batches_seen = 0
+
+    def on_batch_end(self, batch, logs=None):
+        # Based on keras/callbacks.py
+
+        #print("OBE, batch={}".format(batch))
+        logs = logs or {}
+        if isinstance(self.save_freq, int):
+            dsamp = logs.get('size', 1)
+            self._samples_seen_since_last_saving += dsamp
+            self._batches_seen += dsamp
+            if self._samples_seen_since_last_saving >= self.save_freq:
+                self._save_model_apt(self._batches_seen)
+                self._samples_seen_since_last_saving = 0
+
+    def _save_model_apt(self, batch):
+        filepath = self.filepath.format(batch=batch)
+        self.model.save(filepath, overwrite=True)
+
 def create_lr_sched_callback(steps_per_epoch, base_lr, gamma, decaysteps,
                              return_decay_fcn=False):
     logr.info("LR callback: APT fixed sched")
@@ -65,7 +99,7 @@ def create_lr_sched_callback_dropstep(num_epochs,
 
 
 
-class APTKerasCbk(Callback):
+class TrainDataLogger(Callback):
     def __init__(self, conf, dataits, runname='deepnet'):
         # dataits: (trnDG, valDG)
         #
@@ -77,9 +111,9 @@ class APTKerasCbk(Callback):
         self.train_info['step'] = []
         self.train_info['train_dist'] = []
         self.train_info['train_loss'] = []  # scalar loss (dotted with weightvec)
-        self.train_info['train_loss_K'] = []  # scalar loss as reported by K
-        self.train_info['train_loss_full'] = []  # full loss, layer by layer
-        self.train_info['val_dist'] = []
+        #self.train_info['train_loss_K'] = []  # scalar loss as reported by K
+        #self.train_info['train_loss_full'] = []  # full loss, layer by layer
+        #self.train_info['val_dist'] = []
         self.train_info['lr'] = []
         self.config = conf
         self.pred_model = None
@@ -98,23 +132,27 @@ class APTKerasCbk(Callback):
         pred_model = self.pred_model
         step = (epoch + 1) * iterations_per_epoch
 
+        '''
         train_x, train_y = next(self.train_di)
-        val_x, val_y = next(self.val_di)
+        #val_x, val_y = next(self.val_di)
 
         assert isinstance(train_x, list) and len(train_x) == 1
-        assert isinstance(val_x, list) and len(val_x) == 1
+        #assert isinstance(val_x, list) and len(val_x) == 1
         assert isinstance(train_y, list) and len(train_y) >= 2, \
             "Expect training model to have n_output>=2"
-        assert not isinstance(val_y, list)
-
+        #assert not isinstance(val_y, list)
+        '''
         # training loss
-        train_loss_full = train_model.evaluate(train_x, train_y,
-                                               batch_size=batch_size,
-                                               steps=1,
-                                               verbose=0)
-        [train_loss_K, *train_loss_full] = train_loss_full
+        #train_loss_full = train_model.evaluate(train_x, train_y,
+        #                                       batch_size=batch_size,
+        #                                       steps=1,
+        #                                       verbose=0)
+        #[train_loss_K, *train_loss_full] = train_loss_full
         #train_loss = dot(train_loss_full, loss_weights_vec)
-        train_loss = np.nan
+        #train_loss = np.nan
+
+        # train_dist: single-batch with argmax pred. whatevs
+        '''
         train_out = train_model.predict(train_x, batch_size=batch_size)
         assert len(train_out) == len(train_y)
         npts = self.config.n_classes
@@ -123,9 +161,14 @@ class APTKerasCbk(Callback):
               PoseTools.get_pred_locs(train_y[-1][..., :npts])
         tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
         train_dist = np.nanmean(tt1)
+        
+        TODO: need to run train_di in session for tfdata dataset; 
+        otherwise see ade.assess. also, use predict model!
+        '''
         # average over batches/pts, *in output space/coords*
 
         # val dist
+        '''
         val_x = val_x[0]
         assert val_x.shape[0] == batch_size
         val_out = pred_model.predict_on_batch(val_x)
@@ -135,17 +178,18 @@ class APTKerasCbk(Callback):
         # valdist should be in input-space
         assert val_dist.shape == (batch_size, self.config.n_classes)
         val_dist = np.mean(val_dist)  # all batches, all pts
+        '''
+        #lr = K.eval(train_model.optimizer.lr)
 
-        lr = K.eval(train_model.optimizer.lr)
-
-        self.train_info['val_dist'].append(val_dist)
-        self.train_info['train_dist'].append(train_dist)
-        self.train_info['train_loss'].append(train_loss)
-        self.train_info['train_loss_K'].append(train_loss_K)
-        self.train_info['train_loss_full'].append(train_loss_full)
+        #self.train_info['val_dist'].append(val_dist)
+        self.train_info['train_dist'].append(logs['loss'])
+        self.train_info['train_loss'].append(logs['loss'])
+        #self.train_info['train_loss_K'].append(train_loss_K)
+        #self.train_info['train_loss_full'].append(train_loss_full)
         self.train_info['step'].append(int(step))
-        self.train_info['lr'].append(lr)
+        self.train_info['lr'].append(logs['lr'])
 
+        '''
         p_str = ''
         for k in self.train_info.keys():
             lastval = self.train_info[k][-1]
@@ -156,6 +200,7 @@ class APTKerasCbk(Callback):
             else:
                 p_str += '{:s}:{:.2f} '.format(k, lastval)
         logr.info(p_str)
+        '''
 
         conf = self.config
         train_data_file = os.path.join(self.config.cachedir, 'traindata')
@@ -168,9 +213,11 @@ class APTKerasCbk(Callback):
         with open(train_data_file, 'wb') as td:
             pickle.dump([self.train_info, conf], td, protocol=2)
 
+        '''
         if step % conf.save_step == 0:
             train_model.save(str(os.path.join(
                 conf.cachedir, self.runname + '-{}'.format(int(step)))))
+        '''
 
 class ValDistLogger(Callback):
     def __init__(self, dsval_kps, logshort, loglong, nbatch_total):
@@ -413,14 +460,13 @@ def create_callbacks_exp2orig_train(conf,
     return cbks
 
 
-def create_callbacks_aptsty(
-                     conf,
-                     sdn,
-                     do_val,
-                     valbsize,  # only used if do_val==True
-                     nvalbatch,  # "
-                     runname='deepnet',
-                                    ):
+def create_callbacks_aptsty(conf,
+                            sdn,
+                            do_val,
+                            valbsize,  # only used if do_val==True
+                            nvalbatch,  # "
+                            runname='deepnet',
+                            ):
     '''
     APT-style train
     :param conf:
@@ -450,15 +496,6 @@ def create_callbacks_aptsty(
                     conf.gamma,
                     conf.decay_steps)
 
-    ckpt_reg = 'ckpt{}'.format(nowstr)
-    # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
-    #
-    # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
-    # and the metrics get cleared every epoch. note save_freq is in batches, so with
-    # save_freq!='epoch' the saving occurs at random points during an epoch. Val metrics
-    # are prob computed only at epoch end.
-    ckpt_reg += '-{epoch:05d}.h5'
-    ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
     '''
     use regular keras MCpt instead of dpk.MCpt here.
     dpk.ModelCheckPoint derives from k.ModelCheckpoint. Instead of the regular K machinery presumably calling 
@@ -481,8 +518,18 @@ def create_callbacks_aptsty(
     ModelCpt cbk crashes.
     
     '''
-    model_checkpoint_reg = ModelCheckpoint(
-        ckpt_reg,
+    #ckpt_reg = 'deepnet{}'
+    #ckpt_reg = 'deepnet{}'.format(nowstr)
+    # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
+    #
+    # don't include val_loss, get KeyError: 'val_loss' I guess bc our save_freq!='epoch'
+    # and the metrics get cleared every epoch. note save_freq is in batches, so with
+    # save_freq!='epoch' the saving occurs at random points during an epoch. Val metrics
+    # are prob computed only at epoch end.
+    ckpt_reg = 'deepnet-{batch:08d}.h5'
+    ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
+    model_checkpoint_reg = APTModelCheckpoint(
+        filepath=ckpt_reg,
         save_freq=conf.save_step,  # save every this many batches
         save_best_only=False,
     )
@@ -496,13 +543,21 @@ def create_callbacks_aptsty(
             self.sdn.save(self.ckpt_fpn)
             logr.info("Saved final model: {}".format(self.ckpt_fpn))
 
-    ckpt_final = ckpt_reg.format(epoch=conf.dpk_epochs_used)
+    ckpt_final = ckpt_reg.format(batch=conf.dl_steps)
     final_saver = FinalModelSaver(sdn, ckpt_final)
     logr.info(("Configuring FinalModelSaver with final cpt {}".format(ckpt_final)))
 
-    logfile = 'trn{}.log'.format(nowstr)
-    logfile = os.path.join(conf.cachedir, logfile)
-    loggercbk = tf.keras.callbacks.CSVLogger(logfile)
+    #logfile = 'trn{}.log'.format(nowstr)
+    #logfile = os.path.join(conf.cachedir, logfile)
+    #loggercbk = tf.keras.callbacks.CSVLogger(logfile)
+    train_di = sdn.train_generator(sdn.n_outputs,
+                                   conf.batch_size,
+                                   validation=False,
+                                   confidence=True,
+                                   shuffle=True,
+                                   infinite=True)
+    dataits = (train_di, None)
+    loggercbk = TrainDataLogger(conf, dataits)
 
     cbks = [lr_cbk, final_saver, model_checkpoint_reg, loggercbk]
 
