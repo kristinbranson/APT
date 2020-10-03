@@ -2217,7 +2217,7 @@ classdef Labeler < handle
       warning(warnst);
 %       s = load(fname,'-mat');  
 
-      if ~all(isfield(s,{'VERSION' 'labeledpos'}))
+      if ~all(isfield(s,{'VERSION' 'movieFilesAll'}))
         error('Labeler:load','Unexpected contents in Label file.');
       end
       RC.saveprop('lastLblFile',fname);
@@ -4231,9 +4231,9 @@ classdef Labeler < handle
       else
         obj.viewCalibrationData = obj.viewCalibrationData(p);
       end      
-      FLDS2 = {...
-        'labeledpos' 'labeledposTS' 'labeledpostag' ... % 'labeledposMarked' 
-        'labeledpos2'};
+      FLDS2 = {'labels' 'labels2'};
+%         'labeledpos' 'labeledposTS' 'labeledpostag' ... % 'labeledposMarked' 
+%         'labeledpos2'};
       for f=FLDS2,f=f{1}; %#ok<FXSET>
         obj.(f) = obj.(f)(p,:);
       end
