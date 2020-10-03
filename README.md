@@ -35,6 +35,9 @@ APT contains code from the following sources:
 * deepnet/leap
   https://github.com/talmo/leap
   Talmo Pereira: talmo(at)princeton.edu
+* deepnet/imagenet_resnet.py, deepnet/TrainingGeneratorTFRecord.py, deepnet/apt_dpk.py, deepnet/apt_dpk_callbacks.py  
+  https://github.com/jgraving/deepposekit
+  Jacob Graving, Daniel Chae, Hemal Naik, Liang Li, Benjamin Koger, Blair Costelloe, and Iain Couzin
 * matlab/trackers/cpr
   http://www.vision.caltech.edu/xpburgos/ICCV13/code/rcpr_v1.zip
   X.P. Burgos-Artizzu, P.Perona, and Piotr Dollar 

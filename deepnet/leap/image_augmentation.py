@@ -30,7 +30,7 @@ def transform_imgs(X, theta=(-180,180), scale=1.0):
     T = cv2.getRotationMatrix2D(ctr, theta, scale)
     
     # Make sure we don't overwrite the inputs
-    X = [x.copy()/255 for x in X] # Because I don't normalize while loading anymore MK 20200511
+    X = [x.copy() for x in X]
 
     # Apply to each image
     for i in range(len(X)):
@@ -103,7 +103,7 @@ class PairedImageAugmenter(Sequence):
         self.X = X
         self.Y = Y
         self.batch_size = conf.batch_size
-        self.theta = conf.rrange
+        self.theta = (-conf.rrange,conf.rrange)
         self.scale = (1/conf.scale_factor_range,conf.scale_factor_range)
         self.conf = conf
 
@@ -128,6 +128,7 @@ class PairedImageAugmenter(Sequence):
         Y = self.Y[idx]
 
         if self.conf.use_leap_preprocessing:
+            # print('Using orig data aug')
             if Y.ndim==4:
                 # This is to our implemenmtation vs orig
                 # print('Not generating hmaps!!!')
@@ -136,8 +137,11 @@ class PairedImageAugmenter(Sequence):
                 hmap_sigma = 5
                 hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
                 hmaps = (hmaps+1)/2
+            Xt = np.zeros_like(X)
             for i in range(len(X)):
-                X[i], hmaps[i] = transform_imgs((X[i], hmaps[i]), theta=self.theta, scale=self.scale)
+                Xt[i], hmaps[i] = transform_imgs((X[i], hmaps[i]), theta=self.theta, scale=self.scale)
+            Xt = Xt/255. # Because I don't normalize while loading anymore MK 20200511
+            X = Xt
 
         else:
             X, Y = PoseTools.preprocess_ims(X,Y,self.conf,True,self.conf.rescale)

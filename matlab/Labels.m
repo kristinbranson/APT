@@ -766,8 +766,10 @@ classdef Labels
       %
       % lblfile: either char/fullpath, or struct from loaded lblfile
       
-      quiet = myparse(varargin,...
-        'quiet',false);
+      [quiet,gt] = myparse(varargin,...
+        'quiet',false,...
+        'gt',false ...
+        );
       
       if quiet
         wbObj = [];
@@ -781,11 +783,15 @@ classdef Labels
         lbl = lblfile;
       end
             
-      lpos = lbl.labels;
+      if gt
+        lpos = lbl.labelsGT;
+      else
+        lpos = lbl.labels;
+      end
       tblcell = cell(size(lpos));
       nmov = numel(lpos);
       for imov=1:nmov
-        tblcell{imov} = Labels.totable(lpos{imov},MovieIndex(imov));
+        tblcell{imov} = Labels.totable(lpos{imov},MovieIndex(imov,gt));
       end
       tblMF = cat(1,tblcell{:});
 
@@ -793,23 +799,30 @@ classdef Labels
       tblMF = tblMF(:,MFTable.FLDSID);
             
       sMacro = lbl.projMacros;
-      mfafull = FSPath.fullyLocalizeStandardize(lbl.movieFilesAll,sMacro);
-      tfafull = Labeler.trxFilesLocalize(lbl.trxFilesAll,mfafull);
+      if gt
+        mfa = lbl.movieFilesAllGT;
+        tfa = lbl.trxFilesAllGT;
+      else
+        mfa = lbl.movieFilesAll;
+        tfa = lbl.trxFilesAll;
+      end
+      mfafull = FSPath.fullyLocalizeStandardize(mfa,sMacro);
+      tfafull = Labeler.trxFilesLocalize(tfa,mfafull);
             
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,lpos, ...
         'trxFilesAllFull',tfafull,...
         'trxCache',containers.Map(),...
-        'wbObj',wbObj);
-      
-      % TODO: gt labels
+        'wbObj',wbObj);      
     end
     function tblMF = lblFileGetLabels_Old(lblfile,varargin)
       % Get all labeled rows from a lblfile
       %
       % lblfile: either char/fullpath, or struct from loaded lblfile
       
-      quiet = myparse(varargin,...
-        'quiet',false);
+      [quiet,gt] = myparse(varargin,...
+        'quiet',false,...
+        'gt',false ...
+        );
       
       if quiet
         wbObj = [];
@@ -822,9 +835,15 @@ classdef Labels
       else
         lbl = lblfile;
       end
-      lpos = lbl.labeledpos;
-      lpostag = lbl.labeledpostag;
-      lposts = lbl.labeledposTS;
+      if gt
+        lpos = lbl.labeledposGT;
+        lpostag = lbl.labeledpostagGT;
+        lposts = lbl.labeledposTSGT;
+      else
+        lpos = lbl.labeledpos;
+        lpostag = lbl.labeledpostag;
+        lposts = lbl.labeledposTS;
+      end
       
       tblMF = [];
       nmov = numel(lpos);
@@ -835,7 +854,7 @@ classdef Labels
         tblI = unique(tblI);
         tblI.mov = MovieIndex(repmat(imov,height(tblI),1));
         
-        tblMF = [tblMF; tblI];
+        tblMF = [tblMF; tblI]; %#ok<AGROW>
       end
       
       tblMF = tblMF(:,MFTable.FLDSID);
@@ -845,16 +864,21 @@ classdef Labels
       lpostsfull = cellfun(@SparseLabelArray.full,lposts,'uni',0);
       
       sMacro = lbl.projMacros;
-      mfafull = FSPath.fullyLocalizeStandardize(lbl.movieFilesAll,sMacro);
-      tfafull = Labeler.trxFilesLocalize(lbl.trxFilesAll,mfafull);
+      if gt
+        mfa = lbl.movieFilesAllGT;
+        tfa = lbl.trxFilesAllGT;
+      else
+        mfa = lbl.movieFilesAll;
+        tfa = lbl.trxFilesAll;
+      end
+      mfafull = FSPath.fullyLocalizeStandardize(mfa,sMacro);
+      tfafull = Labeler.trxFilesLocalize(tfa,mfafull);
             
       tblMF = Labels.labelAddLabelsMFTableStc_Old(tblMF,...
         lposfull,lpostagfull,lpostsfull,...
         'trxFilesAllFull',tfafull,...
         'trxCache',containers.Map(),...
-        'wbObj',wbObj);
-      
-      % TODO: gt labels
+        'wbObj',wbObj);      
     end
     
     function [tffound,f] = seekBigLpos(lpos,f0,df,iTgt)

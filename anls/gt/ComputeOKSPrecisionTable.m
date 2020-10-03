@@ -49,13 +49,15 @@ if isempty(nets),
 end
 nnets = numel(nets);
 
-ndatapts = size(gtdata.(nets{1}){end}.labels,1);
+nets0 = intersect(nets,fieldnames(gtdata));
+
+ndatapts = size(gtdata.(nets0{1}){end}.labels,1);
 if isempty(conddata),
   conddata = struct;
   conddata.data_cond = ones(ndatapts,1);
   conddata.label_cond = ones(ndatapts,1);
 end
-nlandmarks = size(gtdata.(nets{1}){end}.labels,2);
+nlandmarks = size(gtdata.(nets0{1}){end}.labels,2);
 if isempty(pttypes),
   npttypes = nlandmarks;
 end

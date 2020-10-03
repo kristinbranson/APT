@@ -42,6 +42,7 @@ from scipy import stats
 import pickle
 import yaml
 import logging
+import time
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -71,29 +72,44 @@ def rescale_points(locs_hires, scalex, scaley):
     Should work fine with scale<1
     '''
 
-    bsize, npts, d = locs_hires.shape
+    locs_hires = locs_hires.copy()
+    if locs_hires.ndim == 3: # hack for multi animal
+        reduce_dim = True
+        locs_hires = locs_hires[:,np.newaxis,...]
+    else:
+        reduce_dim = False
+
+    nan_valid = np.invert(np.isnan(locs_hires))
+    high_valid = locs_hires > -10000  # ridiculosly low values are used for multi animal
+    valid = nan_valid & high_valid
+
+    bsize, nmax, npts, d = locs_hires.shape[-4:]
     assert d == 2
     assert issubclass(locs_hires.dtype.type, np.floating)
     locs_lores = locs_hires.copy()
-    locs_lores[:, :, 0] = (locs_lores[:, :, 0] - float(scalex - 1) / 2) / scalex
-    locs_lores[:, :, 1] = (locs_lores[:, :, 1] - float(scaley - 1) / 2) / scaley
+    locs_lores[..., 0] = (locs_lores[..., 0] - float(scalex - 1) / 2) / scalex
+    locs_lores[..., 1] = (locs_lores[..., 1] - float(scaley - 1) / 2) / scaley
+    locs_lores[~nan_valid] = np.nan
+    locs_lores[~high_valid] = -100000
+
+    if reduce_dim:
+        locs_lores = locs_lores[:,0,...]
     return locs_lores
 
 def unscale_points(locs_lores, scalex, scaley):
     '''
     Undo rescale_points. Returns a new array
 
-    :param locs_lores:
+    :param locs_lores: last dim has len 2 and is x,y
     :param scale:
     :return:
     '''
 
-    bsize, npts, d = locs_lores.shape
-    assert d == 2
+    assert locs_lores.shape[-1] == 2
     assert issubclass(locs_lores.dtype.type, np.floating)
     locs_hires = locs_lores.copy()
-    locs_hires[:, :, 0] = float(scalex) * (locs_hires[:, :, 0] + 0.5) - 0.5
-    locs_hires[:, :, 1] = float(scaley) * (locs_hires[:, :, 1] + 0.5) - 0.5
+    locs_hires[..., 0] = float(scalex) * (locs_hires[..., 0] + 0.5) - 0.5
+    locs_hires[..., 1] = float(scaley) * (locs_hires[..., 1] + 0.5) - 0.5
     return locs_hires
 
 def scale_images(img, locs, scale, conf, **kwargs):
@@ -103,19 +119,22 @@ def scale_images(img, locs, scale, conf, **kwargs):
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
 
+    nan_valid = np.invert(np.isnan(locs))
+    high_valid = locs > -10000  # ridiculosly low values are used for multi animal
+    valid = nan_valid & high_valid
+
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
     for ndx in range(sz[0]):
         # use anti_aliasing?
         if sz[3] == 1:
-            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3],
-                                                  preserve_range=True, mode='edge', **kwargs)
+            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
         else:
-            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3],
-                                                  preserve_range= True, mode='edge', **kwargs)
+            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
 
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
     new_locs = rescale_points(locs, scalex_actual, scaley_actual)
+    new_locs[~valid] = -100000
 
     return simg, new_locs
 
@@ -127,9 +146,11 @@ def normalize_mean(in_img, conf):
         mm = zz.mean(axis=(1,2))
         xx = zz - mm[:, np.newaxis, np.newaxis,:]
         if conf.img_dim == 3:
+            bsize_actual = zz.shape[0]
             if conf.perturb_color:
                 for dim in range(3):
-                    to_add = old_div(((np.random.rand(conf.batch_size) - 0.5) * conf.imax), 8)
+                    # AL: Why 8 in denominator?
+                    to_add = old_div(((np.random.rand(bsize_actual) - 0.5) * conf.imax), 8)
                     xx[:, :, :, dim] += to_add[:, np.newaxis, np.newaxis]
     # elif not hasattr(conf, 'normalize_batch_mean') or conf.normalize_batch_mean:
     # elif conf.normalize_batch_mean:
@@ -185,6 +206,7 @@ def crop_images(frame_in, conf):
 
 def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
     locs = in_locs.copy()
+
     if locs.ndim == 3:
         reduce_dim = True
         locs = locs[:,np.newaxis,...]
@@ -237,7 +259,7 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
             for ll in range(locs.shape[2]):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
-                    match = pairs[ll]
+                    match = pairs[str_ll]
                     locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, match , 1]
                     locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
                 else:
@@ -401,7 +423,7 @@ def randomly_adjust(img, conf, group_sz = 1):
         for g in range(group_sz):
             jj = img[st+g, ...] + bfactor * imax
             jj = np.minimum(imax, (jj - mm) * cfactor + mm)
-            jj = jj.clip(0, imax)
+            jj = jj.clip(0, imax)  # doesn't this make the prev call unnec
             img[st+g, ...] = jj
     return img
 
@@ -483,13 +505,15 @@ def randomly_affine(img,locs, conf, group_sz=1):
         orig_locs = locs[st:en, ...]
         orig_im = img[st:en, ...].copy()
         sane = False
-        do_rotate = True
+        do_transform = True
 
         count = 0
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
+        nan_valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
+        high_valid = orig_locs[..., 0] > -10000  # ridiculosly low values are used for multi animal
+        valid = nan_valid & high_valid
         while not sane:
-            valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
 
             if conf.use_scale_factor_range:
@@ -505,16 +529,16 @@ def randomly_affine(img,locs, conf, group_sz=1):
             # clip scaling to 0.05
             if sfactor < 0.05:
                 sfactor = 0.05
-            dx = (np.random.rand()*2 -1)*conf.trange
-            dy = (np.random.rand()*2 -1)*conf.trange
+            dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
 
             count += 1
             if count > 5:
                 rangle = 0; dx = 0; dy=0; sfactor = 1
                 sane = True
-                do_rotate = False
+                do_transform = False
 
-            rot_mat = cv2.getRotationMatrix2D((float(conf.imsz[1])/2,float(conf.imsz[0])/2 ), rangle, sfactor)
+            rot_mat = cv2.getRotationMatrix2D((cols/2,rows/2), rangle, sfactor)
             rot_mat[0,2] += dx
             rot_mat[1,2] += dy
             lr = np.matmul(orig_locs,rot_mat[:,:2].T)
@@ -528,7 +552,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
                 sane = True
             elif not conf.check_bounds_distort:
                 sane = True
-            elif do_rotate:
+            elif do_transform:
                 continue
 
             for g in range(group_sz):
@@ -538,6 +562,8 @@ def randomly_affine(img,locs, conf, group_sz=1):
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
 
+        lr[~high_valid,0] = -100000
+        lr[~high_valid,1] = -100000
         locs[st:en, ...] = lr
         img[st:en, ...] = out_ii
 
@@ -562,6 +588,7 @@ def blur_label(im_sz, loc, scale, blur_rad):
 
 
 def create_label_images_slow(locs, im_sz, scale, blur_rad):
+    # AL: requires scale==1?
     n_out = locs.shape[1]
     n_ex = locs.shape[0]
     sz0 = int(float(im_sz[0])/ scale)
@@ -579,7 +606,7 @@ def create_label_images_slow(locs, im_sz, scale, blur_rad):
     return  out
 
 
-def create_label_images(locs, im_sz, scale, blur_rad):
+def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     '''
 
     :param locs: original, hi-res locs
@@ -592,7 +619,11 @@ def create_label_images(locs, im_sz, scale, blur_rad):
     so is not subpixel-accurate
 
     '''
-    n_classes = len(locs[0])
+    if locs.ndim == 3:
+        locs = locs.copy()
+        locs = locs[:,np.newaxis,...]
+    n_classes = len(locs[0][0])
+    maxn = len(locs[0])
     sz0 = int(im_sz[0] // scale)
     sz1 = int(im_sz[1] // scale)
 
@@ -609,24 +640,25 @@ def create_label_images(locs, im_sz, scale, blur_rad):
     blur_l = cv2.GaussianBlur(blur_l, (2 * k_size + 1, 2 * k_size + 1), blur_rad)
     blur_l = old_div(blur_l, blur_l.max())
     for cls in range(n_classes):
-        for ndx in range(len(locs)):
-            if np.isnan(locs[ndx][cls][0]) or np.isinf(locs[ndx][cls][0]):
-                continue
-            if np.isnan(locs[ndx][cls][1]) or np.isinf(locs[ndx][cls][1]):
-                continue
-                #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
-            #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
+        for andx in range(maxn):
+            for ndx in range(len(locs)):
+                if np.isnan(locs[ndx][andx][cls][0]) or np.isinf(locs[ndx][andx][cls][0]) or locs[ndx][andx][cls][0]<-1000:
+                    continue
+                if np.isnan(locs[ndx][andx][cls][1]) or np.isinf(locs[ndx][andx][cls][1]) or locs[ndx][andx][cls][0]<-1000:
+                    continue
+                    #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
+                #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
 
-            yy = float(locs[ndx][cls][1]-float(scaley_actual-1)/2)/scaley_actual
-            xx = float(locs[ndx][cls][0]-float(scalex_actual-1)/2)/scalex_actual
-            modlocs0 = int(np.round(yy))  # AL 20200113 not subpixel
-            modlocs1 = int(np.round(xx))  # AL 20200113 not subpixel
-            l0 = min(sz0, max(0, modlocs0 - k_size))
-            r0 = max(0, min(sz0, modlocs0 + k_size + 1))
-            l1 = min(sz1, max(0, modlocs1 - k_size))
-            r1 = max(0, min(sz1, modlocs1 + k_size + 1))
-            label_ims[ndx, l0:r0, l1:r1, cls] = blur_l[(l0 - modlocs0 + k_size):(r0 - modlocs0 + k_size),
-                                                (l1 - modlocs1 + k_size):(r1 - modlocs1 + k_size)]
+                yy = float(locs[ndx][andx][cls][1]-float(scaley_actual-1)/2)/scaley_actual
+                xx = float(locs[ndx][andx][cls][0]-float(scalex_actual-1)/2)/scalex_actual
+                modlocs0 = int(np.round(yy))  # AL 20200113 not subpixel
+                modlocs1 = int(np.round(xx))  # AL 20200113 not subpixel
+                l0 = min(sz0, max(0, modlocs0 - k_size))
+                r0 = max(0, min(sz0, modlocs0 + k_size + 1))
+                l1 = min(sz1, max(0, modlocs1 - k_size))
+                r1 = max(0, min(sz1, modlocs1 + k_size + 1))
+                label_ims[ndx, l0:r0, l1:r1, cls] += blur_l[(l0 - modlocs0 + k_size):(r0 - modlocs0 + k_size),
+                                                    (l1 - modlocs1 + k_size):(r1 - modlocs1 + k_size)]
 
     # label_ims = 2.0 * (label_ims - 0.5)
     label_ims -= 0.5
@@ -750,6 +782,7 @@ def get_pred_locs(pred, edge_ignore=0):
         edge_ignore = 0
     n_classes = pred.shape[3]
     pred_locs = np.zeros([pred.shape[0], n_classes, 2])
+
     for ndx in range(pred.shape[0]):
         for cls in range(n_classes):
             cur_pred = pred[ndx, :, :, cls].copy()
@@ -766,6 +799,7 @@ def get_pred_locs(pred, edge_ignore=0):
 
 
 def get_pred_locs_multi(pred, n_max, sz):
+    sz = int(round(sz))
     pred = pred.copy()
     n_classes = pred.shape[3]
     pred_locs = np.zeros([pred.shape[0], n_max, n_classes, 2])
@@ -932,7 +966,7 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     plt.figure(); plt.imshow(im_s,cmap=cmap)
 
 
-def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11):
+def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11, hiliteptcolor=None):
     import matplotlib.pyplot as plt
     from matplotlib import cm
     count = float(len(ndx))
@@ -954,8 +988,9 @@ def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=Non
             ax[idx].scatter(locs[ndx[idx], :, 0], locs[ndx[idx], :, 1],
                             c=rgba, marker='.', alpha=0.25)
             plt.sca(ax[idx])
+            clr = rgba[hilitept,:] if hiliteptcolor is None else hiliteptcolor
             plt.plot(locs[ndx[idx], hilitept, 0], locs[ndx[idx], hilitept, 1],
-                     c=rgba[hilitept,:], marker='.', markersize=12)
+                     c=clr, marker='.', markersize=12)
         else:
             ax[idx].scatter(locs[ndx[idx],:,0],locs[ndx[idx],:,1],c=rgba,marker='.', s=mrkrsz)
         if predlocs is not None:
@@ -963,8 +998,9 @@ def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=Non
                 ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
                                 c=rgba, marker='+', alpha=0.25)
                 #plt.sca(ax[idx])
+                clr = rgba[hilitept, :] if hiliteptcolor is None else hiliteptcolor
                 plt.plot(predlocs[ndx[idx], hilitept, 0], predlocs[ndx[idx], hilitept, 1],
-                         c=rgba[hilitept,:], marker='+', markersize=12)
+                         c=clr, marker='+', markersize=12)
             else:
                 ax[idx].scatter(predlocs[ndx[idx], :, 0], predlocs[ndx[idx], :, 1],
                                 c=rgba, marker='+', s=mrkrsz)
@@ -1046,8 +1082,6 @@ def tfrecord_to_coco(db_file, conf, img_dir, out_file, categories=None, scale = 
             ann['images'].append({'id':ndx, 'width':conf.imsz[1]*scale, 'height':conf.imsz[0]*scale, 'file_name':im_name})
             ann['annotations'].append({'iscrowd':0,'segmentation':[bbox],'area':area,'image_id':ndx, 'id':ndx,'num_keypoints':conf.n_classes,'bbox':bbox,'keypoints':cur_locs.flatten().tolist(),'category_id':1})
 
-
-
         coord.request_stop()
         coord.join(threads)
     with open(out_file,'w') as f:
@@ -1110,28 +1144,40 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     :param scale: How much to downsample the input image
     :param group_sz:
     :return:
+        AL 20190909: The second return arg (locs) may not be precisely correct when
+        scale>1
+
+        Relies on conf.imsz and many other preproc-related params
     '''
 #    assert ims.dtype == 'uint8', 'Preprocessing only work on uint8 images'
     locs = in_locs.copy()
     cur_im = ims.copy()
     cur_im = cur_im.astype('uint8')
     xs = adjust_contrast(cur_im, conf)
+    start = time.time()
     xs, locs = scale_images(xs, locs, scale, conf)
+    stime = time.time()
     if distort:
         if conf.horz_flip:
             xs, locs = randomly_flip_lr(xs, locs, conf, group_sz=group_sz)
         if conf.vert_flip:
             xs, locs = randomly_flip_ud(xs, locs, conf, group_sz=group_sz)
+        ftime = time.time()
         xs, locs = randomly_affine(xs, locs, conf, group_sz=group_sz)
+        rtime = time.time()
         # xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
         # xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
         # xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
         xs = randomly_adjust(xs, conf, group_sz=group_sz)
+        ctime = time.time()
     xs = normalize_mean(xs, conf)
+    etime = time.time()
+    # print('Time for aug {}, {}, {}, {}, {}'.format(stime-start,ftime-stime,rtime-ftime,ctime-rtime,etime-ctime))
     return xs, locs
 
 
 def pad_ims(ims, locs, pady, padx):
+    # AL WARNING for caller: this modifies locs in place
     pady_b = pady//2 # before
     padx_b = padx//2
     pady_a = pady-pady_b # after
@@ -1183,6 +1229,21 @@ def pickle_load(filename):
             K = pickle.load(f)
     return K
 
+def pickle_load_series(filename):
+    '''
+    supports "pickle series". questionable no doubt
+    :param filename:
+    :return:
+    '''
+    stuff = []
+    with open(filename,'rb') as f:
+        while True:
+            try:
+                tmp = pickle.load(f,encoding='latin1')
+            except EOFError:
+                break
+            stuff.append(tmp)
+    return stuff
 
 def yaml_load(filename):
     with open(filename,'r') as f:
@@ -1207,8 +1268,8 @@ def get_last_epoch(conf, name):
 
 
 def get_latest_model_file_keras(conf, name):
-    if name != 'deepnet':
-        name = conf.expname + '_' + name
+    #if name != 'deepnet':
+    #    name = conf.expname + '_' + name
     last_epoch = get_last_epoch(conf, name)
     if last_epoch is None:
         return None
@@ -1229,7 +1290,7 @@ def get_latest_model_file_keras(conf, name):
                 files = files[bb:]
             latest_model_file = files[-1]
 
-    return  latest_model_file
+    return latest_model_file
 
 
 def get_crop_loc(lbl,ndx,view, on_gt=False):
@@ -1273,27 +1334,34 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet'):
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
+               run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',
+               sing_image='docker://bransonlabapt/apt_docker:tf1.15_py3',
+               precmd='',numcores=2):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
     sing_log = os.path.join(dir, 'opt_' + name + '.log')
-    bsub_script = os.path.join(dir, 'opt_' + name + '_bsub.sh')
+    bsub_script = os.path.join(dir, 'opt_' + name + '.bsub.sh')
     with open(sing_script, 'w') as f:
         f.write('#!/bin/bash\n')
         # f.write('bjobs -uall -m `hostname -s`\n')
         f.write('. /opt/venv/bin/activate\n')
         f.write('cd {}\n'.format(run_dir))
-        f.write('numCores2use={} \n'.format(2))
+        f.write('numCores2use={} \n'.format(numcores))
+        f.write('{} \n'.format(precmd))
         f.write('python {}'.format(cmd))
         f.write('\n')
 
     # KB 20190424: this doesn't work in py3
-    os.chmod(sing_script, stat.S_IREAD|stat.S_IEXEC|stat.S_IWUSR)
+    if ISPY3:
+        os.chmod(sing_script, stat.S_IREAD|stat.S_IEXEC|stat.S_IWUSR)
+    else:
+        os.chmod(sing_script, 0o0755)
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n2 -W {} -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_cuda10_mayank.simg {}"' '''.format(name, sing_log, sing_err, timeout, gpu_str, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     with open(bsub_script,'w') as f:
         f.write(cmd)
         f.write('\n')
@@ -1323,3 +1391,12 @@ def show_result_hist(im,loc,percs):
         for pp in range(percs.shape[0]):
             c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False)
             ax.add_patch(c)
+
+
+def nan_hook(name, grad):
+    # pytorch backward hook to check for nans
+    if np.any(np.isnan(grad.cpu().numpy())):
+        print('{} has NaN grad'.format(name))
+    else:
+        print('{} has normal grad'.format(name))
+

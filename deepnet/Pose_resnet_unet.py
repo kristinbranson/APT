@@ -15,16 +15,19 @@ import resnet_official
 from tensorflow.contrib.slim.nets import resnet_v1
 import convNetBase as CNB
 from PoseCommon_dataset import conv_relu3, conv_relu
+import numpy as np
+from tensorflow.contrib.layers import batch_norm
+from upsamp import upsample_init_value
 
 
 class Pose_resnet_unet(PoseBase):
 
-    def __init__(self, conf):
-        PoseBase.__init__(self, conf,hmaps_downsample=1)
+    def __init__(self, conf,name='deepnet'):
+        PoseBase.__init__(self, conf,name=name,hmaps_downsample=1)
 
         self.conf.use_pretrained_weights = True
 
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
         if self.resnet_source == 'official_tf':
             url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -61,11 +64,15 @@ class Pose_resnet_unet(PoseBase):
 
         im, locs, info, hmap = self.inputs
 
+        if self.conf.get('pretrain_freeze_bnorm', True):
+            pretrain_update_bnorm = False
+        else:
+            pretrain_update_bnorm = self.ph['phase_train']
+
         if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 net, end_points = resnet_v1.resnet_v1_50(im,
-                                          global_pool=False, is_training=self.ph[
-                                          'phase_train'])
+                                          global_pool=False, is_training=pretrain_update_bnorm)
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
                            'block3/unit_5/bottleneck_v1', 'block4']
                 down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
@@ -75,10 +82,10 @@ class Pose_resnet_unet(PoseBase):
                 n_filts = [32, 64, 64, 128, 256, 512]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
-            im = tf.placeholder(tf.float32, [8, 512, 512, 3])
-            resnet_out = mm(im, True)
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=64, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
+            resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
+            down_layers.pop(1) # remove one of the layers of size imsz/4, imsz/4 at index 1
             ex_down_layers = conv(self.inputs[0], 64)
             down_layers.insert(0, ex_down_layers)
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
@@ -103,7 +110,23 @@ class Pose_resnet_unet(PoseBase):
 
                 layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                 with tf.variable_scope('u_{}'.format(ndx)):
-                    X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                    X_sh = X.get_shape().as_list()
+                    # w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
+                    # for wndx in range(X_sh[-1]):
+                    #     w_mat[:, :, wndx, wndx] = 1.
+                    w_sh = [4, 4, X_sh[-1], X_sh[-1]]
+                    w_mat = upsample_init_value(w_sh, alg='bl', dtype=np.float32)
+
+                    w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]], initializer=tf.constant_initializer(w_mat))
+                    out_shape = [X_sh[0], layers_sz[0], layers_sz[1], X_sh[-1]]
+                    X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+                    biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+                    conv_b = X + biases
+
+                    bn = batch_norm(conv_b, is_training=self.ph['phase_train'], decay=0.99)
+                    X = tf.nn.relu(bn)
+
+                    # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
 
             prev_in = X
 

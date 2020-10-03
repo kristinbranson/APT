@@ -365,6 +365,11 @@ set(hWindowClipPanel, ...
             'String',getString(message('images:privateUIString:scaleDisplayApply')));
         set(hScaleDisplayBtn, 'WidthLimits',[60 75]);
 
+        % AL: define vars modified by nested fns used in this scope.
+        % Required for eg versions 19b+
+        scaleDisplayPanelHeight = [];
+        scaleDisplayPanelWidth = [];
+
         scaleDisplayPanelWH = calculateWHOfPanel;
 
         set(hScaleDisplayPanel,...

@@ -1,7 +1,7 @@
 classdef APT
   
   properties (Constant)
-    Root = fileparts(mfilename('fullpath'));
+    Root = getRootGeneral(); %fileparts(mfilename('fullpath'));
     MANIFESTFILE = 'Manifest.txt';
     SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh');
     
@@ -31,7 +31,7 @@ classdef APT
     function root = getRoot()
       % root: the folder containing APT.m. When deployed, it is
       % assumed the tree under root matches the dev repo
-      root = fileparts(mfilename('fullpath'));   
+      root = getRootGeneral();
     end
     
     function m = readManifest()
@@ -498,4 +498,14 @@ classdef APT
     
   end
   
+end
+
+
+function root = getRootGeneral()
+  if isdeployed
+    root = ctfroot;
+  else
+    root = fileparts(mfilename('fullpath'));   
+  end
+
 end

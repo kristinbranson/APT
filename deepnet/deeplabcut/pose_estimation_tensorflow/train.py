@@ -37,6 +37,7 @@ import json
 import pickle
 import PoseTools
 import random
+import time
 
 
 class LearningRate(object):
@@ -120,7 +121,7 @@ def save_td(cfg, train_info):
     if name == 'deepnet':
         train_data_file = os.path.join(cachedir, 'traindata')
     else:
-        train_data_file = os.path.join(cachedir, name + '_traindata')
+        train_data_file = os.path.join(cachedir, cfg.expname + '_' + name + '_traindata')
 
     # train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
@@ -178,7 +179,10 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         cfg['batch_size']=1 #in case this was edited for analysis.-
 
     dataset = create_dataset(cfg)
-    kk = dataset.next_batch() # for debugging
+    start = time.time()
+    for n in range(100):
+        kk = dataset.next_batch() # for debugging
+    logging.info('Time for inputting {}'.format( (time.time()-start)/1000))
     batch_spec = get_batch_spec(cfg)
     batch, enqueue_op, placeholders = setup_preloading(batch_spec)
     net = pose_net(cfg)
@@ -260,7 +264,8 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         cum_loss += loss_val
         train_writer.add_summary(summary, it)
 
-        if it % display_iters == 0 and it>0:
+        if it % display_iters == 0:
+
             cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
             pred = [cur_out['part_pred'],cur_out['locref']]
             scmap, locref = predict.extract_cnn_output(pred, cfg)
@@ -270,14 +275,17 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
             if loc_pred.ndim == 2:
                 loc_pred = loc_pred[np.newaxis,np.newaxis,...]
             loc_in = batch_out[Batch.locs]
-            dd = np.sqrt(np.sum(np.square(loc_pred[:,:,:,:2]-loc_in),axis=-1))
+            if loc_pred.shape[2] == loc_in.shape[2]:
+                dd = np.sqrt(np.sum(np.square(loc_pred[:,:,:,:2]-loc_in),axis=-1))
+            else:
+                dd = np.array([0])
             dd = dd/cfg.global_scale
             average_loss = cum_loss / display_iters
             cum_loss = 0.0
             logging.info("iteration: {} dist: {:.2f} loss: {} lr: {}"
                          .format(it, dd.mean(), "{0:.4f}".format(average_loss), current_lr))
-            lrf.write("{}, {:.2f}, {:.5f}, {}\n".format(it, dd.mean(), average_loss, current_lr))
-            lrf.flush()
+            # lrf.write("{}, {:.2f}, {:.5f}, {}\n".format(it, dd.mean(), average_loss, current_lr))
+            # lrf.flush()
 
             train_info['step'].append(it)
             train_info['train_loss'].append(loss_val)
@@ -334,7 +342,7 @@ def get_pred_fn(cfg_dict, model_file=None):
             cur_im = all_f
 
         if cfg.dlc_use_apt_preprocess:
-            cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.num_joints, 2]), conf=cfg, distort=False, scale=cfg.global_scale)
+            cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.num_joints, 2]), conf=cfg, distort=False, scale=1/cfg.global_scale)
         else:
             scale = cfg.global_scale
             nims = []
@@ -346,7 +354,7 @@ def get_pred_fn(cfg_dict, model_file=None):
         cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
-        pose = pose[np.newaxis,:,:2]*cfg.global_scale
+        pose = pose[np.newaxis,:,:2]/cfg.global_scale
         ret_dict = {}
         ret_dict['locs'] = pose
         ret_dict['hmaps'] = scmap[np.newaxis,...]

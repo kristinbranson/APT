@@ -89,7 +89,9 @@ parfor i = 1:size(gtdatain{end}.pred,1),
     labels3d = reconstructfun(labels);
     labelsout(i,:,:) = labels3d';
   end
-  pred3d = reconstructfun(pred);
+  okidx = all(all(~isnan(pred),1),2);
+  pred3d = nan(3,nlandmarks);
+  pred3d(:,okidx) = reconstructfun(pred(:,:,okidx));
   predout(i,:,:) = pred3d';
 end
 if dolabels,

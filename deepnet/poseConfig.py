@@ -10,6 +10,15 @@ import logging
 
 class config(object):
     # ----- Names
+    DATAAUG_FLDS = {
+        'adjust_contrast': ['adjust_contrast', 'clahe_grid_size'],
+        'scale_images': ['rescale'],
+        'flip': ['horz_flip', 'vert_flip', 'flipLandmarkMatches'],
+        'affine': ['use_scale_factor_range', 'scale_range', 'scale_factor_range',
+                   'rrange', 'trange', 'rescale', 'check_bounds_distort'],
+        'adjust': ['brange', 'crange', 'imax'],
+        'normalize': ['normalize_img_mean', 'img_dim', 'perturb_color', 'imax', 'normalize_batch_mean'],
+    }
 
     # ----- Network parameters
     def __init__(self):
@@ -78,7 +87,51 @@ class config(object):
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
+        self.op_im_pady = None  # computed at runtime
+        self.op_im_padx = None  # "
+        self.op_imsz_hires = None  # "
+        self.op_imsz_lores = None  # "
+        self.op_imsz_net = None  # "
+        self.op_imsz_pad = None  # "
+        self.op_backbone = 'resnet50_8px'
+        self.op_backbone_weights = 'imagenet'
+        self.op_map_lores_blur_rad = 1.0
+        self.op_map_hires_blur_rad = 2.0
+        self.op_paf_lores_tubewidth = 0.95 # not used if tubeblur=True
+        self.op_paf_lores_tubeblur = False
+        self.op_paf_lores_tubeblursig = 0.95
+        self.op_paf_lores_tubeblurclip = 0.05
+        self.op_paf_nstage = 5
+        self.op_map_nstage = 1
+        self.op_hires = True
+        self.op_hires_ndeconv = 2
+        self.op_base_lr = 4e-5  # Gines 5e-5
+        self.op_weight_decay_kernel = 5e-4
+        self.op_hmpp_floor = 0.1
+        self.op_hmpp_nclustermax = 1
+        self.op_pred_raw = False
         self.n_steps = 4.41
+
+        # ---
+        #self.sb_rescale = 1
+        self.sb_n_transition_supported = 5  # sb network in:out size can be up to 2**<this> (as factor of 2). this
+            # is for preproc/input pipeline only; see sb_output_scale for actual ratio
+        self.sb_im_pady = None  # computed at runtime
+        self.sb_im_padx = None  # "
+        self.sb_imsz_net = None  # "
+        self.sb_imsz_pad = None  # "
+        self.sb_base_lr = 4e-5
+        self.sb_weight_decay_kernel = 5e-4
+        self.sb_backbone = 'ResNet50_8px'
+        self.sb_backbone_weights = 'imagenet'
+        self.sb_num_deconv = 3
+        self.sb_deconv_num_filt = 512
+        self.sb_output_scale = None  # output heatmap dims relative to imszuse (network input size), computed at runtime
+        self.sb_upsamp_chan_handling = 'direct_deconv'  # or 'reduce_first'
+        self.sb_blur_rad_input_res = 3.0  # target hmap blur rad @ input resolution
+        self.sb_blur_rad_output_res = None  # runtime-computed
+        self.sb_hmpp_floor = 0.1
+        self.sb_hmpp_nclustermax = 1
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
@@ -87,6 +140,47 @@ class config(object):
         self.dlc_train_img_dir = 'train'
         self.dlc_train_data_file = 'train_data.p'
         self.dlc_augment = True
+
+        # ---- dpk
+        # "early" here is eg after initial setup in APT_interface
+        self.dpk_max_val_batches = 1       # maximum number of validation batches
+        self.dpk_downsample_factor = 2      # (immutable after early) integer downsample                                            *power* for output shape
+        self.dpk_n_stacks = 2
+        self.dpk_growth_rate = 48
+        self.dpk_use_pretrained = True
+        self.dpk_n_outputs = 1              # (settable at TGTFR._call_-time)
+        self.dpk_use_augmenter = False      # if true, use dpk_augmenter if distort=True
+        self.dpk_augmenter_type = None      # dict for iaa construction
+        self.dpk_augmenter = None           # actual iaa object; constructed at TGTFR-init time
+        self.dpk_n_transition_min = 5       # target n_transition=this; in practice could be more if imsz is perfect power of 2 etc
+        self.dpk_im_pady = None             # auto-computed
+        self.dpk_im_padx = None             # auto-computed
+        self.dpk_imsz_net = None            # auto-computed
+        self.dpk_imsz_pad = None            # auto-computed
+        self.dpk_use_graph = True           # (immutable after early) bool
+        self.dpk_graph = None               # (immutable after early)
+        self.dpk_swap_index = None          # (immutable after early)
+        self.dpk_graph_scale = 1.0          # (immutable after early) float, scale factor                                           applied to grp/limb/global confmaps
+        self.dpk_output_shape = None        # (computed at TGTFR/init) conf map output shape
+        self.dpk_output_sigma = None        # (computed at TGTFR/init) target hmap gaussian                                         sd in output coords
+        self.dpk_input_sigma = 5.0          # (immutable after early) target hmap gaussian                                          sd in input coords
+        self.dpk_base_lr_factory = .001
+        self.dpk_base_lr_used = None        # typically auto-computed at compile-time; actual base lr used
+        self.dpk_reduce_lr_on_plat = True   # DEPRECATED in favor of dpk_train_style
+                                            # True is as published for dpk, using K cbk (starting from dpk_base_lr_used);
+                                            # False is APT-style scheduled (using learning_rate, decay_steps, gamma)
+        self.dpk_reduce_lr_style = 'ipynb'  # either 'ppr' or 'ipynb'
+        self.dpk_early_stop_style = 'ipynb' # either 'ppr' or 'ipynb'
+        self.dpk_epochs_used = None         # set at train-time; actual no of epochs used
+        self.dpk_use_tfdata = True
+        self.dpk_tfdata_num_para_calls_parse = 5
+        self.dpk_tfdata_num_para_calls_dataaug = 8
+        self.dpk_train_style = 'dpk'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
+        self.dpk_val_batch_size = 10        # use 0 when dpk_train_style='apt' to not do valdist loggin
+        self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
+        self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
+
+
 
         # ============== EXTRA ================
 
@@ -104,6 +198,7 @@ class config(object):
 
         # ----- Save parameters
 
+        self.save_time = None
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30
@@ -145,6 +240,13 @@ class config(object):
             logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
             setattr(self,name,default)
         return getattr(self,name,default)
+
+    def print_dataaug_flds(self, printfcn=None):
+        printfcn = logging.info if printfcn is None else printfcn
+        for cat, flds in self.DATAAUG_FLDS.items():
+            printfcn('## {} ##'.format(cat))
+            for f in flds:
+                printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
 
 # -- alice fly --

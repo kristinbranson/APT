@@ -1,0 +1,12 @@
+{"toTrack":
+ [
+    {
+        "movie_files": { "view_1": "/path/to/movie1.avi" },
+        "output_files": { "view_1": "/path/to/output1.trk" }
+    },
+    {
+        "movie_files": { "view_1": "/path/to/movie2.avi" },
+        "output_files": { "view_1": "/path/to/output2.trk" }
+    }
+ ]
+}
