@@ -7,6 +7,8 @@ LabelPointNames: # Optional
 
 LabelMode: TEMPLATE # See LabelMode.m
 
+MultiAnimal: 0
+
 Trx:
   ZoomRadius: 100
   ZoomRadiusTight: 10

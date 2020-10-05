@@ -18,8 +18,8 @@ classdef TrackingVisualizerMT < handle
     tfHideViz % scalar, true if tracking res hidden
     tfHideTxt % scalar, if true then hide text even if tfHideViz is false
     
-    tfShowPch % scalar, if true then show pches
-    %tfHideSkel currently interrogate lObj.showSkeleton
+    tfShowPch % scalar, if true then show pches    
+    tfShowSkel % etc
     
     % besides colors, txtOffPx, the the show/hide state, other cosmetic 
     % state is stored just in the various graphics handles.
@@ -178,6 +178,9 @@ classdef TrackingVisualizerMT < handle
         end
       end
       
+      obj.tfShowPch = false;
+      obj.tfShowSkel = obj.lObj.showSkeleton;
+      
       % default textPVs do not respect .tfHideViz/.tfHideTxt
       obj.updateShowHideAll(); 
       
@@ -233,6 +236,10 @@ classdef TrackingVisualizerMT < handle
         LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),sedges);
       end
     end
+    function setShowSkeleton(obj,tf)
+      obj.tfShowSkel = tf;
+      obj.updateShowHideAll();
+    end
     function setHideViz(obj,tf)
       obj.tfHideViz = tf;
       obj.updateShowHideAll();
@@ -267,11 +274,7 @@ classdef TrackingVisualizerMT < handle
       % 'overall' on/offness
       onoffViz = onIff(~obj.tfHideViz);
       onoffTxt = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
-      onoffSkel = onIff(~isempty(obj.hSkel) && ~obj.tfHideViz && obj.lObj.showSkeleton);
-      % for now, no strong reason .showSkeleton is read off Laberler vs 
-      % alternative; this property is transient (not serializable) for
-      % TrackingVisualizerMT, and there is only one TrackingVisualizerMT
-      % per project
+      onoffSkel = onIff(~isempty(obj.hSkel) && ~obj.tfHideViz && obj.tfShowSkel);
       
       if obj.showOnlyPrimary
         tfTgtOn = false(1,obj.nTgts);

@@ -476,7 +476,7 @@ classdef LabelCore < handle
       assert(isequal(obj.nPts,numel(hPoints),numel(hPointsTxt),size(xy,1)));
       tfLblTags = ~isempty(lblTags);
       if tfLblTags
-        validateattributes(lblTags,{'logical'},{'vector' 'numel' obj.nPts});
+        validateattributes(lblTags,{'logical' 'numeric'},{'vector' 'numel' obj.nPts});
       end        
       %fprintf('LabelCore.assignLabelCoords 1: %f\n',toc(ticinfo));ticinfo = tic;
       if tfClip        

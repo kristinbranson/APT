@@ -428,8 +428,9 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.initAndUpdateSkeletonEdges(se);
     end
     function updateShowSkeleton(obj)
+      updateShowSkeleton@LabelCore(obj);
       tf = obj.labeler.showSkeleton;
-      fprintf(2,'XXX TODO\n');
+      obj.tv.setShowSkeleton(tf);
     end
   end
   
