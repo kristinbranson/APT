@@ -13154,11 +13154,16 @@ classdef Labeler < handle
         if tf 
           p = reshape(p,obj.nLabelPoints,2);
           pmu = mean(p,1);
-          phead = p(obj.skelHead,:);
-          vmuhead = phead-pmu;
           x = pmu(1);
           y = pmu(2);        
-          th = atan2(vmuhead(2),vmuhead(1));
+          
+          if ~isempty(obj.skelHead)
+            phead = p(obj.skelHead,:);
+            vmuhead = phead-pmu;
+            th = atan2(vmuhead(2),vmuhead(1));
+          else
+            th = 0;
+          end
         else
           movroictr = obj.movieroictr; % [1x2]
           x = round(movroictr(1));

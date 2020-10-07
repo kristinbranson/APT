@@ -1,5 +1,8 @@
 classdef keypoints_exported < matlab.apps.AppBase
-  
+% AL20201007: appdesigner as of 2020x doesnt seem prime-time. Weird gfx
+% layout bugs, slow/limited editor/mlint/etc. However directly working with
+% exported m seems ok and allows use of new widgets etc.
+
   % Properties that correspond to app components
   properties (Access = public)
     KeypointsUIFigure  matlab.ui.Figure
@@ -29,10 +32,13 @@ classdef keypoints_exported < matlab.apps.AppBase
   
   properties (Access = private)
     lObj
-    pts
+    pts % [npt x 2] xy coords for viz purposes
+    ptNames % [npt] cellstr; working model/data for UI, to be written to lObj
+    
+    anyChangeMade = false;
     
     % Skeleton state
-    sklEdges
+    sklEdges % [nedge x 2] working model/data for UI, to be written to lObj
     sklHpts
     sklHEdgeSelected
     sklHEdges
@@ -41,14 +47,14 @@ classdef keypoints_exported < matlab.apps.AppBase
     sklISelected
     
     % Head/Tail state
-    htHead
+    htHead % [0 or 1] working model/data for UI, to be written to lObj
     htHpts
     htHIm
     htHTxt
     htISelected
     
     % swap state
-    spEdges
+    spEdges % [nswap x 2] working model/data for UI, to be written to lObj
     spHpts
     spHEdgeSelected
     spHEdges
@@ -56,18 +62,19 @@ classdef keypoints_exported < matlab.apps.AppBase
     spHTxt
     spISelected
     
-    % Applies to all tabs
+    % Cosmetics; applies to all tabs
     selectedColor
     selectedMarker
     selectedMarkerSize
     selectedLineWidth
+    %markerLineWidth = 2;
     unselectedColor
     unselectedMarker
     unselectedMarkerSize
     unselectedLineWidth
   end
   
-  methods (Access = private, Static)  
+  methods (Access = private, Static)
     function s = parseLabelerState(lObj)
       freezeInfo = lObj.prevAxesModeInfo;
       imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
@@ -112,6 +119,9 @@ classdef keypoints_exported < matlab.apps.AppBase
       end
       s.head = lObj.skelHead;
       s.skelNames = lObj.skelNames;
+      if isempty(s.skelNames)
+        s.skelNames = arrayfun(@(x)sprintf('pt%d',x),(1:size(pts,1))','uni',0);
+      end
       s.im = im;
       s.pts = pts;
       s.imagescArgs = imagescArgs;
@@ -128,7 +138,7 @@ classdef keypoints_exported < matlab.apps.AppBase
       axis(hAx,'off');
     end    
   end
-  methods (Access=private) %bdf cbks
+  methods (Access=private) % cbks
     function edgeClicked(app,h,e)
       if h.Parent==app.UIAxes
         app.edgeClickedSkel(h,e);
@@ -139,30 +149,58 @@ classdef keypoints_exported < matlab.apps.AppBase
     function edgeClickedSkel(app,h,e)
       edge = get(h,'UserData');
       
-      sklISelected = app.sklISelected;
-      sklHpts = app.sklHpts;
-      sklHEdgeSelected = app.sklHEdgeSelected;
+      iSeld = app.sklISelected;
+      hpts = app.sklHpts;
+      hEdgeSeld = app.sklHEdgeSelected;
       
-      if ~isempty(sklISelected),
-        set(sklHpts(sklISelected),'Marker',app.unselectedMarker,'MarkerSize',app.unselectedMarkerSize);
+      if ~isempty(iSeld),
+        set(hpts(iSeld),'Marker',app.unselectedMarker,'MarkerSize',app.unselectedMarkerSize);
         set(app.sklHEdgeSelected,'XData',nan(2,1),'YData',nan(2,1));
       end
-      if numel(sklISelected==2) && all(edge == sort(sklISelected)),
-        sklISelected = [];
+      if numel(iSeld)==2 && all(edge == sort(iSeld)),
+        iSeld = [];
       else
-        sklISelected = edge;
-        set(sklHpts(sklISelected),'Marker',app.selectedMarker,'MarkerSize',app.selectedMarkerSize);
-        set(sklHEdgeSelected,'XData',app.pts(sklISelected,1),'YData',app.pts(sklISelected,2));
-        isSelected = ismember(sort(sklISelected),app.sklEdges,'rows');
+        iSeld = edge;
+        set(hpts(iSeld),'Marker',app.selectedMarker,'MarkerSize',app.selectedMarkerSize);
+        set(hEdgeSeld,'XData',app.pts(iSeld,1),'YData',app.pts(iSeld,2));
+        isSelected = ismember(sort(iSeld),app.sklEdges,'rows');
         if isSelected,
-          set(sklHEdgeSelected,'Color',app.selectedColor);
+          set(hEdgeSeld,'Color',app.selectedColor);
         else
           % this should never happen
-          set(sklHEdgeSelected,'Color',app.unselectedColor);
+          set(hEdgeSeld,'Color',app.unselectedColor);
         end
       end
       
-      app.sklISelected = sklISelected;
+      app.sklISelected = iSeld;
+    end
+    function edgeClickedSwap(app,h,e)
+      edge = get(h,'UserData');
+      
+      iSeld = app.spISelected;
+      hpts = app.spHpts;
+      hEdgeSeld = app.spHEdgeSelected;
+      
+      if ~isempty(iSeld),
+        set(hpts(iSeld),'Marker',app.unselectedMarker,'MarkerSize',app.unselectedMarkerSize);
+        set(app.spHEdgeSelected,'XData',nan(2,1),'YData',nan(2,1));
+      end
+      if numel(iSeld)==2 && all(edge == sort(iSeld)),
+        iSeld = [];
+      else
+        iSeld = edge;
+        set(hpts(iSeld),'Marker',app.selectedMarker,'MarkerSize',app.selectedMarkerSize);
+        set(hEdgeSeld,'XData',app.pts(iSeld,1),'YData',app.pts(iSeld,2));
+        isSelected = ismember(sort(iSeld),app.spEdges,'rows');
+        if isSelected,
+          set(hEdgeSeld,'Color',app.selectedColor);
+        else
+          % this should never happen
+          set(hEdgeSeld,'Color',app.unselectedColor);
+        end
+      end
+      
+      app.spISelected = iSeld;
     end
     
     function ptClicked(app,h,e)
@@ -242,55 +280,75 @@ classdef keypoints_exported < matlab.apps.AppBase
       end
       app.htISelected = iSelect;
     end
-  end
-  methods (Access=private)
-    function updateTable(app,head)
-      % Updates table state assuming app.SpecfyHeadLandmarkSwitch is set
-      % head: either [] if SpecifyHead is off, otherwise head pt
-      
-      ht = app.UITable;
-      
-      npts = size(app.pts,1);
-      names = arrayfun(@(x)sprintf('pt%d',x),(1:npts)','uni',0);
-      
-%       tfheadtail = strcmp(app.SpecfyHeadLandmarkSwitch.Value,'On');
-%       if tfheadtail
-%         hvec = false(npts,1);
-%         hvec(head) = true;
-%         dat = [names(:) num2cell(hvec)];
-%         colhdr = {'Name' 'Head'};
-%       else
-        dat = names(:);
-        colhdr = { 'Name'};
-        colw = {'auto'};
-        coledit = [true];
-%       end
-      ncol = size(dat,2);
-      
-      ht.RowName = 'numbered';
-      ht.Data = dat;
-      ht.ColumnName = colhdr;
-      ht.ColumnEditable = coledit;
-      ht.ColumnWidth = colw;
-    end
-    function [htEnabled,ptNames,ht] = getTableState(app)
-      %htEnabled = strcmp(app.SpecfyHeadLandmarkSwitch.Value,'On');
-      htEnabled = true;
-      ht = app.UITable;
-      dat = ht.Data;
-      ptNames = dat(:,1);
-      if htEnabled
-        ht = cell2mat(dat(:,2));
-        ht = find(ht);
-      else
-        ht = [];
+    
+    function cbkTabGroupSelChanged(app,e)
+      tab = e.NewValue;
+      if tab==app.SkeletonTab
+        app.updateTableSkel();
+      elseif tab==app.HeadTailTab
+        app.updateTableHT();
+      elseif tab==app.SwapPairsTab
+        app.updateTableSwap();
       end
     end
-    function moveEdgesToBack(app)
+    function updateTableSkel(app)
+      ht = app.UITable;      
+      ht.RowName = 'numbered';
+      ht.Data = app.ptNames(:);
+      ht.ColumnName = {'Name'};
+      ht.ColumnEditable = true;
+      ht.ColumnWidth = {'auto'};
+    end
+    function updateTableHT(app)
+      npts = size(app.pts,1);
+      hvec = false(npts,1);
+      hvec(app.htHead) = true;
       
-      hAx = app.UIAxes;
+      ht = app.UITable;      
+      ht.RowName = 'numbered';
+      ht.Data = [app.ptNames(:) num2cell(hvec)];
+      ht.ColumnName = {'Name' 'Head'};
+      ht.ColumnEditable = [true false];
+      ht.ColumnWidth = {'auto' 'auto'};
+    end
+    function updateTableSwap(app)
+      partners = repmat({'none'},size(app.ptNames(:)));
+      swaps = app.spEdges;
+      nswap = size(swaps,1);
+      for iswap=1:nswap
+        s0 = swaps(iswap,1);
+        s1 = swaps(iswap,2);
+        partners{s0} = app.ptNames{s1};
+        partners{s1} = app.ptNames{s0};
+      end
+      
+      ht = app.UITable;
+      ht.RowName = 'numbered';
+      ht.Data = [app.ptNames(:) partners];
+      ht.ColumnName = {'Name' 'Partner'};
+      ht.ColumnEditable = [true false];
+      ht.ColumnWidth = {'auto' 'auto'};      
+    end
+    
+%     function [htEnabled,ptNames,ht] = getTableStateHT(app)
+%       %htEnabled = strcmp(app.SpecfyHeadLandmarkSwitch.Value,'On');
+%       htEnabled = true;
+%       ht = app.UITable;
+%       dat = ht.Data;
+%       ptNames = dat(:,1);
+%       if htEnabled
+%         ht = cell2mat(dat(:,2));
+%         ht = find(ht);
+%       else
+%         ht = [];
+%       end
+%     end
+    function moveEdgesToBack(app,axfld,fldhim,fldhtxt,fldhedges, ...
+        fldhedgesel,fldhpts)
+      hAx = app.(axfld);
       hchil = get(hAx,'Children');
-      hchil1 = [app.sklHIm;app.sklHTxt(:);app.sklHEdges(:);app.sklHEdgeSelected;app.sklHpts(:)];
+      hchil1 = [app.(fldhim);app.(fldhtxt)(:);app.(fldhedges)(:);...
+                app.(fldhedgesel);app.(fldhpts)(:)];
       hleft = hchil;
       hleft(ismember(hleft,hchil1)) = [];
       set(hAx,'Children',flipud([hleft;hchil1]));
@@ -309,9 +367,9 @@ classdef keypoints_exported < matlab.apps.AppBase
         unselLineWidth,selLineWidth] = myparse(varargin,...
         'lObj',[],...
         'edges',[], ...
-        'plotptsArgs',{},...
-        'textArgs',{}, ...
-        'txtOffset',2,...
+        'plotptsArgs',{'linewidth',2},...
+        'textArgs',{'fontsize',16}, ...
+        'txtOffset',1,...
         'selectedMarkerSize',12,...
         'unselectedMarkerSize',8,...
         'selectedMarker','o','unselectedMarker','+',...
@@ -338,6 +396,7 @@ classdef keypoints_exported < matlab.apps.AppBase
 
       slbl = app.parseLabelerState(app.lObj);
       app.pts = slbl.pts;
+      app.ptNames = slbl.skelNames;
 
       % align axes
       app.UIAxes_ht.Position = app.UIAxes.Position;
@@ -350,7 +409,7 @@ classdef keypoints_exported < matlab.apps.AppBase
       app.spEdges = slbl.swaps;
       app.initTabSwap(slbl,textArgs,plotptsArgs);
       
-      %app.updateTable(head);
+      app.updateTableSkel();
     end
     
     function [hpts,htxt] = initPtsAx(app,hAx,slbl,plotptsArgs,textArgs)
@@ -457,99 +516,181 @@ classdef keypoints_exported < matlab.apps.AppBase
       end
     end
     
-    % Button pushed function: AddEdgeButton
     function AddEdgeButtonPushed(app, event)
-      sklISelected = app.sklISelected;
+      iSeld = app.sklISelected;
       edges = app.sklEdges;
-      sklHEdges = app.sklHEdges;
-      pts = app.pts;
+      hedges = app.sklHEdges;
+      ptsxy = app.pts;
       
-      if numel(sklISelected) < 2,
+      if numel(iSeld) < 2,
         fprintf('No edge selected. Edge must be selected to add.\n');
         return;
       end
-      edge = sort(sklISelected);
+      edge = sort(iSeld);
       if ismember(edge,edges,'rows'),
         fprintf('Edge already selected.\n');
         return;
       end
       edges(end+1,:) = edge;
-      sklHEdges(end+1) = plot(app.UIAxes,pts(edge,1),pts(edge,2),'-','Color',app.selectedColor,'LineWidth',app.unselectedLineWidth,...
-        'ButtonDownFcn',@(h,e)app.edgeClicked(h,e),'UserData',edge,'Tag',sprintf('edge%d',numel(sklHEdges)+1));
+      hedges(end+1) = plot(app.UIAxes,ptsxy(edge,1),ptsxy(edge,2),'-','Color',app.selectedColor,'LineWidth',app.unselectedLineWidth,...
+        'ButtonDownFcn',@(h,e)app.edgeClicked(h,e),'UserData',edge,'Tag',sprintf('edge%d',numel(hedges)+1));
       set(app.sklHEdgeSelected,'Color',app.selectedColor);
       
       app.sklEdges = edges;
-      app.sklHEdges = sklHEdges;
+      app.sklHEdges = hedges;
       
-      app.moveEdgesToBack();
-    end
-    
-    % Button pushed function: RemoveEdgeButton
+      app.moveEdgesToBack('UIAxes','sklHIm','sklHTxt','sklHEdges',...
+        'sklHEdgeSelected','sklHpts');
+      
+      app.anyChangeMade = true;
+    end    
     function RemoveEdgeButtonPushed(app, event)
-      sklISelected = app.sklISelected;
+      iSeld = app.sklISelected;
       edges = app.sklEdges;
-      sklHEdges = app.sklHEdges;
+      hedges = app.sklHEdges;
       
-      if numel(sklISelected) < 2,
+      if numel(iSeld) < 2,
         fprintf('No edge selected. Edge must be selected to add.\n');
         return;
       end
-      edge = sort(sklISelected);
+      edge = sort(iSeld);
       [~,j] = ismember(edge,edges,'rows');
       if j == 0,
         fprintf('Edge is not included in skeleton, cannot remove.\n');
         return;
       end
       edges(j,:) = [];
-      delete(sklHEdges(j));
-      sklHEdges = [sklHEdges(1:j-1),sklHEdges(j+1:end)];
+      delete(hedges(j));
+      hedges = [hedges(1:j-1),hedges(j+1:end)];
       
       set(app.sklHEdgeSelected,'Color',app.unselectedColor);
       
       app.sklEdges = edges;
-      app.sklHEdges = sklHEdges;
+      app.sklHEdges = hedges;
+      app.anyChangeMade = true;
+    end
+    function AddPairButtonPushed(app, event)
+      iSeld = app.spISelected;
+      edges = app.spEdges;
+      hedges = app.spHEdges;
+      ptsxy = app.pts;
+      
+      if numel(iSeld) < 2, 
+        fprintf('No edge selected. Edge must be selected to add.\n');
+        return;
+      end
+      if any(ismember(iSeld(:),edges(:)))
+        error('A landmark can have at most one swap partner. Please remove any existing/conflicting swap pairs.');
+      end
+      edge = sort(iSeld);
+      edges(end+1,:) = edge;
+      hedges(end+1) = plot(app.UIAxes_sp,ptsxy(edge,1),ptsxy(edge,2),'-',...
+        'Color',app.selectedColor,'LineWidth',app.unselectedLineWidth,...
+        'ButtonDownFcn',@(h,e)app.edgeClicked(h,e),'UserData',edge,...
+        'Tag',sprintf('edge%d',numel(hedges)+1));
+      set(app.spHEdgeSelected,'Color',app.selectedColor);
+      
+      app.spEdges = edges;
+      app.spHEdges = hedges;
+      
+      app.moveEdgesToBack('UIAxes','sklHIm','sklHTxt','sklHEdges',...
+        'sklHEdgeSelected','sklHpts');
+  
+      app.updateTableSwap();
+      app.anyChangeMade = true;
+    end
+    function RemovePairButtonPushed(app, event)
+      iSeld = app.spISelected;
+      edges = app.spEdges;
+      hedges = app.spHEdges;
+      
+      if numel(iSeld) < 2,
+        fprintf('No edge selected. Edge must be selected to remove.\n');
+        return;
+      end
+      edge = sort(iSeld);
+      [~,j] = ismember(edge,edges,'rows');
+      if j == 0,
+        fprintf('Edge is a swap pair, cannot remove.\n');
+        return;
+      end
+      edges(j,:) = [];
+      delete(hedges(j));
+      hedges = [hedges(1:j-1),hedges(j+1:end)];
+      
+      set(app.spHEdgeSelected,'Color',app.unselectedColor);
+      
+      app.spEdges = edges;
+      app.spHEdges = hedges;
+      
+      app.updateTableSwap();
+      app.anyChangeMade = true;
+    end
+    function SpecifyHeadButtonPushed(app, event)
+      if isempty(app.htISelected)
+        error('Please select a point.');
+      end
+      updateTableHeadPt(app,app.htISelected);
+      app.htHead = app.htISelected;
+      app.anyChangeMade = true;
+    end
+    function updateTableHeadPt(app,iSelected)
+      npt = size(app.pts,1);
+      hvec = false(npt,1);
+      hvec(iSelected) = true; 
+      app.UITable.Data(:,2) = num2cell(hvec);      
+    end
+    function ClearButtonPushed(app, event)
+      updateTableHeadPt(app,[]);
+      app.anyChangeMade = true;
     end
     
-    % Callback function
-    function SpecfyHeadLandmarkSwitchValueChanged(app, event)
-      app.updateTable(1);
-    end
+%     % Callback function
+%     function SpecfyHeadLandmarkSwitchValueChanged(app, event)
+%       app.updateTable(1);
+%     end
     
-    % Cell edit callback: UITable
     function UITableCellEdit(app, event)
       indices = event.Indices;
+      NAMECOL = 1;
       HEADTAILCOL = 2;
-      if indices(2)==HEADTAILCOL && ~event.PreviousData && event.NewData
-        ht = app.UITable;
-        dat = ht.Data;
-        htcol = cell2mat(dat(:,HEADTAILCOL));
-        if nnz(htcol)>1
-          htcol(:) = 0;
-          htcol(indices(1)) = 1;
-          ht.Data(:,HEADTAILCOL) = num2cell(htcol);
-        end
+      
+      if indices(2)==NAMECOL
+        row = indices(1);
+        newName = event.NewData;
+        app.ptNames{row} = newName;
+        app.sklHTxt(row).String = newName;
+        app.htHTxt(row).String = newName;
+        app.spHTxt(row).String = newName;
+        app.anyChangeMade = true;
+      elseif indices(2)==HEADTAILCOL && ~event.PreviousData && event.NewData
+        assert(false);
+%         ht = app.UITable;
+%         dat = ht.Data;
+%         htcol = cell2mat(dat(:,HEADTAILCOL));
+%         if nnz(htcol)>1
+%           htcol(:) = 0;
+%           htcol(indices(1)) = 1;
+%           ht.Data(:,HEADTAILCOL) = num2cell(htcol);
+%         end
       end
     end
     
     % Close request function: KeypointsUIFigure
     function KeypointsUIFigureCloseRequest(app, event)
-      
-      app.lObj.setSkeletonEdges(app.sklEdges);
-      [htEnabled,ptNames,ht] = app.getTableState();
-      if htEnabled
-        assert(isscalar(ht))
-        %                 if nnz(ht)>1
-        %                     warningNoTrace('Using only first head point specification: %d',ht(1));
-        %                     ht = ht(1);
-        %                 end
-        app.lObj.setSkelHead(ht);
-      else
-        app.lObj.setSkelHead([]);
-      end
-      app.lObj.setSkelNames(ptNames);
-      %app.lObj.maSetPtInfo(htEnabled,ptNames,ht);
-      delete(app);
-      
+      if app.anyChangeMade
+        btn = questdlg('Save changes?','Exit','Yes','No','Yes');
+        switch btn
+          case 'Yes'
+            app.lObj.setSkeletonEdges(app.sklEdges);
+            app.lObj.setSkelHead(app.htHead);
+            app.lObj.setFlipLandmarkMatches(app.spEdges);
+            app.lObj.setSkelNames(app.ptNames);
+          otherwise
+            % none
+        end
+      end     
+      delete(app);      
     end
   end
   
@@ -563,7 +704,7 @@ classdef keypoints_exported < matlab.apps.AppBase
       app.KeypointsUIFigure = uifigure('Visible', 'off');
       app.KeypointsUIFigure.AutoResizeChildren = 'off';
       app.KeypointsUIFigure.Position = [100 100 686 392];
-      app.KeypointsUIFigure.Name = 'Keypoints';
+      app.KeypointsUIFigure.Name = 'Landmark Specifications';
       app.KeypointsUIFigure.CloseRequestFcn = createCallbackFcn(app, @KeypointsUIFigureCloseRequest, true);
       app.KeypointsUIFigure.SizeChangedFcn = createCallbackFcn(app, @updateAppLayout, true);
       
@@ -584,6 +725,7 @@ classdef keypoints_exported < matlab.apps.AppBase
       % Create TabGroup
       app.TabGroup = uitabgroup(app.LeftPanel);
       app.TabGroup.Position = [6 6 436 376];
+      app.TabGroup.SelectionChangedFcn = createCallbackFcn(app, @cbkTabGroupSelChanged, true);
       
       % Create SkeletonTab
       app.SkeletonTab = uitab(app.TabGroup);
@@ -625,11 +767,13 @@ classdef keypoints_exported < matlab.apps.AppBase
       
       % Create SpecifyHeadButton
       app.SpecifyHeadButton = uibutton(app.HeadTailTab, 'push');
+      app.SpecifyHeadButton.ButtonPushedFcn = createCallbackFcn(app, @SpecifyHeadButtonPushed, true);
       app.SpecifyHeadButton.Position = [118 15 100 23];
       app.SpecifyHeadButton.Text = 'Specify Head';
       
       % Create ClearButton
       app.ClearButton = uibutton(app.HeadTailTab, 'push');
+      app.ClearButton.ButtonPushedFcn = createCallbackFcn(app, @ClearButtonPushed, true);
       app.ClearButton.Position = [230 15 100 23];
       app.ClearButton.Text = 'Clear';
       
@@ -648,11 +792,13 @@ classdef keypoints_exported < matlab.apps.AppBase
       
       % Create AddPairButton
       app.AddPairButton = uibutton(app.SwapPairsTab, 'push');
+      app.AddPairButton.ButtonPushedFcn = createCallbackFcn(app, @AddPairButtonPushed, true);
       app.AddPairButton.Position = [118 17 100 23];
       app.AddPairButton.Text = 'Add Pair';
       
       % Create RemovePairButton
       app.RemovePairButton = uibutton(app.SwapPairsTab, 'push');
+      app.RemovePairButton.ButtonPushedFcn = createCallbackFcn(app, @RemovePairButtonPushed, true);
       app.RemovePairButton.Position = [230 17 100 23];
       app.RemovePairButton.Text = 'Remove Pair';
       
