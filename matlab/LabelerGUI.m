@@ -328,6 +328,38 @@ handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
 moveMenuItemAfter(handles.menu_view_show_grid,handles.menu_view_show_tick_labels);
 moveMenuItemAfter(handles.menu_view_occluded_points_box,handles.menu_view_show_grid);
 
+% AL20201008 Zoom/Pan hotkey toggle
+% Semi-hack to enable hot-key toggling of zoom/pan for MA labeling. During
+% MA labeling in large FOV vids, finding animals/targets is a major
+% ergonomic consideration. We want to leverage the built-in MATLAB zoom and
+% pan tools, but having to click them (whether in the "new" locations in
+% the upper-right or original toolbar locs) is time-consuming.
+%
+% So we wanted to use hotkeys to toggle tehse modes which runs into the
+% following difficulty. When zoom/pan mode are on, MATLAB 
+% overwrites/replaces the KeypressFcn and WindowsKeyPressFcn for a figure. 
+% So it is possible to use a KeyPressFcn-defined hotkey to *activate* 
+% zoom/pan mode, but then unactivating cannot work the same way (without 
+% some other hack for re-setting the KPF etc.)
+%
+% We add these menu options to enable the Accelerator-style hotkeys which
+% are unaffected by zoom/pan state. We only show these menu options for MA
+% mode and in any case it doesn't hurt to have them.
+handles.menu_view_zoom_toggle = uimenu('Parent',handles.menu_view,...
+  'Callback',@(h,e)zoom(hObject),...
+  'Label','Toggle Zoom',...
+  'Tag','menu_view_zoom_toggle',...
+  'Accelerator','z',...
+  'Separator','on');
+handles.menu_view_pan_toggle = uimenu('Parent',handles.menu_view,...
+  'Callback',@(h,e)pan(hObject),...
+  'Label','Toggle Pan',...
+  'Accelerator','a',...
+  'Tag','menu_view_pan_toggle' ...
+  );
+moveMenuItemAfter(handles.menu_view_zoom_toggle,handles.menu_view_occluded_points_box);
+moveMenuItemAfter(handles.menu_view_pan_toggle,handles.menu_view_zoom_toggle);
+
 % handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
 %   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
 %   'Label','Show/Refresh 3D world axes',...
@@ -1370,17 +1402,6 @@ arrayfun(@(x)colormap(x,gray),figs);
 setGUIFigureNames(handles,lObj,figs);
 setMainAxesName(handles,lObj);
 
-% % AL: important to get clickable points. Somehow this jiggers plot
-% % lims/scaling/coords so that points are more clickable; otherwise
-% % lblCore points in aux axes are impossible to click (eg without zooming
-% % way in or other contortions)
-% for i=2:numel(figs)
-%   figs(i).ResizeFcn = @cbkAuxAxResize;
-% end
-% for i=1:numel(axs)
-%   zoomOutFullView(axs(i),[],true);
-% end
-
 arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
 arrayfun(@(x)pan(x,'off'),handles.figs_all);
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
@@ -1776,6 +1797,8 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_view_zoom_toggle = 'off';
+    handles.menu_view_pan_toggle = 'off';
   case LabelMode.TEMPLATE
 %     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1785,6 +1808,8 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_view_zoom_toggle = 'off';
+    handles.menu_view_pan_toggle = 'off';
   case LabelMode.HIGHTHROUGHPUT
 %     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
@@ -1794,6 +1819,9 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_view_zoom_toggle = 'off';
+    handles.menu_view_pan_toggle = 'off';
+
 %   case LabelMode.ERRORCORRECT
 %     handles.menu_setup_createtemplate.Visible = 'off';
 %     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1811,6 +1839,18 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'on';
     handles.menu_setup_use_calibration.Visible = 'on';
+    handles.menu_view_zoom_toggle = 'off';
+    handles.menu_view_pan_toggle = 'off';
+  case {LabelMode.MULTIVIEWCALIBRATED2}
+    handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_set_nframe_skip.Visible = 'off';
+    handles.menu_setup_streamlined.Visible = 'off';
+    handles.menu_setup_unlock_all_frames.Visible = 'off';
+    handles.menu_setup_lock_all_frames.Visible = 'off';
+    handles.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_view_zoom_toggle = 'on';
+    handles.menu_view_pan_toggle = 'on';
 end
 
 lc = lObj.lblCore;
