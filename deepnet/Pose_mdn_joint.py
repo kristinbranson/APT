@@ -387,7 +387,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
     def compute_dist(self, preds, locs):
         locs = locs.copy()
-        return np.linalg.norm(self.get_joint_pred(preds) - locs, axis=-1).mean()
+        return np.linalg.norm(self.get_joint_pred(preds)[0] - locs, axis=-1).mean()
                
 
     def compute_train_data(self, sess, db_type):
@@ -404,6 +404,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
     def get_pred_fn(self, model_file=None,distort=False,tmr_pred=None):
 
         sess, latest_model_file = self.restore_net(model_file)
+        self.sess = sess
         if tmr_pred is None:
             tmr_pred = contextlib.suppress()
         conf = self.conf

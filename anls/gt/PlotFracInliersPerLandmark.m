@@ -111,7 +111,11 @@ if isempty(maxerr),
 end
 if isempty(minerr),
   minerr = min(cat(1,sortederrs{:}));
+  if minerr >= maxerr,
+    maxerr = max(cat(1,sortederrs{:}));
+  end
 end
+
 
 if isempty(figpos),
   figpos = [10,10,2526/5,(150+1004/4*nlabeltypes)/2];

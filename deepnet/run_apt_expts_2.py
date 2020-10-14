@@ -94,6 +94,7 @@ common_conf['pretrain_freeze_bnorm'] = True
 common_conf['step_lr'] = True
 common_conf['lr_drop_step'] = 0.15
 common_conf['normalize_loss_batch'] = False
+common_conf['use_scale_factor_range'] = True
 common_conf['predict_occluded'] = False
 
 # These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
@@ -121,7 +122,7 @@ common_conf['dlc_locref_loss_weight'] = 0.05
 common_conf['dlc_locref_stdev'] = 7.2801
 common_conf['dlc_use_apt_preprocess'] = True
 
-def setup(data_type_in,gpu_device=None):
+def setup(data_type_in,gpu_device='0'):
     global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name, \
         dpk_skel_csv, expname_dict_normaltrain, cache_dir, sdir
 
@@ -139,7 +140,8 @@ def setup(data_type_in,gpu_device=None):
         op_af_graph_kb_orig = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(3,16\),\(4,11\),\(5,6\),\(5,7\),\(5,9\),\(7,8\),\(5,13\),\(8,12\),\(9,10\),\(5,14\),\(10,15\)'
         op_af_graph = op_af_graph_kb_orig
 
-        dpk_skel_csv = ade.dbs['alice']['skel']
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs['alice']['skel']
 
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
                                     'dpk': 'ntrans5_postrescalefixes',
@@ -163,8 +165,8 @@ def setup(data_type_in,gpu_device=None):
         #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         # for vw2; who knows vw1
         # op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
-
-        dpk_skel_csv = ade.dbs[data_type]['skel']
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs[data_type]['skel']
 
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
@@ -186,7 +188,8 @@ def setup(data_type_in,gpu_device=None):
         # common_conf['rrange'] = 180
         # common_conf['trange'] = 5
 
-        dpk_skel_csv = ade.dbs[data_type]['skel']
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs[data_type]['skel']
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
@@ -199,7 +202,7 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = '\(\(0,1\),\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_2_cv_info_20200408.mat'
         # common_conf['trange'] = 20
-        dpk_skel_csv = ade.skeleton_csvs[data_type]
+        # dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit2':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20200330_compress20200330_new_skl_20200817.lbl_mdn.lbl'
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
@@ -207,12 +210,14 @@ def setup(data_type_in,gpu_device=None):
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_3_cv_info_20200408.mat'
         # common_conf['trange'] = 20
     elif data_type == 'romain':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped_trn1027.mat'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romainTrackNov18_updateDec06_al_portable_mdn60k_openposewking_MKfixedmovies_20200911.lbl_mdn.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped_trn1027.mat'
         # op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14),(12,13),(13,14),(14,18),(18,17),(17,16),(16,15)'
         # op_af_graph = op_af_graph.replace('(','\(')
         # op_af_graph = op_af_graph.replace(')','\)')
         dpk_skel_csv = ade.skeleton_csvs[data_type]
-        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20190419.mat'
+        # cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
         # common_conf['trange'] = 20
 
         # this is not normaltrain this is cv
@@ -236,10 +241,11 @@ def setup(data_type_in,gpu_device=None):
         # op_af_graph = op_af_graph.replace('(','\(')
         # op_af_graph = op_af_graph.replace(')','\)')
         # op_af_graph = op_af_graph.replace(' ','')
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs[data_type]['skel']
         # common_conf['trange'] = 20
         # common_conf['rrange'] = 180
 
-        dpk_skel_csv = ade.dbs[data_type]['skel']
 
 
     elif data_type == 'carsen':
@@ -759,6 +765,13 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
     if dpk_skel_csv is not None:
         conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
 
+    # Use exp decay for unet and resnet_unet
+    if train_type in ['unet','resnet_unet']:
+        conf_opts['step_lr'] = False
+
+    if train_type in ['unet']:
+        conf_opts['learning_rate_multiplier'] =  3.
+
     if op_af_graph is not None:
         conf_opts['op_affinity_graph'] = op_af_graph
 
@@ -775,6 +788,7 @@ def set_training_params(conf_opts,train_type='mdn'):
     bsz = conf_opts['batch_size']
     default_bsz = 8
     conf_opts['dl_steps'] = common_conf['dl_steps']*default_bsz//bsz
+    conf_opts['decay_steps'] = conf_opts['dl_steps']//2
     # conf_opts['decay_steps'] = common_conf['decay_steps']*default_bsz//bsz
     # conf_opts['learning_rate_multiplier'] = bsz/float(default_bsz)
     if train_type == 'deeplabcut':
@@ -833,7 +847,6 @@ def run_trainining(exp_name,train_type,view,run_type,
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
         apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue, **kwargs)
     if nslots is None:
-        # provide default nslots
         if queue in ['gpu_tesla_large']:
             if train_type == 'leap':
                 nslots = 5
@@ -841,6 +854,11 @@ def run_trainining(exp_name,train_type,view,run_type,
                 nslots = 4
             else:
                 nslots = 2
+        elif queue in ['gpu_tesla']:
+            if train_type == 'leap':
+                nslots = 6
+            else:
+                nslots = 4
         else:
             if train_type == 'leap':
                 nslots = 10
@@ -1318,14 +1336,14 @@ def create_individual_animal_db_alice():
     envs[1].close()
 
 
-def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
-    assert False, 'This should be run from run_apt_expts'
+def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status',dstr=PoseTools.datestr()):
+    # assert False, 'This should be run from run_apt_expts'
     info_file = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190416.mat'
 
     data_info = h5py.File(info_file,'r')
     assert data_type == 'stephen'
     assert trn_flies is not None
-    train_type = 'mdn'
+    train_type = 'mdn_joint_fpn' #'mdn'
     n_sel = 50
 
     conf = apt.create_conf(lbl_file,0,'dummy',cache_dir,train_type)
@@ -1358,7 +1376,7 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
             conf.splitType = 'predefined'
             if not skip_db:
                 apt.create_tfrecord(conf, split=True, split_file=cur_split_file, use_cache=True)
-            run_trainining(exp_name,train_type,view,run_type)
+            run_trainining(exp_name,train_type,view,run_type,dstr=dstr)
 
     # one experiment with random labels
     sel_train = random.sample(label_info,n_sel)
@@ -1379,7 +1397,7 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
         conf.splitType = 'predefined'
         if not skip_db:
             apt.create_tfrecord(conf, split=True, split_file=cur_split_file, use_cache=True)
-        run_trainining(exp_name,train_type,view,run_type)
+        run_trainining(exp_name,train_type,view,run_type,dstr=dstr)
 
 
 
@@ -2189,7 +2207,7 @@ def get_cv_results(num_splits=None,
                    dstr = PoseTools.get_datestr(),
                    ptiles_plot=[50,75,90,95,97]):
     train_name = 'deepnet'
-    gpu_str = '_tesla' if queue == 'gpu_tesla' else ''
+    gpu_str = '_tesla' if 'gpu_tesla' in queue else ''
     train_name = train_name + gpu_str + '_' + dstr
     if num_splits == None:
         print("Reading splits from {}".format(cv_info_file))
@@ -2671,21 +2689,21 @@ def get_active_results(num_rounds=8,view=0):
 
 
 
-def get_individual_animal_results_stephen():
+def get_individual_animal_results_stephen(dstr):
 
     info_file = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190416.mat'
 
     data_info = h5py.File(info_file,'r')
     assert data_type == 'stephen'
     assert trn_flies is not None
-    train_type = 'mdn'
+    train_type = 'mdn_joint_fpn' #'mdn'
 
     conf = apt.create_conf(lbl_file,0,'dummy',cache_dir,train_type)
     lbl_movies, _ = multiResData.find_local_dirs(conf)
     in_movies = [PoseTools.read_h5_str(data_info[k]) for k in data_info['trnmovies'][0,:]]
     assert lbl_movies == in_movies
 
-    train_name = 'deepnet'
+    train_name = 'deepnet_' + dstr
     all_view = []
     for view in range(nviews):
         gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
@@ -2694,12 +2712,12 @@ def get_individual_animal_results_stephen():
         for cur_fly in trn_flies:
             exp_name = 'train_fly_{}'.format(cur_fly)
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-            cur_files = get_model_files(conf)
+            cur_files = get_model_files(conf,train_name=train_name,net=train_type)
             files.append(cur_files[-1])
 
         exp_name = 'train_fly_random'
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-        cur_files = get_model_files(conf)
+        cur_files = get_model_files(conf,train_name=train_name,net=train_type)
         files.append(cur_files[-1])
 
         if op_af_graph is not None:
@@ -2712,7 +2730,7 @@ def get_individual_animal_results_stephen():
         if recomp:
             afiles = [f.replace('.index', '') for f in files]
             mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
-            with open(out_file,'w') as f:
+            with open(out_file,'wb') as f:
                 pickle.dump([mdn_out,files],f)
         else:
             A = PoseTools.pickle_load(out_file)
@@ -2721,7 +2739,7 @@ def get_individual_animal_results_stephen():
         all_view.append(mdn_out)
 
     for ndx,out_exp in enumerate(all_view):
-        save_mat({'mdn':out_exp},os.path.join(cache_dir,'{}_view{}_single'.format(data_type,ndx,)))
+        save_mat({train_type:out_exp},os.path.join(cache_dir,'{}_view{}_single'.format(data_type,ndx,)))
 
 
 def do_recompute(out_file,files):

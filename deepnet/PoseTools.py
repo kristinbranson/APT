@@ -1082,8 +1082,6 @@ def tfrecord_to_coco(db_file, conf, img_dir, out_file, categories=None, scale = 
             ann['images'].append({'id':ndx, 'width':conf.imsz[1]*scale, 'height':conf.imsz[0]*scale, 'file_name':im_name})
             ann['annotations'].append({'iscrowd':0,'segmentation':[bbox],'area':area,'image_id':ndx, 'id':ndx,'num_keypoints':conf.n_classes,'bbox':bbox,'keypoints':cur_locs.flatten().tolist(),'category_id':1})
 
-
-
         coord.request_stop()
         coord.join(threads)
     with open(out_file,'w') as f:
@@ -1393,3 +1391,12 @@ def show_result_hist(im,loc,percs):
         for pp in range(percs.shape[0]):
             c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False)
             ax.add_patch(c)
+
+
+def nan_hook(name, grad):
+    # pytorch backward hook to check for nans
+    if np.any(np.isnan(grad.cpu().numpy())):
+        print('{} has NaN grad'.format(name))
+    else:
+        print('{} has normal grad'.format(name))
+

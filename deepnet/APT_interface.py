@@ -62,7 +62,10 @@ import getpass
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
-user = getpass.getuser()
+try:
+    user = getpass.getuser()
+except KeyError:
+    user = 'err'
 if ISPY3 and user=='leea30':
     import apt_dpk
 
@@ -114,7 +117,9 @@ def _todict(matobj):
 def h5py_isstring(x):
 
     if type(x) is h5py._hl.dataset.Dataset:
-        return x.dtype == np.dtype('uint64') and len(x.shape) == 1 and x.shape[0] > 1
+        is_str1 = x.dtype == np.dtype('uint64') and len(x.shape) == 1 and x.shape[0] > 1
+        is_str2 = x.attrs['MATLAB_class'] == b'char'
+        return is_str1 or is_str2
     else:
         return False
 
@@ -235,6 +240,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
 
     if on_gt:
         train_filename = db_files[0]
+        os.makedirs(os.path.dirname(db_files[0]),exist_ok=True)
         env = tf.python_io.TFRecordWriter(train_filename)
         val_env = None
         envs = [env, val_env]
@@ -868,7 +874,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
                 if not check_fnum(fnum, cap, exp_name, ndx):
                     continue
 
-                info = [ndx, fnum, trx_ndx]
+                info = [int(ndx), int(fnum), int(trx_ndx)]
                 cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=trx_split, predefined=predefined)
 
                 frame_in, cur_loc = multiResData.get_patch( cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
@@ -2458,7 +2464,7 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
         print('Downloading pretrained weights..')
         if not os.path.exists(wt_dir):
             os.makedirs(wt_dir)
-        sname, header = urllib.urlretrieve(url)
+        sname, header = urllib.request.urlretrieve(url)
         tar = tarfile.open(sname, "r:gz")
         print('Extracting pretrained weights..')
         tar.extractall(path=wt_dir)
@@ -2482,14 +2488,14 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
     'scale_jitter_up': max(1/conf.scale_factor_range,conf.scale_factor_range),
     'net_type': 'resnet_50',
     'pos_dist_thresh': 17,
-    'intermediate_supervision': conf.dlc_intermediate_supervision, # False
-    'intermediate_supervision_layer': conf.dlc_intermediate_supervision_layer, #12,
-    'location_refinement': conf.dlc_location_refinement, # True,
-    'locref_huber_loss': conf.dlc_locref_huber_loss, #True,
-    'locref_loss_weight': conf.dlc_locref_loss_weight, # 0.05,
-    'locref_stdev': conf.dlc_locref_stdev, #7.2801,
+    'intermediate_supervision': getattr(conf,'dlc_intermediate_supervision',False), # False
+    'intermediate_supervision_layer': getattr(conf,'dlc_intermediate_supervision_layer',12), #12,
+    'location_refinement': getattr(conf,'dlc_location_refinement',True), # True,
+    'locref_huber_loss': getattr(conf,'dlc_locref_huber_loss',True), #True,
+    'locref_loss_weight': getattr(conf,'dlc_locref_loss_weight',0.05), # 0.05,
+    'locref_stdev': getattr(conf,'dlc_locref_stdev',7.2801), #7.2801,
     'img_dim':conf.img_dim,
-    'dlc_use_apt_preprocess':conf.dlc_use_apt_preprocess,
+    'dlc_use_apt_preprocess': getattr(conf,'dlc_use_apt_preprocess',True),
     'scale_factor_range':conf.scale_factor_range,
                  'brange':conf.brange,
                  'crange':conf.crange,

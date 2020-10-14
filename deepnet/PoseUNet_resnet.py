@@ -874,6 +874,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def get_pred_fn(self, model_file=None,distort=False,tmr_pred=None):
         sess, latest_model_file = self.restore_net(model_file)
+        self.sess = sess
 
         if tmr_pred is None:
             tmr_pred = contextlib.suppress()

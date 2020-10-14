@@ -234,6 +234,10 @@ def train(data_path,
         train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
         val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
+    # For debugging
+    gg = iter(train_datagen)
+    xx = next(gg)
+
     # history_callback = LossHistory(run_path=run_path)
 
     initial_lr = conf.get('leap_base_lr',0.0001)
@@ -420,7 +424,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet',tmr_pred=None):
         X1, _ = PoseTools.preprocess_ims(X1, in_locs=np.zeros([X1.shape[0], conf.n_classes, 2]), conf=conf, distort=False, scale=conf.rescale)
 
 
-        X1 = X1.astype("float32") / 255
+        X1 = X1.astype("float32") / 255.
         with tmr_pred:
             pred = model.predict(X1,batch_size = X1.shape[0])
         pred = np.stack(pred)
