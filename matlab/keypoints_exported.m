@@ -410,6 +410,8 @@ classdef keypoints_exported < matlab.apps.AppBase
       app.initTabSwap(slbl,textArgs,plotptsArgs);
       
       app.updateTableSkel();
+%       drawnow
+%       pause(1);
     end
     
     function [hpts,htxt] = initPtsAx(app,hAx,slbl,plotptsArgs,textArgs)
@@ -809,10 +811,11 @@ classdef keypoints_exported < matlab.apps.AppBase
       
       % Create UITable
       app.UITable = uitable(app.RightPanel);
-      app.UITable.ColumnName = {'#'; 'Name'; 'Head'};
-      app.UITable.ColumnWidth = {30, 'auto', 'auto'};
-      app.UITable.RowName = {};
-      app.UITable.ColumnEditable = [false true true];
+      app.UITable.RowName = 'numbered';
+%       app.UITable.Data = app.ptNames(:);
+      app.UITable.ColumnName = {'Name'};
+      app.UITable.ColumnEditable = true;
+      app.UITable.ColumnWidth = {'auto'};      
       app.UITable.CellEditCallback = createCallbackFcn(app, @UITableCellEdit, true);
       app.UITable.Position = [21 133 195 233];
       

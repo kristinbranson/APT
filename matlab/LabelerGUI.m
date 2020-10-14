@@ -274,7 +274,7 @@ handles.menu_view_show_imported_preds_curr_target_only = uimenu('Parent',handles
 moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_hide_imported_predictions);
 
 handles.menu_view_edit_skeleton = uimenu('Parent',handles.menu_view,...
-  'Label','Landmark Specifications',...
+  'Label','Landmark specifications',...
   'Tag','menu_view_edit_skeleton',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_edit_skeleton_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_view_edit_skeleton,handles.menu_view_landmark_colors);
@@ -357,8 +357,14 @@ handles.menu_view_pan_toggle = uimenu('Parent',handles.menu_view,...
   'Accelerator','a',...
   'Tag','menu_view_pan_toggle' ...
   );
+handles.menu_view_showhide_maroi = uimenu('Parent',handles.menu_view,...
+  'Label','Show multianimal ROI',...
+  'Tag','menu_view_showhide_maroi',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_maroi_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_view_zoom_toggle,handles.menu_view_occluded_points_box);
 moveMenuItemAfter(handles.menu_view_pan_toggle,handles.menu_view_zoom_toggle);
+moveMenuItemAfter(handles.menu_view_showhide_maroi,handles.menu_view_pan_toggle);
 
 % handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
 %   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
@@ -725,6 +731,7 @@ listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 listeners{end+1,1} = addlistener(lObj,'showSkeleton','PostSet',@cbkShowSkeletonChanged);
+listeners{end+1,1} = addlistener(lObj,'showMaRoi','PostSet',@cbkShowMaRoiChanged);
 
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
@@ -1797,8 +1804,20 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
-    handles.menu_view_zoom_toggle = 'off';
-    handles.menu_view_pan_toggle = 'off';
+    handles.menu_view_zoom_toggle.Visible = 'off';
+    handles.menu_view_pan_toggle.Visible = 'off';
+    handles.menu_view_showhide_maroi.Visible = 'off';
+  case LabelMode.MULTIANIMAL
+    handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_set_nframe_skip.Visible = 'off';
+    handles.menu_setup_streamlined.Visible = 'off';
+    handles.menu_setup_unlock_all_frames.Visible = 'off';
+    handles.menu_setup_lock_all_frames.Visible = 'off';
+    handles.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_view_zoom_toggle.Visible = 'on';
+    handles.menu_view_pan_toggle.Visible = 'on';
+    handles.menu_view_showhide_maroi.Visible = 'on';
   case LabelMode.TEMPLATE
 %     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1808,8 +1827,9 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
-    handles.menu_view_zoom_toggle = 'off';
-    handles.menu_view_pan_toggle = 'off';
+    handles.menu_view_zoom_toggle.Visible = 'off';
+    handles.menu_view_pan_toggle.Visible = 'off';
+    handles.menu_view_showhide_maroi.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
 %     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
@@ -1819,9 +1839,9 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
-    handles.menu_view_zoom_toggle = 'off';
-    handles.menu_view_pan_toggle = 'off';
-
+    handles.menu_view_zoom_toggle.Visible = 'off';
+    handles.menu_view_pan_toggle.Visible = 'off';
+    handles.menu_view_showhide_maroi.Visible = 'off';
 %   case LabelMode.ERRORCORRECT
 %     handles.menu_setup_createtemplate.Visible = 'off';
 %     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1839,8 +1859,9 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'on';
     handles.menu_setup_use_calibration.Visible = 'on';
-    handles.menu_view_zoom_toggle = 'off';
-    handles.menu_view_pan_toggle = 'off';
+    handles.menu_view_zoom_toggle.Visible = 'off';
+    handles.menu_view_pan_toggle.Visible = 'off';
+    handles.menu_view_showhide_maroi.Visible = 'off';
   case {LabelMode.MULTIVIEWCALIBRATED2}
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
@@ -1849,8 +1870,9 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
-    handles.menu_view_zoom_toggle = 'on';
-    handles.menu_view_pan_toggle = 'on';
+    handles.menu_view_zoom_toggle.Visible = 'off';
+    handles.menu_view_pan_toggle.Visible = 'off';
+    handles.menu_view_showhide_maroi.Visible = 'off';
 end
 
 lc = lObj.lblCore;
@@ -3283,11 +3305,16 @@ CloseGUI(handles);
 % handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
 
 function cbkShowSkeletonChanged(src,evt)
-
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
 onOff = onIff(lObj.showSkeleton);
 handles.menu_view_showhide_skeleton.Checked = onOff;
+
+function cbkShowMaRoiChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showMaRoi);
+handles.menu_view_showhide_maroi.Checked = onOff;
 
 function cbkShowTrxChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -4605,7 +4632,6 @@ else
 end
 
 function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)
-
 if strcmpi(get(hObject,'Checked'),'off'),
   hObject.Checked = 'on';
   handles.labelerObj.setShowSkeleton(true);
@@ -4614,6 +4640,14 @@ else
   handles.labelerObj.setShowSkeleton(false);
 end
 
+function menu_view_showhide_maroi_Callback(hObject, eventdata, handles)
+if strcmpi(get(hObject,'Checked'),'off'),
+  hObject.Checked = 'on';
+  handles.labelerObj.setShowMaRoi(true);
+else
+  hObject.Checked = 'off';
+  handles.labelerObj.setShowMaRoi(false);
+end
 
 % --- Executes on selection change in popupmenu_prevmode.
 function popupmenu_prevmode_Callback(hObject, eventdata, handles)

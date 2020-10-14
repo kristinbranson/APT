@@ -30,7 +30,7 @@ classdef Labeler < handle
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
-      'skeletonEdges' 'showSkeleton' 'flipLandmarkMatches' 'skelHead' 'skelNames' ...
+      'skeletonEdges' 'showSkeleton' 'showMaRoi' 'flipLandmarkMatches' 'skelHead' 'skelNames' ...
       'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
@@ -336,7 +336,8 @@ classdef Labeler < handle
     showTrxIDLbl;             % true to show id label 
     showOccludedBox;          % whether to show the occluded box
     
-    showSkeleton;           % true to plot skeleton 
+    showSkeleton;             % true to plot skeleton 
+    showMaRoi;
   end 
   properties
     hTraj;                    % nTrx x 1 vector of line handles
@@ -1603,6 +1604,7 @@ classdef Labeler < handle
       obj.skeletonEdges = zeros(0,2);
       obj.skelHead = [];
       obj.showSkeleton = false;
+      obj.showMaRoi = false;
       obj.flipLandmarkMatches = zeros(0,2);
       
       % When starting a new proj after having an existing proj open, old 
@@ -2357,6 +2359,7 @@ classdef Labeler < handle
       
       obj.setSkeletonEdges(obj.skeletonEdges);
       obj.setShowSkeleton(obj.showSkeleton);
+      obj.setShowMaRoi(obj.showMaRoi);
       obj.setFlipLandmarkMatches(obj.flipLandmarkMatches);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
@@ -3654,9 +3657,12 @@ classdef Labeler < handle
         s.showSkeleton = false;
       end
       % AL 20201004
+      if ~isfield(s,'showMaRoi')
+        s.showMaRoi = false;
+      end
       if ~isfield(s,'skelHead'),
         s.skelHead = [];
-      end
+      end      
 
       % KB 20191203: added landmark matches
       if ~isfield(s,'flipLandmarkMatches'),
@@ -5861,6 +5867,11 @@ classdef Labeler < handle
       obj.showSkeleton = logical(tf);
       obj.lblCore.updateShowSkeleton();
       obj.labeledpos2trkViz.updateShowHideAll();
+    end
+    function setShowMaRoi(obj,tf)
+      obj.showMaRoi = logical(tf);
+      lc = obj.lblCore;
+      lc.tv.setShowPches(tf); % lc should be a lblCoreSeqMA      
     end
     function setFlipLandmarkMatches(obj,matches)
       obj.flipLandmarkMatches = matches;
@@ -12923,7 +12934,7 @@ classdef Labeler < handle
       
       %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
-      if (obj.hasTrx || obj.maIsMA) && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
+      if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         assert(~obj.isMultiView);
         obj.videoCenterOnCurrTarget();
       elseif obj.movieCenterOnTargetLandmark
