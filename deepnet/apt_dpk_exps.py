@@ -12,6 +12,7 @@ import getpass
 import random
 import collections.abc
 import re
+import time
 
 import tensorflow as tf
 import imgaug as ia
@@ -20,6 +21,7 @@ import h5py
 import matplotlib.pyplot as plt
 import pandas as pd
 from easydict import EasyDict as edict
+from collections import defaultdict
 
 import APT_interface as apt
 import deepposekit as dpk
@@ -1265,6 +1267,7 @@ def read_exp(edir,read_tfr_info=False,npt=None):
 
     for picf in picfs:
         picfS = os.path.splitext(os.path.basename(picf))[0]
+        picfS = picfS.replace('-', '_')
         d[picfS] = pt.pickle_load(picf)
     return d
 
@@ -1276,6 +1279,19 @@ def update_exps(edirdict,**kwargs):
         print(edir)
         edirdict[edir] = read_exp(edirlong, **kwargs)
 
+
+def get_all_res_tosave_meta(rootexpdict, dsets=None):
+    if dsets is None:
+        dsets = list(rootexpdict)
+
+    resall = {}
+    for ds in dsets:
+        print("######## {}".format(ds))
+        time.sleep(5)
+        expdict = rootexpdict.get(ds)
+        resall[ds] = get_all_res_tosave(expdict)
+
+    return resall
 
 def get_all_res_tosave(expdict, explist=None, exppatre=None):
     dsave = {}
@@ -1294,19 +1310,28 @@ def get_all_res_tosave(expdict, explist=None, exppatre=None):
             continue
         if expname.startswith('eres'):
             continue
+        if '.' in expname:
+            continue
 
+        expnamenice = expname.replace('stephen', 'sh')
         exp = expdict[expname]
         for kexp in exp:
+            kexpnice = kexp.replace('-', '__').replace('.', '__').replace('eres_', '').replace('ckpt', '').replace(
+                '_tstbsz', 'tb').replace('2020', '')
             if kexp.startswith('eres'):
-                # hardcoded randomless
-                kbig = '{}__{}'.format(
-                    expname.replace('stephen','sh'),
-                                       kexp.replace('-','__').replace('eres_','').replace('ckpt','').replace('_tstbsz', 'tb').replace('2020', ''))
+                kbig = '{}__{}'.format(expnamenice, kexpnice)
                 dsave[kbig] = exp[kexp]
                 print("Recorded {}".format(kbig))
-            if kexp == 'enote':
+            elif kexp == 'enote':
                 kbig = '{}__enote'.format(expname)
                 dsave[kbig] = exp[kexp]
+            elif kexp == 'conf':
+                kbig = '{}__conf'.format(expnamenice)
+                conf = exp[kexp]
+                if conf is not None:
+                    conf = vars(conf['conf'])
+                    if conf is not None:
+                        dsave[kbig] = conf
 
     dsave = util.dict_copy_with_edict_convert(dsave)
     return dsave
@@ -1394,6 +1419,86 @@ def show_exp_trnstyle(expdict):
         except:
             print("{}: problem".format(en))
 
+def exp_md(expdict):
+    enames = list(expdict.keys())
+    enames = [x for x in enames if x!='root']
+    enames.sort()
+    allres = []
+    for en in enames:
+        try:
+            expinfo = expdict[en]
+            conf = expinfo.conf['conf']
+
+            res = {}
+            res['name'] = en
+            res['note'] = expinfo.enote
+            edir = os.path.join(expdict.root, en)
+            tfr = os.path.join(edir, conf.trainfilename+'.tfrecords')
+
+            CONFFLDS = ['batch_size', 'dl_steps', 'step_lr', 'lr_drop_step',
+                        'dpk_base_lr_used', 'dpk_train_style', 'dpk_skel_csv',
+                        'dpk_val_batch_size',
+                        'trainfilename'
+                        ]
+            for f in CONFFLDS:
+                res[f] = getattr(conf, f, '<unk>')
+
+            res['dpk_skel_csv'] = os.path.basename(res['dpk_skel_csv'])
+            #tfr = os.path.join(res['edir'],res['trainfilename']+'.tfrecords')
+            _, _, ifo, _ = mrd.read_and_decode_without_session(tfr,
+                                                               conf.n_classes,
+                                                               (),
+                                                               skip_ims=True)
+            ifotuple = tuple([tuple(x) for x in ifo])  # hashable
+            res['ntrn'] = len(ifo)
+            res['trnhash'] = str(hash(ifotuple))
+
+            clist, tslist = get_all_ckpt_h5(edir)
+            res['cpt0'] = os.path.basename(clist[-1])
+            dt = datetime.datetime.fromtimestamp(tslist[-1])
+            res['cpt0ts'] = dt.strftime('%Y%m%dT%H%M%S')
+            res['ts'] = dt.strftime('%Y%m%d')
+            res['cpt1'] = os.path.basename(clist[-2])
+            dt = datetime.datetime.fromtimestamp(tslist[-2])
+            res['cpt1ts'] = dt.strftime('%Y%m%dT%H%M%S')
+
+
+            print(res)
+
+            allres.append(res)
+
+        except Exception as e:
+            print("{}: problem".format(en))
+            print(e)
+
+    df = pd.DataFrame(allres,
+                      columns=['name', 'ts', 'note',
+                               'dpk_skel_csv', 'dpk_train_style',
+                               'dl_steps',
+                               'batch_size',
+                               'dpk_val_batch_size',
+                               'step_lr', 'lr_drop_step', 'dpk_base_lr_used',
+                               'tfr', 'ntrn', 'trainfilename', 'trnhash',
+                               'cpt0',  'cpt0ts', 'cpt1', 'cpt1ts']
+                      )
+    return df
+
+def exp_md_meta(rootexpdict, dsets=None):
+
+    if dsets is None:
+        dsets = list(rootexpdict)
+
+    dfall = []
+    for ds in dsets:
+        print("######## {}".format(ds))
+        time.sleep(5)
+        ee = rootexpdict.get(ds)
+        df = exp_md(ee)
+        df.insert(0, 'dset', pd.Series([ds, ]*len(df)))
+        dfall.append(df)
+
+    dfbig = pd.concat(dfall)
+    return dfbig
 
 def printenotes(expdict):
     es = sorted(expdict.keys())
