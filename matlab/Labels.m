@@ -400,7 +400,7 @@ classdef Labels
       nfrms = num2cell(nfrms);
       ntgts = num2cell(ntgts);
       fcn = @(zs,znfrm,zntgt)Labels.toarray(zs,'nfrm',znfrm,'ntgt',zntgt);
-      [lpos,lposTS,lpostag] = cellfun(fcn,lObj.(labelsfld),nfrms,ntgts,'uni',0);
+      [lpos,lposTS,lpostag] = cellfun(fcn,lObj.(labelsfld),nfrms(:),ntgts(:),'uni',0);
     end
     function verifyLObj(lObj)
       Labels.verifylObjHlp(lObj.labels,...
