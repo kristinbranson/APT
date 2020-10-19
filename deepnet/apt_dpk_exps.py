@@ -547,7 +547,7 @@ def get_latest_ckpt_h5_dpkstyle(expdir):
         cpt = clist[-1]
     else:
         cpt = clist[0]
-        logr.info("Exactly one dpk-style ckpt found: {}".format(expdir, cpt))
+        logr.info("Exactly one dpk-style ckpt found: {}".format(os.path.join(expdir, cpt)))
     return cpt
 
 def get_all_ckpt_h5(expdir):
@@ -584,7 +584,9 @@ def assess(expname,
            view=0,
            cacheroot=alcache,
            validxs=None,
-           usegt_tfr=False,  # if true, use gt.tfrecords instead of val_TF
+           # usegt_tfr=False, deprecated arg. for usegt_tfr=True, use replace_tfr='gt'.
+           tfrname=None, # if supplied, use <tfrname>.tfrecords instead of <conf.valfilename>.tfrecords.
+                          # applies to gentype='tftfr'.
            tstbsize=10,
            doplot=True,
            gentype='tgtfr',
@@ -697,13 +699,13 @@ def assess(expname,
 
     if gentype == 'tgtfr':
         assert not validxs_specified, "validxs spec'd but reading val_TF.tfrecords"
-        if usegt_tfr:
-            GTTFR = 'gt'
-            logr.info("Overriding {}->{}".format(conf.valfilename, GTTFR))
-            conf.valfilename = GTTFR
+        if tfrname is not None:
+            #GTTFR = 'gt'
+            logr.info("Overriding {}->{}".format(conf.valfilename, tfrname))
+            conf.valfilename = tfrname
             # if this is not true, tgtfr will fall back to train tf
             assert os.path.exists(os.path.join(conf.cachedir,
-                                               GTTFR + ".tfrecords"))
+                                               tfrname + ".tfrecords"))
 
 
         g = simple_tgtfr_val_kpt_generator(conf, tstbsize)
@@ -1236,6 +1238,8 @@ def read_exp(edir,read_tfr_info=False,npt=None):
             _,_,d.trntfrifo,_ = mrd.read_and_decode_without_session(d.trntfr,npt,(),skip_ims=True)
         if d.valtfr is not None:
             _,_,d.valtfrifo,_ = mrd.read_and_decode_without_session(d.valtfr,npt,(),skip_ims=True)
+        if d.gttfr is not None:
+            _,_,d.gttfrifo,_ = mrd.read_and_decode_without_session(d.gttfr,npt,(),skip_ims=True)
 
     try:
         d.conf = pt.pickle_load(d.conff) if d.conff is not None else None
@@ -1313,11 +1317,11 @@ def get_all_res_tosave(expdict, explist=None, exppatre=None):
         if '.' in expname:
             continue
 
-        expnamenice = expname.replace('stephen', 'sh')
+        expnamenice = expname.replace('stephen', 'sh').replace('alice','ar')
         exp = expdict[expname]
         for kexp in exp:
             kexpnice = kexp.replace('-', '__').replace('.', '__').replace('eres_', '').replace('ckpt', '').replace(
-                '_tstbsz', 'tb').replace('2020', '')
+                '_tstbsz', 'tb').replace('2020', '').replace('alice','ar')
             if kexp.startswith('eres'):
                 kbig = '{}__{}'.format(expnamenice, kexpnice)
                 dsave[kbig] = exp[kexp]
@@ -1419,7 +1423,7 @@ def show_exp_trnstyle(expdict):
         except:
             print("{}: problem".format(en))
 
-def exp_md(expdict):
+def exp_md(expdict, filtfcn=None):
     enames = list(expdict.keys())
     enames = [x for x in enames if x!='root']
     enames.sort()
@@ -1431,13 +1435,13 @@ def exp_md(expdict):
 
             res = {}
             res['name'] = en
-            res['note'] = expinfo.enote
+            res['note'] = expinfo.enote.strip() if expinfo.enote is not None else None
             edir = os.path.join(expdict.root, en)
             tfr = os.path.join(edir, conf.trainfilename+'.tfrecords')
 
             CONFFLDS = ['batch_size', 'dl_steps', 'step_lr', 'lr_drop_step',
                         'dpk_base_lr_used', 'dpk_train_style', 'dpk_skel_csv',
-                        'dpk_val_batch_size',
+                        'dpk_val_batch_size', 'display_step', 'dpk_early_stop_style', 'dpk_reduce_lr_style',
                         'trainfilename'
                         ]
             for f in CONFFLDS:
@@ -1454,18 +1458,29 @@ def exp_md(expdict):
             res['trnhash'] = str(hash(ifotuple))
 
             clist, tslist = get_all_ckpt_h5(edir)
-            res['cpt0'] = os.path.basename(clist[-1])
-            dt = datetime.datetime.fromtimestamp(tslist[-1])
-            res['cpt0ts'] = dt.strftime('%Y%m%dT%H%M%S')
-            res['ts'] = dt.strftime('%Y%m%d')
-            res['cpt1'] = os.path.basename(clist[-2])
-            dt = datetime.datetime.fromtimestamp(tslist[-2])
-            res['cpt1ts'] = dt.strftime('%Y%m%dT%H%M%S')
+            if len(clist)>0:
+                res['cpt0'] = os.path.basename(clist[-1])
+                dt = datetime.datetime.fromtimestamp(tslist[-1])
+                res['cpt0ts'] = dt.strftime('%Y%m%dT%H%M%S')
+                res['ts'] = dt.strftime('%Y%m%d')
+            else:
+                res['cpt0'] = None
+                res['cpt0ts'] = None
+                res['ts'] = None
+
+            if len(clist)>1:
+                res['cpt1'] = os.path.basename(clist[-2])
+                dt = datetime.datetime.fromtimestamp(tslist[-2])
+                res['cpt1ts'] = dt.strftime('%Y%m%dT%H%M%S')
+            else:
+                res['cpt1'] = None
+                res['cpt1ts'] = None
 
 
-            print(res)
-
-            allres.append(res)
+            add = True if filtfcn is None else filtfcn(res)
+            if add:
+                print(res)
+                allres.append(res)
 
         except Exception as e:
             print("{}: problem".format(en))
@@ -1473,17 +1488,18 @@ def exp_md(expdict):
 
     df = pd.DataFrame(allres,
                       columns=['name', 'ts', 'note',
-                               'dpk_skel_csv', 'dpk_train_style',
+                               'dpk_skel_csv', 'dpk_train_style', 'ntrn',
                                'dl_steps',
                                'batch_size',
                                'dpk_val_batch_size',
-                               'step_lr', 'lr_drop_step', 'dpk_base_lr_used',
-                               'tfr', 'ntrn', 'trainfilename', 'trnhash',
+                               'display_step','dpk_early_stop_style', 'dpk_reduce_lr_style',
+                               'dpk_base_lr_used', 'step_lr', 'lr_drop_step',
+                               'tfr', 'trainfilename', 'trnhash',
                                'cpt0',  'cpt0ts', 'cpt1', 'cpt1ts']
                       )
     return df
 
-def exp_md_meta(rootexpdict, dsets=None):
+def exp_md_meta(rootexpdict, dsets=None, filtfcn=None):
 
     if dsets is None:
         dsets = list(rootexpdict)
@@ -1493,7 +1509,7 @@ def exp_md_meta(rootexpdict, dsets=None):
         print("######## {}".format(ds))
         time.sleep(5)
         ee = rootexpdict.get(ds)
-        df = exp_md(ee)
+        df = exp_md(ee, filtfcn=filtfcn)
         df.insert(0, 'dset', pd.Series([ds, ]*len(df)))
         dfall.append(df)
 
