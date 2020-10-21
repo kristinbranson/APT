@@ -15,6 +15,7 @@ import sys
 import pickle
 import importlib
 import ast
+import glob
 import copy
 import contextlib
 import getpass
@@ -921,7 +922,11 @@ def load_apt_cpkt(exp_dir, mdlfile):
     :return:
     '''
 
-    conf_file = os.path.join(exp_dir, 'conf.pickle')
+    conf_file = os.path.join(exp_dir, '*conf.pickle')
+    g = glob.glob(conf_file)
+    assert len(g)==1, 'Expect exactly one conf.pickle file'
+    conf_file = g[0]
+
     mdl_wgts_file = os.path.join(exp_dir, mdlfile)
 
     conf_dict = conf_load(conf_file)

@@ -24,7 +24,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
     dockerimgroot = 'bransonlabapt/apt_docker';
-    dockerimgtag = 'latest'; % optional tag eg 'tf1.6'
+    dockerimgtag = 'tf1.15_py3_dpk'; % optional tag eg 'tf1.6'
     dockerremotehost = '';
     
     condaEnv = 'APT'; % used only for Conda

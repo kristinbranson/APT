@@ -2225,8 +2225,9 @@ def classify_movie(conf, pred_fn, model_type,
 
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict.pop('locs')
-        hmaps = ret_dict.pop('hmaps')
+        #hmaps = ret_dict.pop('hmaps')
 
+        assert not save_hmaps
         #if save_hmaps:
             #mat_out = os.path.join(hmap_out_dir, 'hmap_batch_{}.mat'.format(cur_b+1))
             #hdf5storage.savemat(mat_out,{'hm':hmaps,'startframe1b':to_do_list[cur_start][0]+1})
@@ -2239,17 +2240,17 @@ def classify_movie(conf, pred_fn, model_type,
             base_locs_orig = convert_to_orig(base_locs[cur_t, ...], conf, cur_f, cur_trx, crop_loc)
             pred_locs[cur_f - min_first_frame, trx_ndx, :, :] = base_locs_orig[ ...]
 
-            if save_hmaps:
-                write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
+            #if save_hmaps:
+            #    write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
 
             # for everything else that is returned..
             for k in ret_dict.keys():
 
                 if ret_dict[k].ndim == 4:  # hmaps
-                    if save_hmaps:
-                        cur_hmap = ret_dict[k]
-                        write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
-
+                    #if save_hmaps:
+                    #    cur_hmap = ret_dict[k]
+                    #    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
+                    pass
                 else:
                     cur_v = ret_dict[k]
                     # py3 and py2 compatible
