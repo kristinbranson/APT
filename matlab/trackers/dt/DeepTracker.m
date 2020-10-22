@@ -4772,6 +4772,7 @@ classdef DeepTracker < LabelTracker
       end      
     end
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
+      % Currently this assumes a JRC backend due to oncluster special case      
       [host,bg,prefix,sshoptions,timeout] = myparse(varargin,...
         'host',DeepTracker.jrchost,... % 'logfile','/dev/null',...
         'bg',false,... % AL 20201022 see note below
@@ -4804,7 +4805,12 @@ classdef DeepTracker < LabelTracker
         % for now this is a nonproduction codepath.
         codestr = sprintf('%s %s ''%s </dev/null &''',sshcmd,host,remotecmd);
       else
-        codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
+        tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
+        if tfOnCluster
+          codestr = remotecmd;
+        else
+          codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
+        end
       end
     end
     function codestr = codeGenSingGeneral(basecmd,varargin)
