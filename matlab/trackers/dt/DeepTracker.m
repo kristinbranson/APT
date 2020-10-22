@@ -4774,7 +4774,7 @@ classdef DeepTracker < LabelTracker
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
       [host,bg,prefix,sshoptions,timeout] = myparse(varargin,...
         'host',DeepTracker.jrchost,... % 'logfile','/dev/null',...
-        'bg',true,...
+        'bg',false,... % AL 20201022 see note below
         'prefix',DeepTracker.jrcprefix,...
         'sshoptions','-o "StrictHostKeyChecking no"',...
         'timeout',[]);
@@ -4798,13 +4798,14 @@ classdef DeepTracker < LabelTracker
       end
             
       if bg
+        % AL 20201022 not sure why this codepath was nec. Now it is causing
+        % problems with LSF/job scheduling. The </dev/null & business
+        % confuses LSF and the account/runtime limit doesn't get set. So
+        % for now this is a nonproduction codepath.
         codestr = sprintf('%s %s ''%s </dev/null &''',sshcmd,host,remotecmd);
       else
         codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
       end
-
-%       codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
-%         host,remotecmd,logfile);    
     end
     function codestr = codeGenSingGeneral(basecmd,varargin)
       % Take a base command and run it in a sing img
