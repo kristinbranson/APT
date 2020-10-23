@@ -26,5 +26,5 @@ APT is being developed in the Branson lab by Allen Lee, Mayank Kabra, Kristin Br
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [GNU General Public License (version 3)](http://GNU_GPL_v3.html) for more details.
 
 ### Sources
-We thank the open source community for making this project possible. Please see OPENSOURCE for a list of open-source projects used by APT.
+We thank the open source community for making this project possible. Please see [OPENSOURCE](https://github.com/kristinbranson/APT/blob/develop/OPENSOURCE) for a list of open-source projects used by APT.
 
