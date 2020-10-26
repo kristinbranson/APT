@@ -14,7 +14,7 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - DeepPoseKit:
     - ['','',false,DeepPoseKit (DPK) settings.,'','']
-    - dpk_hello: ['foo',boolean,true,'foo goo?',0,'','Important','']
+    - dpk_test: ['test param',boolean,true,'desc',0,'','Important','']
 
 
 
