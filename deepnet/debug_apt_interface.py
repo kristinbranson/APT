@@ -1,20 +1,76 @@
-cmd = '-name 20200925T080001 -view 1 -cache /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800 -type mdn /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800/alice_test/20200925T080001_20200925T080130.lbl train -use_cache -skip_db'
+import PoseTools
+import re
+import h5py
+import numpy as np
 import APT_interface as apt
-apt.main(cmd.split())
-
-##
+import torch
 import matplotlib
 matplotlib.use('TkAgg')
-import torch
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-import Pose_coco_mdn_joint
-name = 'rescale_3'
-self = Pose_coco_mdn_joint.Pose_coco_mdn_joint('/nrs/branson/mayank/apt_cache_2/coco',name=name,rescale=3)
-self.conf.learning_rate_multiplier = 0.1
-import PoseTools
-# with PoseTools.GuruMeditation():
-self.train_wrapper(restore=True)
+import os
+
+exp_name = 'roian'
+net_type = 'multi_mdn_joint_torch'
+if exp_name == 'alice':
+    lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+    n_grid = 4
+    sz = np.round(1024 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 10  # extra pixels around bb
+    buffer = 60  # roughly half the animal size + bb_ex
+    max_n = 6
+    af_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
+    if net_type == 'multi_mdn_joint_torch':
+        name = '?'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 4
+elif exp_name == 'roian':
+    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl'
+    n_grid = 8
+    sz = np.round(2048 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 40  # extra pixels around bb
+    buffer = 170  # roughly half the animal size + bb_ex
+    max_n = 2
+    af_graph = ((0,1),(0,2),(0,3),(2,3))
+    if net_type == 'multi_mdn_joint_torch':
+        name = 'try_1'
+        batch_size = 8
+    elif net_type == 'multi_openpose':
+        name= 'try_1'
+        batch_size = 3
+
+conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.rrange = 180
+conf.trange = 50
+conf.max_n_animals = max_n
+conf.imsz = (sz+2*buffer,sz+2*buffer)
+conf.mdn_use_unet_loss = False
+conf.img_dim = 3
+conf.op_affinity_graph = af_graph
+conf.mdn_joint_use_fpn = True
+conf.batch_size = 1
+
+db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=name)
+# [  90,  393,  601,  757,  825,  826,  860, 1012, 1047, 1049, 1092,
+#        1104, 1105, 1106, 1107, 1326, 1344, 1427, 1661]
+##
+from matplotlib import pyplot as plt
+def pp(x):
+    plt.figure()
+    plt.imshow(x.detach().cpu().numpy())
+
+
+##
+import run_apt_expts_2 as rae
+from importlib import reload
+reload(rae)
+rae.setup('romain')
+rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+dstr = '20200912'
+rae.get_cv_results(dstr=dstr,queue='gpu_tesla',db_from_mdn_dir=True)
 
 
 

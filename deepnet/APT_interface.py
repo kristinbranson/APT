@@ -3011,6 +3011,9 @@ def main(argv):
     log.addHandler(logh)
     log.setLevel(logging.DEBUG)
 
+    repo_info = PoseTools.get_git_commit()
+    logging.info('Git Commit: {}'.format(repo_info))
+
     if args.no_except:
         run(args)
     else:
