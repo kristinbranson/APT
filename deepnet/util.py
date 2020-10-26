@@ -117,12 +117,14 @@ def h5diff(h1, h2):
 
 def dict_copy_with_edict_convert(d):
     '''
-    Deep-copy a dict, converting all easydicts to dicts.
+    Deep-copy a dict, while:
+      * converting all easydicts to dicts.
+      * replacing all empty-dict values with '<emptydict>'
 
     Only easydicts that are direct dict-values are converted.
 
-    Needed for saving to MATfiles, where easydict causes
-    corruption
+    Needed for saving to MATfiles, where easydicts and empty
+    dict vals cause corruption
 
     :param d: dict or easydict
     :return: deep-copy of d with all easydicts converted
@@ -132,8 +134,11 @@ def dict_copy_with_edict_convert(d):
 
     if isinstance(x, dict) or isinstance(x, edict):
         x2 = dict(x)  # shallow copy
-        for k, v in x2.items():
-            x2[k] = dict_copy_with_edict_convert(v)
+        if len(x2) == 0:
+            x2 = '<empty dict>'
+        else:
+            for k, v in x2.items():
+                x2[k] = dict_copy_with_edict_convert(v)
     else:
         x2 = copy.deepcopy(x)
 

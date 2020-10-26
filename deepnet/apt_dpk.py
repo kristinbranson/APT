@@ -408,6 +408,14 @@ def skel_graph_test(skel_csv):
                 else:
                     assert jdx == 0  # the first member of each group must be the parent/root of that group.
 
+def verify_swap_idxs(swapidxs):
+    for i in range(len(swapidxs)):
+        j = swapidxs[i]
+        if j == -1:
+            print("pt {}: no swap".format(i))
+            continue
+        assert swapidxs[j] == i
+        print("pt {}: {}".format(i, j))
 
 def print_dpk_conf(conf):
     PFIXESSKIP = ['unet_', 'mdn_', 'op_', 'sb_', 'dlc_', 'rnn_',
