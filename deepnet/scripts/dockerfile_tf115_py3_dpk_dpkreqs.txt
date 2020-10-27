@@ -90,9 +90,9 @@ sklearn==0.0
 smmap2==2.0.5
 subprocess32==3.5.3
 tensorboard==1.14.0
-tensorflow==1.14.0
-tensorflow-estimator==1.14.0
-tensorflow-gpu==1.14.0
+tensorflow
+tensorflow-estimator
+tensorflow-gpu
 termcolor==1.1.0
 terminado==0.8.2
 testpath==0.4.2
