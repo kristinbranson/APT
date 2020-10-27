@@ -81,30 +81,39 @@ classdef DLNetType
     function g = modelGlobs(net,iterCurr)
       % net specific model globs in modelChainDir
       %
-      % Future design unclear
+      % TODO Should just be regular method but right now net can be a char.
+      % TODO Continue removing switchyard.
       
       if ischar(net)
         net = DLNetType.(net);
       end
       
+      g1 = sprintf(net.mdlNamePat,iterCurr);
       switch net
         case DLNetType.openpose
           g = { ...
-            sprintf('deepnet-%d',iterCurr) % latest iter
+            g1
             'traindata*'
             };
 
         case DLNetType.leap
           g = { ...
-            sprintf('deepnet-%d',iterCurr) % latest iter
+            g1
             'initial_model.h5' %            'leap_train.h5'
             'traindata*'
             'training_info.mat'
             };
           
+        case DLNetType.dpk
+          g = { ...
+            g1
+            'deepnet.conf.pickle'
+            'traindata*'
+            };
+          
         otherwise % case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
           g = { ...
-            sprintf('deepnet-%d.*',iterCurr) % latest iter
+            g1
             'deepnet_ckpt' % 'splitdata.json'
             'traindata*'
             };

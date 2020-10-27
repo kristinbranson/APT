@@ -41,11 +41,18 @@ class APTModelCheckpoint(ModelCheckpoint):
     https://github.com/tensorflow/tensorflow/pull/38669
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, ckpt_fullpath_finalmodel, **kwargs):
+        '''
+
+        :param ckpt_fullpath: full path for final model
+        :param kwargs: include filepath for regular/intermediate models
+        '''
         super(ModelCheckpoint, self).__init__(**kwargs)
         # in keras ModelCheckpoint
         # self._samples_seen_since_last_saving = 0
         self._batches_seen = 0
+        # self.model = sdn # this will be 'activated'
+        self.ckpt_fpn_final = ckpt_fullpath_finalmodel
 
     def on_batch_end(self, batch, logs=None):
         # Based on keras/callbacks.py
@@ -60,9 +67,14 @@ class APTModelCheckpoint(ModelCheckpoint):
                 self._save_model_apt(self._batches_seen)
                 self._samples_seen_since_last_saving = 0
 
+    def on_train_end(self, logs=None):
+        self.model.save(self.ckpt_fpn_final, overwrite=True)
+        logr.info("Saved final model: {}".format(self.ckpt_fpn_final))
+
     def _save_model_apt(self, batch):
         filepath = self.filepath.format(batch=batch)
         self.model.save(filepath, overwrite=True)
+        logr.info("Saved model: {}".format(filepath))
 
 def create_lr_sched_callback(steps_per_epoch, base_lr, gamma, decaysteps,
                              return_decay_fcn=False):
@@ -516,8 +528,11 @@ def create_callbacks_aptsty(conf,
     or behavior that is not transparent. Soln1 sticks to raw/vanilla Keras. However this broke our current load codepath.
     - soln3: add custom callback that just saves the model. Hope callbacks exec in order so it executes before the 
     ModelCpt cbk crashes.
+    - soln4: overload modelcpt.on_train_end to do nothing
     
     '''
+
+
     #ckpt_reg = 'deepnet{}'
     #ckpt_reg = 'deepnet{}'.format(nowstr)
     # ckpt_reg += '-{epoch: 05d}-{val_loss: .2f}.h5'
@@ -528,12 +543,15 @@ def create_callbacks_aptsty(conf,
     # are prob computed only at epoch end.
     ckpt_reg = 'deepnet-{batch:08d}.h5'
     ckpt_reg = os.path.join(conf.cachedir, ckpt_reg)
+    ckpt_final = ckpt_reg.format(batch=conf.dl_steps)
     model_checkpoint_reg = APTModelCheckpoint(
+        ckpt_final,
         filepath=ckpt_reg,
         save_freq=conf.save_step,  # save every this many batches
         save_best_only=False,
     )
 
+    '''
     class FinalModelSaver(tf.keras.callbacks.Callback):
         def __init__(self, sdn, ckpt_fullpath):
             self.sdn = sdn
@@ -546,6 +564,7 @@ def create_callbacks_aptsty(conf,
     ckpt_final = ckpt_reg.format(batch=conf.dl_steps)
     final_saver = FinalModelSaver(sdn, ckpt_final)
     logr.info(("Configuring FinalModelSaver with final cpt {}".format(ckpt_final)))
+    '''
 
     #logfile = 'trn{}.log'.format(nowstr)
     #logfile = os.path.join(conf.cachedir, logfile)
@@ -559,7 +578,7 @@ def create_callbacks_aptsty(conf,
     dataits = (train_di, None)
     loggercbk = TrainDataLogger(conf, dataits)
 
-    cbks = [lr_cbk, final_saver, model_checkpoint_reg, loggercbk]
+    cbks = [lr_cbk, model_checkpoint_reg, loggercbk]
 
     if do_val:
         tgtfr = sdn.train_generator
