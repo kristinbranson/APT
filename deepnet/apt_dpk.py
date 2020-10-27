@@ -816,6 +816,81 @@ def get_pred_fn(conf0, model_file, tmr_pred=None):
         tmr_pred = contextlib.suppress()
 
     conf = copy.deepcopy(conf0)
+    expdir = conf.cachedir
+
+    ### Taken from  ade.assess()
+    sdn = deepposekit.models.load_model(model_file, generator=None)
+    conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
+    conf_saved = PoseTools.pickle_load(conf_saved_f)
+    conf_saved = conf_saved['conf']
+
+    # We are not setting up the conf fully for the data/input pipe; fortunately
+    # we can just take from the saved.
+    FLDS_TO_TAKE_FROM_SAVED = ['rescale']
+    for f in FLDS_TO_TAKE_FROM_SAVED:
+        v0 = getattr(conf_saved, f)
+        v = getattr(conf, f)
+        if v != v0:
+            logr.warning("## Conf field {} is {}. Taking value {} from saved conf.".format(
+                f, v, v0))
+            setattr(conf, f, v0)
+
+    # conf could have changed! (ie rescale). Need to do this again, doh
+    update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+
+    logr.info("conf vs conf_saved:")
+    util.dictdiff(conf, conf_saved, logr.info)
+
+    ### End Taken from  ade.assess()
+
+    pred_model = sdn.predict_model
+
+    def pred_fn(imsraw):
+        '''
+
+        :param imsraw: BHWC
+        :return:
+        '''
+
+        bsize = imsraw.shape[0]
+        assert bsize == conf.batch_size
+        locs_dummy = np.zeros((bsize, conf.n_classes, 2))
+        # can do non-distort img preproc
+        ims, _, _ = opd.ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locs_dummy, conf, False)
+
+        assert ims.shape[1:3] == conf.dpk_imsz_net
+        assert ims.shape[3] == conf.img_dim
+
+        with tmr_pred:
+            predres = pred_model.predict_on_batch(ims)
+
+        locs = predres[..., :2]  # 3rd/last col is confidence
+        confidence = predres[..., 2]
+
+        # locs are in imsz_net-space which is post-pad, post rescale
+        # Right now we are setting padding in update_conf_dpk so the rescale is precisely used
+        locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)  # makes a copy, returns new array
+        locs[..., 0] -= conf.dpk_im_padx // 2  # see tfdatagen.pad_ims_black
+        locs[..., 1] -= conf.dpk_im_pady // 2
+
+        ret_dict = {}
+        ret_dict['locs'] = locs
+        ret_dict['confidence'] = confidence
+        return ret_dict
+
+    def close_fn():
+        tf.keras.backend.clear_session()
+
+    return pred_fn, close_fn, model_file
+
+
+def get_pred_fn_old(conf0, model_file, tmr_pred=None):
+    assert model_file is not None, "model_file is currently required"
+
+    if tmr_pred is None:
+        tmr_pred = contextlib.suppress()
+
+    conf = copy.deepcopy(conf0)
     exp_dir = conf.cachedir
     sdn, conf_saved, _ = load_apt_cpkt(exp_dir, model_file)
 
