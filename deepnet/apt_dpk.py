@@ -53,6 +53,25 @@ def setup_apt_logger():
     ch.setFormatter(formatter)
     logr.addHandler(ch)
 
+# 20201027 AL
+# Workaround/hack for dealing with cudnn failure to initialize on RTX cards.
+# dpk integration is running well on cluster but not on local RTX machine; appears to be
+# cudnn-related init issue. Tried various things finally settled on this which seems to work:
+# https://kobkrit.com/using-allow-growth-memory-option-in-tensorflow-and-keras-dc8c8081bc96
+#
+# See various threads like
+# https://stackoverflow.com/questions/56008683/could-not-create-cudnn-handle-cudnn-status-internal-error
+# https://stackoverflow.com/questions/43147983/could-not-create-cudnn-handle-cudnn-status-internal-error
+# https://github.com/tensorflow/tensorflow/issues/24496
+# https://github.com/tensorflow/tensorflow/issues/35029
+# https://github.com/tensorflow/tensorflow/issues/37233
+# https://github.com/tensorflow/tensorflow/issues/9489
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
+#config.log_device_placement = True  # to log device placement (on which device the operation ran)
+# this logging is really verbose and clogs up the logs
+sess = tf.Session(config=config)
+tf.keras.backend.set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 setup_apt_logger()
 
