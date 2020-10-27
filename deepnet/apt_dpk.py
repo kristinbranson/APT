@@ -66,15 +66,15 @@ def setup_apt_logger():
 # https://github.com/tensorflow/tensorflow/issues/35029
 # https://github.com/tensorflow/tensorflow/issues/37233
 # https://github.com/tensorflow/tensorflow/issues/9489
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
-#config.log_device_placement = True  # to log device placement (on which device the operation ran)
-# this logging is really verbose and clogs up the logs
-sess = tf.Session(config=config)
-tf.keras.backend.set_session(sess)  # set this TensorFlow session as the default session for Keras
+def config_keras_backend_allow_growth():
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
+    #config.log_device_placement = True  # to log device placement (on which device the operation ran)
+    # this logging is really verbose and clogs up the logs
+    sess = tf.Session(config=config)
+    tf.keras.backend.set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 setup_apt_logger()
-
 logr = logging.getLogger('APT')
 
 
@@ -664,6 +664,9 @@ def train(conf,
     This is the train the APT_interface calls
 
     '''
+
+    config_keras_backend_allow_growth()
+
     assert conf.dpk_use_tfdata
 
     tgtfr, sdn = compile(conf)
@@ -829,6 +832,9 @@ def train(conf,
 # region Predict
 
 def get_pred_fn(conf0, model_file, tmr_pred=None):
+
+    config_keras_backend_allow_growth()
+
     assert model_file is not None, "model_file is currently required"
 
     if tmr_pred is None:
@@ -904,6 +910,7 @@ def get_pred_fn(conf0, model_file, tmr_pred=None):
 
 
 def get_pred_fn_old(conf0, model_file, tmr_pred=None):
+
     assert model_file is not None, "model_file is currently required"
 
     if tmr_pred is None:
