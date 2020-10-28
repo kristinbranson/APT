@@ -113,7 +113,7 @@ classdef DLNetType
           
         otherwise % case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
           g = { ...
-            g1
+            sprintf('deepnet-%d.*',iterCurr)  % ugh this is not an instance prop
             'deepnet_ckpt' % 'splitdata.json'
             'traindata*'
             };

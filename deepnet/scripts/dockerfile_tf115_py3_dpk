@@ -21,8 +21,7 @@ RUN	apt-get install -y git
 RUN apt install -y python3-pip	
 RUN pip install imgaug deepposekit sklearn promise ordereddict func-timeout
 RUN pip install torch torchvision tfrecord
-COPY dockerfile_tf115_py3_dpk_dpkreqs.txt /tmp/
-RUN pip install --use-feature=2020-resolver --no-cache-dir -r /tmp/dockerfile_tf115_py3_dpk_dpkreqs.txt
+RUN pip install deepposekit==0.3.4
 
 # Define default command.
 CMD ["bash"]
