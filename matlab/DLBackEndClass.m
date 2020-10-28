@@ -10,6 +10,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
+    currentDockerImgTag = 'tf1.15_py3_20201027';
   end
   properties
     type  % scalar DLBackEnd
@@ -24,7 +25,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
     dockerimgroot = 'bransonlabapt/apt_docker';
-    dockerimgtag = 'tf1.15_py3_20201027'; % optional tag eg 'tf1.6'
+    % We have an instance prop for this to support running on older/custom
+    % docker images.
+    dockerimgtag = DLBackEndClass.currentDockerImgTag;
     dockerremotehost = '';
     
     condaEnv = 'APT'; % used only for Conda
@@ -119,6 +122,17 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end
   
   methods
+    
+    function modernize(obj)
+      if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
+        currentTag = DLBackEndClass.currentDockerImgTag;
+        if ~strcmp(obj.dockerimgtag,currentTag)
+          warningNoTrace('Updating backend to latest APT Docker image tag: %s\n',...
+            currentTag);
+          obj.dockerimgtag = currentTag;
+        end
+      end
+    end
     
     function testConfigUI(obj,cacheDir)
       % Test whether backend is ready to do; display results in msgbox

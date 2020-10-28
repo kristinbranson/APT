@@ -3318,7 +3318,10 @@ classdef Labeler < handle
       if ~isfield(s,'trackDLBackEnd')
         % maybe change this by looking thru existing trackerDatas
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-      end      
+      end
+      % 20201028 docker/sing backend img/tag update
+      s.trackDLBackEnd.modernize();
+        
       
       % 20181220 DL common parameters
       if ~isTrackParams && ~isfield(s,'trackDLParams')
