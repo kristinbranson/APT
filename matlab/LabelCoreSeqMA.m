@@ -149,12 +149,11 @@ classdef LabelCoreSeqMA < LabelCore
       lObj.InitializePrevAxesTemplate();
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
 
-%       xy = obj.getLabelCoords(); 
-% 
+      [xy,tfeo] = obj.getLabelCoords();
+      obj.tv.updateTrackResI(xy,tfeo,lObj.currTarget);
+
 %       ntgts = lObj.labelNumLabeledTgts(obj);
-%       lObj.setTargetMA(ntgts+1);
-%       lObj.labelPosSet(xy);
-%       obj.setLabelPosTagFromEstOcc();  
+%       lObj.setTarget(ntgts,'vidupdate',false);
     end
     
     function unAcceptLabels(obj)
@@ -280,6 +279,7 @@ classdef LabelCoreSeqMA < LabelCore
     end
         
     function ptBDF(obj,src,~)
+      disp('ptbdf');
       if ~obj.labeler.isReady,
         return;
       end
@@ -361,8 +361,8 @@ classdef LabelCoreSeqMA < LabelCore
 %         end
       elseif any(strcmp(key,{'d' 'equal'}))
         lObj.frameUp(tfCtrl);
-      elseif any(strcmp(key,{'a' 'hyphen'}))
-        lObj.frameDown(tfCtrl);
+      %elseif any(strcmp(key,{'a' 'hyphen'}))
+      %  lObj.frameDown(tfCtrl);
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
@@ -436,6 +436,11 @@ classdef LabelCoreSeqMA < LabelCore
       tf = obj.labeler.showSkeleton;
       obj.tv.setShowSkeleton(tf);
     end
+    
+    function preProcParamsChanged(obj)
+      % react to preproc param mutation on lObj
+      obj.tv.updatePches();
+    end
   end
   
   methods
@@ -443,9 +448,10 @@ classdef LabelCoreSeqMA < LabelCore
     function cbkNewTgt(obj)
       lObj = obj.labeler;
       ntgts = lObj.labelNumLabeledTgts();
-      lObj.setTarget(ntgts+1);
+      lObj.setTarget(ntgts+1,'vidupdate',false);
       lObj.updateTrxTable();
       lObj.currImHud.hTxtTgt.BackgroundColor = obj.CLR_NEW_TGT;
+      obj.beginLabel();
     end
     
     function cbkDelTgt(obj)
@@ -471,12 +477,14 @@ classdef LabelCoreSeqMA < LabelCore
         obj.beginAccepted(); % Could possibly just call with true arg
         %fprintf('LabelCoreSeq.newFrameTarget 3: %f\n',toc(ticinfo));ticinfo = tic;
       else
-        obj.beginLabel();
+        %obj.beginLabel();
       end
       %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));
       
+      % handle other targets
       [xy,occ] = obj.labeler.labelMAGetLabelsFrm(iFrm,obj.maxNumTgts);
-      obj.tv.updateTrackRes(xy,iTgt);
+      obj.tv.updateTrackRes(xy,occ);
+      obj.tv.updateHideTarget(iTgt);
     end
     
     function beginLabel(obj)
@@ -534,9 +542,8 @@ classdef LabelCoreSeqMA < LabelCore
     
     function storeLabels(obj)
       fprintf(1,'store\n');
-      xy = obj.getLabelCoords();
-      obj.labeler.labelPosSet(xy);
-      obj.setLabelPosTagFromEstOcc();      
+      [xy,tfeo] = obj.getLabelCoords();
+      obj.labeler.labelPosSet(xy,tfeo);
     end
     
     % C+P

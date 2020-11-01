@@ -396,24 +396,15 @@ classdef LabelTracker < handle
       end
     end
     
-    function info = getAllTrackersCreateInfo
-      
+    function info = getAllTrackersCreateInfo(isMA)
       dlnets = enumeration('DLNetType');
-      info = [
-        {{'CPRLabelTracker'}}
-        arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0)
-        ];
-
-%       APT_DEFAULT_TRACKERS = {
-%         {'CPRLabelTracker'}
-%         {'DeepTracker' 'trnNetType' DLNetType.mdn}
-%         {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
-%         {'DeepTracker' 'trnNetType' DLNetType.unet}
-%         {'DeepTracker' 'trnNetType' DLNetType.openpose}
-%         {'DeepTracker' 'trnNetType' DLNetType.leap}
-%         };
+      dlnets = dlnets([dlnets.doesMA]==isMA);
+      info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
+      if ~isMA
+        info = [{{'CPRLabelTracker'}}; info];
+      end
     end
-    
+        
   end
   
 end

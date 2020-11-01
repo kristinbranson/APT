@@ -10,6 +10,7 @@ classdef DLNetType
                      % in format used by InfoTimeline
                      
     doesOccPred
+    doesMA   
   end
   properties (Dependent)
     nTrkAuxFlds
@@ -18,16 +19,17 @@ classdef DLNetType
   enumeration 
     mdn ('mdn','MDN',...
           struct('trkfld',{'pTrkconf' 'pTrkconf_unet' 'pTrkocc'}, ...
-                 'label',{'conf_mdn' 'conf_unet' 'scr_occ'}),true)
+                 'label',{'conf_mdn' 'conf_unet' 'scr_occ'}),true,false)
     deeplabcut ('dlc','DeepLabCut', ...
-                struct('trkfld',cell(0,1),'label',[]),false)
+                struct('trkfld',cell(0,1),'label',[]),false,false)
     unet ('unet','Unet', ...
-          struct('trkfld',cell(0,1),'label',[]),false)
+          struct('trkfld',cell(0,1),'label',[]),false,false)
     openpose ('openpose','OpenPose',...
-              struct('trkfld',cell(0,1),'label',[]),false)
+              struct('trkfld',cell(0,1),'label',[]),false,false)
     leap ('leap','LEAP', ...
-          struct('trkfld',cell(0,1),'label',[]),false)
-    %hg ('hg','HourGlass')
+          struct('trkfld',cell(0,1),'label',[]),false,false)
+    multianimal ('ma','MultiAnimal',...
+                 struct('trkfld',cell(0,1),'label',[]),false,true)
   end
   
   methods 
@@ -36,13 +38,14 @@ classdef DLNetType
     end
   end
   methods 
-    function obj = DLNetType(sstr,pstr,auxflds,tfoccpred)
+    function obj = DLNetType(sstr,pstr,auxflds,tfoccpred,doesMA)
       obj.shortString = sstr;
       obj.prettyString = pstr;
       obj.paramFileShort = sprintf('params_deeptrack_%s.yaml',sstr);
       obj.trkAuxFlds = auxflds;
       obj.timelinePropList = DLNetType.auxflds2PropList(auxflds);
       obj.doesOccPred = tfoccpred;
+      obj.doesMA = doesMA;
     end
   end
   

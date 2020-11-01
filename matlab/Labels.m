@@ -101,7 +101,8 @@ classdef Labels
     end
     function s = setoccvalFTI(s,frm,itgt,ipt,val)
       % creates a new label if nec
-      % ipt can be vector
+      % ipt: can be vector
+      % val: can be scalar for scalar expansion or vec same size as ipt
       i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
         % new label

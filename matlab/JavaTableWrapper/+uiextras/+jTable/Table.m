@@ -1105,10 +1105,19 @@ classdef Table < hgsetget
                     for jj = 1:NumCol
                         % Cast cells containing a cell array to an Object
                         ThisValue = value{idx,jj};
-                        if iscell(ThisValue) && ~isempty(ThisValue)
-                            ThisValue = obj.castToJavaArray(ThisValue);
+                        % AL 20201101. Assume scalar numeric vals.
+%                         if iscell(ThisValue) && ~isempty(ThisValue)
+%                             ThisValue = obj.castToJavaArray(ThisValue);
+%                         end
+                        % AL 20201101. For table with ~1e3 rows, the
+                        % multiple calls to setValueAt perform horribly.
+                        % do an "AbortSet" which mitigates the issue
+                        % somewhat. 
+                        % We assume the values are scalar numeric types.
+                        v0 = JTableModel.getValueAt(idx-1,jj-1);
+                        if v0~=ThisValue
+                          JTableModel.setValueAt(ThisValue, idx-1, jj-1)
                         end
-                        JTableModel.setValueAt(ThisValue, idx-1, jj-1)
                     end
                 end
             end

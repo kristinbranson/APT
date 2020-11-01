@@ -629,12 +629,13 @@ classdef LabelCore < handle
       end
     end
         
-    function xy = getLabelCoords(obj)
+    function [xy,tfEO] = getLabelCoords(obj)
       % rows matching .tfOcc are inf
       xy = nan(numel(obj.hPts),2);
       ish = ishandle(obj.hPts);
       xy(ish,:) = LabelCore.getCoordsFromPts(obj.hPts(ish));
       xy(obj.tfOcc,:) = inf;
+      tfEO = obj.tfEstOcc;
     end
     
     function xy = getLabelCoordsI(obj,iPt)

@@ -131,6 +131,15 @@ handles.output = hObject;
 
 varargin = varargin(2:end); %#ok<NASGU>
 
+handles.menu_file_import_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_import_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Import Labels from Table (All Movies)',...
+  'Tag','menu_file_import_labels_table',...
+  'Checked','off',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_file_import_labels_table,...
+  handles.menu_file_import_labels_trk_curr_mov);
+
 handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Export Labels as Table',...
@@ -3009,6 +3018,21 @@ s = struct();
 s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); 
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
+
+function menu_file_import_labels_table_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lastFile = RC.getprop('lastLabelMatfile');
+if isempty(lastFile)
+  lastFile = pwd;
+end
+[fname,pth] = uigetfile('*.mat','Load Labels',lastFile);
+if isequal(fname,0)
+  return;
+end
+fname = fullfile(pth,fname);
+t = loadSingleVariableMatfile(fname);
+lObj.labelPosBulkImportTbl(t);
+fprintf('Loaded %d labeled frames from file ''%s''.\n',height(t),fname);
 
 function menu_file_export_stripped_lbl_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

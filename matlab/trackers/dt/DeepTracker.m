@@ -6338,7 +6338,7 @@ classdef DeepTracker < LabelTracker
   methods
     function newLabelerFrame(obj)
       lObj = obj.lObj;
-      if lObj.isinit || ~lObj.hasMovie
+      if lObj.isinit || ~lObj.hasMovie || lObj.maIsMA
         return;
       end
             

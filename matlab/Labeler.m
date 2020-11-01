@@ -430,7 +430,7 @@ classdef Labeler < handle
     maIsMA
     %maPtNames % [npt] cellstr; not just MA
     %maPtHeadTail  % [npt] int
-    maRoiRad = 40; % px
+    %maRoiRad = 40; % px
   end
   
   %% GT mode
@@ -1233,14 +1233,12 @@ classdef Labeler < handle
 
     end
     
-    function v = get.trackDLParams(obj)
-      
+    function v = get.trackDLParams(obj)      
       if isempty(obj.trackParams),
         v = [];
       else
         v = APTParameters.all2TrackDLParams(obj.trackParams);
       end
-
     end
     
     function v = get.DLCacheDir(obj)      
@@ -1908,12 +1906,11 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.needsSave = false;
 
-      % xxxMA todo
       trkPrefs = obj.projPrefs.Track;
-      if trkPrefs.Enable && ~obj.maIsMA
+      if trkPrefs.Enable
         % Create default trackers
         assert(isempty(obj.trackersAll));
-        trkersCreateInfo = LabelTracker.getAllTrackersCreateInfo;
+        trkersCreateInfo = LabelTracker.getAllTrackersCreateInfo(obj.maIsMA);
         nTrkers = numel(trkersCreateInfo);
         tAll = cell(1,nTrkers);
         for i=1:nTrkers
@@ -1924,6 +1921,10 @@ classdef Labeler < handle
         end
         obj.trackersAll = tAll;
         obj.currTracker = 1;
+        
+        tPrm = APTParameters.defaultParamsTree;
+        sPrm = tPrm.structize();
+        obj.trackParams = sPrm;
       else
         obj.currTracker = 0;
       end
@@ -3285,73 +3286,20 @@ classdef Labeler < handle
 %       
 
       if ~isfield(s,'maIsMA')
-        s.maIsMA = false
+        s.maIsMA = false;
       end
       
       % 20180525 DeepTrack integration. .trackerClass, .trackerData, .currTracker
       % 20181215 Updated for multiple DeepTrackers
-      trkersInfo = LabelTracker.getAllTrackersCreateInfo;
+      trkersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
       nDfltTrkers = numel(trkersInfo);
-      if s.maIsMA
-        % none
-      elseif isempty(s.trackerClass)
-        % Add current default trackers to all projs; doesn't hurt to have
-        % them there
-        
-        assert(false);
-%         s.trackerClass = trkersInfo;
-%         s.trackerData = repmat({[]},1,nDfltTrkers);
-%         s.currTracker = 0;
-      elseif ischar(s.trackerClass)
-        assert(false);
-        
-%         assert(strcmp(s.trackerClass,trkersInfo{1}{1}));
-%         assert(strcmp(s.trackerClass,'CPRLabelTracker'));
-%         s.trackerClass = trkersInfo;
-%         tData = repmat({[]},1,nDfltTrkers);
-%         tData{1} = s.trackerData;
-%         s.trackerData = tData;
-%         s.currTracker = 1;
-      elseif iscell(s.trackerClass) 
-                
-        nExistingTrkers = numel(s.trackerClass);
-        if nExistingTrkers==2 % 20181214, only one deeptracker that had mutable trnNetType
-          
-          assert(false);
-%           assert(isequal(s.trackerClass,{'CPRLabelTracker' 'DeepTracker'}));
-%           
-%           % KB 20181217 - this was stored as a char originally
-%           if ~isfield(s.trackerData{2},'trnNetType'),
-%             s.trackerData{2}.trnNetType = DLNetType.mdn;
-%           elseif ischar(s.trackerData{2}.trnNetType),
-%             s.trackerData{2}.trnNetType = DLNetType.(s.trackerData{2}.trnNetType);
-%           elseif isstruct(s.trackerData{2}.trnNetType), 
-%             %MK 20190110 - trnNetType can be a struct too.
-%             s.trackerData{2}.trnNetType = DLNetType.(s.trackerData{2}.trnNetType.ValueNames{1});  
-%           end
-%           
-%           dlTrkClsAug = {'DeepTracker' 'trnNetType' s.trackerData{2}.trnNetType};
-%           tf = cellfun(@(x)isequal(dlTrkClsAug,x),trkersInfo);
-%           iTrk = find(tf);
-%           assert(isscalar(iTrk));
-%           newTData = repmat({[]},1,nDfltTrkers);
-%           newTData{1} = s.trackerData{1};
-%           newTData{iTrk} = s.trackerData{2};
-%           s.trackerData = newTData;
-%           s.trackerClass = trkersInfo;
-%           if s.currTracker==2
-%             s.currTracker = iTrk;
-%           end
-        else % 20181214, planning ahead when we add trackers
-          assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers)));
-          s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
-            trkersInfo(nExistingTrkers+1:nDfltTrkers);
-          s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
-            repmat({[]},1,nDfltTrkers-nExistingTrkers);
-        end
-      else
-        assert(false);
-      end
+      assert(iscell(s.trackerClass));
+      nExistingTrkers = numel(s.trackerClass);
+      assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers,:)));
+      s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
+        trkersInfo(nExistingTrkers+1:nDfltTrkers);
+      s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
+        repmat({[]},1,nDfltTrkers-nExistingTrkers);
       
       % 20190207: added nLabels to dmc
       % 20190404: remove .trnName, .trnNameLbl as these dup DMC
@@ -6307,7 +6255,10 @@ classdef Labeler < handle
 %       end
 %       obj.labeledposNeedsSave = true;
 %     end
-    function labelPosSet(obj,xy)
+    function labelPosSet(obj,xy,tfeo)
+      if nargin<3
+        tfeo = [];
+      end
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
@@ -6315,6 +6266,10 @@ classdef Labeler < handle
       ts = now;
       s = obj.(PROPS.LBL){iMov};
       s = Labels.setpFT(s,iFrm,iTgt,xy);
+      if ~isempty(tfeo)
+        % tfeo will be converted from logical to appropriate cls
+        s = Labels.setoccvalFTI(s,iFrm,iTgt,1:s.npts,tfeo);
+      end
       obj.(PROPS.LBL){iMov} = s;
       %obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = ts;
 
@@ -8870,8 +8825,9 @@ classdef Labeler < handle
       % roi: [4x2] [x(:) y(:)] corners of ractangular roi
       
       tfHT = ~isempty(obj.skelHead);
-      rad = obj.maRoiRad;
-      if tfHT
+      prmsTargetCropMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCropMA;
+      rad = prmsTargetCropMA.Radius;
+      if tfHT && prmsTargetCropMA.Align        
         xyH = xy(obj.skelHead,:);
         xyCent = nanmean(xy,1);
 
@@ -10545,6 +10501,10 @@ classdef Labeler < handle
             'bgReadFcn',bgPrms.BGReadFcn);
           % mrs(i) should already be faithful to .forceGrayscale,
           % .movieInvert, cropInfo
+        end
+        
+        if obj.maIsMA
+          obj.lblCore.preProcParamsChanged();          
         end
       end
       
@@ -12903,6 +12863,8 @@ classdef Labeler < handle
               iTgt,frm);
           end
         end
+      elseif obj.maIsMA
+        
       end
       
       %fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -12970,12 +12932,13 @@ classdef Labeler < handle
       
     end
     
-    function setTarget(obj,iTgt)
+    function setTarget(obj,iTgt,varargin)
       % Set target index, maintaining current movie/frameframe.
       % iTgt: INDEX into obj.trx
       
-%       validateattributes(iTgt,{'numeric'},...
-%         {'positive' 'integer' '<=' obj.nTargets});
+      vidupdate = myparse(varargin,...
+        'vidupdate',true ...
+        );
       
       if obj.hasTrx
         frm = obj.currFrame;
@@ -12989,10 +12952,12 @@ classdef Labeler < handle
       obj.currTarget = iTgt;
       if obj.hasTrx || obj.maIsMA
         obj.labelsUpdateNewTarget(prevTarget);
-        if obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
-          obj.videoCenterOnCurrTarget();
-        elseif obj.movieCenterOnTargetLandmark
-          obj.videoCenterOnCurrTargetPoint();
+        if vidupdate
+          if obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
+            obj.videoCenterOnCurrTarget();
+          elseif obj.movieCenterOnTargetLandmark
+            obj.videoCenterOnCurrTargetPoint();
+          end
         end
       end
 %       obj.updateCurrSusp();
@@ -14217,7 +14182,8 @@ classdef Labeler < handle
       p = Labels.getLabelsF(obj.labels2GTaware{iMov},frm,ntgts);
       lpos2 = reshape(p,[obj.nLabelPoints,2,ntgts]);
       tv = obj.labeledpos2trkViz;
-      tv.updateTrackRes(lpos2,iTgt);
+      tv.updateTrackRes(lpos2);
+      tv.updatePrimary(iTgt);
       
       if dotrkres
         trkres = obj.trkResGTaware;
