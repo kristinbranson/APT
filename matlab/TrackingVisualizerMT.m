@@ -40,6 +40,7 @@ classdef TrackingVisualizerMT < handle
     hSkel   % [nEdge x ntgt] handle vec, skeleton line handles
     
     hPch  % [ntgt] handle vec
+    hPchTxt % [ntgt] text/lbl for pch
     doPch % if false, don't draw pches at all
     pchColor = [0.3 0.3 0.3];
     pchFaceAlpha = 0.25;    
@@ -126,7 +127,7 @@ classdef TrackingVisualizerMT < handle
       markerPVs.PickableParts = 'none';
       textPVs.PickableParts = 'none';
       markerPVs = struct2paramscell(markerPVs);
-      textPVs = struct2paramscell(textPVs);
+      textPVscell = struct2paramscell(textPVs);
       %markerPVsNonTarget = markerPVs; % TODO: customize
       
       if postload
@@ -151,7 +152,7 @@ classdef TrackingVisualizerMT < handle
           'Color',clr,...
           'Tag',sprintf('%s_XYPrdRed_%d_%d',pfix,iPt,iTgt));
         hTxt(iPt,iTgt) = text(nan,nan,num2str(ptset),'Parent',ax(iVw),...
-          'Color',clr,textPVs{:},...
+          'Color',clr,textPVscell{:},...
           'Tag',sprintf('%s_PrdRedTxt_%d_%d',pfix,iPt,iTgt));
       end
       end
@@ -161,16 +162,24 @@ classdef TrackingVisualizerMT < handle
       obj.initSkeletonEdges(obj.lObj.skeletonEdges);
       
       if obj.doPch
-        hPch = gobjects(1,ntgts);
+        hPc = gobjects(1,ntgts);
+        hPchT = gobjects(1,ntgts);
         clr = obj.pchColor;
         alp = obj.pchFaceAlpha;
         for iTgt = 1:ntgts
-          hPch(iTgt) = patch(ax,nan,nan,clr,...
+          hPc(iTgt) = patch(ax,nan,nan,clr,...
             'FaceAlpha',alp,...
             'PickableParts','none',...
             'Tag',sprintf('%s_Pch_%d',pfix,iTgt));
+          hPchT(iTgt) = text(nan,nan,num2str(iTgt),'Parent',ax(iVw),...
+            'Color',[0 0 0],'fontsize',round(textPVs.FontSize*2.0),...
+            'fontweight','bold',...
+            'Tag',sprintf('%s_PchTxt_%d',pfix,iTgt),...
+            'userdata',iTgt,...
+            'ButtonDownFcn',@(s,e)obj.cbkPchTextBDF(s,e));
         end
-        obj.hPch = hPch;
+        obj.hPch = hPc;
+        obj.hPchTxt = hPchT;
       end
       
       if postload
@@ -313,8 +322,10 @@ classdef TrackingVisualizerMT < handle
       end      
       if obj.doPch
         onoffPch = onIff(obj.tfShowPch);
-        [obj.hPch(tfTgtOn).Visible] = deal(onoffPch); 
-        [obj.hPch(~tfTgtOn).Visible] = deal('off');         
+        [obj.hPch(tfTgtOn).Visible] = deal(onoffPch);
+        [obj.hPchTxt(tfTgtOn).Visible] = deal(onoffPch);
+        [obj.hPch(~tfTgtOn).Visible] = deal('off');
+        [obj.hPchTxt(~tfTgtOn).Visible] = deal('off');
       end
     end
     function updateLandmarkColors(obj,ptsClrs)
@@ -356,8 +367,10 @@ classdef TrackingVisualizerMT < handle
       
       if obj.doPch
         hP = obj.hPch;
+        hPT = obj.hPchTxt;
         roi = obj.lObj.maGetRoi(xy);
         set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));
+        set(hPT(iTgt),'Position',[roi(1,:) 0]);        
       end
     end
     function updateTrackRes(obj,xy,tfeo)
@@ -383,6 +396,7 @@ classdef TrackingVisualizerMT < handle
       hTxt = obj.hXYPrdRedTxt;
       hSkl = obj.hSkel;
       hP = obj.hPch;
+      hPT = obj.hPchTxt;
       dx = obj.txtOffPx;
       xyoff = xy+dx;
       for iTgt=1:ntgts
@@ -392,6 +406,7 @@ classdef TrackingVisualizerMT < handle
           LabelCore.setSkelCoords(nan(npts,2),false(npts,1),hSkl(:,iTgt),skelEdges);
           if obj.doPch
             set(hP(iTgt),'XData',nan,'YData',nan);
+            set(hPT(iTgt),'Position',[nan nan 0]);
           end
         else
           xytgt = xy(:,:,iTgt);
@@ -411,7 +426,8 @@ classdef TrackingVisualizerMT < handle
 
           if obj.doPch
             roi = obj.lObj.maGetRoi(xytgt);
-            set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));          
+            set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2)); 
+            set(hPT(iTgt),'Position',[roi(1,:) 0]);
           end
         end
       end
@@ -474,11 +490,13 @@ classdef TrackingVisualizerMT < handle
       if obj.doPch
         ntgts = obj.nTgts;
         hP = obj.hPch;
-        hXY = obj.hXYPrdRed;
+        hPT = obj.hPchTxt;
+        hXY = obj.hXYPrdRed;        
         for iTgt=1:ntgts
           xy = cell2mat(get(hXY(:,iTgt),{'XData' 'YData'}));
           roi = obj.lObj.maGetRoi(xy);
-          set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));          
+          set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));  
+          set(hPT(iTgt),'Position',[nan nan 0]);          
         end
       end
     end
@@ -511,6 +529,12 @@ classdef TrackingVisualizerMT < handle
       szassert(xy,[npts 2 ntgts]);
       
       obj.updateTrackRes(xy,[]);
+    end
+    function cbkPchTextBDF(obj,s,e)
+      iTgt = s.UserData;
+      % lObj was supposed to be used as minimally as possible to access
+      % image data; oops
+      obj.lObj.setTarget(iTgt);
     end
   end
   
@@ -567,7 +591,6 @@ classdef TrackingVisualizerMT < handle
     function delete(obj)
       obj.deleteGfxHandles();
     end
-    
     function s = saveobj(obj)
       s = struct();
       for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>

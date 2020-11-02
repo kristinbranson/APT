@@ -157,7 +157,10 @@ Shortcuts: # shortcuts. case insensitive!
   menu_view_fit_entire_image: f # view -> Zoom out/full image(s)
   menu_view_rotate_video_target_up: r # view -> Rotate video so target always points up
   menu_view_trajectories_centervideoontarget: c # view -> Center video on target
-  tbAccept: x # accept toggle button
+  menu_view_zoom_toggle: d
+  menu_view_pan_toggle: a
+  menu_view_showhide_maroi: g
+  tbAccept: f # accept toggle button
   pbTrain: t # train pushbutton
 
 ...

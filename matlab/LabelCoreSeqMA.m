@@ -303,7 +303,9 @@ classdef LabelCoreSeqMA < LabelCore
 
       tfKPused = true;
       lObj = obj.labeler;
-      if strcmp(key,'z') && tfCtrl
+      if strcmp(key,'w') && tfCtrl
+        obj.cbkNewTgt();
+      elseif strcmp(key,'z') && tfCtrl
         obj.undoLastLabel();
       elseif strcmp(key,'o') && ~tfCtrl
         [tfSel,iSel] = obj.anyPointSelected();
@@ -313,10 +315,10 @@ classdef LabelCoreSeqMA < LabelCore
         if obj.state == LabelState.ACCEPTED,
           obj.storeLabels();
         end
-      elseif any(strcmp(key,{'d' 'equal'}))
+      elseif any(strcmp(key,{'d' 'equal'})) && ~tfCtrl
         lObj.frameUp(tfCtrl);
-      %elseif any(strcmp(key,{'a' 'hyphen'}))
-      %  lObj.frameDown(tfCtrl);
+      elseif any(strcmp(key,{'a' 'hyphen'})) && ~tfCtrl
+        lObj.frameDown(tfCtrl);
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
