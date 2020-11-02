@@ -59,6 +59,10 @@ classdef TrackingVisualizerMT < handle
     LINE_PROPS_COSMETIC_SAVE = {'Color' 'LineWidth' 'Marker' ...
       'MarkerEdgeColor' 'MarkerFaceColor' 'MarkerSize'};
     TEXT_PROPS_COSMETIC_SAVE = {'FontSize' 'FontName' 'FontWeight' 'FontAngle'};
+    
+    CMAP_DARKEN_BETA = -0.5;
+    MRKR_SIZE_FAC = 0.6;
+    
   end
   properties (Dependent)
     nPts
@@ -107,14 +111,18 @@ classdef TrackingVisualizerMT < handle
         ptclrs = obj.ptClrs;
       else
         ptclrs = obj.lObj.LabelPointColors;
+        %ptclrs = brighten(ptclrs,TrackingVisualizerMT.CMAP_DARKEN_BETA);
         obj.ptClrs = ptclrs;
         obj.txtOffPx = pppi.TextOffset;
       end
       szassert(ptclrs,[npts 3]);      
 
       % init .xyVizPlotArgs*
+      sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
       markerPVs = pppi.MarkerProps;
       textPVs = pppi.TextProps;
+      markerPVs.MarkerSize = round(markerPVs.MarkerSize*sizefac);
+      textPVs.FontSize = round(textPVs.FontSize*sizefac);
       markerPVs.PickableParts = 'none';
       textPVs.PickableParts = 'none';
       markerPVs = struct2paramscell(markerPVs);
@@ -354,40 +362,57 @@ classdef TrackingVisualizerMT < handle
     end
     function updateTrackRes(obj,xy,tfeo)
       %
-      % xy: [npts x 2 x ntgts]
-      % tfeo: [npts x ntgts] logical for est-occ
+      % xy: [npts x 2 x ntgtsgiven] 
+      % tfeo: [npts x ntgtsgiven] logical for est-occ
+      %
+      % ntgtsgiven must be <= .nTgts. Targets > ntgtsgiven are set to nan
+      % locs.
       
       if nargin<3
         tfeo = [];
       end
       
+      ntgtsgiven = size(xy,3);
       npts = obj.nPts;
       ntgts = obj.nTgts;
+      assert(ntgtsgiven<=ntgts);
+      assert(ntgtsgiven==size(tfeo,2));
+      
       skelEdges = obj.lObj.skeletonEdges;
       h = obj.hXYPrdRed;
       hTxt = obj.hXYPrdRedTxt;
       hSkl = obj.hSkel;
+      hP = obj.hPch;
       dx = obj.txtOffPx;
       xyoff = xy+dx;
       for iTgt=1:ntgts
-        for iPt=1:npts
-          set(h(iPt,iTgt),'XData',xy(iPt,1,iTgt),'YData',xy(iPt,2,iTgt));
-          set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:,iTgt) 0]);
-        end        
-        if ~isempty(tfeo)
-          pppi = obj.ptsPlotInfo;
-          set(h(tfeo(:,iTgt),iTgt),'Marker',pppi.OccludedMarker);
-          set(h(~tfeo(:,iTgt),iTgt),'Marker',pppi.MarkerProps.Marker);
-        end
-        
-        xytgt = xy(:,:,iTgt);
-        tfOccld = any(isinf(xytgt),2);
-        LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);
-        
-        if obj.doPch
-          hP = obj.hPch;
-          roi = obj.lObj.maGetRoi(xytgt);
-          set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));          
+        if iTgt>ntgtsgiven
+          set(h(:,iTgt),'XData',nan,'YData',nan);
+          set(hTxt(:,iTgt),'Position',[nan nan 0]);          
+          LabelCore.setSkelCoords(nan(npts,2),false(npts,1),hSkl(:,iTgt),skelEdges);
+          if obj.doPch
+            set(hP(iTgt),'XData',nan,'YData',nan);
+          end
+        else
+          xytgt = xy(:,:,iTgt);
+          
+          for iPt=1:npts
+            set(h(iPt,iTgt),'XData',xytgt(iPt,1),'YData',xytgt(iPt,2));
+            set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:,iTgt) 0]);
+          end        
+          if ~isempty(tfeo)
+            pppi = obj.ptsPlotInfo;
+            set(h(tfeo(:,iTgt),iTgt),'Marker',pppi.OccludedMarker);
+            set(h(~tfeo(:,iTgt),iTgt),'Marker',pppi.MarkerProps.Marker);
+          end
+
+          tfOccld = any(isinf(xytgt),2);
+          LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);
+
+          if obj.doPch
+            roi = obj.lObj.maGetRoi(xytgt);
+            set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));          
+          end
         end
       end
     end

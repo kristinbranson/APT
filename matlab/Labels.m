@@ -148,13 +148,22 @@ classdef Labels
       % ntgts: number of tgts for frm
       
       tf = s.frm==frm;
-      ntgts = nnz(tf);
       itgts = s.tgt(tf);
+      ntgts = numel(itgts);
       tfchanged = ~isequal(sort(itgts),(1:ntgts)'); 
       % order currently never matters in s.frm, s.tgt
       if tfchanged
         s.tgt(tf) = (1:ntgts)';
       end
+    end
+    function [s,nfrmslbl,nfrmscompact] = compactall(s)
+      frmsun = unique(s.frm);
+      nfrmscompact = 0;
+      for f=frmsun(:)'
+        [s,tfchanged] = Labels.compact(s,f);
+        nfrmscompact = nfrmscompact+tfchanged;
+      end
+      nfrmslbl = numel(frmsun);
     end
     function [tf,p,occ,ts] = isLabeledFT(s,frm,itgt)
       % Could get "getLabelsFT"

@@ -1115,7 +1115,7 @@ classdef Table < hgsetget
                         % somewhat. 
                         % We assume the values are scalar numeric types.
                         v0 = JTableModel.getValueAt(idx-1,jj-1);
-                        if v0~=ThisValue
+                        if ~isequal(v0,ThisValue)
                           JTableModel.setValueAt(ThisValue, idx-1, jj-1)
                         end
                     end

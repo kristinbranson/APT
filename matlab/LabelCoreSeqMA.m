@@ -1,31 +1,30 @@
 classdef LabelCoreSeqMA < LabelCore
-% Sequential labeling  
+% MA-Seq labeling  
   
-  % Label mode 1 (Sequential)
+  % Labeling states: Accepted/Browse and Label.
   %
-  % There are two labeling states: 'label' and 'accepted'.
+  % During Browse, existing targets/labels (if any) are shown. Selection of 
+  % a primary/focus target can occur eg via targets table. When this 
+  % occurs, non-primary targets are grayed. Landmarks in the primary tgt
+  % can be adjusted either by click-drag or by selectin/hotkey-ptBDF/arrows.
   %
-  % During the labeling state, points are being clicked in order. This
-  % includes the state where there are zero points clicked (fresh image).
+  % During Browse, there may be no primary tgt. In that case no adjustments 
+  % to existing landmarks can be made. 
   %
-  % Once all points have been clicked, the accepted state is entered.
-  % This writes to .labeledpos. Points may be adjusted by click-dragging or
-  % using hotkeys as in Template Mode. 
+  % The primary target is always the same as lObj.currTarget.
   %
-  % pbClear is enabled at all times. Clicking it returns to the 'label'
-  % state and clears any labeled points.
+  % The Label state as in Seq mode. To enter the Label state, for now one
+  % must explictly click the New Target button. Once a target is labeled,
+  % labels are written to lObj and Browse is entered with the just-labeled 
+  % target set as primary.
   %
-  % tbAccept is disabled at all times. During 'accepted', its name is
-  % green and its name is "Labeled" and during 'label' its name is
-  % "Unlabeled" and it is red. 
+  % pbDelTarget can be done either i) during Browse when a primary
+  % target is set, in which case that target is removed (and no target is
+  % set to primary); or iied) during Label, in which case the current target
+  % is canceled and Browse-with-no-primary is entered.
   %
-  % When multiple targets are present, all actions/transitions are for
-  % the current target. Acceptance writes to .labeledpos for the current
-  % target. Changing targets is like changing frames; all pre-acceptance
-  % actions are discarded.
-  %
-  % Occluded. In the 'label' state, clicking in the full-occluded subaxis
-  % sets the current point to be fully occluded. 
+  % Changing targets or frames in the middle of Label is equivalent to
+  % hitting pbRemoveTarget first as no new labels are written to lObj.
   
   properties
     supportsSingleView = true;
@@ -39,11 +38,12 @@ classdef LabelCoreSeqMA < LabelCore
     pbDelTgt % delete the current tgt
     
     maxNumTgts = 10
-    tv % TrackingVisualizerMT
+    tv % scalar TrackingVisualizerMT
     CLR_NEW_TGT = [0.470588235294118 0.670588235294118 0.188235294117647];
+    CLR_DEL_TGT = [0.929411764705882 0.690196078431373 0.129411764705882];
+
   end
-  properties
-    
+  properties    
     iPtMove; % scalar. Either nan, or index of pt being moved
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
 
@@ -65,7 +65,7 @@ classdef LabelCoreSeqMA < LabelCore
     %OK
     function obj = LabelCoreSeqMA(varargin)
       obj = obj@LabelCore(varargin{:});
-      %set(obj.tbAccept,'Enable','off');
+
       obj.addMAbuttons();
       obj.tv = TrackingVisualizerMT(obj.labeler,'lblCoreSeqMA');
       obj.tv.doPch = true;
@@ -91,7 +91,6 @@ classdef LabelCoreSeqMA < LabelCore
       obj.pbNewTgt = pb;
       
       btn = obj.pbClear;
-      CLR = [0.929411764705882 0.690196078431373 0.129411764705882];
       pb = uicontrol(...
         'parent',obj.hFig(1),...
         'style','pushbutton',...
@@ -100,7 +99,7 @@ classdef LabelCoreSeqMA < LabelCore
         'fontunits',btn.FontUnits,...
         'fontsize',btn.FontSize,...
         'fontweight',btn.FontWeight,...
-        'backgroundcolor',CLR,...
+        'backgroundcolor',obj.CLR_DEL_TGT,...
         'string','Remove Target',...
         'callback',@(s,e)obj.cbkDelTgt() ... 
       );
@@ -117,12 +116,7 @@ classdef LabelCoreSeqMA < LabelCore
       obj.kpfIPtFor1Key = 1;
       obj.refreshTxLabelCoreAux();
       
-      % AL 20190203 semi-hack. init to something/anything to avoid error 
-      % with .state unset. Did the same with LabelCoreTemplate. A little
-      % disturbing, something has changed with labelCore init or
-      % Labeler.labelingInit but not clear what. Prob not a super-huge risk
-      % low prob of significant data loss
-      obj.state = LabelState.ADJUST; 
+      obj.state = LabelState.ACCEPTED; 
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>
@@ -140,29 +134,13 @@ classdef LabelCoreSeqMA < LabelCore
     function clearLabels(obj)
       assert(false,'Nonproduction codepath');
     end
-    
-    function acceptLabels(obj)
-      fprintf(1,'accept\n');
-      obj.storeLabels();
-      lObj = obj.labeler;
-      lObj.updateTrxTable();
-      lObj.InitializePrevAxesTemplate();
-      lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
-
-      [xy,tfeo] = obj.getLabelCoords();
-      obj.tv.updateTrackResI(xy,tfeo,lObj.currTarget);
-
-%       ntgts = lObj.labelNumLabeledTgts(obj);
-%       lObj.setTarget(ntgts,'vidupdate',false);
-    end
-    
+        
     function unAcceptLabels(obj)
       assert(false,'Nonproduction codepath');
     end
     
-    %OKEND
     function axBDF(obj,src,evt) %#ok<INUSD>
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady
         return;
       end
       
@@ -171,7 +149,7 @@ classdef LabelCoreSeqMA < LabelCore
       switch obj.state
         case LabelState.LABEL
           obj.hlpAxBDFLabelState(false,tfShift);
-        case {LabelState.ADJUST LabelState.ACCEPTED}
+        case LabelState.ACCEPTED
           [tf,iSel] = obj.anyPointSelected();
           if tf
             pos = get(obj.hAx,'CurrentPoint');
@@ -184,18 +162,14 @@ classdef LabelCoreSeqMA < LabelCore
               obj.tfOcc(iSel) = false;
               obj.refreshOccludedPts();
             end
-            % estOcc status unchanged
-            if obj.state==LabelState.ACCEPTED
-              % KB 20181029: removing adjust state
-              %obj.beginAdjust();
-            end
+            % estOcc status unchanged          
+          
           end
       end
     end
     
-    % XXX MA
     function axOccBDF(obj,~,~)
-      assert(false,'Unsupported');
+      assert(false,'Fully-occluded labels currently unsupported');
       
       if ~obj.labeler.isReady,
         return;
@@ -250,15 +224,13 @@ classdef LabelCoreSeqMA < LabelCore
       end
       obj.nPtsLabeled = i;
       if i==obj.nPts
-        % KB 2018029: removing adjust mode
-        %obj.beginAdjust();
         obj.acceptLabels();
       end
     end
     
     function undoLastLabel(obj)
       switch obj.state
-        case {LabelState.LABEL LabelState.ADJUST}
+        case LabelState.LABEL
           nlbled = obj.nPtsLabeled;
           if nlbled>0
             obj.tfSel(nlbled) = false;
@@ -268,12 +240,6 @@ classdef LabelCoreSeqMA < LabelCore
             obj.refreshPtMarkers('iPts',nlbled,'doPtsOcc',true);
             obj.assignLabelCoordsIRaw([nan nan],nlbled);
             obj.nPtsLabeled = nlbled-1;
-
-            % KB 20181029: removing adjust state
-%             if obj.state==LabelState.ADJUST
-%               assert(nlbled==obj.nPts);
-%               obj.adjust2Label();
-%             end
           end          
       end
     end
@@ -288,23 +254,18 @@ classdef LabelCoreSeqMA < LabelCore
         % none
       else
         switch obj.state
-          case {LabelState.ADJUST LabelState.ACCEPTED}          
+          case LabelState.ACCEPTED
             iPt = get(src,'UserData');
-            % KB 20181029: removing adjust state
-%             if obj.state==LabelState.ACCEPTED
-%               obj.beginAdjust();
-%             end
             obj.iPtMove = iPt;
         end
       end
     end
     
     function wbmf(obj,~,~)
-      % KB 20181029: removing adjust state
-      if isempty(obj.state) || ~obj.labeler.isReady,
+      if isempty(obj.state) || ~obj.labeler.isReady
         return;
       end
-      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED,
+      if obj.state == LabelState.ACCEPTED
         iPt = obj.iPtMove;
         if ~isnan(iPt)
           ax = obj.hAx;
@@ -315,25 +276,23 @@ classdef LabelCoreSeqMA < LabelCore
       end
     end
     
-    function wbuf(obj,~,~)
-      
-      if ~obj.labeler.isReady,
+    function wbuf(obj,~,~)      
+      if ~obj.labeler.isReady
         return;
       end
       
-      % KB 20181029: removing adjust state
-      if ismember(gco,obj.labeler.hTrx),
+      if ismember(gco,obj.labeler.hTrx)
         return;
       end
-      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ~isnan(obj.iPtMove),
+      if obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ...
+          ~isnan(obj.iPtMove)
         obj.iPtMove = nan;
         obj.storeLabels();
       end
     end
     
-    function tfKPused = kpf(obj,~,evt)
-      
-      if ~obj.labeler.isReady,
+    function tfKPused = kpf(obj,~,evt)      
+      if ~obj.labeler.isReady
         return;
       end
       
@@ -354,11 +313,6 @@ classdef LabelCoreSeqMA < LabelCore
         if obj.state == LabelState.ACCEPTED,
           obj.storeLabels();
         end
-        % KB 20181029: removing adjust state
-%       elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
-%         if obj.state==LabelState.ADJUST
-%           obj.acceptLabels();
-%         end
       elseif any(strcmp(key,{'d' 'equal'}))
         lObj.frameUp(tfCtrl);
       %elseif any(strcmp(key,{'a' 'hyphen'}))
@@ -392,6 +346,8 @@ classdef LabelCoreSeqMA < LabelCore
               % KB 20181029: removing adjust state
               %obj.beginAdjust();
           end
+          
+          % xxx no storeLabels()?
         else
           tfKPused = false;
         end
@@ -420,10 +376,7 @@ classdef LabelCoreSeqMA < LabelCore
     end
     
     function h = getLabelingHelp(obj) %#ok<MANU>
-      h = { ...
-        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrement/increment the frame shown.'
-        '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
-        '* S or <space> accepts the labels for the current frame/target.'};
+      h = { '' };
     end
     
     function updateSkeletonEdges(obj,varargin)
@@ -448,98 +401,140 @@ classdef LabelCoreSeqMA < LabelCore
     function cbkNewTgt(obj)
       lObj = obj.labeler;
       ntgts = lObj.labelNumLabeledTgts();
-      lObj.setTarget(ntgts+1,'vidupdate',false);
+      lObj.setTargetMA(ntgts+1);
+      obj.newPrimaryTarget();
       lObj.updateTrxTable();
-      lObj.currImHud.hTxtTgt.BackgroundColor = obj.CLR_NEW_TGT;
       obj.beginLabel();
     end
     
     function cbkDelTgt(obj)
       lObj = obj.labeler;
-      %ntgts = lObj.labelNumLabeledTgts(obj);
-      lObj.labelPosClearWithCompact_New(); % sets target
-      lObj.updateTrxTable();
+      if obj.state==LabelState.ACCEPTED
+        ntgts = lObj.labelPosClearWithCompact_New();
+        iTgt = lObj.currTarget;
+        if iTgt>ntgts
+          lObj.setTargetMA(ntgts);          
+        end
+      end
+      obj.newFrameTarget(lObj.currFrame,lObj.currTarget);
+%       else % LABEL
+%         iTgt = lObj.currTarget - 1;
+%       end
+%       lObj.setTargetMA(iTgt);
+%       obj.newPrimaryTarget();
+%       lObj.updateTrxTable();
+%       obj.beginAcceptedReset();
     end
     
     function newFrameTarget(obj,iFrm,iTgt)
-      % React to new frame or target. If a frame is not labeled, then start 
-      % fresh in Label state. Otherwise, start in Accepted state with saved 
-      % labels.
-      
+      % React to new frame or target which might be labeled or unlabeled.
+      %
+      % PostCond: Accepted/Browse state
+
+      % handle other targets
+      [xy,occ] = obj.labeler.labelMAGetLabelsFrm(iFrm);
+      obj.tv.updateTrackRes(xy,occ);
+
       %ticinfo = tic;
-      [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
+      lObj = obj.labeler;
+      [tflabeled,lpos,lpostag] = lObj.labelPosIsLabeled(iFrm,iTgt);
+      if ~tflabeled
+        % iTgt is not labeled, but we set the primary target to a labeled
+        % frm if avail
+        iTgts = lObj.labelPosIsLabeledFrm(iFrm);
+        if ~isempty(iTgts)
+          iTgt = min(iTgts); % TODO could take iTgt closest to existing iTgt
+          [~,lpos,lpostag] = lObj.labelPosIsLabeled(iFrm,iTgt);
+          tflabeled = true;
+          lObj.setTargetMA(iTgt);
+        end
+      end
+            
       %fprintf('LabelCoreSeq.newFrameTarget 1: %f\n',toc(ticinfo));ticinfo = tic;
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
         %fprintf('LabelCoreSeq.newFrameTarget 2: %f\n',toc(ticinfo));ticinfo = tic;
-        obj.iPtMove = nan;
         obj.beginAccepted(); % Could possibly just call with true arg
         %fprintf('LabelCoreSeq.newFrameTarget 3: %f\n',toc(ticinfo));ticinfo = tic;
       else
-        %obj.beginLabel();
+        if iTgt~=0
+          fprintf(2,'Setting lObj.currTarget to 0\n');
+          lObj.setTargetMA(0);
+        end
+        obj.beginAcceptedReset();
       end
-      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));
-      
-      % handle other targets
-      [xy,occ] = obj.labeler.labelMAGetLabelsFrm(iFrm,obj.maxNumTgts);
-      obj.tv.updateTrackRes(xy,occ);
-      obj.tv.updateHideTarget(iTgt);
+      obj.newPrimaryTarget();
+      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));      
     end
     
-    function beginLabel(obj)
-      % Enter Label state and clear all mode1 label state for current
-      % frame/target
-      
-%       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-%         'String','Unlabeled','Enable','off','Value',0);
+    function newPrimaryTarget(obj)
+      % The 'primary target' for LabelCoreSeqMA always matches
+      % lObj.currtarget.
+      iTgt = obj.labeler.currTarget;
+      if iTgt==0
+        iTgt = []; % ie dont hide any targets
+      end      
+      obj.tv.updateHideTarget(iTgt); 
+    end
+
+    function resetState(obj)
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
       obj.iPtMove = nan;
       obj.tfOcc(:) = false;
       obj.tfEstOcc(:) = false;
       obj.tfSel(:) = false;
-%       if tfClearLabels
-%         obj.labeler.labelPosClear();
-%       end
-      obj.state = LabelState.LABEL;      
     end
     
-%     function adjust2Label(obj)
-%       % enter LABEL from ADJUST
-%       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-%         'String','Unlabeled','Enable','off','Value',0);      
-%       obj.iPtMove = nan;
-%       obj.state = LabelState.LABEL;      
-%     end      
-       
-%     function beginAdjust(obj)
-%       % Enter adjustment state for current frame/target
-%       
-%       assert(obj.nPtsLabeled==obj.nPts);
-%       obj.iPtMove = nan;
-%       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
-%         'Value',0,'Enable','off');
-%       obj.state = LabelState.ADJUST;
-%     end
-    
-    function beginAccepted(obj) %,tfSetLabelPos)
-      % Enter accepted state (for current frame)
-%       
-%       if tfSetLabelPos
-%         xy = obj.getLabelCoords();
-%         obj.labeler.labelPosSet(xy);
-%         obj.setLabelPosTagFromEstOcc();
-%       end
-      % KB 20181029: moved this here from beginAdjust as I remove adjust
-      % mode
+    function acceptLabels(obj)
+      fprintf(1,'accept\n');
+      lObj = obj.labeler;
+%       ntgts = lObj.labelNumLabeledTgts();
+%       lObj.setTargetMA(ntgts+1);
+      obj.storeLabels();
+      lObj.updateTrxTable();
+      lObj.InitializePrevAxesTemplate();
+
+      [xy,tfeo] = obj.getLabelCoords();
+      iTgt = lObj.currTarget;
+      obj.tv.updateTrackResI(xy,tfeo,iTgt);
+      % tv.hideTarget should already be set to lObj.currTarget
+      
+      obj.beginAccepted();
+    end
+
+    function beginAccepted(obj) 
+      % Enter accepted state. Preconds:
+      % 1. Current primary labeling pts should already be set appropriately 
+      % (eg via assignLabelCoords). If there is no current label, these
+      % should be set to nan
+      % 2. .tv.hideTarget should be set to current primary tgt (if avail),
+      % or [] otherwise
+
       obj.iPtMove = nan;
       obj.clearSelected();
-%       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
-%         'Value',1,'Enable','off');
+      lObj = obj.labeler;
+      lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
+      obj.state = LabelState.ACCEPTED;
+    end    
+    function beginAcceptedReset(obj)
+      % like beginAccepted, but reset first
+      obj.resetState();
+      lObj = obj.labeler;
+      lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
     end
-    
+    function beginLabel(obj)
+      % Enter Label state and clear all mode1 label state for current
+      % frame/target   
+      
+      obj.resetState();
+      lObj = obj.labeler;
+      lObj.currImHud.hTxtTgt.BackgroundColor = obj.CLR_NEW_TGT;
+      obj.state = LabelState.LABEL;      
+    end
+            
     function storeLabels(obj)
       fprintf(1,'store\n');
       [xy,tfeo] = obj.getLabelCoords();
@@ -558,10 +553,6 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
       assert(~(obj.tfEstOcc(iPt) && obj.tfOcc(iPt)));
       obj.refreshPtMarkers('iPts',iPt);
-      if obj.state==LabelState.ACCEPTED
-        % KB 20181029: removing adjust state
-        %obj.beginAdjust();
-      end
     end
 
   end

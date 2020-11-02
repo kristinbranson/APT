@@ -6006,8 +6006,6 @@ classdef Labeler < handle
     function ntgts = labelPosClearWithCompact_New(obj)
       % Clear all labels AND TAGS for current movie/frame/target;
       % AND compactify labels. for MA only
-      %
-      % calls setTarget() at end
 
       assert(obj.maIsMA);
       
@@ -6033,13 +6031,7 @@ classdef Labeler < handle
         %obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
         ts = now;
         obj.lastLabelChangeTS = ts;
-      end
-      
-      if iTgt>ntgts
-        obj.setTarget(ntgts);
-      else
-        obj.setTarget(iTgt);
-      end
+      end      
     end
     
 %     function labelPosClearI(obj,iPt)
@@ -6148,6 +6140,17 @@ classdef Labeler < handle
       [tf,p,occ] = Labels.isLabeledFT(s,iFrm,iTrx);
       lpos = reshape(p,[numel(p)/2 2]);
       lpostag = occ;
+    end 
+    function [iTgts] = labelPosIsLabeledFrm(obj,iFrm)
+      % For current movie, find labeled targets in iFrm (if any)
+      %
+      % tf: scalar logical
+      % iTgts:
+      
+      iMov = obj.currMovie;
+      PROPS = obj.gtGetSharedProps();
+      s = obj.(PROPS.LBL){iMov};
+      iTgts = Labels.isLabeledF(s,iFrm);
     end 
         
 %     function [tf0] = labelPosIsLabeledMov(obj,iMov)
@@ -6501,7 +6504,10 @@ classdef Labeler < handle
       warningNoTrace('Existing labels cleared!');
       tsnow = now;
       tblFT.pTS = tsnow*ones(n,npts);
-      s = Labels.fromtable(tblFT);      
+      s = Labels.fromtable(tblFT);  
+      [s,nfrmslbl,nfrmscompact] = Labels.compactall(s);
+      fprintf(1,'Movie %d: %d labeled frms, %d frms compactified.\n',...
+        iMov,nfrmslbl,nfrmscompact);
       obj.(PROPS.LBL){iMov} = s;
               
       obj.updateFrameTableComplete();
@@ -7134,15 +7140,15 @@ classdef Labeler < handle
       ntgts = Labels.getNumTgts(s,obj.currFrame);
     end
     
-    function [xy,occ] = labelMAGetLabelsFrm(obj,frm,ntgtsmax)
+    function [xy,occ] = labelMAGetLabelsFrm(obj,frm)
       if obj.gtIsGTMode
         lpos = obj.labelsGT;
       else
         lpos = obj.labels;
       end
       s = lpos{obj.currMovie};
-      [p,occ] = Labels.getLabelsF(s,frm,ntgtsmax);
-      xy = reshape(p,size(p,1)/2,2,ntgtsmax);
+      [p,occ] = Labels.getLabelsF(s,frm);
+      xy = reshape(p,size(p,1)/2,2,[]);
       occ = logical(occ);
     end
     
