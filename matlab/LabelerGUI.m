@@ -1210,9 +1210,11 @@ end
 tfShift = any(strcmp('shift',evt.Modifier));
 tfCtrl = any(strcmp('control',evt.Modifier));
 
+isMA = lObj.maIsMA;
 handles = guidata(src);
 % KB20160724: shortcuts from preferences
-if all(isfield(handles,{'shortcutkeys','shortcutfns'}))
+% skip this for MA projs where we need separate hotkey mappings
+if ~isMA && all(isfield(handles,{'shortcutkeys','shortcutfns'}))
   % control key pressed?
   if tfCtrl && numel(evt.Modifier)==1 && any(strcmpi(evt.Key,handles.shortcutkeys))
     i = find(strcmpi(evt.Key,handles.shortcutkeys),1);

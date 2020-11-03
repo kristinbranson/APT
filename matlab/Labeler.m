@@ -13288,7 +13288,7 @@ classdef Labeler < handle
       
       tbl = obj.gdata.tblFrames;
       dat = get(tbl,'Data');
-      tblFrms = cell2mat(dat(:,1));      
+      tblFrms = cell2mat(dat(:,1));
       cfrm = obj.currFrame;
       tfRow = (tblFrms==cfrm);
       

@@ -303,7 +303,14 @@ classdef LabelCoreSeqMA < LabelCore
 
       tfKPused = true;
       lObj = obj.labeler;
-      if strcmp(key,'w') && tfCtrl
+      if tfShft
+        switch key
+          case 'a'
+            camroll(obj.hAx,2);
+          case 'd'
+            camroll(obj.hAx,-2);
+        end
+      elseif strcmp(key,'w') && tfCtrl
         obj.cbkNewTgt();
       elseif strcmp(key,'z') && tfCtrl
         obj.undoLastLabel();

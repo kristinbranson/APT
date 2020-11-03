@@ -415,7 +415,7 @@ classdef InfoTimeline < handle
     function setLabelsFull(obj)
       % Get data and set .hPts, .hMarked
       
-      if isnan(obj.npts), return; end
+      if isnan(obj.npts) || obj.lObj.isinit, return; end
       
       dat = obj.getDataCurrMovTgt(); % [nptsxnfrm]
       dat(isinf(dat)) = nan;
@@ -969,6 +969,10 @@ classdef InfoTimeline < handle
     function tflbledDisp = getlabeledTgts(obj)
       labeler = obj.lObj;
       iMov = labeler.currMovie;
+      if iMov==0
+        tflbledDisp = nan;
+        return;
+      end
       tflbledDisp = labeler.labelPosLabeledTgts(iMov);
       ntgtsmax = size(tflbledDisp,2);
       ntgtDisp = obj.axLmaxntgt;

@@ -257,7 +257,11 @@ classdef Labels
       % nf: maximum number of frames
       %
       % tflbled: [nf itgtmax] tflbled(f,itgt) is true if itgt is labeled at f
-      itgtmax = max(s.tgt);
+      if isempty(s.tgt)
+        itgtmax = 0;
+      else
+        itgtmax = max(s.tgt);
+      end      
       tflbled = false(nf,itgtmax);
       idx = sub2ind([nf itgtmax],s.frm,s.tgt);
       tflbled(idx) = true;
