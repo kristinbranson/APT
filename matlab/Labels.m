@@ -253,6 +253,16 @@ classdef Labels
       tf(s.frm) = true;
       assert(numel(tf)==nfrm);
     end
+    function tflbled = labeledTgts(s,nf)
+      % nf: maximum number of frames
+      %
+      % tflbled: [nf itgtmax] tflbled(f,itgt) is true if itgt is labeled at f
+      itgtmax = max(s.tgt);
+      tflbled = false(nf,itgtmax);
+      idx = sub2ind([nf itgtmax],s.frm,s.tgt);
+      tflbled(idx) = true;
+      %ntgt = sum(tflbled,2);
+    end
     function [tf,f0,p0] = findLabelNear(s,frm,itgt,fdir)
       % find labeled frame for itgt 'near' frm
       %

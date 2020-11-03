@@ -1561,10 +1561,10 @@ classdef Labeler < handle
         'LabelMode' 'LabelPointsPlot' 'ProjectName' 'Movie'});
       obj.projPrefs = rmfield(cfg,fldsRm);
       % A few minor subprops of projPrefs have explicit props
-      
-      obj.notify('newProject');
 
       obj.maIsMA = cfg.MultiAnimal && ~cfg.Trx.HasTrx;
+
+      obj.notify('newProject');
 
       % order important: this needs to occur after 'newProject' event so
       % that figs are set up. (names get changed)
@@ -6184,6 +6184,13 @@ classdef Labeler < handle
       s = obj.labels{iMov};
       tf = Labels.labeledFrames(s,nf);
     end
+    function tflbled = labelPosLabeledTgts(obj,iMov)
+      ifo = obj.movieInfoAll{iMov,1};
+      nf = ifo.nframes;      
+      s = obj.labels{iMov};
+      tflbled = Labels.labeledTgts(s,nf);
+    end
+    
     
 %     function [tf0] = labelPosIsOccluded(obj,iFrm,iTrx)
 %       x = rand;
