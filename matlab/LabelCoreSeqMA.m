@@ -392,6 +392,20 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.setShowSkeleton(tf);
     end
     
+    function updateColors(obj,colors)
+      updateColors@LabelCore(obj,colors);
+      obj.tv.updateLandmarkColors(colors);
+    end
+    function updateMarkerCosmetics(obj,pvMarker)
+      updateMarkerCosmetics@LabelCore(obj,pvMarker);
+      obj.tv.setMarkerCosmetics(pvMarker);
+    end
+    function updateTextLabelCosmetics(obj,pvText,txtoffset)
+      updateTextLabelCosmetics@LabelCore(obj,pvText,txtoffset);
+      obj.tv.setTextCosmetics(pvText);
+      obj.tv.setTextOffset(txtoffset);
+    end
+    
     function preProcParamsChanged(obj)
       % react to preproc param mutation on lObj
       obj.tv.updatePches();

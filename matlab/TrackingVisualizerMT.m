@@ -11,7 +11,9 @@ classdef TrackingVisualizerMT < handle
     hAxs % [nview] axes handles. Owned by Labeler
 
     ipt2vw % [npts], like Labeler/labeledposIPt2View
-    ptsPlotInfo 
+    %ptsPlotInfo % lObj.labelPointsPlotInfo
+    mrkrReg % char, regular marker 
+    mrkrOcc % char, marker for est-occ
     ptClrs % [nptsx3].
     
     txtOffPx % scalar, px offset for landmark text labels 
@@ -43,7 +45,7 @@ classdef TrackingVisualizerMT < handle
     hPchTxt % [ntgt] text/lbl for pch
     doPch % if false, don't draw pches at all
     pchColor = [0.3 0.3 0.3];
-    pchFaceAlpha = 0.25;    
+    pchFaceAlpha = 0.15;
     
     iTgtPrimary % [nprimary] tgt indices for 'primary' targets. 
                 % Primariness might typically be eg 'current' but it 
@@ -89,6 +91,28 @@ classdef TrackingVisualizerMT < handle
       deleteValidHandles(obj.hSkel);
       obj.hSkel = [];
     end
+    function [markerPVs,textPVs,pchTextPVs] = ...
+                                  convertLabelerCosmeticPVs(obj,pppi)
+      % convert .ptsPlotInfo from labeler to that used by this obj
+      %
+      % The point being that for eg MA labeling, we want smaller markers
+      % etc on other targets.
+
+      markerPVs = obj.convertLabelerMarkerPVs(pppi.MarkerProps);
+      textPVs = obj.convertLabelerTextPVs(pppi.TextProps);
+      pchTextPVs = struct('FontSize',round(textPVs.FontSize*2.0));
+    end
+    function markerPVs = convertLabelerMarkerPVs(obj,markerPVs)
+      sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
+      markerPVs.MarkerSize = round(markerPVs.MarkerSize*sizefac);
+      markerPVs.PickableParts = 'none';
+    end      
+    function textPVs = convertLabelerTextPVs(obj,textPVs)
+      sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
+      textPVs.FontSize = round(textPVs.FontSize*sizefac);
+      textPVs.PickableParts = 'none'; 
+    end
+
     function vizInit(obj,varargin)
       % Inits .hXYPrdRed, .hXYPrdRedTxt, .hSkel, .iTgtPrimary, .iTgtHide
       % 
@@ -102,7 +126,9 @@ classdef TrackingVisualizerMT < handle
       obj.deleteGfxHandles();
       
       pppi = obj.lObj.labelPointsPlotInfo; %predPointsPlotInfo;
-      obj.ptsPlotInfo = pppi;
+      %obj.ptsPlotInfo = pppi;
+      obj.mrkrReg = pppi.MarkerProps.Marker;
+      obj.mrkrOcc = pppi.OccludedMarker;
       
       npts = numel(obj.ipt2vw);
       if isempty(ntgts)
@@ -119,16 +145,9 @@ classdef TrackingVisualizerMT < handle
       szassert(ptclrs,[npts 3]);      
 
       % init .xyVizPlotArgs*
-      sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
-      markerPVs = pppi.MarkerProps;
-      textPVs = pppi.TextProps;
-      markerPVs.MarkerSize = round(markerPVs.MarkerSize*sizefac);
-      textPVs.FontSize = round(textPVs.FontSize*sizefac);
-      markerPVs.PickableParts = 'none';
-      textPVs.PickableParts = 'none';
-      markerPVs = struct2paramscell(markerPVs);
+      [markerPVs,textPVs,pchTextPVs] = obj.convertLabelerCosmeticPVs(pppi);
+      markerPVscell = struct2paramscell(markerPVs);
       textPVscell = struct2paramscell(textPVs);
-      %markerPVsNonTarget = markerPVs; % TODO: customize
       
       if postload
         % We init first with markerPVs/textPVs, then set saved custom PVs
@@ -148,10 +167,11 @@ classdef TrackingVisualizerMT < handle
         clr = ptclrs(iPt,:);
         iVw = ipt2View(iPt);
         ptset = ipt2set(iPt);
-        hTmp(iPt,iTgt) = plot(ax(iVw),nan,nan,markerPVs{:},...
+        hTmp(iPt,iTgt) = plot(ax(iVw),nan,nan,markerPVscell{:},...
           'Color',clr,...
           'Tag',sprintf('%s_XYPrdRed_%d_%d',pfix,iPt,iTgt));
-        hTxt(iPt,iTgt) = text(nan,nan,num2str(ptset),'Parent',ax(iVw),...
+        hTxt(iPt,iTgt) = text(nan,nan,num2str(ptset),...
+          'Parent',ax(iVw),...
           'Color',clr,textPVscell{:},...
           'Tag',sprintf('%s_PrdRedTxt_%d_%d',pfix,iPt,iTgt));
       end
@@ -171,8 +191,10 @@ classdef TrackingVisualizerMT < handle
             'FaceAlpha',alp,...
             'PickableParts','none',...
             'Tag',sprintf('%s_Pch_%d',pfix,iTgt));
-          hPchT(iTgt) = text(nan,nan,num2str(iTgt),'Parent',ax(iVw),...
-            'Color',[0 0 0],'fontsize',round(textPVs.FontSize*2.0),...
+          hPchT(iTgt) = text(nan,nan,num2str(iTgt),...
+            'Parent',ax(iVw),...
+            'Color',[0 0 0],...
+            'fontsize',pchTextPVs.FontSize,...
             'fontweight','bold',...
             'Tag',sprintf('%s_PchTxt_%d',pfix,iTgt),...
             'userdata',iTgt,...
@@ -328,16 +350,6 @@ classdef TrackingVisualizerMT < handle
         [obj.hPchTxt(~tfTgtOn).Visible] = deal('off');
       end
     end
-    function updateLandmarkColors(obj,ptsClrs)
-      npts = obj.nPts;
-      szassert(ptsClrs,[npts 3]);
-      for iPt=1:npts
-        clr = ptsClrs(iPt,:);
-        set(obj.hXYPrdRed(iPt,:),'Color',clr);
-        set(obj.hXYPrdRedTxt(iPt,:),'Color',clr);
-      end
-      obj.ptClrs = ptsClrs;
-    end
     function updateTrackResI(obj,xy,tfeo,iTgt)
       % xy: [npts x 2]
       % tfeo: [npts] logical for est-occ; can be [] to skip
@@ -355,11 +367,11 @@ classdef TrackingVisualizerMT < handle
         set(h(iPt,iTgt),'XData',xy(iPt,1),'YData',xy(iPt,2));
         set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:) 0]);
       end
-      pppi = obj.ptsPlotInfo;
+      %pppi = obj.ptsPlotInfo;
       if ~isempty(tfeo)
         tfeo = logical(tfeo);
-        set(h(tfeo,iTgt),'Marker',pppi.OccludedMarker);
-        set(h(~tfeo,iTgt),'Marker',pppi.MarkerProps.Marker);
+        set(h(tfeo,iTgt),'Marker',obj.mrkrOcc);
+        set(h(~tfeo,iTgt),'Marker',obj.mrkrReg);
       end
       
       tfOccld = any(isinf(xy),2);
@@ -389,7 +401,7 @@ classdef TrackingVisualizerMT < handle
       npts = obj.nPts;
       ntgts = obj.nTgts;
       assert(ntgtsgiven<=ntgts);
-      assert(ntgtsgiven==size(tfeo,2));
+      assert(isempty(tfeo)||ntgtsgiven==size(tfeo,2));
       
       skelEdges = obj.lObj.skeletonEdges;
       h = obj.hXYPrdRed;
@@ -416,9 +428,9 @@ classdef TrackingVisualizerMT < handle
             set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:,iTgt) 0]);
           end        
           if ~isempty(tfeo)
-            pppi = obj.ptsPlotInfo;
-            set(h(tfeo(:,iTgt),iTgt),'Marker',pppi.OccludedMarker);
-            set(h(~tfeo(:,iTgt),iTgt),'Marker',pppi.MarkerProps.Marker);
+            %pppi = obj.ptsPlotInfo;
+            set(h(tfeo(:,iTgt),iTgt),'Marker',obj.mrkrOcc);
+            set(h(~tfeo(:,iTgt),iTgt),'Marker',obj.mrkrReg);
           end
 
           tfOccld = any(isinf(xytgt),2);
@@ -496,22 +508,37 @@ classdef TrackingVisualizerMT < handle
           xy = cell2mat(get(hXY(:,iTgt),{'XData' 'YData'}));
           roi = obj.lObj.maGetRoi(xy);
           set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));  
-          set(hPT(iTgt),'Position',[nan nan 0]);          
+          set(hPT(iTgt),'Position',[roi(1,:) 0]);          
         end
       end
     end
+    function updateLandmarkColors(obj,ptsClrs)
+      npts = obj.nPts;
+      szassert(ptsClrs,[npts 3]);
+      for iPt=1:npts
+        clr = ptsClrs(iPt,:);
+        set(obj.hXYPrdRed(iPt,:),'Color',clr);
+        set(obj.hXYPrdRedTxt(iPt,:),'Color',clr);
+      end
+      obj.ptClrs = ptsClrs;
+    end
     function setMarkerCosmetics(obj,pvargs)
       if isstruct(pvargs)
+        pvargs = obj.convertLabelerMarkerPVs(pvargs);
         arrayfun(@(x)set(x,pvargs),obj.hXYPrdRed);
+        obj.mrkrReg = pvargs.Marker;
       else
-        arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRed);
+        assert(false);
+        %arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRed);
       end
     end
     function setTextCosmetics(obj,pvargs)
       if isstruct(pvargs)
-        arrayfun(@(x)set(x,pvargs),obj.hXYPrdRedTxt);
-      else        
-        arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRedTxt);
+        pvargs = obj.convertLabelerTextPVs(pvargs);
+        arrayfun(@(x)set(x,pvargs),obj.hXYPrdRedTxt);        
+      else
+        assert(false);
+        %arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRedTxt);
       end
     end
     function setTextOffset(obj,offsetPx)
