@@ -4,6 +4,9 @@ classdef DLNetType
     prettyString
     paramFileShort
     
+    mdlNamePat
+    mdlGlobPat
+    
     trkAuxFlds % [naux] struct array of auxiliary tracking fields with 
                % fields .trkfld and .label
     timelinePropList % [naux] struct array of tracker-specific properties 
@@ -19,17 +22,25 @@ classdef DLNetType
   enumeration 
     mdn ('mdn','MDN',...
           struct('trkfld',{'pTrkconf' 'pTrkconf_unet' 'pTrkocc'}, ...
-                 'label',{'conf_mdn' 'conf_unet' 'scr_occ'}),true,false)
+                 'label',{'conf_mdn' 'conf_unet' 'scr_occ'}),true,...
+                 'deepnet-%d.index','deepnet-*.index',false)
     deeplabcut ('dlc','DeepLabCut', ...
-                struct('trkfld',cell(0,1),'label',[]),false,false)
+                struct('trkfld',cell(0,1),'label',[]),false, ...
+                'deepnet-%d.index','deepnet-*.index',false)
+    dpk ('dpk','DeepPoseKit', ...
+          struct('trkfld',cell(0,1),'label',[]),false, ...
+          'deepnet-%08d.h5','deepnet-*.h5',false)
     unet ('unet','Unet', ...
-          struct('trkfld',cell(0,1),'label',[]),false,false)
+          struct('trkfld',cell(0,1),'label',[]),false,...
+          'deepnet-%d.index','deepnet-*.index',false)
     openpose ('openpose','OpenPose',...
-              struct('trkfld',cell(0,1),'label',[]),false,false)
+              struct('trkfld',cell(0,1),'label',[]),false,...
+              'deepnet-%d','deepnet-*',false)
     leap ('leap','LEAP', ...
-          struct('trkfld',cell(0,1),'label',[]),false,false)
+          struct('trkfld',cell(0,1),'label',[]),false,...
+                  'deepnet-%d','deepnet-*',false)
     multianimal ('ma','MultiAnimal',...
-                 struct('trkfld',cell(0,1),'label',[]),false,true)
+                 struct('trkfld',cell(0,1),'label',[]),false,'mdlxxx-%d','mdlyyy-*',true)
   end
   
   methods 
@@ -38,13 +49,16 @@ classdef DLNetType
     end
   end
   methods 
-    function obj = DLNetType(sstr,pstr,auxflds,tfoccpred,doesMA)
+    function obj = DLNetType(sstr,pstr,auxflds,tfoccpred,...
+        mdlNamePat,mdlGlobPat,doesMA)
       obj.shortString = sstr;
       obj.prettyString = pstr;
       obj.paramFileShort = sprintf('params_deeptrack_%s.yaml',sstr);
       obj.trkAuxFlds = auxflds;
       obj.timelinePropList = DLNetType.auxflds2PropList(auxflds);
       obj.doesOccPred = tfoccpred;
+      obj.mdlNamePat = mdlNamePat;
+      obj.mdlGlobPat = mdlGlobPat;
       obj.doesMA = doesMA;
     end
   end
@@ -70,30 +84,39 @@ classdef DLNetType
     function g = modelGlobs(net,iterCurr)
       % net specific model globs in modelChainDir
       %
-      % Future design unclear
+      % TODO Should just be regular method but right now net can be a char.
+      % TODO Continue removing switchyard.
       
       if ischar(net)
         net = DLNetType.(net);
       end
       
+      g1 = sprintf(net.mdlNamePat,iterCurr);
       switch net
         case DLNetType.openpose
           g = { ...
-            sprintf('deepnet-%d',iterCurr) % latest iter
+            g1
             'traindata*'
             };
 
         case DLNetType.leap
           g = { ...
-            sprintf('deepnet-%d',iterCurr) % latest iter
+            g1
             'initial_model.h5' %            'leap_train.h5'
             'traindata*'
             'training_info.mat'
             };
           
+        case DLNetType.dpk
+          g = { ...
+            g1
+            'deepnet.conf.pickle'
+            'traindata*'
+            };
+          
         otherwise % case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
           g = { ...
-            sprintf('deepnet-%d.*',iterCurr) % latest iter
+            sprintf('deepnet-%d.*',iterCurr)  % ugh this is not an instance prop
             'deepnet_ckpt' % 'splitdata.json'
             'traindata*'
             };

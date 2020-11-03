@@ -15,6 +15,7 @@ import sys
 import pickle
 import importlib
 import ast
+import glob
 import copy
 import contextlib
 import getpass
@@ -52,9 +53,28 @@ def setup_apt_logger():
     ch.setFormatter(formatter)
     logr.addHandler(ch)
 
+# 20201027 AL
+# Workaround/hack for dealing with cudnn failure to initialize on RTX cards.
+# dpk integration is running well on cluster but not on local RTX machine; appears to be
+# cudnn-related init issue. Tried various things finally settled on this which seems to work:
+# https://kobkrit.com/using-allow-growth-memory-option-in-tensorflow-and-keras-dc8c8081bc96
+#
+# See various threads like
+# https://stackoverflow.com/questions/56008683/could-not-create-cudnn-handle-cudnn-status-internal-error
+# https://stackoverflow.com/questions/43147983/could-not-create-cudnn-handle-cudnn-status-internal-error
+# https://github.com/tensorflow/tensorflow/issues/24496
+# https://github.com/tensorflow/tensorflow/issues/35029
+# https://github.com/tensorflow/tensorflow/issues/37233
+# https://github.com/tensorflow/tensorflow/issues/9489
+def config_keras_backend_allow_growth():
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
+    #config.log_device_placement = True  # to log device placement (on which device the operation ran)
+    # this logging is really verbose and clogs up the logs
+    sess = tf.Session(config=config)
+    tf.keras.backend.set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 setup_apt_logger()
-
 logr = logging.getLogger('APT')
 
 
@@ -355,6 +375,7 @@ def update_conf_dpk(conf_base,
 
     conf.dpk_graph = graph
     conf.dpk_swap_index = swap_index
+    conf.dpk_use_graph = graph is not None
 
     if useimgaug is not None:
         conf.dpk_use_augmenter = useimgaug
@@ -383,7 +404,11 @@ def swap_index_to_flip_landmark_matches(swap_idx):
 
 
 def update_conf_dpk_skel_csv(conf_base, skel_csv):
-    graph, swap_index = read_skel_csv(skel_csv)
+    if skel_csv is None:
+        graph = None
+        swap_index = None
+    else:
+        graph, swap_index = read_skel_csv(skel_csv)
     conf = update_conf_dpk(conf_base, graph, swap_index)
     return conf
 
@@ -639,6 +664,9 @@ def train(conf,
     This is the train the APT_interface calls
 
     '''
+
+    config_keras_backend_allow_growth()
+
     assert conf.dpk_use_tfdata
 
     tgtfr, sdn = compile(conf)
@@ -804,6 +832,85 @@ def train(conf,
 # region Predict
 
 def get_pred_fn(conf0, model_file, tmr_pred=None):
+
+    config_keras_backend_allow_growth()
+
+    assert model_file is not None, "model_file is currently required"
+
+    if tmr_pred is None:
+        tmr_pred = contextlib.suppress()
+
+    conf = copy.deepcopy(conf0)
+    expdir = conf.cachedir
+
+    ### Taken from  ade.assess()
+    sdn = deepposekit.models.load_model(model_file, generator=None)
+    conf_saved_f = os.path.join(expdir, 'deepnet.conf.pickle')
+    conf_saved = PoseTools.pickle_load(conf_saved_f)
+    conf_saved = conf_saved['conf']
+
+    # We are not setting up the conf fully for the data/input pipe; fortunately
+    # we can just take from the saved.
+    FLDS_TO_TAKE_FROM_SAVED = ['rescale']
+    for f in FLDS_TO_TAKE_FROM_SAVED:
+        v0 = getattr(conf_saved, f)
+        v = getattr(conf, f)
+        if v != v0:
+            logr.warning("## Conf field {} is {}. Taking value {} from saved conf.".format(
+                f, v, v0))
+            setattr(conf, f, v0)
+
+    # conf could have changed! (ie rescale). Need to do this again, doh
+    update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+
+    logr.info("conf vs conf_saved:")
+    util.dictdiff(conf, conf_saved, logr.info)
+
+    ### End Taken from  ade.assess()
+
+    pred_model = sdn.predict_model
+
+    def pred_fn(imsraw):
+        '''
+
+        :param imsraw: BHWC
+        :return:
+        '''
+
+        bsize = imsraw.shape[0]
+        assert bsize == conf.batch_size
+        locs_dummy = np.zeros((bsize, conf.n_classes, 2))
+        # can do non-distort img preproc
+        ims, _, _ = opd.ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locs_dummy, conf, False)
+
+        assert ims.shape[1:3] == conf.dpk_imsz_net
+        assert ims.shape[3] == conf.img_dim
+
+        with tmr_pred:
+            predres = pred_model.predict_on_batch(ims)
+
+        locs = predres[..., :2]  # 3rd/last col is confidence
+        confidence = predres[..., 2]
+
+        # locs are in imsz_net-space which is post-pad, post rescale
+        # Right now we are setting padding in update_conf_dpk so the rescale is precisely used
+        locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)  # makes a copy, returns new array
+        locs[..., 0] -= conf.dpk_im_padx // 2  # see tfdatagen.pad_ims_black
+        locs[..., 1] -= conf.dpk_im_pady // 2
+
+        ret_dict = {}
+        ret_dict['locs'] = locs
+        ret_dict['confidence'] = confidence
+        return ret_dict
+
+    def close_fn():
+        tf.keras.backend.clear_session()
+
+    return pred_fn, close_fn, model_file
+
+
+def get_pred_fn_old(conf0, model_file, tmr_pred=None):
+
     assert model_file is not None, "model_file is currently required"
 
     if tmr_pred is None:
@@ -916,7 +1023,11 @@ def load_apt_cpkt(exp_dir, mdlfile):
     :return:
     '''
 
-    conf_file = os.path.join(exp_dir, 'conf.pickle')
+    conf_file = os.path.join(exp_dir, '*conf.pickle')
+    g = glob.glob(conf_file)
+    assert len(g)==1, 'Expect exactly one conf.pickle file'
+    conf_file = g[0]
+
     mdl_wgts_file = os.path.join(exp_dir, mdlfile)
 
     conf_dict = conf_load(conf_file)

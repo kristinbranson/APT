@@ -3072,8 +3072,7 @@ end
 msgbox(h,'Labeling Actions','help');
 
 function menu_help_about_Callback(hObject, eventdata, handles)
-str = {'APT: Branson Lab Animal Part Tracker'};
-msgbox(str,'About');
+about(handles.labelerObj);
 
 function menu_setup_sequential_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);

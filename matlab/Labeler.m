@@ -3407,12 +3407,16 @@ classdef Labeler < handle
 %         end
 %       end
       
-%       % 20181215 factor dlbackend out of DeepTrackers into single/common
-%       % prop on Labeler
-%       if ~isfield(s,'trackDLBackEnd')
-%         % maybe change this by looking thru existing trackerDatas
 %         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-%       end      
+      % 20181215 factor dlbackend out of DeepTrackers into single/common
+      % prop on Labeler
+      if ~isfield(s,'trackDLBackEnd')
+        % maybe change this by looking thru existing trackerDatas
+        s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      end
+      % 20201028 docker/sing backend img/tag update
+      s.trackDLBackEnd.modernize();
+        
       
       % 20181220 DL common parameters
       assert(isTrackParams);

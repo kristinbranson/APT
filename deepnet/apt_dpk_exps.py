@@ -644,8 +644,8 @@ def assess(expname,
 
     if ckpt == 'aptlatest':
         assert False, "prob obsolete now"
-        cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
-        sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
+        #cpt = pt.get_latest_model_file_keras(conf, 'deepnet')
+        #sdn, conf_saved, _ = apt_dpk.load_apt_cpkt(expdir, cpt)
     else:
         if ckpt in ['latest', 'best']:
             cpt = get_latest_ckpt_h5_dpkstyle(expdir)
