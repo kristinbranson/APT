@@ -180,7 +180,7 @@ class config(object):
         self.dpk_train_style = 'apt'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
         self.dpk_val_batch_size = 0        # use 0 when dpk_train_style='apt' to not do valdist loggin
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
-        self.dpk_auto_steps_per_epoch = False  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
+        self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
 
 
 
@@ -250,6 +250,22 @@ class config(object):
             for f in flds:
                 printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
+
+def parse_aff_graph(aff_graph_str):
+    '''
+    Parse an afinity-graph str (comma-sep) into a list of edges
+    :param aff_graph_str: eg '1 2,1 3,1 4,3 4'
+    :return: eg [[0,1],[0,2],[0,3],[2,3]]
+    '''
+    graph = []
+    aff_graph_str = aff_graph_str.split(',')
+    for b in aff_graph_str:
+        mm = re.search('(\d+)\s+(\d+)', b)
+        n1 = int(mm.groups()[0]) - 1
+        n2 = int(mm.groups()[1]) - 1
+        graph.append([n1, n2])
+
+    return graph
 
 # -- alice fly --
 

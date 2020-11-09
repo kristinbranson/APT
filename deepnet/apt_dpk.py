@@ -402,6 +402,20 @@ def swap_index_to_flip_landmark_matches(swap_idx):
     flm = {str(idx): val for (idx, val) in enumerate(list(swap_idx)) if val != -1}
     return flm
 
+def flip_landmark_matches_to_swap_index(flm, npts):
+    si = -1*np.ones(npts, np.dtype('int64'))
+    for k, v in flm.items():
+        si[int(k)] = v
+    return si
+
+def update_conf_dpk_from_affgraph_flm(conf):
+    '''
+    conf updated in place
+    '''
+    graph = aff_graph_to_dpk_graph(conf.op_affinity_graph, conf.n_classes)
+    si = flip_landmark_matches_to_swap_index(conf.flipLandmarkMatches, conf.n_classes)
+    update_conf_dpk(conf, graph, si)
+    return
 
 def update_conf_dpk_skel_csv(conf_base, skel_csv):
     if skel_csv is None:
@@ -411,6 +425,26 @@ def update_conf_dpk_skel_csv(conf_base, skel_csv):
         graph, swap_index = read_skel_csv(skel_csv)
     conf = update_conf_dpk(conf_base, graph, swap_index)
     return conf
+
+def aff_graph_to_dpk_graph(affg, npts):
+    '''
+    Convert affinity-graph (list of edges) to dpk-style graph
+    :param ag: list of edges (2-lists or 2-tuples). landmark indices in edges are 0-based.
+    :param npts: Total number of landmarks in graph
+    :return: [npts] np array
+    '''
+
+    g = -1*np.ones(npts, np.dtype('int64'))
+    for edge in affg:
+        ipt0 = min(edge)
+        ipt1 = max(edge)
+        assert g[ipt1] == -1, "Invalid dpk graph: landmark {} (0b) has two parents.".format(ipt1)
+        g[ipt1] = ipt0
+
+    return g
+
+
+
 
 
 def skel_graph_test(skel_csv):
@@ -638,8 +672,10 @@ def compile(conf):
                           pretrained=conf.dpk_use_pretrained)
 
     if conf.dpk_base_lr_used is None:
-        conf.dpk_base_lr_used = conf.dpk_base_lr_factory
-        logr.warning("dpk_base_lr_used unspec'd. Using factory default")
+        #conf.dpk_base_lr_used = conf.dpk_base_lr_factory
+        conf.dpk_base_lr_used = conf.learning_rate
+        #logr.warning("dpk_base_lr_used unspec'd. Using factory default")
+        logr.warning("dpk_base_lr_used unspec'd. Using conf.learning_rate={}".format(conf.learning_rate))
     if conf.dpk_train_style.startswith('dpk'):
         if not conf.dpk_reduce_lr_on_plat:
             logr.warning("dpk_train_style=dpk; ignoring dpk_reduce_lr_on_plat=False")

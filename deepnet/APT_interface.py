@@ -469,6 +469,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
 
     from poseConfig import config
+    from poseConfig import parse_aff_graph
     conf = config()
     conf.n_classes = int(read_entry(lbl['cfg']['NumLabelPoints']))
     if lbl['projname'][0] == 0:
@@ -632,22 +633,14 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     
     try:
-        if isModern and 'openpose' in net_type:
+        if isModern and net_type in ['dpk', 'openpose']:
             try:
                 bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
             except ValueError:
                 bb = ''
         else: 
             bb = ''
-        graph = []
-        if bb:
-            bb = bb.split(',')
-            for b in bb:
-                mm = re.search('(\d+)\s+(\d+)', b)
-                n1 = int(mm.groups()[0]) - 1
-                n2 = int(mm.groups()[1]) - 1
-                graph.append([n1, n2])
-        conf.op_affinity_graph = graph
+        conf.op_affinity_graph = parse_aff_graph(bb) if bb else []
     except KeyError:
         pass
     try:
@@ -711,7 +704,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # elif net_type == 'openpose':
     #     op.update_conf(conf)
     elif net_type == 'dpk':
-        apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
