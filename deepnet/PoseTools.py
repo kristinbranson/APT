@@ -1222,6 +1222,20 @@ def create_imseq(ims, reverse=False,val_func=np.mean,sat_func=np.std):
     out_im = out_im.astype('uint8')
     return cv2.cvtColor(out_im, cv2.COLOR_HSV2RGB)
 
+def create_mask(bb,sz,bb_ex=0):
+    # bb is boundig box
+    # sz should be h x w (i.e y first then x)
+    # bb_ex is the extra padding
+    mask = np.zeros(sz)
+    for c in bb:
+        b = np.round(c).astype('int')
+        b[:,0] -= bb_ex
+        b[:,1] += bb_ex
+        b[0,:] = np.clip(b[0,:],0,sz[1])
+        b[1,:] = np.clip(b[1,:],0,sz[1])
+        mask[b[1,0]:b[1,1],b[0,0]:b[0,1]] = 1
+    return mask
+
 
 def crop_to_size(img, sz):
     # crops image to sz.

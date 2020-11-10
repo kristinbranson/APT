@@ -3,7 +3,7 @@ from builtins import object
 from past.utils import old_div
 import os
 import re
-import localSetup
+# import localSetup
 import numpy as np
 import copy
 import logging
@@ -24,6 +24,8 @@ class config(object):
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
         self.label_blur_rad = 3.  # 1.5
+        self.imsz = [100,100]
+        self.n_classes = 10
 
         self.batch_size = 8
         self.view = 0
@@ -67,7 +69,6 @@ class config(object):
         self.valdatafilename = 'valdata'
         self.valratio = 0.3
         self.holdoutratio = 0.8
-        self.max_n_animals = 1
         self.flipud = False
 
         # ----- UNet params
@@ -180,6 +181,10 @@ class config(object):
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
         self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
 
+        # ============== MULTIANIMAL ==========
+        self.max_n_animals = 1
+        self.bb_ex = 0 # extra margin to keep around annotations while generating masks
+        self.n_grid = 1 # Number of cells to split the image into for multianimal
 
 
         # ============== EXTRA ================
@@ -202,7 +207,7 @@ class config(object):
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30
-        self.cachedir = None
+        self.cachedir = ''
 
         # ----- Legacy
         # self.scale = 2
@@ -248,113 +253,6 @@ class config(object):
             for f in flds:
                 printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
+# Config object that once set can be shared globally
+conf = config()
 
-# -- alice fly --
-
-aliceConfig = config()
-aliceConfig.cachedir = os.path.join(localSetup.bdir, 'cache', 'alice')
-#aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_20170925_cv.lbl')
-# aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_20180107.lbl') # round1
-# aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_expandedbehavior_20180425_local.lbl')
-aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_expandedbehavior_20180425.lbl')
-def alice_exp_name(dirname):
-    return os.path.basename(os.path.dirname(dirname))
-
-aliceConfig.getexpname = alice_exp_name
-aliceConfig.has_trx_file = True
-aliceConfig.imsz = (180, 180)
-aliceConfig.selpts = np.arange(0, 17)
-aliceConfig.img_dim = 1
-aliceConfig.n_classes = len(aliceConfig.selpts)
-aliceConfig.splitType = 'frame'
-aliceConfig.set_exp_name('aliceFly')
-aliceConfig.trange = 5
-aliceConfig.nfcfilt = 128
-aliceConfig.sel_sz = 144
-aliceConfig.num_pools = 1
-aliceConfig.dilation_rate = 2
-# aliceConfig.pool_scale = aliceConfig.pool_stride**aliceConfig.num_pools
-# aliceConfig.psz = aliceConfig.sel_sz / 4 / aliceConfig.pool_scale / aliceConfig.dilation_rate
-aliceConfig.valratio = 0.25
-# aliceConfig.mdn_min_sigma = 70.
-# aliceConfig.mdn_max_sigma = 70.
-aliceConfig.adjust_contrast = False
-aliceConfig.clahe_grid_size = 10
-aliceConfig.brange = [0,0]
-aliceConfig.crange = [1.,1.]
-aliceConfig.mdn_extra_layers = 1
-aliceConfig.normalize_img_mean = False
-aliceConfig.mdn_groups = [range(17)]
-
-
-aliceConfig_time = copy.deepcopy(aliceConfig)
-aliceConfig_time.do_time = True
-aliceConfig_time.cachedir = os.path.join(localSetup.bdir, 'cache','alice_time')
-
-
-aliceConfig_rnn = copy.deepcopy(aliceConfig)
-aliceConfig_rnn.cachedir = os.path.join(localSetup.bdir, 'cache','alice_rnn')
-aliceConfig_rnn.batch_size = 2
-# aliceConfig_rnn.trainfilename_rnn = 'train_rnn_TF'
-# aliceConfig_rnn.fulltrainfilename_rnn = 'fullTrain_rnn_TF'
-# aliceConfig_rnn.valfilename_rnn = 'val_rnn_TF'
-
-# -- felipe bees --
-
-felipeConfig = config()
-felipeConfig.cachedir = os.path.join(localSetup.bdir, 'cache','felipe')
-felipeConfig.labelfile = os.path.join(localSetup.bdir,'data','felipe','doesnt_exist.lbl')
-def felipe_exp_name(dirname):
-    return dirname
-
-def felipe_get_exp_list(L):
-    return 0
-
-felipeConfig.getexpname = felipe_exp_name
-felipeConfig.getexplist = felipe_get_exp_list
-felipeConfig.view = 0
-felipeConfig.imsz = (300, 300)
-felipeConfig.selpts = np.arange(0, 5)
-felipeConfig.img_dim = 3
-felipeConfig.n_classes = len(felipeConfig.selpts)
-felipeConfig.splitType = 'frame'
-felipeConfig.set_exp_name('felipeBees')
-felipeConfig.trange = 20
-felipeConfig.nfcfilt = 128
-felipeConfig.sel_sz = 144
-felipeConfig.num_pools = 2
-felipeConfig.dilation_rate = 1
-# felipeConfig.pool_scale = felipeConfig.pool_stride**felipeConfig.num_pools
-# felipeConfig.psz = felipeConfig.sel_sz / 4 / felipeConfig.pool_scale / felipeConfig.dilation_rate
-
-
-##  -- felipe multi bees
-
-# -- felipe bees --
-
-felipe_config_multi = config()
-felipe_config_multi.cachedir = os.path.join(localSetup.bdir, 'cache', 'felipe_m')
-felipe_config_multi.labelfile = os.path.join(localSetup.bdir, 'data', 'felipe_m', 'doesnt_exist.lbl')
-def felipe_exp_name(dirname):
-    return dirname
-
-def felipe_get_exp_list(L):
-    return 0
-
-felipe_config_multi.getexpname = felipe_exp_name
-felipe_config_multi.getexplist = felipe_get_exp_list
-felipe_config_multi.view = 0
-felipe_config_multi.imsz = (360, 380)
-felipe_config_multi.selpts = np.array([1, 3, 4])
-felipe_config_multi.img_dim = 3
-felipe_config_multi.n_classes = len(felipe_config_multi.selpts)
-felipe_config_multi.splitType = 'frame'
-felipe_config_multi.set_exp_name('felipeBeesMulti')
-felipe_config_multi.trange = 20
-felipe_config_multi.nfcfilt = 128
-felipe_config_multi.sel_sz = 256
-felipe_config_multi.num_pools = 2
-felipe_config_multi.dilation_rate = 1
-# felipe_config_multi.pool_scale = felipe_config_multi.pool_stride ** felipe_config_multi.num_pools
-# felipe_config_multi.psz = felipe_config_multi.sel_sz / 4 / felipe_config_multi.pool_scale / felipe_config_multi.dilation_rate
-felipe_config_multi.max_n_animals = 17

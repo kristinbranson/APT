@@ -1,3 +1,10 @@
+
+cmd = '-name 20201110T005848 -view 1 -cache /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564 -debug -type mdn /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564/test1/20201110T005848_20201110T010044.lbl train -use_cache -skip_db'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
+
 import PoseTools
 import re
 import h5py
