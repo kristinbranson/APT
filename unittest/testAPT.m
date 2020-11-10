@@ -342,7 +342,7 @@ classdef testAPT < handle
         all_nets = {all_nets};
       end
       for nndx = 1:numel(all_nets)
-        self.test_train('nets',all_nets(nndx),'backend',backend,...
+        self.test_train('net_type',all_nets{nndx},'backend',backend,...
           'params',params,'aws_params',aws_params);
       end
     end

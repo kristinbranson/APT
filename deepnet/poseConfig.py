@@ -35,6 +35,7 @@ class config(object):
         self.dl_steps = 60000 # number of training iters
         self.decay_steps = 25000
         self.learning_rate = 0.0001
+        self.step_lr = True
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
@@ -144,6 +145,7 @@ class config(object):
 
         # ---- dpk
         # "early" here is eg after initial setup in APT_interface
+        self.dpk_skel_csv = None
         self.dpk_max_val_batches = 1       # maximum number of validation batches
         self.dpk_downsample_factor = 2      # (immutable after early) integer downsample                                            *power* for output shape
         self.dpk_n_stacks = 2
@@ -170,14 +172,14 @@ class config(object):
         self.dpk_reduce_lr_on_plat = True   # DEPRECATED in favor of dpk_train_style
                                             # True is as published for dpk, using K cbk (starting from dpk_base_lr_used);
                                             # False is APT-style scheduled (using learning_rate, decay_steps, gamma)
-        self.dpk_reduce_lr_style = 'ipynb'  # either 'ppr' or 'ipynb'
-        self.dpk_early_stop_style = 'ipynb' # either 'ppr' or 'ipynb'
+        self.dpk_reduce_lr_style = "__UNUSED__"  # either 'ppr' or 'ipynb'
+        self.dpk_early_stop_style = "__UNUSED__"  # either 'ppr' or 'ipynb'
         self.dpk_epochs_used = None         # set at train-time; actual no of epochs used
         self.dpk_use_tfdata = True
         self.dpk_tfdata_num_para_calls_parse = 5
         self.dpk_tfdata_num_para_calls_dataaug = 8
-        self.dpk_train_style = 'dpk'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
-        self.dpk_val_batch_size = 10        # use 0 when dpk_train_style='apt' to not do valdist loggin
+        self.dpk_train_style = 'apt'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
+        self.dpk_val_batch_size = 0        # use 0 when dpk_train_style='apt' to not do valdist loggin
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
         self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
 
@@ -255,4 +257,21 @@ class config(object):
 
 # Config object that once set can be shared globally
 conf = config()
+
+def parse_aff_graph(aff_graph_str):
+    '''
+    Parse an afinity-graph str (comma-sep) into a list of edges
+    :param aff_graph_str: eg '1 2,1 3,1 4,3 4'
+    :return: eg [[0,1],[0,2],[0,3],[2,3]]
+    '''
+    graph = []
+    aff_graph_str = aff_graph_str.split(',')
+    for b in aff_graph_str:
+        mm = re.search('(\d+)\s+(\d+)', b)
+        n1 = int(mm.groups()[0]) - 1
+        n2 = int(mm.groups()[1]) - 1
+        graph.append([n1, n2])
+
+    return graph
+
 

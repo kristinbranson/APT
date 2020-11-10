@@ -58,16 +58,11 @@ import time # for timing between writing n frames tracked
 import tarfile
 import urllib
 import getpass
+import apt_dpk
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
-try:
-    user = getpass.getuser()
-except KeyError:
-    user = 'err'
-if ISPY3 and user=='leea30':
-    import apt_dpk
 
 
 def savemat_with_catch_and_pickle(filename, out_dict):
@@ -474,6 +469,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
 
     from poseConfig import config
+    from poseConfig import parse_aff_graph
     conf = config()
     conf.n_classes = int(read_entry(lbl['cfg']['NumLabelPoints']))
     if lbl['projname'][0] == 0:
@@ -637,22 +633,14 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     
     try:
-        if isModern and 'openpose' in net_type:
+        if isModern and net_type in ['dpk', 'openpose']:
             try:
                 bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
             except ValueError:
                 bb = ''
         else: 
             bb = ''
-        graph = []
-        if bb:
-            bb = bb.split(',')
-            for b in bb:
-                mm = re.search('(\d+)\s+(\d+)', b)
-                n1 = int(mm.groups()[0]) - 1
-                n2 = int(mm.groups()[1]) - 1
-                graph.append([n1, n2])
-        conf.op_affinity_graph = graph
+        conf.op_affinity_graph = parse_aff_graph(bb) if bb else []
     except KeyError:
         pass
     try:
@@ -716,7 +704,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # elif net_type == 'openpose':
     #     op.update_conf(conf)
     elif net_type == 'dpk':
-        apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
@@ -2230,8 +2218,9 @@ def classify_movie(conf, pred_fn, model_type,
 
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict.pop('locs')
-        hmaps = ret_dict.pop('hmaps')
+        #hmaps = ret_dict.pop('hmaps')
 
+        assert not save_hmaps
         #if save_hmaps:
             #mat_out = os.path.join(hmap_out_dir, 'hmap_batch_{}.mat'.format(cur_b+1))
             #hdf5storage.savemat(mat_out,{'hm':hmaps,'startframe1b':to_do_list[cur_start][0]+1})
@@ -2244,17 +2233,17 @@ def classify_movie(conf, pred_fn, model_type,
             base_locs_orig = convert_to_orig(base_locs[cur_t, ...], conf, cur_f, cur_trx, crop_loc)
             pred_locs[cur_f - min_first_frame, trx_ndx, :, :] = base_locs_orig[ ...]
 
-            if save_hmaps:
-                write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
+            #if save_hmaps:
+            #    write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
 
             # for everything else that is returned..
             for k in ret_dict.keys():
 
                 if ret_dict[k].ndim == 4:  # hmaps
-                    if save_hmaps:
-                        cur_hmap = ret_dict[k]
-                        write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
-
+                    #if save_hmaps:
+                    #    cur_hmap = ret_dict[k]
+                    #    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
+                    pass
                 else:
                     cur_v = ret_dict[k]
                     # py3 and py2 compatible

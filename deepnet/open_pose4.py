@@ -648,6 +648,7 @@ def training(conf, name='deepnet'):
         return lrate
 
     # Callback to do writing pring stuff.
+    # See apt_dpk_callbacks/TrainDataLogger, future refactor
     class OutputObserver(Callback):
         def __init__(self, conf, dis):
             self.train_di, self.val_di = dis

@@ -642,9 +642,10 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
 
     conf_opts['save_step'] = conf_opts['dl_steps'] // 20
 
-    if train_type == 'dpk' and 'dpk_train_style' not in kwargs:
-        kwargs['dpk_train_style'] = 'apt'
-        kwargs['dpk_val_batch_size'] = 0
+    #these are now defaults
+    #if train_type == 'dpk' and 'dpk_train_style' not in kwargs:
+    #    kwargs['dpk_train_style'] = 'apt'
+    #    kwargs['dpk_val_batch_size'] = 0
 
     if train_type == 'dpk' and kwargs['dpk_train_style'] != 'apt':
         # 'dpk_orig'

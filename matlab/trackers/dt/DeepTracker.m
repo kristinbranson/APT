@@ -2738,7 +2738,8 @@ classdef DeepTracker < LabelTracker
       if be.deepnetrunlocal
         aptroot = APT.Root;
         %[dmc.aptRootUser] = deal(aptroot);
-        DeepTracker.downloadPretrainedExec(aptroot);
+        %DeepTracker.downloadPretrainedExec(aptroot);
+        DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
       else
         DeepTracker.cloneJRCRepoIfNec(cacheDir);
         DeepTracker.updateAPTRepoExecJRC(cacheDir);

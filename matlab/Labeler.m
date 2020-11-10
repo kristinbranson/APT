@@ -3194,11 +3194,14 @@ classdef Labeler < handle
             s.currTracker = iTrk;
           end
         else % 20181214, planning ahead when we add trackers
-          assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers)));
-          s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
-            trkersInfo(nExistingTrkers+1:nDfltTrkers);
-          s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
-            repmat({[]},1,nDfltTrkers-nExistingTrkers);
+          [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),trkersInfo);
+          assert(all(tf));
+          tclass = trkersInfo;
+          tclass(loc) = s.trackerClass(:);
+          tdata = repmat({[]},1,nDfltTrkers);
+          tdata(loc) = s.trackerData(:);
+          s.trackerClass = tclass;
+          s.trackerData = tdata;
         end
       else
         assert(false);
@@ -3315,7 +3318,10 @@ classdef Labeler < handle
       if ~isfield(s,'trackDLBackEnd')
         % maybe change this by looking thru existing trackerDatas
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-      end      
+      end
+      % 20201028 docker/sing backend img/tag update
+      s.trackDLBackEnd.modernize();
+        
       
       % 20181220 DL common parameters
       if ~isTrackParams && ~isfield(s,'trackDLParams')
