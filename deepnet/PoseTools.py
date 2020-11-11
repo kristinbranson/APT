@@ -1532,4 +1532,12 @@ def get_git_commit():
         label = subprocess.check_output(["git", "describe"]).strip()
     except subprocess.CalledProcessError as e:
         label = 'Not a git repo'
-    return str(label,'utf-8')
+        
+    # AL: not sure what is best here
+    try:
+        label = str(label,'utf-8')
+    except:
+        # TypeError when label is already a str
+        pass
+    
+    return label
