@@ -2738,7 +2738,8 @@ classdef DeepTracker < LabelTracker
       if be.deepnetrunlocal
         aptroot = APT.Root;
         %[dmc.aptRootUser] = deal(aptroot);
-        DeepTracker.downloadPretrainedExec(aptroot);
+        %DeepTracker.downloadPretrainedExec(aptroot);
+        DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
       else
         DeepTracker.cloneJRCRepoIfNec(cacheDir);
         DeepTracker.updateAPTRepoExecJRC(cacheDir);
@@ -4772,9 +4773,10 @@ classdef DeepTracker < LabelTracker
       end      
     end
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
+      % Currently this assumes a JRC backend due to oncluster special case      
       [host,bg,prefix,sshoptions,timeout] = myparse(varargin,...
         'host',DeepTracker.jrchost,... % 'logfile','/dev/null',...
-        'bg',true,...
+        'bg',false,... % AL 20201022 see note below
         'prefix',DeepTracker.jrcprefix,...
         'sshoptions','-o "StrictHostKeyChecking no"',...
         'timeout',[]);
@@ -4798,13 +4800,19 @@ classdef DeepTracker < LabelTracker
       end
             
       if bg
+        % AL 20201022 not sure why this codepath was nec. Now it is causing
+        % problems with LSF/job scheduling. The </dev/null & business
+        % confuses LSF and the account/runtime limit doesn't get set. So
+        % for now this is a nonproduction codepath.
         codestr = sprintf('%s %s ''%s </dev/null &''',sshcmd,host,remotecmd);
       else
-        codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
+        tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
+        if tfOnCluster
+          codestr = remotecmd;
+        else
+          codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
+        end
       end
-
-%       codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
-%         host,remotecmd,logfile);    
     end
     function codestr = codeGenSingGeneral(basecmd,varargin)
       % Take a base command and run it in a sing img
@@ -5429,7 +5437,11 @@ classdef DeepTracker < LabelTracker
     
     function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
       
-      [trxfileRem] = myparse(varargin,'trxFiles',{});
+      [trxfileRem,isWinBackend] = myparse(varargin,...
+        'trxFiles',{},...
+        'isWinBackend',false ...
+        );
+      
       nviews = size(movfileRem,2);
       ismultiview = nviews > 1;
       
@@ -5478,6 +5490,11 @@ classdef DeepTracker < LabelTracker
         end
       end
 
+      if isWinBackend
+        % AL20200929. json validity requires escaping backslash
+        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','\\\\');
+        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','\\\\');
+      end
       fid = fopen(listfileLcl,'w');
       fprintf(fid,jsonencode(listinfo));
       fclose(fid);

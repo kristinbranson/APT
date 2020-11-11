@@ -97,7 +97,7 @@ title(tstr,'fontweight','bold');
 
 %%
 pFull0 = res0.pTstT(:,:,end);
-xyFull0 = reshape(
+% xyFull0 = reshape(
 
 
 

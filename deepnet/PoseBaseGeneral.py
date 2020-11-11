@@ -50,7 +50,7 @@ class PoseBaseGeneral(PoseCommon):
     '''
 
 
-    def __init__(self, conf):
+    def __init__(self, conf,name='deepnet'):
         '''
         Initialize the pose object.
 
@@ -64,7 +64,7 @@ class PoseBaseGeneral(PoseCommon):
 
         '''
 
-        PoseCommon.__init__(self, conf,name='deepnet')
+        PoseCommon.__init__(self, conf,name=name)
 
 
     def preproc_func(self, ims, locs, info, distort):
@@ -136,7 +136,9 @@ class PoseBaseGeneral(PoseCommon):
                           'locs': tf.FixedLenFeature(shape=[conf.n_classes, 2], dtype=tf.float32),
                           'expndx': tf.FixedLenFeature([], dtype=tf.float32),
                           'ts': tf.FixedLenFeature([], dtype=tf.float32),
-                          'image_raw': tf.FixedLenFeature([], dtype=tf.string)
+                          'image_raw': tf.FixedLenFeature([], dtype=tf.string),
+                          'occ': tf.FixedLenFeature(shape=[conf.n_classes], default_value=None, dtype=tf.float32),
+
                           })
             image = tf.decode_raw(features['image_raw'], tf.uint8)
             trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
@@ -146,7 +148,8 @@ class PoseBaseGeneral(PoseCommon):
             exp_ndx = tf.cast(features['expndx'], tf.float32)
             ts = tf.cast(features['ts'], tf.float32)  # tf.constant([0]); #
             info = tf.stack([exp_ndx, ts, tf.cast(trx_ndx, tf.float32)])
-            return image, locs, info
+            occ = tf.cast(features['occ'],tf.bool)
+            return image, locs, info, occ
 
         train_db = os.path.join(self.conf.cachedir, self.conf.trainfilename) + '.tfrecords'
         train_dataset = tf.data.TFRecordDataset(train_db)
@@ -203,7 +206,7 @@ class PoseBaseGeneral(PoseCommon):
         def train_pp(ims,locs,info):
             return self.preproc_func(ims,locs,info, True)
 
-        self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
+        self.train_py_map = lambda *args: tuple(tf.py_func( train_pp,args, self.input_dtypes))
 
         self.create_datasets()
         self.set_input_sizes()

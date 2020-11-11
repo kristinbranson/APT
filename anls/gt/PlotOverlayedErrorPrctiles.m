@@ -138,13 +138,17 @@ for datai = 1:ndatatypes,
       hold on;
       
       axcProps = freezeInfo.axes_curr;
-      for prop=fieldnames(axcProps)',prop=prop{1}; %#ok<FXSET>
-        set(gca,prop,axcProps.(prop));
+      axfns = fieldnames(axcProps);
+      %axfns = setdiff(fieldnames(axcProps),{'XLim','YLim'});
+      for propi=1:numel(axfns),
+        prop = axfns{propi};
+        set(hax(labeli,ndx),prop,axcProps.(prop));
       end
       
       if freezeInfo.isrotated,
-        set(gca,'CameraUpVectorMode','auto');
+        set(hax(labeli,ndx),'CameraUpVectorMode','auto');
       end
+      %set(hax(labeli,ndx),'XLim',freezeInfo.xdata,'YLim',freezeInfo.ydata);
       
       h = gobjects(1,nprcs);
       circtheta = linspace(-pi,pi,20);

@@ -3194,11 +3194,14 @@ classdef Labeler < handle
             s.currTracker = iTrk;
           end
         else % 20181214, planning ahead when we add trackers
-          assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers)));
-          s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
-            trkersInfo(nExistingTrkers+1:nDfltTrkers);
-          s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
-            repmat({[]},1,nDfltTrkers-nExistingTrkers);
+          [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),trkersInfo);
+          assert(all(tf));
+          tclass = trkersInfo;
+          tclass(loc) = s.trackerClass(:);
+          tdata = repmat({[]},1,nDfltTrkers);
+          tdata(loc) = s.trackerData(:);
+          s.trackerClass = tclass;
+          s.trackerData = tdata;
         end
       else
         assert(false);
@@ -3315,7 +3318,10 @@ classdef Labeler < handle
       if ~isfield(s,'trackDLBackEnd')
         % maybe change this by looking thru existing trackerDatas
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-      end      
+      end
+      % 20201028 docker/sing backend img/tag update
+      s.trackDLBackEnd.modernize();
+        
       
       % 20181220 DL common parameters
       if ~isTrackParams && ~isfield(s,'trackDLParams')
@@ -7588,7 +7594,7 @@ classdef Labeler < handle
         if nrm>0
           warningNoTrace('Labeler:oob',...
             '%d rows with shape out of bounds of target ROI. These rows will be discarded.',nrm);
-          tblMF(tfRmRow,:) = [];
+          tblMF(tfRmrow,:) = [];
         end
       end
                     
@@ -8210,8 +8216,10 @@ classdef Labeler < handle
       %
       % lblfile: either char/fullpath, or struct from loaded lblfile
       
-      quiet = myparse(varargin,...
-        'quiet',false);
+      [quiet,gt] = myparse(varargin,...
+        'quiet',false,...
+        'gt',false ...
+        );
       
       if quiet
         wbObj = [];
@@ -8224,9 +8232,15 @@ classdef Labeler < handle
       else
         lbl = lblfile;
       end
-      lpos = lbl.labeledpos;
-      lpostag = lbl.labeledpostag;
-      lposts = lbl.labeledposTS;
+      if gt
+        lpos = lbl.labeledposGT;
+        lpostag = lbl.labeledpostagGT;
+        lposts = lbl.labeledposTSGT;
+      else
+        lpos = lbl.labeledpos;
+        lpostag = lbl.labeledpostag;
+        lposts = lbl.labeledposTS;
+      end
       
       tblMF = [];
       nmov = numel(lpos);
@@ -8237,7 +8251,7 @@ classdef Labeler < handle
         tblI = unique(tblI);
         tblI.mov = MovieIndex(repmat(imov,height(tblI),1));
         
-        tblMF = [tblMF; tblI];
+        tblMF = [tblMF; tblI]; %#ok<AGROW>
       end
       
       tblMF = tblMF(:,MFTable.FLDSID);
@@ -8247,16 +8261,21 @@ classdef Labeler < handle
       lpostsfull = cellfun(@SparseLabelArray.full,lposts,'uni',0);
       
       sMacro = lbl.projMacros;
-      mfafull = FSPath.fullyLocalizeStandardize(lbl.movieFilesAll,sMacro);
-      tfafull = Labeler.trxFilesLocalize(lbl.trxFilesAll,mfafull);
+      if gt
+        mfa = lbl.movieFilesAllGT;
+        tfa = lbl.trxFilesAllGT;
+      else
+        mfa = lbl.movieFilesAll;
+        tfa = lbl.trxFilesAll;
+      end
+      mfafull = FSPath.fullyLocalizeStandardize(mfa,sMacro);
+      tfafull = Labeler.trxFilesLocalize(tfa,mfafull);
             
       tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,...
         lposfull,lpostagfull,lpostsfull,...
         'trxFilesAllFull',tfafull,...
         'trxCache',containers.Map(),...
-        'wbObj',wbObj);
-      
-      % TODO: gt labels
+        'wbObj',wbObj);      
     end
     
 %     % Legacy meth. labelGetMFTableLabeledStc is new method but assumes

@@ -1,3 +1,4 @@
+from __future__ import print_function
 
 ##  #######################        SETUP
 
@@ -11,11 +12,14 @@ import APT_interface as apt
 import h5py
 import PoseTools
 import os
+import shutil
+import subprocess
 import time
 import glob
 import re
 import numpy as np
 import matplotlib.pyplot as plt
+import datetime
 import apt_expts
 import os
 import ast
@@ -29,6 +33,11 @@ import json
 import tensorflow as tf
 import easydict
 import sys
+import apt_dpk
+import util
+
+
+ISPY3 = sys.version_info >= (3, 0)
 
 data_type = None
 lbl_file = None
@@ -39,6 +48,8 @@ proj_name = None
 trn_flies = None
 cv_info_file = None
 gt_name = ''
+dpk_skel_csv = None
+dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/git/imgaug'
 
 cache_dir = '/nrs/branson/mayank/apt_cache'
 all_models = ['mdn', 'deeplabcut', 'unet', 'leap', 'openpose','resnet_unet']
@@ -49,6 +60,9 @@ sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
 n_splits = 3
 
 dlc_aug_use_round = 0
+
+# common_conf procedure. Always call reload() first to initialize the global common_conf state.
+# then setup, then individual actions furthwe tweak conf. Always call reload first!
 
 common_conf = {}
 common_conf['rrange'] = 10
@@ -67,7 +81,8 @@ common_conf['maxckpt'] = 50
 
 
 def setup(data_type_in,gpu_device=None):
-    global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name
+    global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name, \
+        dpk_skel_csv
     data_type = data_type_in
     if gpu_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(gpu_device)
@@ -75,16 +90,23 @@ def setup(data_type_in,gpu_device=None):
     if data_type == 'alice' or data_type=='alice_difficult':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
         op_graph = []
-        gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
-        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
+        #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
         groups = ['']
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+
         if data_type == 'alice_difficult':
             gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_MDNvsDLC_labeled_alMassaged20190809_stripped.lbl'
             gt_name = '_diff'
     elif data_type == 'stephen':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
         gt_lbl = lbl_file
-        op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
+        #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
+        # for vw2; who knows vw1
+        op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
         common_conf['trange'] = 20
@@ -98,28 +120,29 @@ def setup(data_type_in,gpu_device=None):
     elif data_type == 'brit0':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
         op_af_graph = '\(0,4\),\(1,4\),\(2,4\),\(3,4\)'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data//BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'brit1':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl'
         op_af_graph = '\(\(0,1\),\)'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'brit2':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
         op_af_graph = '\(2,0\),\(2,1\)'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/BSTrainCVInfo20190416.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data/BSTrainCVInfo20190416.mat'
         common_conf['trange'] = 20
     elif data_type == 'romain':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped_trn1027.mat'
         op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14),(12,13),(13,14),(14,18),(18,17),(17,16),(16,15)'
         op_af_graph = op_af_graph.replace('(','\(')
         op_af_graph = op_af_graph.replace(')','\)')
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/RomainTrainCVInfo20190419.mat'
+        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
         common_conf['trange'] = 20
     elif data_type == 'larva':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
-        cv_info_file = '/groups/branson/home/bransonk/tracking/code/APT/LarvaTrainCVInfo20190419.mat'
+        cv_info_file = '/groups/branson/bransonlab/experiments/data/LarvaTrainCVInfo20190419.mat'
         j = tuple(zip(range(27), range(1, 28)))
         op_af_graph = '{}'.format(j)
         op_af_graph = op_af_graph.replace('(','\(')
@@ -150,9 +173,14 @@ def setup(data_type_in,gpu_device=None):
     nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
     lbl.close()
 
-def run_jobs(cmd_name,cur_cmd,redo=False,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet'):
-    logfile = os.path.join(sdir,'opt_' + cmd_name+ '.log')
-    errfile = os.path.join(sdir,'opt_' + cmd_name+ '.err')
+def run_jobs(cmd_name,
+             cur_cmd,
+             redo=False,
+             run_dir='/groups/branson/home/leea30/git/apt.dpk1920/deepnet',
+             precmd='',
+             logdir=sdir):
+    logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
+    errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 
     run = False
     if redo:
@@ -167,7 +195,15 @@ def run_jobs(cmd_name,cur_cmd,redo=False,run_dir='/groups/branson/home/kabram/br
             run = False
 
     if run:
-        PoseTools.submit_job(cmd_name, cur_cmd, sdir, gpu_model=gpu_model,run_dir=run_dir)
+        ss_script = os.path.join(os.path.dirname(run_dir), 'matlab', 'repo_snapshot.sh')
+        ss_dst = os.path.join(logdir, '{}.snapshot'.format(cmd_name))
+        ss_cmd = "{} > {}".format(ss_script, ss_dst)
+        subprocess.call(ss_cmd, shell=True)
+        print(ss_cmd)
+        PoseTools.submit_job(cmd_name, cur_cmd, logdir,
+                             gpu_model=gpu_model,
+                             run_dir=run_dir,
+                             precmd=precmd)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
@@ -290,7 +326,7 @@ def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     nr = int(np.ceil(n_types/float(nc)))
     if cmap is None:
         cmap = PoseTools.get_cmap(len(ps),'cool')
-    f, axx = plt.subplots(nr, nc, figsize=(12, 8))
+    f, axx = plt.subplots(nr, nc, figsize=(12, 8), squeeze=False)
     axx = axx.flat
     for idx,k in enumerate(data_in.keys()):
         o = data_in[k][-1]
@@ -344,21 +380,41 @@ def save_mat(out_exp,out_file):
     hdf5storage.savemat(out_file,out_arr,truncate_existing=True)
 
 
-def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwargs):
+# conf_opts format notes
+# APT_interf accepts conf_params as a string of PVs. This is prob good, we need a hard boundary where
+# APT_interf can always be run with arbitrary specification from the cmdline.
+# This does mean that conf_params needs to be serializable to string and in some cases this means escaping parens etc.
+# Formats for values:
+# 1. double-escaped strings, because conf_opts first gets printed (removing one escape), then gets parsed (removing another)
+# 2. single-escaped strings, etc
+# 3. actual values. These are converted to strings via print() and vice versa via ast.literal_eval
+# Formats for structure:
+# A. dict
+# B. pv list
 
-    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
-    end_cmd = 'train -skip_db -use_cache'
-    cmd_opts = {}
-    cmd_opts['type'] = train_type
-    cmd_opts['view'] = view + 1
-    cmd_opts['train_name'] = train_name
+'''
+def conf_opts_dict_to_pvlist(conf_opts):
+    if ISPY3:
+        pvs = list(conf_opts.items())
+        pvlist = [i for el in pvs for i in el]
+    else:
+        assert False, "todo"
+'''
+
+def run_trainining_conf_helper(train_type, view0b, kwargs):
+    '''
+    Helper function that takes common_conf and further sets up for particular train_type
+
+    :param train_type:
+    :param kwargs:
+    :return:
+    '''
+
     conf_opts = common_conf.copy()
     # conf_opts.update(other_conf[conf_id])
-    conf_opts['save_step'] = conf_opts['dl_steps'] / 10
-    for k in kwargs.keys():
-        conf_opts[k] = kwargs[k]
+    conf_opts['save_step'] = conf_opts['dl_steps'] // 10
 
-    if data_type in ['brit0' ,'brit1','brit2']:
+    if data_type in ['brit0', 'brit1', 'brit2']:
         conf_opts['adjust_contrast'] = True
         if train_type == 'unet':
             conf_opts['batch_size'] = 2
@@ -405,27 +461,141 @@ def run_trainining(exp_name,train_type,view,run_type,train_name='deepnet',**kwar
     if op_af_graph is not None:
         conf_opts['op_affinity_graph'] = op_af_graph
 
+    if dpk_skel_csv is not None:
+        conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
 
-    if len(conf_opts) > 0:
-        conf_str = ' -conf_params'
-        for k in conf_opts.keys():
-            conf_str = '{} {} {} '.format(conf_str, k, conf_opts[k])
-    else:
-        conf_str = ''
+    for k in kwargs.keys():
+        conf_opts[k] = kwargs[k]
+
+    return conf_opts
+
+def cp_exp_bare(src_exp_dir, dst_exp_dir):
+    '''
+    Copy training dbs etc from existing expdir to new empty expdir
+    :param src_exp_dir existing expdir
+    :param dst_exp_dir: new expdir, created if nec
+    :return:
+    '''
+
+    if not os.path.exists(dst_exp_dir):
+        os.mkdir(dst_exp_dir)
+        print("Created dir {}",format(dst_exp_dir))
+
+    GLOBSPECS = ['*.tfrecords', 'splitdata.json']
+    for globspec in GLOBSPECS:
+        gs = os.path.join(src_exp_dir, globspec)
+        globres = glob.glob(gs)
+        for src in globres:
+            fileshort = os.path.basename(src)
+            dst = os.path.join(dst_exp_dir, fileshort)
+            shutil.copyfile(src, dst)
+            print("Copied {}->{}".format(src, dst))
+
+def run_trainining(exp_name,train_type,view,run_type,
+                   train_name='deepnet',
+                   cp_from_existing_exp=None,  # short expname same dir as exp_name
+                   exp_note='',
+                   **kwargs
+                   ):
+
+    common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
+    end_cmd = 'train -skip_db -use_cache'
+    cmd_opts = {}
+    cmd_opts['type'] = train_type
+    cmd_opts['view'] = view + 1
+    cmd_opts['train_name'] = train_name
+
+    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)  # this is copied from common_conf
+    conf_str = apt.conf_opts_dict2pvargstr(conf_opts)
 
     opt_str = ''
     for k in cmd_opts.keys():
         opt_str = '{} -{} {} '.format(opt_str, k, cmd_opts[k])
 
+    now_str = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
     cur_cmd = common_cmd + conf_str + opt_str + end_cmd
-    cmd_name = '{}_view{}_{}_{}_{}'.format(data_type, view, exp_name, train_type,train_name)
-    if run_type == 'submit':
+    cmd_name = '{}_view{}_{}_{}_{}_{}'.format(data_type, view, exp_name, train_type, train_name, now_str)
+    precmd = 'export PYTHONPATH="{}"'.format(dpk_py_path) if train_type == 'dpk' else ''
+
+    if run_type == 'dry':
+        print(cmd_name)
+        print("precmd: {}".format(precmd))
+        print("cmd: {}".format(cur_cmd))
+        return conf_opts, cur_cmd, cmd_name
+    elif run_type == 'submit':
+        # C+P mirror of APT_interf
+        exp_dir_parent = os.path.join(cache_dir, proj_name, train_type, 'view_{}'.format(view))
+        exp_dir = os.path.join(exp_dir_parent, exp_name)
+
+        if cp_from_existing_exp is not None:
+            existing_exp = os.path.join(exp_dir_parent, cp_from_existing_exp)
+            assert os.path.exists(existing_exp)
+            assert not os.path.exists(exp_dir), "exp_dir already exists: {}".format(exp_dir)
+
+            #exp_dir_bak = '{}.bak{}'.format(exp_dir, now_str)
+            #os.rename(exp_dir, exp_dir_bak)
+            #print("Existing expdir {} renamed to {}.".format(exp_dir, exp_dir_bak))
+            cp_exp_bare(existing_exp, exp_dir)
+
+
+        # code snapshot is done downstream in run_jobs/PoseTools submit
+
+        # logdir
+        explog_dir = os.path.join(exp_dir, 'log')
+        if not os.path.exists(explog_dir):
+            os.makedirs(explog_dir, exist_ok=True)  # Py3.2+ only
+
+        if len(exp_note)>0:
+            notefile = os.path.join(exp_dir,'EXPNOTE')
+            if os.path.exists(notefile):
+                print("Notefile {} exists already; not overwriting".format(notefile))
+            else:
+                with open(notefile,'w') as fh:
+                    fh.write(exp_note)
+                print("Wrote note to {}".format(notefile))
+
         print(cur_cmd)
         print()
-        run_jobs(cmd_name, cur_cmd)
+        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir)
     elif run_type == 'status':
-        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        conf = create_conf_help(train_type, view, exp_name, quiet=True, **kwargs)
         check_train_status(cmd_name, conf.cachedir)
+
+
+def create_conf_help(train_type, view, exp_name, quiet=False, **kwargs):
+    '''
+    Call apt.create_conf after customizing the conf for the given train_type/view/kwargs.
+    :param train_type:
+    :param view:
+    :param exp_name:
+    :param kwargs:
+    :return:
+    '''
+    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)
+    pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
+    pvlist = apt.conf_opts_pvargstr2list(pvlist)
+    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type,
+                           conf_params=pvlist, quiet=quiet)
+    return conf
+
+def get_apt_conf(**kwargs):
+    '''
+    Create/generate confs as (hopefully) done by Apt_interf
+    :return:
+    '''
+
+    res = [None,] * nviews
+    exp_name = 'apt_expt'
+    for view in range(nviews):
+        for tndx in range(len(all_models)):
+            train_type = all_models[tndx]
+            conf = create_conf_help(train_type, view, exp_name, kwargs)
+            if res[view] is None:
+                res[view] = {}
+            res[view][all_models[tndx]] = conf
+
+    return res
 
 
 
@@ -435,7 +605,7 @@ def create_normal_dbs():
     for view in range(nviews):
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
-            conf = apt.create_conf(lbl_file,view,exp_name,cache_dir,train_type)
+            conf = create_conf_help(train_type, view, exp_name)
             if train_type == 'deeplabcut':
                 apt.create_deepcut_db(conf,split=False,use_cache=True)
             elif train_type == 'leap':
@@ -444,7 +614,10 @@ def create_normal_dbs():
                 apt.create_tfrecord(conf,split=False,use_cache=True)
 
 
-def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
+def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
+                      exp_name_pfix='',  # prefix for exp_name
+                      split_idxs=None,  # optional list of split indices to run
+                      **kwargs):
     assert data_type in ['romain','larva','roian','carsen']
 
     data_info = h5py.File(cv_info_file, 'r')
@@ -467,22 +640,33 @@ def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
     print('Number of labels that exists in label file but not in mat file:{}'.format(len(diff1)))
     print('Number of labels that exists in mat file but not in label file:{}'.format(len(diff2)))
     # assert all([a == b for a, b in zip(in_info, label_info)])
-    for sndx in range(max(cv_info)+1):
+
+    if split_idxs is not None:
+        assert all([x in range(n_splits) for x in split_idxs])
+    else:
+        split_idxs = range(n_splits)
+
+    for sndx in split_idxs:
         val_info = [l for ndx,l in enumerate(in_info) if cv_info[ndx]==sndx]
         trn_info = list(set(label_info)-set(val_info))
         cur_split = [trn_info,val_info]
-        exp_name = 'cv_split_{}'.format(sndx)
+        exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)
         split_file = os.path.join(cache_dir,proj_name,exp_name) + '.json'
         if not skip_db and create_splits:
-            assert not os.path.exists(split_file)
+            if os.path.exists(split_file):
+                print("Warning, overwriting existing split file {}", format(split_file))
+            def convert(o):
+                if isinstance(o, np.int64): return int(o)
+                raise TypeError
             with open(split_file,'w') as f:
-                json.dump(cur_split,f)
+                json.dump(cur_split,f,default=convert)
 
         # create the dbs
         if not skip_db:
             for view in range(nviews):
                 for train_type in all_models:
-                    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                    conf = create_conf_help(train_type, view, exp_name, **kwargs)
+                    #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                     conf.splitType = 'predefined'
                     if train_type == 'deeplabcut':
                         apt.create_deepcut_db(conf, split=True, split_file=split_file, use_cache=True)
@@ -494,9 +678,9 @@ def cv_train_from_mat(skip_db=True, run_type='status',create_splits=False):
 
     for view in range(nviews):
         for train_type in all_models:
-            for sndx in range(n_splits):
-                exp_name = 'cv_split_{}'.format(sndx)
-                run_trainining(exp_name,train_type,view,run_type)
+            for sndx in split_idxs:
+                exp_name = '{}cv_split_{}'.format(exp_name_pfix, sndx)
+                run_trainining(exp_name,train_type,view,run_type, **kwargs)
 
 
 def cv_train_britton(skip_db=True, run_type='status',create_splits=False):
@@ -616,7 +800,7 @@ def create_incremental_dbs(do_split=False):
                         json.dump(splits,f)
 
                 conf.splitType = 'predefined'
-                if train_type == 'deeplabcut':
+                if train_type == 'deepla`bcut':
                     apt.create_deepcut_db(conf, split=True, split_file=split_file,use_cache=True)
                 elif train_type == 'leap':
                     apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
@@ -797,16 +981,22 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
 
 
 
-def run_normal_training(run_type = 'status'):
+def run_normal_training(expname = 'apt_expt',
+                        run_type = 'status',
+                        **kwargs
+                        ):
 
     common_conf['dl_steps'] = 50000
     common_conf['maxckpt'] = 20
     common_conf['save_time'] = 20 # save every 20 min
 
+    results = {}
     for train_type in all_models:
         for view in range(nviews):
-            run_trainining('apt_expt',train_type,view, run_type)
+            key = "{}_vw{}".format(train_type, view)
+            results[key] = run_trainining(expname, train_type, view, run_type, **kwargs)
 
+    return results
 
 ## CV Training ---- TRAINING ----
 
@@ -1137,11 +1327,9 @@ def create_gt_db():
 ## ######################  RESULTS
 
 
-def get_normal_results():
+def get_normal_results(exp_name='apt_expt', train_name='deepnet', **kwargs):
 ## Normal Training  ------- RESULTS -------
-    cache_dir = '/nrs/branson/mayank/apt_cache'
-    exp_name = 'apt_expt'
-    train_name = 'deepnet'
+    # cache_dir = '/nrs/branson/al/cache'
 
     all_view = []
 
@@ -1151,12 +1339,26 @@ def get_normal_results():
         gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
         for train_type in all_models:
 
-            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-            # if data_type == 'stephen' and train_type == 'mdn':
-            #     conf.mdn_use_unet_loss = False
-            if op_af_graph is not None:
-                conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-            conf.normalize_img_mean = False
+            conf = create_conf_help(train_type, view, exp_name, **kwargs)
+
+            # compare conf to conf on disk
+            cffile = os.path.join(conf.cachedir, 'conf.pickle')
+            if os.path.exists(cffile):
+                with open(cffile, 'rb') as fh:
+                    conf0 = pickle.load(fh,encoding='latin1')
+                conf0 = conf0['conf']
+            else:
+                cffile = os.path.join(conf.cachedir, 'traindata')
+                assert os.path.exists(cffile), "Cant find conf on disk"
+                with open(cffile, 'rb') as fh:
+                    conf0 = pickle.load(fh,encoding='latin1')
+                conf0 = conf0[-1]
+
+            print("## View {} Net {} Conf Compare (disk vs now)".format(view,train_type))
+            util.dictdiff(vars(conf0), vars(conf))
+
+            assert not conf.normalize_img_mean
+
             files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
             files.sort(key=os.path.getmtime)
             files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
@@ -1171,6 +1373,8 @@ def get_normal_results():
             #     sel = np.linspace(0,len(files)-1,n_max).astype('int')
             #     files = [files[s] for s in sel]
 
+            print('view {}, net {}. Your models are:'.format(view, train_type))
+            print(files)
 
             out_file = os.path.join(conf.cachedir,train_name + '_results{}.p'.format(gt_name))
             recomp = False
@@ -1192,7 +1396,7 @@ def get_normal_results():
             if recomp:
                 afiles = [f.replace('.index', '') for f in files]
                 mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
-                with open(out_file,'w') as f:
+                with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,files],f)
             else:
                 A = PoseTools.pickle_load(out_file)

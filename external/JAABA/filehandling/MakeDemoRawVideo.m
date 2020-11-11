@@ -188,7 +188,7 @@ if ishandle(1),
 end
 figure(1);
 clf;
-aspectratio_whole = 
+aspectratio_whole = 1;
 hold on;
 hax = gca;
 set(hax,'position',[0,0,1,1]);

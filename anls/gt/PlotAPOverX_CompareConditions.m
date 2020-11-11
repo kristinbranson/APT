@@ -225,9 +225,16 @@ for ndx = 1:nnets,
     set(gca,'XLim',[.5,n_models-.5]);
   end
   if logscaley,
+    set(gca,'YDir','reverse','YScale','log');
     yticks = fliplr([.25,.5,.75,.9,.95,.975,.99]);
-    yticks(yticks > maxAP) = [];
-    set(gca,'YDir','reverse','YScale','log','YTick',yoff-yticks,'YTickLabel',num2str(yticks(:)));%,'YLim',yoff-[maxAP,0]);
+    yticks0 = yoff-yticks;
+    ylim = get(gca,'YLim');    
+    yticks(yticks0 < ylim(1) | yticks0 > ylim(2)) = [];
+    if isempty(yticks),
+      yticks0 = get(gca,'YTick');
+      yticks = yoff-yticks0;
+    end
+    set(gca,'YTick',yoff-yticks,'YTickLabel',num2str(yticks(:)));%,'YLim',yoff-[maxAP,0]);
   else
     set(gca,'YLim',[0,1]);
   end

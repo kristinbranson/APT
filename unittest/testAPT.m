@@ -211,7 +211,7 @@ classdef testAPT < handle
 
     
     function setup_path(self)
-      if ~self.path_setup_done
+      if ~self.path_setup_done && ~isdeployed
         addpath('..');
         APT.setpath;
         self.path_setup_done = true;
@@ -342,7 +342,7 @@ classdef testAPT < handle
         all_nets = {all_nets};
       end
       for nndx = 1:numel(all_nets)
-        self.test_train('nets',all_nets(nndx),'backend',backend,...
+        self.test_train('net_type',all_nets{nndx},'backend',backend,...
           'params',params,'aws_params',aws_params);
       end
     end
@@ -607,7 +607,7 @@ classdef testAPT < handle
         while self.lObj.tracker.bgTrnIsRunning()
           pause(10);
         end
-        pause(2);
+        pause(10);
         if test_tracking
           self.test_track('block',block);
         end
@@ -628,7 +628,7 @@ classdef testAPT < handle
         while self.lObj.tracker.bgTrkIsRunning()
           pause(10);
         end
-        pause(2);
+        pause(10);
       end
     end
     

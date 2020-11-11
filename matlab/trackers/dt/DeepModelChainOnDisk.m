@@ -23,8 +23,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
               % identifies a restart
     trainType % scalar DLTrainType
     
-    
-    
     isMultiView = false; % whether this was trained with one call to APT_interface for all views
     
     doSplit = false;
@@ -192,28 +190,15 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = [obj.dirModelChainLnx obj.filesep obj.trainCurrModelName];
     end
     function v = get.trainFinalModelName(obj)
-      switch obj.netType
-        case {DLNetType.openpose DLNetType.leap} % this specificity prob belongs in DLNetType
-          v = sprintf('deepnet-%d',obj.iterFinal);
-        otherwise
-          v = sprintf('deepnet-%d.index',obj.iterFinal);
-      end
+      pat = DLNetType.(obj.netType).mdlNamePat;
+      v = sprintf(pat,obj.iterFinal);
     end    
     function v = get.trainCurrModelName(obj)
-      switch obj.netType
-        case {DLNetType.openpose DLNetType.leap} % this specificity prob belongs in DLNetType
-          v = sprintf('deepnet-%d',obj.iterCurr);
-        otherwise
-          v = sprintf('deepnet-%d.index',obj.iterCurr);
-      end
+      pat = DLNetType.(obj.netType).mdlNamePat;
+      v = sprintf(pat,obj.iterCurr);
     end
     function v = get.trainModelGlob(obj)
-      switch obj.netType
-        case {DLNetType.openpose DLNetType.leap} % this specificity prob belongs in DLNetType
-          v = 'deepnet-*';
-        otherwise
-          v = 'deepnet-*.index';
-      end
+      v = DLNetType.(obj.netType).mdlGlobPat;      
     end
     function v = get.aptRepoSnapshotLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.aptRepoSnapshotName];

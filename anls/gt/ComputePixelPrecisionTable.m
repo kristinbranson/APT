@@ -148,6 +148,7 @@ nann = numel(annfns);
 aperrk = nan([nnets+nann,npttypes+1,numel(kvals),ndatatypes,nlabeltypes]);
 % nnets x nks x ndatatypes x nlabeltypes
 apmaxerrk = nan([nnets+nann,numel(kvals),ndatatypes,nlabeltypes]);
+apmnerrk = nan([nnets+nann,numel(kvals),ndatatypes,nlabeltypes]);
 for ndx = 1:nnets+nann,
   if ndx > nnets,
     err = sqrt(sum((annoterrdata.(annfns{ndx-nnets}){end}.labels-annoterrdata.(annfns{ndx-nnets}){end}.pred).^2,3));
@@ -177,10 +178,12 @@ for ndx = 1:nnets+nann,
 
       err0 = err(idxcurr,:);
       maxerr = max(err0,[],2);
+      mnerr = mean(err0,2);
       for kk = 1:numel(kvals),
         k = kvals(kk);
         aperrk(ndx,1,kk,datai,labeli) = nnz(err0<=kvals(kk))/numel(err0);
         apmaxerrk(ndx,kk,datai,labeli) = nnz(maxerr<=kvals(kk))/numel(maxerr);
+        apmnerrk(ndx,kk,datai,labeli) = nnz(mnerr<=kvals(kk))/numel(mnerr);
         for pti = 1:npttypes,
           err1 = err0(:,pttypes{pti,2});
           aperrk(ndx,pti+1,kk,datai,labeli) = nnz(err1<=kvals(kk))/numel(err1);
@@ -189,10 +192,13 @@ for ndx = 1:nnets+nann,
     end
   end
 end
+% nnets x npttypes+1 x nks x ndatatypes x nlabeltypes
+
 % nnets x npttypes+1 x ndatatypes x nlabeltypes
 meanaperr = permute(mean(aperrk,3),[1,2,4,5,3]); 
 % nnets x ndatatypes x nlabeltypes
 meanapmaxerr = permute(mean(apmaxerrk,2),[1,3,4,2]);
+meanapmnerr = permute(mean(apmnerrk,2),[1,3,4,2]);
 
 fns = [legendnames(:);annfns];
   
@@ -221,6 +227,8 @@ for datai = 1:ndatatypes,
     end
     tbl.AWP = meanapmaxerr(:,datai,labeli);
     tbl.Properties.VariableDescriptions{end} = 'AWP';
+    tbl.AMP = meanapmnerr(:,datai,labeli);
+    tbl.Properties.VariableDescriptions{end} = 'AMP';    
     for k = 1:numel(kvals),
       tbl.(sprintf('P_k%d_all',k)) = aperrk(:,1,k,datai,labeli);
       tbl.Properties.VariableDescriptions{end} = sprintf('P/k=%.1f',kvals(k));
@@ -254,6 +262,8 @@ for datai = ndatatypes,
     PrintTableLine(fid,meanaperr(:,1,datai,labeli),nnets);
     fprintf(fid,'AWP');
     PrintTableLine(fid,meanapmaxerr(:,datai,labeli),nnets);
+    fprintf(fid,'AMP');
+    PrintTableLine(fid,meanapmnerr(:,datai,labeli),nnets);
 
     for pti = 1:npttypes,
       fprintf(fid,'AP - %s',pttypes{pti,1});

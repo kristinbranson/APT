@@ -1255,20 +1255,20 @@ registerModularToolWithManager(hFig,imageHandle);
             clim = get(hImageAx,'Clim');
 
             % apply contrast adjustment
-            newCData = localAdjustData(origCData, clim(1), clim(2), ...
-                defaultRange);
-            
-            % restore image display range to default
-            set(hImageAx,'CLim',defaultRange)
-            
-            % update image data
-            set(imageHandle,'CData',newCData)
-            
-            % Explicitly create an image model for the image.
-            imgModel = getimagemodel(imageHandle);
-       
-            % Set original class type of imgmodel before image object is created.
-            setImageOrigClassType(imgModel,class(newCData));
+%             newCData = localAdjustData(origCData, clim(1), clim(2), ...
+%                 defaultRange);
+%             
+%             % restore image display range to default
+%             set(hImageAx,'CLim',defaultRange)
+%             
+%             % update image data
+%             set(imageHandle,'CData',newCData)
+%             
+%             % Explicitly create an image model for the image.
+%             imgModel = getimagemodel(imageHandle);
+%        
+%             % Set original class type of imgmodel before image object is created.
+%             setImageOrigClassType(imgModel,class(newCData));
             
         end % adjustButtonCallback
 
