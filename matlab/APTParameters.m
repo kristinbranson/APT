@@ -172,8 +172,18 @@ classdef APTParameters
         if isempty(trackerIsDL),
           trackerIsDL = labelerObj.trackerIsDL;
         end
+        isma = labelerObj.maIsMA;
       
         if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(trackerAlgo,'cpr'),
+          tree.Data.Visible = false;
+        elseif all(ismember({'hasTrx' 'ma'},tree.Data.Requirements))
+          if ~hasTrx && ~isma
+            % Special case/hack; if hasTrx and ma are both present, it's an
+            % OR condition (rather than AND which is the default for 2+
+            % requiremetns)
+            tree.Data.Visible = false;
+          end
+        elseif ismember('ma',tree.Data.Requirements) && ~isma
           tree.Data.Visible = false;
         elseif ismember('hasTrx',tree.Data.Requirements) && ~hasTrx,
           tree.Data.Visible = false;

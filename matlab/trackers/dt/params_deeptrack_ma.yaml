@@ -14,7 +14,7 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - MultiAnimal:
     - ['','',false,MultiAnimal settings.,'','']
-    - ma_roi_rad: ['ROI Radius',float,true,'Size of roi for generating training images',0,'','Important','']
+    - ma_param1: ['MA test param',float,true,'test',0,'','Important','']
 
 
 

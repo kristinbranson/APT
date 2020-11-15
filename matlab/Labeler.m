@@ -8842,9 +8842,9 @@ classdef Labeler < handle
       % roi: [4x2] [x(:) y(:)] corners of ractangular roi
       
       tfHT = ~isempty(obj.skelHead);
-      prmsTargetCropMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCropMA;
+      prmsTargetCropMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop;
       rad = prmsTargetCropMA.Radius;
-      if tfHT && prmsTargetCropMA.Align        
+      if tfHT && prmsTargetCropMA.AlignUsingHead      
         xyH = xy(obj.skelHead,:);
         xyCent = nanmean(xy,1);
 

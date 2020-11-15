@@ -1,15 +1,112 @@
 classdef Lbl
-  methods (Static)
-    function writeTrnPack(lObj,packdir,varargin)
-      writeims = myparse(varargin,...
-        'writeims',false ...
+  methods (Static) % ma train package
+    
+    function vizLoc(loc,packdir,varargin)
+      % Visualize 'loc' data structure (one row per labeled mov,frm,tgt) 
+      % from training package.
+      %
+      % loc: loc structure as output by Lbl.loadPack
+      % packdir: package dir (contains images)
+
+      [scargs,ttlargs] = myparse(varargin,...
+        'scargs',{16}, ...
+        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
         );
       
-      sagg = Lbl.aggregateLabelsAddRoi(lObj);
-      sloc = Lbl.writeIms(sagg,lObj.movieInfoAll,packdir,'writeims',writeims);
+      hfig = figure(11);
       
-      % base/raw package
-      j = jsonencode(sagg);
+      idmfun = unique({loc.idmovfrm}');
+      nmfun = numel(idmfun);
+      for iidmf=1:nmfun
+        idmf = idmfun{iidmf};
+        is = find(strcmp({loc.idmovfrm}',idmf));
+        
+        imf = fullfile(packdir,'im',[idmf '.png']);
+        im = imread(imf);
+        
+        clf;
+        ax = axes;
+        imagesc(im);
+        colormap gray;
+        hold on;
+        axis square;
+        
+        for j = is(:)'
+          s = loc(j);
+          xy = reshape(s.p,[],2);        
+          scatter(xy(:,1),xy(:,2),scargs{:});        
+          plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
+        end
+        
+        tstr = sprintf('%s: %d tgts',idmf,numel(is));
+        title(tstr,ttlargs{:});
+        input(idmf);
+      end
+        
+    end
+    
+    function [slbl,tp,loc,loccc] = loadPack(packdir)
+      % Load training package into MATLAB data structures
+      %
+      % slbl: 'stripped lbl' struct
+      % tp: one-row-per-movie struct. Maybe a useful format for metadata 
+      %   or bookkeeping purposes.
+      % loc: one-row-per-labeled-(mov,frm,tgt) struct. Intended to be
+      %   primary MA keypt data structure.
+      % loccc: one-row-per-labeled-cluster. Experimental, may not be
+      %   useful for DL/py backend.
+      %
+      % Note tp, loc, loccc contain equivalent info just in different
+      % formats.
+       
+      dd = dir(fullfile(packdir,'*.lbl'));
+      assert(isscalar(dd));
+      lblsf = fullfile(packdir,dd.name);
+      slbl = load(lblsf,'-mat');
+      fprintf(1,'loaded %s\n',lblsf);
+      
+      tpf = fullfile(packdir,'trnpack.json');
+      tpjse = readtxtfile(tpf);
+      tp = jsondecode(tpjse{1});
+      fprintf(1,'loaded %s\n',tpf);
+
+      locf = fullfile(packdir,'loc.json');
+      locjse = readtxtfile(locf);
+      loc = jsondecode(locjse{1});
+      fprintf(1,'loaded %s\n',locf);
+
+      locf = fullfile(packdir,'locclus.json');
+      locjse = readtxtfile(locf);
+      loccc = jsondecode(locjse{1});
+      fprintf(1,'loaded %s\n',locf);
+    end
+    
+    function [slbl,tp,loc] = genWriteTrnPack(lObj,packdir)
+      % Generate training package. Write contents (raw images and keypt 
+      % jsons) to packdir.
+      
+      if exist(packdir,'dir')==0
+        mkdir(packdir);
+      end
+      
+      tObj = lObj.tracker;
+      tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
+      slbl = tObj.trnCreateStrippedLbl();
+      slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
+      
+      fsinfo = lObj.projFSInfo;
+      [lblP,lblS] = myfileparts(fsinfo.filename);
+      sfname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
+      sfname = fullfile(packdir,sfname);
+      save(sfname,'-mat','-struct','slbl');
+      fprintf(1,'Saved %s\n',sfname);
+
+      tp = Lbl.aggregateLabelsAddRoi(lObj);
+      [loc,sloccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
+      Lbl.writeims(loc,packdir);
+        
+      % trnpack: one row per mov
+      j = jsonencode(tp);
       jsonoutf = 'trnpack.json';
       jsonoutf = fullfile(packdir,jsonoutf);
       fh = fopen(jsonoutf,'w');
@@ -17,15 +114,25 @@ classdef Lbl
       fclose(fh);
       fprintf(1,'Wrote %s.\n',jsonoutf);
       
-      %% reduced pack
-      slocjse = jsonencode(sloc);
+      % loc: one row per labeled tgt
+      slocjse = jsonencode(loc);
       slocjsf = 'loc.json';
       slocjsf = fullfile(packdir,slocjsf);
       fh = fopen(slocjsf,'w');
       fprintf(fh,'%s\n',slocjse);
       fclose(fh);
       fprintf(1,'Wrote %s\n',slocjsf);
+      
+      % loccc: one row per cluster
+      slocjse = jsonencode(sloccc);
+      slocjsf = 'locclus.json';
+      slocjsf = fullfile(packdir,slocjsf);
+      fh = fopen(slocjsf,'w');
+      fprintf(fh,'%s\n',slocjse);
+      fclose(fh);
+      fprintf(1,'Wrote %s\n',slocjsf);
     end
+    
     function sagg = aggregateLabelsAddRoi(lObj)
       nmov = numel(lObj.labels);
       sagg = cell(nmov,1);
@@ -48,105 +155,200 @@ classdef Lbl
       end
       sagg = cell2mat(sagg);
     end
-    function sloc = writeIms(sagg,movInfoAll,packdir,varargin)
-      % write trnpack images, return loc info
-      
-      writeims = myparse(varargin,...
-        'writeims',false);
-      
+    function [sloc,sloccc] = genLocs(sagg,movInfoAll)
       assert(numel(sagg)==numel(movInfoAll));
-      mr = MovieReader;
-            
-      if writeims
-        SUBDIRMASK = 'mask';
-        SUBDIRIM = 'im';
-        SUBDIRIMMASK = 'immask';
-        SUBDIRIMMASKC = 'immaskc';
-        for sdir={SUBDIRMASK SUBDIRIM SUBDIRIMMASK SUBDIRIMMASKC},sdir=sdir{1}; %#ok<FXSET>
-          if exist(fullfile(packdir,sdir),'dir')==0
-            mkdir(packdir,sdir);
-          end
-        end
-      end
-      
+      nmov = numel(sagg);
       sloc = [];
-      for imov=1:numel(sagg)
+      sloccc = [];
+      for imov=1:nmov
         s = sagg(imov);
-        
-        mr.open(s.mov);
-        
         movifo = movInfoAll{imov};
         imsz = [movifo.info.nr movifo.info.nc];
         fprintf(1,'mov %d (sz=%s): %s\n',imov,mat2str(imsz),s.mov);
         
-        frmsun = unique(s.frm);
-        nfrmsun = numel(frmsun);
-        %maskfullsz = [IMSZ nfrmsun];
-        %s.maskfull = nan(maskfullsz);
-        for ifrmun=1:nfrmsun
-          f = frmsun(ifrmun);
-          idx = find(s.frm==f);
-          ntgt = numel(idx);
-          itgt = s.tgt(idx);
-          mask = false(imsz);
-          for j=idx(:)'
-            bw = poly2mask(s.roi(1:4,j),s.roi(5:8,j),imsz(1),imsz(2));
-            mask = mask | bw;
-          end
-          xyf = reshape(s.p(:,idx),s.npts,2,ntgt); % shapes for all tgts in this frm
-          ts = reshape(s.ts(:,idx),s.npts,ntgt); % ts "
-          occ = reshape(s.occ(:,idx),s.npts,ntgt); % estocc "
+        slocI = Lbl.genLocsI(s,imov);
+        slocccI = Lbl.genCropClusteredLocsI(s,imsz,imov);
+        
+        sloc = [sloc; slocI]; %#ok<AGROW>
+        sloccc = [sloccc; slocccI]; %#ok<AGROW>
+      end
+    end
+    function [sloc] = genLocsI(s,imov)
+      sloc = [];
+      nrows = size(s.p,2);
+      for j=1:nrows        
+        f = s.frm(j);
+        itgt = s.tgt(j);
+        ts = s.ts(:,j);
+        occ = s.occ(:,j);
+        roi = s.roi(:,j);
+        sloctmp = struct(...
+          'id',sprintf('mov%04d_frm%08d_tgt%03d',imov,f,itgt),...
+          'idmovfrm',sprintf('mov%04d_frm%08d',imov,f),...
+          'imov',imov,...
+          'mov',s.mov,...
+          'frm',f,...
+          'itgt',itgt,...
+          'roi',roi,...
+          'p',s.p(:,j), ...
+          'occ',occ, ...
+          'ts',ts ...
+          );
+        sloc = [sloc; sloctmp]; %#ok<AGROW>
+      end
+    end
+    function [sloccc] = genCropClusteredLocsI(s,imsz,imov)
+      % s: scalar element of 'sagg', ie labels data structure for one movie.
+      % imsz: [nr nc]
+      % imov: movie index, only used for metadata
+      
+      sloccc = [];
+      frmsun = unique(s.frm);
+      nfrmsun = numel(frmsun);
+      for ifrmun=1:nfrmsun
+        f = frmsun(ifrmun);
+        idx = find(s.frm==f);
+        ntgt = numel(idx);
+        %itgt = s.tgt(idx);
+        mask = zeros(imsz);
+        for j=idx(:)'
+          bw = poly2mask(s.roi(1:4,j),s.roi(5:8,j),imsz(1),imsz(2));
+          mask(bw) = j; % this may 'overwrite' prev nonzero vals but this
+          % is ok. In very rare cases, multiple targets may completely
+          % obscure/cover a previous target/roi but this should be
+          % exceedingly rare.
+        end
+        
+        % mask is now a label matrix where the labels are the j vals or
+        % indices into s.
+        cc = bwconncomp(mask);
+        ncc = cc.NumObjects;
+        % set of tgts/js in each cc
+        js = cellfun(@(x)unique(mask(x)),cc.PixelIdxList,'uni',0);
+        jsall = cat(1,js{:});
+        % Each tgt/j should appear in precisely one cc
+        assert(numel(jsall)==ntgt && isequal(sort(jsall),sort(idx)));
+        
+        for icc=1:ncc
+          jcc = js{icc};
+          ntgtcc = numel(jcc);
+          itgtcc = s.tgt(jcc);
+          xyf = reshape(s.p(:,jcc),s.npts,2,ntgtcc); % shapes for all tgts in this cc
+          ts = reshape(s.ts(:,jcc),s.npts,ntgtcc); % ts "
+          occ = reshape(s.occ(:,jcc),s.npts,ntgtcc); % estocc "
           
-          maskc = any(mask,1);
-          maskr = any(mask,2);
-          c0 = find(maskc,1,'first');
-          c1 = find(maskc,1,'last');
-          r0 = find(maskr,1,'first');
-          r1 = find(maskr,1,'last');
+          [rcc,ccc] = ind2sub(size(mask),cc.PixelIdxList{icc});
+          c0 = min(ccc);
+          c1 = max(ccc);
+          r0 = min(rcc);
+          r1 = max(rcc);
           
           roicrop = [c0 c1 r0 r1];
           xyfcrop = xyf;
           xyfcrop(:,1,:) = xyfcrop(:,1,:)-c0+1;
-          xyfcrop(:,2,:) = xyfcrop(:,2,:)-r0+1;
+          xyfcrop(:,2,:) = xyfcrop(:,2,:)-r0+1;                    
           
-          imfrm = mr.readframe(f);
-          imfrmmask = imfrm;
-          imfrmmask(~mask) = 0;
-          imfrmmaskcrop = imfrmmask(r0:r1,c0:c1);
+          % Dont include numtgts, eg what if a target is added to an
+          % existing frame.
+          basefS = sprintf('mov%04d_frm%08d_cc%03d',imov,f,icc);
+          %basefSimfrm = sprintf('mov%04d_frm%08d',imov,f);
           
-          basefS = sprintf('mov%04d_frm%08d_tgt%03d',imov,f,ntgt);
-          if writeims
-            basefSpng = [basefS '.png'];            
-            maskf = fullfile(packdir,SUBDIRMASK,basefSpng);
-            imfrmf = fullfile(packdir,SUBDIRIM,basefSpng);
-            imfrmmaskf = fullfile(packdir,SUBDIRIMMASK,basefSpng);
-            imfrmmaskcropf = fullfile(packdir,SUBDIRIMMASKC,basefSpng);
-            
-            imwrite(mask,maskf);
-            imwrite(imfrm,imfrmf);
-            imwrite(imfrmmask,imfrmmaskf);
-            imwrite(imfrmmaskcrop,imfrmmaskcropf);
-            fprintf(1,'Wrote files for %s...\n',basefS);
-          else
-            fprintf(1,'Didnt write files for %s...\n',basefS);
-          end
+          % one row per CC
           sloctmp = struct(...
             'id',basefS,...
             'imov',imov,...
             'mov',s.mov,...
             'frm',f,...
-            'ntgt',ntgt,...
-            'itgt',itgt,...
-            'roiccrop',roicrop, ...
+            'cc',icc,...
+            'ntgt',ntgtcc,...
+            'itgt',itgtcc,...
+            'roicrop',roicrop, ...
             'xyabs',xyf, ...
             'xycrop',xyfcrop, ...
             'occ',occ, ...
             'ts',ts ...
             );
-          sloc = [sloc; sloctmp]; %#ok<AGROW>
+          sloccc = [sloccc; sloctmp]; %#ok<AGROW>
         end
       end
-    end    
+    end
+    
+    function writeims(sloc,packdir)
+      
+      SUBDIRIM = 'im';
+      sdir = SUBDIRIM;
+      if exist(fullfile(packdir,sdir),'dir')==0
+        mkdir(packdir,sdir);
+      end
+      
+      mr = MovieReader;
+      for i=1:numel(sloc)
+        s = sloc(i);
+        
+        % Expect sloc to be in 'movie order'
+        if ~strcmp(s.mov,mr.filename)
+          mr.close();
+          mr.open(s.mov);
+          fprintf(1,'Opened movie: %s\n',s.mov);
+        end
+      
+        imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
+        if exist(imfrmf,'file')>0
+          fprintf(1,'Skipping, image already exists: %s\n',imfrmf);
+        else
+          imfrm = mr.readframe(s.frm);
+          imwrite(imfrm,imfrmf);
+          fprintf(1,'Wrote %s\n',imfrmf);
+        end
+%         sloc(i).imfile = imfrmf;
+      end
+    end
+%     function writeimscc(sloccc,packdir)
+%       
+%       SUBDIRIM = 'imcc';
+%       sdir = SUBDIRIM;
+%       if exist(fullfile(packdir,sdir),'dir')==0
+%         mkdir(packdir,sdir);
+%       end
+%       
+%       
+%       mr = MovieReader;
+%       for i=1:numel(sloccc)
+%         s = sloccc(i);
+%         
+%         % Expect sloc to be in 'movie order'
+%         if ~strcmp(s.mov,mr.filename)
+%           mr.close();
+%           mr.open(s.mov);
+%           fprintf(1,'Opened movie: %s\n',s.mov);
+%         end
+%       
+%         imfrm = mr.readframe(f);
+%         imfrmmask = imfrm;
+%         imfrmmask(~maskcc) = 0;
+%         imfrmmaskcrop = imfrmmask(r0:r1,c0:c1);
+%         if writeims
+%           basefSpng = [basefS '.png'];
+%           basefSimfrmpng = [basefSimfrm '.png'];
+%           %maskf = fullfile(packdir,SUBDIRMASK,basefSpng);
+%           imfrmf = fullfile(packdir,SUBDIRIM,basefSimfrmpng);
+%           %imfrmmaskf = fullfile(packdir,SUBDIRIMMASK,basefSpng);
+%           imfrmmaskcropf = fullfile(packdir,SUBDIRIMMASKC,basefSpng);
+%           
+%           %imwrite(mask,maskf);
+%           if icc==1
+%             imwrite(imfrm,imfrmf);
+%           end
+%           %imwrite(imfrmmask,imfrmmaskf);
+%           imwrite(imfrmmaskcrop,imfrmmaskcropf);
+%           fprintf(1,'Wrote files for %s...\n',basefS);s
+%         else
+%           fprintf(1,'Didnt write files for %s...\n',basefS);
+%         end
+%       end
+%     end
+  end
+  methods (Static) % stripped lbl
     function s = createStrippedLblsUseTopLevelTrackParams(lObj,iTrkers,...
         varargin)
       % Create/save a series of stripped lbls based on current Labeler proj
@@ -197,19 +399,34 @@ classdef Lbl
       end
       
     end
-    function s = compressStrippedLbl(s)
+    function s = compressStrippedLbl(s,varargin)
+      ma = myparse(varargin,...
+        'ma',false ...
+        );
+      
       CFG_GLOBS = {'Num'};
       FLDS = {'cfg' 'projname' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
         'trackerClass' 'trackerData'};
-      GLOBS = {'labeledpos' 'movieFilesAll' 'trxFilesAll' 'preProcData'};
+      TRACKERDATA_FLDS = {'sPrmAll' 'trnNetTypeString'};
+      if ma
+        GLOBS = {};
+        FLDSRM = {'projMacros'};
+      else
+        GLOBS = {'labeledpos' 'movieFilesAll' 'trxFilesAll' 'preProcData'};
+        FLDSRM = { ... % 'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
+                  'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT'};
+      end
       
       fldscfg = fieldnames(s.cfg);      
       fldscfgkeep = fldscfg(startsWith(fldscfg,CFG_GLOBS));
       s.cfg = structrestrictflds(s.cfg,fldscfgkeep);
       
+      s.trackerData{2} = structrestrictflds(s.trackerData{2},TRACKERDATA_FLDS);
+      
       flds = fieldnames(s);
       fldskeep = flds(startsWith(flds,GLOBS));
       fldskeep = [fldskeep(:); FLDS(:)];
+      fldskeep = setdiff(fldskeep, FLDSRM);
       s = structrestrictflds(s,fldskeep);
     end
   end
