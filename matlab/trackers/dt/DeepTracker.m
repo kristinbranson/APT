@@ -4436,13 +4436,18 @@ classdef DeepTracker < LabelTracker
       end
 
       if isexternal,
-        for i = 1:nMovSets,
-          movfiles = [obj.trkSysInfo(i,:).movfileLcl];
-          trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
-          calibrationfile = obj.trkSysInfo(i,1).calibrationfileLcl;
-          cropROIs = cat(1,obj.trkSysInfo(i,:).cropRoi);
-          obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfile',calibrationfile,...
-            'cropROIS',cropROIs);
+        if obj.lObj.isMultiView
+          % AL 20201116: protected this codepath by checking for multiview.
+          % This codepath was broken for 'external' tracking of multiple 
+          % (eg 2) movies for a single-view proj.
+          for i = 1:nMovSets,
+            movfiles = [obj.trkSysInfo(i,:).movfileLcl];
+            trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
+            calibrationfile = obj.trkSysInfo(i,1).calibrationfileLcl;
+            cropROIs = cat(1,obj.trkSysInfo(i,:).cropRoi);
+            obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfile',calibrationfile,...
+              'cropROIS',cropROIs);
+          end
         end
         for i=1:nMovSets*nViews,
           fprintf('Tracking complete for %s, results saved to %s.\n',...
