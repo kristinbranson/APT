@@ -223,6 +223,7 @@ for datai = 1:ndatatypes,
       
       if n_train_match,
         set(gca,'XTick',1:numel(n_train{n_train_idx}),'XTickLabels',num2str(n_train{n_train_idx}(:)));
+        set(gca,'XLim',[0,n_models]);
       end
       
       if labeli == 1 && prci == 1,
@@ -237,7 +238,7 @@ for datai = 1:ndatatypes,
       if labeli == 1,
         title(sprintf('%s landmark, %dth %%ile',statname,prcs(prci)),'FontWeight','normal');
       end
-      set(gca,'XLim',[0,n_models],'YLim',[0,maxerrplus]);
+      set(gca,'YLim',[0,maxerrplus]);
       drawnow;
     end
     set(hax(:,2:end),'YTickLabel',{});
