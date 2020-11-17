@@ -593,7 +593,7 @@ def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flip
 
 def crop_patch_trx(conf, im_in, x, y, theta, locs):
     ''' return patch for movies with trx file
-    function for testing test_crop_path_trx
+    function for testing: test_crop_path_trx
     '''
     psz_x = conf.imsz[1]
     psz_y = conf.imsz[0]
@@ -623,7 +623,7 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs):
         A_full = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
 
     A = A_full[:,:2].T
-    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cvc.INTER_CUBIC)
+    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cv2.INTER_LINEAR)
     if rpatch.ndim == 2:
         rpatch = rpatch[:, :, np.newaxis]
 
@@ -1081,7 +1081,7 @@ def read_and_decode_rnn(filename_queue, conf):
     return image, locs, [expndx, ts]
 
 
-def read_and_decode_without_session(filename, conf, indices=(0,)):
+def read_and_decode_without_session(filename, conf, indices=(0,), skip_ims=False):
     # reads the tf record db. Returns entries at location indices
     # If indices is empty, then it reads the whole database.
     # Instead of conf, n_classes can be also be given
@@ -1095,6 +1095,7 @@ def read_and_decode_without_session(filename, conf, indices=(0,)):
     all_ims = []
     all_locs = []
     all_info = []
+    all_occ = []
     for ndx, record in enumerate(xx):
         if (len(indices) > 0) and (indices.count(ndx) is 0):
             continue
@@ -1115,18 +1116,86 @@ def read_and_decode_without_session(filename, conf, indices=(0,)):
             trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
         else:
             trx_ndx = 0
+        if 'occ' in example.features.feature.keys():
+            occ = np.array(example.features.feature['occ'].float_list.value)
+            occ = occ.reshape([n_classes,])
+        else:
+            occ = np.zeros([n_classes,])
+
+        if not skip_ims:
+            all_ims.append(reconstructed_img)
+        all_locs.append(locs)
+        all_info.append([expid, t, trx_ndx])
+        all_occ.append(occ)
+
+    xx.close()
+    return all_ims, all_locs, all_info, all_occ
+
+def read_and_decode_without_session_multi(filename, n_classes):
+    # reads the tf record db. Returns entries at location indices
+    # If indices is empty, then it reads the whole database.
+    # Instead of conf, n_classes can be also be given
+
+    xx = tf.python_io.tf_record_iterator(filename)
+    all_ims = []
+    all_locs = []
+    all_info = []
+    all_occ = []
+    all_mask = []
+    for ndx, record in enumerate(xx):
+        example = tf.train.Example()
+        example.ParseFromString(record)
+        height = int(example.features.feature['height'].int64_list.value[0])
+        width = int(example.features.feature['width'].int64_list.value[0])
+        depth = int(example.features.feature['depth'].int64_list.value[0])
+        expid = int(example.features.feature['expndx'].float_list.value[0])
+        maxn = int(example.features.feature['max_n'].int64_list.value[0])
+        t = int(example.features.feature['ts'].float_list.value[0])
+        img_string = example.features.feature['image_raw'].bytes_list.value[0]
+        img_1d = np.fromstring(img_string, dtype=np.uint8)
+        reconstructed_img = img_1d.reshape((height, width, depth))
+        mask_string = example.features.feature['mask'].bytes_list.value[0]
+        mask_1d = np.fromstring(mask_string, dtype=np.uint8)
+        mask = mask_1d.reshape((height, width))
+
+        locs = np.array(example.features.feature['locs'].float_list.value)
+        locs = locs.reshape([maxn, n_classes, 2])
+        if 'trx_ndx' in example.features.feature.keys():
+            trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
+        else:
+            trx_ndx = 0
+        if 'occ' in example.features.feature.keys():
+            occ = np.array(example.features.feature['occ'].float_list.value)
+            occ = occ.reshape([maxn,n_classes,])
+        else:
+            occ = np.zeros([n_classes,])
 
         all_ims.append(reconstructed_img)
         all_locs.append(locs)
         all_info.append([expid, t, trx_ndx])
+        all_occ.append(occ)
+        all_mask.append(mask)
 
     xx.close()
-    return all_ims, all_locs, all_info
+    return all_ims, all_locs, all_info, all_occ, all_mask
 
+
+def read_tfrecord_metadata(filename):
+    # reads metadata off the first entry in a tf record db.
+
+    xx = tf.python_io.tf_record_iterator(filename)
+    record = next(xx)
+    example = tf.train.Example()
+    example.ParseFromString(record)
+    height = int(example.features.feature['height'].int64_list.value[0])
+    width = int(example.features.feature['width'].int64_list.value[0])
+    depth = int(example.features.feature['depth'].int64_list.value[0])
+    xx.close()
+    return {'height': height, 'width': width, 'depth': depth}
 
 class tf_reader(object):
 
-    def __init__(self, conf, filename, shuffle):
+    def __init__(self, conf, filename, shuffle, is_multi=False):
         self.conf = conf
         self.file = filename
         self.iterator  = None
@@ -1135,7 +1204,7 @@ class tf_reader(object):
 #        self.vec_num = len(conf.op_affinity_graph)
         self.heat_num = self.conf.n_classes
         self.N = PoseTools.count_records(filename)
-
+        self.is_multi = is_multi
 
     def reset(self):
         if self.iterator:
@@ -1176,11 +1245,19 @@ class tf_reader(object):
             img_1d = np.fromstring(img_string, dtype=np.uint8)
             reconstructed_img = img_1d.reshape((height, width, depth))
             locs = np.array(example.features.feature['locs'].float_list.value)
-            locs = locs.reshape([self.conf.n_classes, 2])
             if 'trx_ndx' in example.features.feature.keys():
                 trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
             else:
                 trx_ndx = 0
+            if not self.is_multi:
+                locs = locs.reshape([self.conf.n_classes, 2])
+            else:
+                mask_string = example.features.feature['mask'].bytes_list.value[0]
+                mask_1d = np.fromstring(mask_string,dtype=np.uint8)
+                mask = mask_1d.reshape((height,width))
+                reconstructed_img = reconstructed_img * mask[...,np.newaxis]
+                locs = locs.reshape([self.conf.max_n_animals,self.conf.n_classes,2])
+
             all_ims.append(reconstructed_img)
             all_locs.append(locs)
             all_info.append(np.array([expid, t, trx_ndx]))

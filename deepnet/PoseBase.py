@@ -63,7 +63,7 @@ class PoseBase(PoseCommon):
     '''
 
 
-    def __init__(self, conf, hmaps_downsample=1):
+    def __init__(self, conf, name='deepnet',hmaps_downsample=1):
         ''' Initialize the pose object.
 
         Args:
@@ -72,7 +72,7 @@ class PoseBase(PoseCommon):
 
         '''
 
-        PoseCommon.__init__(self, conf,name='deepnet')
+        PoseCommon.__init__(self, conf,name=name)
         self.hmaps_downsample = hmaps_downsample
         self.conf.use_pretrained_weights = True
         self.pretrained_weights = None
@@ -81,7 +81,7 @@ class PoseBase(PoseCommon):
         return tf.global_variables()
 
 
-    def preproc_func(self, ims, locs, info, distort):
+    def preproc_func(self,*args, distort=True):
         '''
         Override this function to change how images are preprocessed. Ensure that the return objects are float32.
         This function is added into tensorflow dataset pipeline using tf.py_func. The outputs returned by this function are available tf tensors in self.inputs array.
@@ -93,11 +93,16 @@ class PoseBase(PoseCommon):
         Returns:
             List as [augmented images, augmented labeled locations, input information, heatmaps]
         '''
+        ims,locs,info = args[:3]
+        if len(args)>3:
+            occ = args[3]
+        else:
+            occ = np.zeros(locs.shape[:-1])
 
         conf = self.conf
         # Scale and augment the training image and labels
         ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
-        out = self.convert_locs_to_targets(locs)
+        out = self.convert_locs_to_targets(locs,occ)
         # Return the results as float32.
         out_32 = [o.astype('float32') for o in out]
         return [ims.astype('float32'), locs.astype('float32'), info.astype('float32')] + out_32
@@ -129,7 +134,7 @@ class PoseBase(PoseCommon):
         return None
 
 
-    def convert_locs_to_targets(self,locs):
+    def convert_locs_to_targets(self,locs,occ):
         '''
         Override this function to change how labels are converted into target heatmaps.
         You can use PoseTools.create_label_images to generate the target heatmaps.
@@ -185,7 +190,9 @@ class PoseBase(PoseCommon):
         :return: The loss function to be optimized.
         Override this to define your own loss function.
         '''
-        hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes/self.conf.batch_size
+        hmap_loss = tf.sqrt(tf.nn.l2_loss(targets[0] - self.pred)) / self.conf.label_blur_rad / self.conf.n_classes
+        if self.conf.get('normalize_loss_batch',False):
+            hmap_loss = hmap_loss/self.conf.batch_size
 
         return hmap_loss
 
@@ -222,13 +229,13 @@ class PoseBase(PoseCommon):
 
         self.find_input_sizes()
 
-        def train_pp(ims,locs,info):
-            return self.preproc_func(ims,locs,info, True)
-        def val_pp(ims,locs,info):
-            return self.preproc_func(ims,locs,info, False)
+        def train_pp(*args):
+            return self.preproc_func(*args, distort=True)
+        def val_pp(*args):
+            return self.preproc_func(*args, distort = False)
 
-        self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
-        self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes ))
+        self.train_py_map = lambda *args: tuple(tf.py_func( train_pp,args, self.input_dtypes))
+        self.val_py_map = lambda *args: tuple(tf.py_func( val_pp, args, self.input_dtypes ))
 
         self.setup_train()
         self.set_input_sizes()
@@ -257,8 +264,10 @@ class PoseBase(PoseCommon):
         To view updated training status in APT, call self.update_and_save_td(step,sess) after each training step. Note update_and_save_td uses the output of loss function to find the loss and convert_preds_to_locs function to find the distance between prediction and labeled locations.
         '''
 
-        base_lr = self.conf.learning_rate
-        PoseCommon.train_quick(self, learning_rate=base_lr,restore=restore)
+#        base_lr = self.conf.learning_rate
+        learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('base_lr',0.0001)
+
+        PoseCommon.train_quick(self, learning_rate=learning_rate,restore=restore)
 
 
 

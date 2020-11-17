@@ -3,18 +3,29 @@ from builtins import object
 from past.utils import old_div
 import os
 import re
-import localSetup
+# import localSetup
 import numpy as np
 import copy
 import logging
 
 class config(object):
     # ----- Names
+    DATAAUG_FLDS = {
+        'adjust_contrast': ['adjust_contrast', 'clahe_grid_size'],
+        'scale_images': ['rescale'],
+        'flip': ['horz_flip', 'vert_flip', 'flipLandmarkMatches'],
+        'affine': ['use_scale_factor_range', 'scale_range', 'scale_factor_range',
+                   'rrange', 'trange', 'rescale', 'check_bounds_distort'],
+        'adjust': ['brange', 'crange', 'imax'],
+        'normalize': ['normalize_img_mean', 'img_dim', 'perturb_color', 'imax', 'normalize_batch_mean'],
+    }
 
     # ----- Network parameters
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
         self.label_blur_rad = 3.  # 1.5
+        self.imsz = [100,100]
+        self.n_classes = 10
 
         self.batch_size = 8
         self.view = 0
@@ -24,6 +35,7 @@ class config(object):
         self.dl_steps = 60000 # number of training iters
         self.decay_steps = 25000
         self.learning_rate = 0.0001
+        self.step_lr = True
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
@@ -58,7 +70,6 @@ class config(object):
         self.valdatafilename = 'valdata'
         self.valratio = 0.3
         self.holdoutratio = 0.8
-        self.max_n_animals = 1
         self.flipud = False
 
         # ----- UNet params
@@ -78,7 +89,51 @@ class config(object):
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
+        self.op_im_pady = None  # computed at runtime
+        self.op_im_padx = None  # "
+        self.op_imsz_hires = None  # "
+        self.op_imsz_lores = None  # "
+        self.op_imsz_net = None  # "
+        self.op_imsz_pad = None  # "
+        self.op_backbone = 'resnet50_8px'
+        self.op_backbone_weights = 'imagenet'
+        self.op_map_lores_blur_rad = 1.0
+        self.op_map_hires_blur_rad = 2.0
+        self.op_paf_lores_tubewidth = 0.95 # not used if tubeblur=True
+        self.op_paf_lores_tubeblur = False
+        self.op_paf_lores_tubeblursig = 0.95
+        self.op_paf_lores_tubeblurclip = 0.05
+        self.op_paf_nstage = 5
+        self.op_map_nstage = 1
+        self.op_hires = True
+        self.op_hires_ndeconv = 2
+        self.op_base_lr = 4e-5  # Gines 5e-5
+        self.op_weight_decay_kernel = 5e-4
+        self.op_hmpp_floor = 0.1
+        self.op_hmpp_nclustermax = 1
+        self.op_pred_raw = False
         self.n_steps = 4.41
+
+        # ---
+        #self.sb_rescale = 1
+        self.sb_n_transition_supported = 5  # sb network in:out size can be up to 2**<this> (as factor of 2). this
+            # is for preproc/input pipeline only; see sb_output_scale for actual ratio
+        self.sb_im_pady = None  # computed at runtime
+        self.sb_im_padx = None  # "
+        self.sb_imsz_net = None  # "
+        self.sb_imsz_pad = None  # "
+        self.sb_base_lr = 4e-5
+        self.sb_weight_decay_kernel = 5e-4
+        self.sb_backbone = 'ResNet50_8px'
+        self.sb_backbone_weights = 'imagenet'
+        self.sb_num_deconv = 3
+        self.sb_deconv_num_filt = 512
+        self.sb_output_scale = None  # output heatmap dims relative to imszuse (network input size), computed at runtime
+        self.sb_upsamp_chan_handling = 'direct_deconv'  # or 'reduce_first'
+        self.sb_blur_rad_input_res = 3.0  # target hmap blur rad @ input resolution
+        self.sb_blur_rad_output_res = None  # runtime-computed
+        self.sb_hmpp_floor = 0.1
+        self.sb_hmpp_nclustermax = 1
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
@@ -87,6 +142,52 @@ class config(object):
         self.dlc_train_img_dir = 'train'
         self.dlc_train_data_file = 'train_data.p'
         self.dlc_augment = True
+
+        # ---- dpk
+        # "early" here is eg after initial setup in APT_interface
+        self.dpk_skel_csv = None
+        self.dpk_max_val_batches = 1       # maximum number of validation batches
+        self.dpk_downsample_factor = 2      # (immutable after early) integer downsample                                            *power* for output shape
+        self.dpk_n_stacks = 2
+        self.dpk_growth_rate = 48
+        self.dpk_use_pretrained = True
+        self.dpk_n_outputs = 1              # (settable at TGTFR._call_-time)
+        self.dpk_use_augmenter = False      # if true, use dpk_augmenter if distort=True
+        self.dpk_augmenter_type = None      # dict for iaa construction
+        self.dpk_augmenter = None           # actual iaa object; constructed at TGTFR-init time
+        self.dpk_n_transition_min = 5       # target n_transition=this; in practice could be more if imsz is perfect power of 2 etc
+        self.dpk_im_pady = None             # auto-computed
+        self.dpk_im_padx = None             # auto-computed
+        self.dpk_imsz_net = None            # auto-computed
+        self.dpk_imsz_pad = None            # auto-computed
+        self.dpk_use_graph = True           # (immutable after early) bool
+        self.dpk_graph = None               # (immutable after early)
+        self.dpk_swap_index = None          # (immutable after early)
+        self.dpk_graph_scale = 1.0          # (immutable after early) float, scale factor                                           applied to grp/limb/global confmaps
+        self.dpk_output_shape = None        # (computed at TGTFR/init) conf map output shape
+        self.dpk_output_sigma = None        # (computed at TGTFR/init) target hmap gaussian                                         sd in output coords
+        self.dpk_input_sigma = 5.0          # (immutable after early) target hmap gaussian                                          sd in input coords
+        self.dpk_base_lr_factory = .001
+        self.dpk_base_lr_used = None        # typically auto-computed at compile-time; actual base lr used
+        self.dpk_reduce_lr_on_plat = True   # DEPRECATED in favor of dpk_train_style
+                                            # True is as published for dpk, using K cbk (starting from dpk_base_lr_used);
+                                            # False is APT-style scheduled (using learning_rate, decay_steps, gamma)
+        self.dpk_reduce_lr_style = "__UNUSED__"  # either 'ppr' or 'ipynb'
+        self.dpk_early_stop_style = "__UNUSED__"  # either 'ppr' or 'ipynb'
+        self.dpk_epochs_used = None         # set at train-time; actual no of epochs used
+        self.dpk_use_tfdata = True
+        self.dpk_tfdata_num_para_calls_parse = 5
+        self.dpk_tfdata_num_para_calls_dataaug = 8
+        self.dpk_train_style = 'apt'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
+        self.dpk_val_batch_size = 0        # use 0 when dpk_train_style='apt' to not do valdist loggin
+        self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
+        self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
+
+        # ============== MULTIANIMAL ==========
+        self.max_n_animals = 1
+        self.bb_ex = 0 # extra margin to keep around annotations while generating masks
+        self.n_grid = 1 # Number of cells to split the image into for multianimal
+
 
         # ============== EXTRA ================
 
@@ -104,10 +205,11 @@ class config(object):
 
         # ----- Save parameters
 
+        self.save_time = None
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30
-        self.cachedir = None
+        self.cachedir = ''
 
         # ----- Legacy
         # self.scale = 2
@@ -146,113 +248,30 @@ class config(object):
             setattr(self,name,default)
         return getattr(self,name,default)
 
+    def print_dataaug_flds(self, printfcn=None):
+        printfcn = logging.info if printfcn is None else printfcn
+        for cat, flds in self.DATAAUG_FLDS.items():
+            printfcn('## {} ##'.format(cat))
+            for f in flds:
+                printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
-# -- alice fly --
+# Config object that once set can be shared globally
+conf = config()
 
-aliceConfig = config()
-aliceConfig.cachedir = os.path.join(localSetup.bdir, 'cache', 'alice')
-#aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_20170925_cv.lbl')
-# aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_20180107.lbl') # round1
-# aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_expandedbehavior_20180425_local.lbl')
-aliceConfig.labelfile = os.path.join(localSetup.bdir,'data','alice','multitarget_bubble_expandedbehavior_20180425.lbl')
-def alice_exp_name(dirname):
-    return os.path.basename(os.path.dirname(dirname))
+def parse_aff_graph(aff_graph_str):
+    '''
+    Parse an afinity-graph str (comma-sep) into a list of edges
+    :param aff_graph_str: eg '1 2,1 3,1 4,3 4'
+    :return: eg [[0,1],[0,2],[0,3],[2,3]]
+    '''
+    graph = []
+    aff_graph_str = aff_graph_str.split(',')
+    for b in aff_graph_str:
+        mm = re.search('(\d+)\s+(\d+)', b)
+        n1 = int(mm.groups()[0]) - 1
+        n2 = int(mm.groups()[1]) - 1
+        graph.append([n1, n2])
 
-aliceConfig.getexpname = alice_exp_name
-aliceConfig.has_trx_file = True
-aliceConfig.imsz = (180, 180)
-aliceConfig.selpts = np.arange(0, 17)
-aliceConfig.img_dim = 1
-aliceConfig.n_classes = len(aliceConfig.selpts)
-aliceConfig.splitType = 'frame'
-aliceConfig.set_exp_name('aliceFly')
-aliceConfig.trange = 5
-aliceConfig.nfcfilt = 128
-aliceConfig.sel_sz = 144
-aliceConfig.num_pools = 1
-aliceConfig.dilation_rate = 2
-# aliceConfig.pool_scale = aliceConfig.pool_stride**aliceConfig.num_pools
-# aliceConfig.psz = aliceConfig.sel_sz / 4 / aliceConfig.pool_scale / aliceConfig.dilation_rate
-aliceConfig.valratio = 0.25
-# aliceConfig.mdn_min_sigma = 70.
-# aliceConfig.mdn_max_sigma = 70.
-aliceConfig.adjust_contrast = False
-aliceConfig.clahe_grid_size = 10
-aliceConfig.brange = [0,0]
-aliceConfig.crange = [1.,1.]
-aliceConfig.mdn_extra_layers = 1
-aliceConfig.normalize_img_mean = False
-aliceConfig.mdn_groups = [range(17)]
+    return graph
 
 
-aliceConfig_time = copy.deepcopy(aliceConfig)
-aliceConfig_time.do_time = True
-aliceConfig_time.cachedir = os.path.join(localSetup.bdir, 'cache','alice_time')
-
-
-aliceConfig_rnn = copy.deepcopy(aliceConfig)
-aliceConfig_rnn.cachedir = os.path.join(localSetup.bdir, 'cache','alice_rnn')
-aliceConfig_rnn.batch_size = 2
-# aliceConfig_rnn.trainfilename_rnn = 'train_rnn_TF'
-# aliceConfig_rnn.fulltrainfilename_rnn = 'fullTrain_rnn_TF'
-# aliceConfig_rnn.valfilename_rnn = 'val_rnn_TF'
-
-# -- felipe bees --
-
-felipeConfig = config()
-felipeConfig.cachedir = os.path.join(localSetup.bdir, 'cache','felipe')
-felipeConfig.labelfile = os.path.join(localSetup.bdir,'data','felipe','doesnt_exist.lbl')
-def felipe_exp_name(dirname):
-    return dirname
-
-def felipe_get_exp_list(L):
-    return 0
-
-felipeConfig.getexpname = felipe_exp_name
-felipeConfig.getexplist = felipe_get_exp_list
-felipeConfig.view = 0
-felipeConfig.imsz = (300, 300)
-felipeConfig.selpts = np.arange(0, 5)
-felipeConfig.img_dim = 3
-felipeConfig.n_classes = len(felipeConfig.selpts)
-felipeConfig.splitType = 'frame'
-felipeConfig.set_exp_name('felipeBees')
-felipeConfig.trange = 20
-felipeConfig.nfcfilt = 128
-felipeConfig.sel_sz = 144
-felipeConfig.num_pools = 2
-felipeConfig.dilation_rate = 1
-# felipeConfig.pool_scale = felipeConfig.pool_stride**felipeConfig.num_pools
-# felipeConfig.psz = felipeConfig.sel_sz / 4 / felipeConfig.pool_scale / felipeConfig.dilation_rate
-
-
-##  -- felipe multi bees
-
-# -- felipe bees --
-
-felipe_config_multi = config()
-felipe_config_multi.cachedir = os.path.join(localSetup.bdir, 'cache', 'felipe_m')
-felipe_config_multi.labelfile = os.path.join(localSetup.bdir, 'data', 'felipe_m', 'doesnt_exist.lbl')
-def felipe_exp_name(dirname):
-    return dirname
-
-def felipe_get_exp_list(L):
-    return 0
-
-felipe_config_multi.getexpname = felipe_exp_name
-felipe_config_multi.getexplist = felipe_get_exp_list
-felipe_config_multi.view = 0
-felipe_config_multi.imsz = (360, 380)
-felipe_config_multi.selpts = np.array([1, 3, 4])
-felipe_config_multi.img_dim = 3
-felipe_config_multi.n_classes = len(felipe_config_multi.selpts)
-felipe_config_multi.splitType = 'frame'
-felipe_config_multi.set_exp_name('felipeBeesMulti')
-felipe_config_multi.trange = 20
-felipe_config_multi.nfcfilt = 128
-felipe_config_multi.sel_sz = 256
-felipe_config_multi.num_pools = 2
-felipe_config_multi.dilation_rate = 1
-# felipe_config_multi.pool_scale = felipe_config_multi.pool_stride ** felipe_config_multi.num_pools
-# felipe_config_multi.psz = felipe_config_multi.sel_sz / 4 / felipe_config_multi.pool_scale / felipe_config_multi.dilation_rate
-felipe_config_multi.max_n_animals = 17

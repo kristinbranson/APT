@@ -1,0 +1,27 @@
+FROM tensorflow/tensorflow:1.15.2-gpu-py3
+LABEL maintainer "kabram@janelia.hhmi.org"
+
+ENV DEBIAN_FRONTEND=noninteractive 
+# for tzdata
+
+RUN pip install --upgrade pip \
+&& pip install opencv-python  \
+&& pip install keras==2.2.4 matplotlib \
+	&& pip install ipython imageio h5py EasyDict scipy future scikit-image hdf5storage \
+&& pip install clize packaging ruamel.yaml statsmodels tqdm\
+    &&  apt-get update  \ 
+    &&  apt-get install -y vim \ 
+    &&  apt-get install -y python-tk python3-tk tcl-dev tk-dev\ 
+    &&  apt-get install -y software-properties-common \ 
+    &&  add-apt-repository ppa:jonathonf/ffmpeg-4 \ 
+    &&  apt-get update \ 
+    &&  apt-get install -y ffmpeg x264 x265 
+RUN	 apt-get install -y libxtst6 
+RUN	apt-get install -y git
+RUN apt install -y python3-pip	
+RUN pip install imgaug deepposekit sklearn promise ordereddict func-timeout
+RUN pip install torch torchvision tfrecord
+RUN pip install deepposekit==0.3.4
+
+# Define default command.
+CMD ["bash"]

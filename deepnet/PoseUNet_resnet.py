@@ -5,13 +5,13 @@ import convNetBase as CNB
 import PoseTools
 import sys
 import os
+import contextlib
 import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
 if vv[0]==1 and vv[1]>12:
     tf = tensorflow.compat.v1
 else:
     tf = tensorflow
-
 import imageio
 import localSetup
 from scipy.ndimage.interpolation import zoom
@@ -35,7 +35,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
     def __init__(self, conf, name='unet_resnet'):
         self.conf = conf
         self.out_scale = 1.
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
         use_pretrained = conf.use_pretrained_weights
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
         conf.use_pretrained_weights = use_pretrained
@@ -54,7 +54,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 print('Extracting pretrained weights..')
                 tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
-        else:
+        elif self.resnet_source == 'slim':
             url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
@@ -68,6 +68,8 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 print('Extracting pretrained weights..')
                 tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
 
@@ -86,12 +88,15 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
             a,b,self.ph['phase_train'], keep_prob=None,
             use_leaky=self.conf.unet_use_leaky)
 
+        if self.conf.get('pretrain_freeze_bnorm', True):
+            pretrain_update_bnorm = False
+        else:
+            pretrain_update_bnorm = self.ph['phase_train']
 
         if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 net, end_points = resnet_v1.resnet_v1_50(im,
-                                          global_pool=False, is_training=self.ph[
-                                          'phase_train'])
+                                          global_pool=False, is_training=pretrain_update_bnorm)
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
                            'block3/unit_5/bottleneck_v1', 'block4']
                 down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
@@ -101,13 +106,15 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 n_filts = [32, 64, 64, 128, 256, 512]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             im = tf.placeholder(tf.float32, [8, 512, 512, 3])
             resnet_out = mm(im, True)
             down_layers = mm.layers
             ex_down_layers = conv(self.inputs[0], 64)
             down_layers.insert(0, ex_down_layers)
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
         with tf.variable_scope(self.net_name):
@@ -145,7 +152,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                         biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
                         conv_b = X + biases
 
-                        bn = batch_norm(conv_b)
+                        bn = batch_norm(conv_b,is_training=self.ph['phase_train'])
                         X = tf.nn.relu(bn)
 
                 prev_in = X
@@ -216,13 +223,13 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
-    def __init__(self, conf, name='umdn_resnet',pad_input=False):
+    def __init__(self, conf, name='umdn_resnet',pad_input=False, **kwargs):
         self.conf = conf
         # self.resnet_source = 'official_tf'
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
         self.offset = float(self.conf.get('mdn_slim_output_stride',32))
         use_pretrained = conf.use_pretrained_weights
-        PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input)
+        PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input,**kwargs)
         conf.use_pretrained_weights = use_pretrained
         self.dep_nets = []
         self.max_dist = 30
@@ -243,7 +250,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         #         print('Extracting pretrained weights..')
         #         tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
-        else:
+        elif self.resnet_source == 'slim':
             url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
@@ -257,6 +264,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #     print('Extracting pretrained weights..')
             #     tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
     def create_network(self):
@@ -296,16 +305,17 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             else:
                 return tf.nn.relu(conv + biases)
 
+        if self.conf.get('pretrain_freeze_bnorm', True):
+            pretrain_update_bnorm = False
+        else:
+            pretrain_update_bnorm = self.ph['phase_train']
+
         if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-                if self.conf.get('mdn_slim_is_training',True):
-                    slim_is_training = self.ph['phase_train']
-                else:
-                    slim_is_training = False
 
                 output_stride =  self.conf.get('mdn_slim_output_stride',None)
 
-                net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=slim_is_training,output_stride=output_stride)
+                net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=pretrain_update_bnorm,output_stride=output_stride)
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
                            'block3/unit_5/bottleneck_v1']
                 if not self.no_pad: l_names.append('block4')
@@ -315,16 +325,18 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 n_filts = [32, 64, 128, 256, 512, 1024]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=17, num_filters=64, kernel_size=7,
+            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=64, kernel_size=7,
                                        conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3],
                                        block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2,
                                        data_format='channels_last', dtype=tf.float32)
-            resnet_out = mm(im, self.ph['phase_train'])
+            resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
             down_layers.pop(2) # remove one of the layers of size imsz/4, imsz/4 at index 2
             net = down_layers[-1]
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
             # n_filts = [ 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
         if self.conf.mdn_use_unet_loss:
             with tf.variable_scope(self.net_name + '_unet'):
@@ -476,8 +488,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 n_x = loc_shape[2]
                 n_y = loc_shape[1]
                 x_off, y_off = np.meshgrid(np.arange(n_x), np.arange(n_y))
-                x_off = np.tile(x_off[np.newaxis,:,:,np.newaxis],[loc_shape[0],1,1,1])
-                y_off = np.tile(y_off[np.newaxis,:,:,np.newaxis], [loc_shape[0],1,1,1])
+                # x_off = np.tile(x_off[np.newaxis,:,:,np.newaxis],[loc_shape[0],1,1,1])
+                # y_off = np.tile(y_off[np.newaxis,:,:,np.newaxis], [loc_shape[0],1,1,1])
+                # no need for tiling because of broadcasting
+                x_off = x_off[np.newaxis,:,:,np.newaxis]
+                y_off = y_off[np.newaxis,:,:,np.newaxis]
 
                 in_filt = loc_shape[-1]
 
@@ -627,10 +642,10 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
 
 
-    def get_var_list(self):
-        var_list = tf.global_variables(self.net_name)
-        var_list += tf.global_variables('resnet_')
-        return var_list
+    # def get_var_list(self):
+    #     var_list = tf.global_variables(self.net_name)
+    #     var_list += tf.global_variables('resnet_')
+    #     return var_list
 
 
 
@@ -649,6 +664,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         in_locs = inputs[1]
         # mdn_loss = self.my_loss(pred, inputs[1])
         mdn_loss = self.l2_loss(pred, in_locs)
+        self.mdn_loss = mdn_loss
         if self.conf.mdn_use_unet_loss:
             # unet_loss = tf.losses.mean_squared_error(inputs[-1], self.unet_pred)
             unet_loss = tf.sqrt(
@@ -668,8 +684,12 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         # wt regularization loss
         regularizer_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+        self.reg_loss = regularizer_losses
 
-        return (mdn_loss + unet_loss + dist_loss + occ_loss + sum(regularizer_losses)) / self.conf.batch_size
+        loss =  mdn_loss + unet_loss + dist_loss + occ_loss + sum(regularizer_losses)
+        if self.conf.get('normalize_loss_batch',False):
+            loss = loss / self.conf.batch_size
+        return loss
 
     def my_loss(self, X, y):
 
@@ -726,7 +746,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # ll now has normalized logits. and shape is x * y * ngrps
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1, :]/locs_offset
-            occ_pts = tf.is_finite(pp)
+            occ_pts = tf.is_finite(pp) & (pp > -1000)
             pp = tf.where(occ_pts,pp,tf.zeros_like(pp))
             occ_pts_pred = tf.tile(occ_pts,[1,n_preds,1])
             qq = mdn_locs[:,:,cls,:]
@@ -763,7 +783,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         cur_comp = []
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1,0]
-            occ_pts = tf.cast(~tf.is_finite(pp),tf.float32)
+            occ_pts = tf.cast(~(tf.is_finite(pp)&(pp>-1000)),tf.float32)
             occ_pts_pred = tf.tile(occ_pts,[1,n_preds])
             qq = occ_pred[:,:,cls]
             kk = tf.square(occ_pts - qq)
@@ -788,10 +808,6 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         cur_comp = []
 
         ll = tf.nn.softmax(mdn_logits, axis=1)
-#         logit_eps = self.conf.mdn_logit_eps_training
-#         ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
-#         ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
-
         ll = tf.stop_gradient(ll)
         # ll now has normalized logits.
         for cls in range(self.conf.n_classes):
@@ -851,13 +867,17 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     val_dist[ndx,:, g] = dd1 * self.conf.rescale
                     pred_dist[ndx,sel_ex, g] = dd2 * self.conf.rescale
         val_dist[locs[..., 0] < -5000] = np.nan
-        pred_mean = np.nanmean(pred_dist)
+        # pred_mean = np.nanmean(pred_dist)
         label_mean = np.nanmean(val_dist)
-        return (pred_mean+label_mean)/2
+        return label_mean
 
 
-    def get_pred_fn(self, model_file=None,distort=False):
+    def get_pred_fn(self, model_file=None,distort=False,tmr_pred=None):
         sess, latest_model_file = self.restore_net(model_file)
+        self.sess = sess
+
+        if tmr_pred is None:
+            tmr_pred = contextlib.suppress()
 
         conf = self.conf
 
@@ -885,7 +905,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             if pred_occ:
                 out_list.append(self.occ_pred)
 
-            out = sess.run(out_list,self.fd)
+            with tmr_pred:
+                out = sess.run(out_list,self.fd)
 
             pred = out[0]
             cur_input = out[1]
@@ -995,16 +1016,16 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             else:
                 return tf.nn.relu(conv + biases)
 
+        if self.conf.get('pretrain_freeze_bnorm', True):
+            pretrain_update_bnorm = False
+        else:
+            pretrain_update_bnorm = self.ph['phase_train']
+
         if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-                if self.conf.get('mdn_slim_is_training',True):
-                    slim_is_training = self.ph['phase_train']
-                else:
-                    slim_is_training = False
-
                 output_stride =  self.conf.get('mdn_slim_output_stride',None)
 
-                net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=slim_is_training,output_stride=output_stride)
+                net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=pretrain_update_bnorm,output_stride=output_stride)
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
                            'block3/unit_5/bottleneck_v1']
                 if not self.no_pad: l_names.append('block4')
@@ -1014,16 +1035,18 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 n_filts = [32, 64, 128, 256, 512, 1024]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=17, num_filters=64, kernel_size=7,
+            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=64, kernel_size=7,
                                        conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3],
                                        block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2,
                                        data_format='channels_last', dtype=tf.float32)
-            resnet_out = mm(im, self.ph['phase_train'])
+            resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
             down_layers.pop(2) # remove one of the layers of size imsz/4, imsz/4 at index 2
             net = down_layers[-1]
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
             # n_filts = [ 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
         if self.conf.mdn_use_unet_loss:
             with tf.variable_scope(self.net_name + '_unet'):
@@ -1373,7 +1396,7 @@ class PoseUNet_resnet_lowres(PoseUNet_resnet):
         self.conf = conf
         self.output_stride = self.conf.get('mdn_slim_output_stride', 16)
         self.out_scale = float(self.output_stride/2)
-        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.resnet_source = self.conf.get('mdn_resnet_source','official_tf')
 
         def train_pp(ims,locs,info):
             return preproc_func(ims,locs,info, conf,True, out_scale= self.out_scale)
@@ -1402,12 +1425,15 @@ class PoseUNet_resnet_lowres(PoseUNet_resnet):
             a,b,self.ph['phase_train'], keep_prob=None,
             use_leaky=self.conf.unet_use_leaky)
 
+        if self.conf.get('pretrain_freeze_bnorm', True):
+            pretrain_update_bnorm = False
+        else:
+            pretrain_update_bnorm = self.ph['phase_train']
 
         if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 net, end_points = resnet_v1.resnet_v1_50(im,
-                                          global_pool=False, is_training=self.ph[
-                                          'phase_train'],output_stride=self.output_stride)
+                                          global_pool=False, is_training=pretrain_update_bnorm,output_stride=self.output_stride)
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
                            'block3/unit_5/bottleneck_v1', 'block4']
                 down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
@@ -1417,13 +1443,15 @@ class PoseUNet_resnet_lowres(PoseUNet_resnet):
                 n_filts = [32, 64, 64, 128, 256, 512]
 
         elif self.resnet_source == 'official_tf':
-            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=self.conf.n_classes, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             im = tf.placeholder(tf.float32, [8, 512, 512, 3])
-            resnet_out = mm(im, True)
+            resnet_out = mm(im, pretrain_update_bnorm)
             down_layers = mm.layers
             ex_down_layers = conv(self.inputs[0], 64)
             down_layers.insert(0, ex_down_layers)
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
+        else:
+            assert False, 'Resnet source should be either slim or official_tf'
 
 
         with tf.variable_scope(self.net_name):

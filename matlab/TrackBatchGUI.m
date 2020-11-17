@@ -53,10 +53,10 @@ classdef TrackBatchGUI < handle
         obj.toTrack.targets = {};
       end
       if ~isfield(obj.toTrack,'f0s'),
-        obj.toTrack.f0s = [];
+        obj.toTrack.f0s = {};
       end
       if ~isfield(obj.toTrack,'f1s'),
-        obj.toTrack.f1s = [];
+        obj.toTrack.f1s = {};
       end
       obj.nmovies = size(obj.toTrack.movfiles,1);
     end
@@ -71,6 +71,10 @@ classdef TrackBatchGUI < handle
       mainfigpos = get(obj.hParent,'Position');
       set(obj.hParent,'Units',units);
       figsz = [.4,.4]; % width, height
+      % AL20201116: multimonitor setups, figsz can be bigger than
+      % mainfogpos(3:4) which leads to 'huge' TrackBatchGUI pane. Cap size
+      % of TrackBatchGUI.
+      figsz = min(figsz,mainfigpos(3:4));
       mainfigctr = mainfigpos([1,2]) + mainfigpos([3,4])/2;
       figpos = [mainfigctr-figsz/2,figsz];
       % to do: make sure this is on the screen
@@ -89,7 +93,7 @@ classdef TrackBatchGUI < handle
       
       colw = ((1-2*border) - (filebuttonw+colborder)*2)/2;
       
-      allmovieh = 1 - 3*border - rowh*3 - rowborder - border;
+      allmovieh = 1 - 3*border - rowh*4 - 4*rowborder - border;
       obj.nmovies_per_page = floor(allmovieh/(rowh+rowborder))-1;
       obj.setNPages();
       moveditx = border;
@@ -109,6 +113,8 @@ classdef TrackBatchGUI < handle
       pagebuttonxsmore = pagetextx + pagetextw + colborder+(filebuttonw+colborder)*[0,1];
       pagebuttonxs = [pagebuttonxsless,pagebuttonxsmore];
       pagebuttony = rowys(end) - (rowh+rowborder);
+      
+      macroedity = pagebuttony + rowh + 2*rowborder;
       
       addbuttonw = .15;
       addbuttonx = .5 - addbuttonw/2;
@@ -157,6 +163,22 @@ classdef TrackBatchGUI < handle
         'ForegroundColor','w','BackgroundColor','k','FontWeight','bold',...
         'Units','normalized','Position',[trkeditx,coltitley,colw,rowh],...
         'Tag','Trk title');
+      obj.gdata.txt_macro = uicontrol('Style','text','String','Define trk using macros',...
+          'ForegroundColor','w','BackgroundColor','k','FontWeight','bold',...
+          'Units','normalized','Position',[moveditx,macroedity,colw,rowh],...
+          'Tag','txt_macro',...
+          'Tooltip', 'Use macro to define the output trk files. For movie /a/b/c/d.avi, $name$=d, $dir$=c and $path=/a/b');
+      obj.gdata.edit_macro = uicontrol('Style','edit','String','',...
+          'ForegroundColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
+          'Units','normalized','Enable','on','Position',[trkeditx,macroedity,colw,rowh],...
+          'Tag','edit_macro',...
+          'Tooltip', 'Use macro to define the output trk files. For movie /a/b/c/d.avi, $name$=d, $dir$=c and $path=/a/b');
+       obj.gdata.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
+          'ForegroundColor','w','BackgroundColor',pagebuttoncolor,'FontWeight','bold',...
+          'Units','normalized','Enable','on','Position',[detailsbuttonx,macroedity,2*filebuttonw+colborder,rowh],...
+          'Tag',sprintf('pushbutton_page%d',i),'UserData',i,...
+          'Callback',@(h,e) obj.apply_macro(h,e),...
+          'Tooltip', 'Use macro to define the output trk files. For movie /a/b/c/d.avi, $name$=d, $dir$=c and $path=/a/b');
       for i = 1:obj.nmovies_per_page,
         visible = 'off';
         movfilecurr = defaultmovfiles{i};
@@ -215,6 +237,8 @@ classdef TrackBatchGUI < handle
       obj.updateMovieList();
 
     end
+     
+    
     function updateMovieList(obj)
       
       for i = 1:obj.nmovies_per_page,
@@ -296,19 +320,20 @@ classdef TrackBatchGUI < handle
       else
         obj.toTrack.targets{moviei,1} = [];
       end
-      if isfield(movdata,'f0s'),
-        obj.toTrack.f0s(moviei,1) = movdata.f0s;
+      if isfield(movdata,'f0s') && ~isempty(movdata.f0s),
+        obj.toTrack.f0s{moviei,1} = movdata.f0s;
       else
-        obj.toTrack.f0s(moviei,1) = 1;
+        obj.toTrack.f0s(moviei,1) = {1};
       end
-      if isfield(movdata,'f1s'),
-        obj.toTrack.f1s(moviei,1) = movdata.f1s;
+      if isfield(movdata,'f1s') && ~isempty(movdata.f1s),
+        obj.toTrack.f1s{moviei,1} = movdata.f1s;
       else
-        obj.toTrack.f1s(moviei,1) = inf;
+        obj.toTrack.f1s(moviei,1) = {inf};
       end
-      if moviei < obj.nmovies,
-        obj.nmovies = moviei;
-      end
+% MK 20200711 - This doesn't make sense so commenting it out      
+%       if moviei < obj.nmovies,
+%         obj.nmovies = moviei;
+%       end
       itemi = obj.movie2ItemIdx(moviei);
       if isempty(itemi),
         return;
@@ -505,6 +530,25 @@ classdef TrackBatchGUI < handle
     function edit_trk_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       set(h,'String',obj.toTrack.trkfiles{moviei,1});
+    end
+    
+    function apply_macro(obj,h,e)
+      in_str = get(obj.gdata.edit_macro,'String');
+      in_str = strtrim(in_str);
+      if isempty(in_str), return; end
+      for moviei = 1:obj.nmovies
+        for view = 1:obj.lObj.nview
+          cur_m = obj.toTrack.movfiles{moviei,view};
+          [movp,movn,~] = fileparts(cur_m);
+          [movp,movd,~] = fileparts(movp);
+          outf = in_str;
+          outf = strrep(outf,'$name$',movn);
+          outf = strrep(outf,'$dir$',movd);
+          outf = strrep(outf,'$path$',movp);
+          obj.toTrack.trkfiles{moviei,view} = outf;
+        end
+      end
+      obj.updateMovieList();
     end
 
   end

@@ -51,7 +51,7 @@ else
   n_models = size(errprctiles,3)+1; % first model is ignored
 end
 
-if isempty(conddata),
+if isempty(conddata) || ~exist('ndatatypes','var')
   ndatatypes = 1;
   nlabeltypes = 1;
 end

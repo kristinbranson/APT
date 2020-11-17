@@ -25,7 +25,7 @@ shift
 done
 
 if [ "$#" -eq 0 ]; then 
-    DIR=$scriptpath
+    DIR="$(dirname "$scriptpath")"
 elif [ "$#" -eq 1 ]; then
     DIR=$1
 else
@@ -53,4 +53,5 @@ if [ $nocolor = true ]; then
 else
     "$scriptpath/git-graph.sh" | head -n $headn
 fi
+git diff -p --no-ext-diff
 popd >/dev/null
