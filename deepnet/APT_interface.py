@@ -482,8 +482,10 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         proj_name = 'default'
     else:
         proj_name = read_string(lbl['projname'])
+    proj_file = '' if lbl['projectFile'][0] == 0 else read_string(lbl['projectFile'])
     conf.view = view
     conf.set_exp_name(proj_name)
+    conf.project_file = proj_file
     # conf.cacheDir = read_string(lbl['cachedir'])
     conf.has_trx_file = has_trx_file(lbl[lbl['trxFilesAll'][0,0]])
     conf.selpts = np.arange(conf.n_classes)
@@ -1905,6 +1907,7 @@ def compile_trk_info(conf, model_file, crop_loc, expname=None):
     if 'flipLandmarkMatches' in param_dict.keys() and not param_dict['flipLandmarkMatches']:
         param_dict['flipLandmarkMatches'] = None
     info[u'crop_loc'] = to_mat(crop_loc)
+    info[u'project_file'] = getattr(conf, 'project_file', '')
 
     return info
 

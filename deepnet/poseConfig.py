@@ -210,6 +210,7 @@ class config(object):
         self.save_td_step = 100
         self.maxckpt = 30
         self.cachedir = ''
+        self.project_file = ''
 
         # ----- Legacy
         # self.scale = 2

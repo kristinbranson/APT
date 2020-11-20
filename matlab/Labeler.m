@@ -66,7 +66,7 @@ classdef Labeler < handle
   properties (Hidden)
     % Don't compute as a Constant prop, requires APT path initialization
     % before loading class
-    NEIGHBORING_FRAME_OFFSETS;
+    NEIGHBORING_FRAME_OFFSETS;    
   end
   properties (Constant,Hidden)
     PROPS_GTSHARED = struct('reg',...
@@ -175,6 +175,8 @@ classdef Labeler < handle
     
     isgui = true; % whether there is a GUI
     unTarLoc = ''; % location that project has most recently been untarred to
+    
+    projRngSeed = 17;
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -2704,6 +2706,13 @@ classdef Labeler < handle
       if ~success
         error('Could not clear the temp directory %s',message);
       end
+    end
+    
+    function v = projDeterministicRandFcn(obj,randfcn)
+      % Wrapper around rand() that sets/resets RNG seed
+      s = rng(obj.projRngSeed);
+      v = randfcn();
+      rng(s);
     end
     
   end
@@ -10433,8 +10442,9 @@ classdef Labeler < handle
       % tblPTrn: table of data-to-be-used as training data
       % s: scalar struct, stripped lbl struct
       
-      [wbObj,ppdata,sPrmAll] = myparse(varargin,...
-        'wbObj',[],'ppdata',[],'sPrmAll',[]...
+      [wbObj,ppdata,sPrmAll,shuffleRows] = myparse(varargin,...
+        'wbObj',[],'ppdata',[],'sPrmAll',[],...
+        'shuffleRows',true ...
         );
       tfWB = ~isempty(wbObj);
       
@@ -10517,7 +10527,8 @@ classdef Labeler < handle
         s = obj.projGetSaveStruct('forceExcDataCache',true,...
           'macroreplace',true,'massageCropProps',true);
       end
-      
+      s.projectFile = obj.projFSInfo.filename;
+
       nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
       nchan = unique(nchan);
       if ~isscalar(nchan)
@@ -10559,11 +10570,27 @@ classdef Labeler < handle
         s = rmfield(s,'preProcData');
       end
       
+      % 20201120 randomize training rows
+      if shuffleRows
+        fldsPP = fieldnames(s);
+        fldsPP = fldsPP(startsWith(fldsPP,'preProcData_'));
+        nTrn = size(ppdataI,1);
+        prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
+        fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
+        for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
+          v = s.(f);
+          assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
+          s.(f) = v(prand,:);
+        end
+      end
+      s.preProcData_prand = prand;
+      
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
       %
       % Final Massage
       % 
+     
       
       tdata = s.trackerData{s.currTracker};
       
@@ -14235,7 +14262,7 @@ classdef Labeler < handle
       tfRm = iMov2==0;
       iMov1(tfRm,:) = [];
       iMov2(tfRm,:) = [];
-    end
+     end
     
   end
 
