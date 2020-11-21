@@ -39,6 +39,7 @@ classdef Labels
   properties (Constant)
     CLS_OCC = 'int8';
     CLS_MD = 'uint32';
+    CLS_SPLIT = 'uint32';
   end
   methods (Static)
     function s = new(npts,n)
@@ -52,6 +53,8 @@ classdef Labels
       s.occ = zeros(npts,n,Labels.CLS_OCC); % "tag"
       s.frm = zeros(n,1,Labels.CLS_MD);
       s.tgt = zeros(n,1,Labels.CLS_MD);
+      
+      % s.split = zeros(n,1,Labels.CLS_MD);
       
       % size(s.p,2) is the number of labeled rows.      
     end
@@ -416,6 +419,10 @@ classdef Labels
       s2.frm = s.frm;
       s2.tgt = s.tgt;
     end
+    function s = addsplitsifnec(s)
+      n = size(s.p,2);
+      s.split = zeros(n,1,Labels.CLS_SPLIT);
+    end      
   end
   methods (Static)
     % Labeler-related utils

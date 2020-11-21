@@ -41,11 +41,54 @@ classdef Lbl
         tstr = sprintf('%s: %d tgts',idmf,numel(is));
         title(tstr,ttlargs{:});
         input(idmf);
-      end
-        
+      end        
     end
     
-    function [slbl,tp,loc,loccc] = loadPack(packdir)
+    function vizLocg(locg,packdir,varargin)
+      % Visualize 'locg' data structure (one row per labeled mov,frm) 
+      % from training package.
+      %
+      % locg: loc structure as output by Lbl.loadPack
+      % packdir: package dir (contains images)
+
+      [scargs,ttlargs] = myparse(varargin,...
+        'scargs',{16}, ...
+        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
+        );
+      
+      hfig = figure(11);
+      
+      nfrm = numel(locg.locdata);
+      for ifrm=1:nfrm
+        s = locg.locdata(ifrm);
+        imf = fullfile(packdir,s.img);
+        im = imread(imf);
+        
+        clf;
+        ax = axes;
+        imagesc(im);
+        colormap gray;
+        hold on;
+        axis square;
+        
+        for itgt=1:s.ntgt
+          xy = reshape(s.pabs(:,itgt),[],2);
+          scatter(xy(:,1),xy(:,2),scargs{:});
+          plot(s.roi([1:4 1],itgt),s.roi([5:8 5],itgt),'r-','linewidth',2);
+        end
+        
+        tstr = sprintf('%s: %d tgts',s.id,s.ntgt);
+        title(tstr,ttlargs{:});
+        input(tstr);
+      end        
+    end
+    
+    function s = hlpLoadJson(jsonfile)
+      jse = readtxtfile(jsonfile);
+      s = jsondecode(jse{1});
+      fprintf(1,'loaded %s\n',jsonfile);
+    end
+    function [slbl,tp,loc,locg] = loadPack(packdir)
       % Load training package into MATLAB data structures
       %
       % slbl: 'stripped lbl' struct
@@ -66,22 +109,29 @@ classdef Lbl
       fprintf(1,'loaded %s\n',lblsf);
       
       tpf = fullfile(packdir,'trnpack.json');
-      tpjse = readtxtfile(tpf);
-      tp = jsondecode(tpjse{1});
-      fprintf(1,'loaded %s\n',tpf);
+      tp = Lbl.hlpLoadJson(tpf);
+
+      locf = fullfile(packdir,'loc0.json');
+      loc = Lbl.hlpLoadJson(locf);
 
       locf = fullfile(packdir,'loc.json');
-      locjse = readtxtfile(locf);
-      loc = jsondecode(locjse{1});
-      fprintf(1,'loaded %s\n',locf);
+      locg = Lbl.hlpLoadJson(locf);
 
-      locf = fullfile(packdir,'locclus.json');
-      locjse = readtxtfile(locf);
-      loccc = jsondecode(locjse{1});
-      fprintf(1,'loaded %s\n',locf);
+%       locf = fullfile(packdir,'locclus.json');
+%       locjse = readtxtfile(locf);
+%       loccc = jsondecode(locjse{1});
+%       fprintf(1,'loaded %s\n',locf);
     end
     
-    function [slbl,tp,loc] = genWriteTrnPack(lObj,packdir)
+    function hlpSaveJson(s,packdir,jsonoutf)
+      j = jsonencode(s);
+      jsonoutf = fullfile(packdir,jsonoutf);
+      fh = fopen(jsonoutf,'w');
+      fprintf(fh,'%s\n',j);
+      fclose(fh);
+      fprintf(1,'Wrote %s.\n',jsonoutf);
+    end
+    function [slbl,tp,loc,locg] = genWriteTrnPack(lObj,packdir)
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
@@ -102,35 +152,28 @@ classdef Lbl
       fprintf(1,'Saved %s\n',sfname);
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
-      [loc,sloccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
+      [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
       Lbl.writeims(loc,packdir);
         
       % trnpack: one row per mov
-      j = jsonencode(tp);
       jsonoutf = 'trnpack.json';
-      jsonoutf = fullfile(packdir,jsonoutf);
-      fh = fopen(jsonoutf,'w');
-      fprintf(fh,'%s\n',j);
-      fclose(fh);
-      fprintf(1,'Wrote %s.\n',jsonoutf);
+      Lbl.hlpSaveJson(tp,packdir,jsonoutf);
       
       % loc: one row per labeled tgt
-      slocjse = jsonencode(loc);
-      slocjsf = 'loc.json';
-      slocjsf = fullfile(packdir,slocjsf);
-      fh = fopen(slocjsf,'w');
-      fprintf(fh,'%s\n',slocjse);
-      fclose(fh);
-      fprintf(1,'Wrote %s\n',slocjsf);
-      
-      % loccc: one row per cluster
-      slocjse = jsonencode(sloccc);
-      slocjsf = 'locclus.json';
-      slocjsf = fullfile(packdir,slocjsf);
-      fh = fopen(slocjsf,'w');
-      fprintf(fh,'%s\n',slocjse);
-      fclose(fh);
-      fprintf(1,'Wrote %s\n',slocjsf);
+      jsonoutf = 'loc0.json';
+      Lbl.hlpSaveJson(loc,packdir,jsonoutf);
+
+      % loc: one row per frm
+      jsonoutf = 'loc.json';
+      s = struct();
+      s.movies = lObj.movieFilesAllFull;
+      s.splitnames = {'trn'};
+      s.locdata = locg;
+      Lbl.hlpSaveJson(s,packdir,jsonoutf);
+
+%       % loccc: one row per cluster
+%       jsonoutf = 'locclus.json';
+%       Lbl.hlpSaveJson(loccc,packdir,jsonoutf);      
     end
     
     function sagg = aggregateLabelsAddRoi(lObj)
@@ -155,10 +198,11 @@ classdef Lbl
       end
       sagg = cell2mat(sagg);
     end
-    function [sloc,sloccc] = genLocs(sagg,movInfoAll)
+    function [sloc,slocg,sloccc] = genLocs(sagg,movInfoAll)
       assert(numel(sagg)==numel(movInfoAll));
       nmov = numel(sagg);
       sloc = [];
+      slocg = [];
       sloccc = [];
       for imov=1:nmov
         s = sagg(imov);
@@ -167,9 +211,11 @@ classdef Lbl
         fprintf(1,'mov %d (sz=%s): %s\n',imov,mat2str(imsz),s.mov);
         
         slocI = Lbl.genLocsI(s,imov);
+        slocgI = Lbl.genLocsGroupedI(s,imov);
         slocccI = Lbl.genCropClusteredLocsI(s,imsz,imov);
         
         sloc = [sloc; slocI]; %#ok<AGROW>
+        slocg = [slocg; slocgI]; %#ok<AGROW>
         sloccc = [sloccc; slocccI]; %#ok<AGROW>
       end
     end
@@ -195,6 +241,44 @@ classdef Lbl
           'ts',ts ...
           );
         sloc = [sloc; sloctmp]; %#ok<AGROW>
+      end
+    end
+    function [slocgrp] = genLocsGroupedI(s,imov,varargin)
+      % s: scalar element of 'sagg', ie labels data structure for one movie.
+      % imov: movie index, only used for metadata
+      
+      imgpat = myparse(varargin,...
+        'imgpat','im/%s.png' ...
+        );
+      
+      s = Labels.addsplitsifnec(s);
+
+      slocgrp = [];
+      frmsun = unique(s.frm);
+      nfrmsun = numel(frmsun);
+      for ifrmun=1:nfrmsun
+        f = frmsun(ifrmun);
+        j = find(s.frm==f);
+        ntgt = numel(j);
+                    
+        % Dont include numtgts, eg what if a target is added to an
+        % existing frame.
+        basefS = sprintf('mov%04d_frm%08d',imov,f);
+        img = sprintf(imgpat,basefS);
+        sloctmp = struct(...
+          'id',basefS,...
+          'img',img,...
+          'imov',imov,... % 'mov',s.mov,...
+          'frm',f,...
+          'ntgt',ntgt,...
+          'split',s.split(j),...
+          'itgt',s.tgt(j),...
+          'roi',s.roi(:,j),...
+          'pabs',s.p(:,j), ...
+          'occ',s.occ(:,j), ...
+          'ts',s.ts(:,j) ...
+          );
+        slocgrp = [slocgrp; sloctmp]; %#ok<AGROW>
       end
     end
     function [sloccc] = genCropClusteredLocsI(s,imsz,imov)
