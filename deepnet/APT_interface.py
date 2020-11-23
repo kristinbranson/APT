@@ -482,7 +482,13 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         proj_name = 'default'
     else:
         proj_name = read_string(lbl['projname'])
-    proj_file = '' if lbl['projectFile'][0] == 0 else read_string(lbl['projectFile'])
+
+    try:
+        proj_file = read_string(lbl['projectFile'])
+    except:
+        logging.info('Could not read .projectFile from {}'.format(lbl_file))
+        proj_file = ''
+        
     conf.view = view
     conf.set_exp_name(proj_name)
     conf.project_file = proj_file
