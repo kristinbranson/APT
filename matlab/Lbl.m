@@ -484,15 +484,13 @@ classdef Lbl
       
     end
     function s = compressStrippedLbl(s,varargin)
-      ma = myparse(varargin,...
-        'ma',false ...
-        );
+      isMA = s.cfg.MultiAnimal;
       
-      CFG_GLOBS = {'Num'};
+      CFG_GLOBS = {'Num' 'MultiAnimal'};
       FLDS = {'cfg' 'projname' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
         'trackerClass' 'trackerData'};
       TRACKERDATA_FLDS = {'sPrmAll' 'trnNetTypeString'};
-      if ma
+      if isMA
         GLOBS = {};
         FLDSRM = {'projMacros'};
       else
