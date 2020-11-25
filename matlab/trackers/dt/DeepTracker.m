@@ -266,7 +266,8 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitor = [];
       obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
       
-      obj.trkVizer = TrackingVisualizerHeatMap(lObj);
+      tvtagpfix = sprintf('dt_%s',obj.algorithmName);
+      obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
       obj.skip_dlgs = false;
     end
     function delete(obj)
@@ -6338,6 +6339,10 @@ classdef DeepTracker < LabelTracker
       obj.trkVizer.setHideViz(tf);
       obj.hideViz = tf;
     end
+    function setShowPredsCurrTargetOnly(obj,tf)
+      obj.trkVizer.setShowOnlyPrimary(tf);
+      obj.showPredsCurrTargetOnly = tf;
+    end
     function updateLandmarkColors(obj)
       ptsClrs = obj.lObj.predPointsPlotInfo.Colors;
       ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
@@ -6356,24 +6361,25 @@ classdef DeepTracker < LabelTracker
       end
             
       [xy,tfocc] = obj.getPredictionCurrentFrame();    
-      frm = lObj.currFrame;
-      itgt = lObj.currTarget;
-      trx = lObj.currTrx;
-      if isempty(trx)
-        trxXY = [];
-        trxTh = [];        
-      else
-        itrx = frm+trx.off;
-        if itrx <= 0 || itrx > numel(trx.x),
-          return;
-        end
-        trxXY = [trx.x(itrx) trx.y(itrx)];
-        trxTh = trx.theta(itrx);        
-      end        
-      obj.trkVizer.updateTrackRes(xy(:,:,itgt),tfocc(:,itgt),frm,itgt,trxXY,trxTh);
+%       frm = lObj.currFrame;
+%       itgt = lObj.currTarget;
+%       trx = lObj.currTrx;
+%       if isempty(trx)
+%         trxXY = [];
+%         trxTh = [];        
+%       else
+%         itrx = frm+trx.off;
+%         if itrx <= 0 || itrx > numel(trx.x),
+%           return;
+%         end
+%         trxXY = [trx.x(itrx) trx.y(itrx)];
+%         trxTh = trx.theta(itrx);        
+%       end        
+      obj.trkVizer.updateTrackRes(xy,tfocc);
     end
     function newLabelerTarget(obj)
-      obj.newLabelerFrame();
+      iTgt = obj.lObj.currTarget;
+      obj.trkVizer.updatePrimary(iTgt);
     end
     function newLabelerMovie(obj)
       obj.vizInit(); % not sure why this is nec

@@ -13795,7 +13795,10 @@ classdef Labeler < handle
       lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
         [obj.nLabelPoints,2,obj.nTargets]);
       tv = obj.labeledpos2trkViz;
-      tv.updateTrackRes(lpos2,iTgt);
+      % no lpos2 occ!
+      lpostag = false(obj.nLabelPoints,obj.nTargets);
+      tv.updateTrackRes(lpos2,lpostag);
+      
       
       if dotrkres
         trkres = obj.trkResGTaware;
