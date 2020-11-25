@@ -8705,7 +8705,7 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate('dotrkres',true);
+      obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -8715,7 +8715,7 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate('dotrkres',true);
+      obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
     end
         
   end
@@ -13785,20 +13785,29 @@ classdef Labeler < handle
     end
     
     function labels2VizUpdate(obj,varargin)
-      dotrkres = myparse(varargin,...
-        'dotrkres',false...
+      % update trkres from lObj.labeledpos
+      
+      [dotrkres,setlbls,setprimarytgt] = myparse(varargin,...
+        'dotrkres',false,...
+        'setlbls',true,...
+        'setprimarytgt',false ...
         );
       
-      iMov = obj.currMovie;
-      frm = obj.currFrame;
       iTgt = obj.currTarget;
-      lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
-        [obj.nLabelPoints,2,obj.nTargets]);
       tv = obj.labeledpos2trkViz;
-      % no lpos2 occ!
-      lpostag = false(obj.nLabelPoints,obj.nTargets);
-      tv.updateTrackRes(lpos2,lpostag);
-      
+
+      if setlbls
+        iMov = obj.currMovie;
+        frm = obj.currFrame;
+        lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
+          [obj.nLabelPoints,2,obj.nTargets]);
+        % no lpos2 occ!
+        lpostag = false(obj.nLabelPoints,obj.nTargets);
+        tv.updateTrackRes(lpos2,lpostag);
+      end
+      if setprimarytgt
+        tv.updatePrimary(iTgt);        
+      end
       
       if dotrkres
         trkres = obj.trkResGTaware;
