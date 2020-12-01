@@ -2443,7 +2443,7 @@ classdef Labeler < handle
         obj.unTarLoc = tname;
         fprintf('... done with untar.\n');
       catch ME
-        if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
+        if endsWith(ME.identifier,'invalidTarFile')
           warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',fname);
           [success,message,~] = copyfile(fname,rawLblFile);
           if ~success
