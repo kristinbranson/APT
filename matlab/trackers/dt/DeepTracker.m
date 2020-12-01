@@ -266,7 +266,8 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitor = [];
       obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
       
-      obj.trkVizer = TrackingVisualizerHeatMap(lObj);
+      tvtagpfix = sprintf('dt_%s',obj.algorithmName);
+      obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
       obj.skip_dlgs = false;
     end
     function delete(obj)
@@ -2738,7 +2739,8 @@ classdef DeepTracker < LabelTracker
       if be.deepnetrunlocal
         aptroot = APT.Root;
         %[dmc.aptRootUser] = deal(aptroot);
-        DeepTracker.downloadPretrainedExec(aptroot);
+        %DeepTracker.downloadPretrainedExec(aptroot);
+        DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
       else
         DeepTracker.cloneJRCRepoIfNec(cacheDir);
         DeepTracker.updateAPTRepoExecJRC(cacheDir);
@@ -4435,13 +4437,18 @@ classdef DeepTracker < LabelTracker
       end
 
       if isexternal,
-        for i = 1:nMovSets,
-          movfiles = [obj.trkSysInfo(i,:).movfileLcl];
-          trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
-          calibrationfile = obj.trkSysInfo(i,1).calibrationfileLcl;
-          cropROIs = cat(1,obj.trkSysInfo(i,:).cropRoi);
-          obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfile',calibrationfile,...
-            'cropROIS',cropROIs);
+        if obj.lObj.isMultiView
+          % AL 20201116: protected this codepath by checking for multiview.
+          % This codepath was broken for 'external' tracking of multiple 
+          % (eg 2) movies for a single-view proj.
+          for i = 1:nMovSets,
+            movfiles = [obj.trkSysInfo(i,:).movfileLcl];
+            trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
+            calibrationfile = obj.trkSysInfo(i,1).calibrationfileLcl;
+            cropROIs = cat(1,obj.trkSysInfo(i,:).cropRoi);
+            obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfile',calibrationfile,...
+              'cropROIS',cropROIs);
+          end
         end
         for i=1:nMovSets*nViews,
           fprintf('Tracking complete for %s, results saved to %s.\n',...
@@ -4772,9 +4779,10 @@ classdef DeepTracker < LabelTracker
       end      
     end
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
+      % Currently this assumes a JRC backend due to oncluster special case      
       [host,bg,prefix,sshoptions,timeout] = myparse(varargin,...
         'host',DeepTracker.jrchost,... % 'logfile','/dev/null',...
-        'bg',true,...
+        'bg',false,... % AL 20201022 see note below
         'prefix',DeepTracker.jrcprefix,...
         'sshoptions','-o "StrictHostKeyChecking no"',...
         'timeout',[]);
@@ -4798,13 +4806,19 @@ classdef DeepTracker < LabelTracker
       end
             
       if bg
+        % AL 20201022 not sure why this codepath was nec. Now it is causing
+        % problems with LSF/job scheduling. The </dev/null & business
+        % confuses LSF and the account/runtime limit doesn't get set. So
+        % for now this is a nonproduction codepath.
         codestr = sprintf('%s %s ''%s </dev/null &''',sshcmd,host,remotecmd);
       else
-        codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
+        tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
+        if tfOnCluster
+          codestr = remotecmd;
+        else
+          codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
+        end
       end
-
-%       codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
-%         host,remotecmd,logfile);    
     end
     function codestr = codeGenSingGeneral(basecmd,varargin)
       % Take a base command and run it in a sing img
@@ -5429,7 +5443,11 @@ classdef DeepTracker < LabelTracker
     
     function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
       
-      [trxfileRem] = myparse(varargin,'trxFiles',{});
+      [trxfileRem,isWinBackend] = myparse(varargin,...
+        'trxFiles',{},...
+        'isWinBackend',false ...
+        );
+      
       nviews = size(movfileRem,2);
       ismultiview = nviews > 1;
       
@@ -5478,6 +5496,11 @@ classdef DeepTracker < LabelTracker
         end
       end
 
+      if isWinBackend
+        % AL20200929. json validity requires escaping backslash
+        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','\\\\');
+        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','\\\\');
+      end
       fid = fopen(listfileLcl,'w');
       fprintf(fid,jsonencode(listinfo));
       fclose(fid);
@@ -6316,6 +6339,10 @@ classdef DeepTracker < LabelTracker
       obj.trkVizer.setHideViz(tf);
       obj.hideViz = tf;
     end
+    function setShowPredsCurrTargetOnly(obj,tf)
+      obj.trkVizer.setShowOnlyPrimary(tf);
+      obj.showPredsCurrTargetOnly = tf;
+    end
     function updateLandmarkColors(obj)
       ptsClrs = obj.lObj.predPointsPlotInfo.Colors;
       ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
@@ -6334,24 +6361,25 @@ classdef DeepTracker < LabelTracker
       end
             
       [xy,tfocc] = obj.getPredictionCurrentFrame();    
-      frm = lObj.currFrame;
-      itgt = lObj.currTarget;
-      trx = lObj.currTrx;
-      if isempty(trx)
-        trxXY = [];
-        trxTh = [];        
-      else
-        itrx = frm+trx.off;
-        if itrx <= 0 || itrx > numel(trx.x),
-          return;
-        end
-        trxXY = [trx.x(itrx) trx.y(itrx)];
-        trxTh = trx.theta(itrx);        
-      end        
-      obj.trkVizer.updateTrackRes(xy(:,:,itgt),tfocc(:,itgt),frm,itgt,trxXY,trxTh);
+%       frm = lObj.currFrame;
+%       itgt = lObj.currTarget;
+%       trx = lObj.currTrx;
+%       if isempty(trx)
+%         trxXY = [];
+%         trxTh = [];        
+%       else
+%         itrx = frm+trx.off;
+%         if itrx <= 0 || itrx > numel(trx.x),
+%           return;
+%         end
+%         trxXY = [trx.x(itrx) trx.y(itrx)];
+%         trxTh = trx.theta(itrx);        
+%       end        
+      obj.trkVizer.updateTrackRes(xy,tfocc);
     end
     function newLabelerTarget(obj)
-      obj.newLabelerFrame();
+      iTgt = obj.lObj.currTarget;
+      obj.trkVizer.updatePrimary(iTgt);
     end
     function newLabelerMovie(obj)
       obj.vizInit(); % not sure why this is nec

@@ -371,14 +371,18 @@ def train_ours(args):
 
 
 def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=False,
-                    return_hm=False, hm_dec=1, hm_floor=0.1, hm_nclustermax=1):
+                    classify_fcn='classify_db',
+                    timer_pred_inner=None,
+                    **kwargs):
     cur_out = []
     extra_str = ''
-    if model_type not in ['leap','openpose']:
+    if model_type not in ['leap', 'openpose', 'sb', 'dpk','leap_orig']:
         extra_str = '.index'
     # else:
     #     extra_str = '.h5'
     ts = [os.path.getmtime(f + extra_str) for f in model_files]
+
+    classify_db_fcn = getattr(apt, classify_fcn)
 
     for mndx, m in enumerate(model_files):
         # pred, label, gt_list = apt.classify_gt_data(conf, curm, out_file, m)
@@ -386,19 +390,48 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
-        ret_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N,
-                                   return_hm=return_hm,
-                                   hm_dec=hm_dec,
-                                   hm_floor=hm_floor,
-                                   hm_nclustermax=hm_nclustermax)
+                 #                              tmr_pred=timer_pred_inner) # commenting out for now
+        ret_list = classify_db_fcn(conf, read_fn, pred_fn, tf_iterator.N, **kwargs)
         pred, label, gt_list = ret_list[:3]
+        if isinstance(pred, dict):
+            pred = pred['locs']
         if model_type == 'mdn':
             extra_stuff = ret_list[3:]
         else:
-            extra_stuff = 0
+            extra_stuff = ret_list[3:]  # XXX AL but why not
+            # extra_stuff = 0
         close_fn()
         gt_list = np.array(gt_list)
         cur_out.append([pred, label, gt_list, m, extra_stuff, ts[mndx]])
+
+    return cur_out
+
+def classify_db_all2(conf, db_file, model_files, model_type,
+                     name='deepnet',
+                     classify_fcn='classify_db2',
+                     timer_pred_inner=None,
+                     **kwargs   # fed to classify_db2
+                     ):
+    cur_out = []
+    extra_str = ''
+    if model_type not in ['leap', 'openpose', 'sb', 'dpk']:
+        extra_str = '.index'
+    ts = [os.path.getmtime(f + extra_str) for f in model_files]
+
+    classify_db_fcn = getattr(apt, classify_fcn)
+
+    for mndx, m in enumerate(model_files):
+        # pred, label, gt_list = apt.classify_gt_data(conf, curm, out_file, m)
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,
+                                               name=name,
+                                               tmr_pred=timer_pred_inner)
+        ret_list = classify_db_fcn(conf, read_fn, pred_fn, tf_iterator.N, **kwargs)
+        close_fn()
+        ret_list += (m, ts[mndx])
+        cur_out.append(ret_list)
 
     return cur_out
 

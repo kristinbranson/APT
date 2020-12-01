@@ -38,17 +38,23 @@ def show_top_preds(im,pred_locs,pred_weights, n=12):
         ax[ndx].scatter(pred_locs[ord[ndx],:,0],pred_locs[ord[ndx],:,1])
 
 
-def preproc_func(ims, locs, info, conf, distort, pad_input=False, pad_x=0, pad_y=0):
+def preproc_func( conf, distort, *args, pad_input=False, pad_x=0, pad_y=0):
+    ims, locs, info = args[:3]
+    if len(args) > 3:
+        occ = args[3]
+    else:
+        occ = np.zeros(locs.shape[:-1])
+
     if pad_input:
         ims, locs = PoseTools.pad_ims(ims, locs, pady=pad_y, padx=pad_x)
     ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
     tlocs = locs.copy()
     if pad_input:
-        tlocs[:,:,0] -= pad_x//2
+        tlocs[:,:,0] -= pad_x//2  # AL: incorrect if conf.rescale~=1?
         tlocs[:,:,1] -= pad_y//2
 
     hsz = [i//conf.rescale for i in conf.imsz]
-    hmaps = PoseTools.create_label_images(tlocs, hsz, 1, conf.label_blur_rad)
+    hmaps = PoseTools.create_label_images(tlocs, hsz, 1, conf.label_blur_rad,occluded=occ)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 
@@ -75,12 +81,12 @@ def find_pad_sz(n_layers,in_sz):
 class PoseUMDN(PoseCommon.PoseCommon):
 
     def __init__(self, conf, name='pose_umdn',net_type='conv',
-                 unet_name = 'pose_unet',pad_input=False):
-        PoseCommon.PoseCommon.__init__(self, conf, name)
+                 unet_name = 'pose_unet',pad_input=False,**kwargs):
+        PoseCommon.PoseCommon.__init__(self, conf, name,**kwargs)
         self.dep_nets = [PoseUNet.PoseUNet(conf, unet_name)]
         self.net_type = net_type
         self.net_name = 'pose_umdn'
-        self.train_data_name = 'traindata'
+        # self.train_data_name = 'traindata'
         self.i_locs = None
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
         self.no_pad = False
@@ -91,13 +97,13 @@ class PoseUMDN(PoseCommon.PoseCommon):
             self.pad_y = find_pad_sz(n_layers=5,in_sz=conf.imsz[0])
             self.pad_x = find_pad_sz(n_layers=5,in_sz=conf.imsz[1])
 
-        def train_pp(ims,locs,info):
-            return preproc_func(ims,locs,info, conf, True, pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
-        def val_pp(ims,locs,info):
-            return preproc_func(ims,locs,info, conf, False, pad_input=pad_input, pad_x = self.pad_x, pad_y = self.pad_y)
+        def train_pp(*args):
+            return preproc_func(conf, True, *args, pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
+        def val_pp(*args):
+            return preproc_func(conf, False, *args, pad_input=pad_input, pad_x = self.pad_x, pad_y = self.pad_y)
 
-        self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
-        self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes))
+        self.train_py_map = lambda *args: tuple(tf.py_func( train_pp, args, self.input_dtypes))
+        self.val_py_map = lambda *args: tuple(tf.py_func( val_pp,args, self.input_dtypes))
 
         if 'mdn_groups' not in self.conf.__dict__:
             self.conf.mdn_groups = [range(self.conf.n_classes)]

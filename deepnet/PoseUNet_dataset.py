@@ -16,6 +16,7 @@ import re
 import json
 import logging
 from tensorflow.contrib.layers import batch_norm
+from upsamp import upsample_init_value
 
 # for tf_unet
 #from tf_unet_layers import (weight_variable, weight_variable_devonc, bias_variable,
@@ -24,7 +25,12 @@ from tensorflow.contrib.layers import batch_norm
 from collections import OrderedDict
 
 
-def preproc_func(ims, locs, info, conf, distort, pad_input=False,pad_x=0,pad_y=0):
+def preproc_func(conf, distort, *args, pad_input=False,pad_x=0,pad_y=0):
+    ims,locs,info = args[:3]
+    if len(args)>3:
+        occ = args[3]
+    else:
+        occ = np.zeros(locs.shape[:-1])
 
     if pad_input:
         ims, locs = PoseTools.pad_ims(ims, locs, pady=pad_y, padx=pad_x)
@@ -36,7 +42,7 @@ def preproc_func(ims, locs, info, conf, distort, pad_input=False,pad_x=0,pad_y=0
         tlocs[:,:,1] -= pad_y//2
 
     hsz = [i//conf.rescale for i in conf.imsz]
-    hmaps = PoseTools.create_label_images(tlocs, hsz, 1, conf.label_blur_rad)
+    hmaps = PoseTools.create_label_images(tlocs, hsz, 1, conf.label_blur_rad,occluded=occ)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 def conv_residual(x_in, train_phase):
@@ -96,9 +102,9 @@ def find_pad_sz(n_layers,in_sz):
 
 class PoseUNet(PoseCommon):
 
-    def __init__(self, conf, name='pose_unet',pad_input=False):
+    def __init__(self, conf, name='deepnet',pad_input=False):
 
-        PoseCommon.__init__(self, conf, name)
+        PoseCommon.__init__(self, conf, name=name)
         self.down_layers = [] # layers created while down sampling
         self.up_layers = [] # layers created while up sampling
         self.edge_ignore = 10
@@ -114,13 +120,13 @@ class PoseUNet(PoseCommon):
             self.pad_y,_ = find_pad_sz(n_layers=4,in_sz=conf.imsz[0])
             self.pad_x,_ = find_pad_sz(n_layers=4,in_sz=conf.imsz[1])
 
-        def train_pp(ims,locs,info):
-            return preproc_func(ims,locs,info, conf,True,pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
-        def val_pp(ims,locs,info):
-            return preproc_func(ims,locs,info, conf, False, pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
+        def train_pp(*args):
+            return preproc_func(conf,True,*args,pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
+        def val_pp(*args):
+            return preproc_func(conf, False, *args, pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
 
-        self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], [tf.float32, tf.float32, tf.float32, tf.float32]))
-        self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], [tf.float32, tf.float32, tf.float32, tf.float32]))
+        self.train_py_map = lambda *args: tuple(tf.py_func( train_pp, args, [tf.float32, tf.float32, tf.float32, tf.float32]))
+        self.val_py_map = lambda *args: tuple(tf.py_func( val_pp, args, [tf.float32, tf.float32, tf.float32, tf.float32]))
 
     def create_network(self ):
         im, locs, info, hmap = self.inputs
@@ -217,9 +223,12 @@ class PoseUNet(PoseCommon):
             # upsample using deconv
             with tf.variable_scope('u_{}'.format(ndx)):
                 X_sh = X.get_shape().as_list()
-                w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
-                for wndx in range(X_sh[-1]):
-                    w_mat[:, :, wndx, wndx] = 1.
+                w_sh = [4, 4, X_sh[-1], X_sh[-1]]
+                w_mat = upsample_init_value(w_sh, alg='bl', dtype=np.float32)
+
+                # w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
+                # for wndx in range(X_sh[-1]):
+                #     w_mat[:, :, wndx, wndx] = 1.
                 w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]], initializer=tf.constant_initializer(w_mat))
                 if self.no_pad:
                     out_shape = [X_sh[0], X_sh[1] * 2 + 2, X_sh[2] * 2 + 2, X_sh[-1]]
@@ -575,7 +584,12 @@ class PoseUNet(PoseCommon):
         return np.nanmean(tt1)
 
     def loss(self, inputs, pred):
-        return tf.nn.l2_loss(pred - inputs[-1]) + self.wt_decay_loss()
+        unet_loss = tf.nn.l2_loss(pred - inputs[-1])/self.conf.n_classes
+        if self.conf.get('normalize_loss_blur_rad',True):
+            unet_loss = unet_loss/self.conf.label_blur_rad
+        if self.conf.get('normalize_loss_batch',False):
+            unet_loss = unet_loss/self.conf.batch_size
+        return  unet_loss
 
     def train_unet(self,restore=False):
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('unet_base_lr',0.0001)

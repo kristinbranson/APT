@@ -225,6 +225,7 @@ v = 1;
 htext = text(imsz(v,2),imsz(v,1),'0.000s','Color',textcolor,'FontSize',24,...
   'HorizontalAlignment','right','VerticalAlignment','bottom','Parent',hax(v));
 set(hfig,'Visible',visible);
+
 drawnow;
 
 % hcb = colorbar('Location','East');
@@ -289,7 +290,7 @@ for f = firstframe:endframe,
       ax = [xcurr(2)-2*winrad,xcurr(2)+2*winrad,ycurr(2)-2*winrad,ycurr(2)+2*winrad];
       set(hax,'XLim',ax(1:2),'YLim',ax(3:4));
       ax = axis(hax);
-      set(htext,'Position',[ax(2)-5,ax(4)-5,0]);
+      set(htext,'Position',[ax(2)-5,ax(4)-5,0]);      
     end
   end
 
@@ -353,6 +354,8 @@ for f = firstframe:endframe,
   end
   
   set(htext,'String',sprintf('%.3fs',(f-1)/150));
+  plot([ax(1)+10, ax(1)+28.8551] ,[ax(4)-10,ax(4)-10], '-w','LineWidth',4);
+  
   
   drawnow;
   

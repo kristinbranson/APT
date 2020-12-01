@@ -66,7 +66,7 @@ classdef Labeler < handle
   properties (Hidden)
     % Don't compute as a Constant prop, requires APT path initialization
     % before loading class
-    NEIGHBORING_FRAME_OFFSETS;
+    NEIGHBORING_FRAME_OFFSETS;    
   end
   properties (Constant,Hidden)
     PROPS_GTSHARED = struct('reg',...
@@ -175,6 +175,8 @@ classdef Labeler < handle
     
     isgui = true; % whether there is a GUI
     unTarLoc = ''; % location that project has most recently been untarred to
+    
+    projRngSeed = 17;
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -2706,6 +2708,13 @@ classdef Labeler < handle
       end
     end
     
+    function v = projDeterministicRandFcn(obj,randfcn)
+      % Wrapper around rand() that sets/resets RNG seed
+      s = rng(obj.projRngSeed);
+      v = randfcn();
+      rng(s);
+    end
+    
   end
   
   methods % projMacros
@@ -3194,11 +3203,14 @@ classdef Labeler < handle
             s.currTracker = iTrk;
           end
         else % 20181214, planning ahead when we add trackers
-          assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers)));
-          s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
-            trkersInfo(nExistingTrkers+1:nDfltTrkers);
-          s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
-            repmat({[]},1,nDfltTrkers-nExistingTrkers);
+          [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),trkersInfo);
+          assert(all(tf));
+          tclass = trkersInfo;
+          tclass(loc) = s.trackerClass(:);
+          tdata = repmat({[]},1,nDfltTrkers);
+          tdata(loc) = s.trackerData(:);
+          s.trackerClass = tclass;
+          s.trackerData = tdata;
         end
       else
         assert(false);
@@ -3315,7 +3327,10 @@ classdef Labeler < handle
       if ~isfield(s,'trackDLBackEnd')
         % maybe change this by looking thru existing trackerDatas
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-      end      
+      end
+      % 20201028 docker/sing backend img/tag update
+      s.trackDLBackEnd.modernize();
+        
       
       % 20181220 DL common parameters
       if ~isTrackParams && ~isfield(s,'trackDLParams')
@@ -8690,7 +8705,7 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate('dotrkres',true);
+      obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -8700,7 +8715,7 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate('dotrkres',true);
+      obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
     end
         
   end
@@ -10427,8 +10442,9 @@ classdef Labeler < handle
       % tblPTrn: table of data-to-be-used as training data
       % s: scalar struct, stripped lbl struct
       
-      [wbObj,ppdata,sPrmAll] = myparse(varargin,...
-        'wbObj',[],'ppdata',[],'sPrmAll',[]...
+      [wbObj,ppdata,sPrmAll,shuffleRows] = myparse(varargin,...
+        'wbObj',[],'ppdata',[],'sPrmAll',[],...
+        'shuffleRows',true ...
         );
       tfWB = ~isempty(wbObj);
       
@@ -10511,7 +10527,8 @@ classdef Labeler < handle
         s = obj.projGetSaveStruct('forceExcDataCache',true,...
           'macroreplace',true,'massageCropProps',true);
       end
-      
+      s.projectFile = obj.projFSInfo.filename;
+
       nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
       nchan = unique(nchan);
       if ~isscalar(nchan)
@@ -10553,11 +10570,27 @@ classdef Labeler < handle
         s = rmfield(s,'preProcData');
       end
       
+      % 20201120 randomize training rows
+      if shuffleRows
+        fldsPP = fieldnames(s);
+        fldsPP = fldsPP(startsWith(fldsPP,'preProcData_'));
+        nTrn = size(ppdataI,1);
+        prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
+        fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
+        for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
+          v = s.(f);
+          assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
+          s.(f) = v(prand,:);
+        end
+      end
+      s.preProcData_prand = prand;
+      
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
       %
       % Final Massage
       % 
+     
       
       tdata = s.trackerData{s.currTracker};
       
@@ -13752,17 +13785,29 @@ classdef Labeler < handle
     end
     
     function labels2VizUpdate(obj,varargin)
-      dotrkres = myparse(varargin,...
-        'dotrkres',false...
+      % update trkres from lObj.labeledpos
+      
+      [dotrkres,setlbls,setprimarytgt] = myparse(varargin,...
+        'dotrkres',false,...
+        'setlbls',true,...
+        'setprimarytgt',false ...
         );
       
-      iMov = obj.currMovie;
-      frm = obj.currFrame;
       iTgt = obj.currTarget;
-      lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
-        [obj.nLabelPoints,2,obj.nTargets]);
       tv = obj.labeledpos2trkViz;
-      tv.updateTrackRes(lpos2,iTgt);
+
+      if setlbls
+        iMov = obj.currMovie;
+        frm = obj.currFrame;
+        lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
+          [obj.nLabelPoints,2,obj.nTargets]);
+        % no lpos2 occ!
+        lpostag = false(obj.nLabelPoints,obj.nTargets);
+        tv.updateTrackRes(lpos2,lpostag);
+      end
+      if setprimarytgt
+        tv.updatePrimary(iTgt);        
+      end
       
       if dotrkres
         trkres = obj.trkResGTaware;
@@ -14229,7 +14274,7 @@ classdef Labeler < handle
       tfRm = iMov2==0;
       iMov1(tfRm,:) = [];
       iMov2(tfRm,:) = [];
-    end
+     end
     
   end
 

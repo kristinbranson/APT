@@ -4,15 +4,11 @@ from __future__ import division
 ##  #######################        SETUP
 
 
-# data_type = 'alice'
-# data_type = 'stephen'
-# data_type = 'roian'
-# data_type = 'brit2'
-
+import matplotlib
+matplotlib.use('TkAgg')
 import APT_interface as apt
 import h5py
 import PoseTools
-import os
 import shutil
 import subprocess
 import time
@@ -21,13 +17,10 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
-import apt_expts
-import os
 import ast
 import apt_expts
 import os
 import pickle
-import multiResData
 import multiResData
 import random
 import json
@@ -35,8 +28,10 @@ import tensorflow as tf
 import hdf5storage
 import easydict
 import sys
-import apt_dpk
-import util
+import getpass
+import apt_dpk_exps as ade
+import util as util
+import time
 
 
 ISPY3 = sys.version_info >= (3, 0)
@@ -53,15 +48,27 @@ gt_name = ''
 dpk_skel_csv = None
 dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/git/imgaug'
 expname_dict_normaltrain = None
+if getpass.getuser() == 'kabram':
+    # cache_dir = '/nrs/branson/mayank/apt_cache_2'
+    cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
+    sdir = os.path.join(cache_dir,'out')
+    results_dir = '/groups/branson/bransonlab/mayank/apt_results'
+    job_run_dir = os.path.dirname(os.path.realpath(__file__))
+elif getpass.getuser() == 'leea30':
+    dlroot = '/groups/branson/bransonlab/apt/dl.al.2020'
+    cache_dir = os.path.join(dlroot, 'cache')
+    sdir = os.path.join(dlroot, 'out')
+    results_dir = os.path.join(dlroot, 'res')
+    job_run_dir = '/groups/branson/home/leea30/git/apt.aldl/deepnet'
+else:
+    assert False, "Add your cache and out directory"
 
-cache_dir = '/nrs/branson/al/cache'
-all_models = ['openpose']
+all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint','leap', 'openpose','resnet_unet','unet','mdn_joint_fpn','leap_orig','deeplabcut_orig']
 
 print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))
 
-gpu_model = 'GeForceRTX2080Ti'
-sdir = '/nrs/branson/al/out'
+# gpu_model = 'GeForceRTX2080Ti'
 n_splits = 3
 
 dlc_aug_use_round = 0
@@ -70,35 +77,71 @@ dlc_aug_use_round = 0
 # then setup, then individual actions furthwe tweak conf. Always call reload first!
 
 common_conf = {}
-common_conf['rrange'] = 10
-common_conf['trange'] = 5
-common_conf['brange'] = '\(-0.1,0.1\)'
-common_conf['crange'] = '\(0.9,1.1\)'
-common_conf['mdn_use_unet_loss'] = True
-common_conf['dl_steps'] = 40000
-common_conf['decay_steps'] = 20000
+# common_conf['rrange'] = 10
+# common_conf['trange'] = 5
+# common_conf['brange'] = '\(-0.1,0.1\)'
+# common_conf['crange'] = '\(0.9,1.1\)'
+common_conf['mdn_use_unet_loss'] = False # MDN by default is now without UNet
+common_conf['dl_steps'] = 100000
+common_conf['decay_steps'] = 25000
 common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
-common_conf['normalize_img_mean'] = False
-common_conf['adjust_contrast'] = False
-common_conf['maxckpt'] = 20
+# common_conf['normalize_img_mean'] = False
+# common_conf['adjust_contrast'] = False
+common_conf['maxckpt'] = 200 # Save all models
+common_conf['ignore_occluded'] = False
+common_conf['pretrain_freeze_bnorm'] = True
+common_conf['step_lr'] = True
+common_conf['lr_drop_step'] = 0.15
+common_conf['normalize_loss_batch'] = False
+common_conf['use_scale_factor_range'] = True
+common_conf['predict_occluded'] = False
 
+# These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
 
-def setup(data_type_in,gpu_device=None):
+# for leap
+common_conf['use_leap_preprocessing'] = False
+common_conf['leap_val_size'] = 0.15
+common_conf['leap_preshuffle'] = True
+common_conf['leap_filters'] = 64
+common_conf['leap_val_batches_per_epoch'] = 10
+common_conf['leap_reduce_lr_factor'] = 0.1
+common_conf['leap_reduce_lr_patience'] = 3
+common_conf['leap_reduce_lr_min_delta'] = 1e-5
+common_conf['leap_reduce_lr_cooldown'] = 0
+common_conf['leap_reduce_lr_min_lr'] = 1e-10
+common_conf['leap_amsgrad'] = False
+common_conf['leap_upsampling'] = False
+
+# for deeplabcut.
+common_conf['dlc_intermediate_supervision'] = False
+common_conf['dlc_intermediate_supervision_layer'] = 12
+common_conf['dlc_location_refinement'] = True
+common_conf['dlc_locref_huber_loss'] = True
+common_conf['dlc_locref_loss_weight'] = 0.05
+common_conf['dlc_locref_stdev'] = 7.2801
+common_conf['dlc_use_apt_preprocess'] = True
+
+def setup(data_type_in,gpu_device='0'):
     global lbl_file, op_af_graph, gt_lbl, data_type, nviews, proj_name, trn_flies, cv_info_file, gt_name, \
-        dpk_skel_csv, expname_dict_normaltrain
+        dpk_skel_csv, expname_dict_normaltrain, cache_dir, sdir
+
     data_type = data_type_in
     if gpu_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(gpu_device)
 
     if data_type == 'alice' or data_type=='alice_difficult':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
-        op_graph = []
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403_new_skl_20200817.lbl'
         gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
-        #op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
-        op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
-        groups = ['']
-        dpk_skel_csv = apt_dpk.skeleton_csvs['alice']
+
+        op_af_graph_mk = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        op_af_graph_al = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
+        op_af_graph_kb_orig = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(3,16\),\(4,11\),\(5,6\),\(5,7\),\(5,9\),\(7,8\),\(5,13\),\(8,12\),\(9,10\),\(5,14\),\(10,15\)'
+        op_af_graph = op_af_graph_kb_orig
+
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs['alice']['skel']
 
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
                                     'dpk': 'ntrans5_postrescalefixes',
@@ -112,16 +155,22 @@ def setup(data_type_in,gpu_device=None):
             gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_MDNvsDLC_labeled_alMassaged20190809_stripped.lbl'
             gt_name = '_diff'
     elif data_type == 'stephen':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20200317_compress20200325_stripped20200403.lbl'
+        # lbl_file = 'sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped_newparams_20200409.lbl' # this has data from 1, but params from 2
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updated20200317_stripped_mdn.lbl'
+
+
         gt_lbl = lbl_file
         #op_af_graph = '\(0,2\),\(1,3\),\(1,4\),\(2,4\)'
         # for vw2; who knows vw1
-        op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        # op_af_graph = '\(0,2\),\(1,3\),\(2,4\),\(3,4\),\(2,3\)'
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs[data_type]['skel']
 
         trn_flies = [212, 216, 219, 229, 230, 234, 235, 241, 244, 245, 251, 254, 341, 359, 382, 417, 714, 719]
         trn_flies = trn_flies[::2]
-        common_conf['trange'] = 20
+        # common_conf['trange'] = 20
 
         expname_dict_normaltrain = {'deeplabcut': 'apt_expt',
                                     'dpk': 'expt_n_transition_min5',
@@ -131,36 +180,45 @@ def setup(data_type_in,gpu_device=None):
                                     }
 
     elif data_type == 'roian':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped_newmovielocs.lbl'
-        op_af_graph = '\(0,1\),\(0,2\),\(0,3\)'
-        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
-        common_conf['rrange'] = 180
-        common_conf['trange'] = 5
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped_newmovielocs.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl'
+        # op_af_graph = '\(0,1\),\(0,2\),\(0,3\)'
+        # cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RoianTrainCVInfo20190420.mat'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/roian_xval_20200428.mat'
+        # common_conf['rrange'] = 180
+        # common_conf['trange'] = 5
 
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs[data_type]['skel']
     elif data_type == 'brit0':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
-        op_af_graph = '\(0,4\),\(1,4\),\(2,4\),\(3,4\)'
-        cv_info_file = '/groups/branson/bransonlab/experiments/data//BSTrainCVInfo20190416.mat'
-        common_conf['trange'] = 20
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327_new_skl_20200817.lbl_mdn.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_0.lbl'
+        # op_af_graph = '\(0,4\),\(1,4\),\(2,4\),\(3,4\)'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_1_cv_info_20200408.mat'
+        # common_conf['trange'] = 20
     elif data_type == 'brit1':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl'
-        op_af_graph = '\(\(0,1\),\)'
-        cv_info_file = '/groups/branson/bransonlab/experiments/data/BSTrainCVInfo20190416.mat'
-        common_conf['trange'] = 20
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam1_20209327_compress20200330.lbl_mdn.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_1.lbl'
+        # op_af_graph = '\(\(0,1\),\)'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_2_cv_info_20200408.mat'
+        # common_conf['trange'] = 20
+        # dpk_skel_csv = ade.skeleton_csvs[data_type]
     elif data_type == 'brit2':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
-        op_af_graph = '\(2,0\),\(2,1\)'
-        cv_info_file = '/groups/branson/bransonlab/experiments/data/BSTrainCVInfo20190416.mat'
-        common_conf['trange'] = 20
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam2_20200330_compress20200330_new_skl_20200817.lbl_mdn.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/britton_dlstripped_2.lbl'
+        # op_af_graph = '\(2,0\),\(2,1\)'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/brit_3_cv_info_20200408.mat'
+        # common_conf['trange'] = 20
     elif data_type == 'romain':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped_trn1027.mat'
-        op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14),(12,13),(13,14),(14,18),(18,17),(17,16),(16,15)'
-        op_af_graph = op_af_graph.replace('(','\(')
-        op_af_graph = op_af_graph.replace(')','\)')
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
-        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
-        common_conf['trange'] = 20
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romainTrackNov18_updateDec06_al_portable_mdn60k_openposewking_MKfixedmovies_20200911.lbl_mdn.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/romain_dlstripped_trn1027.mat'
+        # op_af_graph = '(0,6),(6,12),(3,9),(9,15),(1,7),(7,13),(4,10),(10,16),(5,11),(11,17),(2,8),(8,14),(12,13),(13,14),(14,18),(18,17),(17,16),(16,15)'
+        # op_af_graph = op_af_graph.replace('(','\(')
+        # op_af_graph = op_af_graph.replace(')','\)')
+        dpk_skel_csv = ade.skeleton_csvs[data_type]
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20190419.mat'
+        # cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/RomainTrainCVInfo20200107.mat'
+        # common_conf['trange'] = 20
 
         # this is not normaltrain this is cv
         expname_dict_normaltrain = {'deeplabcut': '',
@@ -174,31 +232,37 @@ def setup(data_type_in,gpu_device=None):
                                     }
 
     elif data_type == 'larva':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/larva_dlstripped_20190420.lbl'
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/gtParamMassage20200409/Larva94A04_CM_fixedmovies_20200331_mdn.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/Larva94A04_CM_fixedmovies_20200331.lbl_mdn.lbl'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/LarvaTrainCVInfo20190419.mat'
-        j = tuple(zip(range(27), range(1, 28)))
-        op_af_graph = '{}'.format(j)
-        op_af_graph = op_af_graph.replace('(','\(')
-        op_af_graph = op_af_graph.replace(')','\)')
-        op_af_graph = op_af_graph.replace(' ','')
-        dpk_skel_csv = apt_dpk.skeleton_csvs[data_type]
-        common_conf['trange'] = 20
-        common_conf['rrange'] = 180
+        # j = tuple(zip(range(27), range(1, 28)))
+        # op_af_graph = '{}'.format(j)
+        # op_af_graph = op_af_graph.replace('(','\(')
+        # op_af_graph = op_af_graph.replace(')','\)')
+        # op_af_graph = op_af_graph.replace(' ','')
+        if getpass.getuser() == 'leea30':
+            dpk_skel_csv = ade.dbs[data_type]['skel']
+        # common_conf['trange'] = 20
+        # common_conf['rrange'] = 180
+
+
 
     elif data_type == 'carsen':
         lbl_file = '/groups/branson/bransonlab/apt/experiments/data/carsen_dlstripped_20190501T150134.lbl'
         common_conf['trange'] = 20
-        op_af_graph = '\(\(0,1\),\)'
+        # op_af_graph = '\(\(0,1\),\)'
         cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/CarsenTrainCVInfo20190514.mat'
+
     elif data_type == 'leap_fly':
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped.lbl'
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/leap_dataset_gt_stripped_new_skl_20200820.lbl'
         gt_lbl = lbl_file
-        gg = np.array(((1,2),(1,3),(1,4),(4,5),(5,6),(7,8),(8,9),(9,10),(11,12),(12,13),(13,14),(15,16),(16,17),(17,18),(19,20),(20,21),(21,22),(23,24),(24,25),(25,26),(27,28),(28,29),(29,30),(4,31),(4,32),(4,7),(4,19),(5,11),(5,15),(5,23),(5,27)))
-        gg = gg-1
-        op_af_graph = '{}'.format(gg.tolist())
-        op_af_graph = op_af_graph.replace('[','\(')
-        op_af_graph = op_af_graph.replace(']','\)')
-        op_af_graph = op_af_graph.replace(' ','')
+        # gg = np.array(((1,2),(1,3),(1,4),(4,5),(5,6),(7,8),(8,9),(9,10),(11,12),(12,13),(13,14),(15,16),(16,17),(17,18),(19,20),(20,21),(21,22),(23,24),(24,25),(25,26),(27,28),(28,29),(29,30),(4,31),(4,32),(4,7),(4,19),(5,11),(5,15),(5,23),(5,27)))
+        # gg = gg-1
+        # op_af_graph = '{}'.format(gg.tolist())
+        # op_af_graph = op_af_graph.replace('[','\(')
+        # op_af_graph = op_af_graph.replace(']','\)')
+        # op_af_graph = op_af_graph.replace(' ','')
     else:
         lbl_file = ''
 
@@ -210,10 +274,10 @@ def setup(data_type_in,gpu_device=None):
 def run_jobs(cmd_name,
              cur_cmd,
              redo=False,
-             run_dir='/groups/branson/home/leea30/git/apt.dpk1920/deepnet',
+             run_dir=job_run_dir,
              queue='gpu_any',
              precmd='',
-             logdir=sdir):
+             logdir=sdir,nslots=3):
     logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
     errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 
@@ -236,10 +300,11 @@ def run_jobs(cmd_name,
         subprocess.call(ss_cmd, shell=True)
         print(ss_cmd)
         PoseTools.submit_job(cmd_name, cur_cmd, logdir,
-                             gpu_model=gpu_model,
+                             # gpu_model=gpu_model,
                              run_dir=run_dir,
                              queue=queue,
-                             precmd=precmd)
+                             precmd=precmd,numcores=nslots,
+                             timeout=80*60)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
@@ -250,13 +315,15 @@ def get_tstr(tin):
     else:
         return time.strftime('%m/%d %H:%M',time.localtime(tin))
 
-def get_traindata_file_flexible(cache_dir, run_name):
+def get_traindata_file_flexible(cache_dir, run_name,expname):
     tfile0 = os.path.join(cache_dir, 'traindata')
-    tfile1 = os.path.join(cache_dir, run_name + '_traindata')
-    assert os.path.exists(tfile0) != os.path.exists(tfile1), \
-        'Exactly one traindata file must exist: {} or {}'.format(tfile0, tfile1)
-    tfile = tfile0 if os.path.exists(tfile0) else tfile1
-    return tfile
+    tfile1 = os.path.join(cache_dir, expname + '_' + run_name + '_traindata')
+    tfile2 = os.path.join(cache_dir, run_name + '_traindata')
+    all_f = [tfile0,tfile1,tfile2]
+    a = [ff for ff in all_f if os.path.exists(ff)]
+    assert len(a)==1, 'Exactly one traindata file must exist: {} or {} or {}'.format(tfile0, tfile1, tfile2)
+    return a[0]
+
 
 def get_log_files(logdir, cmd_name_base, ext):
     g = os.path.join(logdir, 'opt_{}_*.{}'.format(cmd_name_base, ext))
@@ -264,7 +331,7 @@ def get_log_files(logdir, cmd_name_base, ext):
     files.sort(key=os.path.getmtime)
     return files
 
-def check_train_status(cmd_name_base, cache_dir, run_name='deepnet'):
+def check_train_status(cmd_name_base, cache_dir, exp_name,run_name='deepnet'):
     logdir = os.path.join(cache_dir, 'log')
     scriptfiles = get_log_files(logdir, cmd_name_base, 'bsub.sh')
     # errfile = os.path.join(logdir, 'opt_' + cmd_name_base + '.err')
@@ -285,7 +352,10 @@ def check_train_status(cmd_name_base, cache_dir, run_name='deepnet'):
     train_dist = -1
     val_dist = -1
 
-    files = glob.glob(os.path.join(cache_dir, "{}-[0-9]*").format(run_name))
+    files1 = glob.glob(os.path.join(cache_dir, "{}-[0-9]*").format(run_name))
+    files2 = glob.glob(os.path.join(cache_dir, "{}_202[0-9][0-9][0-9][0-9][0-9]-[0-9]*").format(run_name))
+    files = files1+files2
+
     files.sort(key=os.path.getmtime)
     files = [f for f in files if os.path.splitext(f)[1] in ['.index','']]
 
@@ -299,7 +369,7 @@ def check_train_status(cmd_name_base, cache_dir, run_name='deepnet'):
             latest_model_iter = -1
         else:
             # if submit_time is nan, assume the latest model is up to date
-            tfile = get_traindata_file_flexible(cache_dir, run_name)
+            tfile = get_traindata_file_flexible(cache_dir, run_name,exp_name)
             A = PoseTools.pickle_load(tfile)
             if type(A) is list:
                 train_dist = A[0]['train_dist'][-1]
@@ -324,8 +394,8 @@ def check_train_status(cmd_name_base, cache_dir, run_name='deepnet'):
     else:
         trntime5kiter = str(datetime.timedelta(seconds=np.round(sec_per_iter*5000)))
 
-    print('{:45s}. nsub: {} submit: {}, latest iter: {:06d} at {}. train:{:.2f} val:{:.2f}. trntime/5kiter:{}'.format(
-        cmd_name_base, nsubmits, get_tstr(submit_time), latest_model_iter, get_tstr(latest_time),
+    print('latest iter: {:06d} at {}, {:45s}. nsub: {} submit: {}. train:{:.2f} val:{:.2f}. trntime/5kiter:{}'.format(
+        latest_model_iter, get_tstr(latest_time), cmd_name_base, nsubmits, get_tstr(submit_time),
         train_dist, val_dist, trntime5kiter))
     return latest_model_iter
 
@@ -357,7 +427,7 @@ def plot_results1(data_in,ylim=None,xlim=None):
         mt = []
         for o in data_in[k]:
             dd = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
-            mm.append(np.percentile(dd, ps, axis=0))
+            mm.append(np.nanpercentile(dd, ps, axis=0))
             mt.append(o[-1])
         if len(mt) == 0:
             continue
@@ -406,7 +476,7 @@ def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     for idx,k in enumerate(data_in.keys()):
         o = data_in[k][-1]
         dd = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
-        mm = np.percentile(dd, ps, axis=0)
+        mm = np.nanpercentile(dd, ps, axis=0)
 
         n = dd.shape[0]
 
@@ -431,6 +501,7 @@ def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
 
 
 def save_mat(out_exp,out_file):
+    out_file += PoseTools.datestr()
     import hdf5storage
     out_arr = {}
     for k in out_exp.keys():
@@ -479,7 +550,85 @@ def conf_opts_dict_to_pvlist(conf_opts):
         assert False, "todo"
 '''
 
-def run_trainining_conf_helper(train_type, view0b, kwargs):
+def run_training_conf_helper_dpk(conf_opts, keywordargs):
+    '''
+    dpk, dpk-style train (or more precisely, *not* apt-style train).
+
+    :param conf_opts: modified in place
+    :param keywordargs: modified in place
+    :return: none
+    '''
+
+    dpk_train_style = keywordargs['dpk_train_style']
+
+    # nepoch = 300  # hardcoded based on observing dpk-style
+    conf_opts['batch_size'] = 16
+    if data_type == 'alice':
+        # ntrn=4232, 300 epochs, 264.5 steps/ep
+        conf_opts['dl_steps'] = 79500
+    elif data_type == 'stephen':
+        # sh: ntrn=4493, 300 epochs, 281 steps/ep
+        conf_opts['dl_steps'] = 84000
+    elif data_type == 'roian':
+        conf_opts['dl_steps'] = 50000
+        conf_opts['batch_size'] = 16
+        conf_opts['rescale'] = 2
+        # rn: ntrn~2500, bsize=16 => 164 spe => 300 epochs =>
+        # patience20=3k iters, patience50=7.5k iters
+        #                bsize=8 => 312 spe
+        #                bsize=4 => 625spe => patience=20 is 12.5k iters
+    elif data_type == 'larva':
+        conf_opts['dl_steps'] = 50000
+        conf_opts['batch_size'] = 16
+        conf_opts['rescale'] = 4
+        # ntrn~433
+        #   bsize=16 => 27 spe => pat20=540 iters, pat50=1350 iters
+        #               50 spe    pat20=1k iters   pat50=2.5k iters
+        #   bsize=4 => 108 spe
+    elif data_type == 'brit1':
+        pass
+        # ntrn~1500, roughly like leapfly
+        # bsize=16 => 94 spe => pat20=1880 iters, pat50=4700 iters
+        # bsize=8 => 190 spe => pat20=3700 iters, pat50=10k iters
+        # bsize=4 => 375 spe => pat20=7500 iters, pat50=18750 iters
+        #conf_opts['dl_steps'] = 50000
+        #conf_opts['batch_size'] = 16
+    elif data_type == 'romain':
+        conf_opts['batch_size'] = 4
+        conf_opts['rescale'] = 2
+        conf_opts['dl_steps'] = 200000
+        # ntrn=421,nval=187=11*17
+        #   bsize=4 => 105 spe => pat20=2k steps
+
+        # leapfly: ntrn~1350. bsize=16=>84 spe. pat20=1680 steps
+    else:
+        assert False
+
+    if dpk_train_style == 'dpk':
+        conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
+        conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
+        keywordargs['dpk_train_style'] = '\\"dpk\\"'  # copied to conf_opts below
+
+    elif dpk_train_style == 'dpktrnonly':
+        # like 'dpk', but LR and ES use trn_loss not val_loss
+        conf_opts['dpk_reduce_lr_style'] = '\\"ipynb\\"'
+        conf_opts['dpk_early_stop_style'] = '\\"ipynb2\\"'
+        keywordargs['dpk_train_style'] = '\\"dpktrnonly\\"'  # copied to conf_opts below
+
+    else:
+        assert False
+    '''
+    if conf_opts['dpk_use_augmenter']:
+        # conf_opts['dpk_augmenter_type'] = xxx
+        assert False, 'Todo'
+    else:
+        # use PT. conf/conf_opts should have PT dataaug stuff properly config'd
+        pass
+    '''
+
+
+
+def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
     '''
     Helper function that takes common_conf and further sets up for particular train_type
 
@@ -490,85 +639,166 @@ def run_trainining_conf_helper(train_type, view0b, kwargs):
 
     conf_opts = common_conf.copy()
     # conf_opts.update(other_conf[conf_id])
-    conf_opts['save_step'] = conf_opts['dl_steps'] // 10
 
-    if data_type in ['brit0', 'brit1', 'brit2']:
-        conf_opts['adjust_contrast'] = True
-        if train_type == 'unet':
-            conf_opts['batch_size'] = 2
-        else:
+    conf_opts['save_step'] = conf_opts['dl_steps'] // 20
+
+    #these are now defaults
+    #if train_type == 'dpk' and 'dpk_train_style' not in kwargs:
+    #    kwargs['dpk_train_style'] = 'apt'
+    #    kwargs['dpk_val_batch_size'] = 0
+
+    if train_type == 'dpk' and kwargs['dpk_train_style'] != 'apt':
+        # 'dpk_orig'
+        run_training_conf_helper_dpk(conf_opts, kwargs)
+
+    elif gpu_queue == 'gpu_rtx':
+
+        if train_type == 'dpk':
+            conf_opts['dpk_reduce_lr_style'] = '\\"__UNUSED__\\"'
+            conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
+            kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
+
+            # We are going to punt on lrmult for dpk, see slack discuss. Note the
+            # keras handling of loss differs from PoseBase. Typically the LR linear
+            # scaling rule would reduce the LR and 1e-4 is already 10x smaller than
+            # the 'default' dpk factory base LR.
+            conf_opts['dpk_base_lr_used'] = 0.0001
+
+            ''' this was older apt-sty
+            conf_opts['dpk_base_lr_used'] = 0.001
+            conf_opts['gamma'] = 0.2  # matches decay const dpk-style
+            conf_opts['decay_steps'] = 25000
+            '''
+
+        if data_type in ['brit0', 'brit1', 'brit2']:
+            if train_type in ['unet','openpose']:
+                conf_opts['batch_size'] = 2
+            else:
+                conf_opts['batch_size'] = 4
+
+        if data_type in ['roian']:
+            # fix at bs=4,rs=1 maybe have to run on tesla
+            if train_type in ['dpk', 'openpose', 'sb','mdn_unet','resnet_unet','unet','mdn_joint_fpn']:
+                conf_opts['batch_size'] = 4
+                conf_opts['rescale'] = 2
+            elif train_type in ['mdn','deeplabcut','leap']:
+                conf_opts['batch_size'] = 4
+
+        if data_type in ['romain']:
+            if train_type in ['mdn_unet']:
+                conf_opts['batch_size'] = 2
+            elif train_type in ['resnet_unet']:
+                conf_opts['batch_sze'] = 2
+            elif train_type in ['unet']:
+                conf_opts['batch_size'] = 2
+                conf_opts['rescale'] = 2
+            elif train_type in ['sb', 'dpk', 'openpose', 'leap']:
+                # added leap random guess, otherwise OOM
+                conf_opts['rescale'] = 2
+                conf_opts['batch_size'] = 4
+            else:
+                conf_opts['batch_size'] = 4
+
+        if data_type in ['larva']:
+            conf_opts['batch_size'] = 4
+            # conf_opts['adjust_contrast'] = True
+            # conf_opts['clahe_grid_size'] = 20
+
+            if train_type in ['openpose']:
+                conf_opts['op_backbone'] = '\\"vgg\\"'
+                conf_opts['batch_size'] = 2
+                conf_opts['op_hires'] = True
+                conf_opts['op_hires_ndeconv'] = 1
+                #conf_opts['rescale'] = 1
+                #conf_opts['batch_size'] = 4
+
+            if train_type in ['sb', 'dpk']:
+                conf_opts['rescale'] = 4
+                conf_opts['batch_size'] = 4
+            if train_type in ['unet', 'resnet_unet']:
+                conf_opts['rescale'] = 4
+                conf_opts['batch_size'] = 4
+            if train_type in ['mdn_unet','leap','mdn_joint_fpn']:
+                conf_opts['batch_size'] = 4
+                conf_opts['rescale'] = 2
+
+        if data_type == 'stephen':
             conf_opts['batch_size'] = 4
 
-    if data_type in ['roian']:
-        if train_type in ['dpk', 'openpose', 'sb']:
+        if data_type == 'carsen':
+            if train_type in [ 'unet', 'resnet_unet']:
+                conf_opts['rescale'] = 2.
+            elif train_type in ['mdn_unet']:
+                conf_opts['rescale'] = 2.
+            else:
+                conf_opts['rescale'] = 1.
+            if train_type in ['unet']:
+                conf_opts['batch_size'] = 4
+            else:
+                conf_opts['batch_size'] = 8
+
+    elif gpu_queue in ['gpu_tesla','gpu_tesla_large']:
+
+        if train_type == 'dpk':
+            conf_opts['dpk_reduce_lr_style'] = '\\"__UNUSED__\\"'
+            conf_opts['dpk_early_stop_style'] = '\\"__UNUSED__\\"'
+            kwargs['dpk_train_style'] = '\\"apt\\"'  # copied to conf_opts below
+
+            # We are going to punt on lrmult for dpk, see slack discuss. Note the
+            # keras handling of loss differs from PoseBase. Typically the LR linear
+            # scaling rule would reduce the LR and 1e-4 is already 10x smaller than
+            # the 'default' dpk factory base LR.
+            conf_opts['dpk_base_lr_used'] = 0.0001
+
+        if data_type in ['romain']:
+            conf_opts['batch_size'] = 4
+        if data_type in ['larva']:
             conf_opts['batch_size'] = 4
             conf_opts['rescale'] = 2
-
-    if data_type in ['romain']:
-        if train_type in ['mdn', 'resnet_unet']:
-            conf_opts['batch_size'] = 2
-        elif train_type in ['unet']:
-            conf_opts['batch_size'] = 2
-            conf_opts['rescale'] = 2
-        elif train_type in ['sb', 'dpk', 'openpose', 'leap']:
-            # added leap random guess, otherwise OOM
-            conf_opts['rescale'] = 2
+        if data_type in ['roian']:
             conf_opts['batch_size'] = 4
-        else:
-            conf_opts['batch_size'] = 4
+            # if train_type in ['resnet_unet','unet']:
+            #     conf_opts['batch_size'] = 4
 
-    if data_type in ['larva']:
-        conf_opts['batch_size'] = 4
-        conf_opts['adjust_contrast'] = True
-        conf_opts['clahe_grid_size'] = 20
-
-        if train_type in ['openpose']:
-            conf_opts['op_backbone'] = '\\"vgg\\"'
-            conf_opts['batch_size'] = 2
-            conf_opts['op_hires'] = True
-            conf_opts['op_hires_ndeconv'] = 1
-            #conf_opts['rescale'] = 1
-            #conf_opts['batch_size'] = 4
-
-        if train_type in ['sb', 'dpk']:
-            conf_opts['rescale'] = 4
-            conf_opts['batch_size'] = 4
-        if train_type in ['unet', 'resnet_unet', 'leap']:
-            conf_opts['rescale'] = 2
-            conf_opts['batch_size'] = 2
-        if train_type in ['mdn']:
-            conf_opts['batch_size'] = 4
-            conf_opts['rescale'] = 2
-            conf_opts['mdn_use_unet_loss'] = True
-            conf_opts['mdn_learning_rate'] = 0.0001
-
-    if data_type == 'stephen':
-        conf_opts['batch_size'] = 4
-
-    if data_type == 'carsen':
-        if train_type in ['mdn', 'unet', 'resnet_unet']:
-            conf_opts['rescale'] = 2.
-        else:
-            conf_opts['rescale'] = 1.
-        conf_opts['adjust_contrast'] = True
-        conf_opts['clahe_grid_size'] = 20
-        if train_type in ['unet']:
-            conf_opts['batch_size'] = 4
-        else:
-            conf_opts['batch_size'] = 8
-
-    if op_af_graph is not None:
-        conf_opts['op_affinity_graph'] = op_af_graph
+    # if op_af_graph is not None:
+    #     conf_opts['op_affinity_graph'] = op_af_graph
 
     if dpk_skel_csv is not None:
         conf_opts['dpk_skel_csv'] = '\\"' + dpk_skel_csv[view0b] + '\\"'
 
+    # Use exp decay for unet and resnet_unet
+    if train_type in ['unet','resnet_unet']:
+        conf_opts['step_lr'] = False
+
+    if train_type in ['unet']:
+        conf_opts['learning_rate_multiplier'] =  3.
+
+    if op_af_graph is not None:
+        conf_opts['op_affinity_graph'] = op_af_graph
+
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
 
+    return set_training_params(conf_opts,train_type)
+
+
+def set_training_params(conf_opts,train_type='mdn'):
+    if train_type == 'dpk' and conf_opts['dpk_train_style'] != '\\"apt\\"':
+        return conf_opts
+
+    bsz = conf_opts['batch_size']
+    default_bsz = 8
+    conf_opts['dl_steps'] = common_conf['dl_steps']*default_bsz//bsz
+    conf_opts['decay_steps'] = conf_opts['dl_steps']//2
+    # conf_opts['decay_steps'] = common_conf['decay_steps']*default_bsz//bsz
+    # conf_opts['learning_rate_multiplier'] = bsz/float(default_bsz)
+    if train_type == 'deeplabcut':
+        conf_opts['dl_steps'] = None
+        conf_opts['save_step'] = 8*conf_opts['save_step']
     return conf_opts
 
-def cp_exp_bare(src_exp_dir, dst_exp_dir):
+
+def cp_exp_bare(src_exp_dir, dst_exp_dir, usesymlinks=True):
     '''
     Copy training dbs etc from existing expdir to new empty expdir
     :param src_exp_dir existing expdir
@@ -576,8 +806,13 @@ def cp_exp_bare(src_exp_dir, dst_exp_dir):
     :return:
     '''
 
+    if usesymlinks:
+        assert os.path.dirname(src_exp_dir) == os.path.dirname(dst_exp_dir), \
+            "src and dst expdirs must be located in same parent dir"
+        src_exp_dir_base = os.path.basename(src_exp_dir)
+
     if not os.path.exists(dst_exp_dir):
-        os.mkdir(dst_exp_dir)
+        os.makedirs(dst_exp_dir)
         print("Created dir {}",format(dst_exp_dir))
 
     GLOBSPECS = ['*.tfrecords', 'splitdata.json']
@@ -587,19 +822,51 @@ def cp_exp_bare(src_exp_dir, dst_exp_dir):
         for src in globres:
             fileshort = os.path.basename(src)
             dst = os.path.join(dst_exp_dir, fileshort)
-            shutil.copyfile(src, dst)
-            print("Copied {}->{}".format(src, dst))
+            if usesymlinks:
+                srcrel = os.path.join('..',src_exp_dir_base,fileshort)
+                os.symlink(srcrel, dst)
+                print("Symlinked {}->{}".format(dst, srcrel))
+            else:
+                shutil.copyfile(src, dst)
+                print("Copied {}->{}".format(src, dst))
+
 
 def run_trainining(exp_name,train_type,view,run_type,
                    train_name='deepnet',
                    cp_from_existing_exp=None,  # short expname same dir as exp_name
                    exp_note='',
-                   queue='gpu_any',
+                   queue='gpu_rtx',
+                   dstr=PoseTools.datestr(),
+                   nslots=None,
                    **kwargs
                    ):
 
+    if run_type == 'submit':
+        time.sleep(25) # five second time to figure out if I really wanted to submit the job
+    gpu_str = '_tesla' if queue in ['gpu_tesla','gpu_tesla_large'] else ''
+    train_name_dstr = train_name + gpu_str + '_' + dstr
     precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts = \
-        apt_train_cmd(exp_name, train_type, view, train_name, **kwargs)
+        apt_train_cmd(exp_name, train_type, view, train_name_dstr, queue, **kwargs)
+    if nslots is None:
+        if queue in ['gpu_tesla_large']:
+            if train_type == 'leap':
+                nslots = 5
+            elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn','mdn_unet']:
+                nslots = 4
+            else:
+                nslots = 2
+        elif queue in ['gpu_tesla']:
+            if train_type == 'leap':
+                nslots = 6
+            else:
+                nslots = 4
+        else:
+            if train_type == 'leap':
+                nslots = 10
+            elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn']:
+                nslots = 7
+            else:
+                nslots = 4
 
     if run_type == 'dry':
         print(cmd_name)
@@ -640,7 +907,7 @@ def run_trainining(exp_name,train_type,view,run_type,
 
         print(cur_cmd)
         print()
-        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir, queue=queue)
+        run_jobs(cmd_name, cur_cmd, precmd=precmd, logdir=explog_dir, queue=queue,nslots=nslots)
     elif run_type == 'status':
         #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         #time0 = time.process_time()
@@ -649,16 +916,16 @@ def run_trainining(exp_name,train_type,view,run_type,
         #print("create_conf time is {}".format(time1 - time0))
 
         #time0 = time.process_time()
-        check_train_status(cmd_name_base, conf.cachedir)
+        check_train_status(cmd_name_base, conf.cachedir,conf.expname,train_name_dstr)
         #time1 = time.process_time()
         #print("check train status time is {}".format(time1 - time0))
 
-def apt_train_cmd(exp_name, train_type, view, train_name, **kwargs):
+def apt_train_cmd(exp_name, train_type, view, train_name, queue, **kwargs):
 
     common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
     end_cmd = 'train -skip_db -use_cache'
 
-    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)  # this is copied from common_conf
+    conf_opts = run_trainining_conf_helper(train_type, view, queue, kwargs)  # this is copied from common_conf
     conf_str = apt.conf_opts_dict2pvargstr(conf_opts)
 
     cmd_opts = {}
@@ -677,7 +944,7 @@ def apt_train_cmd(exp_name, train_type, view, train_name, **kwargs):
 
     return precmd, cur_cmd, cmd_name, cmd_name_base, conf_opts
 
-def create_conf_help(train_type, view, exp_name, quiet=False, **kwargs):
+def create_conf_help(train_type, view, exp_name, queue='gpu_rtx', quiet=False, **kwargs):
     '''
     Call apt.create_conf after customizing the conf for the given train_type/view/kwargs.
     :param train_type:
@@ -686,7 +953,7 @@ def create_conf_help(train_type, view, exp_name, quiet=False, **kwargs):
     :param kwargs:
     :return:
     '''
-    conf_opts = run_trainining_conf_helper(train_type, view, kwargs)
+    conf_opts = run_trainining_conf_helper(train_type, view, queue,kwargs)
     pvlist = apt.conf_opts_dict2pvargstr(conf_opts)
     pvlist = apt.conf_opts_pvargstr2list(pvlist)
     #time0 = time.process_time()
@@ -714,7 +981,6 @@ def get_apt_conf(**kwargs):
     return res
 
 
-
 def create_normal_dbs():
     exp_name = 'apt_expt'
     # assert gt_lbl is not None
@@ -722,9 +988,9 @@ def create_normal_dbs():
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
             conf = create_conf_help(train_type, view, exp_name)
-            if train_type == 'deeplabcut':
+            if 'deeplabcut' in train_type:
                 apt.create_deepcut_db(conf,split=False,use_cache=True)
-            elif train_type == 'leap':
+            elif 'leap' in train_type:
                 apt.create_leap_db(conf,split=False,use_cache=True)
             else:
                 apt.create_tfrecord(conf,split=False,use_cache=True)
@@ -734,22 +1000,22 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                       exp_name_pfix='',  # prefix for exp_name
                       split_idxs=None,  # optional list of split indices to run (0-based)
                       view_idxs=None,  # optional list of view indices to run (0-based)
-                      queue='gpu_any',
+                      queue='gpu_rtx',
                       **kwargs):
-    assert data_type in ['romain','larva','roian','carsen']
+    assert data_type in ['romain','larva','roian','carsen','brit0','brit1','brit2']
 
     data_info = h5py.File(cv_info_file, 'r')
-    cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
+    cv_info = apt.to_py(np.squeeze(data_info['cvi']).astype('int'))
     n_splits = max(cv_info) + 1
     conf = apt.create_conf(lbl_file,0,'cv_dummy',cache_dir,'mdn')
     lbl_movies, _ = multiResData.find_local_dirs(conf)
     in_movies = [PoseTools.read_h5_str(data_info[k]) for k in data_info['movies'][0,:]]
     assert lbl_movies == in_movies or data_type in ['romain','roian']
     label_info = get_label_info(conf)
-    fr_info = apt.to_py(data_info['frame'].value[:,0].astype('int'))
-    m_info = apt.to_py(data_info['movieidx'].value[:,0].astype('int'))
+    fr_info = apt.to_py(np.squeeze(data_info['frame']).astype('int'))
+    m_info = apt.to_py(np.squeeze(data_info['movieidx']).astype('int'))
     if 'target' in data_info.keys():
-        t_info = apt.to_py(data_info['target'].value[:,0].astype('int'))
+        t_info = apt.to_py(np.squeeze(data_info['target']).astype('int'))
         in_info = [(a,b,c) for a,b,c in zip(m_info,fr_info,t_info)]
     else:
         in_info = [(a,b,0) for a,b in zip(m_info,fr_info)]
@@ -791,9 +1057,9 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                     conf = create_conf_help(train_type, view, exp_name, **kwargs)
                     #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                     conf.splitType = 'predefined'
-                    if train_type == 'deeplabcut':
+                    if 'deeplabcut' in train_type:
                         apt.create_deepcut_db(conf, split=True, split_file=split_file, use_cache=True)
-                    elif train_type == 'leap':
+                    elif 'leap' in train_type:
                         apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
                     else:
                         apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
@@ -850,39 +1116,23 @@ def cv_train_backup(run_id, dryrun=False, exp_name_pfix=''):
 
 
 
-def cv_train_britton(skip_db=True, run_type='status',create_splits=False):
+def cv_train_britton(skip_db=True, run_type='status'):
+    assert False, 'Use cv from mat'
     assert data_type[:4] == 'brit'
     britnum = int(data_type[4])
-    data_info = h5py.File(cv_info_file, 'r')
-    cv_info = apt.to_py(data_info[data_info['cvidx'][britnum,0]].value[:,0].astype('int'))
-    n_splits = max(cv_info) + 1
-
-    conf = apt.create_conf(lbl_file,0,'cv_dummy',cache_dir,'mdn')
-    lbl_movies, _ = multiResData.find_local_dirs(conf)
-    mov_ptr = data_info[data_info['trnmovies'][britnum,0]][0,:]
-    in_movies = [PoseTools.read_h5_str(data_info[k]) for k in mov_ptr]
-    assert lbl_movies == in_movies
-    label_info = get_label_info(conf)
-    for sndx in range(max(cv_info)+1):
-        val_info = [l for ndx,l in enumerate(label_info) if cv_info[l[0]]==sndx]
-        trn_info = list(set(label_info)-set(val_info))
-        cur_split = [trn_info,val_info]
+    n_splits = 3
+    for sndx in range(n_splits):
         exp_name = 'cv_split_{}'.format(sndx)
         split_file = os.path.join(cache_dir,proj_name,exp_name) + '.json'
-        if not skip_db and create_splits:
-            assert not os.path.exists(split_file)
-            with open(split_file,'w') as f:
-                json.dump(cur_split,f)
-
         # create the dbs
         if not skip_db:
             for view in range(nviews):
                 for train_type in all_models:
                     conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                     conf.splitType = 'predefined'
-                    if train_type == 'deeplabcut':
+                    if 'deeplabcut' in train_type:
                         apt.create_deepcut_db(conf, split=True, split_file=split_file, use_cache=True)
-                    elif train_type == 'leap':
+                    elif 'leap' in train_type:
                         apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
                     else:
                         apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
@@ -911,9 +1161,9 @@ def create_cv_dbs():
                 cur_split_file = os.path.join(common_conf.cachedir, 'cv_split_fold_{}.json'.format(split))
                 conf = apt.create_conf(lbl_file, view, 'cv_split_{}'.format(split), cache_dir, train_type)
                 conf.splitType = 'predefined'
-                if train_type == 'deeplabcut':
+                if 'deeplabcut' in train_type:
                     apt.create_deepcut_db(conf,split=True,use_cache=True,split_file=cur_split_file)
-                elif train_type == 'leap':
+                elif 'leap' in train_type:
                     apt.create_leap_db(conf,split=True,use_cache=True,split_file=cur_split_file)
                 else:
                     apt.create_tfrecord(conf,split=True,use_cache=True,split_file=cur_split_file)
@@ -961,7 +1211,7 @@ def create_incremental_dbs(do_split=False):
                 #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                 conf = create_conf_help(train_type, view, exp_name)
                 mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
-                split_file= os.path.join(mdn_conf.cachedir,'splitinfo.json')
+                split_file= os.path.join(mdn_conf.cachedir,'randsplitinfo.json')
                 if do_split and not os.path.exists(split_file):
                     def convert(o):
                         if isinstance(o, np.int64): return int(o)
@@ -971,9 +1221,9 @@ def create_incremental_dbs(do_split=False):
                         print("Wrote split file {}".format(split_file))
 
                 conf.splitType = 'predefined'
-                if train_type == 'deeplabcut':
+                if 'deeplabcut' in train_type:
                     apt.create_deepcut_db(conf, split=True, split_file=split_file,use_cache=True)
-                elif train_type == 'leap':
+                elif 'leap' in train_type:
                     apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
                 else:
                     apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
@@ -1087,14 +1337,14 @@ def create_individual_animal_db_alice():
     envs[1].close()
 
 
-def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
-
+def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status',dstr=PoseTools.datestr()):
+    # assert False, 'This should be run from run_apt_expts'
     info_file = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190416.mat'
 
     data_info = h5py.File(info_file,'r')
     assert data_type == 'stephen'
     assert trn_flies is not None
-    train_type = 'mdn'
+    train_type = 'mdn_joint_fpn' #'mdn'
     n_sel = 50
 
     conf = apt.create_conf(lbl_file,0,'dummy',cache_dir,train_type)
@@ -1127,7 +1377,7 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
             conf.splitType = 'predefined'
             if not skip_db:
                 apt.create_tfrecord(conf, split=True, split_file=cur_split_file, use_cache=True)
-            run_trainining(exp_name,train_type,view,run_type)
+            run_trainining(exp_name,train_type,view,run_type,dstr=dstr)
 
     # one experiment with random labels
     sel_train = random.sample(label_info,n_sel)
@@ -1148,8 +1398,12 @@ def create_run_individual_animal_dbs_stephen(skip_db = True, run_type='status'):
         conf.splitType = 'predefined'
         if not skip_db:
             apt.create_tfrecord(conf, split=True, split_file=cur_split_file, use_cache=True)
-        run_trainining(exp_name,train_type,view,run_type)
+        run_trainining(exp_name,train_type,view,run_type,dstr=dstr)
 
+
+
+
+##   ----------- TRAINING  -----------------
 
 
 def run_normal_training(expname = 'apt_expt',
@@ -1157,9 +1411,7 @@ def run_normal_training(expname = 'apt_expt',
                         **kwargs
                         ):
 
-    common_conf['dl_steps'] = 50000
-    common_conf['maxckpt'] = 20
-    common_conf['save_time'] = 20 # save every 20 min
+    kwargs['save_time'] = 20 # save every 20 min
 
     results = {}
     for train_type in all_models:
@@ -1169,9 +1421,9 @@ def run_normal_training(expname = 'apt_expt',
 
     return results
 
-## CV Training ---- TRAINING ----
 
 def run_cv_training(run_type='status'):
+    assert False, 'This should not be used anymore'
 
     common_conf = {}
     common_conf['dl_steps'] = 40000
@@ -1357,6 +1609,23 @@ def train_leap_orig(run_type='status',skip_db=True):
                 check_train_status(cmd_name,conf.cachedir,'asflk')
 
 
+def train_dpk_orig(expname='dpkorig',
+                   run_type='status',
+                   exp_note='DPK_origstyle',
+                   dpk_train_style='dpk',  # or 'apt'
+                   **kwargs
+                   ):
+    global all_models
+    all_models = ['dpk']
+    run_normal_training(expname=expname,
+                        run_type=run_type,
+                        exp_note=exp_note,
+                        dpk_train_style=dpk_train_style, #dpk_use_augmenter=0,
+                        **kwargs
+                        )
+
+
+
 def train_no_pretrained(run_type='status'):
     train_type = 'mdn'
 
@@ -1367,6 +1636,7 @@ def train_no_pretrained(run_type='status'):
         for round in range(8):
             exp_name = '{}_randsplit_round_{}'.format(data_type, round)
             run_trainining(exp_name,train_type,view,run_type,train_name='no_pretrained',use_pretrained_weights=False,dl_steps=100000,maxckpt=30,save_step=5000)
+
 
 def run_mdn_no_unet(run_type = 'status'):
 
@@ -1476,37 +1746,44 @@ def create_gt_db():
 
 def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_name
                        train_name='deepnet',
+                       use_exp_name_save_file=False,  # if True, include exp_name in savefiles
                        gt_name_use_output=None,  # if supplied, use instead of gt_name
                        last_model_only=False,
                        classify_fcn='classify_db2',
                        classify_return_ims=False,
+                       queue='gpu_rtx',
+                       dstr = PoseTools.datestr(),
+                       force_recomp = False,
                        **kwargs):
-## Normal Training  ------- RESULTS -------
-    # cache_dir = '/nrs/branson/al/cache'
-
 
     if gt_name_use_output is None:
         gt_name_use_output = gt_name
 
     all_view = []
+    gpu_str = '_tesla' if queue == 'gpu_tesla' else ''
+    dstr = '_' + dstr if dstr else ''
+    train_name_dstr = train_name + gpu_str + dstr
 
     for view in range(nviews):
         out_exp = {}
 
         gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}{}.tfrecords'.format(view,gt_name))
-        for train_type in all_models:
 
+        for train_type in all_models:
             exp_name_use = exp_name[train_type] if isinstance(exp_name, dict) else exp_name
             conf = create_conf_help(train_type, view, exp_name_use, **kwargs)
-
+            conf.batch_size = 1
             # compare conf to conf on disk
             cffile = os.path.join(conf.cachedir, 'conf.pickle')
             if os.path.exists(cffile):
                 with open(cffile, 'rb') as fh:
                     conf0 = pickle.load(fh,encoding='latin1')
                 conf0 = conf0['conf']
+            elif train_type == 'deeplabcut_orig':
+                conf0 = conf
             else:
-                cffile = os.path.join(conf.cachedir, 'traindata')
+                # cffile = os.path.join(conf.cachedir, 'traindata')
+                cffile = get_traindata_file_flexible(conf.cachedir, train_name_dstr, conf.expname)
                 assert os.path.exists(cffile), "Cant find conf on disk"
                 with open(cffile, 'rb') as fh:
                     conf0 = pickle.load(fh,encoding='latin1')
@@ -1517,48 +1794,16 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
 
             assert not conf.normalize_img_mean
 
-            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-            files.sort(key=os.path.getmtime)
-            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
-            aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
-            if any([a<0 for a in aa]):
-                bb = int(np.where(np.array(aa)<0)[0])+1
-                files = files[bb:]
-            # n_max = 10
-            # if len(files)> n_max:
-            #     gg = len(files)
-            #     sel = np.linspace(0,len(files)-1,n_max).astype('int')
-            #     files = [files[s] for s in sel]
-
+            files = get_model_files(conf,train_name_dstr,1000,net=train_type)
             print('view {}, net {}. Your models are:'.format(view, train_type))
             print(files)
 
-            out_file = os.path.join(conf.cachedir, train_name + '_results{}.p'.format(gt_name_use_output))
-            recomp = False
-            if os.path.exists(out_file):
-                fts = [os.path.getmtime(f) for f in files]
-                ots = os.path.getmtime(out_file)
-                if any([f > ots for f in fts]):
-                    recomp = True
-                else:
-                    A = PoseTools.pickle_load(out_file)
-                    old_files = A[1]
-                    if not all([i==j for i,j in zip(files,old_files)]):
-                        recomp = True
-            else:
-                recomp = True
-
-            # recomp = False
-
+            out_file = os.path.join(conf.cachedir, train_name_dstr + '_results{}.p'.format(gt_name_use_output))
+            recomp = do_recompute(out_file,files) or force_recomp
             if recomp:
-                afiles = [f.replace('.index', '') for f in files]
                 if last_model_only:
-                    afiles = afiles[-1:]
-                mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,
-                                                    name=train_name,
-                                                    classify_fcn=classify_fcn,
-                                                    return_ims=classify_return_ims)
+                    files = files[-1:]
+                mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type, name=train_name_dstr, classify_fcn=classify_fcn, return_ims=classify_return_ims,ignore_hmaps=True)
                 with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,files],f)
                 print("Wrote {}".format(out_file))
@@ -1569,16 +1814,17 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
 
             out_exp[train_type] = mdn_out
 
-        H = multiResData.read_and_decode_without_session(gt_file, conf)
-        ex_im = np.array(H[0][0])[:, :, 0]
-        ex_loc = np.array(H[1][0])
+        ex_im, ex_loc = decode_db(gt_file,conf)
         all_view.append([out_exp,ex_im,ex_loc])
 
     for ndx,out_exp in enumerate(all_view):
         plot_results(out_exp[0])
-        plot_hist(out_exp)
+        plot_hist(out_exp,ps=[75,90,95,97])
 
-        save_file = os.path.join(cache_dir,'{}_view{}_time{}'.format(data_type, ndx, gt_name_use_output))
+        save_file = os.path.join(results_dir, '{}_{}_{}_view{}_time{}'.format(data_type, exp_name, train_name_dstr, ndx, gt_name_use_output)) \
+            if use_exp_name_save_file \
+            else os.path.join(results_dir, '{}_{}_view{}_time{}'.format(data_type, train_name_dstr, ndx, gt_name_use_output))
+
         save_filep = save_file+".p"
         with open(save_filep, 'wb') as f:
             pickle.dump(out_exp[0], f)
@@ -1673,6 +1919,7 @@ def get_normal_pred_speeds(exp_name='apt_expt',  # can be dict of train_type->ex
 
     return times_dict, batch_sizes
 
+
 def save_pred_speed_output_to_mat(dt, bsizes, matfile):
     dtsave = {}
     for net in dt:
@@ -1691,7 +1938,6 @@ def save_pred_speed_output_to_mat(dt, bsizes, matfile):
 
     hdf5storage.savemat(matfile, dtsave)
     print("Saved {}".format(matfile))
-
 
 
 def get_mdn_no_unet_results():
@@ -1713,47 +1959,19 @@ def get_mdn_no_unet_results():
             if op_af_graph is not None:
                 conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
             conf.normalize_img_mean = False
-            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-            files.sort(key=os.path.getmtime)
-            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
-            aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
-            if any([a<0 for a in aa]):
-                bb = int(np.where(np.array(aa)<0)[0])+1
-                files = files[bb:]
-            n_max = 10
-            if len(files)> n_max:
-                gg = len(files)
-                sel = np.linspace(0,len(files)-1,n_max).astype('int')
-                files = [files[s] for s in sel]
 
-
+            files = get_model_files(conf,train_name,1000)
             out_file = os.path.join(conf.cachedir,'{}_no_unet_results.p'.format(train_name))
-            recomp = False
-            if os.path.exists(out_file):
-                fts = [os.path.getmtime(f) for f in files]
-                ots = os.path.getmtime(out_file)
-                if any([f > ots for f in fts]):
-                    recomp = True
-                else:
-                    A = PoseTools.pickle_load(out_file)
-                    old_files = A[1]
-                    if not all([i==j for i,j in zip(files,old_files)]):
-                        recomp = True
-            else:
-                recomp = True
-
-            # recomp = False
+            recomp = do_recompute(out_file,files)
 
             if recomp:
-                afiles = [f.replace('.index', '') for f in files]
                 if train_name == 'deepnet':
                     td_file = os.path.join(conf.cachedir,'traindata')
                 else:
                     td_file = os.path.join(conf.cachedir,conf.expname + '_' + train_name + '_traindata')
                 td = PoseTools.pickle_load(td_file)
                 cur_conf = td[1]
-                mdn_out = apt_expts.classify_db_all(cur_conf,gt_file,afiles,train_type,name=train_name)
+                mdn_out = apt_expts.classify_db_all(cur_conf,gt_file,files,train_type,name=train_name)
                 with open(out_file,'w') as f:
                     pickle.dump([mdn_out,files],f)
             else:
@@ -1762,15 +1980,14 @@ def get_mdn_no_unet_results():
 
             out_exp[train_name] = mdn_out
 
-        H = multiResData.read_and_decode_without_session(gt_file, conf)
-        ex_im = np.array(H[0][0])[:, :, 0]
-        ex_loc = np.array(H[1][0])
+        ex_im, ex_loc = decode_db(gt_file,conf)
         all_view.append([out_exp,ex_im,ex_loc])
 
     for ndx,out_exp in enumerate(all_view):
         plot_results(out_exp[0])
         plot_hist(out_exp)
         save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_no_unet{}'.format(data_type,ndx,gt_name)))
+
 
 ## DLC AUG vs no aug --- RESULTS -----
 
@@ -1793,38 +2010,16 @@ def get_dlc_results(redo=False):
             conf.normalize_img_mean = False
             if op_af_graph is not None:
                 conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-            files.sort(key=os.path.getmtime)
-            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
-            aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
-            if any([a < 0 for a in aa]):
-                bb = int(np.where(np.array(aa) < 0)[0]) + 1
-                files = files[bb:]
-
+            files = get_model_files(conf,train_name,1000)
             files = files[-1:]
             out_file = os.path.join(conf.cachedir,train_name + '_results.p')
-            recomp = False
-            if os.path.exists(out_file):
-                fts = [os.path.getmtime(f) for f in files]
-                ots = os.path.getmtime(out_file)
-                if any([f > ots for f in fts]):
-                    recomp = True
-                else:
-                    A = PoseTools.pickle_load(out_file)
-                    old_files = A[1]
-                    if not all([i==j for i,j in zip(files,old_files)]):
-                        recomp = True
-            else:
-                recomp = True
-
             if redo:
                 recomp = True
+            else:
+                recomp = do_recompute(out_file, files)
 
             if recomp:
-                afiles = [f.replace('.index', '') for f in files]
-#                tdata = PoseTools.pickle_load()
-                mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
+                mdn_out = apt_expts.classify_db_all(conf,gt_file, files,train_type,name=train_name)
                 with open(out_file,'w') as f:
                     pickle.dump([mdn_out,files],f)
             else:
@@ -1832,9 +2027,8 @@ def get_dlc_results(redo=False):
                 mdn_out = A[0]
 
             dlc_exp[train_name] = mdn_out
-        H = multiResData.read_and_decode_without_session(gt_file, conf)
-        ex_im = np.array(H[0][0])[:, :, 0]
-        ex_loc = np.array(H[1][0])
+
+        ex_im,ex_loc = decode_db(gt_file,conf)
         all_view.append([dlc_exp,ex_im,ex_loc])
         # all_view.append(dlc_exp)
 
@@ -1859,14 +2053,7 @@ def get_leap_results():
             exp_name += '_orig'
             train_name='weights'
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-            files.sort(key=os.path.getmtime)
-            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '','.h5']]
-            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
-            aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
-            if any([a < 0 for a in aa]):
-                bb = int(np.where(np.array(aa) < 0)[0][-1]) + 1
-                files = files[bb:]
+            files = get_model_files(conf,train_name,1000)
             ts = [os.path.getmtime(f) for f in files]
             tmax = ts[-1]-ts[0]
 
@@ -1878,34 +2065,14 @@ def get_leap_results():
                 conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                 if op_af_graph is not None:
                     conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-                files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-                files.sort(key=os.path.getmtime)
-                files = [f for f in files if os.path.splitext(f)[1] in ['.index', '','.h5']]
-                aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
-                aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
-                if any([a < 0 for a in aa]):
-                    bb = int(np.where(np.array(aa) < 0)[0][-1]) + 1
-                    files = files[bb:]
-
+                files = get_model_files(conf,train_name,1000)
                 tt = [os.path.getmtime(f) for f in files]
                 td = np.array([t-tt[0] for t in tt])
                 t_closest = np.argmin(np.abs(td-tmax))
                 files = [files[0],files[t_closest]]
 
                 out_file = os.path.join(conf.cachedir,train_name + '_results.p')
-                recomp = False
-                if os.path.exists(out_file):
-                    fts = [os.path.getmtime(f) for f in files]
-                    ots = os.path.getmtime(out_file)
-                    if any([f > ots for f in fts]):
-                        recomp = True
-                    else:
-                        A = PoseTools.pickle_load(out_file)
-                        old_files = A[1]
-                        if len(files) != len(old_files) or not all([i==j for i,j in zip(files,old_files)]):
-                            recomp = True
-                else:
-                    recomp = True
+                recomp = do_recompute(out_file,files)
 
                 if recomp:
                     afiles = [f.replace('.index', '') for f in files]
@@ -1917,9 +2084,7 @@ def get_leap_results():
                     mdn_out = A[0]
 
                 dlc_exp[train_name] = mdn_out
-            H = multiResData.read_and_decode_without_session(gt_file, conf)
-            ex_im = np.array(H[0][0])[:, :, 0]
-            ex_loc = np.array(H[1][0])
+            ex_im,ex_loc = decode_db(gt_file,conf)
             all_view.append([dlc_exp,ex_im,ex_loc])
             # all_view.append(dlc_exp)
 
@@ -1931,10 +2096,12 @@ def get_leap_results():
 
 
 ## incremental training -- RESULTS ---
-def get_incremental_results():
+def get_incremental_results(dstr=PoseTools.datestr(),queue='gpu_rtx'):
     n_rounds = 8
     all_res = []
     train_name = 'deepnet'
+    gpu_str = '_tesla' if queue == 'gpu_tesla' else ''
+    train_name_dstr = train_name + gpu_str + '_' + dstr
     all_view = []
 
     for view in range(nviews):
@@ -1950,13 +2117,10 @@ def get_incremental_results():
                 exp_name = '{}_randsplit_round_{}'.format(data_type, ndx)
                 #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
                 conf = create_conf_help(train_type, view, exp_name)
+                conf.batch_size = 1
                 split_data = PoseTools.json_load(os.path.join(conf.cachedir,'splitdata.json'))
                 train_size.append(len(split_data[0]))
-                #if op_af_graph is not None:
-                #    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-                files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-                files.sort(key=os.path.getmtime)
-                files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+                files = get_model_files(conf,train_name_dstr,10)
                 aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
                 if len(files)>0 and aa[-1]>0:
                     r_files.append(files[-1])
@@ -1964,30 +2128,15 @@ def get_incremental_results():
                     print('MISSING!!!! MISSING!!!! {} {}'.format(train_type,ndx))
 
             out_file = os.path.join(conf.cachedir,train_name + '_results.p')
-            recomp = False
-            if os.path.exists(out_file):
-                fts = [os.path.getmtime(f) for f in r_files]
-                ots = os.path.getmtime(out_file)
-                if any([f > ots for f in fts]):
-                    recomp = True
-                else:
-                    A = PoseTools.pickle_load(out_file)
-                    old_files = A[1]
-                    if (len(r_files) != len(old_files)) or (not all([i==j for i,j in zip(r_files,old_files)])):
-                        recomp = True
-            else:
-                recomp = True
+            recomp = do_recompute(out_file,r_files)
 
             if recomp:
-                afiles = [f.replace('.index', '') for f in r_files]
-                mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
+                mdn_out = apt_expts.classify_db_all(conf,gt_file,r_files,train_type,name=train_name)
                 with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,r_files],f)
             else:
                 A = PoseTools.pickle_load(out_file)
                 mdn_out = A[0]
-
-            # mdn_out = apt_expts.classify_db_all(conf, gt_file, r_files, train_type, name=train_name)
 
             for x, a in enumerate(mdn_out):
                 a[-1] = train_size[x]
@@ -1998,7 +2147,8 @@ def get_incremental_results():
 
     for ndx,ii in enumerate(all_view):
         plot_results(ii,ylim=15)
-        save_mat(ii,os.path.join(cache_dir,'{}_view{}_trainsize'.format(data_type,ndx,)))
+        save_mat(ii,os.path.join(results_dir,'{}_{}_view{}_trainsize'.format(data_type,train_name_dstr, ndx,)))
+
 
 def get_no_pretrained_results():
     n_rounds = 8
@@ -2020,57 +2170,26 @@ def get_no_pretrained_results():
                 train_size.append(len(split_data[0]))
                 if op_af_graph is not None:
                     conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-                files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-                files.sort(key=os.path.getmtime)
-                files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-                aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
-                aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
-
-                if any([a < 0 for a in aa]):
-                    bb = int(np.where(np.array(aa) < 0)[-1]) + 1
-                    files = files[bb:]
-                n_max = 10
-                if len(files) > n_max:
-                    gg = len(files)
-                    sel = np.linspace(0, len(files) - 1, n_max).astype('int')
-                    files = [files[s] for s in sel]
-                r_files = files
+                files = get_model_files(conf,train_name,10)
                 out_file = os.path.join(conf.cachedir,train_name + '_pretraining_results.p')
-                recomp = False
-
-                if os.path.exists(out_file):
-                    fts = [os.path.getmtime(f) for f in r_files]
-                    ots = os.path.getmtime(out_file)
-                    if any([f > ots for f in fts]):
-                        recomp = True
-                    else:
-                        A = PoseTools.pickle_load(out_file)
-                        old_files = A[1]
-                        if (len(r_files) != len(old_files)) or (not all([i==j for i,j in zip(r_files,old_files)])):
-                            recomp = True
-                else:
-                    recomp = True
+                recomp = do_recompute(out_file,files)
 
                 if recomp:
-                    afiles = [f.replace('.index', '') for f in r_files]
-                    mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
+                    mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type,name=train_name)
                     with open(out_file,'w') as f:
-                        pickle.dump([mdn_out,r_files],f)
+                        pickle.dump([mdn_out,files],f)
                 else:
                     A = PoseTools.pickle_load(out_file)
                     mdn_out = A[0]
 
 
-                # for x, a 09-Jandhriti
                 # in enumerate(mdn_out):
                 #     a[-1] = train_size[x]
                 #     a[2] = np.array(a[2])
                 # mdn_out.insert(0,mdn_out[0])
                 predtrained_exp[train_name] = mdn_out
 
-            H = multiResData.read_and_decode_without_session(gt_file, conf)
-            ex_im = np.array(H[0][0])[:, :, 0]
-            ex_loc = np.array(H[1][0])
+            ex_im, ex_loc = decode_db(gt_file,conf)
             all_view.append([predtrained_exp, ex_im, ex_loc])
 
             for ndx_i,ii in enumerate(all_view):
@@ -2085,12 +2204,16 @@ def get_cv_results(num_splits=None,
                    db_from_mdn_dir=False,
                    exp_name_pfix='',  # prefix for exp_name. can be map from train_type->exp_name_pfix
                    split_idxs=None,
+                   queue='gpu_rtx',
+                   dstr = PoseTools.get_datestr(),
                    ptiles_plot=[50,75,90,95,97]):
     train_name = 'deepnet'
+    gpu_str = '_tesla' if 'gpu_tesla' in queue else ''
+    train_name = train_name + gpu_str + '_' + dstr
     if num_splits == None:
         print("Reading splits from {}".format(cv_info_file))
         data_info = h5py.File(cv_info_file, 'r')
-        cv_info = apt.to_py(data_info['cvi'].value[:, 0].astype('int'))
+        cv_info = apt.to_py(data_info['cvi'].value.flatten().astype('int'))
         n_splits = max(cv_info) + 1
         num_splits = n_splits
 
@@ -2119,54 +2242,28 @@ def get_cv_results(num_splits=None,
                 # traindata. so optional kwargs etc unnec
 
                 #mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
-                mdn_conf = create_conf_help('mdn', view, exp_name_mdn, quiet=True)
+                mdn_conf = create_conf_help('mdn', view, exp_name_mdn, quiet=True,queue=queue)
                 #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-                conf = create_conf_help(train_type, view, exp_name, quiet=True)
-                #if op_af_graph is not None:
-                #    conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+                conf = create_conf_help(train_type, view, exp_name, quiet=True,queue=queue)
+                conf.batch_size = 1
 
-                files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-                files.sort(key=os.path.getmtime)
-                files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-                aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
-                aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
-                if any([a<0 for a in aa]):
-                    bb = int(np.where(np.array(aa)<0)[0][-1])+1
-                    files = files[bb:]
+                files = get_model_files(conf,train_name,10)
                 files = files[-1:]
-                # n_max = 10
-                # if len(files)> n_max:
-                #     gg = len(files)
-                #     sel = np.linspace(0,len(files)-1,n_max).astype('int')
-                #     files = [files[s] for s in sel]
 
                 out_file = os.path.join(conf.cachedir,train_name + '_results.p')
-                recomp = False
-                if os.path.exists(out_file):
-                    fts = [os.path.getmtime(f) for f in files]
-                    ots = os.path.getmtime(out_file)
-                    if any([f > ots for f in fts]):
-                        recomp = True
-                    else:
-                        A = PoseTools.pickle_load(out_file)
-                        old_files = A[1]
-                        if not all([i==j for i,j in zip(files,old_files)]):
-                            recomp = True
-                else:
-                    recomp = True
-
+                recomp = do_recompute(out_file,files)
                 if recomp:
                     print("Recomputing {}, vw{}, {}".format(train_type, view, split))
-                    afiles = [f.replace('.index', '') for f in files]
-
                     db_file = os.path.join(mdn_conf.cachedir,'val_TF.tfrecords') if \
                                 db_from_mdn_dir else os.path.join(conf.cachedir, 'val_TF.tfrecords')
-                    tfile = get_traindata_file_flexible(conf.cachedir, train_name)
+                    tfile = get_traindata_file_flexible(conf.cachedir, train_name,conf.expname)
                     print("Loading traindata file {}".format(tfile))
                     tdata = PoseTools.pickle_load(tfile)
                     # latter case LEAP apparently
                     tdataconf = tdata[1] if isinstance(tdata,list) else tdata
-                    mdn_out = apt_expts.classify_db_all(tdataconf,db_file,afiles,train_type,name=train_name)
+                    util.dictdiff(vars(tdataconf), vars(conf))
+
+                    mdn_out = apt_expts.classify_db_all(conf,db_file,files,train_type,name=train_name)
                     with open(out_file,'wb') as f:
                         pickle.dump([mdn_out,files],f)
                     print("Wrote {}".format(out_file))
@@ -2208,7 +2305,9 @@ def get_cv_results(num_splits=None,
         ttl = ax.get_title()
         ttl += ': view{}'.format(ndx)
         ax.set_title(ttl)
-        save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_cv'.format(data_type,ndx,)))
+        out_mat_file = os.path.join(results_dir,'{}_{}_view{}_cv'.format(data_type,train_name, ndx,))
+        save_mat(out_exp[0],out_mat_file)
+        # save_mat(out_exp[0],os.path.join(cache_dir,'{}_view{}_cv'.format(data_type,ndx,)))
 
 def get_cv_results_full(db_from_mdn_dir=False,
                         exp_name_pfix='',  # prefix for exp_name. can be map from train_type->exp_name_pfix
@@ -2261,8 +2360,7 @@ def get_cv_results_full(db_from_mdn_dir=False,
 
                 files = get_model_files(conf, train_name)
                 files = files[-1:]
-                afiles = [f.replace('.index', '') for f in files]
-                assert len(afiles) == 1
+                assert len(files) == 1
 
                 db_file = os.path.join(mdn_conf.cachedir, 'val_TF.tfrecords') if \
                     db_from_mdn_dir else os.path.join(conf.cachedir, 'val_TF.tfrecords')
@@ -2273,13 +2371,13 @@ def get_cv_results_full(db_from_mdn_dir=False,
 
                 print("###### {}, vw{}, split{}".format(train_type, view, split))
                 print("dbf {}, tdf {}.".format(db_file, tfile))
-                print("model {}.".format(afiles[0]))
+                print("model {}.".format(files[0]))
                 print("###### ")
                 print(" ")
                 print(" ")
                 time.sleep(8)
 
-                models_out = apt_expts.classify_db_all2(tdataconf, db_file, afiles, train_type,
+                models_out = apt_expts.classify_db_all2(tdataconf, db_file, files, train_type,
                                                         name=train_name,
                                                         return_ims=True,
                                                         retrawpred=True
@@ -2331,37 +2429,16 @@ def get_single_results():
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
         if op_af_graph is not None:
             conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-        files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-        files.sort(key=os.path.getmtime)
-        files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-        aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
-        aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
-        if any([a < 0 for a in aa]):
-            bb = int(np.where(np.array(aa) < 0)[0]) + 1
-            files = files[bb:]
+        files = get_model_files(conf,train_name)
         files = files[-1:]
-
         out_file = os.path.join(conf.cachedir, train_name + '_results.p')
-        recomp = False
-        if os.path.exists(out_file):
-            fts = [os.path.getmtime(f) for f in files]
-            ots = os.path.getmtime(out_file)
-            if any([f > ots for f in fts]):
-                recomp = True
-            else:
-                A = PoseTools.pickle_load(out_file)
-                old_files = A[1]
-                if not all([i == j for i, j in zip(files, old_files)]):
-                    recomp = True
-        else:
-            recomp = True
+        recomp = do_recompute(out_file,files)
 
         db_file = os.path.join(conf.cachedir, 'val_TF.tfrecords')
         H = multiResData.read_and_decode_without_session(db_file,conf,())
         info = np.array(H[2])
         if recomp:
-            afiles = [f.replace('.index', '') for f in files]
-            mdn_out = apt_expts.classify_db_all(conf, db_file, afiles, train_type, name=train_name)
+            mdn_out = apt_expts.classify_db_all(conf, db_file, files, train_type, name=train_name)
             with open(out_file, 'w') as f:
                 pickle.dump([mdn_out, files], f)
         else:
@@ -2497,9 +2574,9 @@ def run_active_learning(round_num,add_type='active',view=0):
 
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         conf.splitType = 'predefined'
-        if train_type == 'deeplabcut':
+        if 'deeplabcut' in train_type:
             apt.create_deepcut_db(conf, split=True, use_cache=True, split_file=out_file)
-        elif train_type == 'leap':
+        elif 'leap' in train_type:
             apt.create_leap_db(conf, split=True, use_cache=True, split_file=out_file)
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_file)
@@ -2523,19 +2600,10 @@ def run_active_learning(round_num,add_type='active',view=0):
         prev_splits = PoseTools.json_load(os.path.join(prev_conf.cachedir,'splitdata.json'))
         if op_af_graph is not None:
             prev_conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-        files = glob.glob(os.path.join(prev_conf.cachedir, "{}-[0-9]*").format(train_name))
-        files.sort(key=os.path.getmtime)
-        files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-        aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
-        aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
-        if any([a < 0 for a in aa]):
-            bb = int(np.where(np.array(aa) < 0)[0]) + 1
-            files = files[bb:]
+        files = get_model_files(prev_conf,train_name)
         files = files[-1:]
-
-        afiles = [f.replace('.index', '') for f in files]
         db_file = os.path.join(prev_conf.cachedir, 'val_TF.tfrecords')
-        mdn_out = apt_expts.classify_db_all(prev_conf, db_file, afiles, train_type, name=train_name)
+        mdn_out = apt_expts.classify_db_all(prev_conf, db_file, files, train_type, name=train_name)
         res = mdn_out[0]
         val_info = res[2]
         dd = np.sqrt(np.sum((res[0]-res[1])**2,axis=-1))
@@ -2560,9 +2628,9 @@ def run_active_learning(round_num,add_type='active',view=0):
             json.dump(new_splits,f)
 
         conf.splitType = 'predefined'
-        if train_type == 'deeplabcut':
+        if 'deeplabcut' in train_type:
             apt.create_deepcut_db(conf, split=True, use_cache=True, split_file=out_split_file)
-        elif train_type == 'leap':
+        elif 'leap' in train_type:
             apt.create_leap_db(conf, split=True, use_cache=True, split_file=out_split_file)
         else:
             apt.create_tfrecord(conf, split=True, use_cache=True, split_file=out_split_file)
@@ -2590,14 +2658,7 @@ def get_active_results(num_rounds=8,view=0):
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
             if op_af_graph is not None:
                 conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
-            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
-            files.sort(key=os.path.getmtime)
-            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
-            aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
-            aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
-            if any([a < 0 for a in aa]):
-                bb = int(np.where(np.array(aa) < 0)[0]) + 1
-                files = files[bb:]
+            files = get_model_files(conf,train_name)
             files = files[-1]
             afiles.append(files)
 
@@ -2605,27 +2666,14 @@ def get_active_results(num_rounds=8,view=0):
         exp_name = '{}_round{}'.format(add_type, 0)
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
         out_file = os.path.join(conf.cachedir, train_name + '_results.p')
-        recomp = False
-        if os.path.exists(out_file):
-            fts = [os.path.getmtime(f) for f in afiles]
-            ots = os.path.getmtime(out_file)
-            if any([f > ots for f in fts]):
-                recomp = True
-            else:
-                A = PoseTools.pickle_load(out_file)
-                old_files = A[1]
-                if (len(afiles) != len(old_files)) or (not all([i == j for i, j in zip(afiles, old_files)])):
-                    recomp = True
-        else:
-            recomp = True
+        recomp = do_recompute(out_file,afiles)
 
         if recomp:
-            r_files = [f.replace('.index', '') for f in afiles]
             tfile = os.path.join(conf.cachedir, 'traindata')
             A = PoseTools.pickle_load(tfile)
             use_conf = A[1]
 
-            mdn_out = apt_expts.classify_db_all(use_conf, gt_file, r_files, train_type, name=train_name)
+            mdn_out = apt_expts.classify_db_all(use_conf, gt_file, afiles, train_type, name=train_name)
             with open(out_file, 'w') as f:
                 pickle.dump([mdn_out, afiles], f)
         else:
@@ -2642,21 +2690,21 @@ def get_active_results(num_rounds=8,view=0):
 
 
 
-def get_individual_animal_results_stephen():
+def get_individual_animal_results_stephen(dstr):
 
     info_file = '/groups/branson/home/bransonk/tracking/code/APT/SHTrainGTInfo20190416.mat'
 
     data_info = h5py.File(info_file,'r')
     assert data_type == 'stephen'
     assert trn_flies is not None
-    train_type = 'mdn'
+    train_type = 'mdn_joint_fpn' #'mdn'
 
     conf = apt.create_conf(lbl_file,0,'dummy',cache_dir,train_type)
     lbl_movies, _ = multiResData.find_local_dirs(conf)
     in_movies = [PoseTools.read_h5_str(data_info[k]) for k in data_info['trnmovies'][0,:]]
     assert lbl_movies == in_movies
 
-    train_name = 'deepnet'
+    train_name = 'deepnet_' + dstr
     all_view = []
     for view in range(nviews):
         gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
@@ -2665,12 +2713,12 @@ def get_individual_animal_results_stephen():
         for cur_fly in trn_flies:
             exp_name = 'train_fly_{}'.format(cur_fly)
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-            cur_files = get_model_files(conf)
+            cur_files = get_model_files(conf,train_name=train_name,net=train_type)
             files.append(cur_files[-1])
 
         exp_name = 'train_fly_random'
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-        cur_files = get_model_files(conf)
+        cur_files = get_model_files(conf,train_name=train_name,net=train_type)
         files.append(cur_files[-1])
 
         if op_af_graph is not None:
@@ -2683,7 +2731,7 @@ def get_individual_animal_results_stephen():
         if recomp:
             afiles = [f.replace('.index', '') for f in files]
             mdn_out = apt_expts.classify_db_all(conf,gt_file,afiles,train_type,name=train_name)
-            with open(out_file,'w') as f:
+            with open(out_file,'wb') as f:
                 pickle.dump([mdn_out,files],f)
         else:
             A = PoseTools.pickle_load(out_file)
@@ -2692,36 +2740,48 @@ def get_individual_animal_results_stephen():
         all_view.append(mdn_out)
 
     for ndx,out_exp in enumerate(all_view):
-        save_mat({'mdn':out_exp},os.path.join(cache_dir,'{}_view{}_single'.format(data_type,ndx,)))
+        save_mat({train_type:out_exp},os.path.join(cache_dir,'{}_view{}_single'.format(data_type,ndx,)))
 
 
 def do_recompute(out_file,files):
     recomp = False
     if os.path.exists(out_file):
-        fts = [os.path.getmtime(f) for f in files]
+        fts = [os.path.getmtime(glob.glob(f+'*')[0]) for f in files]
         ots = os.path.getmtime(out_file)
         if any([f > ots for f in fts]):
             recomp = True
         else:
             A = PoseTools.pickle_load(out_file)
             old_files = A[1]
-            if not all([i == j for i, j in zip(files, old_files)]):
+            old_files = [f.replace('.index', '') for f in old_files]
+
+            if len(files) != len(old_files) or not all([i == j for i, j in zip(files, old_files)]):
                 recomp = True
     else:
         recomp = True
     return recomp
 
 
-def get_model_files(conf,train_name='deepnet'):
-    files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+def get_model_files(conf,train_name='deepnet',n_max=10,net='mdn'):
+    if net == 'leap_orig':
+        train_name = 'deepnet'
+    files1 = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+    files2 = glob.glob(os.path.join(conf.cachedir, "{}_202[0-9][0-9][0-9][0-9][0-9]-[0-9]*").format(train_name)) # Dont think  Ineed to worry beyond current decade.
+    files = files1 + files2
     files.sort(key=os.path.getmtime)
     files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
     aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
     aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
     if any([a < 0 for a in aa]):
-        bb = int(np.where(np.array(aa) < 0)[0]) + 1
+        bb = int(np.where(np.array(aa) < 0)[0][-1]) + 1
         files = files[bb:]
+    if len(files) > n_max:
+        gg = len(files)
+        sel = np.linspace(0, len(files) - 1, n_max).astype('int')
+        files = [files[s] for s in sel]
+    files = [f.replace('.index', '') for f in files]
     return files
+
 
 
 def get_label_info(conf):
@@ -2759,6 +2819,19 @@ def get_label_info(conf):
             info.extend(mov_info[ndx][mndx:mndx + 1])
 
     return info
+
+
+def decode_db(gt_file,conf):
+    H = multiResData.read_and_decode_without_session(gt_file, conf)
+    ex_im = np.array(H[0][0])[:, :, 0]
+    ex_loc = np.array(H[1][0])
+    return ex_im, ex_loc
+
+def l2err(pred, lbl, ptiles=(50,90,97)):
+    e = np.sqrt( np.sum( (pred-lbl)**2, axis=2 ))
+    eptls = np.percentile(e, ptiles, axis=0).T
+    return e, eptls
+
 
 def classify_db_all_res_to_dict(m):
     res = {'pred': m[0],
