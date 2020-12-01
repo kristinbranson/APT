@@ -236,6 +236,9 @@ uiwait(hFig);
     iTgt = freezeInfo.iTgt;
     
     pts = lpos{iMov}(:,:,frm,iTgt);
+    if lObj.nview > 1
+      pts = pts(1:(end/lObj.nview),:);
+    end
     if isrotated,
       pts = [pts,ones(size(pts,1),1)]*freezeInfo.A;
       pts = pts(:,1:2);
