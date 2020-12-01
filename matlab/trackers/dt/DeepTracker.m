@@ -4830,8 +4830,9 @@ classdef DeepTracker < LabelTracker
       dobj = DLBackEndClass(1);
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg',sprintf('docker://%s:%s', dobj.dockerimgroot ,dobj.dockerimgtag));
-      %'/misc/local/singularity/branson_cuda10_mayank.simg');
+        'singimg','/groups/branson/bransonlab/apt/sif/prod.sif' ...
+        );
+        %'singimg',sprintf('docker://%s:%s', dobj.dockerimgroot ,dobj.dockerimgtag));
       delete(dobj);
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];

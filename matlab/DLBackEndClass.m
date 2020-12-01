@@ -5,8 +5,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % * DLNetType: what DL net is run
   % * DLBackEndClass: where/how DL was run
   %
-  % Design here still fleshing out (see switchyards, DLBackEndType enum
-  % etc)
+  % TODO: Design is solidifying. This should be a base class with
+  % subclasses for backend types. The .type prop would be redundant against
+  % the concrete type. Codegen methods should be moved out of DeepTracker
+  % and into backend subclasses and use instance state (eg, docker codegen 
+  % for current tag; bsub for specified .sif; etc). Conceptually this class 
+  % would just be "DLBackEnd" and the enum/type would go away.
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
