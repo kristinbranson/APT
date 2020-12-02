@@ -131,9 +131,14 @@ classdef Lbl
       fclose(fh);
       fprintf(1,'Wrote %s.\n',jsonoutf);
     end
-    function [slbl,tp,loc,locg] = genWriteTrnPack(lObj,packdir)
+    function [slbl,tp,loc,locg] = genWriteTrnPack(lObj,packdir,varargin)
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
+      
+      [writeims,writeimsidx] = myparse(varargin,...
+        'writeims',true, ...
+        'writeimsidx',[] ...
+        );
       
       if exist(packdir,'dir')==0
         mkdir(packdir);
@@ -148,12 +153,17 @@ classdef Lbl
       [lblP,lblS] = myfileparts(fsinfo.filename);
       sfname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
       sfname = fullfile(packdir,sfname);
-      save(sfname,'-mat','-struct','slbl');
+      save(sfname,'-mat','-v7.3','-struct','slbl');
       fprintf(1,'Saved %s\n',sfname);
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
       [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
-      Lbl.writeims(loc,packdir);
+      if writeims
+        if isempty(writeimsidx)
+          writeimsidx = 1:numel(loc);
+        end
+        Lbl.writeims(loc(writeimsidx),packdir);
+      end
         
       % trnpack: one row per mov
       jsonoutf = 'trnpack.json';
@@ -358,6 +368,7 @@ classdef Lbl
     end
     
     function writeims(sloc,packdir)
+      % Currently single-view only
       
       SUBDIRIM = 'im';
       sdir = SUBDIRIM;
@@ -365,26 +376,29 @@ classdef Lbl
         mkdir(packdir,sdir);
       end
       
-      mr = MovieReader;
-      for i=1:numel(sloc)
-        s = sloc(i);
-        
-        % Expect sloc to be in 'movie order'
-        if ~strcmp(s.mov,mr.filename)
-          mr.close();
-          mr.open(s.mov);
-          fprintf(1,'Opened movie: %s\n',s.mov);
+      imovall = [sloc.imov]';
+      imovun = unique(imovall);
+      %mr = MovieReader;
+      for imov=imovun(:)'
+        idx = find(imovall==imov); % indices into sloc for this mov
+        % idx cannot be empty
+        mov = sloc(idx(1)).mov;
+        %mr.open(mov);
+        fprintf(1,'Movie %d: %s\n',imov,mov);
+                
+        parfor i=idx(:)'
+          s = sloc(i);
+          imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
+          if exist(imfrmf,'file')>0
+            fprintf(1,'Skipping, image already exists: %s\n',imfrmf);
+          else
+            % calling get_readframe_fcn outside parfor results in harderr
+            rfcn = get_readframe_fcn(mov);
+            imfrm = rfcn(s.frm);
+            imwrite(imfrm,imfrmf);
+            fprintf(1,'Wrote %s\n',imfrmf);
+          end
         end
-      
-        imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
-        if exist(imfrmf,'file')>0
-          fprintf(1,'Skipping, image already exists: %s\n',imfrmf);
-        else
-          imfrm = mr.readframe(s.frm);
-          imwrite(imfrm,imfrmf);
-          fprintf(1,'Wrote %s\n',imfrmf);
-        end
-%         sloc(i).imfile = imfrmf;
       end
     end
 %     function writeimscc(sloccc,packdir)
@@ -491,7 +505,7 @@ classdef Lbl
         'trackerClass' 'trackerData'};
       TRACKERDATA_FLDS = {'sPrmAll' 'trnNetTypeString'};
       if isMA
-        GLOBS = {};
+        GLOBS = {'movieFilesAll' 'trxFilesAll'};
         FLDSRM = {'projMacros'};
       else
         GLOBS = {'labeledpos' 'movieFilesAll' 'trxFilesAll' 'preProcData'};
