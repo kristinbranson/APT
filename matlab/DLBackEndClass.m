@@ -4,9 +4,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   %
   % * DLNetType: what DL net is run
   % * DLBackEndClass: where/how DL was run
-  %
-  % Design here still fleshing out (see switchyards, DLBackEndType enum
-  % etc)
+
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
@@ -15,13 +13,17 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   properties
     type  % scalar DLBackEnd
     
-    % scalar logical. if true, backend runs code in APT.Root/deepnet. This
-    % path must be visible in the backend or else.
+    % scalar logical. if true, bsub backend runs code in APT.Root/deepnet. 
+    % This path must be visible in the backend or else.
     %
     % Conceptually this could be an arbitrary loc.
+    %
+    % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
     deepnetrunlocal = true; 
+    bsubaptroot = []; % root of APT repo for bsub backend running 
     
     awsec2 % used only for type==AWS
+    awsgitbranch
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
     dockerimgroot = 'bransonlabapt/apt_docker';
@@ -308,6 +310,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       freemem = freemem(1:ngpureturn);
     end
     
+    function pretrack(obj,dmc,setStatusFcn)
+      switch be.type        
+        case DLBackEnd.AWS
+          obj.awsPretrack(dmc,setStatusFcn);
+      end      
+    end
+    
   end
   
   methods (Static)
@@ -399,6 +408,28 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfsucc = true;
     end
     
+  end
+  
+  methods % Bsub
+
+    function aptroot = bsubSetRootUpdateRepo(obj,cacheDir,varargin)
+      copyptw = myparse(varargin,...
+        'copyptw',true ...
+      );
+      
+      if obj.deepnetrunlocal
+        aptroot = APT.Root;
+      else
+        DeepTracker.cloneJRCRepoIfNec(cacheDir);
+        DeepTracker.updateAPTRepoExecJRC(cacheDir);
+        aptroot = [cacheDir '/APT'];
+      end
+      if copyptw
+        DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+      end
+      obj.bsubaptroot = aptroot;
+    end
+
   end
   
   methods % Docker
@@ -873,6 +904,37 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = 'All tests passed. AWS Backend should work for you.'; drawnow;
       
       tfsucc = true;      
+    end
+    
+    function awsPretrack(obj,dmc,setstatusfn)
+      setstatusfn('AWS Tracking: Uploading code and data...');
+      
+      obj.awsUpdateRepo();
+      aws = obj.awsec2;
+      for i=1:numel(dmc)
+        if ~dmc(i).isRemote
+          dmc(i).mirror2remoteAws(aws);
+        end
+      end
+      
+      setstatusfn('Tracking...');      
+    end
+    
+    function awsUpdateRepo(obj) % throws if fails
+      if isempty(obj.awsgitbranch)
+        args = {};
+      else
+        args = {'branch' obj.awsgitbranch};
+      end
+      cmdremote = DeepTracker.updateAPTRepoCmd('downloadpretrained',true,args{:});
+
+      aws.obj.awsec2;      
+      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
+      if tfsucc
+        fprintf('Updated remote APT repo.\n\n');
+      else
+        error('Failed to update remote APT repo.');
+      end
     end
     
   end

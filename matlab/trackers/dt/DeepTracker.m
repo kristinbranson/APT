@@ -32,7 +32,6 @@ classdef DeepTracker < LabelTracker
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
-    deepnetgitbranch % transient/unmanaged. set me to use/run a diff branch
     skip_dlgs % MK: Skip save/delete dialogs for testing.
   end
   properties
@@ -1168,17 +1167,7 @@ classdef DeepTracker < LabelTracker
 
       switch backEnd.type
         case DLBackEnd.Bsub
-          if backEnd.deepnetrunlocal
-            aptroot = APT.Root;
-            %dmc.aptRootUser = aptroot;
-            %DeepTracker.downloadPretrainedExec(aptroot);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-          else
-            aptroot = [cacheDir '/APT'];
-            DeepTracker.cloneJRCRepoIfNec(cacheDir);
-            DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-          end
+          aptroot = backEnd.bsubSetRootUpdateRepo(cacheDir);
         case {DLBackEnd.Conda,DLBackEnd.Docker},
           aptroot = APT.Root;
           obj.downloadPretrainedWeights('aptroot',aptroot); 
@@ -1425,16 +1414,7 @@ classdef DeepTracker < LabelTracker
       
       switch backEnd.type
         case DLBackEnd.Bsub
-          if backEnd.deepnetrunlocal
-            aptroot = APT.Root;
-            %DeepTracker.downloadPretrainedExec(aptroot);
-            %DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-          else
-            aptroot = [cacheDir '/APT'];
-            DeepTracker.cloneJRCRepoIfNec(cacheDir);
-            DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            %DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-          end
+          aptroot = backEnd.bsubSetRootUpdateRepo(cacheDir,'copyptw',false);          
         case DLBackEnd.Docker
         case DLBackEnd.Conda
       end
@@ -1600,12 +1580,7 @@ classdef DeepTracker < LabelTracker
       end
       aws.checkInstanceRunning(); % harderrs if instance isn't running
       
-      if isempty(obj.deepnetgitbranch)
-        args = {};
-      else
-        args = {'updateCmdArgs' {'branch' obj.deepnetgitbranch}};
-      end
-      DeepTracker.updateAPTRepoExecAWS(aws,args{:});
+      backend.awsUpdateRepo();
       
       nvw = obj.lObj.nview;
 
@@ -1959,17 +1934,7 @@ classdef DeepTracker < LabelTracker
 
       switch trnBackEnd.type
         case DLBackEnd.Bsub
-          if trnBackEnd.deepnetrunlocal
-            aptroot = APT.Root;
-            %dmc.aptRootUser = aptroot;
-            %DeepTracker.downloadPretrainedExec(aptroot);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-          else
-            aptroot = [cacheDir '/APT'];
-            DeepTracker.cloneJRCRepoIfNec(cacheDir);
-            DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-          end
+          aptroot = trnBackEnd.bsubSetRootUpdateRepo(cacheDir);
         case {DLBackEnd.Conda,DLBackEnd.Docker},
           assert(false);
           aptroot = APT.Root;
@@ -2388,25 +2353,8 @@ classdef DeepTracker < LabelTracker
       backend = obj.lObj.trackDLBackEnd;
 
       if backend.type==DLBackEnd.AWS
-        obj.lObj.SetStatus('AWS Tracking: Uploading code and data...');
-        aws = backend.awsec2;        
-        
-        % update apt code
-        if isempty(obj.deepnetgitbranch)
-          args = {};
-        else
-          args = {'updateCmdArgs' {'branch' obj.deepnetgitbranch}};
-        end
-        DeepTracker.updateAPTRepoExecAWS(aws,args{:});
-        
-        for i=1:numel(dmc)
-          if ~dmc(i).isRemote
-            dmc(i).mirror2remoteAws(aws);
-          end
-        end
-        
-        obj.lObj.SetStatus('Tracking...');
-
+        setStatusFcn = @obj.lObj.SetStatus;
+        backend.awsPretrack(dmc,setStatusFcn);
       end
       
       obj.updateTrackerInfo();
@@ -2610,6 +2558,7 @@ classdef DeepTracker < LabelTracker
     % track2 operates in more stages to hopefully facilitate modularity and
     % extensibility:
     % 1. pre-track, error-checking and preliminaries
+    %   1a. updating of remote repos, downloading PTWs, etc
     % 2. marshalling of base trksysinfo structure containing modelfiles,
     % logfiles, etc
     % 3. customization of trksysinfo depending on task
@@ -2626,11 +2575,11 @@ classdef DeepTracker < LabelTracker
         error('Tracking is already in progress.');
       end
       
-      be = obj.lObj.trackDLBackEnd;
-      if be.type~=DLBackEnd.Bsub
-        % to be lifted later
-        error('Currently only supported for JRC Cluster backend.');
-      end
+%      be = obj.lObj.trackDLBackEnd;
+%       if be.type~=DLBackEnd.Bsub
+%         % to be lifted later
+%         error('Currently only supported for JRC Cluster backend.');
+%       end
       
       if obj.bgTrnIsRunning
         % Could probably support, but training currently does a
@@ -2660,12 +2609,19 @@ classdef DeepTracker < LabelTracker
       % to enable turning off/on postproc or trying diff pp algos with a 
       % given trained tracker
       if ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
-        msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D.';
+        % GT specific msg!
+        msg = 'GT assessments are currently performed in each view independently. No 3D reconciliation will be done.';
         uiwait(msgbox(msg,'3D Reconciliation','modal'));
       end 
       
+      be = obj.lObj.trackDLBackEnd;
+      dmc = obj.trnLastDMC;
+      setStatusFcn = @obj.lObj.SetStatus;
+      be.pretrack(dmc,setStatusFcn);
+
       % why not; done in track()
       obj.updateTrackerInfo();
+
     end
     
     function trksysinfo = track2_genBaseTrkInfo(obj,taskKeywords,varargin)
@@ -2736,16 +2692,7 @@ classdef DeepTracker < LabelTracker
       %%% Code/PTW %%% 
       
       be = obj.lObj.trackDLBackEnd;
-      if be.deepnetrunlocal
-        aptroot = APT.Root;
-        %[dmc.aptRootUser] = deal(aptroot);
-        %DeepTracker.downloadPretrainedExec(aptroot);
-        DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-      else
-        DeepTracker.cloneJRCRepoIfNec(cacheDir);
-        DeepTracker.updateAPTRepoExecJRC(cacheDir);
-        aptroot = [cacheDir '/APT'];
-      end
+      aptroot = be.bsubSetRootUpdateRepo(obj.lObj.DLCacheDir);
       
       %%% Marshall base trksysinfo %%%
       
@@ -3667,16 +3614,7 @@ classdef DeepTracker < LabelTracker
       % see CodeGen comment below, maybe dont need to massage baseArgs here
       switch backend.type
         case DLBackEnd.Bsub
-          if backend.deepnetrunlocal
-            aptroot = APT.Root;
-            %[dmc.aptRootUser] = deal(aptroot);
-            %DeepTracker.downloadPretrainedExec(aptroot);
-            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-          else
-            DeepTracker.cloneJRCRepoIfNec(cacheDir);
-            DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            aptroot = [cacheDir '/APT'];
-          end
+          aptroot = backend.bsubSetRootUpdateRepo(cacheDir); % ptw shouldnt be nec but ok
           baseArgs = [baseArgs {'deepnetroot' [aptroot '/deepnet']}];
         case DLBackEnd.Docker
         case DLBackEnd.Conda
@@ -5080,20 +5018,7 @@ classdef DeepTracker < LabelTracker
         codestr{end+1,1} = sprintf(DeepTracker.pretrained_download_script_py,'.');
       end
       codestr = cat(2,codestr{:});
-    end
-    function updateAPTRepoExecAWS(aws,varargin) % throws if fails
-      updateCmdArgs = myparse(varargin,...
-        'updateCmdArgs',{}... % addnl PVs for updateAPTRepoCmd
-        );        
-      
-      cmdremote = DeepTracker.updateAPTRepoCmd('downloadpretrained',true,updateCmdArgs{:});
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
-      if tfsucc
-        fprintf('Updated remote APT repo.\n\n');
-      else
-        error('Failed to update remote APT repo.');
-      end
-    end
+    end   
     function updateAPTRepoExecJRC(cacheRoot) % throws if fails
       % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
       updatecmd = DeepTracker.updateAPTRepoCmd('aptparent',cacheRoot);
