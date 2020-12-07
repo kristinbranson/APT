@@ -691,6 +691,9 @@ classdef TrkFile < dynamicprops
       if isfield(s,'list_file'),
         s = rmfield(s,'list_file');
       end
+      if isfield(s,'listfile_fns')
+        s = rmfield(s,'listfile_fns');
+      end
       
       % s: struct loaded from trkfile saved to matfile
       if isfield(s,'pTrkTag') && iscell(s.pTrkTag)
