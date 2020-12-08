@@ -729,6 +729,8 @@ classdef TrackJob < handle
     
     function setLogErrFiles(obj,varargin)
       % backend needs to be set before making this call
+      %
+      % AL: possible dup with DeepModelChainOnDisk
       
       [logfile,errfile] = myparse(varargin,'logfile','','errfile',''); %#ok<PROPLC>
       obj.logdir = obj.trkoutdirRem{1};

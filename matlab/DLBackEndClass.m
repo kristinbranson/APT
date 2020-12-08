@@ -31,6 +31,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     % docker images.
     dockerimgtag = DLBackEndClass.currentDockerImgTag;
     dockerremotehost = '';
+    gpuids = []; % for now used by docker/conda
     
     condaEnv = 'APT'; % used only for Conda
   end
@@ -231,6 +232,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
       % Get free gpus subject to minFreeMem constraint (see optional PVs)
       %
+      % This sets .gpuids
+      % 
       % gpuid: [ngpu] where ngpu<=nrequest, depending on if enough GPUs are available
       % freemem: [ngpu] etc
       % gpuInfo: scalar struct
@@ -308,13 +311,33 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       ngpureturn = min(ngpu,nrequest);
       gpuid = gpuid(1:ngpureturn);
       freemem = freemem(1:ngpureturn);
+      
+      obj.gpuids = gpuid;
     end
     
-    function pretrack(obj,dmc,setStatusFcn)
-      switch be.type        
+    function pretrack(obj,cacheDir,dmc,setStatusFcn)
+      switch obj.type        
         case DLBackEnd.AWS
           obj.awsPretrack(dmc,setStatusFcn);
+        case DLBackEnd.Bsub
+          obj.bsubPretrack(cacheDir);
       end      
+    end
+    
+    function r = getAPTRoot(obj)
+      switch obj.type
+        case DLBackEnd.Bsub
+          r = obj.bsubaptroot;
+        case DLBackEnd.AWS
+          r = '/home/ubuntu/APT';
+        case DLBackEnd.Docker
+          r = APT.Root;          
+        case DLBackEnd.Conda
+          r = APT.Root;          
+      end
+    end
+    function r = getAPTDeepnetRoot(obj)
+      r = [obj.getAPTRoot '/deepnet'];
     end
     
   end
@@ -430,9 +453,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.bsubaptroot = aptroot;
     end
 
+    function bsubPretrack(obj,cacheDir)
+      obj.bsubSetRootUpdateRepo(cacheDir);
+    end
+    
   end
   
   methods % Docker
+
+    function s = dockercmd(obj)
+      if isempty(obj.dockerremotehost)
+        s = 'docker';
+      else
+        s = sprintf('ssh -t %s docker',obj.dockerremotehost);
+      end
+    end
 
     % KB 20191219: moved this to not be a static function so that we could
     % use this object's dockerremotehost
