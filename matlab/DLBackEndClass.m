@@ -32,6 +32,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     dockerimgtag = DLBackEndClass.currentDockerImgTag;
     dockerremotehost = '';
     gpuids = []; % for now used by docker/conda
+    dockercontainername = []; % transient
     
     condaEnv = 'APT'; % used only for Conda
   end

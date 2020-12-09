@@ -68,7 +68,9 @@ classdef TrackJobGT < handle
       end
     end
     function codegen(obj,varargin)
-      % aka setCodeStr
+      % aka setCodeStr. As a side effect, can set job-required state on
+      % backend
+      
       switch obj.backend.type
         case DLBackEnd.Bsub
           obj.codestr = obj.codegenSSHBsubSing();
@@ -101,9 +103,10 @@ classdef TrackJobGT < handle
       assert(numel(obj.dmcslcl)==1,'TODO: mv');
       
       dmc1 = obj.dmcsrem(1);
+      mdl = regexprep(dmc1.trainCurrModelLnx,'\.index$','');
       baseargs = {...
         'deepnetroot' obj.backend.getAPTDeepnetRoot ...
-        'model_file' dmc1.trainCurrModelLnx ...
+        'model_file' mdl ...
         }; 
     end
     function codestr = codegenSSHBsubSing(obj)
@@ -143,6 +146,7 @@ classdef TrackJobGT < handle
       be = obj.backend;
       aptroot = be.getAPTRoot;
       baseargs = obj.codegenBaseArgs();
+      baseargs = [baseargs {'filequote' '"'}];
       bindpaths = {dmc1.rootDir; [aptroot '/deepnet']};
 
       gpuids = be.gpuids;
@@ -155,6 +159,7 @@ classdef TrackJobGT < handle
         'bindpath',bindpaths,'gpuid',gpuids);      
       logcmd = sprintf('%s logs -f %s &> "%s" &',...
                   be.dockercmd,containerName,logfile); 
+      be.dockercontainername = containerName;
     end
     
   end

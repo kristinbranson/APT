@@ -2603,10 +2603,10 @@ classdef DeepTracker < LabelTracker
     
     function trkjobsGT = track2_genBaseTrkInfo(obj,taskKeywords,varargin)
       % taskKeyword: arbitrary string/keyword for log/errfiles etc
-
-      gtResaveStrippedLbl = myparse(varargin,...
-        'gtResaveStrippedLbl',false ... % if true, resave *GT props to stripped lbl
-        );
+ 
+%       gtResaveStrippedLbl = myparse(varargin,...
+%         'gtResaveStrippedLbl',false ... % if true, resave *GT props to stripped lbl
+%         );
 
       nvw = obj.lObj.nview;
       assert(numel(taskKeywords)==nvw);
@@ -2632,44 +2632,56 @@ classdef DeepTracker < LabelTracker
       assert(exist(dlLblFileLcl,'file')>0,...
         'Can''t find stripped lbl file: %s\n',dlLblFileLcl);
       
-      if gtResaveStrippedLbl
-        % Modify&resave stripped lbl if nec, as GT movies labels etc
-        % may have changed since training. Currently we classify/track GT
-        % using APT_interf -classify_gt which reads GT rows from the
-        % stripped lbl. Alternatively we could just make a listfile etc and
-        % track the "normal" way which would prob be better.
-
-        lds = load(dlLblFileLcl,'-mat');
-        snew = obj.lObj.projGetSaveStruct('macroreplace',true,...
-                                          'massageCropProps',true,...
-                                          'savepropsonly',true);
-        gtprops = obj.lObj.SAVEPROPS_GTCLASSIFY;
-        somethingGTchanged = ~isequaln(structrestrictflds(lds,gtprops),...
-                                       structrestrictflds(snew,gtprops));        
-        if somethingGTchanged
-          % Note simply re-creating the entire stripped lbl might alter
-          % training data (movies labels etc) which would be highly
-          % undesirable.
-          
-          fprintf('GT state has changed since train...\n');
-        
-          % back up existing stripped lbl jic
-          nowstr = datestr(now,'yyyymmddTHHMMSS');
-          lblbak = sprintf('%s_%s.bak',dlLblFileLcl,nowstr);         
-          [succ,msg] = copyfile(dlLblFileLcl,lblbak);
-          if ~succ
-            error('Error resaving stripped lbl: %s',msg);
-          end
-          fprintf('Backed up stripped lbl: %s.\n',dlLblFileLcl);
-
-          %% load and resave.
-          for f=gtprops(:)',f=f{1}; %#ok<FXSET>
-            lds.(f) = snew.(f);
-          end
-          save(dlLblFileLcl,'-mat','-v7.3','-struct','lds');
-          fprintf('Resaved stripped lbl with updated GT state.\n');
-        end
+      % generate stripped lbl for GT cache
+      [tfsucc,~,slblgt] = obj.lObj.trackCreateDeepTrackerStrippedLbl(...
+        'shuffleRows',false);
+      if ~tfsucc
+        error('Failed to create DL stripped lbl file.');
       end
+      flds = fieldnames(slblgt);
+      fldsPP = flds(startsWith(flds,'preProcData'));
+      sgt = structrestrictflds(slblgt,fldsPP);
+      
+      lds = load(dlLblFileLcl,'-mat');
+      gtchanged = ~isfield(lds,'gtcache') || ~isequaln(lds.gtcache,sgt);
+      if gtchanged
+        % Note simply re-creating the entire stripped lbl might alter
+        % training data (movies labels etc) which would be highly
+        % undesirable.
+        
+        fprintf('GT labels have changed since train...\n');
+        
+        % back up existing stripped lbl jic
+        nowstr = datestr(now,'yyyymmddTHHMMSS');
+        lblbak = sprintf('%s_%s.bak',dlLblFileLcl,nowstr);
+        [succ,msg] = copyfile(dlLblFileLcl,lblbak);
+        if ~succ
+          error('Error resaving stripped lbl: %s',msg);
+        end
+        fprintf('Backed up stripped lbl: %s.\n',dlLblFileLcl);
+        
+        %% load and resave.
+        lds.gtcache = sgt;
+        save(dlLblFileLcl,'-mat','-v7.3','-struct','lds');
+        fprintf('Resaved stripped lbl with updated GT state.\n');
+      end
+      
+%       if gtResaveStrippedLbl
+%         % Modify&resave stripped lbl if nec, as GT movies labels etc
+%         % may have changed since training. Currently we classify/track GT
+%         % using APT_interf -classify_gt which reads GT rows from the
+%         % stripped lbl. Alternatively we could just make a listfile etc and
+%         % track the "normal" way which would prob be better.
+% 
+%         lds = load(dlLblFileLcl,'-mat');
+%         snew = obj.lObj.projGetSaveStruct('macroreplace',true,...
+%                                           'massageCropProps',true,...
+%                                           'savepropsonly',true);
+%         gtprops = obj.lObj.SAVEPROPS_GTCLASSIFY;
+%         somethingGTchanged = ~isequaln(structrestrictflds(lds,gtprops),...
+%                                        structrestrictflds(snew,gtprops));        
+     
+%       end
 
       %%% Code/PTW %%% 
       
@@ -2857,6 +2869,17 @@ classdef DeepTracker < LabelTracker
             % views already spawned but we early-return anyway
             return;
           end
+          
+          logcmd = tjs(itj).codestrlog;
+          if ~isempty(logcmd)
+            [st,res] = system(logcmd);
+            if st~=0,
+              fprintf(2,'Error logging docker job %s: %s\n',...
+                tjs(itj).backend.dockerContainerName,res);
+              tfSuccess = false;
+              return;
+            end
+          end
         end
         obj.trkSysInfo = tjs;
       end
@@ -2957,7 +2980,7 @@ classdef DeepTracker < LabelTracker
       assert(size(mft,2)==3);
       mIdx = MovieIndex(-mft(:,1)); % mov indices are assumed to be positive but referencing GT movs
       % labeled/pred_locs are [nfrmtrk x nphyspt x 2]
-      plbl = cat(2,gtmats.labeled_locs); % now [nfrmtrk x npt x 2]      
+      plbl = cat(2,gtmats.locs_labeled); % now [nfrmtrk x npt x 2]      
       nfrmtrk = size(plbl,1);
       plbl = reshape(plbl,nfrmtrk,[]); % now [nfrmtrx x (npt*2)] where col order is (all x-coords, then all y-)
       ptrk = cat(2,gtmats.(GTMATLOCFLD));
@@ -2973,9 +2996,10 @@ classdef DeepTracker < LabelTracker
         ptrkocc = nan(szplbl(1),szplbl(2)/2);
       end
       
-      tfcroplocs = arrayfun(@(x)~isempty(x.crop_locs) && any(~isnan(x.crop_locs(:))),...
-        gtmats);
-      assert(all(tfcroplocs==tfcroplocs(1)));
+      %tfcroplocs = arrayfun(@(x)~isempty(x.crop_locs) && any(~isnan(x.crop_locs(:))),...
+      %  gtmats);
+      %assert(all(tfcroplocs==tfcroplocs(1)));
+      tfcroplocs = false;
       
       tablevars = {mIdx,mft(:,2),mft(:,3),plbl,ptrk,ptrkocc};
       tablevarnames = {'mov' 'frm' 'iTgt' 'pLbl' 'pTrk' 'pTrkocc'};      

@@ -43,17 +43,17 @@ classdef Labeler < handle
       'labeledpostag' 'log'
       'labeledposMarked' 'log'
       'labeledpostagGT' 'log'};
-    SAVEPROPS_GTCLASSIFY = { ... % these props are resaved into stripped lbls pre gt-classify
-      'movieFilesAllGT'
-      'movieInfoAllGT'
-      'movieFilesAllGTCropInfo'
-      'movieFilesAllGTHistEqLUT'
-      'trxFilesAllGT'
-      'viewCalibrationDataGT'
-      'labeledposGT'
-      'labeledpostagGT'
-      'labeledposTSGT'
-      'labeledpos2GT'};
+%     SAVEPROPS_GTCLASSIFY = { ... % these props are resaved into stripped lbls pre gt-classify
+%       'movieFilesAllGT'
+%       'movieInfoAllGT'
+%       'movieFilesAllGTCropInfo'
+%       'movieFilesAllGTHistEqLUT'
+%       'trxFilesAllGT'
+%       'viewCalibrationDataGT'
+%       'labeledposGT'
+%       'labeledpostagGT'
+%       'labeledposTSGT'
+%       'labeledpos2GT'};
     
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};     
@@ -10433,17 +10433,20 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function [tfsucc,tblPTrn,s] = ...
+    function [tfsucc,tblPCache,s] = ...
         trackCreateDeepTrackerStrippedLbl(obj,varargin)
       % For use with DeepTrackers. Create stripped lbl based on
       % .currTracker
       %
       % tfsucc: false if user canceled etc.
-      % tblPTrn: table of data-to-be-used as training data
+      % tblPCache: table of data cached in stripped lbl (eg training data, 
+      %   or gt data)
       % s: scalar struct, stripped lbl struct
       
       [wbObj,ppdata,sPrmAll,shuffleRows] = myparse(varargin,...
-        'wbObj',[],'ppdata',[],'sPrmAll',[],...
+        'wbObj',[],...
+        'ppdata',[],...
+        'sPrmAll',[],...
         'shuffleRows',true ...
         );
       tfWB = ~isempty(wbObj);
@@ -10458,62 +10461,70 @@ classdef Labeler < handle
         error('There is no current tracker selected.');
       end
       
+      isGT = obj.gtIsGTMode;
+      if isGT
+        descstr = 'gt';
+      else
+        descstr = 'training';
+      end
+      
       %
       % Determine the training set
       % 
       if isempty(ppdata),
         treatInfPosAsOcc = ...
           isa(tObj,'DeepTracker') && tObj.trnNetType.doesOccPred;
-        tblPTrn = obj.preProcGetMFTableLbled(...
+        tblPCache = obj.preProcGetMFTableLbled(...
           'wbObj',wbObj,...
+          'gtModeOK',isGT,...
           'treatInfPosAsOcc',treatInfPosAsOcc ...
           );
         if tfWB && wbObj.isCancel
           tfsucc = false;
-          tblPTrn = [];
+          tblPCache = [];
           s = [];
           return;
         end
         
-        if isempty(tblPTrn)
-          error('No training data available.');
+        if isempty(tblPCache)
+          error('No %s data available.',descstr);
         end
         
         if obj.hasTrx
-          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+          tblfldscontainsassert(tblPCache,[MFTable.FLDSCOREROI {'thetaTrx'}]);
         elseif obj.cropProjHasCrops
-          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+          tblfldscontainsassert(tblPCache,[MFTable.FLDSCOREROI]);
         else
-          tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+          tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
-        [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPTrn,obj,...
+        [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
           'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           tfsucc = false;
-          tblPTrn = [];
+          tblPCache = [];
           s = [];
           return;
         end
         nMissedReads = height(tblAddReadFailed);
         if nMissedReads>0
-          warningNoTrace('Removing %d training rows, failed to read images.\n',...
-            nMissedReads);
+          warningNoTrace('Removing %d %s rows, failed to read images.\n',...
+            nMissedReads,descstr);
         end
         
         assert(all(locAU(~tfAU)==0));
         
-        ppdbITrn = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
-        tblPTrn = obj.ppdb.dat.MD(ppdbITrn,:);
+        ppdbICache = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
+        tblPCache = obj.ppdb.dat.MD(ppdbICache,:);
         
-        fprintf(1,'Training with %d rows.\n',numel(ppdbITrn));
-        fprintf(1,'Training data summary:\n');
-        obj.ppdb.dat.summarize('mov',ppdbITrn);
-        
+        fprintf(1,'%s with %d rows.\n',descstr,numel(ppdbICache));
+        fprintf(1,'%s data summary:\n',descstr);
+        obj.ppdb.dat.summarize('mov',ppdbICache);        
       else
         % training set provided; note it may or may not include fully-occ
         % labels etc.
-        tblPTrn = ppdata.MD;
+        tblPCache = ppdata.MD;
+        ppdbICache = (1:ppdata.N)';
       end
       
       % 
@@ -10540,20 +10551,20 @@ classdef Labeler < handle
 %         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
 %       end
       
+      % AL: moved above
       if ~isempty(ppdata)
-        ppdbITrn = true(ppdata.N,1);
+%         ppdbICache = true(ppdata.N,1);
       else
-
         % De-objectize .ppdb.dat (CPRData)
         ppdata = s.ppdb.dat;
       end
       
-      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
-        numel(ppdbITrn),ppdata.N);
+      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d %s rows.\n',...
+        numel(ppdbICache),ppdata.N,descstr);
       
-      ppdataI = ppdata.I(ppdbITrn,:);
-      ppdataP = ppdata.pGT(ppdbITrn,:);
-      ppdataMD = ppdata.MD(ppdbITrn,:);
+      ppdataI = ppdata.I(ppdbICache,:);
+      ppdataP = ppdata.pGT(ppdbICache,:);
+      ppdataMD = ppdata.MD(ppdbICache,:);
       
       ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
       ppMDflds = tblflds(ppdataMD);
@@ -10582,6 +10593,8 @@ classdef Labeler < handle
           assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
           s.(f) = v(prand,:);
         end
+      else
+        prand = [];
       end
       s.preProcData_prand = prand;
       
