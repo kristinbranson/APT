@@ -59,6 +59,8 @@ import tarfile
 import urllib
 import getpass
 import apt_dpk
+import link_trajectories as lnk
+from matplotlib.path import Path
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
@@ -266,6 +268,83 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
             json.dump(splits, f)
     except IOError:
         logging.warning('SPLIT_WRITE: Could not output the split data information')
+
+
+def convert_to_coco(coco_info,ann,data):
+    # converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
+
+    cur_im,cur_locs,info,cur_occ = data[:4]
+    ndx = coco_info['ndx']
+    coco_info['ndx'] += 1
+    imfile = os.path.join(coco_info['imdir'],'{:08d}.png'.format(ndx))
+    if cur_im.shape[2] == 1:
+        cv2.imwrite(imfile,cur_im[:,:,0])
+    else:
+        cur_im = cv2.cvtColor(cur_im, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(imfile,cur_im)
+
+    ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': imfile, 'movid':info[0], 'frm':info[1],'patch':info[2]})
+    for idx in range(cur_locs.shape[0]):
+        annid = coco_info['ann_ndx']
+        coco_info['ann_ndx'] += 1
+        ix = cur_locs[idx, ...]
+        if np.all(ix < -1000) or np.all(np.isnan(ix)):
+            continue
+        occ_coco = 2 - cur_occ[idx, :, np.newaxis]
+        occ_coco[np.isnan(ix[:, 0]), :] = 0
+        lmin = ix.min(axis=0)
+        lmax = ix.max(axis=0)
+        w = lmax[0] - lmin[0]
+        h = lmax[1] - lmin[1]
+        bbox = [lmin[0], lmin[1], w, h]
+        area = w * h
+        out_locs = np.concatenate([ix, occ_coco], 1)
+        ann['annotations'].append({'iscrowd': 0, 'segmentation': [bbox], 'area': area, 'image_id': ndx, 'id': annid,'num_keypoints': cur_locs.shape[1], 'bbox': bbox, 'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
+
+
+def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf):
+    # function that creates tfrecords using db_from_lbl
+    if not os.path.exists(conf.cachedir):
+        os.mkdir(conf.cachedir)
+
+    if on_gt:
+        train_filename = db_files[0]
+        os.makedirs(os.path.dirname(db_files[0]),exist_ok=True)
+    elif len(db_files) > 1:
+        train_filename = db_files[0]
+        env = tf.python_io.TFRecordWriter(train_filename)
+        val_filename = db_files[1]
+    else:
+        train_filename = os.path.join(conf.cachedir, conf.trainfilename)
+        val_filename = os.path.join(conf.cachedir, conf.valfilename)
+
+    skeleton = [[i,i+1] for i in range(conf.n_classes-1)]
+    names = ['pt_{}'.format(i) for i in range(conf.n_classes)]
+    categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}]
+
+    train_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
+    train_info = {'ndx':0,'ann_ndx':0,'imdir':os.path.join(conf.cachedir,'train')}
+    val_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
+    val_info = {'ndx':0,'ann_ndx':0,'imdir':os.path.join(conf.cachedir,'val')}
+    os.makedirs(os.path.join(conf.cachedir,'train'),exist_ok=True)
+    os.makedirs(os.path.join(conf.cachedir,'val'),exist_ok=True)
+
+    out_fns = [lambda data: convert_to_coco(train_info,train_ann,data),
+               lambda data: convert_to_coco(val_info, val_ann,data)]
+    splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
+
+    with open(train_filename + '.json','w') as f:
+        json.dump(train_ann,f)
+    if split:
+        with open(val_filename + '.json', 'w') as f:
+            json.dump(val_ann,f)
+
+    try:
+        with open(os.path.join(conf.cachedir, 'splitdata.json'), 'w') as f:
+            json.dump(splits, f)
+    except IOError:
+        logging.warning('SPLIT_WRITE: Could not output the split data information')
+
 
 
 def to_orig(conf, locs, x, y, theta):
@@ -896,6 +975,206 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
     lbl.close()
     return splits
 
+def setup_ma(conf):
+    # Setups parameters for mutli-animal like ngrids, imsz etc.
+    # Imsz is set to be around 3*max_animal_sz
+    # T = PoseTools.json_load(os.path.join(conf.cachedir,conf.json_trn_file))
+    pack_dir = conf.cachedir
+    T = PoseTools.json_load(os.path.join(pack_dir,conf.json_trn_file))
+    cur_t = T['locdata'][0]
+    cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
+    fr_sz = cur_frame.shape[:2]
+    conf.multi_frame_sz = fr_sz
+    animal_sz = []
+
+    for selndx,cur_t in enumerate(T['locdata']):
+        cur_locs =np.array(cur_t['pabs'])-1
+        ntgt = cur_t['ntgt']
+        cur_locs = cur_locs.reshape([conf.nviews,2,conf.n_classes,ntgt])
+        cur_locs = np.transpose(cur_locs[conf.view,...],[2,1,0])
+        for cura in cur_locs:
+            # Find distance between all landmarks. Take the max to find the animal size
+            dd = np.linalg.norm(cura[np.newaxis,...]-cura[:,np.newaxis,...],axis=-1)
+            animal_sz.append(dd.max())
+
+    max_animal_sz = np.percentile(animal_sz,98)
+    # don't take max in case there is a weird outlier
+    conf.multi_max_animal_sz = int(max_animal_sz)+1
+    sz =np.ceil((3*max_animal_sz+2*conf.multi_bb_ex)/32)*32
+    sz = int(sz)
+    logging.info(f'--- Using crops of size {sz} for multi-animal training. Max animal size is {max_animal_sz} ---')
+    sz = [sz,sz]
+    if sz[0]> fr_sz[0]:
+        sz[0] = fr_sz[0]
+    if sz[1] > fr_sz[1]:
+        sz[1] = fr_sz[1]
+
+    conf.imsz = sz
+
+
+def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
+
+    def create_mask(bb, sz):
+        # sz should be h x w (i.e y first then x)
+        x,y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
+        x = x.flatten()
+        y = y.flatten()
+        pts = np.vstack((x,y)).T
+        grid = None
+        for c in bb:
+            rr = c.tolist()
+            rr.append(rr[0])
+            path = Path(rr)
+            cgrid = path.contains_points(pts)
+            if grid is not None:
+                grid = grid | cgrid
+            else:
+                grid = cgrid
+
+        if grid is None:
+            mask = np.zeros(sz)>0.5
+        else:
+            mask = grid.reshape(sz)
+        return mask
+
+    buffer = int(conf.multi_max_animal_sz/2 + conf.multi_bb_ex)
+    x_grid = int(np.ceil(conf.multi_frame_sz[1]/(conf.imsz[1]-buffer*2)))
+    y_grid = int(np.ceil(conf.multi_frame_sz[0]/(conf.imsz[0]-buffer*2)))
+    frame = frame.copy()
+    curi = np.pad(frame, [[buffer, buffer], [buffer, buffer], [0, 0]])
+    fr_sz = conf.multi_frame_sz
+    isz = conf.imsz
+    all_data = []
+    done_f = np.zeros([cur_pts.shape[0]])>0.5
+    for xx in range(x_grid):
+        for yy in range(y_grid):
+            valid = []
+            all_bb = []
+
+            # Find the center and corners of current grid cell.
+            ctrx = (xx+0.5)/x_grid*fr_sz[1]
+            ctry = (yy+0.5)/y_grid*fr_sz[0]
+            leftx = int(ctrx - isz[1]//2)+buffer
+            leftx = min(max(leftx,0),fr_sz[1]+2*buffer-isz[1])
+            rightx = leftx + isz[1]
+            topy = int(ctry - isz[0]//2) + buffer
+            topy = min(max(topy,0),fr_sz[0]+2*buffer-isz[0])
+            bottomy = topy + isz[0]
+            # print('left:{},right:{},top:{},bottom:{}'.format(leftx,rightx,topy,bottomy))
+
+            for aa in range(cur_pts.shape[0]):
+                pp = cur_pts[aa, :, :] + buffer
+                bb1 = np.min(pp, axis=0)
+                bb2 = np.max(pp, axis=0)
+
+                if not ((bb1[0] > leftx) and (bb2[0] < rightx) and (bb1[1] > topy) and (bb2[1] < bottomy)):
+                    # All The labeled joints should lie within.
+                    # Maybe it might be better with whole masked bounding box. But other packages on coco suggest animals getting cropped isn't that big a deal.
+                    continue
+                valid.append(aa)
+                done_f[aa] = True
+                curbb = np.array([[bb1[0], bb2[0]], [bb1[1], bb2[1]]])
+                curbb[0, :] += buffer - leftx
+                curbb[1, :] += buffer - topy
+                rr = roi[aa,...].copy()
+                rr[...,0] += buffer - leftx
+                rr[...,1] += buffer - topy
+                all_bb.append(rr)
+
+            if len(valid) > 0:
+                # print('xx:{},yy:{},aa:{}'.format(xx,yy,valid))
+                # If there is at last one labeled animal
+                curp = curi[topy:bottomy,leftx:rightx, :]
+                cur_mask = create_mask(all_bb,[bottomy-topy,rightx-leftx])
+                curp = curp * cur_mask[...,np.newaxis]
+                curl = cur_pts[valid, :, :].copy()
+                curl[:, :,0] = curl[:, :, 0] - leftx + buffer
+                curl[:, :,1] = curl[:, :, 1] - topy + buffer
+                cur_occ = occ[valid,...]
+
+                all_data.append([curp, curl, [info[0], info[1], y_grid*xx+ yy], cur_occ])
+    if not np.all(done_f):
+        logging.warning('Not all labeled animals could be included in the training set')
+    return all_data
+
+
+def db_from_trnpack(conf, out_fns, nsamples=None):
+    # Creates db from new trnpack format instead of stripped label files.
+    # outputs is a list of functions. The first element writes
+    # to the training dataset while the second one write to the validation
+    # dataset. If split is False, second element is not used and all data is
+    # outputted to training dataset
+    # the function will be give a list with:
+    # 0: img,
+    # 1: locations as a numpy array.
+    # 2: information list [expid, frame number, trxid]
+    # the function returns a list of [expid, frame_number and trxid] showing
+    #  how the data was split between the two datasets.
+
+    lbl = h5py.File(conf.labelfile, 'r')
+    occ_as_nan = conf.get('ignore_occluded',False)
+    lbl_dir = conf.cachedir
+    T = PoseTools.json_load(os.path.join(lbl_dir,conf.json_trn_file))
+    nfrms = len(T['locdata'])
+
+    splits = [[] for a in T['splitnames']]
+    count = [0 for a in T['splitnames']]
+
+    # KB 20190208: if we only need a few images, don't waste time reading in all of them
+    if nsamples is not None:
+        T['locdata'] = T['locdata'][np.random.choice(nfrms,nsamples)]
+    else:
+        sel = np.arange(len(T['locdata']))
+
+    for selndx,cur_t in enumerate(T['locdata']):
+
+        cur_frame = cv2.imread(os.path.join(conf.cachedir,cur_t['img'][conf.view]),cv2.IMREAD_UNCHANGED)
+        if cur_frame.ndim == 2:
+            cur_frame = cur_frame[..., np.newaxis]
+        cur_locs =np.array(cur_t['pabs'])-1
+        ntgt = cur_t['ntgt']
+        cur_locs = cur_locs.reshape([conf.nviews,2,conf.n_classes,ntgt])
+        cur_locs = np.transpose(cur_locs[conf.view,...],[2,1,0])
+
+        cur_occ = np.array(cur_t['occ'])
+        cur_occ = cur_occ.reshape([conf.nviews,conf.n_classes,ntgt])
+        cur_occ = cur_occ[conf.view,:]
+        cur_occ = np.transpose(cur_occ, [1, 0])
+
+        cur_roi = np.array(cur_t['roi']).reshape([conf.nviews,2,4,ntgt])
+        cur_roi = np.transpose(cur_roi[conf.view,...],[2,1,0])
+
+        if conf.is_multi:
+            info = to_py([cur_t['imov'],cur_t['frm'],cur_t['ntgt']])
+        else:
+            info = to_py([cur_t['imov'],cur_t['frm'],cur_t['itgt']])
+
+        if occ_as_nan:
+            cur_locs[cur_occ,:] = np.nan
+        cur_occ = cur_occ.astype('float')
+
+        sndx = cur_t['split']
+        if type(sndx) ==list:
+            sndx = sndx[0]
+        cur_out = out_fns[sndx]
+        if conf.is_multi:
+            data_out = create_ma_crops(conf,cur_frame,cur_locs,info, cur_occ, cur_roi)
+        else:
+            data_out = [[cur_frame, cur_locs, info,cur_occ]]
+        for curd in data_out:
+            cur_out(curd)
+
+        count[sndx] += 1
+        splits[sndx].append(info)
+
+        if selndx % 100 == 99 and selndx > 0:
+            logging.info('{} number of examples added to the dbs'.format(count))
+
+    logging.info('{} number of examples added to the training dbs'.format(count))
+    lbl.close()
+
+    return splits, sel
+
 
 def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None, nsamples=None):
     # outputs is a list of functions. The first element writes
@@ -909,18 +1188,24 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
     # the function returns a list of [expid, frame_number and trxid] showing
     #  how the data was split between the two datasets.
 
-    assert not (on_gt and split), 'Cannot split gt data'
 
-    local_dirs, _ = multiResData.find_local_dirs(conf, on_gt)
     lbl = h5py.File(conf.labelfile, 'r')
-    view = conf.view
-    npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
-    sel_pts = int(view * npts_per_view) + conf.selpts
+    if not 'preProcData_MD_mov' in lbl.keys():
+        return db_from_trnpack(conf,out_fns,nsamples=nsamples)
+
+    assert not (on_gt and split), 'Cannot split gt data'
     occ_as_nan = conf.get('ignore_occluded',False)
 
     splits = [[], []]
     count = 0
     val_count = 0
+
+    ims_lbl = True
+    # old style stripped label file with cached data.
+    m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
+    t_ndx = lbl['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
+    f_ndx = lbl['preProcData_MD_frm'].value[0, :].astype('int') - 1
+    occ = lbl['preProcData_MD_tfocc'].value.astype('bool')
 
     mov_split = None
     predefined = None
@@ -928,34 +1213,24 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         assert split_file is not None, 'File for defining splits is not given'
         predefined = PoseTools.json_load(split_file)
     elif conf.splitType == 'movie':
-        nexps = len(local_dirs)
+        nexps = m_ndx.max()+1
         mov_split = sample(list(range(nexps)), int(nexps * conf.valratio))
         predefined = None
     elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
 
-    m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
-    t_ndx = lbl['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
-    f_ndx = lbl['preProcData_MD_frm'].value[0, :].astype('int') - 1
-    occ = lbl['preProcData_MD_tfocc'].value.astype('bool')
 
     if on_gt:
         m_ndx = -m_ndx
 
-    if conf.has_trx_file:
-        trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt)
-
-    prev_trx_mov = -1
-    psz = max(conf.imsz)
-
     # KB 20190208: if we only need a few images, don't waste time reading in all of them
     if sel is None:
         if nsamples is None:
-            sel = np.arange(lbl['preProcData_I'].shape[1])
+            sel = np.arange(m_ndx.shape[0])
         else:
-            sel = np.random.choice(lbl['preProcData_I'].shape[1],nsamples)
+            sel = np.random.choice(m_ndx.shape[0],nsamples)
     else:
-        sel = np.arange(lbl['preProcData_I'].shape[1])
+        sel = np.arange(m_ndx.shape[0])
 
     for selndx in range(len(sel)):
 
@@ -965,9 +1240,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
             continue
 
         cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy().T
+        cur_locs = to_py(lbl['preProcData_P'][:, ndx].copy())
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
-        cur_locs = to_py(lbl['preProcData_P'][:, ndx].copy())
         cur_locs = cur_locs.reshape([2,conf.nviews,conf.n_classes])
         cur_locs = cur_locs[:,conf.view,:].T
         mndx = to_py(m_ndx[ndx])
@@ -980,8 +1255,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
 
         info = [int(mndx), int(f_ndx[ndx]), int(t_ndx[ndx])]
 
-        cur_out = multiResData.get_cur_env(out_fns, split, conf, info,
-                                           mov_split, trx_split=None, predefined=predefined)
+        cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=None, predefined=predefined)
         # when creating from cache, we don't do trx splitting. It should always be predefined
 
         if occ_as_nan:
@@ -1244,8 +1518,12 @@ def get_trx_info(trx_file, conf, n_frames):
         end_frames = np.array([x['endframe'][0, 0] for x in trx])
         first_frames = np.array([x['firstframe'][0, 0] for x in trx]) - 1  # for converting from 1 indexing to 0 indexing
     else:
-        trx = [None, ]
-        n_trx = 1
+        if conf.is_multi:
+            trx = [None,]
+            n_trx = conf.max_n_animals
+        else:
+            trx = [None, ]
+            n_trx = 1
         end_frames = np.array([n_frames])
         first_frames = np.array([0])
     return trx, first_frames, end_frames, n_trx
@@ -2094,37 +2372,49 @@ def classify_gt_data(conf, model_type, out_file, model_file):
 
     lbl.close()
 
-def convert_to_mat_trk(in_pred, conf, start, end, trx_ids):
+def convert_to_mat_trk(pred_locs, conf, start, end, trx_ids):
     ''' Converts predictions to compatible trk format'''
-    pred_locs = in_pred.copy()
-    pred_locs = pred_locs[:, trx_ids, ...]
+    # pred_locs = in_pred.copy()
+    if not conf.is_multi:
+        pred_locs = pred_locs[:, trx_ids, ...]
     pred_locs = pred_locs[:(end-start), ...]
     if pred_locs.ndim == 4:
         pred_locs = pred_locs.transpose([2, 3, 0, 1])
     else:
         pred_locs = pred_locs.transpose([2, 0, 1])
-    if not conf.has_trx_file:
+    if not (conf.has_trx_file or conf.is_multi):
         pred_locs = pred_locs[..., 0]
-    return pred_locs
+
+    ps = np.array(pred_locs.shape)
+    idx_f = np.where(~np.isnan(pred_locs.flat))[0]
+    vals = pred_locs.flat[idx_f]
+
+    # Convert idx from python's C format to matlab's fortran format
+    idx = np.unravel_index(idx_f, ps)
+    idx = np.ravel_multi_index(idx[::-1], np.flip(ps))
+    idx = to_mat(idx)
+    vals = to_mat(vals)
+    pred_dict = {'idx':idx,'val':vals,'size':ps,'type':'nan'}
+
+    return pred_dict
 
 def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, info, mov_file):
     '''
     pred_locs is the predicted locations of size
-    n_frames in the movie x n_Trx x n_body_parts x 2
+    n_frames x n_Trx x n_body_parts x 2
     n_done is the number of frames that have been tracked.
     everything should be 0-indexed
     '''
+
     pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
-    pred_locs = to_mat(pred_locs)
 
     tgt = to_mat(np.array(trx_ids))  # target animals that have been tracked.
     # For projects without trx file this is always 1.
-    ts_shape = pred_locs.shape[0:1] + pred_locs.shape[2:]
+    ts_shape = pred_locs['size'][0:1].tolist() + pred_locs['size'][2:].tolist()
     ts = np.ones(ts_shape) * datetime2matlabdn()  # time stamp
     tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-    tracked_shape = pred_locs.shape[2]
-    tracked = np.zeros([1,
-                        tracked_shape])  # which of the predlocs have been tracked. Mostly to help APT know how much tracking has been done.
+    tracked_shape = pred_locs['size'][2]
+    tracked = np.zeros([1, tracked_shape])  # which of the predlocs have been tracked. Mostly to help APT know how much tracking has been done.
     tracked[0, :] = to_mat(np.arange(start,end))
 
     out_dict = {'pTrk': pred_locs,
@@ -2160,7 +2450,7 @@ def classify_movie(conf, pred_fn, model_type,
                    trx_ids=(),
                    model_file='',
                    name='',
-                   nskip_partfile=400,
+                   nskip_partfile=5000,
                    save_hmaps=False,
                    crop_loc=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
@@ -2177,11 +2467,14 @@ def classify_movie(conf, pred_fn, model_type,
     logging.info('name: %s'%name)
     logging.info('save_hmaps: '+str(save_hmaps))
     logging.info('crop_loc: '+str(crop_loc))
-    
+
+    lnk_cost = conf.get('multi_link_cost', 5)
+
     cap = movies.Movie(mov_file)
     sz = (cap.get_height(), cap.get_width())
     n_frames = int(cap.get_n_frames())
     T, first_frames, end_frames, n_trx = get_trx_info(trx_file, conf, n_frames)
+    # For multi-animal T is [None,] and n_trx is conf.max_n_animals. With this combination, rest of the workflow seems to work. Totally unintentional but I'm not going to update it if it is working. MK 20201111
     trx_ids = get_trx_ids(trx_ids, n_trx, conf.has_trx_file)
     conf.batch_size = 1 if model_type == 'deeplabcut' else conf.batch_size
     bsize = conf.batch_size
@@ -2238,7 +2531,11 @@ def classify_movie(conf, pred_fn, model_type,
             cur_trx = T[trx_ndx]
             cur_f = cur_entry[0]
             base_locs_orig = convert_to_orig(base_locs[cur_t, ...], conf, cur_f, cur_trx, crop_loc)
-            pred_locs[cur_f - min_first_frame, trx_ndx, :, :] = base_locs_orig[ ...]
+            if conf.is_multi:
+                # doing only this seems to work
+                pred_locs[cur_f - min_first_frame, :, :, :] = base_locs_orig[...]
+            else:
+                pred_locs[cur_f - min_first_frame, trx_ndx, :, :] = base_locs_orig[ ...]
 
             #if save_hmaps:
             #    write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
@@ -2269,7 +2566,17 @@ def classify_movie(conf, pred_fn, model_type,
             sys.stdout.write('.')
         if cur_b % nskip_partfile == nskip_partfile - 1:
             sys.stdout.write('\n')
+            # Doesn't make sense to connect intermediate ones. too much recomputation.
+            # if conf.is_multi:
+            #     lnk_locs, lnk_loss = link_trajectories(pred_locs,lnk_cost)
+            #     write_trk(out_file + '.part', lnk_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
+            # else:
             write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
+
+    if conf.is_multi:
+        # write out partial results before linking.
+        write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        pred_locs, lnk_loss = link_trajectories(pred_locs, lnk_cost)
 
     write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
     if os.path.exists(out_file + '.part'):
@@ -2277,6 +2584,22 @@ def classify_movie(conf, pred_fn, model_type,
     cap.close()
     tf.reset_default_graph()
     return pred_locs
+
+
+def link_trajectories(pred_locs,lnk_cost_in):
+    lnk_cost = lnk_cost_in * pred_locs.shape[2] * 2
+    locs_lnk = np.transpose(pred_locs, [3, 2, 1, 0])
+    ids, cost = lnk.assign_ids(locs_lnk, {'maxcost': lnk_cost,'verbose':0})
+    ids = ids.astype('int')
+    max_traj = ids.max()+1
+    lnk_preds = np.ones([pred_locs.shape[0], max_traj, pred_locs.shape[2], pred_locs.shape[3]])*np.nan
+    for t in range(pred_locs.shape[0]):
+        for pred_ndx in range(pred_locs.shape[1]):
+            if np.all(np.isnan(pred_locs[t,pred_ndx,:,:])):
+                continue
+            assert ids[pred_ndx,t] > -0.5, 'Invalid trajectory assignment'
+            lnk_preds[t,ids[pred_ndx,t],:,:] = locs_lnk[:,:,pred_ndx,t].T
+    return lnk_preds, cost
 
 
 def get_unet_pred_fn(conf, model_file=None,name='deepnet'):
@@ -2577,8 +2900,13 @@ def train(lblfile, nviews, name, args):
                 train_dpk(conf, args, split, split_file=split_file)
 
             else:
+                if conf.is_multi:
+                    setup_ma(conf)
                 if not args.skip_db:
-                    create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+                    if net_type.startswith('multi_') or conf.db_format=='coco':
+                        create_coco_db(conf,split=split,split_file=split_file)
+                    else:
+                        create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()

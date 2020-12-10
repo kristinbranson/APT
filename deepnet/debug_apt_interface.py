@@ -1,8 +1,281 @@
+##
 cmd = '-name 20200925T080001 -view 1 -cache /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800 -type mdn /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800/alice_test/20200925T080001_20200925T080130.lbl train -use_cache -skip_db'
+## Roian Tracking
+# cmd = '-name 20201110T005848 -view 1 -cache /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564 -debug -type mdn /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564/test1/20201110T005848_20201110T010044.lbl train -use_cache -skip_db'
+cmd = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl -name full -type multi_mdn_joint_torch -no_except -conf_params has_trx_file False imsz (2048,2048) batch_size 1 max_n_animals 2 is_multi True -cache /nrs/branson/mayank/apt_cache_2 track -mov /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -out /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.trk1 -start_frame 481 -end_frame 482'
 import APT_interface as apt
 apt.main(cmd.split())
 
 ##
+import PoseTools
+import re
+import h5py
+import numpy as np
+import APT_interface as apt
+import torch
+import matplotlib
+matplotlib.use('TkAgg')
+import os
+
+exp_name = 'alice' #'roian'
+net_type = 'multi_mmpose' #'multi_openpose'#'multi_mdn_joint_torch'
+scale = 1
+flip_idx = {}
+if exp_name == 'alice':
+    lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+    n_grid = 4
+    sz = np.round(1024 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 10  # extra pixels around bb
+    buffer = 60  # roughly half the animal size + bb_ex
+    max_n = 6
+    af_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
+    isz = sz+2*buffer
+    flip_idx = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+    if net_type == 'multi_mdn_joint_torch':
+        name = '?'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 4
+    elif net_type == 'multi_mmpose':
+        name = 'fixed_lr_mmpose_aug'
+        scale = isz/384
+
+elif exp_name == 'roian':
+    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl'
+    n_grid = 8
+    sz = np.round(2048 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 40  # extra pixels around bb
+    buffer = 170  # roughly half the animal size + bb_ex
+    max_n = 2
+    af_graph = ((0,1),(0,2),(0,3),(2,3))
+    isz = sz+2*buffer
+    flip_idx = {'2':3,'3':2}
+    if net_type == 'multi_mdn_joint_torch':
+        name = 'try_1'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 6
+
+conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.rrange = 180
+conf.trange = 50
+conf.max_n_animals = max_n
+conf.imsz = (isz,isz)
+conf.mdn_use_unet_loss = False
+conf.img_dim = 3
+conf.op_affinity_graph = af_graph
+conf.mdn_joint_use_fpn = True
+conf.batch_size = 1
+conf.rescale = scale
+conf.flipLandmarkMatches = flip_idx
+
+if net_type == 'multi_mmpose':
+    db_file = os.path.join(conf.cachedir.replace('multi_mmpose','multi_mdn_joint_torch'), 'val_TF.tfrecords')
+else:
+    db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=name)
+torch.cuda.empty_cache()
+# net_type = 'multi_openpose'; train_name =  '50k_resnet'
+# conf.cachedir = '/nrs/branson/mayank/apt_cache_2/multitarget_bubble/multi_openpose/view_0/deepnet/'
+# out1 = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+
+def find_dist_match(dd):
+    dout = np.ones_like(dd[:,:,0,:])*np.nan
+    yy = np.nanmean(dd,axis=-1)
+    for a in range(dd.shape[0]):
+        for ndx in range(dd.shape[2]):
+            if np.all(np.isnan(yy[a,:,ndx])):
+                continue
+            r = np.nanargmin(yy[a,:,ndx])
+            dout[a,ndx,:] = dd[a,r,ndx,:]
+    return dout
+
+
+pp1 = out[0]
+ll1 = out[1]
+dd1 = np.linalg.norm(pp1[:,:,np.newaxis,...]-ll1[:,np.newaxis,...],axis=-1)
+dd1 = find_dist_match(dd1)
+valid = ll1[:,:,0,0]>-1000
+dd1_val = dd1[valid,:]
+
+
+## mmpose single animal
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+import APT_interface as apt
+net = 'mmpose'
+tname = 'mmpose_aug'
+mfile = f'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/{net}/view_0/deepnet/{tname}-100000'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2',net)
+conf.rescale = conf.imsz[0]/768
+conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+aa = apt.classify_db_all('mmpose',conf,'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mdn_joint_fpn/view_0/multi_compare/val_TF.tfrecords',mfile)
+import numpy as np
+dd = np.linalg.norm(aa[0]-aa[1],axis=-1)
+ss = np.percentile(dd,[50,76,90,95,97],axis=0)
+
+
+
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import APT_interface as apt
+import poseConfig
+from Pose_multi_mmpose import Pose_multi_mmpose
+from Pose_multi_mdn_joint_torch import Pose_multi_mdn_joint_torch
+
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2','multi_mdn_fpn_torch')
+
+conf.cachedir = '/nrs/branson/mayank/apt_cache_2/alice_ma/'
+conf.db_format = 'coco'
+conf.dl_steps = 100000
+conf.nviews = 1
+conf.view = 0
+conf.n_classes = 17
+conf.is_multi = True
+conf.max_n_animals = 6
+conf.set_exp_name('alice')
+
+apt.setup_ma(conf)
+# apt.create_coco_db(conf,True)
+# self = Pose_multi_mmpose(conf,'test')
+self = Pose_multi_mdn_joint_torch(conf,name='test')
+self.train_wrapper()
+
+
+##
+import APT_interface as apt
+net = 'mmpose'
+tname = 'mmpose_aug'
+mfile = f'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/{net}/view_0/deepnet/{tname}-100000'
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2',net)
+conf.rescale = 183/768
+conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+aa = apt.classify_db_all('mmpose',conf,'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mdn_joint_fpn/view_0/multi_compare/val_TF.tfrecords',mfile)
+dd = np.linalg.norm(aa[0]-aa[1],axis=-1)
+ss = np.percentile(dd,[50,76,90,95,97],axis=0)
+
+##
+import APT_interface as apt
+import poseConfig
+from Pose_multi_mmpose import Pose_multi_mmpose
+conf = poseConfig.conf
+
+conf.labelfile = '/groups/branson/bransonlab/apt/ma/trnpack_20201123/bub_wking_2movs_20201112.lbl_multianimal.lbl'
+conf.cachedir = '/groups/branson/home/kabram/temp/mapack'
+conf.db_format = 'coco'
+conf.dl_steps = 500
+conf.nviews = 1
+conf.view = 0
+conf.n_classes = 17
+conf.is_multi = True
+conf.set_exp_name('alice')
+
+apt.setup_ma(conf)
+apt.create_coco_db(conf,True)
+self = Pose_multi_mmpose(conf,'test')
+self.train_wrapper()
+
+##
+
+import PoseTools
+import re
+import h5py
+import numpy as np
+import APT_interface as apt
+import torch
+import matplotlib
+matplotlib.use('TkAgg')
+import os
+
+exp_name = 'alice' #'roian'
+net_type = 'multi_mmpose' #'multi_openpose'#'multi_mdn_joint_torch'
+scale = 1
+if exp_name == 'alice':
+    lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+    n_grid = 4
+    sz = np.round(1024 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 10  # extra pixels around bb
+    buffer = 60  # roughly half the animal size + bb_ex
+    max_n = 6
+    af_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
+    isz = sz+2*buffer
+    if net_type == 'multi_mdn_joint_torch':
+        name = '?'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 4
+    elif net_type == 'multi_mmpose':
+        name = 'test'
+        scale = isz/384
+elif exp_name == 'roian':
+    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl'
+    n_grid = 8
+    sz = np.round(2048 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 40  # extra pixels around bb
+    buffer = 170  # roughly half the animal size + bb_ex
+    max_n = 2
+    af_graph = ((0,1),(0,2),(0,3),(2,3))
+    isz = sz+2*buffer
+    if net_type == 'multi_mdn_joint_torch':
+        name = 'try_1'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 6
+
+conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.rrange = 180
+conf.trange = 50
+conf.max_n_animals = max_n
+conf.imsz = (isz,isz)
+conf.mdn_use_unet_loss = False
+conf.img_dim = 3
+conf.op_affinity_graph = af_graph
+conf.mdn_joint_use_fpn = True
+conf.batch_size = 1
+conf.rescale = scale
+
+if net_type == 'multi_mmpose':
+    db_file = os.path.join(conf.cachedir.replace('multi_mmpose','multi_mdn_joint_torch'), 'val_TF.tfrecords')
+else:
+    db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=name)
+
+
+## joining trajectories
+import numpy as np
+import link_trajectories as lnk
+import movies
+cap = movies.Movie('/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg')
+import h5py
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+A = h5py.File('/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.trk','r')
+ll = A['pTrk'].value
+
+plt.imshow(cap.get_frame(0)[0])
+plt.scatter(ll[0,:,0,0],ll[0,:,1,0])
+##
+
+import PoseTools
+import re
+import h5py
+import numpy as np
+import APT_interface as apt
+import torch
+>>>>>>> Stashed changes
 import matplotlib
 matplotlib.use('TkAgg')
 import torch

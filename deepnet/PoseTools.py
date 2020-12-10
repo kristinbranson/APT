@@ -1400,3 +1400,14 @@ def nan_hook(name, grad):
     else:
         print('{} has normal grad'.format(name))
 
+def get_git_commit():
+    curd = os.path.split(__file__)[0]
+    aptd = os.path.split(curd)[0]
+    gitd = os.path.join(aptd,'.git')
+    try:
+        cmd = ['git',"--git-dir={}".format(gitd), "describe"]
+        label = subprocess.check_output(cmd).strip()
+        label = str(label,'utf-8')
+    except subprocess.CalledProcessError as e:
+        label = 'Not a git repo'
+    return label
