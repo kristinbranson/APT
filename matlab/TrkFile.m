@@ -736,6 +736,12 @@ classdef TrkFile < dynamicprops
         elseif ismember('pred_locs',fns),
           nFramesTracked = nnz(~isnan(m.pred_locs(:,1)));
           didload = true;
+        elseif ismember('locs',fns)
+          % gt mat-file
+          % AL: not sure want nnz(~isnan(...)) here; what if a tracker
+          % predicted occluded or something, could that mess stuff up?
+          nFramesTracked = size(m.locs,1);
+          didload = true;
         else
           didload = false;
           nFramesTracked = 0;

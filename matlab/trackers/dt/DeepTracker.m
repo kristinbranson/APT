@@ -2811,7 +2811,7 @@ classdef DeepTracker < LabelTracker
       bgTrkWorkerObj.initFiles(movsDummy,...
         outfiles(:)',logfiles(:)',errfiles(:)',partfiles(:)',false);  
       % for now always true for track2* codepath
-      bgTrkWorkerObj.setPartfileIsTextStatus(true);
+      %bgTrkWorkerObj.setPartfileIsTextStatus(true);
 
       tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
       if any(tfErrFileErr)
@@ -2951,15 +2951,22 @@ classdef DeepTracker < LabelTracker
       
       tblMFT_SuggAndLbled = obj.lObj.gtGetTblSuggAndLbled();
       
+      lObj = obj.lObj;
+      
       % only for check below. this pLbl is read from gtmatfiles which is 
       % produced by the Py
       tblGTpLbl = tblGT.pLbl; 
       tblGT(:,'pLbl') = [];
-      obj.lObj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblGT); % also sets obj.lObj.gtTblRes
-      if ~isequaln(tblGTpLbl,obj.lObj.gtTblRes.pLbl)
+      lObj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblGT); % also sets obj.lObj.gtTblRes
+      d = tblGTpLbl-lObj.gtTblRes.pLbl;
+      GTLBL_THRESH_PX = 1e-2;
+      if max(abs(d(:))) > GTLBL_THRESH_PX
+        % In cases with trx, crops etc the gtlbls from gtTblRes have been
+        % round-tripped thru i) crop/rotate into gt cache and ii) invert
+        % back into absolute coords.
         warningNoTrace('Discrepancy encountered in GT labels read from deepnet mat-files.');
       end
-      obj.lObj.gtReport(reportargs{:});
+      lObj.gtReport(reportargs{:});
       msgbox('GT results available in Labeler property ''gtTblRes''.');
     end
     
@@ -2978,15 +2985,27 @@ classdef DeepTracker < LabelTracker
       
       mft = gtmats(1).list; % should already be 1based from deepnet
       assert(size(mft,2)==3);
-      mIdx = MovieIndex(-mft(:,1)); % mov indices are assumed to be positive but referencing GT movs
+      mIdx = MovieIndex(-mft(:,1)); 
       % labeled/pred_locs are [nfrmtrk x nphyspt x 2]
       plbl = cat(2,gtmats.locs_labeled); % now [nfrmtrk x npt x 2]      
       nfrmtrk = size(plbl,1);
-      plbl = reshape(plbl,nfrmtrk,[]); % now [nfrmtrx x (npt*2)] where col order is (all x-coords, then all y-)
+      plbl = reshape(plbl,nfrmtrk,[]); % now [nfrmtrk x (npt*2)] where col order is (all x-coords, then all y-)
       ptrk = cat(2,gtmats.(GTMATLOCFLD));
       nfrmtrk = size(ptrk,1);
       ptrk = reshape(ptrk,nfrmtrk,[]);
       assert(isequal(size(plbl),size(ptrk)));
+      
+      tbltrkMFT = table(mIdx,mft(:,2),mft(:,3),...
+        'VariableNames',{'mov' 'frm' 'iTgt'});
+      lObj = obj.lObj;
+      ppdb = lObj.ppdb;
+      nphyspts = lObj.nPhysPoints;
+      nvw = lObj.nview;
+      sz = [nfrmtrk nphyspts nvw 2];
+      pbig = cat(5,reshape(plbl,sz),reshape(ptrk,sz));
+      pbig = ppdb.invtform(tbltrkMFT,pbig);
+      plblabs = reshape(pbig(:,:,:,:,1),nfrmtrk,[]);
+      ptrkabs = reshape(pbig(:,:,:,:,2),nfrmtrk,[]);      
       
       szplbl = size(plbl);
       if isfield(gtmats,GTMATOCCFLD)
@@ -3001,14 +3020,14 @@ classdef DeepTracker < LabelTracker
       %assert(all(tfcroplocs==tfcroplocs(1)));
       tfcroplocs = false;
       
-      tablevars = {mIdx,mft(:,2),mft(:,3),plbl,ptrk,ptrkocc};
-      tablevarnames = {'mov' 'frm' 'iTgt' 'pLbl' 'pTrk' 'pTrkocc'};      
+      tablevars = {plblabs,ptrkabs,ptrkocc};
+      tablevarnames = {'pLbl' 'pTrk' 'pTrkocc'};      
       if tfcroplocs(1)
         rois = cat(2,gtmats.crop_locs); % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...]
         tablevars{end+1} = rois; 
         tablevarnames{end+1} = 'roi'; 
-      end      
-      tblGT = table(tablevars{:},'VariableNames',tablevarnames);
+      end            
+      tblGT = [tbltrkMFT table(tablevars{:},'VariableNames',tablevarnames)];
     end
         
     function [tfCanTrack,reason] = canTrack(obj)
