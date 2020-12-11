@@ -304,7 +304,7 @@ classdef PreProcDB < handle
       for ivw=1:nvw
         tMDformAvw = tMD.tformA(:,(1:6)+(ivw-1)*6); 
         % reconstitute tform matrix
-        tMDformAvw(:,end+1:end+3) = repmat([0 0 1],n,1);
+        tMDformAvw(:,end+1:end+3) = repmat([0 0 1],size(tMDformAvw,1),1);
         for i=1:n
           if ~tf(i)
             warningNoTrace('No transform matrix found for mov=%d,frm=%d,tgt=%d.',...
