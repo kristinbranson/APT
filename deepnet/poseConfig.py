@@ -70,7 +70,7 @@ class config(object):
         self.holdoutratio = 0.8
         self.max_n_animals = 1
         self.flipud = False
-        self.json_trn_file = 'loc.json'
+        self.json_trn_file = None
         self.db_format = 'tfrecord' # other option is coco
 
         # ----- UNet params
@@ -193,6 +193,8 @@ class config(object):
         # actual frame size
         self.multi_max_animal_sz = None
 
+        # ============= MMPOSE =================
+        self.mmpose_net = 'multi_hrnet'
 
         # ============== EXTRA ================
 

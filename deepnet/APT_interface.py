@@ -61,6 +61,7 @@ import getpass
 import apt_dpk
 import link_trajectories as lnk
 from matplotlib.path import Path
+from PoseCommon_pytorch import coco_loader
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
@@ -335,7 +336,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
 
     with open(train_filename + '.json','w') as f:
         json.dump(train_ann,f)
-    if split:
+    if split or len(splits)>1:
         with open(val_filename + '.json', 'w') as f:
             json.dump(val_ann,f)
 
@@ -536,7 +537,7 @@ def conf_opts_pvargstr2dict(conf_str):
     return conf_opts
 
 
-def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None,quiet=False):
+def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None,quiet=False,json_trn_file=None):
 
     try:
         try:
@@ -775,6 +776,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
                 except TypeError:
                     logging.info('Could not parse parameter %s, ignoring'%k)
 
+    conf.json_trn_file = json_trn_file
 
     if conf_params is not None:
         cc = conf_params
@@ -979,9 +981,9 @@ def setup_ma(conf):
     # Setups parameters for mutli-animal like ngrids, imsz etc.
     # Imsz is set to be around 3*max_animal_sz
     # T = PoseTools.json_load(os.path.join(conf.cachedir,conf.json_trn_file))
-    pack_dir = conf.cachedir
-    T = PoseTools.json_load(os.path.join(pack_dir,conf.json_trn_file))
+    T = PoseTools.json_load(conf.json_trn_file)
     cur_t = T['locdata'][0]
+    pack_dir = os.path.split(conf.json_trn_file)[0]
     cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
     fr_sz = cur_frame.shape[:2]
     conf.multi_frame_sz = fr_sz
@@ -1113,8 +1115,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None):
 
     lbl = h5py.File(conf.labelfile, 'r')
     occ_as_nan = conf.get('ignore_occluded',False)
-    lbl_dir = conf.cachedir
-    T = PoseTools.json_load(os.path.join(lbl_dir,conf.json_trn_file))
+    T = PoseTools.json_load(conf.json_trn_file)
     nfrms = len(T['locdata'])
 
     splits = [[] for a in T['splitnames']]
@@ -1126,9 +1127,10 @@ def db_from_trnpack(conf, out_fns, nsamples=None):
     else:
         sel = np.arange(len(T['locdata']))
 
+    pack_dir = os.path.split(conf.json_trn_file)[0]
     for selndx,cur_t in enumerate(T['locdata']):
 
-        cur_frame = cv2.imread(os.path.join(conf.cachedir,cur_t['img'][conf.view]),cv2.IMREAD_UNCHANGED)
+        cur_frame = cv2.imread(os.path.join(pack_dir,cur_t['img'][conf.view]),cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
         cur_locs =np.array(cur_t['pabs'])-1
@@ -1919,6 +1921,84 @@ def classify_db_multi(conf, read_fn, pred_fn, n, return_ims=False,
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
             next_db = read_fn()
+            if type(next_db) == dict:
+                all_f[ndx,...] = next_db['images']
+                labeled_locs[cur_start + ndx, ...] = next_db['locs']
+                info.append(next_db['info'])
+            else:
+                all_f[ndx, ...] = next_db[0]
+                labeled_locs[cur_start + ndx, ...] = next_db[1]
+                info.append(next_db[2])
+
+        # note all_f[ndx+1:, ...] for the last batch will be cruft
+
+        # base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict['locs']
+
+        for ndx in range(ppe):
+            pred_locs[cur_start + ndx, ...] = base_locs[ndx, ...]
+            if 'locs_mdn' in ret_dict.keys():
+                mdn_locs[cur_start + ndx, ...] = ret_dict['locs_mdn'][ndx,...]
+                unet_locs[cur_start + ndx, ...] = ret_dict['locs_unet'][ndx, ...]
+                mdn_conf[cur_start + ndx, ...] = ret_dict['conf'][ndx, ...]
+                unet_conf[cur_start + ndx, ...] = ret_dict['conf_unet'][ndx, ...]
+            if return_ims:
+                all_ims[cur_start + ndx, ...] = all_f[ndx, ...]
+            if 'hmaps' in ret_dict and return_hm and \
+               (cur_start+ndx) % hm_dec == 0:
+                hmapidx = (cur_start+ndx) // hm_dec
+                hmthis = ret_dict['hmaps'][ndx, ...]
+                hmthis = hmthis + 1.0
+                # all_hmaps[hmapidx, ...] = hmthis
+                hmmu = np.zeros((conf.n_classes, 2))
+                for ipt in range(conf.n_classes):
+                    _, mutmp, _, _ = heatmap.compactify_hmap(hmthis[:, :, ipt],
+                                                          floor=hm_floor,
+                                                          nclustermax=hm_nclustermax)
+                    hmmu[ipt, :] = mutmp[::-1].flatten() - 1.0
+                hmap_locs[cur_start + ndx, ...] = hmmu
+            if 'locs_joint' in ret_dict.keys():
+                joint_locs[cur_start + ndx, ...] = ret_dict['locs_joint'][ndx,...]
+
+
+    if return_ims:
+        return pred_locs, labeled_locs, info, all_ims
+    else:
+        extrastuff = [mdn_locs,unet_locs,mdn_conf,unet_conf,joint_locs]
+        if return_hm:
+            # extrastuff.append(all_hmaps)
+            extrastuff.append(hmap_locs)
+        return pred_locs, labeled_locs, info, extrastuff
+
+def classify_db_multi(conf, read_fn, pred_fn, n, return_ims=False,
+                return_hm=False, hm_dec=100, hm_floor=0.0, hm_nclustermax=1):
+
+    '''Classifies n examples generated by read_fn'''
+    bsize = conf.batch_size
+    max_n = conf.max_n_animals
+    all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
+    pred_locs = np.zeros([n, max_n, conf.n_classes, 2])
+    mdn_locs = np.zeros([n, max_n, conf.n_classes, 2])
+    unet_locs = np.zeros([n,max_n, conf.n_classes, 2])
+    mdn_conf = np.zeros([n, max_n, conf.n_classes])
+    unet_conf = np.zeros([n, max_n, conf.n_classes])
+    joint_locs = np.zeros([n, max_n, conf.n_classes,2])
+    n_batches = int(math.ceil(float(n) / bsize))
+    labeled_locs = np.zeros([n, max_n, conf.n_classes, 2])
+
+    info = []
+    if return_ims:
+        all_ims = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
+    if return_hm:
+        nhm = n // hm_dec + n % hm_dec
+        all_hmaps = np.zeros([nhm, conf.imsz[0], conf.imsz[1], conf.n_classes])
+        hmap_locs = np.zeros([nhm, conf.n_classes, 2])
+    for cur_b in range(n_batches):
+        cur_start = cur_b * bsize
+        ppe = min(n - cur_start, bsize)
+        for ndx in range(ppe):
+            next_db = read_fn()
             all_f[ndx, ...] = next_db[0]
             labeled_locs[cur_start + ndx, ...] = next_db[1]
             info.append(next_db[2])
@@ -2086,11 +2166,17 @@ def classify_db_all(model_type, conf, db_file, model_file=None,
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     else:
-        is_multi = model_type.startswith('multi_')
-        tf_iterator = multiResData.tf_reader(conf, db_file, False,is_multi=is_multi)
-        tf_iterator.batch_size = 1
-        read_fn = tf_iterator.next
-        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
+        if conf.db_format == 'coco':
+            coco_reader = multiResData.coco_loader(conf, db_file, False)
+            read_fn = iter(coco_reader).__next__
+            db_len = len(coco_reader)
+        else:
+            is_multi = conf.is_multi
+            tf_iterator = multiResData.tf_reader(conf, db_file, False, is_multi=is_multi)
+            tf_iterator.batch_size = 1
+            read_fn = tf_iterator.next
+            db_len = tf_iterator.N
+        ret = classify_fcn(conf, read_fn, pred_fn, db_len)
         pred_locs, label_locs, info = ret[:3]
         if len(ret)>3:
             extrastuff = ret[3]
@@ -2855,7 +2941,7 @@ def train(lblfile, nviews, name, args):
         views = [view]
 
     for cur_view in views:
-        conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params)
+        conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
 
         conf.view = cur_view
         if args.split_file is not None:
@@ -2940,7 +3026,8 @@ def parse_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("lbl_file",
                         help="path to lbl file")
-    parser.add_argument('-name', dest='name', help='Name for the run. Default - pose_unet', default='pose_unet')
+    parser.add_argument('-json_trn_file', dest='json_trn_file', help='Json file containing label information', default=None)
+    parser.add_argument('-name', dest='name', help='Name for the run. Default - apt', default='apt')
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views',
                         default=None, type=int)
     parser.add_argument('-model_files', dest='model_file',

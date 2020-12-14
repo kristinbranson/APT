@@ -26,6 +26,7 @@ else:
 
 import movies
 import json
+import torch
 
 
 def find_local_dirs(conf, on_gt=False):
@@ -1269,3 +1270,42 @@ class tf_reader(object):
 #        return {'orig_images':ims, 'orig_locs':locs, 'info':info, 'extra_info':np.zeros([self.batch_size,1])}
         return ims, locs, info, np.zeros([self.batch_size,1])
 
+
+
+class coco_loader(torch.utils.data.Dataset):
+
+    def __init__(self, conf, ann_file, augment):
+        self.ann = PoseTools.json_load(ann_file)
+        self.conf = conf
+        self.augment = augment
+
+    def __len__(self):
+        return len(self.ann['images'])
+
+    def __getitem__(self, item):
+        conf = self.conf
+        im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
+        if im.ndim == 2:
+            im = im[...,np.newaxis]
+        if im.shape[2] == 1:
+            im = np.tile(im,[1,1,3])
+
+        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
+
+        curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
+        lndx = 0
+        for a in self.ann['annotations']:
+            if not (a['image_id']==item):
+                continue
+            locs = np.array(a['keypoints'])
+            locs = np.reshape(locs,[conf.n_classes,3])
+            curl[lndx,...] = locs
+            lndx += 1
+
+        curl = np.array(curl)
+        occ = curl[...,2] < 1.5
+        locs = curl[...,:2]
+        # im,locs = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale)
+        # im = np.transpose(im[0,...] / 255., [2, 0, 1])
+        features = [im, locs, info, occ]
+        return features

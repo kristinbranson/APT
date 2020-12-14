@@ -1,3 +1,39 @@
+import APT_interface as apt
+import poseConfig
+from Pose_multi_mmpose import Pose_multi_mmpose
+
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+conf = apt.create_conf(lbl_file,0,'apt','/nrs/branson/mayank/apt_cache_2','multi_mmpose')
+
+conf.db_format = 'coco'
+conf.dl_steps = 500
+conf.nviews = 1
+conf.view = 0
+conf.n_classes = 17
+conf.is_multi = True
+conf.mmpose_net = 'higherhrnet'
+conf.json_trn_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc.json'
+conf.max_n_animals = 7
+conf.set_exp_name('alice')
+
+apt.setup_ma(conf)
+# apt.create_coco_db(conf,True)
+self = Pose_multi_mmpose(conf,'higherhr')
+self.train_wrapper()
+
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+split_trn = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc_split.json'
+cmd = f'{lbl_file} -json_trn_file {split_trn} -conf_params dl_steps 100000 is_multi True db_format \"coco\" max_n_animals 7 -type multi_mdn_joint_torch -cache /nrs/branson/mayank/apt_cache_2 train -skip_db'
+apt.main(cmd.split())
+
+
 ##
 cmd = '-name 20200925T080001 -view 1 -cache /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800 -type mdn /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800/alice_test/20200925T080001_20200925T080130.lbl train -use_cache -skip_db'
 ## Roian Tracking
@@ -275,7 +311,6 @@ import h5py
 import numpy as np
 import APT_interface as apt
 import torch
->>>>>>> Stashed changes
 import matplotlib
 matplotlib.use('TkAgg')
 import torch
