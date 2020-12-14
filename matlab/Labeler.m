@@ -10538,7 +10538,7 @@ classdef Labeler < handle
         s = obj.projGetSaveStruct('forceExcDataCache',true,...
           'macroreplace',true,'massageCropProps',true);
       end
-      s.projectFile = obj.projFSInfo.filename;
+      s.projectFile = obj.projectfile;
 
       nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
       nchan = unique(nchan);

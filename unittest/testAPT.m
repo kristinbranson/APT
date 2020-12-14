@@ -11,6 +11,12 @@ classdef testAPT < handle
   % testObj.test_train('net_type','mdn',...
   %        'backend','docker','niters',1000,'test_tracking',true)
   
+  % Carmen/GT workflow (proj on JRC/dm11)
+  % testObj = testAPT('name','carmen');
+  % testObj.test_setup('simpleprojload',1);
+  % testObj.test_train('backend','bsub');
+  % testObj.test_track('backend','bsub');
+  % testObj.test_gtcompute('backend','bsub');
   
   
   properties
@@ -135,19 +141,10 @@ classdef testAPT < handle
       out_file = fullfile('/groups/branson/bransonlab/mayank/APT_projects/',...
         sprintf('sh_test_lbl_%s.lbl',dstr));
       lObj.projSaveRaw(out_file);
-    end
-    
+    end    
     
     function cdir = get_cache_dir()
       cdir = APT.getdlcacheroot;
-%       if ispc
-%         userDir = winqueryreg('HKEY_CURRENT_USER',...
-%           ['Software\Microsoft\Windows\CurrentVersion\' ...
-%           'Explorer\Shell Folders'],'Personal');
-%       else
-%         userDir = char(java.lang.System.getProperty('user.home'));
-%       end
-%       cdir = fullfile(userDir,'.apt');
     end
     
   end
@@ -171,8 +168,7 @@ classdef testAPT < handle
         [~,exp_name] = fileparts(fileparts(pin));
       elseif strcmp(info.name,'stephen')
         exp_name = fileparts(strrep(pin,exp_dir_base,''));
-      end
-      
+      end      
     end
     
     function create_bundle(self)
@@ -215,8 +211,7 @@ classdef testAPT < handle
         addpath('..');
         APT.setpath;
         self.path_setup_done = true;
-      end
-      
+      end      
     end
 
     function get_info(self,name)
@@ -232,7 +227,6 @@ classdef testAPT < handle
         info.sz = 90;
         info.bundle_link = 'https://www.dropbox.com/s/u5p27rdi7kczv78/alice_test_data.tar.gz?dl=1';
         info.op_graph = [1 3; 1 2; 3 17; 2 12; 3 4; 4 10; 10 11; 11 16; 10 6; 8 6; 5 8; 8 9; 9 13;6 14;6 15; 6 7];
-        info.name = 'alice';
 
       elseif strcmp(name,'stephen')
         info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
@@ -244,11 +238,22 @@ classdef testAPT < handle
         info.sz = [];
         info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
         info.op_graph = [1 5; 1 3; 3 4; 4 2];
-        info.name = 'stephen';
+        
+      elseif strcmp(name,'carmen')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 1;
+        info.npts = 10;
+        info.has_trx = false;
+        info.proj_name = 'carmen_test';
+        info.sz = [];
+        info.bundle_link = '';
+        info.op_graph = [];        
         
       else
         error('Unrecognized test name');
       end
+      info.name = name;
       self.info = info;
     end
         
@@ -349,17 +354,27 @@ classdef testAPT < handle
     
     function test_setup(self,varargin)
       self.setup_path();
-      [target_trk] = myparse(varargin,...
-        'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame);
-      self.load_lbl();
-      old_lbl = self.old_lbl;
-      if ~self.exist_files()
-        self.setup_data();
-      end      
-      lObj = self.create_project();
-      self.lObj = lObj;
-      self.add_movies();
-      self.add_labels_quick();  
+      [target_trk,simpleprojload] = myparse(varargin,...
+        'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame,...
+        'simpleprojload',false ... % if true, just load the proj; use when proj on local filesys with all deps
+        );
+      
+      if simpleprojload
+        lObj = StartAPT();
+        lObj.projLoad(self.info.ref_lbl);
+        self.lObj = lObj;
+        self.old_lbl = [];        
+      else
+        self.load_lbl();
+        old_lbl = self.old_lbl;
+        if ~self.exist_files()
+          self.setup_data();
+        end      
+        lObj = self.create_project();
+        self.lObj = lObj;
+        self.add_movies();
+        self.add_labels_quick();  
+      end
       
       if self.info.has_trx
         trkTypes = MFTSetEnum.TrackingMenuTrx;
@@ -502,7 +517,7 @@ classdef testAPT < handle
 
     function setup_alg(self,alg)
       % Set the algorithm.
-      old_lbl = self.old_lbl;
+      %old_lbl = self.old_lbl;
       lObj = self.lObj;
       info = self.info;
 
@@ -623,6 +638,26 @@ classdef testAPT < handle
       end
       kk = LabelerGUI('get_local_fn','pbTrack_Callback');
       kk(self.lObj.gdata.pbTrack,[],self.lObj.gdata);      
+      if block,
+        pause(2);
+        while self.lObj.tracker.bgTrkIsRunning()
+          pause(10);
+        end
+        pause(10);
+      end
+    end
+    
+    function test_gtcompute(self,varargin)
+      [block,backend,aws_params] = myparse(varargin,'block',true,...
+        'backend','','aws_params',struct);
+      if ~isempty(backend),
+        self.set_backend(backend,aws_params);
+      end
+      %kk = LabelerGUI('get_local_fn','pbTrack_Callback');
+      %kk(self.lObj.gdata.pbTrack,[],self.lObj.gdata);
+      self.lObj.gtSetGTMode(1);
+      drawnow;
+      self.lObj.tracker.trackGT();
       if block,
         pause(2);
         while self.lObj.tracker.bgTrkIsRunning()
