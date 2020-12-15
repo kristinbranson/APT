@@ -970,7 +970,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       cmdremote = DeepTracker.updateAPTRepoCmd('downloadpretrained',true,args{:});
 
-      aws.obj.awsec2;      
+      aws = obj.awsec2;      
       [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
       if tfsucc
         fprintf('Updated remote APT repo.\n\n');

@@ -2330,7 +2330,7 @@ classdef DeepTracker < LabelTracker
       backend = obj.lObj.trackDLBackEnd;
 
       if backend.type==DLBackEnd.AWS
-        setStatusFcn = @obj.lObj.SetStatus;
+        setStatusFcn = @(varargin)obj.lObj.SetStatus(varargin{:});
         backend.awsPretrack(dmc,setStatusFcn);
       end
       
@@ -2514,10 +2514,16 @@ classdef DeepTracker < LabelTracker
           end
 
         case DLBackEnd.AWS
+          % TODO: AWS gpu provisioning
+          %args = {'isMultiView',isMultiViewTrack,'isSerialMultiMov',true};
           if isexternal,
+            args = {};
+            if obj.lObj.hasTrx,
+              args = [args,{'trxfiles',trxfiles,'targets',targets}];
+            end
             tfSuccess = obj.trkSpawn(backend,[],[],dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,...
-              'calibrationfiles',calibrationfiles);
+              'calibrationfiles',calibrationfiles,args{:});
           else
             obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'isMultiView',true);

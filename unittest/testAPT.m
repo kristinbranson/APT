@@ -551,6 +551,8 @@ classdef testAPT < handle
     end
     
     function set_backend(self,backend,aws_params)
+      % aws_params: can be a pre-configured AWSec2 instance
+      
       lObj = self.lObj;
 
       % Set the Backend
@@ -566,27 +568,31 @@ classdef testAPT < handle
       be = DLBackEndClass(beType,lObj.trackGetDLBackend);
       lObj.trackSetDLBackend(be);
       if strcmp(backend,'aws')
-        aobj = lObj.trackDLBackEnd.awsec2;
-        aobj.setPemFile(aws_params.pemFile);
-        aobj.setKeyName(aws_params.keyName);
-        if isfield(aws_params,'instanceID') && ...
-            isfield(aws_params,'instanceType') &&...
-            ~isempty(aws_params.instanceID) && ...
-            ~isempty(aws_params.instanceType)
-          aobj.setInstanceID(...
-            aws_params.instanceID,aws_params.instanceType);
+        if isa(aws_params,'AWSec2')
+          be.shutdown();
+          be.awsec2 = aws_params;
         else
-          tf = aobj.launchInstance();
-          if ~tf
-            reason = 'Could not launch AWS EC2 instance.';
-            return;
+          aobj = lObj.trackDLBackEnd.awsec2;
+          aobj.setPemFile(aws_params.pemFile);
+          aobj.setKeyName(aws_params.keyName);
+          if isfield(aws_params,'instanceID') && ...
+              isfield(aws_params,'instanceType') &&...
+              ~isempty(aws_params.instanceID) && ...
+              ~isempty(aws_params.instanceType)
+            aobj.setInstanceID(...
+              aws_params.instanceID,aws_params.instanceType);
+          else
+            tf = aobj.launchInstance();
+            if ~tf
+              reason = 'Could not launch AWS EC2 instance.';
+              return;
+            end
+            instanceID = aobj.instanceID;
+            instanceType = aobj.instanceType;
+            aobj.setInstanceID(instanceID,instanceType);
+
           end
-          instanceID = aobj.instanceID;
-          instanceType = aobj.instanceType;
-          aobj.setInstanceID(instanceID,instanceType);
-  
-        end
-        
+        end        
       end
     end
     
