@@ -504,7 +504,6 @@ classdef Labeler < handle
     trackerAlgo % The current tracker algorithm, or ''
     trackerIsDL
     trackDLParams % scalar struct, common DL params
-%     cprParams % scalar struct, cpr parameters
     DLCacheDir % string, location of DL cache dir
   end
   properties (SetObservable)

@@ -8,6 +8,8 @@ classdef DeepTracker < LabelTracker
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrmAll' 'containerBindPaths' ...
       'trnNetType' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'}; 
+    
+    % TODO: move block to backend
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
     jrchost = 'login1.int.janelia.org';
     jrcprefix = 'source /etc/profile';
@@ -25,6 +27,7 @@ classdef DeepTracker < LabelTracker
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
+  % TODO: move block to backend
   properties (Hidden)
     jrcgpuqueue = 'gpu_any';
     jrcnslots = 1;
