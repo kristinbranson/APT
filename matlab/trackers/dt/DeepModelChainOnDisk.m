@@ -2,6 +2,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   % DMCOD understands the filesystem structure of a deep model. This same
   % structure is used on both remote and local filesystems.
   %
+  % DMCOD also now handles tracking output: eg trkfiles and associated
+  % log/errfiles/etc; gt results files etc. These are a bit conceptually
+  % different but they live underneath the cache/modelchaindir at runtime.
+  %
   % DMCOD does know whether the model is on a local or remote filesystem 
   % via the .reader property. The .reader object is a delegate that knows 
   % how to actually read the (possibly remote) filesystem. This works fine 
@@ -39,8 +43,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % knows how to read the (possibly remote) filesys etc
       
     filesep ='/'; % file separator
-      
-    %aptRootUser % (optional) external/user APT code checkout root    
+
+    trkTaskKeyword; % arbitrary tracking task keyword; used for tracking output files
+    trkTSstr % timestamp for tracking
   end
   properties (Dependent)
     dirProjLnx
@@ -58,6 +63,15 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     errfileName
     trainLogLnx
     trainLogName
+    trkLogLnx % for tracking output
+    trkLogName
+    trkErrfileLnx
+    trkErrfileName
+    trkSnapshotLnx
+    trkSnapshotName
+    gtOutfileLnx
+    gtOutfileName
+    gtOutfilePartLnx
     splitfileLnx % used only for trainsplit() or xv
     splitfileName % etc
     valresultsLnx % etc
@@ -164,7 +178,37 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
             v = sprintf('%sview%d_%s_%s.log',obj.modelChainID,obj.view,obj.trainID,lower(char(obj.trainType)));
           end
       end
+    end
+    function v = get.trkLogLnx(obj)
+      v = [obj.dirTrkOutLnx obj.filesep obj.trkLogName];
+    end
+    function v = get.trkLogName(obj)
+      v = sprintf('%s_%s_vw%d_%s.log',obj.trkTaskKeyword,obj.modelChainID, ...
+        obj.view,obj.trkTSstr);
+    end
+    function v = get.trkErrfileLnx(obj)
+      v = [obj.dirTrkOutLnx obj.filesep obj.trkErrfileName];
+    end
+    function v = get.trkErrfileName(obj)
+      v = sprintf('%s_%s_vw%d_%s.err',obj.trkTaskKeyword,obj.modelChainID, ...
+        obj.view,obj.trkTSstr);
     end    
+    function v = get.trkSnapshotLnx(obj)
+      v = [obj.dirTrkOutLnx obj.filesep obj.trkSnapshotName];
+    end
+    function v = get.trkSnapshotName(obj)
+      v = sprintf('%s_%s_vw%d_%s.aptsnapshot',obj.trkTaskKeyword,obj.modelChainID, ...
+        obj.view,obj.trkTSstr);
+    end
+    function v = get.gtOutfilePartLnx(obj)
+      v = [obj.gtOutfileLnx '.part'];
+    end
+    function v = get.gtOutfileLnx(obj)
+      v = [obj.dirTrkOutLnx obj.filesep obj.gtOutfileName];
+    end
+    function v = get.gtOutfileName(obj)
+      v = sprintf('gtcls_vw%d_%s.mat',obj.view,obj.trkTSstr);
+    end
     function v = get.killTokenLnx(obj)
       if obj.isMultiView,
         v = [obj.dirProjLnx obj.filesep obj.killTokenName];

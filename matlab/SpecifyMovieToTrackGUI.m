@@ -28,10 +28,11 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.nview = obj.lObj.nview;
       obj.hastrx = obj.lObj.hasTrx;
       obj.iscrop = ~obj.hastrx;
-      %obj.iscrop = obj.lObj.cropIsCropMode; % to do: allow cropping when trained without cropping?
-      obj.docalibrate = obj.nview > 1 && ~strcmpi(obj.lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
+      %obj.iscrop = obj.lObj.cropProjHasCrops; % to do: allow cropping when trained without cropping?
+      obj.docalibrate = obj.nview > 1 ...
+        && ~strcmpi(obj.lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
       if obj.iscrop,
-        if obj.lObj.cropIsCropMode,
+        if obj.lObj.cropProjHasCrops,
           obj.cropwh = obj.lObj.cropGetCurrentCropWidthHeightOrDefault();
         else
           [minnc,minnr] = obj.lObj.getMinMovieWidthHeight();
@@ -71,8 +72,10 @@ classdef SpecifyMovieToTrackGUI < handle
       if obj.iscrop && ~isfield(obj.movdata,'cropRois'),
         obj.movdata.cropRois = repmat({nan(1,4)},[1,obj.nview]);
       end
-      if obj.docalibrate && ~isfield(obj.movdata,'calibrationfiles'),
-        obj.movdata.calibrationfiles = '';
+      if ~isfield(obj.movdata,'calibrationfiles')
+        obj.movdata.calibrationfiles = [];
+      elseif iscell(obj.movdata.calibrationfiles)
+        obj.movdata.calibrationfiles = cell2mat(obj.movdata.calibrationfiles);
       end
       if ~isfield(obj.movdata,'targets'),
         obj.movdata.targets = [];
@@ -129,6 +132,12 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.rowinfo.crop.type = 'array';
       obj.rowinfo.crop.arraysize = [1,4];      
       obj.rowinfo.crop.isvalperview = true;
+      % AL20201213. In some sense the crop is always optional, as one can
+      % imagine the movie-to-be-trked to have arbitrary dims. That said,
+      % in 99% of cases presumably the movie-to-be-trked will have the same
+      % dims as the training movs. So we require crops if the proj has
+      % crops. 
+      obj.rowinfo.crop.isoptional = ~obj.lObj.cropProjHasCrops;
       
       obj.rowinfo.targets = struct;
       obj.rowinfo.targets.prompt = 'Targets (optional)';
@@ -360,7 +369,7 @@ classdef SpecifyMovieToTrackGUI < handle
         if isoptional && isempty(val),
           isgood = true;
         else
-          isgood = exist(val,'file')>0;
+          isgood = ~isempty(val) && exist(val,'file')>0;
         end
       elseif strcmpi(ri.type,'outputfile'),
         if ~isempty(val),
@@ -369,10 +378,10 @@ classdef SpecifyMovieToTrackGUI < handle
         end
       elseif strcmpi(key,'crop'),
         if isempty(val),
-          isgood = ~obj.lObj.cropIsCropMode;
+          isgood = ~obj.lObj.cropProjHasCrops;
         else
           isgood = numel(val) == 4;
-          if obj.lObj.cropIsCropMode && isgood,
+          if obj.lObj.cropProjHasCrops && isgood,
             isgood = ~any(isnan(val));
           end
         end

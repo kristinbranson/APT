@@ -52,6 +52,7 @@ classdef LabelTracker < handle
   
   properties (SetObservable,SetAccess=protected)
     hideViz = false; % scalar logical. If true, hide visualizations
+    showPredsCurrTargetOnly = false;
   end
   
 %   properties (Constant)    
@@ -285,7 +286,15 @@ classdef LabelTracker < handle
     function hideVizToggle(obj)
       obj.setHideViz(~obj.hideViz);
     end
+
+    function setShowPredsCurrTargetOnly(obj,tf)
+      obj.showPredsCurrTargetOnly = tf;
+    end
     
+    function showPredsCurrTargetOnlyToggle(obj)
+      obj.setShowPredsCurrTargetOnly(~obj.showPredsCurrTargetOnly);
+    end
+
     % update information about the current tracker
     % placeholder - should be defined by child classes
     function updateTrackerInfo(obj)

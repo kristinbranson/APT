@@ -52,8 +52,8 @@ classdef Lbl
     end
     function s = compressStrippedLbl(s)
       CFG_GLOBS = {'Num'};
-      FLDS = {'cfg' 'projname' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
-        'trackerClass' 'trackerData'};
+      FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
+        'trackerClass' 'trackerData0'};
       GLOBS = {'labeledpos' 'movieFilesAll' 'trxFilesAll' 'preProcData'};
       
       fldscfg = fieldnames(s.cfg);      

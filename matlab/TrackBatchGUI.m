@@ -464,7 +464,7 @@ classdef TrackBatchGUI < handle
       if strcmpi(tag,'load'),
         [filename,pathname] = uigetfile('*.json','Load list of movies to track from file',lastpath);
       else
-        [filename,pathname] = uiputfile('*.json','Load list of movies to track from file',lastpath);
+        [filename,pathname] = uiputfile('*.json','Save list of movies to track from file',lastpath);
       end
       if ~ischar(filename),
         return;

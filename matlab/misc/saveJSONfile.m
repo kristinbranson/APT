@@ -24,7 +24,7 @@ function s = saveJSONfile(data, jsonFileName)
 % (https://www.mathworks.com/matlabcentral/fileexchange/50965-structure-to-json)
 % MATLAB Central File Exchange. Retrieved May 14, 2020. 
 %
-% modified by Kristin Branson
+% modified by Kristin Branson, Allen Lee
 %
 % Original license:
 %
@@ -83,6 +83,10 @@ end
   function writeElement(writefun, data,tabs)
     namesOfFields = fieldnames(data);
     numFields = length(namesOfFields);
+    if numFields==0
+      % AL 20201213: will harderr below without this early return.
+      return;
+    end
     tabs = sprintf('%s\t',tabs);
     writefun('{\n%s',tabs);
     
@@ -97,8 +101,7 @@ end
     else
       i=i+1;
     end
-    
-    
+        
     currentField = namesOfFields{i};
     currentElementValue = eval(sprintf('data.%s',currentField));
     writeSingleElement(writefun, currentField,currentElementValue,tabs);
