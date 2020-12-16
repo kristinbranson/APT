@@ -3202,6 +3202,11 @@ classdef Labeler < handle
           tdata(loc) = s.trackerData(:);
           s.trackerClass = tclass;
           s.trackerData = tdata;
+          
+          % KB 20201216 update currTracker as well
+          oldCurrTracker = s.currTracker;
+          s.currTracker = loc(oldCurrTracker);
+          
         end
       else
         assert(false);

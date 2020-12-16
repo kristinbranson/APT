@@ -400,8 +400,8 @@ classdef LabelTracker < handle
       
       dlnets = enumeration('DLNetType');
       info = [
-        {{'CPRLabelTracker'}}
         arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0)
+        {{'CPRLabelTracker'}}
         ];
 
 %       APT_DEFAULT_TRACKERS = {
