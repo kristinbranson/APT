@@ -53,10 +53,10 @@ classdef TrackBatchGUI < handle
         obj.toTrack.targets = {};
       end
       if ~isfield(obj.toTrack,'f0s'),
-        obj.toTrack.f0s = [];
+        obj.toTrack.f0s = {};
       end
       if ~isfield(obj.toTrack,'f1s'),
-        obj.toTrack.f1s = [];
+        obj.toTrack.f1s = {};
       end
       obj.nmovies = size(obj.toTrack.movfiles,1);
     end
@@ -71,6 +71,10 @@ classdef TrackBatchGUI < handle
       mainfigpos = get(obj.hParent,'Position');
       set(obj.hParent,'Units',units);
       figsz = [.4,.4]; % width, height
+      % AL20201116: multimonitor setups, figsz can be bigger than
+      % mainfogpos(3:4) which leads to 'huge' TrackBatchGUI pane. Cap size
+      % of TrackBatchGUI.
+      figsz = min(figsz,mainfigpos(3:4));
       mainfigctr = mainfigpos([1,2]) + mainfigpos([3,4])/2;
       figpos = [mainfigctr-figsz/2,figsz];
       % to do: make sure this is on the screen
@@ -317,12 +321,12 @@ classdef TrackBatchGUI < handle
         obj.toTrack.targets{moviei,1} = [];
       end
       if isfield(movdata,'f0s') && ~isempty(movdata.f0s),
-        obj.toTrack.f0s(moviei,1) = movdata.f0s;
+        obj.toTrack.f0s{moviei,1} = movdata.f0s;
       else
         obj.toTrack.f0s(moviei,1) = {1};
       end
       if isfield(movdata,'f1s') && ~isempty(movdata.f1s),
-        obj.toTrack.f1s(moviei,1) = movdata.f1s;
+        obj.toTrack.f1s{moviei,1} = movdata.f1s;
       else
         obj.toTrack.f1s(moviei,1) = {inf};
       end
@@ -460,7 +464,7 @@ classdef TrackBatchGUI < handle
       if strcmpi(tag,'load'),
         [filename,pathname] = uigetfile('*.json','Load list of movies to track from file',lastpath);
       else
-        [filename,pathname] = uiputfile('*.json','Load list of movies to track from file',lastpath);
+        [filename,pathname] = uiputfile('*.json','Save list of movies to track from file',lastpath);
       end
       if ~ischar(filename),
         return;

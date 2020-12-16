@@ -36,14 +36,14 @@ classdef Labeler < handle
 %       %'labeledpos2' 'nan'
 %       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
 %       };
-    SAVEPROPS_GTCLASSIFY = { ... % these props are resaved into stripped lbls pre gt-classify
-      'movieFilesAllGT'
-      'movieInfoAllGT'
-      'movieFilesAllGTCropInfo'
-      'movieFilesAllGTHistEqLUT'
-      'trxFilesAllGT'
-      'viewCalibrationDataGT' 
-      };
+%    SAVEPROPS_GTCLASSIFY = { ... % these props are resaved into stripped lbls pre gt-classify
+%      'movieFilesAllGT'
+%      'movieInfoAllGT'
+%      'movieFilesAllGTCropInfo'
+%      'movieFilesAllGTHistEqLUT'
+%      'trxFilesAllGT'
+%      'viewCalibrationDataGT' 
+%      };
 %       'labeledposGT'
 %       'labeledpostagGT'
 %       'labeledposTSGT'
@@ -60,7 +60,7 @@ classdef Labeler < handle
   properties (Hidden)
     % Don't compute as a Constant prop, requires APT path initialization
     % before loading class
-    NEIGHBORING_FRAME_OFFSETS;
+    NEIGHBORING_FRAME_OFFSETS;    
   end
   properties (Constant,Hidden)
     PROPS_GTSHARED = struct('reg',...
@@ -173,6 +173,8 @@ classdef Labeler < handle
     
     isgui = true; % whether there is a GUI
     unTarLoc = ''; % location that project has most recently been untarred to
+    
+    projRngSeed = 17;
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -2574,7 +2576,7 @@ classdef Labeler < handle
         obj.unTarLoc = tname;
         fprintf('... done with untar.\n');
       catch ME
-        if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
+        if endsWith(ME.identifier,'invalidTarFile')
           warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',fname);
           [success,message,~] = copyfile(fname,rawLblFile);
           if ~success
@@ -2837,6 +2839,13 @@ classdef Labeler < handle
       if ~success
         error('Could not clear the temp directory %s',message);
       end
+    end
+    
+    function v = projDeterministicRandFcn(obj,randfcn)
+      % Wrapper around rand() that sets/resets RNG seed
+      s = rng(obj.projRngSeed);
+      v = randfcn();
+      rng(s);
     end
     
   end
@@ -9115,7 +9124,7 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate('dotrkres',true);
+      obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -9125,7 +9134,7 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate('dotrkres',true);
+      obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
     end
         
   end
@@ -10849,17 +10858,21 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function [tfsucc,tblPTrn,s] = ...
+    function [tfsucc,tblPCache,s] = ...
         trackCreateDeepTrackerStrippedLbl(obj,varargin)
       % For use with DeepTrackers. Create stripped lbl based on
       % .currTracker
       %
       % tfsucc: false if user canceled etc.
-      % tblPTrn: table of data-to-be-used as training data
+      % tblPCache: table of data cached in stripped lbl (eg training data, 
+      %   or gt data)
       % s: scalar struct, stripped lbl struct
       
-      [wbObj,ppdata,sPrmAll] = myparse(varargin,...
-        'wbObj',[],'ppdata',[],'sPrmAll',[]...
+      [wbObj,ppdata,sPrmAll,shuffleRows] = myparse(varargin,...
+        'wbObj',[],...
+        'ppdata',[],...
+        'sPrmAll',[],...
+        'shuffleRows',true ...
         );
       tfWB = ~isempty(wbObj);
       
@@ -10873,62 +10886,70 @@ classdef Labeler < handle
         error('There is no current tracker selected.');
       end
       
+      isGT = obj.gtIsGTMode;
+      if isGT
+        descstr = 'gt';
+      else
+        descstr = 'training';
+      end
+      
       %
       % Determine the training set
       % 
       if isempty(ppdata),
         treatInfPosAsOcc = ...
           isa(tObj,'DeepTracker') && tObj.trnNetType.doesOccPred;
-        tblPTrn = obj.preProcGetMFTableLbled(...
+        tblPCache = obj.preProcGetMFTableLbled(...
           'wbObj',wbObj,...
+          'gtModeOK',isGT,...
           'treatInfPosAsOcc',treatInfPosAsOcc ...
           );
         if tfWB && wbObj.isCancel
           tfsucc = false;
-          tblPTrn = [];
+          tblPCache = [];
           s = [];
           return;
         end
         
-        if isempty(tblPTrn)
-          error('No training data available.');
+        if isempty(tblPCache)
+          error('No %s data available.',descstr);
         end
         
         if obj.hasTrx
-          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+          tblfldscontainsassert(tblPCache,[MFTable.FLDSCOREROI {'thetaTrx'}]);
         elseif obj.cropProjHasCrops
-          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+          tblfldscontainsassert(tblPCache,[MFTable.FLDSCOREROI]);
         else
-          tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+          tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
-        [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPTrn,obj,...
+        [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
           'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           tfsucc = false;
-          tblPTrn = [];
+          tblPCache = [];
           s = [];
           return;
         end
         nMissedReads = height(tblAddReadFailed);
         if nMissedReads>0
-          warningNoTrace('Removing %d training rows, failed to read images.\n',...
-            nMissedReads);
+          warningNoTrace('Removing %d %s rows, failed to read images.\n',...
+            nMissedReads,descstr);
         end
         
         assert(all(locAU(~tfAU)==0));
         
-        ppdbITrn = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
-        tblPTrn = obj.ppdb.dat.MD(ppdbITrn,:);
+        ppdbICache = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
+        tblPCache = obj.ppdb.dat.MD(ppdbICache,:);
         
-        fprintf(1,'Training with %d rows.\n',numel(ppdbITrn));
-        fprintf(1,'Training data summary:\n');
-        obj.ppdb.dat.summarize('mov',ppdbITrn);
-        
+        fprintf(1,'%s with %d rows.\n',descstr,numel(ppdbICache));
+        fprintf(1,'%s data summary:\n',descstr);
+        obj.ppdb.dat.summarize('mov',ppdbICache);        
       else
         % training set provided; note it may or may not include fully-occ
         % labels etc.
-        tblPTrn = ppdata.MD;
+        tblPCache = ppdata.MD;
+        ppdbICache = (1:ppdata.N)';
       end
       
       % 
@@ -10942,7 +10963,8 @@ classdef Labeler < handle
         s = obj.projGetSaveStruct('forceExcDataCache',true,...
           'macroreplace',true,'massageCropProps',true);
       end
-      
+      s.projectFile = obj.projectfile;
+
       nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
       nchan = unique(nchan);
       if ~isscalar(nchan)
@@ -10954,20 +10976,20 @@ classdef Labeler < handle
 %         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
 %       end
       
+      % AL: moved above
       if ~isempty(ppdata)
-        ppdbITrn = true(ppdata.N,1);
+%         ppdbICache = true(ppdata.N,1);
       else
-
         % De-objectize .ppdb.dat (CPRData)
         ppdata = s.ppdb.dat;
       end
       
-      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
-        numel(ppdbITrn),ppdata.N);
+      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d %s rows.\n',...
+        numel(ppdbICache),ppdata.N,descstr);
       
-      ppdataI = ppdata.I(ppdbITrn,:);
-      ppdataP = ppdata.pGT(ppdbITrn,:);
-      ppdataMD = ppdata.MD(ppdbITrn,:);
+      ppdataI = ppdata.I(ppdbICache,:);
+      ppdataP = ppdata.pGT(ppdbICache,:);
+      ppdataMD = ppdata.MD(ppdbICache,:);
       
       ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
       ppMDflds = tblflds(ppdataMD);
@@ -10984,11 +11006,29 @@ classdef Labeler < handle
         s = rmfield(s,'preProcData');
       end
       
+      % 20201120 randomize training rows
+      if shuffleRows
+        fldsPP = fieldnames(s);
+        fldsPP = fldsPP(startsWith(fldsPP,'preProcData_'));
+        nTrn = size(ppdataI,1);
+        prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
+        fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
+        for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
+          v = s.(f);
+          assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
+          s.(f) = v(prand,:);
+        end
+      else
+        prand = [];
+      end
+      s.preProcData_prand = prand;
+      
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
       %
       % Final Massage
       % 
+     
       
       tdata = s.trackerData{s.currTracker};
       
@@ -14180,8 +14220,12 @@ classdef Labeler < handle
     end
     
     function labels2VizUpdate(obj,varargin)
-      dotrkres = myparse(varargin,...
-        'dotrkres',false...
+      % update trkres from lObj.labeledpos
+      
+      [dotrkres,setlbls,setprimarytgt] = myparse(varargin,...
+        'dotrkres',false,...
+        'setlbls',true,...
+        'setprimarytgt',false ...
         );
       
       if obj.maIsMA
@@ -14189,17 +14233,24 @@ classdef Labeler < handle
         return;
       end
       
-      iMov = obj.currMovie;
-      frm = obj.currFrame;
       iTgt = obj.currTarget;
-%       lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
-%         [obj.nLabelPoints,2,obj.nTargets]);      
-      ntgts = obj.nTargets;
-      p = Labels.getLabelsF(obj.labels2GTaware{iMov},frm,ntgts);
-      lpos2 = reshape(p,[obj.nLabelPoints,2,ntgts]);
       tv = obj.labeledpos2trkViz;
-      tv.updateTrackRes(lpos2);
-      tv.updatePrimary(iTgt);
+      
+      if setlbls
+        iMov = obj.currMovie;
+        frm = obj.currFrame;
+        %lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
+        %  [obj.nLabelPoints,2,obj.nTargets]);
+        ntgts = obj.nTargets;
+        p = Labels.getLabelsF(obj.labels2GTaware{iMov},frm,ntgts);
+        lpos2 = reshape(p,[obj.nLabelPoints,2,ntgts]);
+        % no lpos2 occ!
+        lpostag = false(obj.nLabelPoints,obj.nTargets);
+        tv.updateTrackRes(lpos2,lpostag);
+      end
+      if setprimarytgt
+        tv.updatePrimary(iTgt);        
+      end
       
       if dotrkres
         trkres = obj.trkResGTaware;
@@ -14592,8 +14643,7 @@ classdef Labeler < handle
         'trkfiles', {cell(nget,obj.nview)},...
         'trxfiles', {cell(nget,obj.nview)},...
         'cropRois', {cell(nget,obj.nview)},...
-        'calibrationfiles', {cell(nget,1)},...
-        'calibrationdata',{cell(nget,1)},...
+        'calibrationfiles', {cell(nget,1)},... %        'calibrationdata',{cell(nget,1)},...
         'targets', {cell(nget,1)},...
         'f0s', {cell(nget,1)},...
         'f1s', {cell(nget,1)});
@@ -14611,7 +14661,7 @@ classdef Labeler < handle
         vcd = obj.getViewCalibrationDataMovIdx(mIdx(i));
         if ~isempty(vcd),
           toTrack.calibrationfiles{i} = vcd.sourceFile;
-          toTrack.calibrationdata{i} = vcd;
+          %toTrack.calibrationdata{i} = vcd;
         end
       end
       
@@ -14666,7 +14716,7 @@ classdef Labeler < handle
       tfRm = iMov2==0;
       iMov1(tfRm,:) = [];
       iMov2(tfRm,:) = [];
-    end
+     end
     
   end
 

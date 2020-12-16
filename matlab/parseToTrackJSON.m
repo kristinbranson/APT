@@ -20,7 +20,7 @@ assert(all(isfield(toTrack,{'movie_files','output_files'})),'movie_files and out
 needCalibration = lObj.isMultiView && ...
   ~strcmpi(lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
 if needCalibration,
-  assert(isfield(toTrack,'calibration_file','calibration_file must be specified'));
+  assert(isfield(toTrack,'calibration_file'),'calibration_file must be specified');
 end
 needTrx = lObj.hasTrx;
 if needTrx,
@@ -41,8 +41,8 @@ trkfiles = cell(nmovies,nviews);
 cropRois = cell(nmovies,1);
 calibrationfiles = cell(nmovies,1);
 targets = cell(nmovies,1);
-f0s = nan(nmovies,1);
-f1s = nan(nmovies,1);
+f0s = cell(nmovies,1);
+f1s = cell(nmovies,1);
 
 for i = 1:nmovies,
   
@@ -82,12 +82,13 @@ for i = 1:nmovies,
   
   % frames to track
   if isfield(toTrack(i),'frame0') && ~isempty(toTrack(i).frame0),
-    f0s(i) = toTrack(i).frame0;
+    f0s{i} = toTrack(i).frame0;
   end
   if isfield(toTrack(i),'frame1') && ~isempty(toTrack(i).frame1),
-    f1s(i) = toTrack(i).frame1;
+    f1s{i} = toTrack(i).frame1;
   end
   
+  % AL: looks like should be moved outside loop
   toTrackOut = struct;
   toTrackOut.movfiles = movfiles;
   toTrackOut.trkfiles = trkfiles;

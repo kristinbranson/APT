@@ -664,8 +664,8 @@ def training(conf, name='deepnet'):
             self.train_info['val_loss_full'] = []
             self.train_info['lr'] = []
             self.config = conf
-            self.force = False
             self.save_start = time()
+            self.force = False
 
         def on_epoch_end(self, epoch, logs={}):
             step = (epoch+1) * iterations_per_epoch

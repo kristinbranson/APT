@@ -501,7 +501,7 @@ classdef Lbl
       isMA = s.cfg.MultiAnimal;
       
       CFG_GLOBS = {'Num' 'MultiAnimal'};
-      FLDS = {'cfg' 'projname' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
+      FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
         'trackerClass' 'trackerData'};
       TRACKERDATA_FLDS = {'sPrmAll' 'trnNetTypeString'};
       if isMA

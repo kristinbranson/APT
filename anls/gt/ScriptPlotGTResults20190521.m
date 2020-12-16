@@ -10,7 +10,7 @@ APT.setpath;
 addpath anls/gt;
 
 %savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20190523';
-savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20200727';
+savedir = '/groups/branson/bransonlab/apt/experiments/res/gt/20200928';
 
 
 if ~exist(savedir,'dir'),
@@ -34,25 +34,25 @@ if ~forcecompute && exist(resmatfile,'file'),
   load(resmatfile);
 else
   
-gtdata = load(gtfile_final);
-fns = fieldnames(gtdata);
-for i = 1:numel(fns),
-  gtdata.(fns{i}) = gtdata.(fns{i})(end);
-end
+gtdata = GTLoad([gtfile_final(:);gtfile_trainsize(:)],true);
 
 if isempty(gtfile_trainsize),
   gtdata_size = [];
 else
-  gtdata_size = load(gtfile_trainsize);
+  gtdata_size = GTLoad(gtfile_trainsize,false);
 end
 if isempty(gtfile_traintime),
   gtdata_time = [];
 else
-  gtdata_time = load(gtfile_traintime);
+  gtdata_time = GTLoad(gtfile_traintime,false);
 end
 if ~isempty(annoterrfile),
   annoterrdata = load(annoterrfile);
 end
+
+net1 = find(ismember(nets,fieldnames(gtdata)),1);
+npts = size(gtdata.(nets{net1}){end}.labels,2);
+nlabels = size(gtdata.(nets{net1}){end}.labels,1);
 
 %% plotting information
 
@@ -699,7 +699,7 @@ end
 if ~is3d,
   nexamples_random = 5;
   nexamples_disagree = 5;
-  errnets = {'mdn_joint','deeplabcut'};
+  errnets = {'mdn_joint_fpn','deeplabcut'};
   hfigs = PlotExamplePredictions('gtdata',gtdata,...
     'gtimdata',gtimdata,...
     'lObj',lObj,...

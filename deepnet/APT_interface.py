@@ -15,6 +15,7 @@ import collections
 import datetime
 import json
 import contextlib
+import itertools
 
 from os.path import expanduser
 from random import sample
@@ -58,14 +59,20 @@ import time # for timing between writing n frames tracked
 import tarfile
 import urllib
 import getpass
-import apt_dpk
 import link_trajectories as lnk
 from matplotlib.path import Path
 from PoseCommon_pytorch import coco_loader
 
+
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
 
+try:
+    user = getpass.getuser()
+except KeyError:
+    user = 'err'
+if ISPY3 and user!='ubuntu': # AL 20201111 exception for AWS; running on older AMI
+    import apt_dpk
 
 
 def savemat_with_catch_and_pickle(filename, out_dict):
@@ -231,7 +238,8 @@ def tf_serialize(data):
     return example.SerializeToString()
 
 
-def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=False, db_files=(), max_nsamples=np.Inf):
+def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=False,
+                    db_files=(), max_nsamples=np.Inf, use_gt_cache=False):
     # function that creates tfrecords using db_from_lbl
     if not os.path.exists(conf.cachedir):
         os.mkdir(conf.cachedir)
@@ -258,7 +266,8 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
     out_fns = [lambda data: envs[0].write(tf_serialize(data)),
                lambda data: envs[1].write(tf_serialize(data))]
     if use_cache:
-        splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
+        splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt,
+                                       use_gt_cache=use_gt_cache)
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples)
 
@@ -549,14 +558,23 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
 
     from poseConfig import config
+    from poseConfig import parse_aff_graph
     conf = config()
     conf.n_classes = int(read_entry(lbl['cfg']['NumLabelPoints']))
     if lbl['projname'][0] == 0:
         proj_name = 'default'
     else:
         proj_name = read_string(lbl['projname'])
+
+    try:
+        proj_file = read_string(lbl['projectFile'])
+    except:
+        logging.info('Could not read .projectFile from {}'.format(lbl_file))
+        proj_file = ''
+        
     conf.view = view
     conf.set_exp_name(proj_name)
+    conf.project_file = proj_file
     # conf.cacheDir = read_string(lbl['cachedir'])
     conf.has_trx_file = has_trx_file(lbl[lbl['trxFilesAll'][0,0]])
     conf.selpts = np.arange(conf.n_classes)
@@ -712,22 +730,14 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     
     try:
-        if isModern and 'openpose' in net_type:
+        if isModern and net_type in ['dpk', 'openpose']:
             try:
                 bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
             except ValueError:
                 bb = ''
         else: 
             bb = ''
-        graph = []
-        if bb:
-            bb = bb.split(',')
-            for b in bb:
-                mm = re.search('(\d+)\s+(\d+)', b)
-                n1 = int(mm.groups()[0]) - 1
-                n2 = int(mm.groups()[1]) - 1
-                graph.append([n1, n2])
-        conf.op_affinity_graph = graph
+        conf.op_affinity_graph = parse_aff_graph(bb) if bb else []
     except KeyError:
         pass
     try:
@@ -792,7 +802,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # elif net_type == 'openpose':
     #     op.update_conf(conf)
     elif net_type == 'dpk':
-        apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
@@ -1178,7 +1188,8 @@ def db_from_trnpack(conf, out_fns, nsamples=None):
     return splits, sel
 
 
-def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None, nsamples=None):
+def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
+                       sel=None, nsamples=None, use_gt_cache=False):
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
     # dataset. If split is False, second element is not used and all data is
@@ -1189,13 +1200,34 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
     # 2: information list [expid, frame number, trxid]
     # the function returns a list of [expid, frame_number and trxid] showing
     #  how the data was split between the two datasets.
+    '''
 
+    :param conf: Note db is created per conf.view
+    :param out_fns:
+    :param split:
+    :param split_file:
+    :param on_gt: True when doing gt classify
+    :param sel:
+    :param nsamples:
+    :param use_gt_cache: used when on_gt is True; use separate/dedicated gtcache instead
+        of regular
+    :return:
+    '''
+    assert not (on_gt and split), 'Cannot split gt data'
 
     lbl = h5py.File(conf.labelfile, 'r')
     if not 'preProcData_MD_mov' in lbl.keys():
         return db_from_trnpack(conf,out_fns,nsamples=nsamples)
 
-    assert not (on_gt and split), 'Cannot split gt data'
+    #npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
+    if use_gt_cache:
+        cachegrp = lbl['gtcache']
+    else:
+        # local_dirs, _ = multiResData.find_local_dirs(conf, on_gt)
+        cachegrp = lbl
+
+    #view = conf.view
+    #sel_pts = int(view * npts_per_view) + conf.selpts
     occ_as_nan = conf.get('ignore_occluded',False)
 
     splits = [[], []]
@@ -1204,10 +1236,15 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
 
     ims_lbl = True
     # old style stripped label file with cached data.
-    m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
-    t_ndx = lbl['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
-    f_ndx = lbl['preProcData_MD_frm'].value[0, :].astype('int') - 1
-    occ = lbl['preProcData_MD_tfocc'].value.astype('bool')
+    #m_ndx = lbl['preProcData_MD_mov'].value[0, :].astype('int')
+    #t_ndx = lbl['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
+    #f_ndx = lbl['preProcData_MD_frm'].value[0, :].astype('int') - 1
+    #occ = lbl['preProcData_MD_tfocc'].value.astype('bool')
+    m_ndx = cachegrp['preProcData_MD_mov'].value[0, :].astype('int')
+    t_ndx = cachegrp['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
+    f_ndx = cachegrp['preProcData_MD_frm'].value[0, :].astype('int') - 1
+    occ = cachegrp['preProcData_MD_tfocc'].value.astype('bool')
+
 
     mov_split = None
     predefined = None
@@ -1220,7 +1257,6 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         predefined = None
     elif conf.splitType == 'trx':
         assert conf.has_trx_file, 'Train/Validation was selected to be trx but the project has no trx files'
-
 
     if on_gt:
         m_ndx = -m_ndx
@@ -1241,10 +1277,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         if m_ndx[ndx] < 0:
             continue
 
-        cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy().T
-        cur_locs = to_py(lbl['preProcData_P'][:, ndx].copy())
+        cur_frame = cachegrp[cachegrp['preProcData_I'][conf.view, ndx]].value.copy().T
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
+        cur_locs = to_py(cachegrp['preProcData_P'][:, ndx].copy())
         cur_locs = cur_locs.reshape([2,conf.nviews,conf.n_classes])
         cur_locs = cur_locs[:,conf.view,:].T
         mndx = to_py(m_ndx[ndx])
@@ -2124,36 +2160,28 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
 
 def classify_db_all(model_type, conf, db_file, model_file=None,
-                    classify_fcn=classify_db, name='deepnet'  # alternatively, classify_db2
+                    classify_fcn=classify_db, name='deepnet',
+                    fullret = False,
+                    **kwargs
                     ):
-    ''' Classifies examples in DB.'''
-    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=name)
+    '''
+        Classifies examples in DB.
 
-    extrastuff = []
-    if model_type == 'openpose' or model_type == 'sb':
-        tf_iterator = multiResData.tf_reader(conf, db_file, False)
-        tf_iterator.batch_size = 1
-        read_fn = tf_iterator.next
-        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
-    elif model_type == 'unet':
-        tf_iterator = multiResData.tf_reader(conf, db_file, False)
-        tf_iterator.batch_size = 1
-        read_fn = tf_iterator.next
-        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
-    elif model_type == 'mdn':
-        tf_iterator = multiResData.tf_reader(conf, db_file, False)
-        tf_iterator.batch_size = 1
-        read_fn = tf_iterator.next
-        ret = classify_fcn(conf, read_fn, pred_fn, tf_iterator.N)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
-    elif model_type == 'leap':
+    :param model_type:
+    :param conf:
+    :param db_file:
+    :param model_file:
+    :param classify_fcn:
+    :param name:
+    :param fullret: if True, return raw output of classify_fcn as single arg
+    :return:
+    '''
+
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=name)
+
+    if model_type == 'leap':
         leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        ret = classify_fcn(conf, leap_gen, pred_fn, n)
+        ret = classify_fcn(conf, leap_gen, pred_fn, n, **kwargs)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     elif model_type == 'deeplabcut':
@@ -2162,7 +2190,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None,
         cfg_dict['project_path'] = p
         cfg_dict['dataset'] = d
         read_fn, n = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
-        ret = classify_fcn(conf, read_fn, pred_fn, n)
+        ret = classify_fcn(conf, read_fn, pred_fn, n, **kwargs)
         pred_locs, label_locs, info = ret[:3]
         close_fn()
     else:
@@ -2178,14 +2206,14 @@ def classify_db_all(model_type, conf, db_file, model_file=None,
             db_len = tf_iterator.N
         ret = classify_fcn(conf, read_fn, pred_fn, db_len)
         pred_locs, label_locs, info = ret[:3]
-        if len(ret)>3:
-            extrastuff = ret[3]
         close_fn()
 
         # raise ValueError('Undefined model type')
 
-    # return pred_locs, label_locs, info, extrastuff
-    return pred_locs, label_locs, info, model_file
+    if fullret:
+        return ret
+    else:
+        return pred_locs, label_locs, info, model_file
 
 
 def check_train_db(model_type, conf, out_file):
@@ -2270,6 +2298,7 @@ def compile_trk_info(conf, model_file, crop_loc, expname=None):
     if 'flipLandmarkMatches' in param_dict.keys() and not param_dict['flipLandmarkMatches']:
         param_dict['flipLandmarkMatches'] = None
     info[u'crop_loc'] = to_mat(crop_loc)
+    info[u'project_file'] = getattr(conf, 'project_file', '')
 
     return info
 
@@ -2412,51 +2441,42 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file, ivw=0)
 
 def classify_gt_data(conf, model_type, out_file, model_file):
     ''' Classify GT data in the label file.
-    Returned values are 0-indexed.
+
+    View classified is per conf.view; out_file, model_file should be specified for this view.
+
     Saved values are 1-indexed.
     '''
-    local_dirs, _ = multiResData.find_gt_dirs(conf)
-    lbl = h5py.File(conf.labelfile, 'r')
-    view = conf.view
-    npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
-    sel_pts = int(view * npts_per_view) + conf.selpts
 
-    cur_list = []
-    labeled_locs = []
-    for ndx, dir_name in enumerate(local_dirs):
-        cur_pts = trx_pts(lbl, ndx, on_gt=True)
+    # create tfr/db
+    now_str = datetime.datetime.today().strftime('%Y%m%dT%H%M%S')
+    gttfr = 'gt_{}.tfrecords'.format(now_str)
+    gttfr = os.path.join(conf.cachedir, gttfr)
+    create_tfrecord(conf, split=False, on_gt=True, db_files=(gttfr,),
+                    use_gt_cache=True)
 
-        if not conf.has_trx_file:
-            cur_pts = cur_pts[np.newaxis, ...]
+    # classify it
+    ret = classify_db_all(model_type, conf, gttfr, model_file=model_file,
+                          classify_fcn=classify_db2, fullret=True,
+                          ignore_hmaps=True,
+                          )
+    ret_dict_all, labeled_locs, info = ret
+    info = list(itertools.chain.from_iterable(info))  # info is list-of-list-of-triplets (second list is batches)
 
-        if conf.has_trx_file:
-            trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt=True)
-            trx = sio.loadmat(trx_files[ndx])['trx'][0]
-            n_trx = len(trx)
-        else:
-            n_trx = 1
+    # partfile = out_file + '.part'
+    # ret_dict_all = classify_list_all(model_type, conf, cur_list,
+    #                                  on_gt=True,
+    #                                  model_file=model_file,
+    #                                  part_file=partfile)
 
-        for trx_ndx in range(n_trx):
-            frames = multiResData.get_labeled_frames(lbl, ndx, trx_ndx, on_gt=True)
-            for f in frames:
-                cur_list.append([ndx, f, trx_ndx])
-                labeled_locs.append(cur_pts[trx_ndx, f, :, sel_pts])
-
-    partfile = out_file + '.part'
-    ret_dict_all = classify_list_all(model_type, conf, cur_list,
-                                     on_gt=True,
-                                     model_file=model_file,
-                                     part_file=partfile)
-
-    ret_dict_all['labeled_locs'] = np.array(labeled_locs)
+    ret_dict_all['locs_labeled'] = np.array(labeled_locs)  # AL: already np.array prob dont need copy
     to_mat_all_locs_in_dict(ret_dict_all)
-    ret_dict_all['list'] = to_mat(np.array(cur_list))
+    ret_dict_all['list'] = to_mat(np.array(info))
     DUMMY_CROP_INFO = []
     ret_dict_all['trkInfo'] = compile_trk_info(conf, model_file, DUMMY_CROP_INFO)
 
     savemat_with_catch_and_pickle(out_file, ret_dict_all)
 
-    lbl.close()
+    #lbl.close()
 
 def convert_to_mat_trk(pred_locs, conf, start, end, trx_ids):
     ''' Converts predictions to compatible trk format'''
@@ -3330,6 +3350,7 @@ def run(args):
                                cache_dir=args.cache,
                                conf_params=args.conf_params)
             #out_file = args.out_file_gt + '_{}.mat'.format(view)
+            conf.view = view
             classify_gt_data(conf, args.type,
                              args.out_file_gt[view_ndx],
                              model_file=args.model_file[view_ndx])
@@ -3424,6 +3445,9 @@ def main(argv):
     log.addHandler(errh)
     log.addHandler(logh)
     log.setLevel(logging.DEBUG)
+
+    repo_info = PoseTools.get_git_commit()
+    logging.info('Git Commit: {}'.format(repo_info))
 
     if args.no_except:
         run(args)

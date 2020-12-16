@@ -5,8 +5,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % * DLNetType: what DL net is run
   % * DLBackEndClass: where/how DL was run
   %
-  % Design here still fleshing out (see switchyards, DLBackEndType enum
-  % etc)
+  % TODO: Design is solidifying. This should be a base class with
+  % subclasses for backend types. The .type prop would be redundant against
+  % the concrete type. Codegen methods should be moved out of DeepTracker
+  % and into backend subclasses and use instance state (eg, docker codegen 
+  % for current tag; bsub for specified .sif; etc). Conceptually this class 
+  % would just be "DLBackEnd" and the enum/type would go away.
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
@@ -15,13 +19,17 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   properties
     type  % scalar DLBackEnd
     
-    % scalar logical. if true, backend runs code in APT.Root/deepnet. This
-    % path must be visible in the backend or else.
+    % scalar logical. if true, bsub backend runs code in APT.Root/deepnet. 
+    % This path must be visible in the backend or else.
     %
     % Conceptually this could be an arbitrary loc.
+    %
+    % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
     deepnetrunlocal = true; 
+    bsubaptroot = []; % root of APT repo for bsub backend running 
     
     awsec2 % used only for type==AWS
+    awsgitbranch
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
     dockerimgroot = 'bransonlabapt/apt_docker';
@@ -29,6 +37,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     % docker images.
     dockerimgtag = DLBackEndClass.currentDockerImgTag;
     dockerremotehost = '';
+    gpuids = []; % for now used by docker/conda
+    dockercontainername = []; % transient
     
     condaEnv = 'APT'; % used only for Conda
   end
@@ -229,6 +239,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
       % Get free gpus subject to minFreeMem constraint (see optional PVs)
       %
+      % This sets .gpuids
+      % 
       % gpuid: [ngpu] where ngpu<=nrequest, depending on if enough GPUs are available
       % freemem: [ngpu] etc
       % gpuInfo: scalar struct
@@ -306,6 +318,33 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       ngpureturn = min(ngpu,nrequest);
       gpuid = gpuid(1:ngpureturn);
       freemem = freemem(1:ngpureturn);
+      
+      obj.gpuids = gpuid;
+    end
+    
+    function pretrack(obj,cacheDir,dmc,setStatusFcn)
+      switch obj.type        
+        case DLBackEnd.AWS
+          obj.awsPretrack(dmc,setStatusFcn);
+        case DLBackEnd.Bsub
+          obj.bsubPretrack(cacheDir);
+      end      
+    end
+    
+    function r = getAPTRoot(obj)
+      switch obj.type
+        case DLBackEnd.Bsub
+          r = obj.bsubaptroot;
+        case DLBackEnd.AWS
+          r = '/home/ubuntu/APT';
+        case DLBackEnd.Docker
+          r = APT.Root;          
+        case DLBackEnd.Conda
+          r = APT.Root;          
+      end
+    end
+    function r = getAPTDeepnetRoot(obj)
+      r = [obj.getAPTRoot '/deepnet'];
     end
     
   end
@@ -401,7 +440,41 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
   end
   
+  methods % Bsub
+
+    function aptroot = bsubSetRootUpdateRepo(obj,cacheDir,varargin)
+      copyptw = myparse(varargin,...
+        'copyptw',true ...
+      );
+      
+      if obj.deepnetrunlocal
+        aptroot = APT.Root;
+      else
+        DeepTracker.cloneJRCRepoIfNec(cacheDir);
+        DeepTracker.updateAPTRepoExecJRC(cacheDir);
+        aptroot = [cacheDir '/APT'];
+      end
+      if copyptw
+        DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+      end
+      obj.bsubaptroot = aptroot;
+    end
+
+    function bsubPretrack(obj,cacheDir)
+      obj.bsubSetRootUpdateRepo(cacheDir);
+    end
+    
+  end
+  
   methods % Docker
+
+    function s = dockercmd(obj)
+      if isempty(obj.dockerremotehost)
+        s = 'docker';
+      else
+        s = sprintf('ssh -t %s docker',obj.dockerremotehost);
+      end
+    end
 
     % KB 20191219: moved this to not be a static function so that we could
     % use this object's dockerremotehost
@@ -873,6 +946,37 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = 'All tests passed. AWS Backend should work for you.'; drawnow;
       
       tfsucc = true;      
+    end
+    
+    function awsPretrack(obj,dmc,setstatusfn)
+      setstatusfn('AWS Tracking: Uploading code and data...');
+      
+      obj.awsUpdateRepo();
+      aws = obj.awsec2;
+      for i=1:numel(dmc)
+        if ~dmc(i).isRemote
+          dmc(i).mirror2remoteAws(aws);
+        end
+      end
+      
+      setstatusfn('Tracking...');      
+    end
+    
+    function awsUpdateRepo(obj) % throws if fails
+      if isempty(obj.awsgitbranch)
+        args = {};
+      else
+        args = {'branch' obj.awsgitbranch};
+      end
+      cmdremote = DeepTracker.updateAPTRepoCmd('downloadpretrained',true,args{:});
+
+      aws = obj.awsec2;      
+      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
+      if tfsucc
+        fprintf('Updated remote APT repo.\n\n');
+      else
+        error('Failed to update remote APT repo.');
+      end
     end
     
   end

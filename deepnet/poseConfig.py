@@ -3,7 +3,7 @@ from builtins import object
 from past.utils import old_div
 import os
 import re
-import localSetup
+# import localSetup
 import numpy as np
 import copy
 import logging
@@ -24,6 +24,8 @@ class config(object):
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
         self.label_blur_rad = 3.  # 1.5
+        self.imsz = [100,100]
+        self.n_classes = 10
 
         self.batch_size = 8
         self.view = 0
@@ -68,7 +70,6 @@ class config(object):
         self.valdatafilename = 'valdata'
         self.valratio = 0.3
         self.holdoutratio = 0.8
-        self.max_n_animals = 1
         self.flipud = False
         self.json_trn_file = None
         self.db_format = 'tfrecord' # other option is coco
@@ -182,7 +183,7 @@ class config(object):
         self.dpk_train_style = 'apt'        # 'dpk' for dpk-orig-style or 'apt' for apt-style
         self.dpk_val_batch_size = 0        # use 0 when dpk_train_style='apt' to not do valdist loggin
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
-        self.dpk_auto_steps_per_epoch = False  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
+        self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
 
         # ============== MULTIANIMAL ==========
         self.max_n_animals = 1
@@ -216,7 +217,8 @@ class config(object):
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30
-        self.cachedir = None
+        self.cachedir = ''
+        self.project_file = ''
 
         # ----- Legacy
         # self.scale = 2
@@ -262,5 +264,22 @@ class config(object):
             for f in flds:
                 printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
-
 conf = config()
+
+def parse_aff_graph(aff_graph_str):
+    '''
+    Parse an afinity-graph str (comma-sep) into a list of edges
+    :param aff_graph_str: eg '1 2,1 3,1 4,3 4'
+    :return: eg [[0,1],[0,2],[0,3],[2,3]]
+    '''
+    graph = []
+    aff_graph_str = aff_graph_str.split(',')
+    for b in aff_graph_str:
+        mm = re.search('(\d+)\s+(\d+)', b)
+        n1 = int(mm.groups()[0]) - 1
+        n2 = int(mm.groups()[1]) - 1
+        graph.append([n1, n2])
+
+    return graph
+
+

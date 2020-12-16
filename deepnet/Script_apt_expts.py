@@ -150,7 +150,7 @@ reload(rae)
 rae.setup('romain')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 dstr = '20200912'
-rae.get_cv_results(dstr=dstr)
+rae.get_cv_results(dstr=dstr,queue='gpu_tesla')
 
 
 
@@ -216,7 +216,7 @@ import run_apt_expts_2 as rae
 # reload(rae)
 rae.setup('leap_fly')
 dstr  = '20200824'
-rae.get_normal_results(dstr=dstr)
+rae.get_normal_results(dstr=dstr,db_from_mdn_dir=True)
 
 
 ## Single animal vs multiple animal for Stephen

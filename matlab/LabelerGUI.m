@@ -269,18 +269,27 @@ handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_hide_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_predictions,handles.menu_view_hide_labels);
+
 handles.menu_view_hide_imported_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_imported_predictions_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Hide imported predictions',...
   'Tag','menu_view_hide_imported_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_imported_predictions,handles.menu_view_hide_predictions);
+
+handles.menu_view_show_preds_curr_target_only = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_preds_curr_target_only_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Show predictions for current target only',...
+  'Tag','menu_view_show_preds_curr_target_only',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_show_preds_curr_target_only,handles.menu_view_hide_imported_predictions);
+
 handles.menu_view_show_imported_preds_curr_target_only = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_imported_preds_curr_target_only_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Show imported predictions only for current target',...
+  'Label','Show imported predictions for current target only',...
   'Tag','menu_view_show_imported_preds_curr_target_only',...
   'Checked','off');
-moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_hide_imported_predictions);
+moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_show_preds_curr_target_only);
 
 handles.menu_view_edit_skeleton = uimenu('Parent',handles.menu_view,...
   'Label','Landmark specifications',...
@@ -1013,7 +1022,7 @@ switch lower(state),
     handles.menu_track.Enable = onOff;
     handles.pbTrain.Enable = onOff;
     handles.pbTrack.Enable = onOff;
-    handles.menu_view_hide_predictions.Enable = onOff;
+    handles.menu_view_hide_predictions.Enable = onOff;    
     
     if ~lObj.gtIsGTMode,
       set(handles.menu_go_targets_summary,'Enable','on');
@@ -1185,6 +1194,9 @@ handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined);
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
 tracker = evt.AffectedObject;
 hmenu_view_hide_predictions.Checked = onIff(tracker.hideViz);
+function cbkTrackerShowPredsCurrTargetOnlyChanged(src,evt,hmenu)
+tracker = evt.AffectedObject;
+hmenu.Checked = onIff(tracker.showPredsCurrTargetOnly);
 
 function cbkKPF(src,evt,lObj)
 
@@ -2139,6 +2151,7 @@ handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
 handles.menu_view_hide_predictions.Enable = onOff;
+handles.menu_view_show_preds_curr_target_only.Enable = onOff;
 
 menuTrkers = handles.menu_track_trackers;
 for i=1:numel(menuTrkers)
@@ -2176,6 +2189,9 @@ if tfTracker
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
     @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); 
+  listenersNew{end+1,1} = tObj.addlistener('showPredsCurrTargetOnly','PostSet',...
+    @(src1,evt1) cbkTrackerShowPredsCurrTargetOnlyChanged(src1,evt1,handles.menu_view_show_preds_curr_target_only)); 
+  
 
   % Listeners, algo-specific
   switch tObj.algorithmName
@@ -3441,6 +3457,12 @@ lObj = handles.labelerObj;
 tracker = lObj.tracker;
 if ~isempty(tracker)
   tracker.hideVizToggle();
+end
+function menu_view_show_preds_curr_target_only_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+tracker = lObj.tracker;
+if ~isempty(tracker)
+  tracker.showPredsCurrTargetOnlyToggle();
 end
 
 function menu_view_hide_imported_predictions_Callback(hObject, eventdata, handles)
