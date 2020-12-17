@@ -688,6 +688,7 @@ listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_tracker','PostSet',@cbklabelTLInfoPropsUpdated);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_allframes','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbklabelTLInfoPropTypesUpdated);
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
@@ -4112,6 +4113,10 @@ end
 function pumInfo_Callback(hObject, eventdata, handles)
 cprop = get(hObject,'Value');
 handles.labelTLInfo.setCurProp(cprop);
+cpropNew = handles.labelTLInfo.getCurProp();
+if cpropNew ~= cprop,
+  set(hObject,'Value',cpropNew);
+end
 hlpRemoveFocus(hObject,handles);
 
 function pumInfo_CreateFcn(hObject, eventdata, handles)

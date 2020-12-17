@@ -2,7 +2,7 @@ classdef InfoTimeline < handle
 
   properties (Constant)
     TLPROPFILESTR = 'landmark_features.yaml';
-    TLPROPTYPES = {'Labels','Predictions','Imported'};
+    TLPROPTYPES = {'Labels','Predictions','Imported','All Frames'};
   end
    
   properties (SetAccess=private)
@@ -33,6 +33,7 @@ classdef InfoTimeline < handle
     %nfrm % number of frames "
     tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
     hPtsL % [npts] line handles
+    custom_data % [1 x nframes] custom data to plot
     
     listeners % [nlistener] col cell array of labeler prop listeners
     listenersTracker % col cell array of tracker listeners
@@ -44,6 +45,7 @@ classdef InfoTimeline < handle
   properties (SetObservable)
     props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
     props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
+    props_allframes % [nallprop]. ". Applicable when proptype is All Frames
     curprop % row index into props, or props_tracker, depending on curproptype.
     proptypes % property types, eg 'Labels' or 'Predictions'.    
     curproptype % row index into proptypes
@@ -186,6 +188,7 @@ classdef InfoTimeline < handle
     
       obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
       obj.readTimelinePropsNew();
+      obj.initializePropsAllFrames();
             
       obj.updateProps();
       obj.proptypes = InfoTimeline.TLPROPTYPES(:);
@@ -292,6 +295,14 @@ classdef InfoTimeline < handle
       
     end
     
+    function initializePropsAllFrames(obj)
+      
+      obj.props_allframes = struct('name','Add custom...',...
+        'code','add_custom',...
+        'file','');
+      
+    end
+    
     function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
 
@@ -345,9 +356,13 @@ classdef InfoTimeline < handle
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       obj.hSegLineGT.init(xlims,SEGLINEYLOC,sPV);
       obj.hSegLineGTLbled.init(xlims,SEGLINEYLOC,sPVLbled);
+      obj.custom_data = [];
+      if obj.getCurPropTypeIsAllFrames(),
+        obj.setCurPropTypeDefault();
+      end
       
       obj.updateProps();
-      
+        
       cbkGTSuggUpdated(obj,[],[]);
     end
     
@@ -361,7 +376,8 @@ classdef InfoTimeline < handle
         props(idxremove) = [];
       end
       obj.props = props;      
-      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
+      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);      
+      obj.initializePropsAllFrames();
     end
         
     function setTracker(obj,tracker)
@@ -403,9 +419,9 @@ classdef InfoTimeline < handle
 
       obj.tldata = dat;
 
-      for i=1:obj.npts
-        set(obj.hPts(i),'XData',nan,'YData',nan);
-      end
+      %for i=1:obj.npts
+        set(obj.hPts,'XData',nan,'YData',nan);
+      %end
       set(obj.hPtStat,'XData',nan,'YData',nan);
       
       if ~isempty(datnonnan)
@@ -675,6 +691,8 @@ classdef InfoTimeline < handle
       end
       if strcmpi(obj.proptypes{ipropType},'Predictions'),
         props = {obj.props_tracker.name};
+      elseif strcmpi(obj.proptypes{ipropType},'All Frames'),
+        props = {obj.props_allframes.name};
       else
         props = {obj.props.name};
       end
@@ -682,13 +700,25 @@ classdef InfoTimeline < handle
     function proptypes = getPropTypesDisp(obj)
       proptypes = obj.proptypes;
     end
-    function setCurProp(obj,iprop)
+    function tfSucc = setCurProp(obj,iprop)
       % setLabelsFull will essentially assert that iprop is in range for
       % current proptype.
       %
       % Does not update UI
-      obj.curprop = iprop;
+      tfSucc = true;
+      if obj.getCurPropTypeIsAllFrames() && ...
+          strcmpi(obj.props_allframes(iprop).name,'Add custom...'),
+        [tfSucc] = obj.addCustomFeature();
+        if ~tfSucc,
+          return;
+        end
+      else
+        obj.curprop = iprop;
+      end
       obj.setLabelsFull();
+    end
+    function v = getCurProp(obj)
+      v = obj.curprop;
     end
     function setCurPropType(obj,iproptype,iprop)
       % iproptype, iprop assumed to be consistent already.
@@ -698,6 +728,29 @@ classdef InfoTimeline < handle
       end
       obj.setLabelsFull();
       obj.updateLandmarkColors();
+    end
+    function tfSucc = addCustomFeature(obj)
+      tfSucc = false;
+      movfile = obj.lObj.getMovieFilesAllFullMovIdx(obj.lObj.currMovIdx);
+      defaultpath = fileparts(movfile{1});
+      [f,p] = uigetfile('*.mat','Select .mat file with a feature value for each frame for current movie',defaultpath);
+      if ~ischar(f),
+        return;
+      end
+      file = fullfile(p,f);
+      try
+        d = load(fullfile(p,f),'x');
+        obj.custom_data = d.x;
+      catch,
+        uiwait(errordlg('Custom feature mat file must have a variable x which is 1 x nframes','Error loading custom feature'));
+        return;
+      end
+      
+      newprop = struct('name',['Custom: ',f],'code','custom','file',file);
+      obj.initializePropsAllFrames();
+      obj.props_allframes = [newprop,obj.props_allframes];
+      obj.curprop = 1;
+      tfSucc = true;      
     end
     function [ptype,prop] = getCurPropSmart(obj)
       % Get current proptype, and prop-specification-struct
@@ -713,6 +766,15 @@ classdef InfoTimeline < handle
     function tf = getCurPropTypeIsLabel(obj)
       v = obj.curproptype;
       tf = strcmp(obj.proptypes{v},'Labels');
+    end
+    function tf = getCurPropTypeIsAllFrames(obj)
+      v = obj.curproptype;
+      tf = strcmpi(obj.proptypes{v},'All Frames');
+    end
+    function setCurPropTypeDefault(obj)
+      obj.setCurPropType(1);
+      obj.lObj.gdata.pumInfo_labels.Value = obj.curproptype;
+      obj.lObj.gdata.pumInfo.Value = obj.curprop;
     end
   end
     
@@ -910,6 +972,13 @@ classdef InfoTimeline < handle
               data = obj.tracker.getPropValues(pcode);
             else
               data = nan(obj.npts,1);
+            end
+          case 'All Frames'
+            %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.curprop);
+            if strcmpi(obj.props_allframes(obj.curprop).name,'Add custom...'),
+              data = nan(obj.npts,1);
+            else
+              data = obj.custom_data;
             end
           otherwise
             error('Unknown data type %s',ptype);
