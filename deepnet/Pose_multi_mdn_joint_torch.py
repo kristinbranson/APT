@@ -1,4 +1,3 @@
-            locs_sz = (conf.batch_size, conf.n_classes, 2)
 import PoseCommon_pytorch
 import torch.nn as nn
 import torch

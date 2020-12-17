@@ -3303,7 +3303,16 @@ classdef Labeler < handle
       nDfltTrkers = numel(trkersInfo);
       assert(iscell(s.trackerClass));
       nExistingTrkers = numel(s.trackerClass);
-      assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers,:)));
+      if s.maIsMA
+        % ma trackers in flux; force to be the known trackers
+        s.trackerClass(:) = trkersInfo(1:nExistingTrkers);
+        for i=1:numel(s.trackerData)
+          % very foolish double-update; rm later
+          s.trackerData{i}.trnNetType = trkersInfo{i}{3};
+        end
+      else
+        assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers,:)));
+      end
       s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
         trkersInfo(nExistingTrkers+1:nDfltTrkers);
       s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...

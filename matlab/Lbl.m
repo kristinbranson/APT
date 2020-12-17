@@ -135,9 +135,10 @@ classdef Lbl
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx] = myparse(varargin,...
+      [writeims,writeimsidx,slblname] = myparse(varargin,...
         'writeims',true, ...
-        'writeimsidx',[] ...
+        'writeimsidx',[], ...
+        'strippedlblname',[] ... % (opt) short filename for stripped lbl
         );
       
       if exist(packdir,'dir')==0
@@ -151,10 +152,12 @@ classdef Lbl
       
       fsinfo = lObj.projFSInfo;
       [lblP,lblS] = myfileparts(fsinfo.filename);
-      sfname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
-      sfname = fullfile(packdir,sfname);
-      save(sfname,'-mat','-v7.3','-struct','slbl');
-      fprintf(1,'Saved %s\n',sfname);
+      if isempty(slblname)
+        slblname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
+      end
+      slblfname = fullfile(packdir,slblname);
+      save(slblfname,'-mat','-v7.3','-struct','slbl');
+      fprintf(1,'Saved %s\n',slblfname);
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
       [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
