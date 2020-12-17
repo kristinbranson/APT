@@ -1158,15 +1158,12 @@ classdef DeepTracker < LabelTracker
       
       trnCmdType = trnType;
       
+      netObj = obj.trnNetType;
       if tfGenNewStrippedLbl
-        s = obj.trnCreateStrippedLbl('wbObj',wbObj);
-        % store nLabels in dmc
-        dmc.nLabels = s.nLabels;
-        
         trainID = datestr(now,'yyyymmddTHHMMSS');
+        % Note dmc.trainID used in eg lblStrippedLnx
         dmc.trainID = trainID;
-        
-        % Write stripped lblfile to local cache
+
         dlLblFileLcl = dmc.lblStrippedLnx;
         dlLblFileLclDir = fileparts(dlLblFileLcl);
         if exist(dlLblFileLclDir,'dir')==0
@@ -1175,10 +1172,27 @@ classdef DeepTracker < LabelTracker
           if ~succ
             error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
           end
+        end        
+        
+        if netObj.doesMA
+          packdir = dlLblFileLclDir;
+          [~,~,sloc,~] = Lbl.genWriteTrnPack(obj.lObj,packdir,...
+            'strippedlblname',dmc.lblStrippedName);
+          dmc.nLabels = numel(sloc);
+        else
+          s = obj.trnCreateStrippedLbl('wbObj',wbObj);
+          % store nLabels in dmc
+          dmc.nLabels = s.nLabels;
+
+          % Write stripped lblfile to local cache
+
+          save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
+          fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
         end
-        save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
-        fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
+        
       else % Restart
+        assert(~netObj.doesMA,'Restarts unsupported for multianimal trackers.');
+        
         trainID = obj.trnNameLbl;
         assert(~isempty(trainID));
         
@@ -4830,6 +4844,44 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      
     end
+    function [codestr,code] = matrainCodeGen(trnID,dllbl,cache,errfile,...
+        netType,trnjson,varargin)
+      % Simplified relative to trainCodeGen
+      
+       [deepnetroot,fs,filequote] = myparse_nocheck(varargin,...
+        'deepnetroot',APT.getpathdl,...
+        'filesep','/',...
+        'filequote','\"'... % quote char used to protect filenames/paths. 
+                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller 
+                        ... % is expected to wrap in enclosing regular double-quotes " !!
+          );
+      
+      aptintrf = [deepnetroot fs 'APT_interface.py'];
+
+      code = { ...
+        'python' ...
+        [filequote aptintrf filequote] ...
+        dllbl ...
+        '-name' ...
+        trnID ...
+        '-err_file' ...
+        [filequote errfile filequote] ... % String.escapeSpaces(errfile),...
+        '-json_trn_file' ...
+        trnjson ...
+        '-conf_params' ...
+        'is_multi' ...
+        'True' ... % 'db_format' ...  '\"coco\"' ... 'max_n_animals' ... XXXMAX ...
+        'db_format' ...
+        '\"coco\"' ...
+        '-type' ...
+        netType ...
+        '-cache' ...
+        [filequote cache filequote] ... % String.escapeSpaces(cache),...
+        'train' ...
+        };
+      codestr = String.cellstr2DelimList(code,' ');
+    end
+    
     function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
         varargin)
       [view,deepnetroot,splitfile,classify_val,classify_val_out,...
@@ -4845,6 +4897,18 @@ classdef DeepTracker < LabelTracker
                         ... % *IMPORTANT*: Default is escaped double-quote \" => caller 
                         ... % is expected to wrap in enclosing regular double-quotes " !!
           );
+      
+      if ischar(netType)
+        netTypeObj = DLNetType.(netType);
+      end
+      if netTypeObj.doesMA
+        dllblpath = fileparts(dllbl);
+        trnjson = fullfile(dllblpath,'loc.json');        
+        codestr = DeepTracker.matrainCodeGen(trnID,dllbl,cache,errfile,...
+            netType,trnjson,varargin{:});
+        return;
+      end
+        
       tfview = ~isempty(view);
       
       aptintrf = [deepnetroot fs 'APT_interface.py'];
