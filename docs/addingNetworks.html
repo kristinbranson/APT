@@ -32,9 +32,17 @@ strong.regular-font {
 <li> If more flexiblity is required for your Tensorflow 1.x based networks then you can inherit <a href="#posebasegeneral">PoseBaseGeneral</a>. In this case, the code will provide a tensorflow dataset object which can be used to generate the augmented training examples (images and labeled landmark location).
 </ul>
 
+<p>To add your network <i>mynet</i>, create a new file <code>Pose_mynet.py</code> and define a new class of the same name (i.e., <code>Pose_mynet</code>). For TF 1.x based networks class <code>Pose_mynet</code> can inherit from <code>PoseBase</code> or <code>PoseBaseGeneral</code>.
+<p>
+<p> APT front end (GUI) interacts with APT backend (DL algorithms) through <code>APT_interface.py</code>. During training, <code>APT_interface.py</code> creates the training databases, initializes the <code>Pose_mynet</code> class with the configuration settings object (<code>conf</code>) and then calls the <code> train_wrapper</code> function to start the training. APT requires that the training status information be stored in json format to <code>traindata.json</code> file to enable APT front-end to update the training progress and that the model file name have the format <code>deepnet-<i>step_num</i></code> so that APT can bundle the model files into the APT project at the end of the training. The files <code>traindata.json</code> and <code>deepnet-*</code> are constantly polled by APT front-end in order to update the user about training's status.
+<p>
+During tracking, <code>APT_interface.py</code> calls <code>get_pred_fn</code> after initilializing the <code>Pose_mynet</code> object. This function should return a handle to <i>prediction</i> function which when given a batch of input images as numpy array as input   returns the landmark predictions as <i>x,y</i>  locations, and if possible prediction scores or confidences. 
+<p>
+Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_joint_torch.py</code> and its super class <code>PoseCommon_pytorch.py</code>. In particular, <code>PoseCommon_pytorch.create_data_gen</code> function can be used to create the data loaders for the datasets. 
+
 <h2><a id="pytorch">Code Outline</a></h2>
 
-<p>To add your network <i>mynet</i>, create a new file <code>Pose_mynet.py</code> and define a new class of the same name (i.e., <code>Pose_mynet</code>). For TF 1.x based networks class <code>Pose_mynet</code> can inherit from <code>PoseBase</code> or <code>PoseBaseGeneral</code>. Below is the code outline showing how to add a PyTorch based network:</p>
+<p> Outline of <code>Pose_<i>mynet</i>.py</code> file that implements a PyTorch based network that can be added to APT</p>
 <pre><code>
   import PoseTools # If you want to use APTs default image augmentation method.
   import json
@@ -171,11 +179,6 @@ strong.regular-font {
           <b>return pred_fn, close_fn, model_file_used</b>
       
 </code></pre>
-<p> APT front end (GUI) interacts with APT backend (DL algorithms) through <code>APT_interface.py</code>. During training, <code>APT_interface.py</code> creates the training databases, initializes the <code>Pose_mynet</code> class with the configuration settings object (<code>conf</code>) and then calls the <code> train_wrapper</code> function to start the training. APT requires that the training status information be stored in json format to <code>traindata.json</code> to enable APT front-end to regularly update the training progress and that the model file name have the format <code>deepnet-<i>step_num</i></code> so that APT can bundle the model files into the APT project at the end of the training. The files <code>traindata.json</code> and <code>deepnet-*</code> are constantly polled by APT front-end in order to update the user about training's status.
-<p>
-During tracking, <code>APT_interface.py</code> calls <code>get_pred_fn</code> after initilializing the <code>Pose_mynet</code> object. This function should return a handle to <i>prediction</i> function which when given a batch of input images as numpy array as input  should return the <i>x,y</i> prediction locations and if possible prediction scores or confidences. 
-<p>
-Example PyTorch impementations can be found in <code>Pose_multi_mdn_joint_torch.py</code> and its super class <code>PoseCommon_pytorch.py</code>. In particular, <code>PoseCommon_pytorch.create_data_gen</code> will be helpful to create the data loaders. 
 
 <p>
 The <code>Pose_mynet</code> is given configuration settings set by the user in the APT GUI as an <code>PoseConfig</code> object during initialization. Some of the useful configuration settings are:</p>
