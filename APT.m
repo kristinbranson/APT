@@ -239,6 +239,10 @@ classdef APT
       end
     end
     
+    function tr = torchhome()
+      tr = fullfile(APT.getdlcacheroot(),'torch');
+    end
+    
     function s = codesnapshot
       % This method assumes that the user has set their path using
       % APT.setpath (so that the Manifest correclty reflects
