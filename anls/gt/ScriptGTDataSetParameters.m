@@ -6,9 +6,9 @@
 assert(exist('exptype','var')>0);
 
 nets = {'openpose','leap','leap_orig','deeplabcut','deeplabcut_orig',...
-  'unet','resnet_unet','mdn_joint_fpn','mdn_joint','mdn','mdn_unet','cpropt'};
+  'dpk','unet','resnet_unet','mdn_joint_fpn','mdn_joint','mdn','mdn_unet','cpropt'};
 legendnames = {'OpenPose','LEAP', 'LEAP 0','DeepLabCut','DeepLabCut 0',...
-  'U-net','Res-U-net','GRONe','MDN Joint','MDN','MDN U-net','CPR'};
+  'DeepPoseKit','U-net','Res-U-net','GRONe','MDN Joint','MDN','MDN U-net','CPR'};
 
 % nets = {'openpose','leap','deeplabcut','unet','resnet_unet','mdn','cpropt'};
 % legendnames = {'OpenPose','LEAP','DeepLabCut','U-net','Res-U-net','MDN','CPR'};
@@ -20,8 +20,9 @@ colors = [
   0.4660    0.6740    0.1880 % leap  
   0.7330    0.8370    0.5940 % leap original (blend of white and leap)
   0.8500    0.3250    0.0980 % dlc 
-  0.9250    0.6625    0.5490 % dlc original (blend of white and dlc)
-  0.9290    0.6940    0.1250 % unet
+  0.8875    0.4938    0.3235 % dlc original (blend of white and dlc)
+  0.9290    0.6940    0.1250 % DPK
+  0.7263    0.3085    0.3880 % unet (blend of resunet and white)
   0.6350    0.0780    0.1840 % resnet_unet
   0.4940    0.1840    0.5560 % GRONe
   0.6205    0.3880    0.6670 % mdn joint (blend of mdn joint and white, 3:1)
@@ -46,7 +47,6 @@ gtfile_cpr = gtfileinfo.cpr;
 gtfile_traintime_cpr = gtfileinfo.traintime_cpr;
 gtfile_trainsize = gtfileinfo.trainsize;
 gtfile_traintime = gtfileinfo.traintime;
-gtfile_final0 = gtfileinfo.final0;
 gtfile_final = gtfileinfo.final;
 annoterrfile = gtfileinfo.annoterrfile;
 condinfofile = gtfileinfo.condinfofile;
@@ -60,25 +60,7 @@ switch exptype,
     else
       vwi = 2;
     end
-    % there are some networks in final that are not in trainsize
-    gtdata = load(gtfile_trainsize);
-    fns_size = fieldnames(gtdata);
-    for i = 1:numel(fns_size),
-      gtdata.(fns_size{i}) = gtdata.(fns_size{i})(end);
-    end
-    gtdata0 = load(gtfile_final0);
-    fns0 = setdiff(fieldnames(gtdata0),fns_size);
-    for i = 1:numel(fns0),
-      gtdata.(fns0{i}) = gtdata0.(fns0{i})(end);
-    end
-    gtfile_final = fullfile(savedir,gtfile_final);
-    save(gtfile_final,'-struct','gtdata');
 
-    gtdata = load(gtfile_final);
-    net1 = find(ismember(nets,fieldnames(gtdata)),1);
-    npts = size(gtdata.(nets{net1}){end}.labels,2);
-    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
-    
     incondinfo = load(condinfofile);
     conddata = struct;
     % conditions:
@@ -109,10 +91,6 @@ switch exptype,
     
   case 'SH3D'    
     vwi = 1;
-    gtdata = load(gtfile_final);
-    net1 = find(ismember(nets,fieldnames(gtdata)),1);
-    npts = size(gtdata.(nets{net1}){end}.labels,2);
-    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     incondinfo = load(condinfofile);
     conddata = struct;
@@ -141,18 +119,6 @@ switch exptype,
     
   case 'FlyBubble'
     % there are some networks in final that are not in trainsize
-    gtdata = load(gtfile_trainsize);
-    fns_size = fieldnames(gtdata);
-    for i = 1:numel(fns_size),
-      gtdata.(fns_size{i}) = gtdata.(fns_size{i})(end);
-    end
-    gtdata0 = load(gtfile_final0);
-    fns0 = setdiff(fieldnames(gtdata0),fns_size);
-    for i = 1:numel(fns0),
-      gtdata.(fns0{i}) = gtdata0.(fns0{i})(end);
-    end
-    gtfile_final = fullfile(savedir,gtfile_final);
-    save(gtfile_final,'-struct','gtdata');
     gtimdata = load(gtimagefile);
     conddata = load(condinfofile);
     
@@ -174,10 +140,6 @@ switch exptype,
     maxerr = 30;
     doplotoverx = true;
     %doplotoverx = false;
-    gtdata = load(gtfile_final);
-    net1 = find(ismember(nets,fieldnames(gtdata)),1);
-    npts = size(gtdata.(nets{net1}){end}.labels,2);
-    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
   case {'RFView0','RFView1'}
     if strcmp(exptype,'RFView0'),
@@ -185,10 +147,6 @@ switch exptype,
     else
       vwi = 2;
     end
-    gtdata = load(gtfile_final);
-    net1 = find(ismember(nets,fieldnames(gtdata)),1);
-    npts = size(gtdata.(nets{net1}){end}.labels,2);
-    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     conddata = [];
     labeltypes = {};
@@ -218,11 +176,6 @@ switch exptype,
   case 'RF3D'
     vwi = 1;
     
-    gtdata = load(gtfile_final);
-    net1 = find(ismember(nets,fieldnames(gtdata)),1);
-    npts = size(gtdata.(nets{net1}){end}.labels,2);
-    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
-
     conddata = [];
     maxerr = [];
     freezeInfo = [];
@@ -242,10 +195,7 @@ switch exptype,
       'back leg tarsi',[3,6]};
     
   case 'Larva',
-    
-    gtdata = load(gtfile_final);
-    nlabels = size(gtdata.(nets{end}){end}.labels,1);
-    
+        
     conddata = [];
     labeltypes = {};
     datatypes = {};
@@ -264,10 +214,6 @@ switch exptype,
     
   case 'Roian'
     vwi = 1;
-    gtdata = load(gtfile_final);
-    net1 = find(ismember(nets,fieldnames(gtdata)),1);
-    npts = size(gtdata.(nets{net1}){end}.labels,2);
-    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     conddata = [];
     labeltypes = {};
@@ -296,10 +242,6 @@ switch exptype,
       pttypes = {'Back foot',[1,2]
         'Tail',3};
     end
-    gtdata = load(gtfile_final);
-    net1 = find(ismember(nets,fieldnames(gtdata)),1);
-    npts = size(gtdata.(nets{net1}){end}.labels,2);
-    nlabels = size(gtdata.(nets{net1}){end}.labels,1);
     
     conddata = [];
     labeltypes = {};

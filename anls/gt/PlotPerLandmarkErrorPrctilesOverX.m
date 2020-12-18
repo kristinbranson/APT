@@ -104,7 +104,7 @@ if isempty(n_train),
     if ~isfield(gtdata,nets{i}),
       continue;
     end
-    n_train{i} = cellfun(@(x) x.model_timestamp,gtdata.(nets{i})(2:end));
+    n_train{i} = cellfun(@(x) double(x.model_timestamp),gtdata.(nets{i})(2:end));
   end
 end
 % whether we have the same x-axes for each net
@@ -112,6 +112,9 @@ n_train_match = true;
 n_train_idx = argmax(cellfun(@numel,n_train));
 for i = 1:numel(nets),  
   ncurr = numel(n_train{i});
+  if ncurr == 0,
+    continue;
+  end
   if ~all(n_train{i}(1:ncurr)==n_train{n_train_idx}(1:ncurr)),
     n_train_match = false;
     break;
@@ -268,7 +271,10 @@ for datai = 1:ndatatypes,
       if labeli == 1,
         title(pttypes{pti,1},'FontWeight','normal');
       end
-      set(gca,'XLim',[0,n_models],'YLim',[0,maxerrplus]);
+      set(gca,'YLim',[0,maxerrplus]);
+      if n_train_match,
+        set(gca,'XLim',[0,n_models]);
+      end
       drawnow;
     end
     set(hax(:,2:end),'YTickLabel',{});

@@ -136,9 +136,10 @@ classdef Lbl
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx] = myparse(varargin,...
+      [writeims,writeimsidx,slblname] = myparse(varargin,...
         'writeims',true, ...
-        'writeimsidx',[] ...
+        'writeimsidx',[], ...
+        'strippedlblname',[] ... % (opt) short filename for stripped lbl
         );
       
       if exist(packdir,'dir')==0
@@ -153,12 +154,16 @@ classdef Lbl
       
       fsinfo = lObj.projFSInfo;
       [lblP,lblS] = myfileparts(fsinfo.filename);
-      sfname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
-      sfname = fullfile(packdir,sfname);
+      if isempty(slblname)
+        slblname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
+      end
+      sfname = fullfile(packdir,slblname);
       save(sfname,'-mat','-v7.3','-struct','slbl');
       fprintf(1,'Saved %s\n',sfname);
-      sfjname = sprintf('%s_%s.json',lblS,tObj.algorithmName);
+      [~,slblnameS] = fileparts(slblname);
+      sfjname = sprintf('%s.json',slblnameS);
       Lbl.hlpSaveJson(jslbl,packdir,sfjname);
+     
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
       [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
@@ -505,7 +510,7 @@ classdef Lbl
       isMA = s.cfg.MultiAnimal;
       
       CFG_GLOBS = {'Num' 'MultiAnimal'};
-      FLDS = {'cfg' 'projname' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
+      FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
         'trackerClass' 'trackerData'};
       TRACKERDATA_FLDS = {'sPrmAll' 'trnNetTypeString'};
       if isMA

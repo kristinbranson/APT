@@ -746,7 +746,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # ll now has normalized logits. and shape is x * y * ngrps
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1, :]/locs_offset
-            occ_pts = tf.is_finite(pp)
+            occ_pts = tf.is_finite(pp) & (pp > -1000)
             pp = tf.where(occ_pts,pp,tf.zeros_like(pp))
             occ_pts_pred = tf.tile(occ_pts,[1,n_preds,1])
             qq = mdn_locs[:,:,cls,:]
@@ -783,7 +783,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         cur_comp = []
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1,0]
-            occ_pts = tf.cast(~tf.is_finite(pp),tf.float32)
+            occ_pts = tf.cast(~(tf.is_finite(pp)&(pp>-1000)),tf.float32)
             occ_pts_pred = tf.tile(occ_pts,[1,n_preds])
             qq = occ_pred[:,:,cls]
             kk = tf.square(occ_pts - qq)
@@ -867,9 +867,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     val_dist[ndx,:, g] = dd1 * self.conf.rescale
                     pred_dist[ndx,sel_ex, g] = dd2 * self.conf.rescale
         val_dist[locs[..., 0] < -5000] = np.nan
-        pred_mean = np.nanmean(pred_dist)
+        # pred_mean = np.nanmean(pred_dist)
         label_mean = np.nanmean(val_dist)
-        return (pred_mean+label_mean)/2
+        return label_mean
 
 
     def get_pred_fn(self, model_file=None,distort=False,tmr_pred=None):
