@@ -14,7 +14,9 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - MultiAnimal:
     - ['','',false,MultiAnimal settings.,'','']
-    - ma_param1: ['MA test param',float,true,'test',0,'','Important','']
+    - min_n_animals: ['Minimum number of animals',unsigned,true,'APT will detect at least this many animals in each frame.',2,'','Important','']
+    - max_n_animals: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',2,'','Important','']
+
 
 
 
