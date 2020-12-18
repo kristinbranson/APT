@@ -49,16 +49,16 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
   import torch
   import logging # Use logging to print out information. 
   
-  class <b>Pose_mynet(object)</b>:
+  <b>class Pose_mynet(object)</b>:
       
-      def <b>__init__(self,conf,**kwargs)</b>:
+      <b>def __init__(self,conf,**kwargs)</b>:
           # kwargs can be ignored.
           self.conf = conf
           self.model = None
           
       # --- helper fuctions ----
          
-      def create_dataloader(self):
+      def create_dataloader(self, train_info_file):
           # create dataloaders that will return images etc for training
           # An example pytorch based data loader can be found in PoseCommon_pytorch.py. 
           
@@ -78,7 +78,7 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
           # Preprocess the images, eg: normalize.
           
           
-      def <b>train_wrapper(self, restore=False):</b>
+      <b>def train_wrapper(self, restore=False):</b>
           # This is the main training function that is called by APT_interface to start the training.
           # When restore is set to True, the training should restart from the last saved model.
           
@@ -86,10 +86,10 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
           self.model = self.create_model()          
           # Also create the optimizer and loss function as required. 
           
-          <b>train_info_file = os.path.join(conf.cachdir,conf.trainfilename + '.json') </b>
+          <b>train_info_file = os.path.join(conf.cachedir,conf.trainfilename + '.json') </b>
           # train_info_file has the training data information in coco format. The <i>image_file</i> path in train_info_file is relative to the conf.cachedir
           
-          data_loader = self.create_dataloader()
+          data_loader = self.create_dataloader(train_info_file)
           # An example pytorch based data loader can be found in PoseCommon_pytorch.py. 
           
           if restore:
@@ -140,7 +140,7 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
           torch.save(model_param_dict,output_model_file_name.format(conf.dl_steps))
                       
           
-      def <b>get_pred_fn(self,model_file=None)</b>:
+      <b>def get_pred_fn(self,model_file=None)</b>:
           # This is the function that is called to setup the model to start predicting. If model_file is not None, then the weights should be loaded from the model_file. If model_file is None, then load the weights from that latest model file. 
           # This function should return --
           # pred_fn: Function that predicts on a batch of input images
@@ -192,6 +192,10 @@ The <code>Pose_mynet</code> is given configuration settings set by the user in t
     <li> n_classes: Number of pose landmarks.
     <li> is_multi: Whether the project is multi-animal or single-animal.
     <li> max_n_animals: For multi-animal networks, the number of maximum animals in an image.
+    <li> trainfilename: Name of the file that has the training data.
+    <li> save_step: Number of steps after which to save models.
+    <li> maxckpt: Maximum number of latest models to save.
+    <li> display_step: Number of steps after which to display and save the training information.
     <li> rrange: Amount in degree suggested by the user by which images can be rotated for augmentation. 
     <li> trange: Amount in pixels suggested by the user by which the image can be translated in both x and y directions for augmentation. 
     <li> scale_range_factor: Scaling amount suggested by for augmentation. Images can be scaled between [1/scale_factor_range,scale_factor_range].
