@@ -49,6 +49,7 @@ classdef InfoTimeline < handle
     curprop % row index into props, or props_tracker, depending on curproptype.
     proptypes % property types, eg 'Labels' or 'Predictions'.    
     curproptype % row index into proptypes
+    isdefault = true % whether this has been changed
   end
   properties
     jumpThreshold
@@ -195,6 +196,7 @@ classdef InfoTimeline < handle
 
       obj.curprop = 1;
       obj.curproptype = 1;
+      obj.isdefault = true;
       
       obj.jumpThreshold = nan;
       obj.jumpCondition = nan;
@@ -303,6 +305,10 @@ classdef InfoTimeline < handle
       
     end
     
+    function initializePropsTracker(obj)
+      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);      
+    end
+    
     function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
 
@@ -376,7 +382,7 @@ classdef InfoTimeline < handle
         props(idxremove) = [];
       end
       obj.props = props;      
-      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);      
+      obj.initializePropsTracker();
       obj.initializePropsAllFrames();
     end
         
@@ -398,9 +404,9 @@ classdef InfoTimeline < handle
           obj.proptypes{end+1} = 'Predictions';
         end
         obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
-        obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
+        obj.initializePropsTracker();
         obj.listenersTracker{end+1,1} = addlistener(tracker,...
-          'newTrackingResults',@obj.cbkLabelUpdated);
+          'newTrackingResults',@obj.cbkNewTrackingResults);
       end
       
       obj.enforcePropConsistencyWithUI(false);
@@ -716,6 +722,7 @@ classdef InfoTimeline < handle
         obj.curprop = iprop;
       end
       obj.setLabelsFull();
+      obj.isdefault = false;
     end
     function v = getCurProp(obj)
       v = obj.curprop;
@@ -772,8 +779,13 @@ classdef InfoTimeline < handle
       tf = strcmpi(obj.proptypes{v},'All Frames');
     end
     function setCurPropTypeDefault(obj)
-      obj.setCurPropType(1);
+      obj.setCurPropType(1,1);
+      obj.isdefault = true;
+    end
+    function updatePropsGUI(obj)
       obj.lObj.gdata.pumInfo_labels.Value = obj.curproptype;
+      props = obj.getPropsDisp(obj.curproptype);
+      obj.lObj.gdata.pumInfo.String = props;
       obj.lObj.gdata.pumInfo.Value = obj.curprop;
     end
   end
@@ -803,11 +815,46 @@ classdef InfoTimeline < handle
 %       onoff = 'off';
 %       set(obj.hMarked,'Visible',onoff);
 %     end
+
+    function tf = isDefaultProp(obj)
+      tf = obj.isdefault;
+    end
+    function tf = hasPredictionConfidence(obj)
+      tf = ~isempty(obj.TLPROPS_TRACKER);
+    end
+    function tf = hasPrediction(obj)
+      tf = ismember('Predictions',obj.proptypes) && isvalid(obj.tracker);
+       if tf,
+         pcode = obj.props_tracker(1);
+         data = obj.tracker.getPropValues(pcode);
+         tf = ~isempty(data) && any(~isnan(data(:)));
+       end
+    end
+    function setCurPropTypePredictionDefault(obj)
+      proptypei =  find(strcmpi(obj.proptypes,'Predictions'),1);
+      if obj.hasPredictionConfidence(),
+        propi = numel(obj.props)+1;
+      else
+        propi = 1;
+      end
+      obj.setCurPropType(proptypei,propi);
+      obj.updatePropsGUI();
+    end
+
+    
     function cbkLabelUpdated(obj,src,~) %#ok<INUSD>
       if ~obj.lObj.isinit
         obj.setLabelsFull;
       end
     end
+    
+    function cbkNewTrackingResults(obj,src,~)
+      if obj.isDefaultProp() && obj.hasPrediction(),
+        obj.setCurPropTypePredictionDefault();
+      end
+      obj.cbkLabelUpdated(src);
+    end
+    
     function cbkSetNumFramesShown(obj,src,evt) %#ok<INUSD>
       frmRad = obj.prefs.FrameRadius;
       aswr = inputdlg('Number of frames (0 to show full movie)',...
