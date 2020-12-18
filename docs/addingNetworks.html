@@ -25,20 +25,20 @@ strong.regular-font {
 
 <h1><a id="adding_networks">Adding Networks to APT</a></h1>
 <br>
-<p>There are multiple ways of adding new networks to APT:</p>
+<p>APT's backend has a modular structure to enable easier integration of different networks. To add a new network <i>mynet</i>, user has to add file <code>Pose_mynet.py</code> to the deepnet directory and define a class with the same name (i.e., <code>Pose_mynet</code>) in the file. For tensorflow 1.x based networks, <code>Pose_mynet</code> can inherit from <code>PoseBase</code> or <code>PoseBaseGeneral</code> classes. The classes define all the training data-loading, model saving and loading to appropriate locations and other procecures and the user has to define only the networks and maybe the training procedures.
+ 
+<p> APT front end (GUI) interacts with APT backend (DL algorithms) through <code>APT_interface.py</code>. During training when user selects <i>mynet</i> as the network to use, <code>APT_interface.py</code> creates the training databases, initializes the <code>Pose_mynet</code> class with the configuration settings object (<a href=#conf><code>conf</code></a>) and then calls the <code> train_wrapper</code> function to start the training. APT requires that the information about training's status be stored in json format to <code>traindata.json</code> file to enable APT front-end to update the training progress and that the model file name have the format <code>deepnet-<i>step_num</i></code> so that APT can bundle the model files into the APT project at the end of the training. The files <code>traindata.json</code> and <code>deepnet-*</code> are constantly polled by APT front-end in order to update the user about training's status.
+<p>
+During tracking, <code>APT_interface.py</code> calls <code>get_pred_fn</code> after initilializing the <code>Pose_mynet</code> object. This function should return a handle to <i>prediction</i> function which when given a batch of input images as numpy array as input   returns the landmark predictions as <i>x,y</i>  locations, and if possible prediction scores or confidences. 
+<p>
+Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_joint_torch.py</code> and its super class <code>PoseCommon_pytorch.py</code>. In particular, <code>PoseCommon_pytorch.create_data_gen</code> function can be used to create the data loaders quickly. 
+<p> There are multiple ways of adding new networks to APT:</p>
 <ul>
-<li> <a href="#pytorch">Based on code outline</a>: This is the recommended way for PyTorch based networks. Understanding code outline is also helpful for adding networks based on other methods as well. 
+<li> <a href="#pytorch">Based on code outline</a>: This is the only way to add PyTorch based networks. Understanding code outline is also helpful for adding networks based on other methods as well. 
 <li> For Tensorflow 1.x based networks: We provide a base class that can be inherited and the user only has to define only the network. For this, user needs to inherit the <a href="#posebase">PoseBase</a>
 <li> If more flexiblity is required for your Tensorflow 1.x based networks then you can inherit <a href="#posebasegeneral">PoseBaseGeneral</a>. In this case, the code will provide a tensorflow dataset object which can be used to generate the augmented training examples (images and labeled landmark location).
 </ul>
 
-<p>To add your network <i>mynet</i>, create a new file <code>Pose_mynet.py</code> and define a new class of the same name (i.e., <code>Pose_mynet</code>). For TF 1.x based networks class <code>Pose_mynet</code> can inherit from <code>PoseBase</code> or <code>PoseBaseGeneral</code>.
-<p>
-<p> APT front end (GUI) interacts with APT backend (DL algorithms) through <code>APT_interface.py</code>. During training, <code>APT_interface.py</code> creates the training databases, initializes the <code>Pose_mynet</code> class with the configuration settings object (<code>conf</code>) and then calls the <code> train_wrapper</code> function to start the training. APT requires that the training status information be stored in json format to <code>traindata.json</code> file to enable APT front-end to update the training progress and that the model file name have the format <code>deepnet-<i>step_num</i></code> so that APT can bundle the model files into the APT project at the end of the training. The files <code>traindata.json</code> and <code>deepnet-*</code> are constantly polled by APT front-end in order to update the user about training's status.
-<p>
-During tracking, <code>APT_interface.py</code> calls <code>get_pred_fn</code> after initilializing the <code>Pose_mynet</code> object. This function should return a handle to <i>prediction</i> function which when given a batch of input images as numpy array as input   returns the landmark predictions as <i>x,y</i>  locations, and if possible prediction scores or confidences. 
-<p>
-Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_joint_torch.py</code> and its super class <code>PoseCommon_pytorch.py</code>. In particular, <code>PoseCommon_pytorch.create_data_gen</code> function can be used to create the data loaders for the datasets. 
 
 <h2><a id="pytorch">Code Outline</a></h2>
 
@@ -52,6 +52,7 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
   <b>class Pose_mynet(object)</b>:
       
       <b>def __init__(self,conf,**kwargs)</b>:
+          # <a href="#conf">conf is a poseConfig</a> object that has the configuration properties
           # kwargs can be ignored.
           self.conf = conf
           self.model = None
@@ -181,11 +182,12 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
 </code></pre>
 
 <p>
-The <code>Pose_mynet</code> is given configuration settings set by the user in the APT GUI as an <code>PoseConfig</code> object during initialization. Some of the useful configuration settings are:</p>
+<h2><a id="conf">Configuration Object</a></h2>
+During a network's initialization, the configuration settings defined by the user in the APT GUI as are given as an <code>PoseConfig (conf)</code> object during initialization. Listed below are its important configuration fields.</p>
 <ul>
     <li> cachedir: Directory where the model files and training information must be saved.
     <li> imsz: 2 element tuple specifying the size of the input image.
-    <li> img_dim: Number of channels in input image.
+    <li> img_dim: Number of channels in input image. 1 for grayscale, 3 for color.
     <li> batch_size: Batch size defined by user.
     <li> rescale: How much to downsample the input image before feeding into the network.
     <li> dl_steps: Number of steps to run training for.
@@ -206,21 +208,21 @@ The <code>Pose_mynet</code> is given configuration settings set by the user in t
 </ul>
 <p>Details of other settings can be found  in <code>APT/tracker/dt/params_deeptrack.yaml</code>.</p>
 
-<p>To expose parameters specific to your network to the user through the <code>APT&#8594;Tracking&#8594;Set Tracking Parameters</code> interface when they select <i>mynet</i> in APT, create a new configuration settings file <code>APT/trackers/dt/params_<i>mynet</i>.yaml</code>. Details on it format can be found in <code>APT/tracker/dt/params_deeptrack.yaml</code>.
+<p>To expose parameters specific to your network to the user through the <code>APT&#8594;Tracking&#8594;Set Tracking Parameters</code> interface when they select <i>mynet</i> in APT, create a new configuration settings file <code>APT/trackers/dt/params_<i>mynet</i>.yaml</code>. Details of its format can be found in <code>APT/tracker/dt/params_deeptrack.yaml</code>.
 
 <h2><a id="pytorch">Adding TensorFlow 1.x networks</a></h2>
 <p> 
 
 <h2><a id="posebase">Inheriting PoseBase</a></h2>
 
-    <p>If the network generates heatmaps for each landmark, then you only need to override create_network function and supply the appropriate hmaps_downsample to the __init__ function when you inherit. For example in case of openpose since the final heatmap output is downsampled by 8, self.hmaps_downsample should be set to 8.</p>
+    <p>This is quickest way to add tensorflow 1.x based networks. If the network generates heatmaps for each landmark, then the user only needs to override create_network function and supply the appropriate hmaps_downsample to the __init__ function. For example in the case of openpose network, the final heatmap output is downsampled by a factor of 8. In this case, during initializiation <code>self.hmaps_downsample</code> should be set to 8.</p>
 
     <p>If your networks produces output other than only heatmaps, you'll have to override</p>
     <ul>
         <li> <a href="#pb_create_network">create_network</a> - Function that creates the network.
         <li> <a href="#pb_convert_locs_to_targets">convert_locs_to_targets</a> - Convert x,y locations to network target e.g., from x,y locations to heatmaps.
         <li> <a href="#pb_convert_preds_to_locs">convert_preds_to_locs</a> - Convert the networks output (eg heatmaps) to x,y landmark locations.
-        <li> <a href="#pb_conf">get_conf_from_preds</a> - Get prediction confidence (or scores) from predictions. Eg., Maximum heatmap value for each landmark.
+        <li> <a href="#pb_conf">get_conf_from_preds</a> - Get prediction confidence (or scores) from predictions. Eg., Heatmap pixel value at each landmarks predicted location.
         <li> <a href="#pb_loss">loss</a> - Define the loss function to be optimized.
     </ul>
     <p>In addition, if you want to change the training procedure, you'll have to override</p>
@@ -417,8 +419,8 @@ def get_pred_fn(self, model_file=None):
 
 
 <h2><a id="posebasegeneral"> Inheriting PoseBaseGeneral</a></h2>
-    <p>This class provides more flexibility for adding your own networks to APT.</p>
-    <p>The function that need to overridden are:</p>
+    <p>This class provides more flexibility for adding tensorflow 1.x based networks to APT, where you have more control over the training procedure.</p>
+    <p>In this case, the function that need to overridden are:</p>
     <ul>
         <li><a href="#pbg_convert_locs">convert_locs_to_target</a> - create target outputs (e.g. heatmaps) from x,y locations that you want the network the predict.
           <li><a href="#pbg_convert_preds">convert_preds_to_locs</a> - convert the output of network to x,y locations E.g From output heatmaps to x,y predictions.
