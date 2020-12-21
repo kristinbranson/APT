@@ -25,9 +25,10 @@ classdef DeepTracker < LabelTracker
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
-  properties (Hidden)
+  properties % transient
     jrcgpuqueue = 'gpu_any';
     jrcnslots = 1;
+    jrcsimplebindpaths = 0; 
   end
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
@@ -1209,12 +1210,7 @@ classdef DeepTracker < LabelTracker
       % We have (modelChainID,trainID). stripped lbl is on disk. 
 
       syscmds = cell(nvw,1);
-      switch backEnd.type
-        case DLBackEnd.Bsub
-          mntPaths = obj.genContainerMountPath('aptroot',aptroot);
-        case DLBackEnd.Docker 
-          mntPaths = obj.genContainerMountPath();          
-      end
+      mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
       
       switch backEnd.type
         case DLBackEnd.Bsub
@@ -1397,10 +1393,8 @@ classdef DeepTracker < LabelTracker
       end
       
       switch backEnd.type
-        case DLBackEnd.Bsub
-          mntPaths = obj.genContainerMountPath('aptroot',aptroot);
-        case DLBackEnd.Docker 
-          mntPaths = obj.genContainerMountPath();          
+        case {DLBackEnd.Bsub DLBackEnd.Docker}
+          mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
         case DLBackEnd.Conda
       end
       
@@ -1465,15 +1459,31 @@ classdef DeepTracker < LabelTracker
       
     end
     
-    function paths = genContainerMountPath(obj,varargin)
+    function paths = genContainerMountPathBsubDocker(obj,backend,varargin)
       
       [aptroot,extradirs] = myparse(varargin,...
-        'aptroot',APT.Root,'extra',{});
+        'aptroot',[],'extra',{});
+      
+      assert(backend.type==DLBackEnd.Bsub || backend.type==DLBackEnd.Docker);
+      
+      if isempty(aptroot)
+        switch backend.type
+          case DLBackEnd.Bsub
+            aptroot = backend.bsubaptroot;
+          case DLBackEnd.Docker
+            % could add prop to backend for this but 99% of the time for 
+            % docker the backend should run the same code as frontend
+            aptroot = APT.Root; 
+        end
+      end
       
       if ~isempty(obj.containerBindPaths)
         assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
         fprintf('Using user-specified container bind-paths:\n');
         paths = obj.containerBindPaths;
+      elseif obj.jrcsimplebindpaths && backend.type==DLBackEnd.Bsub
+        fprintf('Using JRC container bind-paths:\n');
+        paths = {'/groups';'/nrs'};
       else
         lObj = obj.lObj;
         
@@ -1955,7 +1965,7 @@ classdef DeepTracker < LabelTracker
       
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Docker}
-          mntPaths = obj.genContainerMountPath('aptroot',aptroot);
+          mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
           singArgs = {'bindpath',mntPaths};
           for isplit=1:nSplits
                         
@@ -2772,7 +2782,7 @@ classdef DeepTracker < LabelTracker
         sshargs = {};
         listfileroot = fileparts(listfiles{ivw});        
         singBind = obj.genContainerMountPath('aptroot',aptroot,...
-          'extra',{listfileroot});
+          'extra',{listfileroot}); % XXX ood api
         singargs = {'bindpath',singBind};
         repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
         repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
@@ -2892,6 +2902,7 @@ classdef DeepTracker < LabelTracker
     end
     
     function [tfSuccess,msg,trksysinfo] = trackListFile(obj,listfiles,outfiles)
+      assert(false,'Currently unsupported.');
 
       listfiles = cellstr(listfiles);
       outfiles = cellstr(outfiles);
@@ -3791,7 +3802,7 @@ classdef DeepTracker < LabelTracker
 
               % make sure movie to be tracked is on path
               extradirs = trksysinfo(imovjob,ivwjob).getMountDirs();
-              singBind = obj.genContainerMountPath('aptroot',aptroot,'extra',extradirs); % HERE
+              singBind = obj.genContainerMountPathBsubDocker(backend,'extra',extradirs); % HERE
               singargs = {'bindpath',singBind};
               
               repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
@@ -3807,7 +3818,7 @@ classdef DeepTracker < LabelTracker
             case DLBackEnd.Docker
               % make sure movie to be tracked is on path
               extradirs = trksysinfo(imovjob,ivwjob).getMountDirs();
-              singBind = obj.genContainerMountPath('extra',extradirs);
+              singBind = obj.genContainerMountPathBsubDocker(backend,'extra',extradirs);
               if isgpu
                 dockerargs = {};
                 if isempty(gpuids),
