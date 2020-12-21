@@ -3214,8 +3214,9 @@ classdef Labeler < handle
           
           % KB 20201216 update currTracker as well
           oldCurrTracker = s.currTracker;
-          s.currTracker = loc(oldCurrTracker);
-          
+          if oldCurrTracker>0
+            s.currTracker = loc(oldCurrTracker);
+          end          
         end
       else
         assert(false);
