@@ -2108,7 +2108,7 @@ def classify_gt_data(conf, model_type, out_file, model_file):
 
     #lbl.close()
 
-def convert_to_mat_trk(in_pred, conf, start, end, trx_ids):
+def convert_to_mat_trk(in_pred, conf, start, end, trx_ids, has_trx_file=None):
     ''' Converts predictions to compatible trk format'''
     pred_locs = in_pred.copy()
     pred_locs = pred_locs[:, trx_ids, ...]
@@ -2117,18 +2117,20 @@ def convert_to_mat_trk(in_pred, conf, start, end, trx_ids):
         pred_locs = pred_locs.transpose([2, 3, 0, 1])
     else:
         pred_locs = pred_locs.transpose([2, 0, 1])
-    if not conf.has_trx_file:
+    if has_trx_file is None:
+        has_trx_file = conf.has_trx_file
+    if not has_trx_file:
         pred_locs = pred_locs[..., 0]
     return pred_locs
 
-def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, info, mov_file):
+def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, info, mov_file, has_trx_file=None):
     '''
     pred_locs is the predicted locations of size
     n_frames in the movie x n_Trx x n_body_parts x 2
     n_done is the number of frames that have been tracked.
     everything should be 0-indexed
     '''
-    pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
+    pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids, has_trx_file)
     pred_locs = to_mat(pred_locs)
 
     tgt = to_mat(np.array(trx_ids))  # target animals that have been tracked.
@@ -2149,7 +2151,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
                 'pTrkFrm': tracked,
                 'trkInfo': info}
     for k in extra_dict.keys():
-        tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids)
+        tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids, has_trx_file)
         if k.startswith('locs_'):
             tmp = to_mat(tmp)
         out_dict['pTrk' + k] = tmp
