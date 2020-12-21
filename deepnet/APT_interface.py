@@ -2108,7 +2108,7 @@ def classify_gt_data(conf, model_type, out_file, model_file):
 
     #lbl.close()
 
-def convert_to_mat_trk(in_pred, conf, start, end, trx_ids):
+def convert_to_mat_trk(in_pred, conf, start, end, trx_ids, has_trx_file=None):
     ''' Converts predictions to compatible trk format'''
     pred_locs = in_pred.copy()
     pred_locs = pred_locs[:, trx_ids, ...]
@@ -2117,7 +2117,9 @@ def convert_to_mat_trk(in_pred, conf, start, end, trx_ids):
         pred_locs = pred_locs.transpose([2, 3, 0, 1])
     else:
         pred_locs = pred_locs.transpose([2, 0, 1])
-    if not conf.has_trx_file:
+    if has_trx_file is None:
+        has_trx_file = conf.has_trx_file
+    if not has_trx_file:
         pred_locs = pred_locs[..., 0]
     return pred_locs
 
