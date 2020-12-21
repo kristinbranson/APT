@@ -691,6 +691,9 @@ classdef TrkFile < dynamicprops
       if isfield(s,'list_file'),
         s = rmfield(s,'list_file');
       end
+      if isfield(s,'listfile_fns')
+        s = rmfield(s,'listfile_fns');
+      end
       
       % s: struct loaded from trkfile saved to matfile
       if isfield(s,'pTrkTag') && iscell(s.pTrkTag)
@@ -732,6 +735,12 @@ classdef TrkFile < dynamicprops
           didload = true;
         elseif ismember('pred_locs',fns),
           nFramesTracked = nnz(~isnan(m.pred_locs(:,1)));
+          didload = true;
+        elseif ismember('locs',fns)
+          % gt mat-file
+          % AL: not sure want nnz(~isnan(...)) here; what if a tracker
+          % predicted occluded or something, could that mess stuff up?
+          nFramesTracked = size(m.locs,1);
           didload = true;
         else
           didload = false;

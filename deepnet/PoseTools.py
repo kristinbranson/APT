@@ -43,6 +43,7 @@ import pickle
 import yaml
 import logging
 import time
+import subprocess
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -222,16 +223,24 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
         jj = np.random.randint(2)
+
         if jj > 0.5:
             img[st:en, ...] = img[st:en, :, ::-1, :]
             for ll in range(locs.shape[2]):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
                     match = pairs[str_ll]
-                    locs[st:en, :, ll, 0] = wd - 1 - orig_locs[st:en, :, match, 0]
-                    locs[st:en, :, ll, 1] = orig_locs[st:en, :, match, 1]
                 else:
-                    locs[st:en, :, ll, 0] = wd - 1 - orig_locs[st:en, :, ll, 0]
+                    match = ll
+                for curn in range(orig_locs.shape[1]):
+                    for sndx in range(st,en):
+                        if orig_locs[sndx,curn,match,0] < -1000:
+                            locs[sndx,curn,ll,0] = -100000
+                        else:
+                            locs[sndx,curn, ll, 0] = wd - 1 - orig_locs[sndx,curn, match, 0]
+
+                locs[st:en, :, ll, 1] = orig_locs[st:en, :, match, 1]
+
 
     locs = locs[:, 0, ...] if reduce_dim else locs
     return img, locs
@@ -260,10 +269,16 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
                     match = pairs[str_ll]
-                    locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, match , 1]
-                    locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
                 else:
-                    locs[st:en, :, ll, 1] = ht - 1 - orig_locs[st:en, :, ll, 1]
+                    match = ll
+                for curn in range(orig_locs.shape[1]):
+                    for sndx in range(st,en):
+                        if orig_locs[sndx,curn,match,1] < -1000:
+                            locs[sndx,curn,ll,1] = -100000
+                        else:
+                            locs[sndx,curn, ll, 1] = ht - 1 - orig_locs[sndx,curn, match, 1]
+
+                locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
 
     locs = locs[:, 0, ...] if reduce_dim else locs
     return img, locs
@@ -511,7 +526,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
         nan_valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
-        high_valid = orig_locs[..., 0] > -10000  # ridiculosly low values are used for multi animal
+        high_valid = orig_locs[..., 0] > -1000  # ridiculosly low values are used for multi animal
         valid = nan_valid & high_valid
         while not sane:
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
@@ -1051,8 +1066,54 @@ def get_timestamps(conf, info):
 
     return ts
 
+def tfrecord_to_coco(db_file, n_classes, img_dir, out_file, scale=1,skeleton=None,out_size=None):
+    # alice example category
+    data = multiResData.read_and_decode_without_session(db_file,n_classes,())
+    names = ['pt_{}'.format(i) for i in range(n_classes)]
+    if skeleton is None:
+        skeleton = [[i,i+1] for i in range(n_classes-1)]
 
-def tfrecord_to_coco(db_file, conf, img_dir, out_file, categories=None, scale = 1):
+    categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}]
+
+    n_records = len(data[0])
+
+    ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
+    annid = 0
+    for ndx in range(n_records):
+        cur_im, cur_locs, cur_info, cur_occ = [d[ndx] for  d in data]
+        if out_size is not None:
+            cur_im = np.pad(cur_im, [[0, out_size[0]-cur_im.shape[0]], [0, out_size[1]-cur_im.shape[1]], [0, 0]])
+        if cur_im.shape[2] == 1:
+            cur_im = cur_im[:, :, 0]
+        if scale is not 1:
+            cur_im = transform.resize(cur_im, np.array(cur_im.shape[:2]) * scale, preserve_range=True)
+            cur_locs = scale * cur_locs
+        im_name = '{:012d}.png'.format(ndx)
+        if cur_im.ndim == 3:
+            cur_im = cv2.cvtColor(cur_im,cv2.COLOR_RGB2BGR)
+
+        cv2.imwrite(os.path.join(img_dir, im_name), cur_im)
+
+        ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': im_name})
+        ix = cur_locs
+        occ_coco = 2-cur_occ[:,np.newaxis]
+        occ_coco[np.isnan(ix[:,0]),:] = 0
+        w = cur_im.shape[1]
+        h = cur_im.shape[0]
+        bbox = [0,0,w,h]
+        area = w*h
+        out_locs = np.concatenate([ix,occ_coco],1)
+        ann['annotations'].append({'iscrowd': 0, 'segmentation': [bbox], 'area': area, 'image_id': ndx, 'id': annid,
+                               'num_keypoints': n_classes, 'bbox': bbox,
+                               'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
+        annid +=1
+
+    with open(out_file, 'w') as f:
+        json.dump(ann, f)
+
+
+
+def tfrecord_to_coco_old(db_file, img_dir, out_file, conf,scale = 1):
 
     # alice example category
     skeleton = [ [1,2],[1,3],[2,5],[3,4],[1,6],[6,7],[6,8],[6,10],[8,9],[10,11],[5,12],[9,13],[6,14],[6,15],[11,16],[4,17]]
@@ -1065,6 +1126,7 @@ def tfrecord_to_coco(db_file, conf, img_dir, out_file, categories=None, scale = 
 
     bbox = [0,0,0,conf.imsz[0],conf.imsz[1],conf.imsz[0],conf.imsz[1],0]*scale
     area = conf.imsz[0]*conf.imsz[1]*scale*scale
+
     with tf.Session() as sess:
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
@@ -1095,6 +1157,56 @@ def tfrecord_to_coco(db_file, conf, img_dir, out_file, categories=None, scale = 
     #     plt.plot(cur_locs[a, 0], cur_locs[a, 1])
 
 
+def tfrecord_to_coco_multi(db_file, n_classes, img_dir, out_file, scale=1,skeleton=None):
+    # alice example category
+    data = multiResData.read_and_decode_without_session_multi(db_file,n_classes)
+    names = ['pt_{}'.format(i) for i in range(n_classes)]
+    if skeleton is None:
+        skeleton = [[i,i+1] for i in range(n_classes-1)]
+
+    categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}]
+
+    n_records = len(data[0])
+
+    ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
+    annid = 0
+    for ndx in range(n_records):
+        cur_im, cur_locs, cur_info, cur_occ, cur_mask = [d[ndx] for  d in data]
+        if cur_im.shape[2] == 1:
+            cur_im = cur_im[:, :, 0]
+        if scale is not 1:
+            cur_im = transform.resize(cur_im, cur_im.shape[:2] * scale, preserve_range=True)
+            cur_locs = scale * cur_locs
+        im_name = '{:012d}.png'.format(ndx)
+        if cur_im.ndim == 3:
+            cur_im = cv2.cvtColor(cur_im,cv2.COLOR_RGB2BGR)
+            cur_mask = cur_mask[...,np.newaxis]
+        cur_im = cur_im*cur_mask
+        cv2.imwrite(os.path.join(img_dir, im_name), cur_im)
+
+        ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': im_name})
+        for idx in range(cur_locs.shape[0]):
+            ix = cur_locs[idx,...]
+            if np.all(ix<-1000) or np.all(np.isnan(ix)):
+                continue
+            occ_coco = 2-cur_occ[idx,:,np.newaxis]
+            occ_coco[np.isnan(ix[:,0]),:] = 0
+            lmin = ix.min(axis=0)
+            lmax = ix.max(axis=0)
+            w = lmax[0]-lmin[0]
+            h = lmax[1]-lmin[1]
+            bbox = [lmin[0],lmin[1],w,h]
+            area = w*h
+            out_locs = np.concatenate([ix,occ_coco],1)
+            ann['annotations'].append({'iscrowd': 0, 'segmentation': [bbox], 'area': area, 'image_id': ndx, 'id': annid,
+                                   'num_keypoints': n_classes, 'bbox': bbox,
+                                   'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
+            annid +=1
+
+    with open(out_file, 'w') as f:
+        json.dump(ann, f)
+
+
 def create_imseq(ims, reverse=False,val_func=np.mean,sat_func=np.std):
     n_classes = ims.shape[0]
     ims = ims.astype('float')
@@ -1110,6 +1222,20 @@ def create_imseq(ims, reverse=False,val_func=np.mean,sat_func=np.std):
     out_im = np.clip(out_im, 0, 255)
     out_im = out_im.astype('uint8')
     return cv2.cvtColor(out_im, cv2.COLOR_HSV2RGB)
+
+def create_mask(bb,sz,bb_ex=0):
+    # bb is boundig box
+    # sz should be h x w (i.e y first then x)
+    # bb_ex is the extra padding
+    mask = np.zeros(sz)
+    for c in bb:
+        b = np.round(c).astype('int')
+        b[:,0] -= bb_ex
+        b[:,1] += bb_ex
+        b[0,:] = np.clip(b[0,:],0,sz[1])
+        b[1,:] = np.clip(b[1,:],0,sz[1])
+        mask[b[1,0]:b[1,1],b[0,0]:b[0,1]] = 1
+    return mask
 
 
 def crop_to_size(img, sz):
@@ -1411,4 +1537,19 @@ def get_git_commit():
         label = str(label,'utf-8')
     except subprocess.CalledProcessError as e:
         label = 'Not a git repo'
+    return label
+
+def get_git_commit():
+    try:
+        label = subprocess.check_output(["git", "describe"]).strip()
+    except subprocess.CalledProcessError as e:
+        label = 'Not a git repo'
+        
+    # AL: not sure what is best here
+    try:
+        label = str(label,'utf-8')
+    except:
+        # TypeError when label is already a str
+        pass
+    
     return label

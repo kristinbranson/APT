@@ -99,7 +99,7 @@ classdef PreProcDB < handle
       % AL 20200804. Store pAbs in MD. This is the original/raw lbl. We
       % store this so we can compare incoming rows to see if they need an
       % update in addAndUpdate().
-      FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask' 'pAbs'}];
+      FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask' 'tformA' 'pAbs'}];
       tblfldscontainsassert(tblNew,FLDSREQUIRED);
       
       tblNew.p = tblNew.pAbs;
@@ -178,6 +178,7 @@ classdef PreProcDB < handle
         pRel = reshape(pAbs,[n nPhysPts nView 2]);
         %pRelnan = isnan(pRel);
         szassert(tformA,[3 3 n nView]);
+        %tformTinvAll = nan(n,3*2*nView); % tform arrays
         for i=1:n
           for ivw=1:nView
             tform = maketform('affine',tformA(:,:,i,ivw));
@@ -193,10 +194,17 @@ classdef PreProcDB < handle
             pRel(i,:,ivw,2) = y;
 %             [pRel(i,:,ivw,1),pRel(i,:,ivw,2)] = ...
 %               tformfwd(tform,pRel(i,:,ivw,1),pRel(i,:,ivw,2));
+%             tformTinv = tform.tdata.Tinv;
+%             assert(isequal(tformTinv(:,3),[0;0;1]));
+%             tformTinvAll(i,(1:6)+(ivw-1)*6) = tformTinv(1:6);
           end
         end
         pRel = reshape(pRel,[n nPhysPts*nView*2]);
         tblNewMD.p = pRel; % now we have tblNewMD.p (which is prel) and .pAbs
+        tformA = permute(tformA,[3 1 2 4]); % [n 3 3 nView]
+        assert(isequal(tformA(:,:,3,:),repmat([0 0 1],n,1,1,nView)));
+        tformA = tformA(:,:,1:2,:); % [n 3 2 nView]
+        tblNewMD.tformA = reshape(tformA,n,[]);
         
         dataNew = CPRData(I,tblNewMD);
         
@@ -278,7 +286,39 @@ classdef PreProcDB < handle
           nNew,nDiff,nSame);
       end
     end
-    
+   
+    function pAbs = invtform(obj,tMFT,pRel)
+      % Inverse transform arbitrary data (eg classify results) based on 
+      % MD.tformA
+      %
+      % tMFT: [npred x ncol] Table with MFTable.FLDSID
+      % pRel: [npred x npts x nviews x d x nsets] 'Relative' landmark posn data. nsets
+      %   is an arbitrary dimension for vectorization
+      
+      tMD = obj.dat.MD;
+      [tf,loc] = tblismember(tMFT,tMD,MFTable.FLDSID); 
+
+      [n,npts,nvw,d,nsets] = size(pRel);
+      assert(d==2);
+      pAbs = nan(n,npts,nvw,d,nsets);
+      for ivw=1:nvw
+        tMDformAvw = tMD.tformA(:,(1:6)+(ivw-1)*6); 
+        % reconstitute tform matrix
+        tMDformAvw(:,end+1:end+3) = repmat([0 0 1],size(tMDformAvw,1),1);
+        for i=1:n
+          if ~tf(i)
+            warningNoTrace('No transform matrix found for mov=%d,frm=%d,tgt=%d.',...
+              tMFT.mov(i),tMFT.frm(i),tMFT.iTgt(i));
+          else
+            idxMD = loc(i);
+            A = reshape(tMDformAvw(idxMD,:),3,3);
+            tform = maketform('affine',A);
+            [pAbs(i,:,ivw,1,:),pAbs(i,:,ivw,2,:)] = ...
+              tforminv(tform,pRel(i,:,ivw,1,:),pRel(i,:,ivw,2,:));
+          end
+        end
+      end      
+    end
   end
   
 %     function updateLabels(obj,tblUp,lObj,varargin)

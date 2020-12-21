@@ -15,20 +15,21 @@ nview = size(toTrack.movfiles,2);
 fns = fieldnames(dict);
 
 res = struct;
-res.toTrack = cell(size(toTrack.movfiles,1),1);
+nmovset = size(toTrack.movfiles,1);
+res.toTrack = cell(nmovset,1);
 
-for i = 1:size(toTrack.movfiles,1),
-  res.toTrack{i} = struct;
+for imovset = 1:nmovset
+  res.toTrack{imovset} = struct;
   for j = 1:numel(fns),
   
     fn = fns{j};
-    x = toTrack.(fn)(i,:);
+    x = toTrack.(fn)(imovset,:);
     fnout = dict.(fn);
     
-    doignore = false(1,numel(x));
+    doignoreperval = false(1,numel(x));
     for k = 1:numel(x),
       if iscell(x) && isempty(x{k}),
-        doignore(k) = true;
+        doignoreperval(k) = true;
       else
         if iscell(x),
           x1 = x{k};
@@ -36,33 +37,35 @@ for i = 1:size(toTrack.movfiles,1),
           x1 = x(k);
         end
         if isnumeric(x1) && all(isnan(x1)),
-          doignore(k) = true;
+          doignoreperval(k) = true;
         elseif strcmpi(fn,'f0s') && x1 == 1,
-          doignore(k) = true;
+          doignoreperval(k) = true;
         elseif strcmpi(fn,'f1s') && isinf(x1),
-          doignore(k) = true;
+          doignoreperval(k) = true;
         end
-
       end
     end
     
     if isempty(x),
+      % none
     elseif numel(x) == 1
-      if ~doignore,
+      if ~doignoreperval,
         if iscell(x),
-          res.toTrack{i}.(fnout) = x{1};
+          res.toTrack{imovset}.(fnout) = x{1};
         else
-          res.toTrack{i}.(fnout) = x;
+          res.toTrack{imovset}.(fnout) = x;
         end
       end
     elseif numel(x) == nview,
-      res.toTrack{i}.(fnout) = struct;
-      for k = 1:nview,
-        if doignore, continue; end
-        if iscell(x),
-          res.toTrack{i}.(fnout).(sprintf('view%d',k)) = x{k};
-        else
-          res.toTrack{i}.(fnout).(sprintf('view%d',k)) = x(k);
+      if any(~doignoreperval)
+        res.toTrack{imovset}.(fnout) = struct;
+        for k = 1:nview,
+          if doignoreperval(k), continue; end
+          if iscell(x),
+            res.toTrack{imovset}.(fnout).(sprintf('view%d',k)) = x{k};
+          else
+            res.toTrack{imovset}.(fnout).(sprintf('view%d',k)) = x(k);
+          end
         end
       end
     else
