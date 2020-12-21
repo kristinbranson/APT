@@ -1,3 +1,81 @@
+## allen bug 20201221
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+cmd = ['/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl', '-name', '20201217T002018', '-json_trn_file', '/groups/branson/home/kabram/nrs/apt_cache_2/alice_ma/loc.json', '-conf_params', 'is_multi', 'True', 'db_format', '"coco"', 'max_n_animals','10','-type', 'multi_mdn_joint_torch', '-cache', '/nrs/branson/mayank/temp', 'train','-skip_db']
+import APT_interface as apt
+apt.main(cmd)
+
+## debugging topk for mmpose
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/apt/val_TF.json'
+
+net_type = 'multi_mmpose' #'multi_mdn_joint_torch' #
+train_name = 'higher_2x' # 'higher'# 'deepnet' #
+conf = apt.create_conf(lbl_file,0,'apt',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.db_format = 'coco'
+conf.max_n_animals = 8
+conf.imsz = (288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet_2x'#'higherhrnet'
+conf.is_multi = True
+conf.min_n_animals = 2
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+torch.cuda.empty_cache()
+
+def find_dist_match(dd):
+    dout = np.ones_like(dd[:,:,0,:])*np.nan
+    yy = np.nanmean(dd,axis=-1)
+    for a in range(dd.shape[0]):
+        for ndx in range(dd.shape[2]):
+            if np.all(np.isnan(yy[a,:,ndx])):
+                continue
+            r = np.nanargmin(yy[a,:,ndx])
+            dout[a,ndx,:] = dd[a,r,ndx,:]
+    return dout
+
+
+pp1 = out[0]
+ll1 = out[1]
+dd1 = np.linalg.norm(pp1[:,:,np.newaxis,...]-ll1[:,np.newaxis,...],axis=-1)
+dd1 = find_dist_match(dd1)
+valid = ll1[:,:,0,0]>-1000
+dd1_val = dd1[valid,:]
+np.nanpercentile(dd1_val,[50,75,90,95,97],axis=0)
+
+
+##
+from mmcv import Config, DictAction
+import APT_interface as apt
+import os
+import numpy as np
+import poseConfig
+import matplotlib
+matplotlib.use('TkAgg')
+from Pose_mmpose import Pose_mmpose
+
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2','mmpose')
+conf.batch_size = 3
+conf.imsz = [768,768]#(sz+2*buffer,sz+2*buffer)
+conf.rescale = 1.
+conf.save_step = 10000
+conf.dl_steps = 100000
+conf.brange = [0,0]
+conf.crange =[1,1]
+conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+conf.mmpose_use_apt_augmentation = False
+ss = Pose_mmpose(conf,'mmpose_aug')
+# ss.cfg.model.pretrained='/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mmpose/view_0/deepnet/mmpose_aug-100000'
+ss.train_wrapper(False)
+
+##
 import APT_interface as apt
 import poseConfig
 from Pose_multi_mmpose import Pose_multi_mmpose
@@ -11,14 +89,15 @@ conf.nviews = 1
 conf.view = 0
 conf.n_classes = 17
 conf.is_multi = True
-conf.mmpose_net = 'higherhrnet'
+conf.mmpose_net = 'higherhrnet_2x'
 conf.json_trn_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc.json'
 conf.max_n_animals = 7
+conf.mmpose_use_apt_augmentation = False
 conf.set_exp_name('alice')
 
 apt.setup_ma(conf)
 # apt.create_coco_db(conf,True)
-self = Pose_multi_mmpose(conf,'higherhr')
+self = Pose_multi_mmpose(conf,'higherhr_2x')
 self.train_wrapper()
 
 
