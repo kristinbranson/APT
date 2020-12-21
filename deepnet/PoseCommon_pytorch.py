@@ -125,13 +125,12 @@ def next_data(loader, dataset):
 
 class PoseCommon_pytorch(object):
 
-    def __init__(self,conf,name='deepnet',is_multi=False):
+    def __init__(self,conf,name='deepnet'):
         self.conf = conf
         self.name = name
-        self.is_multi = is_multi
         self.prev_models = []
         self.td_fields = ['dist','loss']
-        conf.is_multi = is_multi
+        # conf.is_multi = is_multi
 
         if torch.cuda.is_available():
             self.device = "cuda"
@@ -302,7 +301,12 @@ class PoseCommon_pytorch(object):
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
         train_dl_coco = coco_loader(conf,trnjson,True)
-        val_dl_coco = coco_loader(conf,valjson,False)
+        if os.path.exists(valjson):
+            val_dl_coco = coco_loader(conf,valjson,False)
+        else:
+            logging.info('Val json file doesnt exist. Using training file for validation')
+            val_dl_coco = coco_loader(conf,trnjson,False)
+
         train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16)
         val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         return [train_dl, val_dl]
@@ -367,7 +371,7 @@ class PoseCommon_pytorch(object):
             # print('Timings Load:{:.2f}, target:{:.2f} fwd:{:.2f} loss:{:0.2f} bkwd:{:.2f} op:{:.2f}'.format(l-a,o-l,t-o,lo-t,b-lo,op-b))
 
             if self.conf.save_time is None:
-                if step % self.conf.save_step == 0:
+                if (step % self.conf.save_step == 0) & (step>0):
                     self.save(step, model, opt, lr_sched)
             else:
                 if ((time.time() - save_start) > self.conf.save_time*60) or step==0:

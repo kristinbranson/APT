@@ -186,7 +186,9 @@ class config(object):
         self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
 
         # ============== MULTIANIMAL ==========
+        self.is_multi = False
         self.max_n_animals = 1
+        self.min_n_animals = 0
         self.multi_bb_ex = 10 # extra margin to keep around annotations while generating masks
         self.multi_n_grid = 1 # Number of cells to split the image into for multianimal
         self.multi_link_cost = 5 # cost for linking trajectory. 5 is roughly the max movement in pixels per landmark that will not lead to death and birth of new trajectories.

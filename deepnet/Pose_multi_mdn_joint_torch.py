@@ -184,9 +184,8 @@ class mdn_joint(nn.Module):
 class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,**kwargs):
-        if 'is_multi' in kwargs:
-            assert kwargs.pop('is_multi'), 'This is a multi animal network'
-        super(Pose_multi_mdn_joint_torch,self).__init__(conf,is_multi=True,**kwargs)
+        assert conf.is_multi, 'This is a multi animal network'
+        super(Pose_multi_mdn_joint_torch,self).__init__(conf,**kwargs)
         self.offset = 32
         self.locs_noise = self.conf.get('mdn_joint_ref_noise',0.3)
         self.k_j = 4
@@ -391,6 +390,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def get_joint_pred(self,preds):
         n_max = self.conf.max_n_animals
+        n_min = self.conf.min_n_animals
         locs_joint, logits_joint, locs_ref, logits_ref = self.to_numpy(preds)
         locs_joint = locs_joint
         bsz = locs_joint.shape[0]
@@ -408,7 +408,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         for ndx in range(bsz):
             n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
-            n_preds = np.clip(n_preds,1,n_max)
+            n_preds = np.clip(n_preds,n_min,n_max)
             ids = np.argsort(-ll_joint_flat[ndx,:])
             for cur_n in range(n_preds):
                 sel_ex = ids[cur_n]

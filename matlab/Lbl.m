@@ -1,4 +1,5 @@
 classdef Lbl
+  
   methods (Static) % ma train package
     
     function vizLoc(loc,packdir,varargin)
@@ -149,15 +150,20 @@ classdef Lbl
       tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
       slbl = tObj.trnCreateStrippedLbl();
       slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
+      jslbl = Lbl.jsonifyStrippedLbl(slbl);
       
       fsinfo = lObj.projFSInfo;
       [lblP,lblS] = myfileparts(fsinfo.filename);
       if isempty(slblname)
         slblname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
       end
-      slblfname = fullfile(packdir,slblname);
-      save(slblfname,'-mat','-v7.3','-struct','slbl');
-      fprintf(1,'Saved %s\n',slblfname);
+      sfname = fullfile(packdir,slblname);
+      save(sfname,'-mat','-v7.3','-struct','slbl');
+      fprintf(1,'Saved %s\n',sfname);
+      [~,slblnameS] = fileparts(slblname);
+      sfjname = sprintf('%s.json',slblnameS);
+      Lbl.hlpSaveJson(jslbl,packdir,sfjname);
+     
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
       [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
@@ -527,6 +533,31 @@ classdef Lbl
       fldskeep = [fldskeep(:); FLDS(:)];
       fldskeep = setdiff(fldskeep, FLDSRM);
       s = structrestrictflds(s,fldskeep);
+    end
+    function [jse,j] = jsonifyStrippedLbl(s)
+      % s: compressed stripped lbl (output of compressStrippedLbl)
+      %
+      % jse: jsonencoded struct
+      % j: raw struct
+      
+      cfg = s.cfg;
+      cfg.HasCrops = s.cropProjHasCrops;
+      mia = cellfun(@(x)struct('NumRows',x.info.nr,...
+                               'NumCols',x.info.nc),s.movieInfoAll);
+      for ivw=1:size(mia,2)
+        nr = [mia(:,ivw).NumRows];
+        nc = [mia(:,ivw).NumCols];
+        assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);        
+      end
+      
+      j = struct();
+      j.ProjName = s.projname;
+      j.Config = cfg;
+      j.MovieInfo = mia(1,:);
+      assert(strcmp(s.trackerClass{2},'DeepTracker'));
+      j.TrackerData = s.trackerData{2};
+      
+      jse = jsonencode(j);
     end
   end
 end

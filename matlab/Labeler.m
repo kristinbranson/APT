@@ -6495,7 +6495,7 @@ classdef Labeler < handle
 %       obj.labeledposNeedsSave = true;
 %     end
     
-    function labelPosBulkImportTblMov(obj,tblFT,iMov)
+    function labelPosBulkImportTblMov(obj,tblFT,iMov,varargin)
       % Set labels for current movie/target from a table. GTmode supported.
       % Existing labels *are cleared*!
       %
@@ -6511,6 +6511,10 @@ classdef Labeler < handle
       %   Defaults to .currMovie.
       % 
       % No checking is done against image or crop size.
+      
+      docompact = myparse(varargin,...
+        'docompact',false ...
+        );
       
       % atm pTS are overwritten/set as "now"
       tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'}); 
@@ -6532,10 +6536,12 @@ classdef Labeler < handle
       warningNoTrace('Existing labels cleared!');
       tsnow = now;
       tblFT.pTS = tsnow*ones(n,npts);
-      s = Labels.fromtable(tblFT);  
-      [s,nfrmslbl,nfrmscompact] = Labels.compactall(s);
-      fprintf(1,'Movie %d: %d labeled frms, %d frms compactified.\n',...
-        iMov,nfrmslbl,nfrmscompact);
+      s = Labels.fromtable(tblFT);
+      if docompact
+        [s,nfrmslbl,nfrmscompact] = Labels.compactall(s);
+        fprintf(1,'Movie %d: %d labeled frms, %d frms compactified.\n',...
+          iMov,nfrmslbl,nfrmscompact);
+      end
       obj.(PROPS.LBL){iMov} = s;
               
       obj.updateFrameTableComplete();

@@ -552,7 +552,7 @@ def randomly_affine(img,locs, conf, group_sz=1):
                 rangle = 0; dx = 0; dy=0; sfactor = 1
                 sane = True
                 do_transform = False
-
+            # print(f'Aug params rot:{rangle},scale:{sfactor},dx:{dx},dy:{dy}')
             rot_mat = cv2.getRotationMatrix2D((cols/2,rows/2), rangle, sfactor)
             rot_mat[0,2] += dx
             rot_mat[1,2] += dy
@@ -572,7 +572,8 @@ def randomly_affine(img,locs, conf, group_sz=1):
 
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=cv2.INTER_CUBIC)
+                ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=cv2.INTER_LINEAR)
+                # Do not use inter_cubic. Leads to splotches.
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
