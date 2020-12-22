@@ -12,6 +12,16 @@ classdef TrackingVisualizerTrx < handle
     
     click2nav = false;
   end
+  properties (Dependent)
+    nTrx
+  end
+  
+  methods 
+    function v = get.nTrx(obj)
+      v = numel(obj.hTrx);
+    end
+  end
+      
   
   methods
     
@@ -88,24 +98,41 @@ classdef TrackingVisualizerTrx < handle
     
     function updateTrx(obj,tfShow)
       % update coords/positions based on lObj.currFrame, .currTarget, .trx
+      %
+      % DO NOT call this for non-Trx projs (eg MA)!
       
       lObj = obj.lObj;
-      t = lObj.currFrame;
-      iTgt = lObj.currTarget;
-      trxAll = lObj.trx;
+      obj.updateTrxCore(lObj.trx,lObj.currFrame,tfShow,lObj.currTarget,...
+        false);
+    end
+    
+    function updateTrxCore(obj,trxAll,frm,tfShow,iTgtPrimary,tfUpdateIDs)
+      % 
+      % trxAll: [ntrxshow] trx struct array; need not match obj.nTrx
+      % frm: current frame
+      % tfShow: [ntrxshow] logical
+      % iTgtPrimary: [1] index into trxAll for current tgt
+      % tfUpdateIDs: if true, trxAll must have IDs set and hTrxTxt are
+      %   updated per these IDs.
+      
       nPre = obj.showTrxPreNFrm;
       nPst = obj.showTrxPostNFrm;
-      pref = lObj.projPrefs.Trx;      
+      lObj = obj.lObj;
+      pref = lObj.projPrefs.Trx;
       
-      %tic;
       nTrx = numel(trxAll);
       for iTrx = 1:nTrx
+        if ~tfShow(iTrx)
+          % should already be hidden          
+          continue;
+        end
+        
         trxCurr = trxAll(iTrx);
         t0 = trxCurr.firstframe;
         t1 = trxCurr.endframe;
         
-        if t0<=t && t<=t1
-          idx = t+trxCurr.off;
+        if t0<=frm && frm<=t1
+          idx = frm+trxCurr.off;
           xTrx = trxCurr.x(idx);
           yTrx = trxCurr.y(idx);
         else
@@ -114,50 +141,62 @@ classdef TrackingVisualizerTrx < handle
         end
         set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx);
         
-        if tfShow(iTrx)
-          tTraj = max(t-nPre,t0):min(t+nPst,t1); % could be empty array
-          iTraj = tTraj + trxCurr.off;
-          xTraj = trxCurr.x(iTraj);
-          yTraj = trxCurr.y(iTraj);
-          if iTrx==iTgt
-            color = pref.TrajColorCurrent;
-          else
-            color = pref.TrajColor;
-          end
-          set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj,'Color',color);
-          set(obj.hTrx(iTrx),'Color',color);
-
-          if lObj.showTrxIDLbl
-            dx = pref.TrxIDLblOffset;
-            set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
-              'Color',color);
+        %if tfShow(iTrx)
+        tTraj = max(frm-nPre,t0):min(frm+nPst,t1); % could be empty array
+        iTraj = tTraj + trxCurr.off;
+        xTraj = trxCurr.x(iTraj);
+        yTraj = trxCurr.y(iTraj);
+        if iTrx==iTgtPrimary
+          color = pref.TrajColorCurrent;
+        else
+          color = pref.TrajColor;
+        end
+        set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj,'Color',color);
+        set(obj.hTrx(iTrx),'Color',color);
+        
+        if lObj.showTrxIDLbl
+          dx = pref.TrxIDLblOffset;
+          set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
+            'Color',color);
+          if tfUpdateIDs
+            idstr = num2str(trxCurr.id+1);
+            set(obj.hTrxTxt(iTrx),'String',idstr);
           end
         end
-          
-%           if tfShowEll && t0<=t && t<=t1
-%             ellipsedraw(2*trxCurr.a(idx),2*trxCurr.b(idx),...
-%               trxCurr.x(idx),trxCurr.y(idx),trxCurr.theta(idx),'-',...
-%               'hEllipse',obj.hTrxEll(iTrx),'noseLine',true);
-%           end
         %end
       end
       %fprintf('Time to update trx: %f\n',toc);
       
       if obj.click2nav
-        set(obj.hTrx([1:iTgt-1,iTgt+1:end],1),...
+        set(obj.hTrx([1:iTgtPrimary-1,iTgtPrimary+1:end],1),...
           'PickableParts','all',...
           'HitTest','on');
-        set(obj.hTrx(iTgt,1),...
+        set(obj.hTrx(iTgtPrimary,1),...
           'PickableParts','none',...
           'HitTest','off');
       end
+    end
+    
+    function updateRaw(obj,tgtIDs,p,iTgtPrimary)
+      % update .hTrx, .hTraj etc based directly on coordinates
+      %
+      % tgtIDs: [ntgtstrked] array of target IDs (ie trxIDlbls)
+      % p: [2*npts x ntgtstrked] landmarks
+      % iTgtPrimary: [1] index into tgtIDs for the current primary tgt. Can
+      %   be 0 indicating no-primary
       
-%       if tfShowEll
-%         set(obj.hTrxEll(tfShow),'Visible','on');
-%         set(obj.hTrxEll(~tfShow),'Visible','off');
-%       else
-%         set(obj.hTrxEll,'Visible','off');
-%       end
+      nTrx = numel(obj.hTrx);
+      nTgts = numel(tgtIDs);
+      if nTgts>nTrx
+        warningNoTrace('Too many targets to display (%d). Truncating to %d.',...
+          nTgts,nTrx);
+        tgtIDs = tgtIDs(1:nTrx);
+        p = p(:,1:nTrx);
+        if iTgtPrimary>nTrx
+          iTgtPrimary = 0;
+        end
+        nTgts = nTrx;
+      end
     end
     
     function setShow(obj,tfShow,showTrxIDLbl)
