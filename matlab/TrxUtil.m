@@ -2,10 +2,11 @@ classdef TrxUtil
   
   methods (Static)
    
-    function trx = createSimpleTrx(n)
-      % n: number of trx
+    function ptrx = newptrx(ntrx,npts)
       s = struct();
       s.id = 0;
+      s.p = nan(2*npts,0);
+      s.pocc = nan(npts,0);
       s.x = nan(1,0);
       s.y = nan(1,0);
       s.theta = nan(1,0);
@@ -13,9 +14,15 @@ classdef TrxUtil
       s.off = 0;
       s.nframes = 0;
       s.endframe = 0;
+      
+      n = max(ntrx,1);
       for i = n:-1:1
-        trx(i) = s;
-        trx(i).id = i-1;
+        ptrx(i,1) = s;
+        ptrx(i,1).id = i-1;
+      end
+      
+      if ntrx==0
+        ptrx = ptrx([],:);
       end
     end
     

@@ -5468,7 +5468,7 @@ classdef Labeler < handle
       
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx || obj.maIsMA);
       
-      obj.tvTrx.initShowTrx(true,numel(trx));
+      obj.tvTrx.init(true,numel(trx));
     end
        
     function tf = trxCheckFramesLive(obj,frms)
@@ -5662,7 +5662,7 @@ classdef Labeler < handle
         return;
       end      
       
-      if obj.showTrx        
+      if obj.showTrx
         if obj.showTrxCurrTargetOnly
           tfShow = false(obj.nTrx,1);
           tfShow(obj.currTarget) = true;
@@ -5675,9 +5675,9 @@ classdef Labeler < handle
       
       tv = obj.tvTrx;
       if tfSetShow
-        tv.setShow(tfShow,obj.showTrxIDLbl);
+        tv.setShow(tfShow);
       end
-      tv.updateTrx(tfShow);   
+      tv.updateTrx(tfShow);
 %       tfShowEll = isscalar(obj.showTrxEll) && obj.showTrxEll ...
 %         && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
     end
@@ -5706,9 +5706,10 @@ classdef Labeler < handle
       obj.labeledpos2trkViz.initAndUpdateSkeletonEdges(se);
     end
     function setShowSkeleton(obj,tf)
-      obj.showSkeleton = logical(tf);
+      tf = logical(tf);
+      obj.showSkeleton = tf;
       obj.lblCore.updateShowSkeleton();
-      obj.labeledpos2trkViz.updateShowHideAll();
+      obj.labeledpos2trkViz.setShowSkeleton(tf);
     end
     function setShowMaRoi(obj,tf)
       obj.showMaRoi = logical(tf);
@@ -14094,8 +14095,21 @@ classdef Labeler < handle
       if ~isempty(tv)
         tv.delete();
       end
-      tv = TrackingVisualizerMT(obj,'labeledpos2');
-      tv.vizInit();
+      if obj.maIsMA
+        tv = TrackingVisualizerTracklets(obj,10,'labeledpos2');
+        iMov = obj.currMovie;
+        if iMov==0
+          % none
+        else
+          PROPS = obj.gtGetSharedProps();
+          s = obj.(PROPS.LBL2){iMov};
+          trx = Labels.toPTrx(s);
+          tv.vizInit(obj.nframes,trx);
+        end
+      else
+        tv = TrackingVisualizerMT(obj,'labeledpos2');
+        tv.vizInit();
+      end
       obj.labeledpos2trkViz = tv;
     end
     
@@ -14118,32 +14132,30 @@ classdef Labeler < handle
         'setlbls',true,...
         'setprimarytgt',false ...
         );
-      
-      if obj.maIsMA
-        % XXX MA
-        return;
-      end
-      
+            
       iTgt = obj.currTarget;
       tv = obj.labeledpos2trkViz;
       
       if setlbls
         iMov = obj.currMovie;
         frm = obj.currFrame;
-        %lpos2 = reshape(obj.labeledpos2GTaware{iMov}(:,:,frm,:),...
-        %  [obj.nLabelPoints,2,obj.nTargets]);
-        ntgts = obj.nTargets;
-        p = Labels.getLabelsF(obj.labels2GTaware{iMov},frm,ntgts);
-        lpos2 = reshape(p,[obj.nLabelPoints,2,ntgts]);
-        % no lpos2 occ!
-        lpostag = false(obj.nLabelPoints,obj.nTargets);
-        tv.updateTrackRes(lpos2,lpostag);
+        if obj.maIsMA
+          tv.newFrame(frm);
+        else
+          ntgts = obj.nTargets;
+          p = Labels.getLabelsF(obj.labels2GTaware{iMov},frm,ntgts);
+          lpos2 = reshape(p,[obj.nLabelPoints,2,ntgts]);
+          % no lpos2 occ!
+          lpostag = false(obj.nLabelPoints,obj.nTargets);
+          tv.updateTrackRes(lpos2,lpostag);
+        end
       end
       if setprimarytgt
         tv.updatePrimary(iTgt);        
       end
       
       if dotrkres
+        assert(~obj.maIsMA,'Unsupported for multi-animal projects.');
         trkres = obj.trkResGTaware;
         trvs = obj.trkResViz;
         nTR = numel(trvs);

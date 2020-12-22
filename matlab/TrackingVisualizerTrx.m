@@ -22,7 +22,6 @@ classdef TrackingVisualizerTrx < handle
     end
   end
       
-  
   methods
     
     function obj = TrackingVisualizerTrx(labeler)
@@ -37,7 +36,7 @@ classdef TrackingVisualizerTrx < handle
       obj.hTrxTxt = [];
     end
     
-    function initShowTrx(obj,click2nav,nTrx)
+    function init(obj,click2nav,nTrx)
       % create gfx handles
       
       obj.deleteGfxHandles();
@@ -108,12 +107,16 @@ classdef TrackingVisualizerTrx < handle
     
     function updateTrxCore(obj,trxAll,frm,tfShow,iTgtPrimary,tfUpdateIDs)
       % 
-      % trxAll: [ntrxshow] trx struct array; need not match obj.nTrx
+      % trxAll: [ntrxshow] trx struct array; ntrxshow must be <=obj.nTrx       
       % frm: current frame
       % tfShow: [ntrxshow] logical
-      % iTgtPrimary: [1] index into trxAll for current tgt
+      % iTgtPrimary: [1] index into trxAll for current tgt; can be 0 for
+      %   "no-primary'
       % tfUpdateIDs: if true, trxAll must have IDs set and hTrxTxt are
       %   updated per these IDs.
+      %
+      % If ntrxshow<obj.nTrx, it is assumed that setShow() has been called
+      % to hide the "extra" .trx
       
       nPre = obj.showTrxPreNFrm;
       nPst = obj.showTrxPostNFrm;
@@ -121,6 +124,9 @@ classdef TrackingVisualizerTrx < handle
       pref = lObj.projPrefs.Trx;
       
       nTrx = numel(trxAll);
+      
+      assert(nTrx<=obj.nTrx); 
+      
       for iTrx = 1:nTrx
         if ~tfShow(iTrx)
           % should already be hidden          
@@ -177,36 +183,18 @@ classdef TrackingVisualizerTrx < handle
       end
     end
     
-    function updateRaw(obj,tgtIDs,p,iTgtPrimary)
-      % update .hTrx, .hTraj etc based directly on coordinates
-      %
-      % tgtIDs: [ntgtstrked] array of target IDs (ie trxIDlbls)
-      % p: [2*npts x ntgtstrked] landmarks
-      % iTgtPrimary: [1] index into tgtIDs for the current primary tgt. Can
-      %   be 0 indicating no-primary
-      
-      nTrx = numel(obj.hTrx);
-      nTgts = numel(tgtIDs);
-      if nTgts>nTrx
-        warningNoTrace('Too many targets to display (%d). Truncating to %d.',...
-          nTgts,nTrx);
-        tgtIDs = tgtIDs(1:nTrx);
-        p = p(:,1:nTrx);
-        if iTgtPrimary>nTrx
-          iTgtPrimary = 0;
-        end
-        nTgts = nTrx;
-      end
+    function updatePrimary(obj,iTgtPrimary)
+      % none    
     end
     
-    function setShow(obj,tfShow,showTrxIDLbl)
+    function setShow(obj,tfShow)
       % tfShow: logical vec must match size of .hTrx etc
       set(obj.hTraj(tfShow),'Visible','on');
       set(obj.hTraj(~tfShow),'Visible','off');
       set(obj.hTrx(tfShow),'Visible','on');
       set(obj.hTrx(~tfShow),'Visible','off');
       
-      if showTrxIDLbl
+     if obj.lObj.showTrxIDLbl
         set(obj.hTrxTxt(tfShow),'Visible','on');
         set(obj.hTrxTxt(~tfShow),'Visible','off');
       else
