@@ -342,11 +342,7 @@ classdef Labeler < handle
     showMaRoi;
   end 
   properties
-    hTraj;                    % nTrx x 1 vector of line handles
-    hTrx;                     % nTrx x 1 vector of line handles
-    hTrxTxt;                  % nTrx x 1 vector of text handles
-    showTrxPreNFrm = 15;      % number of preceding frames to show in traj
-    showTrxPostNFrm = 5;      % number of following frames to show in traj
+    tvTrx; % scalar TrackingVisualizerTrx
   end
   
   %% Labeling
@@ -1397,6 +1393,7 @@ classdef Labeler < handle
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
+      obj.tvTrx = TrackingVisualizerTrx(obj);
     end
      
     function delete(obj)
@@ -2272,14 +2269,14 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
-     
+
+      % need this before setting movie so that .projectroot exists
+      obj.projFSInfo = ProjectFSInfo('loaded',fname);
+
       obj.computeLastLabelChangeTS_Old();
       obj.movieFilesAllHaveLbls = cellfun(@Labels.hasLbls,obj.labels);
       obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
-      obj.gtUpdateSuggMFTableLbledComplete();
-      
-      % need this before setting movie so that .projectroot exists
-      obj.projFSInfo = ProjectFSInfo('loaded',fname);
+      obj.gtUpdateSuggMFTableLbledComplete();      
 
       % Tracker.
       nTracker = numel(s.trackerData);
@@ -3311,14 +3308,27 @@ classdef Labeler < handle
           s.trackerData{i}.trnNetType = trkersInfo{i}{3};
         end
       else
-        assert(isequal(s.trackerClass(:),trkersInfo(1:nExistingTrkers,:)));
+        [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),trkersInfo);
+        assert(all(tf));
+        tclass = trkersInfo;
+        tclass(loc) = s.trackerClass(:); 
+        tdata = repmat({[]},1,nDfltTrkers);
+        tdata(loc) = s.trackerData(:);
+        s.trackerClass = tclass;
+        s.trackerData = tdata;
+        
+        % KB 20201216 update currTracker as well
+        oldCurrTracker = s.currTracker;
+        if oldCurrTracker>0
+          s.currTracker = loc(oldCurrTracker);
+        end
       end
       s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
         trkersInfo(nExistingTrkers+1:nDfltTrkers);
       s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
         repmat({[]},1,nDfltTrkers-nExistingTrkers);
       
-      % 20190207: added nLabels to dmc
+      % 2019ed0207: added nLabels to dmc
       % 20190404: remove .trnName, .trnNameLbl as these dup DMC
       for i = 1:numel(s.trackerData),
         
@@ -5457,7 +5467,8 @@ classdef Labeler < handle
       end
       
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx || obj.maIsMA);
-      obj.initShowTrx();
+      
+      obj.tvTrx.initShowTrx(true,numel(trx));
     end
        
     function tf = trxCheckFramesLive(obj,frms)
@@ -5612,62 +5623,7 @@ classdef Labeler < handle
     end
   end  
   methods % show*
-    
-    function initShowTrx(obj)
-      deleteValidHandles(obj.hTraj);
-      deleteValidHandles(obj.hTrx);
-%       deleteValidHandles(obj.hTrxEll);
-      deleteValidHandles(obj.hTrxTxt);
-      obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
-      obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
-%       obj.hTrxEll = matlab.graphics.primitive.Line.empty(0,1);
-      obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
-      
-      ax = obj.gdata.axes_curr;
-      pref = obj.projPrefs.Trx;
-      for i = 1:obj.nTrx
         
-        obj.hTraj(i,1) = line(...
-          'parent',ax,...
-          'xdata',nan, ...
-          'ydata',nan, ...
-          'color',pref.TrajColor,...
-          'linestyle',pref.TrajLineStyle, ...
-          'linewidth',pref.TrajLineWidth, ...
-          'HitTest','off',...
-          'Tag',sprintf('Labeler_Traj_%d',i),...
-          'PickableParts','none');
-
-        obj.hTrx(i,1) = plot(ax,...
-          nan,nan,pref.TrxMarker);
-        set(obj.hTrx(i,1),...
-          'Color',pref.TrajColor,...
-          'MarkerSize',pref.TrxMarkerSize,...
-          'LineWidth',pref.TrxLineWidth,...
-          'Tag',sprintf('Labeler_Trx_%d',i),...
-          'ButtonDownFcn',@(h,evt) obj.clickTarget(h,evt,i),...
-          'PickableParts','all',...
-          'HitTest','on');
-        if i == obj.currTarget,
-          set(obj.hTrx(i,1),...
-            'PickableParts','none',...
-            'HitTest','off');
-        end
-        
-%         obj.hTrxEll(i,1) = plot(ax,nan,nan,'-');
-%         set(obj.hTrxEll(i,1),'HitTest','off',...
-%           'Color',pref.TrajColor);
-        
-%         id = find(obj.trxIdPlusPlus2Idx==i)-1;
-        obj.hTrxTxt(i,1) = text(nan,nan,num2str(i),'Parent',ax,...
-          'Color',pref.TrajColor,...
-          'Fontsize',pref.TrxIDLblFontSize,...
-          'Fontweight',pref.TrxIDLblFontWeight,...
-          'PickableParts','none',...
-          'Tag',sprintf('Labeler_TrxTxt_%d',i));
-      end
-    end
-    
     function setShowTrx(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrx = tf;
@@ -5692,49 +5648,19 @@ classdef Labeler < handle
     end
     
     function updateShowTrx(obj)
-      
       if ~obj.hasTrx
         return;
       end
-            
-      if obj.showTrx        
-        if obj.showTrxCurrTargetOnly
-          tfShow = false(obj.nTrx,1);
-          tfShow(obj.currTarget) = true;
-        else
-          tfShow = true(obj.nTrx,1);
-        end
-      else
-        tfShow = false(obj.nTrx,1);
-      end
-
-      set(obj.hTraj(tfShow),'Visible','on');
-      set(obj.hTraj(~tfShow),'Visible','off');
-      set(obj.hTrx(tfShow),'Visible','on');
-      set(obj.hTrx(~tfShow),'Visible','off');
-      if obj.showTrxIDLbl
-        set(obj.hTrxTxt(tfShow),'Visible','on');
-        set(obj.hTrxTxt(~tfShow),'Visible','off');
-      else
-        set(obj.hTrxTxt,'Visible','off');
-      end
-
-      obj.updateTrx();
-      
+    
+      obj.updateTrx(true);      
     end
     
-    function updateTrx(obj)
+    function updateTrx(obj,tfSetShow)
       % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       
       if ~obj.hasTrx,
         return;
-      end
-      
-      t = obj.currFrame;
-      trxAll = obj.trx;
-      nPre = obj.showTrxPreNFrm;
-      nPst = obj.showTrxPostNFrm;
-      pref = obj.projPrefs.Trx;
+      end      
       
       if obj.showTrx        
         if obj.showTrxCurrTargetOnly
@@ -5747,66 +5673,13 @@ classdef Labeler < handle
         tfShow = false(obj.nTrx,1);
       end
       
+      tv = obj.tvTrx;
+      if tfSetShow
+        tv.setShow(tfShow,obj.showTrxIDLbl);
+      end
+      tv.updateTrx(tfShow);   
 %       tfShowEll = isscalar(obj.showTrxEll) && obj.showTrxEll ...
 %         && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
-   
-      % update coords/positions
-      %tic;
-      for iTrx = 1:obj.nTrx
-        trxCurr = trxAll(iTrx);
-        t0 = trxCurr.firstframe;
-        t1 = trxCurr.endframe;
-        
-        if t0<=t && t<=t1
-          idx = t+trxCurr.off;
-          xTrx = trxCurr.x(idx);
-          yTrx = trxCurr.y(idx);
-        else
-          xTrx = nan;
-          yTrx = nan;
-        end
-        set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx);
-        
-        if tfShow(iTrx)
-          tTraj = max(t-nPre,t0):min(t+nPst,t1); % could be empty array
-          iTraj = tTraj + trxCurr.off;
-          xTraj = trxCurr.x(iTraj);
-          yTraj = trxCurr.y(iTraj);
-          if iTrx==obj.currTarget
-            color = pref.TrajColorCurrent;
-          else
-            color = pref.TrajColor;
-          end
-          set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj,'Color',color);
-          set(obj.hTrx(iTrx),'Color',color);
-
-          if obj.showTrxIDLbl
-            dx = pref.TrxIDLblOffset;
-            set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
-              'Color',color);
-          end
-        end
-          
-%           if tfShowEll && t0<=t && t<=t1
-%             ellipsedraw(2*trxCurr.a(idx),2*trxCurr.b(idx),...
-%               trxCurr.x(idx),trxCurr.y(idx),trxCurr.theta(idx),'-',...
-%               'hEllipse',obj.hTrxEll(iTrx),'noseLine',true);
-%           end
-        %end
-      end
-      %fprintf('Time to update trx: %f\n',toc);
-      set(obj.hTrx([1:obj.currTarget-1,obj.currTarget+1:end],1),...
-        'PickableParts','all',...
-        'HitTest','on');
-      set(obj.hTrx(obj.currTarget,1),...
-        'PickableParts','none',...
-        'HitTest','off');
-%       if tfShowEll
-%         set(obj.hTrxEll(tfShow),'Visible','on');
-%         set(obj.hTrxEll(~tfShow),'Visible','off');
-%       else
-%         set(obj.hTrxEll,'Visible','off');
-%       end
     end
     
 %     function setShowPredTxtLbl(obj,tf)
@@ -12974,7 +12847,7 @@ classdef Labeler < handle
 
       
       if updateTrajs
-        obj.updateTrx();
+        obj.updateTrx(false);
       end
       
       %fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
@@ -14115,8 +13988,11 @@ classdef Labeler < handle
       PROPS = obj.gtGetSharedProps();
       iMov = obj.currMovie;
       frm = obj.currFrame;
-      lpos2 = obj.(PROPS.LPOS2){iMov}(:,:,frm,iTgt);
-      tf = any(~isnan(lpos2(:)));      
+      s = obj.(PROPS.LBL2){iMov};
+      [tf,p] = Labels.isLabeledFT(s,frm,iTgt);
+      lpos2 = reshape(p,[],2);
+      %lpos2 = obj.(PROPS.LPOS2){iMov}(:,:,frm,iTgt);
+      %tf = any(~isnan(lpos2(:)));      
     end
     
     function labels2SetCurrMovie(obj,lpos)
