@@ -1,9 +1,9 @@
 import numpy as np
 import numpy.random as random
 import scipy.optimize as opt
-import hdf5storage
-import TrkFile as APT_interface
-# replace this with APT_interface -- I only did this because I don't have a GPU
+import TrkFile
+# for now I'm just using loadmat and savemat here
+# when/if the format of trk files changes, then this will need to get fancier
 
 from progressbar import progressbar
 
@@ -334,26 +334,6 @@ def set_default_params(params):
     if 'verbose' not in params:
         params['verbose'] = 1
 
-def load_trajectories(trkfile):
-    trk = hdf5storage.loadmat(trkfile,appendmat=False)
-    # trk['pTrk'] is nlandmarks x d x nframes x maxntargets
-    return trk
-
-def resave_trajectories(trk,outtrkfile):
-    # save to file
-    # pTrk is nlandmarks x d x T x nids while pred_locs_in should be T x nids x nlandmarks x d
-    nids = trk['pTrk'].shape[3]
-    pred_locs_in = np.transpose(trk['pTrk'],(2,3,0,1))
-    extra_dict = {} # not sure what this should be, I think I don't have it??
-    start = int(trk['pTrkFrm'][0,0])
-    end = int(trk['pTrkFrm'][0,-1])
-    trx_ids = np.arange(nids)
-    conf = None
-    info = trk['trkInfo']
-    mov_file = trk['expname']
-    APT_interface.write_trk(outtrkfile,pred_locs_in,extra_dict,start,end,trx_ids,conf,info,mov_file,has_trx_file=True)
-
-
 def apply_ids(trk,ids):
     """
     apply_ids(trk,ids)
@@ -364,7 +344,7 @@ def apply_ids(trk,ids):
     """
     nids = np.max(ids)+1
     newtrk = trk.copy()
-    newtrk['pTrkiTgt'] = np.arange(nids)
+    newtrk['pTrkiTgt'] = np.arange(nids)+1
     # pTrk is nlandmarks x d x T x maxnanimals
     # ids is maxnanimals x T
     nlandmarks = trk['pTrk'].shape[0]
@@ -375,9 +355,15 @@ def apply_ids(trk,ids):
     # this is dense!!! should be fixed once I know what the sparse format is
     newtrk['pTrk'] = np.zeros((nlandmarks,d,T,nids))
     newtrk['pTrk'][:] = np.nan
+    newtrk['pTrkTS'] = np.zeros((nlandmarks,T,nids))
+    newtrk['pTrkTS'][:]=np.nan
+    # tag appears to be occluded -- setting it to true for missing detections
+    newtrk['pTrkTag'] = np.ones((nlandmarks,T,nids),dtype=bool)
     for id in range(nids):
         idx = np.nonzero(ids==id)
         newtrk['pTrk'][:,:,idx[1],id] = trk['pTrk'][:,:,idx[1],idx[0]]
+        newtrk['pTrkTS'][:,idx[1],id] = trk['pTrkTS'][:,idx[1],idx[0]]
+        newtrk['pTrkTag'][:,idx[1],id]=trk['pTrkTag'][:,idx[1],idx[0]]
     return newtrk
 
 
@@ -494,7 +480,7 @@ def test_assign_ids_data():
     :return:
     """
     trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1.trk.part'
-    outtrkfile = '200918_m170234vocpb_m170234_odor_m170232_f0180322_full1_kbstitched.trk'
+    outtrkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1_kbstitched.trk'
     
     # parameters
     maxcost_prctile = 95.
@@ -504,7 +490,7 @@ def test_assign_ids_data():
     params['maxframes_delete'] = 10
     nframes_test = np.inf
 
-    trk = load_trajectories(trkfile)
+    trk = TrkFile.load_trk(trkfile)
     # frames should be consecutive
     assert np.all(np.diff(trk['pTrkFrm'],axis=1)==1), 'pTrkFrm should be consecutive frames'
     T = trk['pTrk'].shape[2]
@@ -524,7 +510,7 @@ def test_assign_ids_data():
     newtrk = apply_ids(trk,ids)
     
     # save to file
-    resave_trajectories(newtrk,outtrkfile)
+    TrkFile.save_trk(outtrkfile,newtrk)
     
     plt.figure()
     plt.subplot(211)
