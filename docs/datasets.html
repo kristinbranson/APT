@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT Documentation</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all"
+href="styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen"
+href="styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print"
+href="styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8"
+media="projection" href="styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1><a id="apt_datasets">Animal Pose Estimation Datasets</a></h1>
+<p>
+We have developed multiple datasets of animal poses that were labeled using APT to enable researchers to evaluate their pose estimation methods. These datasets were generated from actual experimental videos and provide a realistic benchmark of the challenges that are encountered when trying to track animals in laboratory videos. The datasets are in <a href=https://cocodataset.org>MS COCO </a> format.
+
+<h2><a id="datasets"> Dataset details </a></h2>
+
+<h3><a id="fly_bubble">Fly Bubble Dataset </a></h3>
+The dataset was collected from videos of freely moving fruit-flies (<i>D Melanogaster</i>) in flat circular arenas. The dataset's gzipped tar ball be downloaded <a href=https://research.janelia.org/bransonlab/PoseTrackingData/fly_bubble_20201204.tar.gz> here </a>. The fly's bodies are tracked were tracking using <a href=http://ctrax.sourceforge.net/>CTrax</a>. Using CTrax's body tracking results, the fly's are aligned to face up. The pose is labeled using 17 landmarks -- 7 on fly's body and remaining 10 on fly's legs. The 17 landmarks are:
+<ol>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+<li>
+</ol>
+
+The training data has xxxx number of examles while test data has xxxx number of examples. The images are grayscale with size <code>181x181</code>.
+
+<h3><a id="fly_headfixed">Head Fixed Fly Dataset </a></h3>
+The dataset was collected from videos of head fixed fruit-flies (<i>D Melanogaster</i>). The dataset's gzipped tar ball can be downloaded <a href=https://research.janelia.org/bransonlab/PoseTrackingData/fly_headfixed_20201204.tar.gz> here </a> In the experiments setup, the fly's head is recorded from the side (view 1) and the front (view 2) in order to accurately estimate the head's 3D angle. The 5 labeled points are :
+<ol>
+<li>
+<li>
+<li>
+<li>
+<li>
+</ol>
+
+The training data has xxxx number of examles while test data has xxxx number of examples. Both the views images are grayscale, and side view images have size <code>xxx</code> and front view images have size <code>xxxx</code>
+
+<h2><a id="code"> Code to view the examples from datasets </a></h2>
+To view the examples from datasets, <code>pycocotools, matplotlib, skimage, numpy</code> packages need to be installed. 
+<pre><code>
+
+# Set these parameters.
+out_dir = DIR_WHERE_UNTARRED
+view = 1
+# Select the dataset view if the dataset has multiple views, else keep it 1
+on_train = True  
+# If set to True, examples from training set will be displayed else examples from test dataset will be selected.
+
+import os
+from pycocotools.coco import COCO
+import numpy as np
+import skimage.io as io
+import matplotlib.pyplot as plt
+plt.ion()
+import pylab
+import matplotlib
+matplotlib.use('TkAgg')
+pylab.rcParams['figure.figsize'] = (8.0, 10.0)
+cur_out = os.path.join(out_dir, 'view{}'.format(view-1))
+if on_train:
+    train_file = os.path.join(cur_out, 'train_annotations.json')
+    imdir = os.path.join(cur_out, 'train')
+else:
+    gt_file = os.path.join(cur_out, 'test_annotations.json')
+    gt_imdir = os.path.join(cur_out, 'test')
+coco=COCO(train_file)
+imgIds = coco.getImgIds()
+img = coco.loadImgs(imgIds[np.random.randint(0,len(imgIds))])[0]
+I = io.imread(os.path.join(imdir,img['file_name']))
+plt.axis('off')
+if I.ndim == 2:
+    plt.imshow(I,'gray')
+else:
+    plt.imshow(I)
+plt.show()
+ax = plt.gca()
+annIds = coco.getAnnIds(imgIds=img['id'], iscrowd=None)
+anns = coco.loadAnns(annIds)
+coco.showAnns(anns)
+</code></pre>
+</body>
