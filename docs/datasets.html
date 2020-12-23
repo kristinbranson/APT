@@ -18,7 +18,21 @@ strong.regular-font {
   font-size: 0.9em;
 }
 </style>
-
+<style>
+ .center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50%;
+}
+<style>
+ .center1 {
+  display: inline-block;
+  margin-left: auto;
+  margin-right: auto;
+  height: 300px;
+}
+</style>
 </head>
 
 <body>
@@ -30,40 +44,19 @@ We have developed multiple datasets of animal poses that were labeled using APT 
 <h2><a id="datasets"> Dataset details </a></h2>
 
 <h3><a id="fly_bubble">Fly Bubble Dataset </a></h3>
-The dataset was collected from videos of freely moving fruit-flies (<i>D Melanogaster</i>) in flat circular arenas. The dataset's gzipped tar ball be downloaded <a href=https://research.janelia.org/bransonlab/PoseTrackingData/fly_bubble_20201204.tar.gz> here </a>. The fly's bodies are tracked were tracking using <a href=http://ctrax.sourceforge.net/>CTrax</a>. Using CTrax's body tracking results, the fly's are aligned to face up. The pose is labeled using 17 landmarks -- 7 on fly's body and remaining 10 on fly's legs. The 17 landmarks are:
-<ol>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-<li>
-</ol>
+<img src='images/fly_bubble_view0_example.png' alt='Fly Bubble Dataset Example' class="center"><p>
+The dataset was collected from videos of freely moving fruit-flies (<i>drosophila melanogaster</i>) in flat circular arenas. The dataset's gzipped tar ball be downloaded <a href=https://research.janelia.org/bransonlab/PoseTrackingData/fly_bubble_20201204.tar.gz> here </a>. The fly's bodies are tracked were tracking using <a href=http://ctrax.sourceforge.net/>CTrax</a> which was used to align the flies to face up. The pose is labeled using 17 landmarks -- 7 on fly's body and remaining 10 on fly's legs. The 17 landmarks are 1) head tip, 2) 3) 4) left shoulder, 5) right shoulder, 6) torso, 7) tail, 8) 9) 10) 11) 12) right front leg tip, 13) right middle leg tip, 14) right rear leg tip, 15) left rear leg tip, 16) left middle leg tip, and 17) left front leg tip. 
 
-The training data has xxxx number of examles while test data has xxxx number of examples. The images are grayscale with size <code>181x181</code>.
+The training data has 4126 examles while test data has 1800 number of examples. [Details of touch, not touching etc]. The images are grayscale with size <code>181x181</code>px.
 
 <h3><a id="fly_headfixed">Head Fixed Fly Dataset </a></h3>
-The dataset was collected from videos of head fixed fruit-flies (<i>D Melanogaster</i>). The dataset's gzipped tar ball can be downloaded <a href=https://research.janelia.org/bransonlab/PoseTrackingData/fly_headfixed_20201204.tar.gz> here </a> In the experiments setup, the fly's head is recorded from the side (view 1) and the front (view 2) in order to accurately estimate the head's 3D angle. The 5 labeled points are :
-<ol>
-<li>
-<li>
-<li>
-<li>
-<li>
-</ol>
+<img src='images/fly_headfixed_view0_example.png' alt='Fly Headfixed Side View Dataset Example' class="center1" style="width:394px">
+<img src='images/fly_headfixed_view1_example.png' alt='Fly Headfixed Front View Dataset Example' class="center1">
+<p>
 
-The training data has xxxx number of examles while test data has xxxx number of examples. Both the views images are grayscale, and side view images have size <code>xxx</code> and front view images have size <code>xxxx</code>
+The dataset was collected from videos of head-fixed fruit flies (<i>drosophila melanogaster</i>). The dataset's gzipped tar ball can be downloaded <a href=https://research.janelia.org/bransonlab/PoseTrackingData/fly_headfixed_20201204.tar.gz> here </a> In the experiments setup, the fly's head is recorded from the side (view 1) and the front (view 2) in order to accurately estimate the head's 3D angle. The 5 labeled points are: 1) right antenna tip, 2) left antenna tip, 3) 4) 5) .
+<p>
+The training data has 4992 examles while test data has 1150 examples. Both the views images are grayscale, and side view images have size <code>230x350</code>px and front view images have size <code>350x350</code>px.
 
 <h2><a id="code"> Code to view the examples from datasets </a></h2>
 To view the examples from datasets, <code>pycocotools, matplotlib, skimage, numpy</code> packages need to be installed. 
