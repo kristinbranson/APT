@@ -1,3 +1,29 @@
+##
+
+from mmcv import Config, DictAction
+import APT_interface as apt
+import os
+import numpy as np
+import poseConfig
+import matplotlib
+matplotlib.use('TkAgg')
+from Pose_mmpose import Pose_mmpose
+
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2','mmpose')
+conf.batch_size = 3
+conf.imsz = [768,768]#(sz+2*buffer,sz+2*buffer)
+conf.rescale = 1.
+conf.save_step = 10000
+conf.dl_steps = 100000
+conf.brange = [0,0]
+conf.crange =[1,1]
+conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+conf.mmpose_use_apt_augmentation = False
+ss = Pose_mmpose(conf,'mmpose_aug')
+# ss.cfg.model.pretrained='/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mmpose/view_0/deepnet/mmpose_aug-100000'
+ss.train_wrapper(False)
+
 ## allen bug 20201221
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] ='0'
@@ -49,31 +75,6 @@ valid = ll1[:,:,0,0]>-1000
 dd1_val = dd1[valid,:]
 np.nanpercentile(dd1_val,[50,75,90,95,97],axis=0)
 
-
-##
-from mmcv import Config, DictAction
-import APT_interface as apt
-import os
-import numpy as np
-import poseConfig
-import matplotlib
-matplotlib.use('TkAgg')
-from Pose_mmpose import Pose_mmpose
-
-lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
-conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2','mmpose')
-conf.batch_size = 3
-conf.imsz = [768,768]#(sz+2*buffer,sz+2*buffer)
-conf.rescale = 1.
-conf.save_step = 10000
-conf.dl_steps = 100000
-conf.brange = [0,0]
-conf.crange =[1,1]
-conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
-conf.mmpose_use_apt_augmentation = False
-ss = Pose_mmpose(conf,'mmpose_aug')
-# ss.cfg.model.pretrained='/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mmpose/view_0/deepnet/mmpose_aug-100000'
-ss.train_wrapper(False)
 
 ##
 import APT_interface as apt
