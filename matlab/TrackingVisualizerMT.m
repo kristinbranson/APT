@@ -90,6 +90,10 @@ classdef TrackingVisualizerMT < handle
       obj.hXYPrdRedTxt = [];
       deleteValidHandles(obj.hSkel);
       obj.hSkel = [];
+      deleteValidHandles(obj.hPch);
+      obj.hPch = [];
+      deleteValidHandles(obj.hPchTxt);
+      obj.hPchTxt = [];
     end
     function [markerPVs,textPVs,pchTextPVs] = ...
                                   convertLabelerCosmeticPVs(obj,pppi)

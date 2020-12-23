@@ -281,7 +281,7 @@ classdef LabelCoreSeqMA < LabelCore
         return;
       end
       
-      if ismember(gco,obj.labeler.hTrx)
+      if ismember(gco,obj.labeler.tvTrx.hTrx)
         return;
       end
       if obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ...

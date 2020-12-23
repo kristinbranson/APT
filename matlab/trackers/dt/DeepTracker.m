@@ -6288,6 +6288,9 @@ classdef DeepTracker < LabelTracker
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % tfocc: [nPtsxnTgt] logical
       
+      % XXX optim, return flag if there are actually any preds in this
+      % frame for caller's sake
+      
       frm = obj.lObj.currFrame;
       xyPCM = obj.trkP;
       

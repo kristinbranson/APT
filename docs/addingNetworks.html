@@ -25,17 +25,17 @@ strong.regular-font {
 
 <h1><a id="adding_networks">Adding Networks to APT</a></h1>
 <br>
-<p>APT's backend has a modular structure to enable easier integration of different networks. To add a new network <i>mynet</i>, user has to add file <code>Pose_mynet.py</code> to the deepnet directory and define a class with the same name (i.e., <code>Pose_mynet</code>) in the file. For tensorflow 1.x based networks, <code>Pose_mynet</code> can inherit from <code>PoseBase</code> or <code>PoseBaseGeneral</code> classes. The classes define all the training data-loading, model saving and loading to appropriate locations and other procecures and the user has to define only the networks and maybe the training procedures.
+<p>APT's backend has a modular structure to enable easier integration of different networks. To add a network <i>mynet</i>, user has to add file <code>Pose_mynet.py</code> to the deepnet directory and define a class with the same name (i.e., <code>Pose_mynet</code>) in the file. For tensorflow 1.x based networks, <code>Pose_mynet</code> can inherit from <code>PoseBase</code> or <code>PoseBaseGeneral</code> classes. These classes define all the training data-loading, model saving and loading to appropriate locations and other procecures and the user has to define only the networks and maybe the training procedures.
  
-<p> APT front end (GUI) interacts with APT backend (DL algorithms) through <code>APT_interface.py</code>. During training when user selects <i>mynet</i> as the network to use, <code>APT_interface.py</code> creates the training databases, initializes the <code>Pose_mynet</code> class with the configuration settings object (<a href=#conf><code>conf</code></a>) and then calls the <code> train_wrapper</code> function to start the training. APT requires that the information about training's status be stored in json format to <code>traindata.json</code> file to enable APT front-end to update the training progress and that the model file name have the format <code>deepnet-<i>step_num</i></code> so that APT can bundle the model files into the APT project at the end of the training. The files <code>traindata.json</code> and <code>deepnet-*</code> are constantly polled by APT front-end in order to update the user about training's status.
+<p> APT front end (GUI) interacts with APT backend (DL algorithms) through <code>APT_interface.py</code>. During training when user selects <i>mynet</i> as the network to use, <code>APT_interface.py</code> creates the training databases, initializes the <code>Pose_mynet</code> class with the configuration settings object (<a href=#conf><code>conf</code></a>) and then calls the <code> train_wrapper</code> function to start the training. APT requires that the information about training's status be stored in the json format to <code>traindata.json</code> file to enable APT front-end to update the training progress and that the model file name have the format <code>deepnet-<i>step_num</i></code> so that APT can bundle the model files into the APT project at the end of the training. The files <code>traindata.json</code> and <code>deepnet-*</code> are constantly polled by APT front-end in order to update the user about training's status.
 <p>
 During tracking, <code>APT_interface.py</code> calls <code>get_pred_fn</code> after initilializing the <code>Pose_mynet</code> object. This function should return a handle to <i>prediction</i> function which when given a batch of input images as numpy array as input   returns the landmark predictions as <i>x,y</i>  locations, and if possible prediction scores or confidences. 
 <p>
-Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_joint_torch.py</code> and its super class <code>PoseCommon_pytorch.py</code>. In particular, <code>PoseCommon_pytorch.create_data_gen</code> function can be used to create the data loaders quickly. 
+Example implementation of PyTorch networks can be found in <code>Pose_multi_mdn_joint_torch.py</code> and its super class <code>PoseCommon_pytorch.py</code>. In particular, <code>PoseCommon_pytorch.create_data_gen</code> function can be used to create the data loaders quickly. 
 <p> There are multiple ways of adding new networks to APT:</p>
 <ul>
 <li> <a href="#pytorch">Based on code outline</a>: This is the only way to add PyTorch based networks. Understanding code outline is also helpful for adding networks based on other methods as well. 
-<li> For Tensorflow 1.x based networks: We provide a base class that can be inherited and the user only has to define only the network. For this, user needs to inherit the <a href="#posebase">PoseBase</a>
+<li> For Tensorflow 1.x based networks: We provide the base class <a href="#posebase">PoseBase</a> which when inherited the user only has to define only the network. 
 <li> If more flexiblity is required for your Tensorflow 1.x based networks then you can inherit <a href="#posebasegeneral">PoseBaseGeneral</a>. In this case, the code will provide a tensorflow dataset object which can be used to generate the augmented training examples (images and labeled landmark location).
 </ul>
 
@@ -93,7 +93,8 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
           data_loader = self.create_dataloader(train_info_file)
           # An example pytorch based data loader can be found in PoseCommon_pytorch.py. 
           
-          if restore:
+          # The ability to restart the training is optional, but preferred.
+          if restore: 
               # restore is set to True if user wants to continue from previously paused or discontinued training
               prev_step, model_file = self.get_saved_model_info()
               self.load_model(model_file)
@@ -121,12 +122,13 @@ Example PyTorch impementations of networks can be found in <code>Pose_multi_mdn_
                <b>if (step % conf.save_step == 0) and (step>0):</b>
                   # every conf.save_step save the model to f'deepnet-{step}' file.
                   model_param_dict = {'step':step,'model_state_params':self.model.state_dict(),...}
-                  # Add optimizer parameters to the dict etc to help restarting the training                  
+                  # Add optimizer parameters to the dict etc to help with restart of the training                  
                   <b>torch.save(model_param_dict,output_model_file_name.format(step))</b>
                   
                <b>if step % conf.display_step == 0:</b>
                   # every display_step save training information details. This information is displayed by APT front end in training monitor GUI during training.
-                  train_loss = loss.cpu().numpy() # to ensure that the GPU memory gets collected by the gc.
+                  train_loss = loss.cpu().numpy() 
+                  # to ensure that the GPU memory gets collected by the gc.
                   # Loss can also be computed fresh batch of training inputs.
                   train_info_dict['train_loss'].append(train_loss)
                   train_info_dict['step'].append(step)
