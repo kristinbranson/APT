@@ -20,7 +20,7 @@ classdef TrackingVisualizerTracklets < handle
   
   methods
     function obj = TrackingVisualizerTracklets(lObj,ntrxmax,handleTagPfix)
-      obj.tvmt = TrackingVisualizerMT(handleTagPfix);
+      obj.tvmt = TrackingVisualizerMT(lObj,handleTagPfix);
       obj.tvtrx = TrackingVisualizerTrx(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
@@ -75,7 +75,7 @@ classdef TrackingVisualizerTracklets < handle
       tvtrx.setShow(tfShow);
       tvtrx.updateTrxCore(ptrx(iTrx),frm,tfShow,0,tfUpdateIDs);
     end
-    function updatePrimaryTarget(obj,iTgtPrimary)
+    function updatePrimary(obj,iTgtPrimary)
       % todo; currently no pred/target selection
     end
     function setShowSkeleton(obj,tf)
