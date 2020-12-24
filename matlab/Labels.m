@@ -376,9 +376,11 @@ classdef Labels
       % if lposTS not provided, ts will be 'nan' (default upon Labels.new),
       % and similarly for lpostag      
 
-      [lposTS,lpostag] = myparse(varargin,...
+      [lposTS,lpostag,frms,tgts] = myparse(varargin,...
         'lposTS',[],...
-        'lpostag',[]...
+        'lpostag',[],...
+        'frms',[], ... % optional, frame labels for 3rd dim
+        'tgts',[] ... % optional, tgt labels for 4th dim
         );
       
       [npts,d,nfrm,ntgt] = size(lpos);
@@ -388,15 +390,25 @@ classdef Labels
       tfTag = ~isequal(lpostag,[]);
       if tfTS, szassert(lposTS,[npts nfrm ntgt]); end
       if tfTag, szassert(lpostag,[npts nfrm ntgt]); end
+      if isempty(frms)
+        frms = 1:nfrm;
+      else
+        assert(numel(frms)==nfrm);
+      end
+      if isempty(tgts)
+        tgts = 1:ntgt;
+      else
+        assert(numel(tgts)==ntgt);
+      end
       
       nnan = ~isnan(lpos);
       nnanft = reshape(any(any(nnan,1),2),nfrm,ntgt);
-      [frms,itgt] = find(nnanft);
-      n = numel(frms);
+      [ifrms,itgts] = find(nnanft);
+      n = numel(ifrms);
       s = Labels.new(npts,n);
       for i=1:n
-        fi = frms(i);
-        itgti = itgt(i);
+        fi = ifrms(i);
+        itgti = itgts(i);
         s.p(:,i) = reshape(lpos(:,:,fi,itgti),2*npts,1);
         if tfTS
           s.ts(:,i) = lposTS(:,fi,itgti);
@@ -405,8 +417,58 @@ classdef Labels
           s.occ(:,i) = lpostag(:,fi,itgti); % true->1, false->0
         end
       end      
-      s.frm(:) = frms(:);
-      s.tgt(:) = itgt(:);
+      s.frm(:) = frms(ifrms(:));
+      s.tgt(:) = tgts(itgts(:));
+    end
+    function s = fromTrkfile(trk)
+      if isfield(trk,'pTrkiPt')
+        assert(isequal(trk.pTrkiPt(:)',1:size(trk.pTrk,1)),...
+          'Unexpected point specification in .pTrkiPt.');
+      end
+%       args = {};
+%       if isfield(trk,'pTrkFrm')
+%         args = [args {'frms' trk.pTrkFrm}];
+%       end
+%       if isfield(trk,'pTrkiTgt')
+%         args = [args {'tgts' trk.pTrkiTgt}];
+%       end
+      s = Labels.fromarray(trk.pTrk,'lposTS',trk.pTrkTS,...
+        'lpostag',trk.pTrkTag,'frms',trk.pTrkFrm,'tgts',trk.pTrkiTgt);
+    end
+    function ptrx = toPTrx(s)
+      tgtsUn = unique(s.tgt);
+      ntgts = numel(tgtsUn);
+      ptrx = TrxUtil.newptrx(ntgts,s.npts);
+      
+      % default x/y fcns (centroid)
+      xfcn = @(p)nanmean(p(1:s.npts,:),1);
+      yfcn = @(p)nanmean(p(s.npts+1:2*s.npts,:),1);
+      
+      for jtgt=1:ntgts        
+        iTgt = tgtsUn(jtgt);
+        tf = s.tgt==iTgt;
+        frms = s.frm(tf);
+        
+        f0 = min(frms);
+        f1 = max(frms);
+        nf = f1-f0+1;
+        off = 1-f0;
+        
+        p = nan(2*s.npts,nf);
+        occ = false(s.npts,nf);
+        p(:,frms+off) = s.p(:,tf); % f0->1, f1->nf
+        occ(:,frms+off) = s.occ(:,tf);
+        
+        ptrx(jtgt).id = iTgt;
+        ptrx(jtgt).p = p;
+        ptrx(jtgt).pocc = occ;
+        ptrx(jtgt).x = xfcn(p);
+        ptrx(jtgt).y = yfcn(p);
+        ptrx(jtgt).firstframe = f0;
+        ptrx(jtgt).off = off;
+        ptrx(jtgt).nframes = nf;
+        ptrx(jtgt).endframe = f1;
+      end
     end
     function s2 = indexPts(s,ipts)
       % "subsidx" given pts
@@ -422,7 +484,32 @@ classdef Labels
     function s = addsplitsifnec(s)
       n = size(s.p,2);
       s.split = zeros(n,1,Labels.CLS_SPLIT);
-    end      
+    end
+    function s = mergeviews(sarr)
+      % sarr: array of Label structures
+
+      if isscalar(sarr)
+        s = sarr;
+        return;
+      end
+      
+      assert(isequal(sarr.npts),'npts must be equal across views.');
+      assert(isequal(sarr.frm),'frames must be equal across views.');
+      assert(isequal(sarr.tgt),'targets must be equal across views.');
+      
+      npts = sarr(1).npts;
+      nview = numel(sarr);
+      for i=1:nview
+        sarr(i).p = reshape(sarr(i).p,npts,2,[]);
+      end
+      s = sarr(1);
+      s.npts = npts*nview;
+      s.p = cat(1,sarr.p);
+      s.p = reshape(s.p,2*s.npts,[]);
+      s.ts = cat(1,sarr.ts);
+      s.occ = cat(1,sarr.occ);
+      % .frm, .tgt unchanged
+    end
   end
   methods (Static)
     % Labeler-related utils
