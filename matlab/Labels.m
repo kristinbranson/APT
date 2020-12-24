@@ -448,10 +448,11 @@ classdef Labels
       xfcn = @(p)nanmean(p(1:s.npts,:),1);
       yfcn = @(p)nanmean(p(s.npts+1:2*s.npts,:),1);
       
+      
       for jtgt=1:ntgts        
         iTgt = tgtsUn(jtgt);
         tf = s.tgt==iTgt;
-        frms = s.frm(tf);
+        frms = double(s.frm(tf)); % KB 20201224 - doesn't work if uint32, off should be negative
         
         f0 = min(frms);
         f1 = max(frms);
