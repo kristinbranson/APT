@@ -45,6 +45,7 @@ class config(object):
         self.brange = [-0.2, 0.2]
         self.crange = [0.7, 1.3]
         self.rrange = 30
+        self.rot_prob = 0.6
         self.trange = 10
         self.scale_range = 0.1
         self.scale_factor_range = 1.1

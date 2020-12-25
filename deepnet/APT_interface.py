@@ -2161,7 +2161,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
 def classify_db_all(model_type, conf, db_file, model_file=None,
                     classify_fcn=classify_db, name='deepnet',
-                    fullret = False,
+                    fullret = False,img_dir='val',
                     **kwargs
                     ):
     '''
@@ -2195,7 +2195,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None,
         close_fn()
     else:
         if conf.db_format == 'coco':
-            coco_reader = multiResData.coco_loader(conf, db_file, False)
+            coco_reader = multiResData.coco_loader(conf, db_file, False,img_dir=img_dir)
             read_fn = iter(coco_reader).__next__
             db_len = len(coco_reader)
         else:

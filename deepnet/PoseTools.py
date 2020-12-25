@@ -529,7 +529,10 @@ def randomly_affine(img,locs, conf, group_sz=1):
         high_valid = orig_locs[..., 0] > -1000  # ridiculosly low values are used for multi animal
         valid = nan_valid & high_valid
         while not sane:
-            rangle = (np.random.rand() * 2 - 1) * conf.rrange
+            if np.random.rand() < conf.rot_prob:
+                rangle = (np.random.rand() * 2 - 1) * conf.rrange
+            else:
+                rangle = 0
 
             if conf.use_scale_factor_range:
                 # KB 20191218: first choose the scale factor
@@ -1094,7 +1097,7 @@ def tfrecord_to_coco(db_file, n_classes, img_dir, out_file, scale=1,skeleton=Non
 
         cv2.imwrite(os.path.join(img_dir, im_name), cur_im)
 
-        ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': im_name})
+        ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': im_name,'movid':cur_info[0],'frm':cur_info[1],'tgt':cur_info[2]})
         ix = cur_locs
         occ_coco = 2-cur_occ[:,np.newaxis]
         occ_coco[np.isnan(ix[:,0]),:] = 0

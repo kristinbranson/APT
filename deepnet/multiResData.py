@@ -1274,23 +1274,31 @@ class tf_reader(object):
 
 class coco_loader(torch.utils.data.Dataset):
 
-    def __init__(self, conf, ann_file, augment):
+    def __init__(self, conf, ann_file, augment,img_dir='val'):
         self.ann = PoseTools.json_load(ann_file)
         self.conf = conf
         self.augment = augment
+        self.img_dir = img_dir
 
     def __len__(self):
         return len(self.ann['images'])
 
     def __getitem__(self, item):
         conf = self.conf
-        im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
+        im_name = self.ann['images'][item]['file_name']
+        im_path = os.path.join(conf.cachedir,self.img_dir)
+        im_file = os.path.join(im_path,im_name)
+        im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
-        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
+        if 'patch' in self.ann['images'][item].keys():
+            tgt_id = self.ann['images'][item]['patch']
+        else:
+            tgt_id = self.ann['images'][item]['tgt']
+        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],tgt_id]
 
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
         lndx = 0

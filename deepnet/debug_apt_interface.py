@@ -1,3 +1,4 @@
+
 ##
 
 from mmcv import Config, DictAction
@@ -18,6 +19,7 @@ conf.save_step = 10000
 conf.dl_steps = 100000
 conf.brange = [0,0]
 conf.crange =[1,1]
+conf.horz_flip = True
 conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
 conf.mmpose_use_apt_augmentation = False
 ss = Pose_mmpose(conf,'mmpose_aug')
