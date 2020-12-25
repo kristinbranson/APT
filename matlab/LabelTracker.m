@@ -325,6 +325,9 @@ classdef LabelTracker < handle
       nfrms = labeler.nframes;
       ntgts = labeler.nTargets;
       iTgt = labeler.currTarget;
+      if iTgt == 0,
+        iTgt = 1;
+      end
       iMov = labeler.currMovie;
       [tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovie();
       
@@ -364,7 +367,7 @@ classdef LabelTracker < handle
             data = data.data;
           end
         end
-      else      
+      else 
         tpostag = false(npts,nfrms,ntgts);
         data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),...
           tpostag(:,:,iTgt),bodytrx,prop);
