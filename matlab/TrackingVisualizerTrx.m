@@ -27,6 +27,9 @@ classdef TrackingVisualizerTrx < handle
     function obj = TrackingVisualizerTrx(labeler)
       obj.lObj = labeler;
     end
+    function delete(obj)
+      obj.deleteGfxHandles();
+    end
     function deleteGfxHandles(obj)
       deleteValidHandles(obj.hTraj);
       obj.hTraj = [];

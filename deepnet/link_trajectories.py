@@ -13,7 +13,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 #plt.ion()
 
-def match_frame(pcurr,pnext,idscurr,params,lastid=np.nan):
+def match_frame(pcurr,pnext,idscurr,params,lastid=np.nan,maxcost=None):
     """
     match_frame(pcurr,pnext,idscurr,params,lastid=np.nan)
     Uses the Hungarian algorithm to match targets tracked in the current
@@ -52,11 +52,13 @@ def match_frame(pcurr,pnext,idscurr,params,lastid=np.nan):
         'Dimensions do not match, curr = %d, next = %d'%(d,pnext.shape[0])
     assert pnext.shape[1] == nlandmarks, \
         'N landmarks do not match, curr = %d, next = %d'%(nlandmarks,pnext.shape[1])
+    if maxcost is None:
+        maxcost = params['maxcost']
 
     # construct the cost matrix
     # C[i,j] is the cost of matching curr[i] and next[j]
     C = np.zeros((ncurr+nnext,ncurr+nnext))
-    C[:] = params['maxcost']/2.
+    C[:] = maxcost/2.
     C[ncurr:,nnext:] = 0
     pcurr = np.reshape(pcurr,(d*nlandmarks,ncurr,1))
     pnext = np.reshape(pnext,(d*nlandmarks,1,nnext))
@@ -200,7 +202,8 @@ def stitch(p,ids,params):
             for j in range(ids_birth.size):
                 pnext[:,:,j]=p[:,:,ids[:,t+nframes_skip]==ids_birth[j],t+nframes_skip].reshape((d,nlandmarks))
             # try to match
-            idsnext,_,_,_= match_frame(pcurr,pnext,ids_death,params,lastid)
+            maxcost = params['maxcost_missed'][np.minimum(params['maxcost_missed'].size-1,nframes_skip-2)]
+            idsnext,_,_,_= match_frame(pcurr,pnext,ids_death,params,lastid,maxcost=maxcost)
             # idsnext[j] is the id assigned to ids_birth[j]
             ismatch = idsnext <= lastid
             if np.any(ismatch)==False:
@@ -226,11 +229,12 @@ def stitch(p,ids,params):
           
     return (ids,isdummy)
 
-def delete_short(ids,params):
+def delete_short(ids,isdummy,params):
     """
     delete_short(ids,params):
     Delete trajectories that are at most params['maxframes_delete'] frames long.
     :param ids: maxnanimals x T matrix indicating ids assigned to each detection, output of assign_ids, stitch
+    :param isdummy: nids x T matrix indicating whether a frame is missed for a given id.
     :param params: parameters dict. Only relevant parameter is 'maxnframes_delete'
     :return: ids: Updated identity assignment matrix after deleting
     """
@@ -240,13 +244,16 @@ def delete_short(ids,params):
     # get starts and ends for each id
     t0s=-np.ones(nids,dtype=int)
     t1s=-np.ones(nids,dtype=int)
+    nframes = np.zeros(nids)
     for id in range(nids):
         idx=np.nonzero(id==ids)
         if idx[0].size==0:
             continue
         t0s[id]=np.min(idx[1])
         t1s[id]=np.max(idx[1])
-    nframes = t1s-t0s+1
+        # number of real detections
+        nframes[id] = np.count_nonzero(isdummy[id,t0s[id]:t1s[id]+1]==False)
+    #nframes = t1s-t0s+1
     ids_short = np.nonzero(np.logical_and(nframes <= params['maxframes_delete'],t0s>=0))
     ids_short = ids_short[0]
     ids[np.isin(ids,ids_short)] = -1
@@ -267,7 +274,7 @@ def delete_empty(ids):
     newids = np.reshape(newids,ids.shape)
     return newids
 
-def estimate_maxcost(p,nsample=1000,prctile=95.,mult=None):
+def estimate_maxcost(p,nsample=1000,prctile=95.,mult=None,nframes_skip=1):
     """
     maxcost = estimate_maxcost(p,nsample=1000,prctile=95.,mult=None)
     Estimate the threshold for the maximum cost for matching identities. This is done
@@ -283,7 +290,7 @@ def estimate_maxcost(p,nsample=1000,prctile=95.,mult=None):
     T=p.shape[3]
     maxnanimals = p.shape[2]
     nsample = np.minimum(T,nsample)
-    tsample=np.round(np.linspace(0,T-2,nsample)).astype(int)
+    tsample=np.round(np.linspace(0,T-nframes_skip-1,nsample)).astype(int)
     params={}
     bignumber = np.sum(np.nanmax(p,axis=(1,2,3))-np.nanmin(p,axis=(1,2,3)))*2.1
     params['maxcost']=bignumber
@@ -295,7 +302,7 @@ def estimate_maxcost(p,nsample=1000,prctile=95.,mult=None):
     for i in range(nsample):
         t=tsample[i]
         pcurr=p[:,:,:,t]
-        pnext=p[:,:,:,t+1]
+        pnext=p[:,:,:,t+nframes_skip]
         pcurr=pcurr[:,:,real_idx(pcurr)]
         pnext=pnext[:,:,real_idx(pnext)]
         ntargets_curr = pcurr.shape[2]
@@ -329,6 +336,22 @@ def estimate_maxcost(p,nsample=1000,prctile=95.,mult=None):
     #     if nmiss > 0:
     #         sortedcosts = -np.sort(-allcosts[:,i])
     #         print('i = %d, t = %d, nmiss = %d, ncurr = %d, nnext = %d, costs removed: %s'%(i,t,nmiss,ntargets_curr,ntargets_next,str(sortedcosts[:nmiss])))
+
+def estimate_maxcost_missed(p,maxframes_missed,nsample=1000,prctile=95.,mult=None):
+    """
+    maxcost_missed = estimate_maxcost_missed(p,nsample=1000,prctile=95.,mult=None)
+    Estimate the threshold for the maximum cost for matching identities across > 1 frame.
+    This is done by running match_frame on some sample frames, looking at the assignment costs assuming all assignments
+    are allowed, and then taking a statistic of all those assignment costs.
+    The heuristic used is maxcost = 2.* mult .* percentile(allcosts,prctile)
+    where prctile and mult are parameters.
+    # p is d x nlandmarks x maxnanimals x T
+    """
+
+    maxcost_missed = np.zeros(maxframes_missed)
+    for nframes_skip in range(2,maxframes_missed+2):
+        maxcost_missed[nframes_skip-2]=estimate_maxcost(p,prctile=prctile,mult=mult,nframes_skip=nframes_skip)
+    return maxcost_missed
 
 def set_default_params(params):
     if 'verbose' not in params:
@@ -480,18 +503,20 @@ def test_assign_ids_data():
     :return:
     """
     
-    trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2.trk.part'
-    outtrkfile='/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2_kbstitched.trk'
+    #trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2.trk.part'
+    #outtrkfile='/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2_kbstitched.trk'
     
-    #trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1.trk.part'
-    #outtrkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1_kbstitched.trk'
+    trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1.trk.part'
+    outtrkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1_kbstitched.trk'
     
     # parameters
-    maxcost_prctile = 95.
     params={}
     params['verbose']=1
-    params['maxframes_missed'] = 4
+    params['maxframes_missed'] = 10
     params['maxframes_delete'] = 10
+    params['maxcost_prctile'] = 95.
+    params['maxcost_mult'] = 1.25
+    params['maxcost_framesfit'] = 3
     nframes_test = np.inf
 
     trk = TrkFile.load_trk(trkfile)
@@ -503,12 +528,13 @@ def test_assign_ids_data():
     # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
     p = np.transpose(trk['pTrk'],(1,0,3,2))
     nframes_test = int(np.minimum(T,nframes_test))
-    params['maxcost']=estimate_maxcost(p,prctile=maxcost_prctile)
+    params['maxcost']=estimate_maxcost(p,prctile=params['maxcost_prctile'],mult=params['maxcost_mult'])
+    params['maxcost_missed'] = estimate_maxcost_missed(p,params['maxcost_framesfit'],prctile=params['maxcost_prctile'],mult=params['maxcost_mult'])
     print('maxcost set to %f'%params['maxcost'])
     ids,costs = assign_ids(p[:,:,:,:nframes_test],params)
     nids_original = np.max(ids)+1
     ids,isdummy = stitch(p[:,:,:,:nframes_test],ids,params)
-    ids,ids_short = delete_short(ids,params)
+    ids,ids_short = delete_short(ids,isdummy,params)
     ids = delete_empty(ids)
     
     newtrk = apply_ids(trk,ids)
@@ -542,7 +568,36 @@ def test_assign_ids_data():
             hax.set_ylim((minp,maxp))
     plt.show()
     
+def test_estimate_maxcost():
+    
+    trkfile='/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1.trk.part'
+    outtrkfile='/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1_kbstitched.trk'
+    
+    # parameters
+    maxcost_prctile=95.
+    params={}
+    params['verbose']=1
+    params['maxframes_missed']=10
+    params['maxframes_delete']=10
+    
+    trk=TrkFile.load_trk(trkfile)
+    # frames should be consecutive
+    assert np.all(np.diff(trk['pTrkFrm'],axis=1)==1),'pTrkFrm should be consecutive frames'
+    T=trk['pTrk'].shape[2]
+    nlandmarks=trk['pTrk'].shape[0]
+    d=trk['pTrk'].shape[1]
+    # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
+    p=np.transpose(trk['pTrk'],(1,0,3,2))
+    
+    maxcost = np.zeros(params['maxframes_missed']+1)
+    maxcost[0] = estimate_maxcost(p,prctile=maxcost_prctile)
+    maxcost[1:] = estimate_maxcost_missed(p,params,prctile=maxcost_prctile)
+    plt.figure()
+    plt.plot(np.arange(params['maxframes_missed']+1)+1,maxcost,'o-')
+    plt.show()
+    
 if __name__ == '__main__':
     #test_match_frame()
     test_assign_ids_data()
+    #test_estimate_maxcost()
     

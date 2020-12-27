@@ -3011,7 +3011,9 @@ if ~lObj.hasMovie
   error('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie; % gt-aware
+SetStatus(handles,'Importing tracking results...');
 lObj.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
+ClearStatus(handles);
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3019,7 +3021,9 @@ lObj = handles.labelerObj;
 if ~tfok
   return;
 end
+SetStatus(handles,'Exporting tracking results...');
 lObj.labelExportTrk(1:lObj.nmoviesGTaware,'rawtrkname',rawtrkname);
+ClearStatus(handles);
 
 function menu_file_export_labels_table_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

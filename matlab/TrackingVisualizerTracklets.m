@@ -107,7 +107,24 @@ classdef TrackingVisualizerTracklets < handle
       % xxx currently only landmark text
       obj.tvmt.setHideTextLbls(tf);
     end
-
+    function delete(obj)
+      obj.tvmt.delete();
+      obj.tvtrx.delete();
+    end
+    function deleteGfxHandles(obj)
+%       if ~isstruct(obj.hXYPrdRed) % guard against serialized TVs which have PV structs in .hXYPrdRed
+%         deleteValidHandles(obj.hXYPrdRed);
+%         obj.hXYPrdRed = [];
+%       end
+%       deleteValidHandles(obj.hXYPrdRedTxt);
+%       obj.hXYPrdRedTxt = [];
+%       deleteValidHandles(obj.hSkel);
+%       obj.hSkel = [];
+%       deleteValidHandles(obj.hPch);
+%       obj.hPch = [];
+%       deleteValidHandles(obj.hPchTxt);
+%       obj.hPchTxt = [];
+    end
   end
   
 end
