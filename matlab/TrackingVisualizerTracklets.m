@@ -30,6 +30,7 @@ classdef TrackingVisualizerTracklets < handle
                  % and 0 for unused trx.
                  
     hud % AxisHUD
+    lObj
   end
   
   methods
@@ -43,6 +44,7 @@ classdef TrackingVisualizerTracklets < handle
       obj.currTrklet = nan;
       obj.iTrxViz2iTrx = zeros(ntrxmax,1);
       obj.hud = lObj.currImHud;
+      obj.lObj = lObj;
     end
     function vizInit(obj,nfrmmax,ptrxs,varargin)
       ntgt = obj.ntrxmax;
@@ -95,10 +97,14 @@ classdef TrackingVisualizerTracklets < handle
     end
     function trxSelected(obj,iTrx)
       iTrklet = obj.iTrxViz2iTrx(iTrx);
-      trkletID = obj.ptrx(iTrklet).id;
-%       nTrkletLive = nnz(obj.iTrxViz2iTrx>0);
-      nTrkletTot = numel(obj.ptrx);
-      obj.hud.updateTrklet(trkletID,nTrkletTot);
+      if iTrklet~=obj.currTrklet
+        trkletID = obj.ptrx(iTrklet).id;
+  %       nTrkletLive = nnz(obj.iTrxViz2iTrx>0);
+        nTrkletTot = numel(obj.ptrx);
+        obj.hud.updateTrklet(trkletID,nTrkletTot);        
+        obj.currTrklet = iTrklet;
+        obj.lObj.gdata.labelTLInfo.newTarget();
+      end
     end
     function updatePrimary(obj,iTgtPrimary)
       % todo; currently no pred/target selection
