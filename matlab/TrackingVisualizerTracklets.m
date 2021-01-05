@@ -15,7 +15,21 @@ classdef TrackingVisualizerTracklets < handle
     npts    
     ntrxmax
     
-    idTrxLive % [ntgtslive] currently live trx
+    currTrklet % scalar int 
+    % Maintain this state in Visualizer for now rather than adding to
+    % Labeler. Situation is still slightly unclear, although adding here
+    % seems best.
+    % * currTrklet clearly differs from currTarget (pre-"reconciliation",
+    % there is no known correspondence between targets and tracklets)
+    % * currTrklet could differ between tracking res vs imported res, as
+    % again in general there is no correspondence between two diff sets of 
+    % MA tracking.
+    
+    iTrxViz2iTrx % [ntrxmax] Mapping from trx in .tvtrx -> ptrx.
+                 % iTrxViz2Trx(iTrxTV) gives index into .ptrx for live trx,
+                 % and 0 for unused trx.
+                 
+    hud % AxisHUD
   end
   
   methods
@@ -26,13 +40,15 @@ classdef TrackingVisualizerTracklets < handle
       obj.npts = lObj.nLabelPoints;
       obj.ntrxmax = ntrxmax;
       
-      obj.idTrxLive = [];
+      obj.currTrklet = nan;
+      obj.iTrxViz2iTrx = zeros(ntrxmax,1);
+      obj.hud = lObj.currImHud;
     end
     function vizInit(obj,nfrmmax,ptrxs,varargin)
       ntgt = obj.ntrxmax;
       obj.tvmt.vizInit('ntgts',ntgt);
-      obj.tvtrx.init(false,ntgt);
-      
+      obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgt);
+      obj.hud.updateReadoutFields('hasTrklet',true);
       obj.ptrx = ptrxs;
       obj.frm2trx = Labeler.trxHlpComputeF2t(nfrmmax,ptrxs);
     end
@@ -63,17 +79,26 @@ classdef TrackingVisualizerTracklets < handle
       obj.tvmt.updateTrackRes(xy,tfeo);
       
       % update tvtrx; call setShow
-      ids0 = obj.idTrxLive;
-      ids1 = [ptrx(iTrx).id]+1; %#ok<*PROPLC>
-      tfUpdateIDs = ~isequal(ids0,ids1);
-      obj.idTrxLive = ids1;
-      nLive = numel(ids1);
+      nLive = numel(iTrx);
+      iTrx2Viz2iTrxNew = zeros(obj.ntrxmax,1);
+      iTrx2Viz2iTrxNew(1:nLive) = iTrx;
+      trxMappingChanged = ~isequal(iTrx2Viz2iTrxNew,obj.iTrxViz2iTrx);
+      obj.iTrxViz2iTrx = iTrx2Viz2iTrxNew;
       
-      tvtrx = obj.tvtrx;
-      tfShow = false(tvtrx.nTrx,1);
-      tfShow(1:nLive) = true; 
-      tvtrx.setShow(tfShow);
-      tvtrx.updateTrxCore(ptrx(iTrx),frm,tfShow,0,tfUpdateIDs);
+      tvtrx = obj.tvtrx; %#ok<*PROPLC>
+      tfLiveTrx = false(tvtrx.nTrx,1);
+      tfLiveTrx(1:nLive) = true; 
+      tfUpdateIDs = trxMappingChanged;      
+      
+      tvtrx.setShow(tfLiveTrx);
+      tvtrx.updateTrxCore(ptrx(iTrx),frm,tfLiveTrx,0,tfUpdateIDs);
+    end
+    function trxSelected(obj,iTrx)
+      iTrklet = obj.iTrxViz2iTrx(iTrx);
+      trkletID = obj.ptrx(iTrklet).id;
+%       nTrkletLive = nnz(obj.iTrxViz2iTrx>0);
+      nTrkletTot = numel(obj.ptrx);
+      obj.hud.updateTrklet(trkletID,nTrkletTot);
     end
     function updatePrimary(obj,iTgtPrimary)
       % todo; currently no pred/target selection

@@ -4072,11 +4072,11 @@ tObj = lObj.tracker;
 if lObj.gtIsGTMode
   error('LabelerGUI:gt','Unsupported in GT mode.');
 end
-if ~isempty(tObj)
+if ~isempty(tObj) && tObj.getHasTrained()
   xy = tObj.getPredictionCurrentFrame();
   xy = xy(:,:,lObj.currTarget); % "targets" treatment differs from below
   if any(isnan(xy(:)))
-    fprintf('No predictions for current frame, not labeling.\n');
+    msgbox('No predictions for current frame.');
     return;
   end
   disp(xy);
@@ -4086,22 +4086,37 @@ if ~isempty(tObj)
   % not do the right thing for some concrete LabelCores.
   lObj.lblCore.assignLabelCoords(xy);
 else
-  if lObj.nTrx>1
-    error('LabelerGUI:setLabels','Unsupported for multiple targets.');
-  end  
   iMov = lObj.currMovie;
   frm = lObj.currFrame;
   if iMov==0
     error('LabelerGUI:setLabels','No movie open.');
   end
-  %lpos2 = lObj.labeledpos2{iMov};
-  p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
-  lpos2xy = reshape(p,lObj.nLabelPoints,2);
-  %assert(size(lpos2,4)==1); % "targets" treatment differs from above
-  %lpos2xy = lpos2(:,:,frm);
-  lObj.labelPosSet(lpos2xy);
   
-  lObj.lblCore.newFrame(frm,frm,1);
+  if lObj.maIsMA
+    s = lObj.labels2{iMov};
+    itgts = Labels.isLabeledF(s,frm);
+    ntgts = numel(itgts);
+    switch ntgts
+      case 0
+        msgbox('No predictions for current frame.');
+        return;
+      case 1
+      otherwise
+        
+    end
+  else
+      if lObj.nTrx>1
+        error('LabelerGUI:setLabels','Unsupported for multiple targets.');
+      end  
+      %lpos2 = lObj.labeledpos2{iMov};
+      p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+      lpos2xy = reshape(p,lObj.nLabelPoints,2);
+      %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+      %lpos2xy = lpos2(:,:,frm);
+      lObj.labelPosSet(lpos2xy);
+
+      lObj.lblCore.newFrame(frm,frm,1);
+  end
 end
 
 function menu_track_background_predict_start_Callback(hObject,eventdata,handles)
