@@ -4094,28 +4094,41 @@ else
   
   if lObj.maIsMA
     s = lObj.labels2{iMov};
-    itgts = Labels.isLabeledF(s,frm);
-    ntgts = numel(itgts);
+    itgtsImported = Labels.isLabeledF(s,frm);
+    ntgts = numel(itgtsImported);
     switch ntgts
       case 0
         msgbox('No predictions for current frame.');
         return;
       case 1
+        iTgtImp = itgtsImported;
       otherwise
-        
+        iTgtImp = lObj.labeledpos2trkViz.currTrklet;
+        if isnan(iTgtImp)
+          msgbox('Please select a tracklet.');
+          return;
+        end
     end
+    [~,p,occ] = Labels.isLabeledFT(s,frm,iTgtImp);
+    xy = reshape(p,[],2);
+    % Taken from LabelCoreSeqMA/cbkNewTgt. Hmm
+    ntgts = lObj.labelNumLabeledTgts();
+    lObj.setTargetMA(ntgts+1);
+    lObj.updateTrxTable();
+    lObj.labelPosSet(xy,occ);
+    lObj.lblCore.newFrame(frm,frm,1);
   else
-      if lObj.nTrx>1
-        error('LabelerGUI:setLabels','Unsupported for multiple targets.');
-      end  
-      %lpos2 = lObj.labeledpos2{iMov};
-      p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
-      lpos2xy = reshape(p,lObj.nLabelPoints,2);
-      %assert(size(lpos2,4)==1); % "targets" treatment differs from above
-      %lpos2xy = lpos2(:,:,frm);
-      lObj.labelPosSet(lpos2xy);
-
-      lObj.lblCore.newFrame(frm,frm,1);
+    if lObj.nTrx>1
+      error('LabelerGUI:setLabels','Unsupported for multiple targets.');
+    end
+    %lpos2 = lObj.labeledpos2{iMov};
+    p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+    lpos2xy = reshape(p,lObj.nLabelPoints,2);
+    %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+    %lpos2xy = lpos2(:,:,frm);
+    lObj.labelPosSet(lpos2xy);
+    
+    lObj.lblCore.newFrame(frm,frm,1);
   end
 end
 

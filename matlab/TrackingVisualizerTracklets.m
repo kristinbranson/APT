@@ -15,7 +15,7 @@ classdef TrackingVisualizerTracklets < handle
     npts    
     ntrxmax
     
-    currTrklet % scalar int 
+    currTrklet % scalar int; index into .ptrx
     % Maintain this state in Visualizer for now rather than adding to
     % Labeler. Situation is still slightly unclear, although adding here
     % seems best.
