@@ -5695,7 +5695,7 @@ classdef Labeler < handle
     function setShowSkeleton(obj,tf)
       obj.showSkeleton = logical(tf);
       obj.lblCore.updateShowSkeleton();
-      obj.labeledpos2trkViz.updateShowHideAll();
+      obj.labeledpos2trkViz.setShowSkeleton(tf);
     end
     function setFlipLandmarkMatches(obj,matches)
       obj.flipLandmarkMatches = matches;
