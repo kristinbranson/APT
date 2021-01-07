@@ -5,11 +5,11 @@ import TrkFile
 # for now I'm just using loadmat and savemat here
 # when/if the format of trk files changes, then this will need to get fancier
 
-from progressbar import progressbar
+from tqdm import tqdm
 
 # for debugging
 import matplotlib
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg') # this should be declared in scripts and not code. Running on docker etc this creates problem
 import matplotlib.pyplot as plt
 #plt.ion()
 
@@ -137,7 +137,7 @@ def assign_ids(p,params):
 
     set_default_params(params)
 
-    for t in progressbar(range(1,T)):
+    for t in tqdm(range(1,T)):
         pnext = p[:,:,:,t]
         idxnext = real_idx(pnext)
         pnext = pnext[:,:,idxnext]
@@ -154,7 +154,7 @@ def stitch(p,ids,params):
     connect trajectory deaths and births.
     :param p: d x nlandmarks x maxnanimals x T matrix of landmark detections
     :param ids: maxnanimals x T matrix indicating ids assigned to each detection, output of assign_ids
-    :param params: parameters dict. Only relevant parameter is 'maxnframes_missed'
+    :param params: parameters dict. Only relevant parameter is 'maxframes_missed'
     :return: ids: Updated identity assignment matrix after stitching
     :return: isdummy: nids x T matrix indicating whether a frame is missed for a given id.
     """
@@ -315,7 +315,21 @@ def estimate_maxcost(p,nsample=1000,prctile=95.,mult=None,nframes_skip=1):
         allcosts[:np.count_nonzero(ismatch),i] = costscurr[ismatch]
       
     isdata = np.isnan(allcosts) == False
-    maxcost = mult*np.percentile(allcosts[isdata],prctile)*2.
+    # use sharp increase in 2nd order differences.
+    qq = np.percentile(allcosts[isdata], np.arange(50, 100, 0.5))
+    dd1 = qq[1:] - qq[:-1]
+    dd2 = dd1[1:] - dd1[:-1]
+    all_ix = np.where(dd2 > 4)[0]
+    # threshold is where the second order increases by 4, so sort of the coefficient for the quadratic term.
+    if len(all_ix) < 1:
+        ix = 96 # choose 98 % as backup
+    else:
+        ix = all_ix[0]
+    ix = np.clip(ix,5,98)
+    print(f'Choosing {ix/2+50} percentile of link costs with a value of {qq[ix]} to decide the maxcost')
+    maxcost = mult*qq[ix]*2
+
+    # maxcost = mult*np.percentile(allcosts[isdata],prctile)*2.
     return maxcost
     
     # debug code -- what are the differences between having no threshold on cost and having the chosen threshold

@@ -140,6 +140,18 @@ class config(object):
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
+        self.leap_val_size = 0.15
+        self.leap_preshuffle = True
+        self.leap_filters = 64
+        self.leap_val_batches_per_epoch = 10
+        self.leap_reduce_lr_factor =0.1
+        self.leap_reduce_lr_patience =3
+        self.leap_reduce_lr_min_delta = 1e-5
+        self.leap_reduce_lr_cooldown = 0
+        self.leap_reduce_lr_min_lr = 1e-10
+        self.leap_amsgrad =False
+        self.leap_upsampling =False
+        self.use_leap_preprocessing = False
 
         # ----- Deep Lab Cut
         self.dlc_train_img_dir = 'train'
@@ -196,6 +208,9 @@ class config(object):
         self.multi_frame_sz = []
         # actual frame size
         self.multi_max_animal_sz = None
+        self.multi_use_mask = True
+        self.multi_crop_ims = True
+        self.multi_mdn_match_dist = 10
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'

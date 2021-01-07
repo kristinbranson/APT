@@ -62,7 +62,7 @@ import getpass
 import link_trajectories as lnk
 from matplotlib.path import Path
 from PoseCommon_pytorch import coco_loader
-
+from tqdm import tqdm
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
@@ -997,6 +997,7 @@ def setup_ma(conf):
     cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
     fr_sz = cur_frame.shape[:2]
     conf.multi_frame_sz = fr_sz
+
     animal_sz = []
 
     for selndx,cur_t in enumerate(T['locdata']):
@@ -1014,14 +1015,19 @@ def setup_ma(conf):
     conf.multi_max_animal_sz = int(max_animal_sz)+1
     sz =np.ceil((3*max_animal_sz+2*conf.multi_bb_ex)/32)*32
     sz = int(sz)
-    logging.info(f'--- Using crops of size {sz} for multi-animal training. Max animal size is {max_animal_sz} ---')
     sz = [sz,sz]
     if sz[0]> fr_sz[0]:
         sz[0] = fr_sz[0]
     if sz[1] > fr_sz[1]:
         sz[1] = fr_sz[1]
 
-    conf.imsz = sz
+    if not conf.multi_crop_ims:
+        conf.imsz = fr_sz
+        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
+        return
+    else:
+        logging.info(f'--- Using crops of size {sz} for multi-animal training. Max animal size is {max_animal_sz} ---')
+        conf.imsz = sz
 
 
 def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
@@ -1049,7 +1055,10 @@ def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
             mask = grid.reshape(sz)
         return mask
 
-    buffer = int(conf.multi_max_animal_sz/2 + conf.multi_bb_ex)
+    if conf.multi_crop_ims:
+        buffer = int(conf.multi_max_animal_sz/2 + conf.multi_bb_ex)
+    else:
+        buffer = 0
     x_grid = int(np.ceil(conf.multi_frame_sz[1]/(conf.imsz[1]-buffer*2)))
     y_grid = int(np.ceil(conf.multi_frame_sz[0]/(conf.imsz[0]-buffer*2)))
     frame = frame.copy()
@@ -1074,6 +1083,7 @@ def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
             bottomy = topy + isz[0]
             # print('left:{},right:{},top:{},bottom:{}'.format(leftx,rightx,topy,bottomy))
 
+            # Check if any animals falls in the current patch
             for aa in range(cur_pts.shape[0]):
                 pp = cur_pts[aa, :, :] + buffer
                 bb1 = np.min(pp, axis=0)
@@ -1097,7 +1107,10 @@ def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
                 # print('xx:{},yy:{},aa:{}'.format(xx,yy,valid))
                 # If there is at last one labeled animal
                 curp = curi[topy:bottomy,leftx:rightx, :]
-                cur_mask = create_mask(all_bb,[bottomy-topy,rightx-leftx])
+                if conf.multi_use_mask:
+                    cur_mask = create_mask(all_bb,[bottomy-topy,rightx-leftx])
+                else:
+                    cur_mask = np.ones([bottomy - topy, rightx - leftx]) > 0.5
                 curp = curp * cur_mask[...,np.newaxis]
                 curl = cur_pts[valid, :, :].copy()
                 curl[:, :,0] = curl[:, :, 0] - leftx + buffer
@@ -2600,7 +2613,7 @@ def classify_movie(conf, pred_fn, model_type,
     extra_dict = {}
 
     hmap_out_dir = os.path.splitext(out_file)[0] + '_hmap'
-    if not os.path.exists(hmap_out_dir):
+    if (not os.path.exists(hmap_out_dir)) and save_hmaps:
         os.mkdir(hmap_out_dir)
 
     to_do_list = []
@@ -2616,7 +2629,7 @@ def classify_movie(conf, pred_fn, model_type,
 
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
-    for cur_b in range(n_batches):
+    for cur_b in tqdm(range(n_batches)):
         cur_start = cur_b * bsize
         ppe = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
@@ -2670,7 +2683,7 @@ def classify_movie(conf, pred_fn, model_type,
 
         if cur_b % 20 == 19:
             sys.stdout.write('.')
-        if cur_b % nskip_partfile == nskip_partfile - 1:
+        if (cur_b % nskip_partfile == 0) & (cur_b>0):
             sys.stdout.write('\n')
             # Doesn't make sense to connect intermediate ones. too much recomputation.
             # if conf.is_multi:
@@ -2939,6 +2952,7 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
                  'clahe_grid_size':conf.clahe_grid_size,
                  'check_bounds_distort': conf.check_bounds_distort,
                  'expname':conf.expname,
+                 'rot_prob':conf.rot_prob,
 
     # 'minsize':minsz,
     #              'leftwidth':wd_x,
