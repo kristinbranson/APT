@@ -4116,13 +4116,22 @@ classdef Labeler < handle
       if isfield(obj.projMacros,macro) 
         currVal = obj.projMacros.(macro);
         if ~strcmp(currVal,str)
-          error('Labeler:macro',...
-            'Project macro ''%s'' is currently defined as ''%s''.',...
+          qstr = sprintf('Project macro ''%s'' is currently defined as ''%s''. This value can be redefined later if desired.',...
             macro,currVal);
+          btn = questdlg(qstr,'Existing Macro definition','OK, Proceed','Cancel','Cancel');
+          if isempty(btn)
+            btn = 'Cancel';
+          end
+          switch btn
+            case 'OK, Proceed'
+              % none
+            otherwise
+              return;
+          end           
         end
       end
         
-      strpat = regexprep(str,'\\','\\\\');      
+      strpat = regexprep(str,'\\','\\\\');
       mfa0 = obj.movieFilesAll;
       mfagt0 = obj.movieFilesAllGT;
       if ispc
