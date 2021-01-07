@@ -917,19 +917,22 @@ classdef InfoTimeline < handle
               bodytrx = [];
             end
             if strcmp(ptype,'Labels'),
-              lpos = labeler.labelsGTaware{iMov};
-              %lpostag = labeler.labeledpostagGTaware{iMov};
-              nfrmtot = labeler.nframes;
-              [lpos,lpostag] = Labels.getLabelsT(lpos,iTgt,nfrmtot);
-              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
+              s = labeler.labelsGTaware{iMov};
             else
-              assert(false); % xxxMA
-              lpos = labeler.labeledpos2GTaware{iMov};
-              lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
+              s = labeler.labels2GTaware{iMov};
+              if labeler.maIsMA
+                % Use "current Tracklet" for imported data
+                iTgt = labeler.labeledpos2trkViz.currTrklet;
+                if isnan(iTgt)
+                  warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
+                  iTgt = 1;
+                end
+              end
             end
+            nfrmtot = labeler.nframes;
+            [lpos,lpostag] = Labels.getLabelsT(s,iTgt,nfrmtot);
+            lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             data = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
-%             data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
-%               lpostag(:,:,iTgt),bodytrx,pcode);
 
           case 'Predictions'
             % AL 20200511 hack, initialization ordering. If the timeline

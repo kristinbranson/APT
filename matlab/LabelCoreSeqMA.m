@@ -564,6 +564,27 @@ classdef LabelCoreSeqMA < LabelCore
       obj.labeler.labelPosSet(xy,tfeo);
     end
     
+%     function createNewTargetAndSetLabel(obj,xy,occ)
+%       % Utility equivalent to
+%       % 1. Pressing 'New Target'
+%       % 2. Labeling all pts, possibly with occ, fully labeling tgt
+%       %
+%       % This util is for eg "set manual label to pred"
+%       
+%       obj.cbkNewTgt();
+%       lObj = obj.labeler;
+%       obj.storeLabels();
+%       lObj.updateTrxTable();
+%       lObj.InitializePrevAxesTemplate();
+% 
+%       [xy,tfeo] = obj.getLabelCoords();
+%       iTgt = lObj.currTarget;
+%       obj.tv.updateTrackResI(xy,tfeo,iTgt);
+%       % tv.hideTarget should already be set to lObj.currTarget
+%       
+%       obj.beginAccepted();
+%     end
+    
     % C+P
     function refreshTxLabelCoreAux(obj)
       iPt0 = obj.kpfIPtFor1Key;

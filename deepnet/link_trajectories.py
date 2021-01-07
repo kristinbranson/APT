@@ -57,6 +57,8 @@ def match_frame(pcurr,pnext,idscurr,params,lastid=np.nan,maxcost=None):
 
     # construct the cost matrix
     # C[i,j] is the cost of matching curr[i] and next[j]
+    # AL: prob dumb q, why are the last ncurr cols needed? (wouldnt
+    # any unmatched row up to ncurr be a death)
     C = np.zeros((ncurr+nnext,ncurr+nnext))
     C[:] = maxcost/2.
     C[ncurr:,nnext:] = 0
