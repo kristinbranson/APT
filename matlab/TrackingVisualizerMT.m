@@ -335,10 +335,12 @@ classdef TrackingVisualizerMT < handle
       tfTgtOnHideAffected = tfTgtOn;
       tfTgtOnHideAffected(obj.iTgtHide) = false;
            
-      [obj.hXYPrdRed(:,tfTgtOnHideAffected).Visible] = deal(onoffViz);
-      [obj.hXYPrdRed(:,~tfTgtOnHideAffected).Visible] = deal('off');
-      [obj.hXYPrdRedTxt(:,tfTgtOnHideAffected).Visible] = deal(onoffTxt);
-      [obj.hXYPrdRedTxt(:,~tfTgtOnHideAffected).Visible] = deal('off');
+      if ~isempty(obj.hXYPrdRed) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
+        [obj.hXYPrdRed(:,tfTgtOnHideAffected).Visible] = deal(onoffViz);
+        [obj.hXYPrdRed(:,~tfTgtOnHideAffected).Visible] = deal('off');
+        [obj.hXYPrdRedTxt(:,tfTgtOnHideAffected).Visible] = deal(onoffTxt);
+        [obj.hXYPrdRedTxt(:,~tfTgtOnHideAffected).Visible] = deal('off');
+      end
       
       % skel, pch: not affected by hide
       if ~isempty(obj.hSkel)
