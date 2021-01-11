@@ -30,6 +30,7 @@ ROOT:
         - AlignUsingHead: ['Align using head landmark specification',boolean,true,"If true, align target ROIs using head landmark",false,'','Important','ma',true]
         - ScaledToTarget: ['Scaled to Target',boolean,true,'If true, scale ROI to target/labels.',true,'ParameterVisualizationTgtCropRadius','Important',['ma'],true]
         - ScaledToTargetMargin: ['Scaling Margin',float,true,'Dimensionless multiplicative factor controlling size of ROI. Used when "Scale to Target" is true. The ROI width along a dimension is computed as spanOfLabels*scalingMargin.',1.25,'ParameterVisualizationTgtCropRadius','Important',['ma'],true]
+        - ScaledToTargetAddFixedMargin: ['Include Fixed Margin',boolean,true,'If true, add Radius to ROI margins when "Scale to Target" is true.',false,'ParameterVisualizationTgtCropRadius','Important',['ma'],true]
         - Radius: ['Radius',unsigned,true,'Radius (in pixels) of the square cropped around each target.',50,'ParameterVisualizationTgtCropRadius','Important',['hasTrx','ma'],true]
         - PadBkgd: ['Pad background',unsigned,true,'If the cropped regions need to be padded, this value indicates the image intensity to pad with.',0,'ParameterVisualizationPreproc#preproc1','Advanced',['hasTrx','ma'],true]
       - NeighborMask:

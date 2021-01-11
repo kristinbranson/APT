@@ -8725,14 +8725,14 @@ classdef Labeler < handle
       yhi = xymu(2)+rad;
       roi = [xlo ylo; xlo yhi; xhi yhi; xhi ylo];      
     end
-    function roi = maRoiXY2RoiScaled(xy,scalefac)
+    function roi = maRoiXY2RoiScaled(xy,scalefac,fixedmargin)
       % scaled roi, centered on center of bbox; equivalent to 'expanding'
       %  bbox by scalefac*bbox
       % xy: [npt x 2]
       % roi: [4x2]
       xymin = min(xy,[],1);
       xymax = max(xy,[],1);
-      xyrad = scalefac * (xymax-xymin)/2;
+      xyrad = scalefac * (xymax-xymin)/2 + fixedmargin;
       xymid = (xymax+xymin)/2;
       xylo = xymid-xyrad;
       xyhi = xymid+xyrad;
@@ -8757,8 +8757,18 @@ classdef Labeler < handle
 
       tfscaled = sprmMA.ScaledToTarget;
       tfalignHT = sprmMA.AlignUsingHead && tfHT; 
+      tfincfixedmargin = sprmMA.ScaledToTargetAddFixedMargin;
       scalefac = sprmMA.ScaledToTargetMargin;
       radfixed = sprmMA.Radius;
+      
+      if tfscaled 
+        if tfincfixedmargin
+          scaledfixedmargin = radfixed;
+        else
+          scaledfixedmargin = 0;
+        end
+      end
+        
       if tfalignHT
         xyH = xy(obj.skelHead,:);
         xyCent = nanmean(xy,1);
@@ -8771,7 +8781,7 @@ classdef Labeler < handle
         Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
                         % vec from cent->h should point to positive x
         if tfscaled
-          Rroi = Labeler.maRoiXY2RoiScaled(Rxyc.',scalefac); 
+          Rroi = Labeler.maRoiXY2RoiScaled(Rxyc.',scalefac,scaledfixedmargin); 
         else
           Rroi = Labeler.maRoiXY2RoiFixed(Rxyc.',radfixed);
         end
@@ -8781,7 +8791,7 @@ classdef Labeler < handle
         roi = roi.'+xyCent;
       else
         if tfscaled
-          roi = Labeler.maRoiXY2RoiScaled(xy,scalefac);
+          roi = Labeler.maRoiXY2RoiScaled(xy,scalefac,scaledfixedmargin);
         else
           roi = Labeler.maRoiXY2RoiFixed(xy,radfixed);
         end
