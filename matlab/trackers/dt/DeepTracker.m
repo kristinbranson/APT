@@ -278,6 +278,7 @@ classdef DeepTracker < LabelTracker
       obj.trackResInit();
       obj.trackCurrResInit();
       obj.vizInit();
+      obj.updateTrackerInfo();
     end
   end
   

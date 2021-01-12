@@ -423,10 +423,18 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Separator','on');  
 moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_all_movies);
 
+handles.menu_track_clear_tracker = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracker_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Clear trained tracker',...
+  'Tag','menu_track_clear_tracker',...
+  'Separator','off');  
+moveMenuItemAfter(handles.menu_track_clear_tracker,handles.menu_track_clear_tracking_results);
+
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set manual labels to automatic prediction',...
-  'Tag','menu_track_set_labels');  
+  'Tag','menu_track_set_labels',...
+  'Separator','on');  
 
 % tfBGok = ~isempty(ver('distcomp')) && ~verLessThan('distcomp','6.10');
 % onoff = onIff(tfBGok);
@@ -3824,6 +3832,19 @@ tObj = lObj.tracker;
 tObj.clearTrackingResults();
 ClearStatus(handles);
 %msgbox('Tracking results cleared.','Done');
+
+function menu_track_clear_tracker_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+res = questdlg('This will clear your trained tracker, along with all tracking results. Are you sure you want to proceed?',...
+  'Clear Model','Yes','Abort','Abort');
+if ~strcmpi(res,'Yes'),
+  return;
+end
+SetStatus(handles,'Clearing trained tracker and all tracking results...');
+tObj = lObj.tracker;
+tObj.initHook();
+ClearStatus(handles);
+
 
 function menu_track_cpr_storefull_dont_store_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
