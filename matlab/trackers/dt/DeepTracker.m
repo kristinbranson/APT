@@ -4038,6 +4038,8 @@ classdef DeepTracker < LabelTracker
       % be a scalar TrackJobs object with with tfserialmov=true which
       % represents [nmovsettrk] movies in a single object.
 
+      NMOVSET_WB_THRESH = 8;
+      
       if isscalar(trksysinfo)
         % could be a single regular TrackJob, or a single TrakcJob with
         % tfserialmov=true
@@ -4046,7 +4048,20 @@ classdef DeepTracker < LabelTracker
         [nmovsets,nvjobs] = size(trksysinfo); %#ok<ASGLU>
         maxNSerialMov = max([trksysinfo.nmovsettrk]);        
         nframes = nan(maxNSerialMov,nmovsets);
+        
+        % AL202101 This call can be *very* slow for batch tracking,
+        % depending on nmovsets, codecs, movlengths, etc.
+        tfWB = nmovsets>NMOVSET_WB_THRESH; 
+        if tfWB
+          hWB = WaitBarWithCancel('Tracking',...
+            'cancelDisabled',true);
+          hWB.startPeriod('Reading movie metadata...','shownumden',1,...
+            'denominator',nmovsets);
+        end
         for i = 1:nmovsets,
+          if tfWB
+            hWB.updateFracWithNumDen(i);
+          end
           % works if trksysinfo is multiview or not          
           nframes(1:trksysinfo(i,1).nmovsettrk,i) = trksysinfo(i,1).getNFramesTrack();
         end
