@@ -377,6 +377,7 @@ classdef Labeler < handle
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
     predPointsPlotInfo;  % " predicted points. init: C
+    impPointsPlotInfo;
   end
   properties (SetAccess=private)
     nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
@@ -1410,10 +1411,16 @@ classdef Labeler < handle
         cfg.Track.PredictPointsPlot.Colors = ...
           feval(cfg.Track.PredictPointsPlot.ColorMapName,nSet);
       end
+      if ~isfield(cfg.Track.ImportPointsPlot,'Colors') || ...
+          size(cfg.Track.ImportPointsPlot.Colors,1)~=nSet
+        cfg.Track.ImportPointsPlot.Colors = ...
+          feval(cfg.Track.ImportPointsPlot.ColorMapName,nSet);
+      end
       % .PredictPointsPlot color nvariants:
       % - ppp.ColorMapName, ppp.Colors both exist
       % - ppp.Colors is [nSet x 3]
       obj.predPointsPlotInfo = cfg.Track.PredictPointsPlot;
+      obj.impPointsPlotInfo = cfg.Track.ImportPointsPlot;
             
       obj.trackNFramesSmall = cfg.Track.PredictFrameStep;
       obj.trackNFramesLarge = cfg.Track.PredictFrameStepBig;
@@ -1548,6 +1555,7 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
       cfg.Track.PredictPointsPlot = obj.predPointsPlotInfo;
+      cfg.Track.ImportPointsPlot = obj.impPointsPlotInfo;
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
       cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
@@ -6544,7 +6552,6 @@ classdef Labeler < handle
     %   massaging a trackers' TV, but for now there is no facility to 
     %   display preds from multiple tracker objs at the same time, and
     %   any such changes are not currently serialized.
-    %   ii) Imported tracking in labeledpos2trkViz. 
     %   iii) PPPI serves as an initialization point for aux tracking 
     %   results in .trkResViz, but it is expected that the user will mutate
     %   the cosmetics for .trkResViz to facilitate comparison of multiple
@@ -6577,6 +6584,26 @@ classdef Labeler < handle
     %  simplify the code a bit, cosmetics would be mutable, and cosmetics
     %  settings would be saved with the project.
     
+    function updateLandmarkColors(obj,colorSpecs)
+      for i=1:numel(colorSpecs)
+        cs = colorSpecs(i);
+        lsetType = cs.landmarkSetType;
+        lObjUpdateMeth = lsetType.updateColorLabelerMethod();
+        obj.(lObjUpdateMeth)(cs.colors,cs.colormapname);
+      end
+    end
+    
+    function updateLandmarkCosmetics(obj,mrkrSpecs)
+      lsetTypes = enumeration('LandmarkSetType');
+      nty = numel(lsetTypes);
+      assert(numel(mrkrSpecs)==nty);
+      for i=1:nty
+        lObjUpdateMeth = lsetTypes(i).updateCosmeticsLabelerMethod();
+        ms = mrkrSpecs(i);
+        obj.(lObjUpdateMeth)(ms.MarkerProps,ms.TextProps,ms.TextOffset);
+      end
+    end
+    
     function updateLandmarkLabelColors(obj,colors,colormapname)
       % colors: "setwise" colors
 
@@ -6592,6 +6619,35 @@ classdef Labeler < handle
       obj.gdata.labelTLInfo.updateLandmarkColors();
     end
     
+    function updateLandmarkPredictionColors(obj,colors,colormapname)
+      % colors: "setwise" colors
+      szassert(colors,[obj.nPhysPoints 3]);
+      
+      obj.predPointsPlotInfo.Colors = colors;
+      obj.predPointsPlotInfo.ColorMapName = colormapname;
+      tAll = obj.trackersAll;
+      for i=1:numel(tAll)
+        if ~isempty(tAll{i})
+          tAll{i}.updateLandmarkColors();
+        end
+      end      
+      %obj.gdata.labelTLInfo.updateLandmarkColors();
+    end
+    
+    function updateLandmarkImportedColors(obj,colors,colormapname)
+      % colors: "setwise" colors
+      szassert(colors,[obj.nPhysPoints 3]);
+      
+      obj.impPointsPlotInfo.Colors = colors;
+      obj.impPointsPlotInfo.ColorMapName = colormapname;
+      lpos2tv = obj.labeledpos2trkViz;
+      ptcolors = obj.Set2PointColors(colors);
+      lpos2tv.updateLandmarkColors(ptcolors);
+      for i=1:numel(obj.trkResViz)
+        obj.trkResViz{i}.updateLandmarkColors(ptcolors);
+      end
+    end
+
     function updateLandmarkLabelCosmetics(obj,pvMarker,pvText,textOffset)
 
       lc = obj.lblCore;
@@ -6615,68 +6671,50 @@ classdef Labeler < handle
       lc.updateTextLabelCosmetics(pvText,textOffset);
       %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
     end
-    
-    function updateLandmarkPredictionColors(obj,colors,colormapname)
-      % colors: "setwise" colors
-
-      szassert(colors,[obj.nPhysPoints 3]);
+    function [tfHideTxt,pvText] = hlpUpdateLandmarkCosmetics(obj,...
+        pvMarker,pvText,ptsPlotInfoFld)
+      % set PVs on .ptsPlotInfo field; mild massage
       
-      % Colors apply to i) all trackers, ii) imported preds, and iii) all trackRes
-      
-      obj.predPointsPlotInfo.Colors = colors;
-      obj.predPointsPlotInfo.ColorMapName = colormapname;
-      tAll = obj.trackersAll;
-      for i=1:numel(tAll)
-        if ~isempty(tAll{i})
-          tAll{i}.updateLandmarkColors();
-        end
-      end
-      lpos2tv = obj.labeledpos2trkViz;
-      ptcolors = obj.Set2PointColors(colors);
-      lpos2tv.updateLandmarkColors(ptcolors);
-      for i=1:numel(obj.trkResViz)
-        obj.trkResViz{i}.updateLandmarkColors(ptcolors);
-      end
-      
-      obj.gdata.labelTLInfo.updateLandmarkColors();
-    end
-    
-    function updateLandmarkPredictionCosmetics(obj,pvMarker,pvText,textOffset)
-      
-      % Markers apply to i) all trackers, ii) imported preds
       fns = fieldnames(pvMarker);
       for f=fns(:)',f=f{1}; %#ok<FXSET> 
         % this allows pvMarker to be 'incomplete'; could just set entire
         % struct
-        obj.predPointsPlotInfo.MarkerProps.(f) = pvMarker.(f);
+        obj.(ptsPlotInfoFld).MarkerProps.(f) = pvMarker.(f);
       end
-      tAll = obj.trackersAll;
-      for i=1:numel(tAll)
-        if ~isempty(tAll{i})
-          tAll{i}.trkVizer.setMarkerCosmetics(pvMarker);
-        end
-      end
-      lpos2tv = obj.labeledpos2trkViz;
-      lpos2tv.setMarkerCosmetics(pvMarker);
-      
-      % Text: same as Markers
       fns = fieldnames(pvText);
       for f=fns(:)',f=f{1}; %#ok<FXSET>
-        obj.predPointsPlotInfo.TextProps.(f) = pvText.(f);
+        obj.(ptsPlotInfoFld).TextProps.(f) = pvText.(f);
       end
       % TrackingVisualizer wants this prop broken out
       tfHideTxt = strcmp(pvText.Visible,'off'); % could make .Visible field optional 
       pvText = rmfield(pvText,'Visible');
+    end 
+    function updateLandmarkPredictionCosmetics(obj,pvMarker,pvText,textOffset)
+      [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
+        pvMarker,pvText,'predPointsPlotInfo');
+      tAll = obj.trackersAll;
+      for i=1:numel(tAll)
+        if ~isempty(tAll{i})
+          tv = tAll{i}.trkVizer;
+          tv.setMarkerCosmetics(pvMarker);
+          tv.setTextCosmetics(pvText);
+          tv.setTextOffset(textOffset);
+          tv.setHideTextLbls(tfHideTxt);
+        end
+      end      
+    end
+    
+    function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
+       [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
+        pvMarker,pvText,'impPointsPlotInfo');      
+      
+      lpos2tv = obj.labeledpos2trkViz;
+      lpos2tv.setMarkerCosmetics(pvMarker);      
       lpos2tv.setTextCosmetics(pvText);
       lpos2tv.setTextOffset(textOffset);
       lpos2tv.setHideTextLbls(tfHideTxt);
-      for i=1:numel(tAll)
-        if ~isempty(tAll{i})
-          tAll{i}.trkVizer.setTextCosmetics(pvText);
-          tAll{i}.trkVizer.setTextOffset(textOffset);
-          tAll{i}.trkVizer.setHideTextLbls(tfHideTxt);        
-        end
-      end
+      
+      % Todo, set on .trkRes*
     end
 
   end
@@ -13784,9 +13822,6 @@ classdef Labeler < handle
     
     function colors = PredictPointColors(obj)
       colors = obj.Set2PointColors(obj.predPointsPlotInfo.Colors);
-%       if nargin > 1,
-%         colors = colors(idx,:);
-%       end
     end
     
     function labels2TrkVizInit(obj)
@@ -13877,7 +13912,7 @@ classdef Labeler < handle
     
     function labels2VizShowHideUpdate(obj)
       tfHide = obj.labels2Hide;
-      txtprops = obj.predPointsPlotInfo.TextProps;
+      txtprops = obj.impPointsPlotInfo.TextProps;
       tfHideTxt = strcmp(txtprops.Visible,'off');      
       tv = obj.labeledpos2trkViz;
       tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly);

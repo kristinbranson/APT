@@ -274,6 +274,9 @@ handles.menu_view_show_imported_preds_curr_target_only = uimenu('Parent',handles
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_show_preds_curr_target_only);
 
+deleteValidHandles(handles.menu_view_landmark_colors.Children);
+set(handles.menu_view_landmark_colors,'Callback',@menu_view_landmark_colors_Callback);
+
 handles.menu_view_edit_skeleton = uimenu('Parent',handles.menu_view,...
   'Label','Edit skeleton...',...
   'Tag','menu_view_edit_skeleton',...
@@ -4486,82 +4489,18 @@ function menu_track_tracking_algorithm_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-function menu_view_landmark_colors_Callback(hObject, eventdata, handles)
-
-function menu_view_landmark_label_colors_Callback(hObject, eventdata, handles)
-
+function menu_view_landmark_colors_Callback(hObject, eventdata)
+handles = guidata(hObject);
 lObj = handles.labelerObj;
-nlandmarks = max(lObj.labeledposIPt2Set);
-
-% get colors, colormapname, pvmarker, pvtext, txtoffset
-lppi = lObj.labelPointsPlotInfo;
-if isfield(lppi,'Colors')
-  colors = lppi.Colors;
-else
-  colors = [];
-end
-colormapname = lppi.ColorMapName;      
-pvmarker = lppi.MarkerProps;
-pvtext = lppi.TextProps;
-txtoffset = lppi.TextOffset;
-      
-applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'lbl',varargin{:});
-[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
-  'lbl',applyCbkFcn,pvmarker,pvtext,txtoffset);
+cbkApply = @(varargin)hlpApplyCosmetics(lObj,varargin{:});
+[ischange,savedres] = LandmarkColors(lObj,cbkApply);
 if ischange
-  applyCbkFcn(savedres.colors,savedres.colormapname,...
-    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
+  cbkApply(savedres.colorSpecs,savedres.markerSpecs);
 end
 
-function hlpApplyCosmetics(lObj,lblsOrPreds,clrs,clrmap,clrsapplyboth,...
-  pvmarker,pvtext,textoffset)
-
-switch lblsOrPreds
-  case 'lbl'
-    colormeth = 'updateLandmarkLabelColors';
-    cosmeticmeth = 'updateLandmarkLabelCosmetics';
-  case 'pred'
-    colormeth = 'updateLandmarkPredictionColors';
-    cosmeticmeth = 'updateLandmarkPredictionCosmetics';
-  otherwise
-    assert(false);
-end
-
-% colors
-if clrsapplyboth
-  lObj.updateLandmarkLabelColors(clrs,clrmap);
-  lObj.updateLandmarkPredictionColors(clrs,clrmap);
-else
-  lObj.(colormeth)(clrs,clrmap);  
-end
-
-% markers/txt
-lObj.(cosmeticmeth)(pvmarker,pvtext,textoffset);
-
-function menu_view_landmark_prediction_colors_Callback(hObject, eventdata, handles)
-
-lObj = handles.labelerObj;
-nlandmarks = max(lObj.labeledposIPt2Set);
-
-pppi = lObj.predPointsPlotInfo;
-if isfield(pppi,'Colors')
-  colors = pppi.Colors;
-else
-  colors = [];
-end
-colormapname = pppi.ColorMapName;
-pvmarker = pppi.MarkerProps;
-pvtext = pppi.TextProps;
-txtoffset = pppi.TextOffset;
-
-applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'pred',varargin{:});
-
-[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
-  'pred',applyCbkFcn,pvmarker,pvtext,txtoffset);
-if ischange
-  applyCbkFcn(savedres.colors,savedres.colormapname,...
-    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
-end
+function hlpApplyCosmetics(lObj,colorSpecs,mrkrSpecs)
+lObj.updateLandmarkColors(colorSpecs);
+lObj.updateLandmarkCosmetics(mrkrSpecs);
 
 function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 
