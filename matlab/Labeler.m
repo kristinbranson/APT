@@ -8713,6 +8713,32 @@ classdef Labeler < handle
   end
   
   %% MA
+  methods (Static)
+    function roi = maRoiXY2RoiFixed(xy,rad)
+      % fixed-radius roi, centered on kp centroid
+      % xy: [npt x 2]
+      % roi: [4x2]
+      xymu = nanmean(xy,1);
+      xlo = xymu(1)-rad;
+      xhi = xymu(1)+rad;
+      ylo = xymu(2)-rad;
+      yhi = xymu(2)+rad;
+      roi = [xlo ylo; xlo yhi; xhi yhi; xhi ylo];      
+    end
+    function roi = maRoiXY2RoiScaled(xy,scalefac,fixedmargin)
+      % scaled roi, centered on center of bbox; equivalent to 'expanding'
+      %  bbox by scalefac*bbox
+      % xy: [npt x 2]
+      % roi: [4x2]
+      xymin = min(xy,[],1);
+      xymax = max(xy,[],1);
+      xyrad = scalefac * (xymax-xymin)/2 + fixedmargin;
+      xymid = (xymax+xymin)/2;
+      xylo = xymid-xyrad;
+      xyhi = xymid+xyrad;
+      roi = [xylo; xylo(1) xyhi(2); xyhi; xyhi(1) xylo(2)];
+    end
+  end
   methods
 %     function maSetPtInfo(obj,ptNames)
 %       % ht assumed to be correct even if htEnabled==false
@@ -8727,9 +8753,23 @@ classdef Labeler < handle
       % roi: [4x2] [x(:) y(:)] corners of ractangular roi
       
       tfHT = ~isempty(obj.skelHead);
-      prmsTargetCropMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop;
-      rad = prmsTargetCropMA.Radius;
-      if tfHT && prmsTargetCropMA.AlignUsingHead      
+      sprmMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+
+      tfscaled = sprmMA.ScaledToTarget;
+      tfalignHT = sprmMA.AlignUsingHead && tfHT; 
+      tfincfixedmargin = sprmMA.ScaledToTargetAddFixedMargin;
+      scalefac = sprmMA.ScaledToTargetMargin;
+      radfixed = sprmMA.Radius;
+      
+      if tfscaled 
+        if tfincfixedmargin
+          scaledfixedmargin = radfixed;
+        else
+          scaledfixedmargin = 0;
+        end
+      end
+        
+      if tfalignHT
         xyH = xy(obj.skelHead,:);
         xyCent = nanmean(xy,1);
 
@@ -8738,27 +8778,23 @@ classdef Labeler < handle
         R = rotationMatrix(-phi);
         
         xyc = xy-xyCent; % kps centered about centroid
-        Rxyc = R*xyc.'; % [2xnpts] vec from cent->h should point to positive x
-        minRxyc = min(Rxyc,[],2); % [2x1] min x,y
-        maxRxyc = max(Rxyc,[],2); % etc
-        
-        % form rectangular roi in Rotated coords
-        Rxlo = minRxyc(1) - rad;
-        Rxhi = maxRxyc(1) + rad;
-        Rylo = minRxyc(2) - rad;
-        Ryhi = maxRxyc(2) + rad;
-        Rroi = [Rxlo Rylo; Rxlo Ryhi; Rxhi Ryhi; Rxhi Rylo].';
-        
-        % Roi in original coords
-        roi = R.'*Rroi; 
+        Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
+                        % vec from cent->h should point to positive x
+        if tfscaled
+          Rroi = Labeler.maRoiXY2RoiScaled(Rxyc.',scalefac,scaledfixedmargin); 
+        else
+          Rroi = Labeler.maRoiXY2RoiFixed(Rxyc.',radfixed);
+        end
+        % Rroi is [4x2]
+
+        roi = R.'*Rroi.'; 
         roi = roi.'+xyCent;
       else
-        xymu = nanmean(xy,1);
-        xlo = xymu(1)-rad;
-        xhi = xymu(1)+rad;
-        ylo = xymu(2)-rad;
-        yhi = xymu(2)+rad;
-        roi = [xlo ylo; xlo yhi; xhi yhi; xhi ylo];
+        if tfscaled
+          roi = Labeler.maRoiXY2RoiScaled(xy,scalefac,scaledfixedmargin);
+        else
+          roi = Labeler.maRoiXY2RoiFixed(xy,radfixed);
+        end
       end
     end
       
