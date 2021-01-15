@@ -208,12 +208,17 @@ class config(object):
         self.multi_frame_sz = []
         # actual frame size
         self.multi_max_animal_sz = None
-        self.multi_use_mask = True
+        # multi_use_mask is whether to mask the image or not
+        self.multi_use_mask = False
+        # whether to mask the loss or not
+        self.multi_loss_mask = True
+        # crop images during training
         self.multi_crop_ims = True
         self.multi_mdn_match_dist = 10
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
+        self.multi_mmpose_detection_threshold = 0.5
 
         # ============== EXTRA ================
 

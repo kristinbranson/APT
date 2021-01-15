@@ -284,6 +284,10 @@ def convert_to_coco(coco_info,ann,data):
     # converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
 
     cur_im,cur_locs,info,cur_occ = data[:4]
+    if len(data)>4:
+        roi = data[4]
+    else:
+        roi = None
     ndx = coco_info['ndx']
     coco_info['ndx'] += 1
     imfile = os.path.join(coco_info['imdir'],'{:08d}.png'.format(ndx))
@@ -307,9 +311,13 @@ def convert_to_coco(coco_info,ann,data):
         w = lmax[0] - lmin[0]
         h = lmax[1] - lmin[1]
         bbox = [lmin[0], lmin[1], w, h]
+        if roi is None:
+            segm = [bbox]
+        else:
+            segm = [roi[idx].flatten().tolist()]
         area = w * h
         out_locs = np.concatenate([ix, occ_coco], 1)
-        ann['annotations'].append({'iscrowd': 0, 'segmentation': [bbox], 'area': area, 'image_id': ndx, 'id': annid,'num_keypoints': cur_locs.shape[1], 'bbox': bbox, 'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
+        ann['annotations'].append({'iscrowd': 0, 'segmentation': segm, 'area': area, 'image_id': ndx, 'id': annid,'num_keypoints': cur_locs.shape[1], 'bbox': bbox, 'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
 
 def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf):
@@ -1085,14 +1093,23 @@ def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
 
             # Check if any animals falls in the current patch
             for aa in range(cur_pts.shape[0]):
-                pp = cur_pts[aa, :, :] + buffer
+                valid_lbls = ~(np.isnan(cur_pts[aa,:,0]) & (cur_pts[aa,:,0]<-100) )
+                pp = cur_pts[aa, valid_lbls, :] + buffer
                 bb1 = np.min(pp, axis=0)
                 bb2 = np.max(pp, axis=0)
 
-                if not ((bb1[0] > leftx) and (bb2[0] < rightx) and (bb1[1] > topy) and (bb2[1] < bottomy)):
-                    # All The labeled joints should lie within.
-                    # Maybe it might be better with whole masked bounding box. But other packages on coco suggest animals getting cropped isn't that big a deal.
-                    continue
+                if conf.multi_use_mask or conf.multi_loss_mask:
+                    # When using mask all the points should be completely inside
+                    if not ((bb1[0] > leftx) and (bb2[0] < rightx) and (bb1[1] > topy) and (bb2[1] < bottomy)):
+                        # All The labeled joints should lie within.
+                        # Maybe it might be better with whole masked bounding box. But other packages on coco suggest animals getting cropped isn't that big a deal.
+                        continue
+                else:
+                  # When not using mask only the center should be within. This is quick way to ensure that at least 50% of the animals will lie within
+                    bbm = (bb1 + bb2)/2
+                    if not ((bbm[0] > leftx) and (bbm[0] < rightx) and (bbm[1] > topy) and (bbm[1] < bottomy)):
+                        continue
+
                 valid.append(aa)
                 done_f[aa] = True
                 curbb = np.array([[bb1[0], bb2[0]], [bb1[1], bb2[1]]])
@@ -1109,21 +1126,20 @@ def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
                 curp = curi[topy:bottomy,leftx:rightx, :]
                 if conf.multi_use_mask:
                     cur_mask = create_mask(all_bb,[bottomy-topy,rightx-leftx])
-                else:
-                    cur_mask = np.ones([bottomy - topy, rightx - leftx]) > 0.5
-                curp = curp * cur_mask[...,np.newaxis]
+                    curp = curp * cur_mask[..., np.newaxis]
+
                 curl = cur_pts[valid, :, :].copy()
                 curl[:, :,0] = curl[:, :, 0] - leftx + buffer
                 curl[:, :,1] = curl[:, :, 1] - topy + buffer
                 cur_occ = occ[valid,...]
 
-                all_data.append([curp, curl, [info[0], info[1], y_grid*xx+ yy], cur_occ])
+                all_data.append([curp, curl, [info[0], info[1], y_grid*xx+ yy], cur_occ,np.array(all_bb)])
     if not np.all(done_f):
         logging.warning('Not all labeled animals could be included in the training set')
     return all_data
 
 
-def db_from_trnpack(conf, out_fns, nsamples=None):
+def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
     # Creates db from new trnpack format instead of stripped label files.
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
@@ -1185,7 +1201,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None):
         if conf.is_multi:
             data_out = create_ma_crops(conf,cur_frame,cur_locs,info, cur_occ, cur_roi)
         else:
-            data_out = [[cur_frame, cur_locs, info,cur_occ]]
+            data_out = [[cur_frame, cur_locs, info,cur_occ,cur_roi]]
         for curd in data_out:
             cur_out(curd)
 
@@ -1230,7 +1246,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,
 
     lbl = h5py.File(conf.labelfile, 'r')
     if not 'preProcData_MD_mov' in lbl.keys():
-        return db_from_trnpack(conf,out_fns,nsamples=nsamples)
+        return db_from_trnpack(conf,out_fns,nsamples=nsamples,split=split)
 
     #npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
     if use_gt_cache:

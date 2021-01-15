@@ -1,3 +1,23 @@
+## masking loss
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import APT_interface as apt
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split.json -conf_params dl_steps 110000 is_multi True multi_use_mask False multi_loss_mask True mmpose_net \"higherhrnet\" db_format \"coco\" max_n_animals 7  -train_name higherhr_maskloss -type multi_mmpose -name val_split -cache /nrs/branson/mayank/apt_cache_2 train -continue -skip_db'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+
+cmd = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20201225T042233_20201225T042235.lbl -json_trn_file /nrs/branson/mayank/apt_cache_2/four_points_180806/loc.json -conf_params dl_steps 200000 pretrain_freeze_bnorm False is_multi True mmpose_net "higherhrnet" multi_use_mask False db_format "coco" batch_size 2 max_n_animals 2 save_step 10000 -train_name grone_nomask_bn -type multi_mdn_joint_torch -name full_dataset -cache /nrs/branson/mayank/apt_cache_2 train -skip_db'
+
+
+import APT_interface as apt
+apt.main(cmd.split())
+
+
+##
 nims = len(A['images'])
 aas = np.random.rand(nims,11,2,3)*-1000
 for im in range(nims):
@@ -49,15 +69,6 @@ for ndx in range(len(local_dirs)):
         fr = A['images']['frm']
 
 
-##
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] ='0'
-
-cmd = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20201225T042233_20201225T042235.lbl -json_trn_file /nrs/branson/mayank/apt_cache_2/four_points_180806/loc.json -conf_params dl_steps 200000 is_multi True mmpose_net "higherhrnet" db_format "coco" batch_size 4 max_n_animals 2 multi_use_mask False  -train_name higherhrnet_mem -type multi_mmpose -name full_dataset -cache /nrs/branson/mayank/apt_cache_2 train'
-
-
-import APT_interface as apt
-apt.main(cmd.split())
 
 ##
 

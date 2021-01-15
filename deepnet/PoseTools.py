@@ -113,7 +113,7 @@ def unscale_points(locs_lores, scalex, scaley):
     locs_hires[..., 1] = float(scaley) * (locs_hires[..., 1] + 0.5) - 0.5
     return locs_hires
 
-def scale_images(img, locs, scale, conf, **kwargs):
+def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     sz = img.shape
     szy_ds = int(sz[1]//scale)
     szx_ds = int(sz[2]//scale)
@@ -125,19 +125,22 @@ def scale_images(img, locs, scale, conf, **kwargs):
     valid = nan_valid & high_valid
 
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
+    smask = np.zeros((sz[0],szy_ds,szx_ds)) if mask is not None else None
     for ndx in range(sz[0]):
         # use anti_aliasing?
         if sz[3] == 1:
             simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
         else:
             simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
+        if mask is not None:
+            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
 
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
     new_locs = rescale_points(locs, scalex_actual, scaley_actual)
     new_locs[~valid] = -100000
 
-    return simg, new_locs
+    return simg, new_locs, smask
 
 
 def normalize_mean(in_img, conf):
@@ -205,7 +208,7 @@ def crop_images(frame_in, conf):
     return frame_in[start[0]:end[0], start[1]:end[1], :]
 
 
-def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
+def randomly_flip_lr(img, in_locs, conf, group_sz = 1, mask=None):
     locs = in_locs.copy()
 
     if locs.ndim == 3:
@@ -226,6 +229,8 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
 
         if jj > 0.5:
             img[st:en, ...] = img[st:en, :, ::-1, :]
+            if mask is not None:
+                mask[st:en, ...] = mask[st:en,:,::-1]
             for ll in range(locs.shape[2]):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
@@ -243,10 +248,10 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
 
 
     locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs
+    return img, locs, mask
 
 
-def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
+def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None):
     locs = in_locs.copy()
     if locs.ndim == 3:
         reduce_dim = True
@@ -265,6 +270,9 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
         jj = np.random.randint(2)
         if jj > 0.5:
             img[st:en, ...] = img[st:en, ::-1, : ,: ]
+            if mask is not None:
+                mask[st:en, ...] = mask[st:en,::-1,:]
+
             for ll in range(locs.shape[2]):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
@@ -281,7 +289,7 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
                 locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
 
     locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs
+    return img, locs, mask
 
 
 def randomly_translate(img, locs, conf, group_sz = 1):
@@ -485,7 +493,7 @@ def randomly_scale(img,locs,conf,group_sz=1):
     return img, locs
 
 
-def randomly_affine(img,locs, conf, group_sz=1):
+def randomly_affine(img,locs, conf, group_sz=1, mask= None):
 
     # KB 20191218 - replaced scale_range with scale_factor_range
     if conf.use_scale_factor_range:
@@ -501,6 +509,9 @@ def randomly_affine(img,locs, conf, group_sz=1):
 
     locs = locs.copy()
     img = img.copy()
+    if mask is not None:
+        mask = mask.copy()
+
     if locs.ndim == 3: # hack for multi animal
         reduce_dim = True
         locs = locs[:,np.newaxis,...]
@@ -519,12 +530,15 @@ def randomly_affine(img,locs, conf, group_sz=1):
         en = (ndx+1)*group_sz
         orig_locs = locs[st:en, ...]
         orig_im = img[st:en, ...].copy()
+        orig_mask = mask[st:en,...].copy() if mask is not None else None
         sane = False
         do_transform = True
 
         count = 0
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
+        out_mask = orig_mask.copy() if mask is not None else None
+
         nan_valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
         high_valid = orig_locs[..., 0] > -1000  # ridiculosly low values are used for multi animal
         valid = nan_valid & high_valid
@@ -580,14 +594,18 @@ def randomly_affine(img,locs, conf, group_sz=1):
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
+                if mask is not None:
+                    out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST)
 
         lr[~high_valid,0] = -100000
         lr[~high_valid,1] = -100000
         locs[st:en, ...] = lr
         img[st:en, ...] = out_ii
+        if mask is not None:
+            mask[st:en,...] = out_mask
 
     locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs
+    return img, locs, mask
 
 
 def blur_label(im_sz, loc, scale, blur_rad):
@@ -1264,7 +1282,7 @@ def crop_to_size(img, sz):
     return out_img, dx, dy
 
 
-def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
+def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None):
     '''
 
     :param ims: Input image. It is converted to uint8 before applying the transformations. Size: B x H x W x C
@@ -1285,25 +1303,25 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     cur_im = cur_im.astype('uint8')
     xs = adjust_contrast(cur_im, conf)
     start = time.time()
-    xs, locs = scale_images(xs, locs, scale, conf)
+    xs, locs, mask = scale_images(xs, locs, scale, conf, mask=mask)
     stime = time.time()
     if distort:
         if conf.horz_flip:
-            xs, locs = randomly_flip_lr(xs, locs, conf, group_sz=group_sz)
+            xs, locs, mask = randomly_flip_lr(xs, locs, conf, group_sz=group_sz,mask=mask)
         if conf.vert_flip:
-            xs, locs = randomly_flip_ud(xs, locs, conf, group_sz=group_sz)
+            xs, locs, mask = randomly_flip_ud(xs, locs, conf, group_sz=group_sz,mask=mask)
         ftime = time.time()
-        xs, locs = randomly_affine(xs, locs, conf, group_sz=group_sz)
+        xs, locs, mask = randomly_affine(xs, locs, conf, group_sz=group_sz,mask=mask)
         rtime = time.time()
-        # xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
-        # xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
-        # xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
         xs = randomly_adjust(xs, conf, group_sz=group_sz)
         ctime = time.time()
     xs = normalize_mean(xs, conf)
     etime = time.time()
     # print('Time for aug {}, {}, {}, {}, {}'.format(stime-start,ftime-stime,rtime-ftime,ctime-rtime,etime-ctime))
-    return xs, locs
+    if mask is None:
+        return xs, locs
+    else:
+        return xs, locs, mask
 
 
 def pad_ims(ims, locs, pady, padx):
@@ -1464,7 +1482,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=72*60,
                run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',
                sing_image='docker://bransonlabapt/apt_docker:tf1.15_py3',
                precmd='',numcores=2):
@@ -1491,7 +1509,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh login1 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     with open(bsub_script,'w') as f:
         f.write(cmd)
         f.write('\n')
