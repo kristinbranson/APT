@@ -2,7 +2,7 @@ classdef Lbl
   
   methods (Static) % ma train package
     
-    function vizLoc(loc,packdir,varargin)
+    function vizLoc(packdir,varargin)
       % Visualize 'loc' data structure (one row per labeled mov,frm,tgt) 
       % from training package.
       %
@@ -14,6 +14,8 @@ classdef Lbl
         'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
         );
       
+      [~,~,loc,~] = Lbl.loadPack(packdir);
+       
       hfig = figure(11);
       
       idmfun = unique({loc.idmovfrm}');
@@ -23,6 +25,11 @@ classdef Lbl
         is = find(strcmp({loc.idmovfrm}',idmf));
         
         imf = fullfile(packdir,'im',[idmf '.png']);
+        if exist(imf,'file')==0
+          warningNoTrace('Skipping, image not found: %s',imf);
+          continue;
+        end
+          
         im = imread(imf);
         
         clf;
@@ -166,7 +173,7 @@ classdef Lbl
      
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
-      [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
+      [loc,locg] = Lbl.genLocs(tp,lObj.movieInfoAll);
       if writeims
         if isempty(writeimsidx)
           writeimsidx = 1:numel(loc);
@@ -217,12 +224,12 @@ classdef Lbl
       end
       sagg = cell2mat(sagg);
     end
-    function [sloc,slocg,sloccc] = genLocs(sagg,movInfoAll)
+    function [sloc,slocg] = genLocs(sagg,movInfoAll)
       assert(numel(sagg)==numel(movInfoAll));
       nmov = numel(sagg);
       sloc = [];
       slocg = [];
-      sloccc = [];
+      %sloccc = [];
       for imov=1:nmov
         s = sagg(imov);
         movifo = movInfoAll{imov};
@@ -231,11 +238,11 @@ classdef Lbl
         
         slocI = Lbl.genLocsI(s,imov);
         slocgI = Lbl.genLocsGroupedI(s,imov);
-        slocccI = Lbl.genCropClusteredLocsI(s,imsz,imov);
+        %slocccI = Lbl.genCropClusteredLocsI(s,imsz,imov);
         
         sloc = [sloc; slocI]; %#ok<AGROW>
         slocg = [slocg; slocgI]; %#ok<AGROW>
-        sloccc = [sloccc; slocccI]; %#ok<AGROW>
+        %sloccc = [sloccc; slocccI]; %#ok<AGROW>
       end
     end
     function [sloc] = genLocsI(s,imov)
@@ -320,6 +327,7 @@ classdef Lbl
           % is ok. In very rare cases, multiple targets may completely
           % obscure/cover a previous target/roi but this should be
           % exceedingly rare.
+          % see warning below. 
         end
         
         % mask is now a label matrix where the labels are the j vals or
@@ -330,7 +338,13 @@ classdef Lbl
         js = cellfun(@(x)unique(mask(x)),cc.PixelIdxList,'uni',0);
         jsall = cat(1,js{:});
         % Each tgt/j should appear in precisely one cc
-        assert(numel(jsall)==ntgt && isequal(sort(jsall),sort(idx)));
+        
+        % expect this warning to be very rare: this actually 'loses' a
+        % target from the dataset.
+        if ~(numel(jsall)==ntgt && isequal(sort(jsall),sort(idx)))
+          warningNoTrace('Mov %d, frame %d. Data loss: lost one or more targets during masking!',...
+            imov,f);
+        end
         
         for icc=1:ncc
           jcc = js{icc};

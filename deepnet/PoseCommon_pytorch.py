@@ -17,6 +17,8 @@ import gc
 from torch import autograd
 import time
 import cv2
+import xtcocotools.mask
+
 autograd.set_detect_anomaly(True)
 
 def print_train_data(cur_dict):
@@ -95,6 +97,7 @@ class coco_loader(torch.utils.data.Dataset):
 
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
         lndx = 0
+        annos = []
         for a in self.ann['annotations']:
             if not (a['image_id']==item):
                 continue
@@ -102,18 +105,46 @@ class coco_loader(torch.utils.data.Dataset):
             locs = np.reshape(locs,[conf.n_classes,3])
             curl[lndx,...] = locs
             lndx += 1
+            annos.append(a)
 
         curl = np.array(curl)
         occ = curl[...,2] < 1.5
         locs = curl[...,:2]
-        im,locs = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale)
+        mask = self.get_mask(annos,im.shape[:2])
+        im,locs, mask = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...])
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
+        mask = mask[0,...]
+
         features = {'images':im,
                     'locs':locs[0,...],
                     'info':info,
                     'occ': occ,
+                    'mask':mask
                     }
         return features
+
+    def get_mask(self, anno, im_sz):
+        conf = self.conf
+        m = np.zeros(im_sz,dtype=np.float32)
+
+        if not conf.multi_loss_mask:
+            return m<0.5
+
+        for obj in anno:
+            if 'segmentation' in obj:
+                if obj['iscrowd']:
+                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
+                                                       img_info['height'],
+                                                       img_info['width'])
+                    m += xtcocotools.mask.decode(rle)
+                else:
+                    rles = xtcocotools.mask.frPyObjects(
+                        obj['segmentation'], im_sz[0],
+                        im_sz[1])
+                    for rle in rles:
+                        m += xtcocotools.mask.decode(rle)
+        return m>0.5
+
 
 def next_data(loader, dataset):
     try:
@@ -172,8 +203,9 @@ class PoseCommon_pytorch(object):
         self.save_td()
         self.prev_models.append(fname)
         if len(self.prev_models) > self.conf.maxckpt:
-            if os.path.exists(self.prev_models[0]):
-                os.remove(self.prev_models[0])
+            for curm in self.prev_models[:-self.conf.maxckpt]:
+                if os.path.exists(os.path.join(self.conf.cachedir,curm)):
+                    os.remove(os.path.join(self.conf.cachedir,curm))
             _ = self.prev_models.pop(0)
 
         with open(self.get_ckpt_file(),'w') as cf:
@@ -350,7 +382,7 @@ class PoseCommon_pytorch(object):
             outputs = model(inputs)
             o = time.time()
             labels = self.create_targets(inputs)
-            valid = torch.any(torch.all(labels > -1000, dim=3), dim=2)
+            valid = torch.any(torch.all(inputs['locs'] > -1000, dim=3), dim=2)
             if not torch.all(torch.any(valid, dim=1)):
                 print('Some inputs dont have any labels')
                 continue
@@ -427,6 +459,20 @@ class PoseCommon_pytorch(object):
 
         model.to(self.device)
         data_loaders = self.create_data_gen()
+
+        if self.conf.get('use_dataset_stats_norm',False):
+            train_loader = iter(data_loaders[0])
+            all_ims = []
+            for ndx in range(50):
+                for skip in range(40):
+                    cur_i, train_loader = next_data(train_loader, data_loaders[0])
+                all_ims.append(cur_i['images'].cpu().numpy())
+            all_ims = np.concatenate(all_ims,0)
+            im_mean = all_ims.mean((0,2,3),keepdims=True)
+            im_std = all_ims.std((0,2,3),keepdims=True)
+            model.module.im_mean = torch.tensor(im_mean[0,...].astype('single'))
+            model.module.im_std = torch.tensor(im_std[0,...].astype('single'))
+
         self.train(data_loaders,model,self.loss,opt,sched,training_iters,start_at)
 
     def loss(self,output, labels):

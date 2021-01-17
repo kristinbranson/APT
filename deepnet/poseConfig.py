@@ -45,6 +45,7 @@ class config(object):
         self.brange = [-0.2, 0.2]
         self.crange = [0.7, 1.3]
         self.rrange = 30
+        self.rot_prob = 0.6
         self.trange = 10
         self.scale_range = 0.1
         self.scale_factor_range = 1.1
@@ -139,6 +140,18 @@ class config(object):
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
+        self.leap_val_size = 0.15
+        self.leap_preshuffle = True
+        self.leap_filters = 64
+        self.leap_val_batches_per_epoch = 10
+        self.leap_reduce_lr_factor =0.1
+        self.leap_reduce_lr_patience =3
+        self.leap_reduce_lr_min_delta = 1e-5
+        self.leap_reduce_lr_cooldown = 0
+        self.leap_reduce_lr_min_lr = 1e-10
+        self.leap_amsgrad =False
+        self.leap_upsampling =False
+        self.use_leap_preprocessing = False
 
         # ----- Deep Lab Cut
         self.dlc_train_img_dir = 'train'
@@ -195,9 +208,17 @@ class config(object):
         self.multi_frame_sz = []
         # actual frame size
         self.multi_max_animal_sz = None
+        # multi_use_mask is whether to mask the image or not
+        self.multi_use_mask = False
+        # whether to mask the loss or not
+        self.multi_loss_mask = True
+        # crop images during training
+        self.multi_crop_ims = True
+        self.multi_mdn_match_dist = 10
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
+        self.multi_mmpose_detection_threshold = 0.5
 
         # ============== EXTRA ================
 

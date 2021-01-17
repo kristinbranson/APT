@@ -387,6 +387,9 @@ classdef Labels
         'tgts',[] ... % optional, tgt labels for 4th dim
         );
       
+      if isstruct(lpos)
+        lpos = SparseLabelArray.full(lpos);
+      end
       [npts,d,nfrm,ntgt] = size(lpos);
       assert(d==2);
       

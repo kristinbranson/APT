@@ -10,7 +10,9 @@ classdef TrackingVisualizerTrx < handle
     showTrxPreNFrm = 15;      % number of preceding frames to show in traj
     showTrxPostNFrm = 5;      % number of following frames to show in traj
     
-    click2nav = false;
+    trxClickable = false;
+    trxSelectCbk;             % cbk with sig trxSelectCbk(iTrx); called when 
+                              % trxClickable=true and on trx BDF
   end
   properties (Dependent)
     nTrx
@@ -41,6 +43,9 @@ classdef TrackingVisualizerTrx < handle
     
     function init(obj,click2nav,nTrx)
       % create gfx handles
+      %
+      % click2nav: either true, false, or arbitrary callback called for trx
+      %           bdf. Sig: cbk(iTrx)
       
       obj.deleteGfxHandles();
       
@@ -52,6 +57,22 @@ classdef TrackingVisualizerTrx < handle
       obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
+      
+      if islogical(click2nav)
+        if click2nav
+          obj.trxSelectCbk = @(iTrx)lObj.clickTarget([],[],iTrx);
+          bdf = @(src,evt)obj.bdfTrx(src,evt);
+        else
+          obj.trxSelectCbk = [];
+          bdf = [];
+        end
+        obj.trxClickable = click2nav;
+      else
+        assert(isa(click2nav,'function_handle'));
+        obj.trxSelectCbk = click2nav;
+        bdf = @(src,evt)obj.bdfTrx(src,evt);
+        obj.trxClickable = true;
+      end
       
       ax = lObj.gdata.axes_curr;
       pref = lObj.projPrefs.Trx;
@@ -68,21 +89,17 @@ classdef TrackingVisualizerTrx < handle
           'PickableParts','none');
 
         obj.hTrx(i,1) = plot(ax,...
-          nan,nan,pref.TrxMarker);
-        if click2nav
-          bdf = @(h,evt) lObj.clickTarget(h,evt,i);
-        else
-          bdf = [];
-        end          
+          nan,nan,pref.TrxMarker);               
         set(obj.hTrx(i,1),...
           'Color',pref.TrajColor,...
           'MarkerSize',pref.TrxMarkerSize,...
           'LineWidth',pref.TrxLineWidth,...
           'Tag',sprintf('Labeler_Trx_%d',i),...
           'ButtonDownFcn',bdf,...
+          'UserData',i,...
           'PickableParts','all',...
           'HitTest','on');
-        if i == lObj.currTarget || ~click2nav,
+        if i == lObj.currTarget || isempty(bdf) %% first clause questionable given multiple clients of this class
           set(obj.hTrx(i,1),...
             'PickableParts','none',...
             'HitTest','off');
@@ -95,7 +112,11 @@ classdef TrackingVisualizerTrx < handle
           'PickableParts','none',...
           'Tag',sprintf('Labeler_TrxTxt_%d',i));
       end
-      obj.click2nav = click2nav;
+    end
+    
+    function bdfTrx(obj,src,evt)
+      iTrx = src.UserData;
+      obj.trxSelectCbk(iTrx);
     end
     
     function updateTrx(obj,tfShow)
@@ -168,7 +189,7 @@ classdef TrackingVisualizerTrx < handle
           set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
             'Color',color);
           if tfUpdateIDs
-            idstr = num2str(trxCurr.id+1);
+            idstr = num2str(trxCurr.id);
             set(obj.hTrxTxt(iTrx),'String',idstr);
           end
         end
@@ -176,13 +197,15 @@ classdef TrackingVisualizerTrx < handle
       end
       %fprintf('Time to update trx: %f\n',toc);
       
-      if obj.click2nav
+      if obj.trxClickable
         set(obj.hTrx([1:iTgtPrimary-1,iTgtPrimary+1:end],1),...
           'PickableParts','all',...
           'HitTest','on');
-        set(obj.hTrx(iTgtPrimary,1),...
-          'PickableParts','none',...
-          'HitTest','off');
+        if iTgtPrimary>0
+          set(obj.hTrx(iTgtPrimary,1),...
+            'PickableParts','none',...
+            'HitTest','off');
+        end
       end
     end
     

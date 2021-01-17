@@ -1,7 +1,6 @@
 import numpy as np
 import numpy.random as random
 import scipy.optimize as opt
-from matplotlib import cm
 import TrkFile
 
 # for now I'm just using loadmat and savemat here
@@ -11,12 +10,8 @@ from tqdm import tqdm
 
 # for debugging
 import matplotlib
-
-matplotlib.use('TkAgg')
+from matplotlib import cm
 import matplotlib.pyplot as plt
-
-#plt.ion()
-
 
 def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None):
   """
@@ -148,11 +143,11 @@ def assign_ids(trk, params, T=np.inf):
 
 def stitch(trk, ids, params):
   """
-  stitch(trk,ids,params): Fill in short gaps (<= params['maxnframes_missed']) to
+  stitch(trk,ids,params): Fill in short gaps (<= params['maxframes_missed']) to
   connect trajectory deaths and births.
   :param trk: Trk class object with detections
   :param ids: Tracklet class object indicating ids assigned to each detection, output of assign_ids
-  :param params: parameters dict. Only relevant parameter is 'maxnframes_missed'
+  :param params: parameters dict. Only relevant parameter is 'maxframes_missed'
   :return: ids: Updated identity assignment matrix after stitching
   :return: isdummy: Tracklet class object representing nids x T matrix indicating whether a frame is missed for a given id.
   """
@@ -268,9 +263,9 @@ def delete_short(ids, isdummy, params):
     print('Deleting %d short trajectories' % ids_short.size)
   return ids, ids_short
 
-def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1):
+def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, heuristic='secondorder'):
   """
-  maxcost = estimate_maxcost(trk,nsample=1000,prctile=95.,mult=None,nframes_skip=1)
+  maxcost = estimate_maxcost(trk,nsample=1000,prctile=95.,mult=None,nframes_skip=1,heuristic='secondorder')
   Estimate the threshold for the maximum cost for matching identities. This is done
   by running match_frame on some sample frames, looking at the assignment costs
   assuming all assignments are allowed, and then taking a statistic of all those
@@ -317,7 +312,24 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1):
     allcosts[:np.count_nonzero(ismatch), i] = costscurr[ismatch]
   
   isdata = np.isnan(allcosts) == False
-  maxcost = mult * np.percentile(allcosts[isdata], prctile) * 2.
+  
+  if heuristic == 'prctile':
+    maxcost = mult * np.percentile(allcosts[isdata], prctile) * 2.
+  elif heuristic == 'secondorder':
+    # use sharp increase in 2nd order differences.
+    qq = np.percentile(allcosts[isdata], np.arange(50, 100, 0.5))
+    dd1 = qq[1:] - qq[:-1]
+    dd2 = dd1[1:] - dd1[:-1]
+    all_ix = np.where(dd2 > 4)[0]
+    # threshold is where the second order increases by 4, so sort of the coefficient for the quadratic term.
+    if len(all_ix) < 1:
+        ix = 96 # choose 98 % as backup
+    else:
+        ix = all_ix[0]
+    ix = np.clip(ix,5,98)
+    print('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost'%(nframes_skip,ix/2+50,qq[ix]))
+    maxcost = mult*qq[ix]*2.
+  
   return maxcost
   
   # debug code -- what are the differences between having no threshold on cost and having the chosen threshold
@@ -340,9 +352,9 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1):
   #         print('i = %d, t = %d, nmiss = %d, ncurr = %d, nnext = %d, costs removed: %s'%(i,t,nmiss,ntargets_curr,ntargets_next,str(sortedcosts[:nmiss])))
 
 
-def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mult=None):
+def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mult=None, heuristic='secondorder'):
   """
-  maxcost_missed = estimate_maxcost_missed(trk,maxframes_missednsample=1000,prctile=95.,mult=None)
+  maxcost_missed = estimate_maxcost_missed(trk,maxframes_missednsample=1000,prctile=95.,mult=None, heuristic='secondorder')
   Estimate the threshold for the maximum cost for matching identities across > 1 frame.
   This is done by running match_frame on some sample frames, looking at the assignment costs assuming all assignments
   are allowed, and then taking a statistic of all those assignment costs.
@@ -359,7 +371,7 @@ def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mu
   maxcost_missed = np.zeros(maxframes_missed)
   for nframes_skip in range(2, maxframes_missed+2):
     maxcost_missed[nframes_skip-2] = estimate_maxcost(trk, prctile=prctile, mult=mult, nframes_skip=nframes_skip,
-                                                      nsample=nsample)
+                                                      nsample=nsample,heuristic=heuristic)
   return maxcost_missed
 
 
@@ -513,6 +525,9 @@ def test_assign_ids_data():
   :return:
   """
   
+  matplotlib.use('TkAgg')
+  plt.ion()
+  
   trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2.trk.part'
   outtrkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2_kbstitched.trk'
   
@@ -527,6 +542,7 @@ def test_assign_ids_data():
   params['maxcost_prctile'] = 95.
   params['maxcost_mult'] = 1.25
   params['maxcost_framesfit'] = 3
+  params['maxcost_heuristic'] = 'secondorder'
   nframes_test = np.inf
   
   showanimation = False
@@ -536,10 +552,13 @@ def test_assign_ids_data():
   # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
   # p = np.transpose(trk['pTrk'],(1,0,3,2))
   nframes_test = int(np.minimum(T, nframes_test))
-  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'])
+  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],
+                                       heuristic=params['maxcost_heuristic'])
   params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'],
-                                                     prctile=params['maxcost_prctile'], mult=params['maxcost_mult'])
+                                                     prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],
+                                                     heuristic=params['maxcost_heuristic'])
   print('maxcost set to %f' % params['maxcost'])
+  print('maxcost_missed set to ' + str(params['maxcost_missed']))
   ids, costs = assign_ids(trk, params, T=nframes_test)
   if isinstance(ids, np.ndarray):
     nids_original = np.max(ids)+1
@@ -639,6 +658,10 @@ def test_assign_ids_data():
 
 
 def test_estimate_maxcost():
+  
+  matplotlib.use('TkAgg')
+  plt.ion()
+  
   trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1.trk.part'
   
   # parameters
