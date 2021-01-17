@@ -277,6 +277,9 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   :param prctile: Percentile used when computing threshold, default = 95.
   :param mult: Multiplier used when computing threshold , default = 100./prctile
   :param nframes_skip: Number of frames to skip, default = 1
+  :param heuristic: How to convert statistics of costs to a threshold.
+  Options: 'secondorder' (Mayank's heuristic), 'prctile' (Kristin's heuristic).
+  Default: 'secondorder'.
   Returns threshold on cost.
   """
   
@@ -365,6 +368,9 @@ def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mu
   :param nsample: Number of frames to sample
   :param prctile: Percentile used when computing threshold
   :param mult: Multiplier used when computing threshold
+  :param heuristic: How to convert statistics of costs to a threshold.
+  Options: 'secondorder' (Mayank's heuristic), 'prctile' (Kristin's heuristic).
+  Default: 'secondorder'.
   Returns np.ndarray containing threshold on cost for each number of frames missed.
   """
   
