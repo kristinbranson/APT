@@ -6,7 +6,6 @@ classdef Lbl
       % Visualize 'loc' data structure (one row per labeled mov,frm,tgt) 
       % from training package.
       %
-      % loc: loc structure as output by Lbl.loadPack
       % packdir: package dir (contains images)
 
       [scargs,ttlargs] = myparse(varargin,...
@@ -52,11 +51,10 @@ classdef Lbl
       end        
     end
     
-    function vizLocg(locg,packdir,varargin)
+    function vizLocg(packdir,varargin)
       % Visualize 'locg' data structure (one row per labeled mov,frm) 
       % from training package.
       %
-      % locg: loc structure as output by Lbl.loadPack
       % packdir: package dir (contains images)
 
       [scargs,ttlargs] = myparse(varargin,...
@@ -64,6 +62,8 @@ classdef Lbl
         'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
         );
       
+      [~,~,~,locg] = Lbl.loadPack(packdir);
+
       hfig = figure(11);
       
       nfrm = numel(locg.locdata);
@@ -91,12 +91,54 @@ classdef Lbl
       end        
     end
     
+    function vizLocClus(packdir,varargin)
+      % Visualize 'locg' data structure (one row per labeled mov,frm)
+      % from training package.
+      %
+      % packdir: package dir (contains images)
+      
+      [scargs,ttlargs] = myparse(varargin,...
+        'scargs',{16}, ...
+        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
+        );
+      
+      [~,~,~,~,loccc] = Lbl.loadPack(packdir);
+
+      hfig = figure(11);
+      
+      ncluster = numel(loccc);
+      for iclus=1:ncluster
+        s = loccc(iclus);
+        assert(isscalar(s.img));
+        imf = fullfile(packdir,s.img{1});
+        im = imread(imf);
+        
+        clf;
+        ax = axes;
+        imagesc(im);
+        colormap gray;
+        hold on;
+        axis square;
+        
+        for itgt=1:s.ntgt
+          xy = reshape(s.pabs(:,itgt),[],2);
+          scatter(xy(:,1),xy(:,2),scargs{:});
+        end
+        szassert(s.roi,[8 1]);
+        plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
+        
+        tstr = sprintf('%s: %d tgts',s.idclus,s.ntgt);
+        title(tstr,ttlargs{:});
+        input(tstr);
+      end
+    end
+      
     function s = hlpLoadJson(jsonfile)
       jse = readtxtfile(jsonfile);
       s = jsondecode(jse{1});
       fprintf(1,'loaded %s\n',jsonfile);
     end
-    function [slbl,tp,loc,locg] = loadPack(packdir)
+    function [slbl,tp,loc,locg,loccc] = loadPack(packdir)
       % Load training package into MATLAB data structures
       %
       % slbl: 'stripped lbl' struct
@@ -125,10 +167,14 @@ classdef Lbl
       locf = fullfile(packdir,'loc.json');
       locg = Lbl.hlpLoadJson(locf);
 
-%       locf = fullfile(packdir,'locclus.json');
-%       locjse = readtxtfile(locf);
-%       loccc = jsondecode(locjse{1});
-%       fprintf(1,'loaded %s\n',locf);
+      locf = fullfile(packdir,'locclus.json');
+      if exist(locf,'file')>0
+        locjse = readtxtfile(locf);
+        loccc = jsondecode(locjse{1});
+        fprintf(1,'loaded %s\n',locf);
+      else
+        loccc = [];
+      end
     end
     
     function hlpSaveJson(s,packdir,jsonoutf)
@@ -139,7 +185,7 @@ classdef Lbl
       fclose(fh);
       fprintf(1,'Wrote %s.\n',jsonoutf);
     end
-    function [slbl,tp,loc,locg] = genWriteTrnPack(lObj,packdir,varargin)
+    function [slbl,tp,loc,locg,loccc] = genWriteTrnPack(lObj,packdir,varargin)
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
@@ -173,7 +219,7 @@ classdef Lbl
      
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
-      [loc,locg] = Lbl.genLocs(tp,lObj.movieInfoAll);
+      [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
       if writeims
         if isempty(writeimsidx)
           writeimsidx = 1:numel(loc);
@@ -197,9 +243,9 @@ classdef Lbl
       s.locdata = locg;
       Lbl.hlpSaveJson(s,packdir,jsonoutf);
 
-%       % loccc: one row per cluster
-%       jsonoutf = 'locclus.json';
-%       Lbl.hlpSaveJson(loccc,packdir,jsonoutf);      
+      % loccc: one row per cluster
+      jsonoutf = 'locclus.json';
+      Lbl.hlpSaveJson(loccc,packdir,jsonoutf);      
     end
     
     function sagg = aggregateLabelsAddRoi(lObj)
@@ -224,12 +270,12 @@ classdef Lbl
       end
       sagg = cell2mat(sagg);
     end
-    function [sloc,slocg] = genLocs(sagg,movInfoAll)
+    function [sloc,slocg,sloccc] = genLocs(sagg,movInfoAll)
       assert(numel(sagg)==numel(movInfoAll));
       nmov = numel(sagg);
       sloc = [];
       slocg = [];
-      %sloccc = [];
+      sloccc = [];
       for imov=1:nmov
         s = sagg(imov);
         movifo = movInfoAll{imov};
@@ -238,14 +284,18 @@ classdef Lbl
         
         slocI = Lbl.genLocsI(s,imov);
         slocgI = Lbl.genLocsGroupedI(s,imov);
-        %slocccI = Lbl.genCropClusteredLocsI(s,imsz,imov);
+        slocccI = Lbl.genCropClusteredLocsI(s,imsz,imov);
         
         sloc = [sloc; slocI]; %#ok<AGROW>
         slocg = [slocg; slocgI]; %#ok<AGROW>
-        %sloccc = [sloccc; slocccI]; %#ok<AGROW>
+        sloccc = [sloccc; slocccI]; %#ok<AGROW>
       end
     end
-    function [sloc] = genLocsI(s,imov)
+    function [sloc] = genLocsI(s,imov,varargin)      
+      imgpat = myparse(varargin,...
+        'imgpat','im/%s.png' ...
+        );
+      
       sloc = [];
       nrows = size(s.p,2);
       for j=1:nrows        
@@ -254,9 +304,13 @@ classdef Lbl
         ts = s.ts(:,j);
         occ = s.occ(:,j);
         roi = s.roi(:,j);
+        
+        basefS = sprintf('mov%04d_frm%08d',imov,f);
+        img = sprintf(imgpat,basefS);
         sloctmp = struct(...
           'id',sprintf('mov%04d_frm%08d_tgt%03d',imov,f,itgt),...
           'idmovfrm',sprintf('mov%04d_frm%08d',imov,f),...
+          'img',{{img}},...
           'imov',imov,...
           'mov',s.mov,...
           'frm',f,...
@@ -307,10 +361,14 @@ classdef Lbl
         slocgrp = [slocgrp; sloctmp]; %#ok<AGROW>
       end
     end
-    function [sloccc] = genCropClusteredLocsI(s,imsz,imov)
+    function [sloccc] = genCropClusteredLocsI(s,imsz,imov,varargin)
       % s: scalar element of 'sagg', ie labels data structure for one movie.
       % imsz: [nr nc]
       % imov: movie index, only used for metadata
+      
+      imgpat = myparse(varargin,...
+        'imgpat','im/%s.png' ...
+        );
       
       sloccc = [];
       frmsun = unique(s.frm);
@@ -320,31 +378,30 @@ classdef Lbl
         idx = find(s.frm==f);
         ntgt = numel(idx);
         %itgt = s.tgt(idx);
-        mask = zeros(imsz);
-        for j=idx(:)'
+        masks = false([imsz ntgt]);
+        for itgt=1:ntgt
+          j = idx(itgt);
           bw = poly2mask(s.roi(1:4,j),s.roi(5:8,j),imsz(1),imsz(2));
-          mask(bw) = j; % this may 'overwrite' prev nonzero vals but this
-          % is ok. In very rare cases, multiple targets may completely
-          % obscure/cover a previous target/roi but this should be
-          % exceedingly rare.
-          % see warning below. 
+          masks(:,:,itgt) = bw;
         end
+        masksAll = any(masks,3);
         
-        % mask is now a label matrix where the labels are the j vals or
-        % indices into s.
-        cc = bwconncomp(mask);
+        cc = bwconncomp(masksAll);
         ncc = cc.NumObjects;
         % set of tgts/js in each cc
-        js = cellfun(@(x)unique(mask(x)),cc.PixelIdxList,'uni',0);
+        js = cell(ncc,1);
+        for icc=1:ncc
+          maskcc = false(imsz);
+          maskcc(cc.PixelIdxList{icc}) = true;
+          maskcc = repmat(maskcc,1,1,ntgt);
+          maskcc = maskcc & masks; % masks, but restricted to this cc
+          tftgtslive = any(any(maskcc,1),2);
+          szassert(tftgtslive,[1,1,ntgt]);
+          js{icc} = idx(tftgtslive(:));
+        end          
         jsall = cat(1,js{:});
-        % Each tgt/j should appear in precisely one cc
-        
-        % expect this warning to be very rare: this actually 'loses' a
-        % target from the dataset.
-        if ~(numel(jsall)==ntgt && isequal(sort(jsall),sort(idx)))
-          warningNoTrace('Mov %d, frame %d. Data loss: lost one or more targets during masking!',...
-            imov,f);
-        end
+        % Each tgt/j should appear in precisely one cc        
+        assert(isequal(sort(jsall),sort(idx)));
         
         for icc=1:ncc
           jcc = js{icc};
@@ -354,34 +411,39 @@ classdef Lbl
           ts = reshape(s.ts(:,jcc),s.npts,ntgtcc); % ts "
           occ = reshape(s.occ(:,jcc),s.npts,ntgtcc); % estocc "
           
-          [rcc,ccc] = ind2sub(size(mask),cc.PixelIdxList{icc});
+          [rcc,ccc] = ind2sub(size(masks),cc.PixelIdxList{icc});
           c0 = min(ccc);
           c1 = max(ccc);
           r0 = min(rcc);
           r1 = max(rcc);
           
           roicrop = [c0 c1 r0 r1];
+          roi = [c0 c0 c1 c1 r0 r1 r1 r0]';
           xyfcrop = xyf;
           xyfcrop(:,1,:) = xyfcrop(:,1,:)-c0+1;
           xyfcrop(:,2,:) = xyfcrop(:,2,:)-r0+1;                    
           
           % Dont include numtgts, eg what if a target is added to an
           % existing frame.
-          basefS = sprintf('mov%04d_frm%08d_cc%03d',imov,f,icc);
+          basefSclus = sprintf('mov%04d_frm%08d_cc%03d',imov,f,icc);
           %basefSimfrm = sprintf('mov%04d_frm%08d',imov,f);
           
           % one row per CC
+          basefS = sprintf('mov%04d_frm%08d',imov,f);
+          img = sprintf(imgpat,basefS);       
           sloctmp = struct(...
             'id',basefS,...
+            'idclus',basefSclus,...
+            'img',{{img}},...
             'imov',imov,...
             'mov',s.mov,...
             'frm',f,...
             'cc',icc,...
             'ntgt',ntgtcc,...
             'itgt',itgtcc,...
-            'roicrop',roicrop, ...
-            'xyabs',xyf, ...
-            'xycrop',xyfcrop, ...
+            'roi',roi,...% 'roicrop',roicrop, ...
+            'pabs',reshape(xyf,[2*s.npts ntgtcc]), ...
+            'pcrop',reshape(xyfcrop,[2*s.npts ntgtcc]), ...
             'occ',occ, ...
             'ts',ts ...
             );
