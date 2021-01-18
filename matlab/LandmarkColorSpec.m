@@ -1,4 +1,4 @@
-classdef LandmarkColorSpec < handle
+classdef LandmarkColorSpec < matlab.mixin.Copyable
   % Color Specification
   %
   % * Colors may be spec'd "automatically" via either colormapname, 
@@ -40,7 +40,10 @@ classdef LandmarkColorSpec < handle
     colormapname % eg 'jet'
     colormap % colormapname, instantiated per npts and brightness
     brightness % scalar
-    colors % could be manually adjusted per-pt, or set manually whole cloth
+    
+    % could be manually adjusted per-pt, or set manually whole cloth; can 
+    % also be auto-colors if ~tfmanual (yes this is a little confused)
+    colors 
     tfmanual % if false, use .colormap; else, use .colors 
   end
   methods
@@ -64,6 +67,13 @@ classdef LandmarkColorSpec < handle
       
       obj.guessBrightness();
       obj.updateColormap();      
+    end
+    function copyColorState(obj,obj2)
+      % Copy color-state from obj2 onto obj
+      FLDS = {'colormapname' 'colormap' 'brightness' 'colors' 'tfmanual'};
+      for f=FLDS,f=f{1};
+        obj.(f) = obj2.(f);
+      end
     end
     function guessBrightness(obj)
       % sets .brightness and .tfmanual 
@@ -133,7 +143,15 @@ classdef LandmarkColorSpec < handle
     function setTFManual(obj,tf)
       obj.tfmanual = tf;
     end
-    
+    function setManualColorsToColormapIfNec(obj)
+      % obj: can be array
+      for i=1:numel(obj)
+        if ~obj(i).tfmanual
+          obj(i).setManualColorsToColormap();
+        end
+      end
+    end
+      
   end
   
 end

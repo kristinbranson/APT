@@ -6594,12 +6594,10 @@ classdef Labeler < handle
     end
     
     function updateLandmarkCosmetics(obj,mrkrSpecs)
-      lsetTypes = enumeration('LandmarkSetType');
-      nty = numel(lsetTypes);
-      assert(numel(mrkrSpecs)==nty);
-      for i=1:nty
-        lObjUpdateMeth = lsetTypes(i).updateCosmeticsLabelerMethod();
+      for i=1:numel(mrkrSpecs)
         ms = mrkrSpecs(i);
+        lsetType = ms.landmarkSetType;
+        lObjUpdateMeth = lsetType.updateCosmeticsLabelerMethod();
         obj.(lObjUpdateMeth)(ms.MarkerProps,ms.TextProps,ms.TextOffset);
       end
     end

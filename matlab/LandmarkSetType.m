@@ -1,5 +1,6 @@
 classdef LandmarkSetType
-  enumeration
+  enumeration 
+    % caution, order matters here for clients
     Label
     Prediction 
     Imported

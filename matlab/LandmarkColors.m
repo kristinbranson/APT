@@ -22,7 +22,7 @@ function varargout = LandmarkColors(varargin)
 
 % Edit the above text to modify the response to help LandmarkColors
 
-% Last Modified by GUIDE v2.5 13-Jan-2021 19:09:05
+% Last Modified by GUIDE v2.5 17-Jan-2021 23:42:04
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -57,18 +57,23 @@ lObj = varargin{1};
 handles.nlandmarks = lObj.nPhysPoints;
 handles.applyCbkFcn = varargin{2}; % sig:
 
+
 % Marker State
 % This is stored only in the table. Get and Set using Set/GetMarker*.
+lsetTypesCell = num2cell(enumeration('LandmarkSetType'));
 ppiAll = {lObj.labelPointsPlotInfo; lObj.predPointsPlotInfo; lObj.impPointsPlotInfo};
 FLDS = {'MarkerProps' 'TextProps' 'TextOffset'};
 sPropsMrkr = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
-
+[sPropsMrkr.landmarkSetType] = deal(lsetTypesCell{:});
 % Color State
 % This state is maintained in handles.colorSpecs. What is shown in the
 % Colors pane is per pumShowing.
 handles.colorSpecs = cellfun(@(x1,x2,x3)LandmarkColorSpec(x1,x2,x3),...
-  num2cell(enumeration('LandmarkSetType')),...
+  lsetTypesCell,...
   repmat({lObj.nPhysPoints},3,1),ppiAll);
+
+handles.sPropsMrkr0 = sPropsMrkr;
+handles.colorSpecs0 = handles.colorSpecs.copy();
 
 handles = initColorsPane(handles);
 updateColorsPane(handles);
@@ -327,6 +332,7 @@ sTxt = table2struct(tTxt);
 txtOffset = t{:,'Label Offset'};
 
 s = struct(...
+  'landmarkSetType',num2cell(enumeration('LandmarkSetType')),...
   'MarkerProps',num2cell(sLine),...
   'TextProps',num2cell(sTxt),...
   'TextOffset',num2cell(txtOffset) ...
@@ -340,17 +346,34 @@ s = struct(...
 function handles = SaveState(handles)
 
 tfApplyAll = handles.cbApplyAll.Value;
+iCS = handles.pumShowing.Value;
 if tfApplyAll
   colorSpecs = handles.colorSpecs;
+  for i=1:numel(colorSpecs)
+    if i==iCS
+      continue;
+    end
+    colorSpecs(i).copyColorState(colorSpecs(iCS));
+  end
+  colorSpecs0 = handles.colorSpecs0;
 else
-  iCS = handles.pumShowing.Value;
   colorSpecs = handles.colorSpecs(iCS);
+  colorSpecs0 = handles.colorSpecs0(iCS);
 end
-sMrkr = MarkerControlsGet(handles);
+colorSpecs.setManualColorsToColormapIfNec();
+sPropsMrkr = MarkerControlsGet(handles);
+
+tfclrchanged = ~arrayfun(@isequal,colorSpecs,colorSpecs0);
+% We do something convoluted here as handles.sPropsMrkr0 might have
+% properties that are not visible/editable in the UI
+tfmkrchanged = ~arrayfun(@(x,y)isequaln(x,structoverlay(x,y)),...
+  handles.sPropsMrkr0,sPropsMrkr);
+%~arrayfun(@isequaln,sPropsMrkr,handles.sPropsMrkr0);
 handles.saved = struct(...
-  'colorSpecs',colorSpecs,...  
-  'markerSpecs',sMrkr ...
+  'colorSpecs',colorSpecs(tfclrchanged),...  
+  'markerSpecs',sPropsMrkr(tfmkrchanged) ...
   );
+% Note either field of handles.saved could be empty
 
 function varargout = LandmarkColors_OutputFcn(hObject, eventdata, handles) 
 % [tfchanges,savedinfo] = LandmarkColors(...)
@@ -381,4 +404,3 @@ function pbDone_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
 guidata(hObject,handles);
 uiresume(handles.figure_landmarkcolors);
-
