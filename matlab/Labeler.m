@@ -5608,6 +5608,7 @@ classdef Labeler < handle
       end
       
       t = obj.currFrame;
+      iTgtCurr = obj.currTarget;
       trxAll = obj.trx;
       nPre = obj.showTrxPreNFrm;
       nPst = obj.showTrxPostNFrm;
@@ -5616,13 +5617,23 @@ classdef Labeler < handle
       if obj.showTrx        
         if obj.showTrxCurrTargetOnly
           tfShow = false(obj.nTrx,1);
-          tfShow(obj.currTarget) = true;
+          tfShow(iTgtCurr) = true;
         else
           tfShow = true(obj.nTrx,1);
         end
+        
+        iMov = obj.currMovie;
+        PROPS = obj.gtGetSharedProps();
+        npts = obj.nLabelPoints;
+        p = reshape(obj.(PROPS.LPOS){iMov}(:,:,t,tfShow),2*npts,[]);
+        % p is [npts x nShow]
+        tfLbledShow = false(obj.nTrx,1);
+        tfLbledShow(tfShow) = all(~isnan(p),1);  
       else
         tfShow = false(obj.nTrx,1);
       end
+      
+
       
 %       tfShowEll = isscalar(obj.showTrxEll) && obj.showTrxEll ...
 %         && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
@@ -5648,9 +5659,12 @@ classdef Labeler < handle
           tTraj = max(t-nPre,t0):min(t+nPst,t1); % could be empty array
           iTraj = tTraj + trxCurr.off;
           xTraj = trxCurr.x(iTraj);
-          yTraj = trxCurr.y(iTraj);
-          if iTrx==obj.currTarget
+          yTraj = trxCurr.y(iTraj);          
+          
+          if iTrx==iTgtCurr
             color = pref.TrajColorCurrent;
+          elseif tfLbledShow(iTrx)
+            color = [0 1 1]; % cyan, temporary hardcode
           else
             color = pref.TrajColor;
           end
@@ -5672,10 +5686,10 @@ classdef Labeler < handle
         %end
       end
       %fprintf('Time to update trx: %f\n',toc);
-      set(obj.hTrx([1:obj.currTarget-1,obj.currTarget+1:end],1),...
+      set(obj.hTrx([1:iTgtCurr-1,iTgtCurr+1:end],1),...
         'PickableParts','all',...
         'HitTest','on');
-      set(obj.hTrx(obj.currTarget,1),...
+      set(obj.hTrx(iTgtCurr,1),...
         'PickableParts','none',...
         'HitTest','off');
 %       if tfShowEll
@@ -5685,25 +5699,7 @@ classdef Labeler < handle
 %         set(obj.hTrxEll,'Visible','off');
 %       end
     end
-    
-%     function setShowPredTxtLbl(obj,tf)
-%       assert(isscalar(tf));
-%       obj.showPredTxtLbl = logical(tf);
-%       obj.updateShowPredTxtLbl();
-%     end
-    
-%     function toggleShowPredTxtLbl(obj)
-%       obj.setShowPredTxtLbl(~obj.showPredTxtLbl);
-%     end
-    
-%     function updateShowPredTxtLbl(obj)
-%       tfHideTxtLbl = ~obj.showPredTxtLbl;
-%       for i=1:numel(obj.trackersAll)
-%         obj.trackersAll{i}.trkVizer.setHideTextLbls(tfHideTxtLbl);
-%       end
-%       obj.labels2VizShowHideUpdate();      
-%     end
-    
+        
     function setSkeletonEdges(obj,se)
       obj.skeletonEdges = se;
       obj.lblCore.updateSkeletonEdges();
