@@ -5383,6 +5383,8 @@ classdef DeepTracker < LabelTracker
       if tffrm
         frm0(isnan(frm0)) = 1;
         frm1(isinf(frm1)|isnan(frm1)) = -1;
+        frm0 = round(frm0); % fractional frm0/1 errs in APT_interface due to argparse type=int
+        frm1 = round(frm1); % just round silently for now        
         sfrm0 = sprintf('%d ',frm0); sfrm0 = sfrm0(1:end-1);
         sfrm1 = sprintf('%d ',frm1); sfrm1 = sfrm1(1:end-1);
         codestr = [codestr {'-start_frame' sfrm0 '-end_frame' sfrm1}];
