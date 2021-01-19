@@ -5403,6 +5403,7 @@ classdef DeepTracker < LabelTracker
         end
       end
       if tfcrop
+        croproi = round(croproi);
         croproirowvec = croproi';
         croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode
         roistr = mat2str(croproirowvec);
