@@ -63,6 +63,7 @@ import link_trajectories as lnk
 from matplotlib.path import Path
 from PoseCommon_pytorch import coco_loader
 from tqdm import tqdm
+import shapely.geometry
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
@@ -219,11 +220,16 @@ def tf_serialize(data):
         occ = data[3]
     else:
         occ = np.zeros(cur_loc.shape[:-1])
+    if len(data)>4:
+        rois = data[4]
+    else:
+        rois = None
+    ntgt = cur_loc.shape[0]
     rows, cols, depth = frame_in.shape
     expid, fnum, trxid = info
     image_raw = frame_in.tostring()
 
-    example = tf.train.Example(features=tf.train.Features(feature={
+    feature = {
         'height': int64_feature(rows),
         'width': int64_feature(cols),
         'depth': int64_feature(depth),
@@ -232,8 +238,13 @@ def tf_serialize(data):
         'expndx': float_feature(expid),
         'ts': float_feature(fnum),
         'image_raw': bytes_feature(image_raw),
-        'occ':float_feature(occ),
-    }))
+        'occ': float_feature(occ.flatten()),
+        'ntgt': int64_feature(ntgt)
+    }
+    if rois is not None:
+        mask = create_mask(rois,frame_in.shape[:2])
+        feature['mask'] = bytes_feature(mask.tostring())
+    example = tf.train.Example(features=tf.train.Features(feature=feature))
 
     return example.SerializeToString()
 
@@ -272,7 +283,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples)
 
     envs[0].close()
-    envs[1].close() if split else None
+    envs[1].close() if envs[1] is not None else None
     try:
         with open(os.path.join(conf.cachedir, 'splitdata.json'), 'w') as f:
             json.dump(splits, f)
@@ -996,9 +1007,8 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
     return splits
 
 def setup_ma(conf):
-    # Setups parameters for mutli-animal like ngrids, imsz etc.
-    # Imsz is set to be around 3*max_animal_sz
-    # T = PoseTools.json_load(os.path.join(conf.cachedir,conf.json_trn_file))
+    # setups the crop size. Based on the largets cluster.
+
     T = PoseTools.json_load(conf.json_trn_file)
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
@@ -1006,136 +1016,130 @@ def setup_ma(conf):
     fr_sz = cur_frame.shape[:2]
     conf.multi_frame_sz = fr_sz
 
-    animal_sz = []
-
+    max_sz = 0
     for selndx,cur_t in enumerate(T['locdata']):
-        cur_locs =np.array(cur_t['pabs'])-1
         ntgt = cur_t['ntgt']
-        cur_locs = cur_locs.reshape([conf.nviews,2,conf.n_classes,ntgt])
-        cur_locs = np.transpose(cur_locs[conf.view,...],[2,1,0])
-        for cura in cur_locs:
-            # Find distance between all landmarks. Take the max to find the animal size
-            dd = np.linalg.norm(cura[np.newaxis,...]-cura[:,np.newaxis,...],axis=-1)
-            animal_sz.append(dd.max())
+        cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
+        cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
+        clusters = get_clusters(cur_roi)
+        n_cluster = len(np.unique(clusters))
+        for cndx in range(n_cluster):
+            idx = np.where(clusters == cndx)[0]
+            cur_rois = cur_roi[idx, ...]
+            x_sz = cur_rois[..., 0].max()- cur_rois[..., 0].min()
+            y_sz = cur_rois[..., 1].max() - cur_rois[..., 1].min()
+            max_sz = x_sz if x_sz > max_sz else max_sz
+            max_sz = y_sz if y_sz > max_sz else max_sz
 
-    max_animal_sz = np.percentile(animal_sz,98)
+    max_sz = int( np.ceil((max_sz + 2)/32))*32
     # don't take max in case there is a weird outlier
-    conf.multi_max_animal_sz = int(max_animal_sz)+1
-    sz =np.ceil((3*max_animal_sz+2*conf.multi_bb_ex)/32)*32
-    sz = int(sz)
-    sz = [sz,sz]
-    if sz[0]> fr_sz[0]:
-        sz[0] = fr_sz[0]
-    if sz[1] > fr_sz[1]:
-        sz[1] = fr_sz[1]
+    conf.multi_max_animal_sz = np.nan
 
     if not conf.multi_crop_ims:
-        conf.imsz = fr_sz
+        conf.imsz = (fr_sz[0],fr_sz[1])
         logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
         return
     else:
-        logging.info(f'--- Using crops of size {sz} for multi-animal training. Max animal size is {max_animal_sz} ---')
-        conf.imsz = sz
+        logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
+        conf.imsz = (max_sz,max_sz)
 
+
+def get_clusters(rois):
+    # Find bbox to find overlapping clusters
+    nlabels = rois.shape[0]
+    polys = [shapely.geometry.Polygon(rois[i,...]) for i in range(nlabels)]
+    cluster_ids = np.ones(nlabels,dtype=np.uint)*np.nan
+    for ndx in range(nlabels):
+        overlap_idx = []
+        for ondx in range(nlabels):
+            if polys[ndx].intersects(polys[ondx]):
+                overlap_idx.append(ondx)
+
+        if len(overlap_idx) > 1:
+            clusters = cluster_ids[overlap_idx]
+            if np.all(np.isnan(clusters)):
+                cluster_ids[overlap_idx] = ndx
+            else:
+                cid = int(np.nanmin(cluster_ids[overlap_idx]))
+                cluster_ids[overlap_idx] = cid
+        else:
+            # no overlap
+            cluster_ids[ndx] = ndx
+
+    # update cluster ids
+    cids, indices = np.unique(cluster_ids,return_inverse=True)
+    n_clusters = cids.shape[0]
+    new_cluster_ids = np.arange(n_clusters)
+    cluster_ids = new_cluster_ids[indices]
+    return cluster_ids
+
+def create_mask(roi, sz):
+    # sz should be h x w (i.e y first then x)
+    x,y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
+    x = x.flatten()
+    y = y.flatten()
+    pts = np.vstack((x,y)).T
+    grid = None
+    for c in roi:
+        rr = c.tolist()
+        rr.append(rr[0])
+        path = Path(rr)
+        cgrid = path.contains_points(pts)
+        if grid is not None:
+            grid = grid | cgrid
+        else:
+            grid = cgrid
+
+    if grid is None:
+        mask = np.zeros(sz)>0.5
+    else:
+        mask = grid.reshape(sz)
+    return mask
 
 def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
 
-    def create_mask(bb, sz):
-        # sz should be h x w (i.e y first then x)
-        x,y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
-        x = x.flatten()
-        y = y.flatten()
-        pts = np.vstack((x,y)).T
-        grid = None
-        for c in bb:
-            rr = c.tolist()
-            rr.append(rr[0])
-            path = Path(rr)
-            cgrid = path.contains_points(pts)
-            if grid is not None:
-                grid = grid | cgrid
-            else:
-                grid = cgrid
-
-        if grid is None:
-            mask = np.zeros(sz)>0.5
-        else:
-            mask = grid.reshape(sz)
-        return mask
-
-    if conf.multi_crop_ims:
-        buffer = int(conf.multi_max_animal_sz/2 + conf.multi_bb_ex)
-    else:
-        buffer = 0
-    x_grid = int(np.ceil(conf.multi_frame_sz[1]/(conf.imsz[1]-buffer*2)))
-    y_grid = int(np.ceil(conf.multi_frame_sz[0]/(conf.imsz[0]-buffer*2)))
-    frame = frame.copy()
-    curi = np.pad(frame, [[buffer, buffer], [buffer, buffer], [0, 0]])
-    fr_sz = conf.multi_frame_sz
-    isz = conf.imsz
+    clusters = get_clusters(roi)
+    n_clusters = len(np.unique(clusters))
     all_data = []
-    done_f = np.zeros([cur_pts.shape[0]])>0.5
-    for xx in range(x_grid):
-        for yy in range(y_grid):
-            valid = []
-            all_bb = []
+    for cndx in range(n_clusters):
+        idx = np.where(clusters==cndx)[0]
+        cur_rois = roi[idx,...]
+        x_min = cur_rois[...,0].min()
+        y_min = cur_rois[...,1].min()
+        x_max = cur_rois[...,0].max()
+        y_max = cur_rois[...,1].max()
 
-            # Find the center and corners of current grid cell.
-            ctrx = (xx+0.5)/x_grid*fr_sz[1]
-            ctry = (yy+0.5)/y_grid*fr_sz[0]
-            leftx = int(ctrx - isz[1]//2)+buffer
-            leftx = min(max(leftx,0),fr_sz[1]+2*buffer-isz[1])
-            rightx = leftx + isz[1]
-            topy = int(ctry - isz[0]//2) + buffer
-            topy = min(max(topy,0),fr_sz[0]+2*buffer-isz[0])
-            bottomy = topy + isz[0]
-            # print('left:{},right:{},top:{},bottom:{}'.format(leftx,rightx,topy,bottomy))
+        d_x = (conf.imsz[1] - (x_max-x_min))*0.9
+        r_x = (np.random.rand()-0.5)*d_x
+        x_left = int(round( (x_max+x_min)/2 - conf.imsz[1]/2 + r_x))
+        x_left = min(x_left,frame.shape[0]-conf.imsz[0])
+        x_left = max(x_left,0)
+        x_right = x_left + conf.imsz[1]
 
-            # Check if any animals falls in the current patch
-            for aa in range(cur_pts.shape[0]):
-                valid_lbls = ~(np.isnan(cur_pts[aa,:,0]) & (cur_pts[aa,:,0]<-100) )
-                pp = cur_pts[aa, valid_lbls, :] + buffer
-                bb1 = np.min(pp, axis=0)
-                bb2 = np.max(pp, axis=0)
+        d_y = (conf.imsz[0] - (y_max-y_min))*0.9
+        r_y = (np.random.rand()-0.5)*d_y
+        y_top = int(round( (y_max+y_min)/2 - conf.imsz[0]/2 + r_y))
+        y_top = min(y_top,frame.shape[1]-conf.imsz[1])
+        y_top = max(y_top,0)
+        y_bottom = y_top + conf.imsz[0]
 
-                if conf.multi_use_mask or conf.multi_loss_mask:
-                    # When using mask all the points should be completely inside
-                    if not ((bb1[0] > leftx) and (bb2[0] < rightx) and (bb1[1] > topy) and (bb2[1] < bottomy)):
-                        # All The labeled joints should lie within.
-                        # Maybe it might be better with whole masked bounding box. But other packages on coco suggest animals getting cropped isn't that big a deal.
-                        continue
-                else:
-                  # When not using mask only the center should be within. This is quick way to ensure that at least 50% of the animals will lie within
-                    bbm = (bb1 + bb2)/2
-                    if not ((bbm[0] > leftx) and (bbm[0] < rightx) and (bbm[1] > topy) and (bbm[1] < bottomy)):
-                        continue
+        assert y_top<=y_min and y_bottom>=y_max and x_left<=x_min and x_right >= x_max, 'Cropping for cluster is improper'
 
-                valid.append(aa)
-                done_f[aa] = True
-                curbb = np.array([[bb1[0], bb2[0]], [bb1[1], bb2[1]]])
-                curbb[0, :] += buffer - leftx
-                curbb[1, :] += buffer - topy
-                rr = roi[aa,...].copy()
-                rr[...,0] += buffer - leftx
-                rr[...,1] += buffer - topy
-                all_bb.append(rr)
+        curp = frame[y_top:y_bottom, x_left:x_right, :]
+        cur_roi = roi[idx,...].copy()
+        cur_roi[...,0] -= x_left
+        cur_roi[...,1] -= y_top
+        if conf.multi_use_mask:
+            cur_mask = create_mask(cur_roi, [y_bottom - y_top, x_right - x_left])
+            curp = curp * cur_mask[..., np.newaxis]
 
-            if len(valid) > 0:
-                # print('xx:{},yy:{},aa:{}'.format(xx,yy,valid))
-                # If there is at last one labeled animal
-                curp = curi[topy:bottomy,leftx:rightx, :]
-                if conf.multi_use_mask:
-                    cur_mask = create_mask(all_bb,[bottomy-topy,rightx-leftx])
-                    curp = curp * cur_mask[..., np.newaxis]
+        curl = cur_pts[idx, :, :].copy()
+        curl[:, :, 0] = curl[:, :, 0] - x_left
+        curl[:, :, 1] = curl[:, :, 1] - y_top
+        cur_occ = occ[idx, ...]
 
-                curl = cur_pts[valid, :, :].copy()
-                curl[:, :,0] = curl[:, :, 0] - leftx + buffer
-                curl[:, :,1] = curl[:, :, 1] - topy + buffer
-                cur_occ = occ[valid,...]
+        all_data.append([curp, curl, [info[0], info[1], cndx], cur_occ, cur_roi])
 
-                all_data.append([curp, curl, [info[0], info[1], y_grid*xx+ yy], cur_occ,np.array(all_bb)])
-    if not np.all(done_f):
-        logging.warning('Not all labeled animals could be included in the training set')
     return all_data
 
 
@@ -3039,10 +3043,11 @@ def train(lblfile, nviews, name, args):
                 if conf.is_multi:
                     setup_ma(conf)
                 if not args.skip_db:
-                    if net_type.startswith('multi_') or conf.db_format=='coco':
+                    if conf.db_format=='coco':
                         create_coco_db(conf,split=split,split_file=split_file)
                     else:
                         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()

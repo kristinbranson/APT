@@ -37,7 +37,10 @@ def decode_augment(features, conf, distort):
 
     if 'mask' in features.keys():
         features['mask'] = np.array(features['mask']).reshape([h,w,1])
-        ims = ims * features['mask']
+        if conf.multi_use_mask:
+            ims = ims * features['mask']
+    else:
+        features['mask'] = None
 
     if 'max_n' in features.keys():
         n_max = features['max_n'][0]
@@ -64,7 +67,7 @@ def decode_augment(features, conf, distort):
     features['info'] = np.array([features['expndx'][0],features['ts'][0],features['trx_ndx'][0]])
 
 
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
+    ims, locs, mask = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale,mask=features['mask'])
 
     # convert CHW format
     ims = np.transpose(ims[0,...]/255.,[2,0,1])

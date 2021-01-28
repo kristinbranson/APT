@@ -295,7 +295,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         ll_joint = torch.sigmoid(wts_joint)
         if self.conf.multi_loss_mask:
             mask_down = labels_dict['mask'][:,::offset,::offset].to(self.device)
-            ll_joint = ll_joint* mask_down[:,None,:,:]
+            ll_joint = torch.where(mask_down[:,None,:,:]>0,ll_joint,torch.zeros_like(ll_joint))
         ls = locs_joint.shape
         locs_joint_flat = locs_joint.reshape(
             [locs_joint.shape[0], 1, n_classes, 2, self.k_j * ls[-2] * ls[-1]]).permute([0, 1, 4, 2, 3])
@@ -419,7 +419,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         preds_ref = np.ones([bsz,n_max, n_classes,2]) * np.nan
         preds_joint = np.ones([bsz,n_max, n_classes,2]) * np.nan
-        match_dist = self.conf.multi_mdn_match_dist
+        match_dist = self.conf.multi_match_dist
         for ndx in range(bsz):
             # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
             # n_preds = np.clip(n_preds,n_min,np.inf)
@@ -482,7 +482,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         model.eval()
         self.model = model
         conf = self.conf
-        match_dist = conf.get('multi_mdn_match_dist',10)
+        match_dist = conf.get('multi_match_dist',10)
 
         def pred_fn(ims):
             locs_sz = (conf.batch_size, conf.n_classes, 2)

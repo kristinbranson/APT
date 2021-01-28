@@ -179,7 +179,6 @@ def bytes_feature(value):
         value = [value]
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
 
-
 def float_feature(value):
     if not isinstance(value, (list, np.ndarray)):
         value = [value]
@@ -442,15 +441,10 @@ def create_envs(conf, split, db_type=None):
             val_env = None
         return env, val_env
     else:
-        if split:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            val_filename = os.path.join(conf.cachedir, conf.valfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
-        else:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = None
+        train_filename = os.path.join(conf.cachedir, conf.trainfilename)
+        val_filename = os.path.join(conf.cachedir, conf.valfilename)
+        env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
+        val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
         return env, val_env
 
 
