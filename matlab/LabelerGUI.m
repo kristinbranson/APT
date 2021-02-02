@@ -2039,6 +2039,7 @@ if ~isfield(handles,'menu_track_backend_config')
   % AWS submenu (visible when backend==AWS)
   handles.menu_track_backend_config_aws_setinstance = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(AWS) Set EC2 instance',...
     'Callback',@cbkTrackerBackendAWSSetInstance,...
     'Tag','menu_track_backend_config_aws_setinstance');  
@@ -2052,11 +2053,18 @@ if ~isfield(handles,'menu_track_backend_config')
   % KB added menu item to set Docker host
   handles.menu_track_backend_config_setdockerssh = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(Docker) Set remote host...',...
     'Callback',@cbkTrackerBackendSetDockerSSH,...
     'Tag','menu_track_backend_config_setdockerssh');  
 
-  
+  handles.menu_track_backend_config_jrc_setconfig = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
+    'Label','(JRC) Set JRC number of slots...',...
+    'Callback',@cbkTrackerBackendSetJRCNSlots,...
+    'Tag','menu_track_backend_config_jrc_setconfig');  
+
 %   handles.menu_track_backends{end+1,1} = uimenu( ...
 %     'Parent',handles.menu_track_backend_config,...
 %     'Label','(AWS) Send start instance',...
@@ -2148,24 +2156,40 @@ handles.listenersTracker = listenersNew;
 
 function updateTrackBackendConfigMenuChecked(handles,lObj)
 
-set(handles.menu_track_backend_config_jrc,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Bsub));
-set(handles.menu_track_backend_config_docker,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
-set(handles.menu_track_backend_config_conda,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Conda));
-set(handles.menu_track_backend_config_aws,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_aws_setinstance,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_aws_configure,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_setdockerssh,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
+beType = lObj.trackDLBackEnd.type;
+oiBsub = onIff(beType==DLBackEnd.Bsub);
+oiDckr = onIff(beType==DLBackEnd.Docker);
+oiCnda = onIff(beType==DLBackEnd.Conda);
+oiAWS = onIff(beType==DLBackEnd.AWS);
+set(handles.menu_track_backend_config_jrc,'checked',oiBsub);
+set(handles.menu_track_backend_config_docker,'checked',oiDckr);
+set(handles.menu_track_backend_config_conda,'checked',oiCnda);
+set(handles.menu_track_backend_config_aws,'checked',oiAWS);
+set(handles.menu_track_backend_config_aws_setinstance,'visible',oiAWS);
+set(handles.menu_track_backend_config_aws_configure,'visible',oiAWS);
+set(handles.menu_track_backend_config_setdockerssh,'visible',oiDckr);
+set(handles.menu_track_backend_config_jrc_setconfig,'visible',oiBsub);
 
-% Menu item ordering getting messed up somewhere
-handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
-handles.menu_track_backend_config_jrc.Position = 1;
-handles.menu_track_backend_config_aws.Position = 2;
-handles.menu_track_backend_config_docker.Position = 3;
-handles.menu_track_backend_config_conda.Position = 4;
-handles.menu_track_backend_config_moreinfo.Position = 5;
-handles.menu_track_backend_config_aws_setinstance.Position = 6;
-handles.menu_track_backend_config_aws_configure.Position = 7;
-handles.menu_track_backend_config_setdockerssh.Position = 8;
+m = handles.menu_track_backend_config;
+% Menu item ordering seems very buggy. Setting .Position on menu items
+% doesn't work; setting Children once doesn't work, maybe bc of AbortSet. 
+%handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
+drawnow;
+m.Children = [ ...
+  handles.menu_track_backend_config_jrc ...
+  handles.menu_track_backend_config_aws...
+  handles.menu_track_backend_config_docker...
+  handles.menu_track_backend_config_conda...
+  handles.menu_track_backend_config_moreinfo... 
+  handles.menu_track_backend_config_aws_setinstance...
+  handles.menu_track_backend_config_aws_configure...
+  handles.menu_track_backend_config_setdockerssh...
+  handles.menu_track_backend_config_jrc_setconfig...
+  handles.menu_track_backend_config_test...
+  ];
+m.Children = m.Children(end:-1:1);
+%m.Children = m.Children(end:-1:1);
+
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
@@ -2270,6 +2294,21 @@ if tfsucc
   %aws.checkInstanceRunning('throwErrs',false);
 %   lObj.trackSetDLBackend(be);
 end
+
+function cbkTrackerBackendSetJRCNSlots(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+n = inputdlg('Number of cluster slots','a',1,{num2str(lObj.tracker.jrcnslots)});
+if isempty(n)
+  return;
+end
+n = str2double(n{1});
+if isnan(n)
+  return;
+end
+lObj.tracker.jrcnslots = n;
+
+
 
 function cbkTrackerBackendSetDockerSSH(src,evt)
 handles = guidata(src);
