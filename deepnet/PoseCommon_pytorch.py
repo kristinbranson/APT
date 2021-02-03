@@ -494,3 +494,18 @@ class PoseCommon_pytorch(object):
             return [self.to_numpy(tt) for tt in t]
         else:
             return t.detach().cpu().numpy()
+
+    def diagnose(self, ims, out_file=None, **kwargs):
+        pred_fn, close_fn, model_file = self.get_pred_fn(**kwargs)
+        ret_dict = pred_fn(ims,retrawpred=True)
+        conf = self.conf
+
+        if out_file is None:
+            out_file = os.path.join(conf.cachedir,'diagnose_' + PoseTools.get_datestr())
+
+        with open(out_file,'wb') as f:
+            pickle.dump({'ret_dict':ret_dict,'conf':conf,'ims':ims},f)
+
+        close_fn()
+        return ret_dict
+
