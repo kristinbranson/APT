@@ -22,9 +22,10 @@ classdef DeepTracker < LabelTracker
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
-  properties % transient
+  properties
     jrcgpuqueue = 'gpu_any';
     jrcnslots = 1;
+    jrcnslotstrack = 1; % transient
   end
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
@@ -3336,7 +3337,7 @@ classdef DeepTracker < LabelTracker
         for ivwjob = 1:nViewJobs,
           switch backend.type
             case DLBackEnd.Bsub
-              bsubargs = {'nslots' obj.jrcnslots 'gpuqueue' obj.jrcgpuqueue};
+              bsubargs = {'nslots' obj.jrcnslotstrack 'gpuqueue' obj.jrcgpuqueue};
 
               % make sure movie to be tracked is on path
               extradirs = trksysinfo(imovjob,ivwjob).getMountDirs();
