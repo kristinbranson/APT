@@ -9244,6 +9244,18 @@ classdef Labeler < handle
       sMacro = obj.baseTrkFileMacros();
       fname = FSPath.macroReplace(rawname,sMacro);
     end
+    function tbl = gtLabeledFrameSummary(obj)
+      % return/print summary of gt movies with number of labels
+      
+      imov = obj.gtSuggMFTable.mov.abs();
+      imovun = unique(imov);
+      tflbld = obj.gtSuggMFTableLbled;
+
+      imovuncnt = arrayfun(@(x)nnz(x==imov),imovun);
+      imovunlbledcnt = arrayfun(@(x)nnz(x==imov & tflbld),imovun);      
+      tbl = table(imovun,imovunlbledcnt,imovuncnt,...
+        'VariableNames',{'GT Movie Index' 'Labeled Frames' 'Total GT Frames'});
+    end
   end
   methods (Static)
     function PROPS = gtGetSharedPropsStc(gt)
