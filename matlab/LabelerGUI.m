@@ -2951,7 +2951,7 @@ end
 lObj.gtThrowErrIfInGTMode();
 iMov = lObj.currMovie;
 haslbls1 = lObj.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
-haslbls2 = lObj.movieFilesAllHaveLbls(iMov);
+haslbls2 = lObj.movieFilesAllHaveLbls(iMov)>0;
 assert(haslbls1==haslbls2);
 if haslbls1
   resp = questdlg('Current movie has labels that will be overwritten. OK?',...

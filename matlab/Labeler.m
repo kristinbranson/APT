@@ -1750,8 +1750,8 @@ classdef Labeler < handle
       obj.projGetEnsureTempDir('cleartmp',true);
       obj.movieFilesAll = cell(0,obj.nview);
       obj.movieFilesAllGT = cell(0,obj.nview);
-      obj.movieFilesAllHaveLbls = false(0,1);
-      obj.movieFilesAllGTHaveLbls = false(0,1);
+      obj.movieFilesAllHaveLbls = zeros(0,1);
+      obj.movieFilesAllGTHaveLbls = zeros(0,1);
       obj.movieInfoAll = cell(0,obj.nview);
       obj.movieInfoAllGT = cell(0,obj.nview);
       obj.movieFilesAllCropInfo = cell(0,1);
@@ -2149,9 +2149,10 @@ classdef Labeler < handle
       end
      
       obj.computeLastLabelChangeTS();
-      fcnAnyNonNan = @(x)any(~isnan(x(:)));
-      obj.movieFilesAllHaveLbls = cellfun(fcnAnyNonNan,obj.labeledpos);
-      obj.movieFilesAllGTHaveLbls = cellfun(fcnAnyNonNan,obj.labeledposGT);      
+      %fcnAnyNonNan = @(x)any(~isnan(x(:)));
+      fcnNumLbledRows = @Labeler.computeNumLbledRows;
+      obj.movieFilesAllHaveLbls = cellfun(fcnNumLbledRows,obj.labeledpos);
+      obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labeledposGT);      
       obj.gtUpdateSuggMFTableLbledComplete();
       
       % need this before setting movie so that .projectroot exists
@@ -3691,7 +3692,7 @@ classdef Labeler < handle
         nlblpts = obj.nLabelPoints;
         nfrms = ifo.nframes;
         obj.(PROPS.MFA){end+1,1} = movFile;
-        obj.(PROPS.MFAHL)(end+1,1) = false;
+        obj.(PROPS.MFAHL)(end+1,1) = 0;
         obj.(PROPS.MIA){end+1,1} = ifo;
         obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
         if obj.cropProjHasCrops
@@ -3851,7 +3852,7 @@ classdef Labeler < handle
       
       nLblPts = obj.nLabelPoints;
       obj.(PROPS.MFA)(end+1,:) = moviefiles(:)';
-      obj.(PROPS.MFAHL)(end+1,1) = false;
+      obj.(PROPS.MFAHL)(end+1,1) = 0;
       obj.(PROPS.MIA)(end+1,:) = ifos;
       obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
       if obj.cropProjHasCrops
@@ -3984,10 +3985,10 @@ classdef Labeler < handle
 
         if gt
           movIdx = MovieIndex(-iMov);
-          movIdxHasLbls = obj.movieFilesAllGTHaveLbls(iMov);
+          movIdxHasLbls = obj.movieFilesAllGTHaveLbls(iMov)>0;
         else
           movIdx = MovieIndex(iMov);
-          movIdxHasLbls = obj.movieFilesAllHaveLbls(iMov);
+          movIdxHasLbls = obj.movieFilesAllHaveLbls(iMov)>0;
         end
 
         obj.(PROPS.MFA)(iMov,:) = [];
@@ -7210,7 +7211,7 @@ classdef Labeler < handle
       obj.computeLastLabelChangeTS();
       
       obj.movieFilesAllHaveLbls(iMovs) = ...
-        cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
+        cellfun(@Labeler.computeNumLbledRows,obj.labeledpos(iMovs));
       
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
@@ -8040,7 +8041,13 @@ classdef Labeler < handle
   end
   
   methods (Static)
-    
+    function n = computeNumLbledRows(lpos)
+      % Mirrors comp in updateFrameTable*
+      tf = ~isnan(lpos); % labeled, est-occ, or fully-occ
+      %[npts,d,nfrm,ntgt] = size(lpos);
+      x = any(tf(:,1,:,:),1); % x-coords; this is done in updateFrameTable*
+      n = nnz(x);
+    end
 %     function tblMF = labelGetMFTableLabeledStc(lpos,lpostag,lposTS,...
 %         trxFilesAllFull,trxCache)
 %       % Compile MFtable, by default for all labeled mov/frm/tgts
@@ -12990,16 +12997,17 @@ classdef Labeler < handle
       end
       
       tbl.SelectedRows = iRow;
-            
+
+      nTgtsTot = sum(cell2mat(dat(:,2)));
+
       % dat should equal get(tbl,'Data')
       if obj.hasMovie
         PROPS = obj.gtGetSharedProps();
         %obj.gdata.labelTLInfo.setLabelsFrame();
-        obj.(PROPS.MFAHL)(obj.currMovie) = size(dat,1)>0;
+        obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
       end
       
       tx = obj.gdata.txTotalFramesLabeled;
-      nTgtsTot = sum(cell2mat(dat(:,2)));
       tx.String = num2str(nTgtsTot);
     end    
     function updateFrameTableComplete(obj)
@@ -13013,14 +13021,15 @@ classdef Labeler < handle
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
 
+      nTgtsTot = sum(nTgtsLbledFrms);
+
       if obj.hasMovie
         PROPS = obj.gtGetSharedProps();
         %obj.gdata.labelTLInfo.setLabelsFrame(1:obj.nframes);
-        obj.(PROPS.MFAHL)(obj.currMovie) = size(dat,1)>0;
+        obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
       end
       
       tx = obj.gdata.txTotalFramesLabeled;
-      nTgtsTot = sum(nTgtsLbledFrms);
       tx.String = num2str(nTgtsTot);
     end
   end
