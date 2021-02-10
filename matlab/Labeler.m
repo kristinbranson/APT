@@ -12979,9 +12979,9 @@ classdef Labeler < handle
           iRow = find(tfRow);
           dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
           
-          %set(tbl,'Data',dat);
-          tbl.setDataFast([iRow iRow],2:3,{nTgtsCurFrm nPtsCurFrm},...
-            size(dat,1),size(dat,2));
+          set(tbl,'Data',dat);
+          %tbl.setDataFast([iRow iRow],2:3,{nTgtsCurFrm nPtsCurFrm},...
+          %  size(dat,1),size(dat,2));
         else          
           dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
           n = size(dat,1);
@@ -13001,7 +13001,7 @@ classdef Labeler < handle
         end
       end
       
-      tbl.SelectedRows = iRow;
+      %tbl.SelectedRows = iRow;
 
       nTgtsTot = sum(cell2mat(dat(:,2)));
 
