@@ -47,7 +47,7 @@ class Pose_openpose(object):
             out_file = os.path.join(conf.cachedir,'diagnose_' + PoseTools.get_datestr())
 
         with open(out_file,'wb') as f:
-            pickle.dump({'ret_dict':ret_dict,'conf':conf},f)
+            pickle.dump({'ret_dict':ret_dict,'conf':conf, 'model_file':model_file},f)
 
         close_fn()
         return ret_dict

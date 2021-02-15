@@ -883,7 +883,7 @@ class Tracklet:
     maxv = np.nanmax(self.data[itgt],axis=ax)
     
     for itgt in range(1,self.ntargets):
-      if self.data[itgt] is None:
+      if self.data[itgt] is None or self.data[itgt].size==0:
         continue
       minv = np.fmin(minv,np.nanmin(self.data[itgt],axis=ax))
       maxv=np.fmax(maxv,np.nanmax(self.data[itgt],axis=ax))
@@ -1429,6 +1429,7 @@ class Trk:
         trkData['pTrkTag']=to_mat(self.pTrkTag)
         
     trkData['pTrkFrm']=self.pTrkFrm(T0,T1)
+    trkData['pTrkiTgt'] = to_mat(self.pTrkiTgt)
 
     hdf5storage.savemat(outtrkfile,trkData,appendmat=False,truncate_existing=True)
     

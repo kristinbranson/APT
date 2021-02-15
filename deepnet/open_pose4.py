@@ -330,7 +330,7 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
-def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None):
+def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None):
     '''
     
     :param model: 
@@ -344,7 +344,7 @@ def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=Non
     '''
 
     def eucl_loss(x, y):
-        return K.sum(K.square(x - y)) / bsize / 2.  # not sure why norm by bsize nec
+        return K.sum(K.square(x - y)) /  2.  # not sure why norm by bsize nec
 
     losses = {}
     loss_weights = {}
@@ -651,8 +651,7 @@ def training(conf, name='deepnet'):
     logging.info("Your label_blur_rads (hi/lo)res are {}/{}".format(
         conf.op_map_hires_blur_rad, conf.op_map_lores_blur_rad))
     losses, loss_weights, loss_weights_vec = \
-        configure_losses(model, batch_size,
-                         dc_on=conf.op_hires,
+        configure_losses(model, dc_on=conf.op_hires,
                          dc_blur_rad_ratio=conf.op_map_hires_blur_rad / conf.op_map_lores_blur_rad,
                          dc_wtfac=2.5)
 
@@ -681,6 +680,7 @@ def training(conf, name='deepnet'):
             self.config = conf
             self.save_start = time()
             self.force = False
+            self.prev_models = []
 
         def on_epoch_end(self, epoch, logs={}):
             step = (epoch+1) * iterations_per_epoch
@@ -755,13 +755,22 @@ def training(conf, name='deepnet'):
             with open(train_data_file, 'wb') as td:
                 pickle.dump([self.train_info, conf], td, protocol=2)
 
+            m_file = str(os.path.join(conf.cachedir, name + '-{}'.format(int(step))))
             if conf.save_time is None:
                 if step % conf.save_step == 0:
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
+                    model.save(m_file)
+                    self.prev_models.append(m_file)
             else:
                 if time() - self.save_start > conf.save_time*60:
                     self.save_start = time()
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
+                    model.save(m_file)
+                    self.prev_models.append(m_file)
+
+            if len(self.prev_models) > self.conf.maxckpt:
+                for curm in self.prev_models[:-self.conf.maxckpt]:
+                    if os.path.exists(curm):
+                        os.remove(curm)
+                _ = self.prev_models.pop(0)
 
 
     # configure callbacks

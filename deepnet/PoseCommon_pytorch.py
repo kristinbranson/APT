@@ -96,7 +96,10 @@ class coco_loader(torch.utils.data.Dataset):
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
-        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
+        if type(self.ann['images'][item]['movid']) == list:
+            info = [item,item,item]
+        else:
+            info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
 
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
         lndx = 0
@@ -378,6 +381,7 @@ class PoseCommon_pytorch(object):
         start = time.time()
         for step in range(start_at,n_steps):
             # gc.collect()
+            self.step = [step,n_steps]
             a = time.time()
             inputs, train_loader = next_data(train_loader,train_datagen)
             l = time.time()

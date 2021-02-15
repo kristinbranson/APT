@@ -64,6 +64,7 @@ from matplotlib.path import Path
 from PoseCommon_pytorch import coco_loader
 from tqdm import tqdm
 import shapely.geometry
+import TrkFile
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
@@ -2715,31 +2716,15 @@ def classify_movie(conf, pred_fn, model_type,
     if conf.is_multi:
         # write out partial results before linking.
         write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-        pred_locs, lnk_loss = link_trajectories(pred_locs, lnk_cost)
-
-    write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        trk = lnk.link(pred_locs)
+        trk.save(out_file)
+    else:
+        write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
     if os.path.exists(out_file + '.part'):
         os.remove(out_file + '.part')
     cap.close()
     tf.reset_default_graph()
     return pred_locs
-
-
-def link_trajectories(pred_locs,lnk_cost_in):
-    lnk_cost = lnk_cost_in * pred_locs.shape[2] * 2
-    locs_lnk = np.transpose(pred_locs, [3, 2, 1, 0])
-    ids, cost = lnk.assign_ids(locs_lnk, {'maxcost': lnk_cost,'verbose':0})
-    ids = ids.astype('int')
-    max_traj = ids.max()+1
-    lnk_preds = np.ones([pred_locs.shape[0], max_traj, pred_locs.shape[2], pred_locs.shape[3]])*np.nan
-    for t in range(pred_locs.shape[0]):
-        for pred_ndx in range(pred_locs.shape[1]):
-            if np.all(np.isnan(pred_locs[t,pred_ndx,:,:])):
-                continue
-            assert ids[pred_ndx,t] > -0.5, 'Invalid trajectory assignment'
-            lnk_preds[t,ids[pred_ndx,t],:,:] = locs_lnk[:,:,pred_ndx,t].T
-    return lnk_preds, cost
-
 
 def get_unet_pred_fn(conf, model_file=None,name='deepnet'):
     ''' Prediction function for UNet network'''

@@ -1,3 +1,87 @@
+
+layers  = list(model.named_modules())
+layers = [l for l in layers if 'conv' in l[0]]
+train_dict = {}
+for l in layers:
+    train_dict[l[0]] = None
+
+def save_outputs_hook(layer_id: str):
+    def fn(_, __, output):
+        oo = output.detach().cpu().numpy().copy()
+        if train_dict[layer_id] is None:
+            train_dict[layer_id] = [[oo.sum(axis=(0,2,3))],[(oo**2).sum(axis=(0,2,3))]]
+        else:
+            train_dict[layer_id][0].append(oo.sum(axis=(0,2,3)))
+            train_dict[layer_id][1].append((oo**2).sum(axis=(0, 2, 3)))
+    return fn
+
+for l in layers:
+    if 'conv' not in l[0]:
+        continue
+    l[1].register_forward_hook(save_outputs_hook(l[0]))
+
+import cv2
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'train', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'val', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+##
+import pickle
+k = 'module.locs_ref.conv1'
+rr = [np.array(t) for t in train_dict[k]]
+k1 = 'module.locs_joint.conv1'
+rr1 = [np.array(t) for t in train_dict[k1]]
+
+with open('/groups/branson/home/kabram/temp/grone_out_offset5.p','wb') as f:
+    pickle.dump({k:rr,k1:rr1},f)
+
+##
+
+k = 'module.locs_ref.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+k = 'module.locs_joint.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+
 ## diagnose grone
 
 import os

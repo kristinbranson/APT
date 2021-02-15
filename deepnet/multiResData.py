@@ -1160,7 +1160,7 @@ def read_and_decode_without_session_multi(filename, n_classes):
         else:
             trx_ndx = 0
         if 'occ' in example.features.feature.keys():
-            occ = np.Harray(example.features.feature['occ'].float_list.value)
+            occ = np.array(example.features.feature['occ'].float_list.value)
             occ = occ.reshape([maxn,n_classes,])
         else:
             occ = np.zeros([n_classes,])

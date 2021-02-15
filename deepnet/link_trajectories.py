@@ -2,6 +2,7 @@ import numpy as np
 import numpy.random as random
 import scipy.optimize as opt
 import TrkFile
+import APT_interface as apt
 
 # for now I'm just using loadmat and savemat here
 # when/if the format of trk files changes, then this will need to get fancier
@@ -523,6 +524,43 @@ def mixed_colormap(n, cmfun=cm.jet):
   cm1 = cm0[idx, :]
   return cm1
 
+def link(pred_locs):
+  params = {}
+  params['verbose'] = 1
+  params['maxframes_missed'] = 10
+  params['maxframes_delete'] = 10
+  params['maxcost_prctile'] = 95.
+  params['maxcost_mult'] = 1.25
+  params['maxcost_framesfit'] = 3
+  params['maxcost_heuristic'] = 'secondorder'
+  nframes_test = np.inf
+
+  locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
+  ts = np.ones_like(locs_lnk[0, ...]) * apt.datetime2matlabdn()
+  tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+  trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
+
+  T = np.minimum(np.inf, trk.T)
+  # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
+  # p = np.transpose(trk['pTrk'],(1,0,3,2))
+  nframes_test = int(np.minimum(T, nframes_test))
+  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],
+                                       heuristic=params['maxcost_heuristic'])
+  params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'], prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
+  print('maxcost set to %f' % params['maxcost'])
+  print('maxcost_missed set to ' + str(params['maxcost_missed']))
+  ids, costs = assign_ids(trk, params, T=nframes_test)
+  if isinstance(ids, np.ndarray):
+    nids_original = np.max(ids) + 1
+  else:
+    _, nids_original = ids.get_min_max_val()
+    nids_original = nids_original + 1
+
+  ids, isdummy = stitch(trk, ids, params)
+  ids, ids_short = delete_short(ids, isdummy, params)
+  _, ids = ids.unique()
+  trk.apply_ids(ids)
+  return trk
 
 def test_assign_ids_data():
   """
@@ -558,11 +596,8 @@ def test_assign_ids_data():
   # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
   # p = np.transpose(trk['pTrk'],(1,0,3,2))
   nframes_test = int(np.minimum(T, nframes_test))
-  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],
-                                       heuristic=params['maxcost_heuristic'])
-  params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'],
-                                                     prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],
-                                                     heuristic=params['maxcost_heuristic'])
+  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],heuristic=params['maxcost_heuristic'])
+  params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'],prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],heuristic=params['maxcost_heuristic'])
   print('maxcost set to %f' % params['maxcost'])
   print('maxcost_missed set to ' + str(params['maxcost_missed']))
   ids, costs = assign_ids(trk, params, T=nframes_test)
