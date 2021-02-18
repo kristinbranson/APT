@@ -41,9 +41,8 @@ classdef LabelCoreSeqMA < LabelCore
     tv % scalar TrackingVisualizerMT
     CLR_NEW_TGT = [0.470588235294118 0.670588235294118 0.188235294117647];
     CLR_DEL_TGT = [0.929411764705882 0.690196078431373 0.129411764705882];
-
   end
-  properties    
+  properties
     iPtMove; % scalar. Either nan, or index of pt being moved
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
 
@@ -51,6 +50,15 @@ classdef LabelCoreSeqMA < LabelCore
     kpfIPtFor1Key; % scalar positive integer. This is the point index that
                    % the '1' hotkey maps to, eg typically this will take the 
                    % values 1, 11, 21, ...
+                   
+    % two-click align
+    % alt to using <shift>-a and <shift>-d for camroll
+    tcOn = false; % scalar logical, true => two-click is on
+    % remainder applies when tcOn==true
+    tcipt = 0; % 0, 1, or 2 depending on current number of two-click pts clicked
+    tcHpts % [1] line handle for tc pts
+    tcHptsPV = struct('Color','r','marker','+','markersize',10,'linewidth',2);
+    tcShow = false; % scalar logical. true => leave tc points showing during lbl    
   end
   
   methods
@@ -62,7 +70,6 @@ classdef LabelCoreSeqMA < LabelCore
   
   methods
     
-    %OK
     function obj = LabelCoreSeqMA(varargin)
       obj = obj@LabelCore(varargin{:});
 
@@ -109,9 +116,22 @@ classdef LabelCoreSeqMA < LabelCore
     function delete(obj)
       delete(obj.pbNewTgt);
       delete(obj.pbDelTgt);
+      deleteValidHandles(obj.tcHpts);
     end
     
+    function tcInit(obj)
+      obj.tcipt = 0;
+      if ~isempty(obj.tcHpts)
+        set(obj.tcHpts,'XData',nan,'YData',nan);
+      else
+        obj.tcHpts = plot(obj.hAx,nan,nan);
+        set(obj.tcHpts,obj.tcHptsPV);
+      end
+      % tcShow unchanged
+    end
     function initHook(obj)
+      obj.tcInit();
+      
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
       obj.refreshTxLabelCoreAux();
@@ -148,7 +168,13 @@ classdef LabelCoreSeqMA < LabelCore
       tfShift = any(strcmp(mod,'shift'));
       switch obj.state
         case LabelState.LABEL
-          obj.hlpAxBDFLabelState(false,tfShift);
+          if obj.tcOn && obj.tcipt<2
+            pos = get(obj.hAx,'CurrentPoint');
+            pos = pos(1,1:2);
+            obj.hlpAxBDFTwoClick(pos);
+            return
+          end
+          obj.hlpAxBDFLabelState(false,tfShift);          
         case LabelState.ACCEPTED
           [tf,iSel] = obj.anyPointSelected();
           if tf
@@ -171,35 +197,62 @@ classdef LabelCoreSeqMA < LabelCore
     function axOccBDF(obj,~,~)
       assert(false,'Fully-occluded labels currently unsupported');
       
-      if ~obj.labeler.isReady,
-        return;
-      end
-      
-      mod = obj.hFig.CurrentModifier;
-      tfShift = any(strcmp(mod,'shift'));
-
-      switch obj.state
-        case LabelState.LABEL
-          obj.hlpAxBDFLabelState(true,tfShift);
-        case {LabelState.ADJUST LabelState.ACCEPTED}
-          [tf,iSel] = obj.anyPointSelected();
-          if tf
-            if obj.tfEstOcc(iSel)
-              obj.tfEstOcc(iSel) = false; 
-              % following toggleSelectPoint call will call refreshPtMarkers
-            end
-            obj.toggleSelectPoint(iSel);        
-            obj.tfOcc(iSel) = true;
-            obj.refreshOccludedPts();
-            % estOcc status unchanged
-            if obj.state==LabelState.ACCEPTED
-              % KB 20181029: removing adjust state
-              %obj.beginAdjust();
-            end
+%       if ~obj.labeler.isReady,
+%         return;
+%       end
+%       
+%       mod = obj.hFig.CurrentModifier;
+%       tfShift = any(strcmp(mod,'shift'));
+% 
+%       switch obj.state
+%         case LabelState.LABEL
+%           obj.hlpAxBDFLabelState(true,tfShift);
+%         case {LabelState.ADJUST LabelState.ACCEPTED}
+%           [tf,iSel] = obj.anyPointSelected();
+%           if tf
+%             if obj.tfEstOcc(iSel)
+%               obj.tfEstOcc(iSel) = false; 
+%               % following toggleSelectPoint call will call refreshPtMarkers
+%             end
+%             obj.toggleSelectPoint(iSel);        
+%             obj.tfOcc(iSel) = true;
+%             obj.refreshOccludedPts();
+%             % estOcc status unchanged
+%             if obj.state==LabelState.ACCEPTED
+%               % KB 20181029: removing adjust state
+%               %obj.beginAdjust();
+%             end
+%           end
+%       end
+    end
+       
+    function hlpAxBDFTwoClick(obj,xy)
+      h = obj.tcHpts;
+      switch obj.tcipt
+        case 0
+          set(h,'XData',xy(1),'YData',xy(2));
+          obj.tcipt = 1;
+        case 1
+          x0 = h.XData;
+          y0 = h.YData;
+          set(h,'XData',[x0 xy(1)],'YData',[y0 xy(2)]);
+          obj.tcipt = 2;
+          
+          xc = (x0+xy(1))/2;
+          yc = (y0+xy(2))/2;
+          dx = x0-xy(1);
+          dy = y0-xy(2);
+          th = atan2(dy,dx);
+          lObj = obj.labeler;
+          lObj.videoCenterOnCurrTarget(xc,yc,th)
+          rad = 2*sqrt(dx.^2+dy.^2);
+          lObj.videoZoom(rad);
+          if ~obj.tcShow
+            set(h,'XData',nan,'YData',nan);
           end
       end
     end
-       
+
     function hlpAxBDFLabelState(obj,tfAxOcc,tfShift)
       
       % BDF in LabelState.LABEL. .tfOcc, .tfEstOcc, .tfSel start off as all
@@ -276,7 +329,7 @@ classdef LabelCoreSeqMA < LabelCore
       end
     end
     
-    function wbuf(obj,~,~)      
+    function wbuf(obj,~,~)
       if ~obj.labeler.isReady
         return;
       end
@@ -291,7 +344,7 @@ classdef LabelCoreSeqMA < LabelCore
       end
     end
     
-    function tfKPused = kpf(obj,~,evt)      
+    function tfKPused = kpf(obj,~,evt)
       if ~obj.labeler.isReady
         return;
       end
@@ -419,6 +472,16 @@ classdef LabelCoreSeqMA < LabelCore
     end
   end
   
+  methods % tc
+    function setTwoClickOn(obj,tfon)
+      if obj.state==LabelState.LABEL
+        error('Please finish labeling the current animal.');
+      end
+      obj.tcInit();
+      obj.tcOn = tfon;
+    end
+  end
+  
   methods
     
     function cbkNewTgt(obj)
@@ -537,6 +600,7 @@ classdef LabelCoreSeqMA < LabelCore
 
       obj.iPtMove = nan;
       obj.clearSelected();
+      obj.tcInit();
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
@@ -544,6 +608,7 @@ classdef LabelCoreSeqMA < LabelCore
     function beginAcceptedReset(obj)
       % like beginAccepted, but reset first
       obj.resetState();
+      obj.tcInit();
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
