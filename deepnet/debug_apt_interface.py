@@ -1,4 +1,35 @@
-
+##
+ix = 1127
+im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')
+im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+im = np.tile(im[None,...,None],[1,1,1,3])
+conf.batch_size = 1
+rr = 8
+pl = []
+plt.cla()
+imshow(im[0,...,0],'gray')
+for xx in range(-rr,rr+1,4):
+    xl = []
+    for yy in range(-rr,rr+1,4):
+        oim = np.pad(im,[[0,0],[rr,rr],[rr,rr],[0,0]])
+        oim = oim[:,(rr+yy):(rr+yy+1024),(rr+xx):(rr+xx+1024),:]
+        dfile = os.path.join('/tmp/',f'diagnose_val_{ix}_wt_offset_5.p')
+        import Pose_multi_mdn_joint_torch
+        pp = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name='wt_offset_5')
+        pp.diagnose(oim,dfile)
+        A = pt.pickle_load(dfile)
+        A = A['ret_dict']
+        # curl = A['locs'][0]
+        curl = A['raw_locs'][0]['joint'][0]
+        curl[...,0] += xx
+        curl[...,1] += yy
+        xl.append(curl.copy())
+        mdskl(curl,conf.op_affinity_graph)
+    pl.append(xl)
+mdskl(np.clip(ll1[ix,...],0,10000),conf.op_affinity_graph,cc=[0,0,1.])
+aa = np.array(pl)
+plt.title(f'{ix}')
+##
 layers  = list(model.named_modules())
 layers = [l for l in layers if 'conv' in l[0]]
 train_dict = {}

@@ -328,12 +328,15 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         # assign each prediction to the label based on its distance. The compute the weighted loss between the prediction and that label
         assign = p_assign * torch.unsqueeze(ll_joint_flat, 1)
         assign_sum = torch.where(valid,assign.sum(axis=-1),torch.ones_like(assign[:,:,0]))
-        assign_norm = assign/ torch.unsqueeze(assign_sum+0.0001,dim=-1)
+        assign_norm = assign/ torch.unsqueeze(assign_sum+1e-10,dim=-1)
         dloss = (assign_norm*dd_all).sum(axis=-1)
-        cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss)).sum()
+        cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss)).sum(axis=-1)
         wt_loss_all = (1.-assign.sum(axis=-1))**2
-        cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all)).sum()
-        joint_loss = cur_pred_loss #/ self.offset
+        cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all)).sum(axis=-1)
+        loss_wt = 1- cur_wt_loss/valid.sum(axis=-1)
+        loss_wt = torch.clamp(loss_wt,0.01,1).detach()
+
+        joint_loss = cur_pred_loss*loss_wt #/ self.offset
         wt_loss = cur_wt_loss * n_classes * 10
 
         # Loss to ensure that the number of predictions match the number of labeled animals. This weight needs to be upweighted otherwise the training converges to degenerate case where  ll_joint is predicted as zero, which would make joint_loss 0.
@@ -368,38 +371,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         ref_dist = torch.norm(ref_pred - torch.unsqueeze(labels, -1), dim=-2)
         ref_loss_all = torch.sum(ref_wts * ref_dist, dim=-1)
         ref_loss_sel = torch.where(valid_lbl, ref_loss_all, torch.zeros_like(ref_loss_all))
-        ref_loss = ref_loss_sel.sum()
+        ref_loss = ref_loss_sel.sum(axis=(-1,-2))
 
-        # cur_loss = 0
-        # for b in range(ll_joint.shape[0]):
-        #     for g in range(labels.shape[1]):
-        #         if not valid[b,g]:
-        #             continue
-        #         assign = p_assign[b,g,:]*ll_joint_flat[b,:]
-        #         selex = torch.argmax(assign)
-        #         # torch supports histogramming. Maybe instead of argmax that can be used.
-        #
-        #         idx = torch.round(locs_noise[b, 0, selex, :, :]).int()
-        #         # ids are predicted as x,y to match input locs.
-        #         idx_y = torch.clamp(idx[:,1], 0, locs_ref.shape[-2] - 1)
-        #         idx_x = torch.clamp(idx[:,0], 0, locs_ref.shape[-1] - 1)
-        #         for cls in range(labels.shape[2]):
-        #             if (labels[b,g,cls,0] < -1000) or torch.isnan(labels[b,g,cls,0]):
-        #                 continue
-        #
-        #             pp = labels[b, g, cls:cls + 1, :]
-        #             cur_ref = locs_ref[b,cls,:,:,idx_y[cls],idx_x[cls]] * self.offset/self.ref_scale
-        #
-        #             dd_ref = torch.norm(pp-cur_ref.T,dim=-1)
-        #             ll_ref = torch.softmax(wts_ref[b,cls,:,idx_y[cls],idx_x[cls]],0)
-        #             cur_loss_ref = torch.sum(dd_ref*ll_ref)
-        #             cur_loss = cur_loss + cur_loss_ref
-        #
-        # ref_loss1 = cur_loss
+        # downweight refine loss if the animal detection is not working.
+        ref_loss = ref_loss*loss_wt
 
         tot_loss = wt_loss  + joint_loss + ref_loss
         return tot_loss / n_classes
-
 
 
     def create_targets(self, inputs):
@@ -519,6 +497,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             cur_pred = np.ones_like(olocs_orig) * np.nan
             dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
             dd = np.linalg.norm(dd,axis=-1).mean(-1)
+            conf_margin = 4
             # match predictions from offset pred and normal preds
             for b in range(dd.shape[0]):
                 done_offset = np.zeros(dd.shape[1])
@@ -529,7 +508,15 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                         continue
                     olocs_ndx = np.nanargmin(dd[b,:,ix])
                     if dd[b,olocs_ndx,ix] < match_dist:
-                        cc = (olocs_orig[b, olocs_ndx, ...] + locs_orig[b, ix, ...]) / 2
+                        # Select the one with higher confidence unless they both are close.
+                        if locs['conf_joint'][b,ix] < olocs['conf_joint'][b,olocs_ndx] - conf_margin:
+                            cc = olocs_orig[b, olocs_ndx, ...]
+                        elif locs['conf_joint'][b,ix] - conf_margin > olocs['conf_joint'][b,olocs_ndx] :
+                            cc = locs_orig[b, ix, ...]
+                        else:
+                            cc = (olocs_orig[b, olocs_ndx, ...] + locs_orig[b, ix, ...]) / 2
+
+                        # below is for selecting based on ref confidences.
                         # cc = np.ones([conf.n_classes,2])*np.nan
                         # for cls in range(conf.n_classes):
                         #     if olocs['conf_ref'][b,olocs_ndx,cls] > locs['conf_ref'][b,ix,cls]:

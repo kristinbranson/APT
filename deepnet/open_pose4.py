@@ -766,8 +766,8 @@ def training(conf, name='deepnet'):
                     model.save(m_file)
                     self.prev_models.append(m_file)
 
-            if len(self.prev_models) > self.conf.maxckpt:
-                for curm in self.prev_models[:-self.conf.maxckpt]:
+            if len(self.prev_models) > conf.maxckpt:
+                for curm in self.prev_models[:-conf.maxckpt]:
                     if os.path.exists(curm):
                         os.remove(curm)
                 _ = self.prev_models.pop(0)
