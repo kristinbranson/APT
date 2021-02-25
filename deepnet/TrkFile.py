@@ -544,6 +544,7 @@ class Tracklet:
     :param endframes: array of length ntargets indicating the last frame of each target's tracklet
     :param defaultval: default value for sparsification. Default = None: use self.defaultval.
     :param docopy: Whether to make a copy of the data, or use the direct pointer
+    :param ismatlab: whether to convert from matlab (1-indexed, fortran-order) indexing, values
     :return:
     """
     
@@ -587,6 +588,7 @@ class Tracklet:
     gettarget(self,itgts)
     Returns data for the input targets and all frames.
     :param itgts: Scalar, list, or 1-d array of targets.
+    :param T: output size in frames. If None, this object's T parameter, max(endframes)+1, will be used.
     :return: p: nlandmarks x d x T x len(itgts) with data.
     """
     
@@ -780,19 +782,24 @@ class Tracklet:
     """
     getdense(self,tomatlab=False)
     Returns a dense version of the tracklet data.
+    :param T: output size in frames. If None, this object's T1 parameter, max(endframes), and T0 will be used to determine T.
+    :param T0: first frame of dense matrix to return. Default: None (see consolidate for default behavior).
+    :param consolidate: if consolidate==True, return a dense matrix starting at T0=min(startframes). Otherwise, start at
+    T0=0. This parameter is only relevant if T0 is not specified. Default: True.
     :param tomatlab: whether to convert to matlab (1-indexed) values
     :return: size_rest x T x ntargets dense version of input.
     """
-    if T is None:
+    
+    if T0 is None:
       if consolidate:
-        if T0 is None:
-          T0 = self.T0
-        T1 = self.T1
-        T = T1-T0+1
+        T0 = self.T0
       else:
-        T = self.T
-        if T0 is None:
-          T0 = 0
+        T0 = 0
+    
+    if T is None:
+      T1 = self.T1
+      T = T1-T0+1
+
     p = converttracklet2dense(self.data,self.startframes-T0,self.endframes-T0,T,defaultval=self.defaultval,**kwargs)
     return p,T0
 
@@ -801,6 +808,7 @@ class Tracklet:
     getsparse(self,tomatlab=False)
     Returns a sparse matrix version of the tracklet data.
     :param tomatlab: whether to convert to matlab (1-indexed) values
+    :param T: output size in frames. If None, this object's T parameter, max(endframes)+1 will be used.
     :return: sparse matrix version of input, dict with entries idx, val, size, and type.
     """
     if T is None:
@@ -1321,6 +1329,7 @@ class Trk:
     """
     Save data in sparse format to file outtrkfile.
     :param outtrkfile: Name of file to save to.
+    :param consolidate: Whether to update startframes and endframes to be tight around non-default value data.
     :return:
     """
 

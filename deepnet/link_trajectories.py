@@ -451,7 +451,6 @@ def test_assign_ids():
   
   print('ids = ')
   print(str(ids))
-  p0 = p.copy()
   ids1, costs = assign_ids(TrkFile.Trk(p=p), params)
   
   print('assigned ids = ')
@@ -671,7 +670,6 @@ def test_estimate_maxcost():
   trkfile = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_full1.trk.part'
   
   # parameters
-  maxcost_prctile = 95.
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
@@ -686,7 +684,6 @@ def test_estimate_maxcost():
   # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
   # p = np.transpose(trk['pTrk'], (1, 0, 3, 2))
   
-  maxcost = np.zeros(params['maxframes_missed']+1)
   maxcost0 = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'])
   maxcost1 = estimate_maxcost_missed(trk, params['maxcost_framesfit'],
                                      prctile=params['maxcost_prctile'], mult=params['maxcost_mult'])
