@@ -37,7 +37,10 @@ def decode_augment(features, conf, distort):
 
     if 'mask' in features.keys():
         features['mask'] = np.array(features['mask']).reshape([h,w,1])
-        ims = ims * features['mask']
+        if conf.multi_use_mask:
+            ims = ims * features['mask']
+    else:
+        features['mask'] = None
 
     if 'max_n' in features.keys():
         n_max = features['max_n'][0]
@@ -64,7 +67,7 @@ def decode_augment(features, conf, distort):
     features['info'] = np.array([features['expndx'][0],features['ts'][0],features['trx_ndx'][0]])
 
 
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
+    ims, locs, mask = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale,mask=features['mask'])
 
     # convert CHW format
     ims = np.transpose(ims[0,...]/255.,[2,0,1])
@@ -81,6 +84,8 @@ class coco_loader(torch.utils.data.Dataset):
         self.ann = PoseTools.json_load(ann_file)
         self.conf = conf
         self.augment = augment
+        self.len = len(self.ann['images'])
+        self.ex_wts = torch.ones(self.len)
 
     def __len__(self):
         return len(self.ann['images'])
@@ -93,7 +98,10 @@ class coco_loader(torch.utils.data.Dataset):
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
-        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
+        if type(self.ann['images'][item]['movid']) == list:
+            info = [item,item,item]
+        else:
+            info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
 
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
         lndx = 0
@@ -119,7 +127,8 @@ class coco_loader(torch.utils.data.Dataset):
                     'locs':locs[0,...],
                     'info':info,
                     'occ': occ,
-                    'mask':mask
+                    'mask':mask,
+                    'item':item
                     }
         return features
 
@@ -133,9 +142,7 @@ class coco_loader(torch.utils.data.Dataset):
         for obj in anno:
             if 'segmentation' in obj:
                 if obj['iscrowd']:
-                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
-                                                       img_info['height'],
-                                                       img_info['width'])
+                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],img_info['height'], img_info['width'])
                     m += xtcocotools.mask.decode(rle)
                 else:
                     rles = xtcocotools.mask.frPyObjects(
@@ -145,14 +152,10 @@ class coco_loader(torch.utils.data.Dataset):
                         m += xtcocotools.mask.decode(rle)
         return m>0.5
 
+    def update_wts(self,idx,loss):
+        for ix,l in zip(idx,loss):
+            self.ex_wts[ix] = l
 
-def next_data(loader, dataset):
-    try:
-        ndata = next(loader)
-    except StopIteration:
-        loader = iter(dataset)
-        ndata = next(loader)
-    return ndata, loader
 
 class PoseCommon_pytorch(object):
 
@@ -161,6 +164,7 @@ class PoseCommon_pytorch(object):
         self.name = name
         self.prev_models = []
         self.td_fields = ['dist','loss']
+        self.train_epoch = 1
         # conf.is_multi = is_multi
 
         if torch.cuda.is_available():
@@ -168,6 +172,11 @@ class PoseCommon_pytorch(object):
         else:
             self.device = "cpu"
             print('CUDA Device not available. Using CPU!')
+
+        if conf.db_format == 'coco':
+            self.use_hard_mining = conf.get('use_hard_mining', False)
+        else:
+            self.use_hard_mining = False
 
     def get_ckpt_file(self):
         return os.path.join(self.conf.cachedir,self.name + '_ckpt')
@@ -294,7 +303,7 @@ class PoseCommon_pytorch(object):
     def compute_train_data(self,inputs,net,loss):
         labels = self.create_targets(inputs)
         output = net(inputs)
-        loss_val = loss(output,labels).detach().item()
+        loss_val = loss(output,labels).detach().sum().item()
         dist = self.compute_dist(output,labels)
         return {'cur_loss':loss_val, 'cur_dist':dist}
 
@@ -323,9 +332,12 @@ class PoseCommon_pytorch(object):
             valtfr = trntfr
         train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=300)
         val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
-        train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16)
-        val_dl = torch.utils.data.DataLoader(val_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
-        return [train_dl, val_dl]
+        self.train_loader_raw = train_dl_tf
+        self.val_loader_raw = val_dl_tf
+        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16)
+        self.val_dl = torch.utils.data.DataLoader(val_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
+        self.train_iter = iter(self.train_dl)
+        self.val_iter = iter(self.val_dl)
 
 
     def create_coco_data_gen(self, **kwargs):
@@ -338,11 +350,47 @@ class PoseCommon_pytorch(object):
         else:
             logging.info('Val json file doesnt exist. Using training file for validation')
             val_dl_coco = coco_loader(conf,trnjson,False)
+        self.train_loader_raw = train_dl_coco
+        self.val_loader_raw = val_dl_coco
 
-        train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16)
-        val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
-        return [train_dl, val_dl]
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,shuffle=True)
+        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
+        self.train_iter = iter(self.train_dl)
+        self.val_iter = iter(self.val_dl)
 
+    def next_data(self, dtype):
+        if dtype == 'train':
+            it = self.train_iter
+        else:
+            it = self.val_iter
+
+        try:
+            ndata = next(it)
+        except StopIteration:
+            self.train_epoch += 1
+            if dtype == 'train':
+                if self.use_hard_mining and (self.step[0]/self.step[1]>0.001) and self.train_epoch>3:
+                    wts = self.train_loader_raw.ex_wts
+                    pcs = np.percentile(wts.numpy(),[5,95])
+                    wts = torch.clamp(wts,pcs[0],pcs[1])
+                    wt_range = 10.
+                    wts = wts-wts.min()
+                    wts = wts/wts.max()
+                    wts = wts*(wt_range-1) + 1
+                    train_sampler = torch.utils.data.WeightedRandomSampler(wts,self.train_loader_raw.len)
+                    shuffle = False
+                else:
+                    train_sampler = None
+                    shuffle = True
+
+                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle)
+                self.train_iter = iter(self.train_dl)
+                ndata = next(self.train_iter)
+            else:
+                self.val_dl = torch.utils.data.DataLoader(self.val_loader_raw, batch_size=self.conf.batch_size, pin_memory=True, drop_last=True)
+                self.val_iter = iter(self.val_dl)
+                ndata = next(self.val_iter)
+        return ndata
 
     def create_targets(self, inputs):
         locs = inputs['locs']
@@ -361,22 +409,16 @@ class PoseCommon_pytorch(object):
         return torch.optim.lr_scheduler.LambdaLR(opt,lambda_lr)
 
 
-    def train(self, data_loaders, model, loss, opt, lr_sched, n_steps, start_at=0):
-        train_datagen = data_loaders[0]
-        if len(data_loaders) > 1 and (len(data_loaders[1])>0):
-            val_datagen = data_loaders[1]
-        else:
-            val_datagen = data_loaders[0]
+    def train(self, model, loss, opt, lr_sched, n_steps, start_at=0):
 
-        train_loader = iter(train_datagen)
-        val_loader = iter(val_datagen)
         save_start = time.time()
         clip_gradients = self.conf.get('clip_gradients', True)
         start = time.time()
         for step in range(start_at,n_steps):
             # gc.collect()
+            self.step = [step,n_steps]
             a = time.time()
-            inputs, train_loader = next_data(train_loader,train_datagen)
+            inputs = self.next_data('train')
             l = time.time()
             opt.zero_grad()
             outputs = model(inputs)
@@ -390,9 +432,11 @@ class PoseCommon_pytorch(object):
             t = time.time()
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
             loss_val = loss(outputs,labels)
+            if self.use_hard_mining:
+                self.train_loader_raw.update_wts(inputs['item'].numpy(),loss_val.detach().cpu().numpy().copy())
             lo = time.time()
             # print(prof)
-            loss_val.backward()
+            loss_val.sum().backward()
             if clip_gradients:
                 torch.nn.utils.clip_grad_norm_(model.parameters(),5.)
             b = time.time()
@@ -414,11 +458,11 @@ class PoseCommon_pytorch(object):
                 en = time.time()
                 logging.info('Time required to train:{}'.format(en-start))
                 start = en
-                train_in, train_loader = next_data(train_loader, train_datagen)
+                train_in = self.next_data('train')
                 train_dict = self.compute_train_data(train_in, model, loss)
                 train_loss = train_dict['cur_loss']
                 train_dist = train_dict['cur_dist']
-                val_in, val_loader = next_data(val_loader, val_datagen)
+                val_in = self.next_data('val')
                 val_dict = self.compute_train_data(val_in, model, loss)
                 val_loss = val_dict['cur_loss']
                 val_dist = val_dict['cur_dist']
@@ -458,14 +502,13 @@ class PoseCommon_pytorch(object):
             start_at = self.restore(model_file, model, opt, sched)
 
         model.to(self.device)
-        data_loaders = self.create_data_gen()
+        self.create_data_gen()
 
         if self.conf.get('use_dataset_stats_norm',False):
-            train_loader = iter(data_loaders[0])
             all_ims = []
             for ndx in range(50):
                 for skip in range(40):
-                    cur_i, train_loader = next_data(train_loader, data_loaders[0])
+                    cur_i, train_loader = self.next_data('train')
                 all_ims.append(cur_i['images'].cpu().numpy())
             all_ims = np.concatenate(all_ims,0)
             im_mean = all_ims.mean((0,2,3),keepdims=True)
@@ -473,7 +516,7 @@ class PoseCommon_pytorch(object):
             model.module.im_mean = torch.tensor(im_mean[0,...].astype('single'))
             model.module.im_std = torch.tensor(im_std[0,...].astype('single'))
 
-        self.train(data_loaders,model,self.loss,opt,sched,training_iters,start_at)
+        self.train(model,self.loss,opt,sched,training_iters,start_at)
 
     def loss(self,output, labels):
         torch.nn.MSELoss(output-labels)
@@ -491,3 +534,18 @@ class PoseCommon_pytorch(object):
             return [self.to_numpy(tt) for tt in t]
         else:
             return t.detach().cpu().numpy()
+
+    def diagnose(self, ims, out_file=None, **kwargs):
+        pred_fn, close_fn, model_file = self.get_pred_fn(**kwargs)
+        ret_dict = pred_fn(ims,retrawpred=True)
+        conf = self.conf
+
+        if out_file is None:
+            out_file = os.path.join(conf.cachedir,'diagnose_' + PoseTools.get_datestr())
+
+        with open(out_file,'wb') as f:
+            pickle.dump({'ret_dict':ret_dict,'conf':conf,'ims':ims},f)
+
+        close_fn()
+        return ret_dict
+

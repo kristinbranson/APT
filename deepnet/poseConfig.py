@@ -214,7 +214,7 @@ class config(object):
         self.multi_loss_mask = True
         # crop images during training
         self.multi_crop_ims = True
-        self.multi_mdn_match_dist = 10
+        self.multi_match_dist = 10
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'

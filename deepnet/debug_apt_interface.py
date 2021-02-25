@@ -1,3 +1,186 @@
+##
+ix = 1127
+im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')
+im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+im = np.tile(im[None,...,None],[1,1,1,3])
+conf.batch_size = 1
+rr = 8
+pl = []
+plt.cla()
+imshow(im[0,...,0],'gray')
+for xx in range(-rr,rr+1,4):
+    xl = []
+    for yy in range(-rr,rr+1,4):
+        oim = np.pad(im,[[0,0],[rr,rr],[rr,rr],[0,0]])
+        oim = oim[:,(rr+yy):(rr+yy+1024),(rr+xx):(rr+xx+1024),:]
+        dfile = os.path.join('/tmp/',f'diagnose_val_{ix}_wt_offset_5.p')
+        import Pose_multi_mdn_joint_torch
+        pp = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name='wt_offset_5')
+        pp.diagnose(oim,dfile)
+        A = pt.pickle_load(dfile)
+        A = A['ret_dict']
+        # curl = A['locs'][0]
+        curl = A['raw_locs'][0]['joint'][0]
+        curl[...,0] += xx
+        curl[...,1] += yy
+        xl.append(curl.copy())
+        mdskl(curl,conf.op_affinity_graph)
+    pl.append(xl)
+mdskl(np.clip(ll1[ix,...],0,10000),conf.op_affinity_graph,cc=[0,0,1.])
+aa = np.array(pl)
+plt.title(f'{ix}')
+##
+layers  = list(model.named_modules())
+layers = [l for l in layers if 'conv' in l[0]]
+train_dict = {}
+for l in layers:
+    train_dict[l[0]] = None
+
+def save_outputs_hook(layer_id: str):
+    def fn(_, __, output):
+        oo = output.detach().cpu().numpy().copy()
+        if train_dict[layer_id] is None:
+            train_dict[layer_id] = [[oo.sum(axis=(0,2,3))],[(oo**2).sum(axis=(0,2,3))]]
+        else:
+            train_dict[layer_id][0].append(oo.sum(axis=(0,2,3)))
+            train_dict[layer_id][1].append((oo**2).sum(axis=(0, 2, 3)))
+    return fn
+
+for l in layers:
+    if 'conv' not in l[0]:
+        continue
+    l[1].register_forward_hook(save_outputs_hook(l[0]))
+
+import cv2
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'train', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'val', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+##
+import pickle
+k = 'module.locs_ref.conv1'
+rr = [np.array(t) for t in train_dict[k]]
+k1 = 'module.locs_joint.conv1'
+rr1 = [np.array(t) for t in train_dict[k1]]
+
+with open('/groups/branson/home/kabram/temp/grone_out_offset5.p','wb') as f:
+    pickle.dump({k:rr,k1:rr1},f)
+
+##
+
+k = 'module.locs_ref.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+k = 'module.locs_joint.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+
+## diagnose grone
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+
+net_type = 'multi_mdn_joint_torch' #'multi_mmpose' #
+# train_name = 'grone_maskim' # 'higher'# 'deepnet' #
+run_name = 'val_split'
+train_name = 'deepnet'
+
+run_name = 'alice_maskim_split_crop_ims_grone_multi'
+# train_name = 'grone_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# net_type = 'multi_mmpose' #'multi_mmpose' #
+# train_name = 'higherhr_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# train_name = 'higherhr_maskim' # 'higher'# 'deepnet' #
+# run_name = 'maskim_split'
+
+# net_type = 'multi_openpose' #'multi_mmpose' #
+# train_name = 'openpose_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/val_split/val_TF.json'
+# use whole unmasked images for validation
+conf = apt.create_conf(lbl_file,0,run_name,net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+# conf.batch_size = 4 if net_type == 'multi_openpose' else 8
+db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/val_split_fullims/val_TF.json'
+conf.db_format = 'coco'
+conf.max_n_animals = 10
+conf.imsz = (1024,1024) #(288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet' #'higherhrnet_2x'#
+conf.is_multi = True
+conf.op_affinity_graph = ((0,1),(0,5),(1,2),(3,4),(3,5),(5,6),(5,7),(5,9),(3,16),(9,10),(10,15),(9,14),(4,11),(7,8),(8,12),(7,13))
+
+import Pose_multi_mdn_joint_torch
+import cv2
+ix = 862
+im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')
+im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+im = np.tile(im[None,...,None],[1,1,1,3])
+import PoseTools as pt
+A = pt.pickle_load('/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/alice_maskim_split_crop_ims_grone_multi/diagnose_20210201')
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+plt.imshow(im[0,:,:,0],'gray')
+A = A['ret_dict']
+kk = A['preds'][0]
+kk1 = A['preds'][1]
+jj1 =  A['raw_locs'][1]['ref'][0] + 16
+jj =  A['raw_locs'][0]['ref'][0]
+ff =  jj[-1,...]
+ff1 = jj1[4,...]
+ff-ff1
+mm = kk[0][0,...,0,23,23]
+mm.round()
+mm1 = kk1[0][0,...,0,23,23]
+mm1.round()
 ## masking loss
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'

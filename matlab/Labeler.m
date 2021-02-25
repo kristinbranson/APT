@@ -12081,7 +12081,7 @@ classdef Labeler < handle
   %% Video
   methods
     
-    function videoCenterOnCurrTarget(obj)
+    function videoCenterOnCurrTarget(obj,x,y,th)
       % Shift axis center/target and CameraUpVector without touching zoom.
       % 
       % Potential TODO: CamViewAngle treatment looks a little bizzare but
@@ -12090,7 +12090,10 @@ classdef Labeler < handle
       % the CamViewAngle to either the default or the default/2 etc.
 
       [x0,y0] = obj.videoCurrentCenter();
-      [x,y,th] = obj.currentTargetLoc();
+      tfexternal = nargin>1;
+      if ~tfexternal
+        [x,y,th] = obj.currentTargetLoc();
+      end
 
       dx = x-x0;
       dy = y-y0;
@@ -12099,7 +12102,7 @@ classdef Labeler < handle
       ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
       ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
       %ax.CameraViewAngleMode = 'auto';
-      if obj.movieRotateTargetUp
+      if obj.movieRotateTargetUp || tfexternal
         ax.CameraUpVector = [cos(th) sin(th) 0];
         if verLessThan('matlab','R2016a')
           % See iss#86. In R2016a, the zoom/pan behavior of axes in 3D mode

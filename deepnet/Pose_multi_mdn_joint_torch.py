@@ -7,6 +7,8 @@ from torchvision.models.detection.backbone_utils import resnet_fpn_backbone, Bac
 import numpy as np
 import PoseTools
 from torchvision.ops import misc as misc_nn_ops
+import pickle
+import os
 
 class pred_layers(nn.Module):
 
@@ -111,7 +113,7 @@ def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.Fro
 
 class mdn_joint(nn.Module):
 
-    def __init__(self, npts, device, use_fpn=True,pretrain_freeze_bnorm=True,k_j=4,k_r=3):
+    def __init__(self, npts, device, use_fpn=True,pretrain_freeze_bnorm=True,k_j=4,k_r=3,wt_offset=-5):
         super(mdn_joint,self).__init__()
 
         if use_fpn:
@@ -142,6 +144,7 @@ class mdn_joint(nn.Module):
         self.use_fpn = use_fpn
         self.im_mean = torch.tensor([[[0.485]], [[0.456]], [[0.406]]]).to(self.device)
         self.im_std = torch.tensor([[[0.229]], [[0.224]], [[0.225]]]).to(self.device)
+        self.wt_offset = wt_offset
 
     def forward(self, input):
         x = input['images']
@@ -163,7 +166,7 @@ class mdn_joint(nn.Module):
             x_r = x
 
         locs_j = self.locs_joint(x_j)
-        wts_j = self.wts_joint(x_j)
+        wts_j = self.wts_joint(x_j) + self.wt_offset
         locs_r = self.locs_ref(x_r)
         wts_r = self.wts_ref(x_r)
 
@@ -193,15 +196,16 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         assert conf.is_multi, 'This is a multi animal network'
         super(Pose_multi_mdn_joint_torch,self).__init__(conf,**kwargs)
         self.offset = 32
-        self.locs_noise = self.conf.get('mdn_joint_ref_noise',0.3)
+        self.locs_noise = self.conf.get('mdn_joint_ref_noise',0.1)
         self.k_j = 4
         self.k_r = 3
+        self.wt_offset = self.conf.get('mdn_joint_wt_offset',-5)
 
     def create_model(self):
         self.offset = 32
         use_fpn = self.conf.get('mdn_joint_use_fpn',True)
         self.ref_scale = 8 if use_fpn else 1
-        return mdn_joint(self.conf.n_classes, self.device, use_fpn=use_fpn,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm,k_j=self.k_j,k_r=self.k_r)
+        return mdn_joint(self.conf.n_classes, self.device, use_fpn=use_fpn,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm,k_j=self.k_j,k_r=self.k_r,wt_offset=self.wt_offset)
 
     def loss_slow(self, preds, labels):
         n_classes = self.conf.n_classes
@@ -289,13 +293,15 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         n_classes = self.conf.n_classes
         offset = self.offset
         locs_joint, wts_joint, locs_ref, wts_ref = preds
+        j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
+        wts_joint = wts_joint - self.wt_offset*j_wt_factor
         labels = labels.to(self.device)
 
         # ll_joint has the weight logits
         ll_joint = torch.sigmoid(wts_joint)
         if self.conf.multi_loss_mask:
             mask_down = labels_dict['mask'][:,::offset,::offset].to(self.device)
-            ll_joint = ll_joint* mask_down[:,None,:,:]
+            ll_joint = torch.where(mask_down[:,None,:,:]>0,ll_joint,torch.zeros_like(ll_joint))
         ls = locs_joint.shape
         locs_joint_flat = locs_joint.reshape(
             [locs_joint.shape[0], 1, n_classes, 2, self.k_j * ls[-2] * ls[-1]]).permute([0, 1, 4, 2, 3])
@@ -322,12 +328,15 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         # assign each prediction to the label based on its distance. The compute the weighted loss between the prediction and that label
         assign = p_assign * torch.unsqueeze(ll_joint_flat, 1)
         assign_sum = torch.where(valid,assign.sum(axis=-1),torch.ones_like(assign[:,:,0]))
-        assign_norm = assign/ torch.unsqueeze(assign_sum+0.0001,dim=-1)
+        assign_norm = assign/ torch.unsqueeze(assign_sum+1e-10,dim=-1)
         dloss = (assign_norm*dd_all).sum(axis=-1)
-        cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss)).sum()
+        cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss)).sum(axis=-1)
         wt_loss_all = (1.-assign.sum(axis=-1))**2
-        cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all)).sum()
-        joint_loss = cur_pred_loss #/ self.offset
+        cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all)).sum(axis=-1)
+        loss_wt = 1- cur_wt_loss/valid.sum(axis=-1)
+        loss_wt = torch.clamp(loss_wt,0.01,1).detach()
+
+        joint_loss = cur_pred_loss*loss_wt #/ self.offset
         wt_loss = cur_wt_loss * n_classes * 10
 
         # Loss to ensure that the number of predictions match the number of labeled animals. This weight needs to be upweighted otherwise the training converges to degenerate case where  ll_joint is predicted as zero, which would make joint_loss 0.
@@ -338,7 +347,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             locs_noise = locs_joint_flat + (
                         torch.rand(locs_joint_flat.shape, device=self.device) - 0.5) * 2 * locs_noise_mag
         else:
-            locs_noise = locs_joint
+            locs_noise = locs_joint_flat
         locs_noise = locs_noise * self.ref_scale
 
         assign_ndx = torch.argmax(assign, axis=-1)
@@ -362,38 +371,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         ref_dist = torch.norm(ref_pred - torch.unsqueeze(labels, -1), dim=-2)
         ref_loss_all = torch.sum(ref_wts * ref_dist, dim=-1)
         ref_loss_sel = torch.where(valid_lbl, ref_loss_all, torch.zeros_like(ref_loss_all))
-        ref_loss = ref_loss_sel.sum()
+        ref_loss = ref_loss_sel.sum(axis=(-1,-2))
 
-        # cur_loss = 0
-        # for b in range(ll_joint.shape[0]):
-        #     for g in range(labels.shape[1]):
-        #         if not valid[b,g]:
-        #             continue
-        #         assign = p_assign[b,g,:]*ll_joint_flat[b,:]
-        #         selex = torch.argmax(assign)
-        #         # torch supports histogramming. Maybe instead of argmax that can be used.
-        #
-        #         idx = torch.round(locs_noise[b, 0, selex, :, :]).int()
-        #         # ids are predicted as x,y to match input locs.
-        #         idx_y = torch.clamp(idx[:,1], 0, locs_ref.shape[-2] - 1)
-        #         idx_x = torch.clamp(idx[:,0], 0, locs_ref.shape[-1] - 1)
-        #         for cls in range(labels.shape[2]):
-        #             if (labels[b,g,cls,0] < -1000) or torch.isnan(labels[b,g,cls,0]):
-        #                 continue
-        #
-        #             pp = labels[b, g, cls:cls + 1, :]
-        #             cur_ref = locs_ref[b,cls,:,:,idx_y[cls],idx_x[cls]] * self.offset/self.ref_scale
-        #
-        #             dd_ref = torch.norm(pp-cur_ref.T,dim=-1)
-        #             ll_ref = torch.softmax(wts_ref[b,cls,:,idx_y[cls],idx_x[cls]],0)
-        #             cur_loss_ref = torch.sum(dd_ref*ll_ref)
-        #             cur_loss = cur_loss + cur_loss_ref
-        #
-        # ref_loss1 = cur_loss
+        # downweight refine loss if the animal detection is not working.
+        ref_loss = ref_loss*loss_wt
 
         tot_loss = wt_loss  + joint_loss + ref_loss
         return tot_loss / n_classes
-
 
 
     def create_targets(self, inputs):
@@ -418,8 +402,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         locs_ref = locs_ref * locs_offset / self.ref_scale
 
         preds_ref = np.ones([bsz,n_max, n_classes,2]) * np.nan
+        conf_ref = np.ones([bsz,n_max,n_classes])
         preds_joint = np.ones([bsz,n_max, n_classes,2]) * np.nan
-        match_dist = self.conf.multi_mdn_match_dist
+        conf_joint = np.ones([bsz,n_max])
+        match_dist = self.conf.multi_match_dist
         for ndx in range(bsz):
             # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
             # n_preds = np.clip(n_preds,n_min,np.inf)
@@ -439,6 +425,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 if ( not np.all(np.isnan(dprev))) and (np.nanmin(dprev) < match_dist):
                     continue
                 preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]].copy() * locs_offset
+                conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]].copy()
                 for cls in range(n_classes):
                     mm = np.round(locs_joint[ndx,cls,:,idx[0],idx[1], idx[2]]*self.ref_scale).astype('int')
                     mm_y = np.clip(mm[1],0,n_y_r-1)
@@ -446,8 +433,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     pt_selex = np.argmax(logits_ref[ndx,cls,:,mm_y,mm_x])
                     cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y,mm_x]
                     preds_ref[ndx,done_count,cls,:] = cur_pred.copy()
+                    conf_ref[ndx,done_count,cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
+
                 done_count += 1
-        return {'ref':preds_ref,'joint':preds_joint}
+
+        return {'ref':preds_ref,'joint':preds_joint,'conf_joint':conf_joint,'conf_ref':conf_ref}
 
     def compute_dist(self, output, labels):
         locs = labels['locs'].numpy().copy()
@@ -482,9 +472,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         model.eval()
         self.model = model
         conf = self.conf
-        match_dist = conf.get('multi_mdn_match_dist',10)
+        match_dist = conf.get('multi_match_dist',10)
 
-        def pred_fn(ims):
+        def pred_fn(ims, retrawpred=False):
             locs_sz = (conf.batch_size, conf.n_classes, 2)
             locs_dummy = np.zeros(locs_sz)
 
@@ -502,44 +492,68 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             olocs = self.get_joint_pred(opreds)
 
             matched = {}
-            for dkeys in ['ref','joint']:
-                olocs_orig = olocs[dkeys] + hsz
-                locs_orig = locs[dkeys]
-                cur_pred = np.ones_like(olocs_orig) * np.nan
-                dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
-                dd = np.linalg.norm(dd,axis=-1).mean(-1)
-                # match predictions from offset pred and normal preds
-                for b in range(dd.shape[0]):
-                    matched_ndx = 0
-                    done_offset = np.zeros(dd.shape[1])
-                    done_locs = np.zeros(dd.shape[1])
-                    for ix in range(dd.shape[1]):
-                        if np.all(np.isnan(dd[b,:,ix])):
-                            continue
-                        olocs_ndx = np.nanargmin(dd[b,:,ix])
-                        if dd[b,olocs_ndx,ix] < match_dist:
-                            cc = (olocs_orig[b,olocs_ndx,...] + locs_orig[b,ix,...])/2
-                            done_offset[olocs_ndx] = 1
-                            done_locs[ix] = 1
-                            # print(f'Matched {ix} with {olocs_ndx}')
+            olocs_orig = olocs['ref'] + hsz
+            locs_orig = locs['ref']
+            cur_pred = np.ones_like(olocs_orig) * np.nan
+            dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
+            dd = np.linalg.norm(dd,axis=-1).mean(-1)
+            conf_margin = 4
+            # match predictions from offset pred and normal preds
+            for b in range(dd.shape[0]):
+                done_offset = np.zeros(dd.shape[1])
+                done_locs = np.zeros(dd.shape[1])
+                mpred = []
+                for ix in range(dd.shape[1]):
+                    if np.all(np.isnan(dd[b,:,ix])):
+                        continue
+                    olocs_ndx = np.nanargmin(dd[b,:,ix])
+                    if dd[b,olocs_ndx,ix] < match_dist:
+                        # Select the one with higher confidence unless they both are close.
+                        if locs['conf_joint'][b,ix] < olocs['conf_joint'][b,olocs_ndx] - conf_margin:
+                            cc = olocs_orig[b, olocs_ndx, ...]
+                        elif locs['conf_joint'][b,ix] - conf_margin > olocs['conf_joint'][b,olocs_ndx] :
+                            cc = locs_orig[b, ix, ...]
                         else:
-                            cc = locs_orig[b,ix,...]
-                            done_locs[ix] = 1
-                        cur_pred[b,matched_ndx,...] = cc
-                        matched_ndx += 1
-                    for ix in np.where(done_offset<0.5)[0]:
-                        if np.all(np.isnan(dd[b,ix,:])):
-                            continue
-                        if matched_ndx >= conf.max_n_animals:
-                            break
-                        cc = olocs_orig[b,ix,...]
-                        cur_pred[b,matched_ndx,...] = cc
-                        matched_ndx += 1
-                matched[dkeys] = cur_pred
+                            cc = (olocs_orig[b, olocs_ndx, ...] + locs_orig[b, ix, ...]) / 2
+
+                        # below is for selecting based on ref confidences.
+                        # cc = np.ones([conf.n_classes,2])*np.nan
+                        # for cls in range(conf.n_classes):
+                        #     if olocs['conf_ref'][b,olocs_ndx,cls] > locs['conf_ref'][b,ix,cls]:
+                        #         cc[cls,:] = olocs_orig[b,olocs_ndx,cls,:]
+                        #     else:
+                        #         cc[cls,:] = locs_orig[b,ix,cls,...]
+                        done_offset[olocs_ndx] = 1
+                        done_locs[ix] = 1
+                        mconf = max(olocs['conf_joint'][b,olocs_ndx],locs['conf_joint'][b,ix])
+                        # print(f'Matched {ix} with {olocs_ndx}')
+                    else:
+                        cc = locs_orig[b,ix,...]
+                        done_locs[ix] = 1
+                        mconf = locs['conf_joint'][b,ix]
+                    mpred.append((cc,mconf))
+
+                for ix in np.where(done_offset<0.5)[0]:
+                    if np.all(np.isnan(dd[b,ix,:])):
+                        continue
+                    cc = olocs_orig[b,ix,...]
+                    mconf = olocs['conf_joint'][b,ix]
+                    mpred.append((cc,mconf))
+
+                ord = np.flip(np.argsort([m[1] for m in mpred]))[:conf.max_n_animals]
+                bpred = [mpred[ix][0] for ix in ord]
+                bpred = np.array(bpred)
+                npred = bpred.shape[0]
+                cur_pred[b,:npred,...] = bpred
+
+
+            matched['ref'] = cur_pred
 
             ret_dict = {}
             ret_dict['locs'] = matched['ref'] * conf.rescale
-            ret_dict['locs_joint'] = matched['joint'] * conf.rescale
+            if retrawpred:
+                ret_dict['preds'] = [preds,opreds]
+                ret_dict['raw_locs'] = [locs,olocs]
             return ret_dict
 
         def close_fn():

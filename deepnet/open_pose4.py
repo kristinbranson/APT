@@ -41,6 +41,7 @@ import util
 
 import vgg_cpm
 from vgg_cpm import conv
+import multiprocessing
 
 '''
 Adapted from:
@@ -223,7 +224,7 @@ def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
 
 def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=None,
                        nPAFstg=5, nMAPstg=1,
-                       nlimbsT2=38, npts=19, doDC=True, nDC=2):
+                       nlimbsT2=38, npts=19, doDC=True, nDC=2,conf=None):
     '''
 
     :param imszuse: (imnr, imnc) raw image size, possibly adjusted to be 0 mod 8
@@ -246,6 +247,7 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
 
     # This is hardcoded to dim=3 due to VGG pretrained weights
     img_input = Input(shape=imszuse + (3,), name='input_img')
+    mask_input = Input(shape=imszuse, name='input_mask')
 
     # paf_weight_input = Input(shape=paf_input_shape,
     #                          name='input_paf_mask')
@@ -256,6 +258,7 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     # map_weight_input_hires = Input(shape=map_input_shape_hires,
     #                                name='input_part_mask_hires')
     inputs.append(img_input)
+    inputs.append(mask_input)
     # inputs.append(paf_weight_input)
     # inputs.append(map_weight_input)
     # inputs.append(paf_weight_input_hires)
@@ -304,9 +307,21 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
         # xstagein is ready/good from MAP loop
         xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, kernel_reg, ndeconvs=nDC)
         xmaplistDC.append(xstageout)
+        dc_scale = 2**conf.op_hires_ndeconv
+    else:
+        dc_scale = 1
 
     assert len(xpaflist) == nPAFstg
     assert len(xmaplist) == nMAPstg
+
+    scale_hires = conf.op_label_scale // dc_scale  # downsample scale of hires (postDC) relative to network input
+    for ndx, xp in enumerate(xpaflist):
+        xpaflist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    for ndx, xp in enumerate(xmaplist):
+        xmaplist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    for ndx, xp in enumerate(xmaplistDC):
+        xmaplistDC[ndx] = xp*mask_input[:,::scale_hires,::scale_hires,None]
+
     outputs = xpaflist + xmaplist + xmaplistDC
 
     # w1 = apply_mask(stage1_branch1_out, paf_weight_input, 1, 1)
@@ -315,7 +330,7 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
-def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None):
+def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None):
     '''
     
     :param model: 
@@ -329,7 +344,7 @@ def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=Non
     '''
 
     def eucl_loss(x, y):
-        return K.sum(K.square(x - y)) / bsize / 2.  # not sure why norm by bsize nec
+        return K.sum(K.square(x - y)) /  2.  # not sure why norm by bsize nec
 
     losses = {}
     loss_weights = {}
@@ -609,7 +624,7 @@ def training(conf, name='deepnet'):
                                nlimbsT2=len(conf.op_affinity_graph) * 2,
                                npts=conf.n_classes,
                                doDC=conf.op_hires,
-                               nDC=conf.op_hires_ndeconv)
+                               nDC=conf.op_hires_ndeconv,conf=conf)
 
     if conf.op_backbone=='vgg' and conf.op_backbone_weights=='imagenet':
         logging.info("Loading vgg19 weights...")
@@ -636,8 +651,7 @@ def training(conf, name='deepnet'):
     logging.info("Your label_blur_rads (hi/lo)res are {}/{}".format(
         conf.op_map_hires_blur_rad, conf.op_map_lores_blur_rad))
     losses, loss_weights, loss_weights_vec = \
-        configure_losses(model, batch_size,
-                         dc_on=conf.op_hires,
+        configure_losses(model, dc_on=conf.op_hires,
                          dc_blur_rad_ratio=conf.op_map_hires_blur_rad / conf.op_map_lores_blur_rad,
                          dc_wtfac=2.5)
 
@@ -666,6 +680,7 @@ def training(conf, name='deepnet'):
             self.config = conf
             self.save_start = time()
             self.force = False
+            self.prev_models = []
 
         def on_epoch_end(self, epoch, logs={}):
             step = (epoch+1) * iterations_per_epoch
@@ -740,13 +755,22 @@ def training(conf, name='deepnet'):
             with open(train_data_file, 'wb') as td:
                 pickle.dump([self.train_info, conf], td, protocol=2)
 
+            m_file = str(os.path.join(conf.cachedir, name + '-{}'.format(int(step))))
             if conf.save_time is None:
                 if step % conf.save_step == 0:
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
+                    model.save(m_file)
+                    self.prev_models.append(m_file)
             else:
                 if time() - self.save_start > conf.save_time*60:
                     self.save_start = time()
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
+                    model.save(m_file)
+                    self.prev_models.append(m_file)
+
+            if len(self.prev_models) > conf.maxckpt:
+                for curm in self.prev_models[:-conf.maxckpt]:
+                    if os.path.exists(curm):
+                        os.remove(curm)
+                _ = self.prev_models.pop(0)
 
 
     # configure callbacks
@@ -871,6 +895,10 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
 
     op_pred_simple = conf.get('op_pred_simple', False)
     op_inference_old = conf.get('op_inference_old', False)
+    if not op_pred_simple:
+        parpool = multiprocessing.Pool(conf.batch_size)
+    else:
+        parpool = None
 
     def pred_fn(all_f, retrawpred=conf.op_pred_raw):
         '''
@@ -883,25 +911,28 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
         assert all_f.shape[0] == conf.batch_size
         locs_sz = (conf.batch_size, conf.n_classes, 2)
         locs_dummy = np.zeros(locs_sz)
-        ims, _ = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False, gen_target_hmaps=False)
-        model_preds = model.predict(ims)
+        ims, _, _ = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False, gen_target_hmaps=False,mask=np.ones_like(all_f[...,0])>0)
+
+        model_preds = []
+        for ix in range(ims.shape[0]):
+            model_preds.append(model.predict(ims[ix:ix+1,...]))
 
         # all_infered = []
         # for ex in range(xs.shape[0]):
         #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
         #     all_infered.append(infered)
 
-        predhm = model_preds[-1]  # this is always the last/final MAP hmap
         if op_pred_simple:
+            predhm = np.array([m[-1][0,...] for m in model_preds])  # this is always the last/final MAP hmap
             ret_dict = pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds)
         else:
-            locs = np.ones([predhm.shape[0],conf.max_n_animals,conf.n_classes,2])*np.nan
-            for ndx in range(predhm.shape[0]):
-                if op_inference_old:
-                    cur_locs = do_inference_old(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
-                else:
-                    cur_locs = do_inference(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
-                locs[ndx,...] = cur_locs
+            in_args = [[mm[-1][0,...],mm[-2][0,...],conf,thre_hm,thre_paf] for mm in model_preds]
+            fn = do_inference_old if op_inference_old else do_inference
+            if len(in_args)>1:
+                cur_locs = parpool.starmap(fn,in_args)
+            else:
+                cur_locs = [fn(*in_args[0])]
+            locs = np.array(cur_locs).copy()
 
             # undo rescale
             locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)
