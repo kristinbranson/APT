@@ -125,7 +125,7 @@ classdef TrackJobGT < handle
       singargs = {'bindpath',bindpaths};
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,ssfile);
-      prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
+      prefix = [DLBackEndClass.jrcprefix '; ' repoSScmd];
       sshargs = {'prefix' prefix};
         
       codebase = obj.codegenBase(baseargs);

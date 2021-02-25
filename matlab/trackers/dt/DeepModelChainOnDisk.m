@@ -404,7 +404,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       mdlFiles = obj.findModelGlobsLocal();
       pat = obj.rootDir;
       pat = regexprep(pat,'\\','\\\\');
-      mdlFilesRemote = regexprep(mdlFiles,pat,DeepTracker.RemoteAWSCacheDir);
+      mdlFilesRemote = regexprep(mdlFiles,pat,DLBackEndClass.RemoteAWSCacheDir);
       mdlFilesRemote = FSPath.standardPath(mdlFilesRemote);
       nMdlFiles = numel(mdlFiles);
       netstr = char(obj.netType); % .netType is already a char I think but should be a DLNetType
@@ -427,7 +427,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
       % if we made it here, upload successful
       
-      obj.rootDir = DeepTracker.RemoteAWSCacheDir;
+      obj.rootDir = DLBackEndClass.RemoteAWSCacheDir;
       obj.reader = DeepModelChainReaderAWS(aws);
     end
     

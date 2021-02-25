@@ -15,6 +15,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   properties (Constant)
     minFreeMem = 9000; % in MiB
     currentDockerImgTag = 'tf1.15_py3_20201027';
+    
+    RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
+
+    jrchost = 'login1.int.janelia.org';
+    jrcprefix = 'source /etc/profile';
+    jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
   end
   properties
     type  % scalar DLBackEnd
@@ -26,8 +32,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     %
     % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
     deepnetrunlocal = true; 
-    bsubaptroot = []; % root of APT repo for bsub backend running 
-    
+    bsubaptroot = []; % root of APT repo for bsub backend running     
+    jrcsimplebindpaths = 0; 
+        
     awsec2 % used only for type==AWS
     awsgitbranch
     
@@ -361,7 +368,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function [tfsucc,hedit] = testBsubConfig(cacheDir,varargin)
       tfsucc = false;
-      [host] = myparse(varargin,'host',DeepTracker.jrchost);
+      [host] = myparse(varargin,'host',DLBackEndClass.jrchost);
       
       [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
       hedit.String = {sprintf('%s: Testing JRC cluster backend...',datestr(now))};
@@ -641,7 +648,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function [tfsucc,hedit] = testDockerConfig(obj)
       tfsucc = false;
-      %[host] = myparse(varargin,'host',DeepTracker.jrchost);
 
       [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Docker Configuration');      
       hedit.String = {sprintf('%s: Testing Docker Configuration...',datestr(now))}; 

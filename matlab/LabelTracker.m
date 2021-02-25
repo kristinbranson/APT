@@ -413,7 +413,7 @@ classdef LabelTracker < handle
       dlnets = dlnets([dlnets.doesMA]==isMA);
       info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
       if ~isMA
-        info = [{{'CPRLabelTracker'}}; info];
+        info = [info; {{'CPRLabelTracker'}}];
       end
     end
     
