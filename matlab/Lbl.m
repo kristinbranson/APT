@@ -203,7 +203,7 @@ classdef Lbl
       tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
       slbl = tObj.trnCreateStrippedLbl();
       slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
-      jslbl = Lbl.jsonifyStrippedLbl(slbl);
+      [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
       
       fsinfo = lObj.projFSInfo;
       [lblP,lblS] = myfileparts(fsinfo.filename);

@@ -14,7 +14,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-    currentDockerImgTag = 'tf1.15_py3_20201027';
+    currentDockerImgTag = 'pytorch_mmpose';
     
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
 
@@ -46,6 +46,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     dockerremotehost = '';
     gpuids = []; % for now used by docker/conda
     dockercontainername = []; % transient
+    %dockershmsize = 512; % in m; passed in --shm-size
     
     condaEnv = 'APT'; % used only for Conda
   end
@@ -547,14 +548,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       %   filequote as returned by obj.getFileQuoteDockerCodeGen
       
       DFLTBINDPATH = {};
-      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = ...
+      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,...
+        shmSize] = ...
         myparse(varargin,...
         'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
         'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
-        'detach',true ...
+        'detach',true, ...
+        'shmsize',[] ... optional
         );
       
       aptdeepnet = APT.getpathdl;
@@ -619,6 +622,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         detachstr = '-i';
       end
       
+      otherargs = cell(0,1);
+      if ~isempty(shmSize)
+        otherargs{end+1,1} = sprintf('--shm-size=%dm',shmSize);
+      end
+      
       codestr = [
         {
         dockercmd
@@ -631,6 +639,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         mountArgs(:);
         gpuArgs(:);
         userArgs(:);
+        otherargs(:);
         {
         '-w'
         [filequote deepnetrootContainer filequote]

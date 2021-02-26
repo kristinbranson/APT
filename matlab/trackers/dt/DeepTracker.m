@@ -4151,16 +4151,31 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      
     end
+    function [codestr,code] = matrainCodeGenTrnPack(trnID,dllbl,cache,errfile,...
+            netType,varargin)
+      % Wrapper for matrainCodeGen, assumes standard trnpack structure.
+      % Reads some files from trnpack
+          
+      [trnpack,dllblID] = fileparts(dllbl); 
+      trnjson = fullfile(trnpack,'loc.json');
+      dllbljson = fullfile(trnpack,[dllblID '.json']);
+      dlj = readtxtfile(dllbljson);
+      dlj = jsondecode(dlj{1});
+      maxNanimals = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal.max_n_animals;
+      [codestr,code] = DeepTracker.matrainCodeGen(trnID,dllbl,cache,errfile,...
+        maxNanimals,netType,trnjson,varargin{:});
+    end      
     function [codestr,code] = matrainCodeGen(trnID,dllbl,cache,errfile,...
-        netType,trnjson,varargin)
+        maxNanimals,netType,trnjson,varargin)
       % Simplified relative to trainCodeGen
       
-       [deepnetroot,fs,filequote] = myparse_nocheck(varargin,...
+       [deepnetroot,fs,filequote,confparamsfilequote] = myparse_nocheck(varargin,...
         'deepnetroot',APT.getpathdl,...
         'filesep','/',...
-        'filequote','\"'... % quote char used to protect filenames/paths. 
+        'filequote','\"',... % quote char used to protect filenames/paths. 
                         ... % *IMPORTANT*: Default is escaped double-quote \" => caller 
                         ... % is expected to wrap in enclosing regular double-quotes " !!
+        'confparamsfilequote','\"' ...
           );
       
       aptintrf = [deepnetroot fs 'APT_interface.py'];
@@ -4178,9 +4193,10 @@ classdef DeepTracker < LabelTracker
         trnjson ...
         '-conf_params' ...
         'is_multi' ...
-        'True' ... % 'db_format' ...  '\"coco\"' ... 'max_n_animals' ... XXXMAX ...
+        'True' ... 
+        'max_n_animals' num2str(maxNanimals) ...
         'db_format' ...
-        '\\\"coco\\\"' ... % when the job is submitted the double quote need to escaped. This is tested fro cluster. Not sure for AWS etc. MK 20210226
+        [confparamsfilequote 'coco' confparamsfilequote] ... % when the job is submitted the double quote need to escaped. This is tested fro cluster. Not sure for AWS etc. MK 20210226
         '-type' ...
         netType ...
         '-cache' ...
@@ -4204,19 +4220,8 @@ classdef DeepTracker < LabelTracker
         'filequote','\"'... % quote char used to protect filenames/paths. 
                         ... % *IMPORTANT*: Default is escaped double-quote \" => caller 
                         ... % is expected to wrap in enclosing regular double-quotes " !!
-          );
+          );      
       
-      if ischar(netType)
-        netTypeObj = DLNetType.(netType);
-      end
-      if netTypeObj.doesMA
-        dllblpath = fileparts(dllbl);
-        trnjson = fullfile(dllblpath,'loc.json');        
-        codestr = DeepTracker.matrainCodeGen(trnID,dllbl,cache,errfile,...
-            netType,trnjson,varargin{:});
-        return;
-      end
-        
       tfview = ~isempty(view);
       
       aptintrf = [deepnetroot fs 'APT_interface.py'];
@@ -4268,17 +4273,35 @@ classdef DeepTracker < LabelTracker
       end
 
       filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
-        netType,baseargs{:},'filequote',filequote);
+      
+      if ischar(netType)
+        netTypeObj = DLNetType.(netType);
+      else
+        netTypeObj = netType;
+      end
+      isMA = netTypeObj.doesMA;
+      if isMA          
+        basecmd = DeepTracker.matrainCodeGenTrnPack(modelChainID,dllbl,cache,errfile,...
+            netType,baseargs{:},'filequote',filequote);
+      else
+        basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
+          netType,baseargs{:},'filequote',filequote);
+      end
 
       if isempty(view1b),      
         containerName = [modelChainID '_' trainID];
       else
         containerName = [modelChainID '_' trainID '_view' num2str(view1b)];
       end
+      
+      if isMA
+        shmSize = 512;
+      else
+        shmSize = [];
+      end
      
       codestr = backend.codeGenDockerGeneral(basecmd,containerName,...
-        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});      
+        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:},'shmsize',shmSize);      
     end
     function [codestr] = trainCodeGenConda(modelChainID,trainID,...
         dllbl,cache,errfile,netType,trainType,view1b,gpuid,varargin)
