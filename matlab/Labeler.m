@@ -2277,18 +2277,14 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
-     
-      obj.computeLastLabelChangeTS();
-      %fcnAnyNonNan = @(x)any(~isnan(x(:)));
-      fcnNumLbledRows = @Labeler.computeNumLbledRows;
-      obj.movieFilesAllHaveLbls = cellfun(fcnNumLbledRows,obj.labels);
-      obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labelsGT);      
-      obj.gtUpdateSuggMFTableLbledComplete();
       
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
       obj.computeLastLabelChangeTS_Old();
+      fcnNumLbledRows = @Labels.numLbls;
+      obj.movieFilesAllHaveLbls = cellfun(fcnNumLbledRows,obj.labels);
+      obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labelsGT);      
       obj.movieFilesAllHaveLbls = cellfun(@Labels.hasLbls,obj.labels);
       obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
       obj.gtUpdateSuggMFTableLbledComplete();      
@@ -3727,9 +3723,6 @@ classdef Labeler < handle
         end
       end
     end
-
-    
-  methods (Static)
         
   end 
   

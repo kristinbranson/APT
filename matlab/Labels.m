@@ -61,6 +61,9 @@ classdef Labels
     function tf = hasLbls(s)
       tf = ~isempty(s.frm);
     end
+    function n = numLbls(s)
+      n = numel(s.frm);
+    end
     function s = setpFT(s,frm,itgt,xy)
       i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
