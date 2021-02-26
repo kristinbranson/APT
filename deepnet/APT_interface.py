@@ -1104,11 +1104,13 @@ def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
     all_data = []
     for cndx in range(n_clusters):
         idx = np.where(clusters==cndx)[0]
-        cur_rois = roi[idx,...]
-        x_min = cur_rois[...,0].min()
-        y_min = cur_rois[...,1].min()
-        x_max = cur_rois[...,0].max()
-        y_max = cur_rois[...,1].max()
+        cur_roi = roi[idx,...].copy()
+        cur_roi[...,0] = np.clip(cur_roi[...,0],0,conf.multi_frame_sz[1])
+        cur_roi[...,1] = np.clip(cur_roi[...,1],0,conf.multi_frame_sz[0])
+        x_min = cur_roi[...,0].min()
+        y_min = cur_roi[...,1].min()
+        x_max = cur_roi[...,0].max()
+        y_max = cur_roi[...,1].max()
 
         d_x = (conf.imsz[1] - (x_max-x_min))*0.9
         r_x = (np.random.rand()-0.5)*d_x
@@ -1127,7 +1129,6 @@ def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
         assert y_top<=y_min and y_bottom>=y_max and x_left<=x_min and x_right >= x_max, 'Cropping for cluster is improper'
 
         curp = frame[y_top:y_bottom, x_left:x_right, :]
-        cur_roi = roi[idx,...].copy()
         cur_roi[...,0] -= x_left
         cur_roi[...,1] -= y_top
         if conf.multi_use_mask:
