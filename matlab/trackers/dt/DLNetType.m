@@ -41,7 +41,7 @@ classdef DLNetType
                   'deepnet-%d','deepnet-*',false)
     multi_mdn_joint_torch ('ma','MultiAnimal',...
                  struct('trkfld',cell(0,1),'label',[]),false,...
-                        'mdlxxx-%d','mdlyyy-*',true)
+                        'deepnet-%d','deepnet-*',true)
   end
   
   methods 
