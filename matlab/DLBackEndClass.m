@@ -624,7 +624,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       otherargs = cell(0,1);
       if ~isempty(shmSize)
-        otherargs{end+1,1} = sprintf('--shm-size=%dm',shmSize);
+        otherargs{end+1,1} = sprintf('--shm-size=%dG',shmSize);
       end
       
       codestr = [

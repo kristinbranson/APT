@@ -1500,7 +1500,8 @@ classdef DeepTracker < LabelTracker
         lObj = obj.lObj;
         
         macroCell = struct2cell(lObj.projMacrosGetWithAuto());
-        cacheDir = obj.lObj.DLCacheDir;
+        %cacheDir = obj.lObj.DLCacheDir;
+        cacheDir = APT.getdlcacheroot;
         assert(~isempty(cacheDir));
         
         mfaf = lObj.movieFilesAllFull;
@@ -4295,7 +4296,7 @@ classdef DeepTracker < LabelTracker
       end
       
       if isMA
-        shmSize = 512;
+        shmSize = 8;
       else
         shmSize = [];
       end
@@ -4344,8 +4345,20 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      basecmd = DeepTracker.trainCodeGen(trnID,dllbl,cache,errfile,...
-        netType,baseargs{:});
+      
+      if ischar(netType)
+        netTypeObj = DLNetType.(netType);
+      else
+        netTypeObj = netType;
+      end
+      isMA = netTypeObj.doesMA;
+      if isMA          
+        basecmd = DeepTracker.matrainCodeGenTrnPack(trnID,dllbl,cache,errfile,...
+          netType,baseargs{:},'confparamsfilequote','\\\"');
+      else
+        basecmd = DeepTracker.trainCodeGen(trnID,dllbl,cache,errfile,...
+          netType,baseargs{:});
+      end
       codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
     function codestr = trainCodeGenBsubSing(trnID,dllbl,cache,errfile,...
