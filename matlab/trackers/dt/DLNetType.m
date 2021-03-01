@@ -114,7 +114,13 @@ classdef DLNetType
             'deepnet.conf.pickle'
             'traindata*'
             };
-          
+        case DLNetType.multi_mdn_joint_torch
+          g = { ...
+            g1 
+            'traindata*'
+            'deepnet_ckpt'
+            '*json'
+            };          
         otherwise % case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
           g = { ...
             sprintf('deepnet-%d.*',iterCurr)  % ugh this is not an instance prop
