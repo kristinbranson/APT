@@ -1057,28 +1057,43 @@ end
 function handles = initTblTrx(handles)
 tbl0 = handles.tblTrx;
 COLNAMES = {'Index' 'Labeled'};
-jt = uiextras.jTable.Table(...
-  'parent',tbl0.Parent,...
-  'Position',tbl0.Position,...
-  'SelectionMode','discontiguous',...
-  'Editable','off',...
-  'ColumnPreferredWidth',[100 100],...
-  'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-  'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
-set(jt,'Data',cell(0,numel(COLNAMES)));
-cr = aptjava.StripedIntegerTableCellRenderer;
-cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
-crCB = aptjava.StripedCheckBoxTableCellRenderer;
-jt.JColumnModel.getColumn(0).setCellRenderer(cr);
-jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
-jt.JTable.Foreground = java.awt.Color.WHITE;
-jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-h = jt.JTable.getTableHeader;
-h.setPreferredSize(java.awt.Dimension(225,22));
-jt.JTable.repaint;
+if 1
+  set(tbl0,...
+    'ColumnWidth',{100 100},...
+    'ColumnName',COLNAMES,...
+    'Data',cell(0,numel(COLNAMES)),...
+    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt),...
+    'FontUnits','points',...
+    'FontSize',9.75,... % matches .tblTrx
+    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
+  % AL 20210209: jtable performance is too painful for larger projs (more 
+  % labels in any single movie). As of 2020x only cost to using regular 
+  % table is inability to set selected/hilite row.
+  
+else
+  jt = uiextras.jTable.Table(...
+    'parent',tbl0.Parent,...
+    'Position',tbl0.Position,...
+    'SelectionMode','discontiguous',...
+    'Editable','off',...
+    'ColumnPreferredWidth',[100 100],...
+    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
+  set(jt,'Data',cell(0,numel(COLNAMES)));
+  cr = aptjava.StripedIntegerTableCellRenderer;
+  cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
+  crCB = aptjava.StripedCheckBoxTableCellRenderer;
+  jt.JColumnModel.getColumn(0).setCellRenderer(cr);
+  jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
+  jt.JTable.Foreground = java.awt.Color.WHITE;
+  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+  h = jt.JTable.getTableHeader;
+  h.setPreferredSize(java.awt.Dimension(225,22));
+  jt.JTable.repaint;
 
-delete(tbl0);
-handles.tblTrx = jt;
+  delete(tbl0);  
+  handles.tblTrx = jt;
+end
 
 function handles = initTblFrames(handles)
 tbl0 = handles.tblFrames;
@@ -1640,7 +1655,7 @@ TRX_MENUS = {...
   'menu_setup_label_overlay_montage_trx_centered'};
 onOff = onIff(lObj.hasTrx || lObj.maIsMA);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
-set(handles.tblTrx,'Enabled',onOff);
+set(handles.tblTrx,'Enable',onOff);
 guidata(handles.figure,handles);
 
 setPUMTrackStrs(lObj);
@@ -1790,7 +1805,7 @@ if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
   lObj.gdata.labelTLInfo.newTarget();
   lObj.hlpGTUpdateAxHilite();
   %drawnow;
-  hlpUpdateTblTrxHilite(lObj);
+  %hlpUpdateTblTrxHilite(lObj);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)

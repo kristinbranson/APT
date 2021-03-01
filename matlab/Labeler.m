@@ -13246,8 +13246,8 @@ classdef Labeler < handle
         obj.tblTrxData = tblTrxData;
         tbldat = [num2cell(idxLive) num2cell(tfLbled)];
         %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
-        tbl.setDataUnsafe(tbldat);
-        %set(tbl,'Data',tbldat);
+        %tbl.setDataUnsafe(tbldat);
+        set(tbl,'Data',tbldat);
       end
 
       %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
