@@ -4615,7 +4615,6 @@ classdef DeepTracker < LabelTracker
       
       codestr = String.cellstr2DelimList(code,' ');
     end
-    
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,... % either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
         outtrk,... % either char of [nviewx1] cellstr; or [nmov] in "serial mode"
@@ -4666,6 +4665,19 @@ classdef DeepTracker < LabelTracker
       tfcrop = ~isempty(croproi) && ~all(any(isnan(croproi),2),1);
       tfmodel = ~isempty(model_file);
       tflog = ~isempty(log_file);
+      
+      isMA = nettype.doesMA;
+      if isMA
+        assert(~tftrx);
+        [trnpack,dllblID] = fileparts(dllbl); 
+        %trnjson = fullfile(trnpack,'loc.json');
+        dllbljson = fullfile(trnpack,[dllblID '.json']);
+        dlj = readtxtfile(dllbljson);
+        dlj = jsondecode(dlj{1});
+        maPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal;
+        maxNanmls = maPrm.max_n_animals;
+        minNanmls = maPrm.min_n_animals;
+      end
       
       movtrk = cellstr(movtrk);
       outtrk = cellstr(outtrk);
@@ -4739,8 +4751,14 @@ classdef DeepTracker < LabelTracker
         errfile = fcnPathUpdate(errfile);
         dllbl = fcnPathUpdate(dllbl);
       end
-
+      
       codestr = {'python' [filequote aptintrf filequote] '-name' trnID};
+      if isMA
+        codestr = [...
+          ['TORCH_HOME=' filequote APT.torchhome filequote] ...
+          codestr ...
+          ];
+      end
       if tfview
         codestr = [codestr {'-view' num2str(view)}]; % view: 1-based for APT_interface
       end
@@ -4754,6 +4772,16 @@ classdef DeepTracker < LabelTracker
       end
       if tflog
         codestr = [codestr {'-log_file' [filequote log_file filequote]}];
+      end
+      if isMA
+        conf_params = { ...
+          '-conf_params' ...
+          'is_multi' 'True' ...
+          'max_n_animals' num2str(maxNanmls) ...
+          'min_n_animals' num2str(minNanmls) ...
+          'batch_size' num2str(1) ...
+          };
+        codestr = [codestr conf_params];        
       end
       codestr = [codestr {'-type' char(nettype) ...
                           [filequote dllbl filequote] ...

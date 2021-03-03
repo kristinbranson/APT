@@ -1991,9 +1991,15 @@ class Trk:
       #idx=np.nonzero(ids==id)
       pTrk[:,:,idx[1],id]=self.pTrk[:,:,idx[1],idx[0]]
       if self.pTrkTS is not None:
-        pTrkTS[:,idx[1],id]=self.pTrkTS[:,idx[1],idx[0]]
+        # AL 20210302: this is erring out for now. Roian data:
+        # ValueError: shape mismatch: value array of shape (2,15)
+        # could not be broadcast to indexing result of shape (15,4)
+        pass
+        #pTrkTS[:,idx[1],id]=self.pTrkTS[:,idx[1],idx[0]]
       if self.pTrkTag is not None:
-        pTrkTag[:,idx[1],id]=self.pTrkTag[:,idx[1],idx[0]]
+        # AL etc
+        pass
+        #pTrkTag[:,idx[1],id]=self.pTrkTag[:,idx[1],idx[0]]
 
     self.ntargets = nids
     self.size = (self.nlandmarks,self.d,T,self.ntargets)
