@@ -12221,9 +12221,9 @@ classdef Labeler < handle
       
       tracker = obj.tracker;
       if ~isempty(tracker)
-        tpos = tracker.getTrackingResultsCurrMovie;
+        tpos = tracker.getTrackingResultsCurrMovieTgt;
         if ~isempty(tpos)
-          xy = tpos(ipt,:,f,itgt);
+          xy = tpos(ipt,:,f);
           if all(~isnan(xy))
             return;
           end

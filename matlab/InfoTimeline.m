@@ -849,11 +849,11 @@ classdef InfoTimeline < handle
     end
     function tf = hasPrediction(obj)
       tf = ismember('Predictions',obj.proptypes) && isvalid(obj.tracker);
-       if tf,
-         pcode = obj.props_tracker(1);
-         data = obj.tracker.getPropValues(pcode);
-         tf = ~isempty(data) && any(~isnan(data(:)));
-       end
+      if tf,
+        pcode = obj.props_tracker(1);
+        data = obj.tracker.getPropValues(pcode);
+        tf = ~isempty(data) && any(~isnan(data(:)));
+      end
     end
     function setCurPropTypePredictionDefault(obj)
       proptypei =  find(strcmpi(obj.proptypes,'Predictions'),1);

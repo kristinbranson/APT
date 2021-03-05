@@ -4810,7 +4810,9 @@ end
 % pos0 = get(hparent,'Position');
 % set(hparent,'Units',oldunits);
 
+warnst = warning('off','MATLAB:imagesci:png:libraryWarning');
 im = imread(splashimfilename);
+warning(warnst);
 sz = size(im);
 sz = sz(1:2);
 

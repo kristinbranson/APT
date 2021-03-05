@@ -56,7 +56,17 @@ classdef TrackingVisualizerTracklets < handle
     end
     function newFrame(obj,frm)
       % find live tracklets
-      iTrx = find(obj.frm2trx(frm,:));
+      ptrx = obj.ptrx;
+      if isempty(ptrx)
+        % eg if no tracklets loaded.
+        return;
+      end
+      
+      if isempty(obj.frm2trx)
+        iTrx = [];
+      else
+        iTrx = find(obj.frm2trx(frm,:));
+      end
       nTrx = numel(iTrx);
       if nTrx>obj.ntrxmax
         warningNoTrace('Too many targets to display (%d); showing first %d targets.',...
@@ -67,7 +77,6 @@ classdef TrackingVisualizerTracklets < handle
       npts = obj.npts;
       
       % get landmarks
-      ptrx = obj.ptrx;
       p = nan(2*npts,nTrx);
       for j=1:nTrx
         ptrxJ = ptrx(iTrx(j));

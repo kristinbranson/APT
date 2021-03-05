@@ -2081,8 +2081,9 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
 
-    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
-      tpos = obj.xyPrdCurrMovie;
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
+      iTgt = obj.lObj.currTarget;
+      tpos = obj.xyPrdCurrMovie(:,:,:,iTgt);
       taux = [];
       tauxlbl = cell(0,1);
     end

@@ -163,7 +163,9 @@ classdef DeepTracker < LabelTracker
     bgTrkIsRunning 
   end
 
-  properties
+  properties    
+    %%% For MA, only trkP is used and it is a PTrx. %%%
+    
     % track curr res -- in-mem tracking results for current mov    
     trkP   % [npt x 2 x nfrm x ntgt] tracking results for current mov
     trkPTS % [npt x nfrm x ntgt] timestamp for trkP*
@@ -171,8 +173,6 @@ classdef DeepTracker < LabelTracker
     trkAux % [npt x nfrm x ntgt x naux] auxiliary per-pt results eg confidences
     trkAuxLbl % [naux] labels for 4th dim of trxAux
               % naux given in DLNetType
-%     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt
-%            % .mov has class movieIndex 
   end
   properties (Dependent)
     nPts % number of label points     
@@ -260,7 +260,14 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
       
       tvtagpfix = sprintf('dt_%s',obj.algorithmName);
-      obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
+      if lObj.maIsMA
+        % semi-hack here; unclear what to do
+        maxNanimals = lObj.trackParams.ROOT.DeepTrack.MultiAnimal.max_n_animals;
+        maxNanimals = max(ceil(maxNanimals*1.5),10);        
+        obj.trkVizer = TrackingVisualizerTracklets(lObj,maxNanimals,'matrack');
+      else
+        obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
+      end
       obj.skip_dlgs = false;
     end
     function delete(obj)
@@ -5298,10 +5305,25 @@ classdef DeepTracker < LabelTracker
         obj.movIdx2trkfile(id) = trkfiles(tfexists);
       end
     end
-    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
-      tpos = obj.trkP;
-      taux = obj.trkAux;
-      tauxlbl = obj.trkAuxLbl;
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
+      if obj.lObj.maIsMA
+        iTkl = obj.trkVizer.currTrklet;
+        ptrx = obj.trkP;
+        if ~isempty(iTkl) && ~isempty(ptrx)
+          tpos = ptrx(iTkl).p;
+          nfrm = size(tpos,2);          
+          tpos = reshape(tpos,[],2,nfrm);
+        else
+          tpos = [];
+        end
+        taux = [];
+        tauxlbl = [];          
+      else
+        iTgt = obj.lObj.currTarget;
+        tpos = obj.trkP(:,:,:,iTgt);
+        taux = obj.trkAux(:,:,iTgt,:);
+        tauxlbl = obj.trkAuxLbl;
+      end
     end
     function [trkfileObjs,tfHasRes] = getTrackingResults(obj,mIdx)
       % Get tracking results for MovieIndices mIdx
@@ -5333,7 +5355,8 @@ classdef DeepTracker < LabelTracker
           warningNoTrace('Merging tracking results from %d poseTF trkfiles.\n',ntrk);
         end        
         for ivw=1:nView
-          [trkfilesIobj,tfsuccload] = cellfun(@(f) DeepTracker.hlpLoadTrk(f,'movfile',movfile{ivw}),...
+          [trkfilesIobj,tfsuccload] = ...
+            cellfun(@(f) DeepTracker.hlpLoadTrk(f,'movfile',movfile{ivw}),...
             trkfilesI(:,ivw),'uni',0);
           tfsuccload = cell2mat(tfsuccload);
           trkfilesIobj = trkfilesIobj(tfsuccload);
@@ -5341,9 +5364,16 @@ classdef DeepTracker < LabelTracker
             % if all loads failed
             % none; trkfiles, tfHasRes OK
           else
-            tObj = trkfilesIobj{1};
-            for iTmp=2:numel(trkfilesIobj)
-              tObj.mergePartial(trkfilesIobj{iTmp});
+            if obj.lObj.maIsMA
+              if numel(trkfilesIobj)>1
+                warningNoTrace('Multianimal: multiple tracklet files not merged.');
+              end
+              tObj = trkfilesIobj{end};
+            else
+              tObj = trkfilesIobj{1};
+              for iTmp=2:numel(trkfilesIobj)
+                tObj.mergePartial(trkfilesIobj{iTmp});
+              end
             end
             trkfileObjs{i,ivw} = tObj;
             tfHasRes(i) = true;
@@ -5405,7 +5435,7 @@ classdef DeepTracker < LabelTracker
       end
       
       for mIdx = mIdxs(:)',
-        [tblTrkRes] = obj.getAllTrackResTable(mIdx);
+        [tblTrkRes] = obj.getAllTrackResTable(mIdx,'ftonly',true);
         if isempty(tblTrkRes),
           continue;
         end
@@ -5507,14 +5537,23 @@ classdef DeepTracker < LabelTracker
     
   end
   methods
-    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj,mIdxs) % obj const
+    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj,mIdxs,varargin) % obj const
       % Get all current tracking results in a table
       %
       % tblTrkRes: [NTrk x ncol] table of tracking results
       %            .pTrk, like obj.trkP; ABSOLUTE coords
       % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
       %          size(tblTrkRes.pTrk,2)==npttrk*d
-
+  
+      ftonly = myparse(varargin,...
+        'ftonly',false...
+        );
+      
+      isMA = obj.lObj.maIsMA;
+      if isMA
+        assert(ftonly);
+      end
+        
       m = obj.movIdx2trkfile;
       
       if m.isempty
@@ -5536,15 +5575,20 @@ classdef DeepTracker < LabelTracker
       pTrkiPt = -1;
       for i=1:numel(mIdxs)
         if tfhasres(i)
-          if isequal(pTrkiPt,-1)
-            pTrkiPt = trk{i,1}.pTrkiPt;
+          if isMA
+            tbl = TrxUtil.tableFT(trk{i,1});
+            tbl.iTgt = repmat(1,height(tbl),1);
+          else
+            if isequal(pTrkiPt,-1)
+              pTrkiPt = trk{i,1}.pTrkiPt;
+            end
+            if ~isequal(pTrkiPt,trk{i,1}.pTrkiPt)
+              error('Trkfiles differ in tracked points .pTrkiPt.');
+            end
+            tbl = trk{i,1}.tableform;
           end
-          if ~isequal(pTrkiPt,trk{i,1}.pTrkiPt)
-            error('Trkfiles differ in tracked points .pTrkiPt.');
-          end
-          tbl = trk{i,1}.tableform;
           tblmov = table(repmat(mIdxs(i),height(tbl),1),'VariableNames',{'mov'});
-          tbl = [tblmov tbl];
+          tbl = [tblmov tbl]; %#ok<AGROW>
           tblTrkRes = [tblTrkRes;tbl]; %#ok<AGROW>
         end         
       end
@@ -5576,6 +5620,9 @@ classdef DeepTracker < LabelTracker
       [trks,tfHasRes] = obj.getTrackingResults(mIdx);
       if tfHasRes
         obj.trackCurrResLoadFromTrks(trks);
+        if obj.lObj.maIsMA
+          obj.trkVizer.vizInit(obj.lObj.nframes,obj.trkP);
+        end
         
 %         tfTrx = obj.lObj.hasTrx;
 %         
@@ -5620,6 +5667,13 @@ classdef DeepTracker < LabelTracker
       assert(numel(trks)==obj.nview);
       
       lObj = obj.lObj;
+      
+      if lObj.maIsMA
+        assert(lObj.nview==1);
+        obj.trkP = trks{1};
+        return;
+      end
+      
       ipt2view = lObj.labeledposIPt2View;
       
       npt = obj.nPts;
@@ -5665,6 +5719,8 @@ classdef DeepTracker < LabelTracker
       % XXX optim, return flag if there are actually any preds in this
       % frame for caller's sake
       
+      assert(~obj.lObj.maIsMA,'Unsupported for multianimal.');
+      
       frm = obj.lObj.currFrame;
       xyPCM = obj.trkP;
       
@@ -5700,15 +5756,31 @@ classdef DeepTracker < LabelTracker
   %% Viz
   methods
     function vizInit(obj)
-      obj.trkVizer.vizInit();
+      if obj.lObj.maIsMA 
+        if ~obj.lObj.isinit        
+          ptrx0 = TrxUtil.newptrx(0,0);
+          obj.trkVizer.vizInit(obj.lObj.nframes,ptrx0);
+        end
+      else
+        obj.trkVizer.vizInit();
+      end
       obj.setHideViz(obj.hideViz);
     end
     function setHideViz(obj,tf)
-      obj.trkVizer.setHideViz(tf);
+      if obj.lObj.maIsMA
+        obj.trkVizer.setAllShowHide(tf,tf,false);
+      else
+        obj.trkVizer.setHideViz(tf);
+      end
       obj.hideViz = tf;
     end
     function setShowPredsCurrTargetOnly(obj,tf)
-      obj.trkVizer.setShowOnlyPrimary(tf);
+      if obj.lObj.maIsMA
+        % none
+        % warningNoTrace('This option does not apply to multi-animal projects.');
+      else
+        obj.trkVizer.setShowOnlyPrimary(tf);
+      end
       obj.showPredsCurrTargetOnly = tf;
     end
     function updateLandmarkColors(obj)
@@ -5724,33 +5796,40 @@ classdef DeepTracker < LabelTracker
   methods
     function newLabelerFrame(obj)
       lObj = obj.lObj;
-      if lObj.isinit || ~lObj.hasMovie || lObj.maIsMA
+      if lObj.isinit || ~lObj.hasMovie 
         return;
       end
-            
-      [xy,tfocc] = obj.getPredictionCurrentFrame();    
-%       frm = lObj.currFrame;
-%       itgt = lObj.currTarget;
-%       trx = lObj.currTrx;
-%       if isempty(trx)
-%         trxXY = [];
-%         trxTh = [];        
-%       else
-%         itrx = frm+trx.off;
-%         if itrx <= 0 || itrx > numel(trx.x),
-%           return;
-%         end
-%         trxXY = [trx.x(itrx) trx.y(itrx)];
-%         trxTh = trx.theta(itrx);        
-%       end        
-      obj.trkVizer.updateTrackRes(xy,tfocc);
+      
+      tv = obj.trkVizer;
+      if lObj.maIsMA
+        tv.newFrame(lObj.currFrame);
+      else
+        [xy,tfocc] = obj.getPredictionCurrentFrame();    
+  %       frm = lObj.currFrame;
+  %       itgt = lObj.currTarget;
+  %       trx = lObj.currTrx;
+  %       if isempty(trx)
+  %         trxXY = [];
+  %         trxTh = [];        
+  %       else
+  %         itrx = frm+trx.off;
+  %         if itrx <= 0 || itrx > numel(trx.x),
+  %           return;
+  %         end
+  %         trxXY = [trx.x(itrx) trx.y(itrx)];
+  %         trxTh = trx.theta(itrx);        
+  %       end        
+        tv.updateTrackRes(xy,tfocc);
+      end
     end
     function newLabelerTarget(obj)
-      iTgt = obj.lObj.currTarget;
-      obj.trkVizer.updatePrimary(iTgt);
+      if ~obj.lObj.maIsMA
+        iTgt = obj.lObj.currTarget;
+        obj.trkVizer.updatePrimary(iTgt);
+      end
     end
     function newLabelerMovie(obj)
-      obj.vizInit(); % not sure why this is nec
+      %obj.vizInit(); % not sure why this is nec
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
