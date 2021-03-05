@@ -143,7 +143,7 @@ classdef MFTSet < handle
         nMovs = numel(mis);
         tblMFT = cell(0,1);
         if labelerObj.maIsMA
-          iTgtsArr = {1}; % value should be unused
+          iTgtsArr = repmat({1},nMovs,1); % value should be unused
         else
           iTgtsArr = tgtSet.getTargetIndices(labelerObj,mis);
         end
