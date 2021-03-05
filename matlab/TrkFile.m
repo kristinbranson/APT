@@ -734,8 +734,8 @@ classdef TrkFile < dynamicprops
         m = matfile(tfile);
         fns = fieldnames(m);
 
-        if any(strcmp('startframes',fns)
-          nFramesTracked = m.pTrkFrm(end);
+        if any(strcmp('startframes',fns))
+          nFramesTracked = m.pTrkFrm(1,end);
           didload = true;
         elseif ismember('pTrk',fns),
           nd = ndims(m.pTrk);

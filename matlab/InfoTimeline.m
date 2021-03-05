@@ -347,6 +347,7 @@ classdef InfoTimeline < handle
       ax.XColor = prefsTL.XColor;
       dy = .01;
       ax.YLim = [0-dy 1+dy];
+      obj.hSelIm.YData = ax.YLim;
       if obj.isL
         if isMA
           axl.YLim = [0-dy obj.axLmaxntgt+dy];
@@ -473,6 +474,7 @@ classdef InfoTimeline < handle
         end
         
         set(obj.hAx,'YLim',[y1,y2]);
+        obj.hSelIm.YData = [y1,y2];
         set(obj.hCurrFrame,'YData',[y1,y2]);
         if size(dat,1) == obj.npts,
           for i=1:obj.npts
