@@ -46,8 +46,10 @@ bodylblfile = '/groups/huston/hustonlab/flp-chrimson_experiments/fly2BodyAxis_lo
 # defaulttrackerpath = "/groups/branson/bransonlab/mayank/PoseTF/matlab/compiled/run_compute3Dfrom2D_compiled.sh"
 # defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v92"
 
-defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20190205/run_compute3Dfrom2D_compiled.sh"
-defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v94"
+# defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20190205/run_compute3Dfrom2D_compiled.sh"
+# defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v94"
+defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20210309/run_compute3Dfrom2D_compiled.sh"
+defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v96"
 
 def get_crop_locs(lblfile,view,height,width):
     # everything is in matlab indexing
@@ -439,7 +441,7 @@ def main(argv):
                 os.chmod(scriptfile,stat.S_IRUSR|stat.S_IRGRP|stat.S_IWUSR|stat.S_IWGRP|stat.S_IXUSR|stat.S_IXGRP)
 
 #                cmd = "ssh login1 'source /etc/profile; qsub -pe batch %d -N %s -j y -b y -o '%s' -cwd '\"%s\"''"%(args.ncores,jobid,logfile,scriptfile)
-                cmd = "ssh 10.36.11.34 'source /etc/profile; bsub -n %d -J %s -oo '%s' -eo '%s' -cwd . '\"%s\"''"%(args.ncores,jobid,logfile,errfile,scriptfile)
+                cmd = "ssh login1 'source /etc/profile; bsub -n %d -J %s -oo '%s' -eo '%s' -cwd . '\"%s\"''"%(args.ncores,jobid,logfile,errfile,scriptfile)
                 print(cmd)
                 call(cmd,shell=True)
                 
