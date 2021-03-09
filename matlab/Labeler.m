@@ -8783,21 +8783,24 @@ classdef Labeler < handle
 %       obj.maPtNames = ptNames;
 %       %obj.maPtHeadTail = ht;
 %     end
-    function roi = maGetRoi(obj,xy)
+    function roi = maGetRoi(obj,xy,sPrmMA)
       % Compute square roi for keypoints xy using .ma* state
       %
       % xy: [npts x 2]
       %
-      % roi: [4x2] [x(:) y(:)] corners of ractangular roi
-      
-      tfHT = ~isempty(obj.skelHead);
-      sprmMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+      % roi: [4x2] [x(:) y(:)] corners of rectangular roi
 
-      tfscaled = sprmMA.ScaledToTarget;
-      tfalignHT = sprmMA.AlignUsingHead && tfHT; 
-      tfincfixedmargin = sprmMA.ScaledToTargetAddFixedMargin;
-      scalefac = sprmMA.ScaledToTargetMargin;
-      radfixed = sprmMA.Radius;
+      if nargin<3
+        sPrmMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+      end
+
+      tfHT = ~isempty(obj.skelHead);
+
+      tfscaled = sPrmMA.ScaledToTarget;
+      tfalignHT = sPrmMA.AlignUsingHead && tfHT; 
+      tfincfixedmargin = sPrmMA.ScaledToTargetAddFixedMargin;
+      scalefac = sPrmMA.ScaledToTargetMargin;
+      radfixed = sPrmMA.Radius;
       
       if tfscaled 
         if tfincfixedmargin

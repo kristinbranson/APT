@@ -5,10 +5,18 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     % successfully initted/displaying something.
     initSuccessful = false; 
     
-    hRect % scalar handle to rectangle. set/created during init
+    hRect % scalar line handle. set/created during init
+    
+    isMA % scalar logical
+    
+    % used for non-MA
     xTrx % xTrx/yTrx: (x,y) for trx center. set/created during init 
     yTrx
-    hRectArgs = {'EdgeColor','r','LineWidth',2}; 
+    
+    % used for MA
+    xyLbl % [npts x 2]
+    
+    hRectArgs = {'Color','r','LineWidth',2}; 
   end
   
   methods
@@ -32,16 +40,18 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       end
       
       % Set .xTrx, .yTrx; get im
+      obj.isMA = lObj.maIsMA;
       if lObj.hasTrx
         frm = lObj.currFrame;
         trx = lObj.currTrx;
         [obj.xTrx,obj.yTrx] = readtrx(trx,frm,1);
+        obj.xyLbl = [];
         gdata = lObj.gdata;
         im = gdata.image_curr;
         im = im.CData;
         tstr = 'Movie images will be cropped as shown for tracking';
       elseif lObj.maIsMA
-        [tffound,mIdx,frm,~,xyLbl] = lObj.labelFindOneLabeledFrame();
+        [tffound,mIdx,frm,~,xyLbl] = lObj.labelFindOneLabeledFrame(); %#ok<PROPLC>
         if ~tffound
           ParameterVisualization.grayOutAxes(hAx,...
             'Visualization unavailable until at least one animal is labeled.');
@@ -52,17 +62,18 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
         IVIEW = 1;
         lObj.movieMovieReaderOpen(mr,mIdx,IVIEW);
         im = mr.readframe(frm);
-        xycent = nanmean(xyLbl,1);
-        obj.xTrx = xycent(1);
-        obj.yTrx = xycent(2);
+        
+        obj.xyLbl = xyLbl; %#ok<PROPLC>
+        obj.xTrx = [];
+        obj.yTrx = [];
         tstr = 'Region within ROI used during training';
       else
         ParameterVisualization.grayOutAxes(hAx,'Project is single-animal.');
         return;
       end
       
-      rad0 = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;      
-      rectPos = obj.getRectPos(rad0);
+      sPrm_MultiTgt_TargetCrop = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop;     
+      rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
           
       cla(hAx);
       hold(hAx,'off');
@@ -75,7 +86,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       title(hAx,tstr,'interpreter','none','fontweight','normal',...
         'fontsize',10);
       deleteValidHandles(obj.hRect);
-      obj.hRect = rectangle('Position',rectPos,obj.hRectArgs{:});
+      obj.hRect = plot(rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
       
       obj.initSuccessful = true;
     end
@@ -88,26 +99,44 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
 
     function propUpdated(obj,hAx,lObj,propFullName,sPrm)
       if obj.initSuccessful && obj.plotOk(),
-        rad = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
-        rectPos = obj.getRectPos(rad);
-        obj.hRect.Position = rectPos;
+        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop;     
+        rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
+        set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
       else
         obj.init(hAx,lObj,propFullName,sPrm);
       end
     end
     
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,rad)
-      if obj.initSuccessful && obj.plotOk(),
-        rectPos = obj.getRectPos(rad);
-        obj.hRect.Position = rectPos;
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
+      if obj.initSuccessful && obj.plotOk()
+        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+        assert(startsWith(propFullName,'ImageProcessing.MultiTarget.TargetCrop.'));
+        propShort = propFullName(40:end);
+        sPrm_MultiTgt_TargetCrop.(propShort) = val;        
+        rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
+        set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
       else
         obj.init(hAx,lObj,propFullName,sPrm);
       end
     end
     
-    function rectPos = getRectPos(obj,rad)
-      rectW = 2*rad+1;
-      rectPos = [obj.xTrx-rad obj.yTrx-rad rectW rectW];
+    function rectPos = getRectPos(obj,lObj,sPrm)
+      % rectPos: [c x 2] col1 is [x1;x2;x3;x4;x5]; col2 is [y1;y2; etc].
+      
+      if obj.isMA
+        rectPos = lObj.maGetRoi(obj.xyLbl,sPrm);
+      else
+        rad = sPrm.Radius;
+        %rectW = 2*rad+1;
+        x0 = obj.xTrx-rad;
+        x1 = obj.xTrx+rad;
+        y0 = obj.yTrx-rad;
+        y1 = obj.yTrx+rad;
+        rectPos = [x0 x0 x1 x1;y0 y1 y1 y0].';
+      end
+      
+      % for plotting
+      rectPos(5,:) = rectPos(1,:);
     end
     
   end
