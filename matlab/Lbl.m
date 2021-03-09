@@ -153,8 +153,17 @@ classdef Lbl
       % formats.
        
       dd = dir(fullfile(packdir,'*.lbl'));
-      assert(isscalar(dd));
-      lblsf = fullfile(packdir,dd.name);
+      if ~isscalar(dd)
+        lbln = {dd.name}';
+        lbln = sort(lbln);
+        warningNoTrace('%d .lbl files found. Using: %s',numel(lbln),lbln{end});
+        lblsf = lbln{end};
+      else
+        lblsf = dd.name;
+        fprintf(1,'Using lbl: %s\n',lblsf);
+      end
+        
+      lblsf = fullfile(packdir,lblsf);
       slbl = load(lblsf,'-mat');
       fprintf(1,'loaded %s\n',lblsf);
       
