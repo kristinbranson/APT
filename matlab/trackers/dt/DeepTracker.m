@@ -3776,7 +3776,21 @@ classdef DeepTracker < LabelTracker
           obj.trackResAddTrkfile(mIdx(i),trkfiles);
           if mIdx(i)==obj.lObj.currMovIdx
             obj.trackCurrResUpdate();
-            obj.newLabelerFrame();
+            if obj.lObj.maIsMA
+              % For MA, for now we automatically jump to the startframe for 
+              % the first tracklet; and we select it. This enables the 
+              % Tracklet HUD and timeline.
+              tv = obj.trkVizer;
+              if isempty(tv.ptrx)
+                obj.newLabelerFrame();
+              else
+                f0 = tv.ptrx(1).firstframe;
+                obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+                tv.trxSelected(1); % the first tv.tvtrx trx should map to ptrx(1)
+              end
+            else
+              obj.newLabelerFrame();
+            end
             if ~isexternal, % always true
               fprintf('Tracking complete for current movie at %s.\n',datestr(now));
             end
@@ -5306,20 +5320,26 @@ classdef DeepTracker < LabelTracker
       end
     end
     function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
-      if obj.lObj.maIsMA
+      lo = obj.lObj;
+      if lo.maIsMA
         iTkl = obj.trkVizer.currTrklet;
         ptrx = obj.trkP;
-        if ~isempty(iTkl) && ~isempty(ptrx)
-          tpos = ptrx(iTkl).p;
-          nfrm = size(tpos,2);          
-          tpos = reshape(tpos,[],2,nfrm);
+        if ~isempty(iTkl) && ~isnan(iTkl) && ~isempty(ptrx)
+          npts = lo.nLabelPoints;
+          nfrm = lo.nframes;
+          tpos = nan(npts,2,nfrm);
+          ptrxI = ptrx(iTkl);
+          f0 = ptrxI.firstframe;
+          f1 = ptrxI.endframe;
+          nf = ptrxI.nframes;
+          tpos(:,:,f0:f1) = reshape(ptrxI.p,npts,2,nf);
         else
           tpos = [];
         end
         taux = [];
         tauxlbl = [];          
       else
-        iTgt = obj.lObj.currTarget;
+        iTgt = lo.currTarget;
         tpos = obj.trkP(:,:,:,iTgt);
         taux = obj.trkAux(:,:,iTgt,:);
         tauxlbl = obj.trkAuxLbl;

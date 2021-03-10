@@ -1356,7 +1356,10 @@ class Trk:
         trkData['pTrkTag'] = to_mat(trkData['pTrkTag'])
       trkData['startframes'] = to_mat(trkData['startframes'])
       trkData['endframes'] = to_mat(trkData['endframes'])
-    
+
+    trkData['startframes'] += T0
+    trkData['endframes'] += T0
+
     trkData['pTrkiTgt'] = to_mat(self.pTrkiTgt)
 
     hdf5storage.savemat(outtrkfile,trkData,appendmat=False,truncate_existing=True)
