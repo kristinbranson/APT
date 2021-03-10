@@ -5384,15 +5384,14 @@ classdef DeepTracker < LabelTracker
             % if all loads failed
             % none; trkfiles, tfHasRes OK
           else
-            if obj.lObj.maIsMA
-              if numel(trkfilesIobj)>1
-                warningNoTrace('Multianimal: multiple tracklet files not merged.');
-              end
-              tObj = trkfilesIobj{end};
-            else
-              tObj = trkfilesIobj{1};
-              for iTmp=2:numel(trkfilesIobj)
-                tObj.mergePartial(trkfilesIobj{iTmp});
+            tObj = trkfilesIobj{1};
+            isMA = obj.lObj.maIsMA;
+            for iTmp=2:numel(trkfilesIobj)
+              tObjNew = trkfilesIobj{iTmp};
+              if isMA
+                tObj = TrxUtil.ptrxmerge(tObj,tObjNew);
+              else
+                tObj.mergePartial(tObjNew);
               end
             end
             trkfileObjs{i,ivw} = tObj;

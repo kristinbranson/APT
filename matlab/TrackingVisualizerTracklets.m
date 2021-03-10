@@ -51,7 +51,6 @@ classdef TrackingVisualizerTracklets < handle
       obj.tvmt.vizInit('ntgts',ntgt);
       obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgt);
       obj.hud.updateReadoutFields('hasTrklet',true);
-      obj.ptrx = ptrxs;
       obj.frm2trx = Labeler.trxHlpComputeF2t(nfrmmax,ptrxs);
     end
     function newFrame(obj,frm)
@@ -104,9 +103,13 @@ classdef TrackingVisualizerTracklets < handle
       tvtrx.setShow(tfLiveTrx);
       tvtrx.updateTrxCore(ptrx(iTrx),frm,tfLiveTrx,0,tfUpdateIDs);
     end
-    function trxSelected(obj,iTrx)
+    function trxSelected(obj,iTrx,tfforce)
+      if nargin < 3
+        tfforce = false;
+      end
+      
       iTrklet = obj.iTrxViz2iTrx(iTrx);
-      if iTrklet~=obj.currTrklet
+      if iTrklet~=obj.currTrklet || tfforce
         trkletID = obj.ptrx(iTrklet).id;
   %       nTrkletLive = nnz(obj.iTrxViz2iTrx>0);
         nTrkletTot = numel(obj.ptrx);

@@ -58,6 +58,23 @@ classdef TrxUtil
         ptrx(i).endframe = f1;
       end
     end
+    function ptrx = ptrxmerge(ptrx1,ptrx2)
+      % merge/concat two ptrx's.
+      % just a straight concat except for .id remapping.
+      % 
+      % .id's for ptrx 1 remain unchanged; ptrx2 will be reassigned as nec
+      
+      ids1 = [ptrx1.id]; % assume mutually unique
+      ids2 = [ptrx2.id]; % assume mutually unique
+      idmax = max(max(ids1),max(ids2));
+      for i2=1:numel(ptrx2)
+        if any(ptrx2(i2).id==ids1)
+          idmax = idmax+1;
+          ptrx2(i2).id = idmax;
+        end
+      end
+      ptrx = cat(1,ptrx1(:),ptrx2(:));
+    end
     function tblFT = tableFT(ptrx)
       % table with .frm, .ntgt
       frmmax = max([ptrx.endframe]);
