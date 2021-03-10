@@ -51,6 +51,7 @@ classdef TrackingVisualizerTracklets < handle
       obj.tvmt.vizInit('ntgts',ntgt);
       obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgt);
       obj.hud.updateReadoutFields('hasTrklet',true);
+      obj.ptrx = ptrxs;
       obj.frm2trx = Labeler.trxHlpComputeF2t(nfrmmax,ptrxs);
     end
     function newFrame(obj,frm)
