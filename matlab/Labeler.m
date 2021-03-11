@@ -11210,10 +11210,19 @@ classdef Labeler < handle
       nVw = obj.nview;
       szassert(trkFileObjs,[nMov nVw]);
       szassert(trkfiles,[nMov nVw]);
+      isMA = obj.maIsMA;
       for iMv=1:nMov
         if tfHasRes(iMv)
           for iVw=1:nVw
-            trkFileObjs{iMv,iVw}.save(trkfiles{iMv,iVw});
+            tfo = trkFileObjs{iMv,iVw};            
+            tfile = trkfiles{iMv,iVw};
+            if isMA
+              assert(isstruct(tfo));
+              trx = tfo;
+              save(tfile,'-mat','trx');
+            else
+              tfo.save(tfile);
+            end
             fprintf('Saved %s.\n',trkfiles{iMv,iVw});
           end
         else
