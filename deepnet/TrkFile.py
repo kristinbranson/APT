@@ -1019,23 +1019,6 @@ class Tracklet:
     
 
 class Trk:
-  trkfile=None # File from which data is loaded
-  pTrk=None # tracking data
-  pTrkTS=None # timestamp data
-  pTrkTag=None # tag (occlusion) data
-  pTrkiTgt=None # 1-d array of target ids
-  issparse=False # storage format
-  nlandmarks = 0 # number of landmarks
-  d = 2 # dimensionality of coordinates
-  ntargets = 0 # number of targets
-  T0 = 0 # first frame this data corresponds to
-  trkData = {} # other data read from trkfile
-  
-  # for sparse format data
-  defaultval = np.nan # default value when sparse
-  defaultval_TS = -np.inf
-  defaultval_Tag = False
-  sparse_type = 'tracklet' # type of sparse storing used, this should always be tracklet right now
   
   @property
   def startframes(self):
@@ -1096,6 +1079,25 @@ class Trk:
     :param size: size of data to store, initialize
     :param kwargs: Can set any other attributes this way
     """
+    
+    self.trkfile=None # File from which data is loaded
+    self.pTrk=None # tracking data
+    self.pTrkTS=None # timestamp data
+    self.pTrkTag=None # tag (occlusion) data
+    self.pTrkiTgt=None # 1-d array of target ids
+    self.issparse=False # storage format
+    self.nlandmarks = 0 # number of landmarks
+    self.d = 2 # dimensionality of coordinates
+    self.ntargets = 0 # number of targets
+    self.T0 = 0 # first frame this data corresponds to
+    self.trkData = {} # other data read from trkfile
+  
+    # for sparse format data
+    self.defaultval = np.nan # default value when sparse
+    self.defaultval_TS = -np.inf
+    self.defaultval_Tag = False
+    self.sparse_type = 'tracklet' # type of sparse storing used, this should always be tracklet right now
+    
     for key,val in kwargs.items():
       if hasattr(self,key):
         setattr(self,key,val)
@@ -2047,6 +2049,8 @@ def test_Trk_class():
 
   testtypes = ['getmethods','matrixconversion','trackletconversion','conversion','trackletset','save']
   testtypes = ['trackletset']
+  
+  mat_trkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_trn20210311T111656_iter40000_20210312T102037_mov1_vwj1.trk'
 
   #saveformat = 'full'
   #saveformat = 'sparse'
@@ -2058,7 +2062,7 @@ def test_Trk_class():
   
   if 'getmethods' in testtypes:
     
-    for trkfile in [sparse_trkfile,dense_trkfile]:
+    for trkfile in [mat_trkfile,sparse_trkfile,dense_trkfile]:
 
       trk = Trk(trkfile)
       if TSandTag_wrongdefaultval:
@@ -2078,7 +2082,7 @@ def test_Trk_class():
 
   if 'conversion' in testtypes:
   
-    for trkfile in [dense_trkfile,sparse_trkfile]:
+    for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       trk = Trk(trkfile)
       trk1 = Trk(trkfile)
       if TSandTag_wrongdefaultval:
@@ -2347,7 +2351,7 @@ def test_Trk_class():
     
   if 'save' in testtypes:
 
-    for trkfile in [dense_trkfile,sparse_trkfile]:
+    for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       for saveformat in ['tracklet','sparse','dense']:
         
         if trk.trkfile != trkfile:
