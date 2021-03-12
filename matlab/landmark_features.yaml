@@ -8,6 +8,22 @@ FeatureClasses:
     TransTypes: [none,mean,median,std,min,max]
 
 Features:
+  x:
+    FeatureClass: NonNegative
+    CoordSystem: Global
+
+  x_body:
+    FeatureClass: NonNegative
+    CoordSystem: Body
+
+  y:
+    FeatureClass: NonNegative
+    CoordSystem: Global
+
+  y_body:
+    FeatureClass: NonNegative
+    CoordSystem: Body
+
   dx:
     FeatureClass: SignedSymmetric
     CoordSystem: Global
@@ -28,20 +44,5 @@ Features:
     FeatureClass: NonNegative
     CoordSystem: Global
 
-  x:
-    FeatureClass: NonNegative
-    CoordSystem: Global
-
-  x_body:
-    FeatureClass: NonNegative
-    CoordSystem: Body
-
-  y:
-    FeatureClass: NonNegative
-    CoordSystem: Global
-
-  y_body:
-    FeatureClass: NonNegative
-    CoordSystem: Body
 
 ...

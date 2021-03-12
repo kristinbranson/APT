@@ -179,14 +179,18 @@ classdef LabelTracker < handle
       xy = [];
     end
 
-    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
+      % Get current tracking results for current movie, tgt
+      %
+      % MA: current tgt is currently-selected tracklet
+      % 
       % This is a convenience method as it is a special case of 
       % getTrackingResults. Concrete LabelTrackers will also typically have 
       % the current movie's tracking results cached.
       % 
-      % tpos: [npts d nfrm ntgt], or empty/[] will be accepted if no
+      % tpos: [npts d nfrm], or empty/[] will be accepted if no
       % results are available. 
-      % taux: [npts nfrm ntgt naux], or empty/[]
+      % taux: [npts nfrm naux], or empty/[]
       % tauxlbl: [naux] cellstr 
       tpos = [];
       taux = [];
@@ -329,7 +333,7 @@ classdef LabelTracker < handle
         iTgt = 1;
       end
       iMov = labeler.currMovie;
-      [tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovie();
+      [tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovieTgt();
       
       needtrx = obj.lObj.hasTrx && strcmpi(prop.coordsystem,'Body');
       if needtrx,
@@ -342,7 +346,7 @@ classdef LabelTracker < handle
       
       if isempty(tpos)
         % edge case uninitted (not sure why)
-        tpos = nan(npts,2,nfrms,ntgts);
+        tpos = nan(npts,2,nfrms);
       end
       
       plist = obj.propList();
@@ -351,7 +355,7 @@ classdef LabelTracker < handle
       if tfaux
         iaux = find(strcmp(tauxlbl,prop.feature));
         assert(isscalar(iaux));
-        data = taux(:,:,iTgt,iaux);
+        data = taux(:,:,iaux);
         
         % cf ComputeLandmarkFeatureFromPos
         if strcmpi(prop.transform,'none')
@@ -369,7 +373,7 @@ classdef LabelTracker < handle
         end
       else 
         tpostag = false(npts,nfrms,ntgts);
-        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),...
+        data = ComputeLandmarkFeatureFromPos(tpos,...
           tpostag(:,:,iTgt),bodytrx,prop);
       end
     end
@@ -413,7 +417,7 @@ classdef LabelTracker < handle
       dlnets = dlnets([dlnets.doesMA]==isMA);
       info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
       if ~isMA
-        info = [{{'CPRLabelTracker'}}; info];
+        info = [info; {{'CPRLabelTracker'}}];
       end
     end
     

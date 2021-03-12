@@ -153,8 +153,17 @@ classdef Lbl
       % formats.
        
       dd = dir(fullfile(packdir,'*.lbl'));
-      assert(isscalar(dd));
-      lblsf = fullfile(packdir,dd.name);
+      if ~isscalar(dd)
+        lbln = {dd.name}';
+        lbln = sort(lbln);
+        warningNoTrace('%d .lbl files found. Using: %s',numel(lbln),lbln{end});
+        lblsf = lbln{end};
+      else
+        lblsf = dd.name;
+        fprintf(1,'Using lbl: %s\n',lblsf);
+      end
+        
+      lblsf = fullfile(packdir,lblsf);
       slbl = load(lblsf,'-mat');
       fprintf(1,'loaded %s\n',lblsf);
       
@@ -203,7 +212,7 @@ classdef Lbl
       tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
       slbl = tObj.trnCreateStrippedLbl();
       slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
-      jslbl = Lbl.jsonifyStrippedLbl(slbl);
+      [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
       
       fsinfo = lObj.projFSInfo;
       [lblP,lblS] = myfileparts(fsinfo.filename);

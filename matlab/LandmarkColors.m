@@ -22,7 +22,7 @@ function varargout = LandmarkColors(varargin)
 
 % Edit the above text to modify the response to help LandmarkColors
 
-% Last Modified by GUIDE v2.5 04-Jun-2019 13:50:26
+% Last Modified by GUIDE v2.5 17-Jan-2021 23:42:04
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -43,164 +43,137 @@ else
 end
 % End initialization code - DO NOT EDIT
 
-function handles = SetColorsFromColormap(handles)
-
-handles.colors = handles.colormap;
-for i = 1:handles.nlandmarks,
-  set(handles.hbuttons(i),'BackgroundColor',handles.colors(i,:));
-end
-
-function handles = SetColormap(handles)
-
-handles.colormap = feval(handles.colormapname,handles.nlandmarks);
-if handles.brightness > .5,
-  v = min(1,max(0,(handles.brightness-.5)*2));
-  handles.colormap = handles.colormap*(1-v)+v;
-elseif handles.brightness < .5,
-  v = min(1,max(0,handles.brightness*2));
-  handles.colormap = handles.colormap*v;
-end
-
-if ~isfield(handles,'colormapim'),
-  handles.colormapim = imagesc(1:handles.nlandmarks,'Parent',handles.axes_colormap);
-  axis(handles.axes_colormap,'off');
-end
-colormap(handles.axes_colormap,handles.colormap);
-
-function handles = SaveState(handles)
-
-[pvMarkers,pvTxt,txtoffset] = MarkerControlsGet(handles);
-
-handles.saved = struct(...
-  'colors',handles.colors,...
-  'colormapname',handles.colormapname,...
-  'colorsApplyBoth',get(handles.cbApplyColorsLabelsPreds,'Value'),...
-  'pvMarkers',pvMarkers,...
-  'pvText',pvTxt,...
-  'textOffset',txtoffset);
-
-function [handles,success] = GuessBrightness(handles)
-
-handles.brightness = .5;
-success = false;
-if isempty(handles.colors) || isempty(handles.colormapname),
-  return;
-end
-
-colormap = feval(handles.colormapname,handles.nlandmarks);
-ratio = handles.colors./colormap;
-ratio(isnan(ratio)) = [];
-
-% give up
-if std(ratio(:)) > .02,
-  return;
-end
-
-meanratio = mean(ratio);
-if meanratio > 1,
-  v = max(0,min(1,regress(handles.colors(:)-colormap(:),1-colormap(:))));
-  newcolormap = (1-v)*colormap + v;
-  err = abs(handles.colors(:)-newcolormap(:));
-  if max(err) > .02,
-    return;
-  end
-  handles.brightness = .5 + v/2;
-elseif meanratio < 1,
-  v = max(0,min(1,regress(handles.colors(:),colormap(:))));
-  newcolormap = v*colormap;
-  err = abs(handles.colors(:)-newcolormap(:));
-  if max(err) > .02,
-    return;
-  end
-  handles.brightness = v/2;
-else
-  handles.brightness = .5;
-end
-success = true;
 
 function LandmarkColors_OpeningFcn(hObject, eventdata, handles, varargin)
-% [tfchanges,savedinfo] = LandmarkColors(...)
+% [tfchanges,savedinfo] = LandmarkColors(lObj,cbk)
+
+% cbk sig: cbk(colorSpecs,markerSpecs)
+%   colorSpecs: array of LandmarkColorSpec objs (could be nonscalar)
+%   markerSpecs: [3] struct array nested Marker/TextProps etc
 
 handles.output = hObject;
 
-handles.colors = varargin{1}; 
-handles.colormapname = varargin{2};
-handles.nlandmarks = varargin{3};
-handles.lblOrPred = varargin{4}; % figure title
-switch handles.lblOrPred
-  case 'lbl'
-    ti = 'Label Visualization';
-  case 'pred'
-    ti = 'Prediction Visualization';
-  otherwise
-    assert(false);
-end
-set(handles.figure_landmarkcolors,'Name',ti);
-handles.applyCbkFcn = varargin{5}; % sig: 
-handles.markerPVs = varargin{6};
-handles.textPVs = varargin{7};
-handles.textOffset = varargin{8};
+lObj = varargin{1};
+handles.nlandmarks = lObj.nPhysPoints;
+handles.applyCbkFcn = varargin{2}; % sig:
 
+
+% Marker State
+% This is stored only in the table. Get and Set using Set/GetMarker*.
+lsetTypesCell = num2cell(enumeration('LandmarkSetType'));
+ppiAll = {lObj.labelPointsPlotInfo; lObj.predPointsPlotInfo; lObj.impPointsPlotInfo};
+FLDS = {'MarkerProps' 'TextProps' 'TextOffset'};
+sPropsMrkr = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
+[sPropsMrkr.landmarkSetType] = deal(lsetTypesCell{:});
+% Color State
+% This state is maintained in handles.colorSpecs. What is shown in the
+% Colors pane is per pumShowing.
+handles.colorSpecs = cellfun(@(x1,x2,x3)LandmarkColorSpec(x1,x2,x3),...
+  lsetTypesCell,...
+  repmat({lObj.nPhysPoints},3,1),ppiAll);
+
+handles.sPropsMrkr0 = sPropsMrkr;
+handles.colorSpecs0 = handles.colorSpecs.copy();
+
+handles = initColorsPane(handles);
+updateColorsPane(handles);
+
+MARKERS = 'o+*.xsd^v><ph';
+MARKERS = num2cell(MARKERS);
+tbl = handles.tblProps;
+tbl.ColumnFormat{1} = MARKERS;
+strcmp(tbl.ColumnName{6},'Label Font Angle');
+tbl.ColumnFormat{6} = {'normal' 'italic'};
+ncol = numel(tbl.ColumnFormat);
+set(tbl,'Data',cell(3,ncol),'RowName',{'Label' 'Prediction' 'Imported'});
+
+MarkerControlsSet(handles,sPropsMrkr);
+
+set(handles.figure_landmarkcolors,'Name','Landmark Cosmetics');
 handles.saved = [];
+guidata(hObject, handles);
 
-% default
-if isempty(handles.colormapname),
-  handles.colormapname = 'jet';
-end
+% UIWAIT makes LandmarkColors wait for user response (see UIRESUME)
+uiwait(handles.figure_landmarkcolors);
 
-% set colormap name in popup menu
-s = get(handles.popupmenu_colormap,'String');
-i = find(strcmpi(s,handles.colormapname),1);
-if isempty(i),
-  warning('Unknown colormap name %s, using default jet',handles.colormapname);
-  handles.colormapname = 'jet';
-  i = find(strcmpi(s,'jet'),1);
-end
-set(handles.popupmenu_colormap,'Value',i);
 
-[handles,usecolormap] = GuessBrightness(handles);
-set(handles.edit_brightness,'String',num2str(handles.brightness));
-set(handles.slider_brightness,'Value',handles.brightness);
+%%%%%%%%%%
+% COLORS %
+%%%%%%%%%%
 
-% store value
-handles = SetColormap(handles);
+function handles = initColorsPane(handles)
+pum = handles.pumShowing;
+pum.String = { ...
+  'Labels'
+  'Predictions'
+  'Imported'
+  };
+pum.Value = 1;
 
-% set colors based on colormap if not yet set
-if isempty(handles.colors),
-  handles.colors = handles.colormap;
-end
+% Colormap pulldown options
+pum = handles.popupmenu_colormap;
+cmapnames = LandmarkColorSpec.CMAPNAMES;
+ncmapnames = numel(cmapnames);
+cmapname2idx = cell2struct(num2cell(1:ncmapnames),cmapnames,2);
+set(pum,'String',LandmarkColorSpec.CMAPNAMES,'Value',1,'UserData',cmapname2idx);
+
+handles.colormapim = imagesc(1:handles.nlandmarks,'Parent',handles.axes_colormap);
+axis(handles.axes_colormap,'off');
 
 % create buttons
 w = 1/handles.nlandmarks;
 borderfrac = .05;
-for i = 1:handles.nlandmarks,
-  
+for i = 1:handles.nlandmarks,  
   handles.hbuttons(i) = uicontrol('style','pushbutton',...
     'ForegroundColor','k',...
-    'BackgroundColor',handles.colors(i,:),...
+    'BackgroundColor',[0.5 0.5 0.5],...
     'Units','normalized',...
     'Position',[w*borderfrac+w*(i-1),borderfrac,w*(1-2*borderfrac),1-2*borderfrac],...
     'Parent',handles.uipanel_manual,...
     'Callback',@(hObject,eventdata)LandmarkColors('pushbutton_manual_Callback',hObject,eventdata,guidata(hObject),i),...
     'Tag',sprintf('pushbutton_manual_%d',i),...
     'String',num2str(i));
-
 end
 
-% set by default to manual
-set(handles.radiobutton_manual,'Value',~usecolormap);
-set(handles.radiobutton_colormap,'Value',usecolormap);
-handles = UpdateMode(handles);
+function updateColorsPane(handles)
+% Update colors pane uicontrols per current colorSpecs
 
-handles = MarkerControlsSet(handles);
+cs = handles.colorSpecs;
+iCS = handles.pumShowing.Value;
+cs = cs(iCS);
 
-guidata(hObject, handles);
+% mode
+btnGrp = handles.radiobutton_manual.Parent;
+if cs.tfmanual
+  btnGrp.SelectedObject = handles.radiobutton_manual;
+else
+  btnGrp.SelectedObject = handles.radiobutton_colormap;
+end
 
-% UIWAIT makes LandmarkColors wait for user response (see UIRESUME)
-uiwait(handles.figure_landmarkcolors);
+UpdateColorMode(handles);
 
-function handles = UpdateMode(handles)
+if cs.tfmanual
+  % manual button colors
+  for i = 1:handles.nlandmarks,
+    set(handles.hbuttons(i),'BackgroundColor',cs.colors(i,:));
+  end
+else
+  % colormapname
+  cmapname = cs.colormapname;
+  pumcmap = handles.popupmenu_colormap;
+  cmapidx = pumcmap.UserData.(cmapname);
+  pumcmap.Value = cmapidx;
 
+  % colormap
+  colormap(handles.axes_colormap,cs.colormap);
+
+  % brightness
+  set(handles.edit_brightness,'String',num2str(cs.brightness));
+  set(handles.slider_brightness,'Value',cs.brightness);
+end
+
+function UpdateColorMode(handles)
+% enable/disable based on radiobutton setting
 v = get(handles.radiobutton_manual,'Value');
 hcm = findobj(handles.uipanel_colormap,'-property','Enable');
 hm = findobj(handles.uipanel_manual,'-property','Enable');
@@ -211,6 +184,196 @@ else
   set(hcm,'Enable','on');
   set(hm,'Enable','off');
 end
+
+% function UpdateButtonColors(handles)
+
+function pumShowing_Callback(hObject, eventdata, handles)
+updateColorsPane(handles);
+
+function popupmenu_colormap_Callback(hObject, eventdata, handles)
+contents = cellstr(get(hObject,'String'));
+cmapname = contents{get(hObject,'Value')};
+
+cs = handles.colorSpecs;
+iCS = handles.pumShowing.Value;
+cs = cs(iCS);
+cs.setColormapName(cmapname);
+updateColorsPane(handles);
+
+function slider_brightness_Callback(hObject, eventdata, handles)
+v = get(hObject,'Value');
+cs = handles.colorSpecs;
+iCS = handles.pumShowing.Value;
+cs = cs(iCS);
+cs.setBrightness(v);
+updateColorsPane(handles);
+
+function edit_brightness_Callback(hObject, eventdata, handles)
+v = str2double(get(hObject,'String'));
+cs = handles.colorSpecs;
+iCS = handles.pumShowing.Value;
+cs = cs(iCS);
+
+if isnan(v) || v < 0 || v > 1,
+  warndlg('Brightness must be a number between 0 and 1','Error setting brightness','modal');
+  set(hObject,'String',num2str(cs.brightness));
+else
+  cs.setBrightness(v);
+  %set(handles.slider_brightness,'Value',v);
+  updateColorsPane(handles);
+end
+
+function radiobutton_colormap_Callback(hObject, eventdata, handles)
+cs = handles.colorSpecs;
+iCS = handles.pumShowing.Value;
+cs = cs(iCS);
+cs.setTFManual(false);
+updateColorsPane(handles);
+
+function radiobutton_manual_Callback(hObject, eventdata, handles)
+cs = handles.colorSpecs;
+iCS = handles.pumShowing.Value;
+cs = cs(iCS);
+cs.setManualColorsToColormap();
+cs.setTFManual(true);
+updateColorsPane(handles);
+
+function pushbutton_manual_Callback(hObject, eventdata, handles, landmarki)
+fprintf('Landmark %d\n',landmarki);
+cs = handles.colorSpecs;
+iCS = handles.pumShowing.Value;
+cs = cs(iCS);
+clr = uisetcolor(cs.colors(landmarki,:),sprintf('Landmark %d color',landmarki));
+cs.setColorManual(landmarki,clr);
+updateColorsPane(handles);
+
+function pumShowing_CreateFcn(hObject, eventdata, handles)
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function slider_brightness_CreateFcn(hObject, eventdata, handles)
+if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+end
+
+function edit_brightness_CreateFcn(hObject, eventdata, handles)
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function popupmenu_colormap_CreateFcn(hObject, eventdata, handles)
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+%%%%%%%%%%%
+% MARKERS %
+%%%%%%%%%%%
+
+function MarkerControlsSet(handles,s)
+% Set tblProps per pvStructs
+%
+% s: as in structure returned by MarkerControlsGet
+
+uitbl = handles.tblProps;
+assert(isequal(uitbl.RowName,{'Label' 'Prediction' 'Imported'}'));
+
+FLDS_MARKER = {'Marker' 'MarkerSize' 'LineWidth'};
+tMrkr = struct2table([s.MarkerProps]');
+assert(isequal(tMrkr.Properties.VariableNames,FLDS_MARKER));
+
+FLDS_TEXT = {'Visible' 'FontSize' 'FontAngle'};
+sTxt = [s.TextProps]';
+sTxt = structrestrictflds(sTxt,FLDS_TEXT);
+sTxt = orderfields(sTxt,FLDS_TEXT);
+tTxt = struct2table(sTxt);
+%assert(isequal(tTxt.Properties.VariableNames,FLDS_TEXT));
+tTxt.Visible = strcmp(tTxt.Visible,'on');
+
+txtOffset = num2cell([s.TextOffset]');
+
+assert(isequal(uitbl.ColumnName,...
+  {'Marker' 'MarkerSize' 'LineWidth' 'Show Text Label' 'Label Font Size' 'Label Font Angle' 'Label Offset'}'));
+
+dat = [table2cell(tMrkr) table2cell(tTxt) txtOffset];
+uitbl.Data = dat;
+
+function s = MarkerControlsGet(handles)
+% Read handles.tblProps into various PV-structs etc that can be used to set
+% HG handles.
+%
+% s: structarr of PV structs
+% 
+% s(i).pvLine -- PV struct for line handle
+% s(i).pvTxt -- PV struct for text label
+% s(i).txtOffset -- text offset (in px)
+% Els of s labeled by lbl, pred, imp
+
+uitbl = handles.tblProps;
+assert(isequal(uitbl.RowName,{'Label' 'Prediction' 'Imported'}'));
+
+t = cell2table(uitbl.Data,'VariableNames',uitbl.ColumnName);
+
+FLDS_MARKER = {'Marker' 'MarkerSize' 'LineWidth'};
+tLine = t(:,FLDS_MARKER);
+sLine = table2struct(tLine);
+% s = struct();
+% s.pvLine = sLine;
+
+FLDS_TEXT = {'Show Text Label','Label Font Size' 'Label Font Angle'};
+tTxt = t(:,FLDS_TEXT);
+tTxt.Properties.VariableNames = {'Visible' 'FontSize' 'FontAngle'};
+tTxt.Visible = arrayfun(@onIff,tTxt.Visible,'uni',0);
+sTxt = table2struct(tTxt);
+% s.pvTxt = sTxt;
+
+txtOffset = t{:,'Label Offset'};
+
+s = struct(...
+  'landmarkSetType',num2cell(enumeration('LandmarkSetType')),...
+  'MarkerProps',num2cell(sLine),...
+  'TextProps',num2cell(sTxt),...
+  'TextOffset',num2cell(txtOffset) ...
+  );
+
+
+%%%%%%%%%%%%%%%%%%
+% APPLY/DONE/ETC %
+%%%%%%%%%%%%%%%%%%
+
+function handles = SaveState(handles)
+
+tfApplyAll = handles.cbApplyAll.Value;
+iCS = handles.pumShowing.Value;
+if tfApplyAll
+  colorSpecs = handles.colorSpecs;
+  for i=1:numel(colorSpecs)
+    if i==iCS
+      continue;
+    end
+    colorSpecs(i).copyColorState(colorSpecs(iCS));
+  end
+  colorSpecs0 = handles.colorSpecs0;
+else
+  colorSpecs = handles.colorSpecs(iCS);
+  colorSpecs0 = handles.colorSpecs0(iCS);
+end
+colorSpecs.setManualColorsToColormapIfNec();
+sPropsMrkr = MarkerControlsGet(handles);
+
+tfclrchanged = ~arrayfun(@isequal,colorSpecs,colorSpecs0);
+% We do something convoluted here as handles.sPropsMrkr0 might have
+% properties that are not visible/editable in the UI
+tfmkrchanged = ~arrayfun(@(x,y)isequaln(x,structoverlay(x,y)),...
+  handles.sPropsMrkr0,sPropsMrkr);
+%~arrayfun(@isequaln,sPropsMrkr,handles.sPropsMrkr0);
+handles.saved = struct(...
+  'colorSpecs',colorSpecs(tfclrchanged),...  
+  'markerSpecs',sPropsMrkr(tfmkrchanged) ...
+  );
+% Note either field of handles.saved could be empty
 
 function varargout = LandmarkColors_OutputFcn(hObject, eventdata, handles) 
 % [tfchanges,savedinfo] = LandmarkColors(...)
@@ -225,38 +388,13 @@ else
   delete(handles.figure_landmarkcolors);
 end
 
-% --- Executes on selection change in popupmenu_colormap.
-function popupmenu_colormap_Callback(hObject, eventdata, handles)
-% hObject    handle to popupmenu_colormap (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns popupmenu_colormap contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from popupmenu_colormap
-
-contents = cellstr(get(hObject,'String'));
-handles.colormapname = contents{get(hObject,'Value')};
-handles = SetColormap(handles);
-handles = SetColorsFromColormap(handles);
-guidata(hObject,handles);
-
-% --- Executes during object creation, after setting all properties.
-function popupmenu_colormap_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to popupmenu_colormap (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
+function figure_landmarkcolors_CloseRequestFcn(hObject, eventdata, handles)
+uiresume(handles.figure_landmarkcolors);
 
 function pbApply_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
 saved = handles.saved;
-handles.applyCbkFcn(saved.colors,saved.colormapname,...
-  saved.colorsApplyBoth,saved.pvMarkers,saved.pvText,saved.textOffset);
+handles.applyCbkFcn(saved.colorSpecs,saved.markerSpecs);
 guidata(hObject,handles);
 
 function pbCancel_Callback(hObject, eventdata, handles)
@@ -266,224 +404,3 @@ function pbDone_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
 guidata(hObject,handles);
 uiresume(handles.figure_landmarkcolors);
-
-function pushbutton_manual_Callback(hObject, eventdata, handles, landmarki)
-fprintf('Landmark %d\n',landmarki);
-handles.colors(landmarki,:) = uisetcolor(handles.colors(landmarki,:),sprintf('Landmark %d color',landmarki));
-set(handles.hbuttons(landmarki),'BackgroundColor',handles.colors(landmarki,:));
-guidata(hObject,handles);
-
-% --- Executes on button press in radiobutton_colormap.
-function radiobutton_colormap_Callback(hObject, eventdata, handles)
-% hObject    handle to radiobutton_colormap (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of radiobutton_colormap
-handles = UpdateMode(handles);
-guidata(hObject,handles);
-
-% --- Executes on button press in radiobutton_manual.
-function radiobutton_manual_Callback(hObject, eventdata, handles)
-% hObject    handle to radiobutton_manual (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of radiobutton_manual
-handles = UpdateMode(handles);
-guidata(hObject,handles);
-
-% --- Executes when user attempts to close figure_landmarkcolors.
-function figure_landmarkcolors_CloseRequestFcn(hObject, eventdata, handles)
-% hObject    handle to figure_landmarkcolors (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: delete(hObject) closes the figure
-uiresume(handles.figure_landmarkcolors);
-
-% --- Executes on slider movement.
-function slider_brightness_Callback(hObject, eventdata, handles)
-% hObject    handle to slider_brightness (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'Value') returns position of slider
-%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-v = get(hObject,'Value');
-handles.brightness = v;
-set(handles.edit_brightness,'String',num2str(v));
-handles = SetColormap(handles);
-handles = SetColorsFromColormap(handles);
-guidata(hObject,handles);
-
-% --- Executes during object creation, after setting all properties.
-function slider_brightness_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to slider_brightness (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: slider controls usually have a light gray background.
-if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor',[.9 .9 .9]);
-end
-
-function edit_brightness_Callback(hObject, eventdata, handles)
-% hObject    handle to edit_brightness (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of edit_brightness as text
-%        str2double(get(hObject,'String')) returns contents of edit_brightness as a double
-v = str2double(get(hObject,'String'));
-if isnan(v) || v < 0 || v > 1,
-  warndlg('Brightness must be a number between 0 and 1','Error setting brightness','modal');
-  set(hObject,'String',num2str(handles.brightness));
-else
-  handles.brightness = v;
-  set(handles.slider_brightness,'Value',v);
-  handles = SetColormap(handles);
-  handles = SetColorsFromColormap(handles);
-  guidata(hObject,handles);
-end
-
-% --- Executes during object creation, after setting all properties.
-function edit_brightness_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to edit_brightness (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function handles = MarkerControlsSet(handles)
-pvMrk = handles.markerPVs;
-pvTxt = handles.textPVs;
-
-s = get(handles.pumMarker,'String');
-i = find(strcmpi(s,pvMrk.Marker));
-if isempty(i),
-  warning('Unknown marker %s, using default ''+''',pvMrk.Marker);
-  i = find(strcmpi(s,'+'));
-  handles.markerPVs.Marker = '+';
-end
-set(handles.pumMarker,'Value',i);
-
-set(handles.etMarkerSize,'String',num2str(pvMrk.MarkerSize));
-
-set(handles.etLineWidth,'String',num2str(pvMrk.LineWidth));
-
-set(handles.etTextFontSize,'String',num2str(pvTxt.FontSize));
-
-set(handles.etTextOffset,'String',num2str(handles.textOffset));
-
-switch handles.lblOrPred
-  case 'lbl'
-    set(handles.cbShowText,'Value',1,'Enable','off');
-  case 'pred'
-    set(handles.cbShowText,'Value',strcmp(pvTxt.Visible,'on'),'Enable','on');
-end
-
-function [pvMrk,pvTxt,txtoff] = MarkerControlsGet(handles)
-
-pvMrk = struct();
-pvTxt = struct();
-s = get(handles.pumMarker,'String');
-pvMrk.Marker = s{get(handles.pumMarker,'Value')};
-pvMrk.MarkerSize = str2double(get(handles.etMarkerSize,'String'));
-pvMrk.LineWidth = str2double(get(handles.etLineWidth,'String'));
-pvTxt.FontSize = str2double(get(handles.etTextFontSize,'String'));
-if strcmp(handles.lblOrPred,'pred')
-  pvTxt.Visible = onIff(get(handles.cbShowText,'Value'));
-end
-txtoff = str2double(get(handles.etTextOffset,'String'));
-
-% --- Executes on selection change in pumMarker.
-function pumMarker_Callback(hObject, eventdata, handles)
-% hObject    handle to pumMarker (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns pumMarker contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from pumMarker
-
-function pumMarker_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to pumMarker (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function etMarkerSize_Callback(hObject, eventdata, handles)
-% hObject    handle to etMarkerSize (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of etMarkerSize as text
-%        str2double(get(hObject,'String')) returns contents of etMarkerSize as a double
-
-function etMarkerSize_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to etMarkerSize (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function etLineWidth_Callback(hObject, eventdata, handles)
-
-function etLineWidth_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to etLineWidth (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function cbShowText_Callback(hObject, eventdata, handles)
-
-function etTextFontSize_Callback(hObject, eventdata, handles)
-
-function etTextFontSize_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to etTextFontSize (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function etTextOffset_Callback(hObject, eventdata, handles)
-
-function etTextOffset_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to etTextOffset (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function cbApplyColorsLabelsPreds_Callback(hObject, eventdata, handles)
-% hObject    handle to cbApplyColorsLabelsPreds (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of cbApplyColorsLabelsPreds

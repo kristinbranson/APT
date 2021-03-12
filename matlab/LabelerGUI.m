@@ -291,6 +291,9 @@ handles.menu_view_show_imported_preds_curr_target_only = uimenu('Parent',handles
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_show_preds_curr_target_only);
 
+deleteValidHandles(handles.menu_view_landmark_colors.Children);
+set(handles.menu_view_landmark_colors,'Callback',@menu_view_landmark_colors_Callback);
+
 handles.menu_view_edit_skeleton = uimenu('Parent',handles.menu_view,...
   'Label','Landmark specifications',...
   'Tag','menu_view_edit_skeleton',...
@@ -476,10 +479,18 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Separator','on');  
 moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_all_movies);
 
+handles.menu_track_clear_tracker = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracker_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Clear trained tracker',...
+  'Tag','menu_track_clear_tracker',...
+  'Separator','off');  
+moveMenuItemAfter(handles.menu_track_clear_tracker,handles.menu_track_clear_tracking_results);
+
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set manual labels to automatic prediction',...
-  'Tag','menu_track_set_labels');  
+  'Tag','menu_track_set_labels',...
+  'Separator','on');  
 
 % tfBGok = ~isempty(ver('distcomp')) && ~verLessThan('distcomp','6.10');
 % onoff = onIff(tfBGok);
@@ -742,6 +753,7 @@ listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_tracker','PostSet',@cbklabelTLInfoPropsUpdated);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_allframes','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbklabelTLInfoPropTypesUpdated);
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
@@ -1045,53 +1057,83 @@ end
 function handles = initTblTrx(handles)
 tbl0 = handles.tblTrx;
 COLNAMES = {'Index' 'Labeled'};
-jt = uiextras.jTable.Table(...
-  'parent',tbl0.Parent,...
-  'Position',tbl0.Position,...
-  'SelectionMode','discontiguous',...
-  'Editable','off',...
-  'ColumnPreferredWidth',[100 100],...
-  'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-  'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
-set(jt,'Data',cell(0,numel(COLNAMES)));
-cr = aptjava.StripedIntegerTableCellRenderer;
-cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
-crCB = aptjava.StripedCheckBoxTableCellRenderer;
-jt.JColumnModel.getColumn(0).setCellRenderer(cr);
-jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
-jt.JTable.Foreground = java.awt.Color.WHITE;
-jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-h = jt.JTable.getTableHeader;
-h.setPreferredSize(java.awt.Dimension(225,22));
-jt.JTable.repaint;
+if 1
+  set(tbl0,...
+    'ColumnWidth',{100 100},...
+    'ColumnName',COLNAMES,...
+    'Data',cell(0,numel(COLNAMES)),...
+    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt),...
+    'FontUnits','points',...
+    'FontSize',9.75,... % matches .tblTrx
+    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
+  % AL 20210209: jtable performance is too painful for larger projs (more 
+  % labels in any single movie). As of 2020x only cost to using regular 
+  % table is inability to set selected/hilite row.
+  
+else
+  jt = uiextras.jTable.Table(...
+    'parent',tbl0.Parent,...
+    'Position',tbl0.Position,...
+    'SelectionMode','discontiguous',...
+    'Editable','off',...
+    'ColumnPreferredWidth',[100 100],...
+    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
+  set(jt,'Data',cell(0,numel(COLNAMES)));
+  cr = aptjava.StripedIntegerTableCellRenderer;
+  cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
+  crCB = aptjava.StripedCheckBoxTableCellRenderer;
+  jt.JColumnModel.getColumn(0).setCellRenderer(cr);
+  jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
+  jt.JTable.Foreground = java.awt.Color.WHITE;
+  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+  h = jt.JTable.getTableHeader;
+  h.setPreferredSize(java.awt.Dimension(225,22));
+  jt.JTable.repaint;
 
-delete(tbl0);
-handles.tblTrx = jt;
+  delete(tbl0);  
+  handles.tblTrx = jt;
+end
 
 function handles = initTblFrames(handles)
 tbl0 = handles.tblFrames;
 COLNAMES = {'Frame' 'Tgts' 'Pts'};
-jt = uiextras.jTable.Table(...
-  'parent',tbl0.Parent,...
-  'Position',tbl0.Position,...
-  'SelectionMode','single',...
-  'Editable','off',...
-  'ColumnPreferredWidth',[100 50],...
-  'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
-set(jt,'Data',cell(0,numel(COLNAMES)));
-cr = aptjava.StripedIntegerTableCellRenderer;
-for i=0:2
-  jt.JColumnModel.getColumn(i).setCellRenderer(cr);
-end
-jt.JTable.Foreground = java.awt.Color.WHITE;
-jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-h = jt.JTable.getTableHeader;
-h.setPreferredSize(java.awt.Dimension(225,22));
-jt.JTable.repaint;
 
-delete(tbl0);
-handles.tblFrames = jt;
+if 1 
+  set(tbl0,...
+    'ColumnWidth',{100 50 'auto'},...
+    'ColumnName',COLNAMES,...
+    'Data',cell(0,numel(COLNAMES)),...
+    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
+    'FontUnits','points',...
+    'FontSize',9.75,... % matches .tblTrx
+    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
+  % AL 20210209: jtable performance is too painful for larger projs (more 
+  % labels in any single movie). As of 2020x only cost to using regular 
+  % table is inability to set selected/hilite row.
+else
+  jt = uiextras.jTable.Table(...
+    'parent',tbl0.Parent,...
+    'Position',tbl0.Position,...
+    'SelectionMode','single',...
+    'Editable','off',...
+    'ColumnPreferredWidth',[100 50],...
+    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
+  set(jt,'Data',cell(0,numel(COLNAMES)));
+  cr = aptjava.StripedIntegerTableCellRenderer;
+  for i=0:2
+    jt.JColumnModel.getColumn(i).setCellRenderer(cr);
+  end
+  jt.JTable.Foreground = java.awt.Color.WHITE;
+  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+  h = jt.JTable.getTableHeader;
+  h.setPreferredSize(java.awt.Dimension(225,22));
+  jt.JTable.repaint;
+
+  delete(tbl0);
+  handles.tblFrames = jt;
+end
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
@@ -1613,7 +1655,7 @@ TRX_MENUS = {...
   'menu_setup_label_overlay_montage_trx_centered'};
 onOff = onIff(lObj.hasTrx || lObj.maIsMA);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
-set(handles.tblTrx,'Enabled',onOff);
+set(handles.tblTrx,'Enable',onOff);
 guidata(handles.figure,handles);
 
 setPUMTrackStrs(lObj);
@@ -1763,7 +1805,7 @@ if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
   lObj.gdata.labelTLInfo.newTarget();
   lObj.hlpGTUpdateAxHilite();
   %drawnow;
-  hlpUpdateTblTrxHilite(lObj);
+  %hlpUpdateTblTrxHilite(lObj);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -2112,6 +2154,7 @@ if ~isfield(handles,'menu_track_backend_config')
   % AWS submenu (visible when backend==AWS)
   handles.menu_track_backend_config_aws_setinstance = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(AWS) Set EC2 instance',...
     'Callback',@cbkTrackerBackendAWSSetInstance,...
     'Tag','menu_track_backend_config_aws_setinstance');  
@@ -2125,11 +2168,18 @@ if ~isfield(handles,'menu_track_backend_config')
   % KB added menu item to set Docker host
   handles.menu_track_backend_config_setdockerssh = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(Docker) Set remote host...',...
     'Callback',@cbkTrackerBackendSetDockerSSH,...
     'Tag','menu_track_backend_config_setdockerssh');  
 
-  
+  handles.menu_track_backend_config_jrc_setconfig = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
+    'Label','(JRC) Set number of slots for training...',...
+    'Callback',@cbkTrackerBackendSetJRCNSlots,...
+    'Tag','menu_track_backend_config_jrc_setconfig');  
+
 %   handles.menu_track_backends{end+1,1} = uimenu( ...
 %     'Parent',handles.menu_track_backend_config,...
 %     'Label','(AWS) Send start instance',...
@@ -2221,24 +2271,40 @@ handles.listenersTracker = listenersNew;
 
 function updateTrackBackendConfigMenuChecked(handles,lObj)
 
-set(handles.menu_track_backend_config_jrc,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Bsub));
-set(handles.menu_track_backend_config_docker,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
-set(handles.menu_track_backend_config_conda,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Conda));
-set(handles.menu_track_backend_config_aws,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_aws_setinstance,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_aws_configure,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_setdockerssh,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
+beType = lObj.trackDLBackEnd.type;
+oiBsub = onIff(beType==DLBackEnd.Bsub);
+oiDckr = onIff(beType==DLBackEnd.Docker);
+oiCnda = onIff(beType==DLBackEnd.Conda);
+oiAWS = onIff(beType==DLBackEnd.AWS);
+set(handles.menu_track_backend_config_jrc,'checked',oiBsub);
+set(handles.menu_track_backend_config_docker,'checked',oiDckr);
+set(handles.menu_track_backend_config_conda,'checked',oiCnda);
+set(handles.menu_track_backend_config_aws,'checked',oiAWS);
+set(handles.menu_track_backend_config_aws_setinstance,'visible',oiAWS);
+set(handles.menu_track_backend_config_aws_configure,'visible',oiAWS);
+set(handles.menu_track_backend_config_setdockerssh,'visible',oiDckr);
+set(handles.menu_track_backend_config_jrc_setconfig,'visible',oiBsub);
 
-% Menu item ordering getting messed up somewhere
-handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
-handles.menu_track_backend_config_jrc.Position = 1;
-handles.menu_track_backend_config_aws.Position = 2;
-handles.menu_track_backend_config_docker.Position = 3;
-handles.menu_track_backend_config_conda.Position = 4;
-handles.menu_track_backend_config_moreinfo.Position = 5;
-handles.menu_track_backend_config_aws_setinstance.Position = 6;
-handles.menu_track_backend_config_aws_configure.Position = 7;
-handles.menu_track_backend_config_setdockerssh.Position = 8;
+m = handles.menu_track_backend_config;
+% Menu item ordering seems very buggy. Setting .Position on menu items
+% doesn't work; setting Children once doesn't work, maybe bc of AbortSet. 
+%handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
+drawnow;
+m.Children = [ ...
+  handles.menu_track_backend_config_jrc ...
+  handles.menu_track_backend_config_aws...
+  handles.menu_track_backend_config_docker...
+  handles.menu_track_backend_config_conda...
+  handles.menu_track_backend_config_moreinfo... 
+  handles.menu_track_backend_config_aws_setinstance...
+  handles.menu_track_backend_config_aws_configure...
+  handles.menu_track_backend_config_setdockerssh...
+  handles.menu_track_backend_config_jrc_setconfig...
+  handles.menu_track_backend_config_test...
+  ];
+m.Children = m.Children(end:-1:1);
+%m.Children = m.Children(end:-1:1);
+
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
@@ -2343,6 +2409,21 @@ if tfsucc
   %aws.checkInstanceRunning('throwErrs',false);
 %   lObj.trackSetDLBackend(be);
 end
+
+function cbkTrackerBackendSetJRCNSlots(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+n = inputdlg('Number of cluster slots for training','a',1,{num2str(lObj.tracker.jrcnslots)});
+if isempty(n)
+  return;
+end
+n = str2double(n{1});
+if isnan(n)
+  return;
+end
+lObj.tracker.jrcnslots = n;
+
+
 
 function cbkTrackerBackendSetDockerSSH(src,evt)
 handles = guidata(src);
@@ -2985,7 +3066,7 @@ end
 lObj.gtThrowErrIfInGTMode();
 iMov = lObj.currMovie;
 haslbls1 = lObj.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
-haslbls2 = lObj.movieFilesAllHaveLbls(iMov);
+haslbls2 = lObj.movieFilesAllHaveLbls(iMov)>0;
 assert(haslbls1==haslbls2);
 if haslbls1
   resp = questdlg('Current movie has labels that will be overwritten. OK?',...
@@ -3935,6 +4016,19 @@ tObj.clearTrackingResults();
 ClearStatus(handles);
 %msgbox('Tracking results cleared.','Done');
 
+function menu_track_clear_tracker_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+res = questdlg('This will clear your trained tracker, along with all tracking results. Are you sure you want to proceed?',...
+  'Clear Model','Yes','Abort','Abort');
+if ~strcmpi(res,'Yes'),
+  return;
+end
+SetStatus(handles,'Clearing trained tracker and all tracking results...');
+tObj = lObj.tracker;
+tObj.initHook();
+ClearStatus(handles);
+
+
 function menu_track_cpr_storefull_dont_store_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 svr = tObj.showVizReplicates;
@@ -4253,6 +4347,10 @@ end
 function pumInfo_Callback(hObject, eventdata, handles)
 cprop = get(hObject,'Value');
 handles.labelTLInfo.setCurProp(cprop);
+cpropNew = handles.labelTLInfo.getCurProp();
+if cpropNew ~= cprop,
+  set(hObject,'Value',cpropNew);
+end
 hlpRemoveFocus(hObject,handles);
 
 function pumInfo_CreateFcn(hObject, eventdata, handles)
@@ -4601,82 +4699,18 @@ function menu_track_tracking_algorithm_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-function menu_view_landmark_colors_Callback(hObject, eventdata, handles)
-
-function menu_view_landmark_label_colors_Callback(hObject, eventdata, handles)
-
+function menu_view_landmark_colors_Callback(hObject, eventdata)
+handles = guidata(hObject);
 lObj = handles.labelerObj;
-nlandmarks = max(lObj.labeledposIPt2Set);
-
-% get colors, colormapname, pvmarker, pvtext, txtoffset
-lppi = lObj.labelPointsPlotInfo;
-if isfield(lppi,'Colors')
-  colors = lppi.Colors;
-else
-  colors = [];
-end
-colormapname = lppi.ColorMapName;      
-pvmarker = lppi.MarkerProps;
-pvtext = lppi.TextProps;
-txtoffset = lppi.TextOffset;
-      
-applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'lbl',varargin{:});
-[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
-  'lbl',applyCbkFcn,pvmarker,pvtext,txtoffset);
+cbkApply = @(varargin)hlpApplyCosmetics(lObj,varargin{:});
+[ischange,savedres] = LandmarkColors(lObj,cbkApply);
 if ischange
-  applyCbkFcn(savedres.colors,savedres.colormapname,...
-    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
+  cbkApply(savedres.colorSpecs,savedres.markerSpecs);
 end
 
-function hlpApplyCosmetics(lObj,lblsOrPreds,clrs,clrmap,clrsapplyboth,...
-  pvmarker,pvtext,textoffset)
-
-switch lblsOrPreds
-  case 'lbl'
-    colormeth = 'updateLandmarkLabelColors';
-    cosmeticmeth = 'updateLandmarkLabelCosmetics';
-  case 'pred'
-    colormeth = 'updateLandmarkPredictionColors';
-    cosmeticmeth = 'updateLandmarkPredictionCosmetics';
-  otherwise
-    assert(false);
-end
-
-% colors
-if clrsapplyboth
-  lObj.updateLandmarkLabelColors(clrs,clrmap);
-  lObj.updateLandmarkPredictionColors(clrs,clrmap);
-else
-  lObj.(colormeth)(clrs,clrmap);  
-end
-
-% markers/txt
-lObj.(cosmeticmeth)(pvmarker,pvtext,textoffset);
-
-function menu_view_landmark_prediction_colors_Callback(hObject, eventdata, handles)
-
-lObj = handles.labelerObj;
-nlandmarks = max(lObj.labeledposIPt2Set);
-
-pppi = lObj.predPointsPlotInfo;
-if isfield(pppi,'Colors')
-  colors = pppi.Colors;
-else
-  colors = [];
-end
-colormapname = pppi.ColorMapName;
-pvmarker = pppi.MarkerProps;
-pvtext = pppi.TextProps;
-txtoffset = pppi.TextOffset;
-
-applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'pred',varargin{:});
-
-[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
-  'pred',applyCbkFcn,pvmarker,pvtext,txtoffset);
-if ischange
-  applyCbkFcn(savedres.colors,savedres.colormapname,...
-    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
-end
+function hlpApplyCosmetics(lObj,colorSpecs,mrkrSpecs)
+lObj.updateLandmarkColors(colorSpecs);
+lObj.updateLandmarkCosmetics(mrkrSpecs);
 
 function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 
@@ -4776,7 +4810,9 @@ end
 % pos0 = get(hparent,'Position');
 % set(hparent,'Units',oldunits);
 
+warnst = warning('off','MATLAB:imagesci:png:libraryWarning');
 im = imread(splashimfilename);
+warning(warnst);
 sz = size(im);
 sz = sz(1:2);
 

@@ -25,7 +25,7 @@ classdef AxisHUD < handle
     tgtFmt = 'tgt: %d';
     lblPointFmt = 'Lbl pt: %d/%d';
     suspFmt = 'susp: %.10g';
-    trkletFmt = 'trklet: %d/%d';
+    trkletFmt = 'trklet: %d (%d tot)';
   end
   
   properties
