@@ -391,15 +391,6 @@ class Tracklet:
   This sparsification is efficient if each target has a single dense interval of frames for which
   it has data.
   """
-  data = [] # data values, list with one nd-array per target
-  startframes = None # 1-d array of first frame for each target
-  endframes = None # 1-d array of last frame for each target
-  size_rest = None # size fields before nframes and ntargets
-  dtype = float # data type
-  defaultval = np.nan # default value for sparsifying
-  ntargets = 0 # number of targets
-  max_startframes = None
-  min_endframes = None
 
   # size property is defined based on size_rest, T, and ntargets
   @property
@@ -437,6 +428,16 @@ class Tracklet:
     return self.endframes - self.startframes + 1
   
   def __init__(self,size=None,ntargets=None,defaultval=None,**kwargs):
+    
+    self.data = [] # data values, list with one nd-array per target
+    self.startframes = None # 1-d array of first frame for each target
+    self.endframes = None # 1-d array of last frame for each target
+    self.size_rest = None # size fields before nframes and ntargets
+    self.dtype = float # data type
+    self.defaultval = np.nan # default value for sparsifying
+    self.ntargets = 0 # number of targets
+    self.max_startframes = None
+    self.min_endframes = None
     
     for key,val in kwargs.items():
       if hasattr(self,key):
