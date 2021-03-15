@@ -391,15 +391,6 @@ class Tracklet:
   This sparsification is efficient if each target has a single dense interval of frames for which
   it has data.
   """
-  data = [] # data values, list with one nd-array per target
-  startframes = None # 1-d array of first frame for each target
-  endframes = None # 1-d array of last frame for each target
-  size_rest = None # size fields before nframes and ntargets
-  dtype = float # data type
-  defaultval = np.nan # default value for sparsifying
-  ntargets = 0 # number of targets
-  max_startframes = None
-  min_endframes = None
 
   # size property is defined based on size_rest, T, and ntargets
   @property
@@ -437,6 +428,16 @@ class Tracklet:
     return self.endframes - self.startframes + 1
   
   def __init__(self,size=None,ntargets=None,defaultval=None,**kwargs):
+    
+    self.data = [] # data values, list with one nd-array per target
+    self.startframes = None # 1-d array of first frame for each target
+    self.endframes = None # 1-d array of last frame for each target
+    self.size_rest = None # size fields before nframes and ntargets
+    self.dtype = float # data type
+    self.defaultval = np.nan # default value for sparsifying
+    self.ntargets = 0 # number of targets
+    self.max_startframes = None
+    self.min_endframes = None
     
     for key,val in kwargs.items():
       if hasattr(self,key):
@@ -544,6 +545,7 @@ class Tracklet:
     :param endframes: array of length ntargets indicating the last frame of each target's tracklet
     :param defaultval: default value for sparsification. Default = None: use self.defaultval.
     :param docopy: Whether to make a copy of the data, or use the direct pointer
+    :param ismatlab: whether to convert from matlab (1-indexed, fortran-order) indexing, values
     :return:
     """
     
@@ -587,6 +589,7 @@ class Tracklet:
     gettarget(self,itgts)
     Returns data for the input targets and all frames.
     :param itgts: Scalar, list, or 1-d array of targets.
+    :param T: output size in frames. If None, this object's T parameter, max(endframes)+1, will be used.
     :return: p: nlandmarks x d x T x len(itgts) with data.
     """
     
@@ -780,19 +783,24 @@ class Tracklet:
     """
     getdense(self,tomatlab=False)
     Returns a dense version of the tracklet data.
+    :param T: output size in frames. If None, this object's T1 parameter, max(endframes), and T0 will be used to determine T.
+    :param T0: first frame of dense matrix to return. Default: None (see consolidate for default behavior).
+    :param consolidate: if consolidate==True, return a dense matrix starting at T0=min(startframes). Otherwise, start at
+    T0=0. This parameter is only relevant if T0 is not specified. Default: True.
     :param tomatlab: whether to convert to matlab (1-indexed) values
     :return: size_rest x T x ntargets dense version of input.
     """
-    if T is None:
+    
+    if T0 is None:
       if consolidate:
-        if T0 is None:
-          T0 = self.T0
-        T1 = self.T1
-        T = T1-T0+1
+        T0 = self.T0
       else:
-        T = self.T
-        if T0 is None:
-          T0 = 0
+        T0 = 0
+    
+    if T is None:
+      T1 = self.T1
+      T = T1-T0+1
+
     p = converttracklet2dense(self.data,self.startframes-T0,self.endframes-T0,T,defaultval=self.defaultval,**kwargs)
     return p,T0
 
@@ -801,6 +809,7 @@ class Tracklet:
     getsparse(self,tomatlab=False)
     Returns a sparse matrix version of the tracklet data.
     :param tomatlab: whether to convert to matlab (1-indexed) values
+    :param T: output size in frames. If None, this object's T parameter, max(endframes)+1 will be used.
     :return: sparse matrix version of input, dict with entries idx, val, size, and type.
     """
     if T is None:
@@ -1010,23 +1019,6 @@ class Tracklet:
     
 
 class Trk:
-  trkfile=None # File from which data is loaded
-  pTrk=None # tracking data
-  pTrkTS=None # timestamp data
-  pTrkTag=None # tag (occlusion) data
-  pTrkiTgt=None # 1-d array of target ids
-  issparse=False # storage format
-  nlandmarks = 0 # number of landmarks
-  d = 2 # dimensionality of coordinates
-  ntargets = 0 # number of targets
-  T0 = 0 # first frame this data corresponds to
-  trkData = {} # other data read from trkfile
-  
-  # for sparse format data
-  defaultval = np.nan # default value when sparse
-  defaultval_TS = -np.inf
-  defaultval_Tag = False
-  sparse_type = 'tracklet' # type of sparse storing used, this should always be tracklet right now
   
   @property
   def startframes(self):
@@ -1087,6 +1079,25 @@ class Trk:
     :param size: size of data to store, initialize
     :param kwargs: Can set any other attributes this way
     """
+    
+    self.trkfile=None # File from which data is loaded
+    self.pTrk=None # tracking data
+    self.pTrkTS=None # timestamp data
+    self.pTrkTag=None # tag (occlusion) data
+    self.pTrkiTgt=None # 1-d array of target ids
+    self.issparse=False # storage format
+    self.nlandmarks = 0 # number of landmarks
+    self.d = 2 # dimensionality of coordinates
+    self.ntargets = 0 # number of targets
+    self.T0 = 0 # first frame this data corresponds to
+    self.trkData = {} # other data read from trkfile
+  
+    # for sparse format data
+    self.defaultval = np.nan # default value when sparse
+    self.defaultval_TS = -np.inf
+    self.defaultval_Tag = False
+    self.sparse_type = 'tracklet' # type of sparse storing used, this should always be tracklet right now
+    
     for key,val in kwargs.items():
       if hasattr(self,key):
         setattr(self,key,val)
@@ -1321,6 +1332,7 @@ class Trk:
     """
     Save data in sparse format to file outtrkfile.
     :param outtrkfile: Name of file to save to.
+    :param consolidate: Whether to update startframes and endframes to be tight around non-default value data.
     :return:
     """
 
@@ -2037,6 +2049,8 @@ def test_Trk_class():
 
   testtypes = ['getmethods','matrixconversion','trackletconversion','conversion','trackletset','save']
   testtypes = ['trackletset']
+  
+  mat_trkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_trn20210311T111656_iter40000_20210312T102037_mov1_vwj1.trk'
 
   #saveformat = 'full'
   #saveformat = 'sparse'
@@ -2048,7 +2062,7 @@ def test_Trk_class():
   
   if 'getmethods' in testtypes:
     
-    for trkfile in [sparse_trkfile,dense_trkfile]:
+    for trkfile in [mat_trkfile,sparse_trkfile,dense_trkfile]:
 
       trk = Trk(trkfile)
       if TSandTag_wrongdefaultval:
@@ -2068,7 +2082,7 @@ def test_Trk_class():
 
   if 'conversion' in testtypes:
   
-    for trkfile in [dense_trkfile,sparse_trkfile]:
+    for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       trk = Trk(trkfile)
       trk1 = Trk(trkfile)
       if TSandTag_wrongdefaultval:
@@ -2337,7 +2351,7 @@ def test_Trk_class():
     
   if 'save' in testtypes:
 
-    for trkfile in [dense_trkfile,sparse_trkfile]:
+    for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       for saveformat in ['tracklet','sparse','dense']:
         
         if trk.trkfile != trkfile:
