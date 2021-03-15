@@ -2873,10 +2873,11 @@ def classify_movie(conf, pred_fn, model_type,
         write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
         trk = lnk.link(pred_locs)
         trk.T0 = start_frame
-        trk.save(out_file,saveformat='tracklet')
+        out_file_tracklet = out_file
+        trk.save(out_file_tracklet, saveformat='tracklet')
     else:
         write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-    if os.path.exists(out_file + '.part'):
+    if os.path.exists(out_file + '.part') and not conf.is_multi:
         os.remove(out_file + '.part')
     cap.close()
     tf.reset_default_graph()
