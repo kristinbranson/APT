@@ -110,9 +110,11 @@ class coco_loader(torch.utils.data.Dataset):
             if not (a['image_id']==item):
                 continue
             locs = np.array(a['keypoints'])
-            locs = np.reshape(locs,[conf.n_classes,3])
-            curl[lndx,...] = locs
-            lndx += 1
+            if a['num_keypoints']>0:
+                locs = np.reshape(locs, [conf.n_classes, 3])
+                if ~np.all(np.isnan(locs[:,2])):
+                    curl[lndx,...] = locs
+                    lndx += 1
             annos.append(a)
 
         curl = np.array(curl)
@@ -142,7 +144,7 @@ class coco_loader(torch.utils.data.Dataset):
         for obj in anno:
             if 'segmentation' in obj:
                 if obj['iscrowd']:
-                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],img_info['height'], img_info['width'])
+                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
                     m += xtcocotools.mask.decode(rle)
                 else:
                     rles = xtcocotools.mask.frPyObjects(
@@ -425,9 +427,9 @@ class PoseCommon_pytorch(object):
             o = time.time()
             labels = self.create_targets(inputs)
             valid = torch.any(torch.all(inputs['locs'] > -1000, dim=3), dim=2)
-            if not torch.all(torch.any(valid, dim=1)):
-                print('Some inputs dont have any labels')
-                continue
+            # if not torch.all(torch.any(valid, dim=1)):
+            #     print('Some inputs dont have any labels')
+            #     continue
 
             t = time.time()
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:

@@ -315,14 +315,16 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     assert len(xmaplist) == nMAPstg
 
     scale_hires = conf.op_label_scale // dc_scale  # downsample scale of hires (postDC) relative to network input
-    for ndx, xp in enumerate(xpaflist):
-        xpaflist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
-    for ndx, xp in enumerate(xmaplist):
-        xmaplist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
-    for ndx, xp in enumerate(xmaplistDC):
-        xmaplistDC[ndx] = xp*mask_input[:,::scale_hires,::scale_hires,None]
+    mask_low_res = mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    mask_high_res = mask_input[:,::scale_hires,::scale_hires,None]
+    # for ndx, xp in enumerate(xpaflist):
+    #     xpaflist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    # for ndx, xp in enumerate(xmaplist):
+    #     xmaplist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    # for ndx, xp in enumerate(xmaplistDC):
+    #     xmaplistDC[ndx] = xp*mask_input[:,::scale_hires,::scale_hires,None]
 
-    outputs = xpaflist + xmaplist + xmaplistDC
+    outputs = xpaflist + xmaplist + xmaplistDC +[mask_low_res,mask_high_res]
 
     # w1 = apply_mask(stage1_branch1_out, paf_weight_input, 1, 1)
     # w2 = apply_mask(stage1_branch2_out, map_weight_input, 1, 2)
@@ -330,7 +332,7 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
-def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None):
+def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None,use_mask=True):
     '''
     
     :param model: 
@@ -343,14 +345,21 @@ def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_w
     :return: losses, loss_weights. both dicts whose keys are .names of model.outputs
     '''
 
-    def eucl_loss(x, y):
-        return K.sum(K.square(x - y)) /  2.  # not sure why norm by bsize nec
+    def eucl_loss(x, y, mask = None, use_mask=True):
+        diff = K.square(x - y)
+        if use_mask and (mask is not None):
+            loss = K.sum(diff*mask) /  2.
+        else:
+            loss = K.sum(diff) / 2.
+        return loss
 
     losses = {}
     loss_weights = {}
     loss_weights_vec = []
 
-    outs = model.outputs
+    outs = model.outputs[:-2]
+    masks = model.outputs[-2:]
+    # this is fantastically ugly.
     lyrs = model.layers
     for o in outs:
         # Not sure how to get from output Tensor to its layer. Using
@@ -358,13 +367,14 @@ def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_w
         olyrname = [l.name for l in lyrs if l.output == o]
         assert len(olyrname) == 1, "Found multiple layers for output."
         key = olyrname[0]
-        losses[key] = eucl_loss
 
         if "postDC" in key:
+            losses[key] = lambda x, y: eucl_loss(x, y, masks[1],use_mask=use_mask)
             assert dc_on, "Found post-deconv layer"
             # left alone, L2 loss will be ~dc_blur_rad_ratio**2 larger for hi-res wrt lo-res
             loss_weights[key] = float(dc_wtfac) / float(dc_blur_rad_ratio)**2
         else:
+            losses[key] = lambda x, y: eucl_loss(x, y, masks[0],use_mask=use_mask)
             loss_weights[key] = 1.0
 
         logging.info('Configured loss for output name {}, loss_weight={}'.format(key, loss_weights[key]))
@@ -585,7 +595,7 @@ def update_op_graph(op_graph):
     return  new_graph
 
 
-def training(conf, name='deepnet'):
+def training(conf, name='deepnet',restore=False):
 
     # base_lr = conf.op_base_lr
     base_lr = conf.get('op_base_lr',4e-5) * conf.get('learning_rate_multiplier',1.)
@@ -635,6 +645,13 @@ def training(conf, name='deepnet'):
                 layer.set_weights(vgg_model.get_layer(vgg_layer_name).get_weights())
                 logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
 
+    if restore:
+        latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
+        logging.info("Loading the weights from {}.. ".format(latest_model_file))
+        model.load_weights(latest_model_file)
+        last_iter = re.search(f'{name}-(\d*)$',latest_model_file).groups()[0]
+        last_epoch = int(last_iter)//iterations_per_epoch
+
     # prepare generators
     PREPROCFN = 'ims_locs_preprocess_openpose'
     trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
@@ -653,7 +670,7 @@ def training(conf, name='deepnet'):
     losses, loss_weights, loss_weights_vec = \
         configure_losses(model, dc_on=conf.op_hires,
                          dc_blur_rad_ratio=conf.op_map_hires_blur_rad / conf.op_map_lores_blur_rad,
-                         dc_wtfac=2.5)
+                         dc_wtfac=2.5,use_mask=conf.is_multi&conf.multi_loss_mask)
 
     def lr_decay(epoch):  # epoch is 0-based
         initial_lrate = base_lr
@@ -701,7 +718,7 @@ def training(conf, name='deepnet'):
             lr = K.eval(self.model.optimizer.lr)
 
             # dist only for last MAP layer (will be hi-res if deconv is on)
-            predhmval = val_out[-1]
+            predhmval = val_out[-3]
             predhmval = clip_heatmap_with_warn(predhmval)
             # (bsize, npts, 2), (x,y), 0-based
 
@@ -719,7 +736,7 @@ def training(conf, name='deepnet'):
                                         # *self.config.op_label_scale
 
             # NOTE train_dist uses argmax
-            tt1 = PoseTools.get_pred_locs(train_out[-1]) - \
+            tt1 = PoseTools.get_pred_locs(train_out[-3]) - \
                   PoseTools.get_pred_locs(train_y[-1])
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
             train_dist = np.nanmean(tt1) # *self.config.op_label_scale
@@ -792,7 +809,7 @@ def training(conf, name='deepnet'):
     logging.info("Your model.metrics_names are {}".format(model.metrics_names))
 
     # save initial model
-    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
+    # model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
 
     model.fit_generator(train_di,
                         steps_per_epoch=iterations_per_epoch,

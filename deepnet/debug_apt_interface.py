@@ -1,3 +1,123 @@
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"tfrecord\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True  multi_crop_ims True rrange 180 trange 30 is_multi True max_n_animals 7 -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_openpose -name alice_neg_split_crop_ims_openpose_multi -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache -skip_db'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True multi_crop_ims True rrange 180 trange 30 is_multi True max_n_animals 7 -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_mdn_joint_torch -name alice_neg_split_grone_multi -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache -skip_db'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+# %run reuse
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20201225T042233_20201225T042235.lbl'
+
+n_pairs = [['multi_openpose','openpose']]
+curp = n_pairs[0]
+net_type = curp[0] #'multi_mdn_joint_torch' #'multi_mmpose' #
+train_name = 'deepnet'
+
+run_name = f'roian_split_crop_ims_{curp[1]}_multi'
+conf = apt.create_conf(lbl_file,0,run_name,net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+# conf.batch_size = 4 if net_type == 'multi_openpose' else 8
+db_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_multi/val_TF.json'
+conf.db_format = 'coco'
+conf.max_n_animals = 2
+conf.imsz = (1024*2,1024*2) #(288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet' #'higherhrnet_2x'#
+conf.is_multi = True
+conf.op_affinity_graph = ((0,1),(0,2),(0,3))
+conf.batch_size = 2
+conf.rescale = 1
+conf.background_mask_sel_rate = 1.1
+info =[3,3,3]
+T = pt.json_load('/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split.json')
+im = cv2.imread('/nrs/branson/mayank/apt_cache_2/four_points_180806/'+T['locdata'][0]['img'][0],cv2.IMREAD_UNCHANGED)
+cur_pts = np.array(T['locdata'][0]['pabs']).reshape([2,4,2]).transpose([2,1,0])
+occ = np.array(T['locdata'][0]['occ']).reshape([4,-1]).transpose([1,0])
+
+
+##
+mcase = 'far2'
+debug = True
+plt.close('all')
+if mcase == 'overlap':
+    extra_roi = np.array([[
+        [ 820.36679812, 286.26984163],
+        [ 820.36679812, 2587.13256204],
+        [2173.98770493, 2587.13256204],
+        [2173.98770493, 286.26984163]]])
+elif mcase =='full':
+    extra_roi = np.array( [[[0, 0], [0, 2048], [2048, 2048], [2048, 0]]])
+elif mcase =='fit':
+    extra_roi = np.array( [[[1290, 190],
+                            [1290, 500],
+                            [1400, 500],
+                            [1400, 190]]])
+elif mcase == 'far':
+    extra_roi = np.array( [[[1190, 1090],
+                            [1190, 1200],
+                            [500, 1200],
+                            [500, 1090]]])
+
+elif mcase == 'far2':
+    extra_roi = np.array( [[[1190, 1090],
+                            [1190, 1200],
+                            [500, 1200],
+                            [500, 1090]],
+                           [[1190, 1290],
+                            [1190, 1400],
+                            [500, 1400],
+                            [500, 1290]]
+                           ])
+
+roi = np.array(T['locdata'][0]['roi']).reshape([2,4,-1]).transpose([2,1,0])
+conf.multi_frame_sz = [2048,2048]
+conf.imsz = [640,640]
+
+if debug:
+    roim = apt.create_mask(roi,conf.multi_frame_sz)
+    eroim = apt.create_mask(extra_roi,conf.multi_frame_sz)
+    f = plt.figure();
+    plt.imshow(im*(roim|eroim),'gray')
+
+all_data = apt.create_ma_crops(conf,np.tile(im[...,None],[1,1,3]),cur_pts,info,occ,roi,extra_roi)
+
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+
+if debug:
+    f1,ax = plt.subplots(int(np.ceil(len(all_data)/2)),2)
+    ax = ax.flatten()
+    for ndx, a in enumerate(all_data):
+        mm = apt.create_mask(a['roi'],conf.imsz)
+        if a['extra_roi'] is not None:
+            mm = mm| apt.create_mask(a['extra_roi'],conf.imsz)
+        ax[ndx].imshow(a['im']*mm[:,:,None])
+        ax[ndx].axis('off')
+
+    plt.figure(f.number)
+    plt.axis('off')
+    for a in all_data:
+        xx = [a['x_left'],a['x_left'],a['x_left']+conf.imsz[1],a['x_left']+conf.imsz[1],a['x_left']]
+        yy = [a['y_top'],a['y_top']+conf.imsz[0],a['y_top']+conf.imsz[0],a['y_top'],a['y_top']]
+        plt.plot(xx,yy)
+
 ##
 ix = 1127
 im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')

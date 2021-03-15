@@ -33,7 +33,7 @@ class Pose_openpose(object):
         self.conf = conf
 
     def train_wrapper(self, restore=False):
-        op.training(self.conf, self.name)
+        op.training(self.conf, self.name, restore=restore)
 
     def get_pred_fn(self,model_file=None):
         return op.get_pred_fn(self.conf,model_file=model_file,name=self.name)

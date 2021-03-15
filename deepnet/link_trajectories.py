@@ -536,7 +536,7 @@ def link(pred_locs):
   nframes_test = np.inf
 
   locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
-  ts = np.ones_like(locs_lnk[0, ...]) * apt.datetime2matlabdn()
+  ts = np.ones_like(locs_lnk[:,0, ...]) * apt.datetime2matlabdn()
   tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
   trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
 

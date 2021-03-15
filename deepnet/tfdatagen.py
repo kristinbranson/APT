@@ -334,6 +334,8 @@ def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmap
     targets = [label_paf_lores, ] * npafstg + [label_map_lores, ] * nmapstg
     if conf.op_hires:
         targets.append(label_map_hires)
+    if mask is None:
+        mask = np.ones_like(ims[...,0])
 
     return ims, locs, targets, mask
 

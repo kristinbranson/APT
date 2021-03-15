@@ -54,6 +54,13 @@ def nansum(v,*args,**kwargs):
     v[is_nan] = 0.
     return v.sum(*args,**kwargs)
 
+def nanmin(v):
+    k = v[~torch.isnan(v)]
+    if k.size()[0] == 0:
+        return torch.ones(device=v.device)*np.nan
+    else:
+        return torch.min(v)
+
 def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.FrozenBatchNorm2d, trainable_layers=3):
     """
     From torchvision backbone utils.
@@ -190,6 +197,13 @@ class mdn_joint(nn.Module):
         return locs_j_off, wts_j, locs_r_off, wts_r
 
 
+def unravel_index(index, shape):
+    out = []
+    for dim in reversed(shape):
+        out.append(index % dim)
+        index = index // dim
+    return tuple(reversed(out))
+
 class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,**kwargs):
@@ -289,7 +303,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
 
     def loss(self, preds, labels_dict):
-        labels = labels_dict['locs']
+        labels = labels_dict['locs'].float()
         n_classes = self.conf.n_classes
         offset = self.offset
         locs_joint, wts_joint, locs_ref, wts_ref = preds
@@ -308,6 +322,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         ll_joint_flat = ll_joint.reshape([ll_joint.shape[0], self.k_j * ls[-1] * ls[-2]])
         valid = torch.any(torch.all(labels > -1000, dim=3), dim=2)
         valid_lbl = labels[...,0] > -1000
+        missing = torch.all(~valid,1)
         # assert torch.all(torch.any(valid,dim=1)), 'Some inputs dont have any labels'
 
         dd = torch.norm(locs_joint_flat * offset - labels.unsqueeze(2), dim=-1)
@@ -333,7 +348,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss)).sum(axis=-1)
         wt_loss_all = (1.-assign.sum(axis=-1))**2
         cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all)).sum(axis=-1)
-        loss_wt = 1- cur_wt_loss/valid.sum(axis=-1)
+
+        # when an example has no animal, use a different path.
+        logit_sum = ll_joint_flat.sum(-1)
+        logit_err = logit_sum**2
+        cur_wt_loss = torch.where(missing,logit_err,cur_wt_loss)
+
+        loss_wt = 1- cur_wt_loss/(valid.sum(axis=-1)+0.01)
         loss_wt = torch.clamp(loss_wt,0.01,1).detach()
 
         joint_loss = cur_pred_loss*loss_wt #/ self.offset
@@ -389,7 +410,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
     def get_joint_pred(self,preds):
         n_max = self.conf.max_n_animals
         n_min = self.conf.min_n_animals
-        locs_joint, logits_joint, locs_ref, logits_ref = self.to_numpy(preds)
+        locs_joint, logits_joint, locs_ref, logits_ref = preds
         locs_joint = locs_joint
         bsz = locs_joint.shape[0]
         n_classes = locs_joint.shape[1]
@@ -398,18 +419,18 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         locs_offset = self.offset
         k_ref = locs_ref.shape[-3]
         k_joint = locs_joint.shape[-3]
-        ll_joint_flat = np.reshape(logits_joint,[-1,k_joint*n_x_j*n_y_j])
+        ll_joint_flat = logits_joint.reshape([-1,k_joint*n_x_j*n_y_j])
         locs_ref = locs_ref * locs_offset / self.ref_scale
 
-        preds_ref = np.ones([bsz,n_max, n_classes,2]) * np.nan
-        conf_ref = np.ones([bsz,n_max,n_classes])
-        preds_joint = np.ones([bsz,n_max, n_classes,2]) * np.nan
-        conf_joint = np.ones([bsz,n_max])
+        preds_ref = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
+        conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)
+        preds_joint = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
+        conf_joint = torch.ones([bsz,n_max],device=self.device)
         match_dist = self.conf.multi_match_dist
         for ndx in range(bsz):
             # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
             # n_preds = np.clip(n_preds,n_min,np.inf)
-            ids = np.argsort(-ll_joint_flat[ndx,:])
+            ids = (-ll_joint_flat[ndx,:]).topk(n_max*5)[1]
             done_count = 0
             cur_n = 0
             while done_count < n_max:
@@ -419,23 +440,29 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 if ll_joint_flat[ndx,sel_ex] < 0 and done_count >= n_min:
                     break
 
-                idx = np.unravel_index(sel_ex, [k_joint,n_y_j, n_x_j])
-                curp = locs_joint[ndx,...,idx[0],idx[1],idx[2]].copy() * locs_offset
-                dprev = np.linalg.norm(preds_joint[ndx,...]-curp[np.newaxis,...],axis=-1).mean(-1)
-                if ( not np.all(np.isnan(dprev))) and (np.nanmin(dprev) < match_dist):
+                idx = unravel_index(sel_ex, [k_joint,n_y_j, n_x_j])
+                curp = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
+                dprev = torch.norm(preds_joint[ndx,...]-curp[None,...],dim=-1).mean(-1)
+                if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < match_dist):
                     continue
-                preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]].copy() * locs_offset
-                conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]].copy()
+                preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
+                conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]]
                 for cls in range(n_classes):
-                    mm = np.round(locs_joint[ndx,cls,:,idx[0],idx[1], idx[2]]*self.ref_scale).astype('int')
-                    mm_y = np.clip(mm[1],0,n_y_r-1)
-                    mm_x = np.clip(mm[0],0,n_x_r-1)
-                    pt_selex = np.argmax(logits_ref[ndx,cls,:,mm_y,mm_x])
+                    rpred = locs_joint[ndx,cls,:,idx[0],idx[1], idx[2]]*self.ref_scale
+                    mm = torch.round(rpred).int()
+                    mm_y = torch.clamp(mm[1],0,n_y_r-1)
+                    mm_x = torch.clamp(mm[0],0,n_x_r-1)
+                    pt_selex = logits_ref[ndx,cls,:,mm_y,mm_x].argmax()
                     cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y,mm_x]
-                    preds_ref[ndx,done_count,cls,:] = cur_pred.copy()
+                    preds_ref[ndx,done_count,cls,:] = cur_pred
                     conf_ref[ndx,done_count,cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
 
                 done_count += 1
+
+        preds_ref = preds_ref.detach().cpu().numpy().copy()
+        preds_joint = preds_joint.detach().cpu().numpy().copy()
+        conf_ref = conf_ref.detach().cpu().numpy().copy()
+        conf_joint = conf_joint.detach().cpu().numpy().copy()
 
         return {'ref':preds_ref,'joint':preds_joint,'conf_joint':conf_joint,'conf_ref':conf_ref}
 
