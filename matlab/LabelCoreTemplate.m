@@ -399,10 +399,10 @@ classdef LabelCoreTemplate < LabelCore
         end
         
         obj.iPtMove = nan;
-        obj.tfMoved = false;
         if obj.state==LabelState.ACCEPTED && ~isnan(iPt) && obj.tfMoved,
           obj.storeLabels();
         end
+        obj.tfMoved = false;
       end
     end
     

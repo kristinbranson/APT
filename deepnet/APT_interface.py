@@ -1838,7 +1838,7 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_
         # py3 and py2 compatible
         for k in ret_dict_b.keys():
             retval = ret_dict_b[k]
-            if k not in ret_dict.keys() and (retval.ndim == 3 or retval.ndim == 2):
+            if k not in ret_dict.keys() and (retval.ndim >= 1):
                 # again only nrows_pred rows are filled
                 assert retval.shape[0] == bsize, \
                     "Unexpected output shape {} for key {}".format(retval.shape, k)
@@ -1853,13 +1853,17 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_
             cur_trx = trx[trx_ndx]
             for k in ret_dict_b.keys():
                 retval = ret_dict_b[k]
-                if retval.ndim == 4:  # hmaps
-                    pass
-                elif retval.ndim == 3 or retval.ndim == 2:
+                #if retval.ndim == 4:  # hmaps
+                #    pass
+                if retval.ndim >= 1:
                     cur_orig = retval[cur_t, ...]
                     if k.startswith('locs'):  # transform locs
-                        assert retval.ndim == 3
-                        cur_orig = convert_to_orig(cur_orig, conf, cur_f, cur_trx, crop_loc)
+                        if retval.ndim == 3:
+                            cur_orig = convert_to_orig(cur_orig, conf, cur_f, cur_trx, crop_loc)
+                        else:
+                            # ma
+                            # TODO: ma + crops
+                            pass
                     ret_dict[k][cur_start + cur_t, ...] = cur_orig
                 else:
                     logging.info("Ignoring return value '{}' with shape {}".format(k, retval.shape))
@@ -1873,7 +1877,7 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_
                 # output n frames tracked to file
                 write_n_tracked_part_file(n_done,part_file)
                 start_time = curr_time
-            
+
     return ret_dict
 
 def write_n_tracked_part_file(n_done,part_file):
@@ -2033,6 +2037,9 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
         logging.info('Done prediction on {} out of {} GT labeled frames'.format(n_done,len(in_list)))
         if part_file is not None:
             write_n_tracked_part_file(n_done,part_file)
+
+    if 'conf' not in ret_dict_all:
+        ret_dict_all['conf'] = vars(conf)
 
     logging.info('Done prediction on all frames')
     lbl.close()
@@ -2865,7 +2872,8 @@ def classify_movie(conf, pred_fn, model_type,
         # write out partial results before linking.
         write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
         trk = lnk.link(pred_locs)
-        trk.save(out_file)
+        trk.T0 = start_frame
+        trk.save(out_file,saveformat='tracklet')
     else:
         write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
     if os.path.exists(out_file + '.part'):

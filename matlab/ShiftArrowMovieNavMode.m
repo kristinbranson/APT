@@ -49,8 +49,8 @@ classdef ShiftArrowMovieNavMode
             tffound = false;
             f = nan;
           else
-            lpos = tObj.getTrackingResultsCurrMovie();
-            [tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+            lpos = tObj.getTrackingResultsCurrMovieTgt();
+            [tffound,f] = Labels.seekBigLpos(lpos,f0,dir);
           end
         otherwise
           assert(false);

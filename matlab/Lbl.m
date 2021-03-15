@@ -57,19 +57,34 @@ classdef Lbl
       %
       % packdir: package dir (contains images)
 
-      [scargs,ttlargs] = myparse(varargin,...
+      [scargs,ttlargs,frms,locg] = myparse(varargin,...
         'scargs',{16}, ...
-        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
+        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'}, ...
+        'frms', [], ... % opt; frames (indices into locg.locdata) to viz
+        'locg', [] ... %  opt; preloaded locg/json
         );
       
-      [~,~,~,locg] = Lbl.loadPack(packdir);
+      if isempty(locg)
+        [~,~,~,locg] = Lbl.loadPack(packdir);
+      end
 
       hfig = figure(11);
       
-      nfrm = numel(locg.locdata);
-      for ifrm=1:nfrm
-        s = locg.locdata(ifrm);
+      if isempty(frms)
+        nfrm = numel(locg.locdata);      
+        frms = 1:nfrm;
+      end
+      for ifrm=frms(:)'
+        if iscell(locg.locdata)
+          s = locg.locdata{ifrm};
+        else
+          s = locg.locdata(ifrm);
+        end
         imf = fullfile(packdir,s.img);
+        if iscell(imf)
+          assert(isscalar(imf));
+          imf = imf{1};
+        end
         im = imread(imf);
         
         clf;
@@ -84,6 +99,13 @@ classdef Lbl
           scatter(xy(:,1),xy(:,2),scargs{:});
           plot(s.roi([1:4 1],itgt),s.roi([5:8 5],itgt),'r-','linewidth',2);
         end
+        
+        if isfield(s,'extra_roi')
+          nroi = size(s.extra_roi,2);
+          for j=1:nroi
+            plot(s.extra_roi([1:4 1],j),s.extra_roi([5:8 5],j),'b-','linewidth',2);
+          end
+        end        
         
         tstr = sprintf('%s: %d tgts',s.id,s.ntgt);
         title(tstr,ttlargs{:});
@@ -153,8 +175,17 @@ classdef Lbl
       % formats.
        
       dd = dir(fullfile(packdir,'*.lbl'));
-      assert(isscalar(dd));
-      lblsf = fullfile(packdir,dd.name);
+      if ~isscalar(dd)
+        lbln = {dd.name}';
+        lbln = sort(lbln);
+        warningNoTrace('%d .lbl files found. Using: %s',numel(lbln),lbln{end});
+        lblsf = lbln{end};
+      else
+        lblsf = dd.name;
+        fprintf(1,'Using lbl: %s\n',lblsf);
+      end
+        
+      lblsf = fullfile(packdir,lblsf);
       slbl = load(lblsf,'-mat');
       fprintf(1,'loaded %s\n',lblsf);
       
@@ -203,7 +234,7 @@ classdef Lbl
       tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
       slbl = tObj.trnCreateStrippedLbl();
       slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
-      jslbl = Lbl.jsonifyStrippedLbl(slbl);
+      [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
       
       fsinfo = lObj.projFSInfo;
       [lblP,lblS] = myfileparts(fsinfo.filename);

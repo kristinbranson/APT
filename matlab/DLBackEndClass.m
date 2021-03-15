@@ -14,7 +14,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-    currentDockerImgTag = 'tf1.15_py3_20201027';
+    currentDockerImgTag = 'pytorch_mmpose';
+    
+    RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
+
+    jrchost = 'login1.int.janelia.org';
+    jrcprefix = 'source /etc/profile';
+    jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
   end
   properties
     type  % scalar DLBackEnd
@@ -26,8 +32,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     %
     % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
     deepnetrunlocal = true; 
-    bsubaptroot = []; % root of APT repo for bsub backend running 
-    
+    bsubaptroot = []; % root of APT repo for bsub backend running     
+    jrcsimplebindpaths = 0; 
+        
     awsec2 % used only for type==AWS
     awsgitbranch
     
@@ -39,6 +46,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     dockerremotehost = '';
     gpuids = []; % for now used by docker/conda
     dockercontainername = []; % transient
+    %dockershmsize = 512; % in m; passed in --shm-size
     
     condaEnv = 'APT'; % used only for Conda
   end
@@ -361,7 +369,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function [tfsucc,hedit] = testBsubConfig(cacheDir,varargin)
       tfsucc = false;
-      [host] = myparse(varargin,'host',DeepTracker.jrchost);
+      [host] = myparse(varargin,'host',DLBackEndClass.jrchost);
       
       [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
       hedit.String = {sprintf('%s: Testing JRC cluster backend...',datestr(now))};
@@ -540,14 +548,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       %   filequote as returned by obj.getFileQuoteDockerCodeGen
       
       DFLTBINDPATH = {};
-      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach] = ...
+      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,...
+        shmSize] = ...
         myparse(varargin,...
         'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
         'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
-        'detach',true ...
+        'detach',true, ...
+        'shmsize',[] ... optional
         );
       
       aptdeepnet = APT.getpathdl;
@@ -612,6 +622,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         detachstr = '-i';
       end
       
+      otherargs = cell(0,1);
+      if ~isempty(shmSize)
+        otherargs{end+1,1} = sprintf('--shm-size=%dG',shmSize);
+      end
+      
       codestr = [
         {
         dockercmd
@@ -624,6 +639,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         mountArgs(:);
         gpuArgs(:);
         userArgs(:);
+        otherargs(:);
         {
         '-w'
         [filequote deepnetrootContainer filequote]
@@ -641,7 +657,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function [tfsucc,hedit] = testDockerConfig(obj)
       tfsucc = false;
-      %[host] = myparse(varargin,'host',DeepTracker.jrchost);
 
       [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Docker Configuration');      
       hedit.String = {sprintf('%s: Testing Docker Configuration...',datestr(now))}; 
