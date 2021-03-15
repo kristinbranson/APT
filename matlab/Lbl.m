@@ -57,19 +57,34 @@ classdef Lbl
       %
       % packdir: package dir (contains images)
 
-      [scargs,ttlargs] = myparse(varargin,...
+      [scargs,ttlargs,frms,locg] = myparse(varargin,...
         'scargs',{16}, ...
-        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
+        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'}, ...
+        'frms', [], ... % opt; frames (indices into locg.locdata) to viz
+        'locg', [] ... %  opt; preloaded locg/json
         );
       
-      [~,~,~,locg] = Lbl.loadPack(packdir);
+      if isempty(locg)
+        [~,~,~,locg] = Lbl.loadPack(packdir);
+      end
 
       hfig = figure(11);
       
-      nfrm = numel(locg.locdata);
-      for ifrm=1:nfrm
-        s = locg.locdata(ifrm);
+      if isempty(frms)
+        nfrm = numel(locg.locdata);      
+        frms = 1:nfrm;
+      end
+      for ifrm=frms(:)'
+        if iscell(locg.locdata)
+          s = locg.locdata{ifrm};
+        else
+          s = locg.locdata(ifrm);
+        end
         imf = fullfile(packdir,s.img);
+        if iscell(imf)
+          assert(isscalar(imf));
+          imf = imf{1};
+        end
         im = imread(imf);
         
         clf;
@@ -84,6 +99,13 @@ classdef Lbl
           scatter(xy(:,1),xy(:,2),scargs{:});
           plot(s.roi([1:4 1],itgt),s.roi([5:8 5],itgt),'r-','linewidth',2);
         end
+        
+        if isfield(s,'extra_roi')
+          nroi = size(s.extra_roi,2);
+          for j=1:nroi
+            plot(s.extra_roi([1:4 1],j),s.extra_roi([5:8 5],j),'b-','linewidth',2);
+          end
+        end        
         
         tstr = sprintf('%s: %d tgts',s.id,s.ntgt);
         title(tstr,ttlargs{:});
