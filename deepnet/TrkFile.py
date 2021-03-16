@@ -2084,7 +2084,6 @@ def test_Trk_class():
   sparse_trkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2_kbstitched.trk'
 
   testtypes = ['getmethods','matrixconversion','trackletconversion','conversion','trackletset','save']
-  
   mat_trkfile = '/groups/branson/bransonlab/apt/tmp/march_12_10k_tracklet.trk'
 
   #saveformat = 'full'
@@ -2222,7 +2221,7 @@ def test_Trk_class():
       
       # test convert dense to tracklet
       print('testing convert dense to tracklet...')
-      trk.convert2dense()
+      trk.convert2dense(consolidate=False)
   
       xti_py,startframes,endframes,nframes,sz = convertdense2tracklet(to_mat(trk.pTrk),defaultval=trk.defaultval,ismatlab=True)
       xdense = converttracklet2dense(xti_py,startframes,endframes,sz[-2],defaultval=trk.defaultval,tomatlab=False)
