@@ -1,4 +1,4 @@
-function save_tracklet(trx,matfile,ts)
+function save_tracklet(trx,matfile)
 
 % if nargin < 3,
 %   d = 2;

@@ -2083,8 +2083,10 @@ def test_Trk_class():
   # sparse
   sparse_trkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2_kbstitched.trk'
 
-  testtypes = ['getmethods','matrixconversion','trackletconversion','conversion','trackletset','save']
+  # tracklet saved from matlab
   mat_trkfile = '/groups/branson/bransonlab/apt/tmp/march_12_10k_tracklet.trk'
+
+  testtypes = ['getmethods','matrixconversion','trackletconversion','conversion','trackletset','save']
 
   #saveformat = 'full'
   #saveformat = 'sparse'
@@ -2095,6 +2097,8 @@ def test_Trk_class():
   targets = np.array([0,2])
   
   if 'getmethods' in testtypes:
+    
+    print('** getmethods **')
     
     for trkfile in [mat_trkfile,sparse_trkfile,dense_trkfile]:
 
@@ -2119,6 +2123,8 @@ def test_Trk_class():
       print('passed')
 
   if 'conversion' in testtypes:
+  
+    print('** conversion **')
   
     for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       trk = Trk(trkfile)
@@ -2165,6 +2171,8 @@ def test_Trk_class():
     
   if 'matrixconversion' in testtypes:
     
+    print('** matrixconversion **')
+
     for trkfile in [mat_trkfile,sparse_trkfile]:
       trk = Trk(trkfile)
       
@@ -2294,6 +2302,8 @@ def test_Trk_class():
     
   if 'trackletconversion' in testtypes:
     
+    print('** trackletconversion **')
+    
     for trkfile in [mat_trkfile,sparse_trkfile]:
       trk = Trk(trkfile)
       if TSandTag_wrongdefaultval:
@@ -2313,21 +2323,21 @@ def test_Trk_class():
       xsparse_mat = trk.pTrk.getsparse(tomatlab=True)
       xti_py = Tracklet(defaultval=np.nan)
       xti_py.setdata(xsparse_mat,ismatlab=True)
-      xdense,_ = xti_py.getdense(tomatlab=False)
+      xdense,_ = xti_py.getdense(tomatlab=False,consolidate=False)
       xconvert = xdense[:,:,:,targets][:,:,frames,...]
   
       if trk.pTrkTS is not None:
         tssparse_mat = trk.pTrkTS.getsparse(tomatlab=True)
         tsti_py = Tracklet(defaultval=-np.inf)
         tsti_py.setdata(tssparse_mat,ismatlab=True)
-        tsdense,_ = tsti_py.getdense(tomatlab=False)
+        tsdense,_ = tsti_py.getdense(tomatlab=False,consolidate=False)
         tsconvert = tsdense[:,:,targets][:,frames,...]
   
       if trk.pTrkTag is not None:
         tagsparse_mat = trk.pTrkTag.getsparse(tomatlab=True)
         tagti_py = Tracklet(defaultval=False)
         tagti_py.setdata(tagsparse_mat,ismatlab=True)
-        tagdense,_ = tagti_py.getdense(tomatlab=False)
+        tagdense,_ = tagti_py.getdense(tomatlab=False,consolidate=False)
         tagconvert = tagdense[:,:,targets][:,frames,...]
   
       assert np.all(equals_nan(x0,xconvert))
@@ -2340,14 +2350,14 @@ def test_Trk_class():
       
       # test convert tracklet to dense
       print('testing convert tracklet to dense...')
-      xdense_mat,_ = trk.pTrk.getdense(tomatlab=True)
+      xdense_mat,_ = trk.pTrk.getdense(tomatlab=True,consolidate=False)
       xconvert = to_py(xdense_mat[:,:,:,targets][:,:,frames,...])
       
       if trk.pTrkTS is not None:
-        tsdense_mat,_ = trk.pTrkTS.getdense(tomatlab=True)
+        tsdense_mat,_ = trk.pTrkTS.getdense(tomatlab=True,consolidate=False)
         tsconvert = to_py(tsdense_mat[:,:,targets][:,frames,...])
       if trk.pTrkTag is not None:
-        tagdense_mat,_ = trk.pTrkTag.getdense(tomatlab=True)
+        tagdense_mat,_ = trk.pTrkTag.getdense(tomatlab=True,consolidate=False)
         tagconvert = to_py(tagdense_mat[:,:,targets][:,frames,...])
   
       assert np.all(equals_nan(x0,xconvert))
@@ -2382,11 +2392,11 @@ def test_Trk_class():
       
       # test convert dense to tracklet
       print('testing convert dense to tracklet...')
-      trk.convert2dense()
+      trk.convert2dense(consolidate=False)
   
       xti_py = Tracklet(defaultval=np.nan)
       xti_py.setdata(to_mat(trk.pTrk),ismatlab=True)
-      xdense,T0 = xti_py.getdense(tomatlab=False)
+      xdense,T0 = xti_py.getdense(tomatlab=False,consolidate=False)
       xconvert = xdense[:,:,:,targets][:,:,frames,...]
   
       if trk.pTrkTS is not None:
@@ -2409,8 +2419,7 @@ def test_Trk_class():
       print('passed')
 
   if 'trackletset' in testtypes:
-
-    print('testing tracklet set methods')
+    print('** trackletset **')
     for trkfile in [mat_trkfile,sparse_trkfile,dense_trkfile]:
       print('trkfile = %s'%trkfile)
       trk = Trk(trkfile)
@@ -2451,6 +2460,8 @@ def test_Trk_class():
       print('passed')
       
   if 'save' in testtypes:
+
+    print('** save **')
 
     for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       for saveformat in ['tracklet','sparse','dense']:
