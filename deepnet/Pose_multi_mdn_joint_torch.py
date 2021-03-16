@@ -430,7 +430,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         for ndx in range(bsz):
             # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
             # n_preds = np.clip(n_preds,n_min,np.inf)
-            ids = (-ll_joint_flat[ndx,:]).topk(n_max*5)[1]
+            ids = ll_joint_flat[ndx,:].topk(n_max*5)[1]
             done_count = 0
             cur_n = 0
             while done_count < n_max:
