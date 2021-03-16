@@ -1286,6 +1286,70 @@ def show_crops(im, all_data,roi, extra_roi, conf):
         plt.plot(xx,yy)
 
 
+def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
+
+    lbl = h5py.File(conf.labelfile, 'r')
+    occ_as_nan = conf.get('ignore_occluded',False)
+    T = PoseTools.json_load(conf.json_trn_file)
+    nfrms = len(T['locdata'])
+
+    splits = [[] for a in T['splitnames']]
+    count = [0 for a in T['splitnames']]
+
+    # KB 20190208: if we only need a few images, don't waste time reading in all of them
+    if nsamples is not None:
+        T['locdata'] = T['locdata'][np.random.choice(nfrms,nsamples)]
+    else:
+        sel = np.arange(len(T['locdata']))
+
+    pack_dir = os.path.split(conf.json_trn_file)[0]
+    for selndx,cur_t in enumerate(T['locdata']):
+
+        cur_frame = cv2.imread(os.path.join(pack_dir,cur_t['img'][conf.view]),cv2.IMREAD_UNCHANGED)
+        if cur_frame.ndim == 2:
+            cur_frame = cur_frame[..., np.newaxis]
+        cur_locs =np.array(cur_t['pabs'])-1
+        ntgt = cur_t['ntgt']
+        cur_locs = cur_locs.reshape([conf.nviews,2,conf.n_classes,ntgt])
+        cur_locs = np.transpose(cur_locs[conf.view,...],[2,1,0])
+
+        cur_occ = np.array(cur_t['occ'])
+        cur_occ = cur_occ.reshape([conf.nviews,conf.n_classes,ntgt])
+        cur_occ = cur_occ[conf.view,:]
+        cur_occ = np.transpose(cur_occ, [1, 0])
+        cur_occ = cur_occ.astype('float')
+
+        sndx = cur_t['split']
+        if type(sndx) == list:
+            sndx = sndx[0]
+        cur_out = out_fns[sndx]
+
+        for ndx in range(len(cur_locs)):
+            info = to_py([cur_t['imov'],cur_t['frm'],ndx+1])
+            ht_locs = cur_locs[ndx,conf.ht_pts, :].copy()
+            ht_ctr = ht_locs.mean(axis=0)
+            theta = np.arctan2(ht_locs[0,0]-ht_locs[1,0],ht_locs[0,1]-ht_locs[1,1])
+            cur_patch = multiResData.crop_patch_trx(conf,cur_frame,ht_ctr[0],ht_ctr[1],theta)
+
+            curl = cur_locs[ndx].copy()
+            if occ_as_nan:
+                curl[cur_occ[ndx],:] = np.nan
+
+            data_out = {'im':cur_patch, 'locs':curl, 'info':info,'occ':cur_occ[ndx,]}
+            cur_out(data_out)
+
+            count[sndx] += 1
+            splits[sndx].append(info)
+
+            if selndx % 100 == 99 and selndx > 0:
+                logging.info('{} number of examples added to the dbs'.format(count))
+
+    logging.info('{} number of examples added to the training dbs'.format(count))
+    lbl.close()
+
+    return splits, sel
+
+
 def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
     # Creates db from new trnpack format instead of stripped label files.
     # outputs is a list of functions. The first element writes
