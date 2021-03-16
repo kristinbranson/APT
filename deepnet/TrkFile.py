@@ -453,6 +453,10 @@ class Tracklet:
     if defaultval is not None:
       self.setdefaultval(defaultval)
       
+  @staticmethod
+  def isTracklet(trk):
+    return isinstance(trk,dict) and 'startframes' in trk.keys()
+      
   def allocate(self,size_rest,startframes,endframes):
     self.max_startframes = startframes.copy()
     self.min_endframes = endframes.copy()
@@ -507,7 +511,7 @@ class Tracklet:
       self.setdefaultval(defaultval)
     if isinstance(data,dict):
       self.setdata_sparse(data,**kwargs)
-    elif isinstance(data,np.ndarray):
+    elif isinstance(data,np.ndarray) and not data.dtype.hasobject:
       self.setdata_dense(data,**kwargs)
     else:
       self.setdata_tracklet(data,*args,defaultval=self.defaultval,**kwargs)
@@ -548,6 +552,13 @@ class Tracklet:
     :param ismatlab: whether to convert from matlab (1-indexed, fortran-order) indexing, values
     :return:
     """
+    
+    if isinstance(data,np.ndarray):
+      data = list(map(lambda x: x.item(),data))
+    if startframes.ndim > 1:
+      startframes = startframes.flatten()
+    if endframes.ndim > 1:
+      endframes = endframes.flatten()
     
     if ismatlab:
       self.data = to_py(data)
@@ -1198,8 +1209,8 @@ class Trk:
     self.trkfile = trkfile
     trk=hdf5storage.loadmat(trkfile,appendmat=False)
     # trk will be dict for sparse matrix, list for tracklet, ndarray for dense
-    self.issparse = not isinstance(trk['pTrk'],np.ndarray)
-    istracklet = isinstance(trk['pTrk'],list)
+    istracklet = Tracklet.isTracklet(trk)
+    self.issparse = istracklet or not isinstance(trk['pTrk'],np.ndarray)
 
     if 'pTrkFrm' in trk.keys():
       assert np.all(np.diff(trk['pTrkFrm'],axis=1)==1),'pTrkFrm should be consecutive frames'
@@ -1217,13 +1228,14 @@ class Trk:
     if 'pTrkTS' in trk and isinstance(trk['pTrkTS'],np.ndarray) and np.any(np.isnan(trk['pTrkTS'])):
       print('Warning: nans found in pTrkTS. Default value is -inf. Changing nans to -inf.')
       trk['pTrkTS'][np.isnan(trk['pTrkTS'])] = self.defaultval_TS
-    if 'pTrkTag' in trk and isinstance(trk['pTrkTag'],np.ndarray) and np.any(np.isnan(trk['pTrkTag'])):
+    if not self.issparse and np.any(np.isnan(trk['pTrkTag'])):
       print('Warning: nans found in pTrkTag. Default value is False. Changing nans to False.')
       trk['pTrkTag'][np.isnan(trk['pTrkTag'])] = self.defaultval_Tag
       
     if istracklet:
 
       self.pTrk = Tracklet(defaultval=self.defaultval)
+      
       self.pTrk.setdata(trk['pTrk'],startframes=trk['startframes'],endframes=trk['endframes'],ismatlab=True)
       self.size = self.pTrk.size
       self.nlandmarks = self.size[0]
@@ -1293,12 +1305,12 @@ class Trk:
 
     for key,val in trk.items():
       
-      if key in ['pTrk','pTrkFrm','pTrkTS','pTrkTag','pTrkiTgt']:
+      if key in ['pTrk','pTrkFrm','pTrkTS','pTrkTag','pTrkiTgt','startframes','endframes']:
         continue
         
       self.trkData[key] = val
       
-  def save(self,outtrkfile,saveformat=None):
+  def save(self,outtrkfile,saveformat=None,consolidate=True):
     """
     Save data in format saveformat to output file outtrkfile.
     :param outtrkfile: Name of file to save to.
@@ -1321,7 +1333,7 @@ class Trk:
     elif saveformat == 'tracklet':
       self.savetracklet(outtrkfile)
     else:
-      self.savefull(outtrkfile)
+      self.savefull(outtrkfile,consolidate=consolidate)
       
   @staticmethod
   def pTrkFrm(T0, T1):
@@ -1413,7 +1425,7 @@ class Trk:
 
     hdf5storage.savemat(outtrkfile,trkData,appendmat=False,truncate_existing=True)
   
-  def savefull(self,outtrkfile):
+  def savefull(self,outtrkfile,consolidate=True):
     """
     savefull(self,outtrkfile):
     Save data for these tracks to the output file outtrkfile in dense format.
@@ -1423,7 +1435,11 @@ class Trk:
     
     trkData = self.trkData.copy()
     if self.issparse:
-      T0 = self.pTrk.T0
+      
+      if consolidate:
+        T0 = self.pTrk.T0
+      else:
+        T0 = 0
       T1 = self.pTrk.T1
       trkData['pTrk'],_ = self.pTrk.getdense(tomatlab=True,T0=T0,T=T1-T0+1)
       #trkData['pTrk'] = converttracklet2dense(self.pTrk,self.startframes,self.endframes,self.T,defaultval=self.defaultval,tomatlab=True)
@@ -1431,7 +1447,7 @@ class Trk:
         trkData['pTrkTS'],_ = self.pTrkTS.getdense(tomatlab=True,T0=T0,T=T1-T0+1)
         #trkData['pTrkTS']=converttracklet2dense(self.pTrkTS,self.startframes,self.endframes,self.T,defaultval=-np.inf,tomatlab=True)
       if self.pTrkTag is not None:
-        trkData['pTrkTag'],_ = self.pTrkTag.getdense(tomatlab=True,T0=T0,T=T1-T0+1)
+        trkData['pTrkTag'],_ = self.pTrkTag.getdense(tomatlab=True,T0=T0,T=T1-T0+1,consolidate=consolidate)
         #trkData['pTrkTag']=converttracklet2dense(self.pTrkTag,self.startframes,self.endframes,self.T,defaultval=False,tomatlab=True)
       #to_mat(self.getfull())
     else:
@@ -1479,8 +1495,14 @@ class Trk:
     if not extra:
       return p
 
-    ts = self.pTrkTS.getframe(fs)
-    tag = self.pTrkTag.getframe(fs)
+    if self.pTrkTS is None:
+      ts = None
+    else:
+      ts = self.pTrkTS.getframe(fs)
+    if self.pTrkTag is None:
+      tag = None
+    else:
+      tag = self.pTrkTag.getframe(fs)
     
     return p,ts,tag
     
@@ -1542,8 +1564,11 @@ class Trk:
     if not extra:
       return p
     
-    ts = self.pTrkTS.gettarget(itgts)
-    tag = self.pTrkTag.gettarget(itgts)
+    if self.pTrkTS is not None:
+      ts = self.pTrkTS.gettarget(itgts)
+      
+    if self.pTrkTag is not None:
+      tag = self.pTrkTag.gettarget(itgts)
 
     return p,ts,tag
 
@@ -1605,8 +1630,10 @@ class Trk:
     if not extra:
       return p
     
-    ts = self.pTrkTS.gettargetframe(targets,frames)
-    tag = self.pTrkTag.gettargetframe(targets,frames)
+    if self.pTrkTS is not None:
+      ts = self.pTrkTS.gettargetframe(targets,frames)
+    if self.pTrkTag is not None:
+      tag = self.pTrkTag.gettargetframe(targets,frames)
     
     return p,ts,tag
 
@@ -1697,7 +1724,7 @@ class Trk:
       if tag is not None:
         self.pTrkTag[:,fs,:] = tag
   
-  def getfull(self):
+  def getfull(self,T0=None,consolidate=False):
     """
     getfull(self)
     Returns the full version of the pTrk matrix.
@@ -1705,10 +1732,12 @@ class Trk:
     """
     
     if self.issparse:
-      x,_ = self.pTrk.getdense()
-      return x
+      x,T0 = self.pTrk.getdense(T0=T0,consolidate=consolidate)
+      return x,T0
     else:
-      return self.pTrk
+      assert T0 is None or T0 == self.T0
+      assert T0 == 0 or consolidate == False
+      return self.pTrk,self.T0
     #p = self.gettarget(np.arange(self.ntargets))
     #return p
   
@@ -1783,6 +1812,7 @@ class Trk:
       self.pTrkTag,_ = self.pTrkTag.getdense(T0=T0,T=self.pTrk.shape[2])
       #self.pTrkTag=converttracklet2dense(self.pTrkTag,self.startframes-self.T0,self.endframes-self.T0,self.T,defaultval=False)
     self.issparse = False
+    self.T0 = T0
     #self.startframes=None
     #self.endframes=None
     #self.nframes = None
@@ -1900,6 +1930,12 @@ class Trk:
       startframes = startframes + self.T0
       endframes = endframes + self.T0
       return startframes,endframes
+    
+  def get_frame_range(self):
+    startframes,endframes = self.get_startendframes()
+    T0 = np.min(startframes)
+    T1 = np.max(endframes)
+    return T0,T1
   
   def fixTSTagDefaults(self):
     """
@@ -2048,28 +2084,31 @@ def test_Trk_class():
   sparse_trkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_full_min2_kbstitched.trk'
 
   testtypes = ['getmethods','matrixconversion','trackletconversion','conversion','trackletset','save']
-  testtypes = ['trackletset']
   
-  mat_trkfile = '/groups/branson/bransonlab/apt/tmp/200918_m170234vocpb_m170234_odor_m170232_f0180322_trn20210311T111656_iter40000_20210312T102037_mov1_vwj1.trk'
+  mat_trkfile = '/groups/branson/bransonlab/apt/tmp/march_12_10k_tracklet.trk'
 
   #saveformat = 'full'
   #saveformat = 'sparse'
   # whether TS and Tag are stored with nan default value
   TSandTag_wrongdefaultval = True
   
-  frames = np.arange(100,110)
+  frames0 = np.arange(100,110)
   targets = np.array([0,2])
   
   if 'getmethods' in testtypes:
     
     for trkfile in [mat_trkfile,sparse_trkfile,dense_trkfile]:
 
+      print('testing get* methods, trkfile = %s,'%trkfile)
+
       trk = Trk(trkfile)
       if TSandTag_wrongdefaultval:
         trk.fixTSTagDefaults()
     
-      print('testing get* methods, issparse = %d, trkfile = %s'%(trk.issparse,trkfile))
-      p = trk.getfull()
+      T0,T1 = trk.get_frame_range()
+      frames = frames0 + T0
+      print('issparse = %d'%trk.issparse)
+      p,T0 = trk.getfull(consolidate=False)
       p1 = trk.getframe(frames)
       assert np.all(equals_nan(p1,p[:,:,frames,:]))
     
@@ -2085,13 +2124,17 @@ def test_Trk_class():
     for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       trk = Trk(trkfile)
       trk1 = Trk(trkfile)
+      
+      T0,T1 = trk.get_frame_range()
+      frames = frames0 + T0
+      
       if TSandTag_wrongdefaultval:
         trk.fixTSTagDefaults()
       if TSandTag_wrongdefaultval:
         trk1.fixTSTagDefaults()
       
       if trk1.issparse:
-        trk1.convert2dense()
+        trk1.convert2dense(consolidate=False)
         print('testing Trk class conversion from sparse to dense (trkfile = %s)'%trkfile)
       else:
         trk1.convert2sparse()
@@ -2099,268 +2142,329 @@ def test_Trk_class():
         
       p,ts,tag = trk.getframe(frames,extra=True)
       p1,ts1,tag1 = trk1.getframe(frames,extra=True)
-      assert np.all(equals_nan(p1,p)) and np.all(equals_nan(ts1,ts)) and np.all(equals_nan(tag1,tag))
+      assert np.all(equals_nan(p1,p))
+      if ts is not None:
+        assert np.all(equals_nan(ts1,ts))
+      if tag is not None:
+        assert np.all(equals_nan(tag1,tag))
       
       p,ts,tag = trk.gettarget(targets,extra=True)
       p1,ts1,tag1 = trk1.gettarget(targets,extra=True)
-      assert np.all(equals_nan(p1,p)) and np.all(equals_nan(ts1,ts)) and np.all(equals_nan(tag1,tag))
+      assert np.all(equals_nan(p1,p))
+      if ts is not None:
+        assert np.all(equals_nan(ts1,ts))
+      if tag is not None:
+        assert np.all(equals_nan(tag1,tag))
     
       p,ts,tag=trk.gettargetframe(targets,frames,extra=True)
       p1,ts1,tag1=trk1.gettargetframe(targets,frames,extra=True)
-      assert np.all(equals_nan(p1,p)) and np.all(equals_nan(ts1,ts)) and np.all(equals_nan(tag1,tag))
+      assert np.all(equals_nan(p1,p))
+      if ts is not None:
+        assert np.all(equals_nan(ts1,ts))
+      if tag is not None:
+        np.all(equals_nan(tag1,tag))
     
   if 'matrixconversion' in testtypes:
     
-    trkfile = sparse_trkfile
-    trk = Trk(trkfile)
-    if TSandTag_wrongdefaultval:
-      trk.fixTSTagDefaults()
-
-    if not trk.issparse:
-      trk.convert2sparse()
+    for trkfile in [mat_trkfile,sparse_trkfile]:
+      trk = Trk(trkfile)
       
-    # test convert tracklet to dense
-    print('testing convert tracklet to dense...')
-    xdense_mat = converttracklet2dense(trk.pTrk.data,trk.startframes,trk.endframes,trk.T,trk.defaultval,tomatlab=True)
-    xconvert = to_py(xdense_mat[:,:,:,targets][:,:,frames,...])
-    tsdense_mat = converttracklet2dense(trk.pTrkTS.data,trk.startframes,trk.endframes,trk.T,-np.inf,tomatlab=True)
-    tsconvert = to_py(tsdense_mat[:,:,targets][:,frames,...])
-    tagdense_mat = converttracklet2dense(trk.pTrkTag.data,trk.startframes,trk.endframes,trk.T,False,tomatlab=True)
-    tagconvert = to_py(tagdense_mat[:,:,targets][:,frames,...])
+      T0,T1 = trk.get_frame_range()
+      frames = frames0 + T0
+      
+      if TSandTag_wrongdefaultval:
+        trk.fixTSTagDefaults()
+  
+      if not trk.issparse:
+        trk.convert2sparse()
+        
+      # test convert tracklet to dense
+      print('testing convert tracklet to dense...')
+      xdense_mat = converttracklet2dense(trk.pTrk.data,trk.startframes,trk.endframes,trk.T,trk.defaultval,tomatlab=True)
+      xconvert = to_py(xdense_mat[:,:,:,targets][:,:,frames,...])
+      if trk.pTrkTS is not None:
+        tsdense_mat = converttracklet2dense(trk.pTrkTS.data,trk.startframes,trk.endframes,trk.T,-np.inf,tomatlab=True)
+        tsconvert = to_py(tsdense_mat[:,:,targets][:,frames,...])
+      if trk.pTrkTag is not None:
+        tagdense_mat = converttracklet2dense(trk.pTrkTag.data,trk.startframes,trk.endframes,trk.T,False,tomatlab=True)
+        tagconvert = to_py(tagdense_mat[:,:,targets][:,frames,...])
+  
+      x0,ts0,tag0 = trk.gettargetframe(targets,frames,extra=True)
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      print('passed')
+  
+      # test convert tracklet to sparse
+      print('testing convert tracklet to sparse matrix...')
+      xsparse_mat = converttracklet2sparsematrix(trk.pTrk.data,trk.startframes,trk.T,defaultval=trk.defaultval,tomatlab=True)
+      xdense = convertsparsematrix2dense(xsparse_mat,ismatlab=True)
+      xconvert = xdense[:,:,:,targets][:,:,frames,...]
+  
+      if trk.pTrkTS is not None:
+        tssparse_mat = converttracklet2sparsematrix(trk.pTrkTS.data,trk.startframes,trk.T,defaultval=-np.inf,tomatlab=True)
+        tsdense = convertsparsematrix2dense(tssparse_mat,ismatlab=True)
+        tsconvert = tsdense[:,:,targets][:,frames,...]
+  
+      if trk.pTrkTag is not None:
+        tagsparse_mat = converttracklet2sparsematrix(trk.pTrkTag.data,trk.startframes,trk.T,defaultval=False,tomatlab=True)
+        tagdense = convertsparsematrix2dense(tagsparse_mat,ismatlab=True)
+        tagconvert = tagdense[:,:,targets][:,frames,...]
+      
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      print('passed')
+      
+      # test convert dense to tracklet
+      print('testing convert dense to tracklet...')
+      trk.convert2dense()
+  
+      xti_py,startframes,endframes,nframes,sz = convertdense2tracklet(to_mat(trk.pTrk),defaultval=trk.defaultval,ismatlab=True)
+      xdense = converttracklet2dense(xti_py,startframes,endframes,sz[-2],defaultval=trk.defaultval,tomatlab=False)
+      xconvert = xdense[:,:,:,targets][:,:,frames,...]
+  
+      if trk.pTrkTS is not None:
+        tsti_py,_,_,_,_ = convertdense2tracklet(to_mat(trk.pTrkTS),startframes=startframes,endframes=endframes,ismatlab=True)
+        tsdense = converttracklet2dense(tsti_py,startframes,endframes,sz[-2],defaultval=-np.inf,tomatlab=False)
+        tsconvert = tsdense[:,:,targets][:,frames,...]
+      
+      if trk.pTrkTag is not None:
+        tagti_py,_,_,_,_ = convertdense2tracklet(to_mat(trk.pTrkTag),startframes=startframes,endframes=endframes,ismatlab=True)
+        tagdense = converttracklet2dense(tagti_py,startframes,endframes,sz[-2],defaultval=False,tomatlab=False)
+        tagconvert = tagdense[:,:,targets][:,frames,...]
+  
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      print('passed')
+  
+      # test convert dense to sparse and sparse to dense
+      print('testing convert dense to sparse and sparse back to dense...')
+      xsparse_mat = convertdense2sparsematrix(trk.pTrk,defaultval=trk.defaultval,tomatlab=True)
+      xdense = convertsparsematrix2dense(xsparse_mat,ismatlab=True)
+      xconvert = xdense[:,:,:,targets][:,:,frames,...]
+      
+      if trk.pTrkTS is not None:
+        tssparse_mat = convertdense2sparsematrix(trk.pTrkTS,defaultval=-np.inf,tomatlab=True)
+        tsdense = convertsparsematrix2dense(tssparse_mat,ismatlab=True)
+        tsconvert = tsdense[:,:,targets][:,frames,...]
+  
+      if trk.pTrkTag is not None:
+        tagsparse_mat = convertdense2sparsematrix(trk.pTrkTag,defaultval=False,tomatlab=True)
+        tagdense = convertsparsematrix2dense(tagsparse_mat,ismatlab=True)
+        tagconvert = tagdense[:,:,targets][:,frames,...]
+      
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+  
+      print('passed')
+  
+      # test convert sparse to target interval
+      print('testing convert sparse to tracklet...')
+      xti_py,startframes,endframes,nframes,sz = convertsparse2tracklet(xsparse_mat,ismatlab=True)
+      xdense = converttracklet2dense(xti_py,startframes,endframes,sz[-2],defaultval=trk.defaultval,tomatlab=False)
+      xconvert = xdense[:,:,:,targets][:,:,frames,...]
+      
+      if ts0 is not None:
+        tsti_py,_,_,_,_ = convertsparse2tracklet(tssparse_mat,ismatlab=True,startframes=startframes,endframes=endframes)
+        tsdense = converttracklet2dense(tsti_py,startframes,endframes,sz[-2],defaultval=-np.inf,tomatlab=False)
+        tsconvert = tsdense[:,:,targets][:,frames,...]
 
-    x0,ts0,tag0 = trk.gettargetframe(targets,frames,extra=True)
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    print('passed')
-
-    # test convert tracklet to sparse
-    print('testing convert tracklet to sparse matrix...')
-    xsparse_mat = converttracklet2sparsematrix(trk.pTrk.data,trk.startframes,trk.T,defaultval=trk.defaultval,tomatlab=True)
-    xdense = convertsparsematrix2dense(xsparse_mat,ismatlab=True)
-    xconvert = xdense[:,:,:,targets][:,:,frames,...]
-
-    tssparse_mat = converttracklet2sparsematrix(trk.pTrkTS.data,trk.startframes,trk.T,defaultval=-np.inf,tomatlab=True)
-    tsdense = convertsparsematrix2dense(tssparse_mat,ismatlab=True)
-    tsconvert = tsdense[:,:,targets][:,frames,...]
-
-    tagsparse_mat = converttracklet2sparsematrix(trk.pTrkTag.data,trk.startframes,trk.T,defaultval=False,tomatlab=True)
-    tagdense = convertsparsematrix2dense(tagsparse_mat,ismatlab=True)
-    tagconvert = tagdense[:,:,targets][:,frames,...]
-    
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    print('passed')
-    
-    # test convert dense to tracklet
-    print('testing convert dense to tracklet...')
-    trk.convert2dense()
-
-    xti_py,startframes,endframes,nframes,sz = convertdense2tracklet(to_mat(trk.pTrk),defaultval=trk.defaultval,ismatlab=True)
-    xdense = converttracklet2dense(xti_py,startframes,endframes,sz[-2],defaultval=trk.defaultval,tomatlab=False)
-    xconvert = xdense[:,:,:,targets][:,:,frames,...]
-
-    tsti_py,_,_,_,_ = convertdense2tracklet(to_mat(trk.pTrkTS),startframes=startframes,endframes=endframes,ismatlab=True)
-    tsdense = converttracklet2dense(tsti_py,startframes,endframes,sz[-2],defaultval=-np.inf,tomatlab=False)
-    tsconvert = tsdense[:,:,targets][:,frames,...]
-    
-    tagti_py,_,_,_,_ = convertdense2tracklet(to_mat(trk.pTrkTag),startframes=startframes,endframes=endframes,ismatlab=True)
-    tagdense = converttracklet2dense(tagti_py,startframes,endframes,sz[-2],defaultval=False,tomatlab=False)
-    tagconvert = tagdense[:,:,targets][:,frames,...]
-
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    print('passed')
-
-    # test convert dense to sparse and sparse to dense
-    print('testing convert dense to sparse and sparse back to dense...')
-    xsparse_mat = convertdense2sparsematrix(trk.pTrk,defaultval=trk.defaultval,tomatlab=True)
-    xdense = convertsparsematrix2dense(xsparse_mat,ismatlab=True)
-    xconvert = xdense[:,:,:,targets][:,:,frames,...]
-    
-    tssparse_mat = convertdense2sparsematrix(trk.pTrkTS,defaultval=-np.inf,tomatlab=True)
-    tsdense = convertsparsematrix2dense(tssparse_mat,ismatlab=True)
-    tsconvert = tsdense[:,:,targets][:,frames,...]
-
-    tagsparse_mat = convertdense2sparsematrix(trk.pTrkTag,defaultval=False,tomatlab=True)
-    tagdense = convertsparsematrix2dense(tagsparse_mat,ismatlab=True)
-    tagconvert = tagdense[:,:,targets][:,frames,...]
-    
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-
-    print('passed')
-
-    # test convert sparse to target interval
-    print('testing convert sparse to tracklet...')
-    xti_py,startframes,endframes,nframes,sz = convertsparse2tracklet(xsparse_mat,ismatlab=True)
-    xdense = converttracklet2dense(xti_py,startframes,endframes,sz[-2],defaultval=trk.defaultval,tomatlab=False)
-    xconvert = xdense[:,:,:,targets][:,:,frames,...]
-    
-    tsti_py,_,_,_,_ = convertsparse2tracklet(tssparse_mat,ismatlab=True,startframes=startframes,endframes=endframes)
-    tsdense = converttracklet2dense(tsti_py,startframes,endframes,sz[-2],defaultval=-np.inf,tomatlab=False)
-    tsconvert = tsdense[:,:,targets][:,frames,...]
-    
-    tagti_py,_,_,_,_ = convertsparse2tracklet(tagsparse_mat,ismatlab=True,startframes=startframes,endframes=endframes)
-    tagdense = converttracklet2dense(tagti_py,startframes,endframes,sz[-2],defaultval=False,tomatlab=False)
-    tagconvert = tagdense[:,:,targets][:,frames,...]
-    
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    
-    print('passed')
+      if tag0 is not None:
+        tagti_py,_,_,_,_ = convertsparse2tracklet(tagsparse_mat,ismatlab=True,startframes=startframes,endframes=endframes)
+        tagdense = converttracklet2dense(tagti_py,startframes,endframes,sz[-2],defaultval=False,tomatlab=False)
+        tagconvert = tagdense[:,:,targets][:,frames,...]
+      
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      
+      print('passed')
     
   if 'trackletconversion' in testtypes:
     
-    trkfile = sparse_trkfile
-    trk = Trk(trkfile)
-    if TSandTag_wrongdefaultval:
-      trk.fixTSTagDefaults()
-
-    if not trk.issparse:
-      trk.convert2sparse()
+    for trkfile in [mat_trkfile,sparse_trkfile]:
+      trk = Trk(trkfile)
+      if TSandTag_wrongdefaultval:
+        trk.fixTSTagDefaults()
+  
+      T0,T1 = trk.get_frame_range()
+      frames = frames0 + T0
+  
+      if not trk.issparse:
+        trk.convert2sparse()
+        
+      x0,ts0,tag0 = trk.gettargetframe(targets,frames,extra=True)
       
-    x0,ts0,tag0 = trk.gettargetframe(targets,frames,extra=True)
+      # test convert sparse to target interval
+      print('testing convert sparse to tracklet...')
       
-    # test convert sparse to target interval
-    print('testing convert sparse to tracklet...')
-    
-    xsparse_mat = trk.pTrk.getsparse(tomatlab=True)
-    xti_py = Tracklet(defaultval=np.nan)
-    xti_py.setdata(xsparse_mat,ismatlab=True)
-    xdense,_ = xti_py.getdense(tomatlab=False)
-    xconvert = xdense[:,:,:,targets][:,:,frames,...]
-
-    tssparse_mat = trk.pTrkTS.getsparse(tomatlab=True)
-    tsti_py = Tracklet(defaultval=-np.inf)
-    tsti_py.setdata(tssparse_mat,ismatlab=True)
-    tsdense,_ = tsti_py.getdense(tomatlab=False)
-    tsconvert = tsdense[:,:,targets][:,frames,...]
-    
-    tagsparse_mat = trk.pTrkTag.getsparse(tomatlab=True)
-    tagti_py = Tracklet(defaultval=False)
-    tagti_py.setdata(tagsparse_mat,ismatlab=True)
-    tagdense,_ = tagti_py.getdense(tomatlab=False)
-    tagconvert = tagdense[:,:,targets][:,frames,...]
-
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    
-    print('passed')
-    
-    # test convert tracklet to dense
-    print('testing convert tracklet to dense...')
-    xdense_mat,_ = trk.pTrk.getdense(tomatlab=True)
-    xconvert = to_py(xdense_mat[:,:,:,targets][:,:,frames,...])
-    tsdense_mat,_ = trk.pTrkTS.getdense(tomatlab=True)
-    
-    tsconvert = to_py(tsdense_mat[:,:,targets][:,frames,...])
-    tagdense_mat,_ = trk.pTrkTag.getdense(tomatlab=True)
-    tagconvert = to_py(tagdense_mat[:,:,targets][:,frames,...])
-
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    print('passed')
-
-    # test convert tracklet to sparse
-    print('testing convert tracklet to sparse matrix...')
-    xsparse_mat = trk.pTrk.getsparse(tomatlab=True)
-    xdense = convertsparsematrix2dense(xsparse_mat,ismatlab=True)
-    xconvert = xdense[:,:,:,targets][:,:,frames,...]
-
-    tssparse_mat = trk.pTrkTS.getsparse(tomatlab=True)
-    tsdense = convertsparsematrix2dense(tssparse_mat,ismatlab=True)
-    tsconvert = tsdense[:,:,targets][:,frames,...]
-
-    tagsparse_mat = trk.pTrkTag.getsparse(tomatlab=True)
-    tagdense = convertsparsematrix2dense(tagsparse_mat,ismatlab=True)
-    tagconvert = tagdense[:,:,targets][:,frames,...]
-    
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    print('passed')
-    
-    # test convert dense to tracklet
-    print('testing convert dense to tracklet...')
-    trk.convert2dense()
-
-    xti_py = Tracklet(defaultval=np.nan)
-    xti_py.setdata(to_mat(trk.pTrk),ismatlab=True)
-    xdense,T0 = xti_py.getdense(tomatlab=False)
-    xconvert = xdense[:,:,:,targets][:,:,frames,...]
-
-    tsti_py = Tracklet(defaultval=-np.inf)
-    tsti_py.setdata(to_mat(trk.pTrkTS),ismatlab=True)
-    tsdense,_ = tsti_py.getdense(tomatlab=False,T=xdense.shape[2],T0=T0)
-    tsconvert = tsdense[:,:,targets][:,frames,...]
-    
-    tagti_py = Tracklet(defaultval=False)
-    tagti_py.setdata(to_mat(trk.pTrkTag),ismatlab=True)
-    tagdense,_ = tagti_py.getdense(tomatlab=False,T=xdense.shape[2],T0=T0)
-    tagconvert = tagdense[:,:,targets][:,frames,...]
-
-    assert np.all(equals_nan(x0,xconvert))
-    assert np.all(equals_nan(ts0,tsconvert))
-    assert np.all(equals_nan(tag0,tagconvert))
-    print('passed')
+      xsparse_mat = trk.pTrk.getsparse(tomatlab=True)
+      xti_py = Tracklet(defaultval=np.nan)
+      xti_py.setdata(xsparse_mat,ismatlab=True)
+      xdense,_ = xti_py.getdense(tomatlab=False)
+      xconvert = xdense[:,:,:,targets][:,:,frames,...]
+  
+      if trk.pTrkTS is not None:
+        tssparse_mat = trk.pTrkTS.getsparse(tomatlab=True)
+        tsti_py = Tracklet(defaultval=-np.inf)
+        tsti_py.setdata(tssparse_mat,ismatlab=True)
+        tsdense,_ = tsti_py.getdense(tomatlab=False)
+        tsconvert = tsdense[:,:,targets][:,frames,...]
+  
+      if trk.pTrkTag is not None:
+        tagsparse_mat = trk.pTrkTag.getsparse(tomatlab=True)
+        tagti_py = Tracklet(defaultval=False)
+        tagti_py.setdata(tagsparse_mat,ismatlab=True)
+        tagdense,_ = tagti_py.getdense(tomatlab=False)
+        tagconvert = tagdense[:,:,targets][:,frames,...]
+  
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      
+      print('passed')
+      
+      # test convert tracklet to dense
+      print('testing convert tracklet to dense...')
+      xdense_mat,_ = trk.pTrk.getdense(tomatlab=True)
+      xconvert = to_py(xdense_mat[:,:,:,targets][:,:,frames,...])
+      
+      if trk.pTrkTS is not None:
+        tsdense_mat,_ = trk.pTrkTS.getdense(tomatlab=True)
+        tsconvert = to_py(tsdense_mat[:,:,targets][:,frames,...])
+      if trk.pTrkTag is not None:
+        tagdense_mat,_ = trk.pTrkTag.getdense(tomatlab=True)
+        tagconvert = to_py(tagdense_mat[:,:,targets][:,frames,...])
+  
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      print('passed')
+  
+      # test convert tracklet to sparse
+      print('testing convert tracklet to sparse matrix...')
+      xsparse_mat = trk.pTrk.getsparse(tomatlab=True)
+      xdense = convertsparsematrix2dense(xsparse_mat,ismatlab=True)
+      xconvert = xdense[:,:,:,targets][:,:,frames,...]
+  
+      if trk.pTrkTS is not None:
+        tssparse_mat = trk.pTrkTS.getsparse(tomatlab=True)
+        tsdense = convertsparsematrix2dense(tssparse_mat,ismatlab=True)
+        tsconvert = tsdense[:,:,targets][:,frames,...]
+  
+      if trk.pTrkTag is not None:
+        tagsparse_mat = trk.pTrkTag.getsparse(tomatlab=True)
+        tagdense = convertsparsematrix2dense(tagsparse_mat,ismatlab=True)
+        tagconvert = tagdense[:,:,targets][:,frames,...]
+      
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      print('passed')
+      
+      # test convert dense to tracklet
+      print('testing convert dense to tracklet...')
+      trk.convert2dense()
+  
+      xti_py = Tracklet(defaultval=np.nan)
+      xti_py.setdata(to_mat(trk.pTrk),ismatlab=True)
+      xdense,T0 = xti_py.getdense(tomatlab=False)
+      xconvert = xdense[:,:,:,targets][:,:,frames,...]
+  
+      if trk.pTrkTS is not None:
+        tsti_py = Tracklet(defaultval=-np.inf)
+        tsti_py.setdata(to_mat(trk.pTrkTS),ismatlab=True)
+        tsdense,_ = tsti_py.getdense(tomatlab=False,T=xdense.shape[2],T0=T0)
+        tsconvert = tsdense[:,:,targets][:,frames,...]
+      
+      if trk.pTrkTag is not None:
+        tagti_py = Tracklet(defaultval=False)
+        tagti_py.setdata(to_mat(trk.pTrkTag),ismatlab=True)
+        tagdense,_ = tagti_py.getdense(tomatlab=False,T=xdense.shape[2],T0=T0)
+        tagconvert = tagdense[:,:,targets][:,frames,...]
+  
+      assert np.all(equals_nan(x0,xconvert))
+      if ts0 is not None:
+        assert np.all(equals_nan(ts0,tsconvert))
+      if tag0 is not None:
+        assert np.all(equals_nan(tag0,tagconvert))
+      print('passed')
 
   if 'trackletset' in testtypes:
 
     print('testing tracklet set methods')
-
-    trkfile = sparse_trkfile
-    trk = Trk(trkfile)
-    if TSandTag_wrongdefaultval:
-      trk.fixTSTagDefaults()
-
-    if not trk.issparse:
-      trk.convert2sparse()
-    x0 = trk.pTrk.gettargetframe(targets,frames)
-    x1 = x0*2.
-    trk.pTrk.settargetframe(x1,targets,frames)
-    x2 = trk.pTrk.gettargetframe(targets,frames)
-    assert np.all(equals_nan(x1,x2))
-    
-    y = np.arange(trk.nlandmarks*trk.d*2).reshape((trk.nlandmarks,trk.d,2))
-    sf = trk.startframes[-1]
-    trk.pTrk.settargetframe(y,trk.ntargets-1,np.arange(trk.startframes[-1]-2,trk.startframes[-1],dtype=int))
-    assert trk.startframes[-1] == sf-2
-    
-    sf = trk.startframes[0]
-    ef = trk.endframes[0]
-    y = np.zeros((trk.nlandmarks,trk.d,3))
-    y[:,:,:-1] = np.nan
-    trk.pTrk.settargetframe(y,0,np.arange(trk.startframes[0],trk.startframes[0]+3,dtype=int))
-    assert trk.startframes[0] == sf+2 and trk.endframes[0] == ef
-    y = np.zeros((trk.nlandmarks,trk.d,3))
-    y[:,:,1:] = np.nan
-    trk.pTrk.settargetframe(y,0,np.arange(trk.endframes[0]-2,trk.endframes[0]+1,dtype=int))
-    assert trk.endframes[0] == ef-2 and trk.startframes[0] == sf+2
-    
-    itgt = trk.ntargets # add a target?
-    p = np.random.rand(trk.nlandmarks,trk.d,ef-sf+1)
-    trk.settarget(p,itgt,T0=sf,T1=ef)
-    assert trk.endframes[itgt] == ef and trk.startframes[itgt] == sf
-    
+    for trkfile in [mat_trkfile,sparse_trkfile,dense_trkfile]:
+      print('trkfile = %s'%trkfile)
+      trk = Trk(trkfile)
+      if TSandTag_wrongdefaultval:
+        trk.fixTSTagDefaults()
+  
+      T0,T1 = trk.get_frame_range()
+      frames = frames0 + T0
+  
+      if not trk.issparse:
+        trk.convert2sparse()
+      x0 = trk.pTrk.gettargetframe(targets,frames)
+      x1 = x0*2.
+      trk.pTrk.settargetframe(x1,targets,frames)
+      x2 = trk.pTrk.gettargetframe(targets,frames)
+      assert np.all(equals_nan(x1,x2))
+      
+      y = np.arange(trk.nlandmarks*trk.d*2).reshape((trk.nlandmarks,trk.d,2))
+      sf = trk.startframes[-1]
+      trk.pTrk.settargetframe(y,trk.ntargets-1,np.arange(trk.startframes[-1]-2,trk.startframes[-1],dtype=int))
+      assert trk.startframes[-1] == sf-2
+      
+      sf = trk.startframes[0]
+      ef = trk.endframes[0]
+      y = np.zeros((trk.nlandmarks,trk.d,3))
+      y[:,:,:-1] = np.nan
+      trk.pTrk.settargetframe(y,0,np.arange(trk.startframes[0],trk.startframes[0]+3,dtype=int))
+      assert trk.startframes[0] == sf+2 and trk.endframes[0] == ef
+      y = np.zeros((trk.nlandmarks,trk.d,3))
+      y[:,:,1:] = np.nan
+      trk.pTrk.settargetframe(y,0,np.arange(trk.endframes[0]-2,trk.endframes[0]+1,dtype=int))
+      assert trk.endframes[0] == ef-2 and trk.startframes[0] == sf+2
+      
+      itgt = trk.ntargets # add a target?
+      p = np.random.rand(trk.nlandmarks,trk.d,ef-sf+1)
+      trk.settarget(p,itgt,T0=sf,T1=ef)
+      assert trk.endframes[itgt] == ef and trk.startframes[itgt] == sf
+      print('passed')
+      
   if 'save' in testtypes:
 
     for trkfile in [mat_trkfile,dense_trkfile,sparse_trkfile]:
       for saveformat in ['tracklet','sparse','dense']:
         
-        if trk.trkfile != trkfile:
-          trk = Trk(trkfile)
-          if TSandTag_wrongdefaultval:
-            trk.fixTSTagDefaults()
+        trk = Trk(trkfile)
+        if TSandTag_wrongdefaultval:
+          trk.fixTSTagDefaults()
+        T0,T1 = trk.get_frame_range()
+        frames = frames0 + T0
+
         print('trkfile = %s, trk.issparse = %d, saveformat = %s'%(trkfile,trk.issparse,saveformat))
     
-        trk.save('testsave.trk',saveformat=saveformat)
+        trk.save('testsave.trk',saveformat=saveformat,consolidate=False)
         trk1 = Trk('testsave.trk')
     
         p,ts,tag=trk.getframe(frames,extra=True)
@@ -2368,21 +2472,33 @@ def test_Trk_class():
         # if TSandTag_wrongdefaultval:
         #   ts[np.isnan(ts)] = -np.inf
         #   tag[np.isnan(tag)] = False
-        assert np.all(equals_nan(p1,p)) and np.all(equals_nan(ts1,ts)) and np.all(equals_nan(tag1,tag))
+        assert np.all(equals_nan(p1,p))
+        if ts1 is not None:
+          assert np.all(equals_nan(ts1,ts))
+        if tag1 is not None:
+          assert np.all(equals_nan(tag1,tag))
     
         p,ts,tag=trk.gettarget(targets,extra=True)
         # if TSandTag_wrongdefaultval:
         #   ts[np.isnan(ts)] = -np.inf
         #   tag[np.isnan(tag)] = False
         p1,ts1,tag1=trk1.gettarget(targets,extra=True)
-        assert np.all(equals_nan(p1,p)) and np.all(equals_nan(ts1,ts)) and np.all(equals_nan(tag1,tag))
+        assert np.all(equals_nan(p1,p))
+        if ts1 is not None:
+          assert np.all(equals_nan(ts1,ts))
+        if tag1 is not None:
+          assert np.all(equals_nan(tag1,tag))
     
         p,ts,tag=trk.gettargetframe(targets,frames,extra=True)
         # if TSandTag_wrongdefaultval:
         #   ts[np.isnan(ts)] = -np.inf
         #   tag[np.isnan(tag)] = False
         p1,ts1,tag1=trk1.gettargetframe(targets,frames,extra=True)
-        assert np.all(equals_nan(p1,p)) and np.all(equals_nan(ts1,ts)) and np.all(equals_nan(tag1,tag))
+        assert np.all(equals_nan(p1,p))
+        if ts1 is not None:
+          assert np.all(equals_nan(ts1,ts))
+        if tag1 is not None:
+          assert np.all(equals_nan(tag1,tag))
 
   # ax=plt.subplot(111)
   # for itgt in range(trk.ntargets):
