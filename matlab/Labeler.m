@@ -3697,6 +3697,28 @@ classdef Labeler < handle
           s.labels2GT{imov} = Labels.fromarray(fullfcn(s.labeledpos2GT{imov}));
         end
       end
+      
+      % 20210317 MA use tracklets in labels2 
+      if s.maIsMA
+        for i=1:numel(s.labels2)
+          stmp = s.labels2{i};
+          if ~isfield(stmp,'firstframe')
+            if Labels.hasLbls(stmp)
+              warningNoTrace('Clearing imported tracking results for movie %d. Please re-import.',i);
+            end
+            s.labels2{i} = TrxUtil.newptrx(0,stmp.npts);
+          end
+        end
+        for i=1:numel(s.labels2GT)
+          stmp = s.labels2GT{i};
+          if ~isfield(stmp,'firstframe')
+            if Labels.hasLbls(stmp)
+              warningNoTrace('Clearing imported tracking results for GT movie %d. Please re-import.',i);
+            end
+            s.labels2GT{i} = TrxUtil.newptrx(0,stmp.npts);
+          end
+        end
+      end      
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
@@ -3848,7 +3870,11 @@ classdef Labeler < handle
         %obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         
         obj.(PROPS.LBL){end+1,1} = Labels.new(nlblpts);
-        obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
+        if obj.maIsMA
+          obj.(PROPS.LBL2){end+1,1} = TrxUtil.newptrx(0,nlblpts);
+        else
+          obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
+        end
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
 %         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
