@@ -3784,7 +3784,7 @@ classdef DeepTracker < LabelTracker
               if isempty(tv.ptrx)
                 obj.newLabelerFrame();
               else
-                f0 = tv.ptrx(1).firstframe;
+                f0 = tv.ptrx(1).firstframe; 
                 obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
               end

@@ -1028,6 +1028,8 @@ classdef InfoTimeline < handle
             else
               bodytrx = [];
             end
+            
+            nfrmtot = labeler.nframes;
             if strcmp(ptype,'Labels'),
               s = labeler.labelsGTaware{iMov};
             else
@@ -1041,9 +1043,14 @@ classdef InfoTimeline < handle
                 end
               end
             end
-            nfrmtot = labeler.nframes;
-            [lpos,lpostag] = Labels.getLabelsT(s,iTgt,nfrmtot);
-            lpos = reshape(lpos,size(lpos,1)/2,2,[]);
+            isTrklet = isfield(s,'firstframe');            
+            if isTrklet
+              [lpos,lpostag] = TrxUtil.getLabelsFull(s(iTgt),nfrmtot);
+            else
+              [lpos,lpostag] = Labels.getLabelsT(s,iTgt,nfrmtot);
+              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
+            end
+
             data = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
 
           case 'Predictions'

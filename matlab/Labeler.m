@@ -7656,10 +7656,6 @@ classdef Labeler < handle
       % trkfiles: [Nxnview] cellstr of trk filenames
       % propsFld: 'LBL' or 'LBL2'
   
-      % AL20201222: currently always overwrite 
-%       overwrite = myparse(varargin,...
-%         'overwrite',true ...
-%         );
   
       assert(isa(mIdx,'MovieIndex'));
       
@@ -7676,88 +7672,83 @@ classdef Labeler < handle
           fprintf('MovieSet %d...\n',mIdx(i));
         end
         scell = cell(1,nView);
+        assert(obj.maIsMA && nView==1); % otherwise needs updates; see below
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
-          s = load(tfile,'-mat');
-          s = TrkFile.modernizeStruct(s);
-          
-          if isfield(s,'pTrkiPt')
-            iPt = s.pTrkiPt;
-          else
-            iPt = 1:size(s.pTrk,1);
-          end
-          tfInBounds = 1<=iPt & iPt<=nPhysPts;
-          if any(~tfInBounds)
-            if tfMV
-              error('Labeler:trkImport',...
-                'View %d: trkfile contains information for more points than exist in project (number physical points=%d).',...
-                iVw,nPhysPts);
-            else
-              error('Labeler:trkImport',...
-                'Trkfile contains information for more points than exist in project (number of points=%d).',...
-                nPhysPts);
-            end
-          end
-          if nnz(tfInBounds)<nPhysPts
-            if tfMV
-              warningNoTrace('Labeler:trkImport',...
-                'View %d: trkfile does not contain labels for all points in project (number physical points=%d).',...
-                iVw,nPhysPts);              
-            else
-               warningNoTrace('Labeler:trkImport',...
-                 'Trkfile does not contain information for all points in project (number of points=%d).',...
-                 nPhysPts);
-            end
-          end
-          
-          if isfield(s,'pTrkFrm')
-            frmsTrk = s.pTrkFrm;
-          else
-            frmsTrk = 1:size(s.pTrk,3);
-          end
-          
-          %movnframes = size(lpos,3);
-          tfInBounds = 1<=frmsTrk & frmsTrk<=movnframes;
-          if any(~tfInBounds)
-            warningNoTrace('Labeler:trkImport',...
-              'Trkfile contains information for frames beyond end of movie (number of frames=%d).',...
-              movnframes);
-          end
-%           if nnz(tfInBounds)<movnframes
-%             warningNoTrace('Labeler:trkImport',...
-%               'Trkfile does not contain information for all frames in movie. Frames missing from Trkfile will be unlabeled.');
-%           end
-%           frmsTrkIB = frmsTrk(tfInBounds);
-          
-          if isfield(s,'pTrkiTgt')
-            iTgt = s.pTrkiTgt;
-          else
-            iTgt = 1;
-          end
-%           assert(size(s.pTrk,4)==numel(iTgt));
-%           nTgtProj = size(lpos,4);
-%           tfiTgtIB = 1<=iTgt & iTgt<=nTgtProj;
-%           if any(~tfiTgtIB)
-%             warningNoTrace('Labeler:trkImport',...
-%               'Trkfile contains information for targets not present in movie. Ignoring extra targets.');
-%           end
-%           if nnz(tfiTgtIB)<nTgtProj
-%             warningNoTrace('Labeler:trkImport',...
-%               'Trkfile does not contain information for all targets in movie.');
-%           end
-%           iTgtsIB = iTgt(tfiTgtIB);
-          
-          fprintf(1,'Loading %d frames for %d points, %d targets from trk file:\n  %s.\n',...
-            numel(frmsTrk),numel(iPt),numel(iTgt),tfile);
-        
+          s = TrkFile.load(tfile);
           %displaying when .trk file was last updated
           tfileDir = dir(tfile);
-          disp(['  trk file last modified: ',tfileDir.date])
+          disp(['  trk file last modified: ',tfileDir.date]);
+          
+          if false
+            % TODO AL 20210317: this stuff mostly relates to multiview and
+            % consider putting into TrkFile, or removing, or reconsider 
+            % multiview strategy etc.
+            
+            s = TrkFile.modernizeStruct(s); % this dups TrkFile.load
 
-          scell{iVw} = Labels.fromTrkfile(s);
+            if isfield(s,'pTrkiPt')
+              iPt = s.pTrkiPt;
+            else
+              iPt = 1:size(s.pTrk,1);
+            end
+            tfInBounds = 1<=iPt & iPt<=nPhysPts;
+            if any(~tfInBounds)
+              if tfMV
+                error('Labeler:trkImport',...
+                  'View %d: trkfile contains information for more points than exist in project (number physical points=%d).',...
+                  iVw,nPhysPts);
+              else
+                error('Labeler:trkImport',...
+                  'Trkfile contains information for more points than exist in project (number of points=%d).',...
+                  nPhysPts);
+              end
+            end
+            if nnz(tfInBounds)<nPhysPts
+              if tfMV
+                warningNoTrace('Labeler:trkImport',...
+                  'View %d: trkfile does not contain labels for all points in project (number physical points=%d).',...
+                  iVw,nPhysPts);              
+              else
+                 warningNoTrace('Labeler:trkImport',...
+                   'Trkfile does not contain information for all points in project (number of points=%d).',...
+                   nPhysPts);
+              end
+            end
+
+            if isfield(s,'pTrkFrm')
+              frmsTrk = s.pTrkFrm;
+            else
+              frmsTrk = 1:size(s.pTrk,3);
+            end
+
+            %movnframes = size(lpos,3);
+            tfInBounds = 1<=frmsTrk & frmsTrk<=movnframes;
+            if any(~tfInBounds)
+              warningNoTrace('Labeler:trkImport',...
+                'Trkfile contains information for frames beyond end of movie (number of frames=%d).',...
+                movnframes);
+            end
+
+            if isfield(s,'pTrkiTgt')
+              iTgt = s.pTrkiTgt;
+            else
+              iTgt = 1;
+            end
+
+            fprintf(1,'Loading %d frames for %d points, %d targets from trk file:\n  %s.\n',...
+              numel(frmsTrk),numel(iPt),numel(iTgt),tfile); 
+            
+            scell{iVw} = Labels.fromTrkfile(s);
+          else
+            scell{iVw} = s;
+          end          
         end
         
-        s = Labels.mergeviews(cell2mat(scell));
+        % asserted single-view
+        % s = Labels.mergeviews(cell2mat(scell));
+        assert(obj.nview==1);
+        s = scell{1};
                 
         % AL20201223 matlab indexing/language bug 2020b
         %[iMov,isGT] = mIdx(i).get();
@@ -11218,8 +11209,7 @@ classdef Labeler < handle
             tfile = trkfiles{iMv,iVw};
             if isMA
               assert(isstruct(tfo));
-              trx = tfo;
-              save(tfile,'-mat','trx');
+              save_tracklet(tfo,tfile);
             else
               tfo.save(tfile);
             end
@@ -14183,23 +14173,26 @@ classdef Labeler < handle
       colors = obj.Set2PointColors(obj.predPointsPlotInfo.Colors);
     end
     
-    function labels2TrkVizInit(obj)
+    function labels2TrkVizInit(obj,varargin)
       % Initialize trkViz for .labeledpos2, .trkRes*
+      
+      vizNtrxMax = myparse(varargin,...
+        'vizNtrxMax',20 ...
+        );
       
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
         tv.delete();
       end
       if obj.maIsMA
-        tv = TrackingVisualizerTracklets(obj,10,'labeledpos2');
+        tv = TrackingVisualizerTracklets(obj,vizNtrxMax,'labeledpos2');
         iMov = obj.currMovie;
         if iMov==0
           % none
         else
           PROPS = obj.gtGetSharedProps();
           s = obj.(PROPS.LBL2){iMov};
-          trx = Labels.toPTrx(s);
-          tv.vizInit(obj.nframes,trx);
+          tv.vizInit(obj.nframes,s);
         end
       else
         tv = TrackingVisualizerMT(obj,'labeledpos2');
