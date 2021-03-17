@@ -301,16 +301,28 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         logging.warning('SPLIT_WRITE: Could not output the split data information')
 
 
-def convert_to_coco(coco_info,ann,data, conf):
-    # converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
+def convert_to_coco(coco_info, ann, data, conf):
+    '''
+     converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
+
+    Write im to coco_info['imdir']; add a single image with 1+ corresponding labeled targets
+    to ann
+
+    :param coco_info: dict with keys ndx, ann_ndx, imdir. modified in-place
+    :param ann:
+    :param data: dict with keys im, locs [ntgt x npts x 2], info (mft triplet),
+                                occ [ntgt x npts], roi (opt)
+    :param conf:
+    :return:
+    '''
 
     cur_im = data['im']
-    cur_locs = data['locs']
+    cur_locs = data['locs']  # [ntgt x ...]
     info = data['info']
     cur_occ = data['occ']
     # cur_im,cur_locs,info,cur_occ = data[:4]
     if 'roi' in data.keys():
-        roi = data['roi']
+        roi = data['roi']  # [ntgt x ncol] np array
     else:
         roi = None
 
