@@ -2600,6 +2600,76 @@ def test_sparse_load():
   assert np.all(np.logical_or(trk2['pTrkTS']==trk['pTrkTS'],np.logical_and(np.isnan(trk2['pTrkTS']),np.isnan(trk['pTrkTS']))))
   assert np.all(np.logical_or(trk2['pTrkTag']==trk['pTrkTag'],np.logical_and(np.isnan(trk2['pTrkTag']),np.isnan(trk['pTrkTag']))))
 
+
+def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv'):
+
+  import movies
+  import matplotlib
+  matplotlib.use('TkAgg')
+  from matplotlib import pyplot as plt
+  plt.ion()
+  from matplotlib.collections import LineCollection
+  import PoseTools as pt
+
+  J = load_trk(trkfile)
+  frs = np.array(J['pTrkFrm']).astype('int')-1  # Assuming in ascending order
+  if start is None:
+    start = frs.min()
+  if end is None:
+    end = frs.max()+1
+
+  cap = movies.Movie(J['expname'])
+  n_fr = end - start
+  frs = range(start, end)
+  fig = plt.figure(figsize=(7,7))
+  plt.cla()
+  im = cap.get_frame(start)[0]
+  padsz = n_fr * off
+  padim = np.pad(im, [[0, padsz], [0, padsz]], 'constant', constant_values=244)
+  imobj = plt.imshow(padim, 'gray')
+  pp = J['pTrk'].transpose([3, 2, 0, 1]).copy()
+  pp += np.arange(end - start)[None, :, None, None] * off
+
+  all_lines = []
+
+  ax = plt.gca()
+
+  def lpicker(evt):
+
+    if evt.artist in all_lines:
+      for lines in all_lines:
+        # lines.set_linewidth(1)
+        lines.set_alpha(0.3)
+
+      lines = evt.artist
+      # lines.set_linewidth(1)
+      lines.set_alpha(1)
+      fig.canvas.draw_idle()
+
+      fn_ndx = all_lines.index(evt.artist)
+      fn = frs[fn_ndx]
+      padsz1 = fn * off
+      padsz2 = (n_fr - fn) * off
+      cim = cap.get_frame(fn)[0]
+      padim = np.pad(cim, [[padsz1, padsz2], [padsz1, padsz2]], 'constant', constant_values=244)
+      imobj.set_data(padim)
+      ax.set_title(f'Frame {fn} out of frames {start} to {end}')
+      return True, dict()
+
+  cc = pt.get_cmap(len(frs),map_name=cmap)
+  cc[:,3] = 0.3
+  for ndx,fr in enumerate(frs):
+    xlist = pp[:, ndx, ...]
+    clines = LineCollection(xlist, pickradius=2, colors=cc[ndx])
+    clines.set_picker(True)
+    all_lines.append(clines)
+    ax.add_collection(clines)
+
+  fig.canvas.mpl_connect("pick_event", lpicker)
+  ax.set_title(f'Frame {start} out of frames {start} to {end}')
+  plt.show()
+
+
 if __name__=='__main__':
   # test_match_frame()
   # test_sparse_load()

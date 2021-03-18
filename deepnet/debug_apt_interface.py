@@ -1,15 +1,17 @@
-import APT_interface as apt
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"tfrecord\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True  multi_crop_ims True rrange 180 trange 30 is_multi True max_n_animals 7 -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_openpose -name alice_neg_split_crop_ims_openpose_multi -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache -skip_db'
-cmd = cmd.replace('\\','')
-apt.main(cmd.split())
+
+## single animal ht
+# import APT_interface as apt
+# import os
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"tfrecord\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True  multi_crop_ims True rrange 30 trange 30 is_multi False max_n_animals 7 imsz \(192,192\) use_ht_trx True ht_pts \(0,6\) -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type openpose -name alice_ht_test -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache'
+# cmd = cmd.replace('\\','')
+# apt.main(cmd.split())
 
 ##
 import APT_interface as apt
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True multi_crop_ims True rrange 180 trange 30 is_multi True max_n_animals 7 -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_mdn_joint_torch -name alice_neg_split_grone_multi -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache -skip_db'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True multi_crop_ims True rrange 180 trange 30 is_multi True max_n_animals 7 ht_pts \(0,6\) multi_only_ht True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_mdn_joint_torch -name alice_neg_ht_test -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache'
 cmd = cmd.replace('\\','')
 apt.main(cmd.split())
 

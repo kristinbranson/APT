@@ -215,6 +215,10 @@ class config(object):
         # crop images during training
         self.multi_crop_ims = True
         self.multi_match_dist = 10
+        self.ht_pts = []
+        self.use_ht_trx = False
+        self.multi_only_ht = False
+
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
