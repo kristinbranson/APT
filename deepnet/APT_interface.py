@@ -2988,7 +2988,13 @@ def classify_movie(conf, pred_fn, model_type,
         out_file_tracklet = out_file
         trk.save(out_file_tracklet, saveformat='tracklet')
     else:
-        write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        # write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
+        ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
+        tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+        trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
+        trk.save(out_file,saveformat='tracklet')
+
     if os.path.exists(out_file + '.part') and not conf.is_multi:
         os.remove(out_file + '.part')
     cap.close()

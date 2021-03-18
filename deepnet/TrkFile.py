@@ -2601,7 +2601,8 @@ def test_sparse_load():
   assert np.all(np.logical_or(trk2['pTrkTag']==trk['pTrkTag'],np.logical_and(np.isnan(trk2['pTrkTag']),np.isnan(trk['pTrkTag']))))
 
 
-def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv'):
+def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv',dir=45):
+  # Vased on https://stackoverflow.com/questions/31778081/how-to-highlight-line-collection-in-matplotlib
 
   import movies
   import matplotlib
@@ -2618,17 +2619,26 @@ def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv'):
   if end is None:
     end = frs.max()+1
 
+  theta = dir*np.pi/180
   cap = movies.Movie(J['expname'])
   n_fr = end - start
   frs = range(start, end)
   fig = plt.figure(figsize=(7,7))
   plt.cla()
   im = cap.get_frame(start)[0]
-  padsz = n_fr * off
-  padim = np.pad(im, [[0, padsz], [0, padsz]], 'constant', constant_values=244)
+  padszx = int(n_fr * off * np.cos(theta))
+  padszy = int(n_fr * off * np.sin(theta))
+  padim = np.pad(im, [[-min(padszy,0), max(0,padszy)], [-min(0,padszx), max(0,padszx)]], 'constant', constant_values=244)
   imobj = plt.imshow(padim, 'gray')
+  plt.axis('image')
   pp = J['pTrk'].transpose([3, 2, 0, 1]).copy()
-  pp += np.arange(end - start)[None, :, None, None] * off
+  tfrm = np.array(J['pTrkFrm'])[0]-1
+  sel = (( tfrm< end) & (tfrm>=start))
+  pp = pp[:,sel,:,:]
+  R = np.array([np.cos(theta),np.sin(theta)])
+  p_off = np.arange(end-start)[:,None]*R[None,:]*off
+  p_off = p_off-p_off.min(axis=0,keepdims=True)
+  pp = pp+ p_off[None, :, None, :]
 
   all_lines = []
 
@@ -2637,6 +2647,7 @@ def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv'):
   def lpicker(evt):
 
     if evt.artist in all_lines:
+      #Update when selected
       for lines in all_lines:
         # lines.set_linewidth(1)
         lines.set_alpha(0.3)
@@ -2648,12 +2659,25 @@ def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv'):
 
       fn_ndx = all_lines.index(evt.artist)
       fn = frs[fn_ndx]
-      padsz1 = fn * off
-      padsz2 = (n_fr - fn) * off
+      if np.cos(theta)>0:
+        padszx_1 = fn_ndx * off * np.cos(theta)
+        padszx_2 = (n_fr - fn_ndx) * off * np.cos(theta)
+      else:
+        padszx_1 = -(n_fr-fn_ndx) * off * np.cos(theta)
+        padszx_2 = -(fn_ndx) * off * np.cos(theta)
+
+      if np.sin(theta) > 0:
+        padszy_1 = fn_ndx * off * np.sin(theta)
+        padszy_2 = (n_fr - fn_ndx) * off * np.sin(theta)
+      else:
+        padszy_1 = -(n_fr - fn_ndx) * off * np.sin(theta)
+        padszy_2 = -(fn_ndx) * off * np.sin(theta)
+
       cim = cap.get_frame(fn)[0]
-      padim = np.pad(cim, [[padsz1, padsz2], [padsz1, padsz2]], 'constant', constant_values=244)
+      padim = np.pad(cim, [[int(round(padszy_1)), int(round(padszy_2))], [int(round(padszx_1)), int(round(padszx_2))]], 'constant', constant_values=244)
       imobj.set_data(padim)
       ax.set_title(f'Frame {fn} out of frames {start} to {end}')
+      ax.axis('image')
       return True, dict()
 
   cc = pt.get_cmap(len(frs),map_name=cmap)
