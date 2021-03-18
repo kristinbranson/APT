@@ -262,8 +262,12 @@ classdef DeepTracker < LabelTracker
       tvtagpfix = sprintf('dt_%s',obj.algorithmName);
       if lObj.maIsMA
         % semi-hack here; unclear what to do
-        maxNanimals = lObj.trackParams.ROOT.DeepTrack.MultiAnimal.max_n_animals;
-        maxNanimals = max(ceil(maxNanimals*1.5),10);        
+        if ~isempty(lObj.trackParams)
+          maxNanimals = lObj.trackParams.ROOT.DeepTrack.MultiAnimal.max_n_animals;
+          maxNanimals = max(ceil(maxNanimals*1.5),10);        
+        else
+          maxNanimals = 20;
+        end
         obj.trkVizer = TrackingVisualizerTracklets(lObj,maxNanimals,'matrack');
       else
         obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
@@ -3784,7 +3788,7 @@ classdef DeepTracker < LabelTracker
               if isempty(tv.ptrx)
                 obj.newLabelerFrame();
               else
-                f0 = tv.ptrx(1).firstframe;
+                f0 = tv.ptrx(1).firstframe; 
                 obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
               end
@@ -5776,7 +5780,7 @@ classdef DeepTracker < LabelTracker
   methods
     function vizInit(obj)
       if obj.lObj.maIsMA 
-        if ~obj.lObj.isinit        
+        if ~obj.lObj.isinit && obj.lObj.hasMovie
           ptrx0 = TrxUtil.newptrx(0,0);
           obj.trkVizer.vizInit(obj.lObj.nframes,ptrx0);
         end

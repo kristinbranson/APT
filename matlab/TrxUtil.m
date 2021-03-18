@@ -5,8 +5,9 @@ classdef TrxUtil
     function ptrx = newptrx(ntrx,npts)
       s = struct();
       s.id = 0;
-      s.p = nan(2*npts,0);
+      s.p = nan(npts,2,0);
       s.pocc = nan(npts,0);
+      s.TS = nan(npts,0);
       s.x = nan(1,0);
       s.y = nan(1,0);
       s.theta = nan(1,0);
@@ -25,37 +26,17 @@ classdef TrxUtil
         ptrx = ptrx([],:);
       end
     end
-    function ptrx = ptrxFromTracklet(t)
-      % t: py-generated tracklet
-      ntrx = numel(t.pTrk);
-      if ntrx>0
-        npts = size(t.pTrk{1},1);
-      else
-        npts = 0;
-      end
-      ptrx = TrxUtil.newptrx(ntrx,npts);
-      
-      assert(isequal(numel(t.endframes),...
-                     numel(t.pTrkTS),...
-                     numel(t.pTrkTag),...
-                     numel(t.startframes),...
-                     ntrx));
+    function ptrx = ptrxAddXY(ptrx)
+      % ptrx.x, .y are currently computed as the centroid of .p.
+      % The .x, .y fields are added for visualization purposes. By using
+      % these fieldnames we can reuse visualization code originally 
+      % designed for Ctrax-style trx.
+
+      ntrx = numel(ptrx);
       for i=1:ntrx
-        p = t.pTrk{i};
-        nfrm = size(p,3);
-        ptrx(i).p = reshape(p,npts*2,nfrm);
-        ptrx(i).pocc = reshape(t.pTrkTag{i},npts,nfrm); 
-        xymu = mean(p,1);
-        ptrx(i).x = reshape(xymu(1,1,:),1,nfrm); 
-        ptrx(i).y = reshape(xymu(1,2,:),1,nfrm);
-        %ptrk(i).theta 
-        f0 = t.startframes(i);
-        f1 = t.endframes(i);
-        assert(nfrm==f1-f0+1);
-        ptrx(i).firstframe = f0;
-        ptrx(i).off = 1-f0;
-        ptrx(i).nframes = nfrm;
-        ptrx(i).endframe = f1;
+        xymu = nanmean(ptrx(i).p,1);
+        ptrx(i).x = reshape(xymu(1,1,:),1,[]); 
+        ptrx(i).y = reshape(xymu(1,2,:),1,[]);
       end
     end
     function ptrx = ptrxmerge(ptrx1,ptrx2)
@@ -89,7 +70,22 @@ classdef TrxUtil
       ntgt = ntgt(tf);
       tblFT = table(frm,ntgt);
     end
+    function [lpos,occ] = getLabelsFull(ptrx0,nfrmtot)
+      % get full label/occ timeseries for scalar trx
+      %
+      % ptrx0: scalar ptrx
+      % 
+      % lpos: [npts x 2 x nfrmtot]
+      % occ: [npts x nfrmtot] logical
       
+      npts = size(ptrx0.p,1);
+      lpos = nan(npts,2,nfrmtot);
+      occ = false(npts,nfrmtot);
+      
+      ftrx = ptrx0.firstframe:ptrx0.endframe;
+      lpos(:,:,ftrx) = ptrx0.p;
+      occ(:,ftrx) = ptrx0.pocc;
+    end
     function trx = initStationary(trx,x0,y0,th0,frm0,frm1)
       % initialize all trxs to be stationary/fixed at position (x0,y0,th0)
       % for duration [frm0,frm1]. .firstframe will be set to frm0,
