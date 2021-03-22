@@ -727,10 +727,34 @@ def test_estimate_maxcost():
   plt.figure()
   plt.plot(np.arange(maxcost.size)+1, maxcost, 'o-')
   plt.show(block=True)
-
+  
+def test_recognize_ids():
+  
+  matplotlib.use('tkAgg')
+  plt.ion()
+  
+  rawtrkfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/rawtrk.trk'
+  linktrkfile0 = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/linktrk.trk'
+  trxfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/trx.mat'
+  dell2ellfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/perframe/dell2ell.mat'
+  moviefile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/movie.ufmf'
+  movieidxfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/index.txt'
+  
+  distthresh = 10
+  
+  trk = TrkFile.Trk(trkfile=rawtrkfile)
+  if not trk.issparse:
+    trk.convert2sparse()
+  
+  trx = TrkFile.load_trx(trxfile)
+  dell2ell = TrkFile.load_perframedata(dell2ellfile)
+  plt.plot(dell2ell[0])
+  
+  isclose = dell2ell[0] <= distthresh
 
 if __name__ == '__main__':
   # test_match_frame()
-  test_assign_ids_data()
+  # test_assign_ids_data()
+  test_recognize_ids()
   # test_estimate_maxcost()
   # test_assign_ids()
