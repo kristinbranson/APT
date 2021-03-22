@@ -301,16 +301,28 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         logging.warning('SPLIT_WRITE: Could not output the split data information')
 
 
-def convert_to_coco(coco_info,ann,data, conf):
-    # converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
+def convert_to_coco(coco_info, ann, data, conf):
+    '''
+     converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
+
+    Write im to coco_info['imdir']; add a single image with 1+ corresponding labeled targets
+    to ann
+
+    :param coco_info: dict with keys ndx, ann_ndx, imdir. modified in-place
+    :param ann:
+    :param data: dict with keys im, locs [ntgt x npts x 2], info (mft triplet),
+                                occ [ntgt x npts], roi (opt)
+    :param conf:
+    :return:
+    '''
 
     cur_im = data['im']
-    cur_locs = data['locs']
+    cur_locs = data['locs']  # [ntgt x ...]
     info = data['info']
     cur_occ = data['occ']
     # cur_im,cur_locs,info,cur_occ = data[:4]
     if 'roi' in data.keys():
-        roi = data['roi']
+        roi = data['roi']  # [ntgt x ncol] np array
     else:
         roi = None
 
@@ -355,7 +367,10 @@ def convert_to_coco(coco_info,ann,data, conf):
             annid = coco_info['ann_ndx']
             coco_info['ann_ndx'] += 1
             segm = [cur_roi.flatten().tolist()]
-            out_locs = np.ones([conf.n_classes,3])*np.nan
+            if conf.multi_only_ht:
+                out_locs = np.ones([2,3])*np.nan
+            else:
+                out_locs = np.ones([conf.n_classes,3])*np.nan
             out_locs[:,2] = 0
             ann['annotations'].append({'iscrowd': 0, 'segmentation': segm, 'area': 0, 'image_id': ndx, 'id': annid,'num_keypoints': conf.n_classes, 'bbox': [0,0,0,0],'keypoints': out_locs.flatten().tolist(), 'category_id': 0})
 
@@ -442,7 +457,7 @@ def convert_to_orig(base_locs, conf, fnum, cur_trx, crop_loc):
     base_locs should be 2 dim.
     crop_loc should be 0-indexed
     fnum should be 0-indexed'''
-    if conf.has_trx_file:
+    if conf.has_trx_file or conf.use_ht_trx:
         trx_fnum = fnum - int(cur_trx['firstframe'][0, 0] -1 )
         x = to_py(cur_trx['x'][0, trx_fnum])
         y = to_py(cur_trx['y'][0, trx_fnum])
@@ -1328,10 +1343,10 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
             info = to_py([cur_t['imov'],cur_t['frm'],ndx+1])
             ht_locs = cur_locs[ndx,conf.ht_pts, :].copy()
             ht_ctr = ht_locs.mean(axis=0)
-            theta = np.arctan2(ht_locs[0,0]-ht_locs[1,0],ht_locs[0,1]-ht_locs[1,1])
-            cur_patch = multiResData.crop_patch_trx(conf,cur_frame,ht_ctr[0],ht_ctr[1],theta)
-
+            theta = np.arctan2(ht_locs[0,1]-ht_locs[1,1],ht_locs[0,0]-ht_locs[1,0])
             curl = cur_locs[ndx].copy()
+            cur_patch, curl = multiResData.crop_patch_trx(conf,cur_frame,ht_ctr[0],ht_ctr[1],theta,curl)
+
             if occ_as_nan:
                 curl[cur_occ[ndx],:] = np.nan
 
@@ -1415,6 +1430,11 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
         if type(sndx) ==list:
             sndx = sndx[0]
         cur_out = out_fns[sndx]
+
+        if conf.multi_only_ht:
+            cur_locs = cur_locs[...,conf.ht_pts,:].copy()
+            cur_occ = cur_occ[...,conf.ht_pts].copy()
+
         if conf.is_multi and conf.multi_crop_ims:
             data_out = create_ma_crops(conf,cur_frame,cur_locs,info, cur_occ, cur_roi,extra_roi)
         else:
@@ -1463,7 +1483,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,
 
     lbl = h5py.File(conf.labelfile, 'r')
     if not 'preProcData_MD_mov' in lbl.keys():
-        return db_from_trnpack(conf,out_fns,nsamples=nsamples,split=split)
+        if conf.use_ht_trx:
+            return db_from_trnpack_ht(conf,out_fns,nsamples=nsamples,split=split)
+        else:
+            return db_from_trnpack(conf,out_fns,nsamples=nsamples,split=split)
 
     #npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
     if use_gt_cache:
@@ -1801,6 +1824,30 @@ def get_trx_info(trx_file, conf, n_frames):
         n_trx = len(trx)
         end_frames = np.array([x['endframe'][0, 0] for x in trx])
         first_frames = np.array([x['firstframe'][0, 0] for x in trx]) - 1  # for converting from 1 indexing to 0 indexing
+    elif conf.use_ht_trx:
+        # convert trk file to trx file format.
+        T = h5py.File(trx_file,'r')
+        n_trx = T['pTrk'].shape[0]
+        trx = []
+        end_frames = []
+        first_frames = []
+        for tndx in range(n_trx):
+            cur_pts = T[T['pTrk'][tndx,0]][()]+1
+            theta = np.arctan2(cur_pts[...,1,0]-cur_pts[...,1,1],cur_pts[...,0,0]-cur_pts[...,0,1])
+            ctr = cur_pts.mean(-1)
+            sframe = T['startframes'][tndx,0]-1
+            eframe = T['endframes'][tndx,0]
+            end_frames.append(eframe)
+            first_frames.append(sframe)
+            curtrx = {'x':ctr[None,...,0],
+                      'y':ctr[None,...,1],
+                       'firstframe':np.array(sframe+1).reshape([1,1]),
+                       'endframe':np.array(eframe).reshape([1,1]),
+                      'theta':theta[None,...]
+                      }
+            trx.append(curtrx)
+        end_frames = np.array(end_frames)
+        first_frames = np.array(first_frames)
     else:
         if conf.is_multi:
             trx = [None,]
@@ -2741,7 +2788,7 @@ def convert_to_mat_trk(pred_locs, conf, start, end, trx_ids):
         pred_locs = pred_locs.transpose([2, 3, 0, 1])
     else:
         pred_locs = pred_locs.transpose([2, 0, 1])
-    if not (conf.has_trx_file or conf.is_multi):
+    if not (conf.has_trx_file or conf.is_multi or conf.use_ht_trx):
         pred_locs = pred_locs[..., 0]
 
     ps = np.array(pred_locs.shape)
@@ -2785,8 +2832,8 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
                 'trkInfo': info}
     for k in extra_dict.keys():
         tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids)
-        if k.startswith('locs_'):
-            tmp = to_mat(tmp)
+        # if k.startswith('locs_'):
+        #     tmp = to_mat(tmp)
         out_dict['pTrk' + k] = tmp
 
     # output to a temporary file and then rename to real file name.
@@ -2834,7 +2881,7 @@ def classify_movie(conf, pred_fn, model_type,
     n_frames = int(cap.get_n_frames())
     T, first_frames, end_frames, n_trx = get_trx_info(trx_file, conf, n_frames)
     # For multi-animal T is [None,] and n_trx is conf.max_n_animals. With this combination, rest of the workflow seems to work. Totally unintentional but I'm not going to update it if it is working. MK 20201111
-    trx_ids = get_trx_ids(trx_ids, n_trx, conf.has_trx_file)
+    trx_ids = get_trx_ids(trx_ids, n_trx, conf.has_trx_file or conf.use_ht_trx)
     conf.batch_size = 1 if model_type == 'deeplabcut' else conf.batch_size
     bsize = conf.batch_size
     flipud = conf.flipud
@@ -2862,7 +2909,8 @@ def classify_movie(conf, pred_fn, model_type,
             if not np.any(trx_ids == t):
                 continue
             if (end_frames[t] > cur_f) and (first_frames[t] <= cur_f):
-                to_do_list.append([cur_f, t])
+                if T[t] is None or (not np.isnan(T[t]['x'][0,cur_f-first_frames[t]])):
+                    to_do_list.append([cur_f, t])
 
     # TODO: this stuff is really similar to classify_list, some refactor
     # likely useful
@@ -2940,7 +2988,13 @@ def classify_movie(conf, pred_fn, model_type,
         out_file_tracklet = out_file
         trk.save(out_file_tracklet, saveformat='tracklet')
     else:
-        write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        # write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
+        ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
+        tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+        trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
+        trk.save(out_file,saveformat='tracklet')
+
     if os.path.exists(out_file + '.part') and not conf.is_multi:
         os.remove(out_file + '.part')
     cap.close()
@@ -2998,6 +3052,8 @@ def classify_movie_all(model_type, **kwargs):
     model_file = kwargs['model_file']
     train_name = kwargs['train_name']
     del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
+    if conf.multi_only_ht:
+        conf.n_classes = 2
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
     logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
@@ -3254,6 +3310,9 @@ def train(lblfile, nviews, name, args):
                     else:
                         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
 
+                if conf.multi_only_ht:
+                    conf.n_classes = 2
+
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
@@ -3369,6 +3428,7 @@ def parse_args(argv):
     if args.sub_name == 'track' and args.mov is not None:
         nmov = len(args.mov)
         args.trx_ids = parse_trx_ids_arg(args.trx_ids,nmov)
+        assert all([a>0 for a in args.start_frame]), 'Start frames much be positive integers'
         args.start_frame = to_py(args.start_frame)
         args.start_frame = parse_frame_arg(args.start_frame,nmov,0)
         args.end_frame = parse_frame_arg(args.end_frame,nmov,np.Inf)

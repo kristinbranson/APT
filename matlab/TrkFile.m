@@ -618,7 +618,11 @@ classdef TrkFile < dynamicprops
       filetype = TrkFile.getFileType(s);
       if strcmp(filetype,'tracklet')
         %%% Tracklet early return %%%
-        trkfileObj = TrxUtil.ptrxFromTracklet(s);
+        trkfileObj = load_tracklet(s);
+        % We do this right here, upon entry into APT, but this might more
+        % properly be done further inside the App (eg at vizInit-time) as 
+        % .x, .y are more for viz purposes.
+        trkfileObj = TrxUtil.ptrxAddXY(trkfileObj); 
         [trkfileObj.movfile] = deal(movfile);
         return;        
       end        
@@ -736,6 +740,9 @@ classdef TrkFile < dynamicprops
 
         if any(strcmp('startframes',fns))
           nFramesTracked = m.pTrkFrm(1,end) - m.pTrkFrm(1,1) + 1;
+          didload = true;
+        elseif ismember('pTrkFrm',fns)
+          nFramesTracked = numel(m.pTrkFrm);
           didload = true;
         elseif ismember('pTrk',fns),
           nd = ndims(m.pTrk);

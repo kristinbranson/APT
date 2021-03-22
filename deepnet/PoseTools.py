@@ -44,6 +44,8 @@ import yaml
 import logging
 import time
 import subprocess
+import warnings
+warnings.filterwarnings("ignore",message="invalid value encountered in greater")
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 

@@ -1,10 +1,19 @@
 function trx = load_tracklet(matfile,frompy)
+% load_tracklet(matfile,frompy)
+% load_tracklet(matcontents,frompy)
+%
+
 
 if nargin < 2,
   frompy = false;
 end
 
-td = load(matfile,'-mat');
+if ischar(matfile)
+  td = load(matfile,'-mat');
+else
+  td = matfile;
+end
+
 ntargets = numel(td.pTrk);
 for i = 1:ntargets,
   trxcurr = struct;

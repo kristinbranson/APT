@@ -95,8 +95,10 @@ classdef Lbl
         axis square;
         
         for itgt=1:s.ntgt
-          xy = reshape(s.pabs(:,itgt),[],2);
-          scatter(xy(:,1),xy(:,2),scargs{:});
+          if isfield(s,'pabs')
+            xy = reshape(s.pabs(:,itgt),[],2);
+            scatter(xy(:,1),xy(:,2),scargs{:});
+          end
           plot(s.roi([1:4 1],itgt),s.roi([5:8 5],itgt),'r-','linewidth',2);
         end
         

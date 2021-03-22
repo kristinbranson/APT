@@ -77,15 +77,14 @@ classdef TrackingVisualizerTracklets < handle
       npts = obj.npts;
       
       % get landmarks
-      p = nan(2*npts,nTrx);
+      xy = nan(npts,2,nTrx);
       for j=1:nTrx
         ptrxJ = ptrx(iTrx(j));
         idx = frm + ptrxJ.off;
-        p(:,j) = ptrxJ.p(:,idx);
+        xy(:,:,j) = ptrxJ.p(:,:,idx);
       end
       
       % update tvmt
-      xy = reshape(p,npts,2,nTrx);
       tfeo = false(npts,nTrx);
       obj.tvmt.updateTrackRes(xy,tfeo);
       
