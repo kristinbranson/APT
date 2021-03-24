@@ -51,6 +51,10 @@ classdef RectDrawer < handle
       % This deletes/clears all existing Rois and draws new ones in
       % non-interactive mode.
       
+      if isempty(obj.hRect) && isempty(v)
+        return;
+      end
+      
       obj.initRois();
       nroi = size(v,3);
       h = gobjects(nroi,1);
@@ -61,6 +65,7 @@ classdef RectDrawer < handle
         pos = [v(1,1,iroi) v(1,2,iroi) wh ht];
         h(iroi) = images.roi.Rectangle(hax,'Position',pos,...
           'InteractionsAllowed','none');
+        h(iroi).addlistener('DeletingROI',@(s,e)obj.cbkROIDeleted(s,e));
       end
       obj.hRect = h;
     end

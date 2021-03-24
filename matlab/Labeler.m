@@ -21,6 +21,7 @@ classdef Labeler < handle
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
       'labels' 'labels2' 'labelsGT' 'labels2GT' ...       %'labeledpos2' ...  % 'labeledpos' 'labeledpostag' 'labeledposTS' % 'labeledposMarked'        % 'labeledposGT' 'labeledpostagGT' 'labeledposTSGT'        %'labeledpos2GT'...
+      'labelsRoi' ...
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
@@ -355,6 +356,8 @@ classdef Labeler < handle
     labels2;
     labelsGT;
     labels2GT;
+    
+    labelsRoi;
     
     labels2Hide;          % scalar logical
     labels2ShowCurrTargetOnly;  % scalar logical, transient    
@@ -1890,6 +1893,7 @@ classdef Labeler < handle
       obj.labelsGT = cell(0,1);
       obj.labels2GT = cell(0,1);
       
+      obj.labelsRoi = cell(0,1);
 %       obj.labeledposGT = cell(0,1);
 %       obj.labeledposTS = cell(0,1);
       obj.lastLabelChangeTS = 0;
@@ -3697,6 +3701,11 @@ classdef Labeler < handle
           s.labels2GT{imov} = Labels.fromarray(fullfcn(s.labeledpos2GT{imov}));
         end
       end
+      % 20210322 labelsRoi
+      if ~isfield(s,'labelsRoi')
+        nmov = numel(s.labels);
+        s.labelsRoi = repmat({LabelROI.new()},nmov,1);
+      end
       
       % 20210317 MA use tracklets in labels2 
       if s.maIsMA
@@ -3875,6 +3884,7 @@ classdef Labeler < handle
         else
           obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
         end
+        obj.labelsRoi{end+1,1} = LabelROI.new();
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
 %         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -4042,6 +4052,7 @@ classdef Labeler < handle
 %       obj.(PROPS.LPOS2){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LBL){end+1,1} = Labels.new(nLblPts);
       obj.(PROPS.LBL2){end+1,1} = Labels.new(nLblPts);
+      obj.labelsRoi{end+1,1} = LabelROI.new();
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
@@ -4182,6 +4193,7 @@ classdef Labeler < handle
 %         obj.(PROPS.LPOS2)(iMov,:) = [];
         obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
         obj.(PROPS.LBL2)(iMov,:) = [];
+        obj.labelsRoi(iMov,:) = [];
 %         if ~gt
 %           obj.labeledposMarked(iMov,:) = [];
 %         end
@@ -4270,7 +4282,7 @@ classdef Labeler < handle
       else
         obj.viewCalibrationData = obj.viewCalibrationData(p);
       end      
-      FLDS2 = {'labels' 'labels2'};
+      FLDS2 = {'labels' 'labelsRoi' 'labels2'};
 %         'labeledpos' 'labeledposTS' 'labeledpostag' ... % 'labeledposMarked' 
 %         'labeledpos2'};
       for f=FLDS2,f=f{1}; %#ok<FXSET>
@@ -7150,6 +7162,31 @@ classdef Labeler < handle
 %       lpos = lpos{obj.currMovie}(:,:,obj.currFrame,obj.currTarget);
 %       islabeled = all(~isnan(lpos(:)));
 %     end
+
+    function labelroiSet(obj,v)
+      % Set/replace all rois for current mov/frm
+      assert(~obj.gtIsGTMode);
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      s = obj.labelsRoi{iMov};
+      obj.labelsRoi{iMov} = LabelROI.setF(s,v,frm);
+
+      if ~obj.gtIsGTMode
+        obj.lastLabelChangeTS = now;
+      end
+      obj.labeledposNeedsSave = true;
+    end
+    
+    function v = labelroiGet(obj,v)
+      % Get rois for current frm
+      assert(~obj.gtIsGTMode);
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      s = obj.labelsRoi{iMov};
+      v = LabelROI.getF(s,frm);
+    end
+
+   
 
     % Label Cosmetics notes 20190601
     %

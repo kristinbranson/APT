@@ -46,8 +46,8 @@ classdef LabelCoreSeqMA < LabelCore
     pbRoiEdit
     roiShow = false; % show pbRoi* or not
     roiRectDrawer
-    CLR_PBROINEW = [0.4902 0.1804 0.5608];
-    CLR_PBROIEDIT = [0 0.4510 0.7412];
+    CLR_PBROINEW = [0.6941 .5082 .7365]; % [0.4902 0.1804 0.5608] see cropmode buttons
+    CLR_PBROIEDIT = [0.4000 0.6706 0.8447]; % etc [0 0.4510 0.7412];
   end
   
   properties
@@ -545,7 +545,13 @@ classdef LabelCoreSeqMA < LabelCore
     end
     function cbkRoiEdit(obj)
       tfEditingNew = obj.pbRoiEdit.Value;
-      obj.roiRectDrawer.setEdit(tfEditingNew);
+      rrd = obj.roiRectDrawer;
+      rrd.setEdit(tfEditingNew);
+      if ~tfEditingNew
+        % write to db/Labeler
+        v = rrd.getRoisVerts();
+        obj.labeler.labelroiSet(v);
+      end
       obj.roiUpdatePBEdit(tfEditingNew);
     end
     function roiUpdatePBEdit(obj,tf)
@@ -639,7 +645,19 @@ classdef LabelCoreSeqMA < LabelCore
         obj.beginAcceptedReset();
       end
       obj.newPrimaryTarget();
-      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));      
+      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo)); 
+      
+      if obj.roiShow
+        % Note, currently if roiShow is toggled, rois for the current
+        % frame will not be shown until a frame-change.
+        vroi = lObj.labelroiGet(iFrm);
+        obj.roiRectDrawer.setRois(vroi);
+        
+        % changing frames always resets ROI editing state. Note that
+        % changinging frames before clicking "Done Editing" will not save/
+        % write ROI changes to Labeler.
+        obj.roiUpdatePBEdit(false);
+      end
     end
     
     function newPrimaryTarget(obj)
