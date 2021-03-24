@@ -1491,18 +1491,18 @@ class Trk:
       else:
         return p
 
-    p = self.pTrk.getframe(fs)
+    p = self.pTrk.getframe(fs-self.T0)
     if not extra:
       return p
 
     if self.pTrkTS is None:
       ts = None
     else:
-      ts = self.pTrkTS.getframe(fs)
+      ts = self.pTrkTS.getframe(fs-self.T0)
     if self.pTrkTag is None:
       tag = None
     else:
-      tag = self.pTrkTag.getframe(fs)
+      tag = self.pTrkTag.getframe(fs-self.T0)
     
     return p,ts,tag
     
@@ -1615,25 +1615,25 @@ class Trk:
     
     # dense, then just index into pTrk, etc.
     if not self.issparse:
-      p = self.pTrk[:,:,:,targets][:,:,frames,...]
+      p = self.pTrk[:,:,:,targets][:,:,frames-self.T0,...]
       if extra:
         if self.pTrkTS is not None:
-          ts = self.pTrkTS[:,:,targets][:,frames,...]
+          ts = self.pTrkTS[:,:,targets][:,frames-self.T0,...]
         if self.pTrkTag is not None:
-          tag = self.pTrkTag[:,:,targets][:,frames,...]
+          tag = self.pTrkTag[:,:,targets][:,frames-self.T0,...]
         return p,ts,tag
       else:
         return p
     
-    p = self.pTrk.gettargetframe(targets,frames)
+    p = self.pTrk.gettargetframe(targets,frames-self.T0)
     
     if not extra:
       return p
     
     if self.pTrkTS is not None:
-      ts = self.pTrkTS.gettargetframe(targets,frames)
+      ts = self.pTrkTS.gettargetframe(targets,frames-self.T0)
     if self.pTrkTag is not None:
-      tag = self.pTrkTag.gettargetframe(targets,frames)
+      tag = self.pTrkTag.gettargetframe(targets,frames-self.T0)
     
     return p,ts,tag
 
@@ -1677,26 +1677,27 @@ class Trk:
       self.setntargets(maxtarget+1,reinitialize=False)
     
     if self.issparse:
-      self.pTrk.settargetframe(p,targets,fs)
+      self.pTrk.settargetframe(p,targets,fs-self.T0)
       if ts is not None:
-        self.pTrkTS.settargetframe(ts,targets,fs)
+        self.pTrkTS.settargetframe(ts,targets,fs-self.T0)
       if tag is not None:
-        self.pTrkTag.settargetframe(tag,targets,fs)
+        self.pTrkTag.settargetframe(tag,targets,fs-self.T0)
     else:
-      self.pTrk[:,:,:,targets][:,:,fs,...] = p
+      self.pTrk[:,:,:,targets][:,:,fs-self.T0,...] = p
       if ts is not None:
-        self.pTrkTS[:,:,targets][:,fs,...] = ts
+        self.pTrkTS[:,:,targets][:,fs-self.T0,...] = ts
       if tag is not None:
-        self.pTrkTag[:,:,targets][:,fs,...] = tag
+        self.pTrkTag[:,:,targets][:,fs-self.T0,...] = tag
         
-  def settarget(self,p,targets,T0=0,T1=None,ts=None,tag=None):
+  def settarget(self,p,targets,T0=None,T1=None,ts=None,tag=None):
 
     maxtarget = np.max(targets)
     if maxtarget >= self.ntargets:
       self.setntargets(maxtarget+1,reinitialize=False)
-    
+    if T0 is None:
+      T0 = self.T0
     if T1 is None:
-      T1 = T0+T1.shape[2]-1
+      T1 = T0+p.shape[2]-1
     if self.issparse:
       self.pTrk.settarget(p,targets,T0=T0,T1=T1)
       if ts is not None:
@@ -1712,17 +1713,17 @@ class Trk:
         
   def setframe(self,p,fs,ts=None,tag=None):
     if self.issparse:
-      self.pTrk.setframe(p,fs)
+      self.pTrk.setframe(p,fs-self.T0)
       if ts is not None:
-        self.pTrkTS.setframe(ts,fs)
+        self.pTrkTS.setframe(ts,fs-self.T0)
       if tag is not None:
-        self.pTrkTag.setframe(tag,fs)
+        self.pTrkTag.setframe(tag,fs-self.T0)
     else:
-      self.pTrk[:,:,fs,:] = p
+      self.pTrk[:,:,fs-self.T0,:] = p
       if ts is not None:
-        self.pTrkTS[:,fs,:] = ts
+        self.pTrkTS[:,fs-self.T0,:] = ts
       if tag is not None:
-        self.pTrkTag[:,fs,:] = tag
+        self.pTrkTag[:,fs-self.T0,:] = tag
   
   def getfull(self,T0=None,consolidate=False):
     """
@@ -1791,7 +1792,7 @@ class Trk:
     # self.endframes=self.pTrkFrm[self.endframes]
     # self.pTrk = pTrk
     self.issparse = True
-    self.T0 = 0
+    #self.T0 = 0
   
   def convert2dense(self,consolidate=True,T0=None,T=None):
     """
@@ -2516,7 +2517,41 @@ def test_Trk_class():
   # ax.axis('equal')
   # plt.show()
 
+def load_trx(trxfile):
+  # load in trx mat file (how we store Ctrax results)
+  td=hdf5storage.loadmat(trxfile,appendmat=False)
+  ntargets = td['trx'].size
+  trx = {'x': [None,]*ntargets,'y': [None,]*ntargets, \
+         'theta': [None,]*ntargets,'a': [None,]*ntargets, \
+         'b': [None,]*ntargets, 'startframes': np.zeros(ntargets,dtype=int), \
+         'endframes': np.zeros(ntargets,dtype=int),
+         'nframes': np.zeros(ntargets,dtype=int)}
+  
+  for itgt in range(ntargets):
+    trx['x'][itgt] = td['trx']['x'][0,itgt].flatten()
+    trx['y'][itgt] = td['trx']['y'][0,itgt].flatten()
+    trx['theta'][itgt] = td['trx']['theta'][0,itgt].flatten()
+    trx['a'][itgt] = td['trx']['a'][0,itgt].flatten()
+    trx['b'][itgt] = td['trx']['b'][0,itgt].flatten()
+    trx['startframes'][itgt] = td['trx']['firstframe'][0,itgt]
+    trx['endframes'][itgt] = td['trx']['endframe'][0,itgt]
 
+  trx['x'] = to_py(trx['x'])
+  trx['y'] = to_py(trx['y'])
+  trx['startframes'] = to_py(trx['startframes'])
+  trx['endframes'] = to_py(trx['endframes'])
+  trx['nframes'] = trx['endframes']-trx['startframes']+1
+
+  return trx
+
+def load_perframedata(pffile):
+  pfd=hdf5storage.loadmat(pffile,appendmat=False)
+  ntargets = pfd['data'].size
+  data = [None,]*ntargets
+  for itgt in range(ntargets):
+    data[itgt] = pfd['data'][0,itgt].flatten()
+  return data
+  
 def load_trk(trkfile):
   """
   load_trk(trkfile)
