@@ -341,6 +341,7 @@ classdef Labeler < handle
     
     showSkeleton;             % true to plot skeleton 
     showMaRoi;
+    showMaRoiAux
   end 
   properties
     tvTrx; % scalar TrackingVisualizerTrx
@@ -1611,6 +1612,7 @@ classdef Labeler < handle
       obj.skelHead = [];
       obj.showSkeleton = false;
       obj.showMaRoi = false;
+      obj.showMaRoiAux = false;
       obj.flipLandmarkMatches = zeros(0,2);
       
       % When starting a new proj after having an existing proj open, old 
@@ -2374,6 +2376,7 @@ classdef Labeler < handle
       obj.setSkeletonEdges(obj.skeletonEdges);
       obj.setShowSkeleton(obj.showSkeleton);
       obj.setShowMaRoi(obj.showMaRoi);
+      obj.setShowMaRoiAux(obj.showMaRoiAux);
       obj.setFlipLandmarkMatches(obj.flipLandmarkMatches);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
@@ -3650,7 +3653,7 @@ classdef Labeler < handle
       if ~isfield(s,'showSkeleton'),
         s.showSkeleton = false;
       end
-      % AL 20201004
+      % AL 20201004, 20210324
       if ~isfield(s,'showMaRoi')
         s.showMaRoi = false;
       end
@@ -5764,6 +5767,13 @@ classdef Labeler < handle
       if obj.labelMode==LabelMode.MULTIANIMAL
         lc = obj.lblCore;
         lc.tv.setShowPches(tf); % lc should be a lblCoreSeqMA      
+      end
+    end
+    function setShowMaRoiAux(obj,tf)
+      obj.showMaRoiAux = logical(tf);
+      if obj.labelMode==LabelMode.MULTIANIMAL
+        lc = obj.lblCore;
+        lc.roiSetShow(tf); % lc should be a lblCoreSeqMA      
       end
     end
     function setFlipLandmarkMatches(obj,matches)
