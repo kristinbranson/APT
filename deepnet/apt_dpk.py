@@ -925,7 +925,7 @@ def get_pred_fn(conf0, model_file, tmr_pred=None):
         assert bsize == conf.batch_size
         locs_dummy = np.zeros((bsize, conf.n_classes, 2))
         # can do non-distort img preproc
-        ims, _, _ = opd.ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locs_dummy, conf, False)
+        ims, _, _, _ = opd.ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locs_dummy, conf, False)
 
         assert ims.shape[1:3] == conf.dpk_imsz_net
         assert ims.shape[3] == conf.img_dim
