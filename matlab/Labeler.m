@@ -14166,9 +14166,15 @@ classdef Labeler < handle
     function labels2Clear(obj)
       % Operates based on current reg/GT mode
       PROPS = obj.gtGetSharedProps();
-      PROPLPOS2 = PROPS.LPOS2;
-      for i=1:numel(obj.(PROPLPOS2))
-        obj.(PROPLPOS2){i}(:) = nan;
+      PROPLBL2 = PROPS.LBL2;
+      isMA = obj.maIsMA;
+      nlblpts = obj.nLabelPoints;
+      for i=1:numel(obj.(PROPLBL2))
+        if isMA
+          obj.(PROPLBL2){i} = TrxUtil.newptrx(0,nlblpts);
+        else
+          obj.(PROPLBL2){i} = Labels.new(nlblpts);
+        end
       end
       obj.labels2VizUpdate();
     end
