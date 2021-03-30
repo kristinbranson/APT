@@ -141,6 +141,154 @@ def assign_ids(trk, params, T=np.inf):
     idscurr = idsnext
   return ids, costs
 
+def match_frame_id(pcurr, pnext, idcost, params, defaultval=np.nan):
+  """
+  match_frame_id(pcurr,pnext,idcost,params,maxcost=None)
+  Uses the Hungarian algorithm to match targets tracked in the current
+  frame with targets detected in the next frame. The cost of
+  assigning target i to detection j is the L1 error between the
+  2*nlandmarks dimensional vectors normalized by the number of landmarks.
+  The cost of a trajectory birth or death is params['maxcost']/2. Thus,
+  it is preferable to kill one trajectory and create another if
+  the matching error is > params['maxcost']
+  Inputs:
+  d x nlandmarks x ncurr positions of landmarks of nnext animals
+  detected in the next frame
+  idscurr: ncurr array, integer ids of the animals tracked in the
+  current frame
+  params: dictionary of parameters.
+  lastid: (optional) scalar, last id used in tracking so far, if there are
+  trajectory births, they will start with id lastid+1
+  Outputs:
+  idsnext: nnext array, integer ids assigned to animals in next frame
+  Parameters:
+  params['maxcost']: The cost of a trajectory birth or death is
+  params['maxcost']/2. Thus, it is preferable to kill one trajectory
+  and create another if the matching error is > params['maxcost'].
+  params['verbose']: Whether to print out information
+  """
+  
+  # pcurr: d x nlandmarks x ntargets
+  # pnext: d x nlandmarks x nnext
+  
+  # check sizes
+  nlandmarks = pcurr.shape[0]
+  d = pcurr.shape[1]
+  ntargets = pcurr.shape[-1]
+  nnext = pnext.shape[-1]
+  assert pnext.shape[0] == nlandmarks, \
+    'N landmarks do not match, curr = %d, next = %d' % (nlandmarks, pnext.shape[0])
+  assert pnext.shape[1] == d, \
+    'Dimensions do not match, curr = %d, next = %d' % (d, pnext.shape[1])
+  # which ids are assigned in the current frame
+  idxcurr = TrkFile.real_idx(pcurr,defaultval).flatten()
+  ncurr = np.count_nonzero(idxcurr)
+  
+  # construct the cost matrix
+  # C[i,j] is the cost of matching curr[i] and next[j]
+  C = np.zeros((ntargets+nnext, ntargets+nnext))
+  # missing prediction
+  C[:ntargets,nnext:] = params['cost_missing']
+  # extra predictions
+  C[ntargets:,:nnext] = params['cost_extra']
+  pcurr = np.reshape(pcurr, (d * nlandmarks, ntargets, 1))
+  pnext = np.reshape(pnext, (d * nlandmarks, 1, nnext))
+  D = np.zeros((ntargets,nnext))
+  D[idxcurr,:] = np.sum(np.abs(pcurr[:,idxcurr,:]-pnext), axis=0) / nlandmarks
+  if D.shape != idcost.shape:
+    print('shape mismatch')
+  C[:ntargets, :nnext] = D+idcost
+  
+  # match
+  idxcurr, idxnext = opt.linear_sum_assignment(C)
+  costs = C[idxcurr, idxnext]
+  cost = np.sum(costs)
+  
+  # idxnext < nnext, idxcurr < ncurr means we are assigning
+  # an existing id
+  isassigned = np.logical_and(idxnext < nnext, idxcurr < ntargets)
+  idsnext = -np.ones(nnext, dtype=int)
+  idsnext[idxnext[isassigned]] = idxcurr[isassigned]
+  
+  if params['verbose'] > 1:
+    ismissing = np.logical_and(idxnext >= nnext, idxcurr < ntargets)
+    isextra = np.logical_and(idxnext < nnext, idxcurr >=ntargets)
+    print('N. ids assigned: %d, N. extra detections: %d, N. missing detections: %d' % (
+      np.count_nonzero(isassigned), np.count_nonzero(isextra), np.count_nonzero(ismissing)))
+  
+  return idsnext, cost, costs
+
+def assign_recognize_ids(trk, idcosts, params, T=np.inf):
+  """
+  assign_ids(trk,params)
+  Assign identities to each detection in each frame so that one-to-one
+  inter-frame match cost is minimized. Matching between frames t and t+1
+  is done using match_frame.
+  Input:
+  trk: Trk object, where Trk.pTrk[:,:,:,t] are the
+  detections for frame t. All coordinates will be nan if the number of
+  detections in a given frame is less than maxnanimals.
+  params: dictionary of parameters (see match_frame for details).
+  Output: ids is a Tracklet representation of a maxnanimals x T matrix with
+  integers 0, 1, ... indicating the identity of each detection in each frame.
+  -1 is assigned to dummy detections.
+  """
+  
+  # p is d x nlandmarks x maxnanimals x T
+  # nan is used to indicate missing data
+  T = int(np.minimum(T, trk.T))
+  T1 = trk.T0+T-1
+  pcurr = trk.getframe(trk.T0)
+  idxcurr = trk.real_idx(pcurr)
+  pcurr = pcurr[:, :, idxcurr]
+  ids = TrkFile.Tracklet(defaultval=-1, size=(1, T, trk.ntargets))
+  # allocate for speed!
+  [sf, ef] = trk.get_startendframes()
+  ids.allocate((1,), sf, np.minimum(sf+T-1, ef))
+    
+  # idcosts is a len T list of ntargets x npreds[t] matrices
+  ntargetsreal = idcosts[0].shape[0]
+  
+  # ids = -np.ones((trk.T,trk.ntargets),dtype=int)
+  #idscurr = np.arange(np.count_nonzero(idxcurr), dtype=int)
+  
+  #ids.settargetframe(idscurr, np.where(idxcurr.flatten())[0], 0)
+  # ids[idxcurr,0] = idscurr
+  #lastid = np.max(idscurr)
+  costs = np.zeros(T)
+  
+  set_default_params(params)
+  
+  # set ids in first frame based on idcosts only
+  t = trk.T0
+  pcurr = trk.getframe(t)
+  npts = pcurr.shape[0]
+  d = pcurr.shape[1]
+  npred = pcurr.shape[3]
+  pcurr = pcurr.reshape((npts,d,npred))
+  # idsnext[i] is which id prediction i was matched to
+  idsnext,costs[0],_ = match_frame_id(pcurr,pcurr.copy(),idcosts[t-trk.T0],params,defaultval=trk.defaultval)
+  ids.settargetframe(idsnext, np.where(idxcurr.flatten())[0], t)
+  pnext = pcurr
+  
+  for t in tqdm(range(trk.T0, T1+1)):
+    
+    # set pcurr based on pnext and idsnext from previous time point
+    pcurr = np.zeros((npts,d,ntargetsreal))
+    pcurr[:] = np.nan
+    pcurr[:,:,idsnext[idsnext>=0]] = pnext[:,:,idsnext>=0]
+    
+    pnext = trk.getframe(t)
+    isnext = trk.real_idx(pnext)
+    pnext = pnext[:, :, isnext]
+    if idcosts[t-trk.T0].shape != (2,2):
+      print('idcost shape unexpected')
+    idsnext, costs[t-trk.T0],_ = \
+      match_frame_id(pcurr, pnext, idcosts[t-trk.T0], params,defaultval=trk.defaultval)
+    ids.settargetframe(idsnext, np.where(isnext.flatten())[0], t)
+
+  return ids, costs
+
 
 def stitch(trk, ids, params):
   """
@@ -734,13 +882,22 @@ def test_recognize_ids():
   plt.ion()
   
   rawtrkfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/rawtrk.trk'
+  outtrkfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/kbstiched.trk'
+
   linktrkfile0 = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/linktrk.trk'
   trxfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/trx.mat'
   dell2ellfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/perframe/dell2ell.mat'
   moviefile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/movie.ufmf'
   movieidxfile = '/groups/branson/bransonlab/apt/experiments/data/200918_m170234vocpb_m170234_odor_m170232_f0180322/index.txt'
   
+  bodylandmarks = np.array([0,1])
+  plotlandmarkorder = np.array([0,2,3,0,1])
+  nbodylandmarks = bodylandmarks.size
+  
   distthresh = 10
+  nframes_test = np.inf
+  BIGCOST = 100000.
+  showanimation = True
   
   trk = TrkFile.Trk(trkfile=rawtrkfile)
   if not trk.issparse:
@@ -748,9 +905,188 @@ def test_recognize_ids():
   
   trx = TrkFile.load_trx(trxfile)
   dell2ell = TrkFile.load_perframedata(dell2ellfile)
-  plt.plot(dell2ell[0])
+
+  T0,T1 = trk.get_frame_range()
+  T1 = int(np.minimum(T1,T0+nframes_test-1))
+  T = T1-T0+1
+  ntargets = trk.ntargets
+  assert len(trx['x']) == 2
+
+  # plot trx and trk info to make sure they line up in time
+  plt.figure()
+  p = trk.getframe(T0)
+  for i in range(trk.ntargets):
+    plt.plot(p[:,0,0,i],p[:,1,0,i],'r.')
+    if T0 >= trx['startframes'][i] and T0 <= trx['endframes'][i]:
+      plt.plot(trx['x'][i][T0-trx['startframes'][i]],trx['y'][i][T0-trx['startframes'][i]],'o')
+  ax = plt.gca()
+  ax.set_aspect('equal')
   
-  isclose = dell2ell[0] <= distthresh
+  # there are 2 targets, so we only need one of dell2ell
+  dell2ell = dell2ell[0][T0-trx['startframes'][0]:T1-trx['startframes'][0]+1]
+  isclose = dell2ell <= distthresh
+  
+  plt.figure()
+  plt.plot(np.where(isclose)[0]-trx['startframes'][0]+T0,dell2ell[isclose],'.')
+  plt.plot(np.where(~isclose)[0]-trx['startframes'][0]+T0,dell2ell[~isclose],'.')
+  plt.legend(['close','far'])
+  plt.xlabel('Frame')
+  plt.ylabel('ell2ell distance (mm)')
+  
+  idcosts = [None,]*T
+  for t in range(T0,T1+1):
+    i = t - T0
+    pcurr = trk.getframe(t)
+    idxreal = trk.real_idx(pcurr)
+    pcurr = pcurr[:,:,idxreal]
+    npred = pcurr.shape[2]
+    if isclose[i]:
+      idcosts[i] = np.zeros((ntargets,npred))
+      continue
+    center = np.reshape(np.mean(pcurr[bodylandmarks,:,:],axis=0),[2,1,npred])
+    trxpos = np.zeros((2,ntargets,1))
+    trxpos[:] = np.nan
+    for id in range(ntargets):
+      if t >= trx['startframes'][id] and t <= trx['endframes'][id]:
+        trxpos[0,id,0] = trx['x'][id][t-trx['startframes'][id]]
+        trxpos[1,id,0] = trx['y'][id][t-trx['startframes'][id]]
+    D = np.sqrt(np.sum(np.square(center-trxpos),axis=0)) # ntargets x npred
+    D[np.isnan(D)] = BIGCOST
+    idcosts[i] = D
+
+  maxnpred = trk.ntargets
+  y = np.zeros((T,maxnpred))
+  y[:] = np.nan
+  for t in range(T0,T1+1):
+    i = t - T0
+    y[i,:idcosts[i].shape[1]] = idcosts[i][0,:]-idcosts[i][1,:]
+
+  fig, ax = plt.subplots(3, 1, sharex=True, sharey=False)
+  for i in range(maxnpred):
+    ax[0].plot(y[:,i],'.',label='Prediction %d'%i)
+  
+  for i in range(len(trx['x'])):
+    t0 = np.maximum(T0,trx['startframes'][i])
+    t1 = np.minimum(T1,trx['endframes'][i])
+    ax[1].plot(np.arange(t0-T0,t1+1-T0),trx['x'][i][t0-trx['startframes'][i]:t1+1-trx['startframes'][i]],'+',label='Motr target %d'%i)
+    ax[2].plot(np.arange(t0-T0,t1+1-T0),trx['y'][i][t0-trx['startframes'][i]:t1+1-trx['startframes'][i]],'+',label='Motr target %d'%i)
+  
+  for i in range(maxnpred):
+    p = trk.gettargetframe(i,np.arange(T0,T1+1,dtype=int))
+    center = np.mean(p[bodylandmarks,:,:,:],axis=0)
+    ax[1].plot(center[0,:,0],'.',label='Prediction %d'%i)
+    ax[2].plot(center[1,:,0],'.',label='Prediction %d'%i)
+
+    
+  ax[0].title.set_text('id cost difference')
+  ax[1].title.set_text('x-coordinate')
+  ax[2].title.set_text('y-coordinate')
+  ax[0].legend(loc='upper right')
+  ax[1].legend(loc='upper right')
+  ax[2].legend(loc='upper right')
+  
+  # parameters
+  params = {}
+  params['verbose'] = 1
+  params['maxframes_missed'] = 10
+  params['maxframes_delete'] = 10
+  params['maxcost_prctile'] = 95.
+  params['maxcost_mult'] = 1.25
+  params['maxcost_framesfit'] = 3
+  params['maxcost_heuristic'] = 'secondorder'
+  params['cost_missing'] = 50
+  params['cost_extra'] = 50
+  
+  nframes_test = int(np.minimum(T, nframes_test))
+  
+  ids, costs = assign_recognize_ids(trk, idcosts, params, T=nframes_test)
+  
+  trk.apply_ids(ids)
+
+  trk.save(outtrkfile)
+  
+  fig, ax = plt.subplots(trk.ntargets+1, 1, sharex=True, sharey=False)
+  ax[0].plot(costs,'.')
+  ax[0].title.set_text('Cost')
+  
+  for i in range(trk.ntargets):
+    t0 = np.maximum(T0,trx['startframes'][i])
+    t1 = np.minimum(T1,trx['endframes'][i])
+    p = trk.gettargetframe(i,np.arange(t0,t1+1,dtype=int))
+    center = np.mean(p[bodylandmarks,:,:,:],axis=0)
+    trxx = trx['x'][i][t0-trx['startframes'][i]:t1+1-trx['startframes'][i]]
+    trxy = trx['y'][i][t0-trx['startframes'][i]:t1+1-trx['startframes'][i]]
+    if T <= 2000: #plotting slow
+      ax[1].plot(np.tile(np.arange(t0-T0,t1+1-T0).reshape(1,t1-t0+1),(trk.ntargets,1)),np.concatenate((trxx.reshape((1,t1-t0+1)),center[0,:,:].reshape(1,t1-t0+1)),axis=0),'k.-')
+      ax[2].plot(np.tile(np.arange(t0-T0,t1+1-T0).reshape(1,t1-t0+1),(trk.ntargets,1)),np.concatenate((trxy.reshape((1,t1-t0+1)),center[1,:,:].reshape(1,t1-t0+1)),axis=0),'k.-')
+    ax[1].plot(np.arange(t0-T0,t1+1-T0),trxx,'+-',label='Motr %d'%i)
+    ax[2].plot(np.arange(t0-T0,t1+1-T0),trxy,'+-',label='Motr %d'%i)
+    ax[1].plot(center[0,:,0],'.-',label='Prediction %d'%i)
+    ax[2].plot(center[1,:,0],'.-',label='Prediction %d'%i)
+  
+  ax[0].title.set_text('id cost difference')
+  ax[1].title.set_text('x-coordinate')
+  ax[2].title.set_text('y-coordinate')
+  for i in range(3):
+    box = ax[i].get_position()
+    ax[i].set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    # Put a legend to the right of the current axis
+    if i > 0:
+      ax[i].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+  
+  if showanimation:
+    minp, maxp = trk.get_min_max_val()
+    minp = np.min(minp)
+    maxp = np.max(maxp)
+    
+    colors = mixed_colormap(ntargets)
+    colors[:, :4] *= .75
+    plt.figure()
+    h = [None, ] * ntargets
+    htrail = [None, ] * ntargets
+    hax = plt.gca()
+    hax.set_ylim((minp, maxp))
+    hax.set_xlim((minp, maxp))
+    traillen = 50
+    trail = np.zeros((trk.d, traillen, trk.ntargets))
+    trail[:] = np.nan
+    sf,ef = trk.get_startendframes()
+    
+    for t in range(T0, T1+1):
+      p = trk.getframe(t)
+      isrealidx = trk.real_idx(p).flatten()
+      mu = np.nanmean(p, axis=0).reshape((trk.d, trk.ntargets))
+      off = t-T0
+      if off < traillen:
+        trail[:, off, :] = mu
+      else:
+        trail = np.append(trail[:, 1:, :], mu.reshape((trk.d, 1, ntargets)), axis=1)
+      for id in range(ntargets):
+        if t > ef[id] or t < sf[id]:
+          if htrail[id] is not None:
+            htrail[id].remove()
+            htrail[id] = None
+        else:
+          if htrail[id] is None:
+            htrail[id], = plt.plot(trail[0, :, id], trail[1, :, id], '-', color=colors[id, :] * .5+np.ones(4) * .5)
+          else:
+            htrail[id].set_data(trail[0, :, id], trail[1, :, id])
+      
+      for id in np.where(isrealidx)[0]:
+        if h[id] is None:
+          h[id], = plt.plot(p[plotlandmarkorder, 0, :, id].flatten(), p[plotlandmarkorder, 1, :, id].flatten(), '.-', color=colors[id, :])
+        else:
+          h[id].set_data(p[plotlandmarkorder, 0, :, id].flatten(), p[plotlandmarkorder, 1, :, id].flatten())
+      for id in np.where(~isrealidx)[0]:
+        if h[id] is not None:
+          h[id].remove()
+          h[id] = None
+      hax.title.set_text('Frame %d'%t)
+      plt.pause(.001)
+  
+  
+  print('finished')
+  
 
 if __name__ == '__main__':
   # test_match_frame()
