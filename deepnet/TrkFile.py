@@ -1350,8 +1350,8 @@ class Trk:
     if self.issparse:
       if consolidate:
         self.pTrk.consolidate(force=True)
-      T0 = 0
-      T1 = self.pTrk.T1
+      T0 = self.T0
+      T1 = T0+self.pTrk.T1-1
     else:
       T0 = self.T0
       T1 = self.T + self.T0 - 1
