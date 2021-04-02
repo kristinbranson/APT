@@ -958,7 +958,10 @@ def test_recognize_ids():
   # printing debugging output
   params['verbose'] = 1
   # weight of the movement cost (weight of j cost is 1)
-  params['weight_movement'] = 1./100.
+  if normalize_idcosts:
+    params['weight_movement'] = 1./100.
+  else:
+    params['weight_movement'] = 1.
   # cost of setting a target to not be detected
   params['cost_missing'] = 50.*params['weight_movement']
   # cost of having a prediction that is not assigned to a target
