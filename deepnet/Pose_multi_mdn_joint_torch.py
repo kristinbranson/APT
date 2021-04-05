@@ -59,7 +59,7 @@ def nanmin(v):
     if k.size()[0] == 0:
         return torch.ones(device=v.device)*np.nan
     else:
-        return torch.min(v)
+        return torch.min(k)
 
 def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.FrozenBatchNorm2d, trainable_layers=3):
     """
@@ -120,23 +120,23 @@ def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.Fro
 
 class mdn_joint(nn.Module):
 
-    def __init__(self, npts, device, use_fpn=True,pretrain_freeze_bnorm=True,k_j=4,k_r=3,wt_offset=-5):
+    def __init__(self, npts, device, pretrain_freeze_bnorm=True, k_j=4, k_r=3, wt_offset=-5,fpn_joint_layer=3,fpn_ref_layer=0):
         super(mdn_joint,self).__init__()
 
-        if use_fpn:
-            bn_layer = misc_nn_ops.FrozenBatchNorm2d if pretrain_freeze_bnorm else None
-            # Use already available fpn. woohoo.
-            backbone = my_resnet_fpn_backbone('resnet50',pretrained=True,trainable_layers=5,norm_layer=bn_layer)
-            n_ftrs = backbone.fpn.layer_blocks[0].out_channels
-        else:
-            backbone = models.resnet50(pretrained=True)
-            n_ftrs = backbone.layer4[2].conv3.weight.shape[0]
+        bn_layer = misc_nn_ops.FrozenBatchNorm2d if pretrain_freeze_bnorm else None
+        # Use already available fpn. woohoo.
+        backbone = my_resnet_fpn_backbone('resnet50',pretrained=True,trainable_layers=5,norm_layer=bn_layer)
+        n_ftrs = backbone.fpn.layer_blocks[0].out_channels
 
-            backbone = nn.Sequential(*list(backbone.children())[:-2])
-            if pretrain_freeze_bnorm:
-                backbone.apply(freeze_bn)
-            # self.bn_backone = nn.BatchNorm2d(n_ftrs)
-            # self.bn_backone_fpn = None
+        # else:
+        #     backbone = models.resnet50(pretrained=True)
+        #     n_ftrs = backbone.layer4[2].conv3.weight.shape[0]
+        #
+        #     backbone = nn.Sequential(*list(backbone.children())[:-2])
+        #     if pretrain_freeze_bnorm:
+        #         backbone.apply(freeze_bn)
+        #     # self.bn_backone = nn.BatchNorm2d(n_ftrs)
+        #     # self.bn_backone_fpn = None
 
         self.backbone = backbone
 
@@ -148,10 +148,11 @@ class mdn_joint(nn.Module):
         self.device = device
         self.k_r = k_r
         self.k_j = k_j
-        self.use_fpn = use_fpn
         self.im_mean = torch.tensor([[[0.485]], [[0.456]], [[0.406]]]).to(self.device)
         self.im_std = torch.tensor([[[0.229]], [[0.224]], [[0.225]]]).to(self.device)
         self.wt_offset = wt_offset
+        self.fpn_joint_layer = fpn_joint_layer
+        self.fpn_ref_layer = fpn_ref_layer
 
     def forward(self, input):
         x = input['images']
@@ -165,12 +166,8 @@ class mdn_joint(nn.Module):
         x = x / im_std
 
         x = self.backbone(x)
-        if self.use_fpn:
-            x_j = x['3']
-            x_r = x['0']
-        else:
-            x_j = x
-            x_r = x
+        x_j = x[f'{self.fpn_joint_layer}']
+        x_r = x[f'{self.fpn_ref_layer}']
 
         locs_j = self.locs_joint(x_j)
         wts_j = self.wts_joint(x_j) + self.wt_offset
@@ -208,18 +205,24 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,**kwargs):
         assert conf.is_multi, 'This is a multi animal network'
-        super(Pose_multi_mdn_joint_torch,self).__init__(conf,**kwargs)
-        self.offset = 32
+        super(Pose_multi_mdn_joint_torch, self).__init__(conf, **kwargs)
+        use_fpn = self.conf.get('mdn_joint_use_fpn', True)
+        if use_fpn:
+            self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num',3)
+            self.fpn_ref_layer  = self.conf.get('mdn_joint_ref_layer_num',0)
+        else:
+            self.fpn_joint_layer = 3
+            self.fpn_ref_layer  = 3
+
+        self.offset = 4*(2**self.fpn_joint_layer)
+        self.ref_scale = 4*(2**self.fpn_ref_layer)
         self.locs_noise = self.conf.get('mdn_joint_ref_noise',0.1)
-        self.k_j = 4
+        self.k_j = 4 if self.fpn_joint_layer ==3 else 1
         self.k_r = 3
         self.wt_offset = self.conf.get('mdn_joint_wt_offset',-5)
 
     def create_model(self):
-        self.offset = 32
-        use_fpn = self.conf.get('mdn_joint_use_fpn',True)
-        self.ref_scale = 8 if use_fpn else 1
-        return mdn_joint(self.conf.n_classes, self.device, use_fpn=use_fpn,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm,k_j=self.k_j,k_r=self.k_r,wt_offset=self.wt_offset)
+        return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer)
 
     def loss_slow(self, preds, labels):
         n_classes = self.conf.n_classes
@@ -270,7 +273,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             locs_noise = locs_joint_flat + (torch.rand(locs_joint_flat.shape,device=self.device)-0.5)*2*locs_noise_mag
         else:
             locs_noise = locs_joint
-        locs_noise = locs_noise*self.ref_scale
+        locs_noise = locs_noise * self.offset/self.ref_scale
 
         for b in range(ll_joint.shape[0]):
             for g in range(labels.shape[1]):
@@ -289,7 +292,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                         continue
 
                     pp = labels[b, g, cls:cls + 1, :]
-                    cur_ref = locs_ref[b,cls,:,:,idx_y[cls],idx_x[cls]] * self.offset/self.ref_scale
+                    cur_ref = locs_ref[b, cls, :, :, idx_y[cls], idx_x[cls]] * self.ref_scale
 
                     dd_ref = torch.norm(pp-cur_ref.T,dim=-1)
                     ll_ref = torch.softmax(wts_ref[b,cls,:,idx_y[cls],idx_x[cls]],0)
@@ -386,7 +389,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         i1, i2, i3 = torch.meshgrid(torch.arange(bsz, device=self.device), torch.arange(n_max, device=self.device),
                                     torch.arange(npts, device=self.device))
         ref_pred = locs_ref_dim[i1, i2, i3, :, :, idx_y, idx_x]
-        ref_pred = ref_pred*self.offset/self.ref_scale
+        ref_pred = ref_pred * self.ref_scale
         ref_wts = wts_ref_dim[i1, i2, i3, :, idx_y, idx_x]
         ref_wts = torch.softmax(ref_wts, 3)
         ref_dist = torch.norm(ref_pred - torch.unsqueeze(labels, -1), dim=-2)
@@ -420,7 +423,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         k_ref = locs_ref.shape[-3]
         k_joint = locs_joint.shape[-3]
         ll_joint_flat = logits_joint.reshape([-1,k_joint*n_x_j*n_y_j])
-        locs_ref = locs_ref * locs_offset / self.ref_scale
+        locs_ref = locs_ref * self.ref_scale
 
         preds_ref = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
         conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)
@@ -448,7 +451,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
                 conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]]
                 for cls in range(n_classes):
-                    rpred = locs_joint[ndx,cls,:,idx[0],idx[1], idx[2]]*self.ref_scale
+                    rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale
                     mm = torch.round(rpred).int()
                     mm_y = torch.clamp(mm[1],0,n_y_r-1)
                     mm_x = torch.clamp(mm[0],0,n_x_r-1)
@@ -510,7 +513,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 preds = model({'images':torch.tensor(ims).permute([0,3,1,2])/255.})
 
             # do prediction on half grid cell size offset images. o is for offset
-            hsz = 16
+            hsz = self.offset//2
             oims = np.pad(ims, [[0, 0], [0, hsz], [0, hsz], [0, 0]])[:, hsz:, hsz:, :]
             with torch.no_grad():
                 opreds = model({'images':torch.tensor(oims).permute([0,3,1,2])/255.})
@@ -567,7 +570,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     mconf = olocs['conf_joint'][b,ix]
                     mpred.append((cc,mconf))
 
-                ord = np.flip(np.argsort([m[1] for m in mpred]))[:conf.max_n_animals]
+                pconf = np.array([m[1] for m in mpred])
+                ord = np.flip(np.argsort(pconf))[:conf.max_n_animals]
+                if len(ord)>conf.min_n_animals:
+                    neg_ndx = np.where(pconf[ord[conf.min_n_animals:]]<0)[0]
+                    if neg_ndx.size>0:
+                        ord = ord[:(conf.min_n_animals+neg_ndx[0])]
+
                 bpred = [mpred[ix][0] for ix in ord]
                 bpred = np.array(bpred)
                 npred = bpred.shape[0]
@@ -587,3 +596,4 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             torch.cuda.empty_cache()
 
         return pred_fn, close_fn, latest_model_file
+

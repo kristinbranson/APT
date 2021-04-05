@@ -1,4 +1,25 @@
 
+import APT_interface as apt
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 200000 rrange 180 trange 30 is_multi True op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) max_n_animals 7 mmpose_use_apt_augmentation False -train_name deepnet -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_mmpose -name alice_neg_split_mmpose_multi -cache /nrs/branson/mayank/apt_cache_2 train -use_cache -skip_db -continue'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+aa = [np.array(yy['keypoints']).reshape([-1,3]) for yy in Y['annotations']]
+negs = [np.all(np.isnan(a[:,:2])) for a in aa]
+nx = [i for i,x in enumerate(negs) if x]
+
+##
+f,ax = plt.subplots(5,5)
+ax = ax.flatten()
+for ndx,sel in enumerate(nx):
+    iid = Y['annotations'][sel]['image_id']
+    im = cv2.imread(Y['images'][iid]['file_name'])
+    ax[ndx].imshow(im)
+    bb = np.array(Y['annotations'][sel]['segmentation']).reshape(4,2)
+    # mask = apt.create_mask([bb],[320,320])
+    ax[ndx].plot(bb[:,0],bb[:,1])
+
 ## single animal ht
 # import APT_interface as apt
 # import os

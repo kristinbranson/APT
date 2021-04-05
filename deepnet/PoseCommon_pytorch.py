@@ -190,7 +190,7 @@ class PoseCommon_pytorch(object):
         else:
             with open(ckpt_file,'r') as f:
                 mf = json.load(f)
-            if len(mf) > 1:
+            if len(mf) > 0:
                 model_file = mf[-1]
             else:
                 model_file = None

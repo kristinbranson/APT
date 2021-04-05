@@ -2812,6 +2812,15 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
     everything should be 0-indexed
     '''
 
+    locs_lnk = np.transpose(pred_locs_in, [2, 3, 0, 1])
+    ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
+    tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+    trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
+    trk.T0 = start
+    trk.save(out_file, saveformat='tracklet',trkInfo=info)
+    return
+
+    # Old code that saves extra information. Keeping it in for now MK - 20210319
     pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
 
     tgt = to_mat(np.array(trx_ids))  # target animals that have been tracked.
@@ -2986,14 +2995,9 @@ def classify_movie(conf, pred_fn, model_type,
         trk = lnk.link(pred_locs)
         trk.T0 = start_frame
         out_file_tracklet = out_file
-        trk.save(out_file_tracklet, saveformat='tracklet')
+        trk.save(out_file_tracklet, saveformat='tracklet',trkInfo=info)
     else:
-        # write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-        locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
-        ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
-        tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-        trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
-        trk.save(out_file,saveformat='tracklet')
+        write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
 
     if os.path.exists(out_file + '.part') and not conf.is_multi:
         os.remove(out_file + '.part')

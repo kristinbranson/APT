@@ -5719,6 +5719,7 @@ classdef Labeler < handle
         iMov = obj.currMovie;
         PROPS = obj.gtGetSharedProps();
         npts = obj.nLabelPoints;
+        t = obj.currFrame;
         p = reshape(obj.(PROPS.LPOS){iMov}(:,:,t,tfShow),2*npts,[]);
         % p is [npts x nShow]
         tfLbledShow = false(obj.nTrx,1);

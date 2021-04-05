@@ -996,14 +996,18 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     from matplotlib import cm
     pad_amt = xx*yy - im_s.shape[0]
     if pad_amt > 0:
-        im_s = np.concatenate([im_s,im_s[:pad_amt,...]],axis=0)
+        im_s = np.concatenate([im_s,np.zeros_like(im_s[:pad_amt,...])],axis=0)
     isz1 = im_s.shape[1]
     isz2 = im_s.shape[2]
     im_s = im_s.reshape([xx,yy,isz1, isz2])
     im_s = im_s.transpose([0, 2, 1, 3])
     im_s = im_s.reshape([xx * isz1, yy * isz2])
     plt.figure(); plt.imshow(im_s,cmap=cmap)
-
+    for x in range(1,yy):
+        plt.plot([x*isz2,x*isz2],[1,im_s.shape[0]-1],c=[0.3,0.3,0.3])
+    for y in range(1,xx):
+        plt.plot([1,im_s.shape[1]-1],[y*isz2,y*isz2],c=[0.3,0.3,0.3])
+    plt.axis('off')
 
 def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11, hiliteptcolor=None):
     import matplotlib.pyplot as plt
@@ -1484,19 +1488,17 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=72*60,
-               run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',
-               sing_image='docker://bransonlabapt/apt_docker:tf1.15_py3',
-               precmd='',numcores=2):
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/bransonlab/mayank/singularity/pytorch_mmpose.sif',precmd='',numcores=2):
     import subprocess
-    sing_script = os.path.join(dir, 'opt_' + name + '.sh')
-    sing_err = os.path.join(dir, 'opt_' + name + '.err')
-    sing_log = os.path.join(dir, 'opt_' + name + '.log')
-    bsub_script = os.path.join(dir, 'opt_' + name + '.bsub.sh')
+    sing_script = os.path.join(dir,  name + '.sh')
+    sing_err = os.path.join(dir,  name + '.err')
+    sing_log = os.path.join(dir,  name + '.log')
+    bsub_script = os.path.join(dir, name + '.bsub.sh')
+    # sing_image = 'docker://bransonlabapt/apt_docker:tf1.15_py3'
     with open(sing_script, 'w') as f:
         f.write('#!/bin/bash\n')
         # f.write('bjobs -uall -m `hostname -s`\n')
-        f.write('. /opt/venv/bin/activate\n')
+        # f.write('. /opt/venv/bin/activate\n')
         f.write('cd {}\n'.format(run_dir))
         f.write('numCores2use={} \n'.format(numcores))
         f.write('{} \n'.format(precmd))

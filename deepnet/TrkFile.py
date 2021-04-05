@@ -1310,7 +1310,7 @@ class Trk:
         
       self.trkData[key] = val
       
-  def save(self,outtrkfile,saveformat=None,consolidate=True):
+  def save(self,outtrkfile,saveformat=None,consolidate=True,**kwargs):
     """
     Save data in format saveformat to output file outtrkfile.
     :param outtrkfile: Name of file to save to.
@@ -1331,7 +1331,7 @@ class Trk:
     if saveformat == 'sparse':
       self.savesparse(outtrkfile)
     elif saveformat == 'tracklet':
-      self.savetracklet(outtrkfile)
+      self.savetracklet(outtrkfile,**kwargs)
     else:
       self.savefull(outtrkfile,consolidate=consolidate)
       
@@ -1339,7 +1339,7 @@ class Trk:
   def pTrkFrm(T0, T1):
     return to_mat(np.arange(T0,T1+1,dtype=int)).reshape((1,T1-T0+1))
       
-  def savetracklet(self,outtrkfile,consolidate=False):
+  def savetracklet(self,outtrkfile,consolidate=False,**kwargs):
     
     """
     Save data in sparse format to file outtrkfile.
@@ -1385,6 +1385,8 @@ class Trk:
     trkData['endframes'] += T0
 
     trkData['pTrkiTgt'] = to_mat(self.pTrkiTgt)
+    for k in kwargs.keys():
+      trkData[k] = kwargs[k]
 
     hdf5storage.savemat(outtrkfile,trkData,appendmat=False,truncate_existing=True)
       
@@ -2601,7 +2603,7 @@ def test_sparse_load():
   assert np.all(np.logical_or(trk2['pTrkTag']==trk['pTrkTag'],np.logical_and(np.isnan(trk2['pTrkTag']),np.isnan(trk['pTrkTag']))))
 
 
-def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv',dir=45):
+def visualize_trk(trkfile,movfile,off=10,start=None,end=None,cmap='hsv',dir=45):
   # Vased on https://stackoverflow.com/questions/31778081/how-to-highlight-line-collection-in-matplotlib
 
   import movies
@@ -2612,15 +2614,15 @@ def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv',dir=45):
   from matplotlib.collections import LineCollection
   import PoseTools as pt
 
-  J = load_trk(trkfile)
-  frs = np.array(J['pTrkFrm']).astype('int')-1  # Assuming in ascending order
+  J = Trk(trkfile)
+  tstart,tend = J.get_frame_range()
   if start is None:
-    start = frs.min()
+    start = tstart
   if end is None:
-    end = frs.max()+1
+    end = tend + 1
 
   theta = dir*np.pi/180
-  cap = movies.Movie(J['expname'])
+  cap = movies.Movie(movfile)
   n_fr = end - start
   frs = range(start, end)
   fig = plt.figure(figsize=(7,7))
@@ -2631,8 +2633,9 @@ def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv',dir=45):
   padim = np.pad(im, [[-min(padszy,0), max(0,padszy)], [-min(0,padszx), max(0,padszx)]], 'constant', constant_values=244)
   imobj = plt.imshow(padim, 'gray')
   plt.axis('image')
-  pp = J['pTrk'].transpose([3, 2, 0, 1]).copy()
-  tfrm = np.array(J['pTrkFrm'])[0]-1
+  pp, _ = J.getfull()
+  pp = pp.transpose([3, 2, 0, 1]).copy()
+  tfrm = np.arange(tend+1)
   sel = (( tfrm< end) & (tfrm>=start))
   pp = pp[:,sel,:,:]
   R = np.array([np.cos(theta),np.sin(theta)])
@@ -2645,6 +2648,8 @@ def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv',dir=45):
   ax = plt.gca()
 
   def lpicker(evt):
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
 
     if evt.artist in all_lines:
       #Update when selected
@@ -2678,6 +2683,8 @@ def visualize_trk(trkfile,off=10,start=None,end=None,cmap='hsv',dir=45):
       imobj.set_data(padim)
       ax.set_title(f'Frame {fn} out of frames {start} to {end}')
       ax.axis('image')
+      ax.set_xlim(xlim[0],xlim[1])
+      ax.set_ylim(ylim[0],ylim[1])
       return True, dict()
 
   cc = pt.get_cmap(len(frs),map_name=cmap)
