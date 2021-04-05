@@ -284,6 +284,8 @@ classdef Lbl
     function sagg = aggregateLabelsAddRoi(lObj)
       nmov = numel(lObj.labels);
       sagg = cell(nmov,1);
+%       saggroi = lObj.labelsRoi;
+%       szassert(saggroi,size(sagg));
       for imov=1:nmov
         s = lObj.labels{imov};
         s.mov = lObj.movieFilesAllFull{imov};
@@ -298,8 +300,11 @@ classdef Lbl
           roi = lObj.maGetRoi(xy);
           s.roi(:,i) = roi(:);
         end
-        
-        sagg{imov} = s;
+
+        sroi = lObj.labelsRoi{imov};
+        s.frmroi = sroi.f;
+        s.extra_roi = sroi.verts;
+        sagg{imov} = s;        
       end
       sagg = cell2mat(sagg);
     end
@@ -367,12 +372,15 @@ classdef Lbl
       s = Labels.addsplitsifnec(s);
 
       slocgrp = [];
-      frmsun = unique(s.frm);
+      frmsun = unique([s.frm(:); s.frmroi(:)]);
       nfrmsun = numel(frmsun);
       for ifrmun=1:nfrmsun
         f = frmsun(ifrmun);
         j = find(s.frm==f);
         ntgt = numel(j);
+        
+        jroi = find(s.frmroi==f);
+        nroi = numel(jroi);
                     
         % Dont include numtgts, eg what if a target is added to an
         % existing frame.
@@ -389,7 +397,9 @@ classdef Lbl
           'roi',s.roi(:,j),...
           'pabs',s.p(:,j), ...
           'occ',s.occ(:,j), ...
-          'ts',s.ts(:,j) ...
+          'ts',s.ts(:,j), ...
+          'nextra_roi',nroi,...
+          'extra_roi',reshape(s.extra_roi(:,:,jroi),[],nroi) ...
           );
         slocgrp = [slocgrp; sloctmp]; %#ok<AGROW>
       end

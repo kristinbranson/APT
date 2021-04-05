@@ -36,12 +36,20 @@ classdef LabelCoreSeqMA < LabelCore
   properties
     pbNewTgt % create a new target
     pbDelTgt % delete the current tgt
-    
+        
     maxNumTgts = 10
     tv % scalar TrackingVisualizerMT
     CLR_NEW_TGT = [0.470588235294118 0.670588235294118 0.188235294117647];
     CLR_DEL_TGT = [0.929411764705882 0.690196078431373 0.129411764705882];
+    
+    pbRoiNew
+    pbRoiEdit
+    roiShow = false; % show pbRoi* or not
+    roiRectDrawer
+    CLR_PBROINEW = [0.6941 .5082 .7365]; % [0.4902 0.1804 0.5608] see cropmode buttons
+    CLR_PBROIEDIT = [0.4000 0.6706 0.8447]; % etc [0 0.4510 0.7412];
   end
+  
   properties
     iPtMove; % scalar. Either nan, or index of pt being moved
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
@@ -77,9 +85,11 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv = TrackingVisualizerMT(obj.labeler,'lblCoreSeqMA');
       obj.tv.doPch = true;
       obj.tv.vizInit('ntgts',obj.maxNumTgts);
-      
+
+      obj.roiInit();
+
       obj.labeler.currImHud.updateReadoutFields('hasTgt',true);
-      obj.labeler.gdata.axes_curr.Toolbar.Visible = 1; 
+      obj.labeler.gdata.axes_curr.Toolbar.Visible = 1;
     end
     function addMAbuttons(obj)
       btn = obj.tbAccept;
@@ -116,6 +126,8 @@ classdef LabelCoreSeqMA < LabelCore
     function delete(obj)
       delete(obj.pbNewTgt);
       delete(obj.pbDelTgt);
+      delete(obj.pbRoiEdit);
+      delete(obj.pbRoiNew);
       deleteValidHandles(obj.tcHpts);
     end
     
@@ -472,6 +484,88 @@ classdef LabelCoreSeqMA < LabelCore
     end
   end
   
+  methods % roi
+    function roiInit(obj)
+      obj.roiRectDrawer = RectDrawer(obj.hAx);
+      obj.roiAddButtons();
+      obj.roiSetShow(false);
+    end
+    function roiAddButtons(obj)
+      btn = obj.pbNewTgt;
+      YOFF_NORMALIZED = .01;
+      pos = btn.Position;
+      pos(2) = pos(2) + pos(4) + YOFF_NORMALIZED;
+      
+      pb = uicontrol(...
+        'parent',obj.hFig(1),...
+        'style','pushbutton',...
+        'units',btn.Units,...
+        'position',btn.Position,...
+        'fontunits',btn.FontUnits,...
+        'fontsize',btn.FontSize,...
+        'fontweight',btn.FontWeight,...
+        'backgroundcolor',obj.CLR_PBROINEW,...
+        'string','New ROI',...
+        'units',btn.Units,...
+        'position',pos,...
+        'callback',@(s,e)obj.cbkRoiNew() ...      
+      );
+      obj.pbRoiNew = pb;
+      
+      btn = obj.pbClear;
+      pos = btn.Position;
+      pos(2) = pos(2) + pos(4) + YOFF_NORMALIZED;
+      pb = uicontrol(...
+        'parent',obj.hFig(1),...
+        'style','togglebutton',...
+        'units',btn.Units,...
+        'position',btn.Position,...
+        'fontunits',btn.FontUnits,...
+        'fontsize',btn.FontSize,...
+        'fontweight',btn.FontWeight,...
+        'backgroundcolor',obj.CLR_PBROIEDIT,...
+        'string','Edit ROIs',...
+        'units',btn.Units,...
+        'position',pos,...
+        'callback',@(s,e)obj.cbkRoiEdit() ... 
+      );
+      obj.pbRoiEdit = pb;
+    end
+    function roiSetShow(obj,tf)
+      onoff = onIff(tf);
+      obj.pbRoiEdit.Visible = onoff;
+      obj.pbRoiNew.Visible = onoff;
+      obj.roiRectDrawer.setShowRois(tf);
+      obj.roiShow = tf;
+    end
+    function cbkRoiNew(obj)
+      assert(obj.roiShow);
+      obj.roiRectDrawer.newRoiDraw();
+      obj.roiUpdatePBEdit(true);
+    end
+    function cbkRoiEdit(obj)
+      tfEditingNew = obj.pbRoiEdit.Value;
+      rrd = obj.roiRectDrawer;
+      rrd.setEdit(tfEditingNew);
+      if ~tfEditingNew
+        % write to db/Labeler
+        v = rrd.getRoisVerts();
+        obj.labeler.labelroiSet(v);
+      end
+      obj.roiUpdatePBEdit(tfEditingNew);
+    end
+    function roiUpdatePBEdit(obj,tf)
+      if tf
+        str = 'Done Editing'; 
+        val = 1;
+      else
+        str = 'Edit ROIs';
+        val = 0;
+      end
+      set(obj.pbRoiEdit,'Value',val,'String',str);
+    end
+  end
+  
   methods % tc
     function setTwoClickOn(obj,tfon)
       if obj.state==LabelState.LABEL
@@ -551,7 +645,19 @@ classdef LabelCoreSeqMA < LabelCore
         obj.beginAcceptedReset();
       end
       obj.newPrimaryTarget();
-      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));      
+      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo)); 
+      
+      if obj.roiShow
+        % Note, currently if roiShow is toggled, rois for the current
+        % frame will not be shown until a frame-change.
+        vroi = lObj.labelroiGet(iFrm);
+        obj.roiRectDrawer.setRois(vroi);
+        
+        % changing frames always resets ROI editing state. Note that
+        % changinging frames before clicking "Done Editing" will not save/
+        % write ROI changes to Labeler.
+        obj.roiUpdatePBEdit(false);
+      end
     end
     
     function newPrimaryTarget(obj)

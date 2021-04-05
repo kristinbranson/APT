@@ -420,7 +420,7 @@ def imgaug_augment(augmenter, images, keypoints, clip=True):
 #__ims_locs_preprocess_dpk_has_run__ = False
 
 def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
-                                 draw_conf_maps=True):
+                                 draw_conf_maps=True, mask=None):
     '''
 
     :param imsraw:
@@ -439,6 +439,8 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
     conf.dpk_im_pad*   
     '''
     #global __ims_locs_preprocess_dpk_has_run__
+
+    assert mask is None
 
     assert conf.imsz == imsraw.shape[1:3]
 
@@ -510,11 +512,14 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
 #                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
 #        __ims_locs_preprocess_dpk_has_run__ = True
 
-    return ims, locs, targets
+    if mask is None:
+        mask = np.ones_like(ims[..., 0])
 
-def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort):
+    return ims, locs, targets, mask
+
+def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort, mask=None):
     return ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
-                                        draw_conf_maps=True)
+                                        draw_conf_maps=True, mask=mask)
 
 def ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locsraw, conf, distort):
     # Still can img preproc
@@ -811,7 +816,7 @@ def create_tf_datasets(conf0,
 
 
     def pp_dpk_conf(imsraw, locsraw):
-        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+        ims, locs, tgts, mask = ims_locs_preprocess_dpk_base(imsraw,
                                                        locsraw,
                                                        conf,
                                                        distort,
@@ -819,7 +824,7 @@ def create_tf_datasets(conf0,
         return ims.astype('float32'), tgts.astype('float32')
 
     def pp_dpk_noconf(imsraw, locsraw):
-        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+        ims, locs, tgts, mask = ims_locs_preprocess_dpk_base(imsraw,
                                                        locsraw,
                                                        conf,
                                                        distort,

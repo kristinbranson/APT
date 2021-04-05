@@ -21,6 +21,7 @@ classdef Labeler < handle
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
       'labels' 'labels2' 'labelsGT' 'labels2GT' ...       %'labeledpos2' ...  % 'labeledpos' 'labeledpostag' 'labeledposTS' % 'labeledposMarked'        % 'labeledposGT' 'labeledpostagGT' 'labeledposTSGT'        %'labeledpos2GT'...
+      'labelsRoi' ...
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
@@ -340,6 +341,7 @@ classdef Labeler < handle
     
     showSkeleton;             % true to plot skeleton 
     showMaRoi;
+    showMaRoiAux
   end 
   properties
     tvTrx; % scalar TrackingVisualizerTrx
@@ -355,6 +357,8 @@ classdef Labeler < handle
     labels2;
     labelsGT;
     labels2GT;
+    
+    labelsRoi;
     
     labels2Hide;          % scalar logical
     labels2ShowCurrTargetOnly;  % scalar logical, transient    
@@ -1608,6 +1612,7 @@ classdef Labeler < handle
       obj.skelHead = [];
       obj.showSkeleton = false;
       obj.showMaRoi = false;
+      obj.showMaRoiAux = false;
       obj.flipLandmarkMatches = zeros(0,2);
       
       % When starting a new proj after having an existing proj open, old 
@@ -1890,6 +1895,7 @@ classdef Labeler < handle
       obj.labelsGT = cell(0,1);
       obj.labels2GT = cell(0,1);
       
+      obj.labelsRoi = cell(0,1);
 %       obj.labeledposGT = cell(0,1);
 %       obj.labeledposTS = cell(0,1);
       obj.lastLabelChangeTS = 0;
@@ -2370,6 +2376,7 @@ classdef Labeler < handle
       obj.setSkeletonEdges(obj.skeletonEdges);
       obj.setShowSkeleton(obj.showSkeleton);
       obj.setShowMaRoi(obj.showMaRoi);
+      obj.setShowMaRoiAux(obj.showMaRoiAux);
       obj.setFlipLandmarkMatches(obj.flipLandmarkMatches);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
@@ -3646,7 +3653,7 @@ classdef Labeler < handle
       if ~isfield(s,'showSkeleton'),
         s.showSkeleton = false;
       end
-      % AL 20201004
+      % AL 20201004, 20210324
       if ~isfield(s,'showMaRoi')
         s.showMaRoi = false;
       end
@@ -3696,6 +3703,11 @@ classdef Labeler < handle
              'lpostag',fullfcn(s.labeledpostagGT{imov}));
           s.labels2GT{imov} = Labels.fromarray(fullfcn(s.labeledpos2GT{imov}));
         end
+      end
+      % 20210322 labelsRoi
+      if ~isfield(s,'labelsRoi')
+        nmov = numel(s.labels);
+        s.labelsRoi = repmat({LabelROI.new()},nmov,1);
       end
       
       % 20210317 MA use tracklets in labels2 
@@ -3875,6 +3887,7 @@ classdef Labeler < handle
         else
           obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
         end
+        obj.labelsRoi{end+1,1} = LabelROI.new();
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
 %         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -4042,6 +4055,7 @@ classdef Labeler < handle
 %       obj.(PROPS.LPOS2){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LBL){end+1,1} = Labels.new(nLblPts);
       obj.(PROPS.LBL2){end+1,1} = Labels.new(nLblPts);
+      obj.labelsRoi{end+1,1} = LabelROI.new();
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
@@ -4182,6 +4196,7 @@ classdef Labeler < handle
 %         obj.(PROPS.LPOS2)(iMov,:) = [];
         obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
         obj.(PROPS.LBL2)(iMov,:) = [];
+        obj.labelsRoi(iMov,:) = [];
 %         if ~gt
 %           obj.labeledposMarked(iMov,:) = [];
 %         end
@@ -4270,7 +4285,7 @@ classdef Labeler < handle
       else
         obj.viewCalibrationData = obj.viewCalibrationData(p);
       end      
-      FLDS2 = {'labels' 'labels2'};
+      FLDS2 = {'labels' 'labelsRoi' 'labels2'};
 %         'labeledpos' 'labeledposTS' 'labeledpostag' ... % 'labeledposMarked' 
 %         'labeledpos2'};
       for f=FLDS2,f=f{1}; %#ok<FXSET>
@@ -5755,6 +5770,13 @@ classdef Labeler < handle
         lc.tv.setShowPches(tf); % lc should be a lblCoreSeqMA      
       end
     end
+    function setShowMaRoiAux(obj,tf)
+      obj.showMaRoiAux = logical(tf);
+      if obj.labelMode==LabelMode.MULTIANIMAL
+        lc = obj.lblCore;
+        lc.roiSetShow(tf); % lc should be a lblCoreSeqMA      
+      end
+    end
     function setFlipLandmarkMatches(obj,matches)
       obj.flipLandmarkMatches = matches;
     end
@@ -7151,6 +7173,31 @@ classdef Labeler < handle
 %       lpos = lpos{obj.currMovie}(:,:,obj.currFrame,obj.currTarget);
 %       islabeled = all(~isnan(lpos(:)));
 %     end
+
+    function labelroiSet(obj,v)
+      % Set/replace all rois for current mov/frm
+      assert(~obj.gtIsGTMode);
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      s = obj.labelsRoi{iMov};
+      obj.labelsRoi{iMov} = LabelROI.setF(s,v,frm);
+
+      if ~obj.gtIsGTMode
+        obj.lastLabelChangeTS = now;
+      end
+      obj.labeledposNeedsSave = true;
+    end
+    
+    function v = labelroiGet(obj,v)
+      % Get rois for current frm
+      assert(~obj.gtIsGTMode);
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      s = obj.labelsRoi{iMov};
+      v = LabelROI.getF(s,frm);
+    end
+
+   
 
     % Label Cosmetics notes 20190601
     %
@@ -14120,9 +14167,15 @@ classdef Labeler < handle
     function labels2Clear(obj)
       % Operates based on current reg/GT mode
       PROPS = obj.gtGetSharedProps();
-      PROPLPOS2 = PROPS.LPOS2;
-      for i=1:numel(obj.(PROPLPOS2))
-        obj.(PROPLPOS2){i}(:) = nan;
+      PROPLBL2 = PROPS.LBL2;
+      isMA = obj.maIsMA;
+      nlblpts = obj.nLabelPoints;
+      for i=1:numel(obj.(PROPLBL2))
+        if isMA
+          obj.(PROPLBL2){i} = TrxUtil.newptrx(0,nlblpts);
+        else
+          obj.(PROPLBL2){i} = Labels.new(nlblpts);
+        end
       end
       obj.labels2VizUpdate();
     end
