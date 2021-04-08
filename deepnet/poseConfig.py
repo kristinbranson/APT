@@ -197,6 +197,8 @@ class config(object):
         self.dpk_val_batch_size = 0        # use 0 when dpk_train_style='apt' to not do valdist loggin
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
         self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
+        self.dpk_use_op_affinity_graph = True # if True, use affinity graph for dpk skel.
+                                              # if False, dpk_skel_csv must be set
 
         # ============== MULTIANIMAL ==========
         self.is_multi = False
