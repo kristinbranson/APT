@@ -29,6 +29,8 @@ classdef TrackingVisualizerTracklets < handle
                  % iTrxViz2Trx(iTrxTV) gives index into .ptrx for live trx,
                  % and 0 for unused trx.
                  
+    tfShowTrxTraj = true;
+                 
     hud % AxisHUD
     lObj
   end
@@ -97,7 +99,9 @@ classdef TrackingVisualizerTracklets < handle
       
       tvtrx = obj.tvtrx; %#ok<*PROPLC>
       tfLiveTrx = false(tvtrx.nTrx,1);
-      tfLiveTrx(1:nLive) = true; 
+      if obj.tfShowTrxTraj
+        tfLiveTrx(1:nLive) = true; 
+      end
       tfUpdateIDs = trxMappingChanged;      
       
       tvtrx.setShow(tfLiveTrx);
