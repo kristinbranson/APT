@@ -865,7 +865,11 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # elif net_type == 'openpose':
     #     op.update_conf(conf)
     elif net_type == 'dpk':
-        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        if conf.dpk_use_op_affinity_graph:
+            apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        else:
+            assert conf.dpk_skel_csv is not None
+            apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
