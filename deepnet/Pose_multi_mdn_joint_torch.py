@@ -372,7 +372,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                         torch.rand(locs_joint_flat.shape, device=self.device) - 0.5) * 2 * locs_noise_mag
         else:
             locs_noise = locs_joint_flat
-        locs_noise = locs_noise * self.ref_scale
+        locs_noise = locs_noise * self.offset/self.ref_scale
 
         assign_ndx = torch.argmax(assign, axis=-1)
         bsz = labels.shape[0]
@@ -525,6 +525,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             olocs_orig = olocs['ref'] + hsz
             locs_orig = locs['ref']
             cur_pred = np.ones_like(olocs_orig) * np.nan
+            cur_joint_conf = np.ones_like(olocs_orig[...,0]) * -100
+            cur_ref_conf = np.ones_like(olocs_orig[...,0]) * -100
             dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
             dd = np.linalg.norm(dd,axis=-1).mean(-1)
             conf_margin = 4
@@ -581,12 +583,14 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 bpred = np.array(bpred)
                 npred = bpred.shape[0]
                 cur_pred[b,:npred,...] = bpred
+                cur_joint_conf[b,:npred,...] = pconf[ord,None]
 
 
             matched['ref'] = cur_pred
 
             ret_dict = {}
             ret_dict['locs'] = matched['ref'] * conf.rescale
+            ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))
             if retrawpred:
                 ret_dict['preds'] = [preds,opreds]
                 ret_dict['raw_locs'] = [locs,olocs]

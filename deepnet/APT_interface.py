@@ -716,7 +716,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     conf.rescale = scale
 
-    ex_mov = multiResData.find_local_dirs(conf)[0][0]
+    ex_mov = multiResData.find_local_dirs(conf.labelfile,conf.view)[0][0]
 
     if 'NumChans' in lbl['cfg'].keys():
         conf.img_dim = int(read_entry(lbl['cfg']['NumChans']))
@@ -958,7 +958,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
     # assert not (on_gt and split), 'Cannot split gt data'
 
-    local_dirs, _ = multiResData.find_local_dirs(conf, on_gt)
+    local_dirs, _ = multiResData.find_local_dirs(conf.labelfile, conf.view,on_gt)
     lbl = h5py.File(conf.labelfile, 'r')
     view = conf.view
     flipud = conf.flipud
@@ -2813,9 +2813,16 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
     '''
 
     locs_lnk = np.transpose(pred_locs_in, [2, 3, 0, 1])
+
     ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
     tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-    trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
+    if 'conf' in extra_dict:
+        pred_conf = extra_dict['conf']
+        locs_conf = np.transpose(pred_conf, [2, 0, 1])
+    else:
+        locs_conf = None
+
+    trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf)
     trk.T0 = start
     trk.save(out_file, saveformat='tracklet',trkInfo=info)
     return
@@ -2959,7 +2966,7 @@ def classify_movie(conf, pred_fn, model_type,
             # for everything else that is returned..
             for k in ret_dict.keys():
 
-                if ret_dict[k].ndim == 4:  # hmaps
+                if (ret_dict[k].ndim == 4 and (not conf.is_multi)) or ret_dict[k].ndim==5:  # hmaps
                     #if save_hmaps:
                     #    cur_hmap = ret_dict[k]
                     #    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
@@ -2969,30 +2976,34 @@ def classify_movie(conf, pred_fn, model_type,
                     # py3 and py2 compatible
                     if k not in extra_dict:
                         sz = cur_v.shape[1:]
-                        extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
+                        if conf.is_multi:
+                            extra_dict[k] = np.zeros((max_n_frames,) + sz)
+                        else:
+                            extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
 
                     if k.startswith('locs'):  # transform locs
                         cur_orig = convert_to_orig(cur_v[cur_t, ...], conf, cur_f, cur_trx, crop_loc)
                     else:
                         cur_orig = cur_v[cur_t, ...]
 
-                    extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
+                    if conf.is_multi:
+                        extra_dict[k][cur_f - min_first_frame, ...] = cur_orig
+                    else:
+                        extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
 
         if cur_b % 20 == 19:
             sys.stdout.write('.')
         if (cur_b % nskip_partfile == 0) & (cur_b>0):
             sys.stdout.write('\n')
-            # Doesn't make sense to connect intermediate ones. too much recomputation.
-            # if conf.is_multi:
-            #     lnk_locs, lnk_loss = link_trajectories(pred_locs,lnk_cost)
-            #     write_trk(out_file + '.part', lnk_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
-            # else:
             write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
 
     if conf.is_multi:
-        # write out partial results before linking.
-        write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-        trk = lnk.link(pred_locs)
+        # write out raw results before linking.
+        pre_fix,ext = os.path.splitext(out_file)
+        raw_file = pre_fix + '_raw' + ext
+        write_trk(raw_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        pred_conf = extra_dict['conf'] if 'conf' in extra_dict else None
+        trk = lnk.link(pred_locs,pred_conf)
         trk.T0 = start_frame
         out_file_tracklet = out_file
         trk.save(out_file_tracklet, saveformat='tracklet',trkInfo=info)

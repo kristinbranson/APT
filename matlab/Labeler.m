@@ -572,6 +572,8 @@ classdef Labeler < handle
     currIm = [];            % [nview] cell vec of image data. init: C
     selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
     hFig; % handle to main LabelerGUI figure
+    drag = false;
+    drag_pt = [];
   end
   properties (SetAccess=private)
     isinit = false;         % scalar logical; true during initialization, when some invariants not respected
@@ -12321,6 +12323,10 @@ classdef Labeler < handle
       tfsucc = false;
       xy = [];
     end    
+    function unsetdrag(obj)
+      obj.drag = false;
+      obj.drag_pt = [];
+    end
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
       

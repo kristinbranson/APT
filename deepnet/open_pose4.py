@@ -183,7 +183,7 @@ def stageCNN(x, nfout, stagety, stageidx, kernel_reg,
     x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-1by1-1-prelu".format(stagety, stageidx))
     x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
-    x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
+    # x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
     return x
 
 def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
@@ -218,8 +218,9 @@ def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
 
     x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-postDC-1by1-1-prelu".format(stagety, stageidx))
-    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
-    x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
+    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-postDC-1by1-2".format(stagety, stageidx))
+    # x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
+    # x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
     return x
 
 def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=None,

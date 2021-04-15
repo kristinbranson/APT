@@ -315,6 +315,7 @@ classdef LabelCoreSeqMA < LabelCore
         return;
       end
       tf = obj.anyPointSelected();
+      obj.labeler.unsetdrag();
       if tf
         % none
       else

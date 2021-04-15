@@ -696,6 +696,10 @@ handles.image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
+set(hObject,'WindowScrollWheelFcn',@scroll_callback);
+% set(hObject,'WindowbuttonDownFcn',@dragstart_callback);
+% set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+% set(hObject,'WindowbuttonUpFcn',@dragend_callback);
 
 handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
@@ -2874,6 +2878,74 @@ if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
   warningNoTrace('LabelerGUI:axDir',...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
+
+function scroll_callback(hObject,eventdata,~)
+h = guidata(hObject);
+curp = get(h.axes_curr,'CurrentPoint');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+  return
+end
+if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+  return
+end
+scrl = 1.2;
+% scrl = scrl^eventdata.VerticalScrollAmount;
+if eventdata.VerticalScrollCount>0
+  scrl = 1/scrl;
+end
+imglimx = get(h.image_curr,'XData');
+imglimy = get(h.image_curr,'YData');
+xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
+xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
+ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
+ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
+axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+% fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
+
+function dragstart_callback(hObject,eventdata,~)
+fprintf('Drag on\n')
+h = guidata(hObject);
+curp = get(h.axes_curr,'CurrentPoint');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+  return
+end
+if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+  return
+end
+h.labelerObj.drag = true;
+h.labelerObj.drag_pt = [curp(1,1),curp(1,2)];
+set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+set(hObject,'WindowbuttonUpFcn',@dragend_callback);
+
+function drag_callback(hObject,evendata,~)
+h = guidata(hObject);
+if ~h.labelerObj.drag
+  return
+end
+fprintf('Dragging\n');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+curp = get(h.axes_curr,'CurrentPoint');
+dx = curp(1,1)-h.labelerObj.drag_pt(1);
+dy = curp(1,2) - h.labelerObj.drag_pt(2);
+imglimx = get(h.image_curr,'XData');
+imglimy = get(h.image_curr,'YData');
+xlim(1) = max(imglimx(1),xlim(1)-dx);
+xlim(2) = min(imglimx(2),xlim(2)-dx);
+ylim(1) = max(imglimy(1),ylim(1)-dy);
+ylim(2) = min(imglimy(2),ylim(2)-dy);
+axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+
+
+function dragend_callback(hObject,eventdata,~)
+h = guidata(hObject);
+h.labelerObj.unsetdrag();
+fprintf('Drag off\n')
+
 
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
