@@ -1,0 +1,456 @@
+import pathlib
+import os
+import sys
+sys.path.append('mmpose')
+import mmpose
+from mmcv import Config
+from mmpose.datasets import build_dataset
+from mmpose.models import build_posenet
+import poseConfig
+import copy
+from mmpose import __version__
+from mmcv.utils import get_git_hash
+from mmpose.datasets import build_dataloader, build_dataset
+import torch
+from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
+from mmcv.runner import DistSamplerSeedHook, EpochBasedRunner, OptimizerHook, IterBasedRunner, Hook, load_checkpoint
+from mmpose.core.distributed_wrapper import DistributedDataParallelWrapper
+from mmpose.core import (DistEvalHook, EvalHook, Fp16OptimizerHook, build_optimizers)
+import logging
+import time
+from PoseCommon_pytorch import PoseCommon_pytorch
+from mmcv.runner import init_dist, set_random_seed
+import pickle
+import json
+import numpy as np
+from mmpose.core import wrap_fp16_model
+from mmpose.datasets.pipelines import Compose
+from mmcv.parallel import collate, scatter
+import glob
+from mmcv.utils.config import ConfigDict
+import PoseTools
+from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
+
+
+def create_mmpose_cfg(conf,mmpose_config_file,run_name):
+    curdir = pathlib.Path(__file__).parent.absolute()
+    mmdir = os.path.join(curdir,'mmpose')
+    mmpose_config = os.path.join(mmdir,mmpose_config_file)
+    data_bdir = conf.cachedir
+
+    cfg = Config.fromfile(mmpose_config)
+    default_im_sz = cfg.data_cfg.image_size
+    default_hm_sz = cfg.data_cfg.heatmap_size
+    cfg.data_cfg.image_size = [int(c / conf.rescale) for c in conf.imsz]  # conf.imsz[0]
+    if conf.is_multi:
+        imsz = cfg.data_cfg.image_size[0]
+        cfg.data_cfg.image_size = imsz
+        cfg.data_cfg.heatmap_size = [int(h/default_im_sz*imsz) for h in default_hm_sz]
+        cfg.model.train_cfg.img_size = cfg.data_cfg.image_size
+        cfg.model.keypoint_head.num_joints = conf.n_classes
+        cfg.model.loss_pose.num_joints = conf.n_classes
+    else:
+        assert default_im_sz[0]/default_hm_sz[0] == 4, 'Single animal mmpose is tested only for hmaps downsampled by 4'
+        cfg.data_cfg.heatmap_size = [csz // 4 for csz in cfg.data_cfg.image_size]
+        cfg.data_cfg.use_gt_bbox = True
+
+    cfg.data_cfg.num_joints = conf.n_classes
+    cfg.data_cfg.dataset_channel = [list(range(conf.n_classes))]
+    cfg.data_cfg.inference_channel = list(range(conf.n_classes))
+
+    for ttype in ['train', 'val', 'test']:
+        name = ttype if ttype is not 'test' else 'val'
+        fname = conf.trainfilename if ttype == 'train' else conf.valfilename
+        cfg.data[ttype].ann_
+        file = os.path.join(data_bdir, f'{fname}.json')
+        cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
+        cfg.data[ttype].data_cfg = cfg.data_cfg
+
+        if conf.is_multi:
+            cfg.data[ttype].type = 'BottomUpAPTDataset'
+            cfg.model.train_cfg.num_joints = conf.n_classes
+            cfg.model.test_cfg.num_joints = conf.n_classes
+            cfg.model.test_cfg.max_num_people = conf.max_n_animals
+            cfg.model.test_cfg.min_num_people = conf.min_n_animals
+            cfg.model.test_cfg.dist_grouping = True
+            cfg.model.test_cfg.detection_threshold = conf.multi_mmpose_detection_threshold
+
+        else:
+            cfg.data[ttype].type = 'TopDownAPTDataset'
+
+        # Remove some of the transforms.
+        in_pipe = cfg.data[ttype].pipeline
+        cfg.data[ttype].pipeline = [ii for ii in in_pipe if ii.type not in ['TopDownHalfBodyTransform']]
+
+        if conf.get('mmpose_use_apt_augmentation',False):
+            if ttype =='train':
+                if conf.is_multi:
+                    assert (cfg.data[ttype].pipeline[1].type == 'BottomUpRandomAffine') and (cfg.data[ttype].pipeline[2].type == 'BottomUpRandomFlip'), 'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
+                    cfg.data[ttype].pipeline[2:3] = []
+                    cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
+                else:
+                    assert (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip') and (cfg.data[ttype].pipeline[2].type =='TopDownGetRandomScaleRotation') and (cfg.data[ttype].pipeline[3].type =='TopDownAffine'), 'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
+                    cfg.data[ttype].pipeline[2:4] = []
+                    cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
+        # else:
+        #     assert conf.rescale == 1, 'MMpose aug with rescale has not been implemented'
+
+        for p in cfg.data[ttype].pipeline:
+            if p.type == 'BottomUpRandomAffine':
+                p.rot_factor = conf.rrange/2
+                sfactor = 1/conf.scale_factor_range if (conf.scale_factor_range < 1) else conf.scale_factor_range
+                p.scale_factor = [1/sfactor, sfactor]
+                p.trans_factor = conf.trange/conf.imsz[0]*200
+                # translation in mmpose is relative to 200px standard size.
+            elif p.type == 'TopDownGetRandomScaleRotation':
+                p.rot_factor = conf.rrange/2
+                # p.rot_prob = 1.
+                sfactor = 1/conf.scale_factor_range if (conf.scale_factor_range < 1) else conf.scale_factor_range
+                p.scale_factor = sfactor-1
+            elif p.type in ['TopDownRandomFlip','BottomUpRandomFlip']:
+                p.flip_prob = 0.5 if (conf.horz_flip or conf.vert_flip) else 0.
+            elif p.type == 'TopDownHalfBodyTransform':
+                p.prob_half_body = 0.0
+
+
+    cfg.gpu_ids = range(1)
+    cfg.seed = None
+    cfg.work_dir = conf.cachedir
+
+    default_samples_per_gpu = cfg.data.samples_per_gpu
+    cfg.data.samples_per_gpu = conf.batch_size
+    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
+
+    assert cfg.lr_config.policy == 'step', 'Works only for steplr for now'
+    if cfg.lr_config.policy == 'step':
+        def_epochs = cfg.total_epochs
+        def_steps = cfg.lr_config.step
+        cfg.lr_config.step = [int(dd/def_epochs*conf.dl_steps) for dd in def_steps]
+
+    # pretrained weights are now urls. So torch does the mapping
+    # cfg.model.pretrained = os.path.join('mmpose',cfg.model.pretrained)
+
+    cfg.checkpoint_config.interval = conf.save_step
+    cfg.checkpoint_config.filename_tmpl = run_name + '-{}'
+    cfg.checkpoint_config.by_epoch = False
+    cfg.checkpoint_config.max_keep_ckpts = conf.maxckpt
+
+    # Disable flip testing.
+    cfg.model.test_cfg.flip_test = False
+
+    if 'with_ae_loss' in cfg.model.loss_pose:
+        # setup ae push factor.
+        td = PoseTools.json_load(os.path.join(conf.cachedir, conf.trainfilename + '.json'))
+        nims = len(td['images'])
+        i_id = [s['image_id'] for s in td['annotations']]
+        rr = [i_id.count(x) for x in range(nims)]
+        push_fac_mul = nims/(10+nims-rr.count(1))
+        for sidx in range(len(cfg.model.loss_pose.with_ae_loss)):
+            if cfg.model.loss_pose.with_ae_loss[sidx]:
+                cfg.model.loss_pose.push_loss_factor[sidx] = cfg.model.loss_pose.push_loss_factor[sidx]* push_fac_mul
+
+    return cfg
+
+class TraindataHook(Hook):
+    def __init__(self,out_file,conf,interval=50):
+        self.interval = interval
+        self.out_file = out_file
+        self.conf = conf
+        self.td_data = {'train_loss':[],'train_dist':[],'step':[],'val_loss':[],'val_dist':[]}
+
+    def after_train_iter(self, runner):
+        if not self.every_n_iters(runner,self.interval):
+            return
+        self.td_data['step'].append(runner.iter + 1)
+        runner.log_buffer.average(self.interval)
+        if 'loss' in runner.log_buffer.output.keys():
+            self.td_data['train_loss'].append(runner.log_buffer.output['loss'].copy())
+        else:
+            self.td_data['train_loss'].append(runner.log_buffer.output['all_loss'].copy())
+        self.td_data['train_dist'].append(np.nan)
+        self.td_data['val_dist'].append(np.nan)
+        self.td_data['val_loss'].append(np.nan)
+
+        train_data_file = self.out_file
+        with open(train_data_file, 'wb') as td_file:
+            pickle.dump([self.td_data, self.conf], td_file, protocol=2)
+        json_data = {}
+        for x in self.td_data.keys():
+            json_data[x] = np.array(self.td_data[x]).astype(np.float64).tolist()
+        with open(train_data_file + '.json', 'w') as json_file:
+            json.dump(json_data, json_file)
+
+
+class Pose_mmpose(PoseCommon_pytorch):
+
+    def __init__(self,conf,name,**kwargs):
+        super().__init__(conf,name)
+        self.conf = conf
+        self.name = name
+        mmpose_net = conf.mmpose_net
+        if mmpose_net == 'hrnet':
+            self.cfg_file = 'configs/top_down/hrnet/coco/hrnet_w32_coco_256x192.py'
+        elif mmpose_net == 'multi_hrnet':
+            self.cfg_file = 'configs/bottom_up/hrnet/coco/hrnet_w32_coco_512x512.py'
+        elif mmpose_net == 'higherhrnet':
+            self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512.py'
+        elif mmpose_net == 'higherhrnet_2x':
+            self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512_2xdeconv.py'
+        elif mmpose_net =='mspn':
+            self.cfg_file = 'mmpose/configs/top_down/mspn/coco/mspn50_coco_256x192.py'
+
+        else:
+            assert False, 'Unknown mmpose net type'
+
+        poseConfig.conf = conf
+        self.cfg = create_mmpose_cfg(self.conf,self.cfg_file,name)
+
+
+    def get_td_file(self):
+        if self.name =='deepnet':
+            td_name = os.path.join(self.conf.cachedir,'traindata')
+        else:
+            td_name = os.path.join(self.conf.cachedir, self.conf.expname + '_' + self.name + '_traindata')
+        return td_name
+
+
+    def train_wrapper(self,restore=False):
+
+        # From mmpose/tools/train.py
+        cfg = self.cfg
+        model = build_posenet(cfg.model)
+        dataset = [build_dataset(cfg.data.train)]
+
+        if len(cfg.workflow) == 2:
+            val_dataset = copy.deepcopy(cfg.data.val)
+            val_dataset.pipeline = cfg.data.train.pipeline
+            dataset.append(build_dataset(val_dataset))
+
+        if cfg.checkpoint_config is not None:
+            # save mmpose version, config file content
+            # checkpoints as meta data
+            cfg.checkpoint_config.meta = dict(
+                mmpose_version=__version__ + get_git_hash(digits=7),
+                config=cfg.pretty_text,
+            )
+
+
+        # Rest is from mmpose/apis/train.py
+
+        validate = False
+        distributed = len(cfg.gpu_ids)>1
+        if distributed:
+            init_dist('pytorch', **cfg.dist_params)
+
+        meta = None
+        logger = logging.getLogger()
+        timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        if restore:
+            cfg.resume_from = self.get_latest_model_file()
+
+        dataloader_setting = dict(
+            samples_per_gpu=cfg.data.get('samples_per_gpu', {}),
+            workers_per_gpu=cfg.data.get('workers_per_gpu', {}),
+            # cfg.gpus will be ignored if distributed
+            num_gpus=len(cfg.gpu_ids),
+            dist=distributed,
+            seed=cfg.seed)
+        dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
+
+        data_loaders = [ build_dataloader(ds, **dataloader_setting) for ds in dataset]
+
+        # determine wether use adversarial training precess or not
+        use_adverserial_train = cfg.get('use_adversarial_train', False)
+
+        # put model on gpus
+        if distributed:
+            find_unused_parameters = cfg.get('find_unused_parameters', True)
+            # Sets the `find_unused_parameters` parameter in
+            # torch.nn.parallel.DistributedDataParallel
+
+            if use_adverserial_train:
+                # Use DistributedDataParallelWrapper for adversarial training
+                model = DistributedDataParallelWrapper(
+                    model,
+                    device_ids=[torch.cuda.current_device()],
+                    broadcast_buffers=False,
+                    find_unused_parameters=find_unused_parameters)
+            else:
+                lr = os.environ['LOCAL_RANK']
+                model = MMDistributedDataParallel(
+                    model.cuda(),
+                    device_ids=[lr], #torch.cuda.current_device()],
+                    broadcast_buffers=False,
+                    find_unused_parameters=find_unused_parameters)
+        else:
+            model = MMDataParallel(
+                model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
+
+        # build runner
+        optimizer = build_optimizers(model, cfg.optimizer)
+        if self.conf.get('mmpose_use_epoch_runner', False):
+            get_runner = EpochBasedRunner
+            steps = self.conf.dl_steps // len(data_loaders[0])
+        else:
+            get_runner = IterBasedRunner
+            steps = self.conf.dl_steps
+
+        runner = get_runner(
+            model,
+            optimizer=optimizer,
+            work_dir=cfg.work_dir,
+            logger=logger,
+            meta=meta)
+        # an ugly workaround to make .log and .log.json filenames the same
+        runner.timestamp = timestamp
+
+        if use_adverserial_train:
+            # The optimizer step process is included in the train_step function
+            # of the model, so the runner should NOT include optimizer hook.
+            optimizer_config = None
+        else:
+            # fp16 setting
+            fp16_cfg = cfg.get('fp16', None)
+            if fp16_cfg is not None:
+                optimizer_config = Fp16OptimizerHook(
+                    **cfg.optimizer_config, **fp16_cfg, distributed=distributed)
+            elif distributed and 'type' not in cfg.optimizer_config:
+                optimizer_config = OptimizerHook(**cfg.optimizer_config)
+            else:
+                optimizer_config = cfg.optimizer_config
+
+        # register hooks
+        runner.register_training_hooks(cfg.lr_config, optimizer_config, cfg.checkpoint_config, cfg.log_config, cfg.get('momentum_config', None))
+        if distributed:
+            runner.register_hook(DistSamplerSeedHook())
+
+        # register eval hooks
+        if validate:
+            eval_cfg = cfg.get('evaluation', {})
+            val_dataset = build_dataset(cfg.data.val, dict(test_mode=True))
+            dataloader_setting = dict(
+                # samples_per_gpu=cfg.data.get('samples_per_gpu', {}),
+                samples_per_gpu=1,
+                workers_per_gpu=cfg.data.get('workers_per_gpu', {}),
+                # cfg.gpus will be ignored if distributed
+                num_gpus=len(cfg.gpu_ids),
+                dist=distributed,
+                shuffle=False)
+            dataloader_setting = dict(dataloader_setting,
+                                      **cfg.data.get('val_dataloader', {}))
+            val_dataloader = build_dataloader(val_dataset, **dataloader_setting)
+            eval_hook = DistEvalHook if distributed else EvalHook
+            runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
+
+        td_hook = TraindataHook(self.get_td_file(),self.conf,self.conf.display_step)
+        runner.register_hook(td_hook)
+
+        if cfg.resume_from:
+            runner.resume(cfg.resume_from)
+        elif cfg.load_from:
+            runner.load_checkpoint(cfg.load_from)
+        runner.run(data_loaders, cfg.workflow, steps)
+
+
+    def get_latest_model_file(self):
+        model_file_ptn = os.path.join(self.conf.cachedir,self.name + '-[0-9]*')
+        files = glob.glob(model_file_ptn)
+        files.sort(key=os.path.getmtime)
+        if len(files)>0:
+            model_file = files[-1]
+        else:
+            model_file = None
+
+        return  model_file
+
+    def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
+        cfg = self.cfg
+        conf = self.conf
+
+        assert not conf.is_multi, 'This prediction function is only for single animal (top-down)'
+
+        model = build_posenet(cfg.model)
+        cfg.model.pretrained = None
+        cfg.data.test.test_mode = True
+        model = build_posenet(cfg.model)
+        fp16_cfg = cfg.get('fp16', None)
+        model_file = self.get_latest_model_file() if model_file is None else model_file
+        if fp16_cfg is not None:
+            wrap_fp16_model(model)
+
+        _ = load_checkpoint(model, model_file, map_location='cpu')
+        logging.info(f'Loaded model from {model_file}')
+        model = MMDataParallel(model,device_ids=[0])
+        # build part of the pipeline to do the same preprocessing as training
+        test_pipeline = cfg.test_pipeline[2:]
+        test_pipeline = Compose(test_pipeline)
+        device = next(model.parameters()).device
+
+        pairs = []
+        done = []
+        for kk in conf.flipLandmarkMatches.keys():
+            if int(kk) in done:
+                continue
+            pairs.append([int(kk),int(conf.flipLandmarkMatches[kk])])
+            done.append(int(kk))
+            done.append(int(conf.flipLandmarkMatches[kk]))
+
+        to_tensor_trans = ToTensor()
+        norm_trans = NormalizeTensor(cfg.test_pipeline[-2]['mean'],cfg.test_pipeline[-2]['std'])
+
+        def pref_fn(ims):
+
+            pose_results = np.ones([ims.shape[0],conf.n_classes,2])*np.nan
+            conf_res = np.zeros([ims.shape[0],conf.n_classes])
+
+            ims, _ = PoseTools.preprocess_ims(ims.copy(),np.zeros([ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale)
+            for b in range(ims.shape[0]):
+                if ims.shape[3] == 1:
+                    ii = np.tile(ims[b,...],[1,1,3])
+                else:
+                    ii = ims[b,...]
+                # prepare data
+                data = {'img': ii.astype('uint8'),
+                    'dataset': 'coco',
+                    'ann_info': {
+                        'image_size':
+                            cfg.data_cfg['image_size'],
+                        'num_joints':
+                            cfg.data_cfg['num_joints'],
+                        'image_file':'',
+                        'center':np.array([ii.shape[1]/2,ii.shape[0]/2]),
+                        'scale':np.array(ims.shape[1:3])/200,
+                        'rotation':np.zeros([1,2]),
+                        'bbox_score':[0],
+                        'flip_pairs':pairs
+                    }
+                }
+
+                # replace the test_pipeline with ours
+                # data = test_pipeline(data)
+                data = to_tensor_trans(data)
+                data = norm_trans(data)
+                data['img'] = torch.unsqueeze(data['img'],0)
+                # Don't use this for now.
+                # data = collate([data], samples_per_gpu=1)
+                # if next(model.parameters()).is_cuda:
+                #     # scatter to specified GPU
+                #     data = scatter(data, [device])[0]
+                # else:
+                #     # just get the actual data from DataContainer
+                #     data['img_metas'] = data['img_metas'].data[0]
+
+                data['img_metas'] = [data['ann_info']]
+                # forward the model
+                with torch.no_grad():
+                    all_preds, _, _, heatmap = model(return_loss=False, img=data['img'], img_metas=data['img_metas'])
+
+                pose_results[b,:,:] = all_preds[0,:,:2].copy()*conf.rescale
+                conf_res[b,:] = all_preds[:,2].copy()
+
+            return {'locs':pose_results,'conf':conf_res}
+
+        def close_fn():
+            torch.cuda.empty_cache()
+
+        return pref_fn, close_fn, model_file
