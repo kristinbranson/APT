@@ -60,7 +60,7 @@ Movie:
   ShiftArrowNavMode: NEXTTIMELINE
   ShiftArrowNavModeThresh: 1
   ShiftArrowNavModeThreshCmp: '>'
-  PlayFPS: 20
+  PlayFPS: 10
   PlaySegmentRadius: 50
 
 LabelPointsPlot:

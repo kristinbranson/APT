@@ -672,7 +672,7 @@ class PoseCommon(object):
             step_lr =  self.conf.get('step_lr', True)
             lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
 
-            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix :(')
+            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a tensorflow bug in tensorflow that we tried but could not fix :(')
             ss = sess.run(self.inputs,self.fd)
             logging.info('Input shape:{}'.format(ss[0].shape))
             logging.info('Starting training..')

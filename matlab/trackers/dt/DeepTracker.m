@@ -5718,62 +5718,21 @@ classdef DeepTracker < LabelTracker
       
       for iview=1:obj.nview
         t = trks{iview};
-        if isfield(t,'pTrkFrm')
-          frms = t.pTrkFrm;
-          itgts = t.pTrkiTgt;
-          ipts = ipt2view==iview;
-          pTrk(ipts,:,frms,itgts) = t.pTrk;
-          pTrkTS(ipts,frms,itgts) = t.pTrkTS;
-
-          for iaux=1:naux
-            trkfld = auxInfo(iaux).trkfld;
-            if isprop(t,trkfld)
-              aux(ipts,frms,itgts,iaux) = t.(trkfld);
-            else
-              % aux els remain nan
-              % Don't warn as not all auxflds must be there. eg pTrkocc is
-              % only present if params request it etc.
-              % warningNoTrace('Missing field ''%s'' in trkfile.',trkfld);
-            end
-          end
-        else
-          for ndx = 1:numel(t.id)
-            itgt = t.id(ndx);
-            frms = t.firstframe(ndx):t.endframe(ndx);
-            ipts = ipt2view==iview;
-            if iscell(t.p)
-              pTrk(ipts,:,frms,itgt) = t.p{ndx};
-              pTrkTS(ipts,frms,itgt) = t.pTrkTS{ndx};
-
-              for iaux=1:naux
-                trkfld = auxInfo(iaux).trkfld;
-                if isprop(t,trkfld)
-                  aux(ipts,frms,itgt,iaux) = t.(trkfld){ndx};
-                else
-                  % aux els remain nan
-                  % Don't warn as not all auxflds must be there. eg pTrkocc is
-                  % only present if params request it etc.
-                  % warningNoTrace('Missing field ''%s'' in trkfile.',trkfld);
-                end
-              end
-            else
-              pTrk(ipts,:,frms,itgt) = t.p;
-              pTrkTS(ipts,frms,itgt) = t.pTrkTS;
-
-              for iaux=1:naux
-                trkfld = auxInfo(iaux).trkfld;
-                if isprop(t,trkfld)
-                  aux(ipts,frms,itgt,iaux) = t.(trkfld);
-                else
-                  % aux els remain nan
-                  % Don't warn as not all auxflds must be there. eg pTrkocc is
-                  % only present if params request it etc.
-                  % warningNoTrace('Missing field ''%s'' in trkfile.',trkfld);
-                end
-              end
-              
-            end
-            
+        frms = t.pTrkFrm;
+        itgts = t.pTrkiTgt;
+        ipts = ipt2view==iview;
+        pTrk(ipts,:,frms,itgts) = t.pTrk;
+        pTrkTS(ipts,frms,itgts) = t.pTrkTS;
+        
+        for iaux=1:naux
+          trkfld = auxInfo(iaux).trkfld;
+          if isprop(t,trkfld)
+            aux(ipts,frms,itgts,iaux) = t.(trkfld);
+          else
+            % aux els remain nan
+            % Don't warn as not all auxflds must be there. eg pTrkocc is
+            % only present if params request it etc.
+            % warningNoTrace('Missing field ''%s'' in trkfile.',trkfld);
           end
         end
       end

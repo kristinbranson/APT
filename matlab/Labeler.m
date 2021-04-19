@@ -7748,7 +7748,8 @@ classdef Labeler < handle
           fprintf('MovieSet %d...\n',mIdx(i));
         end
         scell = cell(1,nView);
-        assert(obj.maIsMA && nView==1); % otherwise needs updates; see below
+%        assert(obj.maIsMA && nView==1); % otherwise needs updates; see below
+        assert(nView==1); % otherwise needs updates; see below
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
           s = TrkFile.load(tfile);
