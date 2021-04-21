@@ -112,7 +112,7 @@ class coco_loader(torch.utils.data.Dataset):
             locs = np.array(a['keypoints'])
             if a['num_keypoints']>0:
                 locs = np.reshape(locs, [conf.n_classes, 3])
-                if ~np.all(np.isnan(locs[:,2])):
+                if np.all(locs[:,2]>0.5):
                     curl[lndx,...] = locs
                     lndx += 1
             annos.append(a)

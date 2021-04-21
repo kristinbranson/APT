@@ -12,6 +12,53 @@ from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
 import logging
 import pickle
 import os
+import xtcocotools
+## Bottomup dataset
+
+from mmpose.datasets.builder import DATASETS
+from mmpose.datasets.datasets.bottom_up.bottom_up_coco import BottomUpCocoDataset
+
+@DATASETS.register_module()
+class BottomUpAPTDataset(BottomUpCocoDataset):
+    def __init__(self,**kwargs):
+        super().__init__(**kwargs)
+        import poseConfig
+        conf = poseConfig.conf
+        flip_idx = list(range(conf.n_classes))
+        for kk in conf.flipLandmarkMatches.keys():
+            flip_idx[int(kk)] = conf.flipLandmarkMatches[kk]
+        self.ann_info['flip_index'] = flip_idx
+        self.ann_info['joint_weights'] = np.ones([conf.n_classes])
+        self.sigmas = np.ones([conf.n_classes])*0.6/10.0
+        self.ann_info['joint_weights'] = np.ones([self.ann_info['num_joints'],1])
+        self.conf = conf
+
+
+    def _get_mask(self, anno, idx):
+        # Masks are created during image generation.
+        conf = self.conf
+        coco = self.coco
+        img_info = coco.loadImgs(self.img_ids[idx])[0]
+        m = np.zeros((img_info['height'], img_info['width']), dtype=np.float32)
+        if not conf.multi_loss_mask:
+            return m<0.5
+
+        for obj in anno:
+            if 'segmentation' in obj:
+                if obj['iscrowd']:
+                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
+                                                       img_info['height'],
+                                                       img_info['width'])
+                    m += xtcocotools.mask.decode(rle)
+                else:
+                    rles = xtcocotools.mask.frPyObjects(
+                        obj['segmentation'], img_info['height'],
+                        img_info['width'])
+                    for rle in rles:
+                        m += xtcocotools.mask.decode(rle)
+
+        return m > 0.5
+
 
 class Pose_multi_mmpose(Pose_mmpose):
 
@@ -104,8 +151,11 @@ class Pose_multi_mmpose(Pose_mmpose):
 
                 # forward the model
                 with torch.no_grad():
-                    all_preds, scores, _, heatmap = model(return_loss=False, img=data['img'], img_metas=data['img_metas'],return_heatmap=retrawpred)
+                    model_out = model(return_loss=False, img=data['img'], img_metas=data['img_metas'],return_heatmap=retrawpred)
 
+                all_preds = model_out['preds']
+                scores = model_out['scores']
+                heatmap = model_out['output_heatmap']
                 # remove duplicates
                 n_preds = len(all_preds)
                 all_array = np.array(all_preds)
@@ -125,7 +175,8 @@ class Pose_multi_mmpose(Pose_mmpose):
                         to_remove.append(yy[ndx])
 
                 count = 0
-                for ndx,pred in enumerate(all_preds):
+                for ndx in np.argsort(scores)[::-1]:
+                    pred = all_preds[ndx]
                     if count>= conf.max_n_animals:
                         break
                     if ndx in to_remove:

@@ -3,6 +3,7 @@ import os
 import pickle
 import PoseTools
 
+
 class Pose_openpose(object):
     name = 'deepnet'
     conf = None

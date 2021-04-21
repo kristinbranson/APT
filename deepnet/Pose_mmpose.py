@@ -2,9 +2,7 @@ import pathlib
 import os
 import sys
 sys.path.append('mmpose')
-import mmpose
 from mmcv import Config
-from mmpose.datasets import build_dataset
 from mmpose.models import build_posenet
 import poseConfig
 import copy
@@ -22,7 +20,6 @@ from PoseCommon_pytorch import PoseCommon_pytorch
 from mmcv.runner import init_dist, set_random_seed
 import pickle
 import json
-import numpy as np
 from mmpose.core import wrap_fp16_model
 from mmpose.datasets.pipelines import Compose
 from mmcv.parallel import collate, scatter
@@ -30,6 +27,110 @@ import glob
 from mmcv.utils.config import ConfigDict
 import PoseTools
 from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
+import numpy as np
+
+
+## Topdown dataset
+from mmpose.datasets.registry import DATASETS
+from mmpose.datasets.datasets.top_down.topdown_coco_dataset import TopDownCocoDataset
+
+@DATASETS.register_module()
+class TopDownAPTDataset(TopDownCocoDataset):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        import poseConfig
+        conf = poseConfig.conf
+
+        self.use_gt_bbox = True
+        flip_idx = list(range(conf.n_classes))
+        pairs = []
+        done = []
+        for kk in conf.flipLandmarkMatches.keys():
+            if int(kk) in done:
+                continue
+            pairs.append([int(kk),int(conf.flipLandmarkMatches[kk])])
+            done.append(int(kk))
+            done.append(int(conf.flipLandmarkMatches[kk]))
+        self.ann_info['flip_pairs'] = pairs
+        self.ann_info['joint_weights'] = np.ones([conf.n_classes])
+        self.sigmas = np.ones([conf.n_classes])*0.6/10.0
+
+    def _xywh2cs(self, x, y, w, h):
+        """This encodes bbox(x,y,w,w) into (center, scale)
+
+        Args:
+            x, y, w, h
+
+        Returns:
+            tuple: A tuple containing center and scale.
+
+            - center (np.ndarray[float32](2,)): center of the bbox (x, y).
+            - scale (np.ndarray[float32](2,)): scale of the bbox w & h.
+        """
+        center = np.array([x + w * 0.5, y + h * 0.5], dtype=np.float32)
+        scale = np.array([1.0, 1.0], dtype=np.float32)
+        return center, scale
+
+
+## APT pipeline
+from mmpose.datasets.registry import PIPELINES
+
+@PIPELINES.register_module()
+class APTtransform:
+    """Data augmentation using APT's posetools.
+
+    """
+
+    def __init__(self,distort):
+        import poseConfig
+        self.conf = poseConfig.conf
+        self.conf.normalize_img_mean = False
+        self.conf.normalize_batch_mean = False
+        self.distort = distort
+
+    def __call__(self, results):
+        import PoseTools as pt
+        conf = self.conf
+        if conf.is_multi:
+            image, joints, mask = results['img'], results['joints'], results['mask']
+            # assert mask[0].min(), 'APT transform only supports dummy masks'
+            assert  not results['ann_info']['scale_aware_sigma'], 'APT doesnt support this'
+            for jndx in range(len(joints)-1):
+                # assert len(joints) ==2, "APT Transform is tested only for at most two scales"
+
+                assert np.allclose(joints[jndx],joints[jndx+1],equal_nan=True), "APT transform is tested only for two identical scale inputs"
+            jlen = len(joints)
+            joints_in = joints[0][...,:2]
+            occ_in = joints[0][...,2]
+            joints_in[occ_in<1,:] = -100000
+            image,joints_out,mask_out = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,mask=mask[0][None,...])
+            image = image.astype('float32')
+            joints_out_occ = np.isnan(joints_out[0, ..., 0:1]) | (joints_out[0, ..., 0:1] < -1000)
+            joints_out = np.concatenate([joints_out[0,...],(~joints_out_occ)*2],axis=-1)
+            in_sz = results['ann_info']['image_size']
+            out_sz = results['ann_info']['heatmap_size']
+            assert all([round(in_sz/o)==in_sz/o for o in out_sz]), 'Output sizes should be integer multiples of input sizes'
+            outs = [int(round(in_sz/o)) for o in out_sz]
+            results['joints'] = [joints_out * osz / in_sz for osz in out_sz]
+            results['mask'] = [mask_out[0,::o,::o]>0.5 for o in outs]
+
+        else:
+            image, joints, occ_in = results['img'], results['joints_3d'], results['joints_3d_visible']
+            assert joints[:,2].max() < 0.00001, 'APT does not work 3d'
+            occ_in = occ_in[:,0]
+            joints_in = joints[:,:2]
+            joints_in[occ_in<0.5,:] = -100000
+
+            image,joints_out = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale)
+            image = image.astype('float32')
+            joints_out_occ = np.isnan(joints_out[0,...,0:1]) | (joints_out[0,...,0:1]<-1000)
+
+            results['joints_3d'] = np.concatenate([joints_out[0,...],np.zeros_like(joints_out[0,:,:1])],1)
+            results['joints_3d_visible'] = np.concatenate([1-joints_out_occ,1-joints_out_occ,np.zeros_like(joints_out_occ)],1)
+
+        results['img'] = np.clip(image[0,...],0,255).astype('uint8')
+        return results
+
 
 
 def create_mmpose_cfg(conf,mmpose_config_file,run_name):
@@ -41,18 +142,20 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     cfg = Config.fromfile(mmpose_config)
     default_im_sz = cfg.data_cfg.image_size
     default_hm_sz = cfg.data_cfg.heatmap_size
-    cfg.data_cfg.image_size = [int(c / conf.rescale) for c in conf.imsz]  # conf.imsz[0]
+    cfg.data_cfg.image_size = [int(c / conf.rescale) for c in conf.imsz[::-1]]  # conf.imsz[0]
     if conf.is_multi:
         imsz = cfg.data_cfg.image_size[0]
         cfg.data_cfg.image_size = imsz
         cfg.data_cfg.heatmap_size = [int(h/default_im_sz*imsz) for h in default_hm_sz]
         cfg.model.train_cfg.img_size = cfg.data_cfg.image_size
         cfg.model.keypoint_head.num_joints = conf.n_classes
-        cfg.model.loss_pose.num_joints = conf.n_classes
+        cfg.model.keypoint_head.loss_keypoint.num_joints = conf.n_classes
     else:
         assert default_im_sz[0]/default_hm_sz[0] == 4, 'Single animal mmpose is tested only for hmaps downsampled by 4'
         cfg.data_cfg.heatmap_size = [csz // 4 for csz in cfg.data_cfg.image_size]
         cfg.data_cfg.use_gt_bbox = True
+        if 'keypoint_head' in cfg.model and 'out_shape' in cfg.model.keypoint_head:
+            cfg.model.keypoint_head.out_shape = [csz // 4 for csz in cfg.data_cfg.image_size[::-1]]
 
     cfg.data_cfg.num_joints = conf.n_classes
     cfg.data_cfg.dataset_channel = [list(range(conf.n_classes))]
@@ -61,7 +164,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     for ttype in ['train', 'val', 'test']:
         name = ttype if ttype is not 'test' else 'val'
         fname = conf.trainfilename if ttype == 'train' else conf.valfilename
-        cfg.data[ttype].ann_
+        cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
         file = os.path.join(data_bdir, f'{fname}.json')
         cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
         cfg.data[ttype].data_cfg = cfg.data_cfg
@@ -138,16 +241,16 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     # Disable flip testing.
     cfg.model.test_cfg.flip_test = False
 
-    if 'with_ae_loss' in cfg.model.loss_pose:
+    if 'with_ae_loss' in cfg.model.keypoint_head.loss_keypoint:
         # setup ae push factor.
         td = PoseTools.json_load(os.path.join(conf.cachedir, conf.trainfilename + '.json'))
         nims = len(td['images'])
         i_id = [s['image_id'] for s in td['annotations']]
         rr = [i_id.count(x) for x in range(nims)]
         push_fac_mul = nims/(10+nims-rr.count(1))
-        for sidx in range(len(cfg.model.loss_pose.with_ae_loss)):
-            if cfg.model.loss_pose.with_ae_loss[sidx]:
-                cfg.model.loss_pose.push_loss_factor[sidx] = cfg.model.loss_pose.push_loss_factor[sidx]* push_fac_mul
+        for sidx in range(len(cfg.model.keypoint_head.loss_keypoint.with_ae_loss)):
+            if cfg.model.keypoint_head.loss_keypoint.with_ae_loss[sidx]:
+                cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] = cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx]* push_fac_mul
 
     return cfg
 
@@ -197,7 +300,7 @@ class Pose_mmpose(PoseCommon_pytorch):
         elif mmpose_net == 'higherhrnet_2x':
             self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512_2xdeconv.py'
         elif mmpose_net =='mspn':
-            self.cfg_file = 'mmpose/configs/top_down/mspn/coco/mspn50_coco_256x192.py'
+            self.cfg_file = 'configs/top_down/mspn/coco/mspn50_coco_256x192.py'
 
         else:
             assert False, 'Unknown mmpose net type'
@@ -398,12 +501,13 @@ class Pose_mmpose(PoseCommon_pytorch):
         to_tensor_trans = ToTensor()
         norm_trans = NormalizeTensor(cfg.test_pipeline[-2]['mean'],cfg.test_pipeline[-2]['std'])
 
-        def pref_fn(ims):
+        def pref_fn(ims,retrawpred=False):
 
             pose_results = np.ones([ims.shape[0],conf.n_classes,2])*np.nan
             conf_res = np.zeros([ims.shape[0],conf.n_classes])
 
             ims, _ = PoseTools.preprocess_ims(ims.copy(),np.zeros([ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale)
+            all_hmaps = []
             for b in range(ims.shape[0]):
                 if ims.shape[3] == 1:
                     ii = np.tile(ims[b,...],[1,1,3])
@@ -443,12 +547,19 @@ class Pose_mmpose(PoseCommon_pytorch):
                 data['img_metas'] = [data['ann_info']]
                 # forward the model
                 with torch.no_grad():
-                    all_preds, _, _, heatmap = model(return_loss=False, img=data['img'], img_metas=data['img_metas'])
+                    model_out = model(return_loss=False, img=data['img'], img_metas=data['img_metas'])
 
+                all_preds = model_out['preds']
+                heatmap = model_out['output_heatmap']
                 pose_results[b,:,:] = all_preds[0,:,:2].copy()*conf.rescale
-                conf_res[b,:] = all_preds[:,2].copy()
+                conf_res[b,:] = all_preds[0,:,2].copy()
+                if retrawpred:
+                    all_hmaps.append(heatmap)
 
-            return {'locs':pose_results,'conf':conf_res}
+            ret_dict = {'locs':pose_results,'conf':conf_res}
+            if retrawpred:
+                ret_dict['hmap']=all_hmaps
+            return ret_dict
 
         def close_fn():
             torch.cuda.empty_cache()

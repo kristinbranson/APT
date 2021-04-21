@@ -2,8 +2,9 @@
 import APT_interface as apt
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-cmd = '/groups/branson/home/kabram/.apt/tp7fede225_bb49_4698_97ee_6c0cfcd5898d/alice_ma/20210409T090450_20210409T090452.lbl -name 20210409T090450 -json_trn_file /groups/branson/home/kabram/.apt/tp7fede225_bb49_4698_97ee_6c0cfcd5898d/alice_ma/loc.json -conf_params is_multi True max_n_animals 2 db_format "coco" -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp7fede225_bb49_4698_97ee_6c0cfcd5898d train -skip_db'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"mspn\" dl_steps 100000 rrange 30 trange 20 imsz \(192,192\) trx_align_theta True img_dim 1 ht_pts \(0,6\) use_ht_trx True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type mmpose -name alice_neg -cache /nrs/branson/mayank/apt_cache_2  train -use_cache -skip_db'
 cmd = cmd.replace('\\','')
+#cmd = cmd.replace('"','')
 apt.main(cmd.split())
 
 ##

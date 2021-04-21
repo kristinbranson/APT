@@ -320,6 +320,10 @@ def convert_to_coco(coco_info, ann, data, conf):
     cur_locs = data['locs']  # [ntgt x ...]
     info = data['info']
     cur_occ = data['occ']
+    if cur_locs.ndim == 2:
+        # for ht trx sort of thing.
+        cur_locs = cur_locs[None,...]
+        cur_occ = cur_occ[None,...]
     # cur_im,cur_locs,info,cur_occ = data[:4]
     if 'roi' in data.keys():
         roi = data['roi']  # [ntgt x ncol] np array
@@ -347,8 +351,8 @@ def convert_to_coco(coco_info, ann, data, conf):
         ix = cur_locs[idx, ...]
         if np.all(ix < -1000) or np.all(np.isnan(ix)):
             continue
-        occ_coco = 2 - cur_occ[idx, :, np.newaxis]
-        occ_coco[np.isnan(ix[:, 0]), :] = 0
+        occ_coco = 2 - cur_occ[idx, ..., np.newaxis]
+        occ_coco[np.isnan(ix[..., 0]), :] = 0
         lmin = ix.min(axis=0)
         lmax = ix.max(axis=0)
         w = lmax[0] - lmin[0]
@@ -368,10 +372,9 @@ def convert_to_coco(coco_info, ann, data, conf):
             coco_info['ann_ndx'] += 1
             segm = [cur_roi.flatten().tolist()]
             if conf.multi_only_ht:
-                out_locs = np.ones([2,3])*np.nan
+                out_locs = np.zeros([2,3])
             else:
-                out_locs = np.ones([conf.n_classes,3])*np.nan
-            out_locs[:,2] = 0
+                out_locs = np.zeros([conf.n_classes,3])
             ann['annotations'].append({'iscrowd': 0, 'segmentation': segm, 'area': 0, 'image_id': ndx, 'id': annid,'num_keypoints': conf.n_classes, 'bbox': [0,0,0,0],'keypoints': out_locs.flatten().tolist(), 'category_id': 0})
 
 
