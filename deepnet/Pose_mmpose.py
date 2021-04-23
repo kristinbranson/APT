@@ -317,7 +317,7 @@ class Pose_mmpose(PoseCommon_pytorch):
         return td_name
 
 
-    def train_wrapper(self,restore=False):
+    def train_wrapper(self,restore=False, model_file=None):
 
         # From mmpose/tools/train.py
         cfg = self.cfg
@@ -348,7 +348,9 @@ class Pose_mmpose(PoseCommon_pytorch):
         meta = None
         logger = logging.getLogger()
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-        if restore:
+        if model_file is not None:
+            cfg.load_from = model_file
+        elif restore:
             cfg.resume_from = self.get_latest_model_file()
 
         dataloader_setting = dict(
