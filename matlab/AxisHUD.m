@@ -1,5 +1,12 @@
 classdef AxisHUD < handle
 % Axis heads-up display
+%
+% Contains:
+% * Series of text labels like Tgt: 3
+% * handedness indicator
+
+% TODO: Refactor for extensibility, just have structs/dicts instead of 
+% hardcoding state/meths for tgt vs lblpoint vs susp etc.
   
   properties % basically Constant
     txtXoff = 10;
@@ -13,10 +20,12 @@ classdef AxisHUD < handle
     txtClrTarget = [1 0.6 0.784];
     txtClrLblPoint = [1 1 0];
     txtClrSusp = [1 1 1];
+    txtClrTrklet = [1 1 1];
     
     tgtFmt = 'tgt: %d';
     lblPointFmt = 'Lbl pt: %d/%d';
     suspFmt = 'susp: %.10g';
+    trkletFmt = 'trklet: %d (%d tot)';
   end
   
   properties
@@ -25,6 +34,7 @@ classdef AxisHUD < handle
     hTxtTgt; % scalar handle (for convenience; owned by hTxts)
     hTxtLblPt; 
     hTxtSusp;
+    hTxtTrklet;
     
     hHandedAnno; % scalar annotation for handedness indicator
     hHandedListnr; % cell array of listeners to main axis .XDir and .YDir
@@ -33,6 +43,7 @@ classdef AxisHUD < handle
     hasTgt; % scalar logical
     hasLblPt; 
     hasSusp; 
+    hasTrklet;
   end
   
   methods
@@ -45,6 +56,7 @@ classdef AxisHUD < handle
       obj.hasTgt = false;
       obj.hasLblPt = false;
       obj.hasSusp = false;
+      obj.hasTrklet = false;
       
       lx = addlistener(hax,'XDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
       ly = addlistener(hax,'YDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
@@ -103,6 +115,7 @@ classdef AxisHUD < handle
       obj.hTxtTgt = [];
       obj.hTxtLblPt = [];
       obj.hTxtSusp = [];
+      obj.hTxtTrklet = [];
     end
     
     function updateReadoutFields(obj,varargin)
@@ -112,6 +125,7 @@ classdef AxisHUD < handle
       if obj.hasTgt, tgtStr = obj.hTxtTgt.String; end
       if obj.hasLblPt, lblPtStr = obj.hTxtLblPt.String; end
       if obj.hasSusp, suspStr = obj.hTxtSusp.String; end
+      if obj.hasTrklet, trkletStr = obj.hTxtTrklet.String; end
       obj.setReadoutFields(varargin{:});
       if obj.hasTgt && exist('tgtStr','var')>0
         obj.hTxtTgt.String = tgtStr;
@@ -122,6 +136,9 @@ classdef AxisHUD < handle
       if obj.hasSusp && exist('suspStr','var')>0
         obj.hTxtSusp.String = suspStr;
       end
+      if obj.hasTrklet && exist('trkletStr','var')>0
+        obj.hTxtTrklet.String = trkletStr;
+      end
     end
     
     function setReadoutFields(obj,varargin)
@@ -131,11 +148,13 @@ classdef AxisHUD < handle
 
       obj.initHTxts();
       
-      [obj.hasTgt,obj.hasLblPt,obj.hasSusp] = ...
+      [obj.hasTgt,obj.hasLblPt,obj.hasSusp,obj.hasTrklet] = ...
         myparse(varargin,...
         'hasTgt',obj.hasTgt,...
         'hasLblPt',obj.hasLblPt,...
-        'hasSusp',obj.hasSusp);
+        'hasSusp',obj.hasSusp,...
+        'hasTrklet',obj.hasTrklet ...
+        );
 
       units0 = obj.hParent.Units;
       obj.hParent.Units = 'pixels';
@@ -153,6 +172,10 @@ classdef AxisHUD < handle
       if obj.hasSusp
         obj.hTxtSusp = obj.addTxt(y1,obj.txtClrSusp);
         obj.hTxts(end+1,1) = obj.hTxtSusp;
+      end
+      if obj.hasTrklet
+        obj.hTxtTrklet = obj.addTxt(y1,obj.txtClrTrklet);
+        obj.hTxts(end+1,1) = obj.hTxtTrklet;
       end
     end
     
@@ -173,7 +196,13 @@ classdef AxisHUD < handle
       str = sprintf(obj.suspFmt,suspscore);
       obj.hTxtSusp.String = str;
     end
-    
+ 
+    function updateTrklet(obj,trklet,ntrklettot)
+      assert(obj.hasTrklet);
+      str = sprintf(obj.trkletFmt,trklet,ntrklettot);
+      obj.hTxtTrklet.String = str;
+    end
+ 
     function [hTxt,ytop] = addTxt(obj,ytop,foreColor)
       % Add a new textbox
       % hTxt: text (matlab.ui.control.UIControl) 

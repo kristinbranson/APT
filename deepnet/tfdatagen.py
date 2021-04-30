@@ -198,12 +198,13 @@ def parse_record(record, npts):
 
     return reconstructed_img, locs, info
 
-def parse_record_multi(record, npts, n_max):
+def parse_record_multi(record, npts, n_max,apply_mask=False):
     example = tf.train.Example()
     example.ParseFromString(record)
     height = int(example.features.feature['height'].int64_list.value[0])
     width = int(example.features.feature['width'].int64_list.value[0])
     depth = int(example.features.feature['depth'].int64_list.value[0])
+    ntgt = int(example.features.feature['ntgt'].int64_list.value[0])
     expid = int(example.features.feature['expndx'].float_list.value[0])
     t = int(example.features.feature['ts'].float_list.value[0])
     img_string = example.features.feature['image_raw'].bytes_list.value[0]
@@ -212,16 +213,20 @@ def parse_record_multi(record, npts, n_max):
     mask_string = example.features.feature['mask'].bytes_list.value[0]
     mask_1d = np.fromstring(mask_string, dtype=np.uint8)
     mask = mask_1d.reshape((height, width))
-    reconstructed_img = reconstructed_img * mask[...,np.newaxis]
+    if apply_mask:
+        reconstructed_img = reconstructed_img * mask[...,np.newaxis]
     locs = np.array(example.features.feature['locs'].float_list.value)
-    locs = locs.reshape([n_max, npts, 2])
+    locs_in = locs.reshape([ntgt, npts, 2])
+    locs = np.ones([n_max,npts,2])*np.nan
+    locs[:ntgt] = locs_in
+
     if 'trx_ndx' in example.features.feature.keys():
         trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
     else:
         trx_ndx = 0
     info = np.array([expid, t, trx_ndx])
 
-    return reconstructed_img, locs, info
+    return reconstructed_img, locs, info, mask
 
 
 def pad_ims_blur(ims, locs, pady, padx):
@@ -272,7 +277,7 @@ def pad_ims_black(ims, locs, pady, padx):
     out_locs[..., 1] += pady_b
     return out_ims, out_locs
 
-def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmaps=True):
+def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmaps=True,mask=None):
     '''
     Openpose; Preprocess ims/locs; generate targets
     :param ims:
@@ -285,12 +290,16 @@ def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmap
     assert conf.op_label_scale == 8, \
         "Expected openpose scale of 8"  # Any value should be ok tho. this is the BB output scale
 
-    assert conf.imsz == imsraw.shape[1:3], "Image size is {}".format(imsraw.shape[1:])
+    assert conf.imsz == imsraw.shape[1:3], "Image size is {} and conf size is {}".format(imsraw.shape[1:],conf.imsz)
 
     imspad, locspad = pad_ims_black(imsraw, locsraw, conf.op_im_pady, conf.op_im_padx)
     assert imspad.shape[1:3] == conf.op_imsz_pad
 
-    ims, locs = PoseTools.preprocess_ims(imspad, locspad, conf, distort, conf.rescale)
+    if conf.is_multi:
+        ims, locs, mask = PoseTools.preprocess_ims(imspad, locspad, conf, distort, conf.rescale,mask=mask)
+    else:
+        ims, locs = PoseTools.preprocess_ims(imspad, locspad, conf, distort, conf.rescale)
+
     # locs has been rescaled per rescale (but not op_label_scale)
 
     imszuse = conf.op_imsz_net
@@ -300,7 +309,10 @@ def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmap
         ims = np.tile(ims, 3)
 
     if not gen_target_hmaps:
-        return ims, locs
+        if conf.is_multi:
+            return ims,locs,mask
+        else:
+            return ims, locs
 
     # locs -> PAFs, MAP
     # Generates hires maps here but only used below if conf.op_hires
@@ -318,11 +330,14 @@ def ims_locs_preprocess_openpose(imsraw, locsraw, conf, distort, gen_target_hmap
 
     npafstg = conf.op_paf_nstage
     nmapstg = conf.op_map_nstage
+
     targets = [label_paf_lores, ] * npafstg + [label_map_lores, ] * nmapstg
     if conf.op_hires:
         targets.append(label_map_hires)
+    if mask is None:
+        mask = np.ones_like(ims[...,0])
 
-    return ims, locs, targets
+    return ims, locs, targets, mask
 
 #__ims_locs_preprocess_sb_has_run__ = False
 
@@ -405,7 +420,7 @@ def imgaug_augment(augmenter, images, keypoints, clip=True):
 #__ims_locs_preprocess_dpk_has_run__ = False
 
 def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
-                                 draw_conf_maps=True):
+                                 draw_conf_maps=True, mask=None):
     '''
 
     :param imsraw:
@@ -424,6 +439,8 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
     conf.dpk_im_pad*   
     '''
     #global __ims_locs_preprocess_dpk_has_run__
+
+    assert mask is None
 
     assert conf.imsz == imsraw.shape[1:3]
 
@@ -495,11 +512,14 @@ def ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
 #                     conf.dpk_use_graph, conf.dpk_graph_scale, conf.dpk_n_outputs))
 #        __ims_locs_preprocess_dpk_has_run__ = True
 
-    return ims, locs, targets
+    if mask is None:
+        mask = np.ones_like(ims[..., 0])
 
-def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort):
+    return ims, locs, targets, mask
+
+def ims_locs_preprocess_dpk(imsraw, locsraw, conf, distort, mask=None):
     return ims_locs_preprocess_dpk_base(imsraw, locsraw, conf, distort,
-                                        draw_conf_maps=True)
+                                        draw_conf_maps=True, mask=mask)
 
 def ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locsraw, conf, distort):
     # Still can img preproc
@@ -594,6 +614,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
         all_ims = []
         all_locs = []
         all_info = []
+        all_mask = []
         for b_ndx in range(batch_size):
             # TODO: strange shuffle
             n_skip = np.random.randint(30) if shuffle else 0
@@ -607,7 +628,8 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
 
             is_multi = getattr(conf, 'is_multi', False)
             if is_multi:
-                recon_img, locs, info = parse_record_multi(record, conf.n_classes,conf.max_n_animals)
+                recon_img, locs, info, mask = parse_record_multi(record, conf.n_classes,conf.max_n_animals,apply_mask=conf.multi_use_mask)
+                all_mask.append(mask)
             else:
                 recon_img, locs, info = parse_record(record, conf.n_classes)
             all_ims.append(recon_img)
@@ -623,6 +645,10 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
         imsraw = np.stack(all_ims)  # [nread x height x width x depth]
         locsraw = np.stack(all_locs)  # [nread x ncls x 2]
         info = np.stack(all_info)  # [nread x 3]
+        if is_multi:
+            maskraw = np.stack(all_mask)
+        else:
+            maskraw = None
 
         nread = imsraw.shape[0]
         # we read at least one new row, ie nread>0.
@@ -644,7 +670,9 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
                              mode='constant')
             # info = ... dont pad
 
-        ims, locs, targets = ims_locs_proc_fn(imsraw, locsraw, conf, distort)
+        ims, locs, targets, mask = ims_locs_proc_fn(imsraw, locsraw, conf, distort,mask=maskraw)
+        if mask is None:
+            mask = np.ones_like(ims[...,0])
         # targets should be a list here
 
         if tfclippedbatch:
@@ -665,10 +693,11 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
                 instrumentedname, ims.shape[0], info[0, 0]))
 
         if debug:
-            yield [ims], targets, locs, info
+            yield [ims, mask], targets, locs, info
         else:
-            yield [ims], targets
+            yield [ims, mask], targets
             # (inputs, targets)
+
 
 def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, silent=False,
                         batch_size=None, **kwargs):
@@ -787,7 +816,7 @@ def create_tf_datasets(conf0,
 
 
     def pp_dpk_conf(imsraw, locsraw):
-        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+        ims, locs, tgts, mask = ims_locs_preprocess_dpk_base(imsraw,
                                                        locsraw,
                                                        conf,
                                                        distort,
@@ -795,7 +824,7 @@ def create_tf_datasets(conf0,
         return ims.astype('float32'), tgts.astype('float32')
 
     def pp_dpk_noconf(imsraw, locsraw):
-        ims, locs, tgts = ims_locs_preprocess_dpk_base(imsraw,
+        ims, locs, tgts, mask = ims_locs_preprocess_dpk_base(imsraw,
                                                        locsraw,
                                                        conf,
                                                        distort,

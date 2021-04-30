@@ -335,10 +335,12 @@ classdef TrackingVisualizerMT < handle
       tfTgtOnHideAffected = tfTgtOn;
       tfTgtOnHideAffected(obj.iTgtHide) = false;
            
-      [obj.hXYPrdRed(:,tfTgtOnHideAffected).Visible] = deal(onoffViz);
-      [obj.hXYPrdRed(:,~tfTgtOnHideAffected).Visible] = deal('off');
-      [obj.hXYPrdRedTxt(:,tfTgtOnHideAffected).Visible] = deal(onoffTxt);
-      [obj.hXYPrdRedTxt(:,~tfTgtOnHideAffected).Visible] = deal('off');
+      if ~isempty(obj.hXYPrdRed) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
+        [obj.hXYPrdRed(:,tfTgtOnHideAffected).Visible] = deal(onoffViz);
+        [obj.hXYPrdRed(:,~tfTgtOnHideAffected).Visible] = deal('off');
+        [obj.hXYPrdRedTxt(:,tfTgtOnHideAffected).Visible] = deal(onoffTxt);
+        [obj.hXYPrdRedTxt(:,~tfTgtOnHideAffected).Visible] = deal('off');
+      end
       
       % skel, pch: not affected by hide
       if ~isempty(obj.hSkel)
@@ -449,18 +451,20 @@ classdef TrackingVisualizerMT < handle
       end
     end
     function updatePrimary(obj,iTgtPrimary)
-      hSkl = obj.hSkel;
       iTgtPrimary0 = obj.iTgtPrimary;
       iTgtChanged = ~isequal(iTgtPrimary,iTgtPrimary0);
       obj.iTgtPrimary = iTgtPrimary;
       
       if iTgtChanged
         trajClrCurr = obj.lObj.projPrefs.Trx.TrajColorCurrent;
-        if iTgtPrimary0>0
-          set(hSkl(:,iTgtPrimary0),'Color',obj.skelEdgeColor);
-        end
-        if iTgtPrimary>0
-          set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
+        hSkl = obj.hSkel;
+        if ~isempty(hSkl)
+            if iTgtPrimary0>0
+              set(hSkl(:,iTgtPrimary0),'Color',obj.skelEdgeColor);
+            end
+            if iTgtPrimary>0
+              set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
+            end
         end
         if obj.showOnlyPrimary
           obj.updateShowHideAll();

@@ -1,3 +1,563 @@
+
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"mspn\" dl_steps 100000 rrange 30 trange 20 imsz \(192,192\) trx_align_theta True img_dim 1 ht_pts \(0,6\) use_ht_trx True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type mmpose -name alice_neg -cache /nrs/branson/mayank/apt_cache_2  train -use_cache -skip_db'
+cmd = cmd.replace('\\','')
+#cmd = cmd.replace('"','')
+apt.main(cmd.split())
+
+##
+aa = [np.array(yy['keypoints']).reshape([-1,3]) for yy in Y['annotations']]
+negs = [np.all(np.isnan(a[:,:2])) for a in aa]
+nx = [i for i,x in enumerate(negs) if x]
+
+##
+f,ax = plt.subplots(5,5)
+ax = ax.flatten()
+for ndx,sel in enumerate(nx):
+    iid = Y['annotations'][sel]['image_id']
+    im = cv2.imread(Y['images'][iid]['file_name'])
+    ax[ndx].imshow(im)
+    bb = np.array(Y['annotations'][sel]['segmentation']).reshape(4,2)
+    # mask = apt.create_mask([bb],[320,320])
+    ax[ndx].plot(bb[:,0],bb[:,1])
+
+## single animal ht
+# import APT_interface as apt
+# import os
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"tfrecord\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True  multi_crop_ims True rrange 30 trange 30 is_multi False max_n_animals 7 imsz \(192,192\) use_ht_trx True ht_pts \(0,6\) -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type openpose -name alice_ht_test -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache'
+# cmd = cmd.replace('\\','')
+# apt.main(cmd.split())
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True multi_crop_ims True rrange 180 trange 30 is_multi True max_n_animals 7 ht_pts \(0,6\) multi_only_ht True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_mdn_joint_torch -name alice_neg_ht_test -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+# %run reuse
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20201225T042233_20201225T042235.lbl'
+
+n_pairs = [['multi_openpose','openpose']]
+curp = n_pairs[0]
+net_type = curp[0] #'multi_mdn_joint_torch' #'multi_mmpose' #
+train_name = 'deepnet'
+
+run_name = f'roian_split_crop_ims_{curp[1]}_multi'
+conf = apt.create_conf(lbl_file,0,run_name,net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+# conf.batch_size = 4 if net_type == 'multi_openpose' else 8
+db_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_multi/val_TF.json'
+conf.db_format = 'coco'
+conf.max_n_animals = 2
+conf.imsz = (1024*2,1024*2) #(288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet' #'higherhrnet_2x'#
+conf.is_multi = True
+conf.op_affinity_graph = ((0,1),(0,2),(0,3))
+conf.batch_size = 2
+conf.rescale = 1
+conf.background_mask_sel_rate = 1.1
+info =[3,3,3]
+T = pt.json_load('/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split.json')
+im = cv2.imread('/nrs/branson/mayank/apt_cache_2/four_points_180806/'+T['locdata'][0]['img'][0],cv2.IMREAD_UNCHANGED)
+cur_pts = np.array(T['locdata'][0]['pabs']).reshape([2,4,2]).transpose([2,1,0])
+occ = np.array(T['locdata'][0]['occ']).reshape([4,-1]).transpose([1,0])
+
+
+##
+mcase = 'far2'
+debug = True
+plt.close('all')
+if mcase == 'overlap':
+    extra_roi = np.array([[
+        [ 820.36679812, 286.26984163],
+        [ 820.36679812, 2587.13256204],
+        [2173.98770493, 2587.13256204],
+        [2173.98770493, 286.26984163]]])
+elif mcase =='full':
+    extra_roi = np.array( [[[0, 0], [0, 2048], [2048, 2048], [2048, 0]]])
+elif mcase =='fit':
+    extra_roi = np.array( [[[1290, 190],
+                            [1290, 500],
+                            [1400, 500],
+                            [1400, 190]]])
+elif mcase == 'far':
+    extra_roi = np.array( [[[1190, 1090],
+                            [1190, 1200],
+                            [500, 1200],
+                            [500, 1090]]])
+
+elif mcase == 'far2':
+    extra_roi = np.array( [[[1190, 1090],
+                            [1190, 1200],
+                            [500, 1200],
+                            [500, 1090]],
+                           [[1190, 1290],
+                            [1190, 1400],
+                            [500, 1400],
+                            [500, 1290]]
+                           ])
+
+roi = np.array(T['locdata'][0]['roi']).reshape([2,4,-1]).transpose([2,1,0])
+conf.multi_frame_sz = [2048,2048]
+conf.imsz = [640,640]
+
+if debug:
+    roim = apt.create_mask(roi,conf.multi_frame_sz)
+    eroim = apt.create_mask(extra_roi,conf.multi_frame_sz)
+    f = plt.figure();
+    plt.imshow(im*(roim|eroim),'gray')
+
+all_data = apt.create_ma_crops(conf,np.tile(im[...,None],[1,1,3]),cur_pts,info,occ,roi,extra_roi)
+
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+
+if debug:
+    f1,ax = plt.subplots(int(np.ceil(len(all_data)/2)),2)
+    ax = ax.flatten()
+    for ndx, a in enumerate(all_data):
+        mm = apt.create_mask(a['roi'],conf.imsz)
+        if a['extra_roi'] is not None:
+            mm = mm| apt.create_mask(a['extra_roi'],conf.imsz)
+        ax[ndx].imshow(a['im']*mm[:,:,None])
+        ax[ndx].axis('off')
+
+    plt.figure(f.number)
+    plt.axis('off')
+    for a in all_data:
+        xx = [a['x_left'],a['x_left'],a['x_left']+conf.imsz[1],a['x_left']+conf.imsz[1],a['x_left']]
+        yy = [a['y_top'],a['y_top']+conf.imsz[0],a['y_top']+conf.imsz[0],a['y_top'],a['y_top']]
+        plt.plot(xx,yy)
+
+##
+ix = 1127
+im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')
+im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+im = np.tile(im[None,...,None],[1,1,1,3])
+conf.batch_size = 1
+rr = 8
+pl = []
+plt.cla()
+imshow(im[0,...,0],'gray')
+for xx in range(-rr,rr+1,4):
+    xl = []
+    for yy in range(-rr,rr+1,4):
+        oim = np.pad(im,[[0,0],[rr,rr],[rr,rr],[0,0]])
+        oim = oim[:,(rr+yy):(rr+yy+1024),(rr+xx):(rr+xx+1024),:]
+        dfile = os.path.join('/tmp/',f'diagnose_val_{ix}_wt_offset_5.p')
+        import Pose_multi_mdn_joint_torch
+        pp = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name='wt_offset_5')
+        pp.diagnose(oim,dfile)
+        A = pt.pickle_load(dfile)
+        A = A['ret_dict']
+        # curl = A['locs'][0]
+        curl = A['raw_locs'][0]['joint'][0]
+        curl[...,0] += xx
+        curl[...,1] += yy
+        xl.append(curl.copy())
+        mdskl(curl,conf.op_affinity_graph)
+    pl.append(xl)
+mdskl(np.clip(ll1[ix,...],0,10000),conf.op_affinity_graph,cc=[0,0,1.])
+aa = np.array(pl)
+plt.title(f'{ix}')
+##
+layers  = list(model.named_modules())
+layers = [l for l in layers if 'conv' in l[0]]
+train_dict = {}
+for l in layers:
+    train_dict[l[0]] = None
+
+def save_outputs_hook(layer_id: str):
+    def fn(_, __, output):
+        oo = output.detach().cpu().numpy().copy()
+        if train_dict[layer_id] is None:
+            train_dict[layer_id] = [[oo.sum(axis=(0,2,3))],[(oo**2).sum(axis=(0,2,3))]]
+        else:
+            train_dict[layer_id][0].append(oo.sum(axis=(0,2,3)))
+            train_dict[layer_id][1].append((oo**2).sum(axis=(0, 2, 3)))
+    return fn
+
+for l in layers:
+    if 'conv' not in l[0]:
+        continue
+    l[1].register_forward_hook(save_outputs_hook(l[0]))
+
+import cv2
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'train', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'val', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+##
+import pickle
+k = 'module.locs_ref.conv1'
+rr = [np.array(t) for t in train_dict[k]]
+k1 = 'module.locs_joint.conv1'
+rr1 = [np.array(t) for t in train_dict[k1]]
+
+with open('/groups/branson/home/kabram/temp/grone_out_offset5.p','wb') as f:
+    pickle.dump({k:rr,k1:rr1},f)
+
+##
+
+k = 'module.locs_ref.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+k = 'module.locs_joint.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+
+## diagnose grone
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+
+net_type = 'multi_mdn_joint_torch' #'multi_mmpose' #
+# train_name = 'grone_maskim' # 'higher'# 'deepnet' #
+run_name = 'val_split'
+train_name = 'deepnet'
+
+run_name = 'alice_maskim_split_crop_ims_grone_multi'
+# train_name = 'grone_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# net_type = 'multi_mmpose' #'multi_mmpose' #
+# train_name = 'higherhr_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# train_name = 'higherhr_maskim' # 'higher'# 'deepnet' #
+# run_name = 'maskim_split'
+
+# net_type = 'multi_openpose' #'multi_mmpose' #
+# train_name = 'openpose_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/val_split/val_TF.json'
+# use whole unmasked images for validation
+conf = apt.create_conf(lbl_file,0,run_name,net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+# conf.batch_size = 4 if net_type == 'multi_openpose' else 8
+db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/val_split_fullims/val_TF.json'
+conf.db_format = 'coco'
+conf.max_n_animals = 10
+conf.imsz = (1024,1024) #(288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet' #'higherhrnet_2x'#
+conf.is_multi = True
+conf.op_affinity_graph = ((0,1),(0,5),(1,2),(3,4),(3,5),(5,6),(5,7),(5,9),(3,16),(9,10),(10,15),(9,14),(4,11),(7,8),(8,12),(7,13))
+
+import Pose_multi_mdn_joint_torch
+import cv2
+ix = 862
+im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')
+im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+im = np.tile(im[None,...,None],[1,1,1,3])
+import PoseTools as pt
+A = pt.pickle_load('/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/alice_maskim_split_crop_ims_grone_multi/diagnose_20210201')
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+plt.imshow(im[0,:,:,0],'gray')
+A = A['ret_dict']
+kk = A['preds'][0]
+kk1 = A['preds'][1]
+jj1 =  A['raw_locs'][1]['ref'][0] + 16
+jj =  A['raw_locs'][0]['ref'][0]
+ff =  jj[-1,...]
+ff1 = jj1[4,...]
+ff-ff1
+mm = kk[0][0,...,0,23,23]
+mm.round()
+mm1 = kk1[0][0,...,0,23,23]
+mm1.round()
+## masking loss
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import APT_interface as apt
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split.json -conf_params dl_steps 110000 is_multi True multi_use_mask False multi_loss_mask True mmpose_net \"higherhrnet\" db_format \"coco\" max_n_animals 7  -train_name higherhr_maskloss -type multi_mmpose -name val_split -cache /nrs/branson/mayank/apt_cache_2 train -continue -skip_db'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+
+cmd = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20201225T042233_20201225T042235.lbl -json_trn_file /nrs/branson/mayank/apt_cache_2/four_points_180806/loc.json -conf_params dl_steps 200000 pretrain_freeze_bnorm False is_multi True mmpose_net "higherhrnet" multi_use_mask False db_format "coco" batch_size 2 max_n_animals 2 save_step 10000 -train_name grone_nomask_bn -type multi_mdn_joint_torch -name full_dataset -cache /nrs/branson/mayank/apt_cache_2 train -skip_db'
+
+
+import APT_interface as apt
+apt.main(cmd.split())
+
+
+##
+nims = len(A['images'])
+aas = np.random.rand(nims,11,2,3)*-1000
+for im in range(nims):
+    lndx = 0
+    for a in A['annotations']:
+        if not (a['image_id'] == im):
+            continue
+        locs = np.array(a['keypoints'])
+        locs = np.reshape(locs, [2, 3])
+        aas[im,lndx, ...] = locs
+        lndx += 1
+
+dd = np.ones([nims,11,11])*10000
+for ix in range(2):
+    for iy in range(2):
+        cdd = np.linalg.norm(aas[:,:,np.newaxis,ix,:2]-aas[:,np.newaxis,:,iy,:2],axis=-1)
+        dd = np.minimum(cdd,dd)
+dd = dd.reshape([nims,-1])
+dd[:,::12] = 1000
+dd = dd.reshape([nims,11,11])
+##
+kk = np.where(dd<20)
+sndx = np.random.randint(len(kk[0]))
+plt.figure(210)
+plt.cla()
+plt.plot(aas[kk[0][sndx],:,:,0].T,aas[kk[0][sndx],:,:,1].T)
+plt.show()
+##
+import h5py
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+lbl = h5py.File(lbl_file,'r')
+exp_list = lbl['movieFilesAll'][0, :]
+local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
+try:
+    for k in lbl['projMacros'].keys():
+        r_dir = u''.join(chr(c) for c in lbl['projMacros'][k])
+        local_dirs = [s.replace('${}'.format(k), r_dir) for s in local_dirs]
+except:
+    pass
+
+vals = []
+from scipy import io as sio
+for ndx in range(len(local_dirs)):
+    pfile = local_dirs[ndx].replace('movie.ufmf','perframe/dnose2ell.mat')
+    Z = sio.loadmat(pfile)
+    for im in range(ims):
+        if A['images']['movid'] != ndx:
+            continue
+        fr = A['images']['frm']
+
+
+
+##
+
+rep = np.zeros(p.shape[-1])
+flip = np.zeros(p.shape[-1])
+
+for t in range(p.shape[-1]):
+    cp = p[...,t]
+    dd1 = np.linalg.norm(cp[:,:,np.newaxis,:]-cp[:,:,:,np.newaxis],axis=0).sum(0)
+    dd1.flat[::dd1.shape[0]+1] = 1000
+    cpi = cp[:,[1,0],...]
+    dd2 = np.linalg.norm(cp[:,:,np.newaxis,:]-cpi[...,np.newaxis],axis=0).sum(0)
+    while np.any(dd1<14):
+        rep[t] = 1
+        zz = np.where(dd1<14)[0][-1]
+        p[:,:,zz,t] = np.nan
+        cp = p[...,t]
+        dd1 = np.linalg.norm(cp[:,:,np.newaxis,:]-cp[:,:,:,np.newaxis],axis=0).sum(0)
+        dd1.flat[::dd1.shape[0]+1] = 1000
+    if np.any(dd2<14):
+        flip[t] = 1
+
+
+
+## Debugging errors in Alice's MA tracking
+pp = newtrk['pTrk']
+t = 100
+for t1 in range(t,t+800):
+    id1 = np.nonzero(~np.isnan(pp[0,0,t1,:]))[0]
+    id2 = np.nonzero(~np.isnan(pp[0,0,t1+1,:]))[0]
+    if not np.array_equal(id1,id2):
+        print(t1,id1.shape[0],id2.shape[0])
+        print(id1)
+        print(id2)
+        break
+
+#
+pp = newtrk['pTrk']
+t = t1
+id1 = np.nonzero(~np.isnan(pp[0,0,t,:]))
+id2 = np.nonzero(~np.isnan(pp[0,0,t+1,:]))
+print(id1)
+print(id2)
+if not np.array_equal(id1,id2):
+    mov = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf'
+    # mov = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg'
+    import movies
+
+    cap = movies.Movie(mov)
+    fr = cap.get_frame(t)[0]
+    fr1 = cap.get_frame(t+1)[0]
+    f = plt.figure(234,frameon=False)
+    plt.cla()
+    plt.imshow(np.minimum(fr,fr1),'gray')
+    plt.plot(pp[:,0,t,:],pp[:,1,t,:],c='r')
+    # plt.scatter(pp[0, 0, t, :], pp[0, 1, t, :], c='r',marker='^')
+    plt.plot(pp[:,0,t+1,:]+3,pp[:,1,t+1,:]+3,c='b')
+    # plt.scatter(pp[0, 0, t+1, :]+3, pp[0, 1, t+1, :]+3, c='b',marker='^')
+    plt.plot(p[0,:,:,t]+6,p[1,:,:,t]+6,c='g')
+    plt.plot(p[0,:,:,t+1]-3,p[1,:,:,t+1]-3,c='k')
+
+##
+import APT_interface as apt
+import Pose_multi_mdn_joint_torch
+import torch
+import numpy as np
+import PoseTools
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+conf = apt.create_conf(lbl_file,0,'full_touch_20200811','/nrs/branson/mayank/apt_cache_2','multi_mdn_joint_torch')
+conf.has_trx_file = False
+conf.imsz = (1024, 1024)
+conf.batch_size = 1
+conf.max_n_animals = 12
+conf.is_multi = True
+conf.mmpose_net = "higherhrnet"
+model_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/full_touch_20200811/grone-100000'
+self = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf)
+model = self.create_model()
+model = torch.nn.DataParallel(model)
+
+self.model = model
+self.restore(model_file, model)
+model.to('cuda')
+model.eval()
+conf = self.conf
+match_dist = 4
+
+##
+t = 1140
+fr = cap.get_frame(t)[0]
+ims = np.tile(fr[np.newaxis,...,np.newaxis],[1,1,1,3])
+locs_sz = (conf.batch_size, conf.n_classes, 2)
+locs_dummy = np.zeros(locs_sz)
+
+ims, _ = PoseTools.preprocess_ims(ims, locs_dummy, conf, False, conf.rescale)
+with torch.no_grad():
+    preds = model({'images': torch.tensor(ims).permute([0, 3, 1, 2]) / 255.})
+
+# do prediction on half grid cell size offset images. o is for offset
+hsz = 16
+oims = np.pad(ims, [[0, 0], [0, hsz], [0, hsz], [0, 0]])[:, hsz:, hsz:, :]
+with torch.no_grad():
+    opreds = model({'images': torch.tensor(oims).permute([0, 3, 1, 2]) / 255.})
+locs = self.get_joint_pred(preds)
+olocs = self.get_joint_pred(opreds)
+
+plt.figure(322)
+plt.cla()
+plt.imshow(fr,'gray')
+plt.scatter(locs['ref'][...,0],locs['ref'][...,1])
+plt.scatter(olocs['ref'][...,0]+16,olocs['ref'][...,1]+16)
+
+plt.figure(333)
+plt.cla()
+plt.imshow(opreds[1][0,2,:,:].cpu().numpy().reshape([32,32]))
+
+matched = {}
+for dkeys in ['ref','joint']:
+    olocs_orig = olocs[dkeys] + hsz
+    locs_orig = locs[dkeys]
+    cur_pred = np.ones_like(olocs_orig) * np.nan
+    dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
+    dd = np.linalg.norm(dd,axis=-1).mean(-1)
+    matched_ndx = 0
+    # match predictions from offset pred and normal preds
+    for b in range(dd.shape[0]):
+        done_offset = np.zeros(dd.shape[1])
+        done_locs = np.zeros(dd.shape[1])
+        for ix in range(dd.shape[1]):
+            if np.all(np.isnan(dd[b,:,ix])):
+                continue
+            olocs_ndx = np.nanargmin(dd[b,:,ix])
+            if dd[b,olocs_ndx,ix] < match_dist:
+                cc = (olocs_orig[b,olocs_ndx,...] + locs_orig[b,ix,...])/2
+                done_offset[olocs_ndx] = 1
+                done_locs[ix] = 1
+                print(f'Matched {ix} with {olocs_ndx}')
+            else:
+                cc = locs_orig[b,ix,...]
+                done_locs[ix] = 1
+            cur_pred[b,matched_ndx,...] = cc
+            matched_ndx += 1
+        for ix in np.where(done_offset<0.5)[0]:
+            if np.all(np.isnan(dd[b,ix,:])):
+                continue
+            if matched_ndx >= conf.max_n_animals:
+                break
+            cc = olocs_orig[b,ix,...]
+            cur_pred[b,matched_ndx,...] = cc
+            matched_ndx += 1
+    matched[dkeys] = cur_pred
+matched['ref'][0,:,0,0]
+## Roian -no mask
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+import objgraph
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -name full_touch_20200811 -type multi_mmpose -train_name higherhrnet -conf_params has_trx_file False imsz (1024,1024) batch_size 1 max_n_animals 12 is_multi True mmpose_net "higherhrnet" -cache /nrs/branson/mayank/apt_cache_2 track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/alice_multi/cx_GMR_SS00030_CsChr_RigC_20150826T144616_higherhrnet.trk'
+import APT_interface as apt
+apt.main(cmd.split())
+
 ##
 
 from mmcv import Config, DictAction
@@ -18,18 +578,13 @@ conf.save_step = 10000
 conf.dl_steps = 100000
 conf.brange = [0,0]
 conf.crange =[1,1]
+conf.horz_flip = True
 conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
 conf.mmpose_use_apt_augmentation = False
 ss = Pose_mmpose(conf,'mmpose_aug')
 # ss.cfg.model.pretrained='/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mmpose/view_0/deepnet/mmpose_aug-100000'
 ss.train_wrapper(False)
 
-## allen bug 20201221
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] ='0'
-cmd = ['/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl', '-name', '20201217T002018', '-json_trn_file', '/groups/branson/home/kabram/nrs/apt_cache_2/alice_ma/loc.json', '-conf_params', 'is_multi', 'True', 'db_format', '"coco"', 'max_n_animals','10','-type', 'multi_mdn_joint_torch', '-cache', '/nrs/branson/mayank/temp', 'train','-skip_db']
-import APT_interface as apt
-apt.main(cmd)
 
 ## debugging topk for mmpose
 

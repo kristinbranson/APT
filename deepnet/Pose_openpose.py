@@ -1,4 +1,7 @@
 import open_pose4 as op
+import os
+import pickle
+import PoseTools
 
 
 class Pose_openpose(object):
@@ -31,7 +34,22 @@ class Pose_openpose(object):
         self.conf = conf
 
     def train_wrapper(self, restore=False):
-        op.training(self.conf, self.name)
+        op.training(self.conf, self.name, restore=restore)
 
     def get_pred_fn(self,model_file=None):
         return op.get_pred_fn(self.conf,model_file=model_file,name=self.name)
+
+    def diagnose(self, ims, out_file=None, **kwargs):
+        pred_fn, close_fn, model_file = self.get_pred_fn(**kwargs)
+        ret_dict = pred_fn(ims,retrawpred=True)
+        conf = self.conf
+
+        if out_file is None:
+            out_file = os.path.join(conf.cachedir,'diagnose_' + PoseTools.get_datestr())
+
+        with open(out_file,'wb') as f:
+            pickle.dump({'ret_dict':ret_dict,'conf':conf, 'model_file':model_file},f)
+
+        close_fn()
+        return ret_dict
+

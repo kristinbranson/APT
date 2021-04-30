@@ -29,15 +29,14 @@ import json
 import torch
 
 
-def find_local_dirs(conf, on_gt=False):
-    lbl = h5py.File(conf.labelfile, 'r')
+def find_local_dirs(lbl_file, view=0, on_gt=False):
+    lbl = h5py.File(lbl_file, 'r')
     if on_gt:
-        exp_list = lbl['movieFilesAllGT'][conf.view,:]
+        exp_list = lbl['movieFilesAllGT'][view,:]
     else:
-        exp_list = lbl['movieFilesAll'][conf.view,:]
+        exp_list = lbl['movieFilesAll'][view,:]
     local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
     # local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in conf.getexplist(lbl)]
-    sel_dirs = [True] * len(local_dirs)
     try:
         for k in lbl['projMacros'].keys():
             r_dir = u''.join(chr(c) for c in lbl['projMacros'][k])
@@ -45,7 +44,7 @@ def find_local_dirs(conf, on_gt=False):
     except:
         pass
     lbl.close()
-    return local_dirs, sel_dirs
+    return local_dirs
 
 
 def find_gt_dirs(conf):
@@ -178,7 +177,6 @@ def bytes_feature(value):
     if not isinstance(value, list):
         value = [value]
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
-
 
 def float_feature(value):
     if not isinstance(value, (list, np.ndarray)):
@@ -442,15 +440,10 @@ def create_envs(conf, split, db_type=None):
             val_env = None
         return env, val_env
     else:
-        if split:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            val_filename = os.path.join(conf.cachedir, conf.valfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
-        else:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = None
+        train_filename = os.path.join(conf.cachedir, conf.trainfilename)
+        val_filename = os.path.join(conf.cachedir, conf.valfilename)
+        env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
+        val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
         return env, val_env
 
 
@@ -1150,7 +1143,7 @@ def read_and_decode_without_session_multi(filename, n_classes):
         width = int(example.features.feature['width'].int64_list.value[0])
         depth = int(example.features.feature['depth'].int64_list.value[0])
         expid = int(example.features.feature['expndx'].float_list.value[0])
-        maxn = int(example.features.feature['max_n'].int64_list.value[0])
+        maxn = int(example.features.feature['ntgt'].int64_list.value[0])
         t = int(example.features.feature['ts'].float_list.value[0])
         img_string = example.features.feature['image_raw'].bytes_list.value[0]
         img_1d = np.fromstring(img_string, dtype=np.uint8)
@@ -1274,23 +1267,31 @@ class tf_reader(object):
 
 class coco_loader(torch.utils.data.Dataset):
 
-    def __init__(self, conf, ann_file, augment):
+    def __init__(self, conf, ann_file, augment,img_dir='val'):
         self.ann = PoseTools.json_load(ann_file)
         self.conf = conf
         self.augment = augment
+        self.img_dir = img_dir
 
     def __len__(self):
         return len(self.ann['images'])
 
     def __getitem__(self, item):
         conf = self.conf
-        im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
+        im_name = self.ann['images'][item]['file_name']
+        im_path = os.path.join(conf.cachedir,self.img_dir)
+        im_file = os.path.join(im_path,im_name)
+        im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
-        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
+        if 'patch' in self.ann['images'][item].keys():
+            tgt_id = self.ann['images'][item]['patch']
+        else:
+            tgt_id = self.ann['images'][item]['tgt']
+        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],tgt_id]
 
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
         lndx = 0

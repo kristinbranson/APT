@@ -61,6 +61,9 @@ classdef Labels
     function tf = hasLbls(s)
       tf = ~isempty(s.frm);
     end
+    function n = numLbls(s)
+      n = numel(s.frm);
+    end
     function s = setpFT(s,frm,itgt,xy)
       i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
@@ -341,32 +344,36 @@ classdef Labels
         'ntgt',[] ... % num tgts "
         );
       if isempty(nfrm)
-        if isempty(s.frm)
-          nfrm = 1;
-        else
-          nfrm = max(s.frm);
-        end
+        nfrm = 1;
       end
+      if ~isempty(s.frm),
+        nfrm = max(nfrm,max(s.frm));
+      end
+      % KB 20201224: ntgt was not being set right
       if isempty(ntgt)
-        if isempty(s.tgt)
-          ntgt = 1;
-        else
-          ntgt = max(s.tgt);
-        end
+        ntgt = 1;
+      end
+      if ~isempty(s.tgt),
+        ntgt = max(ntgt,max(s.tgt));
       end
       
       lpos = nan(s.npts,2,nfrm,ntgt);
       lposTS = -inf(s.npts,nfrm,ntgt);
       lpostag = false(s.npts,nfrm,ntgt);
 
-      n = numel(s.frm);
-      for i=1:n
-        f = s.frm(i);
-        itgt = s.tgt(i);
-        lpos(:,:,f,itgt) = reshape(s.p(:,i),s.npts,2);
-        lposTS(:,f,itgt) = s.ts(:,i);
-        lpostag(:,f,itgt) = s.occ(:,i);
-      end
+      % KB 20201224 this loop was slow!
+      idx = sub2ind([nfrm,ntgt],s.frm,s.tgt);
+      lpos(:,:,idx) = reshape(s.p,[s.npts,2,numel(s.frm)]);
+      lposTS(:,idx) = s.ts;
+      lpostag(:,idx) = s.occ;
+%       n = numel(s.frm);
+%       for i=1:n
+%         f = s.frm(i);
+%         itgt = s.tgt(i);
+%         lpos(:,:,f,itgt) = reshape(s.p(:,i),s.npts,2);
+%         lposTS(:,f,itgt) = s.ts(:,i);
+%         lpostag(:,f,itgt) = s.occ(:,i);
+%       end
     end
     function s = fromarray(lpos,varargin)
       % s = fromarray(lpos,'lposTS',lposTS,'lpostag',lpostag)
@@ -376,11 +383,16 @@ classdef Labels
       % if lposTS not provided, ts will be 'nan' (default upon Labels.new),
       % and similarly for lpostag      
 
-      [lposTS,lpostag] = myparse(varargin,...
+      [lposTS,lpostag,frms,tgts] = myparse(varargin,...
         'lposTS',[],...
-        'lpostag',[]...
+        'lpostag',[],...
+        'frms',[], ... % optional, frame labels for 3rd dim
+        'tgts',[] ... % optional, tgt labels for 4th dim
         );
       
+      if isstruct(lpos)
+        lpos = SparseLabelArray.full(lpos);
+      end
       [npts,d,nfrm,ntgt] = size(lpos);
       assert(d==2);
       
@@ -388,15 +400,25 @@ classdef Labels
       tfTag = ~isequal(lpostag,[]);
       if tfTS, szassert(lposTS,[npts nfrm ntgt]); end
       if tfTag, szassert(lpostag,[npts nfrm ntgt]); end
+      if isempty(frms)
+        frms = 1:nfrm;
+      else
+        assert(numel(frms)==nfrm);
+      end
+      if isempty(tgts)
+        tgts = 1:ntgt;
+      else
+        assert(numel(tgts)==ntgt);
+      end
       
       nnan = ~isnan(lpos);
       nnanft = reshape(any(any(nnan,1),2),nfrm,ntgt);
-      [frms,itgt] = find(nnanft);
-      n = numel(frms);
+      [ifrms,itgts] = find(nnanft);
+      n = numel(ifrms);
       s = Labels.new(npts,n);
       for i=1:n
-        fi = frms(i);
-        itgti = itgt(i);
+        fi = ifrms(i);
+        itgti = itgts(i);
         s.p(:,i) = reshape(lpos(:,:,fi,itgti),2*npts,1);
         if tfTS
           s.ts(:,i) = lposTS(:,fi,itgti);
@@ -405,8 +427,23 @@ classdef Labels
           s.occ(:,i) = lpostag(:,fi,itgti); % true->1, false->0
         end
       end      
-      s.frm(:) = frms(:);
-      s.tgt(:) = itgt(:);
+      s.frm(:) = frms(ifrms(:));
+      s.tgt(:) = tgts(itgts(:));
+    end
+    function s = fromTrkfile(trk)
+      if isfield(trk,'pTrkiPt')
+        assert(isequal(trk.pTrkiPt(:)',1:size(trk.pTrk,1)),...
+          'Unexpected point specification in .pTrkiPt.');
+      end
+%       args = {};
+%       if isfield(trk,'pTrkFrm')
+%         args = [args {'frms' trk.pTrkFrm}];
+%       end
+%       if isfield(trk,'pTrkiTgt')
+%         args = [args {'tgts' trk.pTrkiTgt}];
+%       end
+      s = Labels.fromarray(trk.pTrk,'lposTS',trk.pTrkTS,...
+        'lpostag',trk.pTrkTag,'frms',trk.pTrkFrm,'tgts',trk.pTrkiTgt);
     end
     function ptrx = toPTrx(s)
       tgtsUn = unique(s.tgt);
@@ -417,10 +454,10 @@ classdef Labels
       xfcn = @(p)nanmean(p(1:s.npts,:),1);
       yfcn = @(p)nanmean(p(s.npts+1:2*s.npts,:),1);
       
-      for jtgt=1:ntgts        
+      for jtgt=1:ntgts
         iTgt = tgtsUn(jtgt);
         tf = s.tgt==iTgt;
-        frms = s.frm(tf);
+        frms = double(s.frm(tf)); % KB 20201224 - doesn't work if uint32, off should be negative
         
         f0 = min(frms);
         f1 = max(frms);
@@ -457,7 +494,32 @@ classdef Labels
     function s = addsplitsifnec(s)
       n = size(s.p,2);
       s.split = zeros(n,1,Labels.CLS_SPLIT);
-    end      
+    end
+    function s = mergeviews(sarr)
+      % sarr: array of Label structures
+
+      if isscalar(sarr)
+        s = sarr;
+        return;
+      end
+      
+      assert(isequal(sarr.npts),'npts must be equal across views.');
+      assert(isequal(sarr.frm),'frames must be equal across views.');
+      assert(isequal(sarr.tgt),'targets must be equal across views.');
+      
+      npts = sarr(1).npts;
+      nview = numel(sarr);
+      for i=1:nview
+        sarr(i).p = reshape(sarr(i).p,npts,2,[]);
+      end
+      s = sarr(1);
+      s.npts = npts*nview;
+      s.p = cat(1,sarr.p);
+      s.p = reshape(s.p,2*s.npts,[]);
+      s.ts = cat(1,sarr.ts);
+      s.occ = cat(1,sarr.occ);
+      % .frm, .tgt unchanged
+    end
   end
   methods (Static)
     % Labeler-related utils

@@ -429,14 +429,14 @@ class PoseCommon(object):
         train_dataset = train_dataset.repeat()
         train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
-        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=16)
-        train_dataset = train_dataset.prefetch(buffer_size=100)
+        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=8)
+        train_dataset = train_dataset.prefetch(buffer_size=10)
 
         val_dataset = val_dataset.map(map_func=pfn,num_parallel_calls=2)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
         val_dataset = val_dataset.map(map_func=self.val_py_map,num_parallel_calls=4)
-        val_dataset = val_dataset.prefetch(buffer_size=100)
+        val_dataset = val_dataset.prefetch(buffer_size=5)
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -672,7 +672,7 @@ class PoseCommon(object):
             step_lr =  self.conf.get('step_lr', True)
             lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
 
-            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix :(')
+            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a tensorflow bug in tensorflow that we tried but could not fix :(')
             ss = sess.run(self.inputs,self.fd)
             logging.info('Input shape:{}'.format(ss[0].shape))
             logging.info('Starting training..')

@@ -62,7 +62,10 @@ import getpass
 import link_trajectories as lnk
 from matplotlib.path import Path
 from PoseCommon_pytorch import coco_loader
-
+from tqdm import tqdm
+import shapely.geometry
+import TrkFile
+from scipy.ndimage import uniform_filter
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10 # interval in seconds between writing n frames tracked
@@ -214,16 +217,29 @@ def to_mat(in_data):
 
 def tf_serialize(data):
     # serialize data for writing to tf records file.
-    frame_in, cur_loc, info = data[:3]
-    if len(data)>3:
-        occ = data[3]
+    frame_in = data['im']
+    cur_loc = data['locs']
+    info = data['info']
+    # frame_in, cur_loc, info = data[:3]
+    if 'occ' in data.keys():
+        occ = data['occ']
     else:
         occ = np.zeros(cur_loc.shape[:-1])
+    if 'roi' in data.keys():
+        rois = data['roi']
+    else:
+        rois = None
+    if 'extra_roi' in data.keys():
+        erois = data['extra_roi']
+        if erois is not None:
+            rois = np.concatenate([rois,erois],0)
+
+    ntgt = cur_loc.shape[0]
     rows, cols, depth = frame_in.shape
     expid, fnum, trxid = info
     image_raw = frame_in.tostring()
 
-    example = tf.train.Example(features=tf.train.Features(feature={
+    feature = {
         'height': int64_feature(rows),
         'width': int64_feature(cols),
         'depth': int64_feature(depth),
@@ -232,8 +248,13 @@ def tf_serialize(data):
         'expndx': float_feature(expid),
         'ts': float_feature(fnum),
         'image_raw': bytes_feature(image_raw),
-        'occ':float_feature(occ),
-    }))
+        'occ': float_feature(occ.flatten()),
+        'ntgt': int64_feature(ntgt)
+    }
+    if rois is not None:
+        mask = create_mask(rois,frame_in.shape[:2])
+        feature['mask'] = bytes_feature(mask.tostring())
+    example = tf.train.Example(features=tf.train.Features(feature=feature))
 
     return example.SerializeToString()
 
@@ -272,7 +293,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples)
 
     envs[0].close()
-    envs[1].close() if split else None
+    envs[1].close() if envs[1] is not None else None
     try:
         with open(os.path.join(conf.cachedir, 'splitdata.json'), 'w') as f:
             json.dump(splits, f)
@@ -280,10 +301,40 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         logging.warning('SPLIT_WRITE: Could not output the split data information')
 
 
-def convert_to_coco(coco_info,ann,data):
-    # converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
+def convert_to_coco(coco_info, ann, data, conf):
+    '''
+     converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
 
-    cur_im,cur_locs,info,cur_occ = data[:4]
+    Write im to coco_info['imdir']; add a single image with 1+ corresponding labeled targets
+    to ann
+
+    :param coco_info: dict with keys ndx, ann_ndx, imdir. modified in-place
+    :param ann:
+    :param data: dict with keys im, locs [ntgt x npts x 2], info (mft triplet),
+                                occ [ntgt x npts], roi (opt)
+    :param conf:
+    :return:
+    '''
+
+    cur_im = data['im']
+    cur_locs = data['locs']  # [ntgt x ...]
+    info = data['info']
+    cur_occ = data['occ']
+    if cur_locs.ndim == 2:
+        # for ht trx sort of thing.
+        cur_locs = cur_locs[None,...]
+        cur_occ = cur_occ[None,...]
+    # cur_im,cur_locs,info,cur_occ = data[:4]
+    if 'roi' in data.keys():
+        roi = data['roi']  # [ntgt x ncol] np array
+    else:
+        roi = None
+
+    if 'extra_roi' in data.keys():
+        extra_roi = data['extra_roi']
+    else:
+        extra_roi = None
+
     ndx = coco_info['ndx']
     coco_info['ndx'] += 1
     imfile = os.path.join(coco_info['imdir'],'{:08d}.png'.format(ndx))
@@ -300,16 +351,31 @@ def convert_to_coco(coco_info,ann,data):
         ix = cur_locs[idx, ...]
         if np.all(ix < -1000) or np.all(np.isnan(ix)):
             continue
-        occ_coco = 2 - cur_occ[idx, :, np.newaxis]
-        occ_coco[np.isnan(ix[:, 0]), :] = 0
+        occ_coco = 2 - cur_occ[idx, ..., np.newaxis]
+        occ_coco[np.isnan(ix[..., 0]), :] = 0
         lmin = ix.min(axis=0)
         lmax = ix.max(axis=0)
         w = lmax[0] - lmin[0]
         h = lmax[1] - lmin[1]
         bbox = [lmin[0], lmin[1], w, h]
+        if roi is None:
+            segm = [bbox]
+        else:
+            segm = [roi[idx].flatten().tolist()]
         area = w * h
         out_locs = np.concatenate([ix, occ_coco], 1)
-        ann['annotations'].append({'iscrowd': 0, 'segmentation': [bbox], 'area': area, 'image_id': ndx, 'id': annid,'num_keypoints': cur_locs.shape[1], 'bbox': bbox, 'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
+        ann['annotations'].append({'iscrowd': 0, 'segmentation': segm, 'area': area, 'image_id': ndx, 'id': annid,'num_keypoints': cur_locs.shape[1], 'bbox': bbox, 'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
+
+    if extra_roi is not None:
+        for cur_roi in extra_roi:
+            annid = coco_info['ann_ndx']
+            coco_info['ann_ndx'] += 1
+            segm = [cur_roi.flatten().tolist()]
+            if conf.multi_only_ht:
+                out_locs = np.zeros([2,3])
+            else:
+                out_locs = np.zeros([conf.n_classes,3])
+            ann['annotations'].append({'iscrowd': 0, 'segmentation': segm, 'area': 0, 'image_id': ndx, 'id': annid,'num_keypoints': conf.n_classes, 'bbox': [0,0,0,0],'keypoints': out_locs.flatten().tolist(), 'category_id': 0})
 
 
 def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf):
@@ -339,8 +405,8 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
     os.makedirs(os.path.join(conf.cachedir,'train'),exist_ok=True)
     os.makedirs(os.path.join(conf.cachedir,'val'),exist_ok=True)
 
-    out_fns = [lambda data: convert_to_coco(train_info,train_ann,data),
-               lambda data: convert_to_coco(val_info, val_ann,data)]
+    out_fns = [lambda data: convert_to_coco(train_info,train_ann,data, conf),
+               lambda data: convert_to_coco(val_info, val_ann,data, conf)]
     splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
 
     with open(train_filename + '.json','w') as f:
@@ -394,7 +460,7 @@ def convert_to_orig(base_locs, conf, fnum, cur_trx, crop_loc):
     base_locs should be 2 dim.
     crop_loc should be 0-indexed
     fnum should be 0-indexed'''
-    if conf.has_trx_file:
+    if conf.has_trx_file or conf.use_ht_trx:
         trx_fnum = fnum - int(cur_trx['firstframe'][0, 0] -1 )
         x = to_py(cur_trx['x'][0, trx_fnum])
         y = to_py(cur_trx['y'][0, trx_fnum])
@@ -653,7 +719,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     conf.rescale = scale
 
-    ex_mov = multiResData.find_local_dirs(conf)[0][0]
+    ex_mov = multiResData.find_local_dirs(conf.labelfile,conf.view)[0][0]
 
     if 'NumChans' in lbl['cfg'].keys():
         conf.img_dim = int(read_entry(lbl['cfg']['NumChans']))
@@ -802,7 +868,11 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # elif net_type == 'openpose':
     #     op.update_conf(conf)
     elif net_type == 'dpk':
-        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        if conf.dpk_use_op_affinity_graph:
+            apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        else:
+            assert conf.dpk_skel_csv is not None
+            apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
@@ -895,7 +965,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
     # assert not (on_gt and split), 'Cannot split gt data'
 
-    local_dirs, _ = multiResData.find_local_dirs(conf, on_gt)
+    local_dirs, _ = multiResData.find_local_dirs(conf.labelfile, conf.view,on_gt)
     lbl = h5py.File(conf.labelfile, 'r')
     view = conf.view
     flipud = conf.flipud
@@ -988,129 +1058,321 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
     return splits
 
 def setup_ma(conf):
-    # Setups parameters for mutli-animal like ngrids, imsz etc.
-    # Imsz is set to be around 3*max_animal_sz
-    # T = PoseTools.json_load(os.path.join(conf.cachedir,conf.json_trn_file))
+    # setups the crop size. Based on the largets cluster.
+
     T = PoseTools.json_load(conf.json_trn_file)
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
     cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
     fr_sz = cur_frame.shape[:2]
     conf.multi_frame_sz = fr_sz
-    animal_sz = []
 
+    max_sz = 0
     for selndx,cur_t in enumerate(T['locdata']):
+        ntgt = cur_t['ntgt']
+        cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
+        cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
+        clusters = get_clusters(cur_roi)
+        n_cluster = len(np.unique(clusters))
+        for cndx in range(n_cluster):
+            idx = np.where(clusters == cndx)[0]
+            cur_rois = cur_roi[idx, ...]
+            x_sz = cur_rois[..., 0].max()- cur_rois[..., 0].min()
+            y_sz = cur_rois[..., 1].max() - cur_rois[..., 1].min()
+            max_sz = x_sz if x_sz > max_sz else max_sz
+            max_sz = y_sz if y_sz > max_sz else max_sz
+
+    max_sz = int( np.ceil((max_sz + 2)/32))*32
+    # don't take max in case there is a weird outlier
+    conf.multi_max_animal_sz = np.nan
+
+    if not conf.multi_crop_ims:
+        conf.imsz = (fr_sz[0],fr_sz[1])
+        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
+        return
+    else:
+        logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
+        conf.imsz = (max_sz,max_sz)
+
+
+def get_clusters(rois):
+    # Find bbox to find overlapping clusters
+    nlabels = rois.shape[0]
+    polys = [shapely.geometry.Polygon(rois[i,...]) for i in range(nlabels)]
+    cluster_ids = np.ones(nlabels,dtype=np.uint)*np.nan
+    for ndx in range(nlabels):
+        overlap_idx = []
+        for ondx in range(nlabels):
+            if polys[ndx].intersects(polys[ondx]):
+                overlap_idx.append(ondx)
+
+        if len(overlap_idx) > 1:
+            clusters = cluster_ids[overlap_idx]
+            if np.all(np.isnan(clusters)):
+                cluster_ids[overlap_idx] = ndx
+            else:
+                cid = int(np.nanmin(cluster_ids[overlap_idx]))
+                cluster_ids[overlap_idx] = cid
+        else:
+            # no overlap
+            cluster_ids[ndx] = ndx
+
+    # update cluster ids
+    cids, indices = np.unique(cluster_ids,return_inverse=True)
+    n_clusters = cids.shape[0]
+    new_cluster_ids = np.arange(n_clusters)
+    cluster_ids = new_cluster_ids[indices]
+    return cluster_ids
+
+def create_mask(roi, sz):
+    # sz should be h x w (i.e y first then x)
+    x,y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
+    x = x.flatten()
+    y = y.flatten()
+    pts = np.vstack((x,y)).T
+    grid = None
+    for c in roi:
+        rr = c.tolist()
+        rr.append(rr[0])
+        path = Path(rr)
+        cgrid = path.contains_points(pts)
+        if grid is not None:
+            grid = grid | cgrid
+        else:
+            grid = cgrid
+
+    if grid is None:
+        mask = np.zeros(sz)>0.5
+    else:
+        mask = grid.reshape(sz)
+    return mask
+
+def create_ma_crops(conf,frame,cur_pts,info,occ, roi, extra_roi):
+
+    def random_crop_around_roi(roi_in):
+        x_min = roi_in[...,0].min()
+        y_min = roi_in[...,1].min()
+        x_max = roi_in[...,0].max()
+        y_max = roi_in[...,1].max()
+
+        d_x = (conf.imsz[1] - (x_max-x_min))*0.9
+        r_x = (np.random.rand()-0.5)*d_x
+        x_left = int(round( (x_max+x_min)/2 - conf.imsz[1]/2 + r_x))
+        x_left = min(x_left,frame.shape[0]-conf.imsz[0])
+        x_left = max(x_left,0)
+        x_right = x_left + conf.imsz[1]
+
+        d_y = (conf.imsz[0] - (y_max-y_min))*0.9
+        r_y = (np.random.rand()-0.5)*d_y
+        y_top = int(round( (y_max+y_min)/2 - conf.imsz[0]/2 + r_y))
+        y_top = min(y_top,frame.shape[1]-conf.imsz[1])
+        y_top = max(y_top,0)
+        y_bottom = y_top + conf.imsz[0]
+
+        assert y_top<=round(y_min) and y_bottom>=round(y_max) and x_left<=round(x_min) and x_right >= round(x_max), 'Cropping for cluster is improper'
+        return x_left, y_top, x_right, y_bottom
+
+
+    def roi2patch(roi_in,x_left,y_top):
+        roi_in = roi_in.copy()
+        roi_in[..., 0] = np.clip(roi_in[..., 0] - x_left, 0, conf.imsz[1])
+        roi_in[..., 1] = np.clip(roi_in[..., 1] - y_top, 0, conf.imsz[0])
+        return roi_in
+
+    def roi_from_patch(roi_in,x_left,y_top):
+        roi_in = roi_in.copy()
+        roi_in[..., 0] = np.clip(roi_in[..., 0] + x_left, 0, conf.multi_frame_sz[1])
+        roi_in[..., 1] = np.clip(roi_in[..., 1] + y_top, 0, conf.multi_frame_sz[0])
+        return roi_in
+
+    clusters = get_clusters(roi)
+    n_clusters = len(np.unique(clusters))
+    all_data = []
+    done_mask = np.zeros((conf.multi_frame_sz[0],conf.multi_frame_sz[1]))>1
+
+    roi = roi.copy()
+    roi[..., 0] = np.clip(roi[..., 0], 0, conf.multi_frame_sz[1])
+    roi[..., 1] = np.clip(roi[..., 1], 0, conf.multi_frame_sz[0])
+
+    n_extra_roi = 0 if extra_roi is None else len(extra_roi)
+    if n_extra_roi > 0:
+        extra_roi = extra_roi.copy()
+        extra_roi[..., 0] = np.clip(extra_roi[..., 0], 0, conf.multi_frame_sz[1])
+        extra_roi[..., 1] = np.clip(extra_roi[..., 1], 0, conf.multi_frame_sz[0])
+
+    for cndx in range(n_clusters):
+        idx = np.where(clusters==cndx)[0]
+        cur_roi = roi[idx,...].copy()
+
+        x_left, y_top, x_right, y_bottom = random_crop_around_roi(cur_roi)
+
+        curp = frame[y_top:y_bottom, x_left:x_right, :]
+        cur_roi[...,0] -= x_left
+        cur_roi[...,1] -= y_top
+
+        if n_extra_roi >0:
+            cur_eroi = roi2patch(extra_roi,x_left,y_top)
+            keep_ndx = ~np.any(np.all(cur_eroi[...,0:1,:]==cur_eroi,-2),-1)
+            cur_eroi = cur_eroi[keep_ndx]
+            cur_mask = create_mask(np.concatenate([cur_roi,cur_eroi],0), [y_bottom - y_top, x_right - x_left])
+        else:
+            cur_eroi = None
+            cur_mask = create_mask(cur_roi, [y_bottom - y_top, x_right - x_left])
+
+        if conf.multi_use_mask:
+            curp = curp * cur_mask[..., np.newaxis]
+
+        cur_done_mask = create_mask(roi_from_patch(cur_roi,x_left,y_top),conf.multi_frame_sz)
+
+        if n_extra_roi>0:
+            cur_done_mask = cur_done_mask | create_mask(roi_from_patch(cur_eroi,x_left,y_top),conf.multi_frame_sz)
+
+        done_mask = done_mask | cur_done_mask
+
+        curl = cur_pts[idx, :, :].copy()
+        curl[:, :, 0] = curl[:, :, 0] - x_left
+        curl[:, :, 1] = curl[:, :, 1] - y_top
+        cur_occ = occ[idx, ...]
+
+        all_data.append({'im':curp, 'locs':curl, 'info':[info[0], info[1], cndx], 'occ':cur_occ, 'roi':cur_roi, 'extra_roi':cur_eroi,'x_left':x_left,'y_top':y_top})
+
+    if n_extra_roi > 0:
+        # bkg_sel_rate = conf.background_mask_sel_rate
+
+        done_eroi = np.zeros(n_extra_roi)
+        while np.any(done_eroi<0.5):
+
+            # add examples of background not added earlier.
+            for endx in range(n_extra_roi):
+                eroi_mask = create_mask(extra_roi[endx:endx+1,...],conf.multi_frame_sz)
+                if (eroi_mask & done_mask).sum()/ eroi_mask.sum() > 0.5:
+                    done_eroi[endx] = 1.
+                    continue
+
+                valid_locs = uniform_filter((eroi_mask&~done_mask).astype('float'), size=conf.imsz, mode='constant')
+                yy, xx = np.where(valid_locs == valid_locs.max())
+                ix_sel = np.random.choice(len(yy))
+                y_top = yy[ix_sel] - conf.imsz[0] // 2
+                x_left = xx[ix_sel] - conf.imsz[1] // 2
+                y_top = np.clip(y_top, 0, conf.multi_frame_sz[0] - conf.imsz[0])
+                x_left = np.clip(x_left, 0, conf.multi_frame_sz[1] - conf.imsz[1])
+
+                cur_eroi = roi2patch(extra_roi,x_left,y_top)
+
+                y_bottom = y_top + conf.imsz[0]
+                x_right = x_left + conf.imsz[1]
+                curp = frame[y_top:y_bottom,x_left:x_right,:]
+                if conf.multi_use_mask:
+                    curp = curp * create_mask(cur_eroi,conf.imsz)[..., np.newaxis]
+
+                curl = np.ones_like(cur_pts[0:1,...])*np.nan
+                cur_occ = np.zeros_like(curl[...,0])
+                cur_roi = np.zeros([1,4,2])
+                frame_eroi = roi_from_patch(cur_eroi,x_left,y_top)
+
+                if len(cur_eroi) == 0:
+                    cur_eroi = None
+
+                done_mask = done_mask | create_mask(frame_eroi,conf.multi_frame_sz)
+
+                all_data.append({'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,'extra_roi':cur_eroi,'x_left':x_left,'y_top':y_top})
+
+    return all_data
+
+
+def show_crops(im, all_data,roi, extra_roi, conf):
+    import matplotlib
+    matplotlib.use('TkAgg')
+    from matplotlib import pyplot as plt
+    plt.ion()
+
+    roim = create_mask(roi,conf.multi_frame_sz)
+    eroim = create_mask(extra_roi,conf.multi_frame_sz)
+    f = plt.figure()
+    plt.imshow(im*(roim|eroim),'gray')
+
+    f1,ax = plt.subplots(int(np.ceil(len(all_data)/2)),2)
+    ax = ax.flatten()
+    for ndx, a in enumerate(all_data):
+        mm = create_mask(a['roi'],conf.imsz)
+        if a['extra_roi'] is not None:
+            mm = mm| create_mask(a['extra_roi'],conf.imsz)
+        ax[ndx].imshow(a['im']*mm[:,:,None])
+        ax[ndx].axis('off')
+
+    plt.figure(f.number)
+    plt.axis('off')
+    for a in all_data:
+        xx = [a['x_left'],a['x_left'],a['x_left']+conf.imsz[1],a['x_left']+conf.imsz[1],a['x_left']]
+        yy = [a['y_top'],a['y_top']+conf.imsz[0],a['y_top']+conf.imsz[0],a['y_top'],a['y_top']]
+        plt.plot(xx,yy)
+
+
+def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
+
+    lbl = h5py.File(conf.labelfile, 'r')
+    occ_as_nan = conf.get('ignore_occluded',False)
+    T = PoseTools.json_load(conf.json_trn_file)
+    nfrms = len(T['locdata'])
+
+    splits = [[] for a in T['splitnames']]
+    count = [0 for a in T['splitnames']]
+
+    # KB 20190208: if we only need a few images, don't waste time reading in all of them
+    if nsamples is not None:
+        T['locdata'] = T['locdata'][np.random.choice(nfrms,nsamples)]
+    else:
+        sel = np.arange(len(T['locdata']))
+
+    pack_dir = os.path.split(conf.json_trn_file)[0]
+    for selndx,cur_t in enumerate(T['locdata']):
+
+        cur_frame = cv2.imread(os.path.join(pack_dir,cur_t['img'][conf.view]),cv2.IMREAD_UNCHANGED)
+        if cur_frame.ndim == 2:
+            cur_frame = cur_frame[..., np.newaxis]
         cur_locs =np.array(cur_t['pabs'])-1
         ntgt = cur_t['ntgt']
         cur_locs = cur_locs.reshape([conf.nviews,2,conf.n_classes,ntgt])
         cur_locs = np.transpose(cur_locs[conf.view,...],[2,1,0])
-        for cura in cur_locs:
-            # Find distance between all landmarks. Take the max to find the animal size
-            dd = np.linalg.norm(cura[np.newaxis,...]-cura[:,np.newaxis,...],axis=-1)
-            animal_sz.append(dd.max())
 
-    max_animal_sz = np.percentile(animal_sz,98)
-    # don't take max in case there is a weird outlier
-    conf.multi_max_animal_sz = int(max_animal_sz)+1
-    sz =np.ceil((3*max_animal_sz+2*conf.multi_bb_ex)/32)*32
-    sz = int(sz)
-    logging.info(f'--- Using crops of size {sz} for multi-animal training. Max animal size is {max_animal_sz} ---')
-    sz = [sz,sz]
-    if sz[0]> fr_sz[0]:
-        sz[0] = fr_sz[0]
-    if sz[1] > fr_sz[1]:
-        sz[1] = fr_sz[1]
+        cur_occ = np.array(cur_t['occ'])
+        cur_occ = cur_occ.reshape([conf.nviews,conf.n_classes,ntgt])
+        cur_occ = cur_occ[conf.view,:]
+        cur_occ = np.transpose(cur_occ, [1, 0])
+        cur_occ = cur_occ.astype('float')
 
-    conf.imsz = sz
+        sndx = cur_t['split']
+        if type(sndx) == list:
+            sndx = sndx[0]
+        cur_out = out_fns[sndx]
 
+        for ndx in range(len(cur_locs)):
+            info = to_py([cur_t['imov'],cur_t['frm'],ndx+1])
+            ht_locs = cur_locs[ndx,conf.ht_pts, :].copy()
+            ht_ctr = ht_locs.mean(axis=0)
+            theta = np.arctan2(ht_locs[0,1]-ht_locs[1,1],ht_locs[0,0]-ht_locs[1,0])
+            curl = cur_locs[ndx].copy()
+            cur_patch, curl = multiResData.crop_patch_trx(conf,cur_frame,ht_ctr[0],ht_ctr[1],theta,curl)
 
-def create_ma_crops(conf,frame,cur_pts,info,occ, roi):
+            if occ_as_nan:
+                curl[cur_occ[ndx],:] = np.nan
 
-    def create_mask(bb, sz):
-        # sz should be h x w (i.e y first then x)
-        x,y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
-        x = x.flatten()
-        y = y.flatten()
-        pts = np.vstack((x,y)).T
-        grid = None
-        for c in bb:
-            rr = c.tolist()
-            rr.append(rr[0])
-            path = Path(rr)
-            cgrid = path.contains_points(pts)
-            if grid is not None:
-                grid = grid | cgrid
-            else:
-                grid = cgrid
+            data_out = {'im':cur_patch, 'locs':curl, 'info':info,'occ':cur_occ[ndx,]}
+            cur_out(data_out)
 
-        if grid is None:
-            mask = np.zeros(sz)>0.5
-        else:
-            mask = grid.reshape(sz)
-        return mask
+            count[sndx] += 1
+            splits[sndx].append(info)
 
-    buffer = int(conf.multi_max_animal_sz/2 + conf.multi_bb_ex)
-    x_grid = int(np.ceil(conf.multi_frame_sz[1]/(conf.imsz[1]-buffer*2)))
-    y_grid = int(np.ceil(conf.multi_frame_sz[0]/(conf.imsz[0]-buffer*2)))
-    frame = frame.copy()
-    curi = np.pad(frame, [[buffer, buffer], [buffer, buffer], [0, 0]])
-    fr_sz = conf.multi_frame_sz
-    isz = conf.imsz
-    all_data = []
-    done_f = np.zeros([cur_pts.shape[0]])>0.5
-    for xx in range(x_grid):
-        for yy in range(y_grid):
-            valid = []
-            all_bb = []
+            if selndx % 100 == 99 and selndx > 0:
+                logging.info('{} number of examples added to the dbs'.format(count))
 
-            # Find the center and corners of current grid cell.
-            ctrx = (xx+0.5)/x_grid*fr_sz[1]
-            ctry = (yy+0.5)/y_grid*fr_sz[0]
-            leftx = int(ctrx - isz[1]//2)+buffer
-            leftx = min(max(leftx,0),fr_sz[1]+2*buffer-isz[1])
-            rightx = leftx + isz[1]
-            topy = int(ctry - isz[0]//2) + buffer
-            topy = min(max(topy,0),fr_sz[0]+2*buffer-isz[0])
-            bottomy = topy + isz[0]
-            # print('left:{},right:{},top:{},bottom:{}'.format(leftx,rightx,topy,bottomy))
+    logging.info('{} number of examples added to the training dbs'.format(count))
+    lbl.close()
 
-            for aa in range(cur_pts.shape[0]):
-                pp = cur_pts[aa, :, :] + buffer
-                bb1 = np.min(pp, axis=0)
-                bb2 = np.max(pp, axis=0)
-
-                if not ((bb1[0] > leftx) and (bb2[0] < rightx) and (bb1[1] > topy) and (bb2[1] < bottomy)):
-                    # All The labeled joints should lie within.
-                    # Maybe it might be better with whole masked bounding box. But other packages on coco suggest animals getting cropped isn't that big a deal.
-                    continue
-                valid.append(aa)
-                done_f[aa] = True
-                curbb = np.array([[bb1[0], bb2[0]], [bb1[1], bb2[1]]])
-                curbb[0, :] += buffer - leftx
-                curbb[1, :] += buffer - topy
-                rr = roi[aa,...].copy()
-                rr[...,0] += buffer - leftx
-                rr[...,1] += buffer - topy
-                all_bb.append(rr)
-
-            if len(valid) > 0:
-                # print('xx:{},yy:{},aa:{}'.format(xx,yy,valid))
-                # If there is at last one labeled animal
-                curp = curi[topy:bottomy,leftx:rightx, :]
-                cur_mask = create_mask(all_bb,[bottomy-topy,rightx-leftx])
-                curp = curp * cur_mask[...,np.newaxis]
-                curl = cur_pts[valid, :, :].copy()
-                curl[:, :,0] = curl[:, :, 0] - leftx + buffer
-                curl[:, :,1] = curl[:, :, 1] - topy + buffer
-                cur_occ = occ[valid,...]
-
-                all_data.append([curp, curl, [info[0], info[1], y_grid*xx+ yy], cur_occ])
-    if not np.all(done_f):
-        logging.warning('Not all labeled animals could be included in the training set')
-    return all_data
+    return splits, sel
 
 
-def db_from_trnpack(conf, out_fns, nsamples=None):
+def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
     # Creates db from new trnpack format instead of stripped label files.
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
@@ -1156,6 +1418,12 @@ def db_from_trnpack(conf, out_fns, nsamples=None):
         cur_roi = np.array(cur_t['roi']).reshape([conf.nviews,2,4,ntgt])
         cur_roi = np.transpose(cur_roi[conf.view,...],[2,1,0])
 
+        if 'extra_roi' in cur_t.keys():
+            extra_roi = np.array(cur_t['extra_roi']).reshape([conf.nviews, 2, 4, -1])
+            extra_roi = np.transpose(extra_roi[conf.view, ...], [2, 1, 0])
+        else:
+            extra_roi = None
+
         if conf.is_multi:
             info = to_py([cur_t['imov'],cur_t['frm'],cur_t['ntgt']])
         else:
@@ -1169,10 +1437,15 @@ def db_from_trnpack(conf, out_fns, nsamples=None):
         if type(sndx) ==list:
             sndx = sndx[0]
         cur_out = out_fns[sndx]
-        if conf.is_multi:
-            data_out = create_ma_crops(conf,cur_frame,cur_locs,info, cur_occ, cur_roi)
+
+        if conf.multi_only_ht:
+            cur_locs = cur_locs[...,conf.ht_pts,:].copy()
+            cur_occ = cur_occ[...,conf.ht_pts].copy()
+
+        if conf.is_multi and conf.multi_crop_ims:
+            data_out = create_ma_crops(conf,cur_frame,cur_locs,info, cur_occ, cur_roi,extra_roi)
         else:
-            data_out = [[cur_frame, cur_locs, info,cur_occ]]
+            data_out = [{'im':cur_frame, 'locs':cur_locs, 'info':info,'occ':cur_occ,'roi':cur_roi,'extra_roi':extra_roi}]
         for curd in data_out:
             cur_out(curd)
 
@@ -1217,7 +1490,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,
 
     lbl = h5py.File(conf.labelfile, 'r')
     if not 'preProcData_MD_mov' in lbl.keys():
-        return db_from_trnpack(conf,out_fns,nsamples=nsamples)
+        if conf.use_ht_trx:
+            return db_from_trnpack_ht(conf,out_fns,nsamples=nsamples,split=split)
+        else:
+            return db_from_trnpack(conf,out_fns,nsamples=nsamples,split=split)
 
     #npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
     if use_gt_cache:
@@ -1299,7 +1575,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,
         if occ_as_nan:
             cur_locs[cur_occ] = np.nan
         cur_occ = cur_occ.astype('float')
-        cur_out([cur_frame, cur_locs, info,cur_occ])
+        cur_out({'im':cur_frame, 'locs':cur_locs, 'info':info,'occ':cur_occ})
 
         if cur_out is out_fns[1] and split:
             val_count += 1
@@ -1350,9 +1626,9 @@ def create_leap_db(conf, split=False, split_file=None, use_cache=False):
             cur_data = val_data
             out_file = os.path.join(conf.cachedir, 'leap_val.h5')
 
-        ims = np.array([i[0] for i in cur_data])
-        locs = np.array([i[1] for i in cur_data])
-        info = np.array([i[2] for i in cur_data])
+        ims = np.array([i['im'] for i in cur_data])
+        locs = np.array([i['locs'] for i in cur_data])
+        info = np.array([i['info'] for i in cur_data])
         # hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, conf.label_blur_rad)
         # hmaps = (hmaps + 1) / 2  # brings it back to [0,1]
 
@@ -1374,12 +1650,12 @@ def create_deepcut_db(conf, split=False, split_file=None, use_cache=False):
     def deepcut_outfn(data, outdir, count, fis, save_data):
         # pass count as array to pass it by reference.
         if conf.img_dim == 1:
-            im = data[0][:, :, 0]
+            im = data['im'][:, :, 0]
         else:
-            im = data[0]
+            im = data['im']
         img_name = os.path.join(outdir, 'img_{:06d}.png'.format(count[0]))
         imageio.imwrite(img_name, im)
-        locs = data[1]
+        locs = data['locs']
         bp = conf.n_classes
         for b in range(bp):
             fis[b].write('{}\t{}\t{}\n'.format(count[0], locs[b, 0], locs[b, 1]))
@@ -1555,6 +1831,30 @@ def get_trx_info(trx_file, conf, n_frames):
         n_trx = len(trx)
         end_frames = np.array([x['endframe'][0, 0] for x in trx])
         first_frames = np.array([x['firstframe'][0, 0] for x in trx]) - 1  # for converting from 1 indexing to 0 indexing
+    elif conf.use_ht_trx:
+        # convert trk file to trx file format.
+        T = h5py.File(trx_file,'r')
+        n_trx = T['pTrk'].shape[0]
+        trx = []
+        end_frames = []
+        first_frames = []
+        for tndx in range(n_trx):
+            cur_pts = T[T['pTrk'][tndx,0]][()]+1
+            theta = np.arctan2(cur_pts[...,1,0]-cur_pts[...,1,1],cur_pts[...,0,0]-cur_pts[...,0,1])
+            ctr = cur_pts.mean(-1)
+            sframe = T['startframes'][tndx,0]-1
+            eframe = T['endframes'][tndx,0]
+            end_frames.append(eframe)
+            first_frames.append(sframe)
+            curtrx = {'x':ctr[None,...,0],
+                      'y':ctr[None,...,1],
+                       'firstframe':np.array(sframe+1).reshape([1,1]),
+                       'endframe':np.array(eframe).reshape([1,1]),
+                      'theta':theta[None,...]
+                      }
+            trx.append(curtrx)
+        end_frames = np.array(end_frames)
+        first_frames = np.array(first_frames)
     else:
         if conf.is_multi:
             trx = [None,]
@@ -1656,7 +1956,7 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_
         # py3 and py2 compatible
         for k in ret_dict_b.keys():
             retval = ret_dict_b[k]
-            if k not in ret_dict.keys() and (retval.ndim == 3 or retval.ndim == 2):
+            if k not in ret_dict.keys() and (retval.ndim >= 1):
                 # again only nrows_pred rows are filled
                 assert retval.shape[0] == bsize, \
                     "Unexpected output shape {} for key {}".format(retval.shape, k)
@@ -1671,13 +1971,17 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_
             cur_trx = trx[trx_ndx]
             for k in ret_dict_b.keys():
                 retval = ret_dict_b[k]
-                if retval.ndim == 4:  # hmaps
-                    pass
-                elif retval.ndim == 3 or retval.ndim == 2:
+                #if retval.ndim == 4:  # hmaps
+                #    pass
+                if retval.ndim >= 1:
                     cur_orig = retval[cur_t, ...]
                     if k.startswith('locs'):  # transform locs
-                        assert retval.ndim == 3
-                        cur_orig = convert_to_orig(cur_orig, conf, cur_f, cur_trx, crop_loc)
+                        if retval.ndim == 3:
+                            cur_orig = convert_to_orig(cur_orig, conf, cur_f, cur_trx, crop_loc)
+                        else:
+                            # ma
+                            # TODO: ma + crops
+                            pass
                     ret_dict[k][cur_start + cur_t, ...] = cur_orig
                 else:
                     logging.info("Ignoring return value '{}' with shape {}".format(k, retval.shape))
@@ -1691,7 +1995,7 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_
                 # output n frames tracked to file
                 write_n_tracked_part_file(n_done,part_file)
                 start_time = curr_time
-            
+
     return ret_dict
 
 def write_n_tracked_part_file(n_done,part_file):
@@ -1851,6 +2155,9 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
         logging.info('Done prediction on {} out of {} GT labeled frames'.format(n_done,len(in_list)))
         if part_file is not None:
             write_n_tracked_part_file(n_done,part_file)
+
+    if 'conf' not in ret_dict_all:
+        ret_dict_all['conf'] = vars(conf)
 
     logging.info('Done prediction on all frames')
     lbl.close()
@@ -2161,7 +2468,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
 def classify_db_all(model_type, conf, db_file, model_file=None,
                     classify_fcn=classify_db, name='deepnet',
-                    fullret = False,
+                    fullret = False,img_dir='val',
                     **kwargs
                     ):
     '''
@@ -2195,7 +2502,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None,
         close_fn()
     else:
         if conf.db_format == 'coco':
-            coco_reader = multiResData.coco_loader(conf, db_file, False)
+            coco_reader = multiResData.coco_loader(conf, db_file, False,img_dir=img_dir)
             read_fn = iter(coco_reader).__next__
             db_len = len(coco_reader)
         else:
@@ -2488,7 +2795,7 @@ def convert_to_mat_trk(pred_locs, conf, start, end, trx_ids):
         pred_locs = pred_locs.transpose([2, 3, 0, 1])
     else:
         pred_locs = pred_locs.transpose([2, 0, 1])
-    if not (conf.has_trx_file or conf.is_multi):
+    if not (conf.has_trx_file or conf.is_multi or conf.use_ht_trx):
         pred_locs = pred_locs[..., 0]
 
     ps = np.array(pred_locs.shape)
@@ -2512,6 +2819,22 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
     everything should be 0-indexed
     '''
 
+    locs_lnk = np.transpose(pred_locs_in, [2, 3, 0, 1])
+
+    ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
+    tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+    if 'conf' in extra_dict:
+        pred_conf = extra_dict['conf']
+        locs_conf = np.transpose(pred_conf, [2, 0, 1])
+    else:
+        locs_conf = None
+
+    trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf)
+    trk.T0 = start
+    trk.save(out_file, saveformat='tracklet',trkInfo=info)
+    return
+
+    # Old code that saves extra information. Keeping it in for now MK - 20210319
     pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
 
     tgt = to_mat(np.array(trx_ids))  # target animals that have been tracked.
@@ -2532,8 +2855,8 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
                 'trkInfo': info}
     for k in extra_dict.keys():
         tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids)
-        if k.startswith('locs_'):
-            tmp = to_mat(tmp)
+        # if k.startswith('locs_'):
+        #     tmp = to_mat(tmp)
         out_dict['pTrk' + k] = tmp
 
     # output to a temporary file and then rename to real file name.
@@ -2581,7 +2904,7 @@ def classify_movie(conf, pred_fn, model_type,
     n_frames = int(cap.get_n_frames())
     T, first_frames, end_frames, n_trx = get_trx_info(trx_file, conf, n_frames)
     # For multi-animal T is [None,] and n_trx is conf.max_n_animals. With this combination, rest of the workflow seems to work. Totally unintentional but I'm not going to update it if it is working. MK 20201111
-    trx_ids = get_trx_ids(trx_ids, n_trx, conf.has_trx_file)
+    trx_ids = get_trx_ids(trx_ids, n_trx, conf.has_trx_file or conf.use_ht_trx)
     conf.batch_size = 1 if model_type == 'deeplabcut' else conf.batch_size
     bsize = conf.batch_size
     flipud = conf.flipud
@@ -2600,7 +2923,7 @@ def classify_movie(conf, pred_fn, model_type,
     extra_dict = {}
 
     hmap_out_dir = os.path.splitext(out_file)[0] + '_hmap'
-    if not os.path.exists(hmap_out_dir):
+    if (not os.path.exists(hmap_out_dir)) and save_hmaps:
         os.mkdir(hmap_out_dir)
 
     to_do_list = []
@@ -2609,14 +2932,15 @@ def classify_movie(conf, pred_fn, model_type,
             if not np.any(trx_ids == t):
                 continue
             if (end_frames[t] > cur_f) and (first_frames[t] <= cur_f):
-                to_do_list.append([cur_f, t])
+                if T[t] is None or (not np.isnan(T[t]['x'][0,cur_f-first_frames[t]])):
+                    to_do_list.append([cur_f, t])
 
     # TODO: this stuff is really similar to classify_list, some refactor
     # likely useful
 
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
-    for cur_b in range(n_batches):
+    for cur_b in tqdm(range(n_batches)):
         cur_start = cur_b * bsize
         ppe = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
@@ -2649,7 +2973,7 @@ def classify_movie(conf, pred_fn, model_type,
             # for everything else that is returned..
             for k in ret_dict.keys():
 
-                if ret_dict[k].ndim == 4:  # hmaps
+                if (ret_dict[k].ndim == 4 and (not conf.is_multi)) or ret_dict[k].ndim==5:  # hmaps
                     #if save_hmaps:
                     #    cur_hmap = ret_dict[k]
                     #    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
@@ -2659,54 +2983,45 @@ def classify_movie(conf, pred_fn, model_type,
                     # py3 and py2 compatible
                     if k not in extra_dict:
                         sz = cur_v.shape[1:]
-                        extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
+                        if conf.is_multi:
+                            extra_dict[k] = np.zeros((max_n_frames,) + sz)
+                        else:
+                            extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
 
                     if k.startswith('locs'):  # transform locs
                         cur_orig = convert_to_orig(cur_v[cur_t, ...], conf, cur_f, cur_trx, crop_loc)
                     else:
                         cur_orig = cur_v[cur_t, ...]
 
-                    extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
+                    if conf.is_multi:
+                        extra_dict[k][cur_f - min_first_frame, ...] = cur_orig
+                    else:
+                        extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
 
         if cur_b % 20 == 19:
             sys.stdout.write('.')
-        if cur_b % nskip_partfile == nskip_partfile - 1:
+        if (cur_b % nskip_partfile == 0) & (cur_b>0):
             sys.stdout.write('\n')
-            # Doesn't make sense to connect intermediate ones. too much recomputation.
-            # if conf.is_multi:
-            #     lnk_locs, lnk_loss = link_trajectories(pred_locs,lnk_cost)
-            #     write_trk(out_file + '.part', lnk_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
-            # else:
             write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
 
     if conf.is_multi:
-        # write out partial results before linking.
-        write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-        pred_locs, lnk_loss = link_trajectories(pred_locs, lnk_cost)
+        # write out raw results before linking.
+        pre_fix,ext = os.path.splitext(out_file)
+        raw_file = pre_fix + '_raw' + ext
+        write_trk(raw_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        pred_conf = extra_dict['conf'] if 'conf' in extra_dict else None
+        trk = lnk.link(pred_locs,pred_conf)
+        trk.T0 = start_frame
+        out_file_tracklet = out_file
+        trk.save(out_file_tracklet, saveformat='tracklet',trkInfo=info)
+    else:
+        write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
 
-    write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-    if os.path.exists(out_file + '.part'):
+    if os.path.exists(out_file + '.part') and not conf.is_multi:
         os.remove(out_file + '.part')
     cap.close()
     tf.reset_default_graph()
     return pred_locs
-
-
-def link_trajectories(pred_locs,lnk_cost_in):
-    lnk_cost = lnk_cost_in * pred_locs.shape[2] * 2
-    locs_lnk = np.transpose(pred_locs, [3, 2, 1, 0])
-    ids, cost = lnk.assign_ids(locs_lnk, {'maxcost': lnk_cost,'verbose':0})
-    ids = ids.astype('int')
-    max_traj = ids.max()+1
-    lnk_preds = np.ones([pred_locs.shape[0], max_traj, pred_locs.shape[2], pred_locs.shape[3]])*np.nan
-    for t in range(pred_locs.shape[0]):
-        for pred_ndx in range(pred_locs.shape[1]):
-            if np.all(np.isnan(pred_locs[t,pred_ndx,:,:])):
-                continue
-            assert ids[pred_ndx,t] > -0.5, 'Invalid trajectory assignment'
-            lnk_preds[t,ids[pred_ndx,t],:,:] = locs_lnk[:,:,pred_ndx,t].T
-    return lnk_preds, cost
-
 
 def get_unet_pred_fn(conf, model_file=None,name='deepnet'):
     ''' Prediction function for UNet network'''
@@ -2759,6 +3074,8 @@ def classify_movie_all(model_type, **kwargs):
     model_file = kwargs['model_file']
     train_name = kwargs['train_name']
     del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
+    if conf.multi_only_ht:
+        conf.n_classes = 2
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
     logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
@@ -2939,6 +3256,7 @@ def create_dlc_cfg_dict(conf,train_name='deepnet'):
                  'clahe_grid_size':conf.clahe_grid_size,
                  'check_bounds_distort': conf.check_bounds_distort,
                  'expname':conf.expname,
+                 'rot_prob':conf.rot_prob,
 
     # 'minsize':minsz,
     #              'leftwidth':wd_x,
@@ -3009,10 +3327,14 @@ def train(lblfile, nviews, name, args):
                 if conf.is_multi:
                     setup_ma(conf)
                 if not args.skip_db:
-                    if net_type.startswith('multi_') or conf.db_format=='coco':
+                    if conf.db_format=='coco':
                         create_coco_db(conf,split=split,split_file=split_file)
                     else:
                         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+
+                if conf.multi_only_ht:
+                    conf.n_classes = 2
+
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
@@ -3128,6 +3450,7 @@ def parse_args(argv):
     if args.sub_name == 'track' and args.mov is not None:
         nmov = len(args.mov)
         args.trx_ids = parse_trx_ids_arg(args.trx_ids,nmov)
+        assert all([a>0 for a in args.start_frame]), 'Start frames much be positive integers'
         args.start_frame = to_py(args.start_frame)
         args.start_frame = parse_frame_arg(args.start_frame,nmov,0)
         args.end_frame = parse_frame_arg(args.end_frame,nmov,np.Inf)

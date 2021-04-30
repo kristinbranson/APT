@@ -140,6 +140,20 @@ handles.menu_file_import_labels_table = uimenu('Parent',handles.menu_file_import
 moveMenuItemAfter(handles.menu_file_import_labels_table,...
   handles.menu_file_import_labels_trk_curr_mov);
 
+handles.menu_file_export_all_movies = uimenu('Parent',handles.menu_file_importexport,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_all_movies_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export Predictions to Trk Files (All Movies)...',...
+  'Tag','menu_file_export_all_movies'); 
+moveMenuItemAfter(handles.menu_file_export_all_movies,handles.menu_file_export_labels2_trk_curr_mov);
+
+handles.menu_file_clear_imported = uimenu('Parent',handles.menu_file_importexport,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_clear_imported_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Clear imported predictions (All Movies)...',...
+  'Tag','menu_file_clear_imported',...
+  'Separator','on' ...
+  ); 
+moveMenuItemAfter(handles.menu_file_clear_imported,handles.menu_file_export_all_movies);
+
 handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Export Labels as Table',...
@@ -291,6 +305,9 @@ handles.menu_view_show_imported_preds_curr_target_only = uimenu('Parent',handles
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_show_preds_curr_target_only);
 
+deleteValidHandles(handles.menu_view_landmark_colors.Children);
+set(handles.menu_view_landmark_colors,'Callback',@menu_view_landmark_colors_Callback);
+
 handles.menu_view_edit_skeleton = uimenu('Parent',handles.menu_view,...
   'Label','Landmark specifications',...
   'Tag','menu_view_edit_skeleton',...
@@ -374,13 +391,19 @@ handles.menu_view_pan_toggle = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_pan_toggle' ...
   );
 handles.menu_view_showhide_maroi = uimenu('Parent',handles.menu_view,...
-  'Label','Show multianimal ROI',...
+  'Label','(Multianimal) Show target ROIs',...
   'Tag','menu_view_showhide_maroi',...
   'Checked','off',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_maroi_Callback',hObject,eventdata,guidata(hObject)));
+handles.menu_view_showhide_maroiaux = uimenu('Parent',handles.menu_view,...
+  'Label','(Multianimal) Show auxiliary ROIs',...
+  'Tag','menu_view_showhide_maroiaux',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_maroiaux_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_view_zoom_toggle,handles.menu_view_occluded_points_box);
 moveMenuItemAfter(handles.menu_view_pan_toggle,handles.menu_view_zoom_toggle);
 moveMenuItemAfter(handles.menu_view_showhide_maroi,handles.menu_view_pan_toggle);
+moveMenuItemAfter(handles.menu_view_showhide_maroiaux,handles.menu_view_showhide_maroi);
 
 % handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
 %   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
@@ -462,13 +485,6 @@ handles.menu_track_trainincremental.Visible = 'off';
 %   'Label','Current movie only',...
 %   'Tag','menu_track_export_current_movie');  
 
-% Moved this to File menu
-handles.menu_file_export_all_movies = uimenu('Parent',handles.menu_file_importexport,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_all_movies_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Export Predictions to Trk Files (All Movies)...',...
-  'Tag','menu_file_export_all_movies'); 
-moveMenuItemAfter(handles.menu_file_export_all_movies,handles.menu_file_export_labels2_trk_curr_mov);
-
 handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracking_results_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Clear tracking results',...
@@ -476,10 +492,18 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Separator','on');  
 moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_all_movies);
 
+handles.menu_track_clear_tracker = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracker_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Clear trained tracker',...
+  'Tag','menu_track_clear_tracker',...
+  'Separator','off');  
+moveMenuItemAfter(handles.menu_track_clear_tracker,handles.menu_track_clear_tracking_results);
+
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set manual labels to automatic prediction',...
-  'Tag','menu_track_set_labels');  
+  'Tag','menu_track_set_labels',...
+  'Separator','on');  
 
 % tfBGok = ~isempty(ver('distcomp')) && ~verLessThan('distcomp','6.10');
 % onoff = onIff(tfBGok);
@@ -548,13 +572,19 @@ handles.menu_track_cpr_view_diagnostics = uimenu('Parent',handles.menu_track,...
 moveMenuItemAfter(handles.menu_track_cpr_view_diagnostics,...
   handles.menu_track_cpr_show_replicates);
 
-
 handles.menu_help_about = uimenu(...
   'Parent',handles.menu_help,...
   'Label','About',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_help_about_Callback',hObject,eventdata,guidata(hObject)),...
   'Tag','menu_help_about');  
-moveMenuItemBefore(handles.menu_help_about,handles.menu_help_labeling_actions);
+moveMenuItemAfter(handles.menu_help_about,handles.menu_help_labeling_actions);
+
+handles.menu_help_doc = uimenu(...
+  'Parent',handles.menu_help,...
+  'Label','Documentation',...
+  'Callback',@(hObject,eventdata)web('https://kristinbranson.github.io/APT'),...
+  'Tag','menu_help_doc');  
+moveMenuItemBefore(handles.menu_help_doc,handles.menu_help_labeling_actions);
 
 % Go menu
 handles.menu_go = uimenu('Parent',handles.figure,'Position',4,'Label','Go');
@@ -666,6 +696,10 @@ handles.image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
+set(hObject,'WindowScrollWheelFcn',@scroll_callback);
+% set(hObject,'WindowbuttonDownFcn',@dragstart_callback);
+% set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+% set(hObject,'WindowbuttonUpFcn',@dragend_callback);
 
 handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
@@ -742,12 +776,14 @@ listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_tracker','PostSet',@cbklabelTLInfoPropsUpdated);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_allframes','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbklabelTLInfoPropTypesUpdated);
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 listeners{end+1,1} = addlistener(lObj,'showSkeleton','PostSet',@cbkShowSkeletonChanged);
 listeners{end+1,1} = addlistener(lObj,'showMaRoi','PostSet',@cbkShowMaRoiChanged);
+listeners{end+1,1} = addlistener(lObj,'showMaRoiAux','PostSet',@cbkShowMaRoiAuxChanged);
 
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
@@ -1045,53 +1081,83 @@ end
 function handles = initTblTrx(handles)
 tbl0 = handles.tblTrx;
 COLNAMES = {'Index' 'Labeled'};
-jt = uiextras.jTable.Table(...
-  'parent',tbl0.Parent,...
-  'Position',tbl0.Position,...
-  'SelectionMode','discontiguous',...
-  'Editable','off',...
-  'ColumnPreferredWidth',[100 100],...
-  'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-  'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
-set(jt,'Data',cell(0,numel(COLNAMES)));
-cr = aptjava.StripedIntegerTableCellRenderer;
-cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
-crCB = aptjava.StripedCheckBoxTableCellRenderer;
-jt.JColumnModel.getColumn(0).setCellRenderer(cr);
-jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
-jt.JTable.Foreground = java.awt.Color.WHITE;
-jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-h = jt.JTable.getTableHeader;
-h.setPreferredSize(java.awt.Dimension(225,22));
-jt.JTable.repaint;
+if 1
+  set(tbl0,...
+    'ColumnWidth',{100 100},...
+    'ColumnName',COLNAMES,...
+    'Data',cell(0,numel(COLNAMES)),...
+    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt),...
+    'FontUnits','points',...
+    'FontSize',9.75,... % matches .tblTrx
+    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
+  % AL 20210209: jtable performance is too painful for larger projs (more 
+  % labels in any single movie). As of 2020x only cost to using regular 
+  % table is inability to set selected/hilite row.
+  
+else
+  jt = uiextras.jTable.Table(...
+    'parent',tbl0.Parent,...
+    'Position',tbl0.Position,...
+    'SelectionMode','discontiguous',...
+    'Editable','off',...
+    'ColumnPreferredWidth',[100 100],...
+    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
+  set(jt,'Data',cell(0,numel(COLNAMES)));
+  cr = aptjava.StripedIntegerTableCellRenderer;
+  cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
+  crCB = aptjava.StripedCheckBoxTableCellRenderer;
+  jt.JColumnModel.getColumn(0).setCellRenderer(cr);
+  jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
+  jt.JTable.Foreground = java.awt.Color.WHITE;
+  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+  h = jt.JTable.getTableHeader;
+  h.setPreferredSize(java.awt.Dimension(225,22));
+  jt.JTable.repaint;
 
-delete(tbl0);
-handles.tblTrx = jt;
+  delete(tbl0);  
+  handles.tblTrx = jt;
+end
 
 function handles = initTblFrames(handles)
 tbl0 = handles.tblFrames;
 COLNAMES = {'Frame' 'Tgts' 'Pts'};
-jt = uiextras.jTable.Table(...
-  'parent',tbl0.Parent,...
-  'Position',tbl0.Position,...
-  'SelectionMode','single',...
-  'Editable','off',...
-  'ColumnPreferredWidth',[100 50],...
-  'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
-set(jt,'Data',cell(0,numel(COLNAMES)));
-cr = aptjava.StripedIntegerTableCellRenderer;
-for i=0:2
-  jt.JColumnModel.getColumn(i).setCellRenderer(cr);
-end
-jt.JTable.Foreground = java.awt.Color.WHITE;
-jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-h = jt.JTable.getTableHeader;
-h.setPreferredSize(java.awt.Dimension(225,22));
-jt.JTable.repaint;
 
-delete(tbl0);
-handles.tblFrames = jt;
+if 1 
+  set(tbl0,...
+    'ColumnWidth',{100 50 'auto'},...
+    'ColumnName',COLNAMES,...
+    'Data',cell(0,numel(COLNAMES)),...
+    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
+    'FontUnits','points',...
+    'FontSize',9.75,... % matches .tblTrx
+    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
+  % AL 20210209: jtable performance is too painful for larger projs (more 
+  % labels in any single movie). As of 2020x only cost to using regular 
+  % table is inability to set selected/hilite row.
+else
+  jt = uiextras.jTable.Table(...
+    'parent',tbl0.Parent,...
+    'Position',tbl0.Position,...
+    'SelectionMode','single',...
+    'Editable','off',...
+    'ColumnPreferredWidth',[100 50],...
+    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
+  set(jt,'Data',cell(0,numel(COLNAMES)));
+  cr = aptjava.StripedIntegerTableCellRenderer;
+  for i=0:2
+    jt.JColumnModel.getColumn(i).setCellRenderer(cr);
+  end
+  jt.JTable.Foreground = java.awt.Color.WHITE;
+  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+  h = jt.JTable.getTableHeader;
+  h.setPreferredSize(java.awt.Dimension(225,22));
+  jt.JTable.repaint;
+
+  delete(tbl0);
+  handles.tblFrames = jt;
+end
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
@@ -1613,7 +1679,7 @@ TRX_MENUS = {...
   'menu_setup_label_overlay_montage_trx_centered'};
 onOff = onIff(lObj.hasTrx || lObj.maIsMA);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
-set(handles.tblTrx,'Enabled',onOff);
+set(handles.tblTrx,'Enable',onOff);
 guidata(handles.figure,handles);
 
 setPUMTrackStrs(lObj);
@@ -1763,7 +1829,7 @@ if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
   lObj.gdata.labelTLInfo.newTarget();
   lObj.hlpGTUpdateAxHilite();
   %drawnow;
-  hlpUpdateTblTrxHilite(lObj);
+  %hlpUpdateTblTrxHilite(lObj);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -1828,6 +1894,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
   case LabelMode.MULTIANIMAL
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
@@ -1839,6 +1906,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'on';
     handles.menu_view_pan_toggle.Visible = 'on';
     handles.menu_view_showhide_maroi.Visible = 'on';
+    handles.menu_view_showhide_maroiaux.Visible = 'on';
   case LabelMode.TEMPLATE
 %     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1851,6 +1919,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
 %     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
@@ -1863,6 +1932,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
 %   case LabelMode.ERRORCORRECT
 %     handles.menu_setup_createtemplate.Visible = 'off';
 %     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1883,6 +1953,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
   case {LabelMode.MULTIVIEWCALIBRATED2}
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
@@ -1894,6 +1965,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
 end
 
 lc = lObj.lblCore;
@@ -2112,6 +2184,7 @@ if ~isfield(handles,'menu_track_backend_config')
   % AWS submenu (visible when backend==AWS)
   handles.menu_track_backend_config_aws_setinstance = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(AWS) Set EC2 instance',...
     'Callback',@cbkTrackerBackendAWSSetInstance,...
     'Tag','menu_track_backend_config_aws_setinstance');  
@@ -2125,11 +2198,18 @@ if ~isfield(handles,'menu_track_backend_config')
   % KB added menu item to set Docker host
   handles.menu_track_backend_config_setdockerssh = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(Docker) Set remote host...',...
     'Callback',@cbkTrackerBackendSetDockerSSH,...
     'Tag','menu_track_backend_config_setdockerssh');  
 
-  
+  handles.menu_track_backend_config_jrc_setconfig = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
+    'Label','(JRC) Set number of slots for training...',...
+    'Callback',@cbkTrackerBackendSetJRCNSlots,...
+    'Tag','menu_track_backend_config_jrc_setconfig');  
+
 %   handles.menu_track_backends{end+1,1} = uimenu( ...
 %     'Parent',handles.menu_track_backend_config,...
 %     'Label','(AWS) Send start instance',...
@@ -2221,24 +2301,40 @@ handles.listenersTracker = listenersNew;
 
 function updateTrackBackendConfigMenuChecked(handles,lObj)
 
-set(handles.menu_track_backend_config_jrc,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Bsub));
-set(handles.menu_track_backend_config_docker,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
-set(handles.menu_track_backend_config_conda,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Conda));
-set(handles.menu_track_backend_config_aws,'checked',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_aws_setinstance,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_aws_configure,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.AWS));
-set(handles.menu_track_backend_config_setdockerssh,'visible',onIff(lObj.trackDLBackEnd.type==DLBackEnd.Docker));
+beType = lObj.trackDLBackEnd.type;
+oiBsub = onIff(beType==DLBackEnd.Bsub);
+oiDckr = onIff(beType==DLBackEnd.Docker);
+oiCnda = onIff(beType==DLBackEnd.Conda);
+oiAWS = onIff(beType==DLBackEnd.AWS);
+set(handles.menu_track_backend_config_jrc,'checked',oiBsub);
+set(handles.menu_track_backend_config_docker,'checked',oiDckr);
+set(handles.menu_track_backend_config_conda,'checked',oiCnda);
+set(handles.menu_track_backend_config_aws,'checked',oiAWS);
+set(handles.menu_track_backend_config_aws_setinstance,'visible',oiAWS);
+set(handles.menu_track_backend_config_aws_configure,'visible',oiAWS);
+set(handles.menu_track_backend_config_setdockerssh,'visible',oiDckr);
+set(handles.menu_track_backend_config_jrc_setconfig,'visible',oiBsub);
 
-% Menu item ordering getting messed up somewhere
-handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
-handles.menu_track_backend_config_jrc.Position = 1;
-handles.menu_track_backend_config_aws.Position = 2;
-handles.menu_track_backend_config_docker.Position = 3;
-handles.menu_track_backend_config_conda.Position = 4;
-handles.menu_track_backend_config_moreinfo.Position = 5;
-handles.menu_track_backend_config_aws_setinstance.Position = 6;
-handles.menu_track_backend_config_aws_configure.Position = 7;
-handles.menu_track_backend_config_setdockerssh.Position = 8;
+m = handles.menu_track_backend_config;
+% Menu item ordering seems very buggy. Setting .Position on menu items
+% doesn't work; setting Children once doesn't work, maybe bc of AbortSet. 
+%handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
+drawnow;
+m.Children = [ ...
+  handles.menu_track_backend_config_jrc ...
+  handles.menu_track_backend_config_aws...
+  handles.menu_track_backend_config_docker...
+  handles.menu_track_backend_config_conda...
+  handles.menu_track_backend_config_moreinfo... 
+  handles.menu_track_backend_config_aws_setinstance...
+  handles.menu_track_backend_config_aws_configure...
+  handles.menu_track_backend_config_setdockerssh...
+  handles.menu_track_backend_config_jrc_setconfig...
+  handles.menu_track_backend_config_test...
+  ];
+m.Children = m.Children(end:-1:1);
+%m.Children = m.Children(end:-1:1);
+
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
@@ -2343,6 +2439,21 @@ if tfsucc
   %aws.checkInstanceRunning('throwErrs',false);
 %   lObj.trackSetDLBackend(be);
 end
+
+function cbkTrackerBackendSetJRCNSlots(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+n = inputdlg('Number of cluster slots for training','a',1,{num2str(lObj.tracker.jrcnslots)});
+if isempty(n)
+  return;
+end
+n = str2double(n{1});
+if isnan(n)
+  return;
+end
+lObj.tracker.jrcnslots = n;
+
+
 
 function cbkTrackerBackendSetDockerSSH(src,evt)
 handles = guidata(src);
@@ -2768,6 +2879,74 @@ if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
 
+function scroll_callback(hObject,eventdata,~)
+h = guidata(hObject);
+curp = get(h.axes_curr,'CurrentPoint');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+  return
+end
+if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+  return
+end
+scrl = 1.2;
+% scrl = scrl^eventdata.VerticalScrollAmount;
+if eventdata.VerticalScrollCount>0
+  scrl = 1/scrl;
+end
+imglimx = get(h.image_curr,'XData');
+imglimy = get(h.image_curr,'YData');
+xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
+xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
+ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
+ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
+axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+% fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
+
+function dragstart_callback(hObject,eventdata,~)
+fprintf('Drag on\n')
+h = guidata(hObject);
+curp = get(h.axes_curr,'CurrentPoint');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+  return
+end
+if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+  return
+end
+h.labelerObj.drag = true;
+h.labelerObj.drag_pt = [curp(1,1),curp(1,2)];
+set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+set(hObject,'WindowbuttonUpFcn',@dragend_callback);
+
+function drag_callback(hObject,evendata,~)
+h = guidata(hObject);
+if ~h.labelerObj.drag
+  return
+end
+fprintf('Dragging\n');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+curp = get(h.axes_curr,'CurrentPoint');
+dx = curp(1,1)-h.labelerObj.drag_pt(1);
+dy = curp(1,2) - h.labelerObj.drag_pt(2);
+imglimx = get(h.image_curr,'XData');
+imglimy = get(h.image_curr,'YData');
+xlim(1) = max(imglimx(1),xlim(1)-dx);
+xlim(2) = min(imglimx(2),xlim(2)-dx);
+ylim(1) = max(imglimy(1),ylim(1)-dy);
+ylim(2) = min(imglimy(2),ylim(2)-dy);
+axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+
+
+function dragend_callback(hObject,eventdata,~)
+h = guidata(hObject);
+h.labelerObj.unsetdrag();
+fprintf('Drag off\n')
+
+
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
 handles = guidata(hObject);
@@ -2985,7 +3164,7 @@ end
 lObj.gtThrowErrIfInGTMode();
 iMov = lObj.currMovie;
 haslbls1 = lObj.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
-haslbls2 = lObj.movieFilesAllHaveLbls(iMov);
+haslbls2 = lObj.movieFilesAllHaveLbls(iMov)>0;
 assert(haslbls1==haslbls2);
 if haslbls1
   resp = questdlg('Current movie has labels that will be overwritten. OK?',...
@@ -3011,7 +3190,9 @@ if ~lObj.hasMovie
   error('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie; % gt-aware
+SetStatus(handles,'Importing tracking results...');
 lObj.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
+ClearStatus(handles);
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3019,7 +3200,9 @@ lObj = handles.labelerObj;
 if ~tfok
   return;
 end
+SetStatus(handles,'Exporting tracking results...');
 lObj.labelExportTrk(1:lObj.nmoviesGTaware,'rawtrkname',rawtrkname);
+ClearStatus(handles);
 
 function menu_file_export_labels_table_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3354,6 +3537,12 @@ lObj = evt.AffectedObject;
 handles = lObj.gdata;
 onOff = onIff(lObj.showMaRoi);
 handles.menu_view_showhide_maroi.Checked = onOff;
+
+function cbkShowMaRoiAuxChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showMaRoiAux);
+handles.menu_view_showhide_maroiaux.Checked = onOff;
 
 function cbkShowTrxChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -3931,6 +4120,19 @@ tObj.clearTrackingResults();
 ClearStatus(handles);
 %msgbox('Tracking results cleared.','Done');
 
+function menu_track_clear_tracker_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+res = questdlg('This will clear your trained tracker, along with all tracking results. Are you sure you want to proceed?',...
+  'Clear Model','Yes','Abort','Abort');
+if ~strcmpi(res,'Yes'),
+  return;
+end
+SetStatus(handles,'Clearing trained tracker and all tracking results...');
+tObj = lObj.tracker;
+tObj.initHook();
+ClearStatus(handles);
+
+
 function menu_track_cpr_storefull_dont_store_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 svr = tObj.showVizReplicates;
@@ -4049,6 +4251,10 @@ trackBatch('lObj',lObj,'toTrack',toTrackOut);
 % end
 % lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
 
+function menu_file_clear_imported_Callback(hObject,evtdata,handles)
+lObj = handles.labelerObj;
+lObj.labels2Clear();
+
 function menu_file_export_all_movies_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 nMov = lObj.nmoviesGTaware;
@@ -4068,11 +4274,11 @@ tObj = lObj.tracker;
 if lObj.gtIsGTMode
   error('LabelerGUI:gt','Unsupported in GT mode.');
 end
-if ~isempty(tObj)
+if ~isempty(tObj) && tObj.getHasTrained()
   xy = tObj.getPredictionCurrentFrame();
   xy = xy(:,:,lObj.currTarget); % "targets" treatment differs from below
   if any(isnan(xy(:)))
-    fprintf('No predictions for current frame, not labeling.\n');
+    msgbox('No predictions for current frame.');
     return;
   end
   disp(xy);
@@ -4082,22 +4288,50 @@ if ~isempty(tObj)
   % not do the right thing for some concrete LabelCores.
   lObj.lblCore.assignLabelCoords(xy);
 else
-  if lObj.nTrx>1
-    error('LabelerGUI:setLabels','Unsupported for multiple targets.');
-  end  
   iMov = lObj.currMovie;
   frm = lObj.currFrame;
   if iMov==0
     error('LabelerGUI:setLabels','No movie open.');
   end
-  %lpos2 = lObj.labeledpos2{iMov};
-  p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
-  lpos2xy = reshape(p,lObj.nLabelPoints,2);
-  %assert(size(lpos2,4)==1); % "targets" treatment differs from above
-  %lpos2xy = lpos2(:,:,frm);
-  lObj.labelPosSet(lpos2xy);
   
-  lObj.lblCore.newFrame(frm,frm,1);
+  if lObj.maIsMA
+    s = lObj.labels2{iMov};
+    itgtsImported = Labels.isLabeledF(s,frm);
+    ntgts = numel(itgtsImported);
+    switch ntgts
+      case 0
+        msgbox('No predictions for current frame.');
+        return;
+      case 1
+        iTgtImp = itgtsImported;
+      otherwise
+        iTgtImp = lObj.labeledpos2trkViz.currTrklet;
+        if isnan(iTgtImp)
+          msgbox('Please select a tracklet.');
+          return;
+        end
+    end
+    [~,p,occ] = Labels.isLabeledFT(s,frm,iTgtImp);
+    xy = reshape(p,[],2);
+    % Taken from LabelCoreSeqMA/cbkNewTgt. Hmm
+    ntgts = lObj.labelNumLabeledTgts();
+    lObj.setTargetMA(ntgts+1);
+    lObj.updateTrxTable();
+    lObj.labelPosSet(xy,occ);
+    lObj.lblCore.newFrame(frm,frm,1);
+  else
+    if lObj.nTrx>1
+      error('LabelerGUI:setLabels','Unsupported for multiple targets.');
+    end
+    %lpos2 = lObj.labeledpos2{iMov};
+    p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+    lpos2xy = reshape(p,lObj.nLabelPoints,2);
+    %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+    %lpos2xy = lpos2(:,:,frm);
+    lObj.labelPosSet(lpos2xy);
+    
+    lObj.lblCore.newFrame(frm,frm,1);
+  end
 end
 
 function menu_track_background_predict_start_Callback(hObject,eventdata,handles)
@@ -4221,6 +4455,10 @@ end
 function pumInfo_Callback(hObject, eventdata, handles)
 cprop = get(hObject,'Value');
 handles.labelTLInfo.setCurProp(cprop);
+cpropNew = handles.labelTLInfo.getCurProp();
+if cpropNew ~= cprop,
+  set(hObject,'Value',cpropNew);
+end
 hlpRemoveFocus(hObject,handles);
 
 function pumInfo_CreateFcn(hObject, eventdata, handles)
@@ -4569,82 +4807,18 @@ function menu_track_tracking_algorithm_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-function menu_view_landmark_colors_Callback(hObject, eventdata, handles)
-
-function menu_view_landmark_label_colors_Callback(hObject, eventdata, handles)
-
+function menu_view_landmark_colors_Callback(hObject, eventdata)
+handles = guidata(hObject);
 lObj = handles.labelerObj;
-nlandmarks = max(lObj.labeledposIPt2Set);
-
-% get colors, colormapname, pvmarker, pvtext, txtoffset
-lppi = lObj.labelPointsPlotInfo;
-if isfield(lppi,'Colors')
-  colors = lppi.Colors;
-else
-  colors = [];
-end
-colormapname = lppi.ColorMapName;      
-pvmarker = lppi.MarkerProps;
-pvtext = lppi.TextProps;
-txtoffset = lppi.TextOffset;
-      
-applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'lbl',varargin{:});
-[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
-  'lbl',applyCbkFcn,pvmarker,pvtext,txtoffset);
+cbkApply = @(varargin)hlpApplyCosmetics(lObj,varargin{:});
+[ischange,savedres] = LandmarkColors(lObj,cbkApply);
 if ischange
-  applyCbkFcn(savedres.colors,savedres.colormapname,...
-    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
+  cbkApply(savedres.colorSpecs,savedres.markerSpecs);
 end
 
-function hlpApplyCosmetics(lObj,lblsOrPreds,clrs,clrmap,clrsapplyboth,...
-  pvmarker,pvtext,textoffset)
-
-switch lblsOrPreds
-  case 'lbl'
-    colormeth = 'updateLandmarkLabelColors';
-    cosmeticmeth = 'updateLandmarkLabelCosmetics';
-  case 'pred'
-    colormeth = 'updateLandmarkPredictionColors';
-    cosmeticmeth = 'updateLandmarkPredictionCosmetics';
-  otherwise
-    assert(false);
-end
-
-% colors
-if clrsapplyboth
-  lObj.updateLandmarkLabelColors(clrs,clrmap);
-  lObj.updateLandmarkPredictionColors(clrs,clrmap);
-else
-  lObj.(colormeth)(clrs,clrmap);  
-end
-
-% markers/txt
-lObj.(cosmeticmeth)(pvmarker,pvtext,textoffset);
-
-function menu_view_landmark_prediction_colors_Callback(hObject, eventdata, handles)
-
-lObj = handles.labelerObj;
-nlandmarks = max(lObj.labeledposIPt2Set);
-
-pppi = lObj.predPointsPlotInfo;
-if isfield(pppi,'Colors')
-  colors = pppi.Colors;
-else
-  colors = [];
-end
-colormapname = pppi.ColorMapName;
-pvmarker = pppi.MarkerProps;
-pvtext = pppi.TextProps;
-txtoffset = pppi.TextOffset;
-
-applyCbkFcn = @(varargin)hlpApplyCosmetics(lObj,'pred',varargin{:});
-
-[ischange,savedres] = LandmarkColors(colors,colormapname,nlandmarks,...
-  'pred',applyCbkFcn,pvmarker,pvtext,txtoffset);
-if ischange
-  applyCbkFcn(savedres.colors,savedres.colormapname,...
-    savedres.colorsApplyBoth,savedres.pvMarkers,savedres.pvText,savedres.textOffset);
-end
+function hlpApplyCosmetics(lObj,colorSpecs,mrkrSpecs)
+lObj.updateLandmarkColors(colorSpecs);
+lObj.updateLandmarkCosmetics(mrkrSpecs);
 
 function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 
@@ -4687,12 +4861,14 @@ end
 
 function menu_view_showhide_maroi_Callback(hObject, eventdata, handles)
 if strcmpi(get(hObject,'Checked'),'off'),
-  hObject.Checked = 'on';
   handles.labelerObj.setShowMaRoi(true);
 else
-  hObject.Checked = 'off';
   handles.labelerObj.setShowMaRoi(false);
 end
+
+function menu_view_showhide_maroiaux_Callback(hObject, eventdata, handles)
+tf = strcmpi(get(hObject,'Checked'),'off');
+handles.labelerObj.setShowMaRoiAux(tf);
 
 % --- Executes on selection change in popupmenu_prevmode.
 function popupmenu_prevmode_Callback(hObject, eventdata, handles)
@@ -4744,7 +4920,9 @@ end
 % pos0 = get(hparent,'Position');
 % set(hparent,'Units',oldunits);
 
+warnst = warning('off','MATLAB:imagesci:png:libraryWarning');
 im = imread(splashimfilename);
+warning(warnst);
 sz = size(im);
 sz = sz(1:2);
 

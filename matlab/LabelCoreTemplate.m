@@ -275,6 +275,7 @@ classdef LabelCoreTemplate < LabelCore
         [tfneighbor,iFrm0Neighb,lpos0] = ...
           lObj.labelPosLabeledNeighbor(iFrm1,iTgt1);
         if tfneighbor
+          lpos0 = reshape(lpos0,[],2);
           xy = LabelCore.transformPtsTrx(lpos0,...
             lObj.trx(iTgt1),iFrm0Neighb,...
             lObj.trx(iTgt1),iFrm1);
@@ -399,10 +400,10 @@ classdef LabelCoreTemplate < LabelCore
         end
         
         obj.iPtMove = nan;
-        obj.tfMoved = false;
         if obj.state==LabelState.ACCEPTED && ~isnan(iPt) && obj.tfMoved,
           obj.storeLabels();
         end
+        obj.tfMoved = false;
       end
     end
     

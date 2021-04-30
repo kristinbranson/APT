@@ -1,0 +1,3 @@
+[submodule "deepnet/mmpose"]
+	path = deepnet/mmpose
+	url = https://github.com/open-mmlab/mmpose.git

@@ -15,30 +15,60 @@ classdef TrackingVisualizerTracklets < handle
     npts    
     ntrxmax
     
-    idTrxLive % [ntgtslive] currently live trx
+    currTrklet % scalar int; index into .ptrx
+    % Maintain this state in Visualizer for now rather than adding to
+    % Labeler. Situation is still slightly unclear, although adding here
+    % seems best.
+    % * currTrklet clearly differs from currTarget (pre-"reconciliation",
+    % there is no known correspondence between targets and tracklets)
+    % * currTrklet could differ between tracking res vs imported res, as
+    % again in general there is no correspondence between two diff sets of 
+    % MA tracking.
+    
+    iTrxViz2iTrx % [ntrxmax] Mapping from trx in .tvtrx -> ptrx.
+                 % iTrxViz2Trx(iTrxTV) gives index into .ptrx for live trx,
+                 % and 0 for unused trx.
+                 
+    tfShowTrxTraj = true;
+                 
+    hud % AxisHUD
+    lObj
   end
   
   methods
     function obj = TrackingVisualizerTracklets(lObj,ntrxmax,handleTagPfix)
-      obj.tvmt = TrackingVisualizerMT(handleTagPfix);
+      obj.tvmt = TrackingVisualizerMT(lObj,handleTagPfix);
       obj.tvtrx = TrackingVisualizerTrx(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
       obj.ntrxmax = ntrxmax;
       
-      obj.idTrxLive = [];
+      obj.currTrklet = nan;
+      obj.iTrxViz2iTrx = zeros(ntrxmax,1);
+      obj.hud = lObj.currImHud;
+      obj.lObj = lObj;
     end
     function vizInit(obj,nfrmmax,ptrxs,varargin)
       ntgt = obj.ntrxmax;
       obj.tvmt.vizInit('ntgts',ntgt);
-      obj.tvtrx.init(false,ntgt);
-      
+      obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgt);
+      obj.hud.updateReadoutFields('hasTrklet',true);
       obj.ptrx = ptrxs;
       obj.frm2trx = Labeler.trxHlpComputeF2t(nfrmmax,ptrxs);
     end
     function newFrame(obj,frm)
       % find live tracklets
-      iTrx = find(obj.frm2trx(frm,:));
+      ptrx = obj.ptrx;
+      if isempty(ptrx)
+        % eg if no tracklets loaded.
+        return;
+      end
+      
+      if isempty(obj.frm2trx)
+        iTrx = [];
+      else
+        iTrx = find(obj.frm2trx(frm,:));
+      end
       nTrx = numel(iTrx);
       if nTrx>obj.ntrxmax
         warningNoTrace('Too many targets to display (%d); showing first %d targets.',...
@@ -49,33 +79,50 @@ classdef TrackingVisualizerTracklets < handle
       npts = obj.npts;
       
       % get landmarks
-      ptrx = obj.ptrx;
-      p = nan(2*npts,nTrx);
+      xy = nan(npts,2,nTrx);
       for j=1:nTrx
         ptrxJ = ptrx(iTrx(j));
         idx = frm + ptrxJ.off;
-        p(:,j) = ptrxJ.p(:,idx);
+        xy(:,:,j) = ptrxJ.p(:,:,idx);
       end
       
       % update tvmt
-      xy = reshape(p,npts,2,nTrx);
       tfeo = false(npts,nTrx);
       obj.tvmt.updateTrackRes(xy,tfeo);
       
       % update tvtrx; call setShow
-      ids0 = obj.idTrxLive;
-      ids1 = [ptrx(iTrx).id]+1; %#ok<*PROPLC>
-      tfUpdateIDs = ~isequal(ids0,ids1);
-      obj.idTrxLive = ids1;
-      nLive = numel(ids1);
+      nLive = numel(iTrx);
+      iTrx2Viz2iTrxNew = zeros(obj.ntrxmax,1);
+      iTrx2Viz2iTrxNew(1:nLive) = iTrx;
+      trxMappingChanged = ~isequal(iTrx2Viz2iTrxNew,obj.iTrxViz2iTrx);
+      obj.iTrxViz2iTrx = iTrx2Viz2iTrxNew;
       
-      tvtrx = obj.tvtrx;
-      tfShow = false(tvtrx.nTrx,1);
-      tfShow(1:nLive) = true; 
-      tvtrx.setShow(tfShow);
-      tvtrx.updateTrxCore(ptrx(iTrx),frm,tfShow,0,tfUpdateIDs);
+      tvtrx = obj.tvtrx; %#ok<*PROPLC>
+      tfLiveTrx = false(tvtrx.nTrx,1);
+      if obj.tfShowTrxTraj
+        tfLiveTrx(1:nLive) = true; 
+      end
+      tfUpdateIDs = trxMappingChanged;      
+      
+      tvtrx.setShow(tfLiveTrx);
+      tvtrx.updateTrxCore(ptrx(iTrx),frm,tfLiveTrx,0,tfUpdateIDs);
     end
-    function updatePrimaryTarget(obj,iTgtPrimary)
+    function trxSelected(obj,iTrx,tfforce)
+      if nargin < 3
+        tfforce = false;
+      end
+      
+      iTrklet = obj.iTrxViz2iTrx(iTrx);
+      if iTrklet~=obj.currTrklet || tfforce
+        trkletID = obj.ptrx(iTrklet).id;
+  %       nTrkletLive = nnz(obj.iTrxViz2iTrx>0);
+        nTrkletTot = numel(obj.ptrx);
+        obj.hud.updateTrklet(trkletID,nTrkletTot);        
+        obj.currTrklet = iTrklet;
+        obj.lObj.gdata.labelTLInfo.newTarget();
+      end
+    end
+    function updatePrimary(obj,iTgtPrimary)
       % todo; currently no pred/target selection
     end
     function setShowSkeleton(obj,tf)
@@ -107,7 +154,24 @@ classdef TrackingVisualizerTracklets < handle
       % xxx currently only landmark text
       obj.tvmt.setHideTextLbls(tf);
     end
-
+    function delete(obj)
+      obj.tvmt.delete();
+      obj.tvtrx.delete();
+    end
+    function deleteGfxHandles(obj)
+%       if ~isstruct(obj.hXYPrdRed) % guard against serialized TVs which have PV structs in .hXYPrdRed
+%         deleteValidHandles(obj.hXYPrdRed);
+%         obj.hXYPrdRed = [];
+%       end
+%       deleteValidHandles(obj.hXYPrdRedTxt);
+%       obj.hXYPrdRedTxt = [];
+%       deleteValidHandles(obj.hSkel);
+%       obj.hSkel = [];
+%       deleteValidHandles(obj.hPch);
+%       obj.hPch = [];
+%       deleteValidHandles(obj.hPchTxt);
+%       obj.hPchTxt = [];
+    end
   end
   
 end

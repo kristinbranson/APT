@@ -581,7 +581,9 @@ classdef TrkFile < dynamicprops
     
     function filetype = getFileType(s)
       
-      if TrkFile.isValidLoadFullMatrix(s),
+      if all(isfield(s,{'startframes' 'endframes'}))
+        filetype = 'tracklet';
+      elseif TrkFile.isValidLoadFullMatrix(s),
         filetype = 'fullmatrix';
       elseif TrkFile.isValidLoadTable(s),
         filetype = 'table';
@@ -613,8 +615,19 @@ classdef TrkFile < dynamicprops
         end
         break;
       end
-      s = TrkFile.modernizeStruct(s);
       filetype = TrkFile.getFileType(s);
+      if strcmp(filetype,'tracklet')
+        %%% Tracklet early return %%%
+        trkfileObj = load_tracklet(s);
+        % We do this right here, upon entry into APT, but this might more
+        % properly be done further inside the App (eg at vizInit-time) as 
+        % .x, .y are more for viz purposes.
+        trkfileObj = TrxUtil.ptrxAddXY(trkfileObj); 
+        [trkfileObj.movfile] = deal(movfile);
+        return;        
+      end        
+        
+      s = TrkFile.modernizeStruct(s);
       if isempty(filetype),
         error('TrkFile:load',...
           'File ''%s'' is not a valid saved trkfile structure.',filename);
@@ -725,7 +738,13 @@ classdef TrkFile < dynamicprops
         m = matfile(tfile);
         fns = fieldnames(m);
 
-        if ismember('pTrk',fns),
+        if any(strcmp('startframes',fns))
+          nFramesTracked = m.pTrkFrm(1,end) - m.pTrkFrm(1,1) + 1;
+          didload = true;
+        elseif ismember('pTrkFrm',fns)
+          nFramesTracked = numel(m.pTrkFrm);
+          didload = true;
+        elseif ismember('pTrk',fns),
           nd = ndims(m.pTrk);
           if nd == 3,
             nFramesTracked = nnz(~isnan(m.pTrk(1,1,:)));
