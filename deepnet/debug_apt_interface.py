@@ -1,4 +1,30 @@
+import numpy as np
+in_im = all_f[0,...,0]
+cols = all_f.shape[1]
+rows = all_f.shape[2]
+out_ims = []
+for rangle in range(-12,13):
+    ang = np.deg2rad(rangle)
+    rot = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
+    mat = cv2.getRotationMatrix2D((cols / 2, rows / 2), rangle, 1)
+    ii = in_im.copy()
+    ii = cv2.warpAffine(ii, mat, (int(cols), int(rows)), flags=cv2.INTER_CUBIC)  # ,borderMode=cv2.BORDER_REPLICATE)
+    if ii.ndim == 2:
+        ii = ii[..., np.newaxis]
+    out_ims.append(ii)
 
+out_ims = np.array(out_ims)
+
+out_l  = []
+for rxx in range(out_ims.shape[0]//8):
+    zz = pred_fn(out_ims[rxx*8:(rxx+1)*8,...])
+    out_l.append(zz['locs'])
+
+out_l = np.concatenate(out_l,axis=0)
+dd = np.diff(out_l,axis=0)
+dd = np.linalg.norm(dd,axis=-1)
+
+##
 import APT_interface as apt
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'

@@ -444,5 +444,5 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         return pred_fn, close_fn, latest_model_file
 
 
-    def train_wrapper(self,restore=False):
-        self.train_umdn(restore)
+    def train_wrapper(self,restore=False,model_file=None):
+        self.train_umdn(restore,model_file=model_file)

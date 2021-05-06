@@ -3098,7 +3098,7 @@ def train_unet(conf, args, restore,split, split_file=None):
     self.train_unet(restore=restore)
 
 
-def train_mdn(conf, args, restore,split, split_file=None):
+def train_mdn(conf, args, restore,split, split_file=None,model_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     tf.reset_default_graph()
@@ -3107,7 +3107,7 @@ def train_mdn(conf, args, restore,split, split_file=None):
         self.train_data_name = 'traindata'
     else:
         self.train_data_name = None
-    self.train_umdn(restore=restore)
+    self.train_umdn(restore=restore,model_file=model_file)
     tf.reset_default_graph()
 
 
@@ -3164,11 +3164,13 @@ def train_sb(conf, args, split, split_file=None):
     tf.reset_default_graph()
 
 
-def train_deepcut(conf, args, split_file=None):
+def train_deepcut(conf, args, split_file=None,model_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache,split_file=split_file)
 
     cfg_dict = create_dlc_cfg_dict(conf,args.train_name)
+    if model_file is not None:
+        cfg_dict.init_weights = model_file
     deepcut_train(cfg_dict,
       displayiters=conf.display_step,
       saveiters=conf.save_step,
@@ -3282,6 +3284,7 @@ def train(lblfile, nviews, name, args):
         conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
 
         conf.view = cur_view
+        model_file = None if args.model_file is None else args.model_file[cur_view]
         if args.split_file is not None:
             assert(os.path.exists(args.split_file))
             in_data = PoseTools.json_load(args.split_file)
@@ -3304,7 +3307,7 @@ def train(lblfile, nviews, name, args):
             if net_type == 'unet':
                 train_unet(conf, args, restore, split, split_file=split_file)
             elif net_type == 'mdn':
-                train_mdn(conf, args, restore, split, split_file=split_file)
+                train_mdn(conf, args, restore, split, split_file=split_file,model_file=model_file)
             # elif net_type == 'openpose':
             #     if args.use_defaults:
             #         op.set_openpose_defaults(conf)
@@ -3319,7 +3322,7 @@ def train(lblfile, nviews, name, args):
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deeplabcut.train.set_deepcut_defaults(conf)
-                train_deepcut(conf,args, split_file=split_file)
+                train_deepcut(conf,args, split_file=split_file,model_file=model_file)
             elif net_type == 'dpk':
                 train_dpk(conf, args, split, split_file=split_file)
 
@@ -3340,7 +3343,7 @@ def train(lblfile, nviews, name, args):
                 tf.reset_default_graph()
                 self = getattr(pose_module, module_name)(conf,name=args.train_name)
                 # self.name = args.train_name
-                self.train_wrapper(restore=restore)
+                self.train_wrapper(restore=restore,model_file=model_file)
 
         except tf.errors.InternalError as e:
             logging.exception(
@@ -3450,7 +3453,10 @@ def parse_args(argv):
     if args.sub_name == 'track' and args.mov is not None:
         nmov = len(args.mov)
         args.trx_ids = parse_trx_ids_arg(args.trx_ids,nmov)
-        assert all([a>0 for a in args.start_frame]), 'Start frames much be positive integers'
+        if type(args.start_frame) == list:
+            assert all([a>0 for a in args.start_frame]), 'Start frames must be positive integers'
+        else:
+            assert args.start_frame>0, 'Start frames must be positive integers'
         args.start_frame = to_py(args.start_frame)
         args.start_frame = parse_frame_arg(args.start_frame,nmov,0)
         args.end_frame = parse_frame_arg(args.end_frame,nmov,np.Inf)
