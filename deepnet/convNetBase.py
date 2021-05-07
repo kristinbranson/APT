@@ -13,7 +13,12 @@ from __future__ import division
 from builtins import str
 from builtins import range
 from past.utils import old_div
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
 import os,sys
 # import caffe
 # import lmdb
@@ -26,7 +31,15 @@ import cv2
 import tempfile
 import copy
 
-from batch_norm import batch_norm
+if vv[0]==1:
+    from tensorflow.contrib.layers import batch_norm
+else:
+    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+        return batch_norm_temp(inp,momentum=decay,training=is_training)
+
+
+# from batch_norm import batch_norm
 import myutils
 import PoseTools
 import localSetup
@@ -155,7 +168,7 @@ def net_multi_base_named_dilated(X, nfilt, doBatchNorm, trainPhase, pool_stride,
 
     with tf.variable_scope('layer2'):
         weights = tf.get_variable("weights", [3,3,48,nfilt],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("biases", nfilt,
                                  initializer=tf.constant_initializer(1))
         conv2 = tf.nn.convolution(norm1, weights,
@@ -167,7 +180,7 @@ def net_multi_base_named_dilated(X, nfilt, doBatchNorm, trainPhase, pool_stride,
 
     with tf.variable_scope('layer3'):
         weights = tf.get_variable("weights", [3,3,nfilt,nfilt],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("biases",nfilt,
                                  initializer=tf.constant_initializer(1))
         conv3 = tf.nn.convolution(norm2, weights,
@@ -248,7 +261,7 @@ def net_multi_conv(X0,X1,X2,_dropout,conf,doBatchNorm,trainPhase):
         else:
             dilation_rate = [1, 1]
         weights = tf.get_variable("weights", [conf.psz,conf.psz,conf.numscale*nfilt,conf.nfcfilt],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("biases", conf.nfcfilt,
                                  initializer=tf.constant_initializer(1))
         conv6 = tf.nn.convolution(conv5_cat, weights,

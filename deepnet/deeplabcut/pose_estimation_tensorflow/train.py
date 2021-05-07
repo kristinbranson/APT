@@ -19,11 +19,16 @@ import argparse
 from pathlib import Path
 import tensorflow as tf
 vers = (tf.__version__).split('.')
-if int(vers[0])==1 and int(vers[1])>12:
+if (int(vers[0])==1 and int(vers[1])>12) or int(vers[0])==2:
     TF=tf.compat.v1
 else:
     TF=tf
-import tensorflow.contrib.slim as slim
+if int(vers[0])==1:
+    import tensorflow.contrib.slim as slim
+    from tensorflow.contrib.slim.nets import resnet_v1
+else:
+    import tf_slim as slim
+    from tf_slim.nets import resnet_v1
 
 from deeplabcut.pose_estimation_tensorflow.config import load_config
 from deeplabcut.pose_estimation_tensorflow.dataset.pose_dataset import Batch
@@ -71,7 +76,7 @@ def setup_preloading(batch_spec):
 
     QUEUE_SIZE = 20
     vers = (tf.__version__).split('.')
-    if int(vers[0])==1 and int(vers[1])>12:
+    if (int(vers[0])==1 and int(vers[1])>12) or int(vers[0])==2:
         q = tf.queue.FIFOQueue(QUEUE_SIZE, [tf.float32]*len(batch_spec))
     else:
         q = tf.FIFOQueue(QUEUE_SIZE, [tf.float32]*len(batch_spec))
@@ -331,7 +336,7 @@ def get_pred_fn(cfg_dict, model_file=None):
     else:
         init_weights = model_file
 
-    tf.reset_default_graph()
+    TF.reset_default_graph()
     cfg.init_weights = init_weights
     sess, inputs, outputs = predict.setup_pose_prediction(cfg)
 

@@ -1,12 +1,23 @@
 import PoseCommon_dataset as PoseCommon
 import PoseTools
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+# from batch_norm import batch_norm_mine_old as batch_norm
+if vv[0]==1:
+    from tensorflow.contrib.layers import batch_norm
+else:
+    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+        return batch_norm_temp(inp,momentum=decay,training=is_training)
 import PoseUNet_dataset as PoseUNet
 import os
 import sys
 import math
 # from batch_norm import batch_norm_new as batch_norm
-from tensorflow.contrib.layers import batch_norm
 import convNetBase as CNB
 import numpy as np
 import tempfile
@@ -15,7 +26,6 @@ import multiResData
 from scipy import io as sio
 from scipy import stats
 import logging
-import tensorflow.contrib.framework as tfr
 
 
 renorm = False
@@ -200,7 +210,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             with tf.variable_scope(sc_name):
                 kernel_shape = [3, 3, n_filt, n_filt]
                 weights = tf.get_variable("weights_{}".format(ndx), kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0.))
                 cur_conv = tf.nn.conv2d(
@@ -229,7 +239,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             with tf.variable_scope('layer_locs'):
                 kernel_shape = [1, 1, n_filt, n_filt]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv_l = tf.nn.conv2d(X, weights,
@@ -239,7 +249,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             mdn_l = tf.nn.relu(conv_l + biases)
 
             weights_locs = tf.get_variable("weights_locs", [1, 1, n_filt, 2 * k * n_out],
-                                           initializer=tf.contrib.layers.xavier_initializer())
+                                           initializer=xavier_initializer())
             biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
                                           initializer=tf.constant_initializer(0))
             o_locs = tf.nn.conv2d(mdn_l, weights_locs,
@@ -273,7 +283,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             with tf.variable_scope('layer_scales'):
                 kernel_shape = [1, 1, n_filt, n_filt]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(X, weights,
@@ -283,7 +293,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             mdn_l = tf.nn.relu(conv + biases)
 
             weights_scales = tf.get_variable("weights_scales", [1, 1, n_filt, k * n_out],
-                                           initializer=tf.contrib.layers.xavier_initializer())
+                                           initializer=xavier_initializer())
             biases_scales = tf.get_variable("biases_scales", k * self.conf.n_classes,
                                           initializer=tf.constant_initializer(0))
             o_scales = tf.exp(tf.nn.conv2d(mdn_l, weights_scales,
@@ -303,7 +313,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             with tf.variable_scope('layer_logits'):
                 kernel_shape = [1, 1, n_filt, n_filt]
                 weights = tf.get_variable("weights", kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0))
                 conv = tf.nn.conv2d(X, weights,
@@ -313,7 +323,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             mdn_l = tf.nn.relu(conv + biases)
 
             weights_logits = tf.get_variable("weights_logits", [1, 1, n_filt, k * n_groups],
-                                           initializer=tf.contrib.layers.xavier_initializer())
+                                           initializer=xavier_initializer())
             biases_logits = tf.get_variable("biases_logits", k * n_groups,
                                           initializer=tf.constant_initializer(0))
             logits = tf.nn.conv2d(mdn_l, weights_logits,
@@ -382,7 +392,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             with tf.variable_scope(sc_name):
                 kernel_shape = [3, 3, n_filt, n_filt]
                 weights = tf.get_variable("weights_{}".format(ndx), kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0.))
                 cur_conv = tf.nn.conv2d(X, weights, strides=[1, 2, 2, 1], padding='SAME')
@@ -401,7 +411,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             with tf.variable_scope('mdn_extra_{}'.format(ndx)):
                 kernel_shape = [3, 3, n_filt, n_filt]
                 weights = tf.get_variable("weights_{}".format(ndx), kernel_shape,
-                                          initializer=tf.contrib.layers.xavier_initializer())
+                                          initializer=xavier_initializer())
                 biases = tf.get_variable("biases", kernel_shape[-1],
                                          initializer=tf.constant_initializer(0.))
                 cur_conv = tf.nn.conv2d(X, weights, strides=[1, 2, 2, 1], padding='SAME')
@@ -446,7 +456,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
                 #     kernel_shape = [1, 1, n_filt, n_filt]
             #     weights = tf.get_variable("weights", kernel_shape,
-            #                               initializer=tf.contrib.layers.xavier_initializer())
+            #                               initializer=xavier_initializer())
             #     biases = tf.get_variable("biases", kernel_shape[-1],
             #                              initializer=tf.constant_initializer(0))
             #     conv_l = tf.nn.conv2d(X, weights,
@@ -456,7 +466,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             # mdn_l = tf.nn.relu(conv_l + biases)
             #
             # weights_locs = tf.get_variable("weights_locs", [1, 1, n_filt, 2 * k * n_out],
-            #                                initializer=tf.contrib.layers.xavier_initializer())
+            #                                initializer=xavier_initializer())
             # biases_locs = tf.get_variable("biases_locs", 2 * k * n_out,
             #                               initializer=tf.constant_initializer(0))
             # o_locs = tf.nn.conv2d(mdn_l, weights_locs,
@@ -514,7 +524,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
             #     kernel_shape = [1, 1, n_filt, n_filt]
             #     weights = tf.get_variable("weights", kernel_shape,
-            #                               initializer=tf.contrib.layers.xavier_initializer())
+            #                               initializer=xavier_initializer())
             #     biases = tf.get_variable("biases", kernel_shape[-1],
             #                              initializer=tf.constant_initializer(0))
             #     conv = tf.nn.conv2d(X, weights,
@@ -524,7 +534,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             # mdn_l = tf.nn.relu(conv + biases)
             #
             # weights_scales = tf.get_variable("weights_scales", [1, 1, n_filt, k * n_out],
-            #                                initializer=tf.contrib.layers.xavier_initializer())
+            #                                initializer=xavier_initializer())
             # biases_scales = tf.get_variable("biases_scales", k * self.conf.n_classes,
             #                               initializer=tf.constant_initializer(0))
             # o_scales = tf.exp(tf.nn.conv2d(mdn_l, weights_scales,
@@ -560,7 +570,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             logits = tf.reshape(logits,[-1,k_fc,n_groups])
             #     kernel_shape = [1, 1, n_filt, n_filt]
             #     weights = tf.get_variable("weights", kernel_shape,
-            #                               initializer=tf.contrib.layers.xavier_initializer())
+            #                               initializer=xavier_initializer())
             #     biases = tf.get_variable("biases", kernel_shape[-1],
             #                              initializer=tf.constant_initializer(0))
             #     conv = tf.nn.conv2d(X, weights,
@@ -570,7 +580,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             # mdn_l = tf.nn.relu(conv + biases)
             #
             # weights_logits = tf.get_variable("weights_logits", [1, 1, n_filt, k * n_groups],
-            #                                initializer=tf.contrib.layers.xavier_initializer())
+            #                                initializer=xavier_initializer())
             # biases_logits = tf.get_variable("biases_logits",
             #         k * n_groups ,initializer=tf.constant_initializer(0))
             # logits = tf.nn.conv2d(mdn_l, weights_logits,

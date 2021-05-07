@@ -31,9 +31,19 @@ import tensorflow.keras as keras
 from tensorflow.keras.layers import Layer
 import logging
 
-from tensorflow.python.keras.applications import imagenet_utils
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
 
-_obtain_input_shape = imagenet_utils.imagenet_utils._obtain_input_shape
+if vv[0] ==1:
+    from tensorflow.python.keras.applications.imagenet_utils import imagenet_utils
+else:
+    from keras_applications import imagenet_utils
+
+_obtain_input_shape = imagenet_utils._obtain_input_shape
 
 backend = keras.backend
 layers = keras.layers

@@ -40,6 +40,9 @@ import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
 if vv[0]==1 and vv[1]>12:
     tf = tensorflow.compat.v1
+elif vv[0]==2:
+    tf = tensorflow.compat.v1
+    tf.disable_v2_behavior()
 else:
     tf = tensorflow
 
@@ -74,7 +77,7 @@ try:
     user = getpass.getuser()
 except KeyError:
     user = 'err'
-if ISPY3 and user!='ubuntu': # AL 20201111 exception for AWS; running on older AMI
+if ISPY3 and user!='ubuntu' and vv[0]==1: # AL 20201111 exception for AWS; running on older AMI
     import apt_dpk
 
 

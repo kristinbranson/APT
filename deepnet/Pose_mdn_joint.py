@@ -2,16 +2,22 @@ import PoseUNet_resnet
 import PoseTools as pt
 import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
     tf = tensorflow.compat.v1
 else:
     tf = tensorflow
+# from batch_norm import batch_norm_mine_old as batch_norm
+if vv[0]==1:
+    from tensorflow.contrib.layers import batch_norm
+else:
+    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+        return batch_norm_temp(inp,momentum=decay,training=is_training)
 from PoseCommon_dataset import conv_relu3, conv_relu
 import tensorflow.contrib.slim as slim
 from tensorflow.contrib.slim.nets import resnet_v1
 import resnet_official
 import numpy as np
-from tensorflow.contrib.layers import batch_norm
 import contextlib
 from upsamp import upsample_init_value
 

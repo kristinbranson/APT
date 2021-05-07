@@ -47,7 +47,7 @@ from PoseCommon_dataset import PoseCommon, initialize_remaining_vars
 import PoseTools
 import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
     tf = tensorflow.compat.v1
 else:
     tf = tensorflow
@@ -222,7 +222,7 @@ class PoseBase(PoseCommon):
             i.set_shape(self.input_sizes[ndx])
 
 
-    def train_wrapper(self, restore=False):
+    def train_wrapper(self, restore=False,model_file=None):
         '''
         Sets up the inputs pipeline, the network and the loss function
         '''
@@ -244,13 +244,13 @@ class PoseBase(PoseCommon):
         self.setup_network()
 
         # train
-        self.train(restore=restore)
+        self.train(restore=restore,model_file=model_file)
 
         # reset in case we want to use tensorflow for other stuff.
         tf.reset_default_graph()
 
 
-    def train(self, restore=False):
+    def train(self, restore=False,model_file=None):
         '''
         :param restore: Whether to start training from previously saved model or start from scratch.
         :return:
@@ -267,7 +267,7 @@ class PoseBase(PoseCommon):
 #        base_lr = self.conf.learning_rate
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('base_lr',0.0001)
 
-        PoseCommon.train_quick(self, learning_rate=learning_rate,restore=restore)
+        PoseCommon.train_quick(self, learning_rate=learning_rate,restore=restore,model_file=model_file)
 
 
 

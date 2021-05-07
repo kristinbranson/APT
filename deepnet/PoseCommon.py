@@ -15,7 +15,21 @@ import pickle
 import sys
 import math
 from past.utils import old_div
-from tensorflow.contrib.layers import batch_norm
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
+# from batch_norm import batch_norm_mine_old as batch_norm
+if vv[0]==1:
+    from tensorflow.contrib.layers import batch_norm
+    from tensorflow.contrib.layers import xavier_initializer
+else:
+    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+        return batch_norm_temp(inp,momentum=decay,training=is_training)
+    from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
 # from batch_norm import batch_norm_mine as batch_norm
 from matplotlib import pyplot as plt
 import copy
@@ -30,7 +44,7 @@ from six import reraise as raise_
 
 def conv_relu(x_in, kernel_shape, train_phase):
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tensorflow.contrib.layers.xavier_initializer())
+                              initializer=xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -42,7 +56,7 @@ def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
     in_dim = x_in.get_shape().as_list()[3]
     kernel_shape = [3, 3, in_dim, n_filt]
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tensorflow.contrib.layers.xavier_initializer())
+                              initializer=xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
