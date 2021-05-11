@@ -493,15 +493,18 @@ class PoseCommon_pytorch(object):
         logging.info('Using {} GPUS!'.format(torch.cuda.device_count()))
         model = torch.nn.DataParallel(model)
 
-        if restore:
-            model_file = self.get_latest_model_file()
-        else:
-            model_file = None
         if model_file is None:
-            start_at = 0
-            self.init_td()
+            if restore:
+                model_file = self.get_latest_model_file()
+            if model_file is None:
+                start_at = 0
+                self.init_td()
+            else:
+                start_at = self.restore(model_file, model, opt, sched)
         else:
-            start_at = self.restore(model_file, model, opt, sched)
+            ckpt = torch.load(model_file)
+            model.load_state_dict(ckpt['model_state_params'])
+            logging.info('Inititalizing model weights from {}'.format(model_file))
 
         model.to(self.device)
         self.create_data_gen()
