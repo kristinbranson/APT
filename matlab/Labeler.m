@@ -3734,7 +3734,7 @@ classdef Labeler < handle
           'Error reading file %s: %s',bfile,ME.message);
       end
       if size(movs,2)~=obj.nview
-        error('Labeler:batchfile',...
+        obj.lerror('Labeler:batchfile',...
           'Expected file %s to have %d column(s), one for each view.',...
           bfile,obj.nview);
       end
@@ -11950,7 +11950,7 @@ classdef Labeler < handle
         v = ax.CameraUpVector; % should be norm 1
         dxdy = v(1:2);
       else
-        dxdy = [0 1];
+        dxdy = [0 -1];
       end
     end
     function dxdy = videoCurrentRightVec(obj)
@@ -14152,6 +14152,14 @@ classdef Labeler < handle
   
   %% Util
   methods
+    
+    function lerror(obj,varargin)
+      
+      msg = sprintf(varargin{2:end});
+      errordlg(msg,'APT Error');
+      obj.ClearStatus();
+      error(varargin{:});
+    end
     
     function tblConcrete = mftTableConcretizeMov(obj,tbl)
       % tbl: MFTable where .mov is MovieIndex array
