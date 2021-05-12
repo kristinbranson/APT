@@ -9359,12 +9359,12 @@ classdef Labeler < handle
   methods (Hidden)
     
     function suspVerifyScore(obj,suspscore)
-      nmov = obj.nmovies;
+      nmov = obj.nmoviesGTaware;
       if ~(iscell(suspscore) && numel(suspscore)==nmov)
         error('Labeler:susp',...
           'Invalid ''suspscore'' output from suspicisouness computation.');
       end
-      lpos = obj.labeledpos;
+      lpos = obj.labeledposGTaware;
       for imov=1:nmov
         [~,~,nfrm,ntgt] = size(lpos{imov});
         if ~isequal(size(suspscore{imov}),[nfrm ntgt])

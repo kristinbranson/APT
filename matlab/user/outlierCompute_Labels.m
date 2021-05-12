@@ -9,7 +9,7 @@ if isempty(resp)
 end
 stdthres = str2double(resp{1});
 
-tblMFT = lObj.labelGetMFTableLabeled;
+tblMFT = lObj.labelGetMFTableLabeled; % should be GT-aware
 
 % pts [2,n,T] 2 = x,y, n = # of landmarks on each fly (17), T = # labeled
 p = tblMFT.p;
@@ -37,17 +37,19 @@ stderr = std(err_pts);
 
 %intialize tblsusp and suspscore
 tblsusp = struct('mov',cell(0,1),'frm',[],'iTgt',[],'susp',[],'suspPt',[]);
-suspscore = cellfun(@(x)ones(size(x,3),size(x,4)),lObj.labeledpos,'uni',0);
+suspscore = cellfun(@(x)ones(size(x,3),size(x,4)),lObj.labeledposGTaware,'uni',0);
 
 for i = 1:numel(frm)
     [mstd, ldidx] = max(err_pts(i,:));
     if mstd > stderr(ldidx)*stdthres
-        tblsusp(end+1,1).mov = double(tblMFT.mov(i));
+        tblsusp(end+1,1).mov = double(tblMFT.mov(i).get());
         tblsusp(end).frm = tblMFT.frm(i);
         tblsusp(end).iTgt = tblMFT.iTgt(i);
         tblsusp(end).susp = round(mstd,2);
         tblsusp(end).suspPt = ldidx;
-        suspscore{tblMFT.mov(i)}(tblMFT.frm(i),tblMFT.iTgt(i)) = mstd;
+        
+        iMov = tblMFT.mov(i).get();
+        suspscore{iMov}(tblMFT.frm(i),tblMFT.iTgt(i)) = mstd;
     end
 end
 
