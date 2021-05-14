@@ -830,6 +830,16 @@ handles.h_singleview_only = [...
    handles.menu_setup_highthroughput_mode ...
    handles.menu_setup_multianimal_mode ...
    ];
+handles.h_ma_only = [...
+  handles.menu_setup_multianimal_mode ...
+  ];
+handles.h_nonma_only = [ ...
+  handles.menu_setup_multiview_calibrated_mode_2...
+  handles.menu_setup_sequential_mode ...
+  handles.menu_setup_template_mode ...
+  handles.menu_setup_highthroughput_mode ...
+  ];
+  
   
 set(handles.output,'Toolbar','figure');
 
@@ -1080,6 +1090,11 @@ switch lower(state),
       set(handles.h_singleview_only,'Enable','off');
     else
       error('Sanity check -- nview = 0');
+    end
+    if lObj.maIsMA
+      set(handles.h_nonma_only,'Enable','off');
+    else
+      set(handles.h_ma_only,'Enable','off');
     end
 
   otherwise
@@ -1515,6 +1530,10 @@ if ispc
   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
 end
 
+% eg when going from proj-with-trx to proj-no-trx, targets table needs to
+% be cleared
+set(handles.tblTrx,'Data',cell(0,size(handles.tblTrx.ColumnName,2)));
+
 handles = setShortcuts(handles);
 
 handles.labelTLInfo.initNewProject();
@@ -1685,9 +1704,11 @@ TRX_MENUS = {...
   'menu_view_hide_trajectories'
   'menu_view_plot_trajectories_current_target_only'
   'menu_setup_label_overlay_montage_trx_centered'};
-onOff = onIff(lObj.hasTrx || lObj.maIsMA);
+tftblon = lObj.hasTrx || lObj.maIsMA;
+onOff = onIff(tftblon);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
-set(handles.tblTrx,'Enable',onOff);
+hTbl = handles.tblTrx;
+set(hTbl,'Enable',onOff);
 guidata(handles.figure,handles);
 
 setPUMTrackStrs(lObj);
@@ -2789,6 +2810,7 @@ if ~(lObj.hasTrx || lObj.maIsMA)
 end
 
 rows = evt.Indices;
+rows = rows(:,1); % AL20210514: rows is nx2; columns are {rowidxs,colidxs} at least in 2020b
 rowsprev = src.UserData;
 src.UserData = rows;
 dat = get(src,'Data');
@@ -2798,10 +2820,12 @@ if isscalar(rows)
   lObj.setTarget(idx);
   lObj.labelsOtherTargetHideAll();
 else
+  % 20210514 Skipping this for now; possible performance hit
+  
   % addon to existing selection
-  rowsnew = setdiff(rows,rowsprev);  
-  idxsnew = cell2mat(dat(rowsnew,1));
-%   lObj.labelsOtherTargetShowIdxs(idxsnew);
+  %rowsnew = setdiff(rows,rowsprev);  
+  %idxsnew = cell2mat(dat(rowsnew,1));
+  %lObj.labelsOtherTargetShowIdxs(idxsnew);
 end
 
 hlpRemoveFocus(src,handles);
