@@ -143,7 +143,8 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xpEpi = obj.normalized2projected(xnEpi,camEpi); % project
       
       yEpi = obj.x2y(xpEpi,camEpi);
-      yEpi = obj.cropLines(yEpi,roiEpi);
+      yEpi = obj.getLineWithinAxes(yEpi,roiEpi);
+      %yEpi = obj.cropLines(yEpi,roiEpi);
       r2 = yEpi(:,1);
       c2 = yEpi(:,2);
       xEPL = c2;

@@ -752,7 +752,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       xEPL = linspace(roiEpi(1),roiEpi(2),xEPLnstep)';
       yEPL = (-C-A*xEPL)/B;
       
-      tmp = obj.cropLines([yEPL xEPL],roiEpi);
+      %tmp = obj.cropLines([yEPL xEPL],roiEpi);
+      tmp = obj.getLineWithinAxes([yEPL xEPL],roiEpi);
+
       xEPL = tmp(:,2);
       yEPL = tmp(:,1);
     end

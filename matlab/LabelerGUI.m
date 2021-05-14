@@ -277,6 +277,14 @@ handles.menu_view_rotate_video_target_up = uimenu('Parent',handles.menu_view,...
 moveMenuItemAfter(handles.menu_view_rotate_video_target_up,...
   handles.menu_view_trajectories_centervideoontarget);
 
+handles.menu_view_show_axes_toolbar = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_axes_toolbar_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Show axes toolbar',...
+  'Tag','menu_view_show_axes_toolbar',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_show_axes_toolbar,...
+  handles.menu_view_rotate_video_target_up);
+
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Hide predictions',...
@@ -3606,6 +3614,18 @@ if tfproceed
     handles.labelerObj.UpdatePrevAxesDirections();
   end
 end
+function menu_view_show_axes_toolbar_Callback(hObject, eventdata, handles)
+ax = handles.axes_curr;
+if strcmp(hObject.Checked,'on')
+  onoff = 'off';
+else
+  onoff = 'on';
+end
+ax.Toolbar.Visible = onoff;
+hObject.Checked = onoff;
+% For now not listening to ax.Toolbar.Visible for cmdline changes
+
+
 function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
 hIms = handles.images_all;

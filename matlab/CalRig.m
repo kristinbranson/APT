@@ -183,6 +183,10 @@ classdef CalRig < handle
       r = y(:,1);
       c = y(:,2);
       
+      badidx = r>rhi | c>chi | r<rlo | c<clo;
+      r(badidx) = NaN;
+      c(badidx) = NaN;
+      
       [maxr,maxri] = max(r);
       [minr,minri] = min(r);
       [maxc,maxci] = max(c);
@@ -194,14 +198,14 @@ classdef CalRig < handle
         % equation of the line:
         % (y-minr) = slope*(x-c(minri))
         % solve for x at y = rlo and y = rhi
-        rout = [rlo;rhi];
+        rout = [minr;maxr];
         cout = (rout-minr)*mrecip+c(minri);
       else % abs(slope)<=1
         m = (r(maxci)-r(minci)) / dc; % slope
         % equation of the line:
         % (y-r(minci)) = m*(x-minc)
         % solve for y at x = clo and x = chi
-        cout = [clo;chi];
+        cout = [minc;maxc];
         rout = m*(cout-minc)+r(minci);        
       end
       y = [rout,cout];
