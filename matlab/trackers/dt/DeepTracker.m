@@ -163,11 +163,9 @@ classdef DeepTracker < LabelTracker
     bgTrkIsRunning 
   end
 
-  properties    
-    %%% For MA, only trkP is used and it is a PTrx. %%%
-    
+  properties        
     % track curr res -- in-mem tracking results for current mov    
-    trkP   % [npt x 2 x nfrm x ntgt] tracking results for current mov
+    trkP   % [nview] PTrx tracking results for current mov
     trkPTS % [npt x nfrm x ntgt] timestamp for trkP*
     
     trkAux % [npt x nfrm x ntgt x naux] auxiliary per-pt results eg confidences
@@ -5389,14 +5387,15 @@ classdef DeepTracker < LabelTracker
             % none; trkfiles, tfHasRes OK
           else
             tObj = trkfilesIobj{1};
-            isMA = obj.lObj.maIsMA;
+            %isMA = obj.lObj.maIsMA;
             for iTmp=2:numel(trkfilesIobj)
               tObjNew = trkfilesIobj{iTmp};
-              if isMA
-                tObj = TrxUtil.ptrxmerge(tObj,tObjNew);
-              else
-                tObj.mergePartial(tObjNew);
-              end
+              tObj.merge(tObjNew);
+%               if isMA
+%                 tObj = TrxUtil.ptrxmerge(tObj,tObjNew);
+%               else
+%                 tObj.mergePartial(tObjNew);
+%               end
             end
             trkfileObjs{i,ivw} = tObj;
             tfHasRes(i) = true;

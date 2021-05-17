@@ -2,7 +2,8 @@ classdef TrkFile < dynamicprops
   
   properties (Constant,Hidden)
     unsetVal = '__UNSET__';
-    listfile_fns = {'pred_locs','to_track','pred_tag','list_file','pred_ts','pred_conf'};
+    listfile_fns = {'pred_locs','to_track','pred_tag','list_file',...
+      'pred_ts','pred_conf'};
   end
   
   properties
@@ -14,25 +15,64 @@ classdef TrkFile < dynamicprops
     pTrkFrm = TrkFile.unsetVal;  % [nfrm]. frames tracked
     pTrkiTgt = TrkFile.unsetVal; % [ntgt]. targets (1-based Indices) tracked
 
+    % CPR-specific
     pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
     pTrkFullFT = TrkFile.unsetVal; % [nTrkFull x ncol] Frame-Target table labeling 4th dim of pTrkFull
     
     trkInfo % "user data" for tracker
     % which video these trajectories correspond to
     movfile = TrkFile.unsetVal;
+    
+    isfull = false;  % if true, .pTrk etc are full
   end
+  
+  % Dev notes 20210514
+  %
+  % TrkFiles represent tracking output, while Labels represent user 
+  % annotations. Tracking output typically comes in (large) blocks of 
+  % contiguous frames for one or more targets; Labels on the other hand
+  % are usually quite sparse across movies, time, and targets.
+  %
+  % TrkFile storage formats:
+  % 1) Dense array. Not bad for single-target or well-body-tracked
+  % projects, but inefficient for general multianimal tracking.
+  % 2) Sparse array. This is more an implementaiton detail/
+  % compression scheme on top of 1. 
+  % 3) Tracklet. This is the main production format produced by the APT
+  % backend.
+  % 4) PTrx. This is similar to 3 but mirrors the Ctrax 'trx' format. It 
+  % has backwards compatibility with Ctrax but is hard to work with from Py 
+  % and doesn't have a convenient place for top-level metadata.
+  % 5) Table/Labels. This tabular format is useful in the case of sparse
+  % data and for some analysis tasks. APT can also produce this format in
+  % the case of "listfile"/sparse tracking.
+  %
+  % TrkFile primarily supports 3) as APT's production tracking format, but
+  % also supports formats 1) and 2) as those have similar top-level fields.
+  % 
+  % 4) and 5) have entirely different storage schemes. A full API for 5) is
+  % available in Labels.m; see PTrx.m for utilities for 4).
+  %
+  % Note that there is no single optimal storage format, as eg 'sparse'
+  % tracking is not optimally stored as tracklets and vice versa etc.
   
   methods
     
-    function obj = TrkFile(ptrk,varargin)
+    function obj = TrkFile()
+    end
+    
+    function initFromArraysFull(obj,ptrk,varargin)
+      % 
       % ptrk: must be supplied, to set .pTrk
       % varargin: p-v pairs for remaining props
       %
       % Example: tfObj = TrkFile(myTrkPos,'pTrkTS',myTrkTS);
+      %
+      % Note: init* methods do not clear old state that is already set
       
-      if nargin==0        
-        return;
-      end
+      assert(isnumeric(ptrk));
+
+      obj.pTrk = ptrk;
       
       nArg = numel(varargin);
       for i=1:2:nArg
@@ -45,16 +85,20 @@ classdef TrkFile < dynamicprops
         obj.(prop) = val;
       end
       
-      % trk files can either be full matrices or sparse tables      
-      if isnumeric(ptrk),
-        obj.pTrk = ptrk;
-      elseif isstruct(ptrk),
-        obj.InitializeTable(ptrk);
-      end
+      obj.isfull = true;
+      obj.initUnsetFull();
+    end
+    
+    function initUnsetFull(obj)
+      % Set any "unset" props
+      % Note: init* methods do not clear old state that is already set
+
+      assert(obj.isfull);
+      assert(~isempty(obj.pTrk));
       
       [npttrk,d,nfrm,ntgt] = size(obj.pTrk);
       if d~=2
-        error('TrkFile:TrkFile','Expected d==2.');
+        error('TrkFile:TrkFile','. Trkfile is primarily designed for 3. but Expected d==2.');
       end
 
       if isequal(obj.pTrkTS,TrkFile.unsetVal)
@@ -99,13 +143,30 @@ classdef TrkFile < dynamicprops
       nFull = size(obj.pTrkFull,4);
       validateattributes(obj.pTrkFull,{'numeric'},...
         {'size' [npttrk 2 nRep nFull]},'','pTrkFull');
-      assert(istable(obj.pTrkFullFT) && height(obj.pTrkFullFT)==nFull);
+      assert(istable(obj.pTrkFullFT) && height(obj.pTrkFullFT)==nFull);      
     end
     
-    % initialize fields from sparse table trk file
-    function InitializeTable(obj,s)
+    function initFromTableFull(obj,s,varargin)
+      %
+      % Note: init* methods do not clear old state that is already set
+      % 
+      % this API is strange s and the pvs
 
-      [movfiles,nviewstrack] = TrkFile.convertJSONCellMatrix(s.to_track.movieFiles);
+      assert(isstruct(s));
+      
+      nArg = numel(varargin);
+      for i=1:2:nArg
+        prop = varargin{i};
+        val = varargin{i+1};
+        if ~isprop(obj,prop)
+          warningNoTrace('Adding TrkFile property ''%s''.',prop);
+          obj.addprop(prop);
+        end         
+        obj.(prop) = val;
+      end
+      
+      [movfiles,nviewstrack] = ...
+        TrkFile.convertJSONCellMatrix(s.to_track.movieFiles);
 
       n = size(s.pred_locs,1);
       npts = size(s.pred_locs,2);
@@ -176,32 +237,274 @@ classdef TrkFile < dynamicprops
         end
       end
       
-%       pTrk = reshape(pTrk,[nidx,npts*2]); %#ok<PROPLC>
-%       tfOcc = false(nidx,npts);
-%       pTrkTS = nan(n,npts); %#ok<PROPLC>
-%       obj.pTbl = table(frm,iTgt,pTrk,tfOcc,pTrkTS); %#ok<PROPLC>
+      obj.isfull = true;
+      obj.initUnsetFull();      
+    end    
+    
+    function initFromTracklet(obj,s)
+      flds = fieldnames(s);
+      for prop=flds(:)',prop=prop{1}; %#ok<FXSET>
+        if ~isprop(obj,prop)
+          %warningNoTrace('Adding TrkFile property ''%s''.',prop);
+          obj.addprop(prop);
+        end
+        obj.(prop) = s.(prop);
+      end
+      
+      flds = obj.trkflds();
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        v = obj.(f);
+        assert(iscell(v));
+        for i=1:numel(v)
+          if isempty(v{i})
+            % compensate for apparent bug on Py side
+            % https://github.com/frejanordsiek/hdf5storage/issues/114          
+            ndim = ndims(v{i});
+            v{i} = permute(v{i},ndim:-1:1);
+          end
+        end
+        obj.(f) = v;
+      end
+      
+      obj.isfull = false;
     end
     
-%     function v = isTable(obj)
-%       v = strcmpi(obj.type,'table');
-%     end
-% 
-%     function v = isFullMatrix(obj)
-%       v = strcmpi(obj.type,'fullmatrix');
-%     end
-
-    
-    function save(obj,filename)
-      % Saves to filename; ALWAYS OVERWRITES!!
-      
+    function s = structizeRmUnusedFlds(obj)
       warnst = warning('off','MATLAB:structOnObject');
       s = struct(obj);
       warning(warnst);
-      s = rmfield(s,'unsetVal'); %#ok<NASGU>      
+      for f=fieldnames(s)',f=f{1}; %#ok<FXSET>
+        if ischar(s.(f)) && strcmp(s.(f),TrkFile.unsetVal)
+          s = rmfield(s,f);
+        end
+      end
+
+      % above check removes .unsetVal prop!
+      
+      s = rmfield(s,'listfile_fns');
+    end
+
+    function save(obj,filename)
+      % Saves to filename; ALWAYS OVERWRITES!!
+      
+      s = obj.structizeRmUnusedFlds();
       save(filename,'-mat','-struct','s');
     end
     
-    function tbl = tableform(obj)
+  end
+  
+  methods (Static) % load
+    
+    % v = isValidLoadFullMatrix(s)
+    % whether the struct resulting from loading is a full matrix trk file
+    function v = isValidLoadFullMatrix(s)
+      v = isfield(s,'pTrk');
+    end
+    
+    % v = isValidLoadTable(s)
+    % whether the struct resulting from loading is a table trk file
+    function v = isValidLoadTable(s)
+      v = all(isfield(s,{'to_track','pred_locs'}));
+    end      
+    
+    function v = isValidLoad(s)
+      v = isValidLoadFullMatrix(s) || isValidLoadTable(s);
+    end
+    
+    function filetype = getFileType(s)
+      if all(isfield(s,{'startframes' 'endframes'}))
+        filetype = 'tracklet';
+      elseif TrkFile.isValidLoadFullMatrix(s),
+        filetype = 'fullmatrix';
+      elseif TrkFile.isValidLoadTable(s),
+        filetype = 'table';
+      else
+        filetype = '';
+      end
+    end
+    
+    function trkfileObj = load(filename,movfile,issilent)
+
+      ntries = 5;
+      if nargin < 2,
+        movfile = '';
+      end
+      if nargin < 3,
+        issilent = false;
+      end
+      if ~exist(filename,'file'),
+        trkfileObj = [];
+        return;
+      end
+      
+      for tryi = 1:ntries,
+        s = load(filename,'-mat');
+        if isempty(fieldnames(s)) && tryi < ntries,
+          fprintf('Attempt %d to load %s failed, retrying\n',tryi,filename);
+          pause(5);
+          continue;
+        end
+        break;
+      end
+      filetype = TrkFile.getFileType(s);
+      if isempty(filetype),
+        error('TrkFile:load',...
+          'File ''%s'' is not a valid saved trkfile structure.',filename);
+      end
+      
+%       if strcmp(filetype,'tracklet')
+%         %%% Tracklet early return %%%
+%         trkfileObj = load_tracklet(s);
+%         % We do this right here, upon entry into APT, but this might more
+%         % properly be done further inside the App (eg at vizInit-time) as 
+%         % .x, .y are more for viz purposes.
+%         trkfileObj = TrxUtil.ptrxAddXY(trkfileObj); 
+%         [trkfileObj.movfile] = deal(movfile);
+%         return;        
+%       end        
+        
+      s = TrkFile.modernizeStruct(s);      
+      trkfileObj = TrkFile();
+      switch filetype,
+        case 'tracklet'
+          s.movfile = movfile;
+          trkfileObj.initFromTracklet(s);
+        case {'fullmatrix' 'table'}
+          if issilent,
+            mc = meta.class.fromName('TrkFile');
+            propnames = {mc.PropertyList.Name}';
+            fns = fieldnames(s);%setdiff(fieldnames(s),TrkFile.listfile_fns);
+            tfrecog = ismember(fns,propnames);
+            fnsunrecog = fns(~tfrecog);
+            srecog = rmfield(s,fnsunrecog);
+          else
+            srecog = s;
+          end
+
+          if strcmp(filetype,'fullmatrix')
+            pTrk = s.pTrk;
+            pvs = struct2pvs(rmfield(srecog,'pTrk'));
+            trkfileObj.initFromArraysFull(pTrk,'movfile',movfile,pvs{:});
+          else % table       
+            pTrk = struct;
+            pTrk.pred_locs = s.pred_locs;
+            pTrk.to_track = s.to_track;
+            pvs = struct2pvs(srecog);
+            trkfileObj.initFromTableFull(pTrk,'movfile',movfile,pvs{:});
+          end
+          
+          if issilent,
+            fnsunrecog = setdiff(fnsunrecog,TrkFile.listfile_fns);
+            for f=fnsunrecog(:)',f=f{1}; %#ok<FXSET>
+              trkfileObj.addprop(f);
+              trkfileObj.(f) = s.(f);
+            end
+          end
+      end
+    end
+    
+    function trkfileObj = loadsilent(filename,movfile)
+      if nargin < 2,
+        movfile = '';
+      end
+      trkfileObj = TrkFile.load(filename,movfile,true);
+    end
+    
+    function s = modernizeStruct(s)
+      if isfield(s,'pred_conf'),
+        s = rmfield(s,'pred_conf');
+      end
+      if isfield(s,'list_file'),
+        s = rmfield(s,'list_file');
+      end
+      if isfield(s,'listfile_fns')
+        s = rmfield(s,'listfile_fns');
+      end
+    end
+    
+  end
+  
+  methods % tracklet
+    
+    function trkflds = trkflds(obj)
+      % tracklet 'pTrk' fields (cell contents etc)
+      
+      fns = fieldnames(obj);
+      trkflds = fns(startsWith(fns,'pTrk'));
+      trkflds = setdiff(trkflds,{'pTrkiPt' 'pTrkFrm' 'pTrkiTgt' ...
+        'pTrkFull' 'pTrkFullFT'});
+    end
+    
+    function merge(obj,obj1)
+      % updates obj0 in place
+      %
+      % Right now assumes unique/distinct tracklet IDs; later, add eg 'ID'
+      % field and merge consistent IDs together with nans as filler.
+      
+      assert(~obj.isfull,'Attempt to merge non-tracklets.');
+      assert(~obj1.isfull,'Attempt to merge non-tracklets.');
+      fns = fieldnames(obj); % includes dynamic/added props
+      assert(isequal(fns,fieldnames(obj1)),...
+        'Attempt to merge tracklets with different fields.');
+      
+      ntgt0 = numel(obj.pTrk);
+      ntgt1 = numel(obj1.pTrk);
+      ntgttot = ntgt0+ntgt1;
+      
+      ptrkflds = fns(startsWith(fns,'pTrk'));
+      ptrkflds(end+1:end+2) = {'startframes' 'endframes'};
+      for f=ptrkflds(:)',f=f{1}; %#ok<FXSET>
+        v0 = obj.(f);
+        if iscell(v0) % filters out __UNSET__ fields, startframes etc.
+          obj.(f) = cat(2,v0,obj1.(f));
+        end
+      end
+      
+      % not sure what to do here
+      trkfrm0 = obj.pTrkFrm;
+      trkfrm1 = obj1.pTrkFrm;
+      f0 = min(trkfrm0(1),trkfrm1(1));
+      f1 = max(trkfrm0(end),trkfrm1(end));
+      obj.pTrkFrm = f0:f1;
+      
+      if ~isequal(obj.pTrkiTgt,1:ntgttot)
+        warningNoTrace('Unexpected .pTrkiTgt.');
+      end
+      obj.pTrkiTgt = 1:ntgttot;
+      % trkInfo: unchanged
+      if ~isequal(obj.movfile,obj1.movfile)
+        warningNoTrace('Trkfiles have differing .movfile fields.');
+      end
+    end
+    
+    function t = tableform(obj)
+      assert(~obj.isfull);
+      frm = arrayfun(@(x,y)(x:y)',obj.startframes,obj.endframes,'uni',0);
+      
+      s = struct();
+      %s.iTgt = 1;
+      s.frm = cat(1,frm{:});
+      flds = obj.trkflds();
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        v = obj.(f);
+        nd = cellfun(@ndims,v);
+        assert(all(nd==nd(1)));
+        nd = nd(1);
+        v = cellfun(@(x)permute(x,[nd 1:nd-1]),v,'uni',0); % put 'frame' dim first
+        % convert to 2d arrays (in particular for pTrk)
+        v = cellfun(@(x)reshape(x,size(x,1),[]),v,'uni',0); 
+        s.(f) = cat(1,v{:});
+      end      
+      
+      t = struct2table(s);
+    end
+    
+  end
+  
+  methods % table/full utils
+    
+    % only one callsite and seems unnec
+    function tbl = tableformFull(obj)
       p = obj.pTrk;
       [npts,d,nF,nTgt] = size(p);
       assert(d==2);
@@ -230,7 +533,8 @@ classdef TrkFile < dynamicprops
       tbl = struct2table(s);
     end
     
-    function mergePartial(obj1,obj2)
+    % wont have callsites
+    function mergePartialFull(obj1,obj2)
       % Merge trkfile into current trkfile. Doesn't merge .pTrkFull* fields 
       % (for now).
       %
@@ -334,7 +638,7 @@ classdef TrkFile < dynamicprops
       end
       
       for fldi = 1:numel(flds),
-        obj1.hlpMergePartialTgts(obj2,flds{fldi},szs.(flds{fldi}),allidx,allnewidx,allitgt);
+        obj1.hlpMergePartialFullTgts(obj2,flds{fldi},szs.(flds{fldi}),allidx,allnewidx,allitgt);
       end
         
 % old code
@@ -395,7 +699,7 @@ classdef TrkFile < dynamicprops
       end
     end
     
-    function hlpMergePartialTgts(obj1,obj2,fld,valsz,allidx,allnewidx,allitgt)
+    function hlpMergePartialFullTgts(obj1,obj2,fld,valsz,allidx,allnewidx,allitgt)
       % helper for mergePartial for each property
       % obj1.hlpMergePartialTgts(obj2,fld,valsz,allidx,allnewidx,allitgt)
       %
@@ -448,48 +752,48 @@ classdef TrkFile < dynamicprops
       obj1.(fld) = val;
     end
     
-    function hlpMergePartial(obj1,obj2,fld,valsz,locfrm1,loctgt1,locfrm2,loctgt2)
-      % helper for mergePartial to handle additional/dynamic props
-      %
-      % mutates obj1.(fld)
-      % obsolete? 
-      
-      isprop1 = isprop(obj1,fld);
-      isprop2 = isprop(obj2,fld);
-      
-      if isprop1 || isprop2
-        val = nan(valsz);
-        valndim = numel(valsz);
-        if isprop1
-          switch valndim
-            case 3
-              val(:,locfrm1,loctgt1) = obj1.(fld);
-            case 4
-              val(:,:,locfrm1,loctgt1) = obj1.(fld);
-            otherwise
-              assert(false);
-          end
-        end
-        
-        if isprop2
-          switch valndim
-            case 3
-              val(:,locfrm2,loctgt2) = obj2.(fld);
-            case 4              
-              val(:,:,locfrm2,loctgt2) = obj2.(fld);
-            otherwise
-              assert(false);
-          end
-        end
-        
-        if ~isprop1
-          obj1.addprop(fld);
-        end        
-        obj1.(fld) = val;
-      end
-    end
+%     function hlpMergePartial(obj1,obj2,fld,valsz,locfrm1,loctgt1,locfrm2,loctgt2)
+%       % helper for mergePartial to handle additional/dynamic props
+%       %
+%       % mutates obj1.(fld)
+%       % obsolete? 
+%       
+%       isprop1 = isprop(obj1,fld);
+%       isprop2 = isprop(obj2,fld);
+%       
+%       if isprop1 || isprop2
+%         val = nan(valsz);
+%         valndim = numel(valsz);
+%         if isprop1
+%           switch valndim
+%             case 3
+%               val(:,locfrm1,loctgt1) = obj1.(fld);
+%             case 4
+%               val(:,:,locfrm1,loctgt1) = obj1.(fld);
+%             otherwise
+%               assert(false);
+%           end
+%         end
+%         
+%         if isprop2
+%           switch valndim
+%             case 3
+%               val(:,locfrm2,loctgt2) = obj2.(fld);
+%             case 4              
+%               val(:,:,locfrm2,loctgt2) = obj2.(fld);
+%             otherwise
+%               assert(false);
+%           end
+%         end
+%         
+%         if ~isprop1
+%           obj1.addprop(fld);
+%         end        
+%         obj1.(fld) = val;
+%       end
+%     end
     
-    function indexInPlace(obj,ipts,ifrms,itgts)
+    function indexInPlaceFull(obj,ipts,ifrms,itgts)
       % Subscripted-index a TrkFile *IN PLACE*. Your TrkFile will become
       % smaller and you will 'lose' data!
       % 
@@ -562,157 +866,6 @@ classdef TrkFile < dynamicprops
   end
   
   methods (Static)
-
-    % v = isValidLoadFullMatrix(s)
-    % whether the struct resulting from loading is a full matrix trk file
-    function v = isValidLoadFullMatrix(s)
-      v = isfield(s,'pTrk');
-    end
-    
-    % v = isValidLoadTable(s)
-    % whether the struct resulting from loading is a table trk file
-    function v = isValidLoadTable(s)
-      v = all(isfield(s,{'to_track','pred_locs'}));
-    end      
-    
-    function v = isValidLoad(s)
-      v = isValidLoadFullMatrix(s) || isValidLoadTable(s);
-    end
-    
-    function filetype = getFileType(s)
-      
-      if all(isfield(s,{'startframes' 'endframes'}))
-        filetype = 'tracklet';
-      elseif TrkFile.isValidLoadFullMatrix(s),
-        filetype = 'fullmatrix';
-      elseif TrkFile.isValidLoadTable(s),
-        filetype = 'table';
-      else
-        filetype = '';
-      end
-    end
-    
-    function trkfileObj = load(filename,movfile,issilent)
-
-      ntries = 5;
-      if nargin < 2,
-        movfile = '';
-      end
-      if nargin < 3,
-        issilent = false;
-      end
-      if ~exist(filename,'file'),
-        trkfileObj = [];
-        return;
-      end
-      
-      for tryi = 1:ntries,
-        s = load(filename,'-mat');
-        if isempty(fieldnames(s)) && tryi < ntries,
-          fprintf('Attempt %d to load %s failed, retrying\n',tryi,filename);
-          pause(5);
-          continue;
-        end
-        break;
-      end
-      filetype = TrkFile.getFileType(s);
-      if strcmp(filetype,'tracklet')
-        %%% Tracklet early return %%%
-        trkfileObj = load_tracklet(s);
-        % We do this right here, upon entry into APT, but this might more
-        % properly be done further inside the App (eg at vizInit-time) as 
-        % .x, .y are more for viz purposes.
-        trkfileObj = TrxUtil.ptrxAddXY(trkfileObj); 
-        [trkfileObj.movfile] = deal(movfile);
-        return;        
-      end        
-        
-      s = TrkFile.modernizeStruct(s);
-      if isempty(filetype),
-        error('TrkFile:load',...
-          'File ''%s'' is not a valid saved trkfile structure.',filename);
-      end
-      
-      if issilent,
-        mc = meta.class.fromName('TrkFile');
-        propnames = {mc.PropertyList.Name}';
-        fns = fieldnames(s);%setdiff(fieldnames(s),TrkFile.listfile_fns);
-        tfrecog = ismember(fns,propnames);
-        fnsunrecog = fns(~tfrecog);
-        srecog = rmfield(s,fnsunrecog);
-      else
-        srecog = s;
-      end
-      
-      switch filetype,
-        case 'fullmatrix',
-          pTrk = s.pTrk;
-          pvs = struct2pvs(rmfield(srecog,'pTrk'));
-        case 'table'
-          pTrk = struct;
-          pTrk.pred_locs = s.pred_locs;
-          pTrk.to_track = s.to_track;
-          pvs = struct2pvs(srecog);
-      end
-      trkfileObj = TrkFile(pTrk,'movfile',movfile,pvs{:});
-      
-      if issilent,
-        fnsunrecog = setdiff(fnsunrecog,TrkFile.listfile_fns);
-        for f=fnsunrecog(:)',f=f{1};
-          trkfileObj.addprop(f);
-          trkfileObj.(f) = s.(f);
-        end
-      end
-    end
-    
-    function trkfileObj = loadsilent(filename,movfile)
-
-      if nargin < 2,
-        movfile = '';
-      end
-      trkfileObj = TrkFile.load(filename,movfile,true);
-      
-%       % ignore fields of struct that aren't TrkFile props. For 3rd-party
-%       % generated Trkfiles
-%       s = load(filename,'-mat');
-%       s = TrkFile.modernizeStruct(s);      
-%       
-%       pTrk = s.pTrk;
-%       
-%       mc = meta.class.fromName('TrkFile');
-%       propnames = {mc.PropertyList.Name}';
-%       fns = fieldnames(s);
-%       tfrecog = ismember(fns,propnames);
-%       %fnsrecog = fns(tfrecog);
-%       fnsunrecog = fns(~tfrecog);
-%       
-%       srecog = rmfield(s,fnsunrecog);
-%       pvs = struct2pvs(rmfield(srecog,'pTrk'));
-%       trkfileObj = TrkFile(pTrk,pvs{:});
-%       
-%       for f=fnsunrecog(:)',f=f{1};
-%         trkfileObj.addprop(f);
-%         trkfileObj.(f) = s.(f);
-%       end      
-    end
-
-    function s = modernizeStruct(s)
-
-      if isfield(s,'pred_conf'),
-        s = rmfield(s,'pred_conf');
-      end
-      if isfield(s,'list_file'),
-        s = rmfield(s,'list_file');
-      end
-      if isfield(s,'listfile_fns')
-        s = rmfield(s,'listfile_fns');
-      end
-      
-      % s: struct loaded from trkfile saved to matfile
-      if isfield(s,'pTrkTag') && iscell(s.pTrkTag)
-        s.pTrkTag = strcmp(s.pTrkTag,'occ');
-      end
-    end
     
     function [nFramesTracked,didload] = getNFramesTrackedPartFile(tfile)
       
@@ -725,7 +878,6 @@ classdef TrkFile < dynamicprops
         return;
       end
       nFramesTracked = str2double(toks{1}.numfrmstrked);
-
     end
 
     function [nFramesTracked,didload] = getNFramesTrackedMatFile(tfile)
@@ -774,7 +926,6 @@ classdef TrkFile < dynamicprops
       end
 
     end
-
     
     function [nFramesTracked,didload] = getNFramesTracked(tfile)
       nFramesTracked = 0;
