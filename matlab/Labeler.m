@@ -9451,7 +9451,7 @@ classdef Labeler < handle
         tblTrkRes(:,'p') = [];
       else
         tObj.track(tblMFT_SuggAndLbled);
-        tblTrkRes = tObj.getAllTrackResTable();
+        tblTrkRes = tObj.getTrackingResultsTable();
       end
 
       tblGTres = obj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblTrkRes);
@@ -11412,7 +11412,7 @@ classdef Labeler < handle
           wbObj.endPeriod();
         end
         tObj.track(tblMFgtTrack,'wbObj',wbObj);        
-        tblTrkRes = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
+        tblTrkRes = tObj.getTrackingResultsTable(); % if wbObj.isCancel, partial tracking results
         if initData
           obj.preProcInitData();
           obj.ppdbInit();
@@ -11530,7 +11530,7 @@ classdef Labeler < handle
         return;
       end      
       
-      tblTrkRes = tObj.getAllTrackResTable();
+      tblTrkRes = tObj.getTrackingResultsTable();
       tObj.trnDataInit();
       tObj.trnResInit();
       tObj.trackResInit();
@@ -11654,10 +11654,10 @@ classdef Labeler < handle
       else
         tfcpr = isa(tObj,'CPRLabelTracker');
         if tfcpr
-          [tfhaspred,xy] = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+          [tfhaspred,xy] = tObj.getTrackingResultsCurrFrm(); % [nPtsx2xnTgt]
           occ = false(obj.nLabelPoints,obj.nTargets);
         else
-          [tfhaspred,xy,occ] = tObj.getPredictionCurrentFrame();
+          [tfhaspred,xy,occ] = tObj.getTrackingResultsCurrFrm();
         end
         tf = tfhaspred(iTgt);
         szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);        
@@ -11884,7 +11884,7 @@ classdef Labeler < handle
 
       tObj = obj.tracker;
       if ~isempty(tObj)
-        tblTrked = tObj.getAllTrackResTable();
+        tblTrked = tObj.getTrackingResultsTable();
       else
         tblTrked = [];
       end
@@ -12299,7 +12299,7 @@ classdef Labeler < handle
       
       tracker = obj.tracker;
       if ~isempty(tracker)
-        [tfhaspred,xy] = tracker.getPredictionCurrentFrame();
+        [tfhaspred,xy] = tracker.getTrackingResultsCurrFrm();
         if tfhaspred
           return;
         end
@@ -14351,7 +14351,7 @@ classdef Labeler < handle
               trkP = cat(1,trkP{:}); % [nlabelpoints x 2 x nfrm x ntgt]
               trv = trvs{iTR};
               trv.updateTrackRes(trkP);
-                  % % From DeepTracker.getPredictionCurrFrame
+                  % % From DeepTracker.getTrackingResultsCurrFrm
                   % AL20160502: When changing movies, order of updates to
                   % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
                   % % be updated first, resulting in an OOB currFrame; protect against

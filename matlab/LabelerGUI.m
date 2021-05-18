@@ -4319,7 +4319,7 @@ if lObj.gtIsGTMode
   error('LabelerGUI:gt','Unsupported in GT mode.');
 end
 if ~isempty(tObj) && tObj.getHasTrained()
-  [tfhaspred,xy,tfocc] = tObj.getPredictionCurrentFrame(); %#ok<ASGLU>
+  [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
   itgt = lObj.currTarget;
   if ~tfhaspred(itgt)
     msgbox('No predictions for current frame.');

@@ -459,7 +459,7 @@ classdef CPRLabelTracker < LabelTracker
       notify(obj,'newTrackingResults');
     end
     
-    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
+    function [tblTrkRes,pTrkiPt] = getTrackingResultsTable(obj) % obj const
       % Get all current tracking results in a table
       %
       % tblTrkRes: [NTrk x ncol] table of tracking results
@@ -2349,7 +2349,7 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      [xy,isinterp,xyfull] = obj.getPredictionCurrentFrame();
+      [xy,isinterp,xyfull] = obj.getTrackingResultsCurrFrm();
       
       if obj.asyncPredictOn && all(isnan(xy(:)))
         obj.asyncTrackCurrFrameBG();
@@ -2716,7 +2716,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#%MTGT
-    function [tfhaspred,xy,isinterp,xyfull] = getPredictionCurrentFrame(obj)
+    function [tfhaspred,xy,isinterp,xyfull] = getTrackingResultsCurrFrm(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
       % xyfull: [nPtsx2xnRep]. full tracking only for current target. Only 

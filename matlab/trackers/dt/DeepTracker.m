@@ -2381,7 +2381,7 @@ classdef DeepTracker < LabelTracker
               return;
             end
             if strcmpi(res,'Retrack'),
-              tblMFTRetrack = obj.getAllTrackResTable([],'ftonly',true);
+              tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
               ism = ismember(tblMFTRetrack,tblMFT);
               tblMFT = [tblMFT;tblMFTRetrack(~ism,:)];
             end
@@ -2390,7 +2390,7 @@ classdef DeepTracker < LabelTracker
         end
 
         % figure out what to track
-        tblMFTTracked = obj.getAllTrackResTable([],'ftonly',true);
+        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true);
         tblMFT0 = tblMFT;
         tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked);
         if isempty(tblMFT),
@@ -3967,7 +3967,7 @@ classdef DeepTracker < LabelTracker
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
           res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
           if strcmpi(res,'Retrack'),
-            tblMFTRetrack = obj.getAllTrackResTable([],'ftonly',true);
+            tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
             obj.track(tblMFTRetrack);
           end
         end
@@ -5535,7 +5535,7 @@ classdef DeepTracker < LabelTracker
     
   end
   methods
-    function tblTrkRes = getAllTrackResTable(obj,mIdxs,varargin) % obj const
+    function tblTrkRes = getTrackingResultsTable(obj,mIdxs,varargin) % obj const
       % Get all current tracking results in a table
       %
       % mIdxs: [nmovrequested] vector of MovieIndices. Pass [] to get all
@@ -5722,7 +5722,7 @@ classdef DeepTracker < LabelTracker
       %obj.trkAux = aux;
       %obj.trkAuxLbl = {auxInfo.label}';
     end
-    function [tfhaspred,xy,tfocc] = getPredictionCurrentFrame(obj)
+    function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)
       % See TrkFile/getPTrkFrame
       
       frm = obj.lObj.currFrame;
@@ -5812,7 +5812,7 @@ classdef DeepTracker < LabelTracker
       %if true % lObj.maIsMA
       tv.newFrame(lObj.currFrame);
       %else
-%         [xy,tfocc] = obj.getPredictionCurrentFrame();    
+%         [xy,tfocc] = obj.getTrackingResultsCurrFrm();    
 %         tv.updateTrackRes(xy,tfocc);
       %end
     end
