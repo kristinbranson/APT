@@ -25,6 +25,7 @@ classdef TrkFile < dynamicprops
     
     isfull = false;  % if true, .pTrk etc are full
     
+    % tracklet stuff
     frm2tlt  % [nfrmtot x ntgt] logical indicating frames where tracklets 
              % are live.
   end
@@ -53,7 +54,7 @@ classdef TrkFile < dynamicprops
   % data and for some analysis tasks. APT can also produce this format in
   % the case of "listfile"/sparse tracking.
   %
-  % TrkFile primarily supports 3) as APT's production tracking format, but
+  % TrkFile primarily supports 3) as APT's production tracking format, but 
   % also supports formats 1) and 2) as those have similar top-level fields.
   % 
   % 4) and 5) have entirely different storage schemes. A full API for 5) is
@@ -483,13 +484,22 @@ classdef TrkFile < dynamicprops
       end
     end
     
-    function t = tableform(obj)
+    function t = tableform(obj,varargin)
+      ftonly = myparse(varargin,...
+        'ftonly',false ...
+        );
+      
       assert(~obj.isfull);
       frm = arrayfun(@(x,y)(x:y)',obj.startframes,obj.endframes,'uni',0);
-      
+      iTgt = cellfun(@(x,y)repmat(x,numel(y),1),num2cell(obj.pTrkiTgt),frm,'uni',0);
       s = struct();
-      %s.iTgt = 1;
       s.frm = cat(1,frm{:});
+      s.iTgt = cat(1,iTgt{:});
+      if ftonly
+        t = struct2table(s);
+        return;
+      end
+      
       flds = obj.trkflds();
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         v = obj.(f);
@@ -506,7 +516,7 @@ classdef TrkFile < dynamicprops
     end
     
     function initFrm2Tlt(obj,nfrm)
-      % Initialize .frm2tlt property
+      % Initialize .frm2tlt property; implicitly sets .T1 
       %
       % nfrm (opt). total number of frames, eg in movie. If not specified,
       % max(obj.endframes) is used.
@@ -514,9 +524,9 @@ classdef TrkFile < dynamicprops
       assert(~obj.isfull);
       
       if nargin < 2
-        nfrm = max(trk.endframes);
+        nfrm = max(obj.endframes);
       end
-      ntgt = numel(trk.pTrk);
+      ntgt = numel(obj.pTrk);
       f2t = false(nfrm,ntgt);
       sf = obj.startframes;
       ef = obj.endframes;
@@ -555,6 +565,77 @@ classdef TrkFile < dynamicprops
       end
     end
     
+    function xy = getPTrkTgt(obj,iTlt)
+      % get tracking for particular target
+      %
+      % iTlt: tracklet index
+      %
+      % xy: [npt x 2 x nfrm] where nfrm=size(obj.frm2trx,1)
+      
+      ptrkI = obj.pTrk{iTlt};
+      npts = size(pTrkI,1);
+      nfrm = size(obj.frm2trx,1);
+      xy = nan(npts,2,nfrm);      
+      f0 = obj.startframe(iTlt);
+      f1 = obj.endframe(iTlt);
+      xy(:,:,f0:f1) = ptrkI;
+    end
+    
+    function xyaux = getPAuxTgt(obj,iTlt,ptrkfld)
+      % get aux tracking timeseries (eg confidences) for particular tgt
+      %
+      % iTlt: tracklet index
+      % ptrkfld: field, eg 'pTrkConf'
+      %
+      % xyaux: [npt x nfrm] auxiliary tracking
+      
+      pauxI = obj.(ptrkfld){iTlt};
+      npts = size(pauxI,1);
+      nfrm = size(obj.frm2trx,1);
+      xyaux = nan(npts,nfrm);
+      f0 = obj.startframe(iTlt);
+      f1 = obj.endframe(iTlt);
+      xyaux(:,f0:f1) = pauxI;
+    end
+  end
+  methods (Static)
+    function t = mergetablesMultiview(varargin)
+      % t = mergetables(t1,t2,t3,...)
+      %
+      % Merge outputs of tableforms, assuming t1,t2,... represent
+      % multiview data.
+      
+      t0 = varargin{1};
+      ntbl = numel(varargin); % assumed to be same as nviews
+      
+      colsall = t0.Properties.VariableNames;
+      assert(isequal(colsall(1:2),{'frm' 'iTgt'}));
+      colstrk = colsall(3:end);
+      
+      for i=2:ntbl
+        t1 = varargin{i};
+        t0 = outerjoin(t0,t1,'keys',{'frm' 'iTgt'},'mergekeys',true);
+        for c=colstrk,c=c{1}; %#ok<FXSET>
+          c0 = [c '_t0'];
+          c1 = [c '_t1'];
+          t0.(c) = [t0.(c0) t0.(c1)];          
+        end
+        t0 = t0(:,colsall);
+      end
+      
+      if any(strcmp(colstrk,'pTrk'))  % might not be true eg for FT-only tables
+        % pTrk now has col order [x1v1 x2v1 .. xkv1 y1v1 .. ykv1 x1v2 ...]
+        % fix this up to standard [ <all x> <all y> ]
+        n = height(t0);
+        npt = size(t0.pTrk,2)/2;
+        ptrk = reshape(t0.pTrk,n,npt,2,ntbl); 
+        ptrk = permute(ptrk,[1 2 4 3]);
+        ptrk = reshape(ptrk,n,[]);
+        t0.pTrk = ptrk;
+      end
+      
+      t = t0;
+    end
   end
   
   methods % table/full utils

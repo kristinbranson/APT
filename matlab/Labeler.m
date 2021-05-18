@@ -11412,7 +11412,7 @@ classdef Labeler < handle
           wbObj.endPeriod();
         end
         tObj.track(tblMFgtTrack,'wbObj',wbObj);        
-        [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
+        tblTrkRes = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
         if initData
           obj.preProcInitData();
           obj.ppdbInit();
@@ -11424,7 +11424,7 @@ classdef Labeler < handle
           return;
         end
         
-        assert(isequal(pTrkiPt(:)',1:npts));
+        %assert(isequal(pTrkiPt(:)',1:npts));
         assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
                        tblMFgtTrack(:,MFTable.FLDSID)));
         if obj.hasTrx || obj.cropProjHasCrops
@@ -11530,14 +11530,14 @@ classdef Labeler < handle
         return;
       end      
       
-      [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable();
+      tblTrkRes = tObj.getAllTrackResTable();
       tObj.trnDataInit();
       tObj.trnResInit();
       tObj.trackResInit();
       tObj.vizInit();
         
       npts = obj.nLabelPoints;      
-      assert(isequal(pTrkiPt(:)',1:npts));
+      %assert(isequal(pTrkiPt(:)',1:npts));
       assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
         tblMFTtrk(:,MFTable.FLDSID)));
       if obj.hasTrx || obj.cropProjHasCrops
@@ -12299,12 +12299,9 @@ classdef Labeler < handle
       
       tracker = obj.tracker;
       if ~isempty(tracker)
-        tpos = tracker.getTrackingResultsCurrMovieTgt; % XXX CHANGE ME TO CurrentFrame
-        if ~isempty(tpos)
-          xy = tpos(ipt,:,f);
-          if all(~isnan(xy))
-            return;
-          end
+        [tfhaspred,xy] = tracker.getPredictionCurrentFrame();
+        if tfhaspred
+          return;
         end
       end
       
