@@ -2716,7 +2716,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#%MTGT
-    function [xy,isinterp,xyfull] = getPredictionCurrentFrame(obj)
+    function [tfhaspred,xy,isinterp,xyfull] = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
       % xyfull: [nPtsx2xnRep]. full tracking only for current target. Only 
@@ -2727,6 +2727,7 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(xyPCM)
         npts = obj.nPts;
         nTgt = obj.lObj.nTargets;
+        tfhaspred = false(nTgt,1);
         xy = nan(npts,2,nTgt);
         isinterp = false;
       else
@@ -2738,6 +2739,8 @@ classdef CPRLabelTracker < LabelTracker
         
         xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
+        tfhaspred = any(~isnan(xy(:,1,:)),1);
+        tfhaspred = tfhaspred(:);
       end
       if obj.storeFullTracking>StoreFullTrackingType.NONE && ...
           ~isequal(obj.xyPrdCurrMovieFull,[])

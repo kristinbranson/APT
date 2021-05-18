@@ -11652,18 +11652,17 @@ classdef Labeler < handle
         lposTrk = [];
         occTrk = [];
       else
-        if isa(tObj,'CPRLabelTracker')
-          xy = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+        tfcpr = isa(tObj,'CPRLabelTracker');
+        if tfcpr
+          [tfhaspred,xy] = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
           occ = false(obj.nLabelPoints,obj.nTargets);
         else
-          [xy,occ] = tObj.getPredictionCurrentFrame();
+          [tfhaspred,xy,occ] = tObj.getPredictionCurrentFrame();
         end
-        szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);
-        
+        tf = tfhaspred(iTgt);
+        szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);        
         lposTrk = xy(:,:,iTgt);
         occTrk = occ(:,iTgt);
-        tfnan = isnan(xy); % hmm wonder why look at all of xy rather than just lposTrk
-        tf = any(~tfnan(:));
       end
     end
     
@@ -12300,7 +12299,7 @@ classdef Labeler < handle
       
       tracker = obj.tracker;
       if ~isempty(tracker)
-        tpos = tracker.getTrackingResultsCurrMovieTgt;
+        tpos = tracker.getTrackingResultsCurrMovieTgt; % XXX CHANGE ME TO CurrentFrame
         if ~isempty(tpos)
           xy = tpos(ipt,:,f);
           if all(~isnan(xy))

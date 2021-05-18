@@ -24,9 +24,15 @@ classdef TrkFile < dynamicprops
     movfile = TrkFile.unsetVal;
     
     isfull = false;  % if true, .pTrk etc are full
+    
+    frm2tlt  % [nfrmtot x ntgt] logical indicating frames where tracklets 
+             % are live.
   end
   
   % Dev notes 20210514
+  %
+  % This class prob better just named 'Trk' at this point as it has
+  % runtime-related functionality that extends beyond save/load.
   %
   % TrkFiles represent tracking output, while Labels represent user 
   % annotations. Tracking output typically comes in (large) blocks of 
@@ -497,6 +503,56 @@ classdef TrkFile < dynamicprops
       end      
       
       t = struct2table(s);
+    end
+    
+    function initFrm2Tlt(obj,nfrm)
+      % Initialize .frm2tlt property
+      %
+      % nfrm (opt). total number of frames, eg in movie. If not specified,
+      % max(obj.endframes) is used.
+      
+      assert(~obj.isfull);
+      
+      if nargin < 2
+        nfrm = max(trk.endframes);
+      end
+      ntgt = numel(trk.pTrk);
+      f2t = false(nfrm,ntgt);
+      sf = obj.startframes;
+      ef = obj.endframes;
+      for itgt=1:ntgt
+        f2t(sf(itgt):ef(itgt),itgt) = true;
+      end
+      obj.frm2tlt = f2t;
+    end
+    
+    function [tfhaspred,xy,tfocc] = getPTrkFrame(obj,f)
+      % get tracking for particular frames
+      %
+      % f: scalar (absolute) frame index
+      %
+      % tfhaspred: [ntgt] logical vec, whether pred is present
+      % xy: [npt x 2 x ntgt]
+      % tfocc: [npt x ntgt]
+      
+      tfhaspred = obj.frm2tlt(f,:).';
+      itgtsLive = find(tfhaspred);
+      npt = obj.npt;
+      ntgt = obj.ntgt;
+      xy = nan(npt,2,ntgt);
+      tfocc = false(npt,ntgt);
+      
+      pcell = obj.pTrkTlt;
+      pcelltag = obj.pTrkTag;
+      offs = 1-obj.startframes;
+      
+      for itgt=itgtsLive(:)'
+        ptgt = pcell{itgt};
+        ptag = pcelltag{itgt};
+        idx = f + offs(itgt);
+        xy(:,:,itgt) = ptgt(:,:,idx);
+        tfocc(:,itgt) = ptag(:,idx);
+      end
     end
     
   end

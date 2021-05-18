@@ -4319,12 +4319,13 @@ if lObj.gtIsGTMode
   error('LabelerGUI:gt','Unsupported in GT mode.');
 end
 if ~isempty(tObj) && tObj.getHasTrained()
-  xy = tObj.getPredictionCurrentFrame();
-  xy = xy(:,:,lObj.currTarget); % "targets" treatment differs from below
-  if any(isnan(xy(:)))
+  [tfhaspred,xy,tfocc] = tObj.getPredictionCurrentFrame(); %#ok<ASGLU>
+  itgt = lObj.currTarget;
+  if ~tfhaspred(itgt)
     msgbox('No predictions for current frame.');
-    return;
+    return;    
   end
+  xy = xy(:,:,itgt); % "targets" treatment differs from below
   disp(xy);
   
   % AL20161219: possibly dangerous, assignLabelCoords prob was intended

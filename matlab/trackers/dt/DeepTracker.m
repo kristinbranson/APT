@@ -165,11 +165,11 @@ classdef DeepTracker < LabelTracker
 
   properties        
     % track curr res -- in-mem tracking results for current mov    
-    trkP   % [nview] PTrx tracking results for current mov
-    trkPTS % [npt x nfrm x ntgt] timestamp for trkP*
+    trkP   % [nview] cell of TrkFile objs. tracking results for current mov
+    %trkPTS % [npt x nfrm x ntgt] timestamp for trkP*
     
-    trkAux % [npt x nfrm x ntgt x naux] auxiliary per-pt results eg confidences
-    trkAuxLbl % [naux] labels for 4th dim of trxAux
+    %trkAux % [npt x nfrm x ntgt x naux] auxiliary per-pt results eg confidences
+    %trkAuxLbl % [naux] labels for 4th dim of trxAux
               % naux given in DLNetType
   end
   properties (Dependent)
@@ -5343,8 +5343,8 @@ classdef DeepTracker < LabelTracker
       else
         iTgt = lo.currTarget;
         tpos = obj.trkP(:,:,:,iTgt);
-        taux = obj.trkAux(:,:,iTgt,:);
-        tauxlbl = obj.trkAuxLbl;
+        %taux = obj.trkAux(:,:,iTgt,:);
+        %tauxlbl = obj.trkAuxLbl;
       end
     end
     function [trkfileObjs,tfHasRes] = getTrackingResults(obj,mIdx)
@@ -5635,9 +5635,9 @@ classdef DeepTracker < LabelTracker
     function trackCurrResInit(obj)
       % Assumes that .trnNetType is set
       obj.trkP = [];
-      obj.trkPTS = zeros(0,1);
-      obj.trkAux = [];
-      obj.trkAuxLbl = {obj.trnNetType.trkAuxFlds.label}';
+      %obj.trkPTS = zeros(0,1);
+      %obj.trkAux = [];
+      %obj.trkAuxLbl = {obj.trnNetType.trkAuxFlds.label}';
     end
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
@@ -5737,18 +5737,12 @@ classdef DeepTracker < LabelTracker
       end
             
       obj.trkP = pTrk;
-      obj.trkPTS = pTrkTS;
-      obj.trkAux = aux;
+      %obj.trkPTS = pTrkTS;
+      %obj.trkAux = aux;
       %obj.trkAuxLbl = {auxInfo.label}';
     end
-    function [xy,tfocc] = getPredictionCurrentFrame(obj)
-      % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
-      % tfocc: [nPtsxnTgt] logical
-      
-      % XXX optim, return flag if there are actually any preds in this
-      % frame for caller's sake
-      
-      assert(~obj.lObj.maIsMA,'Unsupported for multianimal.');
+    function [tfhaspred,xy,tfocc] = getPredictionCurrentFrame(obj)
+      % See TrkFile/getPTrkFrame
       
       frm = obj.lObj.currFrame;
       xyPCM = obj.trkP;
@@ -5756,28 +5750,32 @@ classdef DeepTracker < LabelTracker
       if isempty(xyPCM)
         npts = obj.nPts;
         nTgt = obj.lObj.nTargets;
+        tfhaspred = false(nTgt,1);
         xy = nan(npts,2,nTgt);
-        tfocc = false(npts,nTgt);
+        tfocc = false(npts,nTgt);        
       else
         % AL20160502: When changing movies, order of updates to 
         % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
         % be updated first, resulting in an OOB currFrame; protect against
         % this.
-        frm = min(frm,size(xyPCM,3));
-        xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
         
-        if nargout>1
-          tfscrocc = strcmp(obj.trkAuxLbl,'scr_occ');
-          switch nnz(tfscrocc)
-            case 0
-              scrocc = nan(obj.nPts,obj.lObj.nTargets);
-            case 1
-              scrocc = squeeze(obj.trkAux(:,frm,:,tfscrocc));
-            otherwise
-              assert(false,'Multiple fields matching ''scr_occ''.');              
-          end
-          tfocc = scrocc > DeepTracker.MDN_OCCLUDED_THRESH;              
-        end
+        %frm = min(frm,size(xyPCM,3));
+        %xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
+        [tfhaspred,xy,tfocc] = xyPCM.getPTrkFrame(frm);
+        
+%         if nargout>1
+%           fprintf(2,'TODOXXX');
+%           %tfscrocc = strcmp(obj.trkAuxLbl,'scr_occ');
+%           switch nnz(tfscrocc)
+%             case 0
+%               scrocc = nan(obj.nPts,obj.lObj.nTargets);
+%             case 1
+%               %scrocc = squeeze(obj.trkAux(:,frm,:,tfscrocc));
+%             otherwise
+%               assert(false,'Multiple fields matching ''scr_occ''.');              
+%           end
+%           tfocc = scrocc > DeepTracker.MDN_OCCLUDED_THRESH;              
+%         end
       end
     end
   end
@@ -5830,26 +5828,12 @@ classdef DeepTracker < LabelTracker
       end
       
       tv = obj.trkVizer;
-      if lObj.maIsMA
-        tv.newFrame(lObj.currFrame);
-      else
-        [xy,tfocc] = obj.getPredictionCurrentFrame();    
-  %       frm = lObj.currFrame;
-  %       itgt = lObj.currTarget;
-  %       trx = lObj.currTrx;
-  %       if isempty(trx)
-  %         trxXY = [];
-  %         trxTh = [];        
-  %       else
-  %         itrx = frm+trx.off;
-  %         if itrx <= 0 || itrx > numel(trx.x),
-  %           return;
-  %         end
-  %         trxXY = [trx.x(itrx) trx.y(itrx)];
-  %         trxTh = trx.theta(itrx);        
-  %       end        
-        tv.updateTrackRes(xy,tfocc);
-      end
+      %if true % lObj.maIsMA
+      tv.newFrame(lObj.currFrame);
+      %else
+%         [xy,tfocc] = obj.getPredictionCurrentFrame();    
+%         tv.updateTrackRes(xy,tfocc);
+      %end
     end
     function newLabelerTarget(obj)
       if ~obj.lObj.maIsMA
