@@ -164,10 +164,24 @@ classdef DeepTracker < LabelTracker
   end
 
   properties        
-    % track curr res -- in-mem tracking results for current mov    
-    trkP   % [nview] cell of TrkFile objs. tracking results for current mov
-    %trkPTS % [npt x nfrm x ntgt] timestamp for trkP*
     
+    % track curr res -- in-mem tracking results for current mov    
+    %
+    % The raw tracking DB are trkfiles on disk. Trkfiles are single-view,
+    % and there may be arbitrarily many trkfiles for a single (mov,view)
+    % since users may repeatedly track segments.
+    %
+    % trkP merges all results for a given movieset into a single TrkFile.
+    % TrkFile is prob better named 'Trk'. The design of 'Trk' between
+    % serializtaion and runtime is a little unclear. At runtime it may make
+    % sense to store tracking results in custom/redundant data structures
+    % for performance reasons. TrkFile has some relevant machinery (eg
+    % conversion between full/tracklet can be added) and maybe it ends up
+    % covering all bases. A separate class may end up making sense. For now
+    % we use a TrkFile and see.
+    trkP   % scalar TrkFile obj. tracking results for current mov, views merged
+    
+    %trkPTS % [npt x nfrm x ntgt] timestamp for trkP*    
     %trkAux % [npt x nfrm x ntgt x naux] auxiliary per-pt results eg confidences
     %trkAuxLbl % [naux] labels for 4th dim of trxAux
               % naux given in DLNetType
@@ -5630,98 +5644,17 @@ classdef DeepTracker < LabelTracker
       [trks,tfHasRes] = obj.getTrackingResults(mIdx);
       if tfHasRes
         obj.trackCurrResLoadFromTrks(trks);
+        trks{1}.mergeMultiView(trks{2:end});
+        obj.trkP = trks{1};
         if obj.lObj.maIsMA
           obj.trkVizer.vizInit(obj.lObj.nframes,obj.trkP);
-        end
-        
-%         tfTrx = obj.lObj.hasTrx;
-%         
-%         trkfilesCurr = obj.trackResGetTrkfiles(mIdx); % [ntrk x nview]
-%         ntrkCurr = size(trkfilesCurr,1);
-%         for ivw=1:1 % TODO: multiview
-%           for itrk=1:ntrkCurr
-%             trkfile = trkfilesCurr{itrk,ivw};
-%             [trkfileP,trkfileF] = fileparts(trkfile);
-%             hmapDirS = [trkfileF '_hmap'];
-%             hmapDir = fullfile(trkfileP,hmapDirS);
-%             if exist(hmapDir,'dir')>0
-%               if tfTrx
-%                 % Ideally the heatmaps size is related to 
-%                 % sPrm....TargetCrop.Radius, but they might not have set
-%                 % that, etc etc
-%                 hmnr = [];
-%                 hmnc = [];
-%               else
-%                 hmnr = obj.lObj.movienr;
-%                 hmnc = obj.lObj.movienc;
-%               end
-%               obj.trkVizer.heatMapInit(hmapDir,hmnr,hmnc);
-%               if ntrkCurr==1
-%                 fprintf('Found heatmap dir: %s\n',hmapDirS);
-%               else                
-%                 fprintf('Found heatmap dir %s for trkfile %d/%d. Other heatmap dirs (if any) will be ignored.\n',...
-%                   hmapDirS,itrk,ntrkCurr);
-%               end
-%               break;
-%             end
-%           end
-%         end
+        end        
       else
         obj.trackCurrResInit();
       end
       notify(obj,'newTrackingResults');
     end
-    function trackCurrResLoadFromTrks(obj,trks)
-      % trks: [nview] cell of TrkFile objs
-      
-      assert(numel(trks)==obj.nview);
-      
-      lObj = obj.lObj;
-      
-      if lObj.maIsMA
-        assert(lObj.nview==1);
-        obj.trkP = trks{1};
-        return;
-      end
-      
-      ipt2view = lObj.labeledposIPt2View;
-      
-      npt = obj.nPts;
-      nfrm = lObj.nframes;
-      ntgt = lObj.nTargets;
-      auxInfo = obj.trnNetType.trkAuxFlds;
-      naux = numel(auxInfo);
-      
-      pTrk = nan(npt,2,nfrm,ntgt);
-      pTrkTS = nan(npt,nfrm,ntgt); 
-      aux = nan(npt,nfrm,ntgt,naux);
-      
-      for iview=1:obj.nview
-        t = trks{iview};
-        frms = t.pTrkFrm;
-        itgts = t.pTrkiTgt;
-        ipts = ipt2view==iview;
-        pTrk(ipts,:,frms,itgts) = t.pTrk;
-        pTrkTS(ipts,frms,itgts) = t.pTrkTS;
-        
-        for iaux=1:naux
-          trkfld = auxInfo(iaux).trkfld;
-          if isprop(t,trkfld)
-            aux(ipts,frms,itgts,iaux) = t.(trkfld);
-          else
-            % aux els remain nan
-            % Don't warn as not all auxflds must be there. eg pTrkocc is
-            % only present if params request it etc.
-            % warningNoTrace('Missing field ''%s'' in trkfile.',trkfld);
-          end
-        end
-      end
-            
-      obj.trkP = pTrk;
-      %obj.trkPTS = pTrkTS;
-      %obj.trkAux = aux;
-      %obj.trkAuxLbl = {auxInfo.label}';
-    end
+    
     function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)
       % See TrkFile/getPTrkFrame
       

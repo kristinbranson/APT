@@ -19,7 +19,7 @@ classdef TrkFile < dynamicprops
     pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
     pTrkFullFT = TrkFile.unsetVal; % [nTrkFull x ncol] Frame-Target table labeling 4th dim of pTrkFull
     
-    trkInfo % "user data" for tracker
+    trkInfo % struct. "user data" for tracker
     % which video these trajectories correspond to
     movfile = TrkFile.unsetVal;
     
@@ -443,7 +443,7 @@ classdef TrkFile < dynamicprops
     end
     
     function merge(obj,obj1)
-      % updates obj0 in place
+      % updates obj in place
       %
       % Right now assumes unique/distinct tracklet IDs; later, add eg 'ID'
       % field and merge consistent IDs together with nans as filler.
@@ -481,6 +481,38 @@ classdef TrkFile < dynamicprops
       % trkInfo: unchanged
       if ~isequal(obj.movfile,obj1.movfile)
         warningNoTrace('Trkfiles have differing .movfile fields.');
+      end
+    end
+    
+    function mergeMultiView(obj,varargin)
+      % mergeMultiView(obj,obj2,obj3,...)
+      %
+      % *Updates obj in place*
+      %
+      % Note, using matlab.mixin.Copyable doesn't work well with TrkFile bc
+      % dynamicprops are not copied.
+      %
+      % Assumes obj2, obj3, ... correspond to views 2, 3, ...
+      %
+      % For now this performs strict tests that all objs track the same 
+      % iTgts, start/endframes, etc.
+      
+      assert(~obj.isfull);
+      FLDSSAME = {'pTrkiPt' 'pTrkFrm' 'pTrkiTgt' 'frm2tlt'};
+      FLDSMERG = obj.trkflds();
+      FLDSMERG = FLDSMERG(:)';
+      
+      nobj = numel(varargin);
+      for iobj=1:nobj
+        o2 = varargin{iobj};
+        assert(~o2.isfull);
+        for f=FLDSSAME,f=f{1}; %#ok<FXSET>
+          assert(isequaln(obj.(f),o2.(f)),'Objects differ in field ''%s''.',f);
+        end
+        for f=FLDSMERG,f=f{1}; %#ok<FXSET>
+          % cat along "npoints" dim
+          obj.(f) = cellfun(@(x,y)cat(1,x,y),obj.(f),o2.(f),'uni',0);
+        end
       end
     end
     
@@ -604,6 +636,9 @@ classdef TrkFile < dynamicprops
       %
       % Merge outputs of tableforms, assuming t1,t2,... represent
       % multiview data.
+      %
+      % Note the merge requirements here are not as strict as in
+      % mergeMultiview.
       
       t0 = varargin{1};
       ntbl = numel(varargin); % assumed to be same as nviews
