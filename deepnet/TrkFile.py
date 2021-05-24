@@ -1096,7 +1096,8 @@ class Trk:
     self.pTrkTS=None # timestamp data
     self.pTrkTag=None # tag (occlusion) data
     self.pTrkiTgt=None # 1-d array of target ids
-    self.pTrkConf=None # 1-d array of target ids
+    self.pTrkConf=None # array of confidences
+    self.pTrkAnimalConf=None # array of animal confidences
     self.issparse=False # storage format
     self.nlandmarks = 0 # number of landmarks
     self.d = 2 # dimensionality of coordinates
@@ -1106,8 +1107,8 @@ class Trk:
   
     # for sparse format data
     self.defaultval = np.nan # default value when sparse
-    self.trkFields = ['pTrkTS', 'pTrkTag', 'pTrkConf']
-    self.defaultval_dict = {'pTrkTS':-np.inf,'pTrkTag':False,'pTrkConf':np.nan}
+    self.trkFields = ['pTrkTS', 'pTrkTag', 'pTrkConf', 'pTrkAnimalConf']
+    self.defaultval_dict = {'pTrkTS':-np.inf,'pTrkTag':False,'pTrkConf':np.nan,'pTrkAnimalConf':np.nan}
     self.sparse_type = 'tracklet' # type of sparse storing used, this should always be tracklet right now
     
     for key,val in kwargs.items():
@@ -2000,6 +2001,8 @@ class Trk:
       pTrkTag=np.zeros((self.nlandmarks,T,nids),dtype=bool)
     if self.pTrkConf is not None:
       pTrkConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkConf']
+    if self.pTrkAnimalConf is not None:
+      pTrkAnimalConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkAnimalConf']
     for id in range(nids):
       idx = ids.where(id)
       #idx=np.nonzero(ids==id)
@@ -2017,6 +2020,8 @@ class Trk:
         pTrkTag[:,idx[1],id]=self.pTrkTag[:,idx[1],idx[0]]
       if self.pTrkConf is not None:
         pTrkConf[...,idx[1],id] = self.pTrkConf[...,idx[1],idx[0]]
+      if self.pTrkAnimalConf is not None:
+        pTrkAnimalConf[...,idx[1],id] = self.pTrkAnimalConf[...,idx[1],idx[0]]
 
     self.ntargets = nids
     self.size = (self.nlandmarks,self.d,T,self.ntargets)
@@ -2027,6 +2032,8 @@ class Trk:
       self.pTrkTag = pTrkTag
     if self.pTrkConf is not None:
       self.pTrkConf = pTrkConf
+    if self.pTrkAnimalConf is not None:
+      self.pTrkAnimalConf = pTrkAnimalConf
     self.pTrkiTgt=np.arange(nids,dtype=int)
     
   def __repr__(self):

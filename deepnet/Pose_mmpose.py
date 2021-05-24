@@ -474,7 +474,6 @@ class Pose_mmpose(PoseCommon_pytorch):
 
         assert not conf.is_multi, 'This prediction function is only for single animal (top-down)'
 
-        model = build_posenet(cfg.model)
         cfg.model.pretrained = None
         cfg.data.test.test_mode = True
         model = build_posenet(cfg.model)

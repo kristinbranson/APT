@@ -38,6 +38,8 @@ WORKDIR /mmdetection
 ENV FORCE_CUDA="1"
 RUN pip install -r requirements/build.txt
 RUN pip install --no-cache-dir -e .
+WORKDIR /
+RUN rm -rf /mmdetection
 #COPY mmdetection_runtime.txt /opt/app/mmdetection_runtime.txt
 #RUN pip install -r mmdetection_runtime.txt
 

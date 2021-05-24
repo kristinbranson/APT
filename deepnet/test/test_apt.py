@@ -18,7 +18,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def main():
     # net_types = ['mdn','deeplabcut','openpose','leap','unet','resnet_unet']
-    net_types = ['deeplabcut']
+    net_types = ['mdn']
     n_views = 1
     exp_name = 'alice_test'
     op_af_graph = '(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16)'

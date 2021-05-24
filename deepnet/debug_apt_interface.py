@@ -1,3 +1,33 @@
+from reuse import *
+cmd = '/groups/branson/home/kabram/nrs/apt_cache_2/four_points_180806/20210326T070533_20210326T070535.lbl -cache ~/temp -model_file mmdetection/test_apt/latest.pth -conf_params is_multi True mmdetect_net \"frcnn\" rescale 2.56 max_n_animals 6 n_classes 2 -type detect_mmdetect track -mov /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -start_frame 1 -end_frame 100 -out /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_bbox.trk'
+cmd.replace('\\','')
+apt.main(cmd.split())
+
+## Training with neg APT
+from importlib import reload
+import Pose_detect_mmdetect as mmdetect_file
+reload(mmdetect_file)
+from Pose_detect_mmdetect import Pose_detect_mmdetect
+from poseConfig import conf
+conf.mmpose_use_epoch_runner = True
+conf.mmdetect_net = 'test'
+conf.cachedir = '/groups/branson/bransonlab/mayank/APT/deepnet/mmdetection/test_apt_neg'
+conf.dl_steps = 24*550
+self = Pose_detect_mmdetect(conf, 'deepnet')
+self.cfg.seed = 3
+self.cfg.model.train_cfg.rpn.assigner.type = 'APTMaxIoUAssigner'
+self.cfg.model.train_cfg.rpn.assigner.ignore_iof_thr = 0.2
+self.cfg.data.train.ann_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/detection_cache/trn_neg.json'
+self.cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
+# self.cfg.model.train_cfg.rpn_proposal.nms.iou_threshold=0.85
+
+# self.cfg.model.train_cfg.rpn.assigner.neg_iou_thr=(0.15,0.25)
+
+# self.cfg.load_from = '/groups/branson/bransonlab/mayank/APT/deepnet/mmdetection/test_apt1/epoch_4.pth'
+# self.cfg.model.rpn_head.anchor_generator.strides = [19,25,32,43,56]
+self.train_wrapper()
+
+##
 import numpy as np
 in_im = all_f[0,...,0]
 cols = all_f.shape[1]

@@ -17,10 +17,14 @@ else:
 if vv[0]==1:
     from tensorflow.contrib.layers import batch_norm
     from tensorflow.contrib.layers import xavier_initializer
+    import tensorflow.contrib.slim as slim
+    from tensorflow.contrib.slim.nets import resnet_v1
 else:
     from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
     def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
         return batch_norm_temp(inp,momentum=decay,training=is_training)
+    import tf_slim as slim
+    from tf_slim.nets import resnet_v1
 
     from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
 import imageio
@@ -63,8 +67,6 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
         elif self.resnet_source == 'slim':
-            import tensorflow.contrib.slim as slim
-            from tensorflow.contrib.slim.nets import resnet_v1
             url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')

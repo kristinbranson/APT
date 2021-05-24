@@ -143,15 +143,15 @@ class coco_loader(torch.utils.data.Dataset):
 
         for obj in anno:
             if 'segmentation' in obj:
-                if obj['iscrowd']:
-                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
+                rles = xtcocotools.mask.frPyObjects(
+                    obj['segmentation'], im_sz[0],
+                    im_sz[1])
+                for rle in rles:
                     m += xtcocotools.mask.decode(rle)
-                else:
-                    rles = xtcocotools.mask.frPyObjects(
-                        obj['segmentation'], im_sz[0],
-                        im_sz[1])
-                    for rle in rles:
-                        m += xtcocotools.mask.decode(rle)
+                # if obj['iscrowd']:
+                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
+                #     m += xtcocotools.mask.decode(rle)
+                # else:
         return m>0.5
 
     def update_wts(self,idx,loss):
@@ -481,7 +481,7 @@ class PoseCommon_pytorch(object):
         logging.info("Optimization Finished!")
         self.save(n_steps, model, opt, lr_sched)
 
-    def train_wrapper(self, restore=False):
+    def train_wrapper(self, restore=False,model_file=None):
         model = self.create_model()
         training_iters = self.conf.dl_steps
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)
@@ -493,15 +493,18 @@ class PoseCommon_pytorch(object):
         logging.info('Using {} GPUS!'.format(torch.cuda.device_count()))
         model = torch.nn.DataParallel(model)
 
-        if restore:
-            model_file = self.get_latest_model_file()
-        else:
-            model_file = None
         if model_file is None:
-            start_at = 0
-            self.init_td()
+            if restore:
+                model_file = self.get_latest_model_file()
+            if model_file is None:
+                start_at = 0
+                self.init_td()
+            else:
+                start_at = self.restore(model_file, model, opt, sched)
         else:
-            start_at = self.restore(model_file, model, opt, sched)
+            ckpt = torch.load(model_file)
+            model.load_state_dict(ckpt['model_state_params'])
+            logging.info('Inititalizing model weights from {}'.format(model_file))
 
         model.to(self.device)
         self.create_data_gen()

@@ -3,7 +3,7 @@ import numpy.random as random
 import scipy.optimize as opt
 import TrkFile
 import APT_interface as apt
-
+import logging
 # for now I'm just using loadmat and savemat here
 # when/if the format of trk files changes, then this will need to get fancier
 
@@ -87,7 +87,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None):
   
   if params['verbose'] > 1:
     isdeath = np.logical_and(idxnext >= nnext, idxcurr < ncurr)
-    print('N. ids assigned: %d, N. births: %d, N. deaths: %d' % (
+    logging.info('N. ids assigned: %d, N. births: %d, N. deaths: %d' % (
       np.count_nonzero(isassigned), np.size(idxbirth), np.count_nonzero(isdeath)))
   
   return idsnext, lastid, cost, costs
@@ -223,7 +223,7 @@ def stitch(trk, ids, params):
                                np.arange(t+1, t+nframes_skip, dtype=int))
         # isdummy[id_death,t+1:t+nframes_skip] = True
         if params['verbose'] > 0:
-          print('Stitching id %d frame %d to id %d frame %d' % (id_death, t, id_birth, t+nframes_skip))
+          logging.info('Stitching id %d frame %d to id %d frame %d' % (id_death, t, id_birth, t+nframes_skip))
       
       if ids_death.size == 0:
         break
@@ -262,7 +262,7 @@ def delete_short(ids, isdummy, params):
     ids.replace(id, -1)
   # ids[np.isin(ids,ids_short)] = -1
   if params['verbose'] > 0:
-    print('Deleting %d short trajectories' % ids_short.size)
+    logging.info('Deleting %d short trajectories' % ids_short.size)
   return ids, ids_short
 
 
@@ -295,8 +295,43 @@ def delete_lowconf(trk, ids, params):
   for id in ids_lowconf:
     ids.replace(id, -1)
   if params['verbose'] > 0:
-    print('Deleting %d trajectories with low confidence' % ids_lowconf.size)
+    logging.info('Deleting %d trajectories with low confidence' % ids_lowconf.size)
   return ids, ids_lowconf
+
+
+def merge(trk,ids):
+  p_ndx = min(ids)
+  trk.pTrk[:, :, :, p_ndx] = np.nanmean(trk.pTrk[...,ids],-1)
+  to_remove = ([i for i in ids if i!=p_ndx])
+
+  trk.pTrk = np.delete(trk.pTrk,to_remove,-1)
+  for k in trk.trkFields:
+    if trk.__dict__[k] is not None:
+      trk.__dict__[k] = np.delete(trk.__dict__[k],to_remove,-1)
+
+  trk.ntargets = trk.ntargets-len(to_remove)
+
+
+def merge_close(trk, params):
+  """
+  merge_close(trk,params):
+  Delete trajectories that have are on average closer than params['maxcost'].
+  :param params: parameters dict. Only relevant parameter is 'maxcost'
+  """
+
+  rm_count = 0
+  orig_count = trk.ntargets
+  while True:
+    dist_trk = np.nanmean(np.abs(trk.pTrk[...,None,:]-trk.pTrk[...,None]).sum(1).mean(0),axis=0)
+    dist_trk[np.diag_indices(dist_trk.shape[0])] = np.inf
+    id1,id2 = np.unravel_index(np.nanargmin(dist_trk), dist_trk.shape)
+    if dist_trk[id1,id2]>params['maxcost']:
+      break
+    merge(trk,[id1,id2])
+    rm_count +=1
+
+  logging.info(f'Removing {rm_count} out of {orig_count} trajectories by merging them into other trajectories that are close')
+
 
 
 def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, heuristic='secondorder'):
@@ -366,7 +401,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
     else:
         ix = all_ix[0]
     ix = np.clip(ix,5,98)
-    print('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost'%(nframes_skip,ix/2+50,qq[ix]))
+    logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost'%(nframes_skip,ix/2+50,qq[ix]))
     maxcost = mult*qq[ix]*2.
   
   return maxcost
@@ -388,7 +423,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   #     nmiss = np.minimum(ntargets_curr,ntargets_next) - np.count_nonzero(ismatch)
   #     if nmiss > 0:
   #         sortedcosts = -np.sort(-allcosts[:,i])
-  #         print('i = %d, t = %d, nmiss = %d, ncurr = %d, nnext = %d, costs removed: %s'%(i,t,nmiss,ntargets_curr,ntargets_next,str(sortedcosts[:nmiss])))
+  #         logging.info('i = %d, t = %d, nmiss = %d, ncurr = %d, nnext = %d, costs removed: %s'%(i,t,nmiss,ntargets_curr,ntargets_next,str(sortedcosts[:nmiss])))
 
 
 def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mult=None, heuristic='secondorder'):
@@ -463,13 +498,13 @@ def test_assign_ids():
       if ncurr > minn and random.rand(1) <= pdeath:
         pnext = pnext[:, :, :-1]
         idsnext = idsnext[:-1]
-        print('%d: death' % t)
+        logging.info('%d: death' % t)
     for i in range(maxnbirthdeath):
       if random.rand(1) <= pbirth:
         lastid += 1
         pnext = np.concatenate((pnext, random.rand(nlandmarks, d, 1)), axis=2)
         idsnext = np.append(idsnext, lastid)
-        print('%d: birth' % t)
+        logging.info('%d: birth' % t)
     nnext = pnext.shape[2]
     if nnext > p.shape[3]:
       pad = np.zeros((nlandmarks, d, T, nnext-p.shape[3]))
@@ -485,14 +520,14 @@ def test_assign_ids():
     pcurr = pnext
     idscurr = idsnext
   
-  print('ids = ')
-  print(str(ids))
+  logging.info('ids = ')
+  logging.info(str(ids))
   ids1, costs = assign_ids(TrkFile.Trk(p=p), params)
   
-  print('assigned ids = ')
-  print(str(ids1))
-  print('costs = ')
-  print(str(costs))
+  logging.info('assigned ids = ')
+  logging.info(str(ids1))
+  logging.info('costs = ')
+  logging.info(str(costs))
   
   issameid = np.zeros((ids.shape[0]-1, ids.shape[1]**2))
   for t in range(ids.shape[0]-1):
@@ -537,9 +572,9 @@ def test_match_frame():
   params['verbose'] = 1
   
   idsnext, lastid, cost, _ = match_frame(pcurr, pnext, idscurr, params, lastid)
-  print('permutation = '+str(perm))
-  print('idsnext = '+str(idsnext))
-  print('cost = %f' % cost)
+  logging.info('permutation = '+str(perm))
+  logging.info('idsnext = '+str(idsnext))
+  logging.info('cost = %f' % cost)
 
 
 def mixed_colormap(n, cmfun=cm.jet):
@@ -558,7 +593,35 @@ def mixed_colormap(n, cmfun=cm.jet):
   cm1 = cm0[idx, :]
   return cm1
 
-def link(pred_locs,pred_conf=None):
+def nonmaxs(trk,params):
+  dist_trk = np.abs(trk.pTrk[..., None] - trk.pTrk[..., None, :]).sum(1).mean(0)
+  for t in range(trk.pTrk.shape[2]):
+    curd = dist_trk[t,...]
+    curd[np.diag_indices(curd.shape[0])] = np.inf
+    id1,id2 = np.where(curd<params['nms_max'])
+    groups = []
+    for ndx in range(len(id1)):
+      done = False
+      for g in groups:
+        if g.count(id1[ndx])>0:
+          done = True
+          if g.count(id2[ndx])==0:
+            g.append(id2[ndx])
+        if g.count(id2[ndx])>0:
+          done = True
+          if g.count(id1[ndx])==0:
+            g.append(id1[ndx])
+      if not done:
+        groups.append([id1[ndx],id2[ndx]])
+
+    for g in groups:
+      p_ndx = g[0]
+      to_remove = g[1:]
+      trk.pTrk[:,:,t,p_ndx] = np.mean(trk.pTrk[:,:,t,g],axis=2)
+      trk.pTrk[:,:,t,to_remove] = np.nan
+
+
+def link(pred_locs,pred_conf=None,pred_animal_conf=None):
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
@@ -568,6 +631,7 @@ def link(pred_locs,pred_conf=None):
   params['maxcost_framesfit'] = 3
   params['maxcost_heuristic'] = 'secondorder'
   params['minconf_delete'] = 0.5
+  params['nms_prctile'] = 50
   nframes_test = np.inf
 
   locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
@@ -575,19 +639,24 @@ def link(pred_locs,pred_conf=None):
     locs_conf = None
   else:
     locs_conf = np.transpose(pred_conf,[2,0,1])
+  if pred_animal_conf is None:
+    locs_animal_conf = None
+  else:
+    locs_animal_conf = np.transpose(pred_animal_conf,[2,0,1])
   ts = np.ones_like(locs_lnk[:,0, ...]) * apt.datetime2matlabdn()
   tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-  trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf)
+  trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf,pTrkAnimalConf=locs_animal_conf)
 
   T = np.minimum(np.inf, trk.T)
   # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
   # p = np.transpose(trk['pTrk'],(1,0,3,2))
   nframes_test = int(np.minimum(T, nframes_test))
-  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],
-                                       heuristic=params['maxcost_heuristic'])
+  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
   params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'], prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
-  print('maxcost set to %f' % params['maxcost'])
-  print('maxcost_missed set to ' + str(params['maxcost_missed']))
+  params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
+  logging.info('maxcost set to %f' % params['maxcost'])
+  logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
+  nonmaxs(trk,params)
   ids, costs = assign_ids(trk, params, T=nframes_test)
   if isinstance(ids, np.ndarray):
     nids_original = np.max(ids) + 1
@@ -601,6 +670,7 @@ def link(pred_locs,pred_conf=None):
     ids,ids_lowconf = delete_lowconf(trk,ids,params)
   _, ids = ids.unique()
   trk.apply_ids(ids)
+  merge_close(trk,params)
   return trk
 
 def test_assign_ids_data():
@@ -639,8 +709,8 @@ def test_assign_ids_data():
   nframes_test = int(np.minimum(T, nframes_test))
   params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],heuristic=params['maxcost_heuristic'])
   params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'],prctile=params['maxcost_prctile'], mult=params['maxcost_mult'],heuristic=params['maxcost_heuristic'])
-  print('maxcost set to %f' % params['maxcost'])
-  print('maxcost_missed set to ' + str(params['maxcost_missed']))
+  logging.info('maxcost set to %f' % params['maxcost'])
+  logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
   ids, costs = assign_ids(trk, params, T=nframes_test)
   if isinstance(ids, np.ndarray):
     nids_original = np.max(ids)+1
@@ -660,7 +730,7 @@ def test_assign_ids_data():
   plt.figure()
   nids = trk.ntargets
   # nids = newtrk['pTrk'].shape[3]
-  print('%d ids in %d frames, removed %d ids' % (nids, nframes_test, nids_original-nids))
+  logging.info('%d ids in %d frames, removed %d ids' % (nids, nframes_test, nids_original-nids))
   nidsplot = int(np.minimum(nids, np.inf))
   minp, maxp = trk.get_min_max_val()
   minp = np.min(minp)
@@ -674,7 +744,7 @@ def test_assign_ids_data():
   
   for id in range(nidsplot):
     
-    print('Target %d, %d frames (%d to %d)' % (id, endframes[id]-startframes[id]+1, startframes[id], endframes[id]))
+    logging.info('Target %d, %d frames (%d to %d)' % (id, endframes[id]-startframes[id]+1, startframes[id], endframes[id]))
     
     ts = np.arange(startframes[id], endframes[id]+1, dtype=int)
     n = ts.size

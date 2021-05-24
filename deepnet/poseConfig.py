@@ -216,10 +216,16 @@ class config(object):
         self.multi_loss_mask = True
         # crop images during training
         self.multi_crop_ims = True
+        # For NMS for pose. Suppress poses whose avg matching distance is less than this.
         self.multi_match_dist = 10
+        # For top-down networks, use these points as head tail
         self.ht_pts = []
+        # Use ht points as trx surrogate for top-down network
         self.use_ht_trx = False
+        # Train-Track only ht points -- for top-down networks
         self.multi_only_ht = False
+        # Use bbox as trx surrogate for top-down networks.
+        self.use_bbox_trx = False
 
 
         # ============= MMPOSE =================

@@ -45,17 +45,17 @@ class BottomUpAPTDataset(BottomUpCocoDataset):
 
         for obj in anno:
             if 'segmentation' in obj:
-                if obj['iscrowd']:
-                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
-                                                       img_info['height'],
-                                                       img_info['width'])
+                rles = xtcocotools.mask.frPyObjects(
+                    obj['segmentation'], img_info['height'],
+                    img_info['width'])
+                for rle in rles:
                     m += xtcocotools.mask.decode(rle)
-                else:
-                    rles = xtcocotools.mask.frPyObjects(
-                        obj['segmentation'], img_info['height'],
-                        img_info['width'])
-                    for rle in rles:
-                        m += xtcocotools.mask.decode(rle)
+                # if obj['iscrowd']:
+                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
+                #                                        img_info['height'],
+                #                                        img_info['width'])
+                #     m += xtcocotools.mask.decode(rle)
+                # else:
 
         return m > 0.5
 
