@@ -10174,47 +10174,6 @@ classdef Labeler < handle
         end
       end
       
-      % KB 20190214: this will all happen at training time now -- 
-      
-%       tcprObj = obj.trackGetTracker('cpr');      
-%       assert(~isempty(tcprObj));
-%         
-%       % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
-%       % match 'poseTF', and lots of special-case code.
-%       % Ideally/theoretically the params/trackerObjs would just line up and
-%       % setting would just be a simple loop or similar
-%       
-%       sPrmDT = sPrm.ROOT.DeepTrack;
-%       sPrmPPandCPR = sPrm;
-%       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
-%       
-%       % NOTE: this line already sets some props, despite possible throws
-%       % later
-%       [sPrmPPandCPRold,obj.trackNFramesSmall,obj.trackNFramesLarge,...
-%         obj.trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
-%       
-%       ppPrms = sPrmPPandCPRold.PreProc;
-%       sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
-% 
-%       % THROWS. Some state already mutated. Should be OK for now, its a
-%       % partial set but if/when the user tries to set parameters again the
-%       % changes should be reflected.
-%       tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
-%       
-%       tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
-%       
-%       tDTs = obj.trackersAll(2:end);
-%       dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
-%       sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
-%       tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
-%       tfDTcommonOrPPChanged = tfDTcommonChanged || tfPPprmsChanged;
-%       for i=1:numel(tDTs)
-%         tObj = tDTs{i};
-%         netType = dlNetTypesPretty{i};
-%         sPrmDTnet = sPrmDT.(netType);
-%         tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonOrPPChanged);
-%       end
-
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
@@ -10755,15 +10714,11 @@ classdef Labeler < handle
     
     function sPrmAll = setExtraParams(obj,sPrmAll)
       % AL 20200409 sets .skeletonEdges and .setFliplandmarkMatches from 
-      % sPrmAll fields. no callsites currently
+      % sPrmAll fields.
       
       if structisfield(sPrmAll,'ROOT.DeepTrack.OpenPose.affinity_graph'),
         skelstr = sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph;
-        nedge = numel(skelstr);
-        skel = nan(nedge,2);
-        for i = 1:nedge,
-          skel(i,:) = sscanf(skelstr{i},'%d %d');
-        end
+        skel = Labeler.hlpParseCommaSepGraph(skelstr);
         obj.skeletonEdges = skel;
         sPrmAll.ROOT.DeepTrack.OpenPose = rmfield(sPrmAll.ROOT.DeepTrack.OpenPose,'affinity_graph');
         if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.OpenPose)),
@@ -10774,12 +10729,7 @@ classdef Labeler < handle
       % add landmark matches
       if structisfield(sPrmAll,'ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches'),
         matchstr = sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches;
-        matchstr = strsplit(matchstr,',');
-        nedge = numel(matchstr);
-        matches = nan(nedge,2);
-        for i = 1:nedge,
-          matches(i,:) = sscanf(matchstr{i},'%d %d');
-        end
+        matches = Labeler.hlpParseCommaSepGraph(matchstr);
         obj.setFlipLandmarkMatches(matches);
         sPrmAll.ROOT.DeepTrack.DataAugmentation = rmfield(sPrmAll.ROOT.DeepTrack.DataAugmentation,'flipLandmarkMatches');
         if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.DataAugmentation)),
@@ -11353,6 +11303,20 @@ classdef Labeler < handle
     end
   end
   methods (Static)
+    function edges = hlpParseCommaSepGraph(str)
+      % str: eg '1 2, 3 4'
+      if isempty(str)
+        edgesCell = cell(0,1);
+      else
+        edgesCell = strsplit(str,',');
+      end
+      nedge = numel(edgesCell);
+      edges = nan(nedge,2);
+      for i = 1:nedge,
+        edges(i,:) = sscanf(edgesCell{i},'%d %d');
+      end
+    end
+
     function tblLbled = hlpTblLbled(tblLbled)
       tblLbled.mov = int32(tblLbled.mov);
       tblLbled = tblLbled(:,[MFTable.FLDSID {'p'}]);
