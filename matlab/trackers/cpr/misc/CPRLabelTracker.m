@@ -2349,7 +2349,7 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      [xy,isinterp,xyfull] = obj.getTrackingResultsCurrFrm();
+      [tfhaspred,xy,isinterp,xyfull] = obj.getTrackingResultsCurrFrm();
       
       if obj.asyncPredictOn && all(isnan(xy(:)))
         obj.asyncTrackCurrFrameBG();

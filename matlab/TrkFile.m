@@ -26,8 +26,24 @@ classdef TrkFile < dynamicprops
     isfull = false;  % if true, .pTrk etc are full
     
     % tracklet stuff
+    startframes 
+    endframes
     frm2tlt  % [nfrmtot x ntgt] logical indicating frames where tracklets 
              % are live.
+  end
+  properties (Dependent)
+    npts
+    ntlts
+  end
+  
+  methods 
+    function v = get.npts(obj)
+      % assumes at least one tracklet...
+      v = size(obj.pTrk{1},1);
+    end
+    function v = get.ntlts(obj)
+      v = numel(obj.pTrk);
+    end
   end
   
   % Dev notes 20210514
@@ -58,14 +74,42 @@ classdef TrkFile < dynamicprops
   % also supports formats 1) and 2) as those have similar top-level fields.
   % 
   % 4) and 5) have entirely different storage schemes. A full API for 5) is
-  % available in Labels.m; see PTrx.m for utilities for 4).
+  % available in Labels.m; see TrxUtil.m for utilities for 4).
   %
   % Note that there is no single optimal storage format, as eg 'sparse'
   % tracking is not optimally stored as tracklets and vice versa etc.
   
   methods
     
-    function obj = TrkFile()
+    function obj = TrkFile(npts,itlts,startframes,endframes,trkfldsextra,...
+        varargin)      
+      if nargin==0
+        return;
+      end
+      
+      assert(isequal(numel(itlts),numel(startframes),numel(endframes)));
+  
+      nfs = endframes-startframes+1;
+      obj.pTrk = arrayfun(@(x)nan(npts,2,x),nfs,'uni',0);
+      nowdt = now;
+      obj.pTrkTS = arrayfun(@(x)nowdt*ones(npts,x),nfs,'uni',0);
+      obj.pTrkTag = arrayfun(@(x)false(npts,x),nfs,'uni',0);
+      for f=trkfldsextra(:)',f=f{1}; %#ok<FXSET>
+        if ~isprop(obj,f)
+          obj.addprop(f);
+          obj.(f) = arrayfun(@(x)nan(npts,x),nfs,'uni',0);
+        end
+      end
+      
+      obj.pTrkiTgt = itlts;
+      obj.startframes = startframes;
+      obj.endframes = endframes;
+      
+      for i=1:2:numel(varargin)
+        obj.(varargin{i}) = varargin{i+1};
+      end
+      
+      obj.isfull = false;
     end
     
     function initFromArraysFull(obj,ptrk,varargin)
@@ -286,7 +330,7 @@ classdef TrkFile < dynamicprops
         end
       end
 
-      % above check removes .unsetVal prop!
+      % above check removes .unsetVal prop!initFromTra
       
       s = rmfield(s,'listfile_fns');
     end
@@ -441,49 +485,106 @@ classdef TrkFile < dynamicprops
       trkflds = setdiff(trkflds,{'pTrkiPt' 'pTrkFrm' 'pTrkiTgt' ...
         'pTrkFull' 'pTrkFullFT'});
     end
-    
-    function merge(obj,obj1)
-      % updates obj in place
+        
+    function objMerged = merge(obj,varargin)
+      % objMerged = merge(obj0,obj1,obj2,...)
       %
-      % Right now assumes unique/distinct tracklet IDs; later, add eg 'ID'
-      % field and merge consistent IDs together with nans as filler.
+      % returns new TrkFile with merge contents. tracklet-style merge.
+      %
+      % This method uses .pTrkiTgt as a "primary key" when merging
+      % tracklets, ie tracklets with the same value of pTrkiTgt are merged
+      % together, while tracklets with differing pTrkiTgt are simply
+      % appended/concatenated.
+      % 
+      % This method could operate on a vector of TrkFile objs, but 
+      % MATLAB behavior as of 2020b on
+      % vectors-of-handles-with-dynamic-props can be a little subtle. Eg,
+      % fieldnames(scalarObj) includes dynamicprops in the output, but
+      % fieldnames(vectorOfObjs) does not. So for simplicitly, provide
+      % scalar TrkFileObjs as distinct args.
       
       assert(~obj.isfull,'Attempt to merge non-tracklets.');
-      assert(~obj1.isfull,'Attempt to merge non-tracklets.');
-      fns = fieldnames(obj); % includes dynamic/added props
-      assert(isequal(fns,fieldnames(obj1)),...
-        'Attempt to merge tracklets with different fields.');
       
-      ntgt0 = numel(obj.pTrk);
-      ntgt1 = numel(obj1.pTrk);
-      ntgttot = ntgt0+ntgt1;
+      % step 1: get all unique tgts; get all their start/endframes      
+      allobjs = [{obj} varargin];
       
-      ptrkflds = fns(startsWith(fns,'pTrk'));
-      ptrkflds(end+1:end+2) = {'startframes' 'endframes'};
-      for f=ptrkflds(:)',f=f{1}; %#ok<FXSET>
-        v0 = obj.(f);
-        if iscell(v0) % filters out __UNSET__ fields, startframes etc.
-          obj.(f) = cat(2,v0,obj1.(f));
+      nobj = numel(allobjs);
+      itgtsAll = cellfun(@(x)x.pTrkiTgt,allobjs,'uni',0);
+      %sfsAll = {allobjs.startframes};
+      %efsAll = {allobjs.endframes};
+      
+      itgtsun = unique(cat(2,itgtsAll{:}));
+      itgtmax = max(itgtsun);
+      cls = class(obj.startframes);
+      itgt2spep = [intmax(cls)*ones(1,itgtmax,cls);...
+                   intmin(cls)*ones(1,itgtmax,cls)]; % rows: sf, ef
+      for iobj=1:nobj
+        o = allobjs{iobj};
+        itgtsI = o.pTrkiTgt;
+        sfsI = o.startframes;
+        efsI = o.endframes;
+        tfhasres = sfsI<=efsI;
+        itgt2spep(1,itgtsI(tfhasres)) = min(itgt2spep(1,itgtsI(tfhasres)),sfsI(tfhasres));
+        itgt2spep(2,itgtsI(tfhasres)) = max(itgt2spep(2,itgtsI(tfhasres)),efsI(tfhasres));
+      end
+      
+      sfsNew = itgt2spep(1,itgtsun);
+      efsNew = itgt2spep(2,itgtsun);
+      
+      % 2. initialize new TrkFile with empty trkflds of right size
+      % (nan-filled)
+      objMerged = TrkFile(obj.npts,itgtsun,sfsNew,efsNew,obj.trkflds);
+     
+      % 3. init logical "isset" flag [nrms] indiciating whether frames set
+      nfsNew = efsNew-sfsNew+1;      
+      frmsAreSet = arrayfun(@(x)false(x,1),nfsNew,'uni',0);
+      % frmsAreSet{jall} is nframes_jall x 1 logical indicator vec covering
+      % objMerged.startframes(jall):objMerged.endframes(jall)
+      
+      % 4. for each trkfile, for each iTgt, overlay flds. warn if 
+      % overlapping frmsAreSet
+      itgt2jall = nan(itgtmax,1);
+      itgt2jall(objMerged.pTrkiTgt) = (1:numel(objMerged.pTrkiTgt))';
+      % jall is index into objMerged.pTrk{jall} etc
+      for iobj=1:nobj
+        o = allobjs{iobj};
+        trkfldso = o.trkflds();
+        ntgt = numel(o.pTrkiTgt);
+        for j=1:ntgt
+          itgt = o.pTrkiTgt(j);
+          sp = o.startframes(j);
+          ep = o.endframes(j);
+          %nf = ep-sp+1;
+          %off = 1-sp;
+          jall = itgt2jall(itgt);          
+          spall = objMerged.startframes(jall);
+          offall = 1-spall;
+          idxall = sp+offall:ep+offall;
+          noverlap = nnz(frmsAreSet{jall}(idxall));
+          frmsAreSet{jall}(idxall) = true;
+          if noverlap>0
+            warningNoTrace('Target %d: %d frames covered by two trkfiles. Overwriting.',...
+              itgt,noverlap);
+          end
+          
+          % write trkflds
+          for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
+            if strcmp(f,'pTrk')
+              objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
+            else
+              objMerged.(f){jall}(:,idxall) = o.(f){j};
+            end
+          end
         end
       end
-      
+          
       % not sure what to do here
-      trkfrm0 = obj.pTrkFrm;
-      trkfrm1 = obj1.pTrkFrm;
-      f0 = min(trkfrm0(1),trkfrm1(1));
-      f1 = max(trkfrm0(end),trkfrm1(end));
-      obj.pTrkFrm = f0:f1;
-      
-      if ~isequal(obj.pTrkiTgt,1:ntgttot)
-        warningNoTrace('Unexpected .pTrkiTgt.');
-      end
-      obj.pTrkiTgt = 1:ntgttot;
-      % trkInfo: unchanged
-      if ~isequal(obj.movfile,obj1.movfile)
-        warningNoTrace('Trkfiles have differing .movfile fields.');
-      end
+      obj.pTrkFrm = [];
+%       if ~isequal(obj.movfile,obj1.movfile)
+%         warningNoTrace('Trkfiles have differing .movfile fields.');
+%       end
     end
-    
+        
     function mergeMultiView(obj,varargin)
       % mergeMultiView(obj,obj2,obj3,...)
       %
@@ -562,14 +663,14 @@ classdef TrkFile < dynamicprops
       f2t = false(nfrm,ntgt);
       sf = obj.startframes;
       ef = obj.endframes;
-      for itgt=1:ntgt
-        f2t(sf(itgt):ef(itgt),itgt) = true;
+      for j=1:ntgt
+        f2t(sf(j):ef(j),j) = true;
       end
       obj.frm2tlt = f2t;
     end
     
     function [tfhaspred,xy,tfocc] = getPTrkFrame(obj,f)
-      % get tracking for particular frames
+      % get tracking for particular frame
       %
       % f: scalar (absolute) frame index
       %
@@ -579,21 +680,21 @@ classdef TrkFile < dynamicprops
       
       tfhaspred = obj.frm2tlt(f,:).';
       itgtsLive = find(tfhaspred);
-      npt = obj.npt;
-      ntgt = obj.ntgt;
+      npt = size(obj.pTrk{1},1);
+      ntgt = numel(obj.pTrk);
       xy = nan(npt,2,ntgt);
       tfocc = false(npt,ntgt);
       
-      pcell = obj.pTrkTlt;
+      pcell = obj.pTrk;
       pcelltag = obj.pTrkTag;
       offs = 1-obj.startframes;
       
-      for itgt=itgtsLive(:)'
-        ptgt = pcell{itgt};
-        ptag = pcelltag{itgt};
-        idx = f + offs(itgt);
-        xy(:,:,itgt) = ptgt(:,:,idx);
-        tfocc(:,itgt) = ptag(:,idx);
+      for j=itgtsLive(:)'
+        ptgt = pcell{j};
+        ptag = pcelltag{j};
+        idx = f + offs(j);
+        xy(:,:,j) = ptgt(:,:,idx);
+        tfocc(:,j) = ptag(:,idx);
       end
     end
     
@@ -602,18 +703,18 @@ classdef TrkFile < dynamicprops
       %
       % iTlt: tracklet index
       %
-      % xy: [npt x 2 x nfrm] where nfrm=size(obj.frm2trx,1)
+      % xy: [npt x 2 x nfrm] where nfrm=size(obj.frm2tlt,1)
       
       ptrkI = obj.pTrk{iTlt};
-      npts = size(pTrkI,1);
-      nfrm = size(obj.frm2trx,1);
+      npts = size(ptrkI,1);
+      nfrm = size(obj.frm2tlt,1);
       xy = nan(npts,2,nfrm);      
-      f0 = obj.startframe(iTlt);
-      f1 = obj.endframe(iTlt);
+      f0 = obj.startframes(iTlt);
+      f1 = obj.endframes(iTlt);
       xy(:,:,f0:f1) = ptrkI;
     end
     
-    function xyaux = getPAuxTgt(obj,iTlt,ptrkfld)
+    function xyaux = getPAuxTgt(obj,iTlt,ptrkfld,varargin)
       % get aux tracking timeseries (eg confidences) for particular tgt
       %
       % iTlt: tracklet index
@@ -621,13 +722,24 @@ classdef TrkFile < dynamicprops
       %
       % xyaux: [npt x nfrm] auxiliary tracking
       
-      pauxI = obj.(ptrkfld){iTlt};
-      npts = size(pauxI,1);
-      nfrm = size(obj.frm2trx,1);
+      missingok = myparse(varargin,...
+        'missingok',false ...
+        );
+      
+      npts = size(obj.pTrk{iTlt},1);
+      nfrm = size(obj.frm2tlt,1);
       xyaux = nan(npts,nfrm);
-      f0 = obj.startframe(iTlt);
-      f1 = obj.endframe(iTlt);
-      xyaux(:,f0:f1) = pauxI;
+      
+      if isprop(obj,ptrkfld)      
+        pauxI = obj.(ptrkfld){iTlt};
+        f0 = obj.startframes(iTlt);
+        f1 = obj.endframes(iTlt);
+        xyaux(:,f0:f1) = pauxI;
+      elseif missingok
+        % none; xyaux all nans
+      else
+        error('Unknown field ''%s''.',ptrkfld);
+      end
     end
   end
   methods (Static)
