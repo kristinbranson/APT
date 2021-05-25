@@ -56,7 +56,7 @@ classdef TrkFile < dynamicprops
   % contiguous frames for one or more targets; Labels on the other hand
   % are usually quite sparse across movies, time, and targets.
   %
-  % TrkFile storage formats:
+  % *TrkFile storage formats*
   % 1) Dense array. Not bad for single-target or well-body-tracked
   % projects, but inefficient for general multianimal tracking.
   % 2) Sparse array. This is more an implementaiton detail/
@@ -73,18 +73,65 @@ classdef TrkFile < dynamicprops
   % TrkFile primarily supports 3) as APT's production tracking format, but 
   % also supports formats 1) and 2) as those have similar top-level fields.
   % 
-  % 4) and 5) have entirely different storage schemes. A full API for 5) is
-  % available in Labels.m; see TrxUtil.m for utilities for 4).
+  % 4) and 5) have different storage schemes. A full API for 5) is
+  % available in Labels.m; see TrxUtil.m for utilities for 4). 
+  %
+  % In fact the storage of 5) could be shoehorned to work with this class. 
+  % The situation with storage schemes is a little odd. What we/clients 
+  % care most about is a standard API for tracking result access. For 
+  % this purpose, TrkFile, Labels, and any class of this ilk could 
+  % inherit from an ABC or just implement a common interface.
+  %
+  % The precise storage is to some extent an implementation/optimization
+  % detail and whether different formats are stored in a single class like 
+  % TrkFile or have separate classes is not necessarily crucial. Since the
+  % data fields are common, different storage formats can overlap
+  % significantly in their property/fieldnames and hence can be shoehorned
+  % into a common class.
+  %
+  % It is not quite so simple, as the storage format (assuming a public
+  % implementation, which would be natural in MATLAB) does imply a 
+  % natural/built-in (property-based) API which users will interact with 
+  % and write code against. So the choice of re-using TrkFile vs
+  % dispatching to different underlying classes is not entirely hidden.
   %
   % Note that there is no single optimal storage format, as eg 'sparse'
-  % tracking is not optimally stored as tracklets and vice versa etc.
+  % tracking is not optimally stored as tracklets and vice versa etc. The
+  % TrackletTest performance test illustrates eg the tradeoff between
+  % full/tracklet formats depending on the sparsity of tracking.
+  %
+  % 
+  % *Use of TrkFile at Runtime*
+  % At runtime there is often a need for "results with visualization" which
+  % is currently implemented with TrkFile+TV where TV is a 
+  % TrackingVisualizerMT or TrackingVisualizerTracklets. (TVTracklets
+  % currently uses a ptrx as a historic impl detail; note that the ptrx and
+  % TrkFile should share data arrays under the hood.) 
+  %
+  % When using TrkFiles for runtime purposes (eg: .labels2) it may be 
+  % desirable to switch between tracklet and dense formats for performance
+  % reasons. Going further, one can imagine a situation where a TrkFile 
+  % alone is inadequate for runtime purposes (eg imagine needing both dense 
+  % and tracklet formats simultaneously). If this were to occur it would
+  % probably not make sense to continue runtime-related functionality to
+  % TrkFile, and instead create a new class (possibly composite, holding a 
+  % TrkFile etc). This situation has not occurred yet and for now TrkFile 
+  % is being used for runtime applications.
   
   methods
     
     function obj = TrkFile(npts,itlts,startframes,endframes,trkfldsextra,...
         varargin)      
       if nargin==0
+        % Trkfile()
         return;
+      elseif nargin==2
+        % TrkFile(npts,itlts)
+        ntgts = numel(itlts);
+        startframes = ones(1,ntgts);
+        endframes = zeros(1,ntgts);
+        trkfldsextra = {'pTrkConf'};
+        obj = TrkFile(npts,itlts,startframes,endframes,trkfldsextra);
       end
       
       assert(isequal(numel(itlts),numel(startframes),numel(endframes)));
@@ -320,7 +367,7 @@ classdef TrkFile < dynamicprops
       obj.isfull = false;
     end
     
-    function s = structizeRmUnusedFlds(obj)
+    function s = structizePrepSave(obj)
       warnst = warning('off','MATLAB:structOnObject');
       s = struct(obj);
       warning(warnst);
@@ -329,6 +376,12 @@ classdef TrkFile < dynamicprops
           s = rmfield(s,f);
         end
       end
+      
+      mc = ? TrkFile;
+      mprops = mc.PropertyList;
+      tfrm = [mprops.Dependent]; %  | [mprops.Hidden];
+      rmpropnames = {mprops(tfrm).Name}';
+      s = rmfield(s,rmpropnames);
 
       % above check removes .unsetVal prop!initFromTra
       
@@ -338,7 +391,7 @@ classdef TrkFile < dynamicprops
     function save(obj,filename)
       % Saves to filename; ALWAYS OVERWRITES!!
       
-      s = obj.structizeRmUnusedFlds();
+      s = obj.structizePrepSave();
       save(filename,'-mat','-struct','s');
     end
     
@@ -669,6 +722,7 @@ classdef TrkFile < dynamicprops
       obj.frm2tlt = f2t;
     end
     
+    % TODO: consider API that excludes ~tfhaspred vals
     function [tfhaspred,xy,tfocc] = getPTrkFrame(obj,f)
       % get tracking for particular frame
       %
@@ -696,6 +750,35 @@ classdef TrkFile < dynamicprops
         xy(:,:,j) = ptgt(:,:,idx);
         tfocc(:,j) = ptag(:,idx);
       end
+    end
+    
+    function [tfhaspred,xy,tfocc] = getPTrkFT(obj,f,iTgt)
+      % get tracking for particular frame, tgt
+      %
+      % f: scalar (absolute) frame index
+      % iTgt: scalar tracklet idx
+      %
+      % tfhaspred: logical scalar, whether pred is present
+      % xy: [npt x 2]
+      % tfocc: [npt x 1]
+      
+      tfhaspred = obj.frm2tlt(f,iTgt);
+      if tfhaspred
+        ptgt = obj.pTrk{iTgt};
+        ptag = obj.pTrkTag{iTgt};
+        offs = 1 - obj.startframes(iTgt);       
+        idx = f + offs;
+        xy = ptgt(:,:,idx);
+        tfocc = ptag(:,idx);
+      else
+        npt = obj.npts;
+        xy = nan(npt,2);
+        tfocc = false(npt,1);  
+      end
+    end
+    
+    function frms = isLabeledT(obj,iTlt)
+      frms = obj.startframes(iTlt):obj.endframes(iTlt);
     end
     
     function xy = getPTrkTgt(obj,iTlt)

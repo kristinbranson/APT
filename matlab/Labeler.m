@@ -354,7 +354,7 @@ classdef Labeler < handle
     % .nLabelPoints=nView*NumLabelPoints. first dim of labeledpos is
     % ordered as {pt1vw1,pt2vw1,...ptNvw1,pt1vw2,...ptNvwK}
     labels;
-    labels2;
+    labels2; % [nmov] cell array of TrkFile. See notes in %% Labels2 section
     labelsGT;
     labels2GT;
     
@@ -3693,7 +3693,12 @@ classdef Labeler < handle
           s.labels{imov} = Labels.fromarray(fullfcn(s.labeledpos{imov}),...
              'lposTS',fullfcn(s.labeledposTS{imov}),...
              'lpostag',fullfcn(s.labeledpostag{imov}));
-          s.labels2{imov} = Labels.fromarray(fullfcn(s.labeledpos2{imov}));
+          % Clearly, this is foolishness, but we have these utils already
+          % and this is only a backwards compat codepath.
+          lbls2 = Labels.fromarray(fullfcn(s.labeledpos2{imov}));
+          ptrx = Labels.toPTrx(lbls2);
+          tlt = save_tracklet(ptrx,[]);
+          s.labels2{imov} = tlt;
         end
         
         nmov = numel(s.labeledposGT);
@@ -3703,7 +3708,10 @@ classdef Labeler < handle
           s.labelsGT{imov} = Labels.fromarray(fullfcn(s.labeledposGT{imov}),...
              'lposTS',fullfcn(s.labeledposTSGT{imov}),...
              'lpostag',fullfcn(s.labeledpostagGT{imov}));
-          s.labels2GT{imov} = Labels.fromarray(fullfcn(s.labeledpos2GT{imov}));
+          lbls2 = Labels.fromarray(fullfcn(s.labeledpos2GT{imov}));
+          ptrx = Labels.toPTrx(lbls2);
+          tlt = save_tracklet(ptrx,[]);
+          s.labels2GT{imov} = tlt;
         end
       end
       % 20210322 labelsRoi
@@ -3716,20 +3724,14 @@ classdef Labeler < handle
       if s.maIsMA
         for i=1:numel(s.labels2)
           stmp = s.labels2{i};
-          if ~isfield(stmp,'firstframe')
-            if Labels.hasLbls(stmp)
-              warningNoTrace('Clearing imported tracking results for movie %d. Please re-import.',i);
-            end
-            s.labels2{i} = TrxUtil.newptrx(0,stmp.npts);
+          if ~isfield(stmp,'startframes')
+            s.labels2{i} = save_tracklet(stmp,[]);
           end
         end
         for i=1:numel(s.labels2GT)
           stmp = s.labels2GT{i};
-          if ~isfield(stmp,'firstframe')
-            if Labels.hasLbls(stmp)
-              warningNoTrace('Clearing imported tracking results for GT movie %d. Please re-import.',i);
-            end
-            s.labels2GT{i} = TrxUtil.newptrx(0,stmp.npts);
+          if ~isfield(stmp,'startframes')
+            s.labels2GT{i} = save_tracklet(stmp,[]);
           end
         end
       end      
@@ -3884,11 +3886,11 @@ classdef Labeler < handle
         %obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         
         obj.(PROPS.LBL){end+1,1} = Labels.new(nlblpts);
-        if obj.maIsMA
-          obj.(PROPS.LBL2){end+1,1} = TrxUtil.newptrx(0,nlblpts);
-        else
-          obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
-        end
+%        if obj.maIsMA
+        obj.(PROPS.LBL2){end+1,1} = TrkFile(nlblpts,zeros(0,1));
+ %       else
+  %        obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
+   %     end
         obj.labelsRoi{end+1,1} = LabelROI.new();
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
@@ -4056,7 +4058,8 @@ classdef Labeler < handle
 %       obj.(PROPS.LPOSTAG){end+1,1} = false(nLblPts,nFrms,nTgt);
 %       obj.(PROPS.LPOS2){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LBL){end+1,1} = Labels.new(nLblPts);
-      obj.(PROPS.LBL2){end+1,1} = Labels.new(nLblPts);
+      %obj.(PROPS.LBL2){end+1,1} = Labels.new(nLblPts);
+      obj.(PROPS.LBL2){end+1,1} = TrkFile(nlblPts,zeros(0,1));
       obj.labelsRoi{end+1,1} = LabelROI.new();
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
@@ -7736,96 +7739,89 @@ classdef Labeler < handle
       assert(isa(mIdx,'MovieIndex'));
       
       nMovSets = numel(mIdx);
-      szassert(trkfiles,[nMovSets obj.nview]);
-      nPhysPts = obj.nPhysPoints;   
-      tfMV = obj.isMultiView;
       nView = obj.nview;
+      szassert(trkfiles,[nMovSets nView]);
+      %nPhysPts = obj.nPhysPoints;   
+      tfMV = obj.isMultiView;
       
       for i=1:nMovSets
-        movnframes = obj.getNFramesMovIdx(mIdx(i));
+        %movnframes = obj.getNFramesMovIdx(mIdx(i));
         
         if tfMV
           fprintf('MovieSet %d...\n',mIdx(i));
         end
         scell = cell(1,nView);
-%        assert(obj.maIsMA && nView==1); % otherwise needs updates; see below
-        assert(nView==1); % otherwise needs updates; see below
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
-          s = TrkFile.load(tfile);
+          scell{iVw} = TrkFile.load(tfile);
           %displaying when .trk file was last updated
           tfileDir = dir(tfile);
           disp(['  trk file last modified: ',tfileDir.date]);
-          
-          if false
-            % TODO AL 20210317: this stuff mostly relates to multiview and
-            % consider putting into TrkFile, or removing, or reconsider 
-            % multiview strategy etc.
-            
-            s = TrkFile.modernizeStruct(s); % this dups TrkFile.load
 
-            if isfield(s,'pTrkiPt')
-              iPt = s.pTrkiPt;
-            else
-              iPt = 1:size(s.pTrk,1);
-            end
-            tfInBounds = 1<=iPt & iPt<=nPhysPts;
-            if any(~tfInBounds)
-              if tfMV
-                error('Labeler:trkImport',...
-                  'View %d: trkfile contains information for more points than exist in project (number physical points=%d).',...
-                  iVw,nPhysPts);
-              else
-                error('Labeler:trkImport',...
-                  'Trkfile contains information for more points than exist in project (number of points=%d).',...
-                  nPhysPts);
-              end
-            end
-            if nnz(tfInBounds)<nPhysPts
-              if tfMV
-                warningNoTrace('Labeler:trkImport',...
-                  'View %d: trkfile does not contain labels for all points in project (number physical points=%d).',...
-                  iVw,nPhysPts);              
-              else
-                 warningNoTrace('Labeler:trkImport',...
-                   'Trkfile does not contain information for all points in project (number of points=%d).',...
-                   nPhysPts);
-              end
-            end
-
-            if isfield(s,'pTrkFrm')
-              frmsTrk = s.pTrkFrm;
-            else
-              frmsTrk = 1:size(s.pTrk,3);
-            end
-
-            %movnframes = size(lpos,3);
-            tfInBounds = 1<=frmsTrk & frmsTrk<=movnframes;
-            if any(~tfInBounds)
-              warningNoTrace('Labeler:trkImport',...
-                'Trkfile contains information for frames beyond end of movie (number of frames=%d).',...
-                movnframes);
-            end
-
-            if isfield(s,'pTrkiTgt')
-              iTgt = s.pTrkiTgt;
-            else
-              iTgt = 1;
-            end
-
-            fprintf(1,'Loading %d frames for %d points, %d targets from trk file:\n  %s.\n',...
-              numel(frmsTrk),numel(iPt),numel(iTgt),tfile); 
-            
-            scell{iVw} = Labels.fromTrkfile(s);
-          else
-            scell{iVw} = s;
-          end          
+%           if false            
+%             if isfield(s,'pTrkiPt')
+%               iPt = s.pTrkiPt;
+%             else
+%               iPt = 1:size(s.pTrk,1);
+%             end
+%             tfInBounds = 1<=iPt & iPt<=nPhysPts;
+%             if any(~tfInBounds)
+%               if tfMV
+%                 error('Labeler:trkImport',...
+%                   'View %d: trkfile contains information for more points than exist in project (number physical points=%d).',...
+%                   iVw,nPhysPts);
+%               else
+%                 error('Labeler:trkImport',...
+%                   'Trkfile contains information for more points than exist in project (number of points=%d).',...
+%                   nPhysPts);
+%               end
+%             end
+%             if nnz(tfInBounds)<nPhysPts
+%               if tfMV
+%                 warningNoTrace('Labeler:trkImport',...
+%                   'View %d: trkfile does not contain labels for all points in project (number physical points=%d).',...
+%                   iVw,nPhysPts);              
+%               else
+%                  warningNoTrace('Labeler:trkImport',...
+%                    'Trkfile does not contain information for all points in project (number of points=%d).',...
+%                    nPhysPts);
+%               end
+%             end
+% 
+%             if isfield(s,'pTrkFrm')
+%               frmsTrk = s.pTrkFrm;
+%             else
+%               frmsTrk = 1:size(s.pTrk,3);
+%             end
+% 
+%             %movnframes = size(lpos,3);
+%             tfInBounds = 1<=frmsTrk & frmsTrk<=movnframes;
+%             if any(~tfInBounds)
+%               warningNoTrace('Labeler:trkImport',...
+%                 'Trkfile contains information for frames beyond end of movie (number of frames=%d).',...
+%                 movnframes);
+%             end
+% 
+%             if isfield(s,'pTrkiTgt')
+%               iTgt = s.pTrkiTgt;
+%             else
+%               iTgt = 1;
+%             end
+% 
+%             fprintf(1,'Loading %d frames for %d points, %d targets from trk file:\n  %s.\n',...
+%               numel(frmsTrk),numel(iPt),numel(iTgt),tfile); 
+%             
+%             scell{iVw} = Labels.fromTrkfile(s);
+%           else
+          %end          
         end
         
-        % asserted single-view
-        % s = Labels.mergeviews(cell2mat(scell));
-        assert(obj.nview==1);
+        % assuming tracklet-style TrkFile for now (LBL2)
+        assert(strcmp(propsFld,'LBL2'));
         s = scell{1};
+        if tfMV
+          s.mergeMultiView(scell{2:end});
+        end
                 
         % AL20201223 matlab indexing/language bug 2020b
         %[iMov,isGT] = mIdx(i).get();
@@ -7837,34 +7833,34 @@ classdef Labeler < handle
       end
     end
     
-    function labelImportTrk_Old(obj,iMovs,trkfiles)
-      % Import label data from trk files.
-      %
-      % iMovs: [nMovie]. Movie(set) indices for which to import.
-      % trkfiles: [nMoviexnview] cellstr. full filenames to trk files
-      %   corresponding to iMov.
-      
-      assert(~obj.gtIsGTMode);
-      
-      obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
-        'labeledposTS','labeledpostag');
-      % need to compute lastLabelChangeTS from scratch
-      obj.computeLastLabelChangeTS_Old();
-      
-      obj.movieFilesAllHaveLbls(iMovs) = ...
-        cellfun(@Labeler.computeNumLbledRows,obj.labeledpos(iMovs));
-      
-      obj.updateFrameTableComplete();
-      if obj.gtIsGTMode
-        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
-      end
-      
-      %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
-      %now, since what we are importing is already in the .trk file.
-      obj.labelsUpdateNewFrame(true);
-      
-      RC.saveprop('lastTrkFileImported',trkfiles{end});
-    end
+%     function labelImportTrk_Old(obj,iMovs,trkfiles)
+%       % Import label data from trk files.
+%       %
+%       % iMovs: [nMovie]. Movie(set) indices for which to import.
+%       % trkfiles: [nMoviexnview] cellstr. full filenames to trk files
+%       %   corresponding to iMov.
+%       
+%       assert(~obj.gtIsGTMode);
+%       
+%       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
+%         'labeledposTS','labeledpostag');
+%       % need to compute lastLabelChangeTS from scratch
+%       obj.computeLastLabelChangeTS_Old();
+%       
+%       obj.movieFilesAllHaveLbls(iMovs) = ...
+%         cellfun(@Labeler.computeNumLbledRows,obj.labeledpos(iMovs));
+%       
+%       obj.updateFrameTableComplete();
+%       if obj.gtIsGTMode
+%         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+%       end
+%       
+%       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
+%       %now, since what we are importing is already in the .trk file.
+%       obj.labelsUpdateNewFrame(true);
+%       
+%       RC.saveprop('lastTrkFileImported',trkfiles{end});
+%     end
     
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS_Old(obj)      
@@ -8164,38 +8160,20 @@ classdef Labeler < handle
       if useLabels2        
         if isempty(useTrain),
           lpos = obj.labels2GTaware;
-%           lpos = obj.labeledpos2GTaware;
-%           lpostag = obj.labeledpostagGTaware;
-%           lposTS = obj.labeledposTSGTaware;
         elseif useTrain == 0,
           lpos = obj.labels2GT;
-%           lpos = obj.labeledpos2GT;
-%           lpostag = obj.labeledpostagGT;
-%           lposTS = obj.labeledposTSGT;
         else
           lpos = obj.labels2;
-%           lpos = obj.labeledpos2;
-%           lpostag = obj.labeledpostag;
-%           lposTS = obj.labeledposTS;
         end
-%         lpostag = cellfun(@(x)false(size(x)),lpostag,'uni',0);
-%         lposTS = cellfun(@(x)-inf(size(x)),lposTS,'uni',0);
+        assert(false,'TODO');
+        % could use tracklet->tableform and merge
       else
         if isempty(useTrain),
           lpos = obj.labelsGTaware;
-%           lpos = obj.labeledposGTaware;
-%           lpostag = obj.labeledpostagGTaware;
-%           lposTS = obj.labeledposTSGTaware;
         elseif useTrain == 0,
           lpos = obj.labelsGT;
-%           lpos = obj.labeledposGT;
-%           lpostag = obj.labeledpostagGT;
-%           lposTS = obj.labeledposTSGT;
         else
           lpos = obj.labels;
-%           lpos = obj.labeledpos;
-%           lpostag = obj.labeledpostag;
-%           lposTS = obj.labeledposTS;
         end
       end
       
@@ -14130,6 +14108,26 @@ classdef Labeler < handle
   end
   
   %% Labels2/OtherTarget labels
+  
+  % Labels2 notes.
+  % We are using TrkFiles as the contents of .labels2{iMov}. In contrast
+  % to .labels{iMov}, which are are sparse user annotations, imported
+  % tracking are of the tracklet type (segments of contiguous/dense results
+  % etc).
+  %
+  % Per the TrackletTest performance test, either the tracklet or
+  % dense/full TrkFile format can perform better for eg accessing "all 
+  % tracking results for given frame (across all tgts)", depending on the 
+  % sparsity of tracklet data. For essentially dense data like AR/Flybub, 
+  % the  array/full format performs a little quicker. For larger numbers of 
+  % sparse tracklets, tracklets perform better. Unless the sparsity reaches 
+  % extreme levels (at might be reached for user annotations), the "Labels" 
+  % format never performs well.
+  %
+  % For now the TrkFiles in .labels2 are always in tracklet format. One can
+  % imagine switching to dense as a performance optimization.
+   
+  
   methods
     
 % AL 201806 no callers atm
@@ -14152,20 +14150,18 @@ classdef Labeler < handle
       PROPS = obj.gtGetSharedProps();
       iMov = obj.currMovie;
       frm = obj.currFrame;
-      s = obj.(PROPS.LBL2){iMov};
-      [tf,p] = Labels.isLabeledFT(s,frm,iTgt);
-      lpos2 = reshape(p,[],2);
-      %lpos2 = obj.(PROPS.LPOS2){iMov}(:,:,frm,iTgt);
-      %tf = any(~isnan(lpos2(:)));      
+      trk = obj.(PROPS.LBL2){iMov};
+      [tf,lpos2] = trk.getPTrkFT(frm,iTgt);
     end
     
-    function labels2SetCurrMovie(obj,lpos)
-      % Works in both reg/GT mode
-      PROPS = obj.gtGetSharedProps();
-      iMov = obj.currMovie;      
-      assert(isequal(size(lpos),size(obj.(PROPS.LPOS){iMov})));
-      obj.(PROPS.LPOS2){iMov} = lpos;
-    end
+    % 20210524 no callers atm
+%     function labels2SetCurrMovie(obj,lpos)
+%       % Works in both reg/GT mode
+%       PROPS = obj.gtGetSharedProps();
+%       iMov = obj.currMovie;      
+%       assert(isequal(size(lpos),size(obj.(PROPS.LPOS){iMov})));
+%       obj.(PROPS.LPOS2){iMov} = lpos;
+%     end
     
     function labels2Clear(obj)
       % Operates based on current reg/GT mode
@@ -14173,11 +14169,13 @@ classdef Labeler < handle
       PROPLBL2 = PROPS.LBL2;
       isMA = obj.maIsMA;
       nlblpts = obj.nLabelPoints;
+      ntgts = obj.nTargets;
       for i=1:numel(obj.(PROPLBL2))
         if isMA
-          obj.(PROPLBL2){i} = TrxUtil.newptrx(0,nlblpts);
+          % 0 tracklets
+          obj.(PROPLBL2){i} = TrkFile(nlblpts,zeros(1,0)); % TrxUtil.newptrx(0,nlblpts);
         else
-          obj.(PROPLBL2){i} = Labels.new(nlblpts);
+          obj.(PROPLBL2){i} = TrkFile(nlblpts,1:ntgts); % Labels.new(nlblpts);
         end
       end
       obj.labels2VizUpdate();
@@ -14212,44 +14210,40 @@ classdef Labeler < handle
       obj.labels2ImportTrkPromptAuto(obj.currMovie);
     end
     
-    function labels2ExportTrk(obj,iMovs,varargin)
-      % Export label2 data to trk files.
-      %
-      % iMov: optional, indices into (rows of) .movieFilesAllGTaware to 
-      %   export. Defaults to 1:obj.nmoviesGTaware.
-      
-      [trkfiles,rawtrkname] = myparse(varargin,...
-        'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
-        'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
-        );
-      
-      if exist('iMovs','var')==0
-        iMovs = 1:obj.nmoviesGTaware;
-      end
-                
-      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovs,trkfiles,...
-        rawtrkname,{});
-      if ~tfok
-        return;
-      end
-
-      PROPS = obj.gtGetSharedProps;
-      obj.labelExportTrkGeneric(iMovs,trkfiles,PROPS.LBL2);
-    end
+%     function labels2ExportTrk(obj,iMovs,varargin)
+%       % Export label2 data to trk files.
+%       %
+%       % iMov: optional, indices into (rows of) .movieFilesAllGTaware to 
+%       %   export. Defaults to 1:obj.nmoviesGTaware.
+%       
+%       [trkfiles,rawtrkname] = myparse(varargin,...
+%         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
+%         'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
+%         );
+%       
+%       if exist('iMovs','var')==0
+%         iMovs = 1:obj.nmoviesGTaware;
+%       end
+%                 
+%       [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovs,trkfiles,...
+%         rawtrkname,{});
+%       if ~tfok
+%         return;
+%       end
+% 
+%       PROPS = obj.gtGetSharedProps;
+%       obj.labelExportTrkGeneric(iMovs,trkfiles,PROPS.LBL2);
+%     end
     
     function colors = Set2PointColors(obj,colors)
-      
       colors = colors(obj.labeledposIPt2Set,:);
-      
     end
     
     function colors = LabelPointColors(obj,idx)
-      
       colors = obj.Set2PointColors(obj.labelPointsPlotInfo.Colors);
       if nargin > 1,
         colors = colors(idx,:);
-      end
-      
+      end      
     end
     
     function colors = PredictPointColors(obj)
@@ -14275,7 +14269,9 @@ classdef Labeler < handle
         else
           PROPS = obj.gtGetSharedProps();
           s = obj.(PROPS.LBL2){iMov};
-          tv.vizInit(obj.nframes,s);
+          ptrx = load_tracklet(s);
+          ptrx = TrxUtil.ptrxAddXY(ptrx);
+          tv.vizInit(obj.nframes,ptrx);
         end
       else
         tv = TrackingVisualizerMT(obj,'labeledpos2');
@@ -14313,12 +14309,13 @@ classdef Labeler < handle
         if obj.maIsMA
           tv.newFrame(frm);
         else
-          ntgts = obj.nTargets;
-          p = Labels.getLabelsF(obj.labels2GTaware{iMov},frm,ntgts);
-          lpos2 = reshape(p,[obj.nLabelPoints,2,ntgts]);
-          % no lpos2 occ!
-          lpostag = false(obj.nLabelPoints,obj.nTargets);
-          tv.updateTrackRes(lpos2,lpostag);
+          %ntgts = obj.nTargets;
+          trk = obj.labels2GTaware{iMov};
+          [tfhaspred,xy,tfocc] = trk.getPTrkFrame(frm);
+          % TODO consider .getPTrkFrame API that excludes ~tfhaspred
+          xy = xy(:,:,tfhaspred);
+          tfocc = tfocc(:,tfhaspred);          
+          tv.updateTrackRes(xy,tfocc);
         end
       end
       if setprimarytgt

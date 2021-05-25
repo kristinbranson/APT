@@ -156,8 +156,9 @@ function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
 %npts = lObj.nLabelPoints;
 if tfLbls2
   s = lObj.getLabels2MovIdx(mIdx);
+  frms = s.isLabeledT(iTgt);
 else
   s = lObj.getLabelsMovIdx(mIdx);
+  frms = Labels.isLabeledT(s,iTgt);
 end
-frms = Labels.isLabeledT(s,iTgt);
 end
