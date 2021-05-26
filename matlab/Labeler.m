@@ -3695,12 +3695,12 @@ classdef Labeler < handle
           s.labels{imov} = Labels.fromarray(fullfcn(s.labeledpos{imov}),...
              'lposTS',fullfcn(s.labeledposTS{imov}),...
              'lpostag',fullfcn(s.labeledpostag{imov}));
-          % Clearly, this is foolishness, but we have these utils already
-          % and this is only a backwards compat codepath.
-          lbls2 = Labels.fromarray(fullfcn(s.labeledpos2{imov}));
-          ptrx = Labels.toPTrx(lbls2);
-          tlt = save_tracklet(ptrx,[]);
-          s.labels2{imov} = tlt;
+
+          tfo = TrkFile();
+          tfo.initFromArraysFull(fullfcn(s.labeledpos2{imov}));
+          tfo = tfo.toTrackletFull();
+          tfo.initFrm2Tlt(s.movieInfoAll{imov}.nframes);
+          s.labels2{imov} = tfo;
         end
         
         nmov = numel(s.labeledposGT);
@@ -3710,10 +3710,12 @@ classdef Labeler < handle
           s.labelsGT{imov} = Labels.fromarray(fullfcn(s.labeledposGT{imov}),...
              'lposTS',fullfcn(s.labeledposTSGT{imov}),...
              'lpostag',fullfcn(s.labeledpostagGT{imov}));
-          lbls2 = Labels.fromarray(fullfcn(s.labeledpos2GT{imov}));
-          ptrx = Labels.toPTrx(lbls2);
-          tlt = save_tracklet(ptrx,[]);
-          s.labels2GT{imov} = tlt;
+           
+          tfo = TrkFile();
+          tfo.initFromArraysFull(fullfcn(s.labeledpos2GT{imov}));
+          tfo = tfo.toTrackletFull();
+          tfo.initFrm2Tlt(s.movieInfoAllGT{imov}.nframes);
+          s.labels2GT{imov} = tfo;
         end
       end
       % 20210322 labelsRoi
@@ -3723,7 +3725,7 @@ classdef Labeler < handle
       end
       
       % 20210317 MA use tracklets in labels2
-      % Used Labels at some point
+      % Used Labels earlier in dev
       for i=1:numel(s.labels2)
         stmp = s.labels2{i};
         if ~isa(stmp,'TrkFile')

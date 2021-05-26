@@ -912,6 +912,61 @@ classdef TrkFile < dynamicprops
   
   methods % table/full utils
     
+    function obj2 = toTrackletFull(obj,varargin)
+      % Return a new TrkFile which is the tracklet-form of obj
+      
+      compactify = myparse(varargin,...
+        'compactify',true ... % if true, remove "empty"/nan frames from tracklets
+        );
+      
+      assert(obj.isfull)
+      
+      [npts,~,nfrm,ntlt] = size(obj.pTrk);
+      assert(isequal(obj.pTrkFrm,obj.pTrkFrm(1):obj.pTrkFrm(end)));
+      sfs = repmat(obj.pTrkFrm(1),1,ntlt);
+      efs = repmat(obj.pTrkFrm(end),1,ntlt);
+      trkflds = obj.trkflds();
+      obj2 = TrkFile(npts,obj.pTrkiTgt,sfs,efs,trkflds);      
+      
+      for itlt=1:ntlt
+        if compactify
+          p = obj.pTrk(:,:,:,itlt);
+          p = reshape(p,[],nfrm);
+          tflivep = any(~isnan(p),1);          
+          occ = obj.pTrkTag(:,:,itlt);
+          tfliveocc = any(occ,1);
+          tflive = tflivep | tfliveocc;
+          idx0 = find(tflive,1,'first');
+          idx1 = find(tflive,1,'last');
+          if isempty(idx0)
+            idx0 = 1;
+            idx1 = 0;
+          end
+        else
+          idx0 = 1;
+          idx1 = nfrm;
+        end
+        
+        idx = idx0:idx1; % index into .p* fields
+        sfI = sfs(itlt) + idx0 - 1;
+        efI = sfs(itlt) + idx1 - 1;
+        
+        for f=trkflds(:)',f=f{1}; %#ok<FXSET>
+          v = obj.(f);
+          if strcmp(v,'pTrk') % branching off ndims(v) doesn't work if ntlt==1            
+            obj2.(f){itlt} = v(:,:,idx,itlt);
+          else
+            obj2.(f){itlt} = v(:,idx,itlt);
+          end
+        end
+        obj2.startframes(itlt) = sfI;
+        obj2.endframes(itlt) = efI;
+      end
+      
+      obj2.isfull = false;
+      obj2.npts = npts;      
+    end
+    
     % only one callsite and seems unnec
     function tbl = tableformFull(obj)
       p = obj.pTrk;
