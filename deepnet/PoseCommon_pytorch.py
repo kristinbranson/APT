@@ -481,7 +481,7 @@ class PoseCommon_pytorch(object):
         logging.info("Optimization Finished!")
         self.save(n_steps, model, opt, lr_sched)
 
-    def train_wrapper(self, restore=False):
+    def train_wrapper(self, restore=False,model_file=None):
         model = self.create_model()
         training_iters = self.conf.dl_steps
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)

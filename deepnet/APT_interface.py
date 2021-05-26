@@ -1461,7 +1461,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
     return splits, sel
 
 
-def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
+def  db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,
                        sel=None, nsamples=None, use_gt_cache=False):
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
@@ -1886,8 +1886,8 @@ def get_augmented_images(conf, out_file, distort=True, on_gt = False,nsamples=No
 
         logging.info('use cache')
         splits,sel = db_from_cached_lbl(conf, out_fns, False, None, on_gt, nsamples=nsamples)
-        ims = np.array([d[0] for d in data_in])
-        locs = np.array([d[1] for d in data_in])
+        ims = np.array([d['im'] for d in data_in])
+        locs = np.array([d['locs'] for d in data_in])
         logging.info('sel = '+str(sel))
 
         ims, locs = PoseTools.preprocess_ims(ims,locs,conf,distort,conf.rescale)

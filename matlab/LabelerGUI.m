@@ -789,6 +789,7 @@ listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbkl
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
+listeners{end+1,1} = addlistener(lObj,'dataImported',@cbkDataImported);
 listeners{end+1,1} = addlistener(lObj,'showSkeleton','PostSet',@cbkShowSkeletonChanged);
 listeners{end+1,1} = addlistener(lObj,'showMaRoi','PostSet',@cbkShowMaRoiChanged);
 listeners{end+1,1} = addlistener(lObj,'showMaRoiAux','PostSet',@cbkShowMaRoiAuxChanged);
@@ -1784,6 +1785,11 @@ EnableControls(handles,'projectloaded');
 if ~isempty(lObj.tracker)
   lObj.tracker.updateTrackerInfo();
 end
+
+function cbkDataImported(src,evt)
+lObj = src;
+handles = lObj.gdata;
+handles.labelTLInfo.newTarget(); % Using this as a "refresh" for now
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])

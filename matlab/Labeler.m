@@ -119,6 +119,8 @@ classdef Labeler < handle
     
     % EventData is a MoviesRemappedEventData
     moviesReordered
+    
+    dataImported
   end
       
   
@@ -14189,6 +14191,7 @@ classdef Labeler < handle
       lbl2 = obj.(PROPLBL2);
       cellfun(@(x)x.clearTracklet(),lbl2);
       obj.labels2VizUpdate();
+      obj.notify('dataImported');
     end
     
     function labels2ImportTrkPromptAuto(obj,iMovs)
@@ -14208,6 +14211,7 @@ classdef Labeler < handle
       obj.labelImportTrkGeneric(mIdx,trkfiles,'LBL2');
       obj.labels2TrkVizInit();
       obj.labels2VizUpdate();
+      obj.notify('dataImported');
       RC.saveprop('lastTrkFileImported',trkfiles{end});
     end
     

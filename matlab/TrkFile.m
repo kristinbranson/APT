@@ -392,10 +392,10 @@ classdef TrkFile < dynamicprops
       for f=tflds(:)',f=f{1}; %#ok<FXSET>
         for i=1:obj.ntlts
           v = obj.(f){i};
-          if ndim(v)==3
-            obj.(f) = v(:,:,1:0);
+          if ndims(v)==3
+            obj.(f){i} = v(:,:,1:0);
           else
-            obj.(f) = v(:,1:0);
+            obj.(f){i} = v(:,1:0);
           end
         end
       end
