@@ -5374,9 +5374,12 @@ classdef DeepTracker < LabelTracker
       nView = obj.nview;
       trkfileObjs = cell(nMov,nView);
       tfHasRes = false(nMov,1);
+      lObj = obj.lObj;
       for i=1:nMov
-        trkfilesI = obj.trackResGetTrkfiles(mIdx(i));
-        movfile = obj.lObj.getMovieFilesAllFullMovIdx(mIdx(i));
+        mIdxI = mIdx(i);
+        trkfilesI = obj.trackResGetTrkfiles(mIdxI);
+        movfile = lObj.getMovieFilesAllFullMovIdx(mIdxI);
+        movnframes = lObj.getNFramesMovIdx(mIdxI);
         ntrk = size(trkfilesI,1);
         
         if ntrk==0
@@ -5388,7 +5391,8 @@ classdef DeepTracker < LabelTracker
         end        
         for ivw=1:nView
           [trkfilesIobj,tfsuccload] = ...
-            cellfun(@(f) DeepTracker.hlpLoadTrk(f,'movfile',movfile{ivw}),...
+            cellfun(@(f) DeepTracker.hlpLoadTrk(f,'movfile',movfile{ivw},...
+                                                  'movnframes',movnframes),...
             trkfilesI(:,ivw),'uni',0);
           tfsuccload = cell2mat(tfsuccload);
           trkfilesIobj = trkfilesIobj(tfsuccload);
@@ -5502,16 +5506,18 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static)
     function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
-      [rawload,movfile] = myparse(varargin,...
+      [rawload,movfile,movnframes] = myparse(varargin,...
         'rawload',false,...
-        'movfile',''...
+        'movfile','',...
+        'movnframes',[] ...
         );
             
       try
         if rawload
           trkfileObj = load(tfile,'-mat');
         else
-          trkfileObj = TrkFile.loadsilent(tfile,movfile);
+          trkfileObj = TrkFile.loadsilent(tfile,'movfile',movfile,...
+            'movnframes',movnframes);
         end
         tfsuccload = true;
       catch ME

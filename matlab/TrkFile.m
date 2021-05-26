@@ -30,17 +30,17 @@ classdef TrkFile < dynamicprops
     endframes
     frm2tlt  % [nfrmtot x ntgt] logical indicating frames where tracklets 
              % are live.
+    npts
   end
   properties (Dependent)
-    npts
     ntlts
   end
   
   methods 
-    function v = get.npts(obj)
-      % assumes at least one tracklet...
-      v = size(obj.pTrk{1},1);
-    end
+%     function v = get.npts(obj)
+%       % assumes at least one tracklet...
+%       v = size(obj.pTrk{1},1);
+%     end
     function v = get.ntlts(obj)
       v = numel(obj.pTrk);
     end
@@ -121,7 +121,7 @@ classdef TrkFile < dynamicprops
   methods
     
     function obj = TrkFile(npts,itlts,startframes,endframes,trkfldsextra,...
-        varargin)      
+        varargin)
       if nargin==0
         % Trkfile()
         return;
@@ -136,6 +136,8 @@ classdef TrkFile < dynamicprops
       
       assert(isequal(numel(itlts),numel(startframes),numel(endframes)));
   
+      obj.npts = npts;
+      
       nfs = endframes-startframes+1;
       obj.pTrk = arrayfun(@(x)nan(npts,2,x),nfs,'uni',0);
       nowdt = now;
@@ -354,17 +356,53 @@ classdef TrkFile < dynamicprops
         v = obj.(f);
         assert(iscell(v));
         for i=1:numel(v)
-          if isempty(v{i})
-            % compensate for apparent bug on Py side
-            % https://github.com/frejanordsiek/hdf5storage/issues/114          
-            ndim = ndims(v{i});
+          if isempty(v{i}) && size(v{i},1)==0 
+            % compensate for apparent bug on Py 
+            % https://github.com/frejanordsiek/hdf5storage/issues/114
+            %
+            % Only do this when first dim has 0 len. trkfiles that have
+            % been exported/saved will be fixed. the other dims should
+            % not be zero so that leaves the numframes dim to have len(0)
+            % for an empty array. The numframes dim should be last, but on
+            % load from Py due to the hdf5storage it will be first.
+            
+            ndim = ndims(v{i});            
             v{i} = permute(v{i},ndim:-1:1);
           end
         end
         obj.(f) = v;
       end
       
+      obj.npts = size(obj.pTrk{1},1); 
       obj.isfull = false;
+    end
+    
+    function clearTracklet(obj)
+      assert(~obj.isfull);
+      
+      tfInitFrm2Tlt = ~isequal(obj.frm2tlt,[]);
+      nfrm = size(obj.frm2tlt,1);
+      
+      for i=1:obj.ntlts
+        obj.startframes(i) = 0;
+        obj.endframes(i) = -1;
+      end
+      
+      tflds = obj.trkflds();
+      for f=tflds(:)',f=f{1}; %#ok<FXSET>
+        for i=1:obj.ntlts
+          v = obj.(f){i};
+          if ndim(v)==3
+            obj.(f) = v(:,:,1:0);
+          else
+            obj.(f) = v(:,1:0);
+          end
+        end
+      end
+      
+      if tfInitFrm2Tlt
+        obj.initFrm2Tlt(nfrm);
+      end
     end
     
     function s = structizePrepSave(obj)
@@ -427,15 +465,15 @@ classdef TrkFile < dynamicprops
       end
     end
     
-    function trkfileObj = load(filename,movfile,issilent)
+    function trkfileObj = load(filename,varargin)
 
+      [movfile,issilent,movnframes] = myparse(varargin,...
+        'movfile','',...
+        'issilent',false,...
+        'movnframes',[] ...
+        );
+      
       ntries = 5;
-      if nargin < 2,
-        movfile = '';
-      end
-      if nargin < 3,
-        issilent = false;
-      end
       if ~exist(filename,'file'),
         trkfileObj = [];
         return;
@@ -473,6 +511,9 @@ classdef TrkFile < dynamicprops
         case 'tracklet'
           s.movfile = movfile;
           trkfileObj.initFromTracklet(s);
+          if ~isempty(movnframes)
+            trkfileObj.initFrm2Tlt(movnframes);
+          end
         case {'fullmatrix' 'table'}
           if issilent,
             mc = meta.class.fromName('TrkFile');
@@ -507,11 +548,8 @@ classdef TrkFile < dynamicprops
       end
     end
     
-    function trkfileObj = loadsilent(filename,movfile)
-      if nargin < 2,
-        movfile = '';
-      end
-      trkfileObj = TrkFile.load(filename,movfile,true);
+    function trkfileObj = loadsilent(filename,varargin)
+      trkfileObj = TrkFile.load(filename,'issilent',true,varargin{:});
     end
     
     function s = modernizeStruct(s)
@@ -734,7 +772,7 @@ classdef TrkFile < dynamicprops
       
       tfhaspred = obj.frm2tlt(f,:).';
       itgtsLive = find(tfhaspred);
-      npt = size(obj.pTrk{1},1);
+      npt = obj.npts;
       ntgt = numel(obj.pTrk);
       xy = nan(npt,2,ntgt);
       tfocc = false(npt,ntgt);
@@ -781,20 +819,24 @@ classdef TrkFile < dynamicprops
       frms = obj.startframes(iTlt):obj.endframes(iTlt);
     end
     
-    function xy = getPTrkTgt(obj,iTlt)
+    function [xy,occ] = getPTrkTgt(obj,iTlt)
       % get tracking for particular target
       %
       % iTlt: tracklet index
       %
       % xy: [npt x 2 x nfrm] where nfrm=size(obj.frm2tlt,1)
+      % occ: [npt x nfrm]
       
       ptrkI = obj.pTrk{iTlt};
       npts = size(ptrkI,1);
       nfrm = size(obj.frm2tlt,1);
-      xy = nan(npts,2,nfrm);      
+      xy = nan(npts,2,nfrm);
+      occ = false(npts,nfrm);
       f0 = obj.startframes(iTlt);
       f1 = obj.endframes(iTlt);
-      xy(:,:,f0:f1) = ptrkI;
+      idx = f0:f1;
+      xy(:,:,idx) = ptrkI;
+      occ(:,idx) = obj.pTrkTag{iTlt};
     end
     
     function xyaux = getPAuxTgt(obj,iTlt,ptrkfld,varargin)

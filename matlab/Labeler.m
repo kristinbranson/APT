@@ -3720,21 +3720,30 @@ classdef Labeler < handle
         s.labelsRoi = repmat({LabelROI.new()},nmov,1);
       end
       
-      % 20210317 MA use tracklets in labels2 
-      if s.maIsMA
-        for i=1:numel(s.labels2)
-          stmp = s.labels2{i};
-          if ~isfield(stmp,'startframes')
-            s.labels2{i} = save_tracklet(stmp,[]);
-          end
+      % 20210317 MA use tracklets in labels2
+      % Used Labels at some point
+      for i=1:numel(s.labels2)
+        stmp = s.labels2{i};
+        if ~isa(stmp,'TrkFile')
+          stmp = Labels.toPTrx(stmp);
+          tlt = save_tracklet(stmp,[]);
+          tfo = TrkFile();
+          tfo.initFromTracklet(tlt);
+          tfo.initFrm2Tlt(s.movieInfoAll{i}.nframes);
+          s.labels2{i} = tfo;
         end
-        for i=1:numel(s.labels2GT)
-          stmp = s.labels2GT{i};
-          if ~isfield(stmp,'startframes')
-            s.labels2GT{i} = save_tracklet(stmp,[]);
-          end
+      end
+      for i=1:numel(s.labels2GT)
+        stmp = s.labels2GT{i};
+        if ~isa(stmp,'TrkFile')
+          stmp = Labels.toPTrx(stmp);
+          tlt = save_tracklet(stmp,[]);
+          tfo = TrkFile();
+          tfo.initFromTracklet(tlt);
+          tfo.initFrm2Tlt(s.movieInfoAllGT{i}.nframes);
+          s.labels2GT{i} = tfo;
         end
-      end      
+      end
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
@@ -3886,11 +3895,15 @@ classdef Labeler < handle
         %obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         
         obj.(PROPS.LBL){end+1,1} = Labels.new(nlblpts);
-%        if obj.maIsMA
-        obj.(PROPS.LBL2){end+1,1} = TrkFile(nlblpts,zeros(0,1));
- %       else
-  %        obj.(PROPS.LBL2){end+1,1} = Labels.new(nlblpts);
-   %     end
+        if obj.maIsMA
+          tfo = TrkFile(nlblpts,zeros(0,1));
+          tfo.initFrm2Tlt(nfrms);
+          obj.(PROPS.LBL2){end+1,1} = tfo;
+        else
+          tfo = TrkFile(nlblpts,1:nTgt);
+          tfo.initFrm2Tlt(nfrms);          
+          obj.(PROPS.LBL2){end+1,1} = tfo;
+        end
         obj.labelsRoi{end+1,1} = LabelROI.new();
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
@@ -4059,7 +4072,10 @@ classdef Labeler < handle
 %       obj.(PROPS.LPOS2){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LBL){end+1,1} = Labels.new(nLblPts);
       %obj.(PROPS.LBL2){end+1,1} = Labels.new(nLblPts);
-      obj.(PROPS.LBL2){end+1,1} = TrkFile(nlblPts,zeros(0,1));
+      assert(~obj.maIsMA);
+      tfo = TrkFile(nlblPts,1:nTgt); % one target
+      tfo.initFrm2Tlt(nFrms);
+      obj.(PROPS.LBL2){end+1,1} = tfo;
       obj.labelsRoi{end+1,1} = LabelROI.new();
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
@@ -7735,7 +7751,8 @@ classdef Labeler < handle
       % trkfiles: [Nxnview] cellstr of trk filenames
       % propsFld: 'LBL' or 'LBL2'
   
-  
+      assert(strcmp(propsFld,'LBL2'));
+
       assert(isa(mIdx,'MovieIndex'));
       
       nMovSets = numel(mIdx);
@@ -7750,10 +7767,14 @@ classdef Labeler < handle
         if tfMV
           fprintf('MovieSet %d...\n',mIdx(i));
         end
+        
+        mIdxI = mIdx(i);
+        movnframes = obj.getNFramesMovIdx(mIdxI);
+        
         scell = cell(1,nView);
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
-          scell{iVw} = TrkFile.load(tfile);
+          scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
           %displaying when .trk file was last updated
           tfileDir = dir(tfile);
           disp(['  trk file last modified: ',tfileDir.date]);
@@ -7817,7 +7838,6 @@ classdef Labeler < handle
         end
         
         % assuming tracklet-style TrkFile for now (LBL2)
-        assert(strcmp(propsFld,'LBL2'));
         s = scell{1};
         if tfMV
           s.mergeMultiView(scell{2:end});
@@ -7825,7 +7845,6 @@ classdef Labeler < handle
                 
         % AL20201223 matlab indexing/language bug 2020b
         %[iMov,isGT] = mIdx(i).get();
-        mIdxI = mIdx(i);
         [iMov,isGT] = mIdxI.get();
         PROPS = obj.gtGetSharedPropsStc(isGT);
         lblFld = PROPS.(propsFld);        
@@ -14167,17 +14186,8 @@ classdef Labeler < handle
       % Operates based on current reg/GT mode
       PROPS = obj.gtGetSharedProps();
       PROPLBL2 = PROPS.LBL2;
-      isMA = obj.maIsMA;
-      nlblpts = obj.nLabelPoints;
-      ntgts = obj.nTargets;
-      for i=1:numel(obj.(PROPLBL2))
-        if isMA
-          % 0 tracklets
-          obj.(PROPLBL2){i} = TrkFile(nlblpts,zeros(1,0)); % TrxUtil.newptrx(0,nlblpts);
-        else
-          obj.(PROPLBL2){i} = TrkFile(nlblpts,1:ntgts); % Labels.new(nlblpts);
-        end
-      end
+      lbl2 = obj.(PROPLBL2);
+      cellfun(@(x)x.clearTracklet(),lbl2);
       obj.labels2VizUpdate();
     end
     

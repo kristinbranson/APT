@@ -1032,6 +1032,8 @@ classdef InfoTimeline < handle
             nfrmtot = labeler.nframes;
             if strcmp(ptype,'Labels'),
               s = labeler.labelsGTaware{iMov};
+              [lpos,lpostag] = Labels.getLabelsT(s,iTgt,nfrmtot);
+              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             else
               s = labeler.labels2GTaware{iMov};
               if labeler.maIsMA
@@ -1041,16 +1043,9 @@ classdef InfoTimeline < handle
                   warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
                   iTgt = 1;
                 end
-              end
+              end              
+              [lpos,lpostag] = s.getPTrkTgt(iTgt);
             end
-            isTrklet = isfield(s,'firstframe');            
-            if isTrklet
-              [lpos,lpostag] = TrxUtil.getLabelsFull(s(iTgt),nfrmtot);
-            else
-              [lpos,lpostag] = Labels.getLabelsT(s,iTgt,nfrmtot);
-              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
-            end
-
             data = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
 
           case 'Predictions'
