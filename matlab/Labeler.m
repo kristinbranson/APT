@@ -11020,7 +11020,6 @@ classdef Labeler < handle
       %
       % Final Massage
       % 
-     
       
       tdata = s.trackerData{s.currTracker};
       
