@@ -61,6 +61,7 @@ class config(object):
         self.perturb_color = False
         self.flipLandmarkMatches = {}
         self.learning_rate_multiplier = 1.
+        self.predict_occluded = False
 
         # ----- Data parameters
         # l1_cropsz = 0

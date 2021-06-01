@@ -120,7 +120,7 @@ def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.Fro
 
 class mdn_joint(nn.Module):
 
-    def __init__(self, npts, device, pretrain_freeze_bnorm=True, k_j=4, k_r=3, wt_offset=-5,fpn_joint_layer=3,fpn_ref_layer=0):
+    def __init__(self, npts, device, pretrain_freeze_bnorm=True, k_j=4, k_r=3, wt_offset=-5,fpn_joint_layer=3,fpn_ref_layer=0,pred_occluded=False):
         super(mdn_joint,self).__init__()
 
         bn_layer = misc_nn_ops.FrozenBatchNorm2d if pretrain_freeze_bnorm else None
@@ -144,6 +144,9 @@ class mdn_joint(nn.Module):
         self.wts_joint = pred_layers(n_ftrs, k_j)
         self.locs_ref = pred_layers(n_ftrs,npts*2*k_r)
         self.wts_ref = pred_layers(n_ftrs,npts*k_r)
+        self.pred_occluded = pred_occluded
+        if pred_occluded:
+            self.p_occ = pred_layers(n_ftrs,npts*k_j)
         self.npts= npts
         self.device = device
         self.k_r = k_r
@@ -191,7 +194,13 @@ class mdn_joint(nn.Module):
 
         wr = wts_r.shape
         wts_r = torch.reshape(wts_r,wr[0:1] + (self.npts,self.k_r) + wr[2:])
-        return locs_j_off, wts_j, locs_r_off, wts_r
+
+        if self.pred_occluded:
+            pred_occ = self.p_occ(x_j)
+        else:
+            pred_occ = None
+
+        return locs_j_off, wts_j, locs_r_off, wts_r, pred_occ
 
 
 def unravel_index(index, shape):
@@ -222,12 +231,12 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.wt_offset = self.conf.get('mdn_joint_wt_offset',-5)
 
     def create_model(self):
-        return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer)
+        return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer,pred_occluded=self.conf.predict_occluded)
 
     def loss_slow(self, preds, labels):
         n_classes = self.conf.n_classes
         offset = self.offset
-        locs_joint, wts_joint, locs_ref, wts_ref = preds
+        locs_joint, wts_joint, locs_ref, wts_ref, pred_occ = preds
         labels = labels.to(self.device)
 
         ll_joint = torch.sigmoid(wts_joint)
@@ -307,18 +316,23 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def loss(self, preds, labels_dict):
         labels = labels_dict['locs'].float()
+        occ = labels_dict['occ'].float()
+        labels = labels.to(self.device)
+        occ = occ.to(self.device)
         n_classes = self.conf.n_classes
         offset = self.offset
-        locs_joint, wts_joint, locs_ref, wts_ref = preds
+        locs_joint, wts_joint, locs_ref, wts_ref, occ_pred = preds
         j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
         wts_joint = wts_joint - self.wt_offset*j_wt_factor
-        labels = labels.to(self.device)
 
         # ll_joint has the weight logits
         ll_joint = torch.sigmoid(wts_joint)
+
+        # Mask the predictions
         if self.conf.multi_loss_mask:
             mask_down = labels_dict['mask'][:,::offset,::offset].to(self.device)
             ll_joint = torch.where(mask_down[:,None,:,:]>0,ll_joint,torch.zeros_like(ll_joint))
+
         ls = locs_joint.shape
         locs_joint_flat = locs_joint.reshape(
             [locs_joint.shape[0], 1, n_classes, 2, self.k_j * ls[-2] * ls[-1]]).permute([0, 1, 4, 2, 3])
@@ -326,7 +340,6 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         valid = torch.any(torch.all(labels > -1000, dim=3), dim=2)
         valid_lbl = labels[...,0] > -1000
         missing = torch.all(~valid,1)
-        # assert torch.all(torch.any(valid,dim=1)), 'Some inputs dont have any labels'
 
         dd = torch.norm(locs_joint_flat * offset - labels.unsqueeze(2), dim=-1)
         # dd has the distance between all the predictions and all the labels
@@ -339,11 +352,12 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         dd_all = dd.sum(-1)
         qq_all = torch.unsqueeze(valid,2)
         qq_all = qq_all.repeat([1,1,ls[-1]*ls[-2]*self.k_j])
-        dd_all = torch.where(qq_all,dd_all,10000*torch.ones_like(dd_all)*self.conf.n_classes)
         # Set distances to invalid instances to a very high value.
+        dd_all = torch.where(qq_all,dd_all,10000*torch.ones_like(dd_all)*self.conf.n_classes)
+
         p_assign = torch.softmax(-dd_all.detach(), axis=1)
 
-        # assign each prediction to the label based on its distance. The compute the weighted loss between the prediction and that label
+        # assign each prediction to the label based on its distance. Then compute the weighted loss between the prediction and that label
         assign = p_assign * torch.unsqueeze(ll_joint_flat, 1)
         assign_sum = torch.where(valid,assign.sum(axis=-1),torch.ones_like(assign[:,:,0]))
         assign_norm = assign/ torch.unsqueeze(assign_sum+1e-10,dim=-1)
@@ -351,6 +365,19 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss)).sum(axis=-1)
         wt_loss_all = (1.-assign.sum(axis=-1))**2
         cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all)).sum(axis=-1)
+
+        # Predict occluded loss
+        if self.conf.predict_occluded:
+            occ_flat = occ_pred.reshape([occ_pred.shape[0], 1, n_classes, self.k_j * ls[-2] * ls[-1]]).permute(
+                [0, 1, 3, 2])
+            dd_occ = (occ_flat - occ.unsqueeze(2)) ** 2
+            dd_occ = torch.where(valid[:, :, None, None], dd_occ, torch.zeros_like(dd_occ))
+            # Set the loss 0 where labels are missing
+            dd_occ = dd_occ.sum(-1)
+            docc_loss = (assign_norm * dd_occ).sum(axis=-1)
+            cur_occ_loss = torch.where(valid, docc_loss, torch.zeros_like(docc_loss)).sum(axis=-1)
+            cur_pred_loss = cur_pred_loss + cur_occ_loss
+
 
         # when an example has no animal, use a different path.
         logit_sum = ll_joint_flat.sum(-1)
@@ -362,6 +389,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         joint_loss = cur_pred_loss*loss_wt #/ self.offset
         wt_loss = cur_wt_loss * n_classes * 10
+
 
         # Loss to ensure that the number of predictions match the number of labeled animals. This weight needs to be upweighted otherwise the training converges to degenerate case where  ll_joint is predicted as zero, which would make joint_loss 0.
 
@@ -408,12 +436,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         target_dict = {'locs':inputs['locs']}
         if 'mask' in inputs.keys():
             target_dict['mask'] = inputs['mask']
+        target_dict['occ'] = inputs['occ']
         return target_dict
 
     def get_joint_pred(self,preds):
         n_max = self.conf.max_n_animals
         n_min = self.conf.min_n_animals
-        locs_joint, logits_joint, locs_ref, logits_ref = preds
+        locs_joint, logits_joint, locs_ref, logits_ref, occ_out = preds
         locs_joint = locs_joint
         bsz = locs_joint.shape[0]
         n_classes = locs_joint.shape[1]
@@ -428,6 +457,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         preds_ref = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
         conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)
         preds_joint = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
+        pred_occ = torch.ones([bsz,n_max, n_classes],device=self.device) * np.nan
         conf_joint = torch.ones([bsz,n_max],device=self.device)
         match_dist = self.conf.multi_match_dist
         for ndx in range(bsz):
@@ -449,6 +479,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < match_dist):
                     continue
                 preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
+                if self.conf.predict_occluded:
+                    pred_occ[ndx,done_count,...] = occ_out[ndx,...,idx[0],idx[1],idx[2]]
                 conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]]
                 for cls in range(n_classes):
                     rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale
@@ -466,8 +498,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         preds_joint = preds_joint.detach().cpu().numpy().copy()
         conf_ref = conf_ref.detach().cpu().numpy().copy()
         conf_joint = conf_joint.detach().cpu().numpy().copy()
+        pred_occ = pred_occ.detach().cpu().numpy().copy()
 
-        return {'ref':preds_ref,'joint':preds_joint,'conf_joint':conf_joint,'conf_ref':conf_ref}
+
+        return {'ref':preds_ref,'joint':preds_joint,'conf_joint':conf_joint,'conf_ref':conf_ref,'pred_occ':pred_occ}
 
     def compute_dist(self, output, labels):
         locs = labels['locs'].numpy().copy()
@@ -527,6 +561,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             cur_pred = np.ones_like(olocs_orig) * np.nan
             cur_joint_conf = np.ones_like(olocs_orig[...,0]) * -100
             cur_ref_conf = np.ones_like(olocs_orig[...,0]) * -100
+            cur_occ_pred = np.ones_like(olocs_orig[...,0])*np.nan
             dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
             dd = np.linalg.norm(dd,axis=-1).mean(-1)
             conf_margin = 4
@@ -543,10 +578,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                         # Select the one with higher confidence unless they both are close.
                         if locs['conf_joint'][b,ix] < olocs['conf_joint'][b,olocs_ndx] - conf_margin:
                             cc = olocs_orig[b, olocs_ndx, ...]
+                            oo = olocs['pred_occ'][b,olocs_ndx,...]
                         elif locs['conf_joint'][b,ix] - conf_margin > olocs['conf_joint'][b,olocs_ndx] :
                             cc = locs_orig[b, ix, ...]
+                            oo = locs['pred_occ'][b,ix,...]
                         else:
                             cc = (olocs_orig[b, olocs_ndx, ...] + locs_orig[b, ix, ...]) / 2
+                            oo = (olocs['pred_occ'][b,olocs_ndx,...] + locs['pred_occ'][b,ix,...])/2
 
                         # below is for selecting based on ref confidences.
                         # cc = np.ones([conf.n_classes,2])*np.nan
@@ -561,16 +599,18 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                         # print(f'Matched {ix} with {olocs_ndx}')
                     else:
                         cc = locs_orig[b,ix,...]
+                        oo = locs['pred_occ'][b,ix]
                         done_locs[ix] = 1
                         mconf = locs['conf_joint'][b,ix]
-                    mpred.append((cc,mconf))
+                    mpred.append((cc,mconf,oo))
 
                 for ix in np.where(done_offset<0.5)[0]:
                     if np.all(np.isnan(dd[b,ix,:])):
                         continue
                     cc = olocs_orig[b,ix,...]
+                    oo = olocs['pred_occ'][b,ix]
                     mconf = olocs['conf_joint'][b,ix]
-                    mpred.append((cc,mconf))
+                    mpred.append((cc,mconf,oo))
 
                 pconf = np.array([m[1] for m in mpred])
                 ord = np.flip(np.argsort(pconf))[:conf.max_n_animals]
@@ -583,6 +623,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 bpred = np.array(bpred)
                 npred = bpred.shape[0]
                 cur_pred[b,:npred,...] = bpred
+                opred = [mpred[ix][2] for ix in ord]
+                opred = np.array(opred)
+                cur_occ_pred[b,:npred,...] = opred
                 cur_joint_conf[b,:npred,...] = pconf[ord,None]
 
 
@@ -591,6 +634,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             ret_dict = {}
             ret_dict['locs'] = matched['ref'] * conf.rescale
             ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))
+            if self.conf.predict_occluded:
+                ret_dict['occ'] = cur_occ_pred
+            else:
+                ret_dict['occ'] = np.ones_like(cur_occ_pred)*np.nan
             if retrawpred:
                 ret_dict['preds'] = [preds,opreds]
                 ret_dict['raw_locs'] = [locs,olocs]

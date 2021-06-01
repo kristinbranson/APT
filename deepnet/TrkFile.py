@@ -1108,7 +1108,7 @@ class Trk:
     # for sparse format data
     self.defaultval = np.nan # default value when sparse
     self.trkFields = ['pTrkTS', 'pTrkTag', 'pTrkConf', 'pTrkAnimalConf']
-    self.defaultval_dict = {'pTrkTS':-np.inf,'pTrkTag':False,'pTrkConf':np.nan,'pTrkAnimalConf':np.nan}
+    self.defaultval_dict = {'pTrkTS':-np.inf,'pTrkTag':np.nan,'pTrkConf':np.nan,'pTrkAnimalConf':np.nan}
     self.sparse_type = 'tracklet' # type of sparse storing used, this should always be tracklet right now
     
     for key,val in kwargs.items():

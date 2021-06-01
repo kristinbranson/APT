@@ -1,8 +1,7 @@
 from reuse import *
-cmd = '/groups/branson/home/kabram/nrs/apt_cache_2/four_points_180806/20210326T070533_20210326T070535.lbl -cache ~/temp -model_file mmdetection/test_apt/latest.pth -conf_params is_multi True mmdetect_net \"frcnn\" rescale 2.56 max_n_animals 6 n_classes 2 -type detect_mmdetect track -mov /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -start_frame 1 -end_frame 100 -out /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322_bbox.trk'
-cmd.replace('\\','')
-apt.main(cmd.split())
-
+cmd = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20210326T070533_20210326T070535.lbl -name roian_split_full_ims_grone_pose_multi -type multi_mdn_joint_torch -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 100000 save_step 10000 batch_size 2 max_n_animals 2 op_affinity_graph \(\(0,1\),\(0,2\),\(0,3\)\) multi_crop_ims False rrange 180 trange 30 is_multi True rescale 4 multi_use_mask False multi_loss_mask True op_hires_ndeconv 0 -cache /nrs/branson/mayank/apt_cache_2 classify -db_file /nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_pose_multi/val_TF.json -out_file /nrs/branson/mayank/apt_cache_2/four_points_180806/val_results/200918_m170234vocpb_m170234_odor_m170232_f0180322'
+cmd = cmd.replace('\\','')
+reload(apt);apt.main(cmd.split())
 ## Training with neg APT
 from importlib import reload
 import Pose_detect_mmdetect as mmdetect_file
