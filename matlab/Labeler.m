@@ -11234,12 +11234,7 @@ classdef Labeler < handle
           for iVw=1:nVw
             tfo = trkFileObjs{iMv,iVw};            
             tfile = trkfiles{iMv,iVw};
-            if isMA
-              assert(isstruct(tfo));
-              save_tracklet(tfo,tfile);
-            else
-              tfo.save(tfile);
-            end
+            tfo.save(tfile);
             fprintf('Saved %s.\n',trkfiles{iMv,iVw});
           end
         else

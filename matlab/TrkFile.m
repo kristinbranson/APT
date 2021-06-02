@@ -827,6 +827,13 @@ classdef TrkFile < dynamicprops
       % xy: [npt x 2 x nfrm] where nfrm=size(obj.frm2tlt,1)
       % occ: [npt x nfrm]
       
+      if iTlt > obj.ntlts
+        warningNoTrace('Tracklet %d exceeds available data.');
+        xy = nan(obj.npts,2,0);
+        occ = nan(obj.npts,0);
+        return;
+      end
+      
       ptrkI = obj.pTrk{iTlt};
       npts = size(ptrkI,1);
       nfrm = size(obj.frm2tlt,1);
