@@ -14,7 +14,7 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - MultiAnimalOpenPose:
     - ['','',false,MultiAnimal settings.,'','']
-    - min_n_animals: ['Minimum number of animals',unsigned,true,'APT will detect at least this many animals in each frame.',1,'','Important','']
+
 
 
 

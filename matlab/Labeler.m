@@ -3729,10 +3729,14 @@ classdef Labeler < handle
       for i=1:numel(s.labels2)
         stmp = s.labels2{i};
         if ~isa(stmp,'TrkFile')
-          stmp = Labels.toPTrx(stmp);
-          tlt = save_tracklet(stmp,[]);
-          tfo = TrkFile();
-          tfo.initFromTracklet(tlt);
+          if ~isempty(stmp)
+            stmp = Labels.toPTrx(stmp);
+            tlt = save_tracklet(stmp,[]);
+            tfo = TrkFile();
+            tfo.initFromTracklet(tlt);
+          else                      
+            tfo = TrkFile(s.cfg.NumLabelPoints,zeros(0,1));
+          end
           tfo.initFrm2Tlt(s.movieInfoAll{i}.nframes);
           s.labels2{i} = tfo;
         end
@@ -3740,10 +3744,14 @@ classdef Labeler < handle
       for i=1:numel(s.labels2GT)
         stmp = s.labels2GT{i};
         if ~isa(stmp,'TrkFile')
-          stmp = Labels.toPTrx(stmp);
-          tlt = save_tracklet(stmp,[]);
-          tfo = TrkFile();
-          tfo.initFromTracklet(tlt);
+          if ~isempty(stmp)
+            stmp = Labels.toPTrx(stmp);
+            tlt = save_tracklet(stmp,[]);
+            tfo = TrkFile();
+            tfo.initFromTracklet(tlt);            
+          else
+            tfo = TrkFile(s.cfg.NumLabelPoints,zeros(0,1));
+          end
           tfo.initFrm2Tlt(s.movieInfoAllGT{i}.nframes);
           s.labels2GT{i} = tfo;
         end

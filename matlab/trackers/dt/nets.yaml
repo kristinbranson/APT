@@ -95,8 +95,8 @@ leap:
 multi_mdn_joint_torch:
   shortString: magrone
   displayString: MultiAnimal GRONe
-  modelCheckpointPat: deepnet-%d.index  
-  modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*, '*json'] 
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d*, deepnet_ckpt, traindata*, 'traindata.json'] 
   trkAuxFields: []
   trkAuxLabels: []
   doesOccPred: 0

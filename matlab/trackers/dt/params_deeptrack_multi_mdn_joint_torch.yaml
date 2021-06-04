@@ -14,9 +14,6 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - MultiAnimalGRONe:
     - ['','',false,MultiAnimal settings.,'','']
-    - min_n_animals: ['Minimum number of animals',unsigned,true,'APT will detect at least this many animals in each frame.',1,'','Important','']
-    - max_n_animals: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',30,'','Important','']
-    - db_format: ['DB Format',string,true,'Format for Training DB','coco','','Developer','']
 
 
 
