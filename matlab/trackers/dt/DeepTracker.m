@@ -212,7 +212,7 @@ classdef DeepTracker < LabelTracker
       v = char(obj.trnNetType);
     end
     function v = get.algorithmNamePretty(obj)
-      v = ['Deep Convolutional Network - ' obj.trnNetType.prettyString];
+      v = ['Deep Convolutional Network - ' obj.trnNetType.displayString];
     end
     function v = get.condaEnv(obj)
       v = obj.lObj.trackDLBackEnd.condaEnv;
@@ -339,7 +339,7 @@ classdef DeepTracker < LabelTracker
             dl_steps = display_step;
             if throwwarnings
               warningNoTrace('%s requires the number of DL steps to be greater than or equal to the display step. Updating to %d DL steps.',...
-                net.prettyString,dl_steps);
+                net.displayString,dl_steps);
             end
           end
           
@@ -347,7 +347,7 @@ classdef DeepTracker < LabelTracker
             dl_steps = ceil(dl_steps/display_step)*display_step;
             if throwwarnings
               warningNoTrace('%s requires the number of DL steps to be an even multiple of the display step. Increasing DL steps to %d.',...
-                net.prettyString,dl_steps);
+                net.displayString,dl_steps);
             end
           end
           
@@ -355,7 +355,7 @@ classdef DeepTracker < LabelTracker
             save_step = display_step;
             if throwwarnings
               warningNoTrace('%s requires the DL save step to be greater than or equal to display step. Updating the DL save step to %d.',...
-                net.prettyString,save_step);
+                net.displayString,save_step);
             end
           end
           
@@ -363,7 +363,7 @@ classdef DeepTracker < LabelTracker
             save_step = ceil(save_step/display_step)*display_step;
             if throwwarnings
               warningNoTrace('%s requires the DL save step to be an even multiple of the display step. Increasing the DL save step to %d.',...
-                net.prettyString,save_step);
+                net.displayString,save_step);
             end
           end
           
@@ -397,8 +397,8 @@ classdef DeepTracker < LabelTracker
       tfPostProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
       
       sOldSpecific = obj.sPrm;
-      netType = obj.trnNetType.prettyString;
-      sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
+      prmField = APTParameters.getParamField(obj.trnNetType);
+      sNewSpecific = sPrmAll.ROOT.DeepTrack.(prmField);
       tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
     end
       
@@ -442,8 +442,8 @@ classdef DeepTracker < LabelTracker
       if isempty(obj.sPrmAll),
         v = [];
       else
-        netType = obj.trnNetType.prettyString;
-        v = obj.sPrmAll.ROOT.DeepTrack.(netType);
+        prmField = APTParameters.getParamField(obj.trnNetType);
+        v = obj.sPrmAll.ROOT.DeepTrack.(prmField);
       end
     end
     function sPrm = getParams(obj)
@@ -844,7 +844,9 @@ classdef DeepTracker < LabelTracker
         fprintf('Training is not in progress; log is for most recent training session.\n');
       end
       trnBgWorkerObj = obj.bgTrnMonBGWorkerObj;
-      trnBgWorkerObj.dispModelChainDir();
+      if ~isempty(trnBgWorkerObj)
+        trnBgWorkerObj.dispModelChainDir();
+      end
     end
     
     function trnKill(obj)
@@ -968,7 +970,7 @@ classdef DeepTracker < LabelTracker
           if ~isParamChange
             assert(obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.leap);
           end
-          infos{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.prettyString);
+          infos{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.displayString);
         end        
       else
         infos{end+1} = 'No tracker trained.';
@@ -1193,7 +1195,7 @@ classdef DeepTracker < LabelTracker
           end
         end        
         
-        if netObj.doesMA
+        if netObj.isMultiAnimal
           packdir = dlLblFileLclDir;
           [~,~,sloc,~] = Lbl.genWriteTrnPack(obj.lObj,packdir,...
             'strippedlblname',dmc.lblStrippedName);
@@ -1210,7 +1212,7 @@ classdef DeepTracker < LabelTracker
         end
         
       else % Restart
-        assert(~netObj.doesMA,'Restarts unsupported for multianimal trackers.');
+        assert(~netObj.isMultiAnimal,'Restarts unsupported for multianimal trackers.');
         
         trainID = obj.trnNameLbl;
         assert(~isempty(trainID));
@@ -4207,19 +4209,21 @@ classdef DeepTracker < LabelTracker
         maxNanimals,netType,trnjson,varargin)
       % Simplified relative to trainCodeGen
       
-       [deepnetroot,fs,filequote,confparamsfilequote] = myparse_nocheck(varargin,...
+       [deepnetroot,fs,filequote,confparamsfilequote,torchhome] = ...
+         myparse_nocheck(varargin,...
         'deepnetroot',APT.getpathdl,...
         'filesep','/',...
         'filequote','\"',... % quote char used to protect filenames/paths. 
                         ... % *IMPORTANT*: Default is escaped double-quote \" => caller 
                         ... % is expected to wrap in enclosing regular double-quotes " !!
-        'confparamsfilequote','\"' ...
+        'confparamsfilequote','\"', ...
+        'torchhome',APT.torchhome ...
           );
       
       aptintrf = [deepnetroot fs 'APT_interface.py'];
 
       code = { ...
-        ['TORCH_HOME=' filequote APT.torchhome filequote] ...
+        ['TORCH_HOME=' filequote torchhome filequote] ...
         'python' ...
         [filequote aptintrf filequote] ...
         dllbl ...
@@ -4259,7 +4263,8 @@ classdef DeepTracker < LabelTracker
                         ... % *IMPORTANT*: Default is escaped double-quote \" => caller 
                         ... % is expected to wrap in enclosing regular double-quotes " !!
           );      
-      
+      torchhome = APT.torchhome;
+        
       tfview = ~isempty(view);
       
       aptintrf = [deepnetroot fs 'APT_interface.py'];
@@ -4285,19 +4290,29 @@ classdef DeepTracker < LabelTracker
         splitfileargs = '';
       end      
       
-      codestr = sprintf('python %s -name %s',...
-        [filequote aptintrf filequote],trnID);
+      code = { ...
+        ['TORCH_HOME=' filequote torchhome filequote] ...
+        'python' ...
+        [filequote aptintrf filequote] ...
+        '-name' ...
+        trnID ...
+        };
       if tfview
-        codestr = sprintf('%s -view %d',codestr,view); % APT_interface accepts 1-based view
+        code = [code {'-view' num2str(view)}];
       end      
-      codestr = sprintf('%s -cache %s -err_file %s -type %s %s train -use_cache %s %s',...
-        codestr,...
-        [filequote cache filequote], ... % String.escapeSpaces(cache),...
-        [filequote errfile filequote], ... % String.escapeSpaces(errfile),...
-        netType,...
-        [filequote dllbl filequote], ... % String.escapeSpaces(dllbl),...
-        continueflags,...
-        splitfileargs);
+      code = [code { ...
+        '-cache' ...
+        [filequote cache filequote] ... % String.escapeSpaces(cache),...
+        '-err_file' ...
+        [filequote errfile filequote] ... % String.escapeSpaces(errfile),...
+        '-type' ...
+        netType ...
+        [filequote dllbl filequote] ... % String.escapeSpaces(dllbl),...
+        'train' ...
+        '-use_cache' ...
+        continueflags ...
+        splitfileargs} ];
+      codestr = String.cellstr2DelimList(code,' ');
     end
     function [codestr,containerName] = trainCodeGenDocker(backend,...
         modelChainID,trainID,dllbl,cache,errfile,netType,trainType,...
@@ -4317,7 +4332,7 @@ classdef DeepTracker < LabelTracker
       else
         netTypeObj = netType;
       end
-      isMA = netTypeObj.doesMA;
+      isMA = netTypeObj.isMultiAnimal;
       if isMA          
         basecmd = DeepTracker.matrainCodeGenTrnPack(modelChainID,dllbl,cache,errfile,...
             netType,baseargs{:},'filequote',filequote);
@@ -4388,7 +4403,7 @@ classdef DeepTracker < LabelTracker
       else
         netTypeObj = netType;
       end
-      isMA = netTypeObj.doesMA;
+      isMA = netTypeObj.isMultiAnimal;
       if isMA          
         basecmd = DeepTracker.matrainCodeGenTrnPack(trnID,dllbl,cache,errfile,...
           netType,baseargs{:},'confparamsfilequote','\\\"');
@@ -4703,7 +4718,9 @@ classdef DeepTracker < LabelTracker
       tfmodel = ~isempty(model_file);
       tflog = ~isempty(log_file);
       
-      isMA = nettype.doesMA;
+      torchhome = APT.torchhome;
+
+      isMA = nettype.isMultiAnimal;
       if isMA
         assert(~tftrx);
         [trnpack,dllblID] = fileparts(dllbl); 
@@ -4790,12 +4807,10 @@ classdef DeepTracker < LabelTracker
       end
       
       codestr = {'python' [filequote aptintrf filequote] '-name' trnID};
-      if isMA
-        codestr = [...
-          ['TORCH_HOME=' filequote APT.torchhome filequote] ...
+      codestr = [...
+          ['TORCH_HOME=' filequote torchhome filequote] ...
           codestr ...
           ];
-      end
       if tfview
         codestr = [codestr {'-view' num2str(view)}]; % view: 1-based for APT_interface
       end
@@ -5346,11 +5361,10 @@ classdef DeepTracker < LabelTracker
       if ~isempty(iTgt) && ~isnan(iTgt) && ~isempty(trk)
         tpos = trk.getPTrkTgt(iTgt);
         nt = obj.trnNetType;
-        taf = nt.trkAuxFlds(:);
-        taux = arrayfun(@(x)trk.getPAuxTgt(iTgt,x.trkfld,'missingok',true),...
-          taf,'uni',0);
+        taux = arrayfun(@(x)trk.getPAuxTgt(iTgt,x,'missingok',true),...
+          nt.trkAuxFields(:),'uni',0);
         taux = cat(3,taux{:});
-        tauxlbl = arrayfun(@(x)x.label,taf,'uni',0);
+        tauxlbl = nt.trkAuxLabels(:);
       else
         tpos = [];
         taux = [];

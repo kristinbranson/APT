@@ -584,7 +584,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         % quotes unnec
         mountArgs = cellfun(mountArgsFcn,bindpath,'uni',0);
         deepnetrootContainer = aptdeepnet;
-        userArgs = {'--user' '$(id -u)'};
+        userArgs = {'--user' '$(id -u):$(id -g)'};
         bashCmdQuote = '''';
       end
       
@@ -598,6 +598,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       
       homedir = getenv('HOME');
+      user = getenv('USER');
       
       dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
       
@@ -643,6 +644,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         {
         '-w'
         [filequote deepnetrootContainer filequote]
+        '-e'
+        ['USER=' user]
         dockerimg
         sprintf('bash -c %sexport HOME=%s; %s cd %s; %s%s%s',...
          bashCmdQuote,[filequote homedir filequote],cudaEnv,...

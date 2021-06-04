@@ -313,7 +313,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % filesys paths/globs of important parts/stuff to keep
       
       dmcl = obj.dirModelChainLnx;
-      gnetspecific = DLNetType.modelGlobs(obj.netType,obj.iterCurr);
+      netty = DLNetType.(obj.netType);
+      gnetspecific = netty.getModelGlobs(obj.iterCurr);
       gnetspecific = cellfun(@(x)[dmcl obj.filesep x],gnetspecific,'uni',0);
       
       g = { ...

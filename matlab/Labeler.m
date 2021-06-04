@@ -11772,8 +11772,8 @@ classdef Labeler < handle
         if ~strcmp(s.trackerClass{i}{1},'DeepTracker') || isempty(s.trackerData{i}),
           continue;
         end
-        trnNetType = s.trackerData{i}.trnNetType.prettyString;
-        prmDLSpecific.(trnNetType) = s.trackerData{i}.sPrm;
+        prmField = APTParameters.getParamField(s.trackerData{i}.trnNetType);
+        prmDLSpecific.(prmField) = s.trackerData{i}.sPrm;
       end
       
       prmTrack = struct;

@@ -348,7 +348,9 @@ classdef LabelTracker < handle
       
       if isempty(tpos)
         % edge case uninitted (not sure why)
-        tpos = nan(npts,2,nfrms);
+        %tpos = nan(npts,2,nfrms);
+        data = nan(npts,nfrms);
+        return;
       end
       
       plist = obj.propList();
@@ -415,7 +417,7 @@ classdef LabelTracker < handle
     
     function info = getAllTrackersCreateInfo(isMA)
       dlnets = enumeration('DLNetType');
-      dlnets = dlnets([dlnets.doesMA]==isMA);
+      dlnets = dlnets([dlnets.isMultiAnimal]==isMA);
       info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
       if ~isMA
         info = [info; {{'CPRLabelTracker'}}];
