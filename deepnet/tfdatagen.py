@@ -6,7 +6,12 @@ import logging
 import cv2
 import copy
 import numpy as np
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
 
 import matplotlib.pyplot as plt
 from itertools import islice
@@ -19,7 +24,7 @@ import heatmap
 
 ISPY3 = sys.version_info >= (3, 0)
 
-if ISPY3:
+if ISPY3 and vv[0]==1:
     import deepposekit as dpk
 
 

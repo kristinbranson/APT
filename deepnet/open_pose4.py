@@ -383,7 +383,7 @@ def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_w
 
     return losses, loss_weights, loss_weights_vec
 
-def model_test(imszuse,
+def model_test(imszuse, kernel_reg,
                       backbone='resnet50_8px',
                       nPAFstg=5, nMAPstg=1, nlimbsT2=38, npts=19,
                       doDC=True, nDC=2, fullpred=False):
@@ -436,7 +436,7 @@ def model_test(imszuse,
     xstagein = backboneF
     for iPAFstg in range(nPAFstg):
         # Using None for kernel_reg is nonsensical but shouldn't hurt in test mode
-        xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, None)
+        xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, kernel_reg)
         xpaflist.append(xstageout)
         xstagein = Concatenate(name="paf-stg{}".format(iPAFstg))([backboneF, xstageout])
 
@@ -444,14 +444,14 @@ def model_test(imszuse,
     xmaplist = []
     for iMAPstg in range(nMAPstg):
         # Using None for kernel_reg is nonsensical but shouldn't hurt in test mode
-        xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, None)
+        xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, kernel_reg)
         xmaplist.append(xstageout)
         xstagein = Concatenate(name="map-stg{}".format(iMAPstg))([backboneF, xpaflist[-1], xstageout])
 
     xmaplistDC = []
     if doDC:
         # xstagein is ready/good from MAP loop
-        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, None, ndeconvs=nDC)
+        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, kernel_reg, ndeconvs=nDC)
         xmaplistDC.append(xstageout)
 
     assert len(xpaflist) == nPAFstg
@@ -897,6 +897,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
     assert not conf.normalize_img_mean, "OP currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "OP currently performs its own img input norm"
     model = model_test(conf.op_imsz_net,
+                       conf.op_weight_decay_kernel,
                               backbone=conf.op_backbone,
                               nPAFstg=conf.op_paf_nstage,
                               nMAPstg=conf.op_map_nstage,
@@ -933,7 +934,8 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
         assert all_f.shape[0] == conf.batch_size
         locs_sz = (conf.batch_size, conf.n_classes, 2)
         locs_dummy = np.zeros(locs_sz)
-        ims, _, _ = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False, gen_target_hmaps=False,mask=np.ones_like(all_f[...,0])>0)
+        ret = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False, gen_target_hmaps=False,mask=np.ones_like(all_f[...,0])>0)
+        ims = ret[0]
 
         model_preds = []
         for ix in range(ims.shape[0]):

@@ -19,7 +19,7 @@ import errno
 import PoseTools
 import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
     tf = tensorflow.compat.v1
 else:
     tf = tensorflow
@@ -1300,8 +1300,9 @@ class coco_loader(torch.utils.data.Dataset):
                 continue
             locs = np.array(a['keypoints'])
             locs = np.reshape(locs,[conf.n_classes,3])
-            curl[lndx,...] = locs
-            lndx += 1
+            if np.all(locs[:,2]>0.5):
+                curl[lndx,...] = locs
+                lndx += 1
 
         curl = np.array(curl)
         occ = curl[...,2] < 1.5

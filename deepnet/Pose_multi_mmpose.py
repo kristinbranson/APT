@@ -13,6 +13,8 @@ import logging
 import pickle
 import os
 import xtcocotools
+from xtcocotools.coco import COCO
+
 ## Bottomup dataset
 
 from mmpose.datasets.builder import DATASETS
@@ -21,7 +23,36 @@ from mmpose.datasets.datasets.bottom_up.bottom_up_coco import BottomUpCocoDatase
 @DATASETS.register_module()
 class BottomUpAPTDataset(BottomUpCocoDataset):
     def __init__(self,**kwargs):
-        super().__init__(**kwargs)
+        super(BottomUpCocoDataset,self).__init__(**kwargs)
+
+        # From BottomUpCocoDataset init. It fails.
+
+        # joint index starts from 1
+        self.ann_info['skeleton'] = [[16, 14], [14, 12], [17, 15], [15, 13],
+                                     [12, 13], [6, 12], [7, 13], [6, 7],
+                                     [6, 8], [7, 9], [8, 10], [9, 11], [2, 3],
+                                     [1, 2], [1, 3], [2, 4], [3, 5], [4, 6],
+                                     [5, 7]]
+
+        self.coco = COCO(kwargs['ann_file'])
+        cats = [cat['name'] for cat in self.coco.loadCats(self.coco.getCatIds())]
+        self.classes = ['__background__'] + cats
+        self.num_classes = len(self.classes)
+        self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
+        self._class_to_coco_ind = dict(zip(cats, self.coco.getCatIds()))
+        self._coco_ind_to_class_ind = dict(
+            (self._class_to_coco_ind[cls], self._class_to_ind[cls])
+            for cls in self.classes[1:])
+        self.img_ids = self.coco.getImgIds()
+        self.num_images = len(self.img_ids)
+        self.id2name, self.name2id = self._get_mapping_id_name(self.coco.imgs)
+        self.dataset_name = 'coco'
+
+        print(f'=> num_images: {self.num_images}')
+
+        # End BottomUpCocoDataset init
+
+        # APT overrides
         import poseConfig
         conf = poseConfig.conf
         flip_idx = list(range(conf.n_classes))
@@ -45,17 +76,17 @@ class BottomUpAPTDataset(BottomUpCocoDataset):
 
         for obj in anno:
             if 'segmentation' in obj:
-                if obj['iscrowd']:
-                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
-                                                       img_info['height'],
-                                                       img_info['width'])
+                rles = xtcocotools.mask.frPyObjects(
+                    obj['segmentation'], img_info['height'],
+                    img_info['width'])
+                for rle in rles:
                     m += xtcocotools.mask.decode(rle)
-                else:
-                    rles = xtcocotools.mask.frPyObjects(
-                        obj['segmentation'], img_info['height'],
-                        img_info['width'])
-                    for rle in rles:
-                        m += xtcocotools.mask.decode(rle)
+                # if obj['iscrowd']:
+                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
+                #                                        img_info['height'],
+                #                                        img_info['width'])
+                #     m += xtcocotools.mask.decode(rle)
+                # else:
 
         return m > 0.5
 

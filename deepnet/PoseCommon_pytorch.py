@@ -143,15 +143,15 @@ class coco_loader(torch.utils.data.Dataset):
 
         for obj in anno:
             if 'segmentation' in obj:
-                if obj['iscrowd']:
-                    rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
+                rles = xtcocotools.mask.frPyObjects(
+                    obj['segmentation'], im_sz[0],
+                    im_sz[1])
+                for rle in rles:
                     m += xtcocotools.mask.decode(rle)
-                else:
-                    rles = xtcocotools.mask.frPyObjects(
-                        obj['segmentation'], im_sz[0],
-                        im_sz[1])
-                    for rle in rles:
-                        m += xtcocotools.mask.decode(rle)
+                # if obj['iscrowd']:
+                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
+                #     m += xtcocotools.mask.decode(rle)
+                # else:
         return m>0.5
 
     def update_wts(self,idx,loss):
