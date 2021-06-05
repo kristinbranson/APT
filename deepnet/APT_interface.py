@@ -3195,6 +3195,7 @@ def classify_movie(conf, pred_fn, model_type,
                       info, mov_file)
 
     # Get the animal confidences for 2 stage tracking
+    pred_animal_conf = None
     if conf.use_bbox_trx or conf.use_ht_trx:
         pred_animal_conf = np.ones([max_n_frames, n_trx,conf.n_classes])*-1
         if 'conf' in T[0]:
