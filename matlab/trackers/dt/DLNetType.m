@@ -1,4 +1,13 @@
 classdef DLNetType < handle %dynamicprops
+  % Deep Learning Network
+  %
+  % A DLNetType represents a particular deep net. It has a particular
+  % architecture, hyperparameters, calling syntax for train/track, 
+  % model/artifact structure when training, and set of outputs after
+  % inference.
+  %
+  % When any DL job is run, one particular DLNetType is in play.
+  
   properties (Constant)
     NETS = lclReadNetYaml();
   end

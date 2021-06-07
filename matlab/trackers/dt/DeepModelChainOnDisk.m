@@ -15,6 +15,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     rootDir % root/parent "Models" dir
     projID 
     netType % char(scalar DLNetType) -- (which is dumb, should prob just be scalar DLNetType
+    netMode
     view % 0-based
     modelChainID % unique ID for a training model for (projname,view). 
                  % A model can be trained once, but also train-augmented.
