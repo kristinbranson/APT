@@ -376,7 +376,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             dd_occ = dd_occ.sum(-1)
             docc_loss = (assign_norm * dd_occ).sum(axis=-1)
             cur_occ_loss = torch.where(valid, docc_loss, torch.zeros_like(docc_loss)).sum(axis=-1)
-            cur_pred_loss = cur_pred_loss + cur_occ_loss
+            cur_pred_loss = cur_pred_loss + cur_occ_loss*10
+            # occ loss is roughly equal to missing a pose by 10px
 
 
         # when an example has no animal, use a different path.
@@ -466,11 +467,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             ids = ll_joint_flat[ndx,:].topk(n_max*5)[1]
             done_count = 0
             cur_n = 0
-            while done_count < n_max:
+            while (done_count < n_max) and (cur_n<len(ids)):
                 sel_ex = ids[cur_n]
                 cur_n += 1
 
-                if ll_joint_flat[ndx,sel_ex] < 0 and done_count >= n_min:
+                if (ll_joint_flat[ndx,sel_ex] < 0) and (done_count >= n_min):
                     break
 
                 idx = unravel_index(sel_ex, [k_joint,n_y_j, n_x_j])

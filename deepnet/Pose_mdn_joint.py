@@ -299,7 +299,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         n_y = self.n_y_j
         n_classes = self.conf.n_classes
 
-        mdn_locs_joint, mdn_locs, mdn_logits_joint, mdn_logits, occ_pred = X
+        mdn_locs_joint, mdn_locs, mdn_logits_joint, mdn_logits = X
         logits_all = tf.reshape(mdn_logits_joint,[-1,n_x*n_y])
         ll_joint = tf.nn.softmax(logits_all, axis=1)
         self.softmax_logits = ll_joint
@@ -401,7 +401,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
     def compute_dist(self, preds, locs):
         locs = locs.copy()
-        return np.linalg.norm(self.get_joint_pred(preds)[0] - locs, axis=-1).mean()
+        return np.linalg.norm(self.get_joint_pred(preds,self.occ_pred)[0] - locs, axis=-1).mean()
                
 
     def compute_train_data(self, sess, db_type):

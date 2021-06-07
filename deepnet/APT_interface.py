@@ -2544,8 +2544,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None,
     '''
 
     if model_type2 is not None:
-        ret = classify_db_2stage([model_type,model_type2],[conf,conf2],db_file,[model_file,model_file2],name=[name,name2])
-        return ret[0][1], ret[1],ret[2], ret[3]
+        return classify_db_2stage([model_type,model_type2],[conf,conf2],db_file,[model_file,model_file2],name=[name,name2])
 
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=name)
 
@@ -2626,8 +2625,8 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     bsize = conf[0].batch_size
     max_n = conf[0].max_n_animals
     all_f = np.zeros((bsize,) + tuple(conf[0].imsz) + (conf[0].img_dim,))
-    pred_locs_top = np.zeros([db_len, max_n, 2, 2])
     n_batches = int(math.ceil(float(db_len) / bsize))
+    ret_dict_all = {}
     labeled_locs = np.zeros([db_len, max_n, conf[0].n_classes, 2])
     info = []
     n = db_len
@@ -2647,10 +2646,31 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
 
         # base_locs, hmaps = pred_fn(all_f)
         ret_dict = pred_fn_top(all_f)
-        base_locs = ret_dict['locs']
 
+        fields = ret_dict.keys()
+        if cur_b == 0:
+            for k in fields:
+                if 'hmap' in k:
+                    continue
+                val = ret_dict[k]
+                valshape = val.shape
+                if valshape[0] == bsize:
+                    bigvalshape = (n,) + valshape[1:]
+                    bigval = np.zeros(bigvalshape)
+                    bigval[:] = np.nan
+                    ret_dict_all[k+'_top'] = bigval
+                else:
+                    logging.warning(
+                        "Key {}, value has shape {}. Will not be included in return dict.".format(k, valshape))
+
+            fields_record = list(ret_dict_all.keys())
+            fields_record = [k.replace('_top','') for k in fields_record]
+            logging.warning("Recording these pred fields: {}".format(fields_record))
+
+        base_locs = ret_dict['locs']
         for ndx in range(ppe):
-            pred_locs_top[cur_start + ndx, ...] = base_locs[ndx, ...]
+            for k in fields_record:
+                ret_dict_all[k+'_top'][cur_start + ndx, ...] = ret_dict[k][ndx, ...]
 
             # Create the images for single animal predictions
             for curn in range(max_n):
@@ -2670,33 +2690,55 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     nv_dir = os.path.expanduser('~/.nv')
     if os.path.exists(nv_dir): shutil.rmtree(nv_dir)
 
+
     pred_fn_single, close_fn_single, model_file_single = get_pred_fn(model_type[1], conf[1], model_file[1], name=name[1])
 
     # Predict the single level
     bsize = conf[1].batch_size
     all_fs = np.zeros((conf[1].batch_size,) + tuple(conf[1].imsz) + (conf[1].img_dim,))
-    pred_locs_single = np.ones([db_len, max_n, conf[1].n_classes, 2])*np.nan
     n_batches = int(math.ceil(float(len(single_data)) / bsize))
 
     for cur_b in tqdm(range(n_batches)):
         cur_start = cur_b * bsize
-        ppe = min(n - cur_start, bsize)
+        ppe = min(len(single_data) - cur_start, bsize)
         for ndx in range(ppe):
             all_fs[ndx, ...] = single_data[cur_start+ndx][0]
 
         ret_dict = pred_fn_single(all_fs)
-        base_locs = ret_dict['locs']
+
+        fields = ret_dict.keys()
+        if cur_b == 0:
+            for k in fields:
+                if 'hmap' in k:
+                    continue
+                val = ret_dict[k]
+                valshape = val.shape
+                if valshape[0] == bsize:
+                    bigvalshape = (n,max_n) + valshape[1:]
+                    bigval = np.zeros(bigvalshape)
+                    bigval[:] = np.nan
+                    ret_dict_all[k] = bigval
+                else:
+                    logging.warning(
+                        "Key {}, value has shape {}. Will not be included in return dict.".format(k, valshape))
+
+            fields_record = list(ret_dict_all.keys())
+            fields_record = [k for k in fields_record if not k.endswith('_top')]
+            logging.warning("Recording these pred fields for 2nd stage: {}".format(fields_record))
 
         for ndx in range(ppe):
             cur_in = single_data[cur_start+ndx]
             ctr, theta, im_idx, animal_idx = cur_in[1:5]
-            orig_locs = to_orig(conf[1],base_locs[ndx],ctr[0],ctr[1],theta)
-            pred_locs_single[im_idx,animal_idx, ...] = orig_locs
+            for k in fields_record:
+                if 'locs' in k:
+                    ret_dict_all[k][im_idx,animal_idx, ...] = to_orig(conf[1],ret_dict[k][ndx, ...],ctr[0],ctr[1],theta)
+                else:
+                    ret_dict_all[k][im_idx,animal_idx, ...] = ret_dict[k][ndx, ...]
 
 
     close_fn_single()
 
-    return [pred_locs_top,pred_locs_single], labeled_locs, info, [model_file_top,model_file_single]
+    return ret_dict_all, labeled_locs, info, [model_file_top,model_file_single]
 
 
 def check_train_db(model_type, conf, out_file):
