@@ -1178,7 +1178,8 @@ classdef DeepTracker < LabelTracker
       end
       
       % create/ensure stripped lbl; set trainID
-      tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
+      tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
+                            trnType==DLTrainType.RestartAug;
       
       trnCmdType = trnType;
       
@@ -1198,7 +1199,8 @@ classdef DeepTracker < LabelTracker
           end
         end        
         
-        if netObj.isMultiAnimal
+        tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
+        if tfRequiresTrnPack
           packdir = dlLblFileLclDir;
           [~,~,sloc,~] = Lbl.genWriteTrnPack(obj.lObj,packdir,...
             'strippedlblname',dmc.lblStrippedName);
@@ -1215,7 +1217,7 @@ classdef DeepTracker < LabelTracker
         end
         
       else % Restart
-        assert(~netObj.isMultiAnimal,'Restarts unsupported for multianimal trackers.');
+        assert(~tfRequiresTrnPack,'Restarts unsupported for multianimal trackers.');
         
         trainID = obj.trnNameLbl;
         assert(~isempty(trainID));
@@ -4222,9 +4224,10 @@ classdef DeepTracker < LabelTracker
       else
         containerName = [modelChainID '_' trainID '_view' num2str(view1b)];
       end
-      
-      isMA = netTypeObj.isMultiAnimal;
-      if isMA
+
+      % using this bool as torch proxy?
+      tfRequiresTrnPack = netTypeObj.requiresTrnPack(netMode);
+      if tfRequiresTrnPack
         shmSize = 8;
       else
         shmSize = [];

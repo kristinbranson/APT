@@ -28,7 +28,7 @@ classdef DLNetType < handle %dynamicprops
                      % in format used by InfoTimeline
                      
     doesOccPred
-    isMultiAnimal   
+    isMultiAnimal % maybe rename to "isMA bottom up" or similar.
   end
   
   enumeration 
@@ -65,7 +65,13 @@ classdef DLNetType < handle %dynamicprops
     end
     function g = getModelGlobs(obj,iterCurr)
       g = cellfun(@(x)sprintf(x,iterCurr),obj.modelGlobs,'uni',0);
-    end 
+    end
+    function tf = requiresTrnPack(obj,netMode)
+      % whether training requires trnpack generation
+      tf = obj.isMultiAnimal || ...
+          (netMode~=DLNetMode.singleAnimal && ...
+           netMode~=DLNetMode.multiAnimalTDPoseTrx);      
+    end
   end
   
   methods (Static)
