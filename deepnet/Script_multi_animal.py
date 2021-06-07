@@ -3005,465 +3005,6 @@ fr = cap.get_frame(fr_num)[0]
 plt.imshow(fr,'gray')
 plt.scatter(p[0,:,:,fr_num],p[1,:,:,fr_num])
 
-## Generic code for running types of shit.
-import PoseTools as pt
-import copy
-import os
-opts = {}
-
-opts[('alice',)] = {
-    'lbl_file':'/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl',
-    'conf':{'max_n_animals':10,
-            'op_affinity_graph':'\\(\\(0,1\\),\\(0,5\\),\\(1,2\\),\\(3,4\\),\\(3,5\\),\\(5,6\\),\\(5,7\\),\\(5,9\\),\\(3,16\\),\\(9,10\\),\\(10,15\\),\\(9,14\\),\\(4,11\\),\\(7,8\\),\\(8,12\\),\\(7,13\\)\\)'},
-    'mov':'/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf',
-    'out_dir': '/groups/branson/home/kabram/temp/alice_multi',
-    'exp':'cx_GMR_SS00030_CsChr_RigC_20150826T144616',
-    'trk_bs':2,
-    'val_file':'/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/alice_split_full_ims_grone_pose_multi/val_TF.json',
-    'val_out_dir':'/nrs/branson/mayank/apt_cache_2/alice_ma/val_results'}
-
-opts[('alice','single')] = {'lbl_file':'/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl', 'conf':{'max_n_animals':10}}
-opts[('alice','split')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json'}
-opts[('alice','full')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/alice_ma/loc.json'}
-# Full doesnt have neg bboxes!!!!!!
-opts[('alice','ht')] = {'conf':{'ht_pts':'\\(0,6\\)'}}
-opts[('alice','multi','ht')] = {'conf':{'rescale':2}}
-opts[('alice','multi','openpose')] = {'queue':'gpu_tesla'}
-opts[('alice','full_ims','pose')] = {'queue':'gpu_tesla'}
-opts[('alice','multi','bbox')] = {'conf':{'rescale':2}}
-opts[('alice','single')] = {'conf':{'imsz':'\\(192,192\\)'}}
-
-opts[('roian',)] = {
-    'lbl_file':'/nrs/branson/mayank/apt_cache_2/four_points_180806/20210326T070533_20210326T070535.lbl',
-    'conf':{'max_n_animals':2,'op_affinity_graph':'\\(\\(0,1\\),\\(0,2\\),\\(0,3\\)\\)'},
-    'mov':'/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg',
-    'out_dir':'/groups/branson/home/kabram/temp/roian_multi',
-    'exp':'200918_m170234vocpb_m170234_odor_m170232_f0180322',
-    'trk_bs':2,
-    'val_file':'/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_pose_multi/val_TF.json',
-    'val_out_dir':'/nrs/branson/mayank/apt_cache_2/four_points_180806/val_results'}
-opts[('roian','split')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split_neg_tight.json'}
-opts[('roian','full')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc.json'}
-opts[('roian','multi','full_ims')] = {'conf':{'rescale':'4','multi_use_mask':False,'multi_loss_mask':True,'op_hires_ndeconv':0}}
-opts[('roian','multi','full_maskless')] = {'conf':{'rescale':'4','multi_use_mask':False,'multi_loss_mask':False,'op_hires_ndeconv':0}}
-opts[('roian','multi','crop_ims')] = {'conf':{'multi_use_mask':False,'multi_loss_mask':True,'batch_size':4,'dl_steps':200000}}
-opts[('roian','multi','openpose')] = {'queue':'gpu_tesla'}
-opts[('roian','multi','bbox')] = {'conf':{'rescale':4}}
-opts[('roian','single')] = {'conf':{'imsz':'\\(352,352\\)'}}
-opts[('roian','ht')] = {'conf':{'ht_pts':'\\(0,1\\)'}}
-opts[('roian','multi','ht')] = {'conf':{'rescale':4}}
-
-
-opts[('maskim',)] = {'conf':{'multi_use_mask':True,'multi_loss_mask':False},'train_dir':'maskim'}
-opts[('maskloss',)] = {'conf':{'multi_use_mask':False,'multi_loss_mask':True},'train_dir':'nomask'}
-opts[('full_ims',)] = {'conf':{'multi_crop_ims':False},'train_dir':'full_ims'}
-opts[('crop_ims',)] = {'conf':{'multi_crop_ims':True},'train_dir':'crop_ims'}
-opts[('full_maskless',)] = {'conf':{'multi_crop_ims':False},'train_dir':'full_maskless'}
-opts[('split',)] = {'train_dir':'split'}
-opts[('full',)] = {'train_dir':'full'}
-opts[('multi','ht')] = {'train_dir':'ht','conf':{'multi_only_ht':True,'flipLandmarkMatches':'\\{\\}','op_affinity_graph':'\\(\\(0,1\\),\\)','multi_use_mask':False,'multi_loss_mask':True,'multi_crop_ims':False}}
-opts[('single','ht')] = {'conf':{'trange':5,'rrange':20,'use_ht_trx':True,'trx_align_theta':True}}
-opts[('multi','bbox')] = {'conf':{'multi_use_mask':False,'multi_loss_mask':True,'multi_crop_ims':False,'mmdetect_net':'\\"frcnn\\"'}}
-opts[('single','bbox')] = {'conf':{'trange':5,'rrange':180,'use_bbox_trx':True,'trx_align_theta':False}}
-opts[('single',)] = {'conf':{'is_multi':False}}
-
-opts[('multi',)] = {'conf':{'rrange':180,'trange':30,'is_multi':True}}
-opts[('multi','grone')] = {'type':'multi_mdn_joint_torch'}
-opts[('multi','mmpose')] = {'type':'multi_mmpose'}
-opts[('multi','openpose')] = {'type':'multi_openpose'}
-opts[('multi','mmdetect')] = {'type':'detect_mmdetect'}
-opts[('single','grone')] = {'type':'mdn_joint_fpn','conf':{'db_format':'\\"tfrecord\\"'}}
-opts[('openpose',)] = {'conf':{'db_format':'\\"tfrecord\\"'}}
-opts[('alice','multi','openpose','full_ims','pose')] = {'conf':{'batch_size':2,'dl_steps':400000}}
-opts[('alice','multi','grone','full_ims','pose')] = {'conf':{'batch_size':4,'dl_steps':200000}}
-# opts[('alice','multi','grone','crop_ims')] = {'conf_opts':{'learning_rate_multiplier':((0.2,'lr_0p2'),)}}
-
-copts = {'conf':{'db_format':'\\"coco\\"','mmpose_net':'\\"higherhrnet\\"','dl_steps':100000,'save_step':10000,'batch_size':8},'train_dir':'apt','queue':'gpu_rtx','conf_opts':{}}
-sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
-simg = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
-cache_dir = '/nrs/branson/mayank/apt_cache_2'
-second_time = False
-
-##
-# Alice split
-# train_set = {'name': ('alice',), 'mask': ('maskim', 'maskloss'), 'splits': ('split',), 'crops': ('full_ims', 'crop_ims'), 'nets': ('grone', 'mmpose', 'openpose'), 'type': ('multi',)}
-
-# train_set = {'name': ('alice',), 'mask': ('maskloss',), 'splits': ('split',), 'crops': ('full_ims', 'crop_ims'), 'nets': ( 'openpose',), 'type': ('multi',)}
-
-# Alice grone lr
-# train_set = {'name': ('alice',), 'mask': ('maskim',), 'splits': ('split',), 'crops': ('crop_ims',), 'nets': ('grone', ), 'type': ('multi',)}
-
-
-# alice neg
-# train_set = {'name': ('alice_neg',), 'splits': ('split',), 'nets': ('grone', 'openpose','mmpose'), 'type': ('multi',)}
-
-# Roian
-# train_set = {'name': ('roian',), 'splits': ('split',),'crops': ('full_ims', 'crop_ims','full_maskless'), 'nets': ('grone', 'mmpose', 'openpose'), 'type': ('multi',)}
-
-# alice ht track
-# train_set = {'name': ('alice_ht',), 'mask': ('maskim', 'maskloss'), 'splits': ('full',), 'crops': ( 'crop_ims',), 'nets': ('grone', 'mmpose', 'openpose'), 'type': ('multi',)}
-
-
-# MA training
-train_set = {'name': ('roian','alice'), 'splits': ('split',),'crops': ('full_ims', 'crop_ims'), 'nets': ('grone', 'mmpose', 'openpose'), 'pts':('pose',),'type': ('multi',)}
-
-# HT 1stage training
-train_set = {'name': ('roian','alice'), 'splits': ('split',),'pts':('ht',), 'nets': ('grone', 'openpose'), 'crops':('full_ims',) ,'type': ('multi',)}
-
-# bbox 1 stage training
-train_set = {'name': ('roian','alice'), 'splits': ('split',),'pts':('bbox',), 'nets': ('mmdetect',), 'type': ('multi',)}
-
-# HT 2 stage training
-train_set = {'name': ('roian','alice'), 'splits': ('split',),'pts':('ht','bbox'), 'nets': ( 'grone',),'type': ('single',)}
-
-
-##
-def get_sets(ts,kk):
-    sets = []
-    if len(kk) > 1:
-        for c in ts[kk[0]]:
-            for i in get_sets(ts,kk[1:]):
-                i.append(c)
-                sets.append(i)
-    else:
-        sets = [[t] for t in ts[kk[0]]]
-    return sets
-
-
-cur_sets = get_sets(train_set,list(train_set.keys()))
-okeys = list(opts.keys())
-okeys.sort(key = lambda x:len(x))
-second_time = False
-cur_sets
-## Training
-
-submit = True
-submit = submit & second_time
-
-for c in cur_sets:
-    cur_dict = copy.deepcopy(copts)
-    for curk in okeys:
-        if not set(curk).issubset(set(c)):
-            continue
-        cur_opt_dict = opts[curk]
-        for k in cur_opt_dict.keys():
-            if k == 'conf':
-                cur_dict['conf'].update(cur_opt_dict[k])
-            elif k =='conf_opts':
-                cur_dict['conf_opts'].update(cur_opt_dict[k])
-            elif k == 'train_dir':
-                cur_dict['train_dir'] = '_'.join([cur_opt_dict[k], cur_dict['train_dir']])
-            else:
-                cur_dict[k] = cur_opt_dict[k]
-
-    opt_str = ' '.join([f'{k} {cur_dict["conf"][k]}' for k in cur_dict['conf'].keys()])
-    n = '_'.join(c[::-1])
-    job_name = n
-    if len(cur_dict['conf_opts'].keys())>0:
-        train_name = None
-        for ok in cur_dict['conf_opts'].keys():
-            for curv,curn in cur_dict['conf_opts'][ok]:
-                if curv is None:
-                    continue
-                opt_str += f' {ok} {curv}'
-                train_name = f'{train_name}_{curn}' if train_name is not None else curn
-                job_name += f'_{curn}'
-                cmd = f'APT_interface.py {cur_dict["lbl_file"]} -conf_params {opt_str} -json_trn_file {cur_dict["train_json"]} -type {cur_dict["type"]} -name {n} -train_name {train_name} -cache {cache_dir} train -use_cache -skip_db'
-
-                print(cur_dict['queue'], cmd)
-                if submit:
-                    pt.submit_job(job_name, cmd, sdir, cur_dict['queue'], sing_image=simg, numcores=4)
-
-    else:
-        job_name = n
-        cmd = f'APT_interface.py {cur_dict["lbl_file"]} -conf_params {opt_str} -json_trn_file {cur_dict["train_json"]} -type {cur_dict["type"]} -name {n} -cache {cache_dir} train -use_cache'
-
-        print(cur_dict['queue'],cmd)
-        print()
-        if submit:
-            pt.submit_job(job_name,cmd,sdir,cur_dict['queue'],sing_image=simg,numcores=4)
-
-second_time = True
-## tracking
-
-submit = True
-submit = submit & second_time
-
-for c in cur_sets:
-    cur_dict = copy.deepcopy(copts)
-    for curk in okeys:
-        if not set(curk).issubset(set(c)):
-            continue
-        cur_opt_dict = opts[curk]
-        for k in cur_opt_dict.keys():
-            if k == 'conf':
-                cur_dict['conf'].update(cur_opt_dict[k])
-            elif k == 'train_dir':
-                cur_dict['train_dir'] = '_'.join([cur_opt_dict[k], cur_dict['train_dir']])
-            else:
-                cur_dict[k] = cur_opt_dict[k]
-    cur_dict['conf']['batch_size'] = cur_dict['trk_bs']
-    opt_str = ' '.join([f'{k} {cur_dict["conf"][k]}' for k in cur_dict['conf'].keys()])
-    n = '_'.join(c[::-1])
-    job_name = n
-    cmd = f'APT_interface.py {cur_dict["lbl_file"]} -name {n} -type {cur_dict["type"]} -conf_params {opt_str} -cache {cache_dir} track -mov {cur_dict["mov"]} -out {cur_dict["out_dir"]}/{cur_dict["exp"]}_{n}.trk -end_frame 5000'
-    job_name += '_trk'
-
-    print(cur_dict['queue'],cmd)
-    if submit:
-        pt.submit_job(job_name,cmd,sdir,cur_dict['queue'],sing_image=simg,numcores=4)
-
-
-second_time = True
-
-## Classify db
-
-submit = True
-submit = submit & second_time
-
-for c in cur_sets:
-    cur_dict = copy.deepcopy(copts)
-    for curk in okeys:
-        if not set(curk).issubset(set(c)):
-            continue
-        cur_opt_dict = opts[curk]
-        for k in cur_opt_dict.keys():
-            if k == 'conf':
-                cur_dict['conf'].update(cur_opt_dict[k])
-            elif k == 'train_dir':
-                cur_dict['train_dir'] = '_'.join([cur_opt_dict[k], cur_dict['train_dir']])
-            else:
-                cur_dict[k] = cur_opt_dict[k]
-    cur_dict['conf']['batch_size'] = cur_dict['trk_bs']
-    cur_dict['conf']['db_format'] = '\\"coco\\"'
-    opt_str = ' '.join([f'{k} {cur_dict["conf"][k]}' for k in cur_dict['conf'].keys()])
-    n = '_'.join(c[::-1])
-    job_name = n
-    cmd = f'APT_interface.py {cur_dict["lbl_file"]} -name {n} -type {cur_dict["type"]} -conf_params {opt_str} -cache {cache_dir} classify -db_file {cur_dict["val_file"]} -out_file {cur_dict["val_out_dir"]}/{job_name}'
-    job_name += '_classify'
-
-    print(cur_dict['queue'],cmd)
-    if submit:
-        pt.submit_job(job_name,cmd,sdir,cur_dict['queue'],sing_image=simg,numcores=4)
-
-
-second_time = True
-
-## Classify db 2 stage
-
-import APT_interface as apt
-import os
-import hdf5storage
-import multiprocessing
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-def run_classify(arg_dict,out_file):
-
-    res = apt.classify_db_all(**arg_dict)
-    preds, locs, info,model_file = res[:4]
-    preds = apt.to_mat(preds)
-    locs = apt.to_mat(locs)
-    info = apt.to_mat(info)
-    out_dict = {'pred_locs': preds, 'labeled_locs': locs, 'list': info, 'model_file': model_file}
-    hdf5storage.savemat(out_file,out_dict,appendmat=False,truncate_existing=True)
-
-for c in cur_sets:
-    cur_dict = copy.deepcopy(copts)
-    for curk in okeys:
-        if not set(curk).issubset(set(c)):
-            continue
-        cur_opt_dict = opts[curk]
-        for k in cur_opt_dict.keys():
-            if k == 'conf':
-                cur_dict['conf'].update(cur_opt_dict[k])
-            elif k == 'train_dir':
-                cur_dict['train_dir'] = '_'.join([cur_opt_dict[k], cur_dict['train_dir']])
-            else:
-                cur_dict[k] = cur_opt_dict[k]
-    cur_dict['conf']['batch_size'] = cur_dict['trk_bs']
-    cur_dict['conf']['db_format'] = '\"coco\"'
-
-    cur_dict2 = copy.deepcopy(copts)
-    c2 = copy.copy(c)
-    _ = c2.pop(c2.index('full_ims'))
-    c2[c2.index('multi')] = 'single'
-    c2[1] = 'grone'
-    for curk in okeys:
-        if not set(curk).issubset(set(c2)):
-            continue
-        cur_opt_dict = opts[curk]
-        for k in cur_opt_dict.keys():
-            if k == 'conf':
-                cur_dict2['conf'].update(cur_opt_dict[k])
-            elif k == 'train_dir':
-                cur_dict2['train_dir'] = '_'.join([cur_opt_dict[k], cur_dict2['train_dir']])
-            else:
-                cur_dict2[k] = cur_opt_dict[k]
-
-
-    n = '_'.join(c[::-1])
-    n2 = '_'.join(c2[::-1])
-
-    opt_str = ' '.join([f'{k} {cur_dict["conf"][k]}' for k in cur_dict['conf'].keys()])
-    opt_str = opt_str.replace('\\','')
-    opt_str2 = ' '.join([f'{k} {cur_dict2["conf"][k]}' for k in cur_dict2['conf'].keys()])
-    opt_str2 = opt_str2.replace('\\','')
-    lbl_file = cur_dict['lbl_file']
-    conf = apt.create_conf(lbl_file,0,n,cache_dir,net_type=cur_dict['type'],conf_params=opt_str.split())
-    conf.img_dim = 3
-    conf2 = apt.create_conf(lbl_file,0,n2,cache_dir,net_type=cur_dict2['type'],conf_params=opt_str2.split())
-
-    arg_dict = {'model_type':cur_dict['type'], 'model_type2': cur_dict2['type'], 'conf': conf, 'conf2' : conf2, 'db_file':cur_dict[        'val_file']}
-    out_file = cur_dict['val_out_dir'] + "/" + n + '_0.mat'
-    p = multiprocessing.Process(target=run_classify,args=[arg_dict,out_file])
-    p.start()
-    p.join()
-
-    # job_name = n
-    # cmd = f'APT_interface.py {cur_dict["lbl_file"]} -name {n} -type {cur_dict["type"]} -conf_params {opt_str} -cache {cache_dir} classify -db_file {cur_dict["val_file"]} -out_file {cur_dict["val_out_dir"]}/{job_name}'
-    # job_name += '_classify'
-    #
-    # print(cur_dict['queue'],cmd)
-    # if submit:
-    #     pt.submit_job(job_name,cmd,sdir,cur_dict['queue'],sing_image=simg,numcores=4)
-
-
-
-## status
-
-import subprocess
-from termcolor import colored
-tt = 'train'
-tt = 'classify'
-for c in cur_sets:
-    cur_dict = copy.deepcopy(copts)
-    for curk in okeys:
-        if not set(curk).issubset(set(c)):
-            continue
-        cur_opt_dict = opts[curk]
-        for k in cur_opt_dict.keys():
-            if k == 'conf':
-                cur_dict['conf'].update(cur_opt_dict[k])
-            elif k =='conf_opts':
-                cur_dict['conf_opts'].update(cur_opt_dict[k])
-            elif k == 'train_dir':
-                cur_dict['train_dir'] = '_'.join([cur_opt_dict[k], cur_dict['train_dir']])
-            else:
-                cur_dict[k] = cur_opt_dict[k]
-
-    n = '_'.join(c[::-1])
-    job_name = n
-    if len(cur_dict['conf_opts'].keys())>0:
-        train_name = None
-        for ok in cur_dict['conf_opts'].keys():
-            for curv,curn in cur_dict['conf_opts'][ok]:
-                if curv is None:
-                    continue
-                opt_str += f' {ok} {curv}'
-                train_name = f'{train_name}_{curn}' if train_name is not None else curn
-                job_name += f'_{curn}'
-
-    else:
-        job_name = n
-
-    if tt == 'classify':
-        job_name += '_classify'
-
-    err_file = os.path.join(sdir,job_name + '.err')
-    ff = open(err_file,'r')
-    lines = ff.readlines()
-
-    cmd = ['ssh','login1', f'bjobs -w | grep {job_name}']
-    try:
-        bout = subprocess.check_output(cmd)
-    except subprocess.CalledProcessError:
-        bout = 'Job not found'
-
-    print(colored(job_name,'cyan'))
-    print(colored(bout,'red'))
-    print(lines[-5:])
-    print()
-
-## Validation results.
-import multiResData
-import PoseTools
-import h5py
-res = {}
-
-dtype = 'roian'
-for c in cur_sets:
-    if dtype not in c: continue
-    for curk in okeys:
-        if not set(curk).issubset(set(c)):
-            continue
-        cur_opt_dict = opts[curk]
-        for k in cur_opt_dict.keys():
-            if k == 'conf':
-                cur_dict['conf'].update(cur_opt_dict[k])
-            elif k == 'train_dir':
-                cur_dict['train_dir'] = '_'.join([cur_opt_dict[k], cur_dict['train_dir']])
-            else:
-                cur_dict[k] = cur_opt_dict[k]
-    cur_dict['conf']['batch_size'] = cur_dict['trk_bs']
-    cur_dict['conf']['db_format'] = '\\"coco\\"'
-    opt_str = ' '.join([f'{k} {cur_dict["conf"][k]}' for k in cur_dict['conf'].keys()])
-    n = '_'.join(c[::-1])
-    job_name = n
-    res_file = f'{cur_dict["val_out_dir"]}/{job_name}_0.mat'
-
-    cur_dict = copy.deepcopy(copts)
-    if not os.path.exists(res_file): continue
-
-    K = h5py.File(res_file,'r')
-    ll = K['labeled_locs'][()].T
-    pp = K['pred_locs']['locs'][()].T
-    ll[ll<-1000] = np.nan
-    dd = np.linalg.norm(ll[:,None]-pp[:,:,None],axis=-1)
-    dd1 = find_dist_match(dd)
-    K.close()
-    valid_l = np.any(~np.isnan(ll[:,:,:,0]),axis=-1)
-
-    res['_'.join(c)] = dd1[valid_l]
-
-if 'alice' == dtype:
-    ex_db = '/nrs/branson/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/alice_split_ht_grone_single/val_TF.tfrecords'
-    X = multiResData.read_and_decode_without_session(ex_db,17)
-else:
-    ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
-    X = multiResData.read_and_decode_without_session(ex_db,4)
-
-ex_im = X[0][0]
-ex_loc = X[1][0]
-
-n_types = len(res)
-nc = 3 #n_types  # int(np.ceil(np.sqrt(n_types)))
-nr = 2  # int(np.ceil(n_types/float(nc)))
-prcs = [50,75,90,95,98]
-cmap = PoseTools.get_cmap(len(prcs), 'cool')
-f, axx = plt.subplots(nr, nc, figsize=(12, 8), squeeze=False)
-axx = axx.flat
-for idx,k  in enumerate(res.keys()):
-    ax = axx[idx]
-    if ex_im.ndim == 2:
-        ax.imshow(ex_im, 'gray')
-    elif ex_im.shape[2] == 1:
-        ax.imshow(ex_im[:, :, 0], 'gray')
-    else:
-        ax.imshow(ex_im)
-
-    vv = res[k].copy()
-    vv[np.isnan(vv)] = 60.
-    mm = np.nanpercentile(vv,prcs,axis=0)
-    for pt in range(ex_loc.shape[0]):
-        for pp in range(mm.shape[0]):
-            c = plt.Circle(ex_loc[pt, :], mm[pp, pt], color=cmap[pp, :], fill=False,alpha=1-((pp+1)/mm.shape[0])*0.7)
-            ax.add_patch(c)
-    ttl = '{} '.format(k)
-    ax.set_title(ttl)
-    ax.axis('off')
-
-f.tight_layout()
-
 
 ## overlapping augmentation
 
@@ -3655,6 +3196,50 @@ for cc in range(num_negs):
 with open(out_file,'w') as f:
   json.dump(T,f)
 
+## convert HT aligned bboxes to axis aligned
+
+import PoseTools as pt
+import json
+import h5py
+from scipy import io as sio
+import os
+import multiResData
+import cv2
+
+in_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json'
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+
+jj = os.path.splitext(in_file)
+out_file = jj[0] + '_axis_aligned' + jj[1]
+
+sz = (1024,1024)
+T = pt.json_load(in_file)
+lbl = h5py.File(lbl_file,'r')
+sfactor = 1.0
+rad = 5.
+for h in T['locdata']:
+    pts = np.array(h['pabs']).reshape([2,17,-1])
+    pts_min = np.min(pts,axis=-2)
+    pts_max = np.max(pts,axis=-2)
+    pts_ctr = (pts_min+pts_max)/2
+    pts_sz = (pts_max-pts_min)/2
+
+    new_min = pts_ctr - pts_sz*sfactor - rad
+    new_max = pts_ctr + pts_sz*sfactor+rad
+
+    obb = np.array(h['roi']).reshape([2,4,-1])
+    obb[0,:2,:] = new_min[0]
+    obb[0,2:,:] = new_max[0]
+    obb[1,[0,3],:] = new_min[1]
+    obb[1,[1,2],:] = new_max[1]
+
+    obb = obb.reshape([8,-1])
+    out_roi = [oo.tolist() for oo in obb]
+    h['roi'] = out_roi
+
+with open(out_file,'w') as f:
+  json.dump(T,f)
+
 
 ## ht crop vs full training
 
@@ -3824,5 +3409,59 @@ for _,t in tqdm.tqdm(enumerate(T['locdata'])):
 
 # 94,507 out of 7208 new lbl, aligned roi
 # 202,767 out of 7197 for 20210203
+
+## Show open pose errors
+
+import h5py
+from reuse import *
+from Pose_multi_openpose import Pose_multi_openpose
+res_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/val_results/alice_split_ht_openpose_full_ims_multi_0.mat'
+trn_json = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/alice_split_ht_grone_full_ims_multi/val_TF.json'
+tdata = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_openpose/view_0/alice_split_ht_openpose_full_ims_multi/traindata'
+
+conf = pt.pickle_load(tdata)[1]
+K = h5py.File(res_file, 'r')
+ll = K['labeled_locs'][()].T
+pp = K['pred_locs']['locs_top'][()].T
+ll = ll[...,conf.ht_pts,:]
+ll[ll < -1000] = np.nan
+dd = np.linalg.norm(ll[:, None] - pp[:, :, None], axis=-1)
+dd1 = find_dist_match(dd)
+K.close()
+
+
 ##
 
+sel = 21
+im = cv2.imread(H['images'][sel]['file_name'],cv2.IMREAD_UNCHANGED)
+
+conf.batch_size = 1
+J = Pose_multi_openpose(conf)
+O = J.diagnose(np.tile(im[None,...,None],[1,1,1,conf.img_dim]))
+paf = O['pred_hmaps'][0][0][0]
+paf = np.sqrt(paf[...,0]**2 + paf[...,1]**2)
+hmap = O['pred_hmaps'][0][1][0]
+##
+f,ax = plt.subplots(1,3,sharex=True,sharey=True)
+ax = ax.flatten()
+ax[0].imshow(im,'gray')
+hm = cv2.resize(hmap.sum(-1),im.shape)
+ax[0].imshow(hm,alpha=0.3)
+ax[0].set_title('Landmark heatmap')
+paf = cv2.resize(paf,im.shape)
+ax[1].imshow(im,'gray')
+ax[1].imshow(paf,alpha=0.3)
+ax[1].set_title('Affinity Field')
+
+ax[2].imshow(im,'gray')
+ax[2].plot(pp[sel,...,0].T,pp[sel,...,1].T,color='b')
+ax[2].set_title('Prediction')
+
+f.set_size_inches([12,4])
+for aa in ax:
+    aa.axis('tight')
+    aa.axis('off')
+ax[0].set_xlim([650,950])
+ax[1].set_ylim([650,350])
+
+savefig('/groups/branson/home/kabram/temp/openpose_error.png',ax_type=[])

@@ -57,8 +57,8 @@ class APTMaxIoUAssigner(MaxIoUAssigner):
                 gt_labels = gt_labels.cpu()
 
         overlaps = self.iou_calculator(gt_bboxes, bboxes)
-
         assign_result = self.assign_wrt_overlaps(overlaps, gt_labels)
+
         if (self.ignore_iof_thr > 0 and gt_bboxes_ignore is not None
                 and gt_bboxes_ignore.numel() > 0 and bboxes.numel() > 0):
             # Add to negatives bboxes that have high overlap with gt_bboxes_ignore which are labeled as sort of neg ROIs in APT front-end.
@@ -67,14 +67,30 @@ class APTMaxIoUAssigner(MaxIoUAssigner):
             ignore_max_overlaps, _ = ignore_overlaps.max(dim=1)
             neg_gt_ignore = ignore_max_overlaps > self.ignore_iof_thr
             neg = neg_gt_ignore & ( (assign_result.gt_inds<0) & (assign_result.max_overlaps<self.neg_iou_thr[0]))
+            # The last condition is so that bboxes that have high overlap with gt_bboxes (>neg_iou_thr[1]) that should be ignored should not get added as negative again.
             assign_result.gt_inds[neg] = 0
-            # ignore = (~neg_gt_ignore) & (assign_result.gt_inds<0)
-            # assign_result.gt_inds[ignore] = -1
+
+        # Add bboxes that completely contain gt_bboxes as neg.
+        overlaps_f = self.iou_calculator(gt_bboxes, bboxes, mode='iof')
+        overlaps_f, _ = overlaps_f.max(dim=0)
+        big_boxes = (overlaps_f>0.95) & (assign_result.max_overlaps<0.5)
+        # Big boxes should have boxes that contain most of the gt_bboxes but are at least 1/0.5 = 2x in size.
+        assign_result.gt_inds[big_boxes] = 0
 
         if False: # For debugging
-            sctr(bboxes[assign_result.gt_inds < 0, :].cpu().numpy())
-            sctr(bboxes[assign_result.gt_inds == 0, :].cpu().numpy())
-            sctr(bboxes[assign_result.gt_inds > 0, :].cpu().numpy())
+            plt.plot(bboxes[assign_result.gt_inds == 0, :][:, [0, 2]].cpu().numpy().T, bboxes[assign_result.gt_inds == 0, :][:, [1, 3]].cpu().numpy().T, color='r')
+            plt.plot(gt_bboxes[:, [0, 2]].cpu().numpy().T, gt_bboxes[:, [1, 3]].cpu().numpy().T, color='k', linewidth=3)
+            if gt_bboxes_ignore is not None:
+                plt.plot(gt_bboxes_ignore[:, [0, 2]].cpu().numpy().T, gt_bboxes_ignore[:, [1, 3]].cpu().numpy().T, color='c', linewidth=3)
+
+
+            plt.plot(bboxes[assign_result.gt_inds > 0, :][:, [0, 2]].cpu().numpy().T,
+         bboxes[assign_result.gt_inds > 0, :][:, [1, 3]].cpu().numpy().T, color='g')
+#            plt.plot(bboxes[assign_result.gt_inds < 0, :][:, [0, 2]].cpu().numpy().T, bboxes[assign_result.gt_inds < 0, :][:, [1, 3]].cpu().numpy().T, color='b', linewidth=0.2)
+            plt.show()
+            # sctr(bboxes[assign_result.gt_inds < 0, :].cpu().numpy())
+            # sctr(bboxes[assign_result.gt_inds == 0, :].cpu().numpy())
+            # sctr(bboxes[assign_result.gt_inds > 0, :].cpu().numpy())
 
         if assign_on_cpu:
             assign_result.gt_inds = assign_result.gt_inds.to(device)
@@ -138,8 +154,13 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
 
     if conf.multi_loss_mask:
         cfg.model.train_cfg.rpn.assigner.neg_iou_thr = (0.15, 0.25)
+        # Roughly boxes that have 0.5 to 0.25 overlap will be marked as negative.
         cfg.model.train_cfg.rpn.assigner.type = 'APTMaxIoUAssigner'
         cfg.model.train_cfg.rpn.assigner.ignore_iof_thr = 0.85
+        cfg.model.train_cfg.rcnn.assigner.neg_iou_thr = (0.15, 0.33)
+        cfg.model.train_cfg.rcnn.assigner.type = 'APTMaxIoUAssigner'
+        cfg.model.train_cfg.rcnn.assigner.ignore_iof_thr = 0.85
+        cfg.model.train_cfg.rpn_proposal.max_per_img *= 10
         cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
         cfg.data.train.pipeline[-1]['keys'].append('gt_bboxes_ignore')
 

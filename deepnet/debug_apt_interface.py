@@ -1,7 +1,8 @@
+cmd = ' /nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 200000 save_step 10000 batch_size 2 max_n_animals 10 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_crop_ims False rrange 180 trange 30 is_multi True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_mdn_joint_torch -name alice_split_full_ims_grone_pose_multi -cache /nrs/branson/mayank/apt_cache_2 train -use_cache -skip_db'
 from reuse import *
-cmd = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20210326T070533_20210326T070535.lbl -name roian_split_full_ims_grone_pose_multi -type multi_mdn_joint_torch -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 100000 save_step 10000 batch_size 2 max_n_animals 2 op_affinity_graph \(\(0,1\),\(0,2\),\(0,3\)\) multi_crop_ims False rrange 180 trange 30 is_multi True rescale 4 multi_use_mask False multi_loss_mask True op_hires_ndeconv 0 -cache /nrs/branson/mayank/apt_cache_2 classify -db_file /nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_pose_multi/val_TF.json -out_file /nrs/branson/mayank/apt_cache_2/four_points_180806/val_results/200918_m170234vocpb_m170234_odor_m170232_f0180322'
 cmd = cmd.replace('\\','')
-reload(apt);apt.main(cmd.split())
+apt.main(cmd.split())
+
 ## Training with neg APT
 from importlib import reload
 import Pose_detect_mmdetect as mmdetect_file

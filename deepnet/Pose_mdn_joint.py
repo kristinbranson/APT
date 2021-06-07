@@ -299,7 +299,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         n_y = self.n_y_j
         n_classes = self.conf.n_classes
 
-        mdn_locs_joint, mdn_locs, mdn_logits_joint, mdn_logits, occ_pred = X
+        mdn_locs_joint, mdn_locs, mdn_logits_joint, mdn_logits = X
         logits_all = tf.reshape(mdn_logits_joint,[-1,n_x*n_y])
         ll_joint = tf.nn.softmax(logits_all, axis=1)
         self.softmax_logits = ll_joint
@@ -369,7 +369,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         return tot_loss / self.conf.n_classes
 
 
-    def get_joint_pred(self, preds, occ_out):
+    def get_joint_pred(self, preds):
         locs_joint, locs_ref, logits_joint, logits_ref = preds
         bsz = locs_joint.shape[0]
         n_classes = locs_joint.shape[-2]
@@ -396,6 +396,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
                 cur_pred = locs_ref[ndx,mm_y,mm_x,pt_selex,cls,:]
                 preds_ref[ndx,cls,:] = cur_pred
             if self.conf.predict_occluded:
+                occ_out = self.occ_pred
                 preds_occ[ndx,:] = occ_out[ndx, idx[0], idx[1], ...]
         return preds_ref, preds_joint,preds_occ
 
