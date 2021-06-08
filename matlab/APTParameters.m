@@ -35,6 +35,7 @@ classdef APTParameters
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
       tPrmCpr = trees.cpr.tree;
+      tPrmDet = trees.detect.tree;
       tPrmDT = trees.deeptrack.tree;
       tPrmPostProc = trees.postprocess.tree;
       
@@ -49,7 +50,7 @@ classdef APTParameters
       
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmCpr.Children; tPrmDT.Children; tPrmPostProc.Children];
+        tPrmCpr.Children; tPrmDet.Children; tPrmDT.Children; tPrmPostProc.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -471,6 +472,7 @@ s.preprocess = 'params_preprocess.yaml';
 s.track = 'params_track.yaml';
 s.cpr = fullfile('trackers','cpr','params_cpr.yaml');
 s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
+s.detect = fullfile('trackers','dt','params_detect.yaml');
 s.postprocess = 'params_postprocess.yaml';
 aptroot = APT.getRoot;
 dd = dir(fullfile(aptroot,'matlab','trackers','dt','params_deeptrack_*.yaml'));

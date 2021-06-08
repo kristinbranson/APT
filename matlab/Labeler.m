@@ -508,6 +508,7 @@ classdef Labeler < handle
     tracker % The current tracker, or []
     trackerAlgo % The current tracker algorithm, or ''
     trackerIsDL
+    trackerIsTopDown
     trackDLParams % scalar struct, common DL params
     DLCacheDir % string, location of DL cache dir
   end
@@ -1226,6 +1227,14 @@ classdef Labeler < handle
         v = [];
       else
         v = isa(v,'DeepTracker');
+      end
+    end 
+    function v = get.trackerIsTopDown(obj)
+      v = obj.tracker;
+      if isempty(v)
+        v = [];
+      else
+        v = isa(v,'DeepTrackerTopDown');
       end
     end
     % KB 20190214 - store all parameters together in one struct. these dependent functions emulate previous behavior

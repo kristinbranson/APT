@@ -210,6 +210,9 @@ classdef DeepTracker < LabelTracker
   
   methods
     function v = get.algorithmName(obj)
+      v = getAlgorithmNameHook(obj);
+    end
+    function v = getAlgorithmNameHook(obj)
       v = char(obj.trnNetType);
     end
     function v = get.algorithmNamePretty(obj)
@@ -276,7 +279,7 @@ classdef DeepTracker < LabelTracker
       if lObj.maIsMA
         % semi-hack here; unclear what to do
         if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.DeepTrack.MultiAnimal.max_n_animals;
+          maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
           maxNanimals = max(ceil(maxNanimals*1.5),10);        
         else
           maxNanimals = 20;
@@ -1123,8 +1126,9 @@ classdef DeepTracker < LabelTracker
       %
       % TODO break up bsub/docker sep meths
 
-      [wbObj] = myparse(varargin,...
-        'wbObj',[]... 
+      [wbObj, existingTrnPackSLbl] = myparse(varargin,...
+        'wbObj',[],... 
+        'existingTrnPackSLbl',[] ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
         );
       
       % (aws check instance running)
@@ -1184,7 +1188,25 @@ classdef DeepTracker < LabelTracker
       trnCmdType = trnType;
       
       netObj = obj.trnNetType;
-      if tfGenNewStrippedLbl
+      if ~isempty(existingTrnPackSLbl)        
+        dlLblFileLcl = existingTrnPackSLbl;
+        [tpdir,dllblf,~] = fileparts(dlLblFileLcl);
+
+        % dlLblFileLcl should look like <modelChainID>_<trainID>.lbl
+        pat = sprintf('%s_(?<trainID>[0-9T]+)$',modelChainID);
+        toks = regexp(dllblf,pat,'names');        
+        trainID = toks.trainID;
+        dmc.trainID = trainID;
+        assert(strcmp(dmc.lblStrippedLnx,dlLblFileLcl));
+        
+        tpjson = fullfile(tpdir,'trnpack.json');
+        tp = Lbl.hlpLoadJson(tpjson);
+        dmc.nLabels = size(tp.p,2);
+        
+        fprintf('Using pre-existing stripped lbl/trnpack: %s.\n',tpdir);
+        fprintf('trainID: %s. nLabels: %d.\n',trainID,dmc.nLabels);
+        
+      elseif tfGenNewStrippedLbl
         trainID = datestr(now,'yyyymmddTHHMMSS');
         % Note dmc.trainID used in eg lblStrippedLnx
         dmc.trainID = trainID;
