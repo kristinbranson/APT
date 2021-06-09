@@ -1362,7 +1362,7 @@ classdef TrkFile < dynamicprops
         fns = fieldnames(m);
 
         if any(strcmp('startframes',fns))
-          nFramesTracked = m.pTrkFrm(1,end) - m.pTrkFrm(1,1) + 1;
+          nFramesTracked = max(m.endframes - m.startframes) + 1;
           didload = true;
         elseif ismember('pTrkFrm',fns)
           nFramesTracked = numel(m.pTrkFrm);
