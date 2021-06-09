@@ -28,7 +28,7 @@ classdef DLNetType < handle %dynamicprops
                      % in format used by InfoTimeline
                      
     doesOccPred
-    isMultiAnimal % maybe rename to "isMA bottom up" or similar.
+    isMultiAnimal % TODO: rename to "isMA bottom up" or similar
   end
   
   enumeration 

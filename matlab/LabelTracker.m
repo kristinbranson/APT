@@ -416,10 +416,15 @@ classdef LabelTracker < handle
     end
     
     function info = getAllTrackersCreateInfo(isMA)
-      dlnets = enumeration('DLNetType');
-      dlnets = dlnets([dlnets.isMultiAnimal]==isMA);
-      info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
-      if ~isMA
+      % This will need updating. DLNetType will include all types of nets
+      % such as objdetect which will not qualify as eg regular/SA trackers.
+      if isMA
+        info = cat(1,DeepTrackerTopDown.getTrackerInfos,...
+          DeepTrackerBottomUp.getTrackerInfos);
+      else        
+        dlnets = enumeration('DLNetType');
+        dlnets = dlnets(~[dlnets.isMultiAnimal]);
+        info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
         info = [info; {{'CPRLabelTracker'}}];
       end
     end

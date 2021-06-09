@@ -216,6 +216,9 @@ classdef DeepTracker < LabelTracker
       v = char(obj.trnNetType);
     end
     function v = get.algorithmNamePretty(obj)
+      v = obj.getAlgorithmNamePrettyHook();
+    end
+    function v = getAlgorithmNamePrettyHook(obj)
       v = ['Deep Convolutional Network - ' obj.trnNetType.displayString];
     end
     function v = get.condaEnv(obj)
@@ -4242,9 +4245,9 @@ classdef DeepTracker < LabelTracker
         netTypeObj,netMode,baseargs{:});      
 
       if isempty(view1b),      
-        containerName = [modelChainID '_' trainID];
+        containerName = [modelChainID '_' trainID '_' netMode.shortCode];
       else
-        containerName = [modelChainID '_' trainID '_view' num2str(view1b)];
+        containerName = [modelChainID '_' trainID '_' netMode.shortCode '_view' num2str(view1b)];
       end
 
       % using this bool as torch proxy?

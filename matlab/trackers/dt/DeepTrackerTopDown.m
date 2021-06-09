@@ -19,18 +19,36 @@ classdef DeepTrackerTopDown < DeepTracker
   % could we somehow use two without mucking up DeepTracker too mcuh?
   % - OK trnpack. trnspawn, allow specification of pre-gened tp.
   % - monitor. support indep retrain of stages. i guess try having 2
-  % monitors not horrible.
+  % monitors not horrible. 
   % - params. just force a copy not horrible.
   % - GPUs: assume two or JRC first, so no GPU shortage.
   % - track: trkcomplete trigger.
   
-  
   properties
     stage1Tracker
   end
+  properties (Dependent)
+    isHeadTail
+    topDownTypeStr
+  end
   methods
     function v = getAlgorithmNameHook(obj)
-      v = 'two stage';
+      v = sprintf('MA Top Down');%,obj.trnNetMode.shortCode,...
+%        obj.stage1Tracker.trnNetMode.shortCode);
+    end
+    function v = getAlgorithmNamePrettyHook(obj)      
+      v = sprintf('Top-Down (%s): %s + %s',obj.topDownTypeStr,...
+        obj.trnNetType.displayString,obj.stage1Tracker.trnNetType.displayString);
+    end
+    function v = get.isHeadTail(obj)
+      v = obj.trnNetMode.isHeadTail;
+    end
+    function v = get.topDownTypeStr(obj)
+      if obj.isHeadTail
+        v = 'head/tail';
+      else
+        v = 'object detect';
+      end
     end
   end
     
@@ -162,6 +180,25 @@ classdef DeepTrackerTopDown < DeepTracker
       % Nothing should occur here as failed trnSpawn* will early return
     end
     
+    function tc = getTrackerClassAugmented(obj2)
+      obj1 = obj2.stage1Tracker;
+      tc = {class(obj2) ...
+        {'trnNetType' obj1.trnNetType 'trnNetMode' obj1.trnNetMode} ...
+        {'trnNetType' obj2.trnNetType 'trnNetMode' obj2.trnNetMode} ...
+        };
+    end
+  end
+  
+  methods (Static)
+    function trkClsAug = getTrackerInfos
+      % Currently-available TD trackers. Can consider moving to eg yaml later.
+      trkClsAug = { ...
+          {'DeepTrackerTopDown' ...
+            {'trnNetType' DLNetType.multi_mdn_joint_torch 'trnNetMode' DLNetMode.multiAnimalTDDetectHT} ...
+            {'trnNetType' DLNetType.mdn_joint_fpn 'trnNetMode' DLNetMode.multiAnimalTDPoseHT} ...
+          }; ...
+          };
+    end    
   end
  
 end

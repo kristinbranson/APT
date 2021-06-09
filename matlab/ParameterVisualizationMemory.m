@@ -64,32 +64,34 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       
       obj.nettype = lObj.tracker.algorithmName;
       obj.batchsize = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
-
-      switch propFullName,
-        case {'DeepTrack.ImageProcessing.Downsample factor','DeepTrack.ImageProcessing.scale'}
-          xstr = 'Downsample factor';
-          xs = logspace(0,log10(max(obj.downsample,ParameterVisualizationMemory.maxDownsample)),ParameterVisualizationMemory.nDownsamples);
-          memuses = nan(size(xs));
-          for i = 1:numel(xs),
-            imsz1 = max(1,round(obj.imsz/xs(i)));
-            memuses(i) = get_network_size(obj.nettype,imsz1,obj.batchsize);
-          end
-          xcurr = obj.downsample;
-          imsz1 = max(1,round(obj.imsz/xcurr));
-          memusecurr = get_network_size(obj.nettype,imsz1,obj.batchsize);
-
-        case {'DeepTrack.GradientDescent.Training batch size','DeepTrack.GradientDescent.batch_size'},
-          xstr = 'Batch size';
-          xs = 1:max(obj.batchsize,ParameterVisualizationMemory.maxBatchSize);
-          imsz1 = max(1,round(obj.imsz/obj.downsample));
-          memuses = nan(size(xs));
-          for i = 1:numel(xs),
-            memuses(i) = get_network_size(obj.nettype,imsz1,xs(i));
-          end
-          xcurr = obj.batchsize;
-          memusecurr = get_network_size(obj.nettype,imsz1,xcurr);
-        otherwise
-          error('Unknown prop %s',propFullName);
+  
+      if endsWith(propFullName,...
+          {'DeepTrack.ImageProcessing.Downsample factor','DeepTrack.ImageProcessing.scale'})
+        
+        xstr = 'Downsample factor';
+        xs = logspace(0,log10(max(obj.downsample,ParameterVisualizationMemory.maxDownsample)),ParameterVisualizationMemory.nDownsamples);
+        memuses = nan(size(xs));
+        for i = 1:numel(xs),
+          imsz1 = max(1,round(obj.imsz/xs(i)));
+          memuses(i) = get_network_size(obj.nettype,imsz1,obj.batchsize);
+        end
+        xcurr = obj.downsample;
+        imsz1 = max(1,round(obj.imsz/xcurr));
+        memusecurr = get_network_size(obj.nettype,imsz1,obj.batchsize);
+      elseif endsWith(propFullName,...
+          {'DeepTrack.GradientDescent.Training batch size','DeepTrack.GradientDescent.batch_size'})
+        
+        xstr = 'Batch size';
+        xs = 1:max(obj.batchsize,ParameterVisualizationMemory.maxBatchSize);
+        imsz1 = max(1,round(obj.imsz/obj.downsample));
+        memuses = nan(size(xs));
+        for i = 1:numel(xs),
+          memuses(i) = get_network_size(obj.nettype,imsz1,xs(i));
+        end
+        xcurr = obj.batchsize;
+        memusecurr = get_network_size(obj.nettype,imsz1,xcurr);
+      else
+        error('Unknown prop %s',propFullName);
       end
       
       cla(hAx);
