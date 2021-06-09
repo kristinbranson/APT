@@ -2879,7 +2879,7 @@ def classify_movie(conf, pred_fn, model_type,
                    trx_ids=(),
                    model_file='',
                    name='',
-                   nskip_partfile=5000,
+                   nskip_partfile=500, 
                    save_hmaps=False,
                    crop_loc=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
@@ -3002,7 +3002,8 @@ def classify_movie(conf, pred_fn, model_type,
             sys.stdout.write('.')
         if (cur_b % nskip_partfile == 0) & (cur_b>0):
             sys.stdout.write('\n')
-            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
+            T1 = to_do_list[cur_start][0]
+            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, T1, trx_ids, conf, info, mov_file)
 
     if conf.is_multi:
         # write out raw results before linking.
