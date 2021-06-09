@@ -13,20 +13,22 @@ classdef DLNetMode < handle
   % - DLNetMode
   
   enumeration 
-    singleAnimal (false)
-    multiAnimalBU (true)
-    multiAnimalTDDetectObj (true)
-    multiAnimalTDDetectHT (true)    
-    multiAnimalTDPoseTrx (true)
-    multiAnimalTDPoseObj (true)
-    multiAnimalTDPoseHT (true)
+    singleAnimal (false, 'sa')
+    multiAnimalBU (true, 'bu')
+    multiAnimalTDDetectObj (true, 'tddobj')
+    multiAnimalTDDetectHT (true, 'tddht') 
+    multiAnimalTDPoseTrx (true, 'tdptrx')
+    multiAnimalTDPoseObj (true, 'tdpobj')
+    multiAnimalTDPoseHT (true, 'tdpht')
   end
   properties
     isMA
+    shortCode % for eg logfiles
   end
   methods 
-    function obj = DLNetMode(tf)
+    function obj = DLNetMode(tf,code)
       obj.isMA = tf;
+      obj.shortCode = code;
     end
   end
 end

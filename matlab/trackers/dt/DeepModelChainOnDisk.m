@@ -127,11 +127,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = get.cmdfileLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.cmdfileName];      
     end
-    function v = get.cmdfileName(obj)
+    function v = get.cmdfileName(obj)      
+      mdlChainID = obj.modelChainID;
+      trnID = obj.trainID;
+      netMode = obj.netMode.shortCode;
       if obj.isMultiView
-        v = sprintf('%s_%s.cmd',obj.modelChainID,obj.trainID);
+        v = sprintf('%s_%s_%s.cmd',mdlChainID,trnID,netMode);
       else
-        v = sprintf('%sview%d_%s.cmd',obj.modelChainID,obj.view,obj.trainID);
+        v = sprintf('%sview%d_%s_%s.cmd',mdlChainID,obj.view,trnID,netMode);
       end
     end
     function v = get.splitfileLnx(obj)
@@ -155,28 +158,37 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = [obj.dirProjLnx obj.filesep obj.errfileName];      
     end
     function v = get.errfileName(obj)
+      mdlChainID = obj.modelChainID;
+      trnID = obj.trainID;
+      netMode = obj.netMode.shortCode;
       if obj.isMultiView,
-        v = sprintf('%s_%s.err',obj.modelChainID,obj.trainID);
+        v = sprintf('%s_%s_%s.err',mdlChainID,trnID,netMode);
       else
-        v = sprintf('%sview%d_%s.err',obj.modelChainID,obj.view,obj.trainID);
+        v = sprintf('%sview%d_%s_%s.err',mdlChainID,obj.view,trnID,netMode);
       end
     end
     function v = get.trainLogLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.trainLogName];
     end
     function v = get.trainLogName(obj)
+      mdlChainID = obj.modelChainID;
+      trnID = obj.trainID;
+      netMode = obj.netMode.shortCode;
+      trnType = lower(char(obj.trainType));
       switch obj.trainType
         case DLTrainType.Restart
           if obj.isMultiView,
-            v = sprintf('%s_%s_%s%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+            v = sprintf('%s_%s_%s_%s%s.log',mdlChainID,trnID,netMode,trnType,obj.restartTS);
           else
-            v = sprintf('%sview%d_%s_%s%s.log',obj.modelChainID,obj.view,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+            v = sprintf('%sview%d_%s_%s_%s%s.log',mdlChainID,obj.view,trnID,...
+              netMode,trnType,obj.restartTS);
           end
         otherwise
           if obj.isMultiView,
-            v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+            v = sprintf('%s_%s_%s_%s.log',mdlChainID,trnID,netMode,trnType);
           else
-            v = sprintf('%sview%d_%s_%s.log',obj.modelChainID,obj.view,obj.trainID,lower(char(obj.trainType)));
+            v = sprintf('%sview%d_%s_%s_%s.log',mdlChainID,obj.view,...
+              trnID,netMode,trnType);
           end
       end
     end
