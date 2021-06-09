@@ -28,8 +28,8 @@ classdef APTInterf
       dlj = readtxtfile(dllbljson);
       dlj = jsondecode(dlj{1});
       
-      ma = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal;
-      maxNanimals = ma.max_n_animals;
+      madet = dlj.TrackerData.sPrmAll.ROOT.MultiAnimalDetection;
+      maxNanimals = madet.max_n_animals;
       
       switch netMode
         case DLNetMode.multiAnimalBU 
@@ -68,7 +68,7 @@ classdef APTInterf
         ... % *IMPORTANT*: Default is escaped double-quote \" => caller
         ... % is expected to wrap in enclosing regular double-quotes " !!
         'confparamsfilequote','\"', ...
-        'torchhome',APT.torchhome', ...
+        'torchhome',APT.torchhome, ...
         'htonly',false, ...
         'htpts',[] ... % used only if htonly==True
         );
