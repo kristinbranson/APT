@@ -4890,10 +4890,7 @@ function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
 % template only for view 1... 
 
 lObj = handles.labelerObj;
-hKP = keypoints_exported('lObj',lObj);
-%se = defineSkeleton(lObj,'edges',lObj.skeletonEdges);
-% lObj.setSkel done on UI close
-%lObj.setSkeletonEdges(se);
+landmark_specs('lObj',lObj);
 if isempty(lObj.skeletonEdges),
   set(handles.menu_view_showhide_skeleton,'Enable','off','Checked','off');
 else

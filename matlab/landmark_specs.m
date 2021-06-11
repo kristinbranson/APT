@@ -14,7 +14,7 @@ classdef landmark_specs < handle
     AddEdgeButton      %matlab.ui.control.Button
     RemoveEdgeButton   %matlab.ui.control.Button
     HeadTailTab        %matlab.ui.container.Tab
-    SpecifyHeadButton  %matlab.ui.control.Button
+%     SpecifyHeadButton  %matlab.ui.control.Button
     ClearButton        %matlab.ui.control.Button
     SwapPairsTab       %matlab.ui.container.Tab
     AddPairButton      %matlab.ui.control.Button
@@ -40,11 +40,12 @@ classdef landmark_specs < handle
     sklISelected
     
     % Head/Tail state
-    htHead % [0 or 1] working model/data for UI, to be written to lObj
-    htHpts
+    htHead % [1] [], or pt index. working model/data for UI, to be written to lObj. 
+    htTail % etc
+    htHTpts
     htHIm
     htHTxt
-    htISelected
+    htISelected    
     
     % swap state
     spEdges % [nswap x 2] working model/data for UI, to be written to lObj
@@ -78,6 +79,7 @@ classdef landmark_specs < handle
     end
     
     function delete(obj)
+      delete(obj.hFig);
     end
   end
   
@@ -126,6 +128,7 @@ classdef landmark_specs < handle
         s.swaps = zeros(0,2);
       end
       s.head = lObj.skelHead;
+      s.tail = lObj.skelTail;
       s.skelNames = lObj.skelNames;
       if isempty(s.skelNames)
         s.skelNames = arrayfun(@(x)sprintf('pt%d',x),(1:size(pts,1))','uni',0);
@@ -215,7 +218,8 @@ classdef landmark_specs < handle
       if h.Parent==app.axSkel
         app.ptClickedSkel(h,e,'sklISelected','sklHpts','sklHEdgeSelected','sklEdges');
       elseif h.Parent==app.axHT
-        app.ptClickedHT(h,e);
+        % none
+%         app.ptClickedHT(h,e);
       elseif h.Parent==app.axSwap
         app.ptClickedSkel(h,e,'spISelected','spHpts','spHEdgeSelected','spEdges');
       end
@@ -264,30 +268,30 @@ classdef landmark_specs < handle
       
       app.(fldISel) = iSeld;
     end
-    function ptClickedHT(app,h,e)
-      iClicked = get(h,'UserData');
-      
-      iSeld = app.htISelected; %#OK
-      hpts = app.htHpts;
-      
-      if isempty(iSeld)
-        iSelect = iClicked;
-        iUnselect = [];
-      elseif iSeld==iClicked
-        iSelect = [];
-        iUnselect = iSeld;
-      else
-        iSelect = iClicked;
-        iUnselect = iSeld;
-      end
-      if ~isempty(iSelect),
-        set(hpts(iSelect),'Marker',app.selectedMarker,'MarkerSize',app.selectedMarkerSize);
-      end
-      if ~isempty(iUnselect),
-        set(hpts(iUnselect),'Marker',app.unselectedMarker,'MarkerSize',app.unselectedMarkerSize);
-      end
-      app.htISelected = iSelect;
-    end
+%     function ptClickedHT(app,h,e)
+%       iClicked = get(h,'UserData');
+%       
+%       iSeld = app.htISelected; %#OK
+%       hpts = app.htHTpts;
+%       
+%       if isempty(iSeld)
+%         iSelect = iClicked;
+%         iUnselect = [];
+%       elseif iSeld==iClicked
+%         iSelect = [];
+%         iUnselect = iSeld;
+%       else
+%         iSelect = iClicked;
+%         iUnselect = iSeld;
+%       end
+%       if ~isempty(iSelect),
+%         set(hpts(iSelect),'Marker',app.selectedMarker,'MarkerSize',app.selectedMarkerSize);
+%       end
+%       if ~isempty(iUnselect),
+%         set(hpts(iUnselect),'Marker',app.unselectedMarker,'MarkerSize',app.unselectedMarkerSize);
+%       end
+%       app.htISelected = iSelect;
+%     end
     %#OK
     function cbkTabGroupSelChanged(obj,e)
       tab = e.NewValue;
@@ -295,47 +299,53 @@ classdef landmark_specs < handle
         obj.updateTableSkel();
       elseif tab==obj.HeadTailTab
         obj.updateTableHT();
+        obj.updateHTPts();
       elseif tab==obj.SwapPairsTab
         obj.updateTableSwap();
       end
     end
-    function updateTableSkel(app)
-      ht = app.UITable;      
+    function updateTableSkel(obj)
+      ht = obj.UITable;      
       ht.RowName = 'numbered';
-      ht.Data = app.ptNames(:);
+      ht.Data = obj.ptNames(:);
       ht.ColumnName = {'Name'};
       ht.ColumnEditable = true;
-      ht.ColumnWidth = {'auto'};
+      ht.ColumnWidth = {260};
     end
-    function updateTableHT(app)
-      npts = size(app.pts,1);
-      hvec = false(npts,1);
-      hvec(app.htHead) = true;
+    function updateTableHT(obj)
+      npts = size(obj.pts,1);
+      htmat = false(npts,2);
+      if ~isnan(obj.htHead)
+        htmat(obj.htHead,1) = true;
+      end
+      if ~isnan(obj.htTail)
+        htmat(obj.htTail,2) = true;
+      end
       
-      ht = app.UITable;      
-      ht.RowName = 'numbered';
-      ht.Data = [app.ptNames(:) num2cell(hvec)];
-      ht.ColumnName = {'Name' 'Head'};
-      ht.ColumnEditable = [true false];
-      ht.ColumnWidth = {'auto' 'auto'};
+      tbl = obj.UITable;      
+      tbl.RowName = 'numbered';
+      tbl.Data = [obj.ptNames(:) num2cell(htmat)];
+      tbl.ColumnName = {'Name' 'Head' 'Tail'};
+      tbl.ColumnEditable = [true true true];
+      tbl.ColumnWidth = {170 50 50};      
     end
-    function updateTableSwap(app)
-      partners = repmat({'none'},size(app.ptNames(:)));
-      swaps = app.spEdges;
+    function updateTableSwap(obj)
+      partners = repmat({'none'},size(obj.ptNames(:)));
+      swaps = obj.spEdges;
       nswap = size(swaps,1);
       for iswap=1:nswap
         s0 = swaps(iswap,1);
         s1 = swaps(iswap,2);
-        partners{s0} = app.ptNames{s1};
-        partners{s1} = app.ptNames{s0};
+        partners{s0} = obj.ptNames{s1};
+        partners{s1} = obj.ptNames{s0};
       end
       
-      ht = app.UITable;
+      ht = obj.UITable;
       ht.RowName = 'numbered';
-      ht.Data = [app.ptNames(:) partners];
+      ht.Data = [obj.ptNames(:) partners];
       ht.ColumnName = {'Name' 'Partner'};
-      ht.ColumnEditable = [true false];
-      ht.ColumnWidth = {'auto' 'auto'};      
+      ht.ColumnEditable = [false false];
+      ht.ColumnWidth = {130 130};
     end    
     function moveEdgesToBack(app,axfld,fldhim,fldhtxt,fldhedges, ...
         fldhedgesel,fldhpts)
@@ -398,6 +408,7 @@ classdef landmark_specs < handle
       obj.sklEdges = slbl.skelEdges;
       obj.initTabSkel(slbl,textArgs,plotptsArgs);
       obj.htHead = slbl.head;
+      obj.htTail = slbl.tail;
       obj.initTabHeadTail(slbl,textArgs,plotptsArgs);
       obj.spEdges = slbl.swaps;
       obj.initTabSwap(slbl,textArgs,plotptsArgs);
@@ -467,14 +478,8 @@ classdef landmark_specs < handle
       hAx = obj.axHT;
       
       hIm = obj.initImage(hAx,slbl);
-      [hpts,htxt] = obj.initPtsAx(hAx,slbl,plotptsArgs,textArgs);
-      if ~isempty(slbl.head)
-        set(hpts(slbl.head),...
-          'Marker',obj.selectedMarker,...
-          'MarkerSize',obj.selectedMarkerSize)
-      end
-
-      obj.htHpts = hpts;
+      [hpts,htxt] = obj.initPtsAx(hAx,slbl,plotptsArgs,textArgs);         
+      obj.htHTpts = hpts;
       obj.htHIm = hIm;
       obj.htHTxt = htxt;
       obj.htISelected = [];
@@ -628,26 +633,26 @@ classdef landmark_specs < handle
       obj.anyChangeMade = true;
     end
     %#OK
-    function SpecifyHeadButtonPushed(obj, event)
-      if isempty(obj.htISelected)
-        error('Please select a point.');
-      end
-      updateTableHeadPt(obj,obj.htISelected);
-      obj.htHead = obj.htISelected;
-      obj.anyChangeMade = true;
-    end
+%     function SpecifyHeadButtonPushed(obj, event)
+%       if isempty(obj.htISelected)
+%         error('Please select a point.');
+%       end
+%       updateTableHeadPt(obj,obj.htISelected);
+%       obj.htHead = obj.htISelected;
+%       obj.anyChangeMade = true;
+%     end
     %#OK
-    function updateTableHeadPt(obj,iSelected)
-      npt = size(obj.pts,1);
-      hvec = false(npt,1);
-      hvec(iSelected) = true; 
-      obj.UITable.Data(:,2) = num2cell(hvec);      
-    end
+%     function updateTableHeadPt(obj,iSelected)
+%       npt = size(obj.pts,1);
+%       hvec = false(npt,1);
+%       hvec(iSelected) = true; 
+%       obj.UITable.Data(:,2) = num2cell(hvec);      
+%     end
     %#OK
-    function ClearButtonPushed(obj, event)
-      updateTableHeadPt(obj,[]);
-      obj.anyChangeMade = true;
-    end
+%     function ClearButtonPushed(obj, event)
+%       updateTableHeadPt(obj,[]);
+%       obj.anyChangeMade = true;
+%     end
     
 %     % Callback function
 %     function SpecfyHeadLandmarkSwitchValueChanged(app, event)
@@ -658,26 +663,58 @@ classdef landmark_specs < handle
     function UITableCellEdit(obj, event)
       indices = event.Indices;
       NAMECOL = 1;
-      HEADTAILCOL = 2;
+      HEADTAILCOL = [2 3];
+      tblrow = indices(1);
+      tblcol = indices(2);
       
-      if indices(2)==NAMECOL
-        row = indices(1);
+      if tblcol==NAMECOL
         newName = event.NewData;
-        obj.ptNames{row} = newName;
-        obj.sklHTxt(row).String = newName;
-        obj.htHTxt(row).String = newName;
-        obj.spHTxt(row).String = newName;
-        obj.anyChangeMade = true;
-      elseif indices(2)==HEADTAILCOL && ~event.PreviousData && event.NewData
-        assert(false);
-%         ht = app.UITable;
-%         dat = ht.Data;
-%         htcol = cell2mat(dat(:,HEADTAILCOL));
-%         if nnz(htcol)>1
-%           htcol(:) = 0;
-%           htcol(indices(1)) = 1;
-%           ht.Data(:,HEADTAILCOL) = num2cell(htcol);
+        obj.ptNames{tblrow} = newName;
+        obj.sklHTxt(tblrow).String = newName;
+        obj.htHTxt(tblrow).String = newName;
+        obj.spHTxt(tblrow).String = newName;
+      elseif any(tblcol==HEADTAILCOL)
+        tbl = obj.UITable;
+        dat = tbl.Data;
+        tf = cell2mat(dat(:,tblcol));        
+%         if event.NewData && ~event.PreviousData
+%           % no-check=>check
+%           
+%         elseif ~event.NewData && event.PreviousData
+%           
 %         end
+
+        % enforce only one check per col
+        if nnz(tf)>1
+          tf(:) = 0;
+          tf(tblrow) = 1;
+          tbl.Data(:,tblcol) = num2cell(tf);
+        end
+        ipt = find(tf); % could be empty
+        FLDS = {[] 'htHead' 'htTail'};
+        obj.(FLDS{tblcol}) = ipt;
+        obj.updateHTPts();
+      end
+      obj.anyChangeMade = true;
+    end
+
+    function updateHTPts(obj)
+      hpts = obj.htHTpts;
+      set(hpts,...
+          'Marker',obj.unselectedMarker,...
+          'MarkerSize',obj.unselectedMarkerSize);
+        
+      ipthead = obj.htHead;
+      ipttail = obj.htTail;        
+      if ~isempty(ipthead)
+        set(hpts(ipthead),...
+          'Marker',obj.selectedMarker,...
+          'MarkerSize',obj.selectedMarkerSize)
+      end
+      if ~isempty(ipttail)
+        set(hpts(ipttail),...
+          'Marker',obj.selectedMarker,...
+          'MarkerSize',obj.selectedMarkerSize)
       end
     end
     
@@ -689,12 +726,13 @@ classdef landmark_specs < handle
           case 'Yes'
             obj.lObj.setSkeletonEdges(obj.sklEdges);
             obj.lObj.setSkelHead(obj.htHead);
+            obj.lObj.setSkelTail(obj.htTail);
             obj.lObj.setFlipLandmarkMatches(obj.spEdges);
             obj.lObj.setSkelNames(obj.ptNames);
           otherwise
             % none
         end
-      end     
+      end
       delete(obj);      
     end
   end
@@ -710,6 +748,7 @@ classdef landmark_specs < handle
       obj.hFig.AutoResizeChildren = 'off';
       obj.hFig.Position = [100 100 686 392];
       obj.hFig.Name = 'Landmark Specifications';
+      obj.hFig.MenuBar = 'none';
       obj.hFig.CloseRequestFcn = @(src,evt)obj.closereq(src,evt);
 %       app.hFig.SizeChangedFcn = createCallbackFcn(app, @updateAppLayout, true);
       
@@ -744,16 +783,23 @@ classdef landmark_specs < handle
 %       obj.axSkel.Position = [15 53 390 280];
       
       % Create AddEdgeButton
+      BTNX0 = 50;
+      BTNY0 = 7;
+      BTNW = 120;
+      BTNH = 30;
+      BTNFSIZE = 12;
       obj.AddEdgeButton = uicontrol(obj.SkeletonTab,'style','pushbutton');
       obj.AddEdgeButton.Callback = @(s,e)obj.AddEdgeButtonPushed(e);
-      obj.AddEdgeButton.Position = [118 17 100 23];
       obj.AddEdgeButton.String = 'Add Edge';
-      
-      % Create RemoveEdgeButton
       obj.RemoveEdgeButton = uicontrol(obj.SkeletonTab,'style','pushbutton');
       obj.RemoveEdgeButton.Callback = @(s,e)obj.RemoveEdgeButtonPushed(e);
-      obj.RemoveEdgeButton.Position = [230 17 100 23];
       obj.RemoveEdgeButton.String = 'Remove Edge';
+      obj.AddEdgeButton.Position = [BTNX0 BTNY0 BTNW BTNH];
+      obj.RemoveEdgeButton.Position = [BTNX0+BTNW+5 BTNY0 BTNW BTNH];
+      obj.AddEdgeButton.FontSize = BTNFSIZE;
+      obj.RemoveEdgeButton.FontSize = BTNFSIZE;      
+      obj.AddEdgeButton.Units = 'normalized';
+      obj.RemoveEdgeButton.Units = 'normalized';
       
       % Create HeadTailTab
       obj.HeadTailTab = uitab(obj.TabGroup);
@@ -769,16 +815,16 @@ classdef landmark_specs < handle
       obj.axHT.Position = [23 30 390 291];
       
       % Create SpecifyHeadButton
-      obj.SpecifyHeadButton = uicontrol(obj.HeadTailTab,'style','pushbutton');
-      obj.SpecifyHeadButton.Callback = @(s,e)obj.SpecifyHeadButtonPushed(e);
-      obj.SpecifyHeadButton.Position = [118 15 100 23];
-      obj.SpecifyHeadButton.String = 'Specify Head';
+%       obj.SpecifyHeadButton = uicontrol(obj.HeadTailTab,'style','pushbutton');
+%       obj.SpecifyHeadButton.Callback = @(s,e)obj.SpecifyHeadButtonPushed(e);
+%       obj.SpecifyHeadButton.Position = [118 15 100 23];
+%       obj.SpecifyHeadButton.String = 'Specify Head';
       
-      % Create ClearButton
-      obj.ClearButton = uicontrol(obj.HeadTailTab,'style','pushbutton');
-      obj.ClearButton.Callback = @(s,e)obj.ClearButtonPushed(e);
-      obj.ClearButton.Position = [230 15 100 23];
-      obj.ClearButton.String = 'Clear';
+%       % Create ClearButton
+%       obj.ClearButton = uicontrol(obj.HeadTailTab,'style','pushbutton');
+%       obj.ClearButton.Callback = @(s,e)obj.ClearButtonPushed(e);
+%       obj.ClearButton.Position = [230 15 100 23];
+%       obj.ClearButton.String = 'Clear';
       
       % Create SwapPairsTab
       obj.SwapPairsTab = uitab(obj.TabGroup);
@@ -798,12 +844,16 @@ classdef landmark_specs < handle
       obj.AddPairButton.Callback = @(s,e)obj.AddPairButtonPushed(e);
       obj.AddPairButton.Position = [118 17 100 23];
       obj.AddPairButton.String = 'Add Pair';
-      
-      % Create RemovePairButton
       obj.RemovePairButton = uicontrol(obj.SwapPairsTab,'style','pushbutton');
       obj.RemovePairButton.Callback = @(s,e)obj.RemovePairButtonPushed(e);
       obj.RemovePairButton.Position = [230 17 100 23];
       obj.RemovePairButton.String = 'Remove Pair';
+      obj.AddPairButton.Position = [BTNX0 BTNY0 BTNW BTNH];
+      obj.RemovePairButton.Position = [BTNX0+BTNW+5 BTNY0 BTNW BTNH];
+      obj.AddPairButton.FontSize = BTNFSIZE;
+      obj.RemovePairButton.FontSize = BTNFSIZE;
+      obj.AddPairButton.Units = 'normalized';
+      obj.RemovePairButton.Units = 'normalized';
       
       % Create RightPanel
       obj.RightPanel = uipanel('Parent',obj.hFig,'units','normalized',...
@@ -819,7 +869,9 @@ classdef landmark_specs < handle
       obj.UITable.ColumnEditable = true;
       obj.UITable.ColumnWidth = {'auto'};      
       obj.UITable.CellEditCallback = @(s,e)obj.UITableCellEdit(e);
-      obj.UITable.Position = [21 133 195 233];
+      obj.UITable.Position = [20 20 300 350];
+      obj.UITable.FontSize = 14;
+      obj.UITable.Units = 'normalized';
       
       % Show the figure after all components are created
       obj.hFig.Visible = 'on';

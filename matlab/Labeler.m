@@ -31,7 +31,7 @@ classdef Labeler < handle
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
-      'skeletonEdges' 'showSkeleton' 'showMaRoi' 'flipLandmarkMatches' 'skelHead' 'skelNames' ...
+      'skeletonEdges' 'showSkeleton' 'showMaRoi' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
       'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
@@ -366,6 +366,7 @@ classdef Labeler < handle
     labels2ShowCurrTargetOnly;  % scalar logical, transient    
     skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
     skelHead = []; % [], or scalar pt index for head
+    skelTail = [];
     skelNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
                  % NOTE: arguably the "point names" should be. init: C
                  % used to be labeledposSetNames
@@ -1623,6 +1624,7 @@ classdef Labeler < handle
 
       obj.skeletonEdges = zeros(0,2);
       obj.skelHead = [];
+      obj.skelTail = [];
       obj.showSkeleton = false;
       obj.showMaRoi = false;
       obj.showMaRoiAux = false;
@@ -2196,6 +2198,7 @@ classdef Labeler < handle
       s.xvResultsTS = [];
       s.skeletonEdges = zeros(0,2);
       s.skelHead = [];
+      s.skelTail = [];
       s.flipLandmarkMatches = zeros(0,2);
       s = Labeler.resetTrkResFieldsStruct(s);
       for i=1:numel(s.trackerData)
@@ -3672,6 +3675,9 @@ classdef Labeler < handle
       end
       if ~isfield(s,'skelHead'),
         s.skelHead = [];
+      end      
+      if ~isfield(s,'skelTail'),
+        s.skelTail = [];
       end      
 
       % KB 20191203: added landmark matches
@@ -5825,6 +5831,9 @@ classdef Labeler < handle
     function setSkelHead(obj,head)
       obj.skelHead = head;
     end
+    function setSkelTail(obj,tail)
+      obj.skelTail = tail;
+    end    
     function setSkelNames(obj,names)
       obj.skelNames = names;
     end
@@ -8899,14 +8908,21 @@ classdef Labeler < handle
       if tfalignHT
         xyH = xy(obj.skelHead,:);
         xyCent = nanmean(xy,1);
+        
+        if ~isempty(obj.skelTail)
+          xyT = xy(obj.skelTail,:);
+        else
+          xyT = xyCent;
+          warningNoTrace('No tail point defined; using centroid');
+        end
 
-        v = xyH-xyCent; % vec from centroid->head
+        v = xyH-xyT; % vec from tail->head
         phi = atan2(v(2),v(1)); % azimuth of vec from t->h
         R = rotationMatrix(-phi);
         
         xyc = xy-xyCent; % kps centered about centroid
         Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
-                        % vec from cent->h should point to positive x
+                        % vec from t->h should point to positive x
         if tfscaled
           Rroi = Labeler.maRoiXY2RoiScaled(Rxyc.',scalefac,scaledfixedmargin); 
         else
@@ -13194,7 +13210,13 @@ classdef Labeler < handle
           
           if ~isempty(obj.skelHead)
             phead = p(obj.skelHead,:);
-            vmuhead = phead-pmu;
+            if ~isempty(obj.skelTail)
+              ptail = p(obj.skelTail,:);
+            else
+              ptail = pmu;
+              warningNoTrace('No tail point defined; using centroid.');
+            end
+            vmuhead = phead-ptail;
             th = atan2(vmuhead(2),vmuhead(1));
           else
             th = 0;
