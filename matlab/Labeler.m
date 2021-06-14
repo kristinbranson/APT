@@ -5738,24 +5738,27 @@ classdef Labeler < handle
         return;
       end      
       
+      ntgts = obj.nTrx;
       if obj.showTrx
         if obj.showTrxCurrTargetOnly
-          tfShow = false(obj.nTrx,1);
+          tfShow = false(ntgts,1);
           tfShow(iTgtCurr) = true;
         else
-          tfShow = true(obj.nTrx,1);
+          tfShow = true(ntgts,1);
         end
         
         iMov = obj.currMovie;
         PROPS = obj.gtGetSharedProps();
         npts = obj.nLabelPoints;
         t = obj.currFrame;
-        p = reshape(obj.(PROPS.LPOS){iMov}(:,:,t,tfShow),2*npts,[]);
-        % p is [npts x nShow]
-        tfLbledShow = false(obj.nTrx,1);
+        %p = reshape(obj.(PROPS.LPOS){iMov}(:,:,t,tfShow),2*npts,[]);
+        s = obj.(PROPS.LBL){iMov};
+        p = Labels.getLabelsF(s,t,ntgts); % [2*npts x ntgts]
+        p = p(:,tfShow); % [2*npts x nshow]
+        tfLbledShow = false(ntgts,1);
         tfLbledShow(tfShow) = all(~isnan(p),1);  
       else
-        tfShow = false(obj.nTrx,1);
+        tfShow = false(ntgts,1);
       end
       
       tv = obj.tvTrx;
