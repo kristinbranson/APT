@@ -2696,42 +2696,8 @@ classdef Labeler < handle
       tAll = obj.trackersAll;
       for iTrker = 1:numel(tAll)
         tObj = tAll{iTrker};
-        if isa(tObj,'DeepTracker')
-          dmc = tObj.trnLastDMC;
-          for ivw = 1:numel(dmc)
-            if ~dmc(ivw).isRemote
-              dmc(ivw).rootDir = cacheDir;
-              
-              % This was a mistake as APT#2 could clear the partial 
-              % trkfiles used by APT#1
-%               mcDir = dmc(ivw).dirModelChainLnx;
-%               if exist(mcDir,'dir')>0
-%                 fprintf(1,'Cleaning %s\n',mcDir);
-%                 [success,message] = rmdir(mcDir,'s');
-%                 if ~success
-%                   warningNoTrace('Could not clean local modelChain cache dir %s:',mcDir);
-%                   warningNoTrace(message);
-%                   
-%                   % Nonfatal dont return
-%                 end
-%               end
-            else
-              warningNoTrace('Unexpected remote DMC detected for net %s, view %d.',...
-                tObj.trnNetType.prettyStr,ivw);
-              % At save-time we should be updating DMCs to local
-              
-              % Don't update dmc(ivw).rootDir in this case
-              
-              % Nonfatal dont return
-            end
-          end
-          
-          % Don't retain any previous tracking results
-          tObj.clearTrackingResults();
-        end
+        tObj.updateDLCache(cacheDir);
       end
-      
-      %obj.trackParams.ROOT.DeepTrack.Saving.CacheDir = cacheDir;
       
       success = true;
     end
@@ -3237,7 +3203,8 @@ classdef Labeler < handle
 %         s.labeledposTSGT = cell(0,1);
 %         s.labeledpostagGT = cell(0,1);
 %         if isscalar(s.viewCalProjWide) && s.viewCalProjWide
-%           s.viewCalibrationDataGT = [];
+%           s.viewCalibrationDataGT = [];      trkersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
+
 %         else
 %           s.viewCalibrationDataGT = cell(0,1);
 %         end
@@ -3337,10 +3304,10 @@ classdef Labeler < handle
       if s.maIsMA
         % ma trackers in flux; force to be the known trackers
         s.trackerClass(:) = trkersInfo(1:nExistingTrkers);
-        for i=1:numel(s.trackerData)
-          % very foolish double-update; rm later
-          s.trackerData{i}.trnNetType = trkersInfo{i}{3};
-        end
+%         for i=1:numel(s.trackerData)
+%           % very foolish double-update; rm later
+%           s.trackerData{i}.trnNetType = trkersInfo{i}{3};
+%         end
       else
         [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),trkersInfo);
         assert(all(tf));

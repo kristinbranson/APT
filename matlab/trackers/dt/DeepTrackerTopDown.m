@@ -196,8 +196,16 @@ classdef DeepTrackerTopDown < DeepTracker
     function loadSaveToken(obj,s)
       s1 = DeepTracker.modernizeSaveToken(s.stg1);
       s2 = DeepTracker.modernizeSaveToken(s.stg2);
-      loadSaveToken@DeepTracker(obj.stage1Tracker,s1);
+      % Important that this line occurs first, as DeepTracker/loadSaveToken
+      % calls initHook(). If the stage1Tracker is loaded first, then it
+      % gets cleared out.
       loadSaveToken@DeepTracker(obj,s2);
+      loadSaveToken@DeepTracker(obj.stage1Tracker,s1);
+    end
+    
+    function updateDLCache(obj,dlcachedir)
+      updateDLCache@DeepTracker(obj,dlcachedir);
+      updateDLCache@DeepTracker(obj.stage1Tracker,dlcachedir);
     end
   end
   

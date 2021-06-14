@@ -55,10 +55,6 @@ classdef LabelTracker < handle
     showPredsCurrTargetOnly = false;
   end
   
-%   properties (Constant)    
-%     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
-%   end
-      
   methods
     
     function obj = LabelTracker(labelerObj)
@@ -312,6 +308,12 @@ classdef LabelTracker < handle
     % placeholder - should be defined by child classes
     function [infos] = getTrackerInfoString(obj,doupdate)
       infos = {'Not implemented'};
+    end
+    
+    function updateDLCache(obj,dlcachedir)
+      % For DL tracker portability across save/load
+      
+      % none
     end
     
   end

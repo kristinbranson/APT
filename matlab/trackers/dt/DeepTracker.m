@@ -488,6 +488,22 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end
+    function updateDLCache(obj,dlcachedir)
+      dmc = obj.trnLastDMC;
+      for ivw = 1:numel(dmc)
+        if ~dmc(ivw).isRemote
+          dmc(ivw).rootDir = dlcachedir;
+        else
+          warningNoTrace('Unexpected remote DMC detected for net %s, view %d.',...
+            tObj.trnNetType.prettyStr,ivw);
+          % At save-time we should be updating DMCs to local
+          
+          % Don't update dmc(ivw).rootDir in this case
+          
+          % Nonfatal dont return
+        end
+      end
+    end
   end
   methods (Static)
     function s = modernizeSaveToken(s)
