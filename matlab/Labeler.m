@@ -11057,6 +11057,10 @@ classdef Labeler < handle
       % 
       
       tdata = s.trackerData{s.currTracker};
+      % HACK. design unclear
+      if isfield(tdata,'stg2') % topdown/2-stage tracker
+        tdata = tdata.stg2;
+      end
       
       if ~isempty(sPrmAll),
         tdata.sPrmAll = sPrmAll;
@@ -11129,13 +11133,27 @@ classdef Labeler < handle
       else
         sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
       end
+      
+      % headtail
+      if ~isempty(obj.skelHead)
+        iptHead = obj.skelHead;
+      else
+        iptHead = 0;
+      end
+      if ~isempty(obj.skelTail)
+        iptTail = obj.skelTail;
+      else
+        iptTail = 0;
+      end        
+      sPrmAll.ROOT.MultiAnimalDetection.head_point = iptHead;
+      sPrmAll.ROOT.MultiAnimalDetection.tail_point = iptTail;      
+      
       % add landmark matches
       matches = obj.flipLandmarkMatches;
       nedge = size(matches,1);
       matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
       matchstr = String.cellstr2CommaSepList(matchstr);
       sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
-
     end
     
     function sPrmAll = setExtraParams(obj,sPrmAll)

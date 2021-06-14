@@ -37,19 +37,14 @@ classdef APTInterf
             maxNanimals,netType,trnjson,varargin{:});          
 
         case DLNetMode.multiAnimalTDDetectHT
-          htpts = [1 2];
-          fprintf(2,'TODO: htpts into codegen\n');
-          %htpts = [ma.head_point ma.tail_point];
+          htpts = [madet.head_point madet.tail_point];
           [codestr,code] = APTInterf.mabuTrainCodeGen(trnID,dllbl,cache,errfile,...
             maxNanimals,netType,trnjson,varargin{:},'htonly',true,'htpts',htpts);
           
         case DLNetMode.multiAnimalTDPoseHT
-          htpts = [1 2];
-          fprintf(2,'TODO: htpts into codegen\n');
-          %htpts = [ma.head_point ma.tail_point];
+          htpts = [madet.head_point madet.tail_point];
           [codestr,code] = APTInterf.htPoseTrainCodeGen(trnID,dllbl,cache,errfile,...
-            netType,trnjson,htpts,varargin{:});
-          
+            netType,trnjson,htpts,varargin{:});          
           
         otherwise
           assert(false);

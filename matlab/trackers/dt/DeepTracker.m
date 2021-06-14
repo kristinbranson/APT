@@ -433,6 +433,9 @@ classdef DeepTracker < LabelTracker
         obj.newLabelerFrame();
       end
     end
+    function sPrmAll = getAllParams(obj)
+      sPrmAll = obj.sPrmAll;     
+    end
     function tfPostProcChanged = setPostProcParams(obj,sPrmAll)
       tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
       obj.sPrmAll.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
