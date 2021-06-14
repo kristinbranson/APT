@@ -355,6 +355,7 @@ classdef TrkFile < dynamicprops
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         v = obj.(f);
         assert(iscell(v));
+        tfTag = strcmp(f,'pTrkTag');
         for i=1:numel(v)
           if isempty(v{i}) && size(v{i},1)==0 
             % compensate for apparent bug on Py 
@@ -368,6 +369,9 @@ classdef TrkFile < dynamicprops
             
             ndim = ndims(v{i});            
             v{i} = permute(v{i},ndim:-1:1);
+          elseif tfTag && isnumeric(v{i}) && ~isempty(v{i}) 
+            v{i}(isnan(v{i})) = 0;
+            v{i} = logical(v{i});
           end
         end
         obj.(f) = v;

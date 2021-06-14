@@ -455,7 +455,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
             else:
                 occ_out = None
 
-            pred_locs = self.get_joint_pred(pred,occ_out)
+            pred_locs = self.get_joint_pred(pred)
             ret_dict = {}
             ret_dict['locs'] = pred_locs[0]*self.conf.rescale
             ret_dict['locs_joint'] = pred_locs[1]*self.conf.rescale
