@@ -187,6 +187,18 @@ classdef DeepTrackerTopDown < DeepTracker
         {'trnNetType' obj2.trnNetType 'trnNetMode' obj2.trnNetMode} ...
         };
     end
+    
+    function s = getSaveToken(obj)
+      s.stg1 = obj.stage1Tracker.getSaveToken();
+      s.stg2 = getSaveToken@DeepTracker(obj);
+    end
+    
+    function loadSaveToken(obj,s)
+      s1 = DeepTracker.modernizeSaveToken(s.stg1);
+      s2 = DeepTracker.modernizeSaveToken(s.stg2);
+      loadSaveToken@DeepTracker(obj.stage1Tracker,s1);
+      loadSaveToken@DeepTracker(obj,s2);
+    end
   end
   
   methods (Static)
