@@ -964,7 +964,7 @@ classdef TrkFile < dynamicprops
         
         for f=trkflds(:)',f=f{1}; %#ok<FXSET>
           v = obj.(f);
-          if strcmp(v,'pTrk') % branching off ndims(v) doesn't work if ntlt==1            
+          if strcmp(f,'pTrk') % branching off ndims(v) doesn't work if ntlt==1            
             obj2.(f){itlt} = v(:,:,idx,itlt);
           else
             obj2.(f){itlt} = v(:,idx,itlt);
