@@ -753,6 +753,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trackResInit();
       obj.vizInit();
       obj.asyncReset();
+      obj.updateTrackerInfo();
     end
         
     function sPrm = getParams(obj)

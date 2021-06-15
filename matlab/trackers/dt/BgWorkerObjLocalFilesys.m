@@ -87,7 +87,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
     function res = queryMyJobsStatus(obj)
       % returns cellstr array same size as .jobID [nmovjob x nviewJobs]
       if ~iscell(obj.jobID),
-        jobID = {obj.jobID};
+        jobID = num2cell(obj.jobID);
       else
         jobID = obj.jobID;
       end

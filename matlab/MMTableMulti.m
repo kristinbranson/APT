@@ -13,10 +13,10 @@ classdef MMTableMulti < MovieManagerTable
     end
   end
   properties (Constant)
-    HEADERS = {'Set' 'Movie' 'Has Labels'};
-    COLTYPES = {'' 'char' 'logical'};
+    HEADERS = {'Set' 'Movie' 'Num Labels'};
+    COLTYPES = {'' 'char' 'int'};
     COLEDIT = {false false false};
-    COLWIDTHS = containers.Map({'Movie','Has Labels'},{600,250});
+    COLWIDTHS = containers.Map({'Movie','Num Labels'},{600,250});
   end
   
   methods

@@ -35,6 +35,8 @@ function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL
 % 3c. Labeler prop listeners update GTTable selection, expand/collapse
 %   (frame, target etc)
 
+handles.menu_get_gt_frames.Label = 'GT Frames';
+
 handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
   'Callback',@(hObject,eventdata)GTManager('menu_gtframes_suggest_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Auto-generate GT Frames',...
@@ -54,7 +56,12 @@ handles.menu_gtframes_load = uimenu('Parent',handles.menu_get_gt_frames,...
   'Checked','off',...
   'Visible','on');
 
-
+handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
+  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_summary_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','GT Frames Summary',...
+  'Tag','menu_gtframes_summary',...
+  'Separator','on',...
+  'Visible','on');
 %moveMenuItemAfter(handles.menu_file_export_labels_table,...
 %  handles.menu_file_export_labels_trks);
 
@@ -158,13 +165,19 @@ tbl = [tbl table(hasLbl,err)];
 tblMovIdxs = tbl.mov;
 [iMovAbs,gt] = tblMovIdxs.get;
 assert(all(gt));
-movstrs = lObj.getMovieFilesAllFullMovIdx(tblMovIdxs);
-movstrs = movstrs(:,1);
-movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
+iMovAbsUn = unique(iMovAbs);
+iMovAbsUnCnt = arrayfun(@(x)nnz(x==iMovAbs),iMovAbsUn);
+iMovAbsMax = max(iMovAbsUn);
+iMovAbs2Cnt = zeros(iMovAbsMax,1); % iMovAbs2Cnt(iMovAbs) gives number of gt lbled frames for that mov
+iMovAbs2Cnt(iMovAbsUn) = iMovAbsUnCnt;
+iMovAbsCnt = iMovAbs2Cnt(iMovAbs);
+% movstrs = lObj.getMovieFilesAllFullMovIdx(tblMovIdxs);
+% movstrs = movstrs(:,1);
+% movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
 numDigits = floor(log10(lObj.nmoviesGT)+1);
-fmt = sprintf('(%%0%dd) ',numDigits);
+fmt = sprintf('%%0%dd -- %%d frames',numDigits);
 %movstrs = strcat(arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0),movstrs);
-movstrs = arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0);
+movstrs = arrayfun(@(x,y)sprintf(fmt,x,y),iMovAbs,iMovAbsCnt,'uni',0);
 tbl.mov = movstrs;
 
 COLS = [MFTable.FLDSID {'hasLbl' 'err'}];
@@ -259,6 +272,9 @@ function menu_gtframes_setlabeled_Callback(hObject, eventdata, handles)
 LabelerGT.setSuggestionsToLabeledUI(handles.labeler);
 function menu_gtframes_load_Callback(hObject, eventdata, handles)
 LabelerGT.loadSuggestionsUI(handles.labeler);
+function menu_gtframes_summary_Callback(hObject, eventdata, handles)
+lObj = handles.labeler;
+disp(lObj.gtLabeledFrameSummary);
 
 function pbNextUnlabeled_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
