@@ -5602,13 +5602,20 @@ classdef DeepTracker < LabelTracker
             tbl = TrxUtil.tableFT(trk{i,1});
             tbl.iTgt = repmat(1,height(tbl),1);
           else
-            if isequal(pTrkiPt,-1)
-              pTrkiPt = trk{i,1}.pTrkiPt;
+            if isfield(trk{i,1},'pTrkiPt')
+              if isequal(pTrkiPt,-1)
+                pTrkiPt = trk{i,1}.pTrkiPt;
+              end
+              if ~isequal(pTrkiPt,trk{i,1}.pTrkiPt)
+                error('Trkfiles differ in tracked points .pTrkiPt.');
+              end
+              tbl = trk{i,1}.tableform;
+            else
+              tbl = TrxUtil.tableFT(trk{i,1});
+              tbl.iTgt = repmat(1,height(tbl),1);
+              % MK 20210415: TODO update this for trx based tracklets
+              % format trk file.
             end
-            if ~isequal(pTrkiPt,trk{i,1}.pTrkiPt)
-              error('Trkfiles differ in tracked points .pTrkiPt.');
-            end
-            tbl = trk{i,1}.tableform;
           end
           tblmov = table(repmat(mIdxs(i),height(tbl),1),'VariableNames',{'mov'});
           tbl = [tblmov tbl]; %#ok<AGROW>
@@ -5852,7 +5859,12 @@ classdef DeepTracker < LabelTracker
       end
     end
     function newLabelerMovie(obj)
-      %obj.vizInit(); % not sure why this is nec
+      if ~obj.lObj.maIsMA && obj.lObj.hasTrx
+        % in this case, the number of targets (trx) can vary by movie and
+        % currently .trkVizer (TrackingVisualizerMT) needs to be updated
+        % for the number of targets
+        obj.vizInit(); 
+      end
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();

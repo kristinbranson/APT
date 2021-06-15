@@ -320,6 +320,10 @@ def convert_to_coco(coco_info, ann, data, conf):
     cur_locs = data['locs']  # [ntgt x ...]
     info = data['info']
     cur_occ = data['occ']
+    if cur_locs.ndim == 2:
+        # for ht trx sort of thing.
+        cur_locs = cur_locs[None,...]
+        cur_occ = cur_occ[None,...]
     # cur_im,cur_locs,info,cur_occ = data[:4]
     if 'roi' in data.keys():
         roi = data['roi']  # [ntgt x ncol] np array
@@ -347,8 +351,8 @@ def convert_to_coco(coco_info, ann, data, conf):
         ix = cur_locs[idx, ...]
         if np.all(ix < -1000) or np.all(np.isnan(ix)):
             continue
-        occ_coco = 2 - cur_occ[idx, :, np.newaxis]
-        occ_coco[np.isnan(ix[:, 0]), :] = 0
+        occ_coco = 2 - cur_occ[idx, ..., np.newaxis]
+        occ_coco[np.isnan(ix[..., 0]), :] = 0
         lmin = ix.min(axis=0)
         lmax = ix.max(axis=0)
         w = lmax[0] - lmin[0]
@@ -368,10 +372,9 @@ def convert_to_coco(coco_info, ann, data, conf):
             coco_info['ann_ndx'] += 1
             segm = [cur_roi.flatten().tolist()]
             if conf.multi_only_ht:
-                out_locs = np.ones([2,3])*np.nan
+                out_locs = np.zeros([2,3])
             else:
-                out_locs = np.ones([conf.n_classes,3])*np.nan
-            out_locs[:,2] = 0
+                out_locs = np.zeros([conf.n_classes,3])
             ann['annotations'].append({'iscrowd': 0, 'segmentation': segm, 'area': 0, 'image_id': ndx, 'id': annid,'num_keypoints': conf.n_classes, 'bbox': [0,0,0,0],'keypoints': out_locs.flatten().tolist(), 'category_id': 0})
 
 
@@ -716,7 +719,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
     conf.rescale = scale
 
-    ex_mov = multiResData.find_local_dirs(conf)[0][0]
+    ex_mov = multiResData.find_local_dirs(conf.labelfile,conf.view)[0][0]
 
     if 'NumChans' in lbl['cfg'].keys():
         conf.img_dim = int(read_entry(lbl['cfg']['NumChans']))
@@ -865,7 +868,11 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # elif net_type == 'openpose':
     #     op.update_conf(conf)
     elif net_type == 'dpk':
-        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        if conf.dpk_use_op_affinity_graph:
+            apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        else:
+            assert conf.dpk_skel_csv is not None
+            apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
@@ -958,7 +965,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
     # assert not (on_gt and split), 'Cannot split gt data'
 
-    local_dirs, _ = multiResData.find_local_dirs(conf, on_gt)
+    local_dirs, _ = multiResData.find_local_dirs(conf.labelfile, conf.view,on_gt)
     lbl = h5py.File(conf.labelfile, 'r')
     view = conf.view
     flipud = conf.flipud
@@ -2812,6 +2819,22 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
     everything should be 0-indexed
     '''
 
+    locs_lnk = np.transpose(pred_locs_in, [2, 3, 0, 1])
+
+    ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
+    tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+    if 'conf' in extra_dict:
+        pred_conf = extra_dict['conf']
+        locs_conf = np.transpose(pred_conf, [2, 0, 1])
+    else:
+        locs_conf = None
+
+    trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf)
+    trk.T0 = start
+    trk.save(out_file, saveformat='tracklet',trkInfo=info)
+    return
+
+    # Old code that saves extra information. Keeping it in for now MK - 20210319
     pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
 
     tgt = to_mat(np.array(trx_ids))  # target animals that have been tracked.
@@ -2856,7 +2879,7 @@ def classify_movie(conf, pred_fn, model_type,
                    trx_ids=(),
                    model_file='',
                    name='',
-                   nskip_partfile=5000,
+                   nskip_partfile=500, 
                    save_hmaps=False,
                    crop_loc=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
@@ -2950,7 +2973,7 @@ def classify_movie(conf, pred_fn, model_type,
             # for everything else that is returned..
             for k in ret_dict.keys():
 
-                if ret_dict[k].ndim == 4:  # hmaps
+                if (ret_dict[k].ndim == 4 and (not conf.is_multi)) or ret_dict[k].ndim==5:  # hmaps
                     #if save_hmaps:
                     #    cur_hmap = ret_dict[k]
                     #    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
@@ -2960,40 +2983,40 @@ def classify_movie(conf, pred_fn, model_type,
                     # py3 and py2 compatible
                     if k not in extra_dict:
                         sz = cur_v.shape[1:]
-                        extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
+                        if conf.is_multi:
+                            extra_dict[k] = np.zeros((max_n_frames,) + sz)
+                        else:
+                            extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
 
                     if k.startswith('locs'):  # transform locs
                         cur_orig = convert_to_orig(cur_v[cur_t, ...], conf, cur_f, cur_trx, crop_loc)
                     else:
                         cur_orig = cur_v[cur_t, ...]
 
-                    extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
+                    if conf.is_multi:
+                        extra_dict[k][cur_f - min_first_frame, ...] = cur_orig
+                    else:
+                        extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
 
         if cur_b % 20 == 19:
             sys.stdout.write('.')
         if (cur_b % nskip_partfile == 0) & (cur_b>0):
             sys.stdout.write('\n')
-            # Doesn't make sense to connect intermediate ones. too much recomputation.
-            # if conf.is_multi:
-            #     lnk_locs, lnk_loss = link_trajectories(pred_locs,lnk_cost)
-            #     write_trk(out_file + '.part', lnk_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
-            # else:
-            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
+            T1 = to_do_list[cur_start][0]
+            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, T1, trx_ids, conf, info, mov_file)
 
     if conf.is_multi:
-        # write out partial results before linking.
-        write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-        trk = lnk.link(pred_locs)
+        # write out raw results before linking.
+        pre_fix,ext = os.path.splitext(out_file)
+        raw_file = pre_fix + '_raw' + ext
+        write_trk(raw_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+        pred_conf = extra_dict['conf'] if 'conf' in extra_dict else None
+        trk = lnk.link(pred_locs,pred_conf)
         trk.T0 = start_frame
         out_file_tracklet = out_file
-        trk.save(out_file_tracklet, saveformat='tracklet')
+        trk.save(out_file_tracklet, saveformat='tracklet',trkInfo=info)
     else:
-        # write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-        locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
-        ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
-        tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-        trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
-        trk.save(out_file,saveformat='tracklet')
+        write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
 
     if os.path.exists(out_file + '.part') and not conf.is_multi:
         os.remove(out_file + '.part')
@@ -3076,7 +3099,7 @@ def train_unet(conf, args, restore,split, split_file=None):
     self.train_unet(restore=restore)
 
 
-def train_mdn(conf, args, restore,split, split_file=None):
+def train_mdn(conf, args, restore,split, split_file=None,model_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     tf.reset_default_graph()
@@ -3085,7 +3108,7 @@ def train_mdn(conf, args, restore,split, split_file=None):
         self.train_data_name = 'traindata'
     else:
         self.train_data_name = None
-    self.train_umdn(restore=restore)
+    self.train_umdn(restore=restore,model_file=model_file)
     tf.reset_default_graph()
 
 
@@ -3142,11 +3165,13 @@ def train_sb(conf, args, split, split_file=None):
     tf.reset_default_graph()
 
 
-def train_deepcut(conf, args, split_file=None):
+def train_deepcut(conf, args, split_file=None,model_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache,split_file=split_file)
 
     cfg_dict = create_dlc_cfg_dict(conf,args.train_name)
+    if model_file is not None:
+        cfg_dict.init_weights = model_file
     deepcut_train(cfg_dict,
       displayiters=conf.display_step,
       saveiters=conf.save_step,
@@ -3260,6 +3285,7 @@ def train(lblfile, nviews, name, args):
         conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
 
         conf.view = cur_view
+        model_file = None if args.model_file is None else args.model_file[cur_view]
         if args.split_file is not None:
             assert(os.path.exists(args.split_file))
             in_data = PoseTools.json_load(args.split_file)
@@ -3282,7 +3308,7 @@ def train(lblfile, nviews, name, args):
             if net_type == 'unet':
                 train_unet(conf, args, restore, split, split_file=split_file)
             elif net_type == 'mdn':
-                train_mdn(conf, args, restore, split, split_file=split_file)
+                train_mdn(conf, args, restore, split, split_file=split_file,model_file=model_file)
             # elif net_type == 'openpose':
             #     if args.use_defaults:
             #         op.set_openpose_defaults(conf)
@@ -3297,7 +3323,7 @@ def train(lblfile, nviews, name, args):
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deeplabcut.train.set_deepcut_defaults(conf)
-                train_deepcut(conf,args, split_file=split_file)
+                train_deepcut(conf,args, split_file=split_file,model_file=model_file)
             elif net_type == 'dpk':
                 train_dpk(conf, args, split, split_file=split_file)
 
@@ -3318,7 +3344,7 @@ def train(lblfile, nviews, name, args):
                 tf.reset_default_graph()
                 self = getattr(pose_module, module_name)(conf,name=args.train_name)
                 # self.name = args.train_name
-                self.train_wrapper(restore=restore)
+                self.train_wrapper(restore=restore,model_file=model_file)
 
         except tf.errors.InternalError as e:
             logging.exception(
@@ -3428,7 +3454,10 @@ def parse_args(argv):
     if args.sub_name == 'track' and args.mov is not None:
         nmov = len(args.mov)
         args.trx_ids = parse_trx_ids_arg(args.trx_ids,nmov)
-        assert all([a>0 for a in args.start_frame]), 'Start frames much be positive integers'
+        if type(args.start_frame) == list:
+            assert all([a>0 for a in args.start_frame]), 'Start frames must be positive integers'
+        else:
+            assert args.start_frame>0, 'Start frames must be positive integers'
         args.start_frame = to_py(args.start_frame)
         args.start_frame = parse_frame_arg(args.start_frame,nmov,0)
         args.end_frame = parse_frame_arg(args.end_frame,nmov,np.Inf)

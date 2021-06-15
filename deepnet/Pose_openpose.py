@@ -3,6 +3,7 @@ import os
 import pickle
 import PoseTools
 
+
 class Pose_openpose(object):
     name = 'deepnet'
     conf = None
@@ -32,8 +33,8 @@ class Pose_openpose(object):
         conf.is_multi = False
         self.conf = conf
 
-    def train_wrapper(self, restore=False):
-        op.training(self.conf, self.name, restore=restore)
+    def train_wrapper(self, restore=False, model_file=None):
+        op.training(self.conf, self.name, restore=restore, model_file=model_file)
 
     def get_pred_fn(self,model_file=None):
         return op.get_pred_fn(self.conf,model_file=model_file,name=self.name)

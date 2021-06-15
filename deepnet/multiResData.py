@@ -29,15 +29,14 @@ import json
 import torch
 
 
-def find_local_dirs(conf, on_gt=False):
-    lbl = h5py.File(conf.labelfile, 'r')
+def find_local_dirs(lbl_file, view=0, on_gt=False):
+    lbl = h5py.File(lbl_file, 'r')
     if on_gt:
-        exp_list = lbl['movieFilesAllGT'][conf.view,:]
+        exp_list = lbl['movieFilesAllGT'][view,:]
     else:
-        exp_list = lbl['movieFilesAll'][conf.view,:]
+        exp_list = lbl['movieFilesAll'][view,:]
     local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
     # local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in conf.getexplist(lbl)]
-    sel_dirs = [True] * len(local_dirs)
     try:
         for k in lbl['projMacros'].keys():
             r_dir = u''.join(chr(c) for c in lbl['projMacros'][k])
@@ -45,7 +44,7 @@ def find_local_dirs(conf, on_gt=False):
     except:
         pass
     lbl.close()
-    return local_dirs, sel_dirs
+    return local_dirs
 
 
 def find_gt_dirs(conf):

@@ -1,3 +1,53 @@
+import numpy as np
+in_im = all_f[0,...,0]
+cols = all_f.shape[1]
+rows = all_f.shape[2]
+out_ims = []
+for rangle in range(-12,13):
+    ang = np.deg2rad(rangle)
+    rot = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
+    mat = cv2.getRotationMatrix2D((cols / 2, rows / 2), rangle, 1)
+    ii = in_im.copy()
+    ii = cv2.warpAffine(ii, mat, (int(cols), int(rows)), flags=cv2.INTER_CUBIC)  # ,borderMode=cv2.BORDER_REPLICATE)
+    if ii.ndim == 2:
+        ii = ii[..., np.newaxis]
+    out_ims.append(ii)
+
+out_ims = np.array(out_ims)
+
+out_l  = []
+for rxx in range(out_ims.shape[0]//8):
+    zz = pred_fn(out_ims[rxx*8:(rxx+1)*8,...])
+    out_l.append(zz['locs'])
+
+out_l = np.concatenate(out_l,axis=0)
+dd = np.diff(out_l,axis=0)
+dd = np.linalg.norm(dd,axis=-1)
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"mspn\" dl_steps 100000 rrange 30 trange 20 imsz \(192,192\) trx_align_theta True img_dim 1 ht_pts \(0,6\) use_ht_trx True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type mmpose -name alice_neg -cache /nrs/branson/mayank/apt_cache_2  train -use_cache -skip_db'
+cmd = cmd.replace('\\','')
+#cmd = cmd.replace('"','')
+apt.main(cmd.split())
+
+##
+aa = [np.array(yy['keypoints']).reshape([-1,3]) for yy in Y['annotations']]
+negs = [np.all(np.isnan(a[:,:2])) for a in aa]
+nx = [i for i,x in enumerate(negs) if x]
+
+##
+f,ax = plt.subplots(5,5)
+ax = ax.flatten()
+for ndx,sel in enumerate(nx):
+    iid = Y['annotations'][sel]['image_id']
+    im = cv2.imread(Y['images'][iid]['file_name'])
+    ax[ndx].imshow(im)
+    bb = np.array(Y['annotations'][sel]['segmentation']).reshape(4,2)
+    # mask = apt.create_mask([bb],[320,320])
+    ax[ndx].plot(bb[:,0],bb[:,1])
 
 ## single animal ht
 # import APT_interface as apt

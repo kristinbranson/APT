@@ -11,13 +11,11 @@
 # * As a shortcut, leaf nodes can contain the metadata directly as their value.
 
 ROOT:
-  - ['','',false,DUMMY,'','']
-  - MultiAnimal:
-    - ['','',false,MultiAnimal settings.,'','']
-    - min_n_animals: ['Minimum number of animals',unsigned,true,'APT will detect at least this many animals in each frame.',1,'','Important','']
-    - max_n_animals: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',30,'','Important','']
-    - db_format: ['DB Format',string,true,'Format for Training DB','coco','','Developer','']
-
-
-
+  - ['','',false,DUMMY,'','','','']
+  - MSPN:
+    - ['','',false,Mixture Density Network (MDN) parameters,'','']
+    - ignore_occluded: ['Ignore occluded landmarks',boolean,true,'Do not train on landmarks labeled as occluded.',0,'','Beginner','',true]
+    - predict_occluded: ['Predict occluded',boolean,true,'Predict whether landmarks are occluded or not. This parameter only has an effect if occluded landmarks *are* ignored',0,'','Beginner','',true]
+    - mmpose_net: ['Network from MMPose',string,true,'Which pose estimation network to use from MMPose ','mspn','','Developer','',true]
+    - mmpose_use_apt_augmentation: ['Use APT augmentation',boolean,true,'Use APTs augmentation routines for data augmention. Else use MMPoses native routines',0,'','Developer','',true]
 

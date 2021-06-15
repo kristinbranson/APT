@@ -359,6 +359,7 @@ def stitch(trk, ids, params):
     # all ids that end this frame
     ids_death = np.nonzero(t1s == t)[0]
     idscurr = ids.getframe(t)
+    assert idscurr.shape[0]==1 and idscurr.shape[1]==1, 'Values returned by getframe have shape (1,1,ntgt)'
     if ids_death.size == 0:
       continue
     lastid = np.max(ids_death)
@@ -366,7 +367,7 @@ def stitch(trk, ids, params):
     assert np.any(isdummy.gettargetframe(ids_death, t)) == False
     
     for j in range(ids_death.size):
-      pcurr[:, :, j] = trk.gettargetframe(np.where(idscurr == ids_death[j])[0], t).reshape((trk.nlandmarks, trk.d))
+      pcurr[:, :, j] = trk.gettargetframe(np.where(idscurr == ids_death[j])[2], t).reshape((trk.nlandmarks, trk.d))
       # pcurr[:,:,j] = p[:,:,ids[:,t]==ids_death[j],t].reshape((d,nlandmarks))
     for nframes_skip in range(2, params['maxframes_missed']+2):
       # all ids that start at frame t+nframes_skip
@@ -377,7 +378,7 @@ def stitch(trk, ids, params):
       # assert np.any(isdummy[ids_birth,t+nframes_skip])==False
       pnext = np.zeros((trk.nlandmarks, trk.d, ids_birth.size))
       for j in range(ids_birth.size):
-        pnext[:, :, j] = trk.gettargetframe(np.where(ids.getframe(t+nframes_skip) == ids_birth[j])[0],
+        pnext[:, :, j] = trk.gettargetframe(np.where(ids.getframe(t+nframes_skip) == ids_birth[j])[2],
                                             t+nframes_skip).reshape((trk.nlandmarks, trk.d))
         # pnext[:,:,j]=p[:,:,ids[:,t+nframes_skip]==ids_birth[j],t+nframes_skip].reshape((d,nlandmarks))
       # try to match
@@ -445,6 +446,40 @@ def delete_short(ids, isdummy, params):
   if params['verbose'] > 0:
     print('Deleting %d short trajectories' % ids_short.size)
   return ids, ids_short
+
+
+def delete_lowconf(trk, ids, params):
+  """
+  delete_lowconf(ids,params):
+  Delete trajectories that have mean confidence lower than params['minconf_delete'] frames long.
+  :param ids: maxnanimals x T matrix indicating ids assigned to each detection, output of assign_ids, stitch
+  :param isdummy: nids x T matrix indicating whether a frame is missed for a given id.
+  :param params: parameters dict. Only relevant parameter is 'maxnframes_delete'
+  :return: ids: Updated identity assignment matrix after deleting
+  """
+
+  _, maxv = ids.get_min_max_val()
+  nids = np.max(maxv) + 1
+  tot_conf = np.zeros(nids)
+  tot_count = np.zeros(nids)
+
+  for tid in range(trk.ntargets):
+    _,edict = trk.gettarget(tid,True)
+    cur_ids = ids.gettarget(tid)
+    assert cur_ids.shape[0]==1 and cur_ids.shape[2] == 1, 'Ids returned should have shape (1,nframes,1)'
+    cur_ids = cur_ids[0,:,0]
+    cur_conf = edict['pTrkConf'].mean(axis=0)
+    for j in range(nids):
+      tot_conf[j] += np.nansum(cur_conf[cur_ids==j])
+      tot_count[j] += np.nansum(cur_conf[cur_ids==j]>0)
+  mean_conf = tot_conf/(tot_count+0.00001)
+  ids_lowconf = np.nonzero(mean_conf<params['minconf_delete'])[0]
+  for id in ids_lowconf:
+    ids.replace(id, -1)
+  if params['verbose'] > 0:
+    print('Deleting %d trajectories with low confidence' % ids_lowconf.size)
+  return ids, ids_lowconf
+
 
 def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, heuristic='secondorder'):
   """
@@ -709,7 +744,7 @@ def mixed_colormap(n, cmfun=cm.jet):
   cm1 = cm0[idx, :]
   return cm1
 
-def link(pred_locs):
+def link(pred_locs,pred_conf=None):
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
@@ -718,12 +753,17 @@ def link(pred_locs):
   params['maxcost_mult'] = 1.25
   params['maxcost_framesfit'] = 3
   params['maxcost_heuristic'] = 'secondorder'
+  params['minconf_delete'] = 0.5
   nframes_test = np.inf
 
   locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
+  if pred_conf is None:
+    locs_conf = None
+  else:
+    locs_conf = np.transpose(pred_conf,[2,0,1])
   ts = np.ones_like(locs_lnk[:,0, ...]) * apt.datetime2matlabdn()
   tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-  trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag)
+  trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf)
 
   T = np.minimum(np.inf, trk.T)
   # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
@@ -743,6 +783,8 @@ def link(pred_locs):
 
   ids, isdummy = stitch(trk, ids, params)
   ids, ids_short = delete_short(ids, isdummy, params)
+  if locs_conf is not None:
+    ids,ids_lowconf = delete_lowconf(trk,ids,params)
   _, ids = ids.unique()
   trk.apply_ids(ids)
   return trk

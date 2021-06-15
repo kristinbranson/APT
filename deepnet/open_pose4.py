@@ -183,7 +183,7 @@ def stageCNN(x, nfout, stagety, stageidx, kernel_reg,
     x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-1by1-1-prelu".format(stagety, stageidx))
     x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
-    x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
+    # x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
     return x
 
 def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
@@ -218,8 +218,9 @@ def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
 
     x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-postDC-1by1-1-prelu".format(stagety, stageidx))
-    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
-    x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
+    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-postDC-1by1-2".format(stagety, stageidx))
+    # x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
+    # x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
     return x
 
 def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=None,
@@ -595,7 +596,7 @@ def update_op_graph(op_graph):
     return  new_graph
 
 
-def training(conf, name='deepnet',restore=False):
+def training(conf, name='deepnet',restore=False, model_file=None):
 
     # base_lr = conf.op_base_lr
     base_lr = conf.get('op_base_lr',4e-5) * conf.get('learning_rate_multiplier',1.)
@@ -645,7 +646,11 @@ def training(conf, name='deepnet',restore=False):
                 layer.set_weights(vgg_model.get_layer(vgg_layer_name).get_weights())
                 logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
 
-    if restore:
+    if model_file is not None:
+        logging.info("Loading the weights from {}.. ".format(model_file))
+        model.load_weights(model_file)
+
+    elif restore:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
         logging.info("Loading the weights from {}.. ".format(latest_model_file))
         model.load_weights(latest_model_file)

@@ -140,6 +140,20 @@ handles.menu_file_import_labels_table = uimenu('Parent',handles.menu_file_import
 moveMenuItemAfter(handles.menu_file_import_labels_table,...
   handles.menu_file_import_labels_trk_curr_mov);
 
+handles.menu_file_export_all_movies = uimenu('Parent',handles.menu_file_importexport,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_all_movies_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export Predictions to Trk Files (All Movies)...',...
+  'Tag','menu_file_export_all_movies'); 
+moveMenuItemAfter(handles.menu_file_export_all_movies,handles.menu_file_export_labels2_trk_curr_mov);
+
+handles.menu_file_clear_imported = uimenu('Parent',handles.menu_file_importexport,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_clear_imported_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Clear imported predictions (All Movies)...',...
+  'Tag','menu_file_clear_imported',...
+  'Separator','on' ...
+  ); 
+moveMenuItemAfter(handles.menu_file_clear_imported,handles.menu_file_export_all_movies);
+
 handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Export Labels as Table',...
@@ -263,6 +277,14 @@ handles.menu_view_rotate_video_target_up = uimenu('Parent',handles.menu_view,...
 moveMenuItemAfter(handles.menu_view_rotate_video_target_up,...
   handles.menu_view_trajectories_centervideoontarget);
 
+handles.menu_view_show_axes_toolbar = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_axes_toolbar_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Show axes toolbar',...
+  'Tag','menu_view_show_axes_toolbar',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_show_axes_toolbar,...
+  handles.menu_view_rotate_video_target_up);
+
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Hide predictions',...
@@ -377,13 +399,19 @@ handles.menu_view_pan_toggle = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_pan_toggle' ...
   );
 handles.menu_view_showhide_maroi = uimenu('Parent',handles.menu_view,...
-  'Label','Show multianimal ROI',...
+  'Label','(Multianimal) Show target ROIs',...
   'Tag','menu_view_showhide_maroi',...
   'Checked','off',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_maroi_Callback',hObject,eventdata,guidata(hObject)));
+handles.menu_view_showhide_maroiaux = uimenu('Parent',handles.menu_view,...
+  'Label','(Multianimal) Show auxiliary ROIs',...
+  'Tag','menu_view_showhide_maroiaux',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_maroiaux_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_view_zoom_toggle,handles.menu_view_occluded_points_box);
 moveMenuItemAfter(handles.menu_view_pan_toggle,handles.menu_view_zoom_toggle);
 moveMenuItemAfter(handles.menu_view_showhide_maroi,handles.menu_view_pan_toggle);
+moveMenuItemAfter(handles.menu_view_showhide_maroiaux,handles.menu_view_showhide_maroi);
 
 % handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
 %   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
@@ -464,13 +492,6 @@ handles.menu_track_trainincremental.Visible = 'off';
 %   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_current_movie_Callback',hObject,eventdata,guidata(hObject)),...
 %   'Label','Current movie only',...
 %   'Tag','menu_track_export_current_movie');  
-
-% Moved this to File menu
-handles.menu_file_export_all_movies = uimenu('Parent',handles.menu_file_importexport,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_all_movies_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Export Predictions to Trk Files (All Movies)...',...
-  'Tag','menu_file_export_all_movies'); 
-moveMenuItemAfter(handles.menu_file_export_all_movies,handles.menu_file_export_labels2_trk_curr_mov);
 
 handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracking_results_Callback',hObject,eventdata,guidata(hObject)),...
@@ -559,13 +580,19 @@ handles.menu_track_cpr_view_diagnostics = uimenu('Parent',handles.menu_track,...
 moveMenuItemAfter(handles.menu_track_cpr_view_diagnostics,...
   handles.menu_track_cpr_show_replicates);
 
-
 handles.menu_help_about = uimenu(...
   'Parent',handles.menu_help,...
   'Label','About',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_help_about_Callback',hObject,eventdata,guidata(hObject)),...
   'Tag','menu_help_about');  
-moveMenuItemBefore(handles.menu_help_about,handles.menu_help_labeling_actions);
+moveMenuItemAfter(handles.menu_help_about,handles.menu_help_labeling_actions);
+
+handles.menu_help_doc = uimenu(...
+  'Parent',handles.menu_help,...
+  'Label','Documentation',...
+  'Callback',@(hObject,eventdata)web('https://kristinbranson.github.io/APT'),...
+  'Tag','menu_help_doc');  
+moveMenuItemBefore(handles.menu_help_doc,handles.menu_help_labeling_actions);
 
 % Go menu
 handles.menu_go = uimenu('Parent',handles.figure,'Position',4,'Label','Go');
@@ -677,6 +704,10 @@ handles.image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
+set(hObject,'WindowScrollWheelFcn',@scroll_callback);
+% set(hObject,'WindowbuttonDownFcn',@dragstart_callback);
+% set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+% set(hObject,'WindowbuttonUpFcn',@dragend_callback);
 
 handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
@@ -760,6 +791,7 @@ listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 listeners{end+1,1} = addlistener(lObj,'showSkeleton','PostSet',@cbkShowSkeletonChanged);
 listeners{end+1,1} = addlistener(lObj,'showMaRoi','PostSet',@cbkShowMaRoiChanged);
+listeners{end+1,1} = addlistener(lObj,'showMaRoiAux','PostSet',@cbkShowMaRoiAuxChanged);
 
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
@@ -798,6 +830,16 @@ handles.h_singleview_only = [...
    handles.menu_setup_highthroughput_mode ...
    handles.menu_setup_multianimal_mode ...
    ];
+handles.h_ma_only = [...
+  handles.menu_setup_multianimal_mode ...
+  ];
+handles.h_nonma_only = [ ...
+  handles.menu_setup_multiview_calibrated_mode_2...
+  handles.menu_setup_sequential_mode ...
+  handles.menu_setup_template_mode ...
+  handles.menu_setup_highthroughput_mode ...
+  ];
+  
   
 set(handles.output,'Toolbar','figure');
 
@@ -1048,6 +1090,11 @@ switch lower(state),
       set(handles.h_singleview_only,'Enable','off');
     else
       error('Sanity check -- nview = 0');
+    end
+    if lObj.maIsMA
+      set(handles.h_nonma_only,'Enable','off');
+    else
+      set(handles.h_ma_only,'Enable','off');
     end
 
   otherwise
@@ -1483,6 +1530,10 @@ if ispc
   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
 end
 
+% eg when going from proj-with-trx to proj-no-trx, targets table needs to
+% be cleared
+set(handles.tblTrx,'Data',cell(0,size(handles.tblTrx.ColumnName,2)));
+
 handles = setShortcuts(handles);
 
 handles.labelTLInfo.initNewProject();
@@ -1653,9 +1704,11 @@ TRX_MENUS = {...
   'menu_view_hide_trajectories'
   'menu_view_plot_trajectories_current_target_only'
   'menu_setup_label_overlay_montage_trx_centered'};
-onOff = onIff(lObj.hasTrx || lObj.maIsMA);
+tftblon = lObj.hasTrx || lObj.maIsMA;
+onOff = onIff(tftblon);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
-set(handles.tblTrx,'Enable',onOff);
+hTbl = handles.tblTrx;
+set(hTbl,'Enable',onOff);
 guidata(handles.figure,handles);
 
 setPUMTrackStrs(lObj);
@@ -1870,6 +1923,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
   case LabelMode.MULTIANIMAL
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
@@ -1881,6 +1935,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'on';
     handles.menu_view_pan_toggle.Visible = 'on';
     handles.menu_view_showhide_maroi.Visible = 'on';
+    handles.menu_view_showhide_maroiaux.Visible = 'on';
   case LabelMode.TEMPLATE
 %     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1893,6 +1948,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
 %     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
@@ -1905,6 +1961,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
 %   case LabelMode.ERRORCORRECT
 %     handles.menu_setup_createtemplate.Visible = 'off';
 %     handles.menu_setup_set_labeling_point.Visible = 'off';
@@ -1925,6 +1982,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
   case {LabelMode.MULTIVIEWCALIBRATED2}
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
@@ -1936,6 +1994,7 @@ switch lblMode
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
 end
 
 lc = lObj.lblCore;
@@ -2751,6 +2810,7 @@ if ~(lObj.hasTrx || lObj.maIsMA)
 end
 
 rows = evt.Indices;
+rows = rows(:,1); % AL20210514: rows is nx2; columns are {rowidxs,colidxs} at least in 2020b
 rowsprev = src.UserData;
 src.UserData = rows;
 dat = get(src,'Data');
@@ -2760,10 +2820,12 @@ if isscalar(rows)
   lObj.setTarget(idx);
   lObj.labelsOtherTargetHideAll();
 else
+  % 20210514 Skipping this for now; possible performance hit
+  
   % addon to existing selection
-  rowsnew = setdiff(rows,rowsprev);  
-  idxsnew = cell2mat(dat(rowsnew,1));
-%   lObj.labelsOtherTargetShowIdxs(idxsnew);
+  %rowsnew = setdiff(rows,rowsprev);  
+  %idxsnew = cell2mat(dat(rowsnew,1));
+  %lObj.labelsOtherTargetShowIdxs(idxsnew);
 end
 
 hlpRemoveFocus(src,handles);
@@ -2848,6 +2910,74 @@ if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
   warningNoTrace('LabelerGUI:axDir',...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
+
+function scroll_callback(hObject,eventdata,~)
+h = guidata(hObject);
+curp = get(h.axes_curr,'CurrentPoint');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+  return
+end
+if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+  return
+end
+scrl = 1.2;
+% scrl = scrl^eventdata.VerticalScrollAmount;
+if eventdata.VerticalScrollCount>0
+  scrl = 1/scrl;
+end
+imglimx = get(h.image_curr,'XData');
+imglimy = get(h.image_curr,'YData');
+xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
+xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
+ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
+ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
+axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+% fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
+
+function dragstart_callback(hObject,eventdata,~)
+fprintf('Drag on\n')
+h = guidata(hObject);
+curp = get(h.axes_curr,'CurrentPoint');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+  return
+end
+if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+  return
+end
+h.labelerObj.drag = true;
+h.labelerObj.drag_pt = [curp(1,1),curp(1,2)];
+set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+set(hObject,'WindowbuttonUpFcn',@dragend_callback);
+
+function drag_callback(hObject,evendata,~)
+h = guidata(hObject);
+if ~h.labelerObj.drag
+  return
+end
+fprintf('Dragging\n');
+xlim = get(h.axes_curr,'XLim');
+ylim = get(h.axes_curr,'YLim');
+curp = get(h.axes_curr,'CurrentPoint');
+dx = curp(1,1)-h.labelerObj.drag_pt(1);
+dy = curp(1,2) - h.labelerObj.drag_pt(2);
+imglimx = get(h.image_curr,'XData');
+imglimy = get(h.image_curr,'YData');
+xlim(1) = max(imglimx(1),xlim(1)-dx);
+xlim(2) = min(imglimx(2),xlim(2)-dx);
+ylim(1) = max(imglimy(1),ylim(1)-dy);
+ylim(2) = min(imglimy(2),ylim(2)-dy);
+axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+
+
+function dragend_callback(hObject,eventdata,~)
+h = guidata(hObject);
+h.labelerObj.unsetdrag();
+fprintf('Drag off\n')
+
 
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
@@ -3440,6 +3570,12 @@ handles = lObj.gdata;
 onOff = onIff(lObj.showMaRoi);
 handles.menu_view_showhide_maroi.Checked = onOff;
 
+function cbkShowMaRoiAuxChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showMaRoiAux);
+handles.menu_view_showhide_maroiaux.Checked = onOff;
+
 function cbkShowTrxChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
@@ -3502,6 +3638,18 @@ if tfproceed
     handles.labelerObj.UpdatePrevAxesDirections();
   end
 end
+function menu_view_show_axes_toolbar_Callback(hObject, eventdata, handles)
+ax = handles.axes_curr;
+if strcmp(hObject.Checked,'on')
+  onoff = 'off';
+else
+  onoff = 'on';
+end
+ax.Toolbar.Visible = onoff;
+hObject.Checked = onoff;
+% For now not listening to ax.Toolbar.Visible for cmdline changes
+
+
 function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
 hIms = handles.images_all;
@@ -4147,6 +4295,10 @@ trackBatch('lObj',lObj,'toTrack',toTrackOut);
 % end
 % lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
 
+function menu_file_clear_imported_Callback(hObject,evtdata,handles)
+lObj = handles.labelerObj;
+lObj.labels2Clear();
+
 function menu_file_export_all_movies_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 nMov = lObj.nmoviesGTaware;
@@ -4753,12 +4905,14 @@ end
 
 function menu_view_showhide_maroi_Callback(hObject, eventdata, handles)
 if strcmpi(get(hObject,'Checked'),'off'),
-  hObject.Checked = 'on';
   handles.labelerObj.setShowMaRoi(true);
 else
-  hObject.Checked = 'off';
   handles.labelerObj.setShowMaRoi(false);
 end
+
+function menu_view_showhide_maroiaux_Callback(hObject, eventdata, handles)
+tf = strcmpi(get(hObject,'Checked'),'off');
+handles.labelerObj.setShowMaRoiAux(tf);
 
 % --- Executes on selection change in popupmenu_prevmode.
 function popupmenu_prevmode_Callback(hObject, eventdata, handles)

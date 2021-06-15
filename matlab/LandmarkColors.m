@@ -314,7 +314,8 @@ function s = MarkerControlsGet(handles)
 uitbl = handles.tblProps;
 assert(isequal(uitbl.RowName,{'Label' 'Prediction' 'Imported'}'));
 
-t = cell2table(uitbl.Data,'VariableNames',uitbl.ColumnName);
+uitblColumnNameSanitized = regexprep(uitbl.ColumnName,' ','_'); % for eg ML19a
+t = cell2table(uitbl.Data,'VariableNames',uitblColumnNameSanitized);
 
 FLDS_MARKER = {'Marker' 'MarkerSize' 'LineWidth'};
 tLine = t(:,FLDS_MARKER);
@@ -322,14 +323,14 @@ sLine = table2struct(tLine);
 % s = struct();
 % s.pvLine = sLine;
 
-FLDS_TEXT = {'Show Text Label','Label Font Size' 'Label Font Angle'};
+FLDS_TEXT = {'Show_Text_Label','Label_Font_Size' 'Label_Font_Angle'};
 tTxt = t(:,FLDS_TEXT);
 tTxt.Properties.VariableNames = {'Visible' 'FontSize' 'FontAngle'};
 tTxt.Visible = arrayfun(@onIff,tTxt.Visible,'uni',0);
 sTxt = table2struct(tTxt);
 % s.pvTxt = sTxt;
 
-txtOffset = t{:,'Label Offset'};
+txtOffset = t{:,'Label_Offset'};
 
 s = struct(...
   'landmarkSetType',num2cell(enumeration('LandmarkSetType')),...

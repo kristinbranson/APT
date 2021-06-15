@@ -649,7 +649,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
 
 
-    def train_umdn(self, restore=False):
+    def train_umdn(self, restore=False,model_file=None):
 
         self.joint = True
 
@@ -658,7 +658,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         super(self.__class__, self).train(
             create_network=self.create_network,
             loss=self.loss,
-            learning_rate=learning_rate,restore=restore)
+            learning_rate=learning_rate,restore=restore,model_file=model_file)
 
     def loss(self, inputs, pred):
         in_locs = inputs[1]

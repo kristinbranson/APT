@@ -467,14 +467,17 @@ class PoseCommon(object):
         self.create_ph_fd()
         self.create_input_ph()
 
-    def init_restore_net(self, sess, do_restore=False):
+    def init_restore_net(self, sess, do_restore=False,model_file=None):
         saver = self.saver
         name = self.net_name
         out_file = saver['out_file'].replace('\\', '/')
         latest_ckpt = tf.train.get_checkpoint_state(
             self.conf.cachedir, saver['ckpt_file'])
 
-        if not latest_ckpt or not do_restore:
+        if model_file is not None:
+            self.restore(sess,model_file=model_file)
+            start_at = 0
+        elif not latest_ckpt or not do_restore:
             start_at = 0
 #            sess.run(tf.variables_initializer(PoseTools.get_vars(name)),
 #                     feed_dict=self.fd)
@@ -649,7 +652,7 @@ class PoseCommon(object):
 
 
     def train(self, create_network,
-              loss, learning_rate, restore=False):
+              loss, learning_rate, restore=False,model_file=None):
 
         self.setup_train()
         self.pred = create_network()
@@ -665,14 +668,14 @@ class PoseCommon(object):
         config.gpu_options.allow_growth = True
         with tf.Session(config=config) as sess:
             # train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
-            start_at = self.init_restore_net(sess, do_restore=restore)
+            start_at = self.init_restore_net(sess, do_restore=restore,model_file=model_file)
 
             start = time.time()
             save_start = start
             step_lr =  self.conf.get('step_lr', True)
             lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
 
-            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix :(')
+            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a tensorflow bug in tensorflow that we tried but could not fix :(')
             ss = sess.run(self.inputs,self.fd)
             logging.info('Input shape:{}'.format(ss[0].shape))
             logging.info('Starting training..')
@@ -723,12 +726,12 @@ class PoseCommon(object):
         tf.reset_default_graph()
 
 
-    def train_quick(self, learning_rate=0.0001, restore=False):
+    def train_quick(self, learning_rate=0.0001, restore=False, model_file=None):
         self.create_optimizer()
         self.create_saver()
         training_iters = self.conf.dl_steps
         with tf.Session() as sess:
-            start_at = self.init_restore_net(sess, do_restore=restore)
+            start_at = self.init_restore_net(sess, do_restore=restore,model_file=model_file)
             start = time.time()
             save_start = start
             step_lr =  self.conf.get('step_lr', True)

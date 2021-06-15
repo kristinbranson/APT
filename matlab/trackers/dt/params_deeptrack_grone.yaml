@@ -11,13 +11,13 @@
 # * As a shortcut, leaf nodes can contain the metadata directly as their value.
 
 ROOT:
-  - ['','',false,DUMMY,'','']
-  - MultiAnimal:
-    - ['','',false,MultiAnimal settings.,'','']
-    - min_n_animals: ['Minimum number of animals',unsigned,true,'APT will detect at least this many animals in each frame.',1,'','Important','']
-    - max_n_animals: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',30,'','Important','']
-    - db_format: ['DB Format',string,true,'Format for Training DB','coco','','Developer','']
-
-
-
+  - ['','',false,DUMMY,'','','','']
+  - GRONe:
+    - ['','',false,Mixture Density Network (MDN) parameters,'','']
+    - mdn_base_lr: ['Base Learning Rate',float,true,'Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.0001',0.0001,'','Developer','',true]
+    - mdn_pred_dist: ['Predict confidence',boolean,true,'Predict confidence for MDN predictions.',0,'','Developer','',true]
+    - ignore_occluded: ['Ignore occluded landmarks',boolean,true,'Do not train on landmarks labeled as occluded.',0,'','Beginner','',true]
+    - predict_occluded: ['Predict occluded',boolean,true,'Predict whether landmarks are occluded or not. This parameter only has an effect if occluded landmarks *are* ignored',0,'','Beginner','',true]
+    - pretrain_freeze_bnorm: ['Freeze batch norm',boolean,true,'Freeze batch norm weights of the backbone to the pretrained weights',1,'','Developer','',true]
+    - mdn_resnet_source: ['Resnet source',string,true,'Resnet model to use for backbone. Choices are "official_tf" and "slim"','official_tf','','Developer','',true]
 
