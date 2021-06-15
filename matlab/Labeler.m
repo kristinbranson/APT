@@ -2219,6 +2219,8 @@ classdef Labeler < handle
       % If the movie is able to set the project correctly, currProjInfo
       % will be [].
             
+      starttime = tic;
+      
       nomovie = myparse(varargin,...
         'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
         );
@@ -2453,7 +2455,7 @@ classdef Labeler < handle
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
       
-      fprintf('Finished loading project.\n');
+      fprintf('Finished loading project, elapsed time %f s.\n',toc(starttime));
       
     end
     
