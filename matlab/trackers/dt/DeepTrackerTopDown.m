@@ -26,6 +26,9 @@ classdef DeepTrackerTopDown < DeepTracker
   
   properties
     stage1Tracker
+    
+    trnDoneStage1 % logical
+    trnDoneStage2 % logical
   end
   properties (Dependent)
     isHeadTail
@@ -167,10 +170,23 @@ classdef DeepTrackerTopDown < DeepTracker
       dlLblFileLcl = dmcDummy.lblStrippedLnx;
       obj2.genStrippedLblTrnPack(dlLblFileLcl);
       switch trnBackEnd.type        
-        case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
+        case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}          
+          
+          obj2.trnDoneStage1 = false;
+          obj2.trnDoneStage2 = false;
+          
+          trainStartCbk1 = @(s,e)0; % "do nothing"
+          % trainStartCbk2 = []; % No need to supply, use default
+          trainCompleteCbk1 = @(s,e)obj2.trainCompleteCbkStg1(s,e);
+          trainCompleteCbk2 = @(s,e)obj2.trainCompleteCbkStg2(s,e);                    
           args = {'wbObj' wbObj 'existingTrnPackSLbl',dlLblFileLcl};
-          obj1.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,args{:});
-          obj2.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,args{:});
+          obj1.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,...
+            'trnStartCbk',trainStartCbk1,...
+            'trnCompleteCbk',trainCompleteCbk1,...
+            args{:});
+          obj2.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,...
+            'trnCompleteCbk',trainCompleteCbk2,...
+            args{:});
         case DLBackEnd.AWS
           obj2.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);
         otherwise
@@ -178,6 +194,20 @@ classdef DeepTrackerTopDown < DeepTracker
       end
       
       % Nothing should occur here as failed trnSpawn* will early return
+    end
+    
+    function trainCompleteCbkStg1(obj,src,evt)
+      obj.trnDoneStage1 = true;
+      if obj.trnDoneStage2
+        obj.trainStoppedCbk();
+      end
+    end
+    
+    function trainCompleteCbkStg2(obj,src,evt)
+      obj.trnDoneStage2 = true;
+      if obj.trnDoneStage1
+        obj.trainStoppedCbk();
+      end
     end
     
     function tc = getTrackerClassAugmented(obj2)

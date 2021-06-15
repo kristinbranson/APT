@@ -616,7 +616,9 @@ classdef DeepTracker < LabelTracker
     function bgTrnStart(obj,backEnd,dmcs,varargin)
       % fresh start new training monitor 
             
-      [trainSplits] = myparse(varargin,...
+      [trnStartCbk,trnCompleteCbk,trainSplits] = myparse(varargin,...
+        'trnStartCbk',[],... % function handle with sig cbk(src,evt)
+        'trnCompleteCbk',[],... % etc
         'trainSplits',false ...  % true for splits/xv
         );
       
@@ -625,19 +627,26 @@ classdef DeepTracker < LabelTracker
       end
       assert(isempty(obj.bgTrnMonBGWorkerObj));
 
-      if trainSplits
+      if ~isempty(trnStartCbk)
+        % none
+      else
+        trnStartCbk = @(s,e)obj.notify('trainStart');
+      end
+      if ~isempty(trnCompleteCbk)
+        nvw = obj.lObj.nview;
+      elseif trainSplits
         nvw = numel(dmcs);
-        trnStoppedCbkMeth = 'xvStoppedCbk';
         assert(backEnd.type==DLBackEnd.Bsub);
+        trnCompleteCbk = @(s,e) obj.xvStoppedCbk(s,e);
       else
         nvw = obj.lObj.nview;
         assert(numel(dmcs)==nvw);
-        trnStoppedCbkMeth = 'trainStoppedCbk';
-      end
+        trnCompleteCbk = @(s,e) obj.trainStoppedCbk(s,e);
+      end     
 
       trnMonObj = BgTrainMonitor;
-      addlistener(trnMonObj,'bgStart',@(s,e)obj.notify('trainStart'));
-      addlistener(trnMonObj,'bgEnd',@(s,e) feval(trnStoppedCbkMeth,obj,s,e));
+      addlistener(trnMonObj,'bgStart',trnStartCbk);
+      addlistener(trnMonObj,'bgEnd',trnCompleteCbk);
 
       switch backEnd.type
         case DLBackEnd.Bsub
@@ -1148,9 +1157,11 @@ classdef DeepTracker < LabelTracker
       %
       % TODO break up bsub/docker sep meths
 
-      [wbObj, existingTrnPackSLbl] = myparse(varargin,...
+      [wbObj,existingTrnPackSLbl,trnStartCbk,trnCompleteCbk] = myparse(varargin,...
         'wbObj',[],... 
-        'existingTrnPackSLbl',[] ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
+        'existingTrnPackSLbl',[], ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
+        'trnStartCbk',[], ...        
+        'trnCompleteCbk',[] ...
         );
       
       % (aws check instance running)
@@ -1351,7 +1362,8 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        obj.bgTrnStart(backEnd,dmc);
+        obj.bgTrnStart(backEnd,dmc,'trnStartCbk',trnStartCbk,...
+          'trnCompleteCbk',trnCompleteCbk);
         
         bgTrnWorkerObj = obj.bgTrnMonBGWorkerObj;
         
