@@ -1280,10 +1280,11 @@ classdef Labeler < handle
       %APT.setpathsmart;
 
       [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
-      
+      starttime = tic;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
+      fprintf('Opening GUI took %f s\n',toc(starttime));
     end
      
     function delete(obj)
@@ -2067,6 +2068,8 @@ classdef Labeler < handle
       % If the movie is able to set the project correctly, currProjInfo
       % will be [].
             
+      starttime = tic;
+      
       nomovie = myparse(varargin,...
         'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
         );
@@ -2298,7 +2301,7 @@ classdef Labeler < handle
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
       
-      fprintf('Finished loading project.\n');
+      fprintf('Finished loading project, took %f s.\n',toc(starttime));
       
     end
     
