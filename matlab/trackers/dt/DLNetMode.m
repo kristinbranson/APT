@@ -13,13 +13,13 @@ classdef DLNetMode < handle
   % - DLNetMode
   
   enumeration 
-    singleAnimal ('sa', false, false, 0, false)
-    multiAnimalBU ('bu', true, false, 0, false)
-    multiAnimalTDDetectObj ('tddobj', true, true, 1, false)
-    multiAnimalTDDetectHT ('tddht', true, true, 1, true) 
-    multiAnimalTDPoseTrx ('tdptrx', true, true, 2, false)
-    multiAnimalTDPoseObj ('tdpobj', true, true, 2, false)
-    multiAnimalTDPoseHT ('tdpht', true, true, 2, true)
+    singleAnimal ('sa', false, false, 0, false, false)
+    multiAnimalBU ('bu', true, false, 0, false, true)
+    multiAnimalTDDetectObj ('tddobj', true, true, 1, false, true)
+    multiAnimalTDDetectHT ('tddht', true, true, 1, true, true) 
+    multiAnimalTDPoseTrx ('tdptrx', true, true, 2, false, false)
+    multiAnimalTDPoseObj ('tdpobj', true, true, 2, false, true)
+    multiAnimalTDPoseHT ('tdpht', true, true, 2, true, true)
   end
   properties
     shortCode % for eg logfiles
@@ -27,14 +27,16 @@ classdef DLNetMode < handle
     isTopDown
     topDownStage % 1 or 2
     isHeadTail 
+    isTrnPack
   end
   methods 
-    function obj = DLNetMode(code,ma,topdown,stage,ht)
+    function obj = DLNetMode(code,ma,topdown,stage,ht,istp)
       obj.shortCode = code;
       obj.isMA = ma;
       obj.isTopDown = topdown;
       obj.topDownStage = stage;
       obj.isHeadTail = ht;
+      obj.isTrnPack = istp;
     end
   end
 end
