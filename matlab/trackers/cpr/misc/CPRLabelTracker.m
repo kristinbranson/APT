@@ -2345,7 +2345,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerFrame(obj)
-      if obj.lObj.isinit || ~obj.lObj.hasMovie
+      if obj.lObj.isinit || ~obj.lObj.hasMovie || isempty(obj.trkVizer)
         return;
       end
       

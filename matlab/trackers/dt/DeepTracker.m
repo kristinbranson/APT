@@ -5472,14 +5472,11 @@ classdef DeepTracker < LabelTracker
   methods
     function newLabelerFrame(obj)
       lObj = obj.lObj;
-      if lObj.isinit || ~lObj.hasMovie 
+      tv = obj.trkVizer;
+      if lObj.isinit || ~lObj.hasMovie || isempty(tv)
         return;
       end
       
-      tv = obj.trkVizer;
-      if isempty(tv)
-        return;
-      end
       if lObj.maIsMA
         tv.newFrame(lObj.currFrame);
       else
@@ -5488,7 +5485,7 @@ classdef DeepTracker < LabelTracker
       end
     end
     function newLabelerTarget(obj)
-      if ~obj.lObj.maIsMA
+      if ~obj.lObj.maIsMA && ~isempty(obj.trkVizer)
         iTgt = obj.lObj.currTarget;
         obj.trkVizer.updatePrimary(iTgt);
       end
