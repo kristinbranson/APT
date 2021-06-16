@@ -3419,11 +3419,16 @@ res_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/val_results/alice_split_ht_
 trn_json = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/alice_split_ht_grone_full_ims_multi/val_TF.json'
 tdata = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_openpose/view_0/alice_split_ht_openpose_full_ims_multi/traindata'
 
+res_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/val_results/roian_split_full_maskless_openpose_pose_multi_0.mat'
+trn_json = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_maskless_grone_pose_multi/val_TF.json'
+tdata = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_openpose/view_0/roian_split_full_maskless_openpose_pose_multi/traindata'
+
 conf = pt.pickle_load(tdata)[1]
 K = h5py.File(res_file, 'r')
 ll = K['labeled_locs'][()].T
-pp = K['pred_locs']['locs_top'][()].T
-ll = ll[...,conf.ht_pts,:]
+# pp = K['pred_locs']['locs_top'][()].T
+# ll = ll[...,conf.ht_pts,:]
+pp = K['pred_locs']['locs'][()].T
 ll[ll < -1000] = np.nan
 dd = np.linalg.norm(ll[:, None] - pp[:, :, None], axis=-1)
 dd1 = find_dist_match(dd)
@@ -3432,15 +3437,26 @@ K.close()
 
 ##
 
-sel = 21
-im = cv2.imread(H['images'][sel]['file_name'],cv2.IMREAD_UNCHANGED)
+from Pose_multi_openpose import Pose_multi_openpose
+import PoseTools as pt
+sel = 21 # For alice HT error
 
+
+H = pt.json_load(trn_json)
+im = cv2.imread(H['images'][sel]['file_name'],cv2.IMREAD_UNCHANGED)
 conf.batch_size = 1
 J = Pose_multi_openpose(conf)
 O = J.diagnose(np.tile(im[None,...,None],[1,1,1,conf.img_dim]))
 paf = O['pred_hmaps'][0][0][0]
-paf = np.sqrt(paf[...,0]**2 + paf[...,1]**2)
+paf = np.sqrt(paf[...,::2]**2 + paf[...,1::2]**2)
 hmap = O['pred_hmaps'][0][1][0]
+
+##
+pt.show_stack(paf.transpose([2,0,1]),1,3,'jet')
+pt.show_stack(hmap.transpose([2,0,1]),2,2,'jet')
+ff();imshow(im,'gray'); mdskl(pp[sel],[[0,1],[0,2],[0,3]])
+mdskl(ll[sel],[[0,1],[0,2],[0,3]],cc=[0,1,0])
+
 ##
 f,ax = plt.subplots(1,3,sharex=True,sharey=True)
 ax = ax.flatten()
@@ -3448,9 +3464,9 @@ ax[0].imshow(im,'gray')
 hm = cv2.resize(hmap.sum(-1),im.shape)
 ax[0].imshow(hm,alpha=0.3)
 ax[0].set_title('Landmark heatmap')
-paf = cv2.resize(paf,im.shape)
+pr = cv2.resize(paf.sum(-1),im.shape)
 ax[1].imshow(im,'gray')
-ax[1].imshow(paf,alpha=0.3)
+ax[1].imshow(pr,alpha=0.3)
 ax[1].set_title('Affinity Field')
 
 ax[2].imshow(im,'gray')
@@ -3461,7 +3477,81 @@ f.set_size_inches([12,4])
 for aa in ax:
     aa.axis('tight')
     aa.axis('off')
-ax[0].set_xlim([650,950])
-ax[1].set_ylim([650,350])
+# ax[0].set_xlim([650,950])
+# ax[1].set_ylim([650,350])
 
-savefig('/groups/branson/home/kabram/temp/openpose_error.png',ax_type=[])
+# savefig('/groups/branson/home/kabram/temp/openpose_error.png',ax_type=[])
+
+## Debug ma dlc
+## create the dataset
+from reuse import *
+in_dir = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_crop_ims_grone_pose_multi'
+tfile = os.path.join(in_dir,'train_TF.json')
+out_dir = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_dlc/view_0/roian_split_crop_ims_dlc_pose_multi/'
+
+H = pt.json_load(tfile)
+iidx = np.array([h['image_id'] for h in H['annotations']])
+outd = []
+for h in H['images']:
+    oo = {}
+    oo['image'] = h['file_name']
+    oo['size'] = np.array((1,512,512))
+    jj = np.where(iidx==h['id'])[0]
+    joints = {}
+    for ndx,j in enumerate(jj):
+        curj = np.zeros([4,3])
+        curj[:,0] = np.arange(4)
+        curj[:,1:3] = np.array(H['annotations'][j]['keypoints']).reshape(4,3)[:,:2]
+        joints[f'{ndx}'] = curj
+    oo['joints'] = joints
+    outd.append(oo)
+
+os.makedirs(out_dir,exist_ok=True)
+import pickle
+with open(os.path.join(out_dir,'data.h5'),'wb') as f:
+    pickle.dump(outd,f)
+
+## compute the DLC results
+import PoseTools as pt
+from scipy.optimize import linear_sum_assignment
+
+out_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_dlc/view_0/roian_split_crop_ims_dlc_pose_multi/val_results.p'
+val_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_pose_multi/val_TF.json'
+vdat = pt.json_load(val_file)
+ijxx = np.array([v['image_id'] for v in vdat['annotations']])
+dres = pt.pickle_load(out_file)
+
+op_gr = [[0,1],[0,2],[0,3]]
+n_pts = 4
+
+preds = np.ones([len(dres),5,4,2])*np.nan
+labels = np.ones([len(dres),2,4,2])*np.nan
+for ndx in range(len(dres)):
+    pts = dres[ndx][0]['coordinates'][0]
+    curp = [[p] for p in pts[0]]
+    for ix,ee in enumerate(op_gr):
+        cc = dres[ndx][0]['costs'][ix]['m1'].copy()
+        for cndx in range(cc.shape[0]):
+            if np.all(np.isnan(cc)):
+                break
+            xx,yy = np.unravel_index(np.nanargmax(cc), cc.shape)
+            curp[xx].append(pts[ee[1]][yy])
+            cc[xx,:] = np.nan
+            cc[:,yy] = np.nan
+
+    for ax,p in enumerate(curp):
+        for bx,v in enumerate(p):
+            preds[ndx,ax,bx,:] = v
+
+    ss = np.where(ijxx==ndx)[0]
+    for lndx,sndx in enumerate(ss):
+        if vdat['annotations'][sndx]['area']<3:
+            continue
+        curk = np.array(vdat['annotations'][sndx]['keypoints']).reshape([4,3])[:,:2]
+        labels[ndx,lndx] = curk
+
+dd = np.linalg.norm(preds[:,:,None]-labels[:,None],axis=-1)
+dd1 = find_dist_match(dd)
+
+dd1 = np.reshape(dd1,[-1,4])
+np.nanpercentile(dd1,[50,75,90,95,98],axis=0)

@@ -21,11 +21,17 @@ from mmdet.core import DistEvalHook, EvalHook
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.core.bbox.builder import BBOX_ASSIGNERS
-from mmdet.core.bbox.assigners import MaxIoUAssigner
+from mmdet.core.bbox.iou_calculators import bbox_overlaps
+from mmdet.core.bbox.assigners import MaxIoUAssigner, HungarianAssigner, AssignResult
+from mmdet.core.bbox.transforms import bbox_cxcywh_to_xyxy
+
 from mmdet.datasets.pipelines import Compose
 from mmdet.apis import inference
 from mmcv.parallel import collate, scatter
 from mmcv.ops import RoIPool
+
+from scipy.optimize import linear_sum_assignment
+
 
 import logging
 import time
@@ -38,6 +44,116 @@ import glob
 from PoseCommon_pytorch import PoseCommon_pytorch
 import poseConfig
 import PoseTools
+
+@BBOX_ASSIGNERS.register_module(force=True)
+class APTHungarianAssigner(HungarianAssigner):
+    def assign(self,
+               bbox_pred,
+               cls_pred,
+               gt_bboxes,
+               gt_labels,
+               img_meta,
+               gt_bboxes_ignore=None,
+               eps=1e-7):
+        """Computes one-to-one matching based on the weighted costs.
+
+        This method assign each query prediction to a ground truth or
+        background. The `assigned_gt_inds` with -1 means don't care,
+        0 means negative sample, and positive number is the index (1-based)
+        of assigned gt.
+        The assignment is done in the following steps, the order matters.
+
+        1. assign every prediction to -1
+        2. compute the weighted costs
+        3. do Hungarian matching on CPU based on the costs
+        4. assign all to 0 (background) first, then for each matched pair
+           between predictions and gts, treat this prediction as foreground
+           and assign the corresponding gt index (plus 1) to it.
+
+        Args:
+            bbox_pred (Tensor): Predicted boxes with normalized coordinates
+                (cx, cy, w, h), which are all in range [0, 1]. Shape
+                [num_query, 4].
+            cls_pred (Tensor): Predicted classification logits, shape
+                [num_query, num_class].
+            gt_bboxes (Tensor): Ground truth boxes with unnormalized
+                coordinates (x1, y1, x2, y2). Shape [num_gt, 4].
+            gt_labels (Tensor): Label of `gt_bboxes`, shape (num_gt,).
+            img_meta (dict): Meta information for current image.
+            gt_bboxes_ignore (Tensor, optional): Ground truth bboxes that are
+                labelled as `ignored`. Default None.
+            eps (int | float, optional): A value added to the denominator for
+                numerical stability. Default 1e-7.
+
+        Returns:
+            :obj:`AssignResult`: The assigned result.
+        """
+        num_gts, num_bboxes = gt_bboxes.size(0), bbox_pred.size(0)
+
+        # 1. assign -1 by default
+        assigned_gt_inds = bbox_pred.new_full((num_bboxes, ),
+                                              -1,
+                                              dtype=torch.long)
+        assigned_labels = bbox_pred.new_full((num_bboxes, ),
+                                             -1,
+                                             dtype=torch.long)
+        if num_gts == 0 or num_bboxes == 0:
+            # No ground truth or boxes, return empty assignment
+            if num_gts == 0:
+                # No ground truth, assign all to background
+                assigned_gt_inds[:] = 0
+            return AssignResult(
+                num_gts, assigned_gt_inds, None, labels=assigned_labels)
+        img_h, img_w, _ = img_meta['img_shape']
+        factor = gt_bboxes.new_tensor([img_w, img_h, img_w,
+                                       img_h]).unsqueeze(0)
+
+        # 2. compute the weighted costs
+        # classification and bboxcost.
+        cls_cost = self.cls_cost(cls_pred, gt_labels)
+        # regression L1 cost
+        normalize_gt_bboxes = gt_bboxes / factor
+        reg_cost = self.reg_cost(bbox_pred, normalize_gt_bboxes)
+        # regression iou cost, defaultly giou is used in official DETR.
+        bboxes = bbox_cxcywh_to_xyxy(bbox_pred) * factor
+        iou_cost = self.iou_cost(bboxes, gt_bboxes)
+        # weighted sum of above three costs
+        cost = cls_cost + reg_cost + iou_cost
+
+        # 3. do Hungarian matching on CPU using linear_sum_assignment
+        cost = cost.detach().cpu()
+        if linear_sum_assignment is None:
+            raise ImportError('Please run "pip install scipy" '
+                              'to install scipy first.')
+        matched_row_inds, matched_col_inds = linear_sum_assignment(cost)
+        matched_row_inds = torch.from_numpy(matched_row_inds).to(
+            bbox_pred.device)
+        matched_col_inds = torch.from_numpy(matched_col_inds).to(
+            bbox_pred.device)
+
+        # 4. assign backgrounds and foregrounds
+        # assign all indices to backgrounds first
+        # assigned_gt_inds[:] = 0
+        assigned_gt_inds[:] = -1
+
+        overlap_tr = 0.2
+        overlaps = bbox_overlaps(gt_bboxes, bboxes)
+        overlaps, _ = overlaps.max(dim=0)
+        overlaps[matched_row_inds] = 0.
+        masked_negs = (overlaps>overlap_tr)
+        if gt_bboxes_ignore.shape[0]>0:
+            ignore_overlaps, _ = bbox_overlaps(bboxes, gt_bboxes_ignore, mode='iof').max(dim=1)
+            ignore_overlaps[matched_row_inds] = 0.
+            masked_negs = masked_negs | (ignore_overlaps>overlap_tr)
+        assigned_gt_inds[masked_negs] = 0
+
+        # assign foregrounds based on matching results
+        assigned_gt_inds[matched_row_inds] = matched_col_inds + 1
+        assigned_labels[matched_row_inds] = gt_labels[matched_col_inds]
+
+        return AssignResult(
+            num_gts, assigned_gt_inds, None, labels=assigned_labels)
+
 
 @BBOX_ASSIGNERS.register_module(force=True)
 class APTMaxIoUAssigner(MaxIoUAssigner):
@@ -100,6 +216,7 @@ class APTMaxIoUAssigner(MaxIoUAssigner):
         return assign_result
 
 
+
 def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
     curdir = pathlib.Path(__file__).parent.absolute()
     mmdir = os.path.join(curdir,'mmdetection')
@@ -123,46 +240,71 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
     cfg.seed = None
     cfg.work_dir = conf.cachedir
 
-    cfg.model.roi_head.bbox_head.num_classes=1
-
     cfg.dataset_type = 'COCODataset'
     cfg.classes = ('fly','neg_box')
 
     im_sz = tuple(int(c / conf.rescale) for c in conf.imsz[::-1])  # conf.imsz[0]
 
-    for ttype in ['train', 'val', 'test']:
-        name = ttype if ttype is not 'test' else 'val'
-        fname = conf.trainfilename if ttype == 'train' else conf.valfilename
-        cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
-        file = os.path.join(data_bdir, f'{fname}.json')
-        cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
-        cfg.data[ttype].classes = cfg.classes
-        if ttype == 'train':
-            cfg.data[ttype].pipeline[2].img_scale = im_sz
-        else:
-            cfg.data[ttype].pipeline[1].img_scale = im_sz
+    if conf.mmdetect_net == 'frcnn':
+        for ttype in ['train', 'val', 'test']:
+            name = ttype if ttype is not 'test' else 'val'
+            fname = conf.trainfilename if ttype == 'train' else conf.valfilename
+            cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
+            file = os.path.join(data_bdir, f'{fname}.json')
+            cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
+            cfg.data[ttype].classes = cfg.classes
+            if ttype == 'train':
+                cfg.data[ttype].pipeline[2].img_scale = im_sz
+            else:
+                cfg.data[ttype].pipeline[1].img_scale = im_sz
 
-    assert(cfg.test_pipeline[1].type=='MultiScaleFlipAug'),'Unsupported test pipeline'
-    assert(cfg.train_pipeline[2].type=='Resize'),'Unsupported train pipeline'
+        cfg.model.roi_head.bbox_head.num_classes = 1
+        if conf.get('mmdetection_oversample',True):
+            cfg.model.test_cfg.rpn.nms.iou_threshold = 0.9
+            cfg.model.test_cfg.rcnn.nms.iou_threshold = 0.7
+            cfg.model.test_cfg.rcnn.score_thr = 0.01
+
+        if conf.multi_loss_mask:
+            cfg.model.train_cfg.rpn.assigner.neg_iou_thr = (0.15, 0.25)
+            # Roughly boxes that have 0.5 to 0.25 overlap will be marked as negative.
+            cfg.model.train_cfg.rpn.assigner.type = 'APTMaxIoUAssigner'
+            cfg.model.train_cfg.rpn.assigner.ignore_iof_thr = 0.85
+
+            cfg.model.train_cfg.rcnn.assigner.neg_iou_thr = (0.15, 0.33)
+#            cfg.model.train_cfg.rcnn.assigner.pos_iou_thr = 0.75
+            cfg.model.train_cfg.rcnn.assigner.type = 'APTMaxIoUAssigner'
+            cfg.model.train_cfg.rcnn.assigner.ignore_iof_thr = 0.85
+            cfg.model.train_cfg.rpn_proposal.max_per_img *= 10
+        assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
+        cfg.train_pipeline[2].img_scale = im_sz
+        cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
+
+    elif conf.mmdetect_net == 'detr':
+        for ttype in ['train', 'val', 'test']:
+            name = ttype if ttype is not 'test' else 'val'
+            fname = conf.trainfilename if ttype == 'train' else conf.valfilename
+            cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
+            file = os.path.join(data_bdir, f'{fname}.json')
+            cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
+            cfg.data[ttype].classes = cfg.classes
+            if ttype == 'train':
+                cfg.data[ttype].pipeline[3] = dict(type='Resize', img_scale=im_sz, keep_ratio=True)
+            else:
+                cfg.data[ttype].pipeline[1].img_scale = im_sz
+
+
+        cfg.model.bbox_head.num_classes = 1
+        assert (cfg.train_pipeline[3].type == 'AutoAugment'), 'Unsupported train pipeline'
+        cfg.train_pipeline[3] = dict(type='Resize', img_scale=im_sz, keep_ratio=True)
+        if conf.multi_loss_mask:
+            cfg.model.train_cfg.assigner.type = 'APTHungarianAssigner'
+
+
+    assert (cfg.test_pipeline[1].type == 'MultiScaleFlipAug'), 'Unsupported test pipeline'
     cfg.test_pipeline[1].img_scale = im_sz
-    cfg.train_pipeline[2].img_scale = im_sz
-    cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
-    if conf.get('mmdetection_oversample',True):
-        cfg.model.test_cfg.rpn.nms.iou_threshold = 0.9
-        cfg.model.test_cfg.rcnn.nms.iou_threshold = 0.7
-        cfg.model.test_cfg.rcnn.score_thr = 0.01
 
-    if conf.multi_loss_mask:
-        cfg.model.train_cfg.rpn.assigner.neg_iou_thr = (0.15, 0.25)
-        # Roughly boxes that have 0.5 to 0.25 overlap will be marked as negative.
-        cfg.model.train_cfg.rpn.assigner.type = 'APTMaxIoUAssigner'
-        cfg.model.train_cfg.rpn.assigner.ignore_iof_thr = 0.85
-        cfg.model.train_cfg.rcnn.assigner.neg_iou_thr = (0.15, 0.33)
-        cfg.model.train_cfg.rcnn.assigner.type = 'APTMaxIoUAssigner'
-        cfg.model.train_cfg.rcnn.assigner.ignore_iof_thr = 0.85
-        cfg.model.train_cfg.rpn_proposal.max_per_img *= 10
-        cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
-        cfg.data.train.pipeline[-1]['keys'].append('gt_bboxes_ignore')
+    cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
+    cfg.data.train.pipeline[-1]['keys'].append('gt_bboxes_ignore')
 
     default_samples_per_gpu = cfg.data.samples_per_gpu
     cfg.data.samples_per_gpu = conf.batch_size
@@ -209,6 +351,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         mmdetect_net = conf.mmdetect_net
         if mmdetect_net == 'frcnn':
             self.cfg_file = 'configs/faster_rcnn/faster_rcnn_r50_fpn_2x_coco.py'
+        elif mmdetect_net == 'detr':
+            self.cfg_file = 'configs/detr/detr_r50_8x2_150e_coco.py'
         elif mmdetect_net == 'test':
             self.cfg_file = 'configs/APT/roian.py'
 
