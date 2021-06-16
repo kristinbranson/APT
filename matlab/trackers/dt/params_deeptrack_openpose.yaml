@@ -14,11 +14,9 @@ ROOT:
   - ['','',false,DUMMY,'','','','']
   - OpenPose:
     - ['','',false,Mixture Density Network (MDN) parameters,'','']
-    - mdn_use_unet_loss: ['Train UNet and MDN networks',boolean,true,'Train network to optimize a combination of the UNet and MDN loss functions. ',1,'','Developer','',true]
     - op_base_lr: ['Base Learning Rate',float,true,'Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 4e-5',4e-5,'','Developer','',true]
     - op_param_hmap_thres: ['Heatmap threshold',float,true,'Threshold to use on heatmaps for landmark detections. Heatmap predictions lie in the range between 0 to 1',0.1,'','Developer','',true]
     - op_param_paf_thres: ['PAF threshold',float,true,'Threshold to use on Pose Affinity Fields (PAF) for grouping landmarks into animals. PAF intensity values lie in the range between 0 to 1',0.05,'','Developer','',true]
     - ignore_occluded: ['Ignore occluded landmarks',boolean,true,'Do not train on landmarks labeled as occluded.',0,'','Beginner','',true]
     - pretrain_freeze_bnorm: ['Freeze batch norm',boolean,true,'Freeze batch norm weights of the backbone to the pretrained weights',1,'','Developer','',true]
-    - mdn_resnet_source: ['Resnet source',string,true,'Resnet model to use for backbone. Choices are "official_tf" and "slim"','official_tf','','Developer','',true]
 
