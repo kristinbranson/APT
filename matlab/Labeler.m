@@ -13283,14 +13283,17 @@ classdef Labeler < handle
       
       f = obj.currFrame;
       tfLive = obj.frm2trx(f,:);
-      idxLive = find(tfLive);
-      idxLive = idxLive(:);
       %lpos = obj.labeledposCurrMovie;
       s = obj.labelsCurrMovie;      
       %tfLbled = arrayfun(@(x)any(lpos(:,1,f,x)),idxLive); % nans counted as 0
       itgtsLbled = Labels.isLabeledF(s,f);
-      tfLbled = false(size(idxLive));
-      tfLbled(itgtsLbled) = true; % tgLbled should remain same size (not be expanded)      
+      tfLbled = false(size(tfLive));
+      tfLbled(itgtsLbled) = true;
+      tfLbled = tfLbled(:);
+      
+      idxLive = find(tfLive);
+      idxLive = idxLive(:);
+      tfLbled = tfLbled(idxLive);
       ischange = true;
       tblTrxData = [idxLive,tfLbled]; %#ok<*PROP>
       if ~isempty(obj.tblTrxData),
@@ -14304,6 +14307,9 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       tv = obj.labeledpos2trkViz;
       
+      if isempty(tv) || ~isvalid(tv)
+        return;
+      end
       if setlbls
         iMov = obj.currMovie;
         frm = obj.currFrame;

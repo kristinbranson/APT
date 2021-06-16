@@ -5477,6 +5477,9 @@ classdef DeepTracker < LabelTracker
       end
       
       tv = obj.trkVizer;
+      if isempty(tv)
+        return;
+      end
       if lObj.maIsMA
         tv.newFrame(lObj.currFrame);
       else
