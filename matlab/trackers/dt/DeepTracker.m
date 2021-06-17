@@ -277,20 +277,8 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
       obj.bgTrkMonitor = [];
       obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
-      
-      tvtagpfix = sprintf('dt_%s',obj.algorithmName);
-      if lObj.maIsMA
-        % semi-hack here; unclear what to do
-        if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
-          maxNanimals = max(ceil(maxNanimals*1.5),10);        
-        else
-          maxNanimals = 20;
-        end
-        obj.trkVizer = TrackingVisualizerTracklets(lObj,maxNanimals,'matrack');
-      else
-        obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
-      end
+
+      obj.trkVizer = []; % trkVizer initted in activate()
       obj.skip_dlgs = false;
     end
     function delete(obj)
@@ -306,6 +294,31 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResInit();
       obj.vizInit();
       obj.updateTrackerInfo();
+    end
+    function deactivate(obj)
+      deactivate@LabelTracker(obj);
+      delete(obj.trkVizer);
+      obj.trkVizer = [];
+    end
+    function activate(obj)
+      activate@LabelTracker(obj);      
+      if isempty(obj.trkVizer)
+        lObj = obj.lObj;
+        if lObj.maIsMA
+          % semi-hack here; unclear what to do
+          if ~isempty(lObj.trackParams)
+            maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
+            maxNanimals = max(ceil(maxNanimals*1.5),10);        
+          else
+            maxNanimals = 20;
+          end
+          obj.trkVizer = TrackingVisualizerTracklets(lObj,maxNanimals,'matrack');
+        else
+          tvtagpfix = sprintf('dt_%s',obj.algorithmName);
+          obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
+        end
+        obj.vizInit();
+      end
     end
   end
   
@@ -484,7 +497,7 @@ classdef DeepTracker < LabelTracker
       
       obj.dryRunOnly = false;
       
-      obj.setHideViz(s.hideViz);
+%      obj.setHideViz(s.hideViz);
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end
@@ -5432,6 +5445,9 @@ classdef DeepTracker < LabelTracker
   %% Viz
   methods
     function vizInit(obj)
+      if isempty(obj.trkVizer)
+        return;
+      end
       if obj.lObj.maIsMA 
         if ~obj.lObj.isinit && obj.lObj.hasMovie
           ptrx0 = TrxUtil.newptrx(0,0);

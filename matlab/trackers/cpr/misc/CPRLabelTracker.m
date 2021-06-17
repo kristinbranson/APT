@@ -239,12 +239,7 @@ classdef CPRLabelTracker < LabelTracker
           'nview',lObj.nview);
         obj.lObj = s;
         obj.ax = [];
-        delete(obj.hLCurrMovie);
-        delete(obj.hLCurrFrame);
-        delete(obj.hLCurrTarget);
-        obj.hLCurrMovie = [];
-        obj.hLCurrFrame = [];
-        obj.hLCurrTarget = [];
+        obj.deleteListeners();
       end
     end
     
