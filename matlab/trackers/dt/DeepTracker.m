@@ -5568,8 +5568,10 @@ classdef DeepTracker < LabelTracker
   %% Viz
   methods
     function vizInit(obj)
-      obj.trkVizer.vizInit();
-      obj.setHideViz(obj.hideViz);
+      if ~isempty(obj.trkVizer)
+        obj.trkVizer.vizInit();
+        obj.setHideViz(obj.hideViz);
+      end
     end
     function setHideViz(obj,tf)
       obj.trkVizer.setHideViz(tf);
@@ -5592,7 +5594,7 @@ classdef DeepTracker < LabelTracker
   methods
     function newLabelerFrame(obj)
       lObj = obj.lObj;
-      if lObj.isinit || ~lObj.hasMovie
+      if lObj.isinit || ~lObj.hasMovie || isempty(obj.trkVizer)
         return;
       end
             
@@ -5614,8 +5616,10 @@ classdef DeepTracker < LabelTracker
       obj.trkVizer.updateTrackRes(xy,tfocc);
     end
     function newLabelerTarget(obj)
-      iTgt = obj.lObj.currTarget;
-      obj.trkVizer.updatePrimary(iTgt);
+      if ~isempty(obj.trkVizer)
+        iTgt = obj.lObj.currTarget;
+        obj.trkVizer.updatePrimary(iTgt);
+      end
     end
     function newLabelerMovie(obj)
       obj.vizInit(); % not sure why this is nec

@@ -13849,6 +13849,9 @@ classdef Labeler < handle
       
       iTgt = obj.currTarget;
       tv = obj.labeledpos2trkViz;
+      if isempty(tv) || ~isvalid(tv)
+        return;
+      end
 
       if setlbls
         iMov = obj.currMovie;
