@@ -9147,10 +9147,13 @@ classdef Labeler < handle
     function h = gtReport(obj,varargin)
       t = obj.gtTblRes;
 
-      nmontage = myparse(varargin,...
-        'nmontage',height(t));      
+      [nmontage,fcnAggOverPts,aggLabel] = myparse(varargin,...
+        'nmontage',height(t),...
+        'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
+        'aggLabel','Max' ...
+        );
       
-      t.meanOverPtsL2err = mean(t.L2err,2);
+      t.aggOverPtsL2err = fcnAggOverPts(t.L2err);
       % KB 20181022: Changed colors to match sets instead of points
       clrs =  obj.LabelPointColors;
       nclrs = size(clrs,1);
@@ -9172,19 +9175,20 @@ classdef Labeler < handle
       ax.YGrid = 'on';
       
       % AvErrAcrossPts by movie
-      h(end+1,1) = figurecascaded(h(end),'Name','Mean GT err by movie');
+      tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
+      h(end+1,1) = figurecascaded(h(end),'Name',tstr);
       ax = axes;
       [iMovAbs,gt] = t.mov.get;
       assert(all(gt));
       grp = categorical(iMovAbs);
       grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
         categories(grp),countcats(grp),'uni',0);
-      boxplot(t.meanOverPtsL2err,grp,'colors',clrs,'boxstyle','filled',...
+      boxplot(t.aggOverPtsL2err,grp,'colors',clrs,'boxstyle','filled',...
         'labels',grplbls);
       args = {'fontweight' 'bold' 'interpreter' 'none'};
       xlabel(ax,'Movie',args{:});
       ylabel(ax,'L2 err (px)',args{:});
-      title(ax,'Mean (over landmarks) GT err by movie',args{:});
+      title(ax,tstr,args{:});
       ax.YGrid = 'on';
       
       % Mean err by movie, pt
@@ -9212,7 +9216,7 @@ classdef Labeler < handle
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
       nmontage = min(nmontage,height(t));
-      obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h,'nplot',nmontage);
+      obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',h,'nplot',nmontage);
     end    
     function gtNextUnlabeledUI(obj)
       % Like pressing "Next Unlabeled" in GTManager.
@@ -13854,6 +13858,9 @@ classdef Labeler < handle
       
       iTgt = obj.currTarget;
       tv = obj.labeledpos2trkViz;
+      if isempty(tv) || ~isvalid(tv)
+        return;
+      end
 
       if setlbls
         iMov = obj.currMovie;

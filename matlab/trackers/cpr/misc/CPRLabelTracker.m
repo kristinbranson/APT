@@ -2344,7 +2344,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerFrame(obj)
-      if obj.lObj.isinit || ~obj.lObj.hasMovie
+      if obj.lObj.isinit || ~obj.lObj.hasMovie || isempty(obj.trkVizer)
         return;
       end
       
@@ -3118,8 +3118,10 @@ classdef CPRLabelTracker < LabelTracker
       obj.xyPrdCurrMovie = [];
       obj.xyPrdCurrMovieFull = [];
       obj.xyPrdCurrMovieIsInterp = [];
-      obj.trkVizer.vizInit();
-      obj.setHideViz(obj.hideViz);
+      if ~isempty(obj.trkVizer)
+        obj.trkVizer.vizInit();
+        obj.setHideViz(obj.hideViz);
+      end
     end
     
     
