@@ -1,4 +1,4 @@
-classdef TrackingVisualizerMT < handle
+classdef TrackingVisualizerMT < TrackingVisualizerBase
   
   % TrackingVisualizerMT
   % Like TrackingVisualizer, but can handles/display results for many 
@@ -9,6 +9,9 @@ classdef TrackingVisualizerMT < handle
 
     hIms % [nview] image handles. Owned by Labeler
     hAxs % [nview] axes handles. Owned by Labeler
+    
+    trk % scalar trkfile, views merged. See TrackingVisualizerBase, Frame 
+        % updates, loaded trakcing results
 
     ipt2vw % [npts], like Labeler/labeledposIPt2View
     %ptsPlotInfo % lObj.labelPointsPlotInfo
@@ -118,9 +121,10 @@ classdef TrackingVisualizerMT < handle
     end
 
     function vizInit(obj,varargin)
-      % Inits .hXYPrdRed, .hXYPrdRedTxt, .hSkel, .iTgtPrimary, .iTgtHide
-      % 
-      % See "Construction/Init notes" below      
+      % trk: TrkFile
+      %
+      % See TrackingVisualizerBase
+      % See "Construction/Init notes" below
 
       [postload,ntgts] = myparse(varargin,...
         'postload',false, ... % see Construction/Init notes
@@ -139,7 +143,7 @@ classdef TrackingVisualizerMT < handle
         ntgts = obj.lObj.nTargets;
       end
       if postload
-        ptclrs = obj.ptClrs;
+        ptclrspppi = obj.ptClrs;
       else
         ptclrs = obj.lObj.LabelPointColors;
         %ptclrs = brighten(ptclrs,TrackingVisualizerMT.CMAP_DARKEN_BETA);
@@ -238,6 +242,12 @@ classdef TrackingVisualizerMT < handle
     end
     function vizInitHook(obj)
       % overload me
+    end
+    function trkInit(obj,trk)
+      assert(isscalar(trk) && isa(trk,'TrkFile'));
+      % trk.frm2tlt should already be initted
+      assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
+      obj.trk = trk;
     end
     function initSkeletonEdges(obj,sedges)
       % Creates/inits .hSkel graphics handles appropriately for edge-set
@@ -450,6 +460,10 @@ classdef TrackingVisualizerMT < handle
         end
       end
     end
+    function newFrame(obj,frm)
+      [tfhaspred,xy,tfocc] = obj.trk.getPTrkFrame(frm);
+      obj.updateTrackRes(xy,tfocc);
+    end
     function updatePrimary(obj,iTgtPrimary)
       iTgtPrimary0 = obj.iTgtPrimary;
       iTgtChanged = ~isequal(iTgtPrimary,iTgtPrimary0);
@@ -586,7 +600,7 @@ classdef TrackingVisualizerMT < handle
     %   .hXYPrdRed and .hXYPrdRedTxt
     %   - PostLoadInit->vizInit sets up cosmetic state on handles
     %
-    % Save/load strategy. 
+    % Save/load strategy. (This is for the Labeler auxiliary trkRes)
     %
     % In saveobj we record the cosmetics used for a TrackingVisualizer for 
     % the .hXYPrdRed line handles by doing a get and saving the resulting 

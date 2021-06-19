@@ -190,11 +190,20 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     nPts % number of label points     
     nview 
-    %hasTrained
   end
   
   properties
     trkVizer % scalar TrackingVisualizer
+    
+    % *Tracking results and viz*
+    % For optimization, trkVizer is not created until/when there are
+    % tracking results (trkP) to display. Various states:
+    % - trkP=[], trkVizer=[].
+    % - trkP nonempty, trkVizer=[] if DeepTracker is deactivated.
+    % - trkP nonempty, trkVizer nonempty.
+    % 
+    % vizInit() create/initializes trkVizer (or deletes an existing 
+    % trkVizer) based on trkP.    
   end
   
   events
@@ -278,7 +287,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitor = [];
       obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
 
-      obj.trkVizer = []; % trkVizer initted in activate()
+      obj.trkVizer = []; 
       obj.skip_dlgs = false;
     end
     function delete(obj)
@@ -301,24 +310,8 @@ classdef DeepTracker < LabelTracker
       obj.trkVizer = [];
     end
     function activate(obj)
-      activate@LabelTracker(obj);      
-      if isempty(obj.trkVizer)
-        lObj = obj.lObj;
-        if lObj.maIsMA
-          % semi-hack here; unclear what to do
-          if ~isempty(lObj.trackParams)
-            maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
-            maxNanimals = max(ceil(maxNanimals*1.5),10);        
-          else
-            maxNanimals = 20;
-          end
-          obj.trkVizer = TrackingVisualizerTracklets(lObj,maxNanimals,'matrack');
-        else
-          tvtagpfix = sprintf('dt_%s',obj.algorithmName);
-          obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
-        end
-        obj.vizInit();
-      end
+      activate@LabelTracker(obj);
+      obj.vizInit(false);
     end
   end
   
@@ -3869,11 +3862,14 @@ classdef DeepTracker < LabelTracker
           obj.trkPostProcIfNec(mIdx(i),trkfiles);
           obj.trackResAddTrkfile(mIdx(i),trkfiles);
           if mIdx(i)==obj.lObj.currMovIdx
-            obj.trackCurrResUpdate();
+            obj.trackCurrResUpdate(); % calls vizInit(false)
             if obj.lObj.maIsMA
               % For MA, for now we automatically jump to the startframe for 
               % the first tracklet; and we select it. This enables the 
               % Tracklet HUD and timeline.
+              %
+              % bit of a hack here as special-casing and end-running
+              % TrackingVisualizerBase api.
               tv = obj.trkVizer;
               if isempty(tv.ptrx)
                 obj.newLabelerFrame();
@@ -4768,7 +4764,7 @@ classdef DeepTracker < LabelTracker
     
     function [codestr,containerName] = trackCodeGenDocker(backend,...
         trnID,cache,dllbl,errfile,...
-        nettype,movtrk,outtrk,frm0,frm1,varargin)
+        nettype,netmode,movtrk,outtrk,frm0,frm1,varargin)
 
       % varargin: see trackCodeGenBase, except for 'cache' and 'view'
       
@@ -4777,7 +4773,7 @@ classdef DeepTracker < LabelTracker
       
       baseargs = [{'cache' cache} baseargs];
       filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
+      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,netmode,...
         movtrk,outtrk,frm0,frm1,baseargs{:},'filequote',filequote);
 
       if isempty(containerName),
@@ -5085,7 +5081,11 @@ classdef DeepTracker < LabelTracker
     function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
       lo = obj.lObj;
       if lo.maIsMA
-        iTgt = obj.trkVizer.currTrklet;
+        if ~isempty(obj.trkVizer)
+          iTgt = obj.trkVizer.currTrklet;
+        else
+          iTgt = [];
+        end
       else
         iTgt = lo.currTarget;
       end
@@ -5213,16 +5213,8 @@ classdef DeepTracker < LabelTracker
       obj.trackResInit();
       obj.trackCurrResInit();
       % deleting old tracking results, so can switch to new tracker info
-      obj.updateTrackerInfo();
-
-%       for i = 1:numel(trkFilesToDelete),
-%         delete(trkFilesToDelete{i});
-%         if exist(trkFilesToDelete{i},'file'),
-%           warning('Failed to delete trk file %s',trkFilesToDelete{i});
-%         end
-%       end
-      
-      
+      obj.vizInit();
+      obj.updateTrackerInfo();      
     end
     
     function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile,ivw)
@@ -5374,9 +5366,8 @@ classdef DeepTracker < LabelTracker
     function trackCurrResInit(obj)
       % Assumes that .trnNetType is set
       obj.trkP = [];
-      %obj.trkPTS = zeros(0,1);
-      %obj.trkAux = [];
-      %obj.trkAuxLbl = {obj.trnNetType.trkAuxFlds.label}';
+      % all calls to trackCurrResInit should be followed by calls to
+      % vizInit() to destroy trkVizer.
     end
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
@@ -5392,13 +5383,10 @@ classdef DeepTracker < LabelTracker
         trk1 = trks{1};
         trk1.initFrm2Tlt(obj.lObj.nframes);
         obj.trkP = trk1;
-        if obj.lObj.maIsMA
-          ptrx = load_tracklet(trk1);
-          ptrx = TrxUtil.ptrxAddXY(ptrx);
-          obj.trkVizer.vizInit(obj.lObj.nframes,ptrx);
-        end        
+        obj.vizInit(false);
       else
         obj.trackCurrResInit();
+        obj.vizInit();
       end
       notify(obj,'newTrackingResults');
     end
@@ -5444,33 +5432,61 @@ classdef DeepTracker < LabelTracker
     
   %% Viz
   methods
-    function vizInit(obj)
-      if isempty(obj.trkVizer)
+    function vizInit(obj,existingTVvizInit)
+      % - if .trkP is empty, deletes .trkVizer and returns.
+      % - if .trkVizer is empty:
+      %     - creates one
+      %     - calls trkVizer.vizInit
+      % - if .trkVizer existed, call vizInit() if existingTVvizInit==true.
+      % - call trkVizer.trkInit() on current .trkP.
+      
+      if isempty(obj.trkP)
+        delete(obj.trkVizer);
+        obj.trkVizer = [];
         return;
       end
-      if obj.lObj.maIsMA 
-        if ~obj.lObj.isinit && obj.lObj.hasMovie
-          ptrx0 = TrxUtil.newptrx(0,0);
-          obj.trkVizer.vizInit(obj.lObj.nframes,ptrx0);
-        end
-      else
-        obj.trkVizer.vizInit();
+      
+      if nargin < 2
+        existingTVvizInit = true;
       end
-      obj.setHideViz(obj.hideViz);
+      
+      lObj = obj.lObj;
+      tv = obj.trkVizer;
+      if isempty(tv)
+        tvtagpfix = sprintf('dt_%s',obj.algorithmName);
+        tv = lObj.createTrackingVisualizer(tvtagpfix);        
+        obj.trkVizer = tv;
+        tfnewTV = true;
+      else
+        tfnewTV = false;
+      end
+      
+      if tfnewTV || existingTVvizInit
+        % might need to re-vizInit an existing trkVizer eg if number of trx 
+        % has changed, maxNanimals has changed, etc.      
+        if ~isempty(lObj.trackParams)
+          maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
+          maxNanimals = max(ceil(maxNanimals*1.5),10);
+        else
+          maxNanimals = 20;
+        end
+        % ntgtmax spec only used by tracklets currently
+        tv.vizInit('ntgtmax',maxNanimals);
+        tv.setHideViz(obj.hideViz);
+      end      
+      % eg don't call tv.vizInit() if i) it already existed ii) we are just
+      % updating the .trkP.
+      
+      tv.trkInit(obj.trkP);
     end
     function setHideViz(obj,tf)
-      if obj.lObj.maIsMA
-        obj.trkVizer.setAllShowHide(tf,tf,false);
-      else
+      if ~isempty(obj.trkVizer)
         obj.trkVizer.setHideViz(tf);
       end
       obj.hideViz = tf;
     end
     function setShowPredsCurrTargetOnly(obj,tf)
-      if obj.lObj.maIsMA
-        % none
-        % warningNoTrace('This option does not apply to multi-animal projects.');
-      else
+      if ~isempty(obj.trkVizer)
         obj.trkVizer.setShowOnlyPrimary(tf);
       end
       obj.showPredsCurrTargetOnly = tf;
@@ -5492,13 +5508,7 @@ classdef DeepTracker < LabelTracker
       if lObj.isinit || ~lObj.hasMovie || isempty(tv)
         return;
       end
-      
-      if lObj.maIsMA
-        tv.newFrame(lObj.currFrame);
-      else
-        [tfhaspred,xy,tfocc] = obj.getTrackingResultsCurrFrm();
-        tv.updateTrackRes(xy,tfocc);
-      end
+      tv.newFrame(lObj.currFrame);
     end
     function newLabelerTarget(obj)
       if ~obj.lObj.maIsMA && ~isempty(obj.trkVizer)
@@ -5507,16 +5517,17 @@ classdef DeepTracker < LabelTracker
       end
     end
     function newLabelerMovie(obj)
-      if ~obj.lObj.maIsMA && obj.lObj.hasTrx
-        % in this case, the number of targets (trx) can vary by movie and
-        % currently .trkVizer (TrackingVisualizerMT) needs to be updated
-        % for the number of targets
-        obj.vizInit(); 
-      end
+%       if ~obj.lObj.maIsMA && obj.lObj.hasTrx
+%         % in this case, the number of targets (trx) can vary by movie and
+%         % currently .trkVizer (TrackingVisualizerMT) needs to be updated
+%         % for the number of targets
+%         obj.vizInit(); 
+%       end
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
       end
+      obj.vizInit();
     end
   end
   

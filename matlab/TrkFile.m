@@ -30,6 +30,7 @@ classdef TrkFile < dynamicprops
     endframes
     frm2tlt  % [nfrmtot x ntgt] logical indicating frames where tracklets 
              % are live.
+    frm2tltnnz % nnz(frm2tlt)
     npts
   end
   properties (Dependent)
@@ -754,6 +755,11 @@ classdef TrkFile < dynamicprops
       if nargin < 2
         nfrm = max(obj.endframes);
       end
+      
+      if size(obj.frm2tlt,1)==nfrm && ~isempty(obj.frm2tltnnz)
+        warningNoTrace('frm2tlt maybe already initted.');
+      end
+      
       ntgt = numel(obj.pTrk);
       f2t = false(nfrm,ntgt);
       sf = obj.startframes;
@@ -762,6 +768,7 @@ classdef TrkFile < dynamicprops
         f2t(sf(j):ef(j),j) = true;
       end
       obj.frm2tlt = f2t;
+      obj.frm2tltnnz = nnz(f2t); % number of live (frm,tlt) pairs
     end
     
     % TODO: consider API that excludes ~tfhaspred vals
