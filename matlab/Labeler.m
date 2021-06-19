@@ -11219,25 +11219,9 @@ classdef Labeler < handle
       end
     end
     
-    function trackLabelMontage(obj,tbl,errfld,varargin)
-      [nr,nc,h,npts,nphyspts,nplot,frmlblclr,frmlblbgclr] = myparse(varargin,...
-        'nr',3,...
-        'nc',4,...
-        'hPlot',[],...
-        'npts',obj.nLabelPoints,... % hack
-        'nphyspts',obj.nPhysPoints,... % hack
-        'nplot',height(tbl),... % show/include nplot worst rows
-        'frmlblclr',[1 1 1], ...
-        'frmlblbgclr',[0 0 0] ...
-        );
-      
-      if nplot>height(tbl)
-        warningNoTrace('''nplot'' argument too large. Only %d GT rows are available.',height(tbl));
-        nplot = height(tbl);
-      end
-      
-      tbl = sortrows(tbl,{errfld},{'descend'});
-      tbl = tbl(1:nplot,:);
+    % [tbl,I,tfReadFailed] = trackLabelMontageProcessData(obj,tbl)      
+    % Process tbl data for montage plotting
+    function [tbl,I,tfReadFailed] = trackLabelMontageProcessData(obj,tbl)      
       
       tbl = obj.preProcCropLabelsToRoiIfNec(tbl,...
         'doRemoveOOB',false,...
@@ -11275,7 +11259,32 @@ classdef Labeler < handle
         % Would be better to include with "blank" image
       end
       
-      I = ppdata.I(ppdataIdx,:);    
+      I = ppdata.I(ppdataIdx,:);  
+      
+    end
+    
+    function trackLabelMontage(obj,tbl,errfld,varargin)
+      [nr,nc,h,npts,nphyspts,nplot,frmlblclr,frmlblbgclr] = myparse(varargin,...
+        'nr',3,...
+        'nc',4,...
+        'hPlot',[],...
+        'npts',obj.nLabelPoints,... % hack
+        'nphyspts',obj.nPhysPoints,... % hack
+        'nplot',height(tbl),... % show/include nplot worst rows
+        'frmlblclr',[1 1 1], ...
+        'frmlblbgclr',[0 0 0] ...
+        );
+      
+      if nplot>height(tbl)
+        warningNoTrace('''nplot'' argument too large. Only %d GT rows are available.',height(tbl));
+        nplot = height(tbl);
+      end
+      
+      tbl = sortrows(tbl,{errfld},{'descend'});
+      tbl = tbl(1:nplot,:);
+      
+      [tbl,I,tfReadFailed] = obj.trackLabelMontageProcessData(tbl);
+
       tblPostRead = tbl(:,{'pLbl' 'pTrk' 'mov' 'frm' 'iTgt' errfld});
       tblPostRead(tfReadFailed,:) = [];
     
