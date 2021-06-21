@@ -424,7 +424,7 @@ classdef Labeler < handle
     lblCore; % init: L
   end
   properties
-    labeledpos2trkViz % scalar TrackingVisualizerMT
+    labeledpos2trkViz % scalar TrackingVisualizer*, or [] if no imported results for currMovie
   end
   
   properties
@@ -3721,9 +3721,11 @@ classdef Labeler < handle
           else                      
             tfo = TrkFile(s.cfg.NumLabelPoints,zeros(0,1));
           end
-          tfo.initFrm2Tlt(s.movieInfoAll{i}.nframes);
+%           tfo.initFrm2Tlt(s.movieInfoAll{i}.nframes);
           s.labels2{i} = tfo;
         end
+        % 20210618: update frm2tltnnz even for existing TrkFiles
+        s.labels2{i}.initFrm2Tlt(s.movieInfoAll{i}.nframes);
       end
       for i=1:numel(s.labels2GT)
         stmp = s.labels2GT{i};
@@ -3736,9 +3738,9 @@ classdef Labeler < handle
           else
             tfo = TrkFile(s.cfg.NumLabelPoints,zeros(0,1));
           end
-          tfo.initFrm2Tlt(s.movieInfoAllGT{i}.nframes);
           s.labels2GT{i} = tfo;
         end
+        s.labels2GT{i}.initFrm2Tlt(s.movieInfoAllGT{i}.nframes);
       end
     end
     function s = resetTrkResFieldsStruct(s)
@@ -5775,13 +5777,19 @@ classdef Labeler < handle
     function setSkeletonEdges(obj,se)
       obj.skeletonEdges = se;
       obj.lblCore.updateSkeletonEdges();
-      obj.labeledpos2trkViz.initAndUpdateSkeletonEdges(se);
+      tv = obj.labeledpos2trkViz;
+      if ~isempty(tv)
+        tv.initAndUpdateSkeletonEdges(se);
+      end
     end
     function setShowSkeleton(obj,tf)
       tf = logical(tf);
       obj.showSkeleton = tf;
       obj.lblCore.updateShowSkeleton();
-      obj.labeledpos2trkViz.setShowSkeleton(tf);
+      tv = obj.labeledpos2trkViz;
+      if ~isempty(tv)
+        tv.setShowSkeleton(tf);
+      end
     end
     function setShowMaRoi(obj,tf)
       obj.showMaRoi = logical(tf);
@@ -7343,9 +7351,12 @@ classdef Labeler < handle
       
       obj.impPointsPlotInfo.Colors = colors;
       obj.impPointsPlotInfo.ColorMapName = colormapname;
-      lpos2tv = obj.labeledpos2trkViz;
       ptcolors = obj.Set2PointColors(colors);
-      lpos2tv.updateLandmarkColors(ptcolors);
+      
+      lpos2tv = obj.labeledpos2trkViz;
+      if ~isempty(lpos2tv)        
+        lpos2tv.updateLandmarkColors(ptcolors);
+      end
       for i=1:numel(obj.trkResViz)
         obj.trkResViz{i}.updateLandmarkColors(ptcolors);
       end
@@ -7399,10 +7410,12 @@ classdef Labeler < handle
       for i=1:numel(tAll)
         if ~isempty(tAll{i})
           tv = tAll{i}.trkVizer;
-          tv.setMarkerCosmetics(pvMarker);
-          tv.setTextCosmetics(pvText);
-          tv.setTextOffset(textOffset);
-          tv.setHideTextLbls(tfHideTxt);
+          if ~isempty(tv)
+            tv.setMarkerCosmetics(pvMarker);
+            tv.setTextCosmetics(pvText);
+            tv.setTextOffset(textOffset);
+            tv.setHideTextLbls(tfHideTxt);
+          end
         end
       end      
     end
@@ -7412,11 +7425,12 @@ classdef Labeler < handle
         pvMarker,pvText,'impPointsPlotInfo');      
       
       lpos2tv = obj.labeledpos2trkViz;
-      lpos2tv.setMarkerCosmetics(pvMarker);      
-      lpos2tv.setTextCosmetics(pvText);
-      lpos2tv.setTextOffset(textOffset);
-      lpos2tv.setHideTextLbls(tfHideTxt);
-      
+      if ~isempty(lpos2tv)
+        lpos2tv.setMarkerCosmetics(pvMarker);      
+        lpos2tv.setTextCosmetics(pvText);
+        lpos2tv.setTextOffset(textOffset);
+        lpos2tv.setHideTextLbls(tfHideTxt);
+      end      
       % Todo, set on .trkRes*
     end
 
@@ -10479,7 +10493,7 @@ classdef Labeler < handle
   
 
   %% Tracker
-  methods    
+  methods
     
     function [tObj,iTrk] = trackGetTracker(obj,algoName)
       % Find a particular tracker
@@ -11719,6 +11733,18 @@ classdef Labeler < handle
         end
       end
     end
+    
+    function tv = createTrackingVisualizer(obj,gfxTagPfix)
+      % Create TV appropriate to this proj
+      %
+      % gfxTagPfix: arbitrary id/prefix for graphics handle tags
+      
+      if obj.maIsMA
+        tv = TrackingVisualizerTracklets(obj,gfxTagPfix);
+      else
+        tv = TrackingVisualizerMT(obj,gfxTagPfix);
+      end
+    end
   end
   methods (Static)
     function edges = hlpParseCommaSepGraph(str)
@@ -11835,7 +11861,7 @@ classdef Labeler < handle
     end
     
   end
-  methods    
+  methods
     function tblBig = trackGetBigLabeledTrackedTable(obj,varargin)
       % tbl: MFT table indcating isLbled, isTrked, trkErr, etc.
       
@@ -13285,14 +13311,17 @@ classdef Labeler < handle
       
       f = obj.currFrame;
       tfLive = obj.frm2trx(f,:);
-      idxLive = find(tfLive);
-      idxLive = idxLive(:);
       %lpos = obj.labeledposCurrMovie;
       s = obj.labelsCurrMovie;      
       %tfLbled = arrayfun(@(x)any(lpos(:,1,f,x)),idxLive); % nans counted as 0
       itgtsLbled = Labels.isLabeledF(s,f);
-      tfLbled = false(size(idxLive));
-      tfLbled(itgtsLbled) = true; % tgLbled should remain same size (not be expanded)      
+      tfLbled = false(size(tfLive));
+      tfLbled(itgtsLbled) = true;
+      tfLbled = tfLbled(:);
+      
+      idxLive = find(tfLive);
+      idxLive = idxLive(:);
+      tfLbled = tfLbled(idxLive);
       ischange = true;
       tblTrxData = [idxLive,tfLbled]; %#ok<*PROP>
       if ~isempty(obj.tblTrxData),
@@ -14179,6 +14208,7 @@ classdef Labeler < handle
       PROPLBL2 = PROPS.LBL2;
       lbl2 = obj.(PROPLBL2);
       cellfun(@(x)x.clearTracklet(),lbl2);
+      obj.labels2TrkVizInit();
       obj.labels2VizUpdate();
       obj.notify('dataImported');
     end
@@ -14255,31 +14285,41 @@ classdef Labeler < handle
     
     function labels2TrkVizInit(obj,varargin)
       % Initialize trkViz for .labeledpos2, .trkRes*
-      
-      vizNtrxMax = myparse(varargin,...
-        'vizNtrxMax',20 ...
-        );
+%       
+%       vizNtrxMax = myparse(varargin,...
+%         'vizNtrxMax',20 ...
+%         );
       
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
         tv.delete();
+        obj.labeledpos2trkViz = [];
       end
-      if obj.maIsMA
-        tv = TrackingVisualizerTracklets(obj,vizNtrxMax,'labeledpos2');
-        iMov = obj.currMovie;
-        if iMov==0
-          % none
-        else
-          PROPS = obj.gtGetSharedProps();
-          s = obj.(PROPS.LBL2){iMov};
-          ptrx = load_tracklet(s);
-          ptrx = TrxUtil.ptrxAddXY(ptrx);
-          tv.vizInit(obj.nframes,ptrx);
-        end
+      
+      iMov = obj.currMovie;
+      if iMov == 0 % "no movie"
+        return
+      end
+      
+      trk = obj.labels2GTaware{iMov};
+      if trk.frm2tltnnz==0
+        % no imported labels for this mov
+        return;
+      end
+        
+      % We only create/init a tv if there are actually imported results for 
+      % the current movie. Otherwise, obj.labeledpos2trkViz will be [] 
+      % which optimizes browse speed.
+      tv = obj.createTrackingVisualizer('labeledpos2');      
+      if ~isempty(obj.trackParams)
+        maxNanimals = obj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
+        maxNanimals = max(ceil(maxNanimals*1.5),10);
       else
-        tv = TrackingVisualizerMT(obj,'labeledpos2');
-        tv.vizInit();
+        maxNanimals = 20;
       end
+      % ntgtmax spec only used by tracklets currently
+      tv.vizInit('ntgtmax',maxNanimals);
+      tv.trkInit(trk);
       obj.labeledpos2trkViz = tv;
     end
     
@@ -14305,6 +14345,9 @@ classdef Labeler < handle
             
       iTgt = obj.currTarget;
       tv = obj.labeledpos2trkViz;
+      if isempty(tv)
+        return;
+      end
       
       if setlbls
         iMov = obj.currMovie;
@@ -14369,7 +14412,9 @@ classdef Labeler < handle
       txtprops = obj.impPointsPlotInfo.TextProps;
       tfHideTxt = strcmp(txtprops.Visible,'off');      
       tv = obj.labeledpos2trkViz;
-      tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly);
+      if ~isempty(tv)
+        tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly);
+      end
     end
     
     function labels2VizShow(obj)

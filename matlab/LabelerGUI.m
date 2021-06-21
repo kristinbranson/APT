@@ -763,6 +763,7 @@ listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOcclud
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 % listeners{end+1,1} = addlistener(lObj,'showPredTxtLbl','PostSet',@cbkShowPredTxtLblChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
+listeners{end+1,1} = addlistener(lObj,'currTracker','PreSet',@cbkCurrTrackerPreChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
@@ -2537,7 +2538,6 @@ if ischange,
   end
 end
 
-
 function cbkTrackersAllChanged(src,evt)
 lObj = evt.AffectedObject;
 if lObj.isinit
@@ -2547,7 +2547,18 @@ end
 handles = lObj.gdata;
 handles = setupAvailTrackersMenu(handles,lObj.trackersAll);
 guidata(handles.figure,handles);
+cellfun(@deactivate,lObj.trackersAll);
 cbkCurrTrackerChanged([],evt); % current tracker object depends on lObj.trackersAll
+
+function cbkCurrTrackerPreChanged(src,evt)
+lObj = evt.AffectedObject;
+if lObj.isinit
+  return;
+end 
+tObj = lObj.tracker;
+if ~isempty(tObj)
+  tObj.deactivate();
+end
 
 function cbkCurrTrackerChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -2562,6 +2573,7 @@ iTrker = lObj.currTracker;
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
 % tracker changed, update tracker info
 if ~isempty(tObj),
+  tObj.activate();
   tObj.updateTrackerInfo();
 end
 handles.labelTLInfo.setTracker(tObj);

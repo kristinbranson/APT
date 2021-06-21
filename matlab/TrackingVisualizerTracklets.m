@@ -1,4 +1,4 @@
-classdef TrackingVisualizerTracklets < handle
+classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   % Tracket visualization
   % - landmarks via TVMT
   % - trx/target label via tvtrx
@@ -36,25 +36,42 @@ classdef TrackingVisualizerTracklets < handle
   end
   
   methods
-    function obj = TrackingVisualizerTracklets(lObj,ntrxmax,handleTagPfix)
+    function obj = TrackingVisualizerTracklets(lObj,handleTagPfix)
       obj.tvmt = TrackingVisualizerMT(lObj,handleTagPfix);
       obj.tvtrx = TrackingVisualizerTrx(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
-      obj.ntrxmax = ntrxmax;
+      obj.ntrxmax = 0;
       
       obj.currTrklet = nan;
-      obj.iTrxViz2iTrx = zeros(ntrxmax,1);
+      obj.iTrxViz2iTrx = zeros(obj.ntrxmax,1);
       obj.hud = lObj.currImHud;
       obj.lObj = lObj;
     end
-    function vizInit(obj,nfrmmax,ptrxs,varargin)
-      ntgt = obj.ntrxmax;
-      obj.tvmt.vizInit('ntgts',ntgt);
-      obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgt);
+    function vizInit(obj,varargin)
+      ntgtmax = myparse(varargin,...
+        'ntgtmax',20 ...
+        );
+      
+      obj.ntrxmax = ntgtmax;
+      obj.iTrxViz2iTrx = zeros(obj.ntrxmax,1);
+      obj.tvmt.vizInit('ntgts',ntgtmax);
+      obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgtmax);
       obj.hud.updateReadoutFields('hasTrklet',true);
+    end
+    function trkInit(obj,trk)      
+      assert(isscalar(trk) && isa(trk,'TrkFile'));
+      % for tracklets, currently single-view
+      
+      %trk.initFrm2Tlt(obj.lObj.nframes);
+      
+      % trk.frm2tlt should already be initted
+      assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
+      
+      ptrxs = load_tracklet(trk);
+      ptrxs = TrxUtil.ptrxAddXY(ptrxs);
       obj.ptrx = ptrxs;
-      obj.frm2trx = Labeler.trxHlpComputeF2t(nfrmmax,ptrxs);
+      obj.frm2trx = trk.frm2tlt;
     end
     function newFrame(obj,frm)
       % find live tracklets
@@ -125,8 +142,15 @@ classdef TrackingVisualizerTracklets < handle
     function updatePrimary(obj,iTgtPrimary)
       % todo; currently no pred/target selection
     end
+    function setShowOnlyPrimary(obj,tf)
+      % none
+    end
     function setShowSkeleton(obj,tf)
       obj.tvmt.setShowSkeleton(tf);
+    end
+    function setHideViz(obj,tf)
+      % xxx landmarks only
+      obj.tvmt.setHideViz(tf);
     end
     function setAllShowHide(obj,tfHide,tfHideTxt,tfShowCurrTgtOnly)
       % xxx landmarks only

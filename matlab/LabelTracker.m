@@ -43,11 +43,7 @@ classdef LabelTracker < handle
     
     lastTrainStats = []; % struct with information about the last training for visualization
     
-    hLCurrMovie; % listener to lObj.currMovie
-    hLCurrFrame; % listener to lObj.currFrame
-    hLCurrTarget; % listener to lObj.currTarget
-    hLMovieRemoved % " lObj/movieRemoved
-    hLMoviesReordered % "
+    hListeners; % cell vec of Labeler listeners
   end  
   
   properties (SetObservable,SetAccess=protected)
@@ -70,11 +66,14 @@ classdef LabelTracker < handle
       end
       obj.trkVizInterpolate = val;
       
-      obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
-      %obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
-      obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
-      obj.hLMovieRemoved = addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
-      obj.hLMoviesReordered = addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
+      listeners = { ...
+        addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
+        %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
+        addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
+        addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
+        addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
+        };
+      obj.hListeners = listeners;
     end
     
     function init(obj)
@@ -84,22 +83,20 @@ classdef LabelTracker < handle
     end
         
     function delete(obj)
-      if ~isempty(obj.hLCurrMovie)
-        delete(obj.hLCurrMovie);
-      end
-      if ~isempty(obj.hLCurrFrame)
-        delete(obj.hLCurrFrame);
-      end
-      if ~isempty(obj.hLCurrTarget)
-        delete(obj.hLCurrTarget);
-      end
-      if ~isempty(obj.hLMovieRemoved)
-        delete(obj.hLMovieRemoved);
-      end
-      if ~isempty(obj.hLMoviesReordered)
-        delete(obj.hLMoviesReordered);
-      end      
+      obj.deleteListeners();
     end    
+    
+    function deleteListeners(obj)
+      cellfun(@delete,obj.hListeners);
+      obj.hListeners = cell(0,1);
+    end
+    
+    function setEnableListeners(obj,val)
+      hs = obj.hListeners;
+      for i=1:numel(hs)
+        hs{i}.Enabled = val;
+      end
+    end
 	
   end
   
@@ -314,6 +311,15 @@ classdef LabelTracker < handle
       % For DL tracker portability across save/load
       
       % none
+    end
+    
+    function deactivate(obj)
+      % called when a tracker is no longer active. for performance      
+      obj.setEnableListeners(false);      
+    end
+    
+    function activate(obj)
+      obj.setEnableListeners(true);
     end
     
   end

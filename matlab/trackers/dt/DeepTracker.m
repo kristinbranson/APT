@@ -190,11 +190,20 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     nPts % number of label points     
     nview 
-    %hasTrained
   end
   
   properties
     trkVizer % scalar TrackingVisualizer
+    
+    % *Tracking results and viz*
+    % For optimization, trkVizer is not created until/when there are
+    % tracking results (trkP) to display. Various states:
+    % - trkP=[], trkVizer=[].
+    % - trkP nonempty, trkVizer=[] if DeepTracker is deactivated.
+    % - trkP nonempty, trkVizer nonempty.
+    % 
+    % vizInit() create/initializes trkVizer (or deletes an existing 
+    % trkVizer) based on trkP.    
   end
   
   events
@@ -277,20 +286,8 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
       obj.bgTrkMonitor = [];
       obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
-      
-      tvtagpfix = sprintf('dt_%s',obj.algorithmName);
-      if lObj.maIsMA
-        % semi-hack here; unclear what to do
-        if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
-          maxNanimals = max(ceil(maxNanimals*1.5),10);        
-        else
-          maxNanimals = 20;
-        end
-        obj.trkVizer = TrackingVisualizerTracklets(lObj,maxNanimals,'matrack');
-      else
-        obj.trkVizer = TrackingVisualizerMT(lObj,tvtagpfix);
-      end
+
+      obj.trkVizer = []; 
       obj.skip_dlgs = false;
     end
     function delete(obj)
@@ -306,6 +303,15 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResInit();
       obj.vizInit();
       obj.updateTrackerInfo();
+    end
+    function deactivate(obj)
+      deactivate@LabelTracker(obj);
+      delete(obj.trkVizer);
+      obj.trkVizer = [];
+    end
+    function activate(obj)
+      activate@LabelTracker(obj);
+      obj.vizInit(false);
     end
   end
   
@@ -484,7 +490,7 @@ classdef DeepTracker < LabelTracker
       
       obj.dryRunOnly = false;
       
-      obj.setHideViz(s.hideViz);
+%      obj.setHideViz(s.hideViz);
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end
@@ -3856,11 +3862,14 @@ classdef DeepTracker < LabelTracker
           obj.trkPostProcIfNec(mIdx(i),trkfiles);
           obj.trackResAddTrkfile(mIdx(i),trkfiles);
           if mIdx(i)==obj.lObj.currMovIdx
-            obj.trackCurrResUpdate();
+            obj.trackCurrResUpdate(); % calls vizInit(false)
             if obj.lObj.maIsMA
               % For MA, for now we automatically jump to the startframe for 
               % the first tracklet; and we select it. This enables the 
               % Tracklet HUD and timeline.
+              %
+              % bit of a hack here as special-casing and end-running
+              % TrackingVisualizerBase api.
               tv = obj.trkVizer;
               if isempty(tv.ptrx)
                 obj.newLabelerFrame();
@@ -4600,220 +4609,6 @@ classdef DeepTracker < LabelTracker
       
       codestr = String.cellstr2DelimList(code,' ');
     end
-    function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
-        movtrk,... % either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
-        outtrk,... % either char of [nviewx1] cellstr; or [nmov] in "serial mode"
-        frm0,frm1,... % (opt) can be empty. these should prob be in optional P-Vs
-        varargin)
-      
-      % Serial mode: 
-      % - movtrk is [nmov] array
-      % - outtrk is [nmov] array
-      % - trxtrk is unsupplied, or [nmov] array
-      % - view is a *scalar* and *must be supplied*
-      % - croproi is unsupplied, or [xlo1 xhi1 ylo1 yhi1 xlo2 ... yhi_nmov] or row vec of [4*nmov]
-      % - model_file is unsupplied, or [1] cellstr, or [nmov] cellstr      
-      
-      [listfile,cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
-        updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,tfserialmode] = ...
-        myparse_nocheck(varargin,...
-        'listfile','',...
-        'cache',[],... % (opt) cachedir
-        'trxtrk','',... % (opt) trxfile for movtrk to be tracked 
-        'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
-        'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
-        'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive). can be [nview x 4] for multiview
-        'hmaps',false,...% (opt) if true, generate heatmaps
-        'deepnetroot',APT.getpathdl,...
-        'model_file',[], ... % can be [nview] cellstr
-        'log_file',[],... (opt)
-        'updateWinPaths2LnxContainer',ispc, ... % if true, all paths will be massaged from win->lnx for use in container 
-        'lnxContainerMntLoc','/mnt',... % used when updateWinPaths2LnxContainer==true
-        'filesep','/',...
-        'filequote','\"',... % quote char used to protect filenames/paths.
-                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-                        ... % is expected to wrap in enclosing regular double-quotes " !!
-        'serialmode', false ...  % see serialmode above
-        );
-     
-      tflistfile = ~isempty(listfile);
-      tffrm = ~tflistfile && ~isempty(frm0) && ~isempty(frm1);
-      if tffrm, % ignore frm if it doesn't limit things
-        if all(frm0 == 1) && all(isinf(frm1)),
-          tffrm = false;
-        end
-      end
-      tfcache = ~isempty(cache);
-      tftrx = ~tflistfile && ~isempty(trxtrk);
-      tftrxids = ~tflistfile && ~isempty(trxids);
-      tfview = ~isempty(view);
-      tfcrop = ~isempty(croproi) && ~all(any(isnan(croproi),2),1);
-      tfmodel = ~isempty(model_file);
-      tflog = ~isempty(log_file);
-      
-      torchhome = APT.torchhome;
-
-      isMA = nettype.isMultiAnimal;
-      if isMA
-        assert(~tftrx);
-        [trnpack,dllblID] = fileparts(dllbl); 
-        %trnjson = fullfile(trnpack,'loc.json');
-        dllbljson = fullfile(trnpack,[dllblID '.json']);
-        dlj = readtxtfile(dllbljson);
-        dlj = jsondecode(dlj{1});
-        maPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal;
-        maxNanmls = maPrm.max_n_animals;
-        minNanmls = maPrm.min_n_animals;
-      end
-      
-      movtrk = cellstr(movtrk);
-      outtrk = cellstr(outtrk);
-      if tftrx
-        trxtrk = cellstr(trxtrk);
-      end
-      if tfmodel
-        model_file = cellstr(model_file);
-      end
-      
-      if tfserialmode
-        nmovserialmode = numel(movtrk);
-        assert(numel(outtrk)==nmovserialmode);
-        if tftrx
-          assert(numel(trxtrk)==nmovserialmode);
-        end
-        assert(isscalar(view),'A scalar view must be specified for serial-mode.');
-        if tfcrop
-          szassert(croproi,[nmovserialmode 4]);
-        end
-        if tfmodel
-          if isscalar(model_file)
-            model_file = repmat(model_file,nmovserialmode,1);
-          else
-            assert(numel(model_file)==nmovserialmode);
-          end
-        end        
-      else
-        if tfview % view specified. track a single movie
-          nview = 1;
-          assert(isscalar(view));
-          if tftrx
-            assert(isscalar(trxtrk));
-          end
-        else
-          nview = numel(movtrk);
-          if nview>1
-            assert(~tftrx && ~tftrxids,'Trx not supported for multiple views.');
-          end
-        end
-        assert(isequal(nview,numel(movtrk),numel(outtrk)));
-        if tfmodel
-          assert(numel(model_file)==nview);
-        end
-        if tfcrop
-          szassert(croproi,[nview 4]);
-        end      
-      end
-      
-      assert(~(tftrx && tfcrop));
-      aptintrf = [deepnetroot fs 'APT_interface.py'];
-      
-      if updateWinPaths2LnxContainer
-        fcnPathUpdate = @(x)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,lnxContainerMntLoc);
-        aptintrf = fcnPathUpdate(aptintrf);
-
-        movtrk = cellfun(fcnPathUpdate,movtrk,'uni',0);
-        outtrk = cellfun(fcnPathUpdate,outtrk,'uni',0);
-        if tftrx
-          trxtrk = cellfun(fcnPathUpdate,trxtrk,'uni',0);
-        end
-        if tfmodel
-          model_file = cellfun(fcnPathUpdate,model_file,'uni',0);
-        end
-        if tflog
-          log_file = fcnPathUpdate(log_file);
-        end
-        if tfcache
-          cache = fcnPathUpdate(cache);
-        end
-        errfile = fcnPathUpdate(errfile);
-        dllbl = fcnPathUpdate(dllbl);
-      end
-      
-      codestr = {'python' [filequote aptintrf filequote] '-name' trnID};
-      codestr = [...
-          ['TORCH_HOME=' filequote torchhome filequote] ...
-          codestr ...
-          ];
-      if tfview
-        codestr = [codestr {'-view' num2str(view)}]; % view: 1-based for APT_interface
-      end
-      if tfcache
-        codestr = [codestr {'-cache' [filequote cache filequote]}];
-      end
-      codestr = [codestr {'-err_file' [filequote errfile filequote]}];
-      if tfmodel
-        codestr = [codestr {'-model_files' ...
-                            DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote)}];
-      end
-      if tflog
-        codestr = [codestr {'-log_file' [filequote log_file filequote]}];
-      end
-      if isMA
-        conf_params = { ...
-          '-conf_params' ...
-          'is_multi' 'True' ...
-          'max_n_animals' num2str(maxNanmls) ...
-          'min_n_animals' num2str(minNanmls) ...
-          'batch_size' num2str(1) ...
-          };
-        codestr = [codestr conf_params];        
-      end
-      codestr = [codestr {'-type' char(nettype) ...
-                          [filequote dllbl filequote] ...
-                          'track' ...
-                          '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
-      if tflistfile
-        codestr = [codestr {'-list_file' [filequote listfile filequote]}];
-      else
-        codestr = [codestr {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(movtrk,filequote)}];
-      end
-      if tffrm
-        frm0(isnan(frm0)) = 1;
-        frm1(isinf(frm1)|isnan(frm1)) = -1;
-        frm0 = round(frm0); % fractional frm0/1 errs in APT_interface due to argparse type=int
-        frm1 = round(frm1); % just round silently for now        
-        sfrm0 = sprintf('%d ',frm0); sfrm0 = sfrm0(1:end-1);
-        sfrm1 = sprintf('%d ',frm1); sfrm1 = sfrm1(1:end-1);
-        codestr = [codestr {'-start_frame' sfrm0 '-end_frame' sfrm1}];
-      end
-      if tftrx
-        codestr = [codestr {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(trxtrk,filequote)}];
-        if tftrxids
-          if ~iscell(trxids),
-            trxids = {trxids};
-          end
-          for i = 1:numel(trxids),
-            trxidstr = sprintf('%d ',trxids{i});
-            trxidstr = trxidstr(1:end-1);
-            codestr = [codestr {'-trx_ids' trxidstr}]; %#ok<AGROW>
-          end
-        end
-      end
-      if tfcrop
-        croproi = round(croproi);
-        croproirowvec = croproi';
-        croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode
-        roistr = mat2str(croproirowvec);
-        roistr = roistr(2:end-1);
-        codestr = [codestr {'-crop_loc' roistr}];
-      end
-      if hmaps
-        codestr = [codestr {'-hmaps'}];
-      end
-      
-      codestr = String.cellstr2DelimList(codestr,' ');
-    end
-    
     function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
       
       [trxfileRem,isWinBackend] = myparse(varargin,...
@@ -4969,7 +4764,7 @@ classdef DeepTracker < LabelTracker
     
     function [codestr,containerName] = trackCodeGenDocker(backend,...
         trnID,cache,dllbl,errfile,...
-        nettype,movtrk,outtrk,frm0,frm1,varargin)
+        nettype,netmode,movtrk,outtrk,frm0,frm1,varargin)
 
       % varargin: see trackCodeGenBase, except for 'cache' and 'view'
       
@@ -4978,7 +4773,7 @@ classdef DeepTracker < LabelTracker
       
       baseargs = [{'cache' cache} baseargs];
       filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
+      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,netmode,...
         movtrk,outtrk,frm0,frm1,baseargs{:},'filequote',filequote);
 
       if isempty(containerName),
@@ -5008,7 +4803,7 @@ classdef DeepTracker < LabelTracker
       addnlbaseargs = {'cache' cache 'filequote' '"' 'updateWinPaths2LnxContainer' false};
       baseargs = [addnlbaseargs baseargs];
         
-      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
+      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,outtrk,frm0,frm1,baseargs{:});
       if ~isempty(outfile),
         basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
@@ -5026,7 +4821,7 @@ classdef DeepTracker < LabelTracker
         'logFile','/dev/null'...
       ); 
       
-      basecode = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,...
+      basecode = APTInterf.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,...
         frm0,frm1,baseargs{:});
       if ~isempty(cudaVisDevice)
         cudaDeviceStr = ...
@@ -5046,7 +4841,7 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
+      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,outtrk,frm0,frm1,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
@@ -5109,7 +4904,7 @@ classdef DeepTracker < LabelTracker
       
       deepnetroot = '/home/ubuntu/APT/deepnet';
       baseargs = [baseargs {'cache' cacheRemote}];
-      codestrbase = DeepTracker.trackCodeGenBase(trnID,dlLblRemote,...
+      codestrbase = APTInterf.trackCodeGenBase(trnID,dlLblRemote,...
         errfileRemote,netType,movRemoteFull,trkRemoteFull,frm0,frm1,...
         'deepnetroot',deepnetroot,baseargs{:});
       
@@ -5286,7 +5081,11 @@ classdef DeepTracker < LabelTracker
     function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
       lo = obj.lObj;
       if lo.maIsMA
-        iTgt = obj.trkVizer.currTrklet;
+        if ~isempty(obj.trkVizer)
+          iTgt = obj.trkVizer.currTrklet;
+        else
+          iTgt = [];
+        end
       else
         iTgt = lo.currTarget;
       end
@@ -5414,16 +5213,8 @@ classdef DeepTracker < LabelTracker
       obj.trackResInit();
       obj.trackCurrResInit();
       % deleting old tracking results, so can switch to new tracker info
-      obj.updateTrackerInfo();
-
-%       for i = 1:numel(trkFilesToDelete),
-%         delete(trkFilesToDelete{i});
-%         if exist(trkFilesToDelete{i},'file'),
-%           warning('Failed to delete trk file %s',trkFilesToDelete{i});
-%         end
-%       end
-      
-      
+      obj.vizInit();
+      obj.updateTrackerInfo();      
     end
     
     function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile,ivw)
@@ -5575,9 +5366,8 @@ classdef DeepTracker < LabelTracker
     function trackCurrResInit(obj)
       % Assumes that .trnNetType is set
       obj.trkP = [];
-      %obj.trkPTS = zeros(0,1);
-      %obj.trkAux = [];
-      %obj.trkAuxLbl = {obj.trnNetType.trkAuxFlds.label}';
+      % all calls to trackCurrResInit should be followed by calls to
+      % vizInit() to destroy trkVizer.
     end
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
@@ -5593,13 +5383,10 @@ classdef DeepTracker < LabelTracker
         trk1 = trks{1};
         trk1.initFrm2Tlt(obj.lObj.nframes);
         obj.trkP = trk1;
-        if obj.lObj.maIsMA
-          ptrx = load_tracklet(trk1);
-          ptrx = TrxUtil.ptrxAddXY(ptrx);
-          obj.trkVizer.vizInit(obj.lObj.nframes,ptrx);
-        end        
+        obj.vizInit(false);
       else
         obj.trackCurrResInit();
+        obj.vizInit();
       end
       notify(obj,'newTrackingResults');
     end
@@ -5645,30 +5432,61 @@ classdef DeepTracker < LabelTracker
     
   %% Viz
   methods
-    function vizInit(obj)
-      if obj.lObj.maIsMA 
-        if ~obj.lObj.isinit && obj.lObj.hasMovie
-          ptrx0 = TrxUtil.newptrx(0,0);
-          obj.trkVizer.vizInit(obj.lObj.nframes,ptrx0);
-        end
-      else
-        obj.trkVizer.vizInit();
+    function vizInit(obj,existingTVvizInit)
+      % - if .trkP is empty, deletes .trkVizer and returns.
+      % - if .trkVizer is empty:
+      %     - creates one
+      %     - calls trkVizer.vizInit
+      % - if .trkVizer existed, call vizInit() if existingTVvizInit==true.
+      % - call trkVizer.trkInit() on current .trkP.
+      
+      if isempty(obj.trkP)
+        delete(obj.trkVizer);
+        obj.trkVizer = [];
+        return;
       end
-      obj.setHideViz(obj.hideViz);
+      
+      if nargin < 2
+        existingTVvizInit = true;
+      end
+      
+      lObj = obj.lObj;
+      tv = obj.trkVizer;
+      if isempty(tv)
+        tvtagpfix = sprintf('dt_%s',obj.algorithmName);
+        tv = lObj.createTrackingVisualizer(tvtagpfix);        
+        obj.trkVizer = tv;
+        tfnewTV = true;
+      else
+        tfnewTV = false;
+      end
+      
+      if tfnewTV || existingTVvizInit
+        % might need to re-vizInit an existing trkVizer eg if number of trx 
+        % has changed, maxNanimals has changed, etc.      
+        if ~isempty(lObj.trackParams)
+          maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
+          maxNanimals = max(ceil(maxNanimals*1.5),10);
+        else
+          maxNanimals = 20;
+        end
+        % ntgtmax spec only used by tracklets currently
+        tv.vizInit('ntgtmax',maxNanimals);
+        tv.setHideViz(obj.hideViz);
+      end      
+      % eg don't call tv.vizInit() if i) it already existed ii) we are just
+      % updating the .trkP.
+      
+      tv.trkInit(obj.trkP);
     end
     function setHideViz(obj,tf)
-      if obj.lObj.maIsMA
-        obj.trkVizer.setAllShowHide(tf,tf,false);
-      else
+      if ~isempty(obj.trkVizer)
         obj.trkVizer.setHideViz(tf);
       end
       obj.hideViz = tf;
     end
     function setShowPredsCurrTargetOnly(obj,tf)
-      if obj.lObj.maIsMA
-        % none
-        % warningNoTrace('This option does not apply to multi-animal projects.');
-      else
+      if ~isempty(obj.trkVizer)
         obj.trkVizer.setShowOnlyPrimary(tf);
       end
       obj.showPredsCurrTargetOnly = tf;
@@ -5686,35 +5504,30 @@ classdef DeepTracker < LabelTracker
   methods
     function newLabelerFrame(obj)
       lObj = obj.lObj;
-      if lObj.isinit || ~lObj.hasMovie 
+      tv = obj.trkVizer;
+      if lObj.isinit || ~lObj.hasMovie || isempty(tv)
         return;
       end
-      
-      tv = obj.trkVizer;
-      if lObj.maIsMA
-        tv.newFrame(lObj.currFrame);
-      else
-        [tfhaspred,xy,tfocc] = obj.getTrackingResultsCurrFrm();
-        tv.updateTrackRes(xy,tfocc);
-      end
+      tv.newFrame(lObj.currFrame);
     end
     function newLabelerTarget(obj)
-      if ~obj.lObj.maIsMA
+      if ~obj.lObj.maIsMA && ~isempty(obj.trkVizer)
         iTgt = obj.lObj.currTarget;
         obj.trkVizer.updatePrimary(iTgt);
       end
     end
     function newLabelerMovie(obj)
-      if ~obj.lObj.maIsMA && obj.lObj.hasTrx
-        % in this case, the number of targets (trx) can vary by movie and
-        % currently .trkVizer (TrackingVisualizerMT) needs to be updated
-        % for the number of targets
-        obj.vizInit(); 
-      end
+%       if ~obj.lObj.maIsMA && obj.lObj.hasTrx
+%         % in this case, the number of targets (trx) can vary by movie and
+%         % currently .trkVizer (TrackingVisualizerMT) needs to be updated
+%         % for the number of targets
+%         obj.vizInit(); 
+%       end
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
       end
+      obj.vizInit();
     end
   end
   

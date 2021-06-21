@@ -466,8 +466,9 @@ classdef TrackJob < handle
       containerName = obj.id;
       baseargs = obj.getBaseArgs(baseargs);
 
-      fileargs = {obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem};
+      fileargs = {obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,...
+        obj.tObj.trnNetType,obj.tObj.trnNetMode,...
+        obj.movfileRem,obj.trkfileRem};
       switch obj.backend.type,
         
         case DLBackEnd.Bsub,
