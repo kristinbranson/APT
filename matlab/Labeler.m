@@ -3047,6 +3047,80 @@ classdef Labeler < handle
 %         obj.setFrame(1);
 %       end
     end
+    
+    function [nlabels,nlabelspermovie,nlabelspertarget] = getNLabels(obj,gt)
+      
+      if nargin < 2,
+        gt = false;
+      end
+      
+      if gt,
+        nmovies = obj.nmoviesGT;
+      else
+        nmovies = obj.nmovies;
+      end
+      nlabelspermovie = zeros(nmovies,1);
+      nlabelspertarget = cell(nmovies,1);
+      for i = 1:nmovies,
+        if gt,
+          nlabelspertarget{i} = squeeze(sum(any(any(~isnan(obj.labeledposGT{i}),1),2),3));
+        else
+          nlabelspertarget{i} = squeeze(sum(any(any(~isnan(obj.labeledpos{i}),1),2),3));
+        end
+        nlabelspermovie(i) = sum(nlabelspertarget{i});
+      end
+      nlabels = sum(nlabelspermovie);
+      
+    end
+    
+    function printInfo(lObj)
+      fprintf('Lbl file: %s\n',lObj.projectfile);
+      fprintf('Info printed: %s\n',datestr(now,'yyyymmddTHHMMSS'));
+
+      fprintf('Project type: ');
+      if lObj.labelMode == LabelMode.MULTIANIMAL,
+        fprintf('Multi-animal\n');
+      elseif lObj.hasTrx,
+        fprintf('Trx\n');
+      else
+        fprintf('Single-animal\n');
+      end
+
+      fprintf('Number of views: %d\n',lObj.nview);
+      
+      fprintf('Number of landmarks: %d\n',lObj.nPhysPoints);
+      
+      for i = 1:numel(lObj.trackersAll),
+        tObj = lObj.trackersAll{i};
+        if ~isprop(tObj,'trnLastDMC') || isempty(tObj.trnLastDMC),
+          continue;
+        end
+        fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
+        fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
+      end
+      
+      fprintf('Back-end: %s\n',char(lObj.trackDLBackEnd.type));
+      
+      fprintf('N. train movies: %d\n',lObj.nmovies);
+      [nlabels,nlabelspermovie,nlabelspertarget] = lObj.getNLabels();
+      fprintf('N. train labels: %d\n',nlabels);
+      fprintf('N. labeled train movies: %d\n',nnz(nlabelspermovie));
+      if lObj.hasTrx,
+        fprintf('N. labeled train trajectories: %d\n',sum(cellfun(@nnz,nlabelspertarget)));
+      end
+      
+      fprintf('N. GT movies: %d\n',lObj.nmoviesGT);
+      [nlabelsGT,nlabelspermovieGT,nlabelspertargetGT] = lObj.getNLabels(true);
+      fprintf('N. GT labels: %d\n',nlabelsGT);
+      fprintf('N. labeled GT movies: %d\n',nnz(nlabelspermovieGT));
+      if lObj.hasTrx,
+        fprintf('N. labeled GT trajectories: %d\n',sum(cellfun(@nnz,nlabelspertargetGT)));
+      end
+      
+      fprintf('Code info:\n');
+      fprintf(GetGitMatlabStatus(fileparts(mfilename('fullpath'))));
+      
+    end
             
   end
   
