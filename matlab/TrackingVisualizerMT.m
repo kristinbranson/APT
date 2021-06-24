@@ -246,7 +246,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function trkInit(obj,trk)
       assert(isscalar(trk) && isa(trk,'TrkFile'));
       % trk.frm2tlt should already be initted
-      assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
+      assert(trk.nframes==obj.lObj.nframes);
+      %assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
       obj.trk = trk;
     end
     function initSkeletonEdges(obj,sedges)

@@ -640,7 +640,8 @@ classdef LabelCoreSeqMA < LabelCore
         %fprintf('LabelCoreSeq.newFrameTarget 3: %f\n',toc(ticinfo));ticinfo = tic;
       else
         if iTgt~=0
-          fprintf(2,'Setting lObj.currTarget to 0\n');
+          % KB 20210624 - removed this warning, not sure what it was on about. this always happens when you add a new video in multianimal mode
+          %fprintf(2,'Setting lObj.currTarget to 0\n');
           lObj.setTargetMA(0);
         end
         obj.beginAcceptedReset();

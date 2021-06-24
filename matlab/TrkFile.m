@@ -28,9 +28,11 @@ classdef TrkFile < dynamicprops
     % tracklet stuff
     startframes 
     endframes
-    frm2tlt  % [nfrmtot x ntgt] logical indicating frames where tracklets 
-             % are live.
-    frm2tltnnz % nnz(frm2tlt)
+    nframes = TrkFile.unsetVal;
+    
+    %frm2tlt  % [nfrmtot x ntgt] logical indicating frames where tracklets 
+    %         % are live.
+    %frm2tltnnz % nnz(frm2tlt)
     npts
   end
   properties (Dependent)
@@ -245,6 +247,9 @@ classdef TrkFile < dynamicprops
       validateattributes(obj.pTrkFull,{'numeric'},...
         {'size' [npttrk 2 nRep nFull]},'','pTrkFull');
       assert(istable(obj.pTrkFullFT) && height(obj.pTrkFullFT)==nFull);      
+      
+      obj.nframes = nfrm;
+      
     end
     
     function initFromTableFull(obj,s,varargin)
@@ -385,8 +390,8 @@ classdef TrkFile < dynamicprops
     function clearTracklet(obj)
       assert(~obj.isfull);
       
-      tfInitFrm2Tlt = ~isequal(obj.frm2tlt,[]);
-      nfrm = size(obj.frm2tlt,1);
+      %tfInitFrm2Tlt = ~isequal(obj.frm2tlt,[]);
+      %nfrm = size(obj.frm2tlt,1);
       
       for i=1:obj.ntlts
         obj.startframes(i) = 0;
@@ -405,9 +410,9 @@ classdef TrkFile < dynamicprops
         end
       end
       
-      if tfInitFrm2Tlt
-        obj.initFrm2Tlt(nfrm);
-      end
+%       if tfInitFrm2Tlt
+%         obj.initFrm2Tlt(nfrm);
+%       end
     end
     
     function s = structizePrepSave(obj)
@@ -695,7 +700,8 @@ classdef TrkFile < dynamicprops
       % iTgts, start/endframes, etc.
       
       assert(~obj.isfull);
-      FLDSSAME = {'pTrkiPt' 'pTrkFrm' 'pTrkiTgt' 'frm2tlt'};
+      %FLDSSAME = {'pTrkiPt' 'pTrkFrm' 'pTrkiTgt' 'frm2tlt'};
+      FLDSSAME = {'pTrkiPt' 'pTrkFrm' 'pTrkiTgt'};
       FLDSMERG = obj.trkflds();
       FLDSMERG = FLDSMERG(:)';
       
@@ -744,31 +750,72 @@ classdef TrkFile < dynamicprops
       t = struct2table(s);
     end
     
+    function v = isalive(obj,f,itgt)
+      
+      
+      if obj.isfull,
+        % pTrk: [npttrked x 2 x nfrm x ntgt], like labeledpos
+        if nargin < 3 || isempty(itgt),
+          v = permute(any(any(~isnan(obj.pTrk(:,:,f,:)),1),2),[3,4,1,2]);
+        elseif isempty(f),
+          v = permute(any(any(~isnan(obj.pTrk(:,:,:,itgt)),1),2),[3,4,1,2]);
+        else
+          v = permute(any(any(~isnan(obj.pTrk(:,:,f,itgt)),1),2),[3,4,1,2]);
+        end
+        return;
+      end
+      
+      if nargin < 3 || isempty(itgt),
+        % all targets, v will be numel(f) x ntgts
+        v = f(:) >= obj.startframes & f(:) <= obj.endframes;
+      elseif isempty(f),
+        % all frames, v will be nframes x numel(itgt)
+        v = false(obj.nframes,numel(itgt));
+        for i = 1:numel(itgt),
+          v(i,obj.startframes(itgt(i)):obj.endframes(itgt(i))) = true;
+        end
+      else
+        % v will be numel(f) x numel(itgt)
+        v = f(:) >= obj.startframes(itgt) & f(:) <= obj.endframes(itgt);
+      end
+      
+    end
+    
+    function v = frm2tltnnz(obj)
+      if obj.isfull,
+        v = nnz(any(any(~isnan(obj.pTrk(:,:,f,:)),1),2));
+      else
+        v = sum(obj.endframes-obj.startframes+1);
+      end
+    end
+    
     function initFrm2Tlt(obj,nfrm)
       % Initialize .frm2tlt property; implicitly sets .T1 
       %
       % nfrm (opt). total number of frames, eg in movie. If not specified,
       % max(obj.endframes) is used.
-      
+
       assert(~obj.isfull);
       
       if nargin < 2
         nfrm = max(obj.endframes);
       end
       
-      if size(obj.frm2tlt,1)==nfrm && ~isempty(obj.frm2tltnnz)
-        warningNoTrace('frm2tlt maybe already initted.');
-      end
+      obj.nframes = nfrm;
       
-      ntgt = numel(obj.pTrk);
-      f2t = false(nfrm,ntgt);
-      sf = obj.startframes;
-      ef = obj.endframes;
-      for j=1:ntgt
-        f2t(sf(j):ef(j),j) = true;
-      end
-      obj.frm2tlt = f2t;
-      obj.frm2tltnnz = nnz(f2t); % number of live (frm,tlt) pairs
+%       if size(obj.frm2tlt,1)==nfrm && ~isempty(obj.frm2tltnnz)
+%         warningNoTrace('frm2tlt maybe already initted.');
+%       end
+%       
+%       ntgt = numel(obj.pTrk);
+%       f2t = false(nfrm,ntgt);
+%       sf = obj.startframes;
+%       ef = obj.endframes;
+%       for j=1:ntgt
+%         f2t(sf(j):ef(j),j) = true;
+%       end
+%       obj.frm2tlt = f2t;
+%       obj.frm2tltnnz = nnz(f2t); % number of live (frm,tlt) pairs
     end
     
     % TODO: consider API that excludes ~tfhaspred vals
@@ -781,7 +828,8 @@ classdef TrkFile < dynamicprops
       % xy: [npt x 2 x ntgt]
       % tfocc: [npt x ntgt]
       
-      tfhaspred = obj.frm2tlt(f,:).';
+      tfhaspred = obj.isalive(f).';
+      %tfhaspred = obj.frm2tlt(f,:).';
       itgtsLive = find(tfhaspred);
       npt = obj.npts;
       ntgt = numel(obj.pTrk);
@@ -811,7 +859,8 @@ classdef TrkFile < dynamicprops
       % xy: [npt x 2]
       % tfocc: [npt x 1]
       
-      tfhaspred = obj.frm2tlt(f,iTgt);
+      tfhaspred = obj.isalive(f,iTgt);
+      %tfhaspred = obj.frm2tlt(f,iTgt);
       if tfhaspred
         ptgt = obj.pTrk{iTgt};
         ptag = obj.pTrkTag{iTgt};
@@ -847,7 +896,8 @@ classdef TrkFile < dynamicprops
       
       ptrkI = obj.pTrk{iTlt};
       npts = size(ptrkI,1);
-      nfrm = size(obj.frm2tlt,1);
+      nfrm = obj.nframes;
+      %nfrm = size(obj.frm2tlt,1);
       xy = nan(npts,2,nfrm);
       occ = false(npts,nfrm);
       f0 = obj.startframes(iTlt);
@@ -870,7 +920,8 @@ classdef TrkFile < dynamicprops
         );
       
       npts = size(obj.pTrk{iTlt},1);
-      nfrm = size(obj.frm2tlt,1);
+      nfrm = obj.nframes;
+      %nfrm = size(obj.frm2tlt,1);
       xyaux = nan(npts,nfrm);
       
       if isprop(obj,ptrkfld)      

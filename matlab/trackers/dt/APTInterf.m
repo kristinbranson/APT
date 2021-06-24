@@ -259,10 +259,7 @@ classdef APTInterf
       codestr = String.cellstr2DelimList(code,' ');
     end
     
-    function [codestr,code] = trackCodeGenBase(trnID,dllbl,errfile,...
-        nettype,netmode,...
-        movtrk,... % either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
-        outtrk,... % either char of [nviewx1] cellstr; or [nmov] in "serial mode"
+    function [codestr,code] = trackCodeGenBase(fileinfo,...
         frm0,frm1,... % (opt) can be empty. these should prob be in optional P-Vs
         varargin)
       
@@ -273,6 +270,14 @@ classdef APTInterf
       % - view is a *scalar* and *must be supplied*
       % - croproi is unsupplied, or [xlo1 xhi1 ylo1 yhi1 xlo2 ... yhi_nmov] or row vec of [4*nmov]
       % - model_file is unsupplied, or [1] cellstr, or [nmov] cellstr      
+
+      trnID = fileinfo.trnID;
+      dllbl = fileinfo.dllbl;
+      errfile = fileinfo.errfile;
+      nettype = fileinfo.nettype;
+      netmode = fileinfo.netmode;
+      movtrk = fileinfo.movtrk; % either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
+      outtrk = fileinfo.outtrk; % either char of [nviewx1] cellstr; or [nmov] in "serial mode"
       
       [listfile,cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
         updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,tfserialmode] = ...

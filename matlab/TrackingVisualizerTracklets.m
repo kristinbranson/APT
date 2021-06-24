@@ -7,7 +7,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     tvmt % scalar TrackingVisualizerMT
     tvtrx % scalar TrackingVisualizerTrx
     ptrx % ptrx structure: has landmarks in addition to .x, .y
-    frm2trx % [nfrmmax] cell with frm2trx{f} giving iTgts (indices into 
+    %frm2trx % [nfrmmax] cell with frm2trx{f} giving iTgts (indices into 
       %.ptrx) that are live 
       % TEMPORARY using frm2trx logical array. cell will be more compact
       % but possibly slower
@@ -66,12 +66,17 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       %trk.initFrm2Tlt(obj.lObj.nframes);
       
       % trk.frm2tlt should already be initted
-      assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
+      assert(trk.nframes==obj.lObj.nframes);
+      %assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
       
       ptrxs = load_tracklet(trk);
       ptrxs = TrxUtil.ptrxAddXY(ptrxs);
       obj.ptrx = ptrxs;
-      obj.frm2trx = trk.frm2tlt;
+      %obj.frm2trx = trk.frm2tlt;
+    end
+    function iTrx = frm2trx(obj,frm)
+      assert(numel(frm)==1);
+      iTrx = find(obj.ptrx.firstframe>=frm & obj.ptrx.endframe<=frm);
     end
     function newFrame(obj,frm)
       % find live tracklets
@@ -81,11 +86,13 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         return;
       end
       
-      if isempty(obj.frm2trx)
-        iTrx = [];
-      else
-        iTrx = find(obj.frm2trx(frm,:));
-      end
+%       if isempty(obj.frm2trx)
+%         iTrx = [];
+%       else
+%         iTrx = find(obj.frm2trx(frm,:));
+%       end
+      iTrx = obj.frm2trx(frm); % remove refs to frm2trx
+      
       nTrx = numel(iTrx);
       if nTrx>obj.ntrxmax
         warningNoTrace('Too many targets to display (%d); showing first %d targets.',...

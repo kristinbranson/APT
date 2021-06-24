@@ -4762,9 +4762,7 @@ classdef DeepTracker < LabelTracker
         char(nettype),[filequote dllbl filequote],[filequote outfile filequote])];
     end    
     
-    function [codestr,containerName] = trackCodeGenDocker(backend,...
-        trnID,cache,dllbl,errfile,...
-        nettype,netmode,movtrk,outtrk,frm0,frm1,varargin)
+    function [codestr,containerName] = trackCodeGenDocker(fileinfo,frm0,frm1,varargin)
 
       % varargin: see trackCodeGenBase, except for 'cache' and 'view'
       
@@ -4773,8 +4771,7 @@ classdef DeepTracker < LabelTracker
       
       baseargs = [{'cache' cache} baseargs];
       filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,netmode,...
-        movtrk,outtrk,frm0,frm1,baseargs{:},'filequote',filequote);
+      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:},'filequote',filequote);
 
       if isempty(containerName),
         if iscell(outtrk),
@@ -4788,9 +4785,7 @@ classdef DeepTracker < LabelTracker
         'bindpath',mntPaths,dockerargs{:});
     end
     
-    function [codestr] = trackCodeGenConda(...
-        trnID,cache,dllbl,errfile,...
-        nettype,movtrk,outtrk,frm0,frm1,varargin)
+    function [codestr] = trackCodeGenConda(fileinfo,frm0,frm1,varargin)
 %         movtrk,outtrk,frm0,frm1,...
 %         modelChainID,trainID,dllbl,cache,errfile,netType,view1b,mntPaths,...
 %         varargin)
@@ -4800,11 +4795,10 @@ classdef DeepTracker < LabelTracker
       [baseargs,condaargs,outfile] = myparse(varargin,...
         'baseargs',{},'condaargs',{},'outfile','');
       
-      addnlbaseargs = {'cache' cache 'filequote' '"' 'updateWinPaths2LnxContainer' false};
+      addnlbaseargs = {'cache' fileinfo.cache 'filequote' '"' 'updateWinPaths2LnxContainer' false};
       baseargs = [addnlbaseargs baseargs];
         
-      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
-        movtrk,outtrk,frm0,frm1,baseargs{:});
+      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
       if ~isempty(outfile),
         basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
       end
@@ -4812,7 +4806,7 @@ classdef DeepTracker < LabelTracker
         condaargs{:});
     end
     
-    function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
+    function codestr = trackCodeGenVenv(fileinfo,frm0,frm1,varargin)
       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
         'baseargs',{},... % p-v cell for trackCodeGenBase
         'venvHost','10.103.20.155',... % host to run DL verman-ws1
@@ -4821,7 +4815,7 @@ classdef DeepTracker < LabelTracker
         'logFile','/dev/null'...
       ); 
       
-      basecode = APTInterf.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,...
+      basecode = APTInterf.trackCodeGenBase(fileinfo,...
         frm0,frm1,baseargs{:});
       if ~isempty(cudaVisDevice)
         cudaDeviceStr = ...
@@ -4836,38 +4830,33 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenSSHGeneral(codestrremote,...
         'host',venvHost,'logfile',logFile);
     end
-    function codestr = trackCodeGenSing(trnID,dllbl,errfile,nettype,...
-        movtrk,outtrk,frm0,frm1,varargin)
+    
+    function codestr = trackCodeGenSing(fileinfo,frm0,frm1,varargin)
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      basecmd = APTInterf.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
-        movtrk,outtrk,frm0,frm1,baseargs{:});
+      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
-    function codestr = trackCodeGenBsubSing(trnID,dllbl,errfile,nettype,...
-        movtrk,outtrk,frm0,frm1,varargin)
+    function codestr = trackCodeGenBsubSing(fileinfo,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{});
-      basecmd = DeepTracker.trackCodeGenSing(trnID,dllbl,errfile,nettype,...
-        movtrk,outtrk,frm0,frm1,'baseargs',baseargs,'singargs',singargs);
+      basecmd = DeepTracker.trackCodeGenSing(fileinfo,frm0,frm1,'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end
     
-    function codestr = trackCodeGenSSHBsubSing(trnID,cache,dllbl,errfile,...
-        nettype,movtrk,outtrk,frm0,frm1,varargin)
+    function codestr = trackCodeGenSSHBsubSing(fileinfo,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{},...
         'sshargs',{}...
         );
-      baseargs = [baseargs {'cache' cache}];      
+      baseargs = [baseargs {'cache' fileinfo.cache}];      
             
-      remotecmd = DeepTracker.trackCodeGenBsubSing(trnID,dllbl,errfile,...
-        nettype,movtrk,outtrk,frm0,frm1,...
+      remotecmd = DeepTracker.trackCodeGenBsubSing(fileinfo,frm0,frm1,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
@@ -4895,17 +4884,15 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end    
     function codestr = trackCodeGenAWS(...
-        trnID,cacheRemote,dlLblRemote,errfileRemote,netType,movRemoteFull,...
-        trkRemoteFull,frm0,frm1,baseargs)
+        fileinfo,frm0,frm1,baseargs)
       % movRemoteFull: can be cellstr when tracking all views
       % trkRemoteFull: "
       % 
       % baseargs: PV cell vector that goes to .trackCodeGenBase
       
       deepnetroot = '/home/ubuntu/APT/deepnet';
-      baseargs = [baseargs {'cache' cacheRemote}];
-      codestrbase = APTInterf.trackCodeGenBase(trnID,dlLblRemote,...
-        errfileRemote,netType,movRemoteFull,trkRemoteFull,frm0,frm1,...
+      baseargs = [baseargs {'cache' fileinfo.cache}];
+      codestrbase = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,...
         'deepnetroot',deepnetroot,baseargs{:});
       
       codestr = {

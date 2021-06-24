@@ -31,7 +31,7 @@ classdef Labeler < handle
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
-      'skeletonEdges' 'showSkeleton' 'showMaRoi' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
+      'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
       'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
@@ -1626,8 +1626,8 @@ classdef Labeler < handle
       obj.skelHead = [];
       obj.skelTail = [];
       obj.showSkeleton = false;
-      obj.showMaRoi = false;
-      obj.showMaRoiAux = false;
+      obj.showMaRoi = obj.labelMode == LabelMode.MULTIANIMAL;
+      obj.showMaRoiAux = obj.labelMode == LabelMode.MULTIANIMAL;
       obj.flipLandmarkMatches = zeros(0,2);
       
       % When starting a new proj after having an existing proj open, old 
@@ -3640,7 +3640,10 @@ classdef Labeler < handle
       end
       % AL 20201004, 20210324
       if ~isfield(s,'showMaRoi')
-        s.showMaRoi = false;
+        s.showMaRoi = s.cfg.LabelMode == LabelMode.MULTIANIMAL;
+      end
+      if ~isfield(s,'showMaRoiAux')
+        s.showMaRoiAux = s.cfg.LabelMode == LabelMode.MULTIANIMAL;
       end
       if ~isfield(s,'skelHead'),
         s.skelHead = [];
@@ -5897,6 +5900,9 @@ classdef Labeler < handle
         end
       end
       obj.labelMode = lblmode;
+      
+      obj.setShowMaRoi(obj.showMaRoi);
+      obj.setShowMaRoiAux(obj.showMaRoiAux);
       
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
         obj.gdata.axes_prev,lblPtsPlotInfo);
@@ -12982,7 +12988,7 @@ classdef Labeler < handle
       try
         obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
       catch ME
-        warning('Could not set previous frame: %s',ME.message);
+        warning(ME.identifier,'Could not set previous frame: %s',ME.message);
       end
       
       %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -13096,7 +13102,7 @@ classdef Labeler < handle
       try
         obj.hlpSetCurrPrevFrame(frm,true);
       catch ME
-        warning('Could not set previous frame: %s', ME.message);
+        warning(ME.identifier,'Could not set previous frame: %s', ME.message);
       end
       
       prevTarget = obj.currTarget;
