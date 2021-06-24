@@ -3113,7 +3113,12 @@ classdef Labeler < handle
         if ~isprop(tObj,'trnLastDMC') || isempty(tObj.trnLastDMC),
           continue;
         end
-        fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
+        if isprop(tObj,'trnNetMode'),
+          trnNetMode = char(tObj.trnNetMode);
+        else
+          trnNetMode = 'unknown';
+        end
+        fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,trnNetMode);
         fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
       end
       
