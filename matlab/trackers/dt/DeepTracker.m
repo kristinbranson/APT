@@ -4762,22 +4762,22 @@ classdef DeepTracker < LabelTracker
         char(nettype),[filequote dllbl filequote],[filequote outfile filequote])];
     end    
     
-    function [codestr,containerName] = trackCodeGenDocker(fileinfo,frm0,frm1,varargin)
+    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,frm0,frm1,varargin)
 
       % varargin: see trackCodeGenBase, except for 'cache' and 'view'
       
       [baseargs,dockerargs,mntPaths,containerName] = myparse(varargin,...
         'baseargs',{},'dockerargs',{},'mntPaths',{},'containerName','');
       
-      baseargs = [{'cache' cache} baseargs];
+      baseargs = [{'cache' fileinfo.cache} baseargs];
       filequote = backend.getFileQuoteDockerCodeGen;
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:},'filequote',filequote);
 
       if isempty(containerName),
-        if iscell(outtrk),
-          [~,containerName] = fileparts(outtrk{1});
+        if iscell(fileinfo.outtrk),
+          [~,containerName] = fileparts(fileinfo.outtrk{1});
         else
-          [~,containerName] = fileparts(outtrk);
+          [~,containerName] = fileparts(fileinfo.outtrk);
         end
       end
       

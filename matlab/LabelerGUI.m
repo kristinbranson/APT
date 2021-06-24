@@ -1549,7 +1549,7 @@ drawnow; % 20171002 Without this, new tabbed MovieManager shows up with
   % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
   % buttons/figure back into a good state)   
 handles.movieMgr.setVisible(false);
-%handles.lObj.initShowMaRoi();
+
 handles.GTMgr = GTManager(handles.labelerObj);
 handles.GTMgr.Visible = 'off';
 handles = addDepHandle(handles,handles.GTMgr);
