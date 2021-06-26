@@ -3132,13 +3132,15 @@ classdef Labeler < handle
         fprintf('N. labeled GT trajectories: %d\n',sum(cellfun(@nnz,nlabelspertargetGT)));
       end
       
-      fprintf('Code info:\n');
+      fprintf('Save code info:\n');
       if isempty(lObj.saveVersionInfo),
-        fprintf('No save info available. Printing current status.\n');
-        fprintf(GetGitMatlabStatus(fileparts(mfilename('fullpath'))));
+        fprintf('No saved version info available.\n');
       else
         fprintf(GitMatlabBreadCrumbString(lObj.saveVersionInfo));
       end
+      fprintf('Load code info:\n');
+      fprintf(GetGitMatlabStatus(fileparts(mfilename('fullpath'))));
+
       
     end
             
