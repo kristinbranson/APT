@@ -1,8 +1,8 @@
-function breadcrumb_string = GetGitMatlabStatus(source_repo_folder_path)
+function [breadcrumb_string,info] = GetGitMatlabStatus(source_repo_folder_path)
 
-    original_pwd = pwd() ;
-    cleaner = onCleanup(@()(cd(original_pwd))) ;
-    cd(source_repo_folder_path) ;
+%     original_pwd = pwd() ;
+%     cleaner = onCleanup(@()(cd(original_pwd))) ;
+%     cd(source_repo_folder_path) ;
     
     % Get the matalb version
     matlab_ver_string = version() ;
@@ -14,23 +14,43 @@ function breadcrumb_string = GetGitMatlabStatus(source_repo_folder_path)
     % system_with_error_handling('env GIT_SSL_NO_VERIFY=true GIT_TERMINAL_PROMPT=0 git remote update') ;    
     
     % Get the git hash
-    stdout = system_with_error_handling('env GIT_SSL_NO_VERIFY=true GIT_TERMINAL_PROMPT=0 git rev-parse --verify HEAD') ;
-    commit_hash = strtrim(stdout) ;
-
-    % Get the git remote report
-    git_remote_report = system_with_error_handling('env GIT_SSL_NO_VERIFY=true GIT_TERMINAL_PROMPT=0 git remote -v') ;    
     
-    % Get the git status
-    git_status = system_with_error_handling('env GIT_SSL_NO_VERIFY=true GIT_TERMINAL_PROMPT=0 git status -u no') ;    
+    preamble = sprintf('cd %s && ',source_repo_folder_path);
+    if isunix
+      preamble = [preamble,'env GIT_SSL_NO_VERIFY=true GIT_TERMINAL_PROMPT=0 '];
+    end
+    try
+      system_with_error_handling('git --version');
+      isgit = true;
+    catch
+      isgit = false;
+    end
     
-    % Get the recent git log
-    %git_log = system_with_error_handling('env GIT_SSL_NO_VERIFY=true GIT_TERMINAL_PROMPT=0 git log --graph --oneline --max-count 10 | cat') ;
+    if ~isgit,
+      source_repo_folder_path = 'unknown';
+      commit_hash = 'unknown';
+      git_remote_report = 'unknown';
+      git_status = 'unknown';
+    else
+      commit_hash = strtrim(system_with_error_handling([preamble,'git rev-parse --verify HEAD']));
+      
+      % Get the git remote report
+      git_remote_report = strtrim(system_with_error_handling([preamble,'git remote -v']));
+      
+      % Get the git status
+      git_status = strtrim(system_with_error_handling([preamble,'git status -u no']));
+      
+      % Get the recent git log
+      %git_log = system_with_error_handling('env GIT_SSL_NO_VERIFY=true GIT_TERMINAL_PROMPT=0 git log --graph --oneline --max-count 10 | cat') ;
+    end
         
+    info.matlab_ver_string = matlab_ver_string;
+    info.source_repo_folder_path = source_repo_folder_path;
+    info.commit_hash = commit_hash;
+    info.git_remote_report = git_remote_report;
+    info.git_status = git_status;
+    
     % Write a file with the commit hash into the folder, for good measure
-    breadcrumb_string = sprintf('Matlab version:\n%s\nSource repo:\n%s\nCommit hash:\n%s\nRemote info:\n%s\nGit status:\n%s\n', ...
-                                matlab_ver_string, ...
-                                source_repo_folder_path, ...
-                                commit_hash, ...
-                                git_remote_report, ...
-                                git_status) ;
+    breadcrumb_string = GitMatlabBreadCrumbString(info);
+                              
 end

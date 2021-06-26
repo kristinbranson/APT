@@ -32,7 +32,7 @@ classdef Labeler < handle
       'fgEmpiricalPDF'...
       'projectHasTrx'...
       'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
-      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz'};
+      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo'};
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
 %       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
@@ -178,6 +178,8 @@ classdef Labeler < handle
     unTarLoc = ''; % location that project has most recently been untarred to
     
     projRngSeed = 17;
+    
+    saveVersionInfo; % info about versions of stuff when proj last saved
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -1967,6 +1969,13 @@ classdef Labeler < handle
     end
       
     function projSaveRaw(obj,fname)
+      
+      try
+        [~,obj.saveVersionInfo] = GetGitMatlabStatus();
+      catch
+        obj.saveVersionInfo = [];
+      end
+      
       s = obj.projGetSaveStruct();
       
       if 1
@@ -1991,6 +2000,12 @@ classdef Labeler < handle
     end
     
     function projSaveModified(obj,fname,varargin)
+      try
+        [~,obj.saveVersionInfo] = GetGitMatlabStatus();
+      catch
+        obj.saveVersionInfo = [];
+      end
+
       s = obj.projGetSaveStructWithMassage(varargin{:});
       save(fname,'-mat','-struct','s');
       fprintf('Saved modified project file %s.\n',fname);
@@ -3118,7 +3133,12 @@ classdef Labeler < handle
       end
       
       fprintf('Code info:\n');
-      fprintf(GetGitMatlabStatus(fileparts(mfilename('fullpath'))));
+      if isempty(lObj.saveVersionInfo),
+        fprintf('No save info available. Printing current status.\n');
+        fprintf(GetGitMatlabStatus(fileparts(mfilename('fullpath'))));
+      else
+        fprintf(GitMatlabBreadCrumbString(lObj.saveVersionInfo));
+      end
       
     end
             
@@ -3819,6 +3839,11 @@ classdef Labeler < handle
         end
         s.labels2GT{i}.initFrm2Tlt(s.movieInfoAllGT{i}.nframes);
       end
+      
+      if ~isfield(s,'saveVersionInfo'),
+        s.saveVersionInfo = [];
+      end
+      
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
