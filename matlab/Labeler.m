@@ -12,11 +12,11 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' 'projname' 'maIsMA' ...
       'movieReadPreLoadMovies' ...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'trxInfoAll' 'projMacros'...
       'movieFilesAllGT' 'movieInfoAllGT' ...
       'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
       'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT' ...
-      'trxFilesAllGT' ...
+      'trxFilesAllGT' 'trxInfoAllGT' ...
       'cropIsCropMode' ...
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
@@ -73,6 +73,7 @@ classdef Labeler < handle
              'MIA','movieInfoAll',...
              'TFA','trxFilesAll',...
              'TFAF','trxFilesAllFull',...
+             'TIA','trxInfoAll',...
              'LBL','labels',...
              'LBL2','labels2',...
              'LPOS','labeledpos',...
@@ -90,6 +91,7 @@ classdef Labeler < handle
              'MIA','movieInfoAllGT',...
              'TFA','trxFilesAllGT',...
              'TFAF','trxFilesAllGTFull',...
+             'TIA','trxInfoAllGT',...
              'LBL','labelsGT',...
              'LBL2','labels2GT',...
              'LPOS','labeledposGT',...
@@ -315,7 +317,9 @@ classdef Labeler < handle
   %% Trx
   properties (SetObservable)
     trxFilesAll = {};  % column cellstr, full paths to trxs. Same size as movieFilesAll.
+    trxInfoAll = {};
     trxFilesAllGT = {}; % etc. Same size as movieFilesAllGT.
+    trxInfoAllGT = {};
   end
   properties (SetAccess=private)
     trxCache = [];            % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
@@ -330,6 +334,7 @@ classdef Labeler < handle
     trxFilesAllFull % like .movieFilesAllFull, but for .trxFilesAll
     trxFilesAllGTFull % etc
     trxFilesAllFullGTaware
+    trxInfoAllGTaware
     hasTrx
     currTrx
     nTrx
@@ -792,6 +797,13 @@ classdef Labeler < handle
         v = obj.trxFilesAllFull;
       end
     end
+    function v = get.trxInfoAllGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.trxInfoAllGT;
+      else
+        v = obj.trxInfoAll;
+      end
+    end
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
       % Warning: Expensive to call. Call me once and then index rather than
       % using a compound indexing-expr.      
@@ -806,6 +818,20 @@ classdef Labeler < handle
           v(i,:) = tfafGT(iMov(i),:);
         else
           v(i,:) = tfaf(iMov(i),:);
+        end
+      end
+    end
+    
+    function v = getTrxFileInfoAllMovIdx(obj,mIdx)
+      assert(all(isa(mIdx,'MovieIndex')));
+      [iMov,gt] = mIdx.get();
+      n = numel(iMov);
+      v = cell(n,obj.nview);
+      for i=1:n
+        if gt
+          v(i,:) = obj.trxInfoAll(iMov(i),:);
+        else
+          v(i,:) = obj.trxInfoAllGT(iMov(i),:);
         end
       end
     end
@@ -969,20 +995,22 @@ classdef Labeler < handle
       end
         
       PROPS = obj.gtGetSharedPropsStc(gt);
-      tfaf = obj.(PROPS.TFAF);
+      %tfaf = obj.(PROPS.TFAF);
       mia = obj.(PROPS.MIA);
+      tia = obj.(PROPS.TIA);
       nfrms = zeros(size(iMov));
       ntgts = ones(size(iMov));
       
       for i=1:numel(ntgts)        
-        trxfile = tfaf{iMov(i)};
+        %trxfile = tfaf{iMov(i)};
         nfrms(i) = mia{iMov(i)}.nframes;
-        if isempty(trxfile)
-          % none; ntgts(i) is 1
-        else
-          trxI = obj.getTrx(trxfile,nfrms(i));
-          ntgts(i) = numel(trxI);
-        end
+        ntgts(i) = tia{iMov(i),1}.ntgts;
+%         if isempty(trxfile)
+%           % none; ntgts(i) is 1
+%         else
+%           trxI = obj.getTrx(trxfile,nfrms(i));
+%           ntgts(i) = numel(trxI);
+%         end
       end
     end
     function v = get.nTargets(obj)
@@ -1899,6 +1927,8 @@ classdef Labeler < handle
       obj.cropIsCropMode = false;
       obj.trxFilesAll = cell(0,obj.nview);
       obj.trxFilesAllGT = cell(0,obj.nview);
+      obj.trxInfoAll = cell(0,obj.nview);
+      obj.trxInfoAllGT = cell(0,obj.nview);
       obj.projMacros = struct();
       obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
@@ -2111,6 +2141,8 @@ classdef Labeler < handle
         s.movieFilesAllGT = obj.movieFilesAllGTFull;
         s.trxFilesAll = obj.trxFilesAllFull;
         s.trxFilesAllGT = obj.trxFilesAllGTFull;
+        s.trxInfoAll = obj.trxInfoAllFull;
+        s.trxInfoAllGT = obj.trxInfoAllGTFull;
       end
       if massageCropProps
         cellOfObjArrs2CellOfStructArrs = ...
@@ -2316,6 +2348,8 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
+      
+      obj.initTrxInfo();
       
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
@@ -3842,8 +3876,13 @@ classdef Labeler < handle
         s.labels2GT{i}.initFrm2Tlt(s.movieInfoAllGT{i}.nframes);
       end
       
+      % KB 20210626 - added info about state of code to saved lbl file
       if ~isfield(s,'saveVersionInfo'),
         s.saveVersionInfo = [];
+      end
+      
+      if ~isfield(s,'trxInfoAll'),
+        s.trxInfoAll = {};
       end
       
     end
@@ -3974,18 +4013,14 @@ classdef Labeler < handle
         ifo.info = mr.info;
         mr.close();
         
-        if ~isempty(tFileFull)
-          tmptrx = obj.getTrx(tFileFull,ifo.nframes);
-          nTgt = numel(tmptrx);
-        else
-          nTgt = 1;
-        end
-        
+        [trxinfo] = obj.GetTrxInfo(tFileFull,ifo.nframes);
+                
         nlblpts = obj.nLabelPoints;
         nfrms = ifo.nframes;
         obj.(PROPS.MFA){end+1,1} = movFile;
         obj.(PROPS.MFAHL)(end+1,1) = 0;
         obj.(PROPS.MIA){end+1,1} = ifo;
+        obj.(PROPS.TIA){end+1,1} = trxinfo;
         obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
         if obj.cropProjHasCrops
           wh = obj.cropGetCurrentCropWidthHeightOrDefault();
@@ -4002,7 +4037,7 @@ classdef Labeler < handle
           tfo.initFrm2Tlt(nfrms);
           obj.(PROPS.LBL2){end+1,1} = tfo;
         else
-          tfo = TrkFile(nlblpts,1:nTgt);
+          tfo = TrkFile(nlblpts,1:trxinfo.ntgts);
           tfo.initFrm2Tlt(nfrms);          
           obj.(PROPS.LBL2){end+1,1} = tfo;
         end
@@ -4168,6 +4203,8 @@ classdef Labeler < handle
       end
       obj.(PROPS.MFALUT)(end+1,:) = {[]};
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
+      trxinfo = obj.GetTrxInfo('',ifos.nframes);
+      obj.(PROPS.TIA)(end+1,:) = repmat({trxinfo},1,obj.nview);
 %       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
 %       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
 %       obj.(PROPS.LPOSTAG){end+1,1} = false(nLblPts,nFrms,nTgt);
@@ -4310,6 +4347,7 @@ classdef Labeler < handle
         obj.(PROPS.MFACI)(iMov,:) = [];
         obj.(PROPS.MFALUT)(iMov,:) = [];        
         obj.(PROPS.TFA)(iMov,:) = [];
+        obj.(PROPS.TIA)(iMov,:) = [];
         
         tfOrig = obj.isinit;
         obj.isinit = true; % AL20160808. we do not want set.labeledpos side effects, listeners etc.
@@ -4394,7 +4432,7 @@ classdef Labeler < handle
       % Future: clean up .isinit, listener policy etc it is getting too 
       % complex
       FLDS1 = {'movieInfoAll' 'movieFilesAll' 'movieFilesAllHaveLbls'...
-        'movieFilesAllCropInfo' 'movieFileAllHistEqLUT' 'trxFilesAll'};
+        'movieFilesAllCropInfo' 'movieFileAllHistEqLUT' 'trxFilesAll' 'trxInfoAll'};
       for f=FLDS1,f=f{1}; %#ok<FXSET>
         obj.(f) = obj.(f)(p,:);
       end
@@ -5753,8 +5791,93 @@ classdef Labeler < handle
 
       obj.addDepHandle(hF);
     end
-        
+    
+    % initTrxInfo(obj)
+    % read in trx files and store number of targets and start and end
+    % frames. This data is now kept in the lbl file so that we don't have
+    % to keep reading in trx files to count number of targets.
+    % added by KB 20210626
+    function initTrxInfo(obj)
+      if numel(obj.trxInfoAll) == numel(obj.trxFilesAll) && ...
+          numel(obj.trxInfoAllGT) == numel(obj.trxFilesAllGT),
+        return;
+      end
+      fprintf('Moderning lbl file to store info about trx files, this may take a minute...\n');
+      fprintf('After this is done, please save your new lbl file. This will not need to be run again.\n');
+
+      obj.initTrxInfoHelper(Labeler.gtGetSharedPropsStc(false));
+      obj.initTrxInfoHelper(Labeler.gtGetSharedPropsStc(true));
+    end
+    
+    function initTrxInfoHelper(obj,PROPS)
+      
+      if numel(obj.(PROPS.TIA)) == numel(obj.(PROPS.TFA)),
+        return;
+      end
+
+      obj.(PROPS.TIA) = cell(size(obj.(PROPS.TFA)));
+      tFilesFull = obj.(PROPS.TFAF);
+      for i = 1:numel(obj.(PROPS.TFA)),
+        trxinfo = struct;
+        nframes = obj.(PROPS.MIA){i}.nframes;
+        if isempty(obj.(PROPS.TFA){i}),
+          nTgt = 1;
+          trxinfo.ntgts = nTgt;
+          trxinfo.firstframes = 1;
+          trxinfo.endframes = nframes;
+        else
+          tFileFull = tFilesFull{i};
+          if ~(isempty(tFileFull) || exist(tFileFull,'file')>0)
+            FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
+          end
+          tmptrx = obj.getTrx(tFileFull,nframes);
+          nTgt = numel(tmptrx);
+          trxinfo.ntgts = nTgt;
+          trxinfo.firstframes = [tmptrx.firstframe];
+          trxinfo.endframes = [tmptrx.endframe];
+        end
+        obj.(PROPS.TIA){i} = trxinfo;
+      end
+    end
+    function [trxinfo,tmptrx] = GetTrxInfo(obj,tFileFull,nframes)
+      
+      trxinfo = struct;
+      if ~isempty(tFileFull)
+        tmptrx = obj.getTrx(tFileFull,nframes);
+        nTgt = numel(tmptrx);
+        trxinfo.ntgts = nTgt;
+        trxinfo.firstframes = [tmptrx.firstframe];
+        trxinfo.endframes = [tmptrx.endframe];
+      else
+        nTgt = 1;
+        trxinfo.ntgts = nTgt;
+        trxinfo.firstframes = 1;
+        trxinfo.endframes = ifo.nframes;
+      end
+    end
+
+    function sanityCheckTrxInfo(obj)
+      assert(size(obj.trxInfoAll,1)==obj.nmovies);
+      assert(size(obj.trxInfoAllGT,1)==obj.nmoviesGT);
+      for i = 1:numel(obj.movieInfoAll),
+        s1 = mat2str(ind2subv(size(obj.movieInfoAll),i));
+        if obj.movieInfoAll{i}.nframes==max(obj.trxInfoAll{i}.endframes),
+          s2 = 'EQUAL';
+        elseif obj.movieInfoAll{i}.nframes<max(obj.trxInfoAll{i}.endframes),
+          s2 = 'LESS THAN';
+        else
+          s2 = 'GREATER THAN';
+        end
+        fprintf('Movie %s: nframes = %d %s max(endframes) = %d\n',s1,obj.movieInfoAll{i}.nframes,s2,max(obj.trxInfoAll{i}.endframes));
+      end
+      for i = 1:numel(obj.movieInfoAllGT),
+        s1 = mat2str(ind2subv(size(obj.movieInfoAllGT),i));
+        fprintf('GT Movie %s: nframes = %d %s max(endframes) = %d\n',s1,obj.movieInfoAllGT{i}.nframes,s2,max(obj.trxInfoAllGT{i}.endframes));
+      end
+    end
+    
   end
+  
   methods (Static)
     function f2t = trxHlpComputeF2t(nfrm,trx)
       % Compute f2t array for trx structure
@@ -12062,29 +12185,36 @@ classdef Labeler < handle
       % generate tblSummBase
       if obj.hasTrx
         assert(obj.nview==1,'Currently unsupported for multiview projects.');
-        tfaf = obj.trxFilesAllFull;
+        % KB 20210626 - use cached trx file info
+        %tfaf = obj.trxFilesAllFull;
+        trxinfo = obj.trxInfoAll;
         dataacc = nan(0,4); % mov, tgt, trajlen, frm1
         for iMov=1:obj.nmovies
-          tfile = tfaf{iMov,1};
-          tifo = obj.trxCache(tfile);
-          frm2trxI = tifo.frm2trx;
+          nTgt = trxinfo{iMov,1}.ntgts;
 
-          nTgt = size(frm2trxI,2);
+%           tfile = tfaf{iMov,1};
+%           tifo = obj.trxCache(tfile);
+%           frm2trxI = tifo.frm2trx;
+% 
+%           nTgt = size(frm2trxI,2);
           for iTgt=1:nTgt
-            tflive = frm2trxI(:,iTgt);
-            sp = get_interval_ends(tflive);
-            if isempty(sp)
-              trajlen = 0;
-              frm1 = nan;
-            else
-              if numel(sp)>1
-                warningNoTrace('Movie %d, target %d is live over non-consecutive frames.',...
-                  iMov,iTgt);
-              end
-              trajlen = nnz(tflive); % when numel(sp)>1, track is 
-              % non-consecutive and this won't strictly be trajlen
-              frm1 = sp(1);
-            end
+            trajlen = trxinfo{iMov,1}.endframes(iTgt)-trxinfo{iMov,1}.firstframes(iTgt)+1;
+            frm1 = trxinfo{iMov,1}.firstframes(iTgt);
+
+%             tflive = frm2trxI(:,iTgt);
+%             sp = get_interval_ends(tflive);
+%             if isempty(sp)
+%               trajlen = 0;
+%               frm1 = nan;
+%             else
+%               if numel(sp)>1
+%                 warningNoTrace('Movie %d, target %d is live over non-consecutive frames.',...
+%                   iMov,iTgt);
+%               end
+%               trajlen = nnz(tflive); % when numel(sp)>1, track is 
+%               % non-consecutive and this won't strictly be trajlen
+%               frm1 = sp(1);
+%             end
             dataacc(end+1,:) = [iMov iTgt trajlen frm1]; %#ok<AGROW>
           end
         end
