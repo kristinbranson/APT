@@ -1225,6 +1225,15 @@ classdef Labeler < handle
         v = obj.labeledpostag{obj.currMovie};
       end
     end
+    function v = getIsLabeled(obj,tbl)
+      v = Labels.lObjGetIsLabeled(obj,'labels',tbl,false);
+    end
+    function v = getIsLabeledGT(obj,tbl)
+      v = Labels.lObjGetIsLabeled(obj,'labelsGT',tbl,true);
+    end
+
+    
+    
     function v = get.nPhysPoints(obj)
       v = size(obj.labeledposIPtSetMap,1);
     end
@@ -9538,14 +9547,15 @@ classdef Labeler < handle
         return;
       end
       
-      lposCell = obj.labeledposGT;
-      fcn = @(zm,zf,zt) (nnz(isnan(lposCell{-zm}(:,:,zf,zt)))==0);
-      % a mft row is labeled if all pts are either labeled, or estocc, or
-      % fullocc (lpos will be inf which is not nan)
-      fprintf(2,'Todo: replace inefficient\n');
-      tfAllTgtsLbled = rowfun(fcn,tbl,...
-        'InputVariables',{'mov' 'frm' 'iTgt'},...
-        'OutputFormat','uni');
+      tfAllTgtsLbled = obj.getIsLabeledGT(tbl);
+%       lposCell = obj.labeledposGT;
+%       fcn = @(zm,zf,zt) (nnz(isnan(lposCell{-zm}(:,:,zf,zt)))==0);
+%       % a mft row is labeled if all pts are either labeled, or estocc, or
+%       % fullocc (lpos will be inf which is not nan)
+%       fprintf(2,'Todo: replace inefficient\n');
+%       tfAllTgtsLbled = rowfun(fcn,tbl,...
+%         'InputVariables',{'mov' 'frm' 'iTgt'},...
+%         'OutputFormat','uni');
       szassert(tfAllTgtsLbled,[height(tbl) 1]);
       obj.gtSuggMFTableLbled = tfAllTgtsLbled;
       if donotify
