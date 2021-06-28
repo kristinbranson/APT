@@ -36,8 +36,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   end
   
   methods
-    function obj = TrackingVisualizerTracklets(lObj,handleTagPfix)
-      obj.tvmt = TrackingVisualizerMT(lObj,handleTagPfix);
+    function obj = TrackingVisualizerTracklets(lObj,ptsPlotInfoFld,handleTagPfix)
+      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix);
       obj.tvtrx = TrackingVisualizerTrx(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
@@ -76,7 +76,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     end
     function iTrx = frm2trx(obj,frm)
       assert(numel(frm)==1);
-      iTrx = find(obj.ptrx.firstframe>=frm & obj.ptrx.endframe<=frm);
+      iTrx = find([obj.ptrx.firstframe]<=frm & [obj.ptrx.endframe]>=frm);
     end
     function newFrame(obj,frm)
       % find live tracklets

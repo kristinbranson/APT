@@ -12037,15 +12037,15 @@ classdef Labeler < handle
       end
     end
     
-    function tv = createTrackingVisualizer(obj,gfxTagPfix)
+    function tv = createTrackingVisualizer(obj,ptsPlotInfoFld,gfxTagPfix)
       % Create TV appropriate to this proj
       %
       % gfxTagPfix: arbitrary id/prefix for graphics handle tags
       
       if obj.maIsMA
-        tv = TrackingVisualizerTracklets(obj,gfxTagPfix);
+        tv = TrackingVisualizerTracklets(obj,ptsPlotInfoFld,gfxTagPfix);
       else
-        tv = TrackingVisualizerMT(obj,gfxTagPfix);
+        tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
       end
     end
   end
@@ -14620,7 +14620,7 @@ classdef Labeler < handle
       % We only create/init a tv if there are actually imported results for 
       % the current movie. Otherwise, obj.labeledpos2trkViz will be [] 
       % which optimizes browse speed.
-      tv = obj.createTrackingVisualizer('labeledpos2');      
+      tv = obj.createTrackingVisualizer('predPointsPlotInfo','labeledpos2');      
       if ~isempty(obj.trackParams)
         maxNanimals = obj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
         maxNanimals = max(ceil(maxNanimals*1.5),10);

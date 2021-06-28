@@ -383,6 +383,12 @@ classdef TrkFile < dynamicprops
         obj.(f) = v;
       end
       
+      % semi-tmp. backend producing inconsistent trkfiles
+      if numel(obj.pTrkiTgt)~=numel(obj.pTrk)
+        warningNoTrace('Unexpected/corrupt .pTrkiTgt field in TrkFile.');
+        obj.pTrkiTgt = 1:numel(obj.pTrk);
+      end
+      
       obj.npts = size(obj.pTrk{1},1); 
       obj.isfull = false;
     end
