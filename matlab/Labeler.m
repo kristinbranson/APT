@@ -1470,6 +1470,9 @@ classdef Labeler < handle
       if ~isempty(be)
         be.shutdown();
       end
+      if ~isempty(obj.projTempDir),
+        obj.projRemoveTempDir();
+      end
     end
     
   end
@@ -2662,10 +2665,11 @@ classdef Labeler < handle
       [rawLblFile,tname] = obj.projGetRawLblFile('cleartmp',true); % throws; sets .projTempDir
       
       try
+        starttime = tic;
         fprintf('Untarring project into %s\n',tname);
         untar(fname,tname);
         obj.unTarLoc = tname;
-        fprintf('... done with untar.\n');
+        fprintf('... done with untar, elapsed time = %fs.\n',toc(starttime));
       catch ME
         if endsWith(ME.identifier,'invalidTarFile')
           warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',fname);
@@ -2881,17 +2885,72 @@ classdef Labeler < handle
       
     end
     
-    function projClearTempDir(obj) % throws
+    
+    function success = projRemoveTempDir(obj) % throws
+      success = true;
       if isempty(obj.projTempDir)
         return;
       end
-      
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if success
         fprintf(1,'Cleared temp dir: %s\n',obj.projTempDir);
       else
         warning('Could not clear the temp directory: %s',message);
       end
+    end
+    
+    
+    function success = projRemoveOtherTempDirs(obj,doask)
+      
+      success = true;
+      if isempty(obj.projTempDir),
+        rootdir = APT.getdlcacheroot;
+      else
+        rootdir = fileparts(obj.projTempDir);
+      end
+      if ~exist(rootdir,'dir'),
+        return;
+      end
+      if nargin < 2,
+        doask = true;
+      end
+      todelete = mydir(rootdir,'isdir',true);
+      if ~isempty(obj.projTempDir),
+        i = find(strcmp(todelete,obj.projTempDir));
+        assert(~isempty(i));
+        todelete(i) = [];
+      end
+      if isempty(todelete),
+        if doask,
+          uiwait(msgbox('No temp directories to remove.','All clear!'));
+        end
+        return;
+      end
+      if doask,
+        res = questdlg(sprintf('Delete %d temp directories? Only do this if no other instances of APT are open.',numel(todelete)));
+        if ~strcmpi(res,'Yes'),
+          success = false;
+          return;
+        end
+      end
+      ndelete = 0;
+      for i = 1:numel(todelete),
+        [success, msg, ~] = rmdir(todelete{i},'s');
+        if success,
+          ndelete = ndelete + 1;
+          fprintf('Cleared temp directory: %s\n',todelete{i});
+        else
+          warning('Could not clear the temp directory %s: %s',todelete{i},msg);
+        end
+      end
+      success = ndelete == numel(todelete);
+    end
+    
+    function projClearTempDir(obj) % throws
+      if isempty(obj.projTempDir)
+        return;
+      end
+      obj.projRemoveTempDir();
       [success, message, ~] = mkdir(obj.projTempDir);
       if ~success
         error('Could not clear the temp directory %s',message);
