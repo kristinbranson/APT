@@ -3874,8 +3874,12 @@ classdef DeepTracker < LabelTracker
               if isempty(tv.ptrx)
                 obj.newLabelerFrame();
               else
-                f0 = tv.ptrx(1).firstframe; 
-                obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+                f0 = tv.ptrx(1).firstframe;
+                if f0~=obj.lObj.currFrame
+                  obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+                else
+                  obj.newLabelerFrame();
+                end
                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
               end
             else
@@ -5441,7 +5445,7 @@ classdef DeepTracker < LabelTracker
       tv = obj.trkVizer;
       if isempty(tv)
         tvtagpfix = sprintf('dt_%s',obj.algorithmName);
-        tv = lObj.createTrackingVisualizer(tvtagpfix);        
+        tv = lObj.createTrackingVisualizer('predPointsPlotInfo',tvtagpfix);        
         obj.trkVizer = tv;
         tfnewTV = true;
       else
