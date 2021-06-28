@@ -1020,6 +1020,10 @@ classdef Labeler < handle
         v = 1;
       end
     end
+    function v = getNTargets(obj,gt,imov)
+      PROPS = obj.gtGetSharedPropsStc(gt);
+      v = obj.(PROPS.TIA){imov,1}.ntgts;        
+    end
     function v = get.targetZoomRadiusDefault(obj)
       v = obj.projPrefs.Trx.ZoomFactorDefault;
     end
@@ -2013,7 +2017,7 @@ classdef Labeler < handle
     function projSaveRaw(obj,fname)
       
       try
-        [~,obj.saveVersionInfo] = GetGitMatlabStatus();
+        [~,obj.saveVersionInfo] = GetGitMatlabStatus(APT.Root);
       catch
         obj.saveVersionInfo = [];
       end
@@ -2043,7 +2047,7 @@ classdef Labeler < handle
     
     function projSaveModified(obj,fname,varargin)
       try
-        [~,obj.saveVersionInfo] = GetGitMatlabStatus();
+        [~,obj.saveVersionInfo] = GetGitMatlabStatus(APT.Root);
       catch
         obj.saveVersionInfo = [];
       end
@@ -3173,19 +3177,19 @@ classdef Labeler < handle
       
       if gt,
         nmovies = obj.nmoviesGT;
+        labelsfld = 'labelsGT';
       else
         nmovies = obj.nmovies;
+        labelsfld = 'labels';
       end
-      nlabelspermovie = zeros(nmovies,1);
-      nlabelspertarget = cell(nmovies,1);
+      imovs = (1:nmovies)';
+      itgts = cell(size(imovs));
       for i = 1:nmovies,
-        if gt,
-          nlabelspertarget{i} = squeeze(sum(any(any(~isnan(obj.labeledposGT{i}),1),2),3));
-        else
-          nlabelspertarget{i} = squeeze(sum(any(any(~isnan(obj.labeledpos{i}),1),2),3));
-        end
-        nlabelspermovie(i) = sum(nlabelspertarget{i});
+        ntgts = obj.getNTargets(gt,i);
+        itgts{i} = 1:ntgts;
       end
+      nlabelspertarget = Labels.lObjNLabeled(obj,labelsfld,'movi',imovs,'itgt',itgts);
+      nlabelspermovie = cellfun(@sum,nlabelspertarget);
       nlabels = sum(nlabelspermovie);
       
     end

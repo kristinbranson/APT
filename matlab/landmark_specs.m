@@ -144,9 +144,9 @@ classdef landmark_specs < handle
       hold(hAx,'off');
       hIm = imagesc(slbl.im,'Parent',hAx,slbl.imagescArgs{:});
       hold(hAx,'on');
+      axis(hAx,'off','image');
       set(hAx,slbl.axesProps{:});
       colormap(hAx,'gray');
-      axis(hAx,'off');
     end    
   end
   methods (Access=private) % cbks
@@ -310,7 +310,10 @@ classdef landmark_specs < handle
       ht.Data = obj.ptNames(:);
       ht.ColumnName = {'Name'};
       ht.ColumnEditable = true;
-      ht.ColumnWidth = {260};
+      ht.Units = 'pixels';
+      pos = ht.Position;
+      ht.Units = 'normalized';
+      ht.ColumnWidth = {pos(3)*.8};
     end
     function updateTableHT(obj)
       npts = size(obj.pts,1);
@@ -327,7 +330,10 @@ classdef landmark_specs < handle
       tbl.Data = [obj.ptNames(:) num2cell(htmat)];
       tbl.ColumnName = {'Name' 'Head' 'Tail'};
       tbl.ColumnEditable = [true true true];
-      tbl.ColumnWidth = {170 50 50};      
+      tbl.Units = 'pixels';
+      pos = tbl.Position;
+      tbl.Units = 'normalized';
+      tbl.ColumnWidth = {pos(3)*.5 pos(3)*.15 pos(3)*.15};
     end
     function updateTableSwap(obj)
       partners = repmat({'none'},size(obj.ptNames(:)));
@@ -345,7 +351,10 @@ classdef landmark_specs < handle
       ht.Data = [obj.ptNames(:) partners];
       ht.ColumnName = {'Name' 'Partner'};
       ht.ColumnEditable = [false false];
-      ht.ColumnWidth = {130 130};
+      ht.Units = 'pixels';
+      pos = ht.Position;
+      ht.Units = 'normalized';
+      ht.ColumnWidth = {pos(3)*.4 pos(3)*.4};
     end    
     function moveEdgesToBack(app,axfld,fldhim,fldhtxt,fldhedges, ...
         fldhedgesel,fldhpts)
@@ -432,7 +441,7 @@ classdef landmark_specs < handle
           'UserData',i,'MarkerSize',unselMarkerSize,plotptsArgs{:});
         set(hpts(i),'ButtonDownFcn',@(h,e)obj.ptClicked(h,e));
         htxt(i) = text(hAx,obj.pts(i,1)+slbl.txtOffset,obj.pts(i,2)+slbl.txtOffset,...
-          ptnames{i},'Color',slbl.labelCM(i,:),'PickableParts','none',textArgs{:});
+          num2str(i),'Color',slbl.labelCM(i,:),'PickableParts','none',textArgs{:});
       end   
     end
     %#OK
@@ -670,9 +679,9 @@ classdef landmark_specs < handle
       if tblcol==NAMECOL
         newName = event.NewData;
         obj.ptNames{tblrow} = newName;
-        obj.sklHTxt(tblrow).String = newName;
-        obj.htHTxt(tblrow).String = newName;
-        obj.spHTxt(tblrow).String = newName;
+%         obj.sklHTxt(tblrow).String = newName;
+%         obj.htHTxt(tblrow).String = newName;
+%         obj.spHTxt(tblrow).String = newName;
       elseif any(tblcol==HEADTAILCOL)
         tbl = obj.UITable;
         dat = tbl.Data;
@@ -735,6 +744,22 @@ classdef landmark_specs < handle
       end
       delete(obj);      
     end
+    
+    function resize(obj,src,event)
+      
+      ht = obj.UITable;
+      ht.Units = 'pixels';
+      pos = ht.Position;
+      ht.Units = 'normalized';
+      switch lower(obj.TabGroup.SelectedTab.Title),
+        case 'skeleton'
+          ht.ColumnWidth = {pos(3)*.8};
+        case 'head/tail'
+          ht.ColumnWidth = {pos(3)*.5 pos(3)*.15 pos(3)*.15};
+        case 'swap pairs'
+          ht.ColumnWidth = {pos(3)*.4 pos(3)*.4};
+      end
+    end
   end
   
   % Component initialization
@@ -743,6 +768,7 @@ classdef landmark_specs < handle
     % Create UIFigure and components
     function createComponents(obj)
       
+      FSIZE = 12;
       % Create hFig and hide until all components are created
       obj.hFig = figure('Visible', 'off');
       obj.hFig.AutoResizeChildren = 'off';
@@ -750,6 +776,7 @@ classdef landmark_specs < handle
       obj.hFig.Name = 'Landmark Specifications';
       obj.hFig.MenuBar = 'none';
       obj.hFig.CloseRequestFcn = @(src,evt)obj.closereq(src,evt);
+      obj.hFig.SizeChangedFcn = @(src,evt)obj.resize(src,evt);
 %       app.hFig.SizeChangedFcn = createCallbackFcn(app, @updateAppLayout, true);
       
 %       % Create GridLayout
@@ -761,8 +788,9 @@ classdef landmark_specs < handle
 %       app.GridLayout.Padding = [0 0 0 0];
 %       app.GridLayout.Scrollable = 'on';
       
+      lpw = .6;
       obj.LeftPanel = uipanel('Parent',obj.hFig,'units','normalized',...
-        'Position',[0 0 0.5 1]);
+        'Position',[0 0 lpw 1]);
 %       obj.LeftPanel.Layout.Row = 1;
 %       obj.LeftPanel.Layout.Column = 1;
 
@@ -772,6 +800,11 @@ classdef landmark_specs < handle
       
       obj.SkeletonTab = uitab(obj.TabGroup);
       obj.SkeletonTab.Title = 'Skeleton';
+
+      % sizes of stuff
+      BTNH = .08;
+      BTNY0 = .01;
+      BTNGAP = .01;
       
       % Create axSkel
       obj.axSkel = axes(obj.SkeletonTab);
@@ -780,26 +813,32 @@ classdef landmark_specs < handle
       ylabel(obj.axSkel, '')
       obj.axSkel.XTick = [];
       obj.axSkel.YTick = [];
-%       obj.axSkel.Position = [15 53 390 280];
+      obj.axSkel.Units = 'normalized';
+      axpos = [.02 BTNH+.02 .96 1-BTNH-.04];
+      obj.axSkel.Position = axpos;
+      %obj.axSkel.Position = [15 53 390 280];
       
       % Create AddEdgeButton
-      BTNX0 = 50;
-      BTNY0 = 7;
-      BTNW = 120;
-      BTNH = 30;
-      BTNFSIZE = 12;
+      nbuttons = 2;
+      btnw = (.7-BTNGAP*(nbuttons-1))/nbuttons;
+      btnx0 = .5 - (nbuttons*(btnw+BTNGAP)-BTNGAP)/2;
+
+%       BTNX0 = 50;
+%       BTNY0 = 7;
+%       BTNW = 120;
+%       BTNH = 30;
       obj.AddEdgeButton = uicontrol(obj.SkeletonTab,'style','pushbutton');
       obj.AddEdgeButton.Callback = @(s,e)obj.AddEdgeButtonPushed(e);
       obj.AddEdgeButton.String = 'Add Edge';
       obj.RemoveEdgeButton = uicontrol(obj.SkeletonTab,'style','pushbutton');
       obj.RemoveEdgeButton.Callback = @(s,e)obj.RemoveEdgeButtonPushed(e);
       obj.RemoveEdgeButton.String = 'Remove Edge';
-      obj.AddEdgeButton.Position = [BTNX0 BTNY0 BTNW BTNH];
-      obj.RemoveEdgeButton.Position = [BTNX0+BTNW+5 BTNY0 BTNW BTNH];
-      obj.AddEdgeButton.FontSize = BTNFSIZE;
-      obj.RemoveEdgeButton.FontSize = BTNFSIZE;      
       obj.AddEdgeButton.Units = 'normalized';
       obj.RemoveEdgeButton.Units = 'normalized';
+      obj.AddEdgeButton.Position = [btnx0 BTNY0 btnw BTNH];
+      obj.RemoveEdgeButton.Position = [btnx0+btnw+BTNGAP BTNY0 btnw BTNH];
+      obj.AddEdgeButton.FontSize = FSIZE;
+      obj.RemoveEdgeButton.FontSize = FSIZE;
       
       % Create HeadTailTab
       obj.HeadTailTab = uitab(obj.TabGroup);
@@ -812,7 +851,8 @@ classdef landmark_specs < handle
       ylabel(obj.axHT, '')
       obj.axHT.XTick = [];
       obj.axHT.YTick = [];
-      obj.axHT.Position = [23 30 390 291];
+      obj.axHT.Units = 'normalized';
+      obj.axHT.Position = axpos;
       
       % Create SpecifyHeadButton
 %       obj.SpecifyHeadButton = uicontrol(obj.HeadTailTab,'style','pushbutton');
@@ -837,9 +877,15 @@ classdef landmark_specs < handle
       ylabel(obj.axSwap, '')
       obj.axSwap.XTick = [];
       obj.axSwap.YTick = [];
-      obj.axSwap.Position = [23 38 390 291];
+      obj.axSwap.Units = 'normalized';
+      obj.axSwap.Position = axpos;
       
       % Create AddPairButton
+      
+      nbuttons = 2;
+      btnw = (.7-BTNGAP*(nbuttons-1))/nbuttons;
+      btnx0 = .5 - (nbuttons*(btnw+BTNGAP)-BTNGAP)/2;
+      
       obj.AddPairButton = uicontrol(obj.SwapPairsTab,'style','pushbutton');
       obj.AddPairButton.Callback = @(s,e)obj.AddPairButtonPushed(e);
       obj.AddPairButton.Position = [118 17 100 23];
@@ -848,16 +894,16 @@ classdef landmark_specs < handle
       obj.RemovePairButton.Callback = @(s,e)obj.RemovePairButtonPushed(e);
       obj.RemovePairButton.Position = [230 17 100 23];
       obj.RemovePairButton.String = 'Remove Pair';
-      obj.AddPairButton.Position = [BTNX0 BTNY0 BTNW BTNH];
-      obj.RemovePairButton.Position = [BTNX0+BTNW+5 BTNY0 BTNW BTNH];
-      obj.AddPairButton.FontSize = BTNFSIZE;
-      obj.RemovePairButton.FontSize = BTNFSIZE;
+      obj.AddPairButton.Position = [btnx0 BTNY0 btnw BTNH];
+      obj.RemovePairButton.Position = [btnx0+btnw+5 BTNY0 btnw BTNH];
+      obj.AddPairButton.FontSize = FSIZE;
+      obj.RemovePairButton.FontSize = FSIZE;
       obj.AddPairButton.Units = 'normalized';
       obj.RemovePairButton.Units = 'normalized';
       
       % Create RightPanel
       obj.RightPanel = uipanel('Parent',obj.hFig,'units','normalized',...
-        'Position',[0.5 0 0.5 1]);
+        'Position',[lpw 0 1-lpw 1]);
 %       obj.RightPanel.Layout.Row = 1;
 %       obj.RightPanel.Layout.Column = 2;
       
@@ -869,9 +915,10 @@ classdef landmark_specs < handle
       obj.UITable.ColumnEditable = true;
       obj.UITable.ColumnWidth = {'auto'};      
       obj.UITable.CellEditCallback = @(s,e)obj.UITableCellEdit(e);
-      obj.UITable.Position = [20 20 300 350];
-      obj.UITable.FontSize = 14;
       obj.UITable.Units = 'normalized';
+      obj.UITable.Position = [.02 .02 .96 .96];
+      obj.UITable.FontSize = FSIZE;
+      %obj.UITable.FontUnits = 'normalized';
       
       % Show the figure after all components are created
       obj.hFig.Visible = 'on';
