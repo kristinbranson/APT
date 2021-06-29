@@ -251,7 +251,12 @@ classdef Lbl
       Lbl.hlpSaveJson(jslbl,packdir,sfjname);     
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
-      [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
+      if lObj.gtIsGTMode
+        movinfo = lObj.movieInfoAllGT;
+      else
+        movinfo = lObj.movieInfoAll;
+      end
+      [loc,locg,loccc] = Lbl.genLocs(tp,movinfo);
       if writeims
         if isempty(writeimsidx)
           writeimsidx = 1:numel(loc);
