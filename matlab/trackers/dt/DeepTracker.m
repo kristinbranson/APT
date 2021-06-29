@@ -1147,6 +1147,13 @@ classdef DeepTracker < LabelTracker
       obj.trainCleanup();
     end
     
+    function dmcs = trnGetDMCs(obj)
+      % Return all DeepModelChainOnDisks for this obj
+      % Overloadable meth
+      
+      dmcs = obj.trnLastDMC;
+    end
+    
   end
   methods
     %% BSub Trainer

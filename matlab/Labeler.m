@@ -2801,12 +2801,11 @@ classdef Labeler < handle
       
       for iTrker = 1:numel(obj.trackersAll)
         tObj = obj.trackersAll{iTrker};
-        if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)
+        if isa(tObj,'DeepTracker')
           % a lot of unnecessary moving around is to maintain the directory
           % structure - MK 20190204
           
-          dmc = tObj.trnLastDMC;
-        
+          dmc = tObj.trnGetDMCs();
           for ndx = 1:numel(dmc)
             dm = dmc(ndx);
             

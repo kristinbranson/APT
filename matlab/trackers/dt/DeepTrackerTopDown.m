@@ -39,7 +39,7 @@ classdef DeepTrackerTopDown < DeepTracker
       v = sprintf('MA Top Down');%,obj.trnNetMode.shortCode,...
 %        obj.stage1Tracker.trnNetMode.shortCode);
     end
-    function v = getAlgorithmNamePrettyHook(obj)      
+    function v = getAlgorithmNamePrettyHook(obj)
       v = sprintf('Top-Down (%s): %s + %s',obj.topDownTypeStr,...
         obj.stage1Tracker.trnNetType.displayString,...
         obj.trnNetType.displayString);
@@ -211,6 +211,10 @@ classdef DeepTrackerTopDown < DeepTracker
       end
     end
     
+    function dmcs = trnGetDMCs(obj)
+      dmcs = [obj.stage1Tracker.trnLastDMC(:); obj.trnLastDMC(:)];
+    end
+    
     function tc = getTrackerClassAugmented(obj2)
       obj1 = obj2.stage1Tracker;
       tc = {class(obj2) ...
@@ -238,6 +242,7 @@ classdef DeepTrackerTopDown < DeepTracker
       updateDLCache@DeepTracker(obj,dlcachedir);
       updateDLCache@DeepTracker(obj.stage1Tracker,dlcachedir);
     end
+    
   end
   
   methods (Static)
