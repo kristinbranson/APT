@@ -1,7 +1,9 @@
 import pathlib
 import os
 import sys
-sys.path.append('mmdetection')
+#AL20210629 just this relative append didn't work across bsub/singularity (could not find mmdet)
+#sys.path.append('mmdetection')
+sys.path.append(os.path.join(os.path.dirname(__file__),'mmdetection'))
 from mmcv import Config
 
 import mmcv

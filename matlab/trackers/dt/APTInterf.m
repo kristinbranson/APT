@@ -38,11 +38,11 @@ classdef APTInterf
           
         case DLNetMode.multiAnimalTDDetectObj
           [codestr,code] = APTInterf.bboxTrainCodeGen(trnID,dllbl,cache,errfile,...
-            netType,trnjson);
+            netType,trnjson,varargin{:});
           
         case DLNetMode.multiAnimalTDPoseObj
           [codestr,code] = APTInterf.bboxPoseTrainCodeGen(trnID,dllbl,...
-            cache,errfile,netType,trnjson);
+            cache,errfile,netType,trnjson,varargin{:});
         
         case DLNetMode.multiAnimalTDDetectHT
           htpts = [madet.head_point madet.tail_point];

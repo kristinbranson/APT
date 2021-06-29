@@ -1506,8 +1506,8 @@ classdef DeepTracker < LabelTracker
         case DLBackEnd.Bsub
           singArgs = {'bindpath',mntPaths};
           syscmd = DeepTracker.dataAugCodeGenSSHBsubSing(...
-            ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,outfile,...
-            'singArgs',singArgs);
+            ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,obj.trnNetMode,...
+            outfile,'singArgs',singArgs);
         case DLBackEnd.Docker
           dockerargs = {'detach',false};
           [syscmd] = ...
@@ -2813,7 +2813,7 @@ classdef DeepTracker < LabelTracker
       % right now, always create a single TrackJobGT to run serially across
       % views. This is simpler as it works for all backends and the number
       % of GT rows should be manageable.
-      trkjobsGT = TrackJobGT(be,dmcLcl,dmc,obj.trnNetType);
+      trkjobsGT = TrackJobGT(be,dmcLcl,dmc,obj.trnNetType,obj.trnNetMode);
 
 %       aptroot = be.bsubaptroot; % should be set previously during pretrack      
 %       %%% Marshall base trksysinfo %%%      
@@ -2897,7 +2897,7 @@ classdef DeepTracker < LabelTracker
         sshargsuse = [sshargs {'prefix' prefix}];
         
         trksysinfo(ivw).codestr = DeepTracker.trackCodeGenListFileSSHBsubSing(...
-          trksysinfo(ivw),modelChainID,obj.trnNetType,ivw,...          
+          trksysinfo(ivw),modelChainID,obj.trnNetType,obj.trnNetMode,ivw,...          
           'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargsuse);
       end
@@ -4214,7 +4214,7 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
-    function codestr = codeGenSingGeneral(basecmd,varargin)
+    function codestr = codeGenSingGeneral(basecmd,netMode,varargin)
       % Take a base command and run it in a sing img
       DFLTBINDPATH = {
         '/groups/branson/bransonlab'
@@ -4226,7 +4226,9 @@ classdef DeepTracker < LabelTracker
         'bindpath',DFLTBINDPATH,...
         'singimg','/groups/branson/bransonlab/apt/sif/prod.sif' ...
         );
-        %'singimg',sprintf('docker://%s:%s', dobj.dockerimgroot ,dobj.dockerimgtag));
+      if netMode.isObjDet
+        singimg = '/groups/branson/bransonlab/apt/sif/det.sif';
+      end
       delete(dobj);
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
@@ -4357,7 +4359,7 @@ classdef DeepTracker < LabelTracker
       baseargs = [baseargs {'confparamsfilequote','\\\"'}];
       basecmd = APTInterf.trainCodeGen(trnID,dllbl,cache,errfile,...
           netTypeObj,netMode,baseargs{:});      
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,netMode,singargs{:});
     end
     function codestr = trainCodeGenBsubSing(trnID,dllbl,cache,errfile,...
         netType,netMode,varargin)
@@ -4679,7 +4681,8 @@ classdef DeepTracker < LabelTracker
       
     end
     
-    function codestr = dataAugCodeGenSSHBsubSing(ID,dllbl,cache,errfile,netType,outfile,varargin)
+    function codestr = dataAugCodeGenSSHBsubSing(ID,dllbl,cache,errfile,...
+        netType,netMode,outfile,varargin)
 
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
         'baseargs',{},...
@@ -4687,31 +4690,32 @@ classdef DeepTracker < LabelTracker
         'bsubargs',{},...
         'sshargs',{});
       remotecmd = DeepTracker.dataAugCodeGenBsubSing(ID,dllbl,cache,...
-        errfile,netType,outfile,...
+        errfile,netType,netMode,outfile,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
     
-    function codestr = dataAugCodeGenBsubSing(ID,dllbl,cache,errfile,netType,outfile,varargin)
-    
+    function codestr = dataAugCodeGenBsubSing(ID,dllbl,cache,errfile,...
+        netType,netMode,outfile,varargin)
+     
       [baseargs,singargs,bsubargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{});
       basecmd = DeepTracker.dataAugCodeGenSing(ID,dllbl,cache,errfile,...
-        netType,outfile,'baseargs',baseargs,'singargs',singargs);
+        netType,netMode,outfile,'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
       
     end
     
-    function codestr = dataAugCodeGenSing(ID,dllbl,cache,errfile,netType,outfile,...
-        varargin)
+    function codestr = dataAugCodeGenSing(ID,dllbl,cache,errfile,...
+        netType,netMode,utfile,varargin)
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
       basecmd = DeepTracker.dataAugCodeGenBase(ID,dllbl,cache,errfile,...
         netType,outfile,baseargs{:});
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,netMode,singargs{:});
     end
     
     function [codestr] = dataAugCodeGenDocker(backend,...
@@ -4840,7 +4844,7 @@ classdef DeepTracker < LabelTracker
         'baseargs',{},...
         'singargs',{});
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netmode,singargs{:});
     end
     function codestr = trackCodeGenBsubSing(fileinfo,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
@@ -4866,7 +4870,7 @@ classdef DeepTracker < LabelTracker
     end
     
     function codestr = trackCodeGenListFileSSHBsubSing(trksysinfo,...
-        trnID,nettype,view,varargin)
+        trnID,nettype,netmode,view,varargin)
       
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
         'baseargs',{},...
@@ -4883,7 +4887,7 @@ classdef DeepTracker < LabelTracker
 
       codebase = DeepTracker.trackCodeGenBaseListFile(trnID,cache,dllbl,...
         outfile,errfile,nettype,view,listfile,baseargs{:});
-      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
+      codesing = DeepTracker.codeGenSingGeneral(codebase,netmode,singargs{:});
       codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end    
