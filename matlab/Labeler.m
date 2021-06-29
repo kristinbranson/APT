@@ -2153,8 +2153,8 @@ classdef Labeler < handle
         s.movieFilesAllGT = obj.movieFilesAllGTFull;
         s.trxFilesAll = obj.trxFilesAllFull;
         s.trxFilesAllGT = obj.trxFilesAllGTFull;
-        s.trxInfoAll = obj.trxInfoAllFull;
-        s.trxInfoAllGT = obj.trxInfoAllGTFull;
+        s.trxInfoAll = obj.trxInfoAll;
+        s.trxInfoAllGT = obj.trxInfoAllGT;
       end
       if massageCropProps
         cellOfObjArrs2CellOfStructArrs = ...
@@ -3501,33 +3501,26 @@ classdef Labeler < handle
       nDfltTrkers = numel(trkersInfo);
       assert(iscell(s.trackerClass));
       nExistingTrkers = numel(s.trackerClass);
-      if s.maIsMA
-        % ma trackers in flux; force to be the known trackers
-        s.trackerClass(:) = trkersInfo(1:nExistingTrkers);
-%         for i=1:numel(s.trackerData)
-%           % very foolish double-update; rm later
-%           s.trackerData{i}.trnNetType = trkersInfo{i}{3};
-%         end
-      else
-        [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),trkersInfo);
-        assert(all(tf));
-        tclass = trkersInfo;
-        tclass(loc) = s.trackerClass(:); 
-        tdata = repmat({[]},1,nDfltTrkers);
-        tdata(loc) = s.trackerData(:);
-        s.trackerClass = tclass;
-        s.trackerData = tdata;
-        
-        % KB 20201216 update currTracker as well
-        oldCurrTracker = s.currTracker;
-        if oldCurrTracker>0
-          s.currTracker = loc(oldCurrTracker);
-        end
+
+      [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),...
+        trkersInfo);
+      assert(all(tf));
+      tclass = trkersInfo;
+      tclass(loc) = s.trackerClass(:);
+      tdata = repmat({[]},1,nDfltTrkers);
+      tdata(loc) = s.trackerData(:);
+      s.trackerClass = tclass;
+      s.trackerData = tdata;      
+      % KB 20201216 update currTracker as well
+      oldCurrTracker = s.currTracker;
+      if oldCurrTracker>0
+        s.currTracker = loc(oldCurrTracker);
       end
-      s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
-        trkersInfo(nExistingTrkers+1:nDfltTrkers);
-      s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
-        repmat({[]},1,nDfltTrkers-nExistingTrkers);
+%       
+%       s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
+%         trkersInfo(nExistingTrkers+1:nDfltTrkers);
+%       s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
+%         repmat({[]},1,nDfltTrkers-nExistingTrkers);
       
       % 2019ed0207: added nLabels to dmc
       % 20190404: remove .trnName, .trnNameLbl as these dup DMC

@@ -438,10 +438,23 @@ classdef LabelTracker < handle
     end
     
     function [tf,loc] = trackersCreateInfoIsMember(infocell1,infocell2)
-      keyfcn = @(infocell)cellfun(@(x)sprintf('%s#',x{:}),infocell,'uni',0);
-      keys1 = keyfcn(infocell1);
-      keys2 = keyfcn(infocell2);
-      [tf,loc] = ismember(keys1,keys2);      
+      n1 = numel(infocell1);
+      n2 = numel(infocell2);
+      tf = false(n1,1);
+      loc = zeros(n1,1);
+      for i=1:n1
+        for j=1:n2
+          if isequal(infocell1{i},infocell2{j})
+            tf(i) = true;
+            loc(i) = j;
+            break;
+          end
+        end
+      end
+%       keyfcn = @(infocell)cellfun(@(x)sprintf('%s#',x{:}),infocell,'uni',0);
+%       keys1 = keyfcn(infocell1);
+%       keys2 = keyfcn(infocell2);
+%       [tf,loc] = ismember(keys1,keys2);      
     end
     
   end

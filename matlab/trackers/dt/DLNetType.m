@@ -42,6 +42,7 @@ classdef DLNetType < handle %dynamicprops
     leap ('leap')
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')
+    detect_mmdetect ('detect_mmdetect')
   end
   
   methods 
@@ -49,7 +50,7 @@ classdef DLNetType < handle %dynamicprops
       q = DLNetType.NETS;
       s = q.(key);
       fns = fieldnames(s);
-      for f=fns(:)',f=f{1};
+      for f=fns(:)',f=f{1}; %#ok<FXSET>
         %addprop(obj,f);
         switch f
           case 'modelCheckpointPat'
