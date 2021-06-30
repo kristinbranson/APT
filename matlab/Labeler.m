@@ -3960,7 +3960,7 @@ classdef Labeler < handle
       tfProceedRm = true;
       haslbls1 = obj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
       haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
-      haslbls2 = haslbls2(iMov);
+      haslbls2 = haslbls2(iMov)>0;
       assert(haslbls1==haslbls2);
       if haslbls1 && ~obj.movieDontAskRmMovieWithLabels && ~force
         str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
