@@ -31,8 +31,9 @@ from mmcv.parallel import collate, scatter
 from mmcv.ops import RoIPool
 
 from scipy.optimize import linear_sum_assignment
+import download_pretrained as down_pre
 
-
+import urllib.request as urllib
 import logging
 import time
 import copy
@@ -137,15 +138,22 @@ class APTHungarianAssigner(HungarianAssigner):
         assigned_gt_inds[:] = -1
 
         overlap_tr = 0.2
-        overlaps = bbox_overlaps(gt_bboxes, bboxes)
+        overlaps = bbox_overlaps(gt_bboxes, bboxes.detach())
         overlaps, _ = overlaps.max(dim=0)
         overlaps[matched_row_inds] = 0.
         masked_negs = (overlaps>overlap_tr)
         if gt_bboxes_ignore.shape[0]>0:
-            ignore_overlaps, _ = bbox_overlaps(bboxes, gt_bboxes_ignore, mode='iof').max(dim=1)
+            ignore_overlaps, _ = bbox_overlaps(bboxes.detach(), gt_bboxes_ignore, mode='iof').max(dim=1)
             ignore_overlaps[matched_row_inds] = 0.
             masked_negs = masked_negs | (ignore_overlaps>overlap_tr)
-        assigned_gt_inds[masked_negs] = 0
+        min_num_negs = 30
+        num_negs = np.count_nonzero(masked_negs.cpu().numpy())
+
+        if num_negs < min_num_negs:
+            masked_negs[np.random.choice(range(masked_negs.shape[0]),min_num_negs-num_negs)] = True
+
+        if False:
+            assigned_gt_inds[masked_negs] = 0
 
         # assign foregrounds based on matching results
         assigned_gt_inds[matched_row_inds] = matched_col_inds + 1
@@ -244,6 +252,8 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
     cfg.classes = ('fly','neg_box')
 
     im_sz = tuple(int(c / conf.rescale) for c in conf.imsz[::-1])  # conf.imsz[0]
+    default_samples_per_gpu = cfg.data.samples_per_gpu
+    cfg.data.samples_per_gpu = conf.batch_size
 
     if conf.mmdetect_net == 'frcnn':
         for ttype in ['train', 'val', 'test']:
@@ -278,6 +288,8 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
         assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
         cfg.train_pipeline[2].img_scale = im_sz
         cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
+        cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
+        cfg.load_from = 'https://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
 
     elif conf.mmdetect_net == 'detr':
         for ttype in ['train', 'val', 'test']:
@@ -287,28 +299,38 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
             file = os.path.join(data_bdir, f'{fname}.json')
             cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
             cfg.data[ttype].classes = cfg.classes
-            if ttype == 'train':
-                cfg.data[ttype].pipeline[3] = dict(type='Resize', img_scale=im_sz, keep_ratio=True)
-            else:
-                cfg.data[ttype].pipeline[1].img_scale = im_sz
+            if not conf.get('mmdetect_use_default_sz',False):
+              if ttype == 'train':
+                  cfg.data[ttype].pipeline[3] = dict(type='Resize', img_scale=im_sz, keep_ratio=True)
+              else:
+                  cfg.data[ttype].pipeline[1].img_scale = im_sz
 
 
         cfg.model.bbox_head.num_classes = 1
         assert (cfg.train_pipeline[3].type == 'AutoAugment'), 'Unsupported train pipeline'
-        cfg.train_pipeline[3] = dict(type='Resize', img_scale=im_sz, keep_ratio=True)
+        assert (cfg.test_pipeline[1].type == 'MultiScaleFlipAug'), 'Unsupported test pipeline'
+        if not conf.get('mmdetect_use_default_sz',False):
+          cfg.train_pipeline[3] = dict(type='Resize', img_scale=im_sz, keep_ratio=True)
+          cfg.test_pipeline[1].img_scale = im_sz
+
         if conf.multi_loss_mask:
             cfg.model.train_cfg.assigner.type = 'APTHungarianAssigner'
+#            cfg.model.bbox_head.num_query = 300
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        wt_dir = os.path.join(script_dir,'pretrained')
+        url =  'https://download.openmmlab.com/mmdetection/v2.0/detr/detr_r50_8x2_150e_coco/detr_r50_8x2_150e_coco_20201130_194835-2c4b8974.pth'
+        wt_file = os.path.join(wt_dir,'detr_r50_8x2_150e_coco_20201130_194835-2c4b8974.pth')
+        if not os.path.exists(wt_file):
+            if not os.path.exists(wt_dir):
+                os.makedirs(wt_dir)
+            urllib.urlretrieve(url,wt_file)
 
+        cfg.load_from = wt_file
 
-    assert (cfg.test_pipeline[1].type == 'MultiScaleFlipAug'), 'Unsupported test pipeline'
-    cfg.test_pipeline[1].img_scale = im_sz
 
     cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
     cfg.data.train.pipeline[-1]['keys'].append('gt_bboxes_ignore')
 
-    default_samples_per_gpu = cfg.data.samples_per_gpu
-    cfg.data.samples_per_gpu = conf.batch_size
-    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
 
     return cfg
 
@@ -375,6 +397,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
 
         # From mmdetection/tools/train.py
         cfg = self.cfg
+        cfg.dump(os.path.join(self.conf.cachedir, self.name + '_cfg.py'))
         model = build_detector(
             cfg.model,
             train_cfg=cfg.get('train_cfg'),
@@ -395,7 +418,6 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                 config=cfg.pretty_text,
             )
 
-
         # Rest is from mmdetection/apis/train.py:train_detector
 
         validate = False
@@ -410,6 +432,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             cfg.load_from = model_file
         elif restore:
             cfg.resume_from = self.get_latest_model_file()
+            cfg.load_from = None
 
         dataloader_setting = dict(
             samples_per_gpu=cfg.data.get('samples_per_gpu', {}),
@@ -421,9 +444,6 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
 
         data_loaders = [ build_dataloader(ds, **dataloader_setting) for ds in dataset]
-
-        # determine wether use adversarial training precess or not
-        use_adverserial_train = cfg.get('use_adversarial_train', False)
 
         # put model on gpus
         if distributed:
@@ -439,40 +459,44 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         # build runner
         optimizer = build_optimizer(model, cfg.optimizer)
         if self.conf.get('mmpose_use_epoch_runner', False):
-            get_runner = EpochBasedRunner
-            steps = self.conf.dl_steps // len(data_loaders[0])
+            cfg.runner = {
+                'type': 'EpochBasedRunner',
+                'max_epochs':self.conf.dl_steps // len(data_loaders[0])
+            }
         else:
-            get_runner = IterBasedRunner
             steps = self.conf.dl_steps
+            assert cfg.workflow[0][0] =='train', 'Improper config file'
+            cfg.workflow[0] = ('train',self.conf.display_step)
 
-        runner = get_runner(
-            model,
-            optimizer=optimizer,
-            work_dir=cfg.work_dir,
-            logger=logger,
-            meta=meta)
+            cfg.runner = {'type':'IterBasedRunner','max_iters':steps}
+
+        runner = build_runner(
+            cfg.runner,
+            default_args=dict(
+                model=model,
+                optimizer=optimizer,
+                work_dir=cfg.work_dir,
+                logger=logger,
+                meta=meta))
+
         # an ugly workaround to make .log and .log.json filenames the same
         runner.timestamp = timestamp
 
-        if use_adverserial_train:
-            # The optimizer step process is included in the train_step function
-            # of the model, so the runner should NOT include optimizer hook.
-            optimizer_config = None
+        # fp16 setting
+        fp16_cfg = cfg.get('fp16', None)
+        if fp16_cfg is not None:
+            optimizer_config = Fp16OptimizerHook(
+                **cfg.optimizer_config, **fp16_cfg, distributed=distributed)
+        elif distributed and 'type' not in cfg.optimizer_config:
+            optimizer_config = OptimizerHook(**cfg.optimizer_config)
         else:
-            # fp16 setting
-            fp16_cfg = cfg.get('fp16', None)
-            if fp16_cfg is not None:
-                optimizer_config = Fp16OptimizerHook(
-                    **cfg.optimizer_config, **fp16_cfg, distributed=distributed)
-            elif distributed and 'type' not in cfg.optimizer_config:
-                optimizer_config = OptimizerHook(**cfg.optimizer_config)
-            else:
-                optimizer_config = cfg.optimizer_config
+            optimizer_config = cfg.optimizer_config
 
         # register hooks
         runner.register_training_hooks(cfg.lr_config, optimizer_config, cfg.checkpoint_config, cfg.log_config, cfg.get('momentum_config', None))
         if distributed:
-            runner.register_hook(DistSamplerSeedHook())
+            if isinstance(runner, EpochBasedRunner):
+                runner.register_hook(DistSamplerSeedHook())
 
         # register eval hooks
         if validate:
@@ -499,7 +523,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
-        runner.run(data_loaders, cfg.workflow, steps)
+        runner.run(data_loaders, cfg.workflow)
 
 
     def get_latest_model_file(self):

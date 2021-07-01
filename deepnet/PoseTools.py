@@ -880,7 +880,7 @@ def compare_conf(curconf, oldconf):
 
             elif type(getattr(curconf, f)) is list:
                 if type(getattr(oldconf, f)) is list:
-                    if cmp(getattr(curconf, f), getattr(oldconf, f)) !=0 :
+                    if getattr(curconf, f)!= getattr(oldconf, f):
                         logging.warning('{} doesnt match'.format(f))
                         logging.warning('New:{}'.format(getattr(curconf, f)))
                         logging.warning('Old:{}'.format(getattr(oldconf, f)))
@@ -1564,7 +1564,7 @@ def get_git_commit():
         label = 'Not a git repo'
     return label
 
-def get_git_commit():
+def get_git_commit_old():
     try:
         label = subprocess.check_output(["git", "describe"]).strip()
     except subprocess.CalledProcessError as e:

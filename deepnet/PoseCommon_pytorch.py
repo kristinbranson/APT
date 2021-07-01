@@ -19,7 +19,7 @@ import time
 import cv2
 import xtcocotools.mask
 
-autograd.set_detect_anomaly(True)
+# autograd.set_detect_anomaly(True)
 
 def print_train_data(cur_dict):
     p_str = ''

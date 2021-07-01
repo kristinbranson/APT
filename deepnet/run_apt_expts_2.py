@@ -29,7 +29,9 @@ import hdf5storage
 import easydict
 import sys
 import getpass
-import apt_dpk_exps as ade
+
+if getpass.getuser() == 'leea30':
+    import apt_dpk_exps as ade
 import util as util
 import time
 
@@ -48,6 +50,7 @@ gt_name = ''
 dpk_skel_csv = None
 dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/git/imgaug'
 expname_dict_normaltrain = None
+sing_img = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
 if getpass.getuser() == 'kabram':
     # cache_dir = '/nrs/branson/mayank/apt_cache_2'
     cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
@@ -63,7 +66,7 @@ elif getpass.getuser() == 'leea30':
 else:
     assert False, "Add your cache and out directory"
 
-all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint','leap', 'openpose','resnet_unet','unet','mdn_joint_fpn','leap_orig','deeplabcut_orig']
+all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint','leap', 'openpose','resnet_unet','unet','mdn_joint_fpn','leap_orig','deeplabcut_orig','mmpose']
 
 print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))
@@ -96,6 +99,8 @@ common_conf['lr_drop_step'] = 0.15
 common_conf['normalize_loss_batch'] = False
 common_conf['use_scale_factor_range'] = True
 common_conf['predict_occluded'] = False
+
+common_conf['mmpose_net'] = '\\"mspn\\"'
 
 # These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
 
@@ -132,13 +137,17 @@ def setup(data_type_in,gpu_device='0'):
 
     if data_type == 'alice' or data_type=='alice_difficult':
         # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
-        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403_new_skl_20200817.lbl'
-        gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
+        # Old as on 20210629
+        # lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20200317_stripped20200403_new_skl_20200817.lbl'
+        # gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
+        # Current as on 20210629 -- the op graph is proper and is the one that should be used
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_training_20210523_allGT_AR_mdnGTres_stripped20210629.lbl'
+        gt_lbl = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_training_20210523_allGT_AR_mdnGTres_stripped20210629_gt.lbl'
 
-        op_af_graph_mk = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
-        op_af_graph_al = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
-        op_af_graph_kb_orig = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(3,16\),\(4,11\),\(5,6\),\(5,7\),\(5,9\),\(7,8\),\(5,13\),\(8,12\),\(9,10\),\(5,14\),\(10,15\)'
-        op_af_graph = op_af_graph_kb_orig
+        # op_af_graph_mk = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(9,14\),\(7,11\),\(7,8\),\(8,12\),\(7,13\)'
+        # op_af_graph_al = '\(0,1\),\(0,2\),\(0,3\),\(0,4\),\(0,5\),\(5,6\),\(5,7\),\(5,9\),\(9,16\),\(9,10\),\(10,15\),\(5,14\),\(7,11\),\(7,8\),\(8,12\),\(5,13\)'
+        # op_af_graph_kb_orig = '\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(3,16\),\(4,11\),\(5,6\),\(5,7\),\(5,9\),\(7,8\),\(5,13\),\(8,12\),\(9,10\),\(5,14\),\(10,15\)'
+        # op_af_graph = op_af_graph_kb_orig
 
         if getpass.getuser() == 'leea30':
             dpk_skel_csv = ade.dbs['alice']['skel']
@@ -277,7 +286,7 @@ def run_jobs(cmd_name,
              run_dir=job_run_dir,
              queue='gpu_any',
              precmd='',
-             logdir=sdir,nslots=3):
+             logdir=sdir,nslots=3,sing_img=sing_img):
     logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
     errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 
@@ -304,7 +313,7 @@ def run_jobs(cmd_name,
                              run_dir=run_dir,
                              queue=queue,
                              precmd=precmd,numcores=nslots,
-                             timeout=80*60)
+                             timeout=80*60,sing_img=sing_img)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
@@ -981,17 +990,19 @@ def get_apt_conf(**kwargs):
     return res
 
 
-def create_normal_dbs():
-    exp_name = 'apt_expt'
+def create_normal_dbs(expname ='apt_expt'):
+
     # assert gt_lbl is not None
     for view in range(nviews):
         for tndx in range(len(all_models)):
             train_type = all_models[tndx]
-            conf = create_conf_help(train_type, view, exp_name)
+            conf = create_conf_help(train_type, view, expname)
             if 'deeplabcut' in train_type:
                 apt.create_deepcut_db(conf,split=False,use_cache=True)
             elif 'leap' in train_type:
                 apt.create_leap_db(conf,split=False,use_cache=True)
+            elif 'mmpose' in train_type:
+                apt.create_coco_db(conf, split=True)
             else:
                 apt.create_tfrecord(conf,split=False,use_cache=True)
 
@@ -1819,7 +1830,7 @@ def get_normal_results(exp_name='apt_expt',  # can be dict of train_type->exp_na
 
     for ndx,out_exp in enumerate(all_view):
         plot_results(out_exp[0])
-        plot_hist(out_exp,ps=[75,90,95,97])
+        plot_hist(out_exp,ps=[50,75,90,95,98])
 
         save_file = os.path.join(results_dir, '{}_{}_{}_view{}_time{}'.format(data_type, exp_name, train_name_dstr, ndx, gt_name_use_output)) \
             if use_exp_name_save_file \

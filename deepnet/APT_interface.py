@@ -833,7 +833,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet', conf_para
             pass
 
     try:
-        if isModern and net_type in ['dpk', 'openpose']:
+        if isModern and net_type in ['dpk', 'openpose','multi_openpose']:
             try:
                 bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
             except ValueError:
@@ -1079,7 +1079,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
                 if occ_as_nan:
                     cur_loc[cur_occ[fnum, :], :] = np.nan
 
-                cur_out([frame_in, cur_loc, info])
+                cur_out({'im':frame_in, 'locs':cur_loc, 'info':info})
 
                 if cur_out is out_fns[1] and split:
                     val_count += 1
@@ -2825,6 +2825,7 @@ def compile_trk_info(conf, model_file, crop_loc, expname=None):
         param_dict['flipLandmarkMatches'] = None
     info[u'crop_loc'] = to_mat(crop_loc)
     info[u'project_file'] = getattr(conf, 'project_file', '')
+    info[u'git_commit'] = pt.get_git_commit()
 
     return info
 

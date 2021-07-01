@@ -12,8 +12,11 @@ reload(rae)
 rae.setup('alice')
 #rae.create_normal_dbs()
 # dstr = '20200604'
-dstr = '20200706'
-rae.run_normal_training(dstr=dstr) #run_type = 'submit'
+# dstr = '20200706'
+# rae.run_normal_training(dstr=dstr) #run_type = 'submit'
+dstr = '20210629'
+rae.create_normal_dbs(expname='touching')
+rae.run_normal_training(dstr=dstr,expname='touching') #run_type = 'submit'
 # rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
 
 #dstr = 20200410 for old
@@ -27,10 +30,12 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-dstr = '20200706' #'20200604' # '20200410'
-rae.get_normal_results(dstr=dstr)
-rae.setup('alice_difficult')
-rae.get_normal_results(dstr=dstr)
+# dstr = '20200706' #'20200604' # '20200410'
+# rae.get_normal_results(dstr=dstr)
+dstr = '20210629'
+rae.get_normal_results(dstr=dstr,exp_name='touching')
+# rae.setup('alice_difficult')
+# rae.get_normal_results(dstr=dstr)
 
 ##
 import run_apt_expts_2 as rae
