@@ -131,6 +131,12 @@ cfg.ViewNames = struct2cell(cfg.ViewNames);
 cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
 cfg.Trx.HasTrx = handles.cbHasTrx.Value;
 cfg.MultiAnimal = handles.cbMA.Value;
+isMA = cfg.MultiAnimal && ~cfg.Trx.HasTrx;
+if isMA
+  cfg.LabelMode = LabelMode.MULTIANIMAL;
+else
+  cfg.LabelMode = LabelMode.SEQUENTIAL;
+end
 % pumLM = handles.pumLabelingMode;
 % lmVal = pumLM.Value;
 % cfg.LabelMode = char(pumLM.UserData(lmVal));

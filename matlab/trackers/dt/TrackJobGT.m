@@ -9,6 +9,7 @@ classdef TrackJobGT < handle
     isserial = true;
     
     nettype % scalar DLNetType 
+    netmode % scalar DLNetMode
     codestr
     codestrlog % for docker
   end
@@ -48,12 +49,13 @@ classdef TrackJobGT < handle
   end
   
   methods
-    function obj = TrackJobGT(be,dmclcl,dmcrem,net)
+    function obj = TrackJobGT(be,dmclcl,dmcrem,net,netmde)
       assert(numel(dmclcl)==numel(dmcrem));
       obj.backend = be;
       obj.dmcslcl = dmclcl;
       obj.dmcsrem = dmcrem;
       obj.nettype = net;
+      obj.netmode = netmde;
     end
     function checkCreateDirs(obj)
       % Similar to TrackJob
@@ -129,7 +131,7 @@ classdef TrackJobGT < handle
       sshargs = {'prefix' prefix};
         
       codebase = obj.codegenBase(baseargs);
-      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
+      codesing = DeepTracker.codeGenSingGeneral(codebase,obj.netmode,singargs{:});
       codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end

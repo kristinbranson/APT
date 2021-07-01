@@ -1,71 +1,83 @@
-classdef DLNetType
+classdef DLNetType < handle %dynamicprops
+  % Deep Learning Network
+  %
+  % A DLNetType represents a particular deep net. It has a particular
+  % architecture, hyperparameters, calling syntax for train/track, 
+  % model/artifact structure when training, and set of outputs after
+  % inference.
+  %
+  % When any DL job is run, one particular DLNetType is in play.
+  
+  properties (Constant)
+    NETS = lclReadNetYaml();
+  end
   properties
     shortString
-    prettyString
-    paramFileShort
+    %paramString % field used in tracking params
+    displayString
+    %prettyString
+    %paramFileShort
     
-    mdlNamePat
+    mdlNamePat 
     mdlGlobPat
+    modelGlobs
     
-    trkAuxFlds % [naux] struct array of auxiliary tracking fields with 
-               % fields .trkfld and .label
+    trkAuxFields % [naux]
+    trkAuxLabels % [naux]          
     timelinePropList % [naux] struct array of tracker-specific properties 
                      % in format used by InfoTimeline
                      
     doesOccPred
-    doesMA   
-  end
-  properties (Dependent)
-    nTrkAuxFlds
+    isMultiAnimal % TODO: rename to "isMA bottom up" or similar
   end
   
   enumeration 
-    mdn ('mdn','MDN',...
-          struct('trkfld',{'pTrkconf' 'pTrkconf_unet' 'pTrkocc'}, ...
-                 'label',{'conf_mdn' 'conf_unet' 'scr_occ'}),true,...
-                 'deepnet-%d.index','deepnet-*.index',false)
-    deeplabcut ('dlc','DeepLabCut', ...
-                struct('trkfld',{'pTrkconf'},'label',{'confidence'}),false, ...
-                'deepnet-%d.index','deepnet-*.index',false)
-    dpk ('dpk','DeepPoseKit', ...
-          struct('trkfld',cell(0,1),'label',[]),false, ...
-          'deepnet-%08d.h5','deepnet-*.h5',false)
-    unet ('unet','Unet', ...
-          struct('trkfld',{'pTrkconf'},'label',{'confidence'}),false,...
-          'deepnet-%d.index','deepnet-*.index',false)
-    openpose ('openpose','OpenPose',...
-              struct('trkfld',{'pTrkconf'},'label',{'confidence'}),false,...
-              'deepnet-%d','deepnet-*',false)
-    leap ('leap','LEAP', ...
-          struct('trkfld',{'pTrkconf'},'label',{'confidence'}),false,...
-                  'deepnet-%d','deepnet-*',false)
-    multi_mdn_joint_torch ('ma','MultiAnimal',...
-                 struct('trkfld',cell(0,1),'label',[]),false,...
-                        'deepnet-%d','deepnet-*',true)
+    mdn ('mdn')
+    unet ('unet')
+    mdn_joint_fpn ('mdn_joint_fpn')
+    mmpose ('mmpose')
+    deeplabcut ('deeplabcut')
+    dpk ('dpk')
+    openpose ('openpose')
+    leap ('leap')
+    multi_mdn_joint_torch ('multi_mdn_joint_torch')
+    multi_openpose ('multi_openpose')
+    detect_mmdetect ('detect_mmdetect')
   end
   
   methods 
-    function v = get.nTrkAuxFlds(obj)
-      v = numel(obj.trkAuxFlds);
+    function obj = DLNetType(key)
+      q = DLNetType.NETS;
+      s = q.(key);
+      fns = fieldnames(s);
+      for f=fns(:)',f=f{1}; %#ok<FXSET>
+        %addprop(obj,f);
+        switch f
+          case 'modelCheckpointPat'
+            v = s.(f);
+            obj.mdlNamePat = v;
+            obj.mdlGlobPat = regexprep(v,'%[0-9]*d','*');
+          otherwise            
+            obj.(f) = s.(f);
+        end
+      end
+            
+      obj.timelinePropList = DLNetType.auxflds2PropList(obj.trkAuxLabels);
     end
-  end
-  methods 
-    function obj = DLNetType(sstr,pstr,auxflds,tfoccpred,...
-        mdlNamePat,mdlGlobPat,doesMA)
-      obj.shortString = sstr;
-      obj.prettyString = pstr;
-      obj.paramFileShort = sprintf('params_deeptrack_%s.yaml',sstr);
-      obj.trkAuxFlds = auxflds;
-      obj.timelinePropList = DLNetType.auxflds2PropList(auxflds);
-      obj.doesOccPred = tfoccpred;
-      obj.mdlNamePat = mdlNamePat;
-      obj.mdlGlobPat = mdlGlobPat;
-      obj.doesMA = doesMA;
+    function g = getModelGlobs(obj,iterCurr)
+      g = cellfun(@(x)sprintf(x,iterCurr),obj.modelGlobs,'uni',0);
+    end
+    function tf = requiresTrnPack(obj,netMode)
+      % whether training requires trnpack generation
+      tf = obj.isMultiAnimal || ...
+          (netMode~=DLNetMode.singleAnimal && ...
+           netMode~=DLNetMode.multiAnimalTDPoseTrx);      
     end
   end
   
   methods (Static)
-    function s = auxflds2PropList(auxflds)
+    
+    function s = auxflds2PropList(auxlbls)
       % Create .timelinePropList; see comments in properties block
       %
       % s: struct array detailing traker-specific props
@@ -75,60 +87,17 @@ classdef DLNetType
       COORDSYS = 'Global';
       
       s = EmptyLandmarkFeatureArray();
-      for iaux=1:numel(auxflds)
-        label = auxflds(iaux).label;
+      for iaux=1:numel(auxlbls)
+        label = auxlbls{iaux};
         for tt=TRANSTYPES,tt=tt{1}; %#ok<FXSET>
           s(end+1,1) = ConstructLandmarkFeature(label,tt,COORDSYS); %#ok<AGROW>
         end
       end
     end
-    function g = modelGlobs(net,iterCurr)
-      % net specific model globs in modelChainDir
-      %
-      % TODO Should just be regular method but right now net can be a char.
-      % TODO Continue removing switchyard.
-      
-      if ischar(net)
-        net = DLNetType.(net);
-      end
-      
-      g1 = sprintf(net.mdlNamePat,iterCurr);
-      switch net
-        case DLNetType.openpose
-          g = { ...
-            g1
-            'traindata*'
-            };
-
-        case DLNetType.leap
-          g = { ...
-            g1
-            'initial_model.h5' %            'leap_train.h5'
-            'traindata*'
-            'training_info.mat'
-            };
-          
-        case DLNetType.dpk
-          g = { ...
-            g1
-            'deepnet.conf.pickle'
-            'traindata*'
-            };
-        case DLNetType.multi_mdn_joint_torch
-          g = { ...
-            g1 
-            'traindata*'
-            'deepnet_ckpt'
-            '*json'
-            };          
-        otherwise % case {DLNetType.unet DLNetType.mdn DLNetType.deeplabcut}
-          g = { ...
-            sprintf('deepnet-%d.*',iterCurr)  % ugh this is not an instance prop
-            'deepnet_ckpt' % 'splitdata.json'
-            'traindata*'
-            };
-      end
-    end   
   end
+end 
+  
+function s = lclReadNetYaml()
+yaml = fullfile(APT.Root,'matlab','trackers','dt','nets.yaml');
+s = ReadYaml(yaml);
 end
-    

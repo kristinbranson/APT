@@ -248,11 +248,15 @@ classdef Lbl
       fprintf(1,'Saved %s\n',sfname);
       [~,slblnameS] = fileparts(slblname);
       sfjname = sprintf('%s.json',slblnameS);
-      Lbl.hlpSaveJson(jslbl,packdir,sfjname);
-     
+      Lbl.hlpSaveJson(jslbl,packdir,sfjname);     
 
       tp = Lbl.aggregateLabelsAddRoi(lObj);
-      [loc,locg,loccc] = Lbl.genLocs(tp,lObj.movieInfoAll);
+      if lObj.gtIsGTMode
+        movinfo = lObj.movieInfoAllGT;
+      else
+        movinfo = lObj.movieInfoAll;
+      end
+      [loc,locg,loccc] = Lbl.genLocs(tp,movinfo);
       if writeims
         if isempty(writeimsidx)
           writeimsidx = 1:numel(loc);
@@ -282,13 +286,21 @@ classdef Lbl
     end
     
     function sagg = aggregateLabelsAddRoi(lObj)
-      nmov = numel(lObj.labels);
+      
+      isgt = lObj.gtIsGTMode;
+      PROPS = lObj.gtGetSharedProps;
+      fLbl = PROPS.LBL;
+      fmfaf = PROPS.MFAF;
+      
+      lbls = lObj.(fLbl);
+      mfafs = lObj.(fmfaf);
+      nmov = numel(lbls);
       sagg = cell(nmov,1);
 %       saggroi = lObj.labelsRoi;
 %       szassert(saggroi,size(sagg));
       for imov=1:nmov
-        s = lObj.labels{imov};
-        s.mov = lObj.movieFilesAllFull{imov};
+        s = lbls{imov};
+        s.mov = mfafs{imov};
         
         %% gen rois, bw
         n = size(s.p,2);
@@ -301,7 +313,11 @@ classdef Lbl
           s.roi(:,i) = roi(:);
         end
 
-        sroi = lObj.labelsRoi{imov};
+        if ~isgt
+          sroi = lObj.labelsRoi{imov};
+        else
+          sroi = LabelROI.new();
+        end
         s.frmroi = sroi.f;
         s.extra_roi = sroi.verts;
         sagg{imov} = s;        
@@ -629,14 +645,14 @@ classdef Lbl
       isMA = s.cfg.MultiAnimal;
       
       CFG_GLOBS = {'Num' 'MultiAnimal'};
-      FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'movieInfoAll' 'cropProjHasCrops' ...
+      FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'cropProjHasCrops' ...
         'trackerClass' 'trackerData'};
       TRACKERDATA_FLDS = {'sPrmAll' 'trnNetTypeString'};
       if isMA
-        GLOBS = {'movieFilesAll' 'trxFilesAll'};
+        GLOBS = {'movieFilesAll' 'movieInfoAll' 'trxFilesAll'};
         FLDSRM = {'projMacros'};
       else
-        GLOBS = {'labeledpos' 'movieFilesAll' 'trxFilesAll' 'preProcData'};
+        GLOBS = {'labeledpos' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'preProcData'};
         FLDSRM = { ... % 'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
                   'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT'};
       end

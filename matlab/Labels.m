@@ -530,6 +530,53 @@ classdef Labels
       fcn = @(zs,znfrm,zntgt)Labels.toarray(zs,'nfrm',znfrm,'ntgt',zntgt);
       [lpos,lposTS,lpostag] = cellfun(fcn,lObj.(labelsfld),nfrms(:),ntgts(:),'uni',0);
     end
+    function [tf] = lObjGetIsLabeled(lObj,labelsfld,tbl,gt)
+      
+      tf = false(height(tbl),1);
+      for i = 1:numel(lObj.(labelsfld)),
+        if gt,
+          movi = -i;
+        else
+          movi = i;
+        end
+        idx = tbl.mov == movi;
+        if ~any(idx),
+          continue;
+        end
+        [ism,j] = ismember([tbl.frm(idx),tbl.iTgt(idx)],[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
+        idx = find(idx);
+        idx = idx(ism);
+        j = j(ism);
+        tf(idx) = ~any(isnan(lObj.(labelsfld){i}.p(:,j)));
+      end
+      
+    end
+    function n = lObjNLabeled(lObj,labelsfld,varargin)
+      [movis,itgts,gt] = myparse(varargin,'movi',[],'itgt',[],'gt',[]);
+      if isempty(movis),
+        movis = 1:numel(lObj.(labelsfld));
+        movis = reshape(movis,size(lObj.(labelsfld)));
+      end
+      if isempty(itgts),
+        itgts = cell(size(movis));
+      end
+      if gt,
+        movis = abs(movis);
+      end
+      n = cell(size(movis));
+      for ii = 1:numel(movis),
+        movi = movis(ii);
+        if isempty(itgts{ii}),
+          n{ii} = nnz(~all(isnan(lObj.(labelsfld){movi}.p),1));
+        else
+          n{ii} = zeros(size(itgts{ii}));
+          for jj = 1:numel(itgts{ii}),
+            itgt = itgts{ii}(jj);
+            n{ii}(jj) = nnz(~all(isnan(lObj.(labelsfld){movi}.p(:,lObj.(labelsfld){movi}.tgt==itgt)),1));
+          end
+        end
+      end
+    end
     function verifyLObj(lObj)
       Labels.verifylObjHlp(lObj.labels,...
         lObj.labeledpos,lObj.labeledposTS,lObj.labeledpostag,'labels');

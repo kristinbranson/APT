@@ -1,0 +1,125 @@
+# How to add a deep network to APT
+#
+# 1. Add an entry here with top-level field <net>.
+#    <net> should match the Py net-type.
+# 2. Add <net> to the enumeration block in DLNetType
+# 3. Add a params_deeptrack_<net>.yaml
+#
+# Notes on names
+# - The top-level field <net> matches the Python deepnet nettype.
+# - shortString is a single-world nickname. Currently unused.
+# - displayString is a pretty string for UIs. It can contain whitespace.
+# - The string used in parameters structures is specified in the
+#   params_deeptrack_<net>.yaml.
+
+mdn:
+  shortString: mdn  
+  displayString: MDN
+  modelCheckpointPat: deepnet-%d.index  
+  modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*]  # matching files are considered important and saved to Lbl
+  trkAuxFields: [pTrkConf, pTrkConf_unet, pTrkocc]
+  trkAuxLabels: [conf_mdn, conf_unet, scr_occ]
+  doesOccPred: 1
+  isMultiAnimal: 0
+
+unet:
+  shortString: unet
+  displayString: Unet
+  modelCheckpointPat: deepnet-%d.index  
+  modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*]  # matching files are considered important and saved to Lbl
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 0
+
+mdn_joint_fpn:   
+  shortString: grone
+  displayString: GRONe
+  modelCheckpointPat: deepnet-%d.index  
+  modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*]
+  trkAuxFields: [pTrkConf, pTrkocc]
+  trkAuxLabels: [confidence, scr_occ]
+  doesOccPred: 1
+  isMultiAnimal: 0
+
+mmpose:   
+  shortString: mspn
+  displayString: MSPN
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
+  trkAuxFields: [pTrkConf, pTrkocc]
+  trkAuxLabels: [confidence, scr_occ]
+  doesOccPred: 1
+  isMultiAnimal: 0
+
+deeplabcut:   
+  shortString: dlc
+  displayString: DeepLabCut
+  modelCheckpointPat: deepnet-%d.index  
+  modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*]
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 0
+
+dpk:   
+  shortString: dpk
+  displayString: DeepPoseKit
+  modelCheckpointPat: deepnet-%08d.h5
+  modelGlobs: [deepnet-%08d.h5, deepnet.conf.pickle, traindata*]
+  trkAuxFields: []
+  trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 0
+
+openpose:   
+  shortString: openpose
+  displayString: OpenPose
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, traindata*]
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 0
+
+leap:   
+  shortString: leap
+  displayString: LEAP
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, initial_model.h5, traindata*, training_info.mat]
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 0
+
+multi_mdn_joint_torch:
+  shortString: magrone
+  displayString: MultiAnimal GRONe
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d*, deepnet_ckpt, traindata*, 'traindata.json'] 
+  trkAuxFields: []
+  trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 1
+
+multi_openpose:
+  shortString: maopenpose
+  displayString: MultiAnimal OpenPose
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d.*, traindata*] 
+  trkAuxFields: []
+  trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 1
+
+detect_mmdetect:
+  shortString: mmdetect
+  displayString: Object Detection
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, traindata*] 
+  trkAuxFields: []
+  trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 1
+
+

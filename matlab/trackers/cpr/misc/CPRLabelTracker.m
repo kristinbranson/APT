@@ -239,12 +239,7 @@ classdef CPRLabelTracker < LabelTracker
           'nview',lObj.nview);
         obj.lObj = s;
         obj.ax = [];
-        delete(obj.hLCurrMovie);
-        delete(obj.hLCurrFrame);
-        delete(obj.hLCurrTarget);
-        obj.hLCurrMovie = [];
-        obj.hLCurrFrame = [];
-        obj.hLCurrTarget = [];
+        obj.deleteListeners();
       end
     end
     
@@ -459,7 +454,7 @@ classdef CPRLabelTracker < LabelTracker
       notify(obj,'newTrackingResults');
     end
     
-    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
+    function [tblTrkRes,pTrkiPt] = getTrackingResultsTable(obj) % obj const
       % Get all current tracking results in a table
       %
       % tblTrkRes: [NTrk x ncol] table of tracking results
@@ -2345,11 +2340,11 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerFrame(obj)
-      if obj.lObj.isinit || ~obj.lObj.hasMovie
+      if obj.lObj.isinit || ~obj.lObj.hasMovie || isempty(obj.trkVizer)
         return;
       end
       
-      [xy,isinterp,xyfull] = obj.getPredictionCurrentFrame();
+      [tfhaspred,xy,isinterp,xyfull] = obj.getTrackingResultsCurrFrm();
       
       if obj.asyncPredictOn && all(isnan(xy(:)))
         obj.asyncTrackCurrFrameBG();
@@ -2716,7 +2711,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#%MTGT
-    function [xy,isinterp,xyfull] = getPredictionCurrentFrame(obj)
+    function [tfhaspred,xy,isinterp,xyfull] = getTrackingResultsCurrFrm(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
       % xyfull: [nPtsx2xnRep]. full tracking only for current target. Only 
@@ -2727,6 +2722,7 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(xyPCM)
         npts = obj.nPts;
         nTgt = obj.lObj.nTargets;
+        tfhaspred = false(nTgt,1);
         xy = nan(npts,2,nTgt);
         isinterp = false;
       else
@@ -2738,6 +2734,8 @@ classdef CPRLabelTracker < LabelTracker
         
         xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
+        tfhaspred = any(~isnan(xy(:,1,:)),1);
+        tfhaspred = tfhaspred(:);
       end
       if obj.storeFullTracking>StoreFullTrackingType.NONE && ...
           ~isequal(obj.xyPrdCurrMovieFull,[])

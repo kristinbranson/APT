@@ -43,11 +43,7 @@ classdef LabelTracker < handle
     
     lastTrainStats = []; % struct with information about the last training for visualization
     
-    hLCurrMovie; % listener to lObj.currMovie
-    hLCurrFrame; % listener to lObj.currFrame
-    hLCurrTarget; % listener to lObj.currTarget
-    hLMovieRemoved % " lObj/movieRemoved
-    hLMoviesReordered % "
+    hListeners; % cell vec of Labeler listeners
   end  
   
   properties (SetObservable,SetAccess=protected)
@@ -55,10 +51,6 @@ classdef LabelTracker < handle
     showPredsCurrTargetOnly = false;
   end
   
-%   properties (Constant)    
-%     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
-%   end
-      
   methods
     
     function obj = LabelTracker(labelerObj)
@@ -74,11 +66,14 @@ classdef LabelTracker < handle
       end
       obj.trkVizInterpolate = val;
       
-      obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
-      %obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
-      obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
-      obj.hLMovieRemoved = addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
-      obj.hLMoviesReordered = addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
+      listeners = { ...
+        addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
+        %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
+        addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
+        addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
+        addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
+        };
+      obj.hListeners = listeners;
     end
     
     function init(obj)
@@ -88,22 +83,20 @@ classdef LabelTracker < handle
     end
         
     function delete(obj)
-      if ~isempty(obj.hLCurrMovie)
-        delete(obj.hLCurrMovie);
-      end
-      if ~isempty(obj.hLCurrFrame)
-        delete(obj.hLCurrFrame);
-      end
-      if ~isempty(obj.hLCurrTarget)
-        delete(obj.hLCurrTarget);
-      end
-      if ~isempty(obj.hLMovieRemoved)
-        delete(obj.hLMovieRemoved);
-      end
-      if ~isempty(obj.hLMoviesReordered)
-        delete(obj.hLMoviesReordered);
-      end      
+      obj.deleteListeners();
     end    
+    
+    function deleteListeners(obj)
+      cellfun(@delete,obj.hListeners);
+      obj.hListeners = cell(0,1);
+    end
+    
+    function setEnableListeners(obj,val)
+      hs = obj.hListeners;
+      for i=1:numel(hs)
+        hs{i}.Enabled = val;
+      end
+    end
 	
   end
   
@@ -171,12 +164,14 @@ classdef LabelTracker < handle
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
-    function xy = getPredictionCurrentFrame(obj)
+    function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)
       % Convenience meth
       %
       % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
       
+      tfhaspred = [];
       xy = [];
+      tfocc = [];
     end
 
     function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
@@ -211,7 +206,7 @@ classdef LabelTracker < handle
       tfHasRes = [];
     end
     
-    function tblTrk = getAllTrackResTable(obj)
+    function tblTrk = getTrackingResultsTable(obj)
       % Get all tracking results known to tracker in a single table.
       %
       % tblTrk: fields .mov, .frm, .iTgt, .pTrk
@@ -312,6 +307,21 @@ classdef LabelTracker < handle
       infos = {'Not implemented'};
     end
     
+    function updateDLCache(obj,dlcachedir)
+      % For DL tracker portability across save/load
+      
+      % none
+    end
+    
+    function deactivate(obj)
+      % called when a tracker is no longer active. for performance      
+      obj.setEnableListeners(false);      
+    end
+    
+    function activate(obj)
+      obj.setEnableListeners(true);
+    end
+    
   end
   
   methods % For infotimeline display
@@ -346,7 +356,9 @@ classdef LabelTracker < handle
       
       if isempty(tpos)
         % edge case uninitted (not sure why)
-        tpos = nan(npts,2,nfrms);
+        %tpos = nan(npts,2,nfrms);
+        data = nan(npts,nfrms);
+        return;
       end
       
       plist = obj.propList();
@@ -373,8 +385,7 @@ classdef LabelTracker < handle
         end
       else 
         tpostag = false(npts,nfrms,ntgts);
-        data = ComputeLandmarkFeatureFromPos(tpos,...
-          tpostag(:,:,iTgt),bodytrx,prop);
+        data = ComputeLandmarkFeatureFromPos(tpos,tpostag,bodytrx,prop);
       end
     end
     
@@ -413,19 +424,37 @@ classdef LabelTracker < handle
     end
     
     function info = getAllTrackersCreateInfo(isMA)
-      dlnets = enumeration('DLNetType');
-      dlnets = dlnets([dlnets.doesMA]==isMA);
-      info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
-      if ~isMA
+      % This will need updating. DLNetType will include all types of nets
+      % such as objdetect which will not qualify as eg regular/SA trackers.
+      if isMA
+        info = cat(1,DeepTrackerTopDown.getTrackerInfos,...
+          DeepTrackerBottomUp.getTrackerInfos);
+      else        
+        dlnets = enumeration('DLNetType');
+        dlnets = dlnets(~[dlnets.isMultiAnimal]);
+        info = arrayfun(@(x){'DeepTracker' 'trnNetType' x},dlnets,'uni',0);
         info = [info; {{'CPRLabelTracker'}}];
       end
     end
     
     function [tf,loc] = trackersCreateInfoIsMember(infocell1,infocell2)
-      keyfcn = @(infocell)cellfun(@(x)sprintf('%s#',x{:}),infocell,'uni',0);
-      keys1 = keyfcn(infocell1);
-      keys2 = keyfcn(infocell2);
-      [tf,loc] = ismember(keys1,keys2);      
+      n1 = numel(infocell1);
+      n2 = numel(infocell2);
+      tf = false(n1,1);
+      loc = zeros(n1,1);
+      for i=1:n1
+        for j=1:n2
+          if isequal(infocell1{i},infocell2{j})
+            tf(i) = true;
+            loc(i) = j;
+            break;
+          end
+        end
+      end
+%       keyfcn = @(infocell)cellfun(@(x)sprintf('%s#',x{:}),infocell,'uni',0);
+%       keys1 = keyfcn(infocell1);
+%       keys2 = keyfcn(infocell2);
+%       [tf,loc] = ismember(keys1,keys2);      
     end
     
   end

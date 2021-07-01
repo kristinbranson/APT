@@ -1,4 +1,4 @@
-classdef TrackingVisualizerMT < handle
+classdef TrackingVisualizerMT < TrackingVisualizerBase
   
   % TrackingVisualizerMT
   % Like TrackingVisualizer, but can handles/display results for many 
@@ -9,9 +9,12 @@ classdef TrackingVisualizerMT < handle
 
     hIms % [nview] image handles. Owned by Labeler
     hAxs % [nview] axes handles. Owned by Labeler
+    
+    trk % scalar trkfile, views merged. See TrackingVisualizerBase, Frame 
+        % updates, loaded trakcing results
 
     ipt2vw % [npts], like Labeler/labeledposIPt2View
-    %ptsPlotInfo % lObj.labelPointsPlotInfo
+    ptsPlotInfoFld % eg 'labelPointsPlotInfo'
     mrkrReg % char, regular marker 
     mrkrOcc % char, marker for est-occ
     ptClrs % [nptsx3].
@@ -58,7 +61,7 @@ classdef TrackingVisualizerMT < handle
   end
   properties (Constant)
     SAVEPROPS = {'ipt2vw' 'ptClrs' 'txtOffPx' 'tfHideViz' 'tfHideTxt' ...
-      'handleTagPfix'};
+      'handleTagPfix' 'ptsPlotInfoFld'};
     LINE_PROPS_COSMETIC_SAVE = {'Color' 'LineWidth' 'Marker' ...
       'MarkerEdgeColor' 'MarkerFaceColor' 'MarkerSize'};
     TEXT_PROPS_COSMETIC_SAVE = {'FontSize' 'FontName' 'FontWeight' 'FontAngle'};
@@ -118,9 +121,10 @@ classdef TrackingVisualizerMT < handle
     end
 
     function vizInit(obj,varargin)
-      % Inits .hXYPrdRed, .hXYPrdRedTxt, .hSkel, .iTgtPrimary, .iTgtHide
-      % 
-      % See "Construction/Init notes" below      
+      % trk: TrkFile
+      %
+      % See TrackingVisualizerBase
+      % See "Construction/Init notes" below
 
       [postload,ntgts] = myparse(varargin,...
         'postload',false, ... % see Construction/Init notes
@@ -129,8 +133,8 @@ classdef TrackingVisualizerMT < handle
       
       obj.deleteGfxHandles();
       
-      pppi = obj.lObj.labelPointsPlotInfo; %predPointsPlotInfo;
-      %obj.ptsPlotInfo = pppi;
+      pppiFld = obj.ptsPlotInfoFld;
+      pppi = obj.lObj.(pppiFld); 
       obj.mrkrReg = pppi.MarkerProps.Marker;
       obj.mrkrOcc = pppi.OccludedMarker;
       
@@ -139,7 +143,7 @@ classdef TrackingVisualizerMT < handle
         ntgts = obj.lObj.nTargets;
       end
       if postload
-        ptclrs = obj.ptClrs;
+        ptclrspppi = obj.ptClrs;
       else
         ptclrs = obj.lObj.LabelPointColors;
         %ptclrs = brighten(ptclrs,TrackingVisualizerMT.CMAP_DARKEN_BETA);
@@ -239,6 +243,13 @@ classdef TrackingVisualizerMT < handle
     function vizInitHook(obj)
       % overload me
     end
+    function trkInit(obj,trk)
+      assert(isscalar(trk) && isa(trk,'TrkFile'));
+      % trk.frm2tlt should already be initted
+      assert(trk.nframes==obj.lObj.nframes);
+      %assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
+      obj.trk = trk;
+    end
     function initSkeletonEdges(obj,sedges)
       % Creates/inits .hSkel graphics handles appropriately for edge-set
       % sedges
@@ -247,7 +258,8 @@ classdef TrackingVisualizerMT < handle
       ntgts = obj.nTgts;
       ipt2View = obj.ipt2vw;
       ax = obj.hAxs;
-      pppi = obj.lObj.predPointsPlotInfo;
+      pppifld = obj.ptsPlotInfoFld;
+      pppi = obj.lObj.(pppifld);
 
       deleteValidHandles(obj.hSkel);
       obj.hSkel = gobjects(nEdge,ntgts);
@@ -264,7 +276,7 @@ classdef TrackingVisualizerMT < handle
             'Color',skelClr,...
             'PickableParts','none',...
             'Tag',sprintf('TrackingVisualizerMT_Skel_%d_%d',ie,iTgt),...
-            'LineWidth',pppi.MarkerProps.LineWidth);           
+            'LineWidth',pppi.SkeletonProps.LineWidth);           
         end
       end
     end
@@ -450,6 +462,10 @@ classdef TrackingVisualizerMT < handle
         end
       end
     end
+    function newFrame(obj,frm)
+      [tfhaspred,xy,tfocc] = obj.trk.getPTrkFrame(frm);
+      obj.updateTrackRes(xy,tfocc);
+    end
     function updatePrimary(obj,iTgtPrimary)
       iTgtPrimary0 = obj.iTgtPrimary;
       iTgtChanged = ~isequal(iTgtPrimary,iTgtPrimary0);
@@ -586,7 +602,7 @@ classdef TrackingVisualizerMT < handle
     %   .hXYPrdRed and .hXYPrdRedTxt
     %   - PostLoadInit->vizInit sets up cosmetic state on handles
     %
-    % Save/load strategy. 
+    % Save/load strategy. (This is for the Labeler auxiliary trkRes)
     %
     % In saveobj we record the cosmetics used for a TrackingVisualizer for 
     % the .hXYPrdRed line handles by doing a get and saving the resulting 
@@ -597,7 +613,7 @@ classdef TrackingVisualizerMT < handle
     % the .hXYPrdRed line handles. In this way, serialized TVs can keep
     % arbitrary customized cosmetics.
     
-    function obj = TrackingVisualizerMT(lObj,handleTagPfix)
+    function obj = TrackingVisualizerMT(lObj,ptsPlotInfoField,handleTagPfix)
       obj.tfHideTxt = false;
       obj.tfHideViz = false;         
 
@@ -611,6 +627,7 @@ classdef TrackingVisualizerMT < handle
       obj.hIms = gd.images_all;
       obj.ipt2vw = lObj.labeledposIPt2View;    
       
+      obj.ptsPlotInfoFld = ptsPlotInfoField;
       obj.handleTagPfix = handleTagPfix;
     end
     function postLoadInit(obj,lObj)

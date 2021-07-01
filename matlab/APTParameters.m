@@ -1,7 +1,4 @@
 classdef APTParameters
-  properties (Constant)
-    PARAM_FILE_SPECS = lclInitParamFileSpecs();
-  end
   properties (Constant, Access=private)
     % This property stores parsetrees for yamls so that yaml files only 
     % need to be parsed once.
@@ -38,6 +35,7 @@ classdef APTParameters
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
       tPrmCpr = trees.cpr.tree;
+      tPrmDet = trees.detect.tree;
       tPrmDT = trees.deeptrack.tree;
       tPrmPostProc = trees.postprocess.tree;
       
@@ -52,7 +50,7 @@ classdef APTParameters
       
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmCpr.Children; tPrmDT.Children; tPrmPostProc.Children];
+        tPrmCpr.Children; tPrmDet.Children; tPrmDT.Children; tPrmPostProc.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -64,18 +62,20 @@ classdef APTParameters
     function sPrm0 = defaultParamsStructAll
       tPrm0 = APTParameters.defaultParamsTree;
       sPrm0 = tPrm0.structize();
-    end
-    
-    function dlNetTypes = getDLNetTypes
-      dlNetTypes = enumeration('DLNetType')';
-%       mc = ?DLNetType;
-%       dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name},'uni',0);
-%       dlNetTypes = cat(2,dlNetTypes{:});
-    end
-    
+    end    
+ 
     function dlNetTypesPretty = getDLNetTypesPretty
       mc = ?DLNetType;
-      dlNetTypesPretty = cellfun(@(x) DLNetType(x).prettyString,{mc.EnumerationMemberList.Name},'Uni',0);
+      dlNetTypesPretty = cellfun(@APTParameters.getParamField,...
+        {mc.EnumerationMemberList.Name},'Uni',0);
+    end
+    
+    function f = getParamField(nettype)
+      if ~ischar(nettype)
+        nettype = char(nettype);
+      end
+      % first non-ROOT top-level field in parameter yaml 
+      f = APTParameters.PARAM_FILES_TREES.(nettype).tree.Children(1).Data.Field;      
     end
     
     function sPrmDTcommon = defaultParamsStructDTCommon
@@ -319,7 +319,7 @@ classdef APTParameters
     % all parameters to specific dl parameters for input netType
     function v = all2DLSpecificParams(sPrmAll,netType)
       if ~ischar(netType),
-        netType = netType.prettyString;
+        netType = APTParameters.getParamField(netType);
       end
       v = sPrmAll.ROOT.DeepTrack.(netType);
     end
@@ -339,7 +339,7 @@ classdef APTParameters
       end
       sPrmPPandCPR = sPrmAll;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = CPRParam.new2old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
+      [sPrmPPandCPRold] = CPRParam.n/ew2old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
       v = rmfield(sPrmPPandCPRold,'PreProc');
     end
 
@@ -463,32 +463,39 @@ classdef APTParameters
   end
 end
 
-function s = lclInitParamFileSpecs()
-s = struct(...
-  'preprocess',{{'params_preprocess.yaml'}},...
-  'track',{{'params_track.yaml'}},...
-  'cpr',{{'trackers','cpr','params_cpr.yaml'}},...
-  'deeptrack',{{'trackers','dt','params_deeptrack.yaml'}},...
-  'postprocess',{{'params_postprocess.yaml'}});
+function [s,deepnets] = lclParamFileSpecs()
+% Specifies/finds yamls in APT tree.
+%
+% Deepnets are found dynamically to easy adding new nets.
 
-nettypes = enumeration('DLNetType');
-for i=1:numel(nettypes)
-  netty = nettypes(i);
-  s.(char(netty)) = {'trackers','dt',netty.paramFileShort};
+s.preprocess = 'params_preprocess.yaml';
+s.track = 'params_track.yaml';
+s.cpr = fullfile('trackers','cpr','params_cpr.yaml');
+s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
+s.detect = fullfile('trackers','dt','params_detect.yaml');
+s.postprocess = 'params_postprocess.yaml';
+aptroot = APT.getRoot;
+dd = dir(fullfile(aptroot,'matlab','trackers','dt','params_deeptrack_*.yaml'));
+dtyamls = {dd.name}';
+sre = regexp(dtyamls,'params_deeptrack_(?<net>[a-zA-Z_]+).yaml','names');
+for i=1:numel(dtyamls)
+  s.(sre{i}.net) = fullfile('trackers','dt',dtyamls{i});
 end
+deepnets = cellfun(@(x)x.net,sre,'uni',0);
 end
 
 function s = lclInitParamFilesTrees()
 %disp('APTParams init files trees');
-specs = APTParameters.PARAM_FILE_SPECS;
+%fprintf(1,'APTParameters:lclInitParamFilesTrees\n');
+[specs,deepnets] = lclParamFileSpecs();
 aptroot = APT.getRoot;
-[~,nets] = enumeration('DLNetType');
+%[~,nets] = enumeration('DLNetType');
 
 s = struct();
 for f=fieldnames(specs)',f=f{1}; %#ok<FXSET>  
-  s.(f).yaml = fullfile(aptroot,'matlab',specs.(f){:});
+  s.(f).yaml = fullfile(aptroot,'matlab',specs.(f));
   yamlcontents = parseConfigYaml(s.(f).yaml);
-  if any(strcmp(f,nets))
+  if any(strcmp(f,deepnets))
     % AL 20190711: automatically create requirements for all deep net
     %   param trees
     yamlcontents.traverse(@(x)set(x.Data,'Requirements',...
