@@ -12,7 +12,9 @@ classdef DLNetType
     timelinePropList % [naux] struct array of tracker-specific properties 
                      % in format used by InfoTimeline
                      
-    doesOccPred
+    doesOccPred % in practice, if this is true, totally-occluded landmarks 
+                % will be included in the stripped lbl as p=nan and tfocc=true.
+                % (and this is the only effect)
   end
   properties (Dependent)
     nTrkAuxFlds
@@ -24,7 +26,7 @@ classdef DLNetType
                  'label',{'conf_mdn' 'conf_unet' 'scr_occ'}),true,...
                  'deepnet-%d.index','deepnet-*.index')
     deeplabcut ('dlc','DeepLabCut', ...
-                struct('trkfld',{'pTrkconf'},'label',{'confidence'}),false, ...
+                struct('trkfld',{'pTrkconf'},'label',{'confidence'}),true, ...
                 'deepnet-%d.index','deepnet-*.index')
     dpk ('dpk','DeepPoseKit', ...
           struct('trkfld',cell(0,1),'label',[]),false, ...

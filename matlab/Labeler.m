@@ -6161,17 +6161,17 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function labelPosBulkImportTbl(obj,tblFT)
+    function labelPosBulkImportTbl(obj,tblMFT)
       % Like labelPosBulkImportTblMov, but table may include movie 
       % fullpaths. 
       %
-      % tblFT: table with fields .mov, .frm, .iTgt, .p. tblFT.mov are 
+      % tblMFT: table with fields .mov, .frm, .iTgt, .p, .tfocc. tblFT.mov are 
       % movie full-paths and they must match entries in 
       % obj.movieFilesAllFullGTaware *exactly*. 
       % For multiview projects, tblFT.mov must match 
       % obj.movieFilesAllFullGTaware(:,1).
       
-      movs = tblFT.mov;
+      movs = tblMFT.mov;
       mfaf1 = obj.movieFilesAllFullGTaware(:,1);
       [tf,iMov] = ismember(movs,mfaf1); % iMov are movie indices
       if ~all(tf)
@@ -6188,7 +6188,7 @@ classdef Labeler < handle
         nrows = nnz(tfmov);
         fprintf('Importing %d rows for movie %d.\n',nrows,imovcurr);
         obj.labelPosBulkImportTblMov(...
-          tblFT(tfmov,{'frm' 'iTgt' 'p' 'tfocc'}),imovcurr);
+          tblMFT(tfmov,{'frm' 'iTgt' 'p' 'tfocc'}),imovcurr);
       end
     end
     
