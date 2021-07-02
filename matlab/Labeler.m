@@ -13541,6 +13541,8 @@ classdef Labeler < handle
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];
       end
+      xlim = fixLim(xlim);
+      ylim = fixLim(ylim);
       ModeInfo.xlim = xlim;
       ModeInfo.ylim = ylim;
       
