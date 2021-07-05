@@ -3498,13 +3498,20 @@ classdef Labeler < handle
         s.maIsMA = false;
       end
       
-      % 20180525 DeepTrack integration. .trackerClass, .trackerData, .currTracker
-      % 20181215 Updated for multiple DeepTrackers
       trkersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
       nDfltTrkers = numel(trkersInfo);
       assert(iscell(s.trackerClass));
       nExistingTrkers = numel(s.trackerClass);
 
+      % update interim/dev MA-BU projs
+      for i=1:numel(s.trackerClass)
+        if numel(s.trackerClass{i})==3 && ...
+           strcmp(s.trackerClass{i}{1},'DeepTracker') && ...
+           s.trackerClass{i}{3}==DLNetType.multi_mdn_joint_torch         
+           s.trackerClass{i}([1 4 5]) = ...
+             {'DeepTrackerBottomUp' 'trnNetMode' DLNetMode.multiAnimalBU};
+        end
+      end
       [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),...
         trkersInfo);
       assert(all(tf));
