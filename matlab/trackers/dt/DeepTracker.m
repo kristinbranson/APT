@@ -1320,10 +1320,10 @@ classdef DeepTracker < LabelTracker
       % We have (modelChainID,trainID). stripped lbl is on disk. 
 
       syscmds = cell(nvw,1);
-      mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
       
       switch backEnd.type
         case DLBackEnd.Bsub
+          mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
           singArgs = {'bindpath',mntPaths};
           for ivw=1:nvw
             if ivw>1
@@ -1336,6 +1336,7 @@ classdef DeepTracker < LabelTracker
               'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
           end
         case DLBackEnd.Docker
+          mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
           containerNames = cell(nTrainJobs,1);
           logcmds = cell(nTrainJobs,1);
           syscmds = cell(nTrainJobs,1);

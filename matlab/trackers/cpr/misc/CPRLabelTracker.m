@@ -3117,8 +3117,10 @@ classdef CPRLabelTracker < LabelTracker
       obj.xyPrdCurrMovie = [];
       obj.xyPrdCurrMovieFull = [];
       obj.xyPrdCurrMovieIsInterp = [];
-      obj.trkVizer.vizInit();
-      obj.setHideViz(obj.hideViz);
+      if ~isempty(obj.trkVizer)
+        obj.trkVizer.vizInit();
+        obj.setHideViz(obj.hideViz);
+      end
     end
     
     

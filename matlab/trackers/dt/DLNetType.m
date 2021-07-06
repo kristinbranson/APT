@@ -27,7 +27,9 @@ classdef DLNetType < handle %dynamicprops
     timelinePropList % [naux] struct array of tracker-specific properties 
                      % in format used by InfoTimeline
                      
-    doesOccPred
+    doesOccPred % in practice, if this is true, totally-occluded landmarks 
+                % will be included in the stripped lbl as p=nan and tfocc=true.
+                % (and this is the only effect)
     isMultiAnimal % TODO: rename to "isMA bottom up" or similar
   end
   

@@ -1569,6 +1569,8 @@ def get_git_commit():
         label = subprocess.check_output(["git", "describe"]).strip()
     except subprocess.CalledProcessError as e:
         label = 'Not a git repo'
+    except Exception as e:
+        label = "Error caught calling git: {}".format(e)
         
     # AL: not sure what is best here
     try:

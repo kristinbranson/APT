@@ -1451,11 +1451,12 @@ classdef Labeler < handle
       %APT.setpathsmart;
 
       [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
-      
+      starttime = tic;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
       obj.tvTrx = TrackingVisualizerTrx(obj);
+      fprintf('Opening GUI took %f s\n',toc(starttime));
     end
      
     function delete(obj)
@@ -4378,7 +4379,7 @@ classdef Labeler < handle
       tfProceedRm = true;
       haslbls1 = obj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
       haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
-      haslbls2 = haslbls2(iMov);
+      haslbls2 = haslbls2(iMov)>0;
       assert(haslbls1==haslbls2);
       if haslbls1 && ~obj.movieDontAskRmMovieWithLabels && ~force
         str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
@@ -6822,7 +6823,7 @@ classdef Labeler < handle
       % Like labelPosBulkImportTblMov, but table may include movie 
       % fullpaths. 
       %
-      % tblMFT: table with fields .mov, .frm, .iTgt, .p. tblMFT.mov are 
+      % tblMFT: table with fields .mov, .frm, .iTgt, .p, .tfocc. tblFT.mov are 
       % movie full-paths and they must match entries in 
       % obj.movieFilesAllFullGTaware *exactly*. 
       % For multiview projects, tblFT.mov must match 
@@ -9855,10 +9856,13 @@ classdef Labeler < handle
     function h = gtReport(obj,varargin)
       t = obj.gtTblRes;
 
-      nmontage = myparse(varargin,...
-        'nmontage',height(t));      
+      [nmontage,fcnAggOverPts,aggLabel] = myparse(varargin,...
+        'nmontage',height(t),...
+        'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
+        'aggLabel','Max' ...
+        );
       
-      t.meanOverPtsL2err = mean(t.L2err,2);
+      t.aggOverPtsL2err = fcnAggOverPts(t.L2err);
       % KB 20181022: Changed colors to match sets instead of points
       clrs =  obj.LabelPointColors;
       nclrs = size(clrs,1);
@@ -9880,19 +9884,20 @@ classdef Labeler < handle
       ax.YGrid = 'on';
       
       % AvErrAcrossPts by movie
-      h(end+1,1) = figurecascaded(h(end),'Name','Mean GT err by movie');
+      tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
+      h(end+1,1) = figurecascaded(h(end),'Name',tstr);
       ax = axes;
       [iMovAbs,gt] = t.mov.get;
       assert(all(gt));
       grp = categorical(iMovAbs);
       grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
         categories(grp),countcats(grp),'uni',0);
-      boxplot(t.meanOverPtsL2err,grp,'colors',clrs,'boxstyle','filled',...
+      boxplot(t.aggOverPtsL2err,grp,'colors',clrs,'boxstyle','filled',...
         'labels',grplbls);
       args = {'fontweight' 'bold' 'interpreter' 'none'};
       xlabel(ax,'Movie',args{:});
       ylabel(ax,'L2 err (px)',args{:});
-      title(ax,'Mean (over landmarks) GT err by movie',args{:});
+      title(ax,tstr,args{:});
       ax.YGrid = 'on';
       
       % Mean err by movie, pt
@@ -9920,7 +9925,7 @@ classdef Labeler < handle
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
       nmontage = min(nmontage,height(t));
-      obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h,'nplot',nmontage);
+      obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',h,'nplot',nmontage);
     end    
     function gtNextUnlabeledUI(obj)
       % Like pressing "Next Unlabeled" in GTManager.
@@ -11950,25 +11955,9 @@ classdef Labeler < handle
       end
     end
     
-    function trackLabelMontage(obj,tbl,errfld,varargin)
-      [nr,nc,h,npts,nphyspts,nplot,frmlblclr,frmlblbgclr] = myparse(varargin,...
-        'nr',3,...
-        'nc',4,...
-        'hPlot',[],...
-        'npts',obj.nLabelPoints,... % hack
-        'nphyspts',obj.nPhysPoints,... % hack
-        'nplot',height(tbl),... % show/include nplot worst rows
-        'frmlblclr',[1 1 1], ...
-        'frmlblbgclr',[0 0 0] ...
-        );
-      
-      if nplot>height(tbl)
-        warningNoTrace('''nplot'' argument too large. Only %d GT rows are available.',height(tbl));
-        nplot = height(tbl);
-      end
-      
-      tbl = sortrows(tbl,{errfld},{'descend'});
-      tbl = tbl(1:nplot,:);
+    % [tbl,I,tfReadFailed] = trackLabelMontageProcessData(obj,tbl)      
+    % Process tbl data for montage plotting
+    function [tbl,I,tfReadFailed] = trackLabelMontageProcessData(obj,tbl)      
       
       tbl = obj.preProcCropLabelsToRoiIfNec(tbl,...
         'doRemoveOOB',false,...
@@ -12006,7 +11995,32 @@ classdef Labeler < handle
         % Would be better to include with "blank" image
       end
       
-      I = ppdata.I(ppdataIdx,:);    
+      I = ppdata.I(ppdataIdx,:);  
+      
+    end
+    
+    function trackLabelMontage(obj,tbl,errfld,varargin)
+      [nr,nc,h,npts,nphyspts,nplot,frmlblclr,frmlblbgclr] = myparse(varargin,...
+        'nr',3,...
+        'nc',4,...
+        'hPlot',[],...
+        'npts',obj.nLabelPoints,... % hack
+        'nphyspts',obj.nPhysPoints,... % hack
+        'nplot',height(tbl),... % show/include nplot worst rows
+        'frmlblclr',[1 1 1], ...
+        'frmlblbgclr',[0 0 0] ...
+        );
+      
+      if nplot>height(tbl)
+        warningNoTrace('''nplot'' argument too large. Only %d GT rows are available.',height(tbl));
+        nplot = height(tbl);
+      end
+      
+      tbl = sortrows(tbl,{errfld},{'descend'});
+      tbl = tbl(1:nplot,:);
+      
+      [tbl,I,tfReadFailed] = obj.trackLabelMontageProcessData(tbl);
+
       tblPostRead = tbl(:,{'pLbl' 'pTrk' 'mov' 'frm' 'iTgt' errfld});
       tblPostRead(tfReadFailed,:) = [];
     
@@ -14287,6 +14301,8 @@ classdef Labeler < handle
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];
       end
+      xlim = fixLim(xlim);
+      ylim = fixLim(ylim);
       ModeInfo.xlim = xlim;
       ModeInfo.ylim = ylim;
       
