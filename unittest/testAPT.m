@@ -11,6 +11,11 @@ classdef testAPT < handle
   % testObj.test_train('net_type','mdn',...
   %        'backend','docker','niters',1000,'test_tracking',true)
   
+  % MA/roian
+  % testObj = testAPT('name','roianma);
+  % testObj.test_setup('simpleprojload',1);
+  % testObj.test_train('net_type',[],'params',-1,'niters',1000);  
+  
   % Carmen/GT workflow (proj on JRC/dm11)
   % testObj = testAPT('name','carmen');
   % testObj.test_setup('simpleprojload',1);
