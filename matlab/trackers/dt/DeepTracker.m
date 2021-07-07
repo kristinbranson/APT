@@ -2485,7 +2485,12 @@ classdef DeepTracker < LabelTracker
         % figure out what to track
         tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true);
         tblMFT0 = tblMFT;
-        tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked);
+        if obj.lObj.maIsMA
+          tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked,'flds',{'mov' 'frm'});
+          tblMFT.iTgt(:) = 1;
+        else
+          tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked);
+        end
         if isempty(tblMFT),
           msgbox(sprintf('All %d frames previously tracked',size(tblMFT0,1)),'Tracking done');
           return;

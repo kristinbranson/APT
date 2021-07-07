@@ -36,7 +36,7 @@ classdef FrameSetVariable < FrameSet
       % Get frames to track for given movie/target/decimation
       %
       % mIdx: scalar MovieIndex
-      % iTgt: scalar target
+      % iTgt: scalar target. nan <=> "any target MA"
       % decFac: positive int, decimation factor
       %
       % frms: vector of frames for given movie. Can be empty for various 
@@ -155,7 +155,7 @@ function frms = lclLabeledFrmGetFrms2(lObj,mIdx,nfrm,iTgt)
 frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,true);
 end
 function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
-%npts = lObj.nLabelPoints;
+% iTgt=nan <=> "any target MA"
 if tfLbls2
   s = lObj.getLabels2MovIdx(mIdx);
   frms = s.isLabeledT(iTgt);

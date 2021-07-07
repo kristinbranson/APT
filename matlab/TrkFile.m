@@ -888,7 +888,18 @@ classdef TrkFile < dynamicprops
     end
     
     function frms = isLabeledT(obj,iTlt)
-      frms = obj.startframes(iTlt):obj.endframes(iTlt);
+      % Pass iTlt==nan <=> "any target"
+      
+      if isnan(iTlt)
+        v = false(obj.nframes,1);
+        ntgt = numel(obj.startframes);
+        for i=1:ntgt
+          v(obj.startframes(i):obj.endframes(i)) = true;
+        end
+        frms = find(v);
+      else
+        frms = obj.startframes(iTlt):obj.endframes(iTlt);
+      end
     end
     
     function [xy,occ] = getPTrkTgt(obj,iTlt)

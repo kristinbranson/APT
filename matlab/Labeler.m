@@ -8533,128 +8533,128 @@ classdef Labeler < handle
       end
     end
     
-    function tblMF = labelGetMFTableLabeled_Old(obj,varargin)
-      % Compile mov/frm/tgt MFTable; include all labeled frames/tgts. 
-      %
-      % Includes nonGT/GT rows per current GT state.
-      %
-      % Can return [] indicating "no labels of requested/specified type"
-      %
-      % tblMF: See MFTable.FLDSFULLTRX.
-      
-      [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
-        'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
-                   ... % 1. obj logically const (eg except for obj.trxCache)
-                   ... % 2. tblMF (output) indeterminate
-        'useLabels2',false,... % if true, use labels2 instead of labels
-        'useMovNames',false,... % if true, use movieNames instead of movieIndices
-        'tblMFTrestrict',[],... % if supplied, tblMF is the labeled subset 
-                           ... % of tblMFTrestrict (within fields .mov, 
-                           ... % .frm, .tgt). .mov must be a MovieIndex.
-                           ... % tblMF ordering should be as in tblMFTrestrict
-        'useTrain',[],... % whether to use training labels (1) gt labels (0), or whatever current mode is ([])
-        'MFTOnly',false... % if true, only return mov, frm, target
-        ); 
-      tfWB = ~isempty(wbObj);
-      tfRestrict = ~isempty(tblMFTrestrict);
-      
-      if useLabels2
-        if isempty(useTrain)
-          mfts = MFTSetEnum.AllMovAllLabeled2;
-        elseif useTrain
-          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.Labeled2Frm,...
-                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
-        else % useGT
-          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.Labeled2Frm,...
-                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
-        end
-      else
-        if isempty(useTrain)
-          mfts = MFTSetEnum.AllMovAllLabeled;
-        elseif useTrain
-          mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.LabeledFrm,...
-                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);          
-        else % useGT
-          mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.LabeledFrm,...
-                        FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
-        end
-      end
-      tblMF = mfts.getMFTable(obj);
-      
-      if tfRestrict
-        tblMF = MFTable.intersectID(tblMF,tblMFTrestrict);
-      end
-      
-      if tfMFTOnly,
-        return;
-      end
-      
-      if isequal(tblMF,[]) % this would have errored below in call to labelAddLabelsMFTableStc
-        return;
-      end
-      
-      if obj.hasTrx,
-        if isempty(useTrain),
-          trxFiles = obj.trxFilesAllFullGTaware;
-        elseif useTrain == 0,
-          trxFiles = obj.trxFilesAllGTFull;
-        else
-          trxFiles = obj.trxFilesAllFull;
-        end
-          
-        argsTrx = {'trxFilesAllFull',trxFiles,...
-          'trxCache',obj.trxCache};
-      else
-        argsTrx = {};
-      end
-      if useLabels2
-        
-        if isempty(useTrain),
-          lpos = obj.labeledpos2GTaware;
-          lpostag = obj.labeledpostagGTaware;
-          lposTS = obj.labeledposTSGTaware;
-        elseif useTrain == 0,
-          lpos = obj.labeledpos2GT;
-          lpostag = obj.labeledpostagGT;
-          lposTS = obj.labeledposTSGT;
-        else
-          lpos = obj.labeledpos2;
-          lpostag = obj.labeledpostag;
-          lposTS = obj.labeledposTS;
-        end
-        lpostag = cellfun(@(x)false(size(x)),lpostag,'uni',0);
-        lposTS = cellfun(@(x)-inf(size(x)),lposTS,'uni',0);
-        
-      else
-        
-        if isempty(useTrain),
-          lpos = obj.labeledposGTaware;
-          lpostag = obj.labeledpostagGTaware;
-          lposTS = obj.labeledposTSGTaware;
-        elseif useTrain == 0,
-          lpos = obj.labeledposGT;
-          lpostag = obj.labeledpostagGT;
-          lposTS = obj.labeledposTSGT;
-        else
-          lpos = obj.labeledpos;
-          lpostag = obj.labeledpostag;
-          lposTS = obj.labeledposTS;
-        end
-        
-      end
-      
-      tblMF = Labels.labelAddLabelsMFTableStc_Old(tblMF,lpos,lpostag,lposTS,...
-          argsTrx{:},'wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        % tblMF (return) indeterminate
-        return;
-      end
-      
-      if useMovNames
-        assert(isa(tblMF.mov,'MovieIndex'));
-        tblMF.mov = obj.getMovieFilesAllFullMovIdx(tblMF.mov);
-      end
-    end
+%     function tblMF = labelGetMFTableLabeled_Old(obj,varargin)
+%       % Compile mov/frm/tgt MFTable; include all labeled frames/tgts. 
+%       %
+%       % Includes nonGT/GT rows per current GT state.
+%       %
+%       % Can return [] indicating "no labels of requested/specified type"
+%       %
+%       % tblMF: See MFTable.FLDSFULLTRX.
+%       
+%       [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
+%         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
+%                    ... % 1. obj logically const (eg except for obj.trxCache)
+%                    ... % 2. tblMF (output) indeterminate
+%         'useLabels2',false,... % if true, use labels2 instead of labels
+%         'useMovNames',false,... % if true, use movieNames instead of movieIndices
+%         'tblMFTrestrict',[],... % if supplied, tblMF is the labeled subset 
+%                            ... % of tblMFTrestrict (within fields .mov, 
+%                            ... % .frm, .tgt). .mov must be a MovieIndex.
+%                            ... % tblMF ordering should be as in tblMFTrestrict
+%         'useTrain',[],... % whether to use training labels (1) gt labels (0), or whatever current mode is ([])
+%         'MFTOnly',false... % if true, only return mov, frm, target
+%         ); 
+%       tfWB = ~isempty(wbObj);
+%       tfRestrict = ~isempty(tblMFTrestrict);
+%       
+%       if useLabels2
+%         if isempty(useTrain)
+%           mfts = MFTSetEnum.AllMovAllLabeled2;
+%         elseif useTrain
+%           mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.Labeled2Frm,...
+%                         FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+%         else % useGT
+%           mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.Labeled2Frm,...
+%                         FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+%         end
+%       else
+%         if isempty(useTrain)
+%           mfts = MFTSetEnum.AllMovAllLabeled;
+%         elseif useTrain
+%           mfts = MFTSet(MovieIndexSetVariable.AllTrnMov,FrameSetVariable.LabeledFrm,...
+%                         FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);          
+%         else % useGT
+%           mfts = MFTSet(MovieIndexSetVariable.AllGTMov,FrameSetVariable.LabeledFrm,...
+%                         FrameDecimationFixed.EveryFrame,TargetSetVariable.AllTgts);
+%         end
+%       end
+%       tblMF = mfts.getMFTable(obj);
+%       
+%       if tfRestrict
+%         tblMF = MFTable.intersectID(tblMF,tblMFTrestrict);
+%       end
+%       
+%       if tfMFTOnly,
+%         return;
+%       end
+%       
+%       if isequal(tblMF,[]) % this would have errored below in call to labelAddLabelsMFTableStc
+%         return;
+%       end
+%       
+%       if obj.hasTrx,
+%         if isempty(useTrain),
+%           trxFiles = obj.trxFilesAllFullGTaware;
+%         elseif useTrain == 0,
+%           trxFiles = obj.trxFilesAllGTFull;
+%         else
+%           trxFiles = obj.trxFilesAllFull;
+%         end
+%           
+%         argsTrx = {'trxFilesAllFull',trxFiles,...
+%           'trxCache',obj.trxCache};
+%       else
+%         argsTrx = {};
+%       end
+%       if useLabels2
+%         
+%         if isempty(useTrain),
+%           lpos = obj.labeledpos2GTaware;
+%           lpostag = obj.labeledpostagGTaware;
+%           lposTS = obj.labeledposTSGTaware;
+%         elseif useTrain == 0,
+%           lpos = obj.labeledpos2GT;
+%           lpostag = obj.labeledpostagGT;
+%           lposTS = obj.labeledposTSGT;
+%         else
+%           lpos = obj.labeledpos2;
+%           lpostag = obj.labeledpostag;
+%           lposTS = obj.labeledposTS;
+%         end
+%         lpostag = cellfun(@(x)false(size(x)),lpostag,'uni',0);
+%         lposTS = cellfun(@(x)-inf(size(x)),lposTS,'uni',0);
+%         
+%       else
+%         
+%         if isempty(useTrain),
+%           lpos = obj.labeledposGTaware;
+%           lpostag = obj.labeledpostagGTaware;
+%           lposTS = obj.labeledposTSGTaware;
+%         elseif useTrain == 0,
+%           lpos = obj.labeledposGT;
+%           lpostag = obj.labeledpostagGT;
+%           lposTS = obj.labeledposTSGT;
+%         else
+%           lpos = obj.labeledpos;
+%           lpostag = obj.labeledpostag;
+%           lposTS = obj.labeledposTS;
+%         end
+%         
+%       end
+%       
+%       tblMF = Labels.labelAddLabelsMFTableStc_Old(tblMF,lpos,lpostag,lposTS,...
+%           argsTrx{:},'wbObj',wbObj);
+%       if tfWB && wbObj.isCancel
+%         % tblMF (return) indeterminate
+%         return;
+%       end
+%       
+%       if useMovNames
+%         assert(isa(tblMF.mov,'MovieIndex'));
+%         tblMF.mov = obj.getMovieFilesAllFullMovIdx(tblMF.mov);
+%       end
+%     end
     
 %     function tblMF = labelGetMFTableCurrMovFrmTgt(obj)
 %       % Get MFTable for current movie/frame/target (single-row table)
@@ -11157,7 +11157,7 @@ classdef Labeler < handle
         tblMFT = mftset;
       else
         assert(isa(mftset,'MFTSet'));
-        tblMFT = mftset.getMFTable(obj);
+        tblMFT = mftset.getMFTable(obj,'istrack',true);
       end
       
       tObj.track(tblMFT,varargin{:});

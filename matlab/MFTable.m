@@ -107,22 +107,25 @@ classdef MFTable
       tbl = [tblReg; tblGT];
     end
     
-    function [tblnew,tfNew] = tblDiff(tbl0,tbl1)
-      % Remove entried of tbl1 in tbl0
+    function [tblnew,tfNew] = tblDiff(tbl0,tbl1,varargin)
+      % Remove entries of tbl1 in tbl0
       %
       % tbl0, tbl1: MF tables
       %
       % tblnew: new frames (rows of tbl0 whose (mov,frm,iTgt) are not in 
       %   tbl1)
       
-      FLDSID = MFTable.FLDSID;
+      flds = myparse(varargin,...
+        'flds',MFTable.FLDSID ...
+        );
+
       tblnew = tbl0;
       tfNew = true(size(tbl0,1),1);
       if isempty(tbl1) || isempty(tbl0),
         return;
       end
       
-      tfNew = ~tblismember(tbl0,tbl1,FLDSID);
+      tfNew = ~tblismember(tbl0,tbl1,flds);
       tblnew = tbl0(tfNew,:);
     end
     
