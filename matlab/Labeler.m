@@ -3957,6 +3957,12 @@ classdef Labeler < handle
         s.trxInfoAll = {};
       end
       
+      % 20210706 Some projs managed to get a non-float value here which
+      % causes trouble
+      if ~isfloat(s.currFrame)        
+        s.currFrame = double(s.currFrame);
+      end
+      
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine

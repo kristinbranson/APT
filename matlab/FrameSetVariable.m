@@ -77,6 +77,8 @@ classdef FrameSetVariable < FrameSet
           tfFrmOK = frm2trxTotAndTgt(frms);
           frms(~tfFrmOK) = [];
         end
+      elseif labelerObj.maIsMA
+        % pass
       else
         % no target-based restriction
         assert(iTgt==1);

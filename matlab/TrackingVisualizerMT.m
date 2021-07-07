@@ -126,9 +126,10 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % See TrackingVisualizerBase
       % See "Construction/Init notes" below
 
-      [postload,ntgts] = myparse(varargin,...
+      [postload,ntgts,ntgtmax] = myparse(varargin,...
         'postload',false, ... % see Construction/Init notes
-        'ntgts',[] ... % optionally provide known number/max of targets
+        'ntgts',[], ... % optionally provide known number/max of targets
+        'ntgtmax',[] ... % unused, just eliminates warning
         );      
       
       obj.deleteGfxHandles();

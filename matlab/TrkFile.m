@@ -846,6 +846,12 @@ classdef TrkFile < dynamicprops
       pcelltag = obj.pTrkTag;
       offs = 1-obj.startframes;
       
+%       % 20210706 in obscure cases, eg lObj.currFrame can become a
+%       % uint value. Now prohibited generally. The offsets are
+%       % intXX's which causes an error in the addition below
+%       offs = double(offs);
+%       f = double(f);
+      
       for j=itgtsLive(:)'
         ptgt = pcell{j};
         ptag = pcelltag{j};

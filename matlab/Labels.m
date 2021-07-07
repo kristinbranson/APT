@@ -254,6 +254,9 @@ classdef Labels
       p(:,itgts) = s.p(:,tf);
       occ(:,itgts) = s.occ(:,tf);
     end
+    function iTgts = uniqueTgts(s)
+      iTgts = unique(s.tgt);
+    end
     function tf = labeledFrames(s,nfrm)
       tf = false(nfrm,1);
       tf(s.frm) = true;
@@ -721,7 +724,7 @@ classdef Labels
               continue;
             end
           else
-            assert(iTgt==1);
+            %assert(iTgt==1);
           end
           
           [~,p,occ,ts] = Labels.isLabeledFT(s,frm,iTgt);
