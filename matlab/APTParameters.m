@@ -173,29 +173,34 @@ classdef APTParameters
           trackerIsDL = labelerObj.trackerIsDL;
         end
         isma = labelerObj.maIsMA;
+        istd = labelerObj.trackerIsTopDown;
       
-        if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(trackerAlgo,'cpr'),
+        reqs = tree.Data.Requirements;
+        if ismember('isCPR',reqs) && ~strcmpi(trackerAlgo,'cpr'),
           tree.Data.Visible = false;
-        elseif all(ismember({'hasTrx' 'ma'},tree.Data.Requirements))
+        elseif all(ismember({'hasTrx' 'ma'},reqs))
           if ~hasTrx && ~isma
             % Special case/hack; if hasTrx and ma are both present, it's an
-            % OR condition (rather than AND which is the default for 2+
+         APTParameters.filterPropertiesByCondition(tree.Children(i),...
+           labelerObj,varargin{:});   % OR condition (rather than AND which is the default for 2+
             % requiremetns)
             tree.Data.Visible = false;
           end
-        elseif ismember('ma',tree.Data.Requirements) && ~isma
+        elseif ismember('ma',reqs) && ~isma
           tree.Data.Visible = false;
-        elseif ismember('hasTrx',tree.Data.Requirements) && ~hasTrx,
+        elseif ismember('hasTrx',reqs) && ~hasTrx,
           tree.Data.Visible = false;
-        elseif ismember('isMultiView',tree.Data.Requirements) && ~labelerObj.isMultiView
+        elseif ismember('isMultiView',reqs) && ~labelerObj.isMultiView
           tree.Data.Visible = false;
-        elseif ismember('isDeepTrack',tree.Data.Requirements) && ~trackerIsDL,
+        elseif ismember('isDeepTrack',reqs) && ~trackerIsDL,
+          tree.Data.Visible = false;
+        elseif ismember('isTopDown',reqs) && ~istd
           tree.Data.Visible = false;
         else
           dlnets = enumeration('DLNetType');
           for i=1:numel(dlnets)
             net = dlnets(i);
-            if ismember(net,tree.Data.Requirements) && ~strcmp(trackerAlgo,net)
+            if ismember(net,reqs) && ~strcmp(trackerAlgo,net)
               tree.Data.Visible = false;
               break;
             end
