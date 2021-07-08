@@ -108,9 +108,14 @@ classdef BgWorkerObj < handle
     end
     
     function dispModelChainDir(obj)
+      if ispc 
+        lscmd = 'dir';
+      else
+        lscmd = 'ls -al';
+      end
       for ivw=1:obj.nviews
         dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al "%s"',dmc.dirModelChainLnx);
+        cmd = sprintf('%s "%s"',lscmd,dmc.dirModelChainLnx);
         fprintf('### View %d: %s\n',ivw,dmc.dirModelChainLnx);
         system(cmd);
         fprintf('\n');

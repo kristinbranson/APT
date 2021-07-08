@@ -124,9 +124,16 @@ classdef MFTSet < handle
       % 3. The decimation is found by querying .decimation.
       % 4. For each movie/target/decimation, the list of frames is found by
       % querying .frameSet.
+      %
+      % For MA track, supply istrack=true to varargin. For MA projects,
+      % 'targets' can refer to either distinct label IDs, or tracklets.
+      % When tracking, neither currently applies, as entire frames are
+      % processed.
       
-      wbObj = myparse(varargin,...
-        'wbObj',[]); % (opt) WaitBarWithCancel. If cancel, tblMFT indeterminate.
+      [wbObj,istrack] = myparse(varargin,...
+        'wbObj',[], ... % (opt) WaitBarWithCancel. If cancel, tblMFT indeterminate.
+        'istrack',false ... % if true and labelerObj is MA, then 'targets' are ignored/meaningless.
+        ); 
       tfWB = ~isempty(wbObj);      
       
       if ~labelerObj.hasMovie
@@ -142,10 +149,15 @@ classdef MFTSet < handle
         
         nMovs = numel(mis);
         tblMFT = cell(0,1);
-        if labelerObj.maIsMA || ~labelerObj.hasTrx
-          iTgtsArr = repmat({1},nMovs,1); % value should be unused
-        else
+        isMA = labelerObj.maIsMA;
+        if isMA && istrack
+          % nan targets here represent "Any target/MA" and should be so
+          % interpreted within frmSet.
+          iTgtsArr = repmat({nan},nMovs,1);          
+        elseif isMA || labelerObj.hasTrx
           iTgtsArr = tgtSet.getTargetIndices(labelerObj,mis);
+        else
+          iTgtsArr = repmat({1},nMovs,1);
         end
         
         if tfWB

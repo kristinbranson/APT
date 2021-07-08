@@ -414,11 +414,19 @@ classdef APTInterf
         dllbljson = fullfile(trnpack,[dllblID '.json']);
         dlj = readtxtfile(dllbljson);
         dlj = jsondecode(dlj{1});
-        maDetPrm = dlj.TrackerData.sPrmAll.ROOT.MultiAnimalDetection;
-        maDetImProc = maDetPrm.DeepTrack.ImageProcessing;
-        detbsize = maDetPrm.DeepTrack.GradientDescent.batch_size;
-        maxNanmls = maDetPrm.max_n_animals;
-        minNanmls = maDetPrm.min_n_animals;
+        dtPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack;
+        maDetImProc = dtPrm.ImageProcessing;
+        detbsize = dtPrm.GradientDescent.batch_size;
+        if isfield(dlj.TrackerData.sPrmAll.ROOT,'MultiAnimalDetection')
+          maDetPrm = dlj.TrackerData.sPrmAll.ROOT.MultiAnimalDetection;
+          maxNanmls = maDetPrm.max_n_animals;
+          minNanmls = maDetPrm.min_n_animals;          
+        else
+          % temp hack for intermediate-dev MA projs
+          maDetPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal;
+          maxNanmls = maDetPrm.max_n_animals;
+          minNanmls = maDetPrm.min_n_animals; 
+        end
       end
 
       switch netmode

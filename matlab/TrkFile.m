@@ -846,6 +846,12 @@ classdef TrkFile < dynamicprops
       pcelltag = obj.pTrkTag;
       offs = 1-obj.startframes;
       
+%       % 20210706 in obscure cases, eg lObj.currFrame can become a
+%       % uint value. Now prohibited generally. The offsets are
+%       % intXX's which causes an error in the addition below
+%       offs = double(offs);
+%       f = double(f);
+      
       for j=itgtsLive(:)'
         ptgt = pcell{j};
         ptag = pcelltag{j};
@@ -882,7 +888,18 @@ classdef TrkFile < dynamicprops
     end
     
     function frms = isLabeledT(obj,iTlt)
-      frms = obj.startframes(iTlt):obj.endframes(iTlt);
+      % Pass iTlt==nan <=> "any target"
+      
+      if isnan(iTlt)
+        v = false(obj.nframes,1);
+        ntgt = numel(obj.startframes);
+        for i=1:ntgt
+          v(obj.startframes(i):obj.endframes(i)) = true;
+        end
+        frms = find(v);
+      else
+        frms = obj.startframes(iTlt):obj.endframes(iTlt);
+      end
     end
     
     function [xy,occ] = getPTrkTgt(obj,iTlt)
@@ -894,7 +911,7 @@ classdef TrkFile < dynamicprops
       % occ: [npt x nfrm]
       
       if iTlt > obj.ntlts
-        warningNoTrace('Tracklet %d exceeds available data.');
+        warningNoTrace('Tracklet %d exceeds available data.',iTlt);
         xy = nan(obj.npts,2,0);
         occ = nan(obj.npts,0);
         return;

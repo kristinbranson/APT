@@ -2787,7 +2787,7 @@ if ~checkProjAndMovieExist(handles)
 end
 SetStatus(handles,'Tracking...');
 tm = getTrackMode(handles);
-tblMFT = tm.getMFTable(handles.labelerObj);
+tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
 [tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
 if ~tfCanTrack,
   errordlg(['Error tracking: ',reason],'Error tracking');

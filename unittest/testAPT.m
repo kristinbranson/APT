@@ -11,6 +11,11 @@ classdef testAPT < handle
   % testObj.test_train('net_type','mdn',...
   %        'backend','docker','niters',1000,'test_tracking',true)
   
+  % MA/roian
+  % testObj = testAPT('name','roianma);
+  % testObj.test_setup('simpleprojload',1);
+  % testObj.test_train('net_type',[],'params',-1,'niters',1000);  
+  
   % Carmen/GT workflow (proj on JRC/dm11)
   % testObj = testAPT('name','carmen');
   % testObj.test_setup('simpleprojload',1);
@@ -146,7 +151,7 @@ classdef testAPT < handle
     function cdir = get_cache_dir()
       cdir = APT.getdlcacheroot;
     end
-    
+        
   end
   
   
@@ -248,7 +253,30 @@ classdef testAPT < handle
         info.proj_name = 'carmen_test';
         info.sz = [];
         info.bundle_link = '';
-        info.op_graph = [];        
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'roianma')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = [];
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'argrone')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = true;
+        info.proj_name = 'test';
+        info.sz = [];
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
         
       else
         error('Unrecognized test name');
@@ -363,7 +391,7 @@ classdef testAPT < handle
         lObj = StartAPT();
         lObj.projLoad(self.info.ref_lbl);
         self.lObj = lObj;
-        self.old_lbl = [];        
+        self.old_lbl = [];
       else
         self.load_lbl();
         old_lbl = self.old_lbl;
@@ -373,10 +401,10 @@ classdef testAPT < handle
         lObj = self.create_project();
         self.lObj = lObj;
         self.add_movies();
-        self.add_labels_quick();  
+        self.add_labels_quick();
       end
       
-      if self.info.has_trx
+      if lObj.hasTrx
         trkTypes = MFTSetEnum.TrackingMenuTrx;
       else
         trkTypes = MFTSetEnum.TrackingMenuNoTrx;
@@ -533,11 +561,13 @@ classdef testAPT < handle
       lObj.trackSetCurrentTracker(tndx);
     end
     
-    function set_params(self, has_trx, dl_steps,sz,params)
+    function set_params(self, has_trx, dl_steps,sz, params)
       lObj = self.lObj;
       % set some params
+      
       tPrm = APTParameters.defaultParamsTree;
       sPrm = tPrm.structize;      
+      % AL202107: why not use lObj.trackGetParams() here?
       sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
       sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = sz;
       if has_trx
@@ -547,7 +577,6 @@ classdef testAPT < handle
         sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
       end
       lObj.trackSetParams(sPrm);
-
     end
     
     function set_backend(self,backend,aws_params)
@@ -605,8 +634,16 @@ classdef testAPT < handle
             'niters',1000,'test_tracking',true,'block',true,...
             'params',{},'aws_params',struct());
           
-      self.setup_alg(net_type)
-      self.set_params(self.info.has_trx,niters,self.info.sz,params);
+      if ~isempty(net_type)
+        self.setup_alg(net_type)
+      end
+      if isequal(params,-1)
+        sPrm = self.lObj.trackGetParams();
+        sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = niters;
+        self.lObj.trackSetParams(sPrm);
+      else
+        self.set_params(self.info.has_trx,niters,self.info.sz,params);
+      end
       self.set_backend(backend,aws_params);
 
       lObj = self.lObj;

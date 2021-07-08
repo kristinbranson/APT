@@ -981,7 +981,7 @@ class Tracklet:
     axis_rest = self.axis_rest()
     return ~np.all(equals_nan(v,self.defaultval),axis=axis_rest)
   
-  def apply_ids(self,ids):
+  def apply_ids(self,ids,T0=0):
     _,maxv = ids.get_min_max_val()
     nids = np.max(maxv)+1
     newdata = [None,]*nids
@@ -997,14 +997,14 @@ class Tracklet:
       t1 = np.max(idx[1])
       newdata[id] = np.zeros(self.size_rest+(t1-t0+1,),dtype=self.dtype)
       newdata[id][:] = self.defaultval
-      newstartframes[id] = t0
-      newendframes[id] = t1
+      newstartframes[id] = t0-T0
+      newendframes[id] = t1-T0
       for itgt in range(self.ntargets):
         idx1 = idx[0] == itgt
         if not np.any(idx1):
           continue
         fs = idx[1][idx1]
-        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]]
+        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]-T0]
         
     self.data = newdata
     self.startframes = newstartframes
@@ -1061,8 +1061,6 @@ class Trk:
   def T1(self):
     if self.pTrk is None:
       return 0
-    if self.issparse:
-      return self.pTrk.T1
     else:
       return self.T0 + self.T - 1
   
@@ -1340,8 +1338,8 @@ class Trk:
     if self.issparse:
       if consolidate:
         self.pTrk.consolidate(force=True)
-      T0 = 0
-      T1 = self.pTrk.T1
+      T0 = self.T0
+      T1 = T0+self.pTrk.T1-1
     else:
       T0 = self.T0
       T1 = self.T + self.T0 - 1
@@ -1879,7 +1877,7 @@ class Trk:
     endframes: ntargets array with the last frame with data for each target
     """
     if self.issparse:
-      return self.startframes,self.endframes
+      return self.startframes+self.T0,self.endframes+self.T0
     else:
       startframes = np.zeros(self.ntargets,dtype=int)
       endframes = np.zeros(self.ntargets,dtype=int)
@@ -1974,10 +1972,10 @@ class Trk:
     
   def apply_ids_sparse(self,ids):
     assert self.issparse
-    self.pTrk.apply_ids(ids)
+    self.pTrk.apply_ids(ids,self.T0)
     for k in self.trkFields:
       if self.__dict__[k] is not None:
-        self.__dict__[k].apply_ids(ids)
+        self.__dict__[k].apply_ids(ids,self.T0)
       
     self.ntargets = self.pTrk.ntargets
     self.size = (self.nlandmarks,self.d,self.pTrk.T,self.ntargets)

@@ -1038,9 +1038,13 @@ classdef InfoTimeline < handle
               s = labeler.labels2GTaware{iMov};
               if labeler.maIsMA
                 % Use "current Tracklet" for imported data
-                iTgt = labeler.labeledpos2trkViz.currTrklet;
-                if isnan(iTgt)
-                  warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
+                if ~isempty(labeler.labeledpos2trkViz)
+                  iTgt = labeler.labeledpos2trkViz.currTrklet;
+                  if isnan(iTgt)
+                    warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
+                    iTgt = 1;
+                  end
+                else
                   iTgt = 1;
                 end
               end              
