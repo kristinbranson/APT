@@ -2825,7 +2825,7 @@ def compile_trk_info(conf, model_file, crop_loc, expname=None):
         param_dict['flipLandmarkMatches'] = None
     info[u'crop_loc'] = to_mat(crop_loc)
     info[u'project_file'] = getattr(conf, 'project_file', '')
-    info[u'git_commit'] = pt.get_git_commit()
+    info[u'git_commit'] = PoseTools.get_git_commit()
 
     return info
 
@@ -3230,10 +3230,10 @@ def classify_movie(conf, pred_fn, model_type,
                     else:
                         extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
 
-        if cur_b % 20 == 19:
-            sys.stdout.write('.')
+        # if cur_b % 20 == 19:
+        #     sys.stdout.write('.')
         if (cur_b % nskip_partfile == 0) & (cur_b > 0):
-            sys.stdout.write('\n')
+            # sys.stdout.write('\n')
             T1 = to_do_list[cur_start][0]
             write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, T1, trx_ids, conf, info, mov_file)
 

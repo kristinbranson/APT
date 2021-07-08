@@ -14,7 +14,7 @@ rae.setup('alice')
 # dstr = '20200604'
 # dstr = '20200706'
 # rae.run_normal_training(dstr=dstr) #run_type = 'submit'
-dstr = '20210629'
+dstr = '20210708' #'20210629'
 rae.create_normal_dbs(expname='touching')
 rae.run_normal_training(dstr=dstr,expname='touching') #run_type = 'submit'
 # rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.

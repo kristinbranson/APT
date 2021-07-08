@@ -15,11 +15,11 @@ from mmcv.utils import get_git_hash
 from mmdet import __version__
 from mmdet.apis import set_random_seed, train_detector
 from mmdet.datasets import build_dataset
-from mmdet.models import build_detector
+from mmdet.models import build_detector, DETRHead, HEADS
 from mmdet.utils import collect_env, get_root_logger
 from mmcv.runner import DistSamplerSeedHook, EpochBasedRunner, OptimizerHook, IterBasedRunner, Hook, load_checkpoint,Fp16OptimizerHook,build_optimizer,build_runner
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
-from mmdet.core import DistEvalHook, EvalHook
+from mmdet.core import DistEvalHook, EvalHook,bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh, build_assigner, build_sampler, multi_apply,reduce_mean
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.core.bbox.builder import BBOX_ASSIGNERS
@@ -50,6 +50,7 @@ import PoseTools
 
 @BBOX_ASSIGNERS.register_module(force=True)
 class APTHungarianAssigner(HungarianAssigner):
+
     def assign(self,
                bbox_pred,
                cls_pred,
@@ -140,30 +141,128 @@ class APTHungarianAssigner(HungarianAssigner):
         assigned_gt_inds[:] = -1
 
         overlap_tr = 0.2
+        # overlap_tr_max = 0.8
         overlaps = bbox_overlaps(gt_bboxes, bboxes.detach())
         overlaps, _ = overlaps.max(dim=0)
         overlaps[matched_row_inds] = 0.
-        masked_negs = (overlaps>overlap_tr)
+        masked_negs = overlaps>overlap_tr
+
+        # Add bboxes that completely contain gt_bboxes as neg.
+        overlaps_f = bbox_overlaps(gt_bboxes, bboxes, mode='iof')
+        overlaps_f, _ = overlaps_f.max(dim=0)
+        big_boxes = (overlaps_f>0.95) & (overlaps<0.5)
+        # Big boxes should have boxes that contain most of the gt_bboxes but are at least 1/0.5 = 2x in size.
+        masked_negs = masked_negs | big_boxes
+
         if gt_bboxes_ignore.shape[0]>0:
             ignore_overlaps, _ = bbox_overlaps(bboxes.detach(), gt_bboxes_ignore, mode='iof').max(dim=1)
             ignore_overlaps[matched_row_inds] = 0.
             masked_negs = masked_negs | (ignore_overlaps>overlap_tr)
-        min_num_negs = 30
+        min_num_negs = 5
         num_negs = np.count_nonzero(masked_negs.cpu().numpy())
 
-        if num_negs < min_num_negs:
-            masked_negs[np.random.choice(range(masked_negs.shape[0]),min_num_negs-num_negs)] = True
-
         if False:
-            assigned_gt_inds[masked_negs] = 0
+            if num_negs < min_num_negs:
+                masked_negs[np.random.choice(range(masked_negs.shape[0]),min_num_negs-num_negs)] = True
+
+        assigned_gt_inds[masked_negs] = 0
+
 
         # assign foregrounds based on matching results
         assigned_gt_inds[matched_row_inds] = matched_col_inds + 1
         assigned_labels[matched_row_inds] = gt_labels[matched_col_inds]
 
         return AssignResult(
-            num_gts, assigned_gt_inds, None, labels=assigned_labels)
+            num_gts, assigned_gt_inds, overlaps, labels=assigned_labels)
 
+
+@HEADS.register_module(force=True)
+class APT_DETRHead(DETRHead):
+    def __init__(self,*args,**kwargs):
+        k = super(APT_DETRHead,self)
+        self.__class__ = DETRHead
+        k.__init__(*args,**kwargs)
+        self.__class__ = APT_DETRHead
+
+    def _load_from_state_dict(self,*args,**kwargs):
+        k = super(APT_DETRHead,self)
+        self.__class__ = DETRHead
+        k._load_from_state_dict(*args,**kwargs)
+        self.__class__ = APT_DETRHead
+
+    def _get_target_single(self,
+                           cls_score,
+                           bbox_pred,
+                           gt_bboxes,
+                           gt_labels,
+                           img_meta,
+                           gt_bboxes_ignore=None):
+        """"Compute regression and classification targets for one image.
+
+        Outputs from a single decoder layer of a single feature level are used.
+
+        Args:
+            cls_score (Tensor): Box score logits from a single decoder layer
+                for one image. Shape [num_query, cls_out_channels].
+            bbox_pred (Tensor): Sigmoid outputs from a single decoder layer
+                for one image, with normalized coordinate (cx, cy, w, h) and
+                shape [num_query, 4].
+            gt_bboxes (Tensor): Ground truth bboxes for one image with
+                shape (num_gts, 4) in [tl_x, tl_y, br_x, br_y] format.
+            gt_labels (Tensor): Ground truth class indices for one image
+                with shape (num_gts, ).
+            img_meta (dict): Meta information for one image.
+            gt_bboxes_ignore (Tensor, optional): Bounding boxes
+                which can be ignored. Default None.
+
+        Returns:
+            tuple[Tensor]: a tuple containing the following for one image.
+
+                - labels (Tensor): Labels of each image.
+                - label_weights (Tensor]): Label weights of each image.
+                - bbox_targets (Tensor): BBox targets of each image.
+                - bbox_weights (Tensor): BBox weights of each image.
+                - pos_inds (Tensor): Sampled positive indices for each image.
+                - neg_inds (Tensor): Sampled negative indices for each image.
+        """
+
+        num_bboxes = bbox_pred.size(0)
+        # assigner and sampler
+        assign_result = self.assigner.assign(bbox_pred, cls_score, gt_bboxes,
+                                             gt_labels, img_meta,
+                                             gt_bboxes_ignore)
+        sampling_result = self.sampler.sample(assign_result, bbox_pred,
+                                              gt_bboxes)
+        pos_inds = sampling_result.pos_inds
+        neg_inds = sampling_result.neg_inds
+
+        # label targets
+        labels = gt_bboxes.new_full((num_bboxes, ),
+                                    self.num_classes,
+                                    dtype=torch.long)
+        # if assign_result.max_overlaps is not None:
+        #     lpos_inds = pos_inds[assign_result.max_overlaps[pos_inds]>0.5]
+        labels[pos_inds] = gt_labels[sampling_result.pos_assigned_gt_inds]
+        label_weights = gt_bboxes.new_zeros(num_bboxes)
+        label_weights[pos_inds] = 1.
+        label_weights[neg_inds] = 1.
+
+        # bbox targets
+        bbox_targets = torch.zeros_like(bbox_pred)
+        bbox_weights = torch.zeros_like(bbox_pred)
+        bbox_weights[pos_inds] = 1.0
+        img_h, img_w, _ = img_meta['img_shape']
+
+        # DETR regress the relative position of boxes (cxcywh) in the image.
+        # Thus the learning target should be normalized by the image size, also
+        # the box format should be converted from defaultly x1y1x2y2 to cxcywh.
+        factor = bbox_pred.new_tensor([img_w, img_h, img_w,
+                                       img_h]).unsqueeze(0)
+        pos_gt_bboxes_normalized = sampling_result.pos_gt_bboxes / factor
+        pos_gt_bboxes_targets = bbox_xyxy_to_cxcywh(pos_gt_bboxes_normalized)
+        bbox_targets[pos_inds] = pos_gt_bboxes_targets
+        return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
+                neg_inds)
 
 @BBOX_ASSIGNERS.register_module(force=True)
 class APTMaxIoUAssigner(MaxIoUAssigner):
@@ -288,7 +387,8 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
             cfg.model.train_cfg.rcnn.assigner.ignore_iof_thr = 0.85
             cfg.model.train_cfg.rpn_proposal.max_per_img *= 10
         assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
-        cfg.train_pipeline[2].img_scale = im_sz
+        if not conf.get('mmdetect_use_default_sz', False):
+            assert False, 'FRCNN does not support this'
         cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
         cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
         cfg.load_from = 'https://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
@@ -317,6 +417,7 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
 
         if conf.multi_loss_mask:
             cfg.model.train_cfg.assigner.type = 'APTHungarianAssigner'
+            cfg.model.bbox_head.type = 'APT_DETRHead'
 #            cfg.model.bbox_head.num_query = 300
         script_dir = os.path.dirname(os.path.realpath(__file__))
         wt_dir = os.path.join(script_dir,'pretrained')
@@ -565,6 +666,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
         test_pipeline = Compose(cfg.data.test.pipeline)
         device = next(model.parameters()).device
+        max_n = conf.max_n_animals
+        detr_nms = 0.7
 
         def pred_fn(ims,retrawpred=False,show=False):
 
@@ -619,8 +722,27 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                     plt.show()
 
             for b,res in enumerate(results):
-                pose_results[b,:len(res[0]),:,:] = res[0][:,:4].copy().reshape([-1,2,2])
-                conf_res[b,:len(res[0]),:] = res[0][:,4:].copy()
+                if conf.mmdetect_net == 'detr':
+                    cur_max = max_n
+                    cur_res = np.ones([max_n, 5]) * np.nan
+                    bbs = torch.tensor(res[0][:,:4])
+                    overlaps = bbox_overlaps(bbs,bbs)
+                    overlaps = overlaps.numpy()
+                    overlaps[np.diag_indices(overlaps.shape[0])] = 0.
+                    done_count = 0
+                    cur_ix = 0
+                    while done_count<max_n:
+                        cur_ix = cur_ix + 1
+                        if any(overlaps[cur_ix-1,:cur_ix-1]>detr_nms):
+                            continue
+                        cur_res[done_count,:] = res[0][cur_ix-1]
+                        done_count += 1
+
+                else:
+                    cur_res = res[0]
+                    cur_max = len(res[0])
+                pose_results[b,:cur_max,:,:] = cur_res[:,:4].copy().reshape([-1,2,2])
+                conf_res[b,:cur_max,:] = cur_res[:cur_max,4:].copy()
 
             ret_dict = {'locs':pose_results,'conf':conf_res}
             return ret_dict

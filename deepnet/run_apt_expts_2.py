@@ -313,7 +313,7 @@ def run_jobs(cmd_name,
                              run_dir=run_dir,
                              queue=queue,
                              precmd=precmd,numcores=nslots,
-                             timeout=80*60,sing_img=sing_img)
+                             timeout=80*60,sing_image=sing_img)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 

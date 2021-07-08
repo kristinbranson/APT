@@ -10,7 +10,7 @@ simg = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
 cache_dir = '/nrs/branson/mayank/apt_cache_2'
 second_time = False
 
-gt = True
+gt = False
 if gt:
     alice_lbl = f'/nrs/branson/mayank/apt_cache_2/alice_ma/trnpack_{alice_dstr}/trn/alice_ma.lbl_multianimal.lbl'
     alice_split_json = None
@@ -26,6 +26,7 @@ else:
     alice_lbl = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
     alice_split_json = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json'
     alice_full_json = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc.json'
+    alice_json = alice_split_json
     alice_tight_json = alice_json
     alice_gt_json = alice_json
     alice_gt_tight_json = alice_json
@@ -739,7 +740,7 @@ if False:
 
         vv = res[k].copy()
         vv[np.isnan(vv)] = 60.
-        mm = np.nanpercentile(vv,prcs,axis=0)
+        mm = np.nanpercentile(vv,prcs,axis=0,interpolation='nearest')
         for pt in range(ex_loc.shape[0]):
             for pp in range(mm.shape[0]):
                 c = plt.Circle(ex_loc[pt, :], mm[pp, pt], color=cmap[pp, :], fill=False,alpha=1-((pp+1)/mm.shape[0])*dropoff)
