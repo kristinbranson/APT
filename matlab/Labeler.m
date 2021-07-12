@@ -7745,12 +7745,19 @@ classdef Labeler < handle
   end
   
   methods (Static)
-    function trkfile = genTrkFileName(rawname,sMacro,movfile)
+    function trkfile = genTrkFileName(rawname,sMacro,movfile,varargin)      
       % Generate a trkfilename from rawname by macro-replacing.      
+      
+      enforceExt = myparse(varargin,...
+        'enforceExt',true ...
+        );
+      
       [sMacro.movdir,sMacro.movfile] = fileparts(movfile);
       trkfile = FSPath.macroReplace(rawname,sMacro);
-      if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))
-        trkfile = [trkfile '.trk'];
+      if enforceExt
+        if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))
+          trkfile = [trkfile '.trk'];
+        end
       end
     end
     function [tfok,trkfiles] = checkTrkFileNamesExportUI(trkfiles,varargin)

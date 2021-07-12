@@ -11,20 +11,22 @@ classdef TrackBatchGUI < handle
     gdata = struct;
     nmovies_per_page = 10;
     isbusy = false;
+    
+    needsSave = false; % if true, .toTrack has changes relative to last save/loaded json
+    
+    defaulttrkpat;
+    defaulttrxpat = '$movdir/trx.mat';
   end
   
   methods
     function obj = TrackBatchGUI(lObj,varargin)
-
       obj.lObj = lObj;
-      obj.hParent = obj.lObj.gdata.figure;
-      
+      obj.hParent = obj.lObj.gdata.figure;      
       toTrack = myparse(varargin,'toTrack',struct);
       
-      obj.initData(toTrack);
-      
+      obj.defaulttrkpat = lObj.defaultExportTrkRawname();
+      obj.initData(toTrack);      
       obj.createGUI();
-      
     end
     
     function toTrack = run(obj)
@@ -94,7 +96,8 @@ classdef TrackBatchGUI < handle
       colw = ((1-2*border) - (filebuttonw+colborder)*2)/2;
       
       allmovieh = 1 - 3*border - rowh*4 - 4*rowborder - border;
-      obj.nmovies_per_page = floor(allmovieh/(rowh+rowborder))-1;
+      obj.nmovies_per_page = floor(allmovieh/(rowh+rowborder))-3;
+      %disp(obj.nmovies_per_page);
       obj.setNPages();
       moveditx = border;
       coltitley = 1-border-rowh;
@@ -102,6 +105,12 @@ classdef TrackBatchGUI < handle
       detailsbuttonx = trkeditx+colw+colborder;
       deletebuttonx = detailsbuttonx+filebuttonw+colborder;
       rowys = coltitley - (rowh+rowborder)*(1:obj.nmovies_per_page);
+ 
+      macroedity = rowys(end) - 1.5*(rowh+rowborder);
+      hasTrx = obj.lObj.hasTrx;
+      if hasTrx
+        macroedity(2) = macroedity - (rowh+rowborder);
+      end
       
       pagetextw = .1;
       pagebuttonstrs = {'|<','<','>','>|'};
@@ -112,9 +121,9 @@ classdef TrackBatchGUI < handle
       pagetextx = pagebuttonxsless(end)+filebuttonw+colborder;
       pagebuttonxsmore = pagetextx + pagetextw + colborder+(filebuttonw+colborder)*[0,1];
       pagebuttonxs = [pagebuttonxsless,pagebuttonxsmore];
-      pagebuttony = rowys(end) - (rowh+rowborder);
+      pagebuttony = macroedity(end) - 1.5*(rowh+rowborder);
       
-      macroedity = pagebuttony + rowh + 2*rowborder;
+%      macroedity = pagebuttony + rowh + 2*rowborder;
       
       addbuttonw = .15;
       addbuttonx = .5 - addbuttonw/2;
@@ -122,13 +131,13 @@ classdef TrackBatchGUI < handle
       
       % save, track, cancel
       controlbuttonw = .15;
-      controlbuttonstrs = {'Save...','Load...','Track...','Cancel'};
+      controlbuttonstrs = {'Save','Load','Track','Cancel'};
       controlbuttontags = {'save','load','track','cancel'};
       controlbuttoncolors = ...
         [0,0,.8
         0,.7,.7
         0,.7,0
-        .7,.7,0];
+        .4,.4,.4];
       ncontrolbuttons = numel(controlbuttonstrs);
       allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*colborder;
       controlbuttonx1 = .5-allcontrolbuttonw/2;
@@ -155,30 +164,58 @@ classdef TrackBatchGUI < handle
         'position',figpos);
       %  'windowstyle','modal',...
       
+      FONTSIZE = 14;
+      FONTSIZESML = 12;
       obj.gdata.txt_movietitle = uicontrol('Style','text','String','Movie',...
         'ForegroundColor','w','BackgroundColor','k','FontWeight','bold',...
+        'FontSize',FONTSIZE,...
         'Units','normalized','Position',[moveditx,coltitley,colw,rowh],...
         'Tag','Movie title');
       obj.gdata.txt_trktitle = uicontrol('Style','text','String','Output trk',...
         'ForegroundColor','w','BackgroundColor','k','FontWeight','bold',...
+        'FontSize',FONTSIZE,...
         'Units','normalized','Position',[trkeditx,coltitley,colw,rowh],...
         'Tag','Trk title');
-      obj.gdata.txt_macro = uicontrol('Style','text','String','Define trk using macros',...
+      smacros = obj.lObj.baseTrkFileMacros();
+      macrotooltip = sprintf('Trkfile locations will be auto-generated based on this field. Available macros:\n$movdir -> <movie folder>\n$movfile -> <movie file>\n');
+      for f=fieldnames(smacros)',f=f{1}; %#ok<FXSET>
+        macrotooltip = [macrotooltip sprintf('$%s -> %s\n',f,smacros.(f))]; %#ok<AGROW>
+      end
+      
+      obj.gdata.txt_macro = uicontrol('Style','text','String','Default trkfile location',...
           'ForegroundColor','w','BackgroundColor','k','FontWeight','bold',...
-          'Units','normalized','Position',[moveditx,macroedity,colw,rowh],...
+          'FontSize',FONTSIZESML,...
+          'Units','normalized','Position',[moveditx,macroedity(1),colw,rowh],...
           'Tag','txt_macro',...
-          'Tooltip', 'Use macro to define the output trk files. For movie /a/b/c/d.avi, $name$=d, $dir$=c and $path=/a/b');
-      obj.gdata.edit_macro = uicontrol('Style','edit','String','',...
+          'Tooltip', macrotooltip);
+      obj.gdata.edit_macro = uicontrol('Style','edit',...
+          'String',obj.defaulttrkpat,...
           'ForegroundColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
-          'Units','normalized','Enable','on','Position',[trkeditx,macroedity,colw,rowh],...
+          'Units','normalized','Enable','on','Position',[trkeditx,macroedity(1),colw,rowh],...
           'Tag','edit_macro',...
-          'Tooltip', 'Use macro to define the output trk files. For movie /a/b/c/d.avi, $name$=d, $dir$=c and $path=/a/b');
-       obj.gdata.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
-          'ForegroundColor','w','BackgroundColor',pagebuttoncolor,'FontWeight','bold',...
-          'Units','normalized','Enable','on','Position',[detailsbuttonx,macroedity,2*filebuttonw+colborder,rowh],...
-          'Tag',sprintf('pushbutton_page%d',i),'UserData',i,...
-          'Callback',@(h,e) obj.apply_macro(h,e),...
-          'Tooltip', 'Use macro to define the output trk files. For movie /a/b/c/d.avi, $name$=d, $dir$=c and $path=/a/b');
+          'Callback',@(h,e) obj.macro_changed(h,e),...
+          'Tooltip', macrotooltip);
+      if hasTrx
+        obj.gdata.txt_macro = uicontrol('Style','text','String','Default trx location',...
+          'ForegroundColor','w','BackgroundColor','k','FontWeight','bold',...
+          'FontSize',FONTSIZESML,...
+          'Units','normalized','Position',[moveditx,macroedity(2),colw,rowh],...
+          'Tag','txt_macro_trx',...
+          'Tooltip', macrotooltip);
+        obj.gdata.edit_macro = uicontrol('Style','edit',...
+          'String',obj.defaulttrxpat,...
+          'ForegroundColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
+          'Units','normalized','Enable','on','Position',[trkeditx,macroedity(2),colw,rowh],...
+          'Tag','edit_macro_trx',...
+          'Callback',@(h,e) obj.macro_changed_trx(h,e),...
+          'Tooltip', macrotooltip);
+      end
+%        obj.gdata.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
+%           'ForegroundColor','w','BackgroundColor',pagebuttoncolor,'FontWeight','bold',...
+%           'Units','normalized','Enable','on','Position',[detailsbuttonx,macroedity,2*filebuttonw+colborder,rowh],...
+%           'Tag',sprintf('pushbutton_page%d',i),'UserData',i,...
+%           'Callback',@(h,e) obj.apply_macro(h,e),...
+%           'Tooltip', 'Apply changes');
       for i = 1:obj.nmovies_per_page,
         visible = 'off';
         movfilecurr = defaultmovfiles{i};
@@ -219,17 +256,20 @@ classdef TrackBatchGUI < handle
       end
       obj.gdata.text_page = uicontrol('Style','text','String',sprintf('Page %d/%d',obj.page,obj.npages),...
         'ForegroundColor','w','BackgroundColor',backgroundcolor,'FontWeight','normal',...
+        'FontSize',FONTSIZESML,...
         'Units','normalized','Enable','on','Position',[pagetextx,pagebuttony,pagetextw,rowh],...
         'Tag','text_page','HorizontalAlignment','center');
-      obj.gdata.button_add = uicontrol('Style','pushbutton','String','Add movie...',...
-        'ForegroundColor','w','BackgroundColor',addbuttoncolor,'FontWeight','bold',...
+      obj.gdata.button_add = uicontrol('Style','pushbutton','String','Add movie',...
+        'ForegroundColor','w','BackgroundColor',addbuttoncolor,...
+        'FontWeight','bold','FontSize',FONTSIZE,...
         'Units','normalized','Enable','on','Position',[addbuttonx,addbuttony,addbuttonw,rowh],...
         'Tag','pushbutton_add',...
-        'Callback',@(h,e) obj.pb_add_Callback(h,e));
+        'Callback',@(h,e) obj.pb_add_Callback(h,e,[]));
       
       for i = 1:ncontrolbuttons,
         obj.gdata.button_control(i) = uicontrol('Style','pushbutton','String',controlbuttonstrs{i},...
-          'ForegroundColor','w','BackgroundColor',controlbuttoncolors(i,:),'FontWeight','bold',...
+          'ForegroundColor','w','BackgroundColor',controlbuttoncolors(i,:),...
+          'FontWeight','bold','FontSize',FONTSIZE,...
           'Units','normalized','Enable','on','Position',[controlbuttonxs(i),controlbuttony,controlbuttonw,rowh],...
           'Tag',sprintf('controlbutton_%s',controlbuttontags{i}),'UserData',i,...
           'Callback',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
@@ -261,7 +301,9 @@ classdef TrackBatchGUI < handle
         set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
           obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
       end
+        
       set(obj.gdata.text_page,'String',sprintf('Page %d/%d',obj.page,obj.npages));
+      
     end
     function setRowVisible(obj,i,visible)
       set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
@@ -334,20 +376,23 @@ classdef TrackBatchGUI < handle
 %       if moviei < obj.nmovies,
 %         obj.nmovies = moviei;
 %       end
+      obj.needsSave = true;
+      
       itemi = obj.movie2ItemIdx(moviei);
       if isempty(itemi),
         return;
       end
       set(obj.gdata.edit_movie(itemi),'String',obj.toTrack.movfiles{moviei,1});
       set(obj.gdata.edit_trk(itemi),'String',obj.toTrack.trkfiles{moviei,1});
-      obj.setRowVisible(itemi,'on');
-      
+      obj.setRowVisible(itemi,'on');      
     end
     function pb_details_Callback(obj,h,e,itemi) %#ok<*INUSL>
       obj.setBusy();
       moviei = obj.item2MovieIdx(itemi);
-      movdata = obj.getMovData(moviei);
-      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,movdata);
+      movdata = obj.getMovData(moviei);      
+      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+        movdata,'defaulttrkpat',obj.defaulttrkpat,...
+        'defaulttrxpat',obj.defaulttrxpat);
       [movdataout,dostore] = movdetailsobj.run();
       if dostore,
         obj.setMovData(moviei,movdataout);
@@ -378,11 +423,13 @@ classdef TrackBatchGUI < handle
         obj.page = obj.npages;
       end
       obj.updateMovieList();
-      
+      obj.needsSave = true;      
     end
           
-    function pb_add_Callback(obj,h,e) %#ok<*INUSD>
-      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig);
+    function pb_add_Callback(obj,h,e,movdat) %#ok<*INUSD>
+      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+        movdat,'defaulttrkpat',obj.defaulttrkpat,...
+        'defaulttrxpat',obj.defaulttrxpat);
       movdataout = movdetailsobj.run();
       if ~isfield(movdataout,'movfiles') || isempty(movdataout.movfiles) || ...
           isempty(movdataout.movfiles{1}),
@@ -439,13 +486,15 @@ classdef TrackBatchGUI < handle
             uiwait(errordlg('No movies selected.'));
             return;
           end
-          res = questdlg('Save list of movies to track for reference?');
-          if strcmpi(res,'Cancel'),
-            return;
-          elseif strcmpi(res,'Yes'),
-            success = obj.loadOrSaveToFile('save');
-            if ~success,
+          if obj.needsSave
+            res = questdlg('Save list of movies to track for reference?');
+            if strcmpi(res,'Cancel'),
               return;
+            elseif strcmpi(res,'Yes'),
+              success = obj.loadOrSaveToFile('save');
+              if ~success,
+                return;
+              end
             end
           end
           trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack);
@@ -503,6 +552,7 @@ classdef TrackBatchGUI < handle
       else
         writeToTrackJSON(obj.toTrack,jsonfile);        
       end
+      obj.needsSave = false;
       success = true;
     end
 
@@ -525,30 +575,115 @@ classdef TrackBatchGUI < handle
     end
     function edit_movie_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
-      set(h,'String',obj.toTrack.movfiles{moviei,1});
+      movie = h.String;
+
+      defaulttrk = obj.defaulttrkpat;
+      tfgentrk = ~isempty(defaulttrk);
+      if tfgentrk
+        trk = obj.genTrkfile(movie,defaulttrk);
+      end
+      defaulttrx = obj.defaulttrxpat;
+      tfgentrx = obj.lObj.hasTrx && ~isempty(defaulttrx);
+      if tfgentrx
+        trx = obj.genTrkfile(movie,defaulttrx,'enforceExt',false);
+      end
+      
+      if moviei>obj.nmovies
+        nvw = obj.lObj.nview;
+        movfiles = cell(1,nvw);
+        movfiles{1} = movie;
+        movdata = struct('movfiles',{movfiles});
+        if tfgentrk
+          trkfiles = cell(1,nvw);
+          trkfiles{1} = trk;
+          movdata.trkfiles = trkfiles;
+        end
+        if tfgentrx
+          trxfiles = cell(1,nvw);
+          trxfiles{1} = trx;
+          movdata.trxfiles = trxfiles;
+        end
+        obj.pb_add_Callback([],[],movdata);
+      else
+        obj.toTrack.movfiles{moviei,1} = movie;
+        if tfgentrk
+          obj.toTrack.trkfiles{moviei,1} = trk;
+        end
+        if tfgentrx
+          obj.toTrack.trxfiles{moviei,1} = trx;
+        end
+        if tfgentrk || tfgentrx
+          obj.updateMovieList();
+        end
+        % mutating .toTrack outside setMovData
+        obj.needsSave = true;
+      end
     end
     function edit_trk_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
-      set(h,'String',obj.toTrack.trkfiles{moviei,1});
+      if moviei>obj.nmovies
+        obj.pb_add_Callback([],[],[]);
+        return;
+      end
+      trk = h.String;
+      obj.toTrack.trkfiles{moviei,1} = trk;
+      % mutating .toTrack outside setMovData
+      obj.needsSave = true;
+    end
+    function trk = genTrkfile(obj,movie,defaulttrk,varargin)  
+      if isempty(movie)
+        trk = '';
+      else
+        trk = Labeler.genTrkFileName(defaulttrk,...
+          obj.lObj.baseTrkFileMacros(),movie,varargin{:});
+      end
     end
     
-    function apply_macro(obj,h,e)
-      in_str = get(obj.gdata.edit_macro,'String');
-      in_str = strtrim(in_str);
-      if isempty(in_str), return; end
+    function macro_changed(obj,h,e)
+      trkpatnew = strtrim(h.String);
+      if strcmp(trkpatnew,obj.defaulttrkpat)
+        return;
+      end
+      
+      if ~isempty(trkpatnew) && obj.nmovies>0
+        btn = questdlg('Apply to existing movies?','Default trkfile changed',...
+          'Yes','No','Cancel','Yes');
+        if isempty(btn)
+          btn = 'Cancel';
+        end
+        switch btn
+          case 'Yes'
+            obj.defaulttrkpat = trkpatnew;
+            obj.apply_macro_allmovies();
+          case 'No'
+            obj.defaulttrkpat = trkpatnew;
+          case 'Cancel'
+            % revert
+            h.String = obj.defaulttrkpat;            
+        end
+      else
+        obj.defaulttrkpat = trkpatnew;
+      end
+    end
+    function apply_macro_allmovies(obj)
+      defaulttrk = obj.defaulttrkpat;
       for moviei = 1:obj.nmovies
         for view = 1:obj.lObj.nview
           cur_m = obj.toTrack.movfiles{moviei,view};
-          [movp,movn,~] = fileparts(cur_m);
-          [movp,movd,~] = fileparts(movp);
-          outf = in_str;
-          outf = strrep(outf,'$name$',movn);
-          outf = strrep(outf,'$dir$',movd);
-          outf = strrep(outf,'$path$',movp);
-          obj.toTrack.trkfiles{moviei,view} = outf;
+          trk = obj.genTrkfile(cur_m,defaulttrk);
+          obj.toTrack.trkfiles{moviei,view} = trk;
         end
       end
       obj.updateMovieList();
+      % mutating .toTrack outside setMovData
+      obj.needsSave = true;
+    end
+    function macro_changed_trx(obj,h,e)
+      trxpat = strtrim(h.String);
+      if strcmp(trxpat,obj.defaulttrxpat)
+        return;
+      end
+      obj.defaulttrxpat = trxpat;
     end
 
   end
