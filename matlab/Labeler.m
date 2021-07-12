@@ -2365,11 +2365,11 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
-      
-      obj.initTrxInfo();
-      
+
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
+
+      obj.initTrxInfo();      
 
       obj.computeLastLabelChangeTS_Old();
       fcnNumLbledRows = @Labels.numLbls;
@@ -5895,6 +5895,7 @@ classdef Labeler < handle
 
       obj.(PROPS.TIA) = cell(size(obj.(PROPS.TFA)));
       tFilesFull = obj.(PROPS.TFAF);
+      tFiles = obj.(PROPS.TFA);
       for i = 1:numel(obj.(PROPS.TFA)),
         trxinfo = struct;
         nframes = obj.(PROPS.MIA){i}.nframes;
@@ -5906,7 +5907,7 @@ classdef Labeler < handle
         else
           tFileFull = tFilesFull{i};
           if ~(isempty(tFileFull) || exist(tFileFull,'file')>0)
-            FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
+            FSPath.throwErrFileNotFoundMacroAware(tFiles{i},tFileFull,'trxfile');
           end
           tmptrx = obj.getTrx(tFileFull,nframes);
           nTgt = numel(tmptrx);
