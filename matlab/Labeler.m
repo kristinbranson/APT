@@ -5931,7 +5931,7 @@ classdef Labeler < handle
         nTgt = 1;
         trxinfo.ntgts = nTgt;
         trxinfo.firstframes = 1;
-        trxinfo.endframes = ifo.nframes;
+        trxinfo.endframes = nframes;
       end
     end
 
