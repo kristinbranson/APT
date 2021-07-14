@@ -539,6 +539,16 @@ classdef LabelCoreSeqMA < LabelCore
       obj.pbRoiNew.Visible = onoff;
       obj.roiRectDrawer.setShowRois(tf);
       obj.roiShow = tf;
+      if tf
+        % see newFrameTarget()
+        lObj = obj.labeler;
+        if ~lObj.isinit && lObj.hasMovie
+          frm = lObj.currFrame;
+          vroi = lObj.labelroiGet(frm);
+          obj.roiRectDrawer.setRois(vroi);
+          obj.roiUpdatePBEdit(false);
+        end
+      end
     end
     function cbkRoiNew(obj)
       assert(obj.roiShow);
