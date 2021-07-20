@@ -534,11 +534,9 @@ classdef DeepTracker < LabelTracker
       % effectively would have been previously used.
 
       assert(isfield(s,'sPrmAll') && ~isfield(s,'sPrm')); % taken care of in Labeler/lblModernize
-      sPrmDflt = APTParameters.defaultParamsStructAll;      
+            
       if ~isempty(s.sPrmAll)
-        % Labeler/lblModernize may not have modernized s.sPrmAll
-        s.sPrmAll = structoverlay(sPrmDflt,s.sPrmAll,...
-          'dontWarnUnrecog',true); % to allow removal of obsolete params
+        s.sPrmAll = APTParameters.modernize(s.sPrmAll);
       else
         % AL 20190713 leave s.sPrmAll empty for untrained trackers
         tfTrained = isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC);

@@ -1298,33 +1298,9 @@ classdef Labeler < handle
     end
     
     function v = get.DLCacheDir(obj)      
-      % AL 20190425 bundle. .DLCacheDir is immutable during a Session and 
-      % always equal to .projTempDir
       v = obj.projTempDir;
-%       if isempty(obj.trackParams),
-%         v = '';
-%       else
-%         v = APTParameters.all2DLCacheDir(obj.trackParams);
-%       end
     end
     
-%     function v = get.cprParams(obj)      
-%       if isempty(obj.trackParams),
-%         v = [];
-%       else
-%         v = APTParameters.all2CPRParams(obj.trackParams,obj.nPhysPoints,obj.nview);
-%       end      
-%     end
-    
-%     function set.cprParams(obj,prmCpr)
-%       
-%       if isempty(obj.trackParams),
-%         obj.trackParams = struct;
-%         obj.trackParams.ROOT = APTParameters.defaultParamsStruct;
-%       end
-%       obj.trackParams.ROOT.CPR = CPRParam.old2newCPROnly(prmCpr);
-%       
-%     end
     function v = get.trkResGTaware(obj)
       gt = obj.gtIsGTMode;
       if gt
@@ -3748,15 +3724,8 @@ classdef Labeler < handle
       % KB 20190331: adding in post-processing parameters if missing
       % AL 20190507: ... [a subset of] ... .trackParams modernization
       % AL 20190712: (subsumes above) modernizing entire .trackParams
-      if ~isempty(s.trackParams)       
-        sPrmDflt = APTParameters.defaultParamsStructAll;
-        s.trackParams = structoverlay(sPrmDflt,s.trackParams,...
-          'dontWarnUnrecog',true); % to allow removal of obsolete params
-      else
-        % s.trackParams can be [] for eg new projs, will be set at
-        % parameter-set-time
-      end
-      
+      s.trackParams = APTParameters.modernize(s.trackParams);
+
       % KB 20190214: store all parameters in each tracker so that we don't
       % have to delete trackers when tracking parameters change
       % AL 20190712: further clarification 

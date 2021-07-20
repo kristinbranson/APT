@@ -381,7 +381,7 @@ classdef APTParameters
       sPrmAll.ROOT.CPR = sPrmCPR;
     end
     
-    function sPrmAll = setNFramesTrackParams(sPrmAll,obj)      
+    function sPrmAll = setNFramesTrackParams(sPrmAll,obj)
       sPrmAll.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrmAll.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrmAll.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
@@ -451,6 +451,26 @@ classdef APTParameters
           tfOK = false;
           msgs{end+1} = 'Histogram Equalization and Neighbor Masking cannot both be enabled';
         end
+      end
+    end
+    
+    function sPrmAll = modernize(sPrmAll)
+      % 20210720 param reorg MA
+      if ~isempty(sPrmAll)
+        if isfield(sPrmAll.ROOT,'MultiAnimalDetection')
+          sPrmAll.ROOT.MultiAnimal.Detect = sPrmAll.ROOT.MultiAnimalDetection;
+          sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'MultiAnimalDetection');
+        end
+        if isfield(sPrmAll.ROOT.ImageProcessing,'MultiTarget') && ...
+           isfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop')
+          sPrmAll.ROOT.MultiAnimal.TargetCrop = sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+          sPrmAll.ROOT.ImageProcessing.MultiTarget = ...
+            rmfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop');
+        end
+          
+        sPrmDflt = APTParameters.defaultParamsStructAll;
+        sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
+          'dontWarnUnrecog',true); % to allow removal of obsolete params
       end
     end
     
