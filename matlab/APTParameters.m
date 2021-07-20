@@ -1,5 +1,5 @@
 classdef APTParameters
-  properties (Constant, Access=private)
+  properties (Constant)
     % This property stores parsetrees for yamls so that yaml files only 
     % need to be parsed once.
     %
@@ -35,7 +35,7 @@ classdef APTParameters
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
       tPrmCpr = trees.cpr.tree;
-      tPrmDet = trees.detect.tree;
+      tPrmMA = trees.ma.tree;
       tPrmDT = trees.deeptrack.tree;
       tPrmPostProc = trees.postprocess.tree;
       
@@ -50,7 +50,7 @@ classdef APTParameters
       
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmCpr.Children; tPrmDet.Children; tPrmDT.Children; tPrmPostProc.Children];
+        tPrmCpr.Children; tPrmMA.Children; tPrmDT.Children; tPrmPostProc.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -174,15 +174,15 @@ classdef APTParameters
         end
         isma = labelerObj.maIsMA;
         istd = labelerObj.trackerIsTopDown;
+        isod = labelerObj.trackerIsObjDet;
       
         reqs = tree.Data.Requirements;
         if ismember('isCPR',reqs) && ~strcmpi(trackerAlgo,'cpr'),
           tree.Data.Visible = false;
-        elseif all(ismember({'hasTrx' 'ma'},reqs))
+        elseif all(ismember({'hasTrx' 'isTopDown'},reqs))
           if ~hasTrx && ~isma
             % Special case/hack; if hasTrx and ma are both present, it's an
-         APTParameters.filterPropertiesByCondition(tree.Children(i),...
-           labelerObj,varargin{:});   % OR condition (rather than AND which is the default for 2+
+            % OR condition (rather than AND which is the default for 2+
             % requiremetns)
             tree.Data.Visible = false;
           end
@@ -195,6 +195,8 @@ classdef APTParameters
         elseif ismember('isDeepTrack',reqs) && ~trackerIsDL,
           tree.Data.Visible = false;
         elseif ismember('isTopDown',reqs) && ~istd
+          tree.Data.Visible = false;
+        elseif ismember('isObjDet',reqs) && ~isod
           tree.Data.Visible = false;
         else
           dlnets = enumeration('DLNetType');
@@ -287,7 +289,7 @@ classdef APTParameters
       
       tfChangeMade = false;
       
-      if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta && ...
+      if sPrm.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta && ...
          strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
         warningNoTrace('CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta. Setting CPR OrientationType to ''arbitrary''.');
         sPrm.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
@@ -316,10 +318,6 @@ classdef APTParameters
       dlNetTypesPretty = APTParameters.getDLNetTypesPretty;
       v = rmfield(sPrmDT,intersect(fieldnames(sPrmDT),dlNetTypesPretty));
     end
-
-%     function v = all2DLCacheDir(sPrmAll)
-%       v = sPrmAll.ROOT.DeepTrack.Saving.CacheDir;
-%     end
     
     % all parameters to specific dl parameters for input netType
     function v = all2DLSpecificParams(sPrmAll,netType)
@@ -477,7 +475,7 @@ s.preprocess = 'params_preprocess.yaml';
 s.track = 'params_track.yaml';
 s.cpr = fullfile('trackers','cpr','params_cpr.yaml');
 s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
-s.detect = fullfile('trackers','dt','params_detect.yaml');
+s.ma = fullfile('trackers','dt','params_ma.yaml');
 s.postprocess = 'params_postprocess.yaml';
 aptroot = APT.getRoot;
 dd = dir(fullfile(aptroot,'matlab','trackers','dt','params_deeptrack_*.yaml'));

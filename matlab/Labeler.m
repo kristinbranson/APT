@@ -502,10 +502,8 @@ classdef Labeler < handle
     ppdb % PreProcDB for DL
   end
 
-  properties (Dependent)
-    
+  properties (Dependent)    
     preProcParams % struct - KB 20190214 -- made this a dependent property, derived from trackParams
-
   end  
   %% Tracking
   properties (SetObservable)
@@ -517,6 +515,7 @@ classdef Labeler < handle
     trackerAlgo % The current tracker algorithm, or ''
     trackerIsDL
     trackerIsTopDown
+    trackerIsObjDet
     trackDLParams % scalar struct, common DL params
     DLCacheDir % string, location of DL cache dir
   end
@@ -1275,21 +1274,19 @@ classdef Labeler < handle
     end 
     function v = get.trackerIsTopDown(obj)
       v = obj.tracker;
-      if isempty(v)
-        v = [];
-      else
-        v = isa(v,'DeepTrackerTopDown');
-      end
+      v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isTopDown;
+    end
+    function v = get.trackerIsObjDet(obj)
+      v = obj.tracker;
+      v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isObjDet;
     end
     % KB 20190214 - store all parameters together in one struct. these dependent functions emulate previous behavior
-    function v = get.preProcParams(obj)
-      
+    function v = get.preProcParams(obj)      
       if isempty(obj.trackParams),
         v = [];
       else
         v = APTParameters.all2PreProcParams(obj.trackParams);
       end
-
     end
     
     function v = get.trackDLParams(obj)      
@@ -3961,8 +3958,7 @@ classdef Labeler < handle
       % causes trouble
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
-      end
-      
+      end      
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
@@ -9020,9 +9016,9 @@ classdef Labeler < handle
       ims = obj.gdata.images_all;
       ims = arrayfun(@(x)x.CData,ims,'uni',0);
       if trxCtred
-        ppParams = obj.preProcParams;
-        if isempty(ppParams)
-          warningNoTrace('Preprocessing parameters unset. Using supplied/default ROI radius and background pad value.');
+        prms = obj.trackParams;
+        if isempty(prms)
+          warningNoTrace('Parameters unset. Using supplied/default ROI radius and background pad value.');
           if ~isnan(roiRadius)
             % OK; user-supplied
           else
@@ -9031,9 +9027,10 @@ classdef Labeler < handle
           end
           % roiPadVal has been supplied
         else
+          prmsTgtCrop = prms.ROOT.MultiAnimal.TargetCrop;
           % Override roiRadius, roiPadVal with .preProcParams stuff
-          roiRadius = ppParams.TargetCrop.Radius;
-          roiPadVal = ppParams.TargetCrop.PadBkgd;
+          roiRadius = prmsTgtCrop.Radius;
+          roiPadVal = prmsTgtCrop.PadBkgd;
         end
 
         % Image: use image for current mov/frm/tgt
@@ -9188,7 +9185,7 @@ classdef Labeler < handle
       % roi: [4x2] [x(:) y(:)] corners of rectangular roi
 
       if nargin<3
-        sPrmMA = obj.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+        sPrmMA = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
       end
 
       tfHT = ~isempty(obj.skelHead);
@@ -10305,14 +10302,16 @@ classdef Labeler < handle
       %   - no .roi
       %   - set .pAbs (pabsfld) to be .p (pfld)
       
-      [prmpp,doRemoveOOB,pfld,pabsfld,proifld] = myparse(varargin,...
-        'preProcParams',[],...
+      [prmsTgtCrop,doRemoveOOB,pfld,pabsfld,proifld] = myparse(varargin,...
+        'prmsTgtCrop',[],...
         'doRemoveOOB',true,...
         'pfld','p',...  % see desc above
         'pabsfld','pAbs',... % etc
         'proifld','pRoi'... % 
         );
-      isPreProcParams = ~isempty(prmpp);
+      if isempty(prmsTgtCrop)
+        prmsTgtCrop = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
+      end
       
       if obj.hasTrx || obj.cropProjHasCrops
         % at the end of this branch, all fields .roi, proifld, pabsfld must
@@ -10329,11 +10328,7 @@ classdef Labeler < handle
             tblP(:,'roi') = [];
           end
           if obj.hasTrx
-            if isPreProcParams,
-              roiRadius = prmpp.TargetCrop.Radius;
-            else
-              roiRadius = obj.preProcParams.TargetCrop.Radius;
-            end
+            roiRadius = prmsTgtCrop.Radius;
             tblP = obj.labelMFTableAddROITrx(tblP,roiRadius,...
               'rmOOB',doRemoveOOB,...
               'pfld',pfld,'proifld',proifld);
@@ -10372,14 +10367,14 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      [wbObj,tblMFTrestrict,gtModeOK,prmpp,doRemoveOOB,...
+      [wbObj,tblMFTrestrict,gtModeOK,prmsTgtCrop,doRemoveOOB,...
         treatInfPosAsOcc] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                     ... % 1. obj const 
                     ... % 2. tblP indeterminate
         'tblMFTrestrict',[],... % see labelGetMFTableLabeld
         'gtModeOK',false,... % by default, this meth should not be called in GT mode
-        'preProcParams',[],...
+        'prmsTgtCrop',[],...
         'doRemoveOOB',true,...
         'treatInfPosAsOcc',false ... % if true, treat inf labels as 
                                  ... % 'fully occluded'; if false, remove 
@@ -10445,7 +10440,7 @@ classdef Labeler < handle
         tblP = tblP(~tfinf,:);
       end
       
-      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp,...
+      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'prmsTgtCrop',prmsTgtCrop,...
         'doRemoveOOB',doRemoveOOB);
     end
     
@@ -11988,7 +11983,7 @@ classdef Labeler < handle
      
       % Create a table to call preProcDataFetch so we can use images in
       % preProc cache.      
-      FLDSTMP = {'mov' 'frm' 'iTgt' 'tfoccLbl' 'pLbl'}; % MFTable.FLDSCORE
+      FLDSTMP = {'mov' 'frm' 'iTgt' 'tfoccLbl' 'pLblAbs'}; % MFTable.FLDSCORE
       tfROI = tblfldscontains(tbl,'roi');     
       if tfROI
         FLDSTMP = [FLDSTMP 'roi'];
@@ -11998,10 +11993,13 @@ classdef Labeler < handle
 %         FLDSTMP = [FLDSTMP 'nNborMask'];
 %       end
       tblCacheUpdate = tbl(:,FLDSTMP);
-      tblCacheUpdate.Properties.VariableNames(4:5) = {'tfocc' 'p'};
-      %tblCacheUpdate.p = pLbl; % corrected for ROI if nec
-      [ppdata,ppdataIdx,~,~,tfReadFailed] = ...
-        obj.preProcDataFetch(tblCacheUpdate,'updateRowsMustMatch',true);
+      tblCacheUpdate.Properties.VariableNames(4:5) = {'tfocc' 'pAbs'};
+%       [ppdata,ppdataIdx,~,~,tfReadFailed] = ...
+%         obj.preProcDataFetch(tblCacheUpdate,'updateRowsMustMatch',true);
+      
+      % computeOnly=true out of abundance of caution (GT rows)
+      [~,ppdata,tfReadFailed] = obj.ppdb.add(tblCacheUpdate,obj,'computeOnly',true);
+      
       nReadFailed = nnz(tfReadFailed);
       if nReadFailed>0
         warningNoTrace('Failed to read %d frames/images; these will not be included in montage.',...
@@ -12009,8 +12007,7 @@ classdef Labeler < handle
         % Would be better to include with "blank" image
       end
       
-      I = ppdata.I(ppdataIdx,:);  
-      
+      I = ppdata.I;      
     end
     
     function trackLabelMontage(obj,tbl,errfld,varargin)

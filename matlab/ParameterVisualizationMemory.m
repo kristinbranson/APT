@@ -29,7 +29,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       % sets .imsz
       
       if lObj.hasTrx,
-        obj.imsz = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius*2+[1,1];
+        obj.imsz = sPrm.ROOT.MultiAnimal.TargetCrop.Radius*2+[1,1];
       else
         nmov = lObj.nmoviesGTaware;
         rois = nan(nmov,lObj.nview,4);

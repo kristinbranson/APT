@@ -72,7 +72,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
         return;
       end
       
-      sPrm_MultiTgt_TargetCrop = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop;     
+      sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;     
       rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
           
       cla(hAx);
@@ -99,7 +99,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
 
     function propUpdated(obj,hAx,lObj,propFullName,sPrm)
       if obj.initSuccessful && obj.plotOk(),
-        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop;     
+        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;     
         rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
         set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
       else
@@ -109,8 +109,8 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     
     function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
       if obj.initSuccessful && obj.plotOk()
-        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop;
-        assert(startsWith(propFullName,'ImageProcessing.MultiTarget.TargetCrop.'));
+        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+        assert(startsWith(propFullName,'MultiAnimal.TargetCrop.'));
         propShort = propFullName(40:end);
         sPrm_MultiTgt_TargetCrop.(propShort) = val;        
         rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);

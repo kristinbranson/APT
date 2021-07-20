@@ -2129,7 +2129,7 @@ classdef CPRLabelTracker < LabelTracker
       tfHasTrx = obj.lObj.projectHasTrx;
       assert(~(tfHasCrop && tfHasTrx),'Project cannot have both crops and trx');
       if tfHasTrx
-        tgtcroprad = obj.sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
+        tgtcroprad = obj.sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
         tgtcropsz = 2*tgtcroprad+1;
         tgtcropimsz = {tgtcropsz tgtcropsz};
       end

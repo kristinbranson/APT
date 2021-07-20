@@ -1814,7 +1814,7 @@ classdef DeepTracker < LabelTracker
       end
     end
         
-    function ppdata = fetchPreProcData(obj,tblP,ppPrms)
+    function ppdata = fetchPreProcData(obj,tblP,prmsTgtCrop)
       % Fetch preprocessed data per this tracker. Don't update any cache
       % b/c the preproc params supplied may be "trial"/random.
       % 
@@ -1826,7 +1826,8 @@ classdef DeepTracker < LabelTracker
       %ppdb = obj.lObj.ppdb;
       ppdb = PreProcDB();
       ppdb.init();
-      [~,ppdata] = ppdb.add(tblP,obj.lObj,'prmpp',ppPrms,'computeOnly',true);
+      [~,ppdata] = ppdb.add(tblP,obj.lObj,'prmsTgtCrop',prmsTgtCrop,...
+        'computeOnly',true);
     end
         
     function s = trnCreateStrippedLbl(obj,varargin)

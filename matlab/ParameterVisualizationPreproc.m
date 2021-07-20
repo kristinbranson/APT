@@ -129,7 +129,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       ParameterVisualization.setBusy(hAx);
       obj.tfUpdating = true;
       
-      [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
+%       [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
       
       if ~isstruct(obj.initVizInfo),
         obj.initializeVizInfo();
@@ -144,7 +144,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 
         % Let 'treatInfPosAsOcc' default to false here, should be fine as
         % this is for paramviz
-        tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms);
+        tblPTrn = lObj.preProcGetMFTableLbled('prmsTgtCrop',...
+          sPrm.ROOT.MultiAnimal.TargetCrop);
         nlabeled = size(tblPTrn,1);
         if nlabeled == 0,
           return;
@@ -159,7 +160,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           obj.initVizInfo.tblPTrn1 = tblPTrn(idx,:);
         end
         
-        obj.initVizInfo.ppd = lObj.tracker.fetchPreProcData(obj.initVizInfo.tblPTrn1,ppPrms);
+        obj.initVizInfo.ppd = lObj.tracker.fetchPreProcData(...
+          obj.initVizInfo.tblPTrn1,'prmsTgtCrop',prmsTgtCrop);
         obj.initVizInfo.sPrm = sPrm;
         [tfsucc,msg] = obj.cleanDataAugCache();
         if ~tfsucc,

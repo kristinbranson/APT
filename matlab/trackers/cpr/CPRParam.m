@@ -70,9 +70,9 @@ classdef CPRParam
       sOld.PreProc.BackSub = sNew.ROOT.ImageProcessing.BackSub;
       sOld.PreProc.histeq = he.Use;
 %       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
-      sOld.PreProc.TargetCrop = sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+      sOld.PreProc.TargetCrop = sNew.ROOT.MultiAnimal.TargetCrop;
       %sOld.PreProc.TargetCropMA = sNew.ROOT.ImageProcessing.MultiTarget.TargetCropMA;
-      sOld.PreProc.NeighborMask = sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask;
+%       sOld.PreProc.NeighborMask = sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask;
       sOld.PreProc.channelsFcn = [];
       
       cpr = sNew.ROOT.CPR;
@@ -352,10 +352,10 @@ classdef CPRParam
       sNew.ROOT.ImageProcessing.BackSub = sOld.BackSub;
       sNew.ROOT.ImageProcessing.HistEq.Use = sOld.histeq;
 %       sNew.ROOT.ImageProcessing.HistEq.NSampleH0 = sOld.histeqH0NumFrames;
-      sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop = sOld.TargetCrop;
-      %sNew.ROOT.ImageProcessing.MultiTarget.TargetCropMA = sOld.TargetCropMA;
+      sNew.ROOT.MultiAnimal.TargetCrop = sOld.TargetCrop;
+      %sNew.ROOT.MultiAnimal.TargetCropMA = sOld.TargetCropMA;
       assert(isfield(sOld.TargetCrop,'AlignUsingTrxTheta'));
-      sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask = sOld.NeighborMask;
+      %sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask = sOld.NeighborMask;
       assert(isempty(sOld.channelsFcn));
     end
     

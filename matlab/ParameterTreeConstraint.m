@@ -69,7 +69,7 @@ classdef ParameterTreeConstraint < handle
     end
     function tf = predFcnAlignTrxThetaCPRRotCorr(t,p2set,v2set)
       nodeCPRRotCorr = t.findnode('CPR.RotCorrection.OrientationType');
-      tf = strcmp(p2set,'ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta') && ...
+      tf = strcmp(p2set,'MultiAnimal.TargetCrop.AlignUsingTrxTheta') && ...
         logical(v2set) && strcmp(nodeCPRRotCorr.Data.Value,'fixed');
     end
     function msg = actFcnAlignTrxThetaCPRRotCorr(t,pl,p2set,v2set)

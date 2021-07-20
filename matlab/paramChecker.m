@@ -23,27 +23,27 @@ end
 %   msgs{end+1} = 'Histogram equalization: Num frames sample must be at least 1.';
 % end
 
-if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius <= 0,
-  isOk.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = false;
+if sPrm.ROOT.MultiAnimal.TargetCrop.Radius <= 0,
+  isOk.ROOT.MultiAnimal.TargetCrop.Radius = false;
   msgs{end+1} = 'Multitarget crop radius must be at least 1.';
 end
 
-if sPrm.ROOT.ImageProcessing.MultiTarget.NeighborMask.Use && ...
-    isempty(sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn),
-  isOk.ROOT.ImageProcessing.MultiTarget.NeighborMask.Use = false;
-  isOk.ROOT.ImageProcessing.BackSub.BGReadFcn = false;
-  msgs{end+1} = 'If masking neighbors is enabled, Background Read Function must be set';
-end
+% if sPrm.ROOT.MultiAnimal.NeighborMask.Use && ...
+%     isempty(sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn),
+%   isOk.ROOT.MultiAnimal.NeighborMask.Use = false;
+%   isOk.ROOT.ImageProcessing.BackSub.BGReadFcn = false;
+%   msgs{end+1} = 'If masking neighbors is enabled, Background Read Function must be set';
+% end
 
-if sPrm.ROOT.ImageProcessing.MultiTarget.NeighborMask.FGThresh < 0,
-  isOk.ROOT.ImageProcessing.MultiTarget.NeighborMask.FGThresh = false;
-  msgs{end+1} = 'Mask Neighbors Foreground Threshold must be non-negative.';
-end
+% if sPrm.ROOT.MultiAnimal.NeighborMask.FGThresh < 0,
+%   isOk.ROOT.MultiAnimal.NeighborMask.FGThresh = false;
+%   msgs{end+1} = 'Mask Neighbors Foreground Threshold must be non-negative.';
+% end
 
-if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta && ...
+if sPrm.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta && ...
     strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
   msgs{end+1} = 'CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta.';
-  isOk.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = false;
+  isOk.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = false;
   isOk.ROOT.CPR.RotCorrection.OrientationType = false;
 end
 
