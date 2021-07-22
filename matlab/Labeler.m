@@ -810,13 +810,17 @@ classdef Labeler < handle
       [iMov,gt] = mIdx.get();
       n = numel(iMov);
       v = cell(n,obj.nview);
-      tfaf = obj.trxFilesAllFull;
-      tfafGT = obj.trxFilesAllGTFull;
+      
+      mfa = obj.movieFilesAll;
+      mfaGT = obj.movieFilesAllGT;
+      tfa = obj.trxFilesAll;
+      tfaGT = obj.trxFilesAllGT;
       for i=1:n
-        if gt
-          v(i,:) = tfafGT(iMov(i),:);
+        j = iMov(i);
+        if gt(i)
+          v(i,:) = Labeler.trxFilesLocalize(tfaGT(j,:),mfaGT(j,:));
         else
-          v(i,:) = tfaf(iMov(i),:);
+          v(i,:) = Labeler.trxFilesLocalize(tfa(j,:),mfa(j,:));
         end
       end
     end
@@ -9151,21 +9155,29 @@ classdef Labeler < handle
 %       %obj.maPtHeadTail = ht;
 %     end
 
-    function r = maEstimateTgtCropRad(obj,cropszfac)
-      [tf,~,ppdbICache] = obj.trackCreateDeepTrackerStrippedLbl('updateCacheOnly',true);
-      assert(tf);
+    function r = maEstimateTgtCropRad(obj,cropszfac,spanptl)
       npts = obj.nLabelPoints;
+    
+      if false
+        [tf,~,ppdbICache] = obj.trackCreateDeepTrackerStrippedLbl('updateCacheOnly',true);
+        assert(tf);
       
-      db = obj.ppdb.dat;
-      % poses should be aligned-or-not as appropriate based on params
-      p = db.pGT(ppdbICache,:);
+        db = obj.ppdb.dat;
+        % poses should be aligned-or-not as appropriate based on params
+        p = db.pGT(ppdbICache,:);
+      else
+        % unaligned
+        t = obj.labelGetMFTableLabeled();
+        p = t.p;        
+      end
       n = size(p,1);
       xy = reshape(p,n,npts,2);
       
       xymin = squeeze(min(xy,[],2)); % n x 2
       xymax = squeeze(max(xy,[],2)); % n x 2
       xyspan = xymax-xymin;
-      r = max(xyspan)*cropszfac;
+      xyspan = prctile(xyspan(:),spanptl);
+      r = xyspan*cropszfac;
     end
     function roi = maGetRoi(obj,xy,sPrmMA)
       % Compute square roi for keypoints xy using .ma* state
