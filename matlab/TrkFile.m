@@ -389,7 +389,11 @@ classdef TrkFile < dynamicprops
         obj.pTrkiTgt = 1:numel(obj.pTrk);
       end
       
-      obj.npts = size(obj.pTrk{1},1); 
+      if ~isempty(obj.pTrk)
+        obj.npts = size(obj.pTrk{1},1); 
+      else
+        obj.npts = nan;
+      end
       obj.isfull = false;
     end
     

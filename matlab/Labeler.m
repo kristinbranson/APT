@@ -3488,7 +3488,11 @@ classdef Labeler < handle
       end
       [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),...
         trkersInfo);
-      assert(all(tf));
+      %assert(all(tf));
+      % AL: removing CPR for now until if/when updated 
+      s.trackerClass(~tf) = [];
+      s.trackerData(~tf) = [];
+      loc(~tf) = [];      
       tclass = trkersInfo;
       tclass(loc) = s.trackerClass(:);
       tdata = repmat({[]},1,nDfltTrkers);
@@ -9146,6 +9150,23 @@ classdef Labeler < handle
 %       obj.maPtNames = ptNames;
 %       %obj.maPtHeadTail = ht;
 %     end
+
+    function r = maEstimateTgtCropRad(obj,cropszfac)
+      [tf,~,ppdbICache] = obj.trackCreateDeepTrackerStrippedLbl('updateCacheOnly',true);
+      assert(tf);
+      npts = obj.nLabelPoints;
+      
+      db = obj.ppdb.dat;
+      % poses should be aligned-or-not as appropriate based on params
+      p = db.pGT(ppdbICache,:);
+      n = size(p,1);
+      xy = reshape(p,n,npts,2);
+      
+      xymin = squeeze(min(xy,[],2)); % n x 2
+      xymax = squeeze(max(xy,[],2)); % n x 2
+      xyspan = xymax-xymin;
+      r = max(xyspan)*cropszfac;
+    end
     function roi = maGetRoi(obj,xy,sPrmMA)
       % Compute square roi for keypoints xy using .ma* state
       %
@@ -10279,7 +10300,11 @@ classdef Labeler < handle
         'proifld','pRoi'... % 
         );
       if isempty(prmsTgtCrop)
-        prmsTgtCrop = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
+        if isempty(obj.trackParams)
+          error('Please set tracking parameters.');
+        else
+          prmsTgtCrop = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
+        end
       end
       
       if obj.hasTrx || obj.cropProjHasCrops
@@ -11166,11 +11191,14 @@ classdef Labeler < handle
       %   or gt data)
       % s: scalar struct, stripped lbl struct
       
-      [wbObj,ppdata,sPrmAll,shuffleRows] = myparse(varargin,...
+      [wbObj,ppdata,sPrmAll,shuffleRows,updateCacheOnly] = myparse(varargin,...
         'wbObj',[],...
         'ppdata',[],...
         'sPrmAll',[],...
-        'shuffleRows',true ...
+        'shuffleRows',true, ...
+        'updateCacheOnly',false ... % if true, output args are 
+                                ... % [tfsucc,tblPCache,ppdbICache] where ppdbICache 
+                                ... % are indices into obj.ppdb for tblPCache
         );
       tfWB = ~isempty(wbObj);
       
@@ -11249,6 +11277,14 @@ classdef Labeler < handle
         tblPCache = ppdata.MD;
         ppdbICache = (1:ppdata.N)';
       end
+      
+      if updateCacheOnly
+        tfsucc = true;
+        % tblPCache set
+        s = ppdbICache;
+        return;
+      end
+      
       
       % 
       % Create the stripped lbl struct

@@ -66,10 +66,11 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       
       set(hAx,'Units','normalized','Position',obj.axPos);
             
-      if ~lObj.hasMovie
+      % AL 20210722 CPR not maintained for now    
+%       if ~lObj.hasMovie
         ParameterVisualization.grayOutAxes(hAx,'No movie available.');
         return;
-      end
+%       end
       
       ParameterVisualization.setBusy(hAx,'Computing visualization. Please wait...');
       
