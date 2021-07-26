@@ -23,8 +23,8 @@ end
 %   msgs{end+1} = 'Histogram equalization: Num frames sample must be at least 1.';
 % end
 
-if sPrm.ROOT.MultiAnimal.TargetCrop.Radius <= 0,
-  isOk.ROOT.MultiAnimal.TargetCrop.Radius = false;
+if sPrm.ROOT.MultiAnimal.TargetCrop.ManualRadius <= 0,
+  isOk.ROOT.MultiAnimal.TargetCrop.ManualRadius = false;
   msgs{end+1} = 'Multitarget crop radius must be at least 1.';
 end
 

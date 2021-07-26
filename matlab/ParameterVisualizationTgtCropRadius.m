@@ -111,7 +111,8 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       if obj.initSuccessful && obj.plotOk()
         sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
         assert(startsWith(propFullName,'MultiAnimal.TargetCrop.'));
-        propShort = propFullName(40:end);
+        toks = strsplit(propFullName,'.');        
+        propShort = toks{end};
         sPrm_MultiTgt_TargetCrop.(propShort) = val;        
         rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
         set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
@@ -123,17 +124,22 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     function rectPos = getRectPos(obj,lObj,sPrm)
       % rectPos: [c x 2] col1 is [x1;x2;x3;x4;x5]; col2 is [y1;y2; etc].
       
+      rad = lObj.maGetTgtCropRad(sPrm);
       if obj.isMA
-        rectPos = lObj.maGetRoi(obj.xyLbl,sPrm);
+        xyc = nanmean(obj.xyLbl,1);
+        xc = xyc(1);
+        yc = xyc(2);
+        %rectPos = lObj.maGetRoi(obj.xyLbl,sPrm);
       else
-        rad = sPrm.Radius;
-        %rectW = 2*rad+1;
-        x0 = obj.xTrx-rad;
-        x1 = obj.xTrx+rad;
-        y0 = obj.yTrx-rad;
-        y1 = obj.yTrx+rad;
-        rectPos = [x0 x0 x1 x1;y0 y1 y1 y0].';
+        xc = obj.xTrx;
+        yc = obj.yTrx;
       end
+      
+      x0 = xc-rad;
+      x1 = xc+rad;
+      y0 = yc-rad;
+      y1 = yc+rad;
+      rectPos = [x0 x0 x1 x1;y0 y1 y1 y0].';
       
       % for plotting
       rectPos(5,:) = rectPos(1,:);

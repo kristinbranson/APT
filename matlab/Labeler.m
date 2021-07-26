@@ -9006,7 +9006,7 @@ classdef Labeler < handle
         else
           prmsTgtCrop = prms.ROOT.MultiAnimal.TargetCrop;
           % Override roiRadius, roiPadVal with .preProcParams stuff
-          roiRadius = prmsTgtCrop.Radius;
+          roiRadius = obj.maGetTgtCropRad(prmsTgtCrop);
           roiPadVal = prmsTgtCrop.PadBkgd;
         end
 
@@ -9155,7 +9155,20 @@ classdef Labeler < handle
 %       %obj.maPtHeadTail = ht;
 %     end
 
-    function r = maEstimateTgtCropRad(obj,cropszfac,spanptl)
+    function r = maGetTgtCropRad(obj,prmsTgtCrop)
+      CROPRADMODFAC = 32;
+      if prmsTgtCrop.AutoRadius
+        cropszfac = prmsTgtCrop.AutoRadiusSpanMultiplier;
+        r = obj.maEstimateTgtCropRad(cropszfac);
+      else
+        r = prmsTgtCrop.ManualRadius;
+      end
+      r = ceil(r/CROPRADMODFAC)*CROPRADMODFAC;
+      fprintf(1,'Auto target crop radius: %d\n',r);
+    end
+    function r = maEstimateTgtCropRad(obj,cropszfac)
+      % Don't call directly, doesn't apply mod32 constraint
+      spanptl = 99;
       npts = obj.nLabelPoints;
     
       if false
@@ -9165,10 +9178,16 @@ classdef Labeler < handle
         db = obj.ppdb.dat;
         % poses should be aligned-or-not as appropriate based on params
         p = db.pGT(ppdbICache,:);
-      else
+      elseif false
         % unaligned
         t = obj.labelGetMFTableLabeled();
-        p = t.p;        
+        p = t.p;          
+      else
+        % always just use all training data
+        
+        s = cat(1,obj.labels{:});
+        p = cat(2,s.p); % 2*npts x n
+        p = p.'; 
       end
       n = size(p,1);
       xy = reshape(p,n,npts,2);
@@ -9179,68 +9198,68 @@ classdef Labeler < handle
       xyspan = prctile(xyspan(:),spanptl);
       r = xyspan*cropszfac;
     end
-    function roi = maGetRoi(obj,xy,sPrmMA)
-      % Compute square roi for keypoints xy using .ma* state
-      %
-      % xy: [npts x 2]
-      %
-      % roi: [4x2] [x(:) y(:)] corners of rectangular roi
-
-      if nargin<3
-        sPrmMA = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
-      end
-
-      tfHT = ~isempty(obj.skelHead);
-
-      tfscaled = sPrmMA.ScaledToTarget;
-      tfalignHT = sPrmMA.AlignUsingHead && tfHT; 
-      tfincfixedmargin = sPrmMA.ScaledToTargetAddFixedMargin;
-      scalefac = sPrmMA.ScaledToTargetMargin;
-      radfixed = sPrmMA.Radius;
-      
-      if tfscaled 
-        if tfincfixedmargin
-          scaledfixedmargin = radfixed;
-        else
-          scaledfixedmargin = 0;
-        end
-      end
-        
-      if tfalignHT
-        xyH = xy(obj.skelHead,:);
-        xyCent = nanmean(xy,1);
-        
-        if ~isempty(obj.skelTail)
-          xyT = xy(obj.skelTail,:);
-        else
-          xyT = xyCent;
-          warningNoTrace('No tail point defined; using centroid');
-        end
-
-        v = xyH-xyT; % vec from tail->head
-        phi = atan2(v(2),v(1)); % azimuth of vec from t->h
-        R = rotationMatrix(-phi);
-        
-        xyc = xy-xyCent; % kps centered about centroid
-        Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
-                        % vec from t->h should point to positive x
-        if tfscaled
-          Rroi = Labeler.maRoiXY2RoiScaled(Rxyc.',scalefac,scaledfixedmargin); 
-        else
-          Rroi = Labeler.maRoiXY2RoiFixed(Rxyc.',radfixed);
-        end
-        % Rroi is [4x2]
-
-        roi = R.'*Rroi.'; 
-        roi = roi.'+xyCent;
-      else
-        if tfscaled
-          roi = Labeler.maRoiXY2RoiScaled(xy,scalefac,scaledfixedmargin);
-        else
-          roi = Labeler.maRoiXY2RoiFixed(xy,radfixed);
-        end
-      end
-    end
+%     function roi = maGetRoi(obj,xy,sPrmMA)
+%       % Compute square roi for keypoints xy using .ma* state
+%       %
+%       % xy: [npts x 2]
+%       %
+%       % roi: [4x2] [x(:) y(:)] corners of rectangular roi
+% 
+%       if nargin<3
+%         sPrmMA = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
+%       end
+% 
+%       tfHT = ~isempty(obj.skelHead);
+% 
+%       tfscaled = sPrmMA.ScaledToTarget;
+%       tfalignHT = sPrmMA.AlignUsingHead && tfHT; 
+%       tfincfixedmargin = sPrmMA.ScaledToTargetAddFixedMargin;
+%       scalefac = sPrmMA.ScaledToTargetMargin;
+%       radfixed = sPrmMA.Radius;
+%       
+%       if tfscaled 
+%         if tfincfixedmargin
+%           scaledfixedmargin = radfixed;
+%         else
+%           scaledfixedmargin = 0;
+%         end
+%       end
+%         
+%       if tfalignHT
+%         xyH = xy(obj.skelHead,:);
+%         xyCent = nanmean(xy,1);
+%         
+%         if ~isempty(obj.skelTail)
+%           xyT = xy(obj.skelTail,:);
+%         else
+%           xyT = xyCent;
+%           warningNoTrace('No tail point defined; using centroid');
+%         end
+% 
+%         v = xyH-xyT; % vec from tail->head
+%         phi = atan2(v(2),v(1)); % azimuth of vec from t->h
+%         R = rotationMatrix(-phi);
+%         
+%         xyc = xy-xyCent; % kps centered about centroid
+%         Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
+%                         % vec from t->h should point to positive x
+%         if tfscaled
+%           Rroi = Labeler.maRoiXY2RoiScaled(Rxyc.',scalefac,scaledfixedmargin); 
+%         else
+%           Rroi = Labeler.maRoiXY2RoiFixed(Rxyc.',radfixed);
+%         end
+%         % Rroi is [4x2]
+% 
+%         roi = R.'*Rroi.'; 
+%         roi = roi.'+xyCent;
+%       else
+%         if tfscaled
+%           roi = Labeler.maRoiXY2RoiScaled(xy,scalefac,scaledfixedmargin);
+%         else
+%           roi = Labeler.maRoiXY2RoiFixed(xy,radfixed);
+%         end
+%       end
+%     end
       
   end
   
@@ -10334,7 +10353,7 @@ classdef Labeler < handle
             tblP(:,'roi') = [];
           end
           if obj.hasTrx
-            roiRadius = prmsTgtCrop.Radius;
+            roiRadius = obj.maGetTgtCropRad(prmsTgtCrop);
             tblP = obj.labelMFTableAddROITrx(tblP,roiRadius,...
               'rmOOB',doRemoveOOB,...
               'pfld',pfld,'proifld',proifld);
@@ -11442,6 +11461,10 @@ classdef Labeler < handle
     % See also Lbl.m for addnl stripped lbl meths
     
     function sPrmAll = addExtraParams(obj,sPrmAll)
+      
+      prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
+      r = obj.maGetTgtCropRad(prmsTgtCrop);
+      sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius = r;
             
       skel = obj.skeletonEdges;
       if ~isempty(skel),

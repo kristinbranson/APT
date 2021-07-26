@@ -467,11 +467,20 @@ classdef APTParameters
           sPrmAll.ROOT.ImageProcessing.MultiTarget = ...
             rmfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop');
         end
+        
+        if isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')
+          sPrmAll.ROOT.MultiAnimal.TargetCrop.ManualRadius = ...
+             sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
+          sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
+            rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
+        end
           
         sPrmDflt = APTParameters.defaultParamsStructAll;
         sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
           'dontWarnUnrecog',true); % to allow removal of obsolete params
       end
+      
+      
     end
     
   end
