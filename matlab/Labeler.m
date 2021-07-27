@@ -9147,6 +9147,45 @@ classdef Labeler < handle
       xyhi = xymid+xyrad;
       roi = [xylo; xylo(1) xyhi(2); xyhi; xyhi(1) xylo(2)];
     end
+    function bb = maComputeBBox(kps,pad,minaa)
+      % Axis-aligned keypoint-derived bounding box 
+      %
+      % kps: npts x 2
+      % pad: scalar, fixed padding factor (currently use 0.0)
+      % minaa: scalar in (0,1). minimum aspect ratio 
+      % 
+      % bb: xlo ylo w h
+      
+      xymin = min(kps,[],1);
+      xymax = max(kps,[],1);
+      xymin = xymin - pad;
+      xymax = xymax + pad;
+      
+      diams = xymax-xymin;
+      [~,ilg] = max(diams);
+      if ilg==1
+        ism = 2;
+      else
+        ism = 1;
+      end
+      aa = diams(ism)/diams(ilg);
+      if aa < minaa
+        % mindiam = maxdiam * minaa
+        rsmall = (diams(ilg)*minaa)/2;
+        xyc = (xymin+xymax)/2;
+        xymin(ism) = xyc(ism) - rsmall;
+        xymax(ism) = xyc(ism) + rsmall;
+      end
+      
+      bb = [xymin (xymax-xymin)];
+    end
+    function roi = bbox2roi(bb)
+      xylohi = bb;
+      xylohi(3:4) = xylohi(1:2)+xylohi(3:4); % now xlo ylo xhi yhi
+      %roi = [xlo ylo; xlo yhi; xhi yhi; xhi ylo];
+      idxs = [1 2;1 4;3 4;3 2];
+      roi = xylohi(idxs);
+    end
   end
   methods
 %     function maSetPtInfo(obj,ptNames)
@@ -9198,23 +9237,27 @@ classdef Labeler < handle
       xyspan = prctile(xyspan(:),spanptl);
       r = xyspan*cropszfac;
     end
-%     function roi = maGetRoi(obj,xy,sPrmMA)
-%       % Compute square roi for keypoints xy using .ma* state
-%       %
-%       % xy: [npts x 2]
-%       %
-%       % roi: [4x2] [x(:) y(:)] corners of rectangular roi
-% 
-%       if nargin<3
-%         sPrmMA = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
-%       end
-% 
+  
+    function roi = maGetRoi(obj,xy,sPrmMA)
+      % Compute square roi for keypoints xy using .ma* state
+      %
+      % xy: [npts x 2]
+      %
+      % roi: [4x2] [x(:) y(:)] corners of rectangular roi
+
+      if nargin<3
+        sPrmMA = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
+      end
+      
+      roi = nan(4,2);
+      return;
+
 %       tfHT = ~isempty(obj.skelHead);
 % 
-%       tfscaled = sPrmMA.ScaledToTarget;
+%       tfscaled = false;%sPrmMA.ScaledToTarget;
 %       tfalignHT = sPrmMA.AlignUsingHead && tfHT; 
-%       tfincfixedmargin = sPrmMA.ScaledToTargetAddFixedMargin;
-%       scalefac = sPrmMA.ScaledToTargetMargin;
+%       %tfincfixedmargin = sPrmMA.ScaledToTargetAddFixedMargin;
+%       %scalefac = sPrmMA.ScaledToTargetMargin;
 %       radfixed = sPrmMA.Radius;
 %       
 %       if tfscaled 
@@ -9259,7 +9302,7 @@ classdef Labeler < handle
 %           roi = Labeler.maRoiXY2RoiFixed(xy,radfixed);
 %         end
 %       end
-%     end
+    end
       
   end
   
@@ -11487,8 +11530,8 @@ classdef Labeler < handle
       else
         iptTail = 0;
       end        
-      sPrmAll.ROOT.MultiAnimalDetection.head_point = iptHead;
-      sPrmAll.ROOT.MultiAnimalDetection.tail_point = iptTail;      
+      sPrmAll.ROOT.MultiAnimal.Detect.head_point = iptHead;
+      sPrmAll.ROOT.MultiAnimal.Detect.tail_point = iptTail;      
       
       % add landmark matches
       matches = obj.flipLandmarkMatches;
@@ -14688,7 +14731,7 @@ classdef Labeler < handle
       % which optimizes browse speed.
       tv = obj.createTrackingVisualizer('predPointsPlotInfo','labeledpos2');      
       if ~isempty(obj.trackParams)
-        maxNanimals = obj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
+        maxNanimals = obj.trackParams.ROOT.MultiAnimal.Detect.max_n_animals;
         maxNanimals = max(ceil(maxNanimals*1.5),10);
       else
         maxNanimals = 20;

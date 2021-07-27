@@ -9,7 +9,7 @@ ROOT:
       - BBox:
         - ['Bounding Box','',false,'Object detection bounding box definition','','','','',true]
         - MinAspectRatio: ['Minimum Aspect Ratio',float,true,'Minimum aspect ratio for bounding boxes.',0.3,'','Beginner',['isObjDet'],true]
-        - PadFactor: ['Padding factor',float,true,'Dimensionless factor controlling width of padding around target hull.',1.0,'','Developer',['isObjDet'],true]
+        #- PadFactor: ['Padding factor',float,true,'Dimensionless factor controlling width of padding around target hull.',1.0,'','Developer',['isObjDet'],true]
       - DeepTrack:
         - ['','',false,Deep learning parameters,'','']
         - Saving:

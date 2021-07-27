@@ -1245,7 +1245,8 @@ classdef DeepTracker < LabelTracker
         
         tpjson = fullfile(tpdir,'trnpack.json');
         tp = Lbl.hlpLoadJson(tpjson);
-        dmc.nLabels = size(tp.p,2);
+        nlbls = arrayfun(@(x)size(x.p,2),tp);
+        dmc.nLabels = nlbls;
         
         fprintf('Using pre-existing stripped lbl/trnpack: %s.\n',tpdir);
         fprintf('trainID: %s. nLabels: %d.\n',trainID,dmc.nLabels);
@@ -5472,7 +5473,7 @@ classdef DeepTracker < LabelTracker
         % might need to re-vizInit an existing trkVizer eg if number of trx 
         % has changed, maxNanimals has changed, etc.      
         if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.MultiAnimalDetection.max_n_animals;
+          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.Detect.max_n_animals;
           maxNanimals = max(ceil(maxNanimals*1.5),10);
         else
           maxNanimals = 20;

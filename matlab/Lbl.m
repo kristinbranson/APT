@@ -8,9 +8,10 @@ classdef Lbl
       %
       % packdir: package dir (contains images)
 
-      [scargs,ttlargs] = myparse(varargin,...
+      [scargs,ttlargs,loc] = myparse(varargin,...
         'scargs',{16}, ...
-        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
+        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'}, ...
+        'loc',[] ... % (opt), specific loc struct array to show
         );
       
       [~,~,loc,~] = Lbl.loadPack(packdir);
@@ -250,7 +251,12 @@ classdef Lbl
       sfjname = sprintf('%s.json',slblnameS);
       Lbl.hlpSaveJson(jslbl,packdir,sfjname);     
 
-      tp = Lbl.aggregateLabelsAddRoi(lObj);
+      % use stripped lbl trackerData instead of tObj, as we have called
+      % addExtraPArams etc.
+      tdata = slbl.trackerData{2};
+      netmode = tdata.trnNetMode;
+      sPrmAll = tdata.sPrmAll;
+      tp = Lbl.aggregateLabelsAddRoi(lObj,netmode,sPrmAll);
       if lObj.gtIsGTMode
         movinfo = lObj.movieInfoAllGT;
       else
@@ -285,7 +291,7 @@ classdef Lbl
       Lbl.hlpSaveJson(loccc,packdir,jsonoutf);      
     end
     
-    function sagg = aggregateLabelsAddRoi(lObj)
+    function sagg = aggregateLabelsAddRoi(lObj,netmode,sPrmAll)
       
       isgt = lObj.gtIsGTMode;
       PROPS = lObj.gtGetSharedProps;
@@ -309,7 +315,13 @@ classdef Lbl
         for i=1:n
           p = s.p(:,i);
           xy = Shape.vec2xy(p);
-          roi = lObj.maGetRoi(xy);
+          if netmode.isObjDet
+            minaa = sPrmAll.ROOT.MultiAnimal.Detect.BBox.MinAspectRatio;
+            bb = lObj.maComputeBBox(xy,0.0,minaa);
+            roi = Labeler.bbox2roi(bb);
+          else
+            roi = lObj.maGetRoi(xy);
+          end
           s.roi(:,i) = roi(:);
         end
 
@@ -647,7 +659,7 @@ classdef Lbl
       CFG_GLOBS = {'Num' 'MultiAnimal'};
       FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'cropProjHasCrops' ...
         'trackerClass' 'trackerData'};
-      TRACKERDATA_FLDS = {'sPrmAll' 'trnNetTypeString'};
+      TRACKERDATA_FLDS = {'sPrmAll' 'trnNetMode' 'trnNetTypeString'};
       if isMA
         GLOBS = {'movieFilesAll' 'movieInfoAll' 'trxFilesAll'};
         FLDSRM = {'projMacros'};

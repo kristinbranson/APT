@@ -28,7 +28,7 @@ classdef APTInterf
       dlj = readtxtfile(dllbljson);
       dlj = jsondecode(dlj{1});
       
-      madet = dlj.TrackerData.sPrmAll.ROOT.MultiAnimalDetection;
+      madet = dlj.TrackerData.sPrmAll.ROOT.MultiAnimal.Detect;
       maxNanimals = madet.max_n_animals;
       
       switch netMode
@@ -423,7 +423,7 @@ classdef APTInterf
           minNanmls = maDetPrm.min_n_animals;          
         else
           % temp hack for intermediate-dev MA projs
-          maDetPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal;
+          maDetPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal.Detect;
           maxNanmls = maDetPrm.max_n_animals;
           minNanmls = maDetPrm.min_n_animals; 
         end
