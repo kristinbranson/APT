@@ -399,7 +399,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       if obj.doPch
         hP = obj.hPch;
         hPT = obj.hPchTxt;
-        roi = obj.lObj.maGetRoi(xy);
+        roi = obj.lObj.maGetLossMask(xy);
         set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));
         set(hPT(iTgt),'Position',[roi(1,:) 0]);        
       end
@@ -456,7 +456,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);
 
           if obj.doPch
-            roi = obj.lObj.maGetRoi(xytgt);
+            roi = obj.lObj.maGetLossMask(xytgt);
             set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2)); 
             set(hPT(iTgt),'Position',[roi(1,:) 0]);
           end
@@ -531,7 +531,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         hXY = obj.hXYPrdRed;        
         for iTgt=1:ntgts
           xy = cell2mat(get(hXY(:,iTgt),{'XData' 'YData'}));
-          roi = obj.lObj.maGetRoi(xy);
+          roi = obj.lObj.maGetLossMask(xy);
           set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));  
           set(hPT(iTgt),'Position',[roi(1,:) 0]);          
         end

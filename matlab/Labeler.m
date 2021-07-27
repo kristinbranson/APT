@@ -9147,19 +9147,28 @@ classdef Labeler < handle
       xyhi = xymid+xyrad;
       roi = [xylo; xylo(1) xyhi(2); xyhi; xyhi(1) xylo(2)];
     end
-    function bb = maComputeBBox(kps,pad,minaa)
+    function roi = maComputeBboxGeneral(kps,minaa,dopad,padfac,padfloor)
       % Axis-aligned keypoint-derived bounding box 
       %
       % kps: npts x 2
-      % pad: scalar, fixed padding factor (currently use 0.0)
       % minaa: scalar in (0,1). minimum aspect ratio 
+      % dopad: scalar logical. if true, do padding
+      % padfac: padding factor
+      % padfloor: minimum pad in px
       % 
-      % bb: xlo ylo w h
+      % roi: 4x2. four (x,y) corners of rectangular roi.
       
       xymin = min(kps,[],1);
       xymax = max(kps,[],1);
-      xymin = xymin - pad;
-      xymax = xymax + pad;
+      
+      if dopad
+        rads = (xymax-xymin)/2;
+        radmax = max(rads);
+        pad = radmax*(padfac-1.0);
+        pad = max(pad,padfloor); % pad, padfloor both in raw/input px
+        xymin = xymin - pad;
+        xymax = xymax + pad;
+      end
       
       diams = xymax-xymin;
       [~,ilg] = max(diams);
@@ -9177,7 +9186,11 @@ classdef Labeler < handle
         xymax(ism) = xyc(ism) + rsmall;
       end
       
-      bb = [xymin (xymax-xymin)];
+      roi = [xymin xymax]; % [xlo ylo xhi yhi]
+      %roi = [xlo ylo; xlo yhi; xhi yhi; xhi ylo];
+      idxs = [1 2;1 4;3 4;3 2];
+      roi = roi(idxs);
+      %bb = [xymin (xymax-xymin)];
     end
     function roi = bbox2roi(bb)
       xylohi = bb;
@@ -9238,70 +9251,51 @@ classdef Labeler < handle
       r = xyspan*cropszfac;
     end
   
-    function roi = maGetRoi(obj,xy,sPrmMA)
-      % Compute square roi for keypoints xy using .ma* state
+    function roi = maGetLossMask(obj,xy,sPrmLoss)
+      % Compute mask roi for keypoints xy 
       %
       % xy: [npts x 2]
+      % sPrmLoss: .LossMask params
       %
       % roi: [4x2] [x(:) y(:)] corners of rectangular roi
 
       if nargin<3
-        sPrmMA = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
-      end
-      
-      roi = nan(4,2);
-      return;
+        sPrmLoss = obj.trackParams.ROOT.MultiAnimal.LossMask;
+      end      
 
-%       tfHT = ~isempty(obj.skelHead);
-% 
-%       tfscaled = false;%sPrmMA.ScaledToTarget;
-%       tfalignHT = sPrmMA.AlignUsingHead && tfHT; 
-%       %tfincfixedmargin = sPrmMA.ScaledToTargetAddFixedMargin;
-%       %scalefac = sPrmMA.ScaledToTargetMargin;
-%       radfixed = sPrmMA.Radius;
-%       
-%       if tfscaled 
-%         if tfincfixedmargin
-%           scaledfixedmargin = radfixed;
-%         else
-%           scaledfixedmargin = 0;
-%         end
-%       end
-%         
-%       if tfalignHT
-%         xyH = xy(obj.skelHead,:);
-%         xyCent = nanmean(xy,1);
-%         
-%         if ~isempty(obj.skelTail)
-%           xyT = xy(obj.skelTail,:);
-%         else
-%           xyT = xyCent;
-%           warningNoTrace('No tail point defined; using centroid');
-%         end
-% 
-%         v = xyH-xyT; % vec from tail->head
-%         phi = atan2(v(2),v(1)); % azimuth of vec from t->h
-%         R = rotationMatrix(-phi);
-%         
-%         xyc = xy-xyCent; % kps centered about centroid
-%         Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
-%                         % vec from t->h should point to positive x
-%         if tfscaled
-%           Rroi = Labeler.maRoiXY2RoiScaled(Rxyc.',scalefac,scaledfixedmargin); 
-%         else
-%           Rroi = Labeler.maRoiXY2RoiFixed(Rxyc.',radfixed);
-%         end
-%         % Rroi is [4x2]
-% 
-%         roi = R.'*Rroi.'; 
-%         roi = roi.'+xyCent;
-%       else
-%         if tfscaled
-%           roi = Labeler.maRoiXY2RoiScaled(xy,scalefac,scaledfixedmargin);
-%         else
-%           roi = Labeler.maRoiXY2RoiFixed(xy,radfixed);
-%         end
-%       end
+      tfHT = ~isempty(obj.skelHead) && ~isempty(obj.skelTail);
+      tfalignHT = sPrmLoss.AlignHeadTail && tfHT;
+      minaa = sPrmLoss.MinAspectRatio;
+      padfac = sPrmLoss.PadFactor;
+      padflr = sPrmLoss.PadFloor;
+      dopad = true;
+      
+      if tfalignHT
+        xyH = xy(obj.skelHead,:);
+        xyCent = nanmean(xy,1);
+        
+        if ~isempty(obj.skelTail)
+          xyT = xy(obj.skelTail,:);
+        else
+          xyT = xyCent;
+          warningNoTrace('No tail point defined; using centroid');
+        end
+
+        v = xyH-xyT; % vec from tail->head
+        phi = atan2(v(2),v(1)); % azimuth of vec from t->h
+        R = rotationMatrix(-phi);
+        
+        xyc = xy-xyCent; % kps centered about centroid
+        Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
+                        % vec from t->h should point to positive x
+        
+        Rroi = Labeler.maComputeBboxGeneral(Rxyc.',minaa,dopad,padfac,padflr);
+        % Rroi is [4x2]
+        roi = R.'*Rroi.'; 
+        roi = roi.'+xyCent;
+      else
+        roi = Labeler.maComputeBboxGeneral(xy,minaa,dopad,padfac,padflr);
+      end
     end
       
   end

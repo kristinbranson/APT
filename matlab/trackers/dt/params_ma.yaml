@@ -60,9 +60,10 @@ ROOT:
     - multi_loss_mask: ['Mask Loss',boolean,true,'Set this to true if not all animals are labeled in every labeled frame.',false,'','Important','ma',true]
     - LossMask:
       - ['','',false,Parameters for masking loss to handle unlabeled targets,'','']
-      - MinAspectRatio: ['Minimum Aspect Ratio',float,true,'Minimum aspect ratio for mask ROI.',0.3,'','Beginner',['ma'],true]
-      - PadFactor: ['Padding factor',float,true,'Dimensionless factor controlling width of padding around target.',1.0,'','Advanced',['ma'],true]
-      - AlignHeadTail: ['Align ROI using head/tail landmark specifications',boolean,true,'If true, align mask ROIs using head/tail landmarks',false,'','Important','ma',true]
+      - MinAspectRatio: ['Minimum Aspect Ratio',float,true,'Minimum aspect ratio for mask.',0.3,'','Advanced',['ma'],true]
+      - PadFactor: ['Padding factor',float,true,'Dimensionless factor controlling width of padding around target. A value of 1 indicates a tight fit around the landmark convex hull.',1.3,'','Beginner',['ma'],true]
+      - PadFloor: ['Minimum padding',float,true,'Minimum width of padding around target, in pixels.',30,'','Advanced',['ma'],true]
+      - AlignHeadTail: ['Align mask using head/tail landmark specifications',boolean,true,'If true, align masks to animal using head/tail landmarks',false,'','Important','ma',true]
     - multi_match_dist: ['Non-max suppression distance',float,true,'If the distance between two poses is smaller than this value, then merge the two predictions. Mainly for MA-Grone.',10.0,'','Advanced',['ma'],true]    
     - TrackletStitch:
       - ['','',false,Parameters for stitching tracked targets into tracklets,'','']

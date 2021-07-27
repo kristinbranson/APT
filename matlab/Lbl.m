@@ -317,10 +317,10 @@ classdef Lbl
           xy = Shape.vec2xy(p);
           if netmode.isObjDet
             minaa = sPrmAll.ROOT.MultiAnimal.Detect.BBox.MinAspectRatio;
-            bb = lObj.maComputeBBox(xy,0.0,minaa);
-            roi = Labeler.bbox2roi(bb);
+            roi = lObj.maComputeBBoxGeneral(xy,minaa,false,[],[]);
           else
-            roi = lObj.maGetRoi(xy);
+            sPrmLoss = sPrmAll.ROOT.MultiAnimal.LossMask;
+            roi = lObj.maGetLossMask(xy,sPrmLoss);
           end
           s.roi(:,i) = roi(:);
         end
