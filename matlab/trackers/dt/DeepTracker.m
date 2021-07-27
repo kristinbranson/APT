@@ -5473,7 +5473,7 @@ classdef DeepTracker < LabelTracker
         % might need to re-vizInit an existing trkVizer eg if number of trx 
         % has changed, maxNanimals has changed, etc.      
         if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.Detect.max_n_animals;
+          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.max_n_animals;
           maxNanimals = max(ceil(maxNanimals*1.5),10);
         else
           maxNanimals = 20;

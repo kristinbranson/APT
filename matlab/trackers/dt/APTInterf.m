@@ -28,8 +28,9 @@ classdef APTInterf
       dlj = readtxtfile(dllbljson);
       dlj = jsondecode(dlj{1});
       
-      madet = dlj.TrackerData.sPrmAll.ROOT.MultiAnimal.Detect;
-      maxNanimals = madet.max_n_animals;
+      sMA = dlj.TrackerData.sPrmAll.ROOT.MultiAnimal;
+      sMADet = sMA.Detect;
+      maxNanimals = sMA.max_n_animals;
       
       switch netMode
         case DLNetMode.multiAnimalBU 
@@ -45,12 +46,12 @@ classdef APTInterf
             cache,errfile,netType,trnjson,varargin{:});
         
         case DLNetMode.multiAnimalTDDetectHT
-          htpts = [madet.head_point madet.tail_point];
+          htpts = [sMADet.head_point sMADet.tail_point]; % xxx
           [codestr,code] = APTInterf.mabuTrainCodeGen(trnID,dllbl,cache,errfile,...
             maxNanimals,netType,trnjson,varargin{:},'htonly',true,'htpts',htpts);
           
         case DLNetMode.multiAnimalTDPoseHT
-          htpts = [madet.head_point madet.tail_point];
+          htpts = [sMADet.head_point sMADet.tail_point]; % xxx
           [codestr,code] = APTInterf.htPoseTrainCodeGen(trnID,dllbl,cache,errfile,...
             netType,trnjson,htpts,varargin{:});          
           
@@ -416,17 +417,12 @@ classdef APTInterf
         dlj = jsondecode(dlj{1});
         dtPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack;
         maDetImProc = dtPrm.ImageProcessing;
-        detbsize = dtPrm.GradientDescent.batch_size;
-        if isfield(dlj.TrackerData.sPrmAll.ROOT,'MultiAnimalDetection')
-          maDetPrm = dlj.TrackerData.sPrmAll.ROOT.MultiAnimalDetection;
-          maxNanmls = maDetPrm.max_n_animals;
-          minNanmls = maDetPrm.min_n_animals;          
-        else
-          % temp hack for intermediate-dev MA projs
-          maDetPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack.MultiAnimal.Detect;
-          maxNanmls = maDetPrm.max_n_animals;
-          minNanmls = maDetPrm.min_n_animals; 
-        end
+        %detbsize = dtPrm.GradientDescent.batch_size;
+
+        sMA = dlj.TrackerData.sPrmAll.ROOT.MultiAnimal;        
+        sMADetPrm = sMA.Detect;
+        maxNanmls = sMA.max_n_animals;
+        minNanmls = sMA.min_n_animals;        
       end
 
       switch netmode
@@ -445,7 +441,7 @@ classdef APTInterf
             'is_multi' 'True' ...
             'max_n_animals' num2str(maxNanmls) ...
             'min_n_animals' num2str(minNanmls) ...
-            'ht_pts' sprintf('\\(%d,%d\\)',maDetPrm.head_point,maDetPrm.tail_point) ...
+            'ht_pts' sprintf('\\(%d,%d\\)',sMADetPrm.head_point,sMADetPrm.tail_point) ...
             'multi_only_ht' 'True' ...
             'rescale' num2str(maDetImProc.scale) ...            
             };
@@ -454,7 +450,7 @@ classdef APTInterf
             '-conf_params' ...
             'max_n_animals' num2str(maxNanmls) ...
             'min_n_animals' num2str(minNanmls) ...
-            'ht_pts' sprintf('\\(%d,%d\\)',maDetPrm.head_point,maDetPrm.tail_point) ...
+            'ht_pts' sprintf('\\(%d,%d\\)',sMADetPrm.head_point,sMADetPrm.tail_point) ...
             'use_ht_trx' 'True' ...
             'trx_align_theta' 'True' ...
             'imsz' sprintf('\\(%d,%d\\)',192,192) ... % XXX

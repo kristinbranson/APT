@@ -180,7 +180,7 @@ classdef APTParameters
         if ismember('isCPR',reqs) && ~strcmpi(trackerAlgo,'cpr'),
           tree.Data.Visible = false;
         elseif all(ismember({'hasTrx' 'isTopDown'},reqs))
-          if ~hasTrx && ~isma
+          if ~hasTrx && ~istd
             % Special case/hack; if hasTrx and ma are both present, it's an
             % OR condition (rather than AND which is the default for 2+
             % requiremetns)
@@ -466,21 +466,24 @@ classdef APTParameters
           sPrmAll.ROOT.MultiAnimal.TargetCrop = sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop;
           sPrmAll.ROOT.ImageProcessing.MultiTarget = ...
             rmfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop');
-        end
-        
+        end        
         if isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')
           sPrmAll.ROOT.MultiAnimal.TargetCrop.ManualRadius = ...
              sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
           sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
             rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
         end
+        if isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
+          sPrmAll.ROOT.MultiAnimal.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
+          sPrmAll.ROOT.MultiAnimal.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
+          sPrmAll.ROOT.MultiAnimal.Detect = ...
+            rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
+        end        
           
         sPrmDflt = APTParameters.defaultParamsStructAll;
         sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
           'dontWarnUnrecog',true); % to allow removal of obsolete params
       end
-      
-      
     end
     
   end

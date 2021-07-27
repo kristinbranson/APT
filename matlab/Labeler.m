@@ -14724,7 +14724,7 @@ classdef Labeler < handle
       % which optimizes browse speed.
       tv = obj.createTrackingVisualizer('predPointsPlotInfo','labeledpos2');      
       if ~isempty(obj.trackParams)
-        maxNanimals = obj.trackParams.ROOT.MultiAnimal.Detect.max_n_animals;
+        maxNanimals = obj.trackParams.ROOT.MultiAnimal.max_n_animals;
         maxNanimals = max(ceil(maxNanimals*1.5),10);
       else
         maxNanimals = 20;
