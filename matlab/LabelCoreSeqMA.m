@@ -125,6 +125,7 @@ classdef LabelCoreSeqMA < LabelCore
     end
     
     function delete(obj)
+      delete(obj.tv);
       delete(obj.pbNewTgt);
       delete(obj.pbDelTgt);
       delete(obj.pbRoiEdit);

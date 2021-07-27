@@ -14,7 +14,7 @@ classdef Lbl
         'loc',[] ... % (opt), specific loc struct array to show
         );
       
-      [~,~,loc,~] = Lbl.loadPack(packdir);
+      [~,~,~,loc,~] = Lbl.loadPack(packdir);
        
       hfig = figure(11);
       
@@ -66,7 +66,7 @@ classdef Lbl
         );
       
       if isempty(locg)
-        [~,~,~,locg] = Lbl.loadPack(packdir);
+        [~,~,~,~,locg] = Lbl.loadPack(packdir);
       end
 
       hfig = figure(11);
@@ -127,7 +127,7 @@ classdef Lbl
         'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
         );
       
-      [~,~,~,~,loccc] = Lbl.loadPack(packdir);
+      [~,~,~,~,~,loccc] = Lbl.loadPack(packdir);
 
       hfig = figure(11);
       
@@ -163,10 +163,11 @@ classdef Lbl
       s = jsondecode(jse{1});
       fprintf(1,'loaded %s\n',jsonfile);
     end
-    function [slbl,tp,loc,locg,loccc] = loadPack(packdir)
+    function [slbl,j,tp,loc,locg,loccc] = loadPack(packdir)
       % Load training package into MATLAB data structures
       %
       % slbl: 'stripped lbl' struct
+      % j: cfg/json
       % tp: one-row-per-movie struct. Maybe a useful format for metadata 
       %   or bookkeeping purposes.
       % loc: one-row-per-labeled-(mov,frm,tgt) struct. Intended to be
@@ -191,6 +192,11 @@ classdef Lbl
       lblsf = fullfile(packdir,lblsf);
       slbl = load(lblsf,'-mat');
       fprintf(1,'loaded %s\n',lblsf);
+      
+      [~,f,~] = fileparts(lblsf);
+      jf = fullfile(packdir,[f '.json']);
+      jf = readtxtfile(jf);
+      j = jsondecode(jf{1});      
       
       tpf = fullfile(packdir,'trnpack.json');
       tp = Lbl.hlpLoadJson(tpf);
@@ -317,7 +323,7 @@ classdef Lbl
           xy = Shape.vec2xy(p);
           if netmode.isObjDet
             minaa = sPrmAll.ROOT.MultiAnimal.Detect.BBox.MinAspectRatio;
-            roi = lObj.maComputeBBoxGeneral(xy,minaa,false,[],[]);
+            roi = lObj.maComputeBboxGeneral(xy,minaa,false,[],[]);
           else
             sPrmLoss = sPrmAll.ROOT.MultiAnimal.LossMask;
             roi = lObj.maGetLossMask(xy,sPrmLoss);

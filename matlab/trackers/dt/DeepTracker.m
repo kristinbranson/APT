@@ -1033,7 +1033,7 @@ classdef DeepTracker < LabelTracker
       if isempty(sPrmAll)
         error('Tracking parameters not set.');
       end
-      sPrmAll = obj.lObj.addExtraParams(sPrmAll);
+      sPrmAll = obj.lObj.addExtraParams(sPrmAll,obj.trnNetMode);
       
       cacheDir = obj.lObj.DLCacheDir;
       if isempty(cacheDir)

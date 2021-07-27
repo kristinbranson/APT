@@ -30,6 +30,22 @@ classdef DLNetMode < handle
     isObjDet
     isTrnPack
   end
+  properties (Dependent)
+    is_multi        % config param for backend
+    multi_crop_ims  % "
+    multi_only_ht   % "
+  end
+  methods
+    function v = get.is_multi(obj)
+      v = obj.isMA && ~(obj.isTopDown && obj.topDownStage==2);
+    end
+    function v = get.multi_crop_ims(obj)
+      v = obj.isMA && ~(obj.isTopDown && obj.isObjDet);
+    end
+    function v = get.multi_only_ht(obj)
+      v = obj.isMA && obj.isTopDown && obj.topDownStage==1 && obj.isHeadTail;
+    end    
+  end
   methods 
     function obj = DLNetMode(code,ma,topdown,stage,ht,od,istp)
       obj.shortCode = code;

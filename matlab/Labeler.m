@@ -10990,31 +10990,20 @@ classdef Labeler < handle
     end
     
     function sPrm = trackGetParams(obj,varargin)
-      % Get all parameters:
-      %  - preproc
-      %  - cpr
-      %  - common dl
-      %  - specific dl
+      % Get all user-settable parameters, including preproc etc.
       %
-      % sPrm: scalar struct containing NEW-style params:
-      % sPrm.ROOT.Track
-      %          .CPR
-      %          .DeepTrack (if applicable)
-      % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
-      % don't exist yet.
+      % Doesn't include APT-added params for DL backend.
       
-      % Future TODO: As in trackSetParams, currently this is hardcoded when
-      % it ideally would just be a generic loop
-      [getall] = myparse(varargin,'all',false);
-      
+%       [getall] = myparse(varargin,'all',false);
+%       assert(~getall);
+
       sPrm = obj.trackParams;
       sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
-      sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
-      if getall,
-        sPrm = obj.addExtraParams(sPrm);
-      end
-      
+      sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;      
+%       if getall,
+%         sPrm = obj.addExtraParams(sPrm);
+%       end      
     end
     
     function be = trackGetDLBackend(obj)
@@ -11441,7 +11430,7 @@ classdef Labeler < handle
         tdata.sPrmAll = sPrmAll;
       end
       
-      tdata.sPrmAll = obj.addExtraParams(tdata.sPrmAll);
+      tdata.sPrmAll = obj.addExtraParams(tdata.sPrmAll,tdata.trnNetMode);
       
 %       if tdata.trnNetType==DLNetType.openpose
 %         % put skeleton => affinity_graph for now        
@@ -11497,12 +11486,13 @@ classdef Labeler < handle
     
     % See also Lbl.m for addnl stripped lbl meths
     
-    function sPrmAll = addExtraParams(obj,sPrmAll)
+    function sPrmAll = addExtraParams(obj,sPrmAll,netmode)
+      % sPrmAll = addExtraParams(obj,sPrmAll)
+      % sPrmAll = addExtraParams(obj,sPrmAll,netmode)
+      %
+      % if generating trnpack for use by backend, include netmode.
+      % without netmode, backend-specific config params are not included.
       
-      prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
-      r = obj.maGetTgtCropRad(prmsTgtCrop);
-      sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius = r;
-            
       skel = obj.skeletonEdges;
       if ~isempty(skel),
         nedge = size(skel,1);
@@ -11512,7 +11502,24 @@ classdef Labeler < handle
       else
         sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
       end
+            
+      % add landmark matches
+      matches = obj.flipLandmarkMatches;
+      nedge = size(matches,1);
+      matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
+      matchstr = String.cellstr2CommaSepList(matchstr);
+      sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
       
+       % ma stuff
+      prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
+      r = obj.maGetTgtCropRad(prmsTgtCrop);
+      sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius = r;
+      tfBackEnd = exist('netmode','var');
+      if tfBackEnd
+        sPrmAll.ROOT.MultiAnimal.is_multi = netmode.is_multi;
+        sPrmAll.ROOT.MultiAnimal.multi_crop_ims = netmode.multi_crop_ims;
+        sPrmAll.ROOT.MultiAnimal.Detect.multi_only_ht = netmode.multi_only_ht;
+      end
       % headtail
       if ~isempty(obj.skelHead)
         iptHead = obj.skelHead;
@@ -11524,15 +11531,7 @@ classdef Labeler < handle
       else
         iptTail = 0;
       end        
-      sPrmAll.ROOT.MultiAnimal.Detect.head_point = iptHead;
-      sPrmAll.ROOT.MultiAnimal.Detect.tail_point = iptTail;      
-      
-      % add landmark matches
-      matches = obj.flipLandmarkMatches;
-      nedge = size(matches,1);
-      matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
-      matchstr = String.cellstr2CommaSepList(matchstr);
-      sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
+      sPrmAll.ROOT.MultiAnimal.Detect.ht_pts = [iptHead iptTail];
     end
     
     function sPrmAll = setExtraParams(obj,sPrmAll)
