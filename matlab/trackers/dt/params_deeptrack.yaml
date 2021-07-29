@@ -14,7 +14,7 @@
 ROOT:
   - ['','',false,DUMMY,'','']
   - DeepTrack:
-    - ['','',false,Deep learning parameters,'','']
+    - ['Deep Learning (pose)','',false,Deep learning parameters,'','']
     - Saving:
       - ['','',false,'Saving, display, and communication parameters','','']
       - save_step: ['Training tracker save interval',unsigned,true,'How often (number of iterations of gradient descent) to save intermediate trackers during training.',1000,'','Advanced','isDeepTrack',false]
@@ -24,7 +24,7 @@ ROOT:
 #    - splitType: ['Type of split for validation',string,true,'Options: frame, movie, trx, predefined','predefined','','Advanced','isDeepTrack']
 #    - valratio: ['Amount of validation data',float,true,'Amount of data to keep aside for validation',0.3,'','Advanced','isDeepTrack']
     - ImageProcessing:
-      - ['','',false,'Parameters related to initial processing of the input video data before any learning happens.','','','','']
+      - ['Image Processing','',false,'Parameters related to initial processing of the input video data before any learning happens.','','','','']
       - scale: ['Downsample factor',float,true,'Downsample images in width and height by this factor. This will decrease the amount of memory needed on the GPU.',1.0,'ParameterVisualizationMemory','Important','isDeepTrack',true]
       - adjustContrast: ['Histogram equalization',boolean,true,'Normalize image contrast using contrast limited adaptive histogram equalization (CLAHE).',0,'ParameterVisualizationPreproc#preproc1','Beginner','isDeepTrack',true]
       - clahe_grid_size: ['Neighborhood size for histogram equalization',unsigned,true,'CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels.',20,'','Advanced','isDeepTrack',true]
@@ -32,7 +32,7 @@ ROOT:
       - flipud: ['Flip movie',boolean,true,'Whether to flip images upside down. ',0,'','Developer','isDeepTrack',true]
       - imax: ['Max pixel value',float,true,'Maximum pixel value in the video.',255.,'','Advanced','isDeepTrack',true]
     - GradientDescent:
-      - ['','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
+      - ['Gradient Descent','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
       - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. ',20000,'','Important','isDeepTrack',true]
       - batch_size: ['Training batch size',unsigned,true,'Number of training examples used in each iteration of gradient descent. Too large of values may cause the GPU to run out of memory. Too small of values may make training slower and result in poor optimization. When changed to 8/x, it is suggested to increase the number of training iterations by x for better performance. Does not apply to DeepLabCut where batch size is always 1.',8,'ParameterVisualizationMemory','Important','isDeepTrack',true]
       - learning_rate_multiplier: ['Learning Rate Multiplier',float,true,'Learning rate multplier for networks other than deeplabcut. If the multiplier is m, and base learning rate is 0.0001 then then learning rate used will be 0.0001*m. Does not apply to LEAP and DeepLabCut.',1.,'','Beginner','isDeepTrack',true]
@@ -43,7 +43,7 @@ ROOT:
       - num_test: ['Number of test examples',unsigned,true,'Number of training examples to use to compute the training error.',24,'','Advanced','isDeepTrack']
       - normalize_loss_batch: ['Normalize the loss',boolean,true,'Normalize the loss by the batch size. Not normalizing is better',0,'','Developer','isDeepTrack',true]
     - DataAugmentation:
-      - ['','',false,'To learn invariances to certain kinds of perturbations, training data can be augmented by randomly perturbing each image during training.','','','','']
+      - ['Data Augmentation','',false,'To learn invariances to certain kinds of perturbations, training data can be augmented by randomly perturbing each image during training.','','','','']
       - rrange: ['Rotate range',unsigned,true,'Augment by rotating training images and labels by a random angle less than this number of degrees in either direction.',20,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
       - trange: ['Translation range',unsigned,true,'Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels. ',20,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
 #      - scale_range: ['Scale range',float,true,'Obsolete. This has been replaced by Scale factor range. Augment by adjusting image scale by a random amount between (1-this number) to (1+this number). 0 indicates no scale adjustment, 1 indicates scaling by a factor between 0 to 2',0,'ParameterVisualizationPreproc#preproc1','Developer','isDeepTrack',true]
@@ -55,5 +55,5 @@ ROOT:
       - perturb_color: ['Perturb color',boolean,true,'Augment by perturbing image color.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isDeepTrack',true]
       - check_bounds_distort: ['Check landmarks during augmentation',boolean,true,'Check that landmarks remain within the image during augmentation.',1,'','Advanced','isDeepTrack',true]
     - LossFunction:
-      - ['','',false,'Parameters related to the deep-learning error criterion minimized.','','','','']
+      - ['Loss Function','',false,'Parameters related to the deep-learning error criterion minimized.','','','','']
       - label_blur_rad: ['Label uncertainty radius',float,true,'Standard deviation, in pixels, of the landmark location. In the label heatmap used for training, a Gaussian with this std-dev is placed at each landmark location. Only applicable to heatmap based methods. Not applicable to DeepLabCut and LEAP.',3.,'','Advanced','isDeepTrack',true]
