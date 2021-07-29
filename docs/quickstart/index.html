@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT Quick Start Guide</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all" 
+href="../styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen" 
+href="../styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print" 
+href="../styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" 
+media="projection" href="../styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+<h1><a href="index.html">APT</a> - Quick Start Guide</h1>
+
+<br>
+
+<hr class="h2-divider"/>
+ <h2><a id="Setup">Setup</a></h2>
+
+<ul> 
+<li> Install MATLAB with the <a href="index.html/#Requirements">required toolboxes</a>.
+<li> Download APT from the <a href="https://github.com/kristinbranson/APT"> APT git repository</a>.
+<li> Setup GPU on the <a href="LocalBackEnd.html">local backend</a> or any other <a href="index.html/#BackEnd">backends</a>. This guide uses local Docker backend but the steps are identical for all the backends.
+
+<hr class="h2-divider"/>
+
+<h2><a id="newproj">APT Project</a></h2>
+
+Start MATLAB and change directories to the location of your APT checkout. Launch APT from the MATLAB command line.
+<br>
+<br>
+<center><a href="APTStart.gif"><img style='border:2px solid #000000' src="APTStart.gif" width="90%"></a></center>
+<br/>
+Start a new APT Project.
+<br>
+<br>
+<center><a href="newproject.jpg"><img style='border:2px solid #000000' src="newproject.jpg" width="90%"></a></center>
+<br/>
+<p>Name your project. I'm very imaginatively calling it <i>horse</i>. Select the number of points we will be tracking. In this case I'm going to track six points -- the head, pelvis, and four hoofs.  </p>
+<br>
+<center><a href="newproject_done.jpg"><img style='border:2px solid #000000' src="newproject_done.jpg" width="90%"></a></center>
+<br/>
+
+<p>A <i>Manage Movies</i> window will appear once you create the project. Add the movies you want to work with. If you have to add a large number of movies, you can do so using <b>File &rarr; Add List</b> in the <i>Manage Movies</i> window. The movie list file should have one movie per line for single-view projects. For multi-view projects, each line should be a comma-separated list of movies, one movie per view. If you close the <i> Manage Movies</i> window, you can access it again using <b>File &rarr; Manage Movies</b> or <b>Go &rarr; Switch Movies</b>.</p>
+<br>
+<center><a href="addmovie_done.jpg"><img style='border:2px solid #000000' src="addmovie_done.jpg" width="90%"></a></center>
+<br/>
+
+  <p>Here's a video illustrating these steps to create a new project and add movies:</p>
+  <center><a href="newproj.gif"><img style='border:2px solid #000000' src="newproj.gif" width="90%"></a></center>
+
+<p>Once a movie is loaded, you can explore the movie in time by 
+<ul>
+<li> Pressing the left or right arrow keys to navigate one frame backwards or forwards. Use Ctrl + arrow to jump by 10 frames at a time.
+<li> Clicking on the timeline
+<li> Using the play button
+<li> Sliding the frame slider
+<li> Entering a frame number in the frame number box
+</ul></p>
+
+<p>You can zoom and pan in space using the magnifying glass and hand tools in the tool bar in the upper-right of the main labeling window. At any time, you can zoom back to the whole video using <b>View &rarr; Zoom out/full image(s)</b> or the <b>Ctrl + f</b> shortcut. For projects with body tracking, there are many other ways to <a href="index.html/Navigating in APT">navigate</a>.</p>
+<p>You can also modify the brightness, contrast and gamma correction for the videos using <b>View &rarr; Adjust brightness/contrast</b> and <b>View &rarr; Gamma Correct</b>. The playback speed can be adjusted using <b>Go &rarr; Navigation Preferences</b>.</p>
+<p>If your region of interest is only a portion of the whole video, you can set crop locations so that the tracker works only on that portion. Selecting a smaller portion of the video will speed up training and tracking and reduce the GPU memory required during training. The cropping location can be set for the whole project or for each video separately by <b>File &rarr; Edit Cropping</b>. </p>
+
+<br>
+
+<hr class="h2-divider"/>
+
+<h2><a id="Labeling">Labeling</a></h2>
+
+<p>Now we can start labeling! We start by labeling in <i>Sequential Mode</i> where we label the points in a sequence by clicking on their location. Use <b>Label &rarr; Sequential Model</b> to use this mode.</p>
+<br>
+<br>
+<center><a href="LabelSequential.gif"><img style='border:2px solid #000000' src="LabelSequential.gif" width="90%"></a></img></center>
+<br/>
+
+
+<p>After you label the first frame in a project, a preview of that frame will be displayed in the <i>Reference frame</i> window in the upper-left corner of APT. This serves as a useful reminder about which label number corresponds to which body part to reduce labeling errors. You can change the frame displayed as the reference frame by clicking the <i>Freeze</i> button.</p>
+
+<p>Label a few more frames. Browsing through the movie while skipping frames using the Ctrl + arrow keys is useful here. It is usually not a good idea to label immediately adjacent frames because they will be similar in appearance and won't give the learning algorithm much new information. You can clear the labels for any frame using the <i>Clear</i> button in the lower-left of the APT window.</p>
+<br>
+<center><a href="LabelMore.gif"><img style='border:2px solid #000000' src="LabelMore.gif" width="90%"></a></img></center>
+<br/>
+
+<p>The single most important way to improve the accuracy of a tracker in APT is to provide it with more labels. For this reason we have made labeling in APT intuitive, fast and extremely interactive. One way we do this is by providing multiple labeling modes. Another important labeling mode that APT provides is <i>Template Mode</i>. In this mode, a template based on previous labels is overlaid over the current frame. Points in the template can be adjusted by <b>dragging</b>,
+<br>
+<br>
+<center><a href="LabelTemplateDrag.gif"><img style='border:2px solid #000000' src="LabelTemplateDrag.gif" width="90%"></a></img></center>
+<br/>
+
+by selecting the point by pressing its number on the keyboard and then clicking at the desired location,
+<br>
+
+<br>
+<center><a href="LabelTemplateClick.gif"><img style='border:2px solid #000000' src="LabelTemplateClick.gif" width="90%"></a></img></center>
+<br/>
+
+or by selecting the point and then moving the point using the arrow keys. This last method provides a way to label frames without using the mouse. You can use the <i>Shift</i> key with the arrow keys to move the points in bigger steps. Selected landmarks are shown by a cross instead of plus and a landmark can be deselected by pressing the landmark's number again. <b>Remember to hit the Accept button or the space bar</b> to accept the label once you have labeled all the points!</p>
+
+<p>If you change frames in the middle of labeling a frame, the locations of the points you have clicked so far will be <b>lost</b>. To see temporal context in the middle of labeling, you can click the <a href="index.html#GUI"><b>Play context</b></a> button.</p>
+<p>The frames that have been labeled for the current movie are listed in the <i>Labeled Frames</i> table on the left below the reference frame window. Clicking on any row in the table will take you to that frame. Below that table, APT shows the save status of the project indicating whether the project has any unsaved changes. You can save the project by using <b>File &rarr; Save Project</b> or <b>File &rarr; Save Project as ...</b>. The saved project can be loaded at any later time by launching APT and using <b>File &rarr; Load Project </b>.</p>
+
+<br>
+<center><a href="LabelTemplateKeyboard.gif"><img style='border:2px solid #000000' src="LabelTemplateKeyboard.gif"width="90%"></a></img></center>
+<br/>
+<p>You can label a point that is not clearly visible as <a href="index.html/#Occluded"><b>occluded</b></a> by holding the <b>shift</b> key while clicking. Alternatively, you can select the point and type 'o'. Occluded points are indicated with an 'o' marker. We recommend that you label a point in this manner if it is occluded but its location can be estimated. If a point is occluded and its location <b>cannot</b> be estimated or falls outside the video, then use the <b>View &rarr; Show occluded points box</b>. Instead of labeling within the video, click inside this rectangle and the point will be marked as heavily occluded. </p>
+<br>
+<center><a href="occluded_box.gif"><img style='border:2px solid #000000' src="occluded_box.gif" width="90%"></a></img></center>
+<br/>
+
+<p>Since labeling is a tedious process, labeling errors are fairly common. One way to reduce labeling errors is to define a skeleton. In APT you can do this using <b>View &rarr; Edit Skeleton</b>. At times it might be advantageous to define an asymmetric skeleton to differentiate eg the left and right sides of an animal. <b>View &rarr; Show Skeleton </b> controls whether the skeleton is displayed or not. </p>
+<br>
+<center><a href="skeleton_out.gif"><img style='border:2px solid #000000' src="skeleton_out.gif"width="90%"></a></img></center>
+<br/> 
+<p>Another tool that can help find labeling errors is <b>Label &rarr; Label Overlay Montage</b> which superimposes all labels on a single image for review. Often a significant number of labeling errors will stand out as outliers in this tool. When you click on a label that is out of place, the movie and frame number of that label in displayed in the plot title. </p>
+<br>
+<center><a href="labelMontage.jpg"><img style='border:2px solid #000000' src="labelMontage.jpg" width="90%"></a></center>
+<br/>
+
+<hr class="h2-divider"/>
+
+<h2><a id="Training">Training</a></h2>
+
+<p>Now that we have added a few labels, we can train! First, select a tracking algorithm from <b>Track &rarr; Tracking Algorithm</b>. The default <b>MDN</b> algorithm trains accurate trackers and is a good one to start with. </p>
+<p>Next, we need to set up the GPU backend. Here we select the Docker backend. For Windows, you would select Conda. After you select the backend, test it using <b>Test Backend Configuration</b>.</p>
+<br>
+<center><a href="BackendSetup.gif"><img style='border:2px solid #000000' src="BackendSetup.gif" width="90%"></a></img></center>
+<br/>
+
+<p>Now it is time to set the training parameters. Most deep learning based algorithms require users to set a lot of hyperparameters, which is often difficult for non machine learning experts (in all honesty, they are difficult to set for practictioners as well). APT makes it easy for users to intuitively to set these parameters. Open the <i>Tracking Parameters</i> window using <b>Track &rarr; Tracking Parameters</b>. </p>
+<p>The first set of parameters you need to consider relate to GPU memory usage. These are important because training can crash if the memory required for training is greater than the GPU memory available. The GPU memory required during training is proportional to the size of the image used for training (i.e. the number of pixels in the input image) and the batch size. You can control the image size used during training by setting the <i>Downsample factor</i> which specifies the degree of downsampling applied to video frames. When this parameter is selected, the <i>Parameter Visualization</i> displays the estimated GPU memory required for varying levels of downsampling. Select a downsampling factor such that the required GPU memory is less the memory available on your GPU. Note that downsampling by a large amount can impact tracking accuracy because heavily downsampled images can lose essential details in the images. </p>
+<p>The other parameter which impacts GPU memory usage is the <i>Training batch size</i>. The GPU memory required scales linearly with batch size. However, a lower batch size can degrade tracking accuracy and we suggest keeping the batch size as large as possible. The GPU memory usage shown is an estimate; the actual GPU memory usage may be higher or lower. The surest way to know if you can train is to actually train a network. If training crashes, your project is unaffected. You can just update the parameters and train again.</p>
+<br>
+<center><a href="trainDownsample.jpg"><img style='border:2px solid #000000' src="trainDownsample.jpg" type="video/mp4" width="90%"></a></center>
+<br/>
+
+<p>The next set of important parameters to consider are the data augmentation parameters. Deep learning algorithms overfit and fail to track accurately on new video frames if the same inputs, or a relatively narrow range of inputs, are presented to it during learning. In such cases, the algorithm can fail to learn invariances in the data. For movies capturing a top-down view of a freely-behaving mouse, for example, an algorithm must learn to track the mouse in any orientation, even if the training data only consists of mice labeled in certain oreintations.</p>
+    
+<p>To address this issue, training images are augmented by rotating, translating and applying other image processing techniques by random amounts that modify the image while preserving its visual information. To help you set these parameters, APT provides a unique visualization of the data augmentation that will be applied during training. When you select or update any of the augmentation parameters (listed below), the UI displays a set of sample training images generated using the current augmentation parameters.</p>
+<br>
+<center><a href="trainVisualization1.jpg"><img style='border:2px solid #000000' src="trainVisualization1.jpg" type="video/mp4" width="90%"></a></center>
+<br/>
+
+<p>The goal while setting the augmentation parameters should be to set them such that the augmented images look like the images that will be encountered during tracking (or a slightly distorted version of them). For example, if the rotation range is set to 100, many images of vertical horses are generated. We do not need a tracker that predicts well on such images because we are not going to encounter such examples during tracking. The rotation range should therefore be set to a smaller value. </p>
+<br>
+<center><a href="trainVisualization_high.jpg"><img style='border:2px solid #000000' src="trainVisualization_high.jpg" type="video/mp4" width="90%"></a></center>
+<br/>
+
+<p>Note that to compute the visualization, APT has to communicate with the backend and as a result the visualization can be slow to update. If you change the parameters while the visualization is being updated, the visualization may not reflect the new parameters.</p>
+
+<p>While the default augmentation parameters will usually work well, it is a good idea to adjust them to get the best performance out of your tracker. More information about data augmentation in APT can be found <a href="index.html/#Configure tracking parameters">here</a>. The important data augmentation parameters (in brief) that you can set in APT are:
+
+<ul>
+<li> Rotate Range - The range in degrees through which the image could be rotated.
+<li> Translation Range - The range in pixels that the image could be translated in the x and y directions (independently).
+<li> Scale factor Range - The range by which the image could be scaled. 
+<li> Brightness Range - The range by which to modify the image's brightness.
+<li> Contrast Range - The range by which to modify the image's contrast.
+<li> Flip Horizontally - Augment by flipping the image and labels vertically (left to right). Use this if the animal is symmetric along the vertical axis. If selected, remember to set the <a href=index.html/#FlipLandmarkPairings> flip landmark pairs</a>.
+<li> Flip Vertically - Augment by flipping the image and labels horizontally (top to bottom). Use this if the animal is symmetric along the horizontal axis. If selected, remember to set the <a href=index.html/#FlipLandmarkPairings> flip landmark pairs</a>.
+</ul> 
+More details on the augmentation parameters and other training parameters is available in the <a href=index.html/#Configure tracking parameters>documentation</a>.</p>
+<br>
+<p>Now it is time to train! Hit the train button! After you start the training, APT processess the training images and launches the <a href="index.html/#Training Monitor"><i>Training Monitor</i></a> window which updates you on the training status. The <i>Training Monitor</i> will display what stage the training is in (Initialization, building the image database or training) and if it is training it will show the current training iteration and the loss. For some algorithms it will also display the prediction accuracy as the average distance between the predicted landmarks and the labeled landmarks. The duration of training depends on the number of iterations and the size of the input image. While you wait for training to finish, you can use the pop-up menu at the bottom of the <i>Training Monitor</i> to look at various other information about the training process.</p>
+<br>
+<center><a href="trainMonitor.jpg"><img style='border:2px solid #000000' src="trainMonitor.jpg" type="video/mp4" width="90%"></a></center>
+<br/>
+<p>At the end of training you'll be asked to save the trained model in a project file. When saving, APT bundles the labels and trained model into a <i>.lbl</i> file. This project file can be moved around and shared just like a normal file.</p>
+<br>
+<center><a href="TrainingEnd.jpg"><img style='border:2px solid #000000' src="TrainingEnd.jpg" type="video/mp4" width="90%"></a></center>
+<br/>
+<p>You can change the Tracking Algorithm at any stage. When you do this, you don't lose your previously trained tracker. For example, if you train an MDN tracker, and then change the algorithm to DeepLabCut and train a new tracker, the MDN tracker will still be a part of your project. You can access it at any time by re-selecting MDN in the <i>Tracking Algorithm</i> menu. However, if you train an MDN tracker and then re-train a new MDN tracker, the old MDN tracker will be replaced and will not be available. Information about the currently active model is displayed on the left above the Clear button.</p>
+<hr class="h2-divider"/>
+
+<h2><a id="Tracking">Tracking and Relabeling</a></h2>
+
+<p>Time to track! Use the <i>Frames to track</i> pop-up menu below the Track button to select the frames you want to track. Usually it is a good idea to track just a few frames at first. To do this, select the <i>+/-100 fr</i> option which will track the 200 closest frames around the current frame. </p>
+<br>
+<center><a href="TrackSelect.jpg"><img style='border:2px solid #000000' src="TrackSelect.jpg" type="video/mp4" width="90%"></a></center>
+<br/>
+
+<p>Similar to training, once you start tracking, a <i>Tracking Monitor</i> will be launched that will update you about the tracking job's status. The main indicator is the colored bar in the middle that will inform you about the number of frames have been tracked.</p>
+<br>
+<center><a href="TrackEnd.jpg"><img style='border:2px solid #000000' src="TrackEnd.jpg" type="video/mp4" width="90%"></a></center>
+<br/>
+<br>
+<p>If tracking results aren't visible once tracking finishes, move backwards or forwards by a frame and also confirm that <b>View &rarr; Hide Predictions</b> is unset.</p>
+<p>Now you can start exploring how the tracker is performing by moving around the video. Since we labeled only a few frames in this demo, the tracker is likely to make quite a few mistakes while still performing pretty well overall. In the initial stages of a project, where only a few frames have been labeled, you'll find a lot of frames where tracking fails. These are exactly the frames that you should label to improve your tracker. To label these frames you could again use <i>Sequential Labeling </i> mode; alternatively, <i>Template Labeling</i> mode can reduce your labeling effort quite a bit if the tracker is getting things roughly correct. With Template Mode, after tracking is done you only have to correct prediction errors to label a frame, rather than labeling points from scratch. It can be useful to hide the predictions (<b>View &rarr; Hide Predictions</b>) when doing this as the predictions are shown as the initial label template. Often you'll be able to label a frame just using a few keyboard key presses. </p>
+<br>
+<center><a href="relabel_updated.gif"><img style='border:2px solid #000000' src="relabel_updated.gif"width="90%"></a></img></center>
+<br/>
+
+  <p>Deep learning algorithms will learn a reasonable tracker with few labels. However, the accuracy requirement for a usable tracker is much higher. Suppose that you have a reasonably good tracker that has a 5% error rate. If you were to track a video that has a frame rate of 60 frames per second (FPS), you will end up with an error rate of 3 errors per second! </p>
+  
+<p>Training a good tracker that works across videos that are collected in a lot of differing conditions requires you to explore a large number of movies and review a large amount of tracking to find the pesky frames where tracking fails. Labeling precisely these frames is what will enable you to train an accurate and robust tracker and this is where APT's user friendly interface really shines. </p>
+
+<p>APT makes it easy to add a lot of movies to the project and review the tracking on them. You can even track videos without adding them to the project (<b>Track &rarr; Track Multiple Videos</b>) and review the tracking later. To make it easy to explore and find interesting frames, APT provides a <a href="index.html/#GUI">property timeline</a> which is located below the main video labeling window. Using the property selector pop-up menu you can display different properties of the tracking results and use them to find interesting frames. For example, if you select velmag (velocity magnitude) the property timeline will show how much each landmark moved in the current frame compared to the previous frame. This will help you in finding frames where there are sudden jumps in a landmarks location, which could be caused by tracking errors. You can also jump to frames where the velmag value exceeds a specified threshold using the Shift + arrow keys. To do this, go to (<b>Go &rarr; Navigation Preferences</b>) and set the desired threshold value, along with setting <i>Shift-left/right seeks</i> to <i>Next where timeline stat exceeds</i> and the appropriate comparison operator (> or <). Another property that is useful is the trackers confidence. You'll often find that frames that have tracking errors have low confidence. You can view the confidences for the predictions by selecting <i>conf_mdn</i> for the MDN tracker.</p>
+
+<hr class="h2-divider"/>
+<h2><a id="conclusion">Training your own trackers</a></h2>
+
+<p>This introductory guide illustrates how APT provides a straight-forward, convenient and flexible interface to train your own trackers. We highly recommend that you read the <a href="index.html/#How to">How to train a part tracker</a> guide and <a href="index.html">APT documentation</a> for further details.</p>
+
+<hr class="h2-divider"/>
+
+<h2><a id="Useful Tools">Useful Tools in APT</a></h2>
+<h3><a id="groundtruth">Evaluating Performance</a></h3> 
+Reviewing tracking results on a large number of the videos is definitely the most useful way to know how the tracker is performing. But the reviewing is inevitably subjective and can bias you about your trackers performance. To provide a more objective measure of the tracker's performance, APT provides multiple way to <a href="index.html/#Evaluating performance">evaluate the tracker's performance</a>.
+<h3><a id="shortctus">Keyboard Shortcuts</a></h3> 
+APT has a host of keyboard shortcuts to speed up the labeling. You can access the list using <b>Help &rarr; Labeling Actions </b>.
+<h3><a id="switch targets">Labeling Details</a></h3> 
+APT provides the details about the number of labels alongwith other important details for each movie in <b>Go &rarr; Switch targets</b>
+<h3><a id="track multiple">Tracking multile movies</a></h3> 
+You can track a large number of movies using <b>Track &rarr; Track multiple videos </b>. You can load a list of movies using the <i>Load</i> button. And you can also define the trk output file names using macros $name$, $dir$ and $path$. For example, if the movie name is "/example/path/to/movie.avi", then $name$ will be "movie", $dir$ will be "to" and $path$ will be "/example/path". 
+<h3><a id="export labels">Exporting and Importing Labels</a></h3> 
+Labels can be <a href="index.html/#Exporting manual labels">imported and exported</a> as trk files using <b>File &rarr; Import/Export</b>. 
+<h3><a id="cosmetics">Change Label appearance</a></h3>
+Label's appearance like color and marker can be changed using <b>View &rarr; Landmark Cosmetics</b>.  
+<h3><a id="command line">Command line tools</a></h3>
+APT exposes a rich command line API. To access these launch APT using "lObj = StartAPT;". The lObj is the handle to the Labeler object defined in <i>APT/matlab/Labeler.m</i>. Users can update and modify this object to interact with APT. 
+<h3><a id="property timeline">Property Timeline</a></h3>
+Users can display different properties of Labels, Predictions, and Imported tracking in the Property timeline. The property to be displayed can be selected using the two pop-up menus at the bottom right. 
+
+<footer>
+<hr class="h1-divider">
+<center>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated April 27, 2021</i>
+</center>
+</footer>
+
+
+</body>
