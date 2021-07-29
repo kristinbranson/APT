@@ -230,6 +230,9 @@ classdef DeepTracker < LabelTracker
     function v = getAlgorithmNamePrettyHook(obj)
       v = ['Deep Convolutional Network - ' obj.trnNetType.displayString];
     end
+    function v = getNetsUsed(obj)
+      v = cellstr(obj.trnNetType);
+    end
     function v = get.condaEnv(obj)
       v = obj.lObj.trackDLBackEnd.condaEnv;
     end
@@ -987,7 +990,7 @@ classdef DeepTracker < LabelTracker
         
         sPrmAllLabeler = obj.lObj.trackGetParams();
         sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler,'throwwarnings',false);
-        args = {'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
+        args = {'netsUsed',obj.getNetsUsed(),'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
         
         if isempty(obj.sPrmAll),
           isParamChange = true;
@@ -1476,6 +1479,7 @@ classdef DeepTracker < LabelTracker
         s.trackParams = sPrmAll;
         ITRKER_SLBL = 2;
         s.trackerData{ITRKER_SLBL}.sPrmAll = sPrmAll;
+        fprintf(2,'Using .trackerData{2} for dataaug\n');
         save(dlLblFileLcl,'-struct','s','-append');
         fprintf('Reusing cached lbl file %s\n',dlLblFileLcl);
       else
@@ -1852,31 +1856,31 @@ classdef DeepTracker < LabelTracker
         obj.trnTblP = tblPTrn;
       end
       
-      ITRKER_SLBL = 2;
-      assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
+%       ITRKER_SLBL = 2;
+%       assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
       
       % for images, deepnet will use preProcData; trx files however need
       % to be uploaded
             
-      if awsRemote 
-        % 1. The moviefiles in s should be not be used; deepnet should be
-        % reading images directly from .preProcData_I. Fill s.movieFilesAll
-        % with jibber as an assert.
-        % 2. The trxfiles in s refer to local files; for AWS training we
-        % will need them to refer to remote locs.
-        %   a. For each trxfile that appears in the training data, we
-        %      upload it and replace all appropriate rows of s.trxFilesAll.
-        %   b. For all other rows of s.trxFilesAll, we replace with jibber
-        %      as an assert.
-
-        % Originally we uploaded trxfiles but this is no longer nec since
-        % training relies on the cache which is now pre-rotated etc etc
-        
-        s.movieFilesAll(:) = {'__UNUSED__'};
-        if obj.lObj.hasTrx
-          s.trxFilesAll(:) = {'__UNUSED__'};
-        end
-      end
+%       if awsRemote 
+%         % 1. The moviefiles in s should be not be used; deepnet should be
+%         % reading images directly from .preProcData_I. Fill s.movieFilesAll
+%         % with jibber as an assert.
+%         % 2. The trxfiles in s refer to local files; for AWS training we
+%         % will need them to refer to remote locs.
+%         %   a. For each trxfile that appears in the training data, we
+%         %      upload it and replace all appropriate rows of s.trxFilesAll.
+%         %   b. For all other rows of s.trxFilesAll, we replace with jibber
+%         %      as an assert.
+% 
+%         % Originally we uploaded trxfiles but this is no longer nec since
+%         % training relies on the cache which is now pre-rotated etc etc
+%         
+%         s.movieFilesAll(:) = {'__UNUSED__'};
+%         if obj.lObj.hasTrx
+%           s.trxFilesAll(:) = {'__UNUSED__'};
+%         end
+%       end
     end
     
 %     function trnCompleteCbkAWS(obj,res)      

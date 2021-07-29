@@ -30,7 +30,7 @@ classdef LabelTracker < handle
   
   properties (Abstract)
     algorithmName % char
-    trackerInfo; % struct with whatever information we want to save about the current tracker. 
+    trackerInfo; % struct with whatever information we want to save about the current tracker.     
   end  
   
   properties
@@ -51,6 +51,10 @@ classdef LabelTracker < handle
     showPredsCurrTargetOnly = false;
   end
   
+  methods (Abstract)
+    % return cellstr, (deep) nets used by this tracker
+    v = getNetsUsed(obj)
+  end
   methods
     
     function obj = LabelTracker(labelerObj)

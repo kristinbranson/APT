@@ -513,8 +513,10 @@ classdef Labeler < handle
   properties (Dependent)
     tracker % The current tracker, or []
     trackerAlgo % The current tracker algorithm, or ''
+    trackerNetsUsed % cellstr
     trackerIsDL
     trackerIsTopDown
+    trackerIsBotUp
     trackerIsObjDet
     trackDLParams % scalar struct, common DL params
     DLCacheDir % string, location of DL cache dir
@@ -1268,6 +1270,14 @@ classdef Labeler < handle
         v = v.algorithmName;
       end
     end
+    function v = get.trackerNetsUsed(obj)
+      v = obj.tracker;
+      if isempty(v)
+        v = cell(0,1);
+      else
+        v = v.getNetsUsed();
+      end
+    end    
     function v = get.trackerIsDL(obj)
       v = obj.tracker;
       if isempty(v)
@@ -1283,6 +1293,11 @@ classdef Labeler < handle
     function v = get.trackerIsObjDet(obj)
       v = obj.tracker;
       v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isObjDet;
+    end
+    function v = get.trackerIsBotUp(obj)
+      v = obj.tracker;
+      v = ~isempty(v) && isa(v,'DeepTracker') && ...
+        v.trnNetMode.isMA && ~v.trnNetMode.isTopDown;
     end
     % KB 20190214 - store all parameters together in one struct. these dependent functions emulate previous behavior
     function v = get.preProcParams(obj)      
@@ -11421,60 +11436,36 @@ classdef Labeler < handle
       % 
       
       tdata = s.trackerData{s.currTracker};
-      % HACK. design unclear
-      if isfield(tdata,'stg2') % topdown/2-stage tracker
-        tdata = tdata.stg2;
+      tfTD = isfield(tdata,'stg2');      
+      if tfTD
+        tdata = [tdata.stg1; tdata.stg2];
+      end
+      netmodes = [tdata.trnNetMode];
+      assert(all(tfTD==[netmodes.isTopDown]));
+      
+      for i=1:numel(tdata)
+        if ~isempty(sPrmAll)
+          tdata(i).sPrmAll = sPrmAll;
+        end
+        tdata(i).sPrmAll = obj.addExtraParams(tdata(i).sPrmAll,...
+          tdata(i).trnNetMode);
+        tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
       end
       
-      if ~isempty(sPrmAll),
-        tdata.sPrmAll = sPrmAll;
-      end
-      
-      tdata.sPrmAll = obj.addExtraParams(tdata.sPrmAll,tdata.trnNetMode);
-      
-%       if tdata.trnNetType==DLNetType.openpose
-%         % put skeleton => affinity_graph for now        
-%         skel = obj.skeletonEdges;
-%         assert(~isempty(skel));
-%         nedge = size(skel,1);
-%         skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
-%         skelstr = String.cellstr2CommaSepList(skelstr);
-%         tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
-%       else
-%         tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
-%       end
-%       % add landmark matches
-%       matches = obj.flipLandmarkMatches;
-%       nedge = size(matches,1);
-%       matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
-%       matchstr = String.cellstr2CommaSepList(matchstr);
-%       tdata.sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
-%       %tdata.sPrmAll.ROOT.DeepTrack.
-      
-      tdata.trnNetTypeString = char(tdata.trnNetType);
-      
-      tftrx = obj.hasTrx;      
-      if tftrx
+      if tfTD
+        s.trackerData = num2cell(tdata(:)');
         
-        % KB 20190212: ignore sizex and sizey, these will be removed
-        %roirad = s.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
-        %tdata.sPrm.sizex = 2*roirad+1;
-        %tdata.sPrm.sizey = 2*roirad+1;
-
-%         dlszx = tdata.sPrm.ImageProcessing.sizex;
-%         dlszy = tdata.sPrm.ImageProcessing.sizey;
-%         szroi = 2*roirad+1;
-%         if dlszx~=szroi
-%           warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
-%           tdata.sPrm.sizex = szroi;
-%         end
-%         if dlszy~=szroi
-%           warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
-%           tdata.sPrm.sizey = szroi;
-%         end
-        
+        % stage 1 trackData; move Detect.DeepTrack to top-level
+        s.trackerData{1}.sPrmAll.ROOT.DeepTrack = ...
+          s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
+        s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+          s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+      else
+        s.trackerData = {[] tdata};
       end
-      s.trackerData = {[] tdata};
+      % remove detect/DeepTrack from stage2
+      s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+          s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');        
       s.nLabels = ppdata.N;
       
       % check with Mayank, thought we wanted number of "underlying" chans

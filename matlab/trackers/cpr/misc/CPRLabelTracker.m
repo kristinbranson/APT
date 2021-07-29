@@ -152,6 +152,9 @@ classdef CPRLabelTracker < LabelTracker
         v = CPRParam.all2cpr(obj.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview);
       end
     end
+    function v = getNetsUsed(obj)
+      v = {'cpr'};
+    end
   end
   methods
     function set.storeFullTracking(obj,v)
@@ -2800,7 +2803,7 @@ classdef CPRLabelTracker < LabelTracker
         infos{end+1} = sprintf('New labels since training: %s',s);
         
         isParamChange = ~APTParameters.isEqualFilteredStructProperties(obj.sPrmAll,obj.lObj.trackParams,...
-          'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',false);
+          'netsUsed',obj.getNetsUsed(),'hasTrx',obj.lObj.hasTrx,'trackerIsDL',false);
         if isParamChange,
           s = 'Yes';
         else

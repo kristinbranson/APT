@@ -40,12 +40,37 @@ classdef APTParameters
       tPrmPostProc = trees.postprocess.tree;
       
       if incDLNetSpecific
-        [~,nets] = enumeration('DLNetType');
-        tPrmDeepNets = cellfun(@(x)trees.(x).tree,nets,'uni',0);
-        tPrmDeepNets = cat(1,tPrmDeepNets{:});
-        tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);    
+        [nettypes,nets] = enumeration('DLNetType');
+        netisMA = logical([nettypes.isMultiAnimal]);
+        idxisMA = find(netisMA); 
+                
+        tPrmDeepNets0 = cellfun(@(x)trees.(x).tree,nets,'uni',0);
+        tPrmDeepNetsTopLevelDT = cat(1,tPrmDeepNets0{:});
+        tPrmDeepNetsMADetect = tPrmDeepNets0(netisMA);
+        % deep copy these nodes as they will be placed under .Detect and
+        % will have different requirements
+        tPrmDeepNetsMADetect = cellfun(@copy,tPrmDeepNetsMADetect,'uni',0);
+        tPrmDeepNetsMADetect = cat(1,tPrmDeepNetsMADetect{:});
+        
+        % these MA nets will be added to the top-level .DeepTrack.
+        % MA nets placed here apply only to bottom-up MA-tracking.
+        for i=idxisMA(:)'
+          tPrmDeepNetsTopLevelDT(i).traverse(...
+                        @(x)x.Data.addRequirement('isBotUp'));
+        end
+        tPrmDeepNetsChildren = cat(1,tPrmDeepNetsTopLevelDT.Children);    
         tPrmDT.Children.Children = [tPrmDT.Children.Children; ...
                                     tPrmDeepNetsChildren];
+        
+        % these MA nets will be added under .Detect and apply only to 
+        % top-down tracking (stage1)
+        arrayfun(@(x)x.traverse(@(y)y.Data.addRequirement('isTopDown')), ...
+          tPrmDeepNetsMADetect);
+        tPrmDeepNetsMAChildren = cat(1,tPrmDeepNetsMADetect.Children);
+        
+        tPrmMADetectDT = tPrmMA.findnode('ROOT.MultiAnimal.Detect.DeepTrack');
+        tPrmMADetectDT.Children = ...
+          [tPrmMADetectDT.Children; tPrmDeepNetsMAChildren];
       end
       
       tPrm0 = tPrmPreprocess;
@@ -158,13 +183,15 @@ classdef APTParameters
     end
     
     function tree = filterPropertiesByCondition(tree,labelerObj,varargin)
-    
+      % note on netsUsed
+      % Currently, topdown trackers include 2 'netsUsed'
+      
       if isempty(tree.Children),
         
-        [trackerAlgo,hasTrx,trackerIsDL] = myparse(varargin,...
-          'trackerAlgo',[],'hasTrx',[],'trackerIsDL',[]);
-        if isempty(trackerAlgo),
-          trackerAlgo = labelerObj.trackerAlgo;
+        [netsUsed,hasTrx,trackerIsDL] = myparse(varargin,...
+          'netsUsed',[],'hasTrx',[],'trackerIsDL',[]);
+        if isempty(netsUsed),
+          netsUsed = labelerObj.trackerNetsUsed;
         end
         if isempty(hasTrx),
           hasTrx = labelerObj.hasTrx;
@@ -174,10 +201,11 @@ classdef APTParameters
         end
         isma = labelerObj.maIsMA;
         istd = labelerObj.trackerIsTopDown;
+        isbu = labelerObj.trackerIsBotUp;
         isod = labelerObj.trackerIsObjDet;
       
         reqs = tree.Data.Requirements;
-        if ismember('isCPR',reqs) && ~strcmpi(trackerAlgo,'cpr'),
+        if ismember('isCPR',reqs) && ~any(strcmpi('cpr',netsUsed)),
           tree.Data.Visible = false;
         elseif all(ismember({'hasTrx' 'isTopDown'},reqs))
           if ~hasTrx && ~istd
@@ -186,6 +214,8 @@ classdef APTParameters
             % requiremetns)
             tree.Data.Visible = false;
           end
+        elseif ismember('isBotUp',reqs) && ~isbu
+          tree.Data.Visible = false;
         elseif ismember('ma',reqs) && ~isma
           tree.Data.Visible = false;
         elseif ismember('hasTrx',reqs) && ~hasTrx,
@@ -202,7 +232,7 @@ classdef APTParameters
           dlnets = enumeration('DLNetType');
           for i=1:numel(dlnets)
             net = dlnets(i);
-            if ismember(net,reqs) && ~strcmp(trackerAlgo,net)
+            if ismember(net,reqs) && ~any(strcmp(net,netsUsed))
               tree.Data.Visible = false;
               break;
             end
@@ -264,7 +294,8 @@ classdef APTParameters
       
     end
     
-    function [v,sPrmFilter0,sPrmFilter1] = isEqualFilteredStructProperties(sPrm0,sPrm1,varargin)
+    function [v,sPrmFilter0,sPrmFilter1] = ...
+        isEqualFilteredStructProperties(sPrm0,sPrm1,varargin)
       [tPrm0,leftovers] = myparse_nocheck(varargin,'tree',[]);
       if isempty(tPrm0),
         tPrm0 = APTParameters.defaultParamsTree;

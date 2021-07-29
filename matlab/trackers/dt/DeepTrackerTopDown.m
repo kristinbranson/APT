@@ -44,6 +44,9 @@ classdef DeepTrackerTopDown < DeepTracker
         obj.stage1Tracker.trnNetType.displayString,...
         obj.trnNetType.displayString);
     end
+    function v = getNetsUsed(obj)
+      v = cellstr([obj.stage1Tracker.trnNetType; obj.trnNetType]);
+    end
     function v = get.isHeadTail(obj)
       v = obj.trnNetMode.isHeadTail;
     end

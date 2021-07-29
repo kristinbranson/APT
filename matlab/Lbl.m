@@ -195,8 +195,9 @@ classdef Lbl
       
       [~,f,~] = fileparts(lblsf);
       jf = fullfile(packdir,[f '.json']);
+      fprintf(1,'loaded %s\n',jf);
       jf = readtxtfile(jf);
-      j = jsondecode(jf{1});      
+      j = jsondecode(jf{1});
       
       tpf = fullfile(packdir,'trnpack.json');
       tp = Lbl.hlpLoadJson(tpf);
@@ -259,10 +260,19 @@ classdef Lbl
 
       % use stripped lbl trackerData instead of tObj, as we have called
       % addExtraPArams etc.
-      tdata = slbl.trackerData{2};
-      netmode = tdata.trnNetMode;
-      sPrmAll = tdata.sPrmAll;
-      tp = Lbl.aggregateLabelsAddRoi(lObj,netmode,sPrmAll);
+      
+      tdata2 = slbl.trackerData{2};  
+      netmode2 = tdata2.trnNetMode;
+      % For top-down nets, whether trnNetMode from .trackerData{2} or 
+      % .trackerData{1} is used should be irrelevant to isObjDet.
+      isObjDet = netmode2.isObjDet;
+      % Again, getting sPrmBBox and sPrmLossMask from trackerData{2} should
+      % be fine for top-down nets. trackerData{1} should match for these
+      % params.
+      sPrmMA = tdata2.sPrmAll.ROOT.MultiAnimal;
+      sPrmBBox = sPrmMA.Detect.BBox; 
+      sPrmLossMask = sPrmMA.LossMask;
+      tp = Lbl.aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,sPrmLossMask);
       if lObj.gtIsGTMode
         movinfo = lObj.movieInfoAllGT;
       else
@@ -297,7 +307,7 @@ classdef Lbl
       Lbl.hlpSaveJson(loccc,packdir,jsonoutf);      
     end
     
-    function sagg = aggregateLabelsAddRoi(lObj,netmode,sPrmAll)
+    function sagg = aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,sPrmLossMask)
       
       isgt = lObj.gtIsGTMode;
       PROPS = lObj.gtGetSharedProps;
@@ -321,12 +331,11 @@ classdef Lbl
         for i=1:n
           p = s.p(:,i);
           xy = Shape.vec2xy(p);
-          if netmode.isObjDet
-            minaa = sPrmAll.ROOT.MultiAnimal.Detect.BBox.MinAspectRatio;
+          if isObjDet
+            minaa = sPrmBBox.MinAspectRatio;
             roi = lObj.maComputeBboxGeneral(xy,minaa,false,[],[]);
           else
-            sPrmLoss = sPrmAll.ROOT.MultiAnimal.LossMask;
-            roi = lObj.maGetLossMask(xy,sPrmLoss);
+            roi = lObj.maGetLossMask(xy,sPrmLossMask);
           end
           s.roi(:,i) = roi(:);
         end
@@ -678,8 +687,13 @@ classdef Lbl
       fldscfg = fieldnames(s.cfg);      
       fldscfgkeep = fldscfg(startsWith(fldscfg,CFG_GLOBS));
       s.cfg = structrestrictflds(s.cfg,fldscfgkeep);
-      
-      s.trackerData{2} = structrestrictflds(s.trackerData{2},TRACKERDATA_FLDS);
+
+      for i=1:numel(s.trackerData)
+        if ~isempty(s.trackerData{i})
+          s.trackerData{i} = structrestrictflds(s.trackerData{i},...
+                                                TRACKERDATA_FLDS);
+        end
+      end
       
       flds = fieldnames(s);
       fldskeep = flds(startsWith(flds,GLOBS));
@@ -708,7 +722,11 @@ classdef Lbl
       j.Config = cfg;
       j.MovieInfo = mia(1,:);
       assert(strcmp(s.trackerClass{2},'DeepTracker'));
-      j.TrackerData = s.trackerData{2};
+      if isempty(s.trackerData{1})
+        j.TrackerData = s.trackerData{2};
+      else
+        j.TrackerData = cell2mat(s.trackerData);
+      end
       
       jse = jsonencode(j);
     end
