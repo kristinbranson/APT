@@ -41,7 +41,7 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (Constant)
-    cmdEnv = 'LD_LIBRARY_PATH=: ';
+    cmdEnv = 'sleep 5;LD_LIBRARY_PATH=: AWS_PAGER=';
   end
   
   methods
@@ -1071,18 +1071,19 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
-      [dispcmd,failbehavior,isjsonout,dosetenv,usejavaRT] = ...
+      [dispcmd,failbehavior,isjsonout,dosetenv,setenvcmd,usejavaRT] = ...
         myparse(varargin,...
         'dispcmd',false,...
         'failbehavior','warn',... % one of 'err','warn','silent'
         'isjsonout',false,...
         'dosetenv',isunix,...
+        'setenvcmd',AWSec2.cmdEnv,...
         'usejavaRT',false...
         );
       
 %       cmd = [cmd sprintf('\n\r')];
       if dosetenv,
-        cmd = [AWSec2.cmdEnv,' ',cmd];
+        cmd = [setenvcmd,' ',cmd];
       end
 
       % XXX HACK

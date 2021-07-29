@@ -30,6 +30,7 @@ classdef NavigationTreeTable < handle
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
   end
   properties (Dependent)
+    isEmpty
     nData % height(.treeTblData)
     fields % cellstr of fields in current data
     groupFieldPrettyName % name of grouping field (first col in table)
@@ -43,6 +44,9 @@ classdef NavigationTreeTable < handle
   end
   
   methods
+    function tf = get.isEmpty(obj)
+      tf = isempty(obj.treeTblData);
+    end
     function v = get.nData(obj)
       v = size(obj.treeTblData,1);
     end

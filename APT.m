@@ -20,7 +20,8 @@ classdef APT
 
     % hardcoded name of AWS security group
     AWS_SECURITY_GROUP = 'apt_dl';
-    AMI = 'ami-0168f57fb900185e1';  
+    % AMI = 'ami-0168f57fb900185e1';  TF 1.6
+    AMI = 'ami-094a08ff1202856d6';
   end
   
   methods (Static)
@@ -162,6 +163,9 @@ classdef APT
       addpath(fullfile(APT.Root,'matlab')); % for javaaddpathstatic
       cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
+      if ismac
+        setenv('PATH', [getenv('PATH') ':/usr/local/bin']);
+      end
       
       % AL 20150824, testing of sha 1f65 on R2015a+Linux is reproducably
       % SEGV-ing from a fresh MATLAB start when calling the Labeler()

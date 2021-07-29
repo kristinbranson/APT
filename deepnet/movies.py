@@ -7,6 +7,8 @@ import os
 import struct
 import sys
 import traceback
+import importlib
+import glob
 
 import cv2
 import numpy as num
@@ -44,6 +46,29 @@ if not DEBUG:
 def known_extensions():
     return ['.fmf', '.avi', '.sbfmf', '.ufmf'] # must sync with line 75
 
+
+user_movie_classes = {}
+
+def import_user_movie_modules():
+    deepnetdir = os.path.dirname(os.path.abspath(__file__))
+    globpat = 'movie_*.py'
+    globpat = os.path.join(deepnetdir, globpat)
+    glbs = glob.glob(globpat)
+
+    for g in glbs:
+        modname = os.path.splitext(os.path.basename(g))[0]
+        toks = modname.split('_')
+        if len(toks) == 2 and toks[0] == 'movie':
+            ext = '.' + toks[1]
+            mod = importlib.import_module(modname)
+            movie_reader_cls = getattr(mod, 'MovieReader', None)
+            if movie_reader_cls is None:
+                logging.info("Imported module {}: could not find MovieReader class. Ignoring...".format(modname))
+            else:
+                user_movie_classes[ext] = movie_reader_cls
+                logging.info("imported module '{}' for movie ext {}".format(modname, ext))
+
+import_user_movie_modules()
 
 class Movie:
     """Generic interface for all supported movie types."""
@@ -124,7 +149,10 @@ If initpath is a directory and not in interactive mode, it's an error."""
         (front, ext) = os.path.splitext( self.fullpath )
         ext = ext.lower()
         if ext not in known_extensions():
-            print("unknown file extension; will try OpenCV to open")
+            if ext in user_movie_classes:
+                print("Movie {}: will attempt to use user module to open".format(self.filename))
+            else:
+                print("Movie {}: unknown file extension; will try OpenCV to open".format(self.filename))
 
         # read FlyMovieFormat
         if ext == '.fmf':
@@ -202,6 +230,22 @@ If initpath is a directory and not in interactive mode, it's an error."""
             if self.interactive and self.h_mov.bits_per_pixel == 24 and not DEBUG_MOVIES and False:
                 wx.MessageBox( "Currently, RGB movies are immediately converted to grayscale. All color information is ignored.", "Warning", wx.ICON_WARNING|wx.OK )
 
+        elif ext in user_movie_classes:
+            try:
+                movie_reader_cls = user_movie_classes[ext]
+                self.h_mov = movie_reader_cls(self.fullpath)
+                self.type = ext[1:]  # to be consistent with other types, discard leading dot
+            except:
+                if self.interactive:
+                    wx.MessageBox( "Failed opening file \"%s\"."%(self.fullpath), "Error", wx.ICON_ERROR|wx.OK )
+                raise
+            else:
+                wstr = "Reading movie using user-defined movie module."
+                if self.interactive:
+                    wx.MessageBox(wstr,"Warning",wx.ICON_WARNING|wx.OK)
+                else:
+                    print(wstr)
+
         # unknown movie type
         else:
             try:
@@ -268,6 +312,9 @@ If initpath is a directory and not in interactive mode, it's an error."""
 
                 return frame, stamp
 
+    def get_frame_unbuffered( self, framenumber ):
+        frame, stamp = self.h_mov.get_frame( framenumber )
+        return frame, stamp
 
     def get_n_frames( self ):
         with self.file_lock:

@@ -135,7 +135,8 @@ if numel(varargin) >= 2 && exist(varargin{2},'file'),
   filename = varargin{2};
   try
     handles = open_fmf(handles,filename,varargin{3:end});
-  catch
+  catch ME,
+    disp(getReport(ME));
     handles = open_fmf(handles);
   end
 else
@@ -421,7 +422,7 @@ end
 % set slider steps
 % this seems to be the limit to slider step resolution
 handles.stepsize = ceil(handles.nframes/handles.MAXSLIDERRES);
-step1 = handles.stepsize/(handles.nframes-1);
+step1 = handles.stepsize/(max(1,handles.nframes-1));
 sliderstep = [step1,min(1,100*step1)];
 set(handles.slider_Frame,'Value',0,'SliderStep',sliderstep,'Min',1,'Max',handles.nframes);
 

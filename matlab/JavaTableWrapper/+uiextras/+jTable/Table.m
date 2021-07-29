@@ -146,6 +146,8 @@ classdef Table < hgsetget
     %   $Revision: 1078 $  $Date: 2015-02-20 09:13:35 -0500 (Fri, 20 Feb 2015) $
     % ---------------------------------------------------------------------
     %#ok<*PROP>
+
+    % Modified by Allen Lee, Kristin Branson
     
     % DEVELOPER NOTE: Java objects that may be used in a callback must be
     % put on the EDT to make them thread-safe in MATLAB. Otherwise, they

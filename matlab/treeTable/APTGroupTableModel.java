@@ -5,7 +5,7 @@ import com.jidesoft.grid.DefaultGroupTableModel;
 import com.jidesoft.grid.DefaultGroupRow;
 
 /**
- * @author Allen 
+ * @author Allen Lee
  * @version 1.0
  */
 

@@ -19,6 +19,111 @@ classdef TrackJob < handle
 %      (Currently only implemented/checked for .tfexternal=true and .tfremote=false)
 
 
+% Bulk Deep Tracking Impl Manifesto 20200318
+%
+% The MovieSet Array (MSA).
+% 
+% mov1vw1 mov1vw2 ...
+% mov2vw1 mov2vw2
+% ...
+% movNvw1 movNvw2
+% 
+% This is a [nmovset x nview] array of movies to be tracked.
+% Note the distinction between nmovset and nmov=nmovset*nview.
+% 
+% Associated with each movie is (optionally):
+% * trxfile
+% * output/trkfile
+% * crop
+%
+% This is the most common set of movies-to-be-tracked by far, but eg a 
+% non-rectangular subset is possible in principle.
+% 
+% Job breakup.
+% 
+% The MSA can be quite large eg hundreds, maybe thousands of rows. It
+% needs to be split up/parallelized across DL nodes.  How this is done
+% is constrained by the number of DL nodes available, eg: 
+% 
+% * If nnode is very large eg nnode>=nmov, then each individual movie
+% can be processed on its own node.  
+% * If nnodes is large eg nnode>=nmovset, then each movieset or row of
+% the MSA can be processed on its own node, with views processed
+% serially on the node. Alternatively, one full column/view of the MSA
+% can be processed with one movie per node.  
+% * If nnode is small eg nnode<nmovset, then one can imagine
+% partitioning the MSA and assigning regions to each node.  
+% * If nnode==1 then any processing will necessarily run serially.
+% 
+% The current MSA partitioning modalities available are
+% listed/maintained in TrackJob.m with some further implementation
+% specifics/constraints in DeepTracker. Each TrackJob represents a
+% single tracking task on a single DL host.
+% 
+% Single-job API (APT_interf), MSA slicing.
+% 
+% On a single DL host, APT_interf can be run on a given chunk/region of
+% the MSA. Currently APT_interf supports:
+% - single row of movset array, ie one movieset across views
+% - single column of movset array (eg specified single view 
+%   if proj is MV)
+% 
+% Within these modalities, APT_interf's api supports specification of an
+% arbitrary number of movies, along with their associated trxfiles,
+% crops etc.
+% 
+% The target-frame (TF) array.
+% 
+% We drill down within the MSA to a single movie or element in the MSA.
+% 
+% For a given movie, the (target, frame) array is a 2d non-rectangular 
+% array representing all available (t,f) tuples for that movie. Any given 
+% movie has an arbitrary number of targets; each target is live for an 
+% arbitrary number of frames.
+%
+% When tracking a movie one might want to track some subset of the full TF
+% array which we call the TFset.
+% 
+% APTinterf track API, non-listfile.
+% 
+% Currently: f0/f1 specs are scalars, as are targets. That means that we
+% enable tracking a fixed rectangular TFset across all movies (within a 
+% single DL proc).
+% 
+% Next update: accept vectorized f0, f1, targets (last with argparse
+% trick) This enables arbitrary startframe, endframe, and targets for
+% each movie. This enables the TFset to vary across movies, the remaining 
+% limitation being that the TFset must still be rectangular for any given 
+% movie (constrained by trx availability etc).
+% 
+% Future: this limitation can be lifted in the future via a further 
+% 'append-style' arg that follows some syntax/encoding, eg:
+% APT -movs mov1 mov2 mov3 -trxs trx1 trx2 trx3 -outs out1 out out3 ...
+% -mtf 1 -mtf 2 3 -mtf 3 1 10 100 =>
+% * track mov1 in entirety, all tgts
+% * track mov2, tgt 3, all frames
+% * track mov3, tgt 1, frames [10,100] etc
+% 
+% this can be expanded a lot depending on effort, eg -mtf 3 1-4 10 100 
+% 
+% in which case probably effectively anything ie a fully arbitrary tfset is 
+% for each movie is possible with effort.
+%
+% The MTF array.
+% Connecting the MSA with the TF array is the MTF array which is a non-
+% rectangular 3d array containing all available (mov,tgt,frm) triples. For
+% multiview projects the movie implicitly carries a view index.
+% 
+% APTinterf track API, listfile (json).
+% Using the -listfile argument potentially enables i) tracking a fully-
+% arbitrary MTFset while ii) keeping a convenient record on disk of what 
+% was run, for posterity and avoiding long cmdlines etc. However at this
+% point the full functionality is theoretically available in the regular
+% cmdline API of APT_interf and the listfile can be viewed as syntactic 
+% sugar.
+
+
+
   properties
     
     tObj = [];
@@ -47,6 +152,9 @@ classdef TrackJob < handle
     parttrkfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
     trkfilestr = {}; % cellstr, [nView] shortnames for trkfileLcl. UNUSED if .tfexternal
     rootdirLcl = '';
+    listfilestr = '';
+    listfileLcl = '';
+    calibrationfileLcl = {}; % cellstr, [nSerialMov] % KB 20200504: added, but not used yet
     
     lblfileRem = '';
     movfileRem = {};
@@ -55,6 +163,7 @@ classdef TrackJob < handle
     trkoutdirRem = {};
     parttrkfileRem = {};
     rootdirRem = '';
+    listfileRem = '';
         
     tfmultiview = false;
     tfserialmultimov = false;
@@ -67,10 +176,13 @@ classdef TrackJob < handle
     
     tMFTConc = [];
     trxids = {};
-    frm0 = []; % currently must be scalar
-    frm1 = []; % currently must be scalar
+    frm0 = []; % scalar or (if tfserialmultimov) nSerialMov x 1 vector
+    frm1 = []; % scalar or (if tfserialmultimov) nSerialMov x 1 vector
     cropRoi = []; % either [], or [nView x 4], or (if tfserialmultimov) [nSerialMov x 4]
     nframestrack = []; % after set via getNFramesTrack, [nmovsettrk]
+    isContiguous = true; % whether to track a contiguous interval of frames 
+                         % or to specify a table of individual frames to
+                         % track
     
     nView = 0; % number of views in this job
     nSerialMov = 0; % number of movies; applicable if tfserialmov
@@ -110,10 +222,14 @@ classdef TrackJob < handle
     
     function obj = TrackJob(tObj,backend,varargin)
       
+      if nargin == 0,
+        return;
+      end
+      
       [ivw,trxids,frm0,frm1,cropRoi,tMFTConc,...
         lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,trkoutdirLcl,rootdirLcl,...
         isMultiView,isSerialMultiMov,isExternal,isRemote,nowstr,logfile,...
-        errfile,modelChainID] = ...
+        errfile,modelChainID,isContiguous] = ...
         myparse(varargin,...
         'ivw',[],...
         'targets',[],...
@@ -134,7 +250,8 @@ classdef TrackJob < handle
         'nowstr',[],...
         'logfile',{},...
         'errfile',{},...
-        'modelChainID',''...
+        'modelChainID','',...
+        'isContiguous',[]...
         );
 
       obj.tObj = tObj;
@@ -160,7 +277,18 @@ classdef TrackJob < handle
         % all views will be tracked.
         assert(isequal(obj.ivw(:)',1:obj.nTotalView));
       end
-      
+      if isempty(isContiguous),
+        if isempty(tMFTConc),
+          isContiguous = true;
+          assert(~isempty(frm0) && ~isempty(frm1));
+        elseif isempty(frm0) || isempty(frm1),
+          isContiguous = false;
+          assert(~isempty(tMFTConc));
+        else
+          isContiguous = TrackJob.isMFTContiguous(tMFTConc,frm0,frm1);
+        end
+      end
+      obj.isContiguous = isContiguous;
       obj.setBackEnd(backend);
       obj.nView = numel(obj.ivw);
       obj.tftrx = obj.tObj.lObj.hasTrx;
@@ -279,8 +407,6 @@ classdef TrackJob < handle
           end
         end
       else
-        % currently tracks from frm0 to frm1 for all targets and one video
-        % this should be fixed!
         assert(~isempty(tMFTConc));
         obj.settMFTConc(tMFTConc);
       end
@@ -301,6 +427,8 @@ classdef TrackJob < handle
         obj.cropRoi = cropRoi(obj.ivw,:);
       end
       
+      obj.setLocalFiles();
+      
       obj.setRemoteFiles();
 
       obj.setPartTrkFiles();
@@ -315,6 +443,9 @@ classdef TrackJob < handle
       
       obj.checkCreateDirs();
       obj.checkLocalFiles();
+      if ~obj.isContiguous,
+        obj.createLocalListFile();
+      end
       obj.checkCreateRemotes();
       obj.deletePartTrkFiles();
       
@@ -333,16 +464,15 @@ classdef TrackJob < handle
       containerName = obj.id;
       baseargs = obj.getBaseArgs(baseargs);
 
+      fileargs = {obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
+            obj.movfileRem,obj.trkfileRem};
       switch obj.backend.type,
         
         case DLBackEnd.Bsub,
           
           bsubargs = [bsubargs,{'outfile' obj.logfile}];
           obj.codestr = DeepTracker.trackCodeGenSSHBsubSing(...
-            obj.modelChainID,obj.rootdirRem,...
-            obj.lblfileRem,...
-            obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
+            fileargs{:},...
             obj.frm0,obj.frm1,...
             'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
             'sshargs',sshargs);
@@ -354,10 +484,9 @@ classdef TrackJob < handle
           end
           obj.codestr = ...
             DeepTracker.trackCodeGenDocker(obj.backend,...
-            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
-             obj.frm0,obj.frm1,...
-             'baseargs',baseargs,'mntPaths',mntpaths,...
+            fileargs{:},...
+            obj.frm0,obj.frm1,...
+            'baseargs',baseargs,'mntPaths',mntpaths,...
              'containerName',obj.containerName,...
              'dockerargs',dockerargs);
           
@@ -365,8 +494,7 @@ classdef TrackJob < handle
                 
           [obj.codestr] = ...
             DeepTracker.trackCodeGenConda(...
-            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
+            fileargs{:},...
             obj.frm0,obj.frm1,...
             'baseargs',[baseargs,{'filesep',obj.tObj.filesep}],...
             'outfile',obj.logfile,...
@@ -376,8 +504,7 @@ classdef TrackJob < handle
           
           codestrRem = ...
             DeepTracker.trackCodeGenAWS(...
-            obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem,...
+            fileargs{:},...
             obj.frm0,obj.frm1,...
             baseargs);
           
@@ -405,40 +532,61 @@ classdef TrackJob < handle
       end
 
       nmovset = obj.nmovsettrk;
+      if ~obj.isContiguous,
+        nframestrack = size(obj.tMFTConc,1);
+        obj.nframestrack = nframestrack;
+        return;
+      end
       
       % get/compute frm0 (scalar) and frm1 ([nmovset])
-      if isempty(obj.frm0) && isempty(obj.frm1),
-        frm0 = 1;
-        frm1 = nan(nmovset,1);
-        lObj = obj.tObj.lObj;
-        for imovset=1:nmovset
-          % if .tfmultiview, this will go off the view1 mov
-          frm1(imovset) = lObj.getNFramesMovFile(obj.movfileLcl{imovset});
+      f0 = obj.frm0;
+      f0(isnan(f0)) = 1;
+      if isempty(f0),
+        f0 = ones(nmovset,1);
+      elseif numel(f0)==1,
+        f0 = repmat(f0,nmovset,1);
+      end
+      f1 = obj.frm1;
+      f1(isinf(obj.frm1)) = nan;
+      if isempty(f1),
+        f1 = nan(nmovset,1);
+      elseif numel(f1) == 1,
+        f1 = repmat(f1,nmovset,1);
+      end
+      lObj = obj.tObj.lObj;
+      for imovset=1:nmovset
+        % if .tfmultiview, this will go off the view1 mov
+        if isnan(f1(imovset)),
+          f1(imovset) = lObj.getNFramesMovFile(obj.movfileLcl{imovset});
         end
-      else
-        frm0 = obj.frm0;
-        frm1 = repmat(obj.frm1,nmovset,1);
       end
       
       if ~obj.tftrx,
-        nframestrack = frm1-frm0+1;
+        nframestrack = f1-f0+1;
       else
         nframestrack = nan(nmovset,1);
         for imovset=1:nmovset
           % multiview-projs-with-trx currently not supported in APT so
           % .trxfileLcl is either a scalar cell or a [nmovset] cell
           [~,frm2trx] = obj.tObj.lObj.getTrx(obj.trxfileLcl{imovset});
-          if isempty(obj.trxids),
-            trxids = 1:size(frm2trx,2);
-          else
-            trxids = obj.trxids;
+          trxids1 = obj.getTrxIds(imovset);
+          if isempty(trxids1),
+            trxids1 = 1:size(frm2trx,2);
           end
-          nframestrack(imovset) = sum(sum(frm2trx(frm0:frm1(imovset),trxids)));
+          nframestrack(imovset) = sum(sum(frm2trx(f0(imovset):f1(imovset),trxids1)));
         end
       end
             
       obj.nframestrack = nframestrack;
       
+    end
+    
+    function trxids = getTrxIds(obj,imovset)
+      if iscell(obj.trxids),
+        trxids = obj.trxids{imovset};
+      else
+        trxids = obj.trxids;
+      end
     end
     
     function baseargsaug = getBaseArgs(obj,baseargsaug)
@@ -455,6 +603,10 @@ classdef TrackJob < handle
       if obj.tftrx,
         baseargsaug = [baseargsaug {'trxtrk' obj.trxfileRem 'trxids' obj.trxids}]; 
       end
+      if ~obj.isContiguous,
+        baseargsaug = [baseargsaug {'listfile' obj.listfileRem}]; 
+      end
+        
       
       
     end
@@ -476,6 +628,42 @@ classdef TrackJob < handle
       
     end
 
+    function setDefaultLocalListFile(obj)
+      % I'm not sure when this has more than one element
+      %assert(numel(obj.trnstr)==1);
+      trnstr0 = obj.trnstr{1};
+      obj.listfilestr = [ 'TrackList_' trnstr0 '_' obj.nowstr '.json'];
+      obj.listfileLcl = fullfile(obj.rootdirLcl,obj.listfilestr);
+    end
+    
+    function createLocalListFile(obj)
+      
+      % {
+      %   "movieFiles": [
+      %     "/path/to/mov1.avi",
+      %     "/path/to/mov2.avi"
+      %   ],
+      %   "trxFiles": [
+      %     "/path/to/trx1.mat",
+      %     "/path/to/trx2.mat"
+      %   ],
+      %   "toTrack": [
+      %     [1,1,1],
+      %     [1,1,2],
+      %     [1,1,3],
+      %     [2,1,[1,2501]]
+      %     ]
+      % }
+      
+      if obj.tftrx,
+        args = {'trxFiles',obj.trxfileRem};
+      else
+        args = {};
+      end
+      DeepTracker.trackWriteListFile(...
+        obj.movfileRem,obj.movfileLcl,obj.tMFTConc,obj.listfileLcl,args{:});
+      
+    end
     
     function setBackEnd(obj,backend)
       obj.backend = backend;
@@ -501,10 +689,10 @@ classdef TrackJob < handle
     end
     
     function settMFTConc(obj,tMFTConc)
-      % currently tracks from frm0 to frm1 for all targets and one video
-      % this should be fixed!
+      % assumes there is only one video being tracked
       obj.tMFTConc = tMFTConc;
-      obj.movfileLcl = obj.tMFTConc.mov(1,obj.ivw);
+      obj.tMFTConc.mov = obj.tMFTConc.mov(:,obj.ivw);
+      obj.movfileLcl = obj.tMFTConc.mov(1,:);
       obj.trxids = unique(tMFTConc.iTgt);
       if obj.tObj.lObj.hasTrx,
         obj.trxfileLcl = obj.tMFTConc.trxFile(1,obj.ivw);
@@ -568,6 +756,10 @@ classdef TrackJob < handle
       end
     end
     
+    function setLocalFiles(obj,varargin)
+      obj.setDefaultLocalListFile();
+    end
+    
     function setRemoteFiles(obj,varargin)
       % backend needs to be set
       
@@ -579,6 +771,7 @@ classdef TrackJob < handle
       obj.movfileRem = obj.movfileLcl;
       obj.trxfileRem = obj.trxfileLcl;
       obj.trkfileRem = obj.trkfileLcl;
+      obj.listfileRem = obj.listfileLcl;
       if obj.tfremote,
         for i = 1:obj.nView,
           mov = obj.movfileLcl{i};
@@ -599,6 +792,7 @@ classdef TrackJob < handle
           obj.trkfileRem{i} = [obj.trkoutdirRem{i} '/' trkRemoteRel];
           
         end
+        obj.listfileRem = [obj.dmcRem.dirModelChainLnx '/' obj.listfilestr];
       end
       
     end
@@ -628,6 +822,9 @@ classdef TrackJob < handle
       obj.checkUploadFiles(obj.movfileLcl,obj.movfileRem,'Movie file');
       if obj.tftrx,
         obj.checkUploadFiles(obj.trxfileLcl,obj.trxfileRem,'Trx file');
+      end
+      if ~obj.isContiguous,
+        obj.checkUploadFiles({obj.listfileLcl},{obj.listfileRem},'Track list json file');
       end
       
     end
@@ -790,12 +987,12 @@ classdef TrackJob < handle
       end
     end
     
-    function checkCreateDir(dirlocs,desc)
+    function checkCreateDir(dirlocs,desc,varargin)
       
       if nargin < 2 || ~ischar(desc),
         desc = 'dir';
       end
-      
+      assert(isempty(varargin));
       for i = 1:numel(dirlocs),
         if exist(dirlocs{i},'dir')==0
           [succ,msg] = mkdir(dirlocs{i});
@@ -809,7 +1006,27 @@ classdef TrackJob < handle
       
     end
 
-    
+    function isContiguous = isMFTContiguous(tMFTConc,frm0,frm1)
+      isContiguous = true;
+      % assume that each movie for view1 is unique
+      [m,~,idxm] = unique(tMFTConc.mov(:,1));
+      for mi = 1:numel(m),
+        idx1 = find(idxm==mi);
+        [t,~,idxt] = unique(tMFTConc.iTgt(idx1));
+        for ti = 1:numel(t),
+          idx2 = idxt==ti;
+          idxcurr = idx1(idx2);
+          if ~isempty(setxor(tMFTConc.frm(idxcurr),(frm0:frm1)')),
+            isContiguous = false;
+            break;
+          end
+        end
+        if ~isContiguous,
+          break;
+        end
+      end
+    end
+
   end
   
 end

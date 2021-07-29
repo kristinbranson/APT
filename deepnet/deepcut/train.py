@@ -1,6 +1,21 @@
+"""
+Modified by Mayank Kabra
+Adapted from DeepLabCut2.0 Toolbox (deeplabcut.org)
+copyright A. & M. Mathis Labs
+https://github.com/AlexEMG/DeepLabCut
+
+Please see AUTHORS for contributors.
+https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+Licensed under GNU Lesser General Public License v3.0
+
+Adapted from DeeperCut by Eldar Insafutdinov
+https://github.com/eldar/pose-tensorflow
+
+"""
 import logging
 import threading
 import time
+import contextlib
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -94,7 +109,7 @@ def save_td(cfg, train_info,name):
     if name == 'deepnet':
         train_data_file = os.path.join(cfg.cachedir, 'traindata')
     else:
-        train_data_file = os.path.join(cfg.cachedir, name + '_traindata')
+        train_data_file = os.path.join(cfg.cachedir, cfg.expname + '_' + name + '_traindata')
 
     # train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
@@ -224,7 +239,7 @@ def train(cfg,name='deepnet'):
             end = time.time()
             # print('Time to train: {}'.format(end-start))
             start = end
-            print("iteration: {} loss: {} dist: {}  lr: {}"
+            logging.info("iteration: {} loss: {} dist: {}  lr: {}"
                          .format(it, "{0:.4f}".format(average_loss),
                                  '{0:.2f}'.format(dd.mean()), current_lr))
             train_info['step'].append(it)
@@ -237,7 +252,7 @@ def train(cfg,name='deepnet'):
 
         # Save snapshot
         if 'save_time' in cfg.keys() and cfg['save_time'] is not None:
-            if (time.time() - save_start) > cfg['save_time']*60:
+            if (time.time() - save_start) > cfg['save_time']*60 or it==0 or it==max_iter:
                 saver.save(sess, model_name, global_step=it,
                            latest_filename=os.path.basename(ckpt_file))
                 save_start = time.time()
@@ -247,11 +262,14 @@ def train(cfg,name='deepnet'):
                        latest_filename=os.path.basename(ckpt_file))
 
     coord.request_stop()
-    coord.join([thread],stop_grace_period_secs=60)
+    coord.join([thread],stop_grace_period_secs=60,ignore_live_threads=True)
     sess.close()
 
 
-def get_pred_fn(cfg, model_file=None,name='deepnet'):
+def get_pred_fn(cfg, model_file=None,name='deepnet',tmr_pred=None):
+
+    if tmr_pred is None:
+        tmr_pred = contextlib.suppress()
 
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
@@ -268,13 +286,15 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
     sess, inputs, outputs = predict.setup_pose_prediction(cfg, init_weights)
 
     def pred_fn(all_f):
+
         if cfg.img_dim == 1:
             cur_im = np.tile(all_f,[1,1,1,3])
         else:
             cur_im = all_f
         cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.n_classes, 2]), conf=cfg, distort=False, scale=cfg.dlc_rescale)
 
-        cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
+        with tmr_pred:
+            cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
         pose = pose[:,:,:2]*cfg.dlc_rescale

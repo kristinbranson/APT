@@ -30,6 +30,15 @@ classdef BgTrackWorkerObj < BgWorkerObj
           % indicating tracking status. Otherwise, partfiles are mat-files.
     killFiles % [nMovJobs x nViewJobs]
   end
+  properties (Dependent)
+    nViewsPerJob
+  end  
+  methods
+    function v = get.nViewsPerJob(obj)
+      v = obj.nviews / obj.nViewJobs;
+    end
+  end
+    
     
   methods
     function obj = BgTrackWorkerObj(varargin)
@@ -147,8 +156,11 @@ classdef BgTrackWorkerObj < BgWorkerObj
           if obj.partFileIsTextStatus
             tmp = obj.fileContents(parttrkfile);
             PAT = '(?<numfrmstrked>[0-9]+)';
-            toks = regexp(tmp,PAT,'names');
+            toks = regexp(tmp,PAT,'names','once');
             if ~isempty(toks)
+              if iscell(toks),
+                toks = toks{1};
+              end
               parttrkfileNfrmtracked(i) = str2double(toks.numfrmstrked);
             end
           end
@@ -161,12 +173,12 @@ classdef BgTrackWorkerObj < BgWorkerObj
       end
       
       if ~iscell(obj.mIdx),
-        mIdx = {obj.mIdx};
+        midx = {obj.mIdx};
       else
-        mIdx = obj.mIdx;
+        midx = obj.mIdx;
       end
       % number of views handled per job
-      nViewsPerJob = obj.nviews / obj.nViewJobs;
+      nVwPerJob = obj.nViewsPerJob;
       nMovsetsPerJob = obj.nMovies / obj.nMovJobs;
       % Recall some modalities: 
       % 1. Single movieset, one job per view => .nMovJobs=1, .nViewJobs=.nviews
@@ -181,20 +193,20 @@ classdef BgTrackWorkerObj < BgWorkerObj
       % this way the monitor can track/viz the progress of each movie/view.
       sRes = struct(...
         'tfComplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
-        'isRunning',repmat(isRunning,[nMovsetsPerJob,nViewsPerJob]),...
-        'errFile',repmat(obj.artfctErrFiles,[nMovsetsPerJob,nViewsPerJob]),... % char, full path to DL err file
-        'errFileExists',repmat(tfErrFileErr,[nMovsetsPerJob,nViewsPerJob]),... % true of errFile exists and has size>0
-        'logFile',repmat(obj.artfctLogfiles,[nMovsetsPerJob,nViewsPerJob]),... % char, full path to Bsub logfile
-        'logFileExists',repmat(logFilesExist,[nMovsetsPerJob,nViewsPerJob]),...
-        'logFileErrLikely',repmat(bsuberrlikely,[nMovsetsPerJob,nViewsPerJob]),... % true if bsub logfile looks like err
-        'mIdx',mIdx{1},...
+        'isRunning',repmat(isRunning,[nMovsetsPerJob,nVwPerJob]),...
+        'errFile',repmat(obj.artfctErrFiles,[nMovsetsPerJob,nVwPerJob]),... % char, full path to DL err file
+        'errFileExists',repmat(tfErrFileErr,[nMovsetsPerJob,nVwPerJob]),... % true of errFile exists and has size>0
+        'logFile',repmat(obj.artfctLogfiles,[nMovsetsPerJob,nVwPerJob]),... % char, full path to Bsub logfile
+        'logFileExists',repmat(logFilesExist,[nMovsetsPerJob,nVwPerJob]),...
+        'logFileErrLikely',repmat(bsuberrlikely,[nMovsetsPerJob,nVwPerJob]),... % true if bsub logfile looks like err
+        'mIdx',midx{1},...
         'iview',num2cell(repmat(1:obj.nviews,[obj.nMovies,1])),...
         'movfile',obj.movfiles,...
         'trkfile',obj.artfctTrkfiles,...
         'parttrkfile',obj.artfctPartTrkfiles,...
         'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
-        'killFile',repmat(obj.killFiles,[nMovsetsPerJob,nViewsPerJob]),...
-        'killFileExists',repmat(num2cell(killFileExists),[nMovsetsPerJob,nViewsPerJob]),...
+        'killFile',repmat(obj.killFiles,[nMovsetsPerJob,nVwPerJob]),...
+        'killFileExists',repmat(num2cell(killFileExists),[nMovsetsPerJob,nVwPerJob]),...
         'isexternal',obj.isexternal... % scalar expansion
         );
       if obj.partFileIsTextStatus
