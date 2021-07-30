@@ -90,6 +90,7 @@ class config(object):
         self.mdn_extra_layers = 1
         self.mdn_use_unet_loss = True
         self.mdn_pred_dist = True
+        self.pretrain_freeze_bnorm = True
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
@@ -219,14 +220,21 @@ class config(object):
         self.multi_crop_ims = True
         # For NMS for pose. Suppress poses whose avg matching distance is less than this.
         self.multi_match_dist = 10
+
+        # For top-down
+
         # For top-down networks, use these points as head tail
         self.ht_pts = []
-        # Use ht points as trx surrogate for top-down network
-        self.use_ht_trx = False
         # Train-Track only ht points -- for top-down networks
         self.multi_only_ht = False
+        # multi_only_ht is for first stage. And if multi_only_ht is used for first stage then use_ht_trx should be true for the second-stage else use_bbox_trx
+        # Use ht points as trx surrogate for top-down network
+        self.use_ht_trx = False
         # Use bbox as trx surrogate for top-down networks.
         self.use_bbox_trx = False
+        self.stage = None
+        self.multi_link_stage = 'first'
+
 
 
         # ============= MMPOSE =================

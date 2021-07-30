@@ -66,7 +66,7 @@ elif getpass.getuser() == 'leea30':
 else:
     assert False, "Add your cache and out directory"
 
-all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint','leap', 'openpose','resnet_unet','unet','mdn_joint_fpn','leap_orig','deeplabcut_orig','mmpose']
+all_models = ['mdn','mdn_unet','deeplabcut','mdn_joint', 'openpose','resnet_unet','unet','mdn_joint_fpn','mmpose','leap','leap_orig','deeplabcut_orig']
 
 print("Your cache is: {}".format(cache_dir))
 print("Your models are: {}".format(all_models))

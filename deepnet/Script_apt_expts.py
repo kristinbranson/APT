@@ -32,7 +32,7 @@ reload(rae)
 rae.setup('alice')
 # dstr = '20200706' #'20200604' # '20200410'
 # rae.get_normal_results(dstr=dstr)
-dstr = '20210629'
+dstr = '20210708' #'20210629'
 rae.get_normal_results(dstr=dstr,exp_name='touching')
 # rae.setup('alice_difficult')
 # rae.get_normal_results(dstr=dstr)

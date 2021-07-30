@@ -3212,11 +3212,11 @@ lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lb
 jj = os.path.splitext(in_file)
 out_file = jj[0] + '_axis_aligned' + jj[1]
 
-sz = (1024,1024)
+# sz = (1024,1024)
 T = pt.json_load(in_file)
-lbl = h5py.File(lbl_file,'r')
+# lbl = h5py.File(lbl_file,'r')
 sfactor = 1.0
-rad = 5.
+rad = 0 #5.
 for h in T['locdata']:
     pts = np.array(h['pabs']).reshape([2,17,-1])
     pts_min = np.min(pts,axis=-2)

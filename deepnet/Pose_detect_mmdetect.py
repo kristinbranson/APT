@@ -364,13 +364,14 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
             file = os.path.join(data_bdir, f'{fname}.json')
             cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
             cfg.data[ttype].classes = cfg.classes
-            if ttype == 'train':
-                cfg.data[ttype].pipeline[2].img_scale = im_sz
-            else:
-                cfg.data[ttype].pipeline[1].img_scale = im_sz
+            if not conf.get('mmdetect_use_default_sz', True):
+                if ttype == 'train':
+                    cfg.data[ttype].pipeline[2].img_scale = im_sz
+                else:
+                    cfg.data[ttype].pipeline[1].img_scale = im_sz
 
         cfg.model.roi_head.bbox_head.num_classes = 1
-        if conf.get('mmdetection_oversample',True):
+        if conf.get('mmdetection_oversample',False):
             cfg.model.test_cfg.rpn.nms.iou_threshold = 0.9
             cfg.model.test_cfg.rcnn.nms.iou_threshold = 0.7
             cfg.model.test_cfg.rcnn.score_thr = 0.01
@@ -387,8 +388,6 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
             cfg.model.train_cfg.rcnn.assigner.ignore_iof_thr = 0.85
             cfg.model.train_cfg.rpn_proposal.max_per_img *= 10
         assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
-        if not conf.get('mmdetect_use_default_sz', False):
-            assert False, 'FRCNN does not support this'
         cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
         cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
         cfg.load_from = 'https://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
@@ -401,7 +400,7 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
             file = os.path.join(data_bdir, f'{fname}.json')
             cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
             cfg.data[ttype].classes = cfg.classes
-            if not conf.get('mmdetect_use_default_sz',False):
+            if not conf.get('mmdetect_use_default_sz',True):
               if ttype == 'train':
                   cfg.data[ttype].pipeline[3] = dict(type='Resize', img_scale=im_sz, keep_ratio=True)
               else:
@@ -473,13 +472,13 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         super().__init__(conf,name)
         self.conf = conf
         self.name = name
-        mmdetect_net = conf.mmdetect_net
+        mmdetect_net = conf.get('mmdetect_net','detr')
         if mmdetect_net == 'frcnn':
             self.cfg_file = 'configs/faster_rcnn/faster_rcnn_r50_fpn_2x_coco.py'
         elif mmdetect_net == 'detr':
             self.cfg_file = 'configs/detr/detr_r50_8x2_150e_coco.py'
-        elif mmdetect_net == 'test':
-            self.cfg_file = 'configs/APT/roian.py'
+        # elif mmdetect_net == 'test':
+        #     self.cfg_file = 'configs/APT/roian.py'
 
         else:
             assert False, 'Unknown mmpose net type'
@@ -676,30 +675,33 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
 
             if ims.shape[-1] ==1:
                 ims = np.tile(ims,[1,1,1,3])
-            datas = []
-            for img in ims:
+            results = []
+
+            for b,img in enumerate(ims):
                 # prepare data
+                datas = []
                 data = dict(img=img)
                 # build the data pipeline
                 data = test_pipeline(data)
                 datas.append(data)
 
-            data = collate(datas, samples_per_gpu=len(ims))
-            # just get the actual data from DataContainer
-            data['img_metas'] = [img_metas.data[0] for img_metas in data['img_metas']]
-            data['img'] = [img.data[0] for img in data['img']]
-            if next(model.parameters()).is_cuda:
-                # scatter to specified GPU
-                data = scatter(data, [device])[0]
-            else:
-                for m in model.modules():
-                    assert not isinstance(
-                        m, RoIPool
-                    ), 'CPU inference with RoIPool is not supported currently.'
+                data = collate(datas, samples_per_gpu=1)
+                # just get the actual data from DataContainer
+                data['img_metas'] = [img_metas.data[0] for img_metas in data['img_metas']]
+                data['img'] = [img.data[0] for img in data['img']]
+                if next(model.parameters()).is_cuda:
+                    # scatter to specified GPU
+                    data = scatter(data, [device])[0]
+                else:
+                    for m in model.modules():
+                        assert not isinstance(
+                            m, RoIPool
+                        ), 'CPU inference with RoIPool is not supported currently.'
 
-            # forward the model
-            with torch.no_grad():
-                results = model(return_loss=False, rescale=True, **data)
+                # forward the model
+                with torch.no_grad():
+                    cur_result = model(return_loss=False, rescale=True, **data)
+                results.append(cur_result[0])
 
             if show:
                 from mmdet.core.visualization.image import imshow_det_bboxes

@@ -33,6 +33,9 @@ else:
     alice_val_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/alice_split_full_ims_grone_pose_multi/val_TF.json'
     alice_val_out_dir = '/nrs/branson/mayank/apt_cache_2/alice_ma/val_results'
 
+    roian_full_tight_json = '/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_neg_tight.json'
+    roian_full_json = '/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_neg.json'
+
 def setup():
     opts = {}
 
@@ -73,8 +76,10 @@ def setup():
         'trk_bs':2,
         'val_file':'/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_pose_multi/val_TF.json',
         'val_out_dir':'/nrs/branson/mayank/apt_cache_2/four_points_180806/val_results'}
-    opts[('roian','split')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split_neg_tight.json'}
-    opts[('roian','full')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc.json'}
+    opts[('roian','split')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split_neg.json'}
+    opts[('roian','split','bbox')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split_neg_tight.json'}
+    opts[('roian','full')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_neg.json'}
+    opts[('roian','full','bbox')] = {'train_json':'/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_neg_tight.json'}
     opts[('roian','multi','full_ims')] = {'conf':{'rescale':'4','multi_use_mask':False,'multi_loss_mask':True,'op_hires_ndeconv':2}}
     opts[('roian','multi','full_maskless')] = {'conf':{'rescale':'4','multi_use_mask':False,'multi_loss_mask':False,'op_hires_ndeconv':2}}
     opts[('roian','multi','crop_ims')] = {'conf':{'multi_use_mask':False,'multi_loss_mask':True,'batch_size':4,'dl_steps':200000}}
@@ -94,7 +99,9 @@ def setup():
     opts[('full',)] = {'train_dir':'full'}
     opts[('multi','ht')] = {'train_dir':'ht','conf':{'multi_only_ht':True,'flipLandmarkMatches':'\\{\\}','op_affinity_graph':'\\(\\(0,1\\),\\)','multi_use_mask':False,'multi_loss_mask':True,'multi_crop_ims':False}}
     opts[('single','ht')] = {'conf':{'trange':5,'rrange':10,'use_ht_trx':True,'trx_align_theta':True}}
-    opts[('multi','bbox')] = {'conf':{'multi_use_mask':False,'multi_loss_mask':True,'multi_crop_ims':False,'mmdetect_net':'\\"frcnn\\"'}}
+    opts[('multi','bbox')] = {'conf':{'multi_use_mask':False,'multi_loss_mask':True,'multi_crop_ims':False,'dl_steps':20000}}
+    opts[('multi','bbox','frcnn')] = {'conf':{'mmdetect_net':'\\"frcnn\\"'}}
+    opts[('multi','bbox','detr')] = {'conf':{'mmdetect_net':'\\"detr\\"','batch_size':3}}
     opts[('single','bbox')] = {'conf':{'trange':5,'rrange':180,'use_bbox_trx':True,'trx_align_theta':False}}
     opts[('single',)] = {'conf':{'is_multi':False}}
 
@@ -152,7 +159,7 @@ train_sets.append({'name': ('roian',), 'splits': ('split',),'pts':('ht',), 'nets
 
 # bbox 1 stage training
 train_sets.append( {'name': ('alice',), 'splits': ('split',),'pts':('bbox',), 'nets': ('mmdetect',), 'crops':('full_ims',),'type': ('multi',)})
-train_sets.append( {'name': ('roian',), 'splits': ('split',),'pts':('bbox',), 'nets': ('mmdetect',), 'crops':('full_ims','full_maskless'), 'type': ('multi',)})
+train_sets.append( {'name': ('roian',), 'splits': ('split',),'pts':('bbox',), 'nets': ('mmdetect',), 'crops':('full_ims','full_maskless'), 'type': ('multi',), 'mmdetect_nets':('frcnn','detr')})
 
 # HT 2 stage training
 train_sets.append({'name': ('roian','alice'), 'splits': ('split',),'pts':('ht','bbox'), 'nets': ( 'grone',),'type': ('single',)})
@@ -166,7 +173,7 @@ train_sets.append({'name': ('alice',), 'splits': ('full',), 'pts':('pose',), 'ne
 train_sets.append({'name': ('alice',), 'splits': ('full',),'pts':('ht',), 'nets': ('grone', 'openpose'), 'crops':('full_ims','crop_ims') ,'type': ('multi',)})
 
 # bbox 1 stage training
-train_sets.append( {'name': ('alice',), 'splits': ('full',),'pts':('bbox',), 'nets': ('mmdetect',), 'crops':('full_ims',),'type': ('multi',)})
+train_sets.append( {'name': ('alice',), 'splits': ('full',),'pts':('bbox',), 'nets': ('mmdetect',), 'crops':('full_ims',),'type': ('multi',),'mmdetect_nets':('frcnn','detr')})
 
 # HT 2 stage training
 train_sets.append({'name': ('alice',), 'splits': ('full',),'pts':('ht','bbox'), 'nets': ( 'grone','openpose','mspn'),'type': ('single',)})
@@ -175,7 +182,7 @@ train_sets.append({'name': ('alice',), 'splits': ('full',),'pts':('ht','bbox'), 
 train_sets = []
 train_sets.append({'name': ('roian',), 'splits': ('split',), 'pts':('pose',),'nets': ('grone', 'mmpose', 'openpose'), 'crops': ('full_ims', 'crop_ims','full_maskless'),'type': ('multi',)})
 train_sets.append({'name': ('roian',), 'splits': ('split',),'pts':('ht',), 'nets': ('grone', 'openpose'), 'crops':('full_ims','full_maskless') ,'type': ('multi',)})
-train_sets.append( {'name': ('roian',), 'splits': ('split',),'pts':('bbox',), 'nets': ('mmdetect',), 'crops':('full_ims','full_maskless'), 'type': ('multi',)})
+train_sets.append( {'name': ('roian',), 'splits': ('split',),'pts':('bbox',), 'nets': ('mmdetect',), 'crops':('full_ims','full_maskless'), 'type': ('multi',),'mmdetect_nets':('frcnn','detr')})
 train_sets.append({'name': ('roian',), 'splits': ('split',),'pts':('ht','bbox'), 'nets': ( 'grone',),'type': ('single',)})
 
 ##
@@ -470,8 +477,10 @@ def classify_2(train_sets,second_net='grone'):
             _ = c2.pop(c2.index('full_ims'))
         elif 'full_maskless' in c2:
             _ = c2.pop(c2.index('full_maskless'))
+        if 'mmdetect' in c2:
+            _ = c2.pop(c2.index('mmdetect'))
         c2[c2.index('multi')] = 'single'
-        c2[1] = second_net
+        c2[0] = second_net
         for curk in okeys:
             if not set(curk).issubset(set(c2)):
                 continue
@@ -495,6 +504,7 @@ def classify_2(train_sets,second_net='grone'):
         lbl_file = cur_dict['lbl_file']
         conf = apt.create_conf(lbl_file,0,n,cache_dir,net_type=cur_dict['type'],conf_params=opt_str.split())
         conf.img_dim = 3
+        conf.batch_size = 1
         # conf.n_classes = 2
         conf2 = apt.create_conf(lbl_file,0,n2,cache_dir,net_type=cur_dict2['type'],conf_params=opt_str2.split())
 
@@ -669,7 +679,7 @@ if False:
     from reuse import *
     res = {}
 
-    dtype = 'alice'
+    dtype = 'roian'
     if dtype == 'roian':
         dropoff = 0.4
     else:
@@ -723,8 +733,8 @@ if False:
     ex_loc = X[1][0]
 
     n_types = len(res)
-    nc = 4 #n_types  # int(np.ceil(np.sqrt(n_types)))
-    nr = 3  # int(np.ceil(n_types/float(nc)))
+    nc = 5 #n_types  # int(np.ceil(np.sqrt(n_types)))
+    nr = 4  # int(np.ceil(n_types/float(nc)))
     prcs = [50,75,90,95,98,99]
     cmap = PoseTools.get_cmap(len(prcs), 'cool')
     f, axx = plt.subplots(nr, nc, figsize=(12, 8), squeeze=False)
