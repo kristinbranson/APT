@@ -18,9 +18,16 @@ classdef SpecifyMovieToTrackGUI < handle
     cropwh = [];
     movieReader = {};
     dostore = false;
+    defaulttrkpat = [];
+    defaulttrxpat = [];
   end
   methods
-    function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata)
+    function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
+      
+      [defaulttrkpat,defaulttrxpat] = myparse(varargin,...
+        'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
+        'defaulttrxpat',[] ...
+        );
 
       obj.lObj = lObj;
       obj.hParent = hParent;
@@ -29,8 +36,9 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.hastrx = obj.lObj.hasTrx;
       obj.iscrop = ~obj.hastrx;
       %obj.iscrop = obj.lObj.cropProjHasCrops; % to do: allow cropping when trained without cropping?
+      prms = obj.lObj.trackGetParams;
       obj.docalibrate = obj.nview > 1 ...
-        && ~strcmpi(obj.lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
+        && ~strcmpi(prms.ROOT.PostProcess.reconcile3dType,'none');
       if obj.iscrop,
         if obj.lObj.cropProjHasCrops,
           obj.cropwh = obj.lObj.cropGetCurrentCropWidthHeightOrDefault();
@@ -44,10 +52,11 @@ classdef SpecifyMovieToTrackGUI < handle
         movdata = struct;
       end
 
+      obj.defaulttrkpat = defaulttrkpat;
+      obj.defaulttrxpat = defaulttrxpat;
       obj.initMovData(movdata);
 
-      obj.createGUI();
-      
+      obj.createGUI();      
     end
     
     function [movdata,dostore] = run(obj)
@@ -66,9 +75,26 @@ classdef SpecifyMovieToTrackGUI < handle
       if ~isfield(obj.movdata,'trkfiles'),
         obj.movdata.trkfiles = repmat({''},[1,obj.nview]);
       end
+      if ~isempty(obj.defaulttrkpat)
+        for ivw=1:obj.nview
+          movI = obj.movdata.movfiles{ivw};
+          if ~isempty(movI) && isempty(obj.movdata.trkfiles{ivw})
+            obj.movdata.trkfiles{ivw} = obj.genTrkfile(movI,obj.defaulttrkpat);
+          end
+        end
+      end
       if obj.hastrx && ~isfield(obj.movdata,'trxfiles'),
         obj.movdata.trxfiles = repmat({''},[1,obj.nview]);
       end
+      if obj.hastrx && ~isempty(obj.defaulttrxpat)
+        for ivw=1:obj.nview
+          movI = obj.movdata.movfiles{ivw};
+          if ~isempty(movI) && isempty(obj.movdata.trxfiles{ivw})
+            obj.movdata.trxfiles{ivw} = obj.genTrkfile(movI,...
+              obj.defaulttrxpat,'enforceExt',false);
+          end
+        end
+      end      
       if obj.iscrop && ~isfield(obj.movdata,'cropRois'),
         obj.movdata.cropRois = repmat({nan(1,4)},[1,obj.nview]);
       end
@@ -505,6 +531,23 @@ classdef SpecifyMovieToTrackGUI < handle
       end
       obj.isgood.(key)(i) = obj.checkRowValue(key,iview);
       
+      if strcmp(ri.movdatafield,'movfiles')
+        if ~isempty(obj.defaulttrkpat)
+          movI = obj.movdata.movfiles{i};
+          trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
+          obj.movdata.trkfiles{i} = trkI;
+          obj.isgood.trk(i) = obj.checkRowValue('trk',i);
+          set(obj.gdata.trk.rowedit(i),'String',trkI);
+        end
+        if obj.hastrx && ~isempty(obj.defaulttrxpat)
+          movI = obj.movdata.movfiles{i};
+          trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
+          obj.movdata.trxfiles{i} = trxI;
+          obj.isgood.trx(i) = obj.checkRowValue('trx',i);
+          set(obj.gdata.trx.rowedit(i),'String',trxI);
+        end
+      end
+      
     end
 
     
@@ -524,7 +567,7 @@ classdef SpecifyMovieToTrackGUI < handle
         lastpath = '';
       end
       
-      fprintf('Callback: %s\n',key);
+      %fprintf('Callback: %s\n',key);
       
       if isempty(iview),
         i = 1;
@@ -568,12 +611,27 @@ classdef SpecifyMovieToTrackGUI < handle
       
       set(obj.gdata.(key).rowedit(i),'String',file);
       lastpath = pathname;
-      obj.isgood.(key)(i) = obj.checkRowValue(key,iview);
+      obj.isgood.(key)(i) = obj.checkRowValue(key,iview);      
+      
+      if strcmp(ri.movdatafield,'movfiles') && ~isempty(obj.defaulttrkpat)
+        movI = obj.movdata.movfiles{i};
+        trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
+        obj.movdata.trkfiles{i} = trkI;
+        obj.isgood.trk(i) = obj.checkRowValue('trk',i);
+        set(obj.gdata.trk.rowedit(i),'String',trkI);
+      end
+      if strcmp(ri.movdatafield,'movfiles') && obj.hastrx && ~isempty(obj.defaulttrxpat)
+        movI = obj.movdata.movfiles{i};
+        trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
+        obj.movdata.trxfiles{i} = trxI;
+        obj.isgood.trx(i) = obj.checkRowValue('trx',i);
+        set(obj.gdata.trx.rowedit(i),'String',trxI);
+      end
       
     end
     
     function details_pb_crop_Callback(obj,hObject,eventdata,key,iview) %#ok<INUSL>      
-      fprintf('Callback: %s\n',key);
+      %fprintf('Callback: %s\n',key);
       
       if ~obj.isgood.movie(iview),
         if obj.nview > 1,
@@ -717,6 +775,15 @@ classdef SpecifyMovieToTrackGUI < handle
       if h ~= obj.gdata.crop.rowedit(iview),
         obj.gdata.crop.rowedit(iview).String = sprintf('%d  ',pos);
         obj.checkRowValue('crop',iview);
+      end
+    end
+    
+    function trk = genTrkfile(obj,movie,defaulttrk,varargin)
+      if isempty(movie)
+        trk = '';
+      else
+        trk = Labeler.genTrkFileName(defaulttrk,...
+          obj.lObj.baseTrkFileMacros(),movie,varargin{:});
       end
     end
     

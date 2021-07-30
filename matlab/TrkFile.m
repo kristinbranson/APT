@@ -45,7 +45,11 @@ classdef TrkFile < dynamicprops
 %       v = size(obj.pTrk{1},1);
 %     end
     function v = get.ntlts(obj)
-      v = numel(obj.pTrk);
+      if obj.isfull
+        v = size(obj.pTrk,4);
+      else
+        v = numel(obj.pTrk);
+      end
     end
   end
   
@@ -787,13 +791,21 @@ classdef TrkFile < dynamicprops
       
     end
     
-    function v = frm2tltnnz(obj)
-      if obj.isfull,
-        v = nnz(any(any(~isnan(obj.pTrk(:,:,f,:)),1),2));
+    function tf = hasdata(obj)
+      if obj.isfull
+        tf = any(~isnan(obj.pTrk(:)));
       else
-        v = sum(obj.endframes-obj.startframes+1);
-      end
+        tf = any(obj.endframes>=obj.startframes);
+      end  
     end
+    
+%     function v = frm2tltnnz(obj)
+%       if obj.isfull,
+%         v = nnz(any(any(~isnan(obj.pTrk(:,:,f,:)),1),2));
+%       else
+%         v = sum(obj.endframes-obj.startframes+1);
+%       end
+%     end
     
     function initFrm2Tlt(obj,nfrm)
       % Initialize .frm2tlt property; implicitly sets .T1 
@@ -835,29 +847,33 @@ classdef TrkFile < dynamicprops
       % tfocc: [npt x ntgt]
       
       tfhaspred = obj.isalive(f).';
-      %tfhaspred = obj.frm2tlt(f,:).';
-      itgtsLive = find(tfhaspred);
-      npt = obj.npts;
-      ntgt = numel(obj.pTrk);
-      xy = nan(npt,2,ntgt);
-      tfocc = false(npt,ntgt);
       
-      pcell = obj.pTrk;
-      pcelltag = obj.pTrkTag;
-      offs = 1-obj.startframes;
-      
-%       % 20210706 in obscure cases, eg lObj.currFrame can become a
-%       % uint value. Now prohibited generally. The offsets are
-%       % intXX's which causes an error in the addition below
-%       offs = double(offs);
-%       f = double(f);
-      
-      for j=itgtsLive(:)'
-        ptgt = pcell{j};
-        ptag = pcelltag{j};
-        idx = f + offs(j);
-        xy(:,:,j) = ptgt(:,:,idx);
-        tfocc(:,j) = ptag(:,idx);
+      if obj.isfull
+        xy = squeeze(obj.pTrk(:,:,f,:));
+        tfocc = squeeze(obj.pTrkTag(:,f,:));        
+      else
+        itgtsLive = find(tfhaspred);
+        npt = obj.npts;
+        ntgt = obj.ntlts;
+        xy = nan(npt,2,ntgt);
+        tfocc = false(npt,ntgt);
+        pcell = obj.pTrk;
+        pcelltag = obj.pTrkTag;
+        offs = 1-obj.startframes;
+
+  %       % 20210706 in obscure cases, eg lObj.currFrame can become a
+  %       % uint value. Now prohibited generally. The offsets are
+  %       % intXX's which causes an error in the addition below
+  %       offs = double(offs);
+  %       f = double(f);
+
+        for j=itgtsLive(:)'
+          ptgt = pcell{j};
+          ptag = pcelltag{j};
+          idx = f + offs(j);
+          xy(:,:,j) = ptgt(:,:,idx);
+          tfocc(:,j) = ptag(:,idx);
+        end
       end
     end
     

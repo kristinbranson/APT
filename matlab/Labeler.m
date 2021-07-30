@@ -399,7 +399,7 @@ classdef Labeler < handle
     lastLabelChangeTS     % last time training labels were changed
     needsSave; 
   end
-  properties (Dependent)
+  properties (Dependent,Hidden)
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
     labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
 %     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
@@ -2365,11 +2365,11 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
-      
-      obj.initTrxInfo();
-      
+
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
+
+      obj.initTrxInfo();      
 
       obj.computeLastLabelChangeTS_Old();
       fcnNumLbledRows = @Labels.numLbls;
@@ -4119,7 +4119,9 @@ classdef Labeler < handle
           tfo.initFrm2Tlt(nfrms);          
           obj.(PROPS.LBL2){end+1,1} = tfo;
         end
-        obj.labelsRoi{end+1,1} = LabelROI.new();
+        if ~gt
+          obj.labelsRoi{end+1,1} = LabelROI.new();
+        end
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
 %         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -4293,7 +4295,9 @@ classdef Labeler < handle
       tfo = TrkFile(nlblPts,1:nTgt); % one target
       tfo.initFrm2Tlt(nFrms);
       obj.(PROPS.LBL2){end+1,1} = tfo;
-      obj.labelsRoi{end+1,1} = LabelROI.new();
+      if ~gt
+        obj.labelsRoi{end+1,1} = LabelROI.new();
+      end
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
@@ -4435,10 +4439,9 @@ classdef Labeler < handle
 %         obj.(PROPS.LPOS2)(iMov,:) = [];
         obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
         obj.(PROPS.LBL2)(iMov,:) = [];
-        obj.labelsRoi(iMov,:) = [];
-%         if ~gt
-%           obj.labeledposMarked(iMov,:) = [];
-%         end
+        if ~gt
+          obj.labelsRoi(iMov,:) = [];
+        end
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
           obj.(PROPS.VCD)(iMov,:) = [];
@@ -5895,6 +5898,7 @@ classdef Labeler < handle
 
       obj.(PROPS.TIA) = cell(size(obj.(PROPS.TFA)));
       tFilesFull = obj.(PROPS.TFAF);
+      tFiles = obj.(PROPS.TFA);
       for i = 1:numel(obj.(PROPS.TFA)),
         trxinfo = struct;
         nframes = obj.(PROPS.MIA){i}.nframes;
@@ -5906,7 +5910,7 @@ classdef Labeler < handle
         else
           tFileFull = tFilesFull{i};
           if ~(isempty(tFileFull) || exist(tFileFull,'file')>0)
-            FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
+            FSPath.throwErrFileNotFoundMacroAware(tFiles{i},tFileFull,'trxfile');
           end
           tmptrx = obj.getTrx(tFileFull,nframes);
           nTgt = numel(tmptrx);
@@ -5930,7 +5934,7 @@ classdef Labeler < handle
         nTgt = 1;
         trxinfo.ntgts = nTgt;
         trxinfo.firstframes = 1;
-        trxinfo.endframes = ifo.nframes;
+        trxinfo.endframes = nframes;
       end
     end
 
@@ -7527,11 +7531,11 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function v = labelroiGet(obj,v)
+    function v = labelroiGet(obj,frm)
       % Get rois for current frm
       assert(~obj.gtIsGTMode);
       iMov = obj.currMovie;
-      frm = obj.currFrame;
+      %frm = obj.currFrame;
       s = obj.labelsRoi{iMov};
       v = LabelROI.getF(s,frm);
     end
@@ -7745,12 +7749,19 @@ classdef Labeler < handle
   end
   
   methods (Static)
-    function trkfile = genTrkFileName(rawname,sMacro,movfile)
+    function trkfile = genTrkFileName(rawname,sMacro,movfile,varargin)      
       % Generate a trkfilename from rawname by macro-replacing.      
+      
+      enforceExt = myparse(varargin,...
+        'enforceExt',true ...
+        );
+      
       [sMacro.movdir,sMacro.movfile] = fileparts(movfile);
       trkfile = FSPath.macroReplace(rawname,sMacro);
-      if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))
-        trkfile = [trkfile '.trk'];
+      if enforceExt
+        if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))
+          trkfile = [trkfile '.trk'];
+        end
       end
     end
     function [tfok,trkfiles] = checkTrkFileNamesExportUI(trkfiles,varargin)
@@ -14633,7 +14644,7 @@ classdef Labeler < handle
       end
       
       trk = obj.labels2GTaware{iMov};
-      if trk.frm2tltnnz==0
+      if ~trk.hasdata()
         % no imported labels for this mov
         return;
       end
