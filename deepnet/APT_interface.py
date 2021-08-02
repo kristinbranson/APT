@@ -1297,13 +1297,20 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
     clusters = get_clusters(roi)
     n_clusters = len(np.unique(clusters))
     all_data = []
-    done_mask = np.zeros((conf.multi_frame_sz[0], conf.multi_frame_sz[1])) > 1
+    mask_sc = 4
+    mask_sz = (conf.multi_frame_sz[0]//mask_sc, conf.multi_frame_sz[1]//mask_sc)
+    done_mask = np.zeros(mask_sz) > 1
 
     roi = roi.copy()
     roi[..., 0] = np.clip(roi[..., 0], 0, conf.multi_frame_sz[1])
     roi[..., 1] = np.clip(roi[..., 1], 0, conf.multi_frame_sz[0])
 
-    n_extra_roi = 0 if extra_roi is None else len(extra_roi)
+    if conf.multi_loss_mask or conf.multi_use_mask:
+        n_extra_roi = 0 if extra_roi is None else len(extra_roi)
+    else:
+        n_extra_roi = 1
+        extra_roi = np.array([[0,0],[0,conf.multi_frame_sz[0]],[conf.multi_frame_sz[1],conf.multi_frame_sz[0]],[conf.multi_frame_sz[0],0]])[None,...].astype('float')
+
     if n_extra_roi > 0:
         extra_roi = extra_roi.copy()
         extra_roi[..., 0] = np.clip(extra_roi[..., 0], 0, conf.multi_frame_sz[1])
@@ -1331,10 +1338,10 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         if conf.multi_use_mask:
             curp = curp * cur_mask[..., np.newaxis]
 
-        cur_done_mask = create_mask(roi_from_patch(cur_roi, x_left, y_top), conf.multi_frame_sz)
+        cur_done_mask = create_mask(roi_from_patch(cur_roi/mask_sc, x_left//mask_sc, y_top//mask_sc), mask_sz)
 
         if n_extra_roi > 0:
-            cur_done_mask = cur_done_mask | create_mask(roi_from_patch(cur_eroi, x_left, y_top), conf.multi_frame_sz)
+            cur_done_mask = cur_done_mask | create_mask(roi_from_patch(cur_eroi/mask_sc, x_left/mask_sc, y_top/mask_sc), mask_sz)
 
         done_mask = done_mask | cur_done_mask
 
@@ -1354,13 +1361,15 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
 
             # add examples of background not added earlier.
             for endx in range(n_extra_roi):
-                eroi_mask = create_mask(extra_roi[endx:endx + 1, ...], conf.multi_frame_sz)
+                eroi_mask = create_mask(extra_roi[endx:endx + 1, ...]/mask_sc, mask_sz)
                 if (eroi_mask & done_mask).sum() / eroi_mask.sum() > 0.5:
                     done_eroi[endx] = 1.
                     continue
 
-                valid_locs = uniform_filter((eroi_mask & ~done_mask).astype('float'), size=conf.imsz, mode='constant')
+                vmsz= [zzz//mask_sc for zzz in conf.imsz]
+                valid_locs = uniform_filter((eroi_mask & ~done_mask).astype('float'), size=vmsz, mode='constant')
                 yy, xx = np.where(valid_locs == valid_locs.max())
+                xx *= mask_sc; yy*=mask_sc
                 ix_sel = np.random.choice(len(yy))
                 y_top = yy[ix_sel] - conf.imsz[0] // 2
                 x_left = xx[ix_sel] - conf.imsz[1] // 2
@@ -1383,7 +1392,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
                 if len(cur_eroi) == 0:
                     cur_eroi = None
 
-                done_mask = done_mask | create_mask(frame_eroi, conf.multi_frame_sz)
+                done_mask = done_mask | create_mask(frame_eroi/mask_sc, mask_sz)
 
                 all_data.append(
                     {'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
