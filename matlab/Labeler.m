@@ -4107,7 +4107,9 @@ classdef Labeler < handle
           tfo.initFrm2Tlt(nfrms);          
           obj.(PROPS.LBL2){end+1,1} = tfo;
         end
-        obj.labelsRoi{end+1,1} = LabelROI.new();
+        if ~gt
+          obj.labelsRoi{end+1,1} = LabelROI.new();
+        end
 %        obj.labeledposY{end+1,1} = nan(4,0);
         
 %         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -4281,7 +4283,9 @@ classdef Labeler < handle
       tfo = TrkFile(nlblPts,1:nTgt); % one target
       tfo.initFrm2Tlt(nFrms);
       obj.(PROPS.LBL2){end+1,1} = tfo;
-      obj.labelsRoi{end+1,1} = LabelROI.new();
+      if ~gt
+        obj.labelsRoi{end+1,1} = LabelROI.new();
+      end
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
@@ -4423,10 +4427,9 @@ classdef Labeler < handle
 %         obj.(PROPS.LPOS2)(iMov,:) = [];
         obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
         obj.(PROPS.LBL2)(iMov,:) = [];
-        obj.labelsRoi(iMov,:) = [];
-%         if ~gt
-%           obj.labeledposMarked(iMov,:) = [];
-%         end
+        if ~gt
+          obj.labelsRoi(iMov,:) = [];
+        end
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
           obj.(PROPS.VCD)(iMov,:) = [];
@@ -14708,7 +14711,7 @@ classdef Labeler < handle
       end
       
       trk = obj.labels2GTaware{iMov};
-      if trk.frm2tltnnz==0
+      if ~trk.hasdata()
         % no imported labels for this mov
         return;
       end
