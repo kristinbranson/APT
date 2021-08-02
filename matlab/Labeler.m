@@ -11510,6 +11510,7 @@ classdef Labeler < handle
        % ma stuff
       prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
       r = obj.maGetTgtCropRad(prmsTgtCrop);
+      % actual radius that will be used by backend
       sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius = r;
       tfBackEnd = exist('netmode','var');
       if tfBackEnd
@@ -14926,6 +14927,7 @@ classdef Labeler < handle
       if wbObj.isCancel
         return;
       end
+      assert(false,'Unsupported'); % eg radius ref here is out of date
       roiRadius = prmPP.TargetCrop.Radius;
       tblMFTlbled = obj.labelMFTableAddROITrx(tblMFTlbled,roiRadius);
 

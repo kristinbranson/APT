@@ -29,7 +29,9 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       % sets .imsz
       
       if lObj.hasTrx,
-        obj.imsz = sPrm.ROOT.MultiAnimal.TargetCrop.Radius*2+[1,1];
+        prmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+        cropRad = lObj.maGetTgtCropRad(prmTgtCrop);
+        obj.imsz = cropRad*2+[1,1];
       else
         nmov = lObj.nmoviesGTaware;
         rois = nan(nmov,lObj.nview,4);
@@ -66,7 +68,8 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.batchsize = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
   
       if endsWith(propFullName,...
-          {'DeepTrack.ImageProcessing.Downsample factor','DeepTrack.ImageProcessing.scale'})
+          {'Image Processing.Downsample factor',...
+          'Image Processing.scale'})
         
         xstr = 'Downsample factor';
         xs = logspace(0,log10(max(obj.downsample,ParameterVisualizationMemory.maxDownsample)),ParameterVisualizationMemory.nDownsamples);
@@ -79,7 +82,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         imsz1 = max(1,round(obj.imsz/xcurr));
         memusecurr = get_network_size(obj.nettype,imsz1,obj.batchsize);
       elseif endsWith(propFullName,...
-          {'DeepTrack.GradientDescent.Training batch size','DeepTrack.GradientDescent.batch_size'})
+          {'Deep Learning (pose).Gradient Descent.Training batch size','DeepTrack.GradientDescent.batch_size'})
         
         xstr = 'Batch size';
         xs = 1:max(obj.batchsize,ParameterVisualizationMemory.maxBatchSize);
