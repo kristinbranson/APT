@@ -22,7 +22,7 @@ if strcmp(net_type,'leap')
 end
 
 if ~any(strcmp(net_type,fieldnames(A.mem_use)))
-  warning('No data for network type:%s\n',net_type);
+  warningNoTrace('No data for network type:%s\n',net_type);
   return;
 end
 
