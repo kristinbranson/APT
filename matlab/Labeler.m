@@ -11493,10 +11493,10 @@ classdef Labeler < handle
         skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
         skelstr = String.cellstr2CommaSepList(skelstr);
         sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
-        sPrmAll.ROOT.MultiAnimal.DeepTrack.OpenPose.affinity_graph = skelstr;
+        sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.OpenPose.affinity_graph = skelstr;
       else
         sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
-        sPrmAll.ROOT.MultiAnimal.DeepTrack.OpenPose.affinity_graph = '';
+        sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.OpenPose.affinity_graph = '';
       end
             
       % add landmark matches
@@ -11505,7 +11505,7 @@ classdef Labeler < handle
       matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
       matchstr = String.cellstr2CommaSepList(matchstr);
       sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
-      sPrmAll.ROOT.MultiAnimal.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
+      sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
       
        % ma stuff
       prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;

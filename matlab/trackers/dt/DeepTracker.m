@@ -777,7 +777,7 @@ classdef DeepTracker < LabelTracker
       end
       
       tfCanTrain = true;      
-    end
+    end    
     
     function retrain(obj,varargin)
       
@@ -812,15 +812,13 @@ classdef DeepTracker < LabelTracker
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
       fprintf(1,'\n');      
       
-      if obj.isTrkFiles(),
-        
+      if obj.isTrkFiles(),        
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
           res = questdlg('Tracking results exist for previous deep trackers. When training stops, these will be deleted. Continue training?','Continue training?','Yes','No','Cancel','Yes');
           if ~strcmpi(res,'Yes'),
             return;
           end
-        end
-        
+        end        
       end
       
       obj.setAllParams(lblObj.trackGetParams());
@@ -4290,11 +4288,14 @@ classdef DeepTracker < LabelTracker
         modelChainID,trainID,dllbl,cache,errfile,netType,netMode,trainType,...
         view1b,mntPaths,gpuid,varargin)
                   
-      [dockerargs,isMultiView] = myparse(varargin,'dockerargs',{},...
-        'isMultiView',false);
+      [dockerargs,isMultiView,baseargs0] = myparse(varargin,...
+        'dockerargs',{},...
+        'isMultiView',false,...
+        'baseargs',{} ...
+        );
       
       filequote = backend.getFileQuoteDockerCodeGen;
-      baseargs = {'trainType' trainType 'filequote' filequote};
+      baseargs = [{'trainType' trainType 'filequote' filequote} baseargs0];
       if ~isMultiView,
         baseargs = [baseargs, {'view' view1b}];
       end
@@ -4346,7 +4347,8 @@ classdef DeepTracker < LabelTracker
         'gpuid',gpuid,condaargs{:});
       
     end
-    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,backend,mntPaths,gpuid,varargin)
+    function [codestr,containerName] = trainCodeGenDockerDMC(...
+        dmc,backend,mntPaths,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
@@ -5255,6 +5257,7 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static)
+    
     function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
       [rawload,movfile,movnframes] = myparse(varargin,...
         'rawload',false,...
@@ -5276,8 +5279,7 @@ classdef DeepTracker < LabelTracker
         trkfileObj = [];
         tfsuccload  = false;
       end
-    end
-    
+    end    
     
     function [tfsucc,augims] = loadAugmentedData(outfile,nview)
 

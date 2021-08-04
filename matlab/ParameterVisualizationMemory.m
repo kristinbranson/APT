@@ -82,7 +82,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         imsz1 = max(1,round(obj.imsz/xcurr));
         memusecurr = get_network_size(obj.nettype,imsz1,obj.batchsize);
       elseif endsWith(propFullName,...
-          {'Deep Learning (pose).Gradient Descent.Training batch size','DeepTrack.GradientDescent.batch_size'})
+          {'Gradient Descent.Training batch size','DeepTrack.GradientDescent.batch_size'})
         
         xstr = 'Batch size';
         xs = 1:max(obj.batchsize,ParameterVisualizationMemory.maxBatchSize);
