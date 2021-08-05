@@ -31,6 +31,8 @@ from mmdet.datasets.pipelines import Compose
 from mmdet.apis import inference
 from mmcv.parallel import collate, scatter
 from mmcv.ops import RoIPool
+from mmcv.runner import force_fp32
+
 
 from scipy.optimize import linear_sum_assignment
 import download_pretrained as down_pre
@@ -48,8 +50,107 @@ from PoseCommon_pytorch import PoseCommon_pytorch
 import poseConfig
 import PoseTools
 
-@BBOX_ASSIGNERS.register_module(force=True)
+@BBOX_ASSIGNERS.register_module()
 class APTHungarianAssigner(HungarianAssigner):
+
+    def assign(self,
+               bbox_pred,
+               cls_pred,
+               gt_bboxes,
+               gt_labels,
+               img_meta,
+               gt_bboxes_ignore=None,
+               eps=1e-7):
+        """Computes one-to-one matching based on the weighted costs.
+
+        This method assign each query prediction to a ground truth or
+        background. The `assigned_gt_inds` with -1 means don't care,
+        0 means negative sample, and positive number is the index (1-based)
+        of assigned gt.
+        The assignment is done in the following steps, the order matters.
+
+        1. assign every prediction to -1
+        2. compute the weighted costs
+        3. do Hungarian matching on CPU based on the costs
+        4. assign all to 0 (background) first, then for each matched pair
+           between predictions and gts, treat this prediction as foreground
+           and assign the corresponding gt index (plus 1) to it.
+
+        Args:
+            bbox_pred (Tensor): Predicted boxes with normalized coordinates
+                (cx, cy, w, h), which are all in range [0, 1]. Shape
+                [num_query, 4].
+            cls_pred (Tensor): Predicted classification logits, shape
+                [num_query, num_class].
+            gt_bboxes (Tensor): Ground truth boxes with unnormalized
+                coordinates (x1, y1, x2, y2). Shape [num_gt, 4].
+            gt_labels (Tensor): Label of `gt_bboxes`, shape (num_gt,).
+            img_meta (dict): Meta information for current image.
+            gt_bboxes_ignore (Tensor, optional): Ground truth bboxes that are
+                labelled as `ignored`. Default None.
+            eps (int | float, optional): A value added to the denominator for
+                numerical stability. Default 1e-7.
+
+        Returns:
+            :obj:`AssignResult`: The assigned result.
+        """
+#        assert gt_bboxes_ignore is None, \
+#            'Only case when gt_bboxes_ignore is None is supported.'
+        num_gts, num_bboxes = gt_bboxes.size(0), bbox_pred.size(0)
+
+        # 1. assign -1 by default
+        assigned_gt_inds = bbox_pred.new_full((num_bboxes, ),
+                                              -1,
+                                              dtype=torch.long)
+        assigned_labels = bbox_pred.new_full((num_bboxes, ),
+                                             -1,
+                                             dtype=torch.long)
+        if num_gts == 0 or num_bboxes == 0:
+            # No ground truth or boxes, return empty assignment
+            if num_gts == 0:
+                # No ground truth, assign all to background
+                assigned_gt_inds[:] = 0
+            return AssignResult(
+                num_gts, assigned_gt_inds, None, labels=assigned_labels)
+        img_h, img_w, _ = img_meta['img_shape']
+        factor = gt_bboxes.new_tensor([img_w, img_h, img_w,
+                                       img_h]).unsqueeze(0)
+
+        # 2. compute the weighted costs
+        # classification and bboxcost.
+        cls_cost = self.cls_cost(cls_pred, gt_labels)
+        # regression L1 cost
+        normalize_gt_bboxes = gt_bboxes / factor
+        reg_cost = self.reg_cost(bbox_pred, normalize_gt_bboxes)
+        # regression iou cost, defaultly giou is used in official DETR.
+        bboxes = bbox_cxcywh_to_xyxy(bbox_pred) * factor
+        iou_cost = self.iou_cost(bboxes, gt_bboxes)
+        # weighted sum of above three costs
+        cost = cls_cost + reg_cost + iou_cost
+
+        # 3. do Hungarian matching on CPU using linear_sum_assignment
+        cost = cost.detach().cpu()
+        if linear_sum_assignment is None:
+            raise ImportError('Please run "pip install scipy" '
+                              'to install scipy first.')
+        matched_row_inds, matched_col_inds = linear_sum_assignment(cost)
+        matched_row_inds = torch.from_numpy(matched_row_inds).to(
+            bbox_pred.device)
+        matched_col_inds = torch.from_numpy(matched_col_inds).to(
+            bbox_pred.device)
+
+        # 4. assign backgrounds and foregrounds
+        # assign all indices to backgrounds first
+        assigned_gt_inds[:] = 0
+        # assign foregrounds based on matching results
+        assigned_gt_inds[matched_row_inds] = matched_col_inds + 1
+        assigned_labels[matched_row_inds] = gt_labels[matched_col_inds]
+        return AssignResult(
+            num_gts, assigned_gt_inds, None, labels=assigned_labels)
+
+
+@BBOX_ASSIGNERS.register_module(force=True)
+class APTHungarianAssignerMask(HungarianAssigner):
 
     def assign(self,
                bbox_pred,
@@ -190,6 +291,92 @@ class APT_DETRHead(DETRHead):
         k._load_from_state_dict(*args,**kwargs)
         self.__class__ = APT_DETRHead
 
+    @force_fp32(apply_to=('all_cls_scores_list', 'all_bbox_preds_list'))
+    def loss(self,
+             all_cls_scores_list,
+             all_bbox_preds_list,
+             gt_bboxes_list,
+             gt_labels_list,
+             img_metas,
+             gt_bboxes_ignore=None):
+        'Updated to accept gt_bboxes_ignore'
+        # NOTE defaultly only the outputs from the last feature scale is used.
+        all_cls_scores = all_cls_scores_list[-1]
+        all_bbox_preds = all_bbox_preds_list[-1]
+        # assert gt_bboxes_ignore is None, \
+        #     'Only supports for gt_bboxes_ignore setting to None.'
+
+        num_dec_layers = len(all_cls_scores)
+        all_gt_bboxes_list = [gt_bboxes_list for _ in range(num_dec_layers)]
+        all_gt_labels_list = [gt_labels_list for _ in range(num_dec_layers)]
+        all_gt_bboxes_ignore_list = [
+            gt_bboxes_ignore for _ in range(num_dec_layers)
+        ]
+        img_metas_list = [img_metas for _ in range(num_dec_layers)]
+
+        losses_cls, losses_bbox, losses_iou = multi_apply(
+            self.loss_single, all_cls_scores, all_bbox_preds,
+            all_gt_bboxes_list, all_gt_labels_list, img_metas_list,
+            all_gt_bboxes_ignore_list)
+
+        loss_dict = dict()
+        # loss from the last decoder layer
+        loss_dict['loss_cls'] = losses_cls[-1]
+        loss_dict['loss_bbox'] = losses_bbox[-1]
+        loss_dict['loss_iou'] = losses_iou[-1]
+        # loss from other decoder layers
+        num_dec_layer = 0
+        for loss_cls_i, loss_bbox_i, loss_iou_i in zip(losses_cls[:-1],
+                                                       losses_bbox[:-1],
+                                                       losses_iou[:-1]):
+            loss_dict[f'd{num_dec_layer}.loss_cls'] = loss_cls_i
+            loss_dict[f'd{num_dec_layer}.loss_bbox'] = loss_bbox_i
+            loss_dict[f'd{num_dec_layer}.loss_iou'] = loss_iou_i
+            num_dec_layer += 1
+        return loss_dict
+
+    def get_targets(self,
+                    cls_scores_list,
+                    bbox_preds_list,
+                    gt_bboxes_list,
+                    gt_labels_list,
+                    img_metas,
+                    gt_bboxes_ignore_list=None):
+        """"Updated to accept gt_bboxes_ignore
+        """
+        # assert gt_bboxes_ignore_list is None, \
+        #     'Only supports for gt_bboxes_ignore setting to None.'
+        num_imgs = len(cls_scores_list)
+        if gt_bboxes_ignore_list is None:
+            gt_bboxes_ignore_list = [
+                gt_bboxes_ignore_list for _ in range(num_imgs)
+            ]
+
+        (labels_list, label_weights_list, bbox_targets_list,
+         bbox_weights_list, pos_inds_list, neg_inds_list) = multi_apply(
+             self._get_target_single, cls_scores_list, bbox_preds_list,
+             gt_bboxes_list, gt_labels_list, img_metas, gt_bboxes_ignore_list)
+        num_total_pos = sum((inds.numel() for inds in pos_inds_list))
+        num_total_neg = sum((inds.numel() for inds in neg_inds_list))
+        return (labels_list, label_weights_list, bbox_targets_list,
+                bbox_weights_list, num_total_pos, num_total_neg)
+
+
+
+@HEADS.register_module(force=True)
+class APT_DETRHeadMask(DETRHead):
+    def __init__(self,*args,**kwargs):
+        k = super(APT_DETRHeadMask,self)
+        self.__class__ = DETRHead
+        k.__init__(*args,**kwargs)
+        self.__class__ = APT_DETRHeadMask
+
+    def _load_from_state_dict(self,*args,**kwargs):
+        k = super(APT_DETRHeadMask,self)
+        self.__class__ = DETRHead
+        k._load_from_state_dict(*args,**kwargs)
+        self.__class__ = APT_DETRHeadMask
+
     def _get_target_single(self,
                            cls_score,
                            bbox_pred,
@@ -263,6 +450,77 @@ class APT_DETRHead(DETRHead):
         bbox_targets[pos_inds] = pos_gt_bboxes_targets
         return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
                 neg_inds)
+
+    @force_fp32(apply_to=('all_cls_scores_list', 'all_bbox_preds_list'))
+    def loss(self,
+             all_cls_scores_list,
+             all_bbox_preds_list,
+             gt_bboxes_list,
+             gt_labels_list,
+             img_metas,
+             gt_bboxes_ignore=None):
+        """ Updated so that it accepts gt_bboxes_ignore"""
+        # NOTE defaultly only the outputs from the last feature scale is used.
+        all_cls_scores = all_cls_scores_list[-1]
+        all_bbox_preds = all_bbox_preds_list[-1]
+        # assert gt_bboxes_ignore is None, \
+        #     'Only supports for gt_bboxes_ignore setting to None.'
+
+        num_dec_layers = len(all_cls_scores)
+        all_gt_bboxes_list = [gt_bboxes_list for _ in range(num_dec_layers)]
+        all_gt_labels_list = [gt_labels_list for _ in range(num_dec_layers)]
+        all_gt_bboxes_ignore_list = [
+            gt_bboxes_ignore for _ in range(num_dec_layers)
+        ]
+        img_metas_list = [img_metas for _ in range(num_dec_layers)]
+
+        losses_cls, losses_bbox, losses_iou = multi_apply(
+            self.loss_single, all_cls_scores, all_bbox_preds,
+            all_gt_bboxes_list, all_gt_labels_list, img_metas_list,
+            all_gt_bboxes_ignore_list)
+
+        loss_dict = dict()
+        # loss from the last decoder layer
+        loss_dict['loss_cls'] = losses_cls[-1]
+        loss_dict['loss_bbox'] = losses_bbox[-1]
+        loss_dict['loss_iou'] = losses_iou[-1]
+        # loss from other decoder layers
+        num_dec_layer = 0
+        for loss_cls_i, loss_bbox_i, loss_iou_i in zip(losses_cls[:-1],
+                                                       losses_bbox[:-1],
+                                                       losses_iou[:-1]):
+            loss_dict[f'd{num_dec_layer}.loss_cls'] = loss_cls_i
+            loss_dict[f'd{num_dec_layer}.loss_bbox'] = loss_bbox_i
+            loss_dict[f'd{num_dec_layer}.loss_iou'] = loss_iou_i
+            num_dec_layer += 1
+        return loss_dict
+
+    def get_targets(self,
+                    cls_scores_list,
+                    bbox_preds_list,
+                    gt_bboxes_list,
+                    gt_labels_list,
+                    img_metas,
+                    gt_bboxes_ignore_list=None):
+        """"Updated to accept gt_bboxes_ignore
+        """
+        # assert gt_bboxes_ignore_list is None, \
+        #     'Only supports for gt_bboxes_ignore setting to None.'
+        num_imgs = len(cls_scores_list)
+        if gt_bboxes_ignore_list is None:
+            gt_bboxes_ignore_list = [
+                gt_bboxes_ignore_list for _ in range(num_imgs)
+            ]
+
+        (labels_list, label_weights_list, bbox_targets_list,
+         bbox_weights_list, pos_inds_list, neg_inds_list) = multi_apply(
+             self._get_target_single, cls_scores_list, bbox_preds_list,
+             gt_bboxes_list, gt_labels_list, img_metas, gt_bboxes_ignore_list)
+        num_total_pos = sum((inds.numel() for inds in pos_inds_list))
+        num_total_neg = sum((inds.numel() for inds in neg_inds_list))
+        return (labels_list, label_weights_list, bbox_targets_list,
+                bbox_weights_list, num_total_pos, num_total_neg)
+
 
 @BBOX_ASSIGNERS.register_module(force=True)
 class APTMaxIoUAssigner(MaxIoUAssigner):
@@ -415,9 +673,13 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
           cfg.test_pipeline[1].img_scale = im_sz
 
         if conf.multi_loss_mask:
+            cfg.model.train_cfg.assigner.type = 'APTHungarianAssignerMask'
+            cfg.model.bbox_head.type = 'APT_DETRHeadMask'
+#            cfg.model.bbox_head.num_query = 300
+        else:
             cfg.model.train_cfg.assigner.type = 'APTHungarianAssigner'
             cfg.model.bbox_head.type = 'APT_DETRHead'
-#            cfg.model.bbox_head.num_query = 300
+
         script_dir = os.path.dirname(os.path.realpath(__file__))
         wt_dir = os.path.join(script_dir,'pretrained')
         url =  'https://download.openmmlab.com/mmdetection/v2.0/detr/detr_r50_8x2_150e_coco/detr_r50_8x2_150e_coco_20201130_194835-2c4b8974.pth'
