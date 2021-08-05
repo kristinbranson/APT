@@ -559,7 +559,7 @@ class Tracklet:
       startframes = startframes.flatten()
     if endframes.ndim > 1:
       endframes = endframes.flatten()
-    
+
     if ismatlab:
       self.data = to_py(data)
       self.startframes = to_py(startframes)
@@ -1877,7 +1877,7 @@ class Trk:
     endframes: ntargets array with the last frame with data for each target
     """
     if self.issparse:
-      return self.startframes+self.T0,self.endframes+self.T0
+      return self.startframes,self.endframes
     else:
       startframes = np.zeros(self.ntargets,dtype=int)
       endframes = np.zeros(self.ntargets,dtype=int)
@@ -2604,7 +2604,7 @@ def test_sparse_load():
   assert np.all(np.logical_or(trk2['pTrkTag']==trk['pTrkTag'],np.logical_and(np.isnan(trk2['pTrkTag']),np.isnan(trk['pTrkTag']))))
 
 
-def visualize_trk(trkfile,movfile,off=10,start=None,end=None,cmap='hsv',dir=45):
+def visualize_trk(trk,movfile,off=10,start=None,end=None,cmap='hsv',dir=45):
   # Vased on https://stackoverflow.com/questions/31778081/how-to-highlight-line-collection-in-matplotlib
 
   import movies
@@ -2615,7 +2615,10 @@ def visualize_trk(trkfile,movfile,off=10,start=None,end=None,cmap='hsv',dir=45):
   from matplotlib.collections import LineCollection
   import PoseTools as pt
 
-  J = Trk(trkfile)
+  if type(trk)==str:
+    J = Trk(trk)
+  else:
+    J = trk
   tstart,tend = J.get_frame_range()
   if start is None:
     start = tstart
@@ -2636,6 +2639,7 @@ def visualize_trk(trkfile,movfile,off=10,start=None,end=None,cmap='hsv',dir=45):
   plt.axis('image')
   pp, _ = J.getfull()
   pp = pp.transpose([3, 2, 0, 1]).copy()
+  # tfrm = np.arange(tstart,tend+1)
   tfrm = np.arange(tend+1)
   sel = (( tfrm< end) & (tfrm>=start))
   pp = pp[:,sel,:,:]
