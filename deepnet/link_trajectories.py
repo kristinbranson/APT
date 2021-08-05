@@ -537,8 +537,10 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   Returns threshold on cost.
   """
   
-  if mult is None:
+  if (mult is None) and heuristic =='prctile':
     mult = 100. / prctile
+  else:
+    mult = 1.2
   nsample = np.minimum(trk.T, nsample)
   tsample = np.round(np.linspace(trk.T0, trk.T1-nframes_skip-1, nsample)).astype(int)
   params = {}
@@ -571,7 +573,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   isdata = np.isnan(allcosts) == False
   
   if heuristic == 'prctile':
-    maxcost = mult * np.percentile(allcosts[isdata], prctile) * 2.
+    maxcost = mult * np.percentile(allcosts[isdata], prctile)
   elif heuristic == 'secondorder':
     # use sharp increase in 2nd order differences.
     qq = np.percentile(allcosts[isdata], np.arange(50, 100, 0.5))
@@ -585,7 +587,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
         ix = all_ix[0]
     ix = np.clip(ix,5,98)
     logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost'%(nframes_skip,ix/2+50,qq[ix]))
-    maxcost = mult*qq[ix]*2.
+    maxcost = mult*qq[ix]
   
   return maxcost
   
@@ -630,8 +632,7 @@ def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mu
   
   maxcost_missed = np.zeros(maxframes_missed)
   for nframes_skip in range(2, maxframes_missed+2):
-    maxcost_missed[nframes_skip-2] = estimate_maxcost(trk, prctile=prctile, mult=mult, nframes_skip=nframes_skip,
-                                                      nsample=nsample,heuristic=heuristic)
+    maxcost_missed[nframes_skip-2] = estimate_maxcost(trk, prctile=prctile, mult=mult, nframes_skip=nframes_skip, nsample=nsample,heuristic=heuristic)
   return maxcost_missed
 
 
@@ -808,7 +809,7 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,to_remove] = np.nan
 
 
-def link(pred_locs,pred_conf=None,pred_animal_conf=None):
+def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None):
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
@@ -819,6 +820,8 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None):
   params['maxcost_heuristic'] = 'secondorder'
   params['minconf_delete'] = 0.5
   params['nms_prctile'] = 50
+  if params_in != None:
+    params.update(params_in)
   nframes_test = np.inf
 
   locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
@@ -838,9 +841,13 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None):
   # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
   # p = np.transpose(trk['pTrk'],(1,0,3,2))
   nframes_test = int(np.minimum(T, nframes_test))
-  params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
-  params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'], prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
-  params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
+  if 'maxcost' not in params:
+    params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
+  if 'maxcost_missed' not in params:
+    params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'], prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
+  if 'nms_max' not in params:
+    params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
+
   logging.info('maxcost set to %f' % params['maxcost'])
   logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
   nonmaxs(trk,params)

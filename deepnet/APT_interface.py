@@ -384,8 +384,8 @@ def convert_to_coco(coco_info, ann, data, conf):
             bbox = [lmin[0], lmin[1], w, h]
             segm = [bbox]
         else:
-            lmin = roi[idx].min(axis=0)
-            lmax = roi[idx].max(axis=0)
+            lmin = roi[idx].min(axis=0).astype('float64')
+            lmax = roi[idx].max(axis=0).astype('float64')
             w = lmax[0] - lmin[0]
             h = lmax[1] - lmin[1]
             bbox = [lmin[0], lmin[1], w, h]
@@ -3276,7 +3276,7 @@ def classify_movie(conf, pred_fn, model_type,
         os.mkdir(hmap_out_dir)
 
     to_do_list = []
-    for cur_f in range(start_frame, end_frame):
+    for cur_f in range(start_frame, end_frame,skip_rate):
         for t in range(n_trx):
             if not np.any(trx_ids == t):
                 continue
@@ -3364,7 +3364,7 @@ def classify_movie(conf, pred_fn, model_type,
                         pred_animal_conf[ cur_f- min_first_frame,ix,:] = T[ix]['conf'][0,cur_f-first_frames[ix],0:1]
 
 
-    if conf.is_multi or (conf.stage==conf.multi_link_stage):
+    if (conf.is_multi and (conf.stage==None)) or (conf.stage==conf.multi_link_stage):
         # write out raw results before linking.
         pre_fix, ext = os.path.splitext(out_file)
         raw_file = pre_fix + '_raw' + ext
