@@ -900,6 +900,20 @@ classdef DeepTracker < LabelTracker
       end
     end
     
+    function trnPrintProjDir(obj)
+      modelChainID = obj.trnName;
+      if isempty(modelChainID) 
+        error('Training is not complete or in progress.');
+      end
+      if ~obj.bgTrnIsRunning
+        fprintf('Training is not in progress; information is for most recent training session.\n');
+      end
+      trnBgWorkerObj = obj.bgTrnMonBGWorkerObj;
+      if ~isempty(trnBgWorkerObj)
+        trnBgWorkerObj.dispProjDir();
+      end
+    end
+    
     function trnKill(obj)
       if ~obj.bgTrnIsRunning
         error('Training is not in progress.');

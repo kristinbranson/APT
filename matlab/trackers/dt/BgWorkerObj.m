@@ -107,6 +107,22 @@ classdef BgWorkerObj < handle
       end
     end
     
+    function dispProjDir(obj)
+      if ispc 
+        lscmd = 'dir';
+      else
+        lscmd = 'ls -al';
+      end
+      ds = {obj.dmcs.dirProjLnx}';
+      ds = unique(ds);
+      for i=1:numel(ds)
+        cmd = sprintf('%s "%s"',lscmd,ds{i});
+        fprintf('### %s\n',ds{i});
+        system(cmd);
+        fprintf('\n');
+      end
+    end
+    
     function dispModelChainDir(obj)
       if ispc 
         lscmd = 'dir';
