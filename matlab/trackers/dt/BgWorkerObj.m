@@ -52,7 +52,7 @@ classdef BgWorkerObj < handle
         return;
       end
       obj.nviews = nviews;
-      assert(isa(dmcs,'DeepModelChainOnDisk') && ((numel(dmcs)==1 && isempty(dmcs.view)) || numel(dmcs)==nviews));
+      assert(isa(dmcs,'DeepModelChainOnDisk') && (numel(dmcs)==nviews));
       obj.dmcs = dmcs;
       obj.reset();
     end

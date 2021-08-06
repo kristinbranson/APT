@@ -48,6 +48,8 @@ classdef DeepTrackerTopDown < DeepTracker
   % - track: trkcomplete trigger.
   
   properties
+    forceSerial = false;
+    
     stage1Tracker % See notes above
     
     trnDoneStage1 % logical
@@ -123,7 +125,7 @@ classdef DeepTrackerTopDown < DeepTracker
     end
     
     function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
-      [wbObj] = myparse(varargin,...
+      [wbObj] = myparse(varargin,...        
         'wbObj',[] ...
         );
             
@@ -132,19 +134,26 @@ classdef DeepTrackerTopDown < DeepTracker
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
      
 %       nvw = obj.lObj.nview;
-      isSerialTrain = false;
-      nTrainJobs = 2;
+%      isSerialTrain = false;
       % backend; implement getFreeGPUs for bsub
+      if obj.forceSerial
+        nTrainJobs = 1;
+        warningNoTrace('Forcing serial train.');
+      else
+        nTrainJobs = 2;
+      end
       if backEnd.type == DLBackEnd.Docker || backEnd.type == DLBackEnd.Conda,
         gpuids = backEnd.getFreeGPUs(nTrainJobs);
         if numel(gpuids) < nTrainJobs
           if nTrainJobs == 1 || numel(gpuids)<1
-              error('No GPUs with sufficient RAM available locally');
+            error('No GPUs with sufficient RAM available locally');
           else
             gpuids = gpuids(1);
-            isSerialTrain = true;
+            %           isSerialTrain = true;
             nTrainJobs = 1;
           end
+        else
+          gpuids = gpuids(1:nTrainJobs);
         end
       end
       
@@ -271,9 +280,12 @@ classdef DeepTrackerTopDown < DeepTracker
       
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
-      else
-        obj.bgTrnStart(backEnd,dmc,'trnStartCbk',trnStartCbk,...
-          'trnCompleteCbk',trnCompleteCbk);
+      else        
+        %TRNMON = 'TrkTrnMonVizSimpleStore';
+        %fprintf(2,'hardcode trnmon: %s\n',TRNMON);
+        obj.bgTrnStart(backEnd,dmc,'trnVizArgs',{'nsets',2}); 
+              % 'trnStartCbk',trnStartCbk,...
+                                     % 'trnCompleteCbk',trnCompleteCbk);
         
         bgTrnWorkerObj = obj.bgTrnMonBGWorkerObj;
         
@@ -563,7 +575,7 @@ classdef DeepTrackerTopDown < DeepTracker
       [codestr,containerName] = arrayfun(...
         @(zstg,zgpuid) DeepTracker.trainCodeGenDocker(...
           args{:},zgpuid,'baseArgs',[baseargs0 {'maTopDownStage' zstg}]),...
-        stg,gpuids,'uni',0);
+        stg(:),gpuids(:),'uni',0);
     end
     
     function codestr = tdTrainCodeGenSSHBsubSingDMC(...

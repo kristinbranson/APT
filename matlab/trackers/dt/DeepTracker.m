@@ -623,10 +623,11 @@ classdef DeepTracker < LabelTracker
     function bgTrnStart(obj,backEnd,dmcs,varargin)
       % fresh start new training monitor 
             
-      [trnStartCbk,trnCompleteCbk,trainSplits] = myparse(varargin,...
+      [trnStartCbk,trnCompleteCbk,trainSplits,trnVizArgs] = myparse(varargin,...
         'trnStartCbk',[],... % function handle with sig cbk(src,evt)
         'trnCompleteCbk',[],... % etc
-        'trainSplits',false ...  % true for splits/xv
+        'trainSplits',false, ...  % true for splits/xv
+        'trnVizArgs',{} ...
         );
       
       if ~isempty(obj.bgTrnMonitor)
@@ -642,38 +643,48 @@ classdef DeepTracker < LabelTracker
       if ~isempty(trnCompleteCbk)
         nvw = obj.lObj.nview;
       elseif trainSplits
+        % unchecked codepath 20210806
         nvw = numel(dmcs);
         assert(backEnd.type==DLBackEnd.Bsub);
         trnCompleteCbk = @(s,e) obj.xvStoppedCbk(s,e);
       else
         nvw = obj.lObj.nview;
-        assert(numel(dmcs)==nvw);
         trnCompleteCbk = @(s,e) obj.trainStoppedCbk(s,e);
-      end     
-
+      end
+      ndmcs = numel(dmcs);
+      if ndmcs~=nvw
+        netmode = obj.trnNetMode;
+        tf2stg = netmode.isTopDown && (netmode.isObjDet || netmode.isHeadTail);
+        assert(tf2stg);        
+%         warningNoTrace('BG Monitor: Number of DMCs (%d) does not match number of views (%d).',...
+%           ndmcs,nvw);
+      end
+      
       trnMonObj = BgTrainMonitor;
       addlistener(trnMonObj,'bgStart',trnStartCbk);
       addlistener(trnMonObj,'bgEnd',trnCompleteCbk);
 
+      % 20210806 At this point, the first arg to train worker obj (ndmcs)
+      % must match numel(dmcs)...
       switch backEnd.type
         case DLBackEnd.Bsub
           if trainSplits
-            trnWrkObj = BgTrainSplitWorkerObjBsub(nvw,dmcs);            
+            trnWrkObj = BgTrainSplitWorkerObjBsub(ndmcs,dmcs);            
           else
-            trnWrkObj = BgTrainWorkerObjBsub(nvw,dmcs);
+            trnWrkObj = BgTrainWorkerObjBsub(ndmcs,dmcs);
           end
         case DLBackEnd.Conda
-          trnWrkObj = BgTrainWorkerObjConda(nvw,dmcs);
+          trnWrkObj = BgTrainWorkerObjConda(ndmcs,dmcs);
         case DLBackEnd.Docker
-          trnWrkObj = BgTrainWorkerObjDocker(nvw,dmcs,backEnd);
+          trnWrkObj = BgTrainWorkerObjDocker(ndmcs,dmcs,backEnd);
         case DLBackEnd.AWS
-          trnWrkObj = BgTrainWorkerObjAWS(nvw,dmcs,backEnd.awsec2);
+          trnWrkObj = BgTrainWorkerObjAWS(ndmcs,dmcs,backEnd.awsec2);
         otherwise
           assert(false);
       end
 
       trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,obj,trnWrkObj,...
-        backEnd.type,'trainSplits',trainSplits);
+        backEnd.type,'trainSplits',trainSplits,trnVizArgs{:});
                 
       trnMonObj.prepare(trnVizObj,trnWrkObj);
       trnMonObj.start();
@@ -1346,12 +1357,12 @@ classdef DeepTracker < LabelTracker
             end
             dmc(ivw).view = ivw-1; % 0-based
             if ivw <= nTrainJobs,
-            gpuid = gpuids(ivw);
-            [syscmds{ivw},containerNames{ivw}] = ...
+              gpuid = gpuids(ivw);
+              [syscmds{ivw},containerNames{ivw}] = ...
                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType);
-            logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
-              backEnd.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
+              logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
+                backEnd.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
           end
         case DLBackEnd.Conda
