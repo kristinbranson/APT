@@ -56,7 +56,7 @@ classdef APT
       m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');      
     end
   
-    function [p,jp] = getpath()
+    function [p,jp,jprel] = getpath()
       % p: cellstr, path entries      
       % jp: cellstr, javapath entries
       
@@ -142,11 +142,12 @@ classdef APT
      
       p = [aptpath(:);jaabapath(:);cprpath(:);dtpath(:);pdolpath(:);campath(:)];
       
-      jp = {...
-        fullfile(root,'java','APTJava.jar'); ...
-        fullfile(mlroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
-        fullfile(mlroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
-        fullfile(mlroot,'treeTable')};
+      jprel = {...
+        fullfile('java','APTJava.jar'); ...
+        fullfile('matlab','JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
+        fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
+        fullfile('matlab','treeTable')};
+      jp = fullfile(root,jprel);
     end
     
     function jaabapath = getjaabapath()
@@ -210,6 +211,42 @@ classdef APT
       if ismac
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
       end
+    end
+    
+    function writeJavaclassPathFile()
+      pdir = prefdir;
+      JCPF = 'javaclasspath.txt';
+      jcpf = fullfile(pdir,JCPF);
+
+      [~,jp,jprel] = APT.getpath;
+      if exist(jcpf,'file')>0
+        %aptroot = APT.Root;
+        %naptroot = numel(APT.Root);
+        %tf = startsWith(jp,aptroot);        
+        %assert(all(tf),'javapath entries do not all start with APT.Root.');
+        %jprel = cellfun(@(x)x(naptroot+1:end),jp,'uni',0);
+        
+        fprintf(1,'Found existing classpath file: %s.\n',jcpf);
+        jp0 = readtxtfile(jcpf);
+        tf = endsWith(jp0,jprel); % for each el of jp0, returns true if any match in jprel
+        nlinesfound = nnz(tf);
+        if nlinesfound>0
+          fprintf(1,'%d/%d entries already exist in classpath file.\n',...
+            nlinesfound,numel(jprel));
+        end
+        
+        jpwrite = [jp0(~tf); jp(:)];
+        wst = warning('off','cellstrexport:overwrite');
+        cellstrexport(jpwrite,jcpf);
+        warning(wst);        
+        fprintf(1,'Updated and saved %s.\n',jcpf);
+      else
+        jpwrite = jp;
+        cellstrexport(jpwrite,jcpf);
+        fprintf(1,'Saved %s.\n',jcpf);
+      end
+      fprintf(1,'Contents:\n');
+      disp(jpwrite);
     end
   
     function tf = matlabPathNotConfigured()
