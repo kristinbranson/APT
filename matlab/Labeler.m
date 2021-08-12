@@ -3960,7 +3960,7 @@ classdef Labeler < handle
       tfProceedRm = true;
       haslbls1 = obj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
       haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
-      haslbls2 = haslbls2(iMov);
+      haslbls2 = haslbls2(iMov)>0;
       assert(haslbls1==haslbls2);
       if haslbls1 && ~obj.movieDontAskRmMovieWithLabels && ~force
         str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
@@ -6161,17 +6161,17 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function labelPosBulkImportTbl(obj,tblFT)
+    function labelPosBulkImportTbl(obj,tblMFT)
       % Like labelPosBulkImportTblMov, but table may include movie 
       % fullpaths. 
       %
-      % tblFT: table with fields .mov, .frm, .iTgt, .p. tblFT.mov are 
+      % tblMFT: table with fields .mov, .frm, .iTgt, .p, .tfocc. tblFT.mov are 
       % movie full-paths and they must match entries in 
       % obj.movieFilesAllFullGTaware *exactly*. 
       % For multiview projects, tblFT.mov must match 
       % obj.movieFilesAllFullGTaware(:,1).
       
-      movs = tblFT.mov;
+      movs = tblMFT.mov;
       mfaf1 = obj.movieFilesAllFullGTaware(:,1);
       [tf,iMov] = ismember(movs,mfaf1); % iMov are movie indices
       if ~all(tf)
@@ -6188,7 +6188,7 @@ classdef Labeler < handle
         nrows = nnz(tfmov);
         fprintf('Importing %d rows for movie %d.\n',nrows,imovcurr);
         obj.labelPosBulkImportTblMov(...
-          tblFT(tfmov,{'frm' 'iTgt' 'p' 'tfocc'}),imovcurr);
+          tblMFT(tfmov,{'frm' 'iTgt' 'p' 'tfocc'}),imovcurr);
       end
     end
     
@@ -13541,6 +13541,8 @@ classdef Labeler < handle
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];
       end
+      xlim = fixLim(xlim);
+      ylim = fixLim(ylim);
       ModeInfo.xlim = xlim;
       ModeInfo.ylim = ylim;
       
