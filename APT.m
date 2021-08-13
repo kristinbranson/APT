@@ -213,6 +213,34 @@ classdef APT
       end
     end
     
+    % AL20210813 
+    % User on win10, ML2021a encountring obscure java classpath issues.
+    % Despite starting APT the usual way (eg via StartAPT), certain APT
+    % java classes cannot be found (eg
+    % aptjava.StripedIntegerTableCellRenderer).
+    %
+    % Guessing possible conflicting java libs or software on their system.
+    % It is known that the javaaddpathstatic used by APT is a hack. 
+    % Nevertheless, this has been robust over several years for many users.
+    % Historically we found that APT needed certain classes added to the 
+    % static java path rather than the dynamic. (Not entirely clear why at
+    % this point, but a quick trial of using the regular/dynamic java path
+    % did result in many red java traces.)
+    %
+    % For now, created solution whereby a javaclasspath.txt is
+    % written/augmented with APT javapath entries and saved in prefdir.
+    % Methods for this implemented here (see below).
+    %
+    % * Since javaclasspath.txt is stored in prefdir by default, it will 
+    % need to be recreated/updated for every new version of MATLAB. Could 
+    % store in MATLAB startup dir instead; this would apply to all MATLAB 
+    % versions, but the startup dir may also not be 100% consistent.
+    % * Simiarly, if a new APT repo is pulled/created, the
+    % javaclasspath.txt will have entries pointing to the old/previous
+    % repo. The Java code will likely not change anymore, so this is fairly
+    % low risk. Moving forward, the checkJavaclasspath method can detect
+    % this situation, and can be called eg at APT.setpath time.
+
     function writeJavaclassPathFile()
       pdir = prefdir;
       JCPF = 'javaclasspath.txt';
@@ -231,8 +259,9 @@ classdef APT
         tf = endsWith(jp0,jprel); % for each el of jp0, returns true if any match in jprel
         nlinesfound = nnz(tf);
         if nlinesfound>0
-          fprintf(1,'%d/%d entries already exist in classpath file.\n',...
+          fprintf(1,'%d/%d existing APT entries in classpath file:\n',...
             nlinesfound,numel(jprel));
+          disp(jp0(tf));
         end
         
         jpwrite = [jp0(~tf); jp(:)];
@@ -247,6 +276,23 @@ classdef APT
       end
       fprintf(1,'Contents:\n');
       disp(jpwrite);
+    end
+    
+    function javaClassesWrongRepo = checkJavaClasspath(jp,jprel)
+      % check if any entries in static java classpath are from the 'wrong'
+      % repo; for users with Java issues who have generated 
+      % javaclasspath.txt files with writeJavaclassPathFile().
+      
+      if nargin==0
+        [~,jp,jprel] = APT.getpath();
+      end
+      
+      jcps = javaclasspath('-static');
+      tfwrongAPTrepo = endsWith(jcps,jprel) & ~ismember(jcps,jp);
+      if any(tfwrongAPTrepo)
+        warningNoTrace('Static java classpath has entries from a different APT repo.');
+      end  
+      javaClassesWrongRepo = jcps(tfwrongAPTrepo);
     end
   
     function tf = matlabPathNotConfigured()
