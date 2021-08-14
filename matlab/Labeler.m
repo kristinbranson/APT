@@ -11517,6 +11517,7 @@ classdef Labeler < handle
         sPrmAll.ROOT.MultiAnimal.is_multi = netmode.is_multi;
         sPrmAll.ROOT.MultiAnimal.multi_crop_ims = netmode.multi_crop_ims;
         sPrmAll.ROOT.MultiAnimal.Detect.multi_only_ht = netmode.multi_only_ht;
+        sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = netmode.isHeadTail;
       end
       % headtail
       if ~isempty(obj.skelHead)
