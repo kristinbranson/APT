@@ -157,9 +157,9 @@ classdef TrackJob < handle
 %                          % if tfserialmultimov, [nSerialMov] corresponding to .movfileLcl          
 
     % nset==2 if .tf2stg is true
-    trkfileLcl = {}; % cellstr, [nView x nset] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
+    trkfileLcl = {}; % cellstr, [nView x nset] corresponding to .ivw; or if tfserialmultimov, [nSerialMov x nset]
     trkoutdirLcl = {}; % cellstr, [nView x nset] corresponding to .ivw. STILL USED for errfile if .tfexternal
-    parttrkfileLcl = {}; % cellstr, [nView x nset] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
+    parttrkfileLcl = {}; % cellstr, [nView x nset] corresponding to .ivw; or if tfserialmultimov, [nSerialMov x nset]
     trkfilestr = {}; % cellstr, [nView x nset] shortnames for trkfileLcl. UNUSED if .tfexternal
     
     rootdirLcl = '';
@@ -575,6 +575,85 @@ classdef TrackJob < handle
       codestr = obj.codestr;
     end
     
+    function [logfiles,errfiles,trkfiles,partfiles,movfiles] = ...
+        getMonitorArtifacts(objArr)
+      % Generate file/artifact list for BgTrackMonitor.
+      %
+      % objArr: [nMovJobs x nViewJobs] array of TrackJobs
+      % 
+      % *files: with shapes as expected by BgTrackWOrkerObj.initFiles.
+      % logfiles, errfiles: [nMovJobs x nViewJobs]
+      % trkfiles, partfiles: [nMovs x nViews x nStages]
+      % movfiles: [nMovs x nViews]      
+      
+      [nMovJobs,nViewJobs] = size(objArr);
+      logfiles = reshape({objArr.logfile},size(objArr));
+      errfiles = reshape({objArr.errfile},size(objArr));
+      
+      if objArr(1).tfmultiview % each job in objArr tracks across views
+        assert(nViewJobs==1);
+        movfiles = {objArr.movfileLcl};
+        movfiles = cellfun(@(x)x(:)',movfiles,'uni',0);
+        movfiles = cat(1,movfiles{:});
+        
+        trkfiles = {objArr.trkfileRem};
+        trkfiles = cat(3,trkfiles{:}); % [nView x nset x nMovs]
+        trkfiles = permute(trkfiles,[3 1 2]);
+        partfiles = {objArr.parttrkfileRem};
+        partfiles = cat(3,partfiles{:});
+        partfiles = permute(partfiles,[3 1 2]);
+        
+      elseif objArr(1).tfserialmultimov % each job in objArr tracks across movs
+        assert(nMovJobs==1);
+        movfiles = {objArr.movfileLcl};
+        movfiles = cellfun(@(x)x(:),movfiles,'uni',0);
+        movfiles = cat(2,movfiles{:});
+        
+        trkfiles = {objArr.trkfileRem};
+        trkfiles = cat(3,trkfiles{:}); % [nSerialMov x nset x nViews]
+        trkfiles = permute(trkfiles,[1 3 2]);
+        partfiles = {objArr.parttrkfileRem};
+        partfiles = cat(3,partfiles{:});
+        partfiles = permute(partfiles,[1 3 2]);
+      else
+        movfiles = cat(1,objArr.movfileLcl);
+        movfiles = reshape(movfiles,size(objArr));
+
+        %trkfiles = {objArr.trkfileRem}; % each el is a row [1 x nset]
+        trkfiles = cat(1,objArr.trkfileRem); % [nMov*nView x nset]
+        trkfiles = reshape(trkfiles,nMovJobs,nViewJobs,[]);
+        partfiles = cat(1,objArr.parttrkfileRem); 
+        partfiles = reshape(partfiles,nMovJobs,nViewJobs,[]); 
+      end
+    end
+    
+    function trkfiles = getTrkFilesSingleMov(objArr)
+      % Get trkfiles produced by an array of TrackJobs for a single movie
+      %
+      % objArr: array of TrackJobs all for a single movie. All elements
+      % must have same tfmultiview, tfserialmultimov, tf2stg etc.
+      %
+      % trkfiles: [nview] vector of trkfiles for movie produced by
+      % TrackJobs. trkfiles should contain nview elements corresponding to
+      % each view.
+      
+      obj1 = objArr(1);
+      if obj1.tfserialmultimov
+        assert(false,'Unsupported');
+      elseif obj1.tfmultiview
+        % objArr should prob be scalar here
+        % Each el of objArr.trkfileLcl should be a column
+        trkfiles = cat(1,objArr.trkfileLcl);
+      elseif obj1.tf2stg
+        trkfiles = cat(1,objArr.trkfileLcl);
+        trkfiles = trkfiles(:,2); 
+        % right now, just return final/stage1 trks
+      else
+        % typical nonscalar objArr case
+        trkfiles = cat(1,objArr.trkfileLcl);        
+      end
+    end    
+    
     function nframestrack = getNFramesTrack(obj,forcecompute)
       % nframestrack: [nmovsettrk] array. If tfmultiview, movs are assumed 
       % to have same number of frames across views and the view1 mov is 
@@ -736,7 +815,7 @@ classdef TrackJob < handle
       
     end
         
-    function setId(obj)      
+    function setId(obj)
       [~,movS] = fileparts(obj.movfileRem{1});
       obj.id = [movS '_' obj.trnstr{1} '_' obj.nowstr];      
     end
@@ -777,7 +856,7 @@ classdef TrackJob < handle
       end
     end
     
-    function setPartTrkFiles(obj)      
+    function setPartTrkFiles(obj)
       obj.parttrkfileLcl = cellfun(@(x) [x,'.part'],obj.trkfileLcl,'Uni',0);
       obj.parttrkfileRem = cellfun(@(x) [x,'.part'],obj.trkfileRem,'Uni',0);      
     end
@@ -935,7 +1014,7 @@ classdef TrackJob < handle
       end
     end
 
-    function v = get.trkfile(obj)      
+    function v = get.trkfile(obj)
       if obj.tfmultiview || obj.tfserialmultimov || obj.tf2stg
         v = obj.trkfileLcl;
       else

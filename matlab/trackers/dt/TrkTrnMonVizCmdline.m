@@ -12,8 +12,9 @@ classdef TrkTrnMonVizCmdline < handle
       % trnComplete: scalar logical, true when all views done
       
       res = sRes.result;
+      fprintf(1,' ### Results size: %s\n',mat2str(size(res)));
       for ivw=1:numel(res) 
-        fprintf(1,'### View %d\n',ivw);
+        fprintf(1,'### Elem %d\n',ivw);
         disp(res(ivw));
         
 %         fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
