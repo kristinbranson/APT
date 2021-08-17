@@ -3462,9 +3462,17 @@ classdef DeepTracker < LabelTracker
             end
             trksysinfo(imov,ivwjob).prepareFiles();
             
-            for i = 1:numel(trksysinfo(imov,ivwjob).trkfileLcl),
-              ivw1 = trksysinfo(imov,ivwjob).ivw(i);
-              fprintf('View %d: trkfile will be written to %s\n',ivw1,trksysinfo(imov,ivwjob).trkfileLcl{i});
+            tj = trksysinfo(imov,ivwjob);
+            for i = 1:numel(tj.trkfileLcl),
+              if tj.tf2stg
+                stgstr = 'Stage';
+                istg = i;
+              else
+                stgstr = 'View';
+                istg = tj.ivw(i);
+              end              
+              fprintf('%s %d: trkfile will be written to %s\n',...
+                stgstr,istg,tj.trkfileLcl{i});
             end
           end
         end
@@ -4166,9 +4174,7 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)
-      % AL: odd method name
-      
+    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)      
       obj.updateLastDMCsCurrInfo();
       
       trnstrs = cell(size(obj.trnLastDMC));
@@ -4814,7 +4820,8 @@ classdef DeepTracker < LabelTracker
         char(nettype),[filequote dllbl filequote],[filequote outfile filequote])];
     end    
     
-    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,frm0,frm1,varargin)
+    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,...
+        frm0,frm1,varargin)
 
       % varargin: see trackCodeGenBase, except for 'cache' and 'view'
       
@@ -4823,7 +4830,8 @@ classdef DeepTracker < LabelTracker
       
       baseargs = [{'cache' fileinfo.cache} baseargs];
       filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:},'filequote',filequote);
+      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:},...
+        'filequote',filequote);
 
       if isempty(containerName),
         if iscell(fileinfo.outtrk),

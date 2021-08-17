@@ -345,13 +345,16 @@ classdef APTInterf
       trnID = fileinfo.trnID;
       dllbl = fileinfo.dllbl;
       errfile = fileinfo.errfile;
-      nettype = fileinfo.nettype;
-      netmode = fileinfo.netmode;
-      movtrk = fileinfo.movtrk; % either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
-      outtrk = fileinfo.outtrk; % either char of [nviewx1] cellstr; or [nmov] in "serial mode"
+      nettype = fileinfo.nettype; % for 2-stage, this is the stage2 nettype
+      netmode = fileinfo.netmode; % " netmode
+      % either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
+      movtrk = fileinfo.movtrk; 
+      % save as movtrk, except for 2 stage, this will be [nviewx2] or [nmovx2]
+      outtrk = fileinfo.outtrk; 
       
       [listfile,cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
-        updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,tfserialmode] = ...
+        updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,...
+        confparamsfilequote,tfserialmode] = ...
         myparse_nocheck(varargin,...
         'listfile','',...
         'cache',[],... % (opt) cachedir
@@ -369,8 +372,10 @@ classdef APTInterf
         'filequote','\"',... % quote char used to protect filenames/paths.
                         ... % *IMPORTANT*: Default is escaped double-quote \" => caller
                         ... % is expected to wrap in enclosing regular double-quotes " !!
-        'serialmode', false ...  % see serialmode above
+        'confparamsfilequote','\"', ...
+        'serialmode',false ...  % see serialmode above
         );
+      
      
       tflistfile = ~isempty(listfile);
       tffrm = ~tflistfile && ~isempty(frm0) && ~isempty(frm1);
@@ -384,67 +389,12 @@ classdef APTInterf
       tftrxids = ~tflistfile && ~isempty(trxids);
       tfview = ~isempty(view);
       tfcrop = ~isempty(croproi) && ~all(any(isnan(croproi),2),1);
-      tfmodel = ~isempty(model_file);
       tflog = ~isempty(log_file);
+      tf2stg = netmode.isTopDown;
+      nstage = 1+double(tf2stg);
+      tfmodel = ~isempty(model_file) && ~tf2stg; % -model_file arg not working in Py for 2stg yet
       
       torchhome = APT.torchhome;
-
-      if netmode.isTrnPack
-        %assert(~tftrx);
-        [trnpack,dllblID] = fileparts(dllbl); 
-        %trnjson = fullfile(trnpack,'loc.json');
-        dllbljson = fullfile(trnpack,[dllblID '.json']);
-        dlj = readtxtfile(dllbljson);
-        dlj = jsondecode(dlj{1});
-        dtPrm = dlj.TrackerData.sPrmAll.ROOT.DeepTrack;
-        maDetImProc = dtPrm.ImageProcessing;
-        %detbsize = dtPrm.GradientDescent.batch_size;
-
-        sMA = dlj.TrackerData.sPrmAll.ROOT.MultiAnimal;        
-        sMADetPrm = sMA.Detect;
-        maxNanmls = sMA.max_n_animals;
-        minNanmls = sMA.min_n_animals;        
-      end
-
-      switch netmode
-        case DLNetMode.multiAnimalBU          
-          conf_params = { ...
-            '-conf_params' ...
-            'is_multi' 'True' ...
-            'max_n_animals' num2str(maxNanmls) ...
-            'min_n_animals' num2str(minNanmls) ...
-            'batch_size' num2str(1) ... % ?
-            };
-          fprintf(2,'TODO: track bu params\n');
-        case DLNetMode.multiAnimalTDDetectHT
-          conf_params = { ...
-            '-conf_params' ...
-            'is_multi' 'True' ...
-            'max_n_animals' num2str(maxNanmls) ...
-            'min_n_animals' num2str(minNanmls) ...
-            'ht_pts' sprintf('\\(%d,%d\\)',sMADetPrm.head_point,sMADetPrm.tail_point) ...
-            'multi_only_ht' 'True' ...
-            'rescale' num2str(maDetImProc.scale) ...            
-            };
-        case DLNetMode.multiAnimalTDPoseHT
-          conf_params = { ...
-            '-conf_params' ...
-            'max_n_animals' num2str(maxNanmls) ...
-            'min_n_animals' num2str(minNanmls) ...
-            'ht_pts' sprintf('\\(%d,%d\\)',sMADetPrm.head_point,sMADetPrm.tail_point) ...
-            'use_ht_trx' 'True' ...
-            'trx_align_theta' 'True' ...
-            'imsz' sprintf('\\(%d,%d\\)',192,192) ... % XXX
-            };
-          fprintf(2,'TODO: track td pose ht params\n');
-        case DLNetMode.singleAnimal
-          conf_params = {};
-        case DLNetModel.multiAnimalTDPoseTrx
-          % overlaps with tftrx?
-          conf_params = {}; 
-        otherwise
-          assert(false);
-      end          
                 
       movtrk = cellstr(movtrk);
       outtrk = cellstr(outtrk);
@@ -457,7 +407,7 @@ classdef APTInterf
       
       if tfserialmode
         nmovserialmode = numel(movtrk);
-        assert(numel(outtrk)==nmovserialmode);
+        szassert(outtrk,[nmovserialmode nstage]);
         if tftrx
           assert(numel(trxtrk)==nmovserialmode);
         end
@@ -485,7 +435,8 @@ classdef APTInterf
             assert(~tftrx && ~tftrxids,'Trx not supported for multiple views.');
           end
         end
-        assert(isequal(nview,numel(movtrk),numel(outtrk)));
+        assert(nview==numel(movtrk));
+        szassert(outtrk,[nview nstage]);
         if tfmodel
           assert(numel(model_file)==nview);
         end
@@ -539,11 +490,31 @@ classdef APTInterf
       if tflog
         code = [code {'-log_file' [filequote log_file filequote]}];
       end
-      code = [code conf_params];        
-      code = [code {'-type' char(nettype) ...
-                          [filequote dllbl filequote] ...
-                          'track' ...
-                          '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
+      if tf2stg
+        %szassert(outtrk,[1 nstage],...
+        %  'Multiview or serial multimovie unsupported for two-stage trackers.');
+        if fileinfo.netmodeStage1.isObjDet
+          use_bbox_trx_val = 'True';
+        else
+          use_bbox_trx_val = 'False';
+        end
+        code = [code {'-stage' 'multi' ...
+                      '-conf_params' ...
+                      'db_format' [confparamsfilequote 'coco' confparamsfilequote] ...
+                      '-type' char(fileinfo.nettypeStage1) ...
+                      '-conf_params2' ...
+                      'db_format' [confparamsfilequote 'tfrecord' confparamsfilequote] ...
+                      'use_bbox_trx' use_bbox_trx_val ...
+                      '-type2' char(nettype) ...
+                      [filequote dllbl filequote] ...
+                      'track' ...
+                      '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk(:,2),filequote) }];        
+      else
+        code = [code {'-type' char(nettype) ...
+                      [filequote dllbl filequote] ...
+                      'track' ...
+                      '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
+      end
       if tflistfile
         code = [code {'-list_file' [filequote listfile filequote]}];
       else
@@ -570,6 +541,8 @@ classdef APTInterf
             code = [code {'-trx_ids' trxidstr}]; %#ok<AGROW>
           end
         end
+      elseif tf2stg
+        code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk(:,1),filequote)}];
       end
       if tfcrop
         croproi = round(croproi);
