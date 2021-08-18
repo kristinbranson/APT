@@ -4416,7 +4416,6 @@ classdef DeepTracker < LabelTracker
         netTypeObj = netType;
       end
       
-      %isMA = netTypeObj.isMultiAnimal;
       baseargs = [baseargs {'confparamsfilequote','\\\"'}];
       basecmd = APTInterf.trainCodeGen(trnID,dllbl,cache,errfile,...
           netTypeObj,netMode,baseargs{:});      
@@ -4906,6 +4905,7 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
+      baseargs = [baseargs {'confparamsfilequote','\\\"'}];
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netmode,singargs{:});
     end
