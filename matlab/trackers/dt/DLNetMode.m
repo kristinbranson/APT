@@ -43,7 +43,7 @@ classdef DLNetMode < handle
       v = obj.isMA && ~(obj.isTopDown && obj.isObjDet);
     end
     function v = get.multi_only_ht(obj)
-      v = obj.isMA && obj.isTopDown && obj.isHeadTail; % obj.topDownStage==1
+      v = obj.isMA && obj.isTopDown && obj.isHeadTail && obj.topDownStage==1;
     end    
   end
   methods 
