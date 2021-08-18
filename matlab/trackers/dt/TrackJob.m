@@ -308,7 +308,7 @@ classdef TrackJob < handle
       obj.setBackEnd(backend);
       obj.nView = numel(obj.ivw);
       obj.tftrx = obj.tObj.lObj.hasTrx;
-      obj.tf2stg = obj.tObj.trnNetMode.isTopDown;
+      obj.tf2stg = obj.tObj.getNumStages()>1;
       if isempty(nowstr),
         obj.nowstr = datestr(now,'yyyymmddTHHMMSS');
       else

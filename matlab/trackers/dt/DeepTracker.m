@@ -230,6 +230,9 @@ classdef DeepTracker < LabelTracker
     function v = getAlgorithmNamePrettyHook(obj)
       v = ['Deep Convolutional Network - ' obj.trnNetType.displayString];
     end
+    function v = getNumStages(obj)
+      v = 1;
+    end
     function v = getNetsUsed(obj)
       v = cellstr(obj.trnNetType);
     end
@@ -3695,7 +3698,10 @@ classdef DeepTracker < LabelTracker
         nframes = trksysinfo.getNFramesTrack();
       else
         [nmovsets,nvjobs] = size(trksysinfo); %#ok<ASGLU>
-        maxNSerialMov = max([trksysinfo.nmovsettrk]);        
+        maxNSerialMov = max([trksysinfo.nmovsettrk]);      
+        
+        % AL202108 Don't understand this init or subsequent logic. What is
+        % defn/size of nframes to be returned?
         nframes = nan(maxNSerialMov,nmovsets);
         
         % AL202101 This call can be *very* slow for batch tracking,

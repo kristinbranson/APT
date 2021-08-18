@@ -3,8 +3,21 @@ classdef TrackMonitorViz < handle
     hfig % scalar fig
     haxs % [1] axis handle, viz wait time
     hannlastupdated % [1] textbox/annotation handle
-    hline % [nviewx1] patch handle showing fraction of frames tracked
-    htext % [nviewx1] text handle showing fraction of frames tracked
+    
+    % Three modes. Here nmov=nMovSet*nView
+    % - bulkAxsIsBulkMode: hline is [nmov]. One box/patch per mov. htext is
+    % a single text label. 
+    % - twoStgMode: hline/htext are [nmov*2]. One line for each stage. 
+    % [nmov*2].
+    % - default: hline/htext are [nmov]. 
+    hline % patch handle showing fraction of frames tracked
+    htext %  text handle showing fraction of frames tracked
+    
+    nFramesTracked = []; % same numel has hline. unused if bulkAxsIsBulkMode=true
+    nFramesToTrack = 0; % same numel as hline. "
+    parttrkfileTimestamps = []; % same numel as hline. basically unused (in general) but init to 0
+    jobDescs = {}; % sae numel as hline. string description for hline. unused if bulkAxsIsBulkMode=true
+
     htrackerInfo % scalar text box handle showing information about current tracker
     isKilled = false; % scalar, whether tracking has been halted
     
@@ -12,10 +25,6 @@ classdef TrackMonitorViz < handle
     dtObj % DeepTracker Obj
     trackWorkerObj = [];
     backEnd % scalar DLBackEnd
-    parttrkfileTimestamps = [];
-    nFramesTracked = []; % [nmov]. not used if bulkAxsIsBulkMode=true
-    nFramesToTrack = 0;
-    jobDescs = {};
     actions = struct(...
       'Bsub',...
       {{'List all jobs on cluster'...
@@ -40,6 +49,9 @@ classdef TrackMonitorViz < handle
       'Show log files'...
       'Show error messages'}});
     minFracComplete = .001;
+    
+    % twostage mode
+    twoStgMode = false;
     
     % bulk mode 
     bulkAxsIsBulkMode = false; % if true, waitbar is in "bulk mode"
@@ -71,32 +83,15 @@ classdef TrackMonitorViz < handle
   end
   
   methods
-    function obj = TrackMonitorViz(nview,dtObj,trackWorkerObj,backEnd,nFramesToTrack,jobDescs)
+    function obj = TrackMonitorViz(nview,dtObj,trackWorkerObj,backEnd,...
+        nFramesToTrack)
+      
       obj.dtObj = dtObj;
       obj.trackWorkerObj = trackWorkerObj;
       obj.backEnd = backEnd;
-      nMovies = numel(nFramesToTrack);
-      obj.nFramesToTrack = repmat(nFramesToTrack,nview); % AL202002: this mega-tiling is prob not what we want
-      nmov = nMovies*nview;
-      if ~exist('jobDescs','var'),
-        jobDescs = cell(nMovies,nview);
-        for imov = 1:nMovies,
-          if nMovies > 1,
-            movstr = sprintf(', Mov %d',imov);
-          else
-            movstr = '';
-          end
-          for ivw = 1:nview,
-            if nview > 1,
-              vwstr = sprintf(', Vw %d',ivw);
-            else
-              vwstr = '';
-            end
-            jobDescs{imov,ivw} = [movstr,vwstr];
-          end
-        end
-      end
-      obj.jobDescs = jobDescs;
+      
+      nMovSets = numel(nFramesToTrack);
+      nmov = nMovSets*nview;
       
       lObj = dtObj.lObj;
       obj.hfig = TrackMonitorGUI(obj);
@@ -109,7 +104,10 @@ classdef TrackMonitorViz < handle
       obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
+      obj.twoStgMode = dtObj.getNumStages() > 1;
       obj.bulkAxsIsBulkMode = nmov > obj.bulkNmovThreshold;
+      % if obj.twoStgMode AND .bulk* are true, twoStg will take precedence
+      % for now
       
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
@@ -122,7 +120,19 @@ classdef TrackMonitorViz < handle
       handles.popupmenu_actions.Value = 1;
       
       axwait = handles.axes_wait;
-      if obj.bulkAxsIsBulkMode
+      if obj.twoStgMode
+        nstg = 2*nmov;
+        axwait.YLim = [0,nstg];
+        axwait.XLim = [0,1+obj.minFracComplete];
+        obj.hline = gobjects(nstg,1);
+        obj.htext = gobjects(nstg,1);
+        obj.nFramesToTrack = repmat(nFramesToTrack,2,1);
+        obj.nFramesTracked = zeros(size(obj.nFramesToTrack));
+        obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
+        obj.jobDescs = TrackMonitorViz.initJobDescs(nMovSets,nview,true);        
+        % ordering of hline is: mov1s1 mov2s1 ... movNs1 mov1s2 ...
+        % aka all stage1s, then all stage2s.
+      elseif obj.bulkAxsIsBulkMode
         pbaspect(axwait,'auto');
         axwait.DataAspectRatio = [1 1 1]; % "axis equal"
         axwait.Units = 'pixels';
@@ -135,34 +145,64 @@ classdef TrackMonitorViz < handle
         % will react
         axis(axwait,[0.5 obj.bulkIndNcol+1.5 1 obj.bulkIndNrow+1]);
         axwait.Visible = 'off';
-        axwait.YDir = 'reverse';
         %axis(axwait,'equal');    
         axactual = axis(axwait);
         axxmid = sum(axactual(1:2))/2;
         axymid = sum(axactual(3:4))/2;
         lblstr = sprintf('%d movies to track',nmov);
 
-        %obj.hline = gobjects(nmov,1);
+        %obj.hline initted below
         obj.htext = text(axxmid,axymid,lblstr,'Parent',axwait,...
           obj.bulkAxLblStrArgs{:});
         obj.htext.Position(3) = 1; % Stack above patches created below
         
         obj.bulkMovTracked = false(nmov,1);
+        obj.nFramesTracked = [];
+        obj.nFramesToTrack = [];
+        obj.parttrkfileTimestamps = zeros(nmov,1);
+        obj.jobDescs = {};
       else
         axwait.YLim = [0,nmov];
         axwait.XLim = [0,1+obj.minFracComplete];
         obj.hline = gobjects(nmov,1);
-        obj.htext = gobjects(nmov,1);
+        obj.htext = gobjects(nmov,1);        
+        obj.nFramesToTrack = repmat(nFramesToTrack,nview,1);
+        obj.nFramesTracked = zeros(size(obj.nFramesToTrack));
+        obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
+        obj.jobDescs = TrackMonitorViz.initJobDescs(nMovSets,nview,false);        
+
+        % ordering of hline is: mov1v1 mov2v1 ... movNv1 mov1v2 ...
+        % aka all view1s, then all view2s...
       end
+      axwait.YDir = 'reverse';
       axwait.XTick = [];
       axwait.YTick = [];
       hold(axwait,'on');
-
-      if obj.bulkAxsIsBulkMode
+      
+      % create hline/htext
+      if obj.twoStgMode
+        clrs = lines(nMovSets);
+        DESCSTGPAT = {'%s (detect)' '%s (pose)'};
+        for stg=1:2          
+          for imovset=1:nMovSets
+            istg = (stg-1)*nMovSets + imovset;
+            clrI = clrs(imovset,:);
+            obj.hline(istg) = patch([0,0,1,1,0]*obj.minFracComplete,...
+              istg-[0,1,1,0,0],clrI,...
+              'Parent',handles.axes_wait,...
+              'EdgeColor','w');
+            descstg = sprintf(DESCSTGPAT{stg},obj.jobDescs{istg});
+            obj.htext(istg) = text((1+obj.minFracComplete)/2,istg-.5,...
+              sprintf('0/%d frames tracked%s',obj.nFramesToTrack(istg),descstg),...
+              'Color','w','HorizontalAlignment','center',...
+              'VerticalAlignment','middle','Parent',handles.axes_wait);
+          end
+        end
+      elseif obj.bulkAxsIsBulkMode
         obj.hline = TrackMonitorViz.makeIndicatorPatches(nmov,...
           obj.bulkIndNrow,obj.bulkIndNcol,axwait,...
           obj.COLOR_AXSWAIT_BULK_UNTRACKED,...
-          {'EdgeColor',obj.COLOR_AXSWAIT_BULK_EDGE});        
+          {'EdgeColor',obj.COLOR_AXSWAIT_BULK_EDGE}); 
         % obj.htext initted above
       else
         clrs = lines(nmov);
@@ -172,7 +212,7 @@ classdef TrackMonitorViz < handle
             'Parent',handles.axes_wait,...
             'EdgeColor','w');
           if nmov > 1,
-            sview = jobDescs{imov};
+            sview = obj.jobDescs{imov};
           else
             sview = '';
           end
@@ -184,8 +224,6 @@ classdef TrackMonitorViz < handle
       end
       
       obj.resLast = [];
-      obj.parttrkfileTimestamps = zeros(1,nmov);
-      obj.nFramesTracked = zeros(1,nmov);
       obj.isKilled = false;
       drawnow;            
     end
@@ -220,7 +258,6 @@ classdef TrackMonitorViz < handle
         TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now));
         return;
       end
-
       
       TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now));
       res = sRes.result;      
@@ -228,6 +265,12 @@ classdef TrackMonitorViz < handle
       TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
       TrackMonitorViz.debugfprintf('N. frames tracked: ');
       nJobs = numel(res); 
+      
+      % It is assumed that there is a correspondence between res and .hline
+      if nJobs~=numel(obj.hline)
+        warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
+          nJobs,numel(obj.hline));
+      end
 
       % always update info about current tracker, as labels may have changed
       s = obj.dtObj.getTrackerInfoString();
@@ -258,8 +301,6 @@ classdef TrackMonitorViz < handle
                 obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
                   res(ijob).trkfileNfrmtracked);
               else
-%                 warnstate = warning('query','MATLAB:load:variableNotFound');
-%                 warning('off','MATLAB:load:variableNotFound');
                 if isdone,
                   tfile = res(ijob).trkfile;
                 else
@@ -276,8 +317,6 @@ classdef TrackMonitorViz < handle
                     warning('Could not compute number of frames tracked:\n%s',getReport(ME));
                   end
                 end
-
-%                 warning(warnstate.state,warnstate.identifier);
               end
              
               if nJobs > 1,
@@ -285,8 +324,10 @@ classdef TrackMonitorViz < handle
               else
                 sview = '';
               end
-              set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',obj.nFramesTracked(ijob),obj.nFramesToTrack(ijob),sview));
-              fracComplete = obj.minFracComplete + (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
+              set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',...
+                obj.nFramesTracked(ijob),obj.nFramesToTrack(ijob),sview));
+              fracComplete = obj.minFracComplete + ...
+                    (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
               set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);              
             catch ME,
               fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
@@ -394,11 +435,7 @@ classdef TrackMonitorViz < handle
         hAnn.ForegroundColor = [0 1 0];
       else
         hAnn.ForegroundColor = [1 0 0];
-      end
-      
-      %       ax = obj.haxs(1);
-      %       hAnn.Position(1) = ax.Position(1)+ax.Position(3)-hAnn.Position(3);
-      %       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
+      end      
     end
     
     function updateErrDisplay(obj,res)
@@ -559,6 +596,38 @@ classdef TrackMonitorViz < handle
   end
   
   methods (Static)
+    
+    function jobDescs = initJobDescs(nMovSets,nview,tf2stg)
+      % jobDescs: cellstr, either [nMovSets x nview], or 
+      %                           [nMovSets x 2] if tf2stg==true
+      
+      if tf2stg
+        nset = 2;
+      else
+        nset = nview;
+      end
+      
+      jobDescs = cell(nMovSets,nset);
+      for imovset = 1:nMovSets,
+        if nMovSets > 1,
+          movstr = sprintf(', Mov %d',imovset);
+        else
+          movstr = '';
+        end
+        for iset = 1:nset
+          if nset > 1,
+            if tf2stg              
+              setstr = sprintf(', Stg %d',iset);
+            else
+              setstr = sprintf(', Vw %d',iset);
+            end
+          else
+            setstr = '';
+          end
+          jobDescs{imovset,iset} = [movstr,setstr];
+        end
+      end
+    end
     
     function updateStartStopButton(handles,isStop,isDone,msg)
       
