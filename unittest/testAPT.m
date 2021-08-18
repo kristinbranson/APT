@@ -155,7 +155,9 @@ classdef testAPT < handle
     function testObj = testAPT(varargin)
       testObj.setup_path();
       [name] = myparse(varargin,'name','alice');
-      testObj.get_info(name);      
+      if ~strcmp(name,'dummy')
+        testObj.get_info(name);      
+      end
     end
     
     function exp_name = get_exp_name(self,pin)
