@@ -12,7 +12,7 @@ classdef testAPT < handle
   %        'backend','docker','niters',1000,'test_tracking',true)
   
   % MA/roian
-  % testObj = testAPT('name','roianma);
+  % testObj = testAPT('name','roianma');
   % testObj.test_setup('simpleprojload',1);
   % testObj.test_train('net_type',[],'params',-1,'niters',1000);  
   
@@ -153,7 +153,6 @@ classdef testAPT < handle
     end
         
   end
-  
   
   methods
     
@@ -513,7 +512,6 @@ classdef testAPT < handle
       info = self.info;
 
       lc = lObj.lblCore;
-
       nmov = size(old_lbl.movieFilesAll,1);
       for ndx = 1:nmov
           lObj.movieSet(ndx);
@@ -545,40 +543,50 @@ classdef testAPT < handle
 
     function setup_alg(self,alg)
       % Set the algorithm.
-      %old_lbl = self.old_lbl;
-      lObj = self.lObj;
-      info = self.info;
 
-      nalgs = numel(lObj.trackersAll);
-      tndx = 0;
-      for ix = 1:nalgs
+      lObj = self.lObj;
+
+      if isnumeric(alg)
+        tndx = alg;
+      else
+        nalgs = numel(lObj.trackersAll);
+        tndx = 0;
+        for ix = 1:nalgs
           if strcmp(lObj.trackersAll{ix}.algorithmName,alg)
-              tndx = ix;
+            tndx = ix;
           end
+        end
       end
 
       assert(tndx > 0)
       lObj.trackSetCurrentTracker(tndx);
     end
     
-    function set_params(self, has_trx, dl_steps,sz, params)
+    function set_params_base(self,has_trx,dl_steps,sz)
       lObj = self.lObj;
-      % set some params
-      
       tPrm = APTParameters.defaultParamsTree;
       sPrm = tPrm.structize;      
       % AL202107: why not use lObj.trackGetParams() here?
-      sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
-      sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = sz;
-      if has_trx
-        sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = has_trx;
-      end
-      for ndx = 1:2:numel(params)
-        sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
-      end
+      
+      sbase.AlignUsingTrxTheta = has_trx;
+      sbase.dl_steps = dl_steps;
+      sbase.ManualRadius = sz;
+      sPrm = structsetleaf(sPrm,sbase,'verbose',true);
+
+      % AL: Note 'ManualRadius' by itself may not do anything since
+      % 'AutoRadius' is on by default
       lObj.trackSetParams(sPrm);
+      
+%       sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
+%       sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = sz;
+%       if has_trx
+%         sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = has_trx;
+%       end
+%       for ndx = 1:2:numel(params)
+%         sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
+%       end
     end
-    
+        
     function set_backend(self,backend,aws_params)
       % aws_params: can be a pre-configured AWSec2 instance
       
@@ -626,23 +634,23 @@ classdef testAPT < handle
     end
     
     
-    % train
     function test_train(self,varargin)
-      [net_type,backend,niters,test_tracking,block,params,...
+      [net_type,backend,niters,test_tracking,block,serial2stgtrain,params,...
         aws_params] = myparse(varargin,...
             'net_type','mdn','backend','docker',...
             'niters',1000,'test_tracking',true,'block',true,...
-            'params',{},'aws_params',struct());
+            'serial2stgtrain',true,...
+            'params',[],... % optional, struct; see structsetleaf
+            'aws_params',struct());
           
       if ~isempty(net_type)
         self.setup_alg(net_type)
       end
-      if isequal(params,-1)
+      self.set_params_base(self.info.has_trx,niters,self.info.sz);
+      if ~isempty(params)
         sPrm = self.lObj.trackGetParams();
-        sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = niters;
+        sPrm = structsetleaf(sPrm,params,'verbose',true);
         self.lObj.trackSetParams(sPrm);
-      else
-        self.set_params(self.info.has_trx,niters,self.info.sz,params);
       end
       self.set_backend(backend,aws_params);
 
@@ -652,25 +660,36 @@ classdef testAPT < handle
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,handles.figure);
-      handles.labelerObj.tracker.skip_dlgs = true;
-      handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+      tObj = lObj.tracker;
+      tObj.skip_dlgs = true;
+      if lObj.trackerIsTopDown
+        tObj.forceSerial = serial2stgtrain;
+      end      
+      lObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
       if wbObj.isCancel
         msg = wbObj.cancelMessage('Training canceled');
         msgbox(msg,'Train');
-      end
+      end      
       
       if block
         % block while training
+        
+        % Alternative to polling:
+        % ho = HGsetgetObj;
+        % ho.data = false;
+        % tObj = lObj.tracker;
+        % tObj.addlistener('trainEnd',@(s,e)set(ho,'data',true));        
+        % waitfor(ho,'data');
+        
         pause(2);
-        while self.lObj.tracker.bgTrnIsRunning()
+        while tObj.bgTrnIsRunning()
           pause(10);
         end
         pause(10);
         if test_tracking
           self.test_track('block',block);
         end
-      end
-      
+      end      
     end
     
     function test_track(self,varargin)
@@ -710,6 +729,60 @@ classdef testAPT < handle
       end
     end
     
+  end
+  
+  methods (Static) 
+    % testAPT.sh interface
+    % for triggering tests from unix commandline, CI, etc
+    
+    function CIsuite(varargin)
+      
+      disp('### testAPT/CIsuite ###');
+      disp(varargin);
+      
+%       APTPATH = '/groups/branson/home/leea30/git/apt.param';
+%       addpath(APTPATH);
+%       APT.setpath
+      
+      action = varargin{1};
+      switch action
+        case 'roianma'
+          % CISuite('roianma',<iTracker>)
+          iTracker = varargin{2};
+          iTracker = str2double(iTracker);
+          
+          TRNITERS = 350;
+          
+          testObj = testAPT('name','roianma');
+          testObj.test_setup('simpleprojload',1);
+          testObj.test_train(...
+            'net_type',iTracker,...
+            'niters',TRNITERS,...
+            'params',struct('batch_size',2),...
+            'test_tracking',false);
+          
+          disp('Tracking done, listener returned!');          
+          tObj = testObj.lObj.tracker;
+          tinfo = tObj.trackerInfo;
+          iters1 = tinfo.iterFinal;
+          if iters1==TRNITERS
+            fprintf(1,'Final iteration (%d) matches expected (%d)!\n',...
+              iters1,TRNITERS);
+          else
+            error('apttest:missedfinaliter',...
+              'Final iteration (%d) is not expected (%d)!',iters1,TRNITERS);
+          end
+          
+        case 'hello'
+          disp('hello!');
+          
+        case 'testerr'
+          error('testAPT:testerr','Test error!');
+          
+        otherwise
+          error('testAPT:testerr','Unrecognized action: %s',action);
+      end
+    end
   end
     
 end

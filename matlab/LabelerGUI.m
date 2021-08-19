@@ -3193,6 +3193,11 @@ ClearStatus(handles)
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
+
+if batchStartupOptionUsed
+  return;
+end
+
 OPTION_SAVE = 'Save first';
 OPTION_PROC = 'Proceed without saving';
 OPTION_CANC = 'Cancel';
