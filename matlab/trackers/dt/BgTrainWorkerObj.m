@@ -144,10 +144,10 @@ classdef BgTrainWorkerObj < BgWorkerObj
     end
  
     function killFiles = getKillFiles(obj)
-      nJobs = numel(obj.dmcs);
-      killFiles = cell(1,nJobs);
-      for ivw=1:nJobs
-        killFiles{ivw} = obj.dmcs(ivw).killTokenLnx;
+      ndmc = numel(obj.dmcs);
+      killFiles = cell(1,ndmc);
+      for idmc=1:ndmc
+        killFiles{idmc} = obj.dmcs(idmc).killTokenLnx;
       end
     end
     

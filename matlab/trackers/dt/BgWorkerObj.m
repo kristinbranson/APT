@@ -32,7 +32,22 @@ classdef BgWorkerObj < handle
   % BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj 
   
   properties
+    % TODO Reconcile/cleanup
+    % For BgTrainWorkerObjs, nviews is now guaranteed to equal numel(dmcs).
+    %   In general, for training, the number of actual views is not
+    %   important to BgWorkers; the concept of "views" can be replaced by 
+    %   "stages" with no changes in code.
+    % For BgTrackWorkerObjs, nviews is still the number of actual views,
+    %   and may differ from numel(dmcs) for top-down (2-stage) trackers.
+    %   BgTrackWorkerObjs are tighter in terms of shapes and keeping track
+    %   of numviews, numsets etc.    
+    %
+    % Actually, .dmcs are not used in BgTrackWorkerObj classes, so just
+    % move .dmcs.
     nviews
+    
+    % This belongs in a BgTrainWorkerObj subclass as it isn't used by
+    % BgTrackWorkerObjs.
     dmcs % [nview] DeepModelChainOnDisk array  
   end
   
@@ -52,7 +67,7 @@ classdef BgWorkerObj < handle
         return;
       end
       obj.nviews = nviews;
-      assert(isa(dmcs,'DeepModelChainOnDisk') && ((numel(dmcs)==1 && isempty(dmcs.view)) || numel(dmcs)==nviews));
+      assert(numel(dmcs)==nviews);
       obj.dmcs = dmcs;
       obj.reset();
     end
@@ -104,6 +119,22 @@ classdef BgWorkerObj < handle
       if tfLogErrLikely
         logContents = obj.fileContents(file);
         tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
+      end
+    end
+    
+    function dispProjDir(obj)
+      if ispc 
+        lscmd = 'dir';
+      else
+        lscmd = 'ls -al';
+      end
+      ds = {obj.dmcs.dirProjLnx}';
+      ds = unique(ds);
+      for i=1:numel(ds)
+        cmd = sprintf('%s "%s"',lscmd,ds{i});
+        fprintf('### %s\n',ds{i});
+        system(cmd);
+        fprintf('\n');
       end
     end
     

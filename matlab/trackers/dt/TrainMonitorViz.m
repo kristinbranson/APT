@@ -1,15 +1,19 @@
 classdef TrainMonitorViz < handle
   properties
+    % 'sets' are groups of related trains that may be spawned in parallel
+    % or serially. example is top-down trackers which have nset=2,
+    % stage1=detect, stage2=pose.
+    
     hfig % scalar fig
-    haxs % [2] axis handle, viz training loss, dist
+    haxs % [2xnset] axis handle, viz training loss, dist
     hannlastupdated % [1] textbox/annotation handle
-    hline % [nviewx2] line handle, one loss curve per view
-    hlinekill % [nviewx2] line handle, killed marker per view
+    hline % [nviewx2xnset] line handle, one loss curve per view
+    hlinekill % [nviewx2xnset] line handle, killed marker per view
     
     isKilled = false; % scalar, whether training has been halted
-    lastTrainIter; % [nview] last iteration of training
+    lastTrainIter; % [nset x nview] last iteration of training
     
-    axisXRange = 2e3; % show last (this many) iterations along x-axis
+    axisXRange = 2e3; % [nset] show last (this many) iterations along x-axis
     
     resLast % last training json contents received
     dtObj % DeepTracker Obj
@@ -40,7 +44,8 @@ classdef TrainMonitorViz < handle
         'Show error messages'}});
   end
   properties (Dependent)
-    nview 
+    nview
+    nset
   end
   
   properties (Constant)
@@ -58,6 +63,9 @@ classdef TrainMonitorViz < handle
     function v = get.nview(obj)
       v = size(obj.hline,1);
     end
+    function v = get.nset(obj)
+      v = size(obj.hline,3);
+    end
   end
   
   methods
@@ -65,8 +73,9 @@ classdef TrainMonitorViz < handle
     function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd,...
         varargin)
       
-      trainSplits = myparse(varargin,...
-        'trainSplits',false ...
+      [trainSplits,nsets] = myparse(varargin,...
+        'trainSplits',false, ...
+        'nsets',1 ...
         );
       
       lObj = dtObj.lObj;
@@ -79,8 +88,14 @@ classdef TrainMonitorViz < handle
       handles = guidata(obj.hfig);
       TrainMonitorViz.updateStartStopButton(handles,true,false);
       handles.pushbutton_startstop.Enable = 'on';
-      obj.haxs = [handles.axes_loss,handles.axes_dist];
+            
+      obj.haxs = [handles.axes_loss;handles.axes_dist];
       obj.hannlastupdated = handles.text_clusterstatus;
+      tfMultiSet = nsets>1;
+      if tfMultiSet
+        assert(nsets==2,'Only two sets supported');
+        obj.splitaxs();
+      end      
       
       % reset
       arrayfun(@(x)cla(x),obj.haxs);
@@ -91,22 +106,33 @@ classdef TrainMonitorViz < handle
       
       arrayfun(@(x)grid(x,'on'),obj.haxs);
       arrayfun(@(x)hold(x,'on'),obj.haxs);
-      title(obj.haxs(1),'Training Monitor','fontweight','bold');
-      xlabel(obj.haxs(2),'Iteration');
+      %title(obj.haxs(1),'Training Monitor','fontweight','bold');
+      if tfMultiSet
+        xlabel(obj.haxs(2,1),'Iteration -- Detect');
+        xlabel(obj.haxs(2,2),'Iteration -- Pose');
+      else
+        xlabel(obj.haxs(2),'Iteration');
+      end
       ylabel(obj.haxs(1),'Loss');
       ylabel(obj.haxs(2),'Dist');
-      linkaxes(obj.haxs,'x');
-      set(obj.haxs(1),'XTickLabel',{});
+      for j=1:size(obj.haxs,2)
+        linkaxes(obj.haxs(:,j),'x');
+      end
+      set(obj.haxs(1,:),'XTickLabel',{});
       
       %obj.hannlastupdated = TrainMonitorViz.createAnnUpdate(obj.haxs(1));
       
       clrs = lines(nview)*.9+.1;
-      h = gobjects(nview,2);
-      hkill = gobjects(nview,2);
+      h = gobjects(nview,2,nsets);
+      hkill = gobjects(nview,2,nsets);
       for ivw=1:nview
         for j=1:2
-          h(ivw,j) = plot(obj.haxs(j),nan,nan,'.-','color',clrs(ivw,:),'LineWidth',2);
-          hkill(ivw,j) = plot(obj.haxs(j),nan,nan,'rx','markersize',12,'linewidth',2);
+          for iset=1:nsets
+            h(ivw,j,iset) = plot(obj.haxs(j,iset),nan,nan,...
+                                 '.-','color',clrs(ivw,:),'LineWidth',2);
+            hkill(ivw,j,iset) = plot(obj.haxs(j,iset),nan,nan,...
+                                     'rx','markersize',12,'linewidth',2);
+          end
         end
       end
       if nview > 1,
@@ -115,20 +141,39 @@ classdef TrainMonitorViz < handle
         else
           legstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
         end
-        legend(obj.haxs(2),h(:,1),legstrs,'TextColor','w');
+        legend(obj.haxs(2,nsets),h(:,nsets),legstrs,'TextColor','w');
       end
       set(obj.haxs,'XLimMode','manual','YScale','log');
       obj.hline = h;
       obj.hlinekill = hkill;
       obj.resLast = [];
       obj.isKilled = false;
-      obj.lastTrainIter = zeros(1,nview);      
+      obj.lastTrainIter = zeros(nsets,nview);
+      obj.axisXRange = repmat(obj.axisXRange,[1 nsets]);
     end
     
     function delete(obj)
       deleteValidHandles(obj.hfig);
       obj.hfig = [];
-%       obj.haxs = [];
+    end
+    
+    function splitaxs(obj)
+      h = obj.haxs;
+      szassert(h,[2 1]);
+      SPACERFAC = 0.98;
+      for i=1:numel(h)
+        posn = h(i).Position;
+        x0 = posn(1);
+        %y0 = posn(2);
+        w = posn(3);
+        %h = posn(4);
+        h(i).Position(3) = w/2;
+        h(i).Position(3:4) = h(1).Position(3:4)*SPACERFAC;        
+        hnew = copyobj(h(i),h(i).Parent);
+        hnew.Position(1) = x0+w/2;
+        h(i,2) = hnew;
+      end
+      obj.haxs = h;
     end
         
     function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
@@ -147,48 +192,71 @@ classdef TrainMonitorViz < handle
       end
       
       res = sRes.result;
-      tfAnyLineUpdate = false;
-      lineUpdateMaxStep = zeros(1,numel(res));
+      % for each set, record if any line got updated and max xlim
+      tfAnyLineUpdate = false(1,obj.nset);
+      lineUpdateMaxStep = zeros(1,obj.nset);
       
-      h = obj.hline;
+      h = obj.hline; % [nview x 2 x nset]
+      hkill = obj.hlinekill;
+      nres = numel(res);
+      assert(nres==numel(h)/2);
+      
+      %tfIResAreSets = false; % if true, res indexes sets; otherwise, views      
+      if nres==1
+        ires2set = 1;
+      elseif size(h,1)==nres
+        % multiview case
+        ires2set = ones(nres,1); % every res is a different view in one set
+      elseif size(h,3)==nres
+        % multiset case
+        assert(size(h,1)==1);
+        h = reshape(h,2,[])';
+        hkill = reshape(hkill,2,[])';
+        ires2set = (1:nres)'; % every res is view 1 in a different set
+        %tfIResAreSets = true;
+      else
+        assert(false);
+      end
+      % h/hkill are now [nres 2] where the first dim is either a view or 
+      % set idx for view indices, h(:,1) are plotted on same axes as are 
+      % h(:,2) for set indices, h(:,1) are plotted on diff axes
       
       if nargin < 3,
         forceupdate = false;
       end
-      
-      for ivw=1:numel(res)
-        if res(ivw).pollsuccess
-          if res(ivw).jsonPresent && (forceupdate || res(ivw).tfUpdate)
-            contents = res(ivw).contents;
-            set(h(ivw,1),'XData',contents.step,'YData',contents.train_loss);
-            set(h(ivw,2),'XData',contents.step,'YData',contents.train_dist);
-            tfAnyLineUpdate = true;
-            lineUpdateMaxStep(ivw) = contents.step(end);
+            
+      for ires=1:numel(res)
+        if res(ires).pollsuccess
+          if res(ires).jsonPresent && (forceupdate || res(ires).tfUpdate)
+            contents = res(ires).contents;
+            set(h(ires,1),'XData',contents.step,'YData',contents.train_loss);
+            set(h(ires,2),'XData',contents.step,'YData',contents.train_dist);
+            
+            iset = ires2set(ires);
+            tfAnyLineUpdate(iset) = true;
+            lineUpdateMaxStep(iset) = max(lineUpdateMaxStep(iset),contents.step(end));
           end
 
-          if res(ivw).killFileExists, 
+          if res(ires).killFileExists, 
             obj.isKilled = true;
-            if res(ivw).jsonPresent,
-              contents = res(ivw).contents;
-              hkill = obj.hlinekill;
+            if res(ires).jsonPresent,
+              contents = res(ires).contents;
               % hmm really want to mark the last 2k interval when model is
               % actually saved
-              set(hkill(ivw,1),'XData',contents.step(end),'YData',contents.train_loss(end));
-              set(hkill(ivw,2),'XData',contents.step(end),'YData',contents.train_dist(end));
+              set(hkill(ires,1),'XData',contents.step(end),'YData',contents.train_loss(end));
+              set(hkill(ires,2),'XData',contents.step(end),'YData',contents.train_dist(end));
             end
             handles = guidata(obj.hfig);
             handles.pushbutton_startstop.Enable = 'on';
-
           end
         
-          if res(ivw).tfComplete
-            contents = res(ivw).contents;
+          if res(ires).tfComplete
+            contents = res(ires).contents;
             if ~isempty(contents)
-              hkill = obj.hlinekill;
               % re-use kill marker 
-              set(hkill(ivw,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
+              set(hkill(ires,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
                 'color',[0 0.5 0],'marker','o');
-              set(hkill(ivw,2),'XData',contents.step(end),'YData',contents.train_dist(end),...
+              set(hkill(ires,2),'XData',contents.step(end),'YData',contents.train_dist(end),...
                 'color',[0 0.5 0],'marker','o');
             end
           end
@@ -203,13 +271,16 @@ classdef TrainMonitorViz < handle
         end
       end
       
-      if tfAnyLineUpdate
-        obj.lastTrainIter = max(obj.lastTrainIter,lineUpdateMaxStep);
-        obj.adjustAxes(max(obj.lastTrainIter));
-        %obj.dtObj.setTrackerInfo('iterCurr',obj.lastTrainIter);
+      for iset=1:obj.nset
+        if tfAnyLineUpdate(iset)
+          obj.lastTrainIter(iset,:) = ...
+                max(obj.lastTrainIter(iset,:),lineUpdateMaxStep(iset));
+          obj.adjustAxes(max(obj.lastTrainIter(iset,:)),iset);
+          %obj.dtObj.setTrackerInfo('iterCurr',obj.lastTrainIter);
+        end
       end
       
-      if isempty(obj.resLast) || tfAnyLineUpdate
+      if isempty(obj.resLast) || any(tfAnyLineUpdate)
         obj.resLast = res;
       end
 
@@ -296,11 +367,11 @@ classdef TrainMonitorViz < handle
 %       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
     end
     
-    function adjustAxes(obj,lineUpdateMaxStep)
-      for i=1:numel(obj.haxs)
-        ax = obj.haxs(i);
+    function adjustAxes(obj,lineUpdateMaxStep,iset)
+      for i=1:size(obj.haxs,1)
+        ax = obj.haxs(i,iset);
         xlim = ax.XLim;
-        x0 = max(0,lineUpdateMaxStep-obj.axisXRange);
+        x0 = max(0,lineUpdateMaxStep-obj.axisXRange(iset));
         xlim(2) = max(1,lineUpdateMaxStep+0.5*(lineUpdateMaxStep-x0));
         ax.XLim = xlim;
         %ylim(ax,'auto');

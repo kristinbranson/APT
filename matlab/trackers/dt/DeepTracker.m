@@ -230,6 +230,9 @@ classdef DeepTracker < LabelTracker
     function v = getAlgorithmNamePrettyHook(obj)
       v = ['Deep Convolutional Network - ' obj.trnNetType.displayString];
     end
+    function v = getNumStages(obj)
+      v = 1;
+    end
     function v = getNetsUsed(obj)
       v = cellstr(obj.trnNetType);
     end
@@ -623,10 +626,11 @@ classdef DeepTracker < LabelTracker
     function bgTrnStart(obj,backEnd,dmcs,varargin)
       % fresh start new training monitor 
             
-      [trnStartCbk,trnCompleteCbk,trainSplits] = myparse(varargin,...
+      [trnStartCbk,trnCompleteCbk,trainSplits,trnVizArgs] = myparse(varargin,...
         'trnStartCbk',[],... % function handle with sig cbk(src,evt)
         'trnCompleteCbk',[],... % etc
-        'trainSplits',false ...  % true for splits/xv
+        'trainSplits',false, ...  % true for splits/xv
+        'trnVizArgs',{} ...
         );
       
       if ~isempty(obj.bgTrnMonitor)
@@ -642,38 +646,48 @@ classdef DeepTracker < LabelTracker
       if ~isempty(trnCompleteCbk)
         nvw = obj.lObj.nview;
       elseif trainSplits
+        % unchecked codepath 20210806
         nvw = numel(dmcs);
         assert(backEnd.type==DLBackEnd.Bsub);
         trnCompleteCbk = @(s,e) obj.xvStoppedCbk(s,e);
       else
         nvw = obj.lObj.nview;
-        assert(numel(dmcs)==nvw);
         trnCompleteCbk = @(s,e) obj.trainStoppedCbk(s,e);
-      end     
-
+      end
+      ndmcs = numel(dmcs);
+      if ndmcs~=nvw
+        netmode = obj.trnNetMode;
+        tf2stg = netmode.isTopDown && (netmode.isObjDet || netmode.isHeadTail);
+        assert(tf2stg);        
+%         warningNoTrace('BG Monitor: Number of DMCs (%d) does not match number of views (%d).',...
+%           ndmcs,nvw);
+      end
+      
       trnMonObj = BgTrainMonitor;
       addlistener(trnMonObj,'bgStart',trnStartCbk);
       addlistener(trnMonObj,'bgEnd',trnCompleteCbk);
 
+      % 20210806 At this point, the first arg to train worker obj (ndmcs)
+      % must match numel(dmcs)...
       switch backEnd.type
         case DLBackEnd.Bsub
           if trainSplits
-            trnWrkObj = BgTrainSplitWorkerObjBsub(nvw,dmcs);            
+            trnWrkObj = BgTrainSplitWorkerObjBsub(ndmcs,dmcs);            
           else
-            trnWrkObj = BgTrainWorkerObjBsub(nvw,dmcs);
+            trnWrkObj = BgTrainWorkerObjBsub(ndmcs,dmcs);
           end
         case DLBackEnd.Conda
-          trnWrkObj = BgTrainWorkerObjConda(nvw,dmcs);
+          trnWrkObj = BgTrainWorkerObjConda(ndmcs,dmcs);
         case DLBackEnd.Docker
-          trnWrkObj = BgTrainWorkerObjDocker(nvw,dmcs,backEnd);
+          trnWrkObj = BgTrainWorkerObjDocker(ndmcs,dmcs,backEnd);
         case DLBackEnd.AWS
-          trnWrkObj = BgTrainWorkerObjAWS(nvw,dmcs,backEnd.awsec2);
+          trnWrkObj = BgTrainWorkerObjAWS(ndmcs,dmcs,backEnd.awsec2);
         otherwise
           assert(false);
       end
 
       trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,obj,trnWrkObj,...
-        backEnd.type,'trainSplits',trainSplits);
+        backEnd.type,'trainSplits',trainSplits,trnVizArgs{:});
                 
       trnMonObj.prepare(trnVizObj,trnWrkObj);
       trnMonObj.start();
@@ -886,6 +900,20 @@ classdef DeepTracker < LabelTracker
       trnBgWorkerObj = obj.bgTrnMonBGWorkerObj;
       if ~isempty(trnBgWorkerObj)
         trnBgWorkerObj.dispModelChainDir();
+      end
+    end
+    
+    function trnPrintProjDir(obj)
+      modelChainID = obj.trnName;
+      if isempty(modelChainID) 
+        error('Training is not complete or in progress.');
+      end
+      if ~obj.bgTrnIsRunning
+        fprintf('Training is not in progress; information is for most recent training session.\n');
+      end
+      trnBgWorkerObj = obj.bgTrnMonBGWorkerObj;
+      if ~isempty(trnBgWorkerObj)
+        trnBgWorkerObj.dispProjDir();
       end
     end
     
@@ -1346,12 +1374,12 @@ classdef DeepTracker < LabelTracker
             end
             dmc(ivw).view = ivw-1; % 0-based
             if ivw <= nTrainJobs,
-            gpuid = gpuids(ivw);
-            [syscmds{ivw},containerNames{ivw}] = ...
+              gpuid = gpuids(ivw);
+              [syscmds{ivw},containerNames{ivw}] = ...
                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType);
-            logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
-              backEnd.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
+              logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
+                backEnd.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
           end
         case DLBackEnd.Conda
@@ -1630,8 +1658,10 @@ classdef DeepTracker < LabelTracker
 %         end
         
         fprintf('Using auto-generated container bind-paths:\n');
-        dlroot = [aptroot '/deepnet'];
-        paths = [cacheDir;dlroot;macroCell(:);projbps(:);extradirs(:)];
+        %dlroot = [aptroot '/deepnet'];
+        % AL 202108: include all of <APT> due to git describe cmd which
+        % looks in <APT>/.git
+        paths = [cacheDir;aptroot;macroCell(:);projbps(:);extradirs(:)];
         paths = unique(paths);
       end
       
@@ -3349,7 +3379,7 @@ classdef DeepTracker < LabelTracker
             trxfiles_curr = {};
           end
           trkfiles_curr = trkfiles(:,ivw);
-          trksysinfo(ivwjob) = TrackJob(obj,backend,...
+          trksysinfo(1,ivwjob) = TrackJob(obj,backend,...
             'targets',trxids,...
             'frm0',frm0,...
             'frm1',frm1,...
@@ -3363,10 +3393,9 @@ classdef DeepTracker < LabelTracker
             'ivw',ivw,...
             'rootdirLcl',cacheDir,...
             'nowstr',id); %#ok<AGROW> % HERE
-          trksysinfo(ivwjob).prepareFiles();
+          trksysinfo(1,ivwjob).prepareFiles();
           fprintf('View %d: %d trkfiles to be written, first to %s\n',...
-            ivw,numel(trkfiles_curr),trksysinfo(ivwjob).trkfileLcl{1});
-
+            ivw,numel(trkfiles_curr),trksysinfo(1,ivwjob).trkfileLcl{1});
         end
         
         baseArgs = [baseArgs,{'serialmode' true}]; 
@@ -3437,9 +3466,17 @@ classdef DeepTracker < LabelTracker
             end
             trksysinfo(imov,ivwjob).prepareFiles();
             
-            for i = 1:numel(trksysinfo(imov,ivwjob).trkfileLcl),
-              ivw1 = trksysinfo(imov,ivwjob).ivw(i);
-              fprintf('View %d: trkfile will be written to %s\n',ivw1,trksysinfo(imov,ivwjob).trkfileLcl{i});
+            tj = trksysinfo(imov,ivwjob);
+            for i = 1:numel(tj.trkfileLcl),
+              if tj.tf2stg
+                stgstr = 'Stage';
+                istg = i;
+              else
+                stgstr = 'View';
+                istg = tj.ivw(i);
+              end              
+              fprintf('%s %d: trkfile will be written to %s\n',...
+                stgstr,istg,tj.trkfileLcl{i});
             end
           end
         end
@@ -3535,29 +3572,30 @@ classdef DeepTracker < LabelTracker
       
       % Maps to track2/stage6, bg monitor config/launch
       % The philosophy is currently, there is a single monitor for all
-      % tracking jobs.      
-      logfiles = reshape({trksysinfo.logfile},size(trksysinfo));
-      errfiles = reshape({trksysinfo.errfile},size(trksysinfo));
-      if isMultiView,
-        assert(~isSerialMultiMov);
-        outfiles = reshape(cat(1,trksysinfo.trkfileRem),[nMovies,nView]);
-        partfiles = reshape(cat(1,trksysinfo.parttrkfileRem),[nMovies,nView]);
-        movfiles = reshape(cat(1,trksysinfo.movfileLcl),[nMovies,nView]);
-      elseif isSerialMultiMov
-        outfiles = cell(nMovies,numel(trksysinfo));
-        partfiles = cell(nMovies,numel(trksysinfo));
-        movfiles = cell(nMovies,numel(trksysinfo));
-        for ivwjob = 1:numel(trksysinfo),
-          outfiles(:,ivwjob) = trksysinfo(ivwjob).trkfileRem(:);
-          partfiles(:,ivwjob) = trksysinfo(ivwjob).parttrkfileRem(:);
-          movfiles(:,ivwjob) = trksysinfo(ivwjob).movfileLcl(:);
-        end
-        %assert(nView==1,'Serial tracking supported for single-view only.');
-      else
-        outfiles = reshape([trksysinfo.trkfileRem],size(trksysinfo));
-        partfiles = reshape([trksysinfo.parttrkfileRem],size(trksysinfo));
-        movfiles = reshape([trksysinfo.movfileLcl],size(trksysinfo));
-      end
+      % tracking jobs. 
+%       logfiles = reshape({trksysinfo.logfile},size(trksysinfo));
+%       errfiles = reshape({trksysinfo.errfile},size(trksysinfo));
+%       if isMultiView,
+%         assert(~isSerialMultiMov);
+%         outfiles = reshape(cat(1,trksysinfo.trkfileRem),[nMovies,nView]);
+%         partfiles = reshape(cat(1,trksysinfo.parttrkfileRem),[nMovies,nView]);
+%         movfiles = reshape(cat(1,trksysinfo.movfileLcl),[nMovies,nView]);
+%       elseif isSerialMultiMov
+%         outfiles = cell(nMovies,numel(trksysinfo));
+%         partfiles = cell(nMovies,numel(trksysinfo));
+%         movfiles = cell(nMovies,numel(trksysinfo));
+%         for ivwjob = 1:numel(trksysinfo),
+%           outfiles(:,ivwjob) = trksysinfo(ivwjob).trkfileRem(:);
+%           partfiles(:,ivwjob) = trksysinfo(ivwjob).parttrkfileRem(:);
+%           movfiles(:,ivwjob) = trksysinfo(ivwjob).movfileLcl(:);
+%         end
+%         %assert(nView==1,'Serial tracking supported for single-view only.');
+%       else
+%         outfiles = reshape([trksysinfo.trkfileRem],size(trksysinfo));
+%         partfiles = reshape([trksysinfo.parttrkfileRem],size(trksysinfo));
+%         movfiles = reshape([trksysinfo.movfileLcl],size(trksysinfo));
+%       end
+      [logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nView,obj.trnLastDMC,backend);
       % movfiles is nMovies x nViews
       bgTrkWorkerObj.initFiles(movfiles,outfiles,logfiles,errfiles,...
@@ -3660,7 +3698,10 @@ classdef DeepTracker < LabelTracker
         nframes = trksysinfo.getNFramesTrack();
       else
         [nmovsets,nvjobs] = size(trksysinfo); %#ok<ASGLU>
-        maxNSerialMov = max([trksysinfo.nmovsettrk]);        
+        maxNSerialMov = max([trksysinfo.nmovsettrk]);      
+        
+        % AL202108 Don't understand this init or subsequent logic. What is
+        % defn/size of nframes to be returned?
         nframes = nan(maxNSerialMov,nmovsets);
         
         % AL202101 This call can be *very* slow for batch tracking,
@@ -3699,15 +3740,18 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static)
     function bgTrkWorkerObj = createBgTrkWorkerObj(nView,dmc,backend)
+
+      % dmc is not used in BgTrackWorkerObj subclasses!
+      dmcDummy = nan(1,nView);
       switch backend.type
         case DLBackEnd.Bsub
-          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmcDummy);
         case DLBackEnd.Conda,
-          bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmc);
+          bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmcDummy);
         case DLBackEnd.Docker,
-          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc,backend);
+          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmcDummy,backend);
         case DLBackEnd.AWS,
-           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView,dmc,backend.awsec2);
+           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView,dmcDummy,backend.awsec2);
         otherwise
           error('Not implemented back end %s',backend.type);
       end
@@ -3816,8 +3860,7 @@ classdef DeepTracker < LabelTracker
 
       try,
       
-      % res is nMovies x nViews
-      [nMovSets,nViews] = size(res);
+      [nMovSets,nViews,nStgs] = size(res);
       isexternal = res(1).isexternal;
       
       for i = 1:numel(obj.trkSysInfo),
@@ -3838,7 +3881,7 @@ classdef DeepTracker < LabelTracker
               'cropROIS',cropROIs);
           end
         end
-        for i=1:nMovSets*nViews,
+        for i=1:numel(res),
           fprintf('Tracking complete for %s, results saved to %s.\n',...
             res(i).movfile,res(i).trkfile);
         end
@@ -3853,10 +3896,11 @@ classdef DeepTracker < LabelTracker
         tffound = false(nMovSets,1);
         for i = 1:nMovSets,
           % This line might be fragile wrt user input for external tracking
-          [tffound(i),mIdx(i)] = obj.lObj.getMovIdxMovieFilesAllFull({res(i,:).movfile});
+          ISTAGE = 1; % movies should be the same across stages (when applicable)
+          [tffound(i),mIdx(i)] = obj.lObj.getMovIdxMovieFilesAllFull({res(i,:,ISTAGE).movfile});
           if ~tffound(i) % && ~isexternal,
             warning('Tracked movie [%s] does not correspond to any movie in the lbl file',...
-              sprintf('%s ',res(i,:).movfile));
+              sprintf('%s ',res(i,:,ISTAGE).movfile));
           end
         end
         
@@ -3865,14 +3909,14 @@ classdef DeepTracker < LabelTracker
             % conservative, take no action for now
             continue;
           end
+                    
           % we perform this check b/c while tracking has been running in
           % the bg, the project could have been updated, movies
           % renamed/reordered etc.
           
-          % obj.trkSysInfo(i,:) has either
-          % 1. nview els, each of which has a scalar cellstr .trkfileLcl;  OR
-          % 2. 1 el, which has a [nview] cellstr .trkfileLcl
-          trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
+          assert(~isexternal); % => we are not in "serialmultimov" situation
+          % trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
+          trkfiles = obj.trkSysInfo(i,:).getTrkFilesSingleMov();
           trkfiles = trkfiles(:);
           obj.trkPostProcIfNec(mIdx(i),trkfiles);
           obj.trackResAddTrkfile(mIdx(i),trkfiles);
@@ -4141,9 +4185,7 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)
-      % AL: odd method name
-      
+    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)      
       obj.updateLastDMCsCurrInfo();
       
       trnstrs = cell(size(obj.trnLastDMC));
@@ -4374,7 +4416,6 @@ classdef DeepTracker < LabelTracker
         netTypeObj = netType;
       end
       
-      %isMA = netTypeObj.isMultiAnimal;
       baseargs = [baseargs {'confparamsfilequote','\\\"'}];
       basecmd = APTInterf.trainCodeGen(trnID,dllbl,cache,errfile,...
           netTypeObj,netMode,baseargs{:});      
@@ -4789,7 +4830,8 @@ classdef DeepTracker < LabelTracker
         char(nettype),[filequote dllbl filequote],[filequote outfile filequote])];
     end    
     
-    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,frm0,frm1,varargin)
+    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,...
+        frm0,frm1,varargin)
 
       % varargin: see trackCodeGenBase, except for 'cache' and 'view'
       
@@ -4798,7 +4840,8 @@ classdef DeepTracker < LabelTracker
       
       baseargs = [{'cache' fileinfo.cache} baseargs];
       filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:},'filequote',filequote);
+      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:},...
+        'filequote',filequote);
 
       if isempty(containerName),
         if iscell(fileinfo.outtrk),
@@ -4862,6 +4905,7 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
+      baseargs = [baseargs {'confparamsfilequote','\\\"'}];
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netmode,singargs{:});
     end
