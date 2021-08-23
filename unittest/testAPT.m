@@ -266,7 +266,7 @@ classdef testAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'argrone')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT_20210823.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -762,14 +762,16 @@ classdef testAPT < handle
       
       action = varargin{1};
       switch action
-        case 'roianmatrain'
-          % CISuite('roianma',<iTracker>)
-          iTracker = varargin{2};
+        case 'train'
+          % CISuite('train',<name>,<iTracker>)
+          
+          name = varargin{2};
+          iTracker = varargin{3};
           iTracker = str2double(iTracker);
           
           TRNITERS = 350;
           
-          testObj = testAPT('name','roianma');
+          testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
           testObj.test_train(...
             'net_type',iTracker,...
@@ -789,12 +791,14 @@ classdef testAPT < handle
               'Final iteration (%d) is not expected (%d)!',iters1,TRNITERS);
           end
           
-        case 'roianmatrack'
-          % CISuite('roianma',<iTracker>)
-          iTracker = varargin{2};
+        case 'track'
+          % CISuite('track',<name>,<iTracker>)
+          
+          name = varargin{2};
+          iTracker = varargin{3};
           iTracker = str2double(iTracker);
                     
-          testObj = testAPT('name','roianma');
+          testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
           testObj.test_track(...
             'net_type',iTracker,...
