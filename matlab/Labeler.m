@@ -7521,7 +7521,7 @@ classdef Labeler < handle
     
     function v = labelroiGet(obj,frm)
       % Get rois for current frm
-      assert(~obj.gtIsGTMode);
+%       assert(~obj.gtIsGTMode);
       iMov = obj.currMovie;
       %frm = obj.currFrame;
       s = obj.labelsRoi{iMov};

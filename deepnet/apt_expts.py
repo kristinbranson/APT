@@ -376,7 +376,7 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
                     **kwargs):
     cur_out = []
     extra_str = ''
-    if model_type not in ['leap', 'openpose', 'sb', 'dpk','leap_orig','mmpose']:
+    if model_type not in ['leap', 'openpose', 'sb', 'dpk','leap_orig','mmpose','mdn_joint_fpn']:
         extra_str = '.index'
     # else:
     #     extra_str = '.h5'

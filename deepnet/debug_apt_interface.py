@@ -1,3 +1,32 @@
+import tensorflow as tf
+tf.executing_eagerly()
+tf.compat.v1.enable_v2_behavior()
+from reuse import *
+tf.compat.v1.enable_v2_behavior()
+lbl_file = '/groups/branson/home/kabram/.apt/tpf38674d8_5089_4c5d_972e_39509410b43e/alice_ma/20210820T083757_20210820T083758.lbl'
+name = '20210820T083757'
+cache_dir = '/groups/branson/home/kabram/.apt/tpf38674d8_5089_4c5d_972e_39509410b43e'
+conf_params = 'db_format "tfrecord" use_ht_trx True'.split()
+conf = apt.create_conf(lbl_file,0,name,cache_dir,'mdn_joint_fpn',conf_params,second_stage=True)
+conf.rescale = 1.
+import PoseCommon_tf2
+reload(PoseCommon_tf2)
+self = PoseCommon_tf2.PoseCommon(conf,'deepnet')
+kk = self.create_datasets()
+ii = iter(self.train_dataset)
+jj = next(ii)
+hmap = pt.create_label_images(jj[1].numpy(), conf.imsz, 1, conf.label_blur_rad)
+hmap = tf.convert_to_tensor(hmap,tf.float32)
+import PoseUNet_resnet
+self1 = PoseUNet_resnet.PoseUMDN_resnet(conf, name='deepnet')
+ims = tf.cast(jj[0],tf.float32)
+self1.inputs = [ff,jj[1],jj[2] ,hmap]
+
+self1.ph = {'phase_train':True}
+nn = self1.create_network()
+ll = self1.loss(self1.inputs,nn)
+
+##
 cmd = '/groups/branson/home/leea30/.apt/tp11693d47_0809_43b0_993c_30eda05f49c0/four_points_180806/20210804T132553_20210804T132554.lbl -name 20210804T132553 -json_trn_file /groups/branson/home/leea30/.apt/tp11693d47_0809_43b0_993c_30eda05f49c0/four_points_180806/loc.json -stage multi -conf_params db_format \"coco\" -type detect_mmdetect -conf_params2 db_format \"tfrecord\" use_bbox_trx True -type2 mdn_joint_fpn -cache /groups/branson/home/kabram/temp train -use_cache'
 from reuse import *
 cmd = cmd.replace('\\','')

@@ -809,7 +809,7 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,to_remove] = np.nan
 
 
-def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None):
+def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=True):
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
@@ -864,7 +864,8 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None):
     ids,ids_lowconf = delete_lowconf(trk,ids,params)
   _, ids = ids.unique()
   trk.apply_ids(ids)
-  merge_close(trk,params)
+  if do_merge_close:
+    merge_close(trk,params)
   return trk
 
 def test_assign_ids_data():

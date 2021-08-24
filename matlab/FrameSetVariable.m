@@ -156,7 +156,7 @@ frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,true);
 end
 function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
 % iTgt=nan <=> "any target MA"
-if tfLbls2
+if tfLbls2 & (~lObj.maIsMA)
   s = lObj.getLabels2MovIdx(mIdx);
   frms = s.isLabeledT(iTgt);
 else

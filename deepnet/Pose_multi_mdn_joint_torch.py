@@ -213,7 +213,6 @@ def unravel_index(index, shape):
 class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,**kwargs):
-        assert conf.is_multi, 'This is a multi animal network'
         super(Pose_multi_mdn_joint_torch, self).__init__(conf, **kwargs)
         use_fpn = self.conf.get('mdn_joint_use_fpn', True)
         if use_fpn:
