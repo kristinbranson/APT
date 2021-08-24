@@ -9266,7 +9266,7 @@ classdef Labeler < handle
       xymax = squeeze(max(xy,[],2)); % n x 2
       xyspan = xymax-xymin;
       xyspan = prctile(xyspan(:),spanptl);
-      r = xyspan*cropszfac;
+      r = xyspan/2*cropszfac;
     end
   
     function roi = maGetLossMask(obj,xy,sPrmLoss)

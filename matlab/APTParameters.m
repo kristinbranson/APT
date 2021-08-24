@@ -504,7 +504,8 @@ classdef APTParameters
           sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
             rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
         end
-        if isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
+        if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
+          isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
           sPrmAll.ROOT.MultiAnimal.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
           sPrmAll.ROOT.MultiAnimal.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
           sPrmAll.ROOT.MultiAnimal.Detect = ...

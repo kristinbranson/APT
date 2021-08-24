@@ -255,7 +255,7 @@ classdef testAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'roianma')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210823.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -266,7 +266,7 @@ classdef testAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'argrone')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT_20210823.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -693,8 +693,14 @@ classdef testAPT < handle
     end
     
     function test_track(self,varargin)
-      [block,backend,aws_params] = myparse(varargin,'block',true,...
+      [block,net_type,backend,aws_params] = myparse(varargin,...
+        'block',true,...
+        'net_type',[],...
         'backend','','aws_params',struct);
+      
+      if ~isempty(net_type)
+        self.setup_alg(net_type)
+      end
       if ~isempty(backend),
         self.set_backend(backend,aws_params);
       end
@@ -707,6 +713,16 @@ classdef testAPT < handle
         end
         pause(10);
       end
+    end
+    
+    function test_track_export(self)
+      lObj = self.lObj;
+      iMov = lObj.currMovie;
+      trkfile = tempname;
+      lObj.trackExportResults(iMov,'trkfiles',{trkfile});      
+      tfile = TrkFile.load(trkfile);
+      fprintf(1,'Exported and re-loaded trkfile!\n');
+      disp(tfile);
     end
     
     function test_gtcompute(self,varargin)
@@ -746,14 +762,16 @@ classdef testAPT < handle
       
       action = varargin{1};
       switch action
-        case 'roianma'
-          % CISuite('roianma',<iTracker>)
-          iTracker = varargin{2};
+        case 'train'
+          % CISuite('train',<name>,<iTracker>)
+          
+          name = varargin{2};
+          iTracker = varargin{3};
           iTracker = str2double(iTracker);
           
           TRNITERS = 350;
           
-          testObj = testAPT('name','roianma');
+          testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
           testObj.test_train(...
             'net_type',iTracker,...
@@ -761,7 +779,7 @@ classdef testAPT < handle
             'params',struct('batch_size',2),...
             'test_tracking',false);
           
-          disp('Tracking done, listener returned!');          
+          disp('Train done!');          
           tObj = testObj.lObj.tracker;
           tinfo = tObj.trackerInfo;
           iters1 = tinfo.iterFinal;
@@ -773,6 +791,23 @@ classdef testAPT < handle
               'Final iteration (%d) is not expected (%d)!',iters1,TRNITERS);
           end
           
+        case 'track'
+          % CISuite('track',<name>,<iTracker>)
+          
+          name = varargin{2};
+          iTracker = varargin{3};
+          iTracker = str2double(iTracker);
+                    
+          testObj = testAPT('name',name);
+          testObj.test_setup('simpleprojload',1);
+          testObj.test_track(...
+            'net_type',iTracker,...
+            'block',true ...
+            );
+          
+          disp('Track done!');
+          %pause(10);
+          testObj.test_track_export();
         case 'hello'
           disp('hello!');
           
