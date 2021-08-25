@@ -1347,6 +1347,12 @@ classdef Labeler < handle
         obj.gtUpdateSuggMFTableLbledIncremental();
       end
     end
+    function set.labelsRoi(obj,v)      
+      obj.labelsRoi = v;
+      if ~obj.isinit %#ok<MCSUP> 
+        obj.updateFrameTableIncremental(); 
+      end
+    end
     function set.movieForceGrayscale(obj,v)
       assert(isscalar(v) && islogical(v));
       [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
@@ -7372,7 +7378,7 @@ classdef Labeler < handle
 %         nPts(i) = tmpNPts;        
 %       end
 %     end
-    function [nTgts,nPts] = labelPosLabeledFramesStats(obj,frms) % obj const
+    function [nTgts,nPts,nRois] = labelPosLabeledFramesStats(obj,frms) % obj const
       % Get stats re labeled frames in the current movie.
       % 
       % frms: SCALAR frame index to consider. If not provided, defaults to
@@ -7382,6 +7388,8 @@ classdef Labeler < handle
       %   for each frame in consideration
       % nPts: numel(frms)-by-1 vector indicating number of points labeled 
       %   for each frame in consideration, across all targets
+      % nRois: numel(frms)-by-1 vector indicating number of extra/ma rois
+      %   for each frame. (all elements will be 0 for nonMA projs)
       
       tfScalarFrm = exist('frms','var')>0;
       if tfScalarFrm
@@ -7397,32 +7405,56 @@ classdef Labeler < handle
       if ~obj.hasMovie || obj.currMovie==0 || isempty(frms) % invariants temporarily broken
         nTgts = nan(numel(frms),1);
         nPts = nan(numel(frms),1);
+        nRois = nan(numel(frms),1);
         return;
       end
       
       nf = numel(frms);
-      ntgts = obj.nTargets;
+      %ntgts = obj.nTargets;
       if obj.gtIsGTMode
         lpos = obj.labelsGT;
       else
         lpos = obj.labels;
       end
       s = lpos{obj.currMovie};
+
+      isMA = obj.maIsMA;
+      if isMA
+        if obj.gtIsGTMode
+          sroi = LabelROI.new();
+        else
+          sroi = obj.labelsRoi{obj.currMovie};
+        end
+      end
       
       if tfScalarFrm
         is = find(s.frm==frms);
         nTgts = numel(is);
         xs = s.p(1:s.npts,is);
         nPts = nnz(~isnan(xs));
+        
+        if isMA
+          nRois = nnz(sroi.f==frms);
+        else
+          nRois = 0;
+        end
       else
         %frms is guaranteed to be 1:frms(end)
         nTgts = zeros(nf,1);
         nPts = zeros(nf,1);
+        nRois = zeros(nf,1);
         for i=1:size(s.p,2)
           f = s.frm(i);
           nTgts(f) = nTgts(f)+1;
           pf = s.p(1:s.npts,i);
           nPts(f) = nPts(f)+nnz(~isnan(pf));
+        end
+        
+        if isMA
+          for i=1:numel(sroi.f)
+            f = sroi.f(i);
+            nRois(f) = nRois(f) + 1;
+          end
         end
       end
     end
@@ -13802,8 +13834,8 @@ classdef Labeler < handle
       cfrm = obj.currFrame;
       tfRow = (tblFrms==cfrm);
       
-      [nTgtsCurFrm,nPtsCurFrm] = obj.labelPosLabeledFramesStats(cfrm);
-      if nTgtsCurFrm>0
+      [nTgtsCurFrm,nPtsCurFrm,nRois] = obj.labelPosLabeledFramesStats(cfrm);
+      if nTgtsCurFrm>0 || nRois>0
         if any(tfRow)
           assert(nnz(tfRow)==1);
           iRow = find(tfRow);
@@ -13846,9 +13878,9 @@ classdef Labeler < handle
       tx.String = num2str(nTgtsTot);
     end    
     function updateFrameTableComplete(obj)
-      [nTgts,nPts] = obj.labelPosLabeledFramesStats();
+      [nTgts,nPts,nRois] = obj.labelPosLabeledFramesStats();
       assert(isequal(nTgts>0,nPts>0));
-      tfFrm = nTgts>0;
+      tfFrm = nTgts>0 | nRois>0;
       iFrm = find(tfFrm);
 
       nTgtsLbledFrms = nTgts(tfFrm);

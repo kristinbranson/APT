@@ -2640,8 +2640,6 @@ hFig.SizeChangedFcn(hFig,[]);
 function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;
 lObj.trackModeIdx = hObj.Value;
-%fullstrings = getappdata(hObj,'FullStrings');
-%set(handles.text_framestotrackinfo,'String',fullstrings{hObj.Value});
 
 function mftset = getTrackMode(handles)
 idx = handles.pumTrack.Value;
