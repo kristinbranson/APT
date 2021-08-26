@@ -78,7 +78,11 @@ classdef RectDrawer < handle
     end
     function v = getRoisVerts(obj)
       % v: [4 x 2 x nroi]
-      v = cat(3,obj.hRect.Vertices);
+      if isempty(obj.hRect)
+        v = nan(4,2,0);
+      else
+        v = cat(3,obj.hRect.Vertices);
+      end
     end
   end
     

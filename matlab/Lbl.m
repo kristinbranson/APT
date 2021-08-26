@@ -232,7 +232,7 @@ classdef Lbl
       
       [writeims,writeimsidx,slblname] = myparse(varargin,...
         'writeims',true, ...
-        'writeimsidx',[], ...
+        'writeimsidx',[], ... % (opt) DEBUG ONLY
         'strippedlblname',[] ... % (opt) short filename for stripped lbl
         );
       
@@ -281,9 +281,10 @@ classdef Lbl
       [loc,locg,loccc] = Lbl.genLocs(tp,movinfo);
       if writeims
         if isempty(writeimsidx)
-          writeimsidx = 1:numel(loc);
+          writeimsidx = 1:numel(locg);
         end
-        Lbl.writeims(loc(writeimsidx),packdir);
+        
+        Lbl.writeims(locg(writeimsidx),packdir);
       end
         
       % trnpack: one row per mov
@@ -372,14 +373,14 @@ classdef Lbl
         sloccc = [sloccc; slocccI]; %#ok<AGROW>
       end
     end
-    function [sloc] = genLocsI(s,imov,varargin)      
+    function [sloc] = genLocsI(s,imov,varargin)
       imgpat = myparse(varargin,...
         'imgpat','im/%s.png' ...
         );
       
       sloc = [];
       nrows = size(s.p,2);
-      for j=1:nrows        
+      for j=1:nrows
         f = s.frm(j);
         itgt = s.tgt(j);
         ts = s.ts(:,j);
@@ -431,8 +432,10 @@ classdef Lbl
         img = sprintf(imgpat,basefS);
         sloctmp = struct(...
           'id',basefS,...
+          'idmovfrm',sprintf('mov%04d_frm%08d',imov,f),...
           'img',{{img}},...
-          'imov',imov,... % 'mov',s.mov,...
+          'imov',imov,... 
+          'mov',s.mov,...
           'frm',f,...
           'ntgt',ntgt,...
           'split',s.split(j),...
