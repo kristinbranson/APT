@@ -215,7 +215,7 @@ handles.menu_setup_multianimal_mode = uimenu(...
   'Parent',handles.menu_labeling_setup,...
   'Label','Multianimal',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multianimal_mode_Callback',hObject,eventdata,guidata(hObject)),...
-  'Tag','menu_setup_multianimal_mode');  
+  'Tag','menu_setup_multianimal_mode');
 moveMenuItemAfter(handles.menu_setup_multianimal_mode,...
   handles.menu_setup_multiview_calibrated_mode_2);
 
@@ -248,6 +248,14 @@ handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
   'Checked','off',...
   'Visible','on');
 
+handles.menu_setup_ma_twoclick_align = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_ma_twoclick_align_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Two-click animal alignment',...
+  'Tag','menu_setup_ma_twoclick_align',...
+  'Checked','off',...
+  'Visible','on');
+
+
 LABEL_MENU_ORDER = {
    'menu_setup_sequential_mode'
    'menu_setup_template_mode'
@@ -257,6 +265,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_streamlined'
    'menu_setup_load_calibration_file'
    'menu_setup_use_calibration'
+   'menu_setup_ma_twoclick_align'
    'menu_setup_label_overlay_montage'
    'menu_setup_label_overlay_montage_trx_centered'
    'menu_setup_set_labeling_point'
@@ -1935,7 +1944,6 @@ lblMode = lObj.labelMode;
 menuSetupLabelModeHelp(handles,lblMode);
 switch lblMode
   case LabelMode.SEQUENTIAL
-%     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'off';
@@ -1943,6 +1951,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
@@ -1955,6 +1964,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'on';
     handles.menu_view_zoom_toggle.Visible = 'on';
     handles.menu_view_pan_toggle.Visible = 'on';
     handles.menu_view_showhide_maroi.Visible = 'on';
@@ -1968,6 +1978,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
@@ -1981,20 +1992,12 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
     handles.menu_view_showhide_maroiaux.Visible = 'off';
-%   case LabelMode.ERRORCORRECT
-%     handles.menu_setup_createtemplate.Visible = 'off';
-%     handles.menu_setup_set_labeling_point.Visible = 'off';
-%     handles.menu_setup_set_nframe_skip.Visible = 'off';
-%     handles.menu_setup_streamlined.Visible = 'off';
-%     handles.menu_setup_unlock_all_frames.Visible = 'on';
-%     handles.menu_setup_lock_all_frames.Visible = 'on';
-%     handles.menu_setup_load_calibration_file.Visible = 'off';
-  case {LabelMode.MULTIVIEWCALIBRATED2}
-%     handles.menu_setup_createtemplate.Visible = 'off';
+  case LabelMode.MULTIVIEWCALIBRATED2
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'on';
@@ -2002,22 +2005,11 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'on';
     handles.menu_setup_use_calibration.Visible = 'on';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
-    handles.menu_view_showhide_maroiaux.Visible = 'off';
-  case {LabelMode.MULTIVIEWCALIBRATED2}
-    handles.menu_setup_set_labeling_point.Visible = 'off';
-    handles.menu_setup_set_nframe_skip.Visible = 'off';
-    handles.menu_setup_streamlined.Visible = 'off';
-    handles.menu_setup_unlock_all_frames.Visible = 'off';
-    handles.menu_setup_lock_all_frames.Visible = 'off';
-    handles.menu_setup_load_calibration_file.Visible = 'off';
-    handles.menu_setup_use_calibration.Visible = 'off';
-    handles.menu_view_zoom_toggle.Visible = 'off';
-    handles.menu_view_pan_toggle.Visible = 'off';
-    handles.menu_view_showhide_maroi.Visible = 'off';
-    handles.menu_view_showhide_maroiaux.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off'; 
 end
 
 lc = lObj.lblCore;
@@ -3408,6 +3400,13 @@ lObj = handles.labelerObj;
 lc = lObj.lblCore;
 assert(isa(lc,'LabelCoreMultiViewCalibrated2'));
 lc.streamlined = ~lc.streamlined;
+
+function menu_setup_ma_twoclick_align_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lc = lObj.lblCore;
+tftc = ~lc.tcOn;
+lc.setTwoClickOn(tftc);
+hObject.Checked = onIff(tftc); % skip listener business for now
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

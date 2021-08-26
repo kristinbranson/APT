@@ -59,9 +59,13 @@ classdef LabelCoreSeqMA < LabelCore
                    % the '1' hotkey maps to, eg typically this will take the 
                    % values 1, 11, 21, ...
                    
+  end
+  properties (SetObservable=true)                   
     % two-click align
     % alt to using <shift>-a and <shift>-d for camroll
     tcOn = false; % scalar logical, true => two-click is on
+  end
+  properties
     % remainder applies when tcOn==true
     tcipt = 0; % 0, 1, or 2 depending on current number of two-click pts clicked
     tcHpts % [1] line handle for tc pts
@@ -311,7 +315,7 @@ classdef LabelCoreSeqMA < LabelCore
     end
         
     function ptBDF(obj,src,evt)
-      disp('ptbdf');
+      %disp('ptbdf');
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
@@ -693,7 +697,7 @@ classdef LabelCoreSeqMA < LabelCore
     end
     
     function acceptLabels(obj)
-      fprintf(1,'accept\n');
+      %fprintf(1,'accept\n');
       lObj = obj.labeler;
 %       ntgts = lObj.labelNumLabeledTgts();
 %       lObj.setTargetMA(ntgts+1);
@@ -743,7 +747,7 @@ classdef LabelCoreSeqMA < LabelCore
     end
             
     function storeLabels(obj)
-      fprintf(1,'store\n');
+      %fprintf(1,'store\n');
       [xy,tfeo] = obj.getLabelCoords();
       obj.labeler.labelPosSet(xy,tfeo);
     end

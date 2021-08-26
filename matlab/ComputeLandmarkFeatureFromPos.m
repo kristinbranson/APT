@@ -21,7 +21,7 @@ if isfield(trx,prop.code),
   if isstruct(dmat2),
     dmat2 = dmat2.data;
   end
-  fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
+%   fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
 else
   
   if isfield(trx,prop.feature),
@@ -32,7 +32,7 @@ else
     if ~exist(fun,'file'),
       warningNoTrace('Unknown property to display in timeline.');
       dmat2 = nan(size(lpos,1),size(lpos,3));
-      fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
+%       fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
       return;
     end
     
@@ -50,7 +50,7 @@ else
   if strcmpi(prop.transform,'none'),
     units = dmat1.units;
     dmat2 = padData(dmat1,t0,t1,nfrm);
-    fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
+%     fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
     return;
   end
   
@@ -58,7 +58,7 @@ else
   if ~exist(fun,'file'),
     warningNoTrace('Unknown property to display in timeline.');
     dmat2 = nan(size(lpos,1),size(lpos,3));
-    fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
+%     fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
     return;
   end
   
@@ -66,7 +66,7 @@ else
   units = dmat2.units;
   dmat2 = padData(dmat2,t0,t1,nfrm);
 end
-fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
+% fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
 
 function trx = initializeTrx(lpos,occluded,bodytrx,t0,t1)
 
