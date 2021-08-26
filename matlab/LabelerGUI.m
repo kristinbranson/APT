@@ -677,7 +677,6 @@ handles.menu_go.Position = 4;
 handles.menu_track.Position = 5;
 handles.menu_evaluate.Position = 6;
 handles.menu_help.Position = 7;
-
 % hCMenu = uicontextmenu('parent',handles.figure);
 % uimenu('Parent',hCMenu,'Label','Freeze to current main window',...
 %   'Callback',@(src,evt)cbkFreezePrevAxesToMainWindow(src,evt));
@@ -1537,8 +1536,8 @@ arrayfun(@(x)pan(x,'off'),handles.figs_all);
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 handles.h_ignore_arrows = [handles.slider_frame];
-set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
-set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
+%set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
+%set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
 if ispc
   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
 end
@@ -1658,9 +1657,15 @@ else
   set(handles.menu_go_targets_summary,'Enable','off');
 end
 
-
-%tfResetCLims = evt.isFirstMovieOfProject;
-
+wbmf = @(src,evt)cbkWBMF(src,evt,lObj);
+wbuf = @(src,evt)cbkWBUF(src,evt,lObj);
+if lObj.nview==1
+  imgzoompan(handles.axes_curr,'wbmf',wbmf,'wbuf',wbuf,...
+    'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+else
+  set(handles.figs_all,'WindowButtonMotionFcn',wbmf);
+  set(handles.figs_all,'WindowButtonUpFcn',wbuf);
+end
 
 % Deal with Axis and Color limits.
 for iView = 1:lObj.nview	  
@@ -2963,47 +2968,47 @@ ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
 axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
 % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
 
-function dragstart_callback(hObject,eventdata,~)
-fprintf('Drag on\n')
-h = guidata(hObject);
-curp = get(h.axes_curr,'CurrentPoint');
-xlim = get(h.axes_curr,'XLim');
-ylim = get(h.axes_curr,'YLim');
-if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
-  return
-end
-if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
-  return
-end
-h.labelerObj.drag = true;
-h.labelerObj.drag_pt = [curp(1,1),curp(1,2)];
-set(hObject,'Windowbuttonmotionfcn',@drag_callback);
-set(hObject,'WindowbuttonUpFcn',@dragend_callback);
+% function dragstart_callback(hObject,eventdata,~)
+% fprintf('Drag on\n')
+% h = guidata(hObject);
+% curp = get(h.axes_curr,'CurrentPoint');
+% xlim = get(h.axes_curr,'XLim');
+% ylim = get(h.axes_curr,'YLim');
+% if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+%   return
+% end
+% if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+%   return
+% end
+% h.labelerObj.drag = true;
+% h.labelerObj.drag_pt = [curp(1,1),curp(1,2)];
+% set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+% set(hObject,'WindowbuttonUpFcn',@dragend_callback);
 
-function drag_callback(hObject,evendata,~)
-h = guidata(hObject);
-if ~h.labelerObj.drag
-  return
-end
-fprintf('Dragging\n');
-xlim = get(h.axes_curr,'XLim');
-ylim = get(h.axes_curr,'YLim');
-curp = get(h.axes_curr,'CurrentPoint');
-dx = curp(1,1)-h.labelerObj.drag_pt(1);
-dy = curp(1,2) - h.labelerObj.drag_pt(2);
-imglimx = get(h.image_curr,'XData');
-imglimy = get(h.image_curr,'YData');
-xlim(1) = max(imglimx(1),xlim(1)-dx);
-xlim(2) = min(imglimx(2),xlim(2)-dx);
-ylim(1) = max(imglimy(1),ylim(1)-dy);
-ylim(2) = min(imglimy(2),ylim(2)-dy);
-axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+% function drag_callback(hObject,evendata,~)
+% h = guidata(hObject);
+% if ~h.labelerObj.drag
+%   return
+% end
+% fprintf('Dragging\n');
+% xlim = get(h.axes_curr,'XLim');
+% ylim = get(h.axes_curr,'YLim');
+% curp = get(h.axes_curr,'CurrentPoint');
+% dx = curp(1,1)-h.labelerObj.drag_pt(1);
+% dy = curp(1,2) - h.labelerObj.drag_pt(2);
+% imglimx = get(h.image_curr,'XData');
+% imglimy = get(h.image_curr,'YData');
+% xlim(1) = max(imglimx(1),xlim(1)-dx);
+% xlim(2) = min(imglimx(2),xlim(2)-dx);
+% ylim(1) = max(imglimy(1),ylim(1)-dy);
+% ylim(2) = min(imglimy(2),ylim(2)-dy);
+% axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
 
 
-function dragend_callback(hObject,eventdata,~)
-h = guidata(hObject);
-h.labelerObj.unsetdrag();
-fprintf('Drag off\n')
+% function dragend_callback(hObject,eventdata,~)
+% h = guidata(hObject);
+% h.labelerObj.unsetdrag();
+% fprintf('Drag off\n')
 
 
 function sldZoom_Callback(hObject, eventdata, ~)

@@ -173,8 +173,8 @@ classdef LabelCoreSeqMA < LabelCore
       assert(false,'Nonproduction codepath');
     end
     
-    function axBDF(obj,src,evt) %#ok<INUSD>
-      if ~obj.labeler.isReady
+    function axBDF(obj,src,evt) 
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
       
@@ -203,7 +203,6 @@ classdef LabelCoreSeqMA < LabelCore
               obj.refreshOccludedPts();
             end
             % estOcc status unchanged          
-          
           end
       end
     end
@@ -311,9 +310,9 @@ classdef LabelCoreSeqMA < LabelCore
       end
     end
         
-    function ptBDF(obj,src,~)
+    function ptBDF(obj,src,evt)
       disp('ptbdf');
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
       tf = obj.anyPointSelected();

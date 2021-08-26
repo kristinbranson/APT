@@ -86,10 +86,16 @@ We thank the open source community for making this project possible. APT contain
 * external/PiotrDollarToolbox
   https://pdollar.github.io/toolbox/
   Piotr Dollar
-  
+
+* matlab/misc/imgzoompan.m
+  https://github.com/danyalejandro/imgzoompan
+  Dany Cabrera
+
 * matlab/misc/inputdlgWithBrowse.m (original: inputdlg.m)
   matlab/misc/imcontrast_kb.m (original: imcontrast.m)
   matlab/private_imuitools/\*.m (requirements for imcontrast.m)
   Modified MATLAB toolbox code.
+
+
 
 

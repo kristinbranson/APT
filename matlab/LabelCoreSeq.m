@@ -97,8 +97,8 @@ classdef LabelCoreSeq < LabelCore
       %obj.beginAdjust();
     end
     
-    function axBDF(obj,src,evt) %#ok<INUSD>
-      if ~obj.labeler.isReady,
+    function axBDF(obj,src,evt) 
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
       
@@ -212,8 +212,8 @@ classdef LabelCoreSeq < LabelCore
       end
     end
         
-    function ptBDF(obj,src,~)
-      if ~obj.labeler.isReady,
+    function ptBDF(obj,src,evt)
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
       tf = obj.anyPointSelected();

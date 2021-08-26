@@ -307,9 +307,9 @@ classdef LabelCoreTemplate < LabelCore
       obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
     end 
     
-    function axBDF(obj,src,evt) %#ok<INUSD>
+    function axBDF(obj,src,evt) 
       
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
       
@@ -338,31 +338,32 @@ classdef LabelCoreTemplate < LabelCore
     
     function ptBDF(obj,src,evt)
       
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
       
-      switch evt.Button
-        case 1
-          tf = obj.anyPointSelected();
-          if tf
-            iPt = get(src,'UserData');
-            obj.toggleSelectPoint(iPt);
-            % none
-          else
-            % prepare for click-drag of pt
-            
-            if obj.state==LabelState.ACCEPTED
-              % KB 20181029
-              %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
-            end
-            iPt = get(src,'UserData');
-            obj.iPtMove = iPt;
-            obj.tfMoved = false;
-          end
-        case 3
+      mod = obj.hFig.CurrentModifier;
+      tfShift = any(strcmp(mod,'shift'));
+      if ~tfShift
+        tf = obj.anyPointSelected();
+        if tf
           iPt = get(src,'UserData');
-          obj.toggleEstOccPoint(iPt);
+          obj.toggleSelectPoint(iPt);
+          % none
+        else
+          % prepare for click-drag of pt
+          
+          if obj.state==LabelState.ACCEPTED
+            % KB 20181029
+            %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
+          end
+          iPt = get(src,'UserData');
+          obj.iPtMove = iPt;
+          obj.tfMoved = false;
+        end
+      else
+        iPt = get(src,'UserData');
+        obj.toggleEstOccPoint(iPt);
       end
     end
     
