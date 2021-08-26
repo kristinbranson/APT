@@ -813,8 +813,8 @@ classdef Labeler < handle
       n = numel(iMov);
       v = cell(n,obj.nview);
       
-      mfa = obj.movieFilesAll;
-      mfaGT = obj.movieFilesAllGT;
+      mfa = FSPath.macroReplace(obj.movieFilesAll,obj.projMacros);
+      mfaGT = FSPath.macroReplace(obj.movieFilesAllGT,obj.projMacros);
       tfa = obj.trxFilesAll;
       tfaGT = obj.trxFilesAllGT;
       for i=1:n
@@ -7553,7 +7553,7 @@ classdef Labeler < handle
     
     function v = labelroiGet(obj,frm)
       % Get rois for current frm
-      assert(~obj.gtIsGTMode);
+%       assert(~obj.gtIsGTMode);
       iMov = obj.currMovie;
       %frm = obj.currFrame;
       s = obj.labelsRoi{iMov};

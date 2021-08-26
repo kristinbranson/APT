@@ -67,7 +67,12 @@ def decode_augment(features, conf, distort):
     features['info'] = np.array([features['expndx'][0],features['ts'][0],features['trx_ndx'][0]])
 
 
-    ims, locs, mask = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale,mask=features['mask'])
+    ret = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale,mask=features['mask'])
+    ims,locs = ret[:2]
+    if features['mask'] is not None:
+        features['mask'] = ret[2]
+    else:
+        features['mask'] = np.array([])
 
     # convert CHW format
     ims = np.transpose(ims[0,...]/255.,[2,0,1])
@@ -328,7 +333,8 @@ class PoseCommon_pytorch(object):
         train_tfn = lambda f: decode_augment(f,conf,True)
         val_tfn = lambda f: decode_augment(f,conf,False)
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
+        valtfr = trntfr
+        # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if not os.path.exists(valtfr):
             logging.info('Validation data set doesnt exist. Using train data set for validation')
             valtfr = trntfr
@@ -383,7 +389,7 @@ class PoseCommon_pytorch(object):
                     shuffle = False
                 else:
                     train_sampler = None
-                    shuffle = True
+                    shuffle = True if self.conf.db_format == 'coco' else False
 
                 self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle)
                 self.train_iter = iter(self.train_dl)
@@ -426,7 +432,7 @@ class PoseCommon_pytorch(object):
             outputs = model(inputs)
             o = time.time()
             labels = self.create_targets(inputs)
-            valid = torch.any(torch.all(inputs['locs'] > -1000, dim=3), dim=2)
+            # valid = torch.any(torch.all(inputs['locs'] > -1000, dim=3), dim=2)
             # if not torch.all(torch.any(valid, dim=1)):
             #     print('Some inputs dont have any labels')
             #     continue

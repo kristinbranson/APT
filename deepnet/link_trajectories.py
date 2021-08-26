@@ -539,7 +539,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   
   if (mult is None) and heuristic =='prctile':
     mult = 100. / prctile
-  else:
+  elif mult is None:
     mult = 1.2
   nsample = np.minimum(trk.T, nsample)
   tsample = np.round(np.linspace(trk.T0, trk.T1-nframes_skip-1, nsample)).astype(int)
@@ -576,17 +576,17 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
     maxcost = mult * np.percentile(allcosts[isdata], prctile)
   elif heuristic == 'secondorder':
     # use sharp increase in 2nd order differences.
-    qq = np.percentile(allcosts[isdata], np.arange(50, 100, 0.5))
+    qq = np.percentile(allcosts[isdata], np.arange(50, 100, 0.25))
     dd1 = qq[1:] - qq[:-1]
     dd2 = dd1[1:] - dd1[:-1]
     all_ix = np.where(dd2 > 4)[0]
     # threshold is where the second order increases by 4, so sort of the coefficient for the quadratic term.
     if len(all_ix) < 1:
-        ix = 96 # choose 98 % as backup
+        ix = 198 # choose 98 % as backup
     else:
         ix = all_ix[0]
-    ix = np.clip(ix,5,98)
-    logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost'%(nframes_skip,ix/2+50,qq[ix]))
+    ix = np.clip(ix,5,198)
+    logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost'%(nframes_skip,ix/4+50,qq[ix]))
     maxcost = mult*qq[ix]
   
   return maxcost
@@ -809,15 +809,15 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,to_remove] = np.nan
 
 
-def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None):
+def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=True):
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
   params['maxframes_delete'] = 10
   params['maxcost_prctile'] = 95.
-  params['maxcost_mult'] = 1.25
+  params['maxcost_mult'] = 2
   params['maxcost_framesfit'] = 3
-  params['maxcost_heuristic'] = 'secondorder'
+  params['maxcost_heuristic'] = 'prctile'
   params['minconf_delete'] = 0.5
   params['nms_prctile'] = 50
   if params_in != None:
@@ -864,7 +864,8 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None):
     ids,ids_lowconf = delete_lowconf(trk,ids,params)
   _, ids = ids.unique()
   trk.apply_ids(ids)
-  merge_close(trk,params)
+  if do_merge_close:
+    merge_close(trk,params)
   return trk
 
 def test_assign_ids_data():

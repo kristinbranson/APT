@@ -3727,6 +3727,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
 
                 if conf.multi_only_ht:
+                    assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
                     conf.n_classes = 2
 
                 module_name = 'Pose_{}'.format(net_type)

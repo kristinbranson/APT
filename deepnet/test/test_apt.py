@@ -72,7 +72,7 @@ def main():
 
 
         afiles = [f.replace('.index', '') for f in files]
-        mdn_out = apt_expts.classify_db_all(conf, gt_file, afiles, net, name=exp_name)
+        mdn_out = apt_expts.classify_db_all(conf, gt_file, afiles, net, name='deepnet')
         preds = mdn_out[0][0]
         labels = mdn_out[0][1]
 

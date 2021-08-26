@@ -1182,7 +1182,10 @@ class Trk:
     trk.trkfile=self.trkfile
     trk.pTrk=self.pTrk.copy()
     for k in self.trkFields:
-      trk.__dict__[k] = self.__dict__[k].copy()
+      if self.__dict__[k] is not None:
+        trk.__dict__[k] = self.__dict__[k].copy()
+      else:
+        trk.__dict__[k] = None
     if trk.pTrkiTgt is not None:
       trk.pTrkiTgt = self.pTrkiTgt.copy()
     else:

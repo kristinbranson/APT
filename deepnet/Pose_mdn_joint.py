@@ -27,7 +27,7 @@ import contextlib
 from upsamp import upsample_init_value
 
 
-class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
+class Pose_mdn_joint_tf(PoseUNet_resnet.PoseUMDN_resnet):
 
     def set_shape(self):
         im, locs, info, hmap = self.inputs
@@ -290,7 +290,6 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         return [locs_joint, locs, logits_joint, logits]
 
 
-
     def l2_loss(self,X,y):
 
         assert self.k_joint==1, 'This only works for k_joint ==1'
@@ -470,3 +469,75 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
     def train_wrapper(self,restore=False,model_file=None):
         self.train_umdn(restore,model_file=model_file)
+
+
+import PoseCommon_pytorch
+import Pose_multi_mdn_joint_torch
+import torch
+import PoseTools
+import numpy as np
+from poseConfig import conf
+
+class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch):
+    def __init__(self,conf,**kwargs):
+        conf.max_n_animals = 1
+        conf.min_n_animals = 1
+        conf.multi_loss_mask = False
+        super(Pose_mdn_joint_torch, self).__init__(conf, **kwargs)
+
+    def create_targets(self, inputs):
+        target_dict = {'locs':inputs['locs'][:,None,...]}
+        if 'mask' in inputs.keys():
+            target_dict['mask'] = inputs['mask']
+        target_dict['occ'] = inputs['occ']
+        return target_dict
+
+
+    def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
+        assert not self.conf.is_multi, 'This is for single animal'
+        if imsz is not None:
+            self.conf.imsz = imsz
+        model = self.create_model()
+        model = torch.nn.DataParallel(model)
+
+        if model_file is None:
+            latest_model_file = self.get_latest_model_file()
+        else:
+            latest_model_file = model_file
+
+        self.restore(latest_model_file,model)
+        model.to(self.device)
+        model.eval()
+        self.model = model
+        conf = self.conf
+
+        def pred_fn(ims, retrawpred=False):
+            locs_sz = (conf.batch_size, conf.n_classes, 2)
+            locs_dummy = np.zeros(locs_sz)
+
+            ims, _ = PoseTools.preprocess_ims(ims,locs_dummy,conf,False,conf.rescale)
+            with torch.no_grad():
+                preds = model({'images':torch.tensor(ims).permute([0,3,1,2])/255.})
+
+            locs = self.get_joint_pred(preds)
+            ret_dict = {}
+            ret_dict['locs'] = locs['ref'][:,0,...] * conf.rescale
+            cur_joint_conf = locs['conf_ref'][:,0,...]
+            ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))
+            if self.conf.predict_occluded:
+                ret_dict['occ'] = locs['pred_occ'][:,0,...]
+            else:
+                ret_dict['occ'] = np.ones_like(locs['pred_occ'][:,0])*np.nan
+            if retrawpred:
+                ret_dict['preds'] = preds
+                ret_dict['raw_locs'] = locs
+            return ret_dict
+
+        def close_fn():
+            torch.cuda.empty_cache()
+
+        return pred_fn, close_fn, latest_model_file
+
+class Pose_mdn_joint(Pose_mdn_joint_torch):
+    def __init__(self,conf,**kwargs):
+        super(Pose_mdn_joint,self).__init__(conf,**kwargs)
