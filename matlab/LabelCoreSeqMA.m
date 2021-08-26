@@ -454,11 +454,7 @@ classdef LabelCoreSeqMA < LabelCore
         tfKPused = false;
       end
     end
-    
-    function h = getLabelingHelp(obj) %#ok<MANU>
-      h = { '' };
-    end
-    
+        
     function updateSkeletonEdges(obj,varargin)
       updateSkeletonEdges@LabelCore(obj,varargin{:});
       se = obj.skeletonEdges;
@@ -773,7 +769,6 @@ classdef LabelCoreSeqMA < LabelCore
 %       obj.beginAccepted();
 %     end
     
-    % C+P
     function refreshTxLabelCoreAux(obj)
       iPt0 = obj.kpfIPtFor1Key;
       iPt1 = iPt0+9;
@@ -785,6 +780,16 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
       assert(~(obj.tfEstOcc(iPt) && obj.tfOcc(iPt)));
       obj.refreshPtMarkers('iPts',iPt);
+    end
+    
+    function h = getLabelingHelp(obj) %#ok<MANU>
+      h = { ...
+        '* Use mouse-scroll and right-click-drag to zoom and pan.'
+        '* Click New Target to begin labeling a new target.'
+        '* Click to label keypoints sequentially. Hold shift for partially-occluded points.'
+        '* Drag keypoints to adjust after labeling.'
+        '* Use ROIs to specify regions in the image where everything is labeled correctly.'
+        };
     end
 
   end
