@@ -203,6 +203,7 @@ classdef APTParameters
         istd = labelerObj.trackerIsTopDown;
         isbu = labelerObj.trackerIsBotUp;
         isod = labelerObj.trackerIsObjDet;
+        isht = istd && ~isod;
       
         reqs = tree.Data.Requirements;
         if ismember('isCPR',reqs) && ~any(strcmpi('cpr',netsUsed)),
@@ -225,6 +226,8 @@ classdef APTParameters
         elseif ismember('isDeepTrack',reqs) && ~trackerIsDL,
           tree.Data.Visible = false;
         elseif ismember('isTopDown',reqs) && ~istd
+          tree.Data.Visible = false;          
+        elseif ismember('isHeadTail',reqs) && ~isht
           tree.Data.Visible = false;
         elseif ismember('isObjDet',reqs) && ~isod
           tree.Data.Visible = false;
