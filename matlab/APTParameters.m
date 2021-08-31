@@ -231,6 +231,8 @@ classdef APTParameters
           tree.Data.Visible = false;
         elseif ismember('isObjDet',reqs) && ~isod
           tree.Data.Visible = false;
+        elseif ismember('~isObjDet',reqs) && isod
+          tree.Data.Visible = false;
         else
           dlnets = enumeration('DLNetType');
           for i=1:numel(dlnets)

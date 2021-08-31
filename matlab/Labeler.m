@@ -11547,7 +11547,11 @@ classdef Labeler < handle
       tfBackEnd = exist('netmode','var');
       if tfBackEnd
         sPrmAll.ROOT.MultiAnimal.is_multi = netmode.is_multi;
-        sPrmAll.ROOT.MultiAnimal.multi_crop_ims = netmode.multi_crop_ims;
+        can_multi_crop_ims = netmode.multi_crop_ims;
+        if sPrmAll.ROOT.MultiAnimal.multi_crop_ims && ~can_multi_crop_ims
+          warningNoTrace('setting multi_crop_ims to False.');
+          sPrmAll.ROOT.MultiAnimal.multi_crop_ims = false;
+        end
         sPrmAll.ROOT.MultiAnimal.Detect.multi_only_ht = netmode.multi_only_ht;
         sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = ...
           netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx;
