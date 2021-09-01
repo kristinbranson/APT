@@ -36,7 +36,7 @@ mdn_joint_fpn:
   shortString: grone
   displayString: GRONe
   modelCheckpointPat: deepnet-%d  
-  modelGlobs: [deepnet-%d*, deepnet_ckpt, traindata*]
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*]
   trkAuxFields: [pTrkConf, pTrkocc]
   trkAuxLabels: [confidence, scr_occ]
   doesOccPred: 1

@@ -66,10 +66,28 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None):
   C[ncurr:, nnext:] = 0
   pcurr = np.reshape(pcurr, (d * nlandmarks, ncurr, 1))
   pnext = np.reshape(pnext, (d * nlandmarks, 1, nnext))
-  C[:ncurr, :nnext] = np.reshape(np.sum(np.abs(pcurr-pnext), axis=0), (ncurr, nnext)) / nlandmarks
+  C1 = np.sum(np.abs(pcurr-pnext), axis=0)/nlandmarks
+  C[:ncurr, :nnext] = np.reshape(C1, (ncurr, nnext))
   
+  for x1 in range(nnext):
+    if np.all(np.isnan(C1[:,x1])): continue
+    x1_curr = np.nanargmin(C1[:,x1])
+    curc = C1.copy()
+    c1 = curc[x1_curr,x1]
+    curc[x1_curr,x1] = np.nan
+    if np.all(np.isnan(curc[:,x1])):
+      if np.all(np.isnan(curc[x1_curr])):
+        c2 = np.inf
+      else:
+        c2 = np.nanmin(curc[x1_curr])
+    else:
+      c2 = np.nanmin(curc[:,x1])
+    if c2/(c1+0.0001)<2:
+      C[x1_curr,x1] = maxcost
+
   # match
   idxcurr, idxnext = opt.linear_sum_assignment(C)
+
   costs = C[idxcurr, idxnext]
   cost = np.sum(costs)
   
@@ -809,7 +827,7 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,to_remove] = np.nan
 
 
-def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=True):
+def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=True,do_stitch=True,do_delete_short=True):
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
@@ -858,8 +876,28 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_
     _, nids_original = ids.get_min_max_val()
     nids_original = nids_original + 1
 
-  ids, isdummy = stitch(trk, ids, params)
-  ids, ids_short = delete_short(ids, isdummy, params)
+  if do_stitch:
+    ids, isdummy = stitch(trk, ids, params)
+  else:
+    _, maxv = ids.get_min_max_val()
+    nids = np.max(maxv) + 1
+    # nids = np.max(ids)+1
+
+    # get starts and ends for each id
+    t0s = np.zeros(nids, dtype=int)
+    t1s = np.zeros(nids, dtype=int)
+    for id in range(nids):
+      idx = ids.where(id)
+      # idx = np.nonzero(id==ids)
+      t0s[id] = np.min(idx[1])
+      t1s[id] = np.max(idx[1])
+
+    # isdummy = np.zeros((ids.ntargets,ids.T),dtype=bool)
+    isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, ids.T))
+    isdummy.allocate((1,), t0s, t1s)
+
+  if do_delete_short:
+    ids, ids_short = delete_short(ids, isdummy, params)
   if locs_conf is not None:
     ids,ids_lowconf = delete_lowconf(trk,ids,params)
   _, ids = ids.unique()

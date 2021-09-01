@@ -1,33 +1,5 @@
-import tensorflow as tf
-tf.executing_eagerly()
-tf.compat.v1.enable_v2_behavior()
-from reuse import *
-tf.compat.v1.enable_v2_behavior()
-lbl_file = '/groups/branson/home/kabram/.apt/tpf38674d8_5089_4c5d_972e_39509410b43e/alice_ma/20210820T083757_20210820T083758.lbl'
-name = '20210820T083757'
-cache_dir = '/groups/branson/home/kabram/.apt/tpf38674d8_5089_4c5d_972e_39509410b43e'
-conf_params = 'db_format "tfrecord" use_ht_trx True'.split()
-conf = apt.create_conf(lbl_file,0,name,cache_dir,'mdn_joint_fpn',conf_params,second_stage=True)
-conf.rescale = 1.
-import PoseCommon_tf2
-reload(PoseCommon_tf2)
-self = PoseCommon_tf2.PoseCommon(conf,'deepnet')
-kk = self.create_datasets()
-ii = iter(self.train_dataset)
-jj = next(ii)
-hmap = pt.create_label_images(jj[1].numpy(), conf.imsz, 1, conf.label_blur_rad)
-hmap = tf.convert_to_tensor(hmap,tf.float32)
-import PoseUNet_resnet
-self1 = PoseUNet_resnet.PoseUMDN_resnet(conf, name='deepnet')
-ims = tf.cast(jj[0],tf.float32)
-self1.inputs = [ff,jj[1],jj[2] ,hmap]
-
-self1.ph = {'phase_train':True}
-nn = self1.create_network()
-ll = self1.loss(self1.inputs,nn)
-
-##
-cmd = '/groups/branson/home/leea30/.apt/tp11693d47_0809_43b0_993c_30eda05f49c0/four_points_180806/20210804T132553_20210804T132554.lbl -name 20210804T132553 -json_trn_file /groups/branson/home/leea30/.apt/tp11693d47_0809_43b0_993c_30eda05f49c0/four_points_180806/loc.json -stage multi -conf_params db_format \"coco\" -type detect_mmdetect -conf_params2 db_format \"tfrecord\" use_bbox_trx True -type2 mdn_joint_fpn -cache /groups/branson/home/kabram/temp train -use_cache'
+cmd = '-name 20210827T032212 -view 1 -cache /groups/branson/home/kabram/.apt/tpc659e83f_fbe0_4104_8888_67cc2a90ecff -type mdn_joint_fpn /groups/branson/home/kabram/.apt/tpc659e83f_fbe0_4104_8888_67cc2a90ecff/multitarget_bubble/20210827T032212_20210827T032213.lbl train -use_cache -skip_db -continue'
+#cmd = '-name 20210826T100929 -view 1 -cache /groups/branson/home/kabram/.apt/tp8de8beb5_d9d2_43d0_bf60_1d33f3cdd1c5 -type mdn_joint_fpn /groups/branson/home/kabram/.apt/tp8de8beb5_d9d2_43d0_bf60_1d33f3cdd1c5/multitarget_bubble/20210826T100929_20210826T100929.lbl track -out /groups/branson/home/kabram/.apt/tp8de8beb5_d9d2_43d0_bf60_1d33f3cdd1c5/multitarget_bubble/mdn_joint_fpn/view_0/20210826T100929/trk/movie_trn20210826T100929.trk -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf -start_frame 15976 -end_frame 16176 -trx /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/registered_trx.mat'
 from reuse import *
 cmd = cmd.replace('\\','')
 apt.main(cmd.split())
