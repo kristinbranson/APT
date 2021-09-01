@@ -278,6 +278,17 @@ classdef testAPT < handle
         info.bundle_link = '';
         info.op_graph = [];   
         
+      elseif strcmp(name,'argroneSA')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = true;
+        info.proj_name = 'test';
+        info.sz = [];
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
         
       else
         error('Unrecognized test name');
@@ -664,7 +675,7 @@ classdef testAPT < handle
       centerOnParentFigure(wbObj.hWB,handles.figure);
       tObj = lObj.tracker;
       tObj.skip_dlgs = true;
-      if lObj.trackerIsTopDown
+      if lObj.trackerIsTwoStage
         tObj.forceSerial = serial2stgtrain;
       end      
       lObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
@@ -772,6 +783,7 @@ classdef testAPT < handle
           iTracker = str2double(iTracker);
           dotrack = varargin{4};
           dotrack = str2double(dotrack);
+          be = varargin{5};
           
           TRNITERS = 350;
           
@@ -781,6 +793,7 @@ classdef testAPT < handle
             'net_type',iTracker,...
             'niters',TRNITERS,...
             'params',struct('batch_size',2),...
+            'backend',be,...
             'test_tracking',false);
           
           disp('Train done!');          
@@ -799,6 +812,7 @@ classdef testAPT < handle
             pause(10);
             testObj.test_track(...
               'net_type',iTracker,...
+              'backend',be,...
               'block',true ...
               );
             
