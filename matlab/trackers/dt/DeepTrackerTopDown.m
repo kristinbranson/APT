@@ -369,8 +369,22 @@ classdef DeepTrackerTopDown < DeepTracker
     
     function trnSpawnAWS(varargin)
       assert(false,'Unsupported');
+    end    
+    
+    function  [tfCanTrain,reason] = canTrain(obj)
+      [tfCanTrain,reason] = canTrain@DeepTracker(obj);
+      if ~tfCanTrain
+        return;
+      end
+      if obj.isHeadTail && (isempty(obj.lObj.skelHead) || isempty(obj.lObj.skelTail))
+        tfCanTrain = false;
+        reason = 'For head/tail tracking, please specify head and tail landmarks under Track > Landmark Parameters';
+        return;
+      end
+      
+      tfCanTrain = true;
+      reason = '';
     end
-
       
 %       obj1 = obj2.stage1Tracker;
 %       objs = {obj1 obj2};

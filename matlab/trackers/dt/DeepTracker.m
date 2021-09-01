@@ -288,6 +288,13 @@ classdef DeepTracker < LabelTracker
         obj.(prop) = val;
       end
       
+      % Init .trnNetMode here for SA projs. Maybe a little strange 
+      if lObj.projectHasTrx
+        % Has to be SA
+        obj.trnNetMode = DLNetMode.multiAnimalTDPoseTrx;
+      end
+        
+              
       obj.bgTrnMonitor = [];
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
       obj.bgTrkMonitor = [];

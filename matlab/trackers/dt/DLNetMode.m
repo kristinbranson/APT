@@ -34,6 +34,7 @@ classdef DLNetMode < handle
     is_multi        % config param for backend
     multi_crop_ims  % "
     multi_only_ht   % "
+    isTwoStage
   end
   methods
     function v = get.is_multi(obj)
@@ -44,7 +45,10 @@ classdef DLNetMode < handle
     end
     function v = get.multi_only_ht(obj)
       v = obj.isMA && obj.isTopDown && obj.isHeadTail && obj.topDownStage==1;
-    end    
+    end
+    function v = get.isTwoStage(obj)
+      v = obj.isTopDown && (obj.isHeadTail || obj.isObjDet);
+    end
   end
   methods 
     function obj = DLNetMode(code,ma,topdown,stage,ht,od,istp)

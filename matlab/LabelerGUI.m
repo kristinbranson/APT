@@ -215,7 +215,7 @@ handles.menu_setup_multianimal_mode = uimenu(...
   'Parent',handles.menu_labeling_setup,...
   'Label','Multianimal',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multianimal_mode_Callback',hObject,eventdata,guidata(hObject)),...
-  'Tag','menu_setup_multianimal_mode');  
+  'Tag','menu_setup_multianimal_mode');
 moveMenuItemAfter(handles.menu_setup_multianimal_mode,...
   handles.menu_setup_multiview_calibrated_mode_2);
 
@@ -248,6 +248,14 @@ handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
   'Checked','off',...
   'Visible','on');
 
+handles.menu_setup_ma_twoclick_align = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_ma_twoclick_align_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Two-click animal alignment',...
+  'Tag','menu_setup_ma_twoclick_align',...
+  'Checked','off',...
+  'Visible','on');
+
+
 LABEL_MENU_ORDER = {
    'menu_setup_sequential_mode'
    'menu_setup_template_mode'
@@ -257,6 +265,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_streamlined'
    'menu_setup_load_calibration_file'
    'menu_setup_use_calibration'
+   'menu_setup_ma_twoclick_align'
    'menu_setup_label_overlay_montage'
    'menu_setup_label_overlay_montage_trx_centered'
    'menu_setup_set_labeling_point'
@@ -677,7 +686,6 @@ handles.menu_go.Position = 4;
 handles.menu_track.Position = 5;
 handles.menu_evaluate.Position = 6;
 handles.menu_help.Position = 7;
-
 % hCMenu = uicontextmenu('parent',handles.figure);
 % uimenu('Parent',hCMenu,'Label','Freeze to current main window',...
 %   'Callback',@(src,evt)cbkFreezePrevAxesToMainWindow(src,evt));
@@ -1091,11 +1099,8 @@ switch lower(state),
     handles.pbTrack.Enable = onOff;
     handles.menu_view_hide_predictions.Enable = onOff;    
     
-    if ~lObj.gtIsGTMode,
-      set(handles.menu_go_targets_summary,'Enable','on');
-    else
-      set(handles.menu_go_targets_summary,'Enable','off');
-    end
+    tfGoTgts = ~lObj.maIsMA && ~lObj.gtIsGTMode;
+    set(handles.menu_go_targets_summary,'Enable',onIff(tfGoTgts));
     
     if lObj.nview == 1,
       set(handles.h_multiview_only,'Enable','off');
@@ -1537,8 +1542,8 @@ arrayfun(@(x)pan(x,'off'),handles.figs_all);
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 handles.h_ignore_arrows = [handles.slider_frame];
-set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
-set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
+%set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
+%set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
 if ispc
   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
 end
@@ -1658,9 +1663,15 @@ else
   set(handles.menu_go_targets_summary,'Enable','off');
 end
 
-
-%tfResetCLims = evt.isFirstMovieOfProject;
-
+wbmf = @(src,evt)cbkWBMF(src,evt,lObj);
+wbuf = @(src,evt)cbkWBUF(src,evt,lObj);
+if lObj.nview==1
+  imgzoompan(handles.axes_curr,'wbmf',wbmf,'wbuf',wbuf,...
+    'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+else
+  set(handles.figs_all,'WindowButtonMotionFcn',wbmf);
+  set(handles.figs_all,'WindowButtonUpFcn',wbuf);
+end
 
 % Deal with Axis and Color limits.
 for iView = 1:lObj.nview	  
@@ -1930,7 +1941,6 @@ lblMode = lObj.labelMode;
 menuSetupLabelModeHelp(handles,lblMode);
 switch lblMode
   case LabelMode.SEQUENTIAL
-%     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'off';
@@ -1938,6 +1948,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
@@ -1950,6 +1961,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'on';
     handles.menu_view_zoom_toggle.Visible = 'on';
     handles.menu_view_pan_toggle.Visible = 'on';
     handles.menu_view_showhide_maroi.Visible = 'on';
@@ -1963,6 +1975,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
@@ -1976,20 +1989,12 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
     handles.menu_view_showhide_maroiaux.Visible = 'off';
-%   case LabelMode.ERRORCORRECT
-%     handles.menu_setup_createtemplate.Visible = 'off';
-%     handles.menu_setup_set_labeling_point.Visible = 'off';
-%     handles.menu_setup_set_nframe_skip.Visible = 'off';
-%     handles.menu_setup_streamlined.Visible = 'off';
-%     handles.menu_setup_unlock_all_frames.Visible = 'on';
-%     handles.menu_setup_lock_all_frames.Visible = 'on';
-%     handles.menu_setup_load_calibration_file.Visible = 'off';
-  case {LabelMode.MULTIVIEWCALIBRATED2}
-%     handles.menu_setup_createtemplate.Visible = 'off';
+  case LabelMode.MULTIVIEWCALIBRATED2
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'on';
@@ -1997,22 +2002,11 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'on';
     handles.menu_setup_use_calibration.Visible = 'on';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
     handles.menu_view_zoom_toggle.Visible = 'off';
     handles.menu_view_pan_toggle.Visible = 'off';
     handles.menu_view_showhide_maroi.Visible = 'off';
-    handles.menu_view_showhide_maroiaux.Visible = 'off';
-  case {LabelMode.MULTIVIEWCALIBRATED2}
-    handles.menu_setup_set_labeling_point.Visible = 'off';
-    handles.menu_setup_set_nframe_skip.Visible = 'off';
-    handles.menu_setup_streamlined.Visible = 'off';
-    handles.menu_setup_unlock_all_frames.Visible = 'off';
-    handles.menu_setup_lock_all_frames.Visible = 'off';
-    handles.menu_setup_load_calibration_file.Visible = 'off';
-    handles.menu_setup_use_calibration.Visible = 'off';
-    handles.menu_view_zoom_toggle.Visible = 'off';
-    handles.menu_view_pan_toggle.Visible = 'off';
-    handles.menu_view_showhide_maroi.Visible = 'off';
-    handles.menu_view_showhide_maroiaux.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off'; 
 end
 
 lc = lObj.lblCore;
@@ -2963,47 +2957,47 @@ ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
 axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
 % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
 
-function dragstart_callback(hObject,eventdata,~)
-fprintf('Drag on\n')
-h = guidata(hObject);
-curp = get(h.axes_curr,'CurrentPoint');
-xlim = get(h.axes_curr,'XLim');
-ylim = get(h.axes_curr,'YLim');
-if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
-  return
-end
-if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
-  return
-end
-h.labelerObj.drag = true;
-h.labelerObj.drag_pt = [curp(1,1),curp(1,2)];
-set(hObject,'Windowbuttonmotionfcn',@drag_callback);
-set(hObject,'WindowbuttonUpFcn',@dragend_callback);
+% function dragstart_callback(hObject,eventdata,~)
+% fprintf('Drag on\n')
+% h = guidata(hObject);
+% curp = get(h.axes_curr,'CurrentPoint');
+% xlim = get(h.axes_curr,'XLim');
+% ylim = get(h.axes_curr,'YLim');
+% if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+%   return
+% end
+% if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+%   return
+% end
+% h.labelerObj.drag = true;
+% h.labelerObj.drag_pt = [curp(1,1),curp(1,2)];
+% set(hObject,'Windowbuttonmotionfcn',@drag_callback);
+% set(hObject,'WindowbuttonUpFcn',@dragend_callback);
 
-function drag_callback(hObject,evendata,~)
-h = guidata(hObject);
-if ~h.labelerObj.drag
-  return
-end
-fprintf('Dragging\n');
-xlim = get(h.axes_curr,'XLim');
-ylim = get(h.axes_curr,'YLim');
-curp = get(h.axes_curr,'CurrentPoint');
-dx = curp(1,1)-h.labelerObj.drag_pt(1);
-dy = curp(1,2) - h.labelerObj.drag_pt(2);
-imglimx = get(h.image_curr,'XData');
-imglimy = get(h.image_curr,'YData');
-xlim(1) = max(imglimx(1),xlim(1)-dx);
-xlim(2) = min(imglimx(2),xlim(2)-dx);
-ylim(1) = max(imglimy(1),ylim(1)-dy);
-ylim(2) = min(imglimy(2),ylim(2)-dy);
-axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+% function drag_callback(hObject,evendata,~)
+% h = guidata(hObject);
+% if ~h.labelerObj.drag
+%   return
+% end
+% fprintf('Dragging\n');
+% xlim = get(h.axes_curr,'XLim');
+% ylim = get(h.axes_curr,'YLim');
+% curp = get(h.axes_curr,'CurrentPoint');
+% dx = curp(1,1)-h.labelerObj.drag_pt(1);
+% dy = curp(1,2) - h.labelerObj.drag_pt(2);
+% imglimx = get(h.image_curr,'XData');
+% imglimy = get(h.image_curr,'YData');
+% xlim(1) = max(imglimx(1),xlim(1)-dx);
+% xlim(2) = min(imglimx(2),xlim(2)-dx);
+% ylim(1) = max(imglimy(1),ylim(1)-dy);
+% ylim(2) = min(imglimy(2),ylim(2)-dy);
+% axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
 
 
-function dragend_callback(hObject,eventdata,~)
-h = guidata(hObject);
-h.labelerObj.unsetdrag();
-fprintf('Drag off\n')
+% function dragend_callback(hObject,eventdata,~)
+% h = guidata(hObject);
+% h.labelerObj.unsetdrag();
+% fprintf('Drag off\n')
 
 
 function sldZoom_Callback(hObject, eventdata, ~)
@@ -3403,6 +3397,13 @@ lObj = handles.labelerObj;
 lc = lObj.lblCore;
 assert(isa(lc,'LabelCoreMultiViewCalibrated2'));
 lc.streamlined = ~lc.streamlined;
+
+function menu_setup_ma_twoclick_align_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lc = lObj.lblCore;
+tftc = ~lc.tcOn;
+lc.setTwoClickOn(tftc);
+hObject.Checked = onIff(tftc); % skip listener business for now
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

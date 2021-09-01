@@ -206,41 +206,41 @@ classdef LabelCoreHT < LabelCore
     
     function axBDF(obj,~,evt)
       
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady || evt.Button>1
         return;
+      end      
+      
+      mod = obj.hFig.CurrentModifier;
+      tfShift = any(strcmp(mod,'shift'));
+      
+      pos = get(obj.hAx,'CurrentPoint');
+      pos = pos(1,1:2);
+      iPt = obj.iPoint;
+      obj.assignLabelCoordsIRaw(pos,iPt);
+      
+      if ~tfShift
+        set(obj.hPts(iPt),...
+          'Color',obj.ptsPlotInfo.Colors(iPt,:),...
+          'Marker',obj.ptsPlotInfo.MarkerProps.Marker);
+        obj.labeler.labelPosTagClearI(iPt);
+      else
+        set(obj.hPts(iPt),...
+          'Color',obj.ptsPlotInfo.Colors(iPt,:),...
+          'Marker',obj.ptsPlotInfo.OccludedMarker);
+        obj.labeler.labelPosTagSetI(iPt);
       end
       
-      switch evt.Button
-        case {1 3}
-          pos = get(obj.hAx,'CurrentPoint');
-          pos = pos(1,1:2);
-          iPt = obj.iPoint;
-          obj.assignLabelCoordsIRaw(pos,iPt);
-          
-          if evt.Button==1
-            set(obj.hPts(iPt),...
-              'Color',obj.ptsPlotInfo.Colors(iPt,:),...
-              'Marker',obj.ptsPlotInfo.MarkerProps.Marker);
-            obj.labeler.labelPosTagClearI(iPt);
-          elseif evt.Button==3
-            set(obj.hPts(iPt),...
-              'Color',obj.ptsPlotInfo.Colors(iPt,:),...
-              'Marker',obj.ptsPlotInfo.OccludedMarker);
-            obj.labeler.labelPosTagSetI(iPt);
-          end
-
-          obj.labeler.labelPosSetI(pos,iPt);
-          obj.clickedIncrementFrame();
-      end 
+      obj.labeler.labelPosSetI(pos,iPt);
+      obj.clickedIncrementFrame();      
     end
     
     function ptBDF(obj,src,evt) 
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
 
       ud = src.UserData;
-      if ud==obj.iPoint && evt.Button==1
+      if ud==obj.iPoint
         obj.acceptCurrentPt();
       end
     end    
