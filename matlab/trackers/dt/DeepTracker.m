@@ -664,7 +664,7 @@ classdef DeepTracker < LabelTracker
       ndmcs = numel(dmcs);
       if ndmcs~=nvw
         netmode = obj.trnNetMode;
-        tf2stg = netmode.isTopDown && (netmode.isObjDet || netmode.isHeadTail);
+        tf2stg = netmode.isTwoStage;
         assert(tf2stg);        
 %         warningNoTrace('BG Monitor: Number of DMCs (%d) does not match number of views (%d).',...
 %           ndmcs,nvw);

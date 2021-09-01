@@ -200,16 +200,20 @@ classdef APTParameters
           trackerIsDL = labelerObj.trackerIsDL;
         end
         isma = labelerObj.maIsMA;
-        istd = labelerObj.trackerIsTopDown;
+        is2stg = labelerObj.trackerIsTwoStage;
         isbu = labelerObj.trackerIsBotUp;
         isod = labelerObj.trackerIsObjDet;
-        isht = istd && ~isod;
+        isht = is2stg && ~isod;
+        
+        % AL20210901: note: in parameter yamls, the 'isTopDown' requirement
+        % is used; but this actually means "isTD-2stg"; vs SA-trx which is
+        % conceptually TD.
       
         reqs = tree.Data.Requirements;
         if ismember('isCPR',reqs) && ~any(strcmpi('cpr',netsUsed)),
           tree.Data.Visible = false;
         elseif all(ismember({'hasTrx' 'isTopDown'},reqs))
-          if ~hasTrx && ~istd
+          if ~hasTrx && ~is2stg
             % Special case/hack; if hasTrx and ma are both present, it's an
             % OR condition (rather than AND which is the default for 2+
             % requiremetns)
@@ -225,7 +229,7 @@ classdef APTParameters
           tree.Data.Visible = false;
         elseif ismember('isDeepTrack',reqs) && ~trackerIsDL,
           tree.Data.Visible = false;
-        elseif ismember('isTopDown',reqs) && ~istd
+        elseif ismember('isTopDown',reqs) && ~is2stg
           tree.Data.Visible = false;          
         elseif ismember('isHeadTail',reqs) && ~isht
           tree.Data.Visible = false;

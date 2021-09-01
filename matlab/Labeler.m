@@ -515,7 +515,7 @@ classdef Labeler < handle
     trackerAlgo % The current tracker algorithm, or ''
     trackerNetsUsed % cellstr
     trackerIsDL
-    trackerIsTopDown
+    trackerIsTwoStage
     trackerIsBotUp
     trackerIsObjDet
     trackDLParams % scalar struct, common DL params
@@ -1286,9 +1286,10 @@ classdef Labeler < handle
         v = isa(v,'DeepTracker');
       end
     end 
-    function v = get.trackerIsTopDown(obj)
+    function v = get.trackerIsTwoStage(obj)
+      %% here we actually mean MA-TD
       v = obj.tracker;
-      v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isTopDown;
+      v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isTwoStage;
     end
     function v = get.trackerIsObjDet(obj)
       v = obj.tracker;
