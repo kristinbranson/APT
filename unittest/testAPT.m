@@ -770,6 +770,8 @@ classdef testAPT < handle
           name = varargin{2};
           iTracker = varargin{3};
           iTracker = str2double(iTracker);
+          dotrack = varargin{4};
+          dotrack = str2double(dotrack);
           
           TRNITERS = 350;
           
@@ -791,6 +793,17 @@ classdef testAPT < handle
           else
             error('apttest:missedfinaliter',...
               'Final iteration (%d) is not expected (%d)!',iters1,TRNITERS);
+          end
+          
+          if dotrack
+            pause(10);
+            testObj.test_track(...
+              'net_type',iTracker,...
+              'block',true ...
+              );
+            
+            disp('Track done!');
+            testObj.test_track_export();
           end
           
         case 'track'
