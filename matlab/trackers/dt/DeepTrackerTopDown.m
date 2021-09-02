@@ -327,7 +327,7 @@ classdef DeepTrackerTopDown < DeepTracker
           end
         else
           bgTrnWorkerObj.jobID = nan(1,nTrainJobs);
-          assert(nTrainJobs==numel(dmc));
+          %assert(nTrainJobs==numel(dmc));
           for iview=1:nTrainJobs
             syscmdrun = syscmds{iview};
             fprintf(1,'%s\n',syscmdrun);

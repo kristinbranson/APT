@@ -155,7 +155,7 @@ function imgzoompan(hfig, varargin)
 
     %% Mouse Button Callbacks
     function down_fcn(hObj, evt)
-        disp('down_fcn');
+        %disp('down_fcn');
         
         opt.ButtonDownFcn(hObj, evt); % First, run callback from options
 
