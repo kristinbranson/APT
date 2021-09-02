@@ -396,7 +396,12 @@ classdef TrkFile < dynamicprops
       if ~isempty(obj.pTrk)
         obj.npts = size(obj.pTrk{1},1); 
       else
-        obj.npts = nan;
+        try 
+          obj.npts = obj.trkInfo.params.n_classes;
+        catch ME
+          warningNoTrace('Could not determine .npts from tracklet TrkFile.');
+          obj.npts = nan;
+        end
       end
       obj.isfull = false;
     end
