@@ -834,7 +834,7 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,to_remove] = np.nan
 
 
-def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=True,do_stitch=True,do_delete_short=True):
+def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=True):
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
