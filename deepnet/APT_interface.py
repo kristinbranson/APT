@@ -3114,7 +3114,7 @@ def classify_gt_data(args,view,view_ndx):
 
     ret_dict_all['locs_labeled'] = np.array(labeled_locs)  # AL: already np.array prob dont need copy
     to_mat_all_locs_in_dict(ret_dict_all)
-    ret_dict_all['list'] = to_mat(np.array(info))
+    ret_dict_all['list'] = to_mat(np.array(info,dtype='double'))
     DUMMY_CROP_INFO = []
     ret_dict_all['trkInfo'] = compile_trk_info(conf, model_file, DUMMY_CROP_INFO)
 
@@ -3729,6 +3729,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                 if conf.multi_only_ht:
                     assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
                     conf.n_classes = 2
+                    conf.flipLandmarkMatches = {}
 
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)

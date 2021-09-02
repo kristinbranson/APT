@@ -11,6 +11,13 @@ import scipy
 # when/if the format of trk files changes, then this will need to get fancier
 
 from tqdm import tqdm
+import torch
+import torchvision.models.resnet as resnet
+from torch import optim
+import torch.nn.functional as F
+import PoseTools
+import movies
+import tempfile
 
 # for debugging
 import matplotlib
@@ -833,7 +840,7 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_
   params['maxframes_missed'] = 10
   params['maxframes_delete'] = 10
   params['maxcost_prctile'] = 95.
-  params['maxcost_mult'] = 2
+  params['maxcost_mult'] = 3
   params['maxcost_framesfit'] = 3
   params['maxcost_heuristic'] = 'prctile'
   params['minconf_delete'] = 0.5
@@ -905,6 +912,174 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_
   if do_merge_close:
     merge_close(trk,params)
   return trk
+
+def link_id(pred_locs,mov_file,conf,pred_conf=None,pred_animal_conf=None,params_in=None):
+  params = {}
+  params['maxframes_delete']:3
+  if params_in is not None:
+    params.udpate(params_in)
+  trk = link(pred_locs,pred_conf,pred_animal_conf,params_in=params,do_merge_close=False,do_stitch=False)
+  id_classifier, tmp_trx = train_id_classifier(trk,mov_file,conf)
+  trk = link_trklet_id(trk,id_classifier,mov_file,conf,tmp_trx)
+  return trk
+
+
+
+def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
+  ss, ee = trk_in.get_startendframes()
+  tmp_trx = tempfile.mkstemp()
+  trk_in.save(tmp_trx,saveformat='tracklet')
+  # Save the current trk to be used as trx. Could be avoided but the whole image patch extracting pipeline exists with saved trx file, so not rewriting it.
+
+  to_do_list = []
+  num_done = 0
+  for count in range(n_ex):
+    # Choose 2 random patches for any tracklet and one other random patch from another tracklet that overlaps with the earlier selected tracklet. This gives us the triplet to train the id embedding.
+    ndx = np.random.choice(np.where((ee - ss) > 100)[0])
+    overlaps = np.where((ee > ss[ndx]) & (ss < ee[ndx]))[0]
+    overlaps = overlaps[overlaps != ndx]
+    if overlaps.size == 0: continue
+    rand_tgt = np.random.choice(overlaps)
+    rand_fr = np.random.choice(range(ss[rand_tgt], ee[rand_tgt] + 1))
+    to_do_list.append([np.random.choice(np.arange(ss[ndx], ee[ndx])), ndx])
+    to_do_list.append([np.random.choice(np.arange(ss[ndx], ee[ndx])), ndx])
+    to_do_list.append([rand_fr, rand_tgt])
+
+  cap = movies.Movie(mov_file)
+  trx_dict = apt.get_trx_info(tmp_trx, conf, cap.get_n_frames())
+  trx = trx_dict['trx']
+  ims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None)
+
+  dat = []
+  for ix in range(0, len(to_do_list), 3):
+    dat.append(ims[ix:(ix + 3)])
+  cap.close()
+
+  # pt.show_stack(np.concatenate([dat[x] for x in np.random.choice(len(dat),10)],0),10,3,'gray')
+  ##
+
+  class ContrastiveLoss(torch.nn.Module):
+    """
+    Contrastive loss function.
+    Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    """
+
+    def __init__(self, margin=2.0):
+      super(ContrastiveLoss, self).__init__()
+      self.margin = margin
+
+    def forward(self, output1, output2, label):
+      euclidean_distance = F.pairwise_distance(output1, output2, keepdim=True)
+      loss_contrastive = torch.mean((1 - label) * torch.pow(euclidean_distance, 2) + (label) * torch.pow(
+        torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
+
+      return loss_contrastive
+
+  loss_history = []
+  net = resnet.resnet18(pretrained=True)
+  net.fc = torch.nn.Linear(in_features=512, out_features=5, bias=True)
+  net = net.cuda()
+  criterion = ContrastiveLoss()
+  optimizer = optim.Adam(net.parameters(), lr=0.00005)
+  bsize = 4
+  dummy_locs = np.ones([bsize, 2, 2]) * ims.shape[1] / 2
+
+  for epoch in tqdm(range(n_iters)):
+    cur_d = []
+    for bndx in range(bsize):
+      curx = np.random.choice(len(dat))
+      cur_d.append((dat[curx]))
+    curims = np.concatenate(cur_d, 0)
+    if curims.shape[3] == 1:
+      curims = np.tile(curims, [1, 1, 1, 3])
+    zz, _ = PoseTools.preprocess_ims(curims, dummy_locs, conf, True, 1)
+    zz = np.reshape(zz, (-1, 3,) + zz.shape[1:])
+    zz = zz.transpose([1, 0, 4, 2, 3])
+    zz = torch.tensor(zz, dtype=torch.float)
+    img0, img1, img2 = zz
+
+    img0, img1, img2 = img0.cuda(), img1.cuda(), img2.cuda()
+    optimizer.zero_grad()
+    output1, output2, output3 = map(net, [img0, img1, img2])
+    l1 = criterion(output1, output2, 0)
+    l2 = criterion(output1, output3, 1)
+    l3 = criterion(output2, output3, 1)
+    loss_contrastive = l1 + (l2 + l3) / 2
+    loss_contrastive.backward()
+    optimizer.step()
+
+    loss_history.append(loss_contrastive.item())
+
+  return net, tmp_trx
+
+def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15):
+  cap = movies.Movie(mov_file)
+  ss, ee = trk.get_startendframes()
+  trx_dict = apt.get_trx_info(tmp_trx, conf, cap.get_n_frames())
+  trx = trx_dict['trx']
+  dummy_locs = np.ones([n_per_trk, 2, 2]) * conf.imsz[0] / 2
+  preds = []
+
+  # For each tracklet chose n_per_trk random examples and the find their embedding.
+
+  for ix in range(trk.ntargets):
+    to_do_list = []
+    for cc in range(n_per_trk):
+      ndx = np.random.choice(np.arange(ss[ix], ee[ix] + 1))
+      to_do_list.append([ndx, ix], )
+
+    curims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None)
+    if curims.shape[3] == 1:
+      curims = np.tile(curims, [1, 1, 1, 3])
+    zz, _ = PoseTools.preprocess_ims(curims, dummy_locs, conf, False, 1)
+    zz = zz.transpose([0, 3, 1, 2])
+    zz = torch.tensor(zz, dtype=torch.float).cuda()
+    with torch.no_grad():
+      oo = net(zz).cpu().numpy()
+    preds.append(oo)
+
+  cap.close()
+
+  # Now stitch the tracklets based on their identity
+  trk.convert2dense()
+
+  rr = np.array(preds)
+  thres = 1.
+  assigned_ids = np.ones(rr.shape[0]) * -1
+  to_remove = []
+
+  for xx in range(rr.shape[0]):
+    if xx in to_remove:
+      continue
+    dd = np.linalg.norm(rr[xx, None, ...] - rr[:, :, None], axis=-1)
+    dd = dd.reshape([dd.shape[0], -1])
+    dd = np.percentile(dd, 70, axis=-1)
+    # Find distance between all the patches of current tracklet to other tracklets. Match the tracklets if at least 70% of distances are less than the threshold
+
+    # dd = np.linalg.norm(rr[xx:xx+1,...]-rr,axis=-1)/np.sqrt(n_per_trk)
+
+    close_ids = np.where(dd < thres)[0]
+    for cid in close_ids:
+      if cid <= xx:
+        continue
+      if cid in to_remove:
+        print(f'Not joining trajectory {cid} to {xx} (dist={dd[cid]}) because it was joined to {assigned_ids[cid]}')
+      elif (ss[xx] <= ss[cid] <= ee[xx]) or (ss[xx] <= ee[cid] <= ee[xx]):
+        # Don't join if there is an overlap. If Id classifier is good, this shouldn't happen, but can happen in cases when the two animals overlap heavily and the ID classifier doesn't know what to do
+        print(f'Range doesnt match for {xx} and {cid} (dist={dd[cid]}). Not joining')
+      else:
+        trk.pTrk[..., ss[cid]:ee[cid], xx] = trk.pTrk[..., ss[cid]:ee[cid], cid]
+        to_remove.append(cid)
+        assigned_ids[cid] = xx
+
+  trk.pTrk = np.delete(trk.pTrk, to_remove, -1)
+  for k in trk.trkFields:
+    if trk.__dict__[k] is not None:
+      trk.__dict__[k] = np.delete(trk.__dict__[k], to_remove, -1)
+  trk.ntargets = trk.ntargets - len(to_remove)
+
+  return trk
+
 
 def test_assign_ids_data():
   """
