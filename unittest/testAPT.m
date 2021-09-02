@@ -675,7 +675,7 @@ classdef testAPT < handle
       centerOnParentFigure(wbObj.hWB,handles.figure);
       tObj = lObj.tracker;
       tObj.skip_dlgs = true;
-      if lObj.trackerIsTwoStage
+      if lObj.trackerIsTwoStage && ~strcmp(backend,'bsub')
         tObj.forceSerial = serial2stgtrain;
       end      
       lObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
@@ -775,9 +775,7 @@ classdef testAPT < handle
       
       action = varargin{1};
       switch action
-        case 'train'
-          % CISuite('train',<name>,<iTracker>)
-          
+        case 'train'          
           name = varargin{2};
           iTracker = varargin{3};
           iTracker = str2double(iTracker);
@@ -820,9 +818,7 @@ classdef testAPT < handle
             testObj.test_track_export();
           end
           
-        case 'track'
-          % CISuite('track',<name>,<iTracker>)
-          
+        case 'track'          
           name = varargin{2};
           iTracker = varargin{3};
           iTracker = str2double(iTracker);
@@ -837,6 +833,13 @@ classdef testAPT < handle
           disp('Track done!');
           %pause(10);
           testObj.test_track_export();
+          
+        case 'full'
+          name = varargin{2};
+          be = varargin{3};          
+          testObj = testAPT('name',name);
+          testObj.test_full('backend',be);            
+          
         case 'hello'
           disp('hello!');
           
