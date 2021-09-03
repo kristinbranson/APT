@@ -735,6 +735,7 @@ classdef TrkFile < dynamicprops
           % cat along "npoints" dim
           obj.(f) = cellfun(@(x,y)cat(1,x,y),obj.(f),o2.(f),'uni',0);
         end
+        obj.npts = obj.npts + o2.npts;
       end
     end
     
