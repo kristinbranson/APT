@@ -837,7 +837,7 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,to_remove] = np.nan
 
 def stitch(pred_locs,conf,mov,pred_conf=None,pred_animal_conf=None):
-  if conf.trklet_id:
+  if conf.multi_stitch_id:
     conf1 = copy.deepcopy(conf)
     conf1.imsz = conf1.trklet_id_crop_sz
 
@@ -948,7 +948,7 @@ def link_id(pred_locs,mov_file,conf,pred_conf=None,pred_animal_conf=None,params_
   return trk
 
 
-def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=50):
+def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
   ss, ee = trk_in.get_startendframes()
   tmp_trx = tempfile.mkstemp()[1]
   trk_in.save(tmp_trx,saveformat='tracklet')
