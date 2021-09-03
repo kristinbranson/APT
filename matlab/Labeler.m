@@ -132,6 +132,9 @@ classdef Labeler < handle
     projFSInfo;           % filesystem info
     projTempDir;          % temp dir name to save the raw label file
   end
+  properties
+    projTempDirDontClearOnDestructor = false; % transient. set to true for eg CI testing
+  end
   properties (SetAccess=private)
     projMacros = struct(); % scalar struct, filesys macros. init: PN
   end
@@ -1474,7 +1477,8 @@ classdef Labeler < handle
       if ~isempty(be)
         be.shutdown();
       end
-      if ~isempty(obj.projTempDir),
+      if ~isempty(obj.projTempDir) && ~obj.projTempDirDontClearOnDestructor
+        % currently equate batchStartup <=> testing/CI etc
         obj.projRemoveTempDir();
       end
     end

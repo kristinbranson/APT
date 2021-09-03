@@ -787,6 +787,7 @@ classdef testAPT < handle
           
           testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
+          testObj.lObj.projTempDirDontClearOnDestructor = true;
           testObj.test_train(...
             'net_type',iTracker,...
             'niters',TRNITERS,...
@@ -825,6 +826,7 @@ classdef testAPT < handle
                     
           testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
+          testObj.lObj.projTempDirDontClearOnDestructor = true;
           testObj.test_track(...
             'net_type',iTracker,...
             'block',true ...
@@ -839,6 +841,7 @@ classdef testAPT < handle
           be = varargin{3};          
           testObj = testAPT('name',name);
           testObj.test_full('backend',be);            
+          testObj.lObj.projTempDirDontClearOnDestructor = true;
           
         case 'hello'
           disp('hello!');
