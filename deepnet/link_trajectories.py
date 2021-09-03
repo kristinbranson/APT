@@ -836,7 +836,7 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,p_ndx] = np.mean(trk.pTrk[:,:,t,g],axis=2)
       trk.pTrk[:,:,t,to_remove] = np.nan
 
-def stitch(pred_locs,conf,mov,pred_conf=None,pred_animal_conf=None):
+def link_trklets(pred_locs,conf,mov,pred_conf=None,pred_animal_conf=None):
   if conf.multi_stitch_id:
     conf1 = copy.deepcopy(conf)
     conf1.imsz = conf1.trklet_id_crop_sz

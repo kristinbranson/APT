@@ -1968,7 +1968,10 @@ def get_trx_info(trx_file, conf, n_frames):
     elif conf.use_ht_trx or conf.use_bbox_trx:
         # convert trk file to trx file format.
         T = h5py.File(trx_file, 'r')
-        in_n_trx = T['pTrk'].shape[0]
+        if T['pTrk'].ndim < 2:
+            in_n_trx = 0
+        else:
+            in_n_trx = T['pTrk'].shape[0]
         trx = []
         end_frames = []
         first_frames = []
@@ -3263,6 +3266,11 @@ def classify_movie(conf, pred_fn, model_type,
 
     info = compile_trk_info(conf, model_file, crop_loc, expname=name)
 
+    if end_frames.size==0:
+        pred_locs = np.zeros([1,0,conf.n_classes,2])
+        write_trk(out_file, pred_locs, {}, 0, 1, [], conf, info, mov_file)
+        return
+
     if end_frame < 0: end_frame = end_frames.max()
     if end_frame > end_frames.max(): end_frame = end_frames.max()
     if start_frame > end_frame: return None
@@ -3373,7 +3381,7 @@ def classify_movie(conf, pred_fn, model_type,
         raw_file = pre_fix + '_raw' + ext
         write_trk(raw_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
         pred_conf = extra_dict['conf'] if 'conf' in extra_dict else None
-        trk = lnk.stitch(pred_locs, conf, mov_file, pred_conf=pred_conf, pred_animal_conf=pred_animal_conf)
+        trk = lnk.link_trklets(pred_locs, conf, mov_file, pred_conf=pred_conf, pred_animal_conf=pred_animal_conf)
         trk.T0 = start_frame
         out_file_tracklet = out_file
         trk.save(out_file_tracklet, saveformat='tracklet', trkInfo=info)
