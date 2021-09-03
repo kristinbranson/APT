@@ -1933,8 +1933,11 @@ def create_cv_split_files(conf, n_splits=3):
     return all_train, splits, split_files
 
 
-def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc):
-    bsize = conf.batch_size
+def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True):
+    if use_bsize:
+        bsize = conf.batch_size
+    else:
+        bsize = len(to_do_list)
     all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
     # KB 20200504: sometimes crop_loc might be specified as nans when
     # we want no cropping to happen for reasons. 
@@ -3370,7 +3373,7 @@ def classify_movie(conf, pred_fn, model_type,
         raw_file = pre_fix + '_raw' + ext
         write_trk(raw_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
         pred_conf = extra_dict['conf'] if 'conf' in extra_dict else None
-        trk = lnk.link(pred_locs, pred_conf, pred_animal_conf=pred_animal_conf)
+        trk = lnk.stitch(pred_locs, conf, mov_file, pred_conf=pred_conf, pred_animal_conf=pred_animal_conf)
         trk.T0 = start_frame
         out_file_tracklet = out_file
         trk.save(out_file_tracklet, saveformat='tracklet', trkInfo=info)
@@ -3671,11 +3674,11 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
     else:
         views = [view]
 
-    for cur_view in views:
+    for view_ndx, cur_view in enumerate(views):
         conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
 
         conf.view = cur_view
-        model_file = args.model_file[cur_view]
+        model_file = args.model_file[view_ndx]
         if args.split_file is not None:
             assert (os.path.exists(args.split_file))
             in_data = PoseTools.json_load(args.split_file)

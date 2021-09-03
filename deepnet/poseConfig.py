@@ -235,6 +235,9 @@ class config(object):
         self.stage = None
         self.multi_link_stage = 'first'
 
+        self.multi_stitch_id = False
+        self.multi_stitch_id_cropsz = []
+
 
 
         # ============= MMPOSE =================
