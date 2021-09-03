@@ -24,7 +24,7 @@ import matplotlib
 from matplotlib import cm
 import matplotlib.pyplot as plt
 
-def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None):
+def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False):
   """
   match_frame(pcurr,pnext,idscurr,params,lastid=np.nan)
   Uses the Hungarian algorithm to match targets tracked in the current
@@ -77,6 +77,8 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None):
   C[:ncurr, :nnext] = np.reshape(C1, (ncurr, nnext))
   
   for x1 in range(nnext):
+    if force_match: continue
+    # Don't do the ratio to second lowest match if force_match is on. This is used when estimating the maxcost parameter.
     if np.all(np.isnan(C1[:,x1])): continue
     x1_curr = np.nanargmin(C1[:,x1])
     curc = C1.copy()
@@ -589,7 +591,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
     ntargets_curr = pcurr.shape[2]
     ntargets_next = pnext.shape[2]
     idscurr = np.arange(ntargets_curr)
-    idsnext, _, _, costscurr = match_frame(pcurr, pnext, idscurr, params)
+    idsnext, _, _, costscurr = match_frame(pcurr, pnext, idscurr, params,force_match=True)
     ismatch = np.isin(idscurr, idsnext)
     assert np.count_nonzero(ismatch) == np.minimum(ntargets_curr, ntargets_next)
     costscurr = costscurr[:ntargets_curr]
