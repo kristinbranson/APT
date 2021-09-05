@@ -1666,9 +1666,15 @@ end
 
 wbmf = @(src,evt)cbkWBMF(src,evt,lObj);
 wbuf = @(src,evt)cbkWBUF(src,evt,lObj);
-if lObj.nview==1
-  imgzoompan(handles.axes_curr,'wbmf',wbmf,'wbuf',wbuf,...
-    'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+if lObj.nview==1 
+  if lObj.hasMovie 
+    % guard against callback during new proj creation etc; lObj.movienc/nr
+    % are NaN which creates a badly-inited imgzoompan. Theoretically seems
+    % this wouldn't matter as the next imgzoompan created (when movie
+    % actually added) should be properly initted...
+    imgzoompan(handles.figure,'wbmf',wbmf,'wbuf',wbuf,...
+      'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+  end
 else
   set(handles.figs_all,'WindowButtonMotionFcn',wbmf);
   set(handles.figs_all,'WindowButtonUpFcn',wbuf);
