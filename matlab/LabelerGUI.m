@@ -1367,6 +1367,7 @@ if ~isempty(lcore)
   end
 end
 
+%disp(evt);
 if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
   switch evt.Key
     case 'leftarrow'
@@ -1544,9 +1545,9 @@ set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 handles.h_ignore_arrows = [handles.slider_frame];
 %set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
 %set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
-if ispc
-  set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
-end
+% if ispc
+%   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
+% end
 
 % eg when going from proj-with-trx to proj-no-trx, targets table needs to
 % be cleared
