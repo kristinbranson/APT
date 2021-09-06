@@ -836,10 +836,10 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,p_ndx] = np.mean(trk.pTrk[:,:,t,g],axis=2)
       trk.pTrk[:,:,t,to_remove] = np.nan
 
-def link_trklets(pred_locs,conf,mov,pred_conf=None,pred_animal_conf=None):
+def link_trklets(pred_locs,conf,mov,out_file,pred_conf=None,pred_animal_conf=None):
   if conf.multi_stitch_id:
     conf1 = copy.deepcopy(conf)
-    conf1.imsz = conf1.trklet_id_crop_sz
+    conf1.imsz = conf1.multi_stitch_id_cropsz
 
     if len(conf1.ht_pts)>0:
       conf1.use_ht_trx = True
@@ -847,7 +847,7 @@ def link_trklets(pred_locs,conf,mov,pred_conf=None,pred_animal_conf=None):
     else:
       conf1.use_bbox_trx = True
       conf1.trx_align_theta = False
-    return link_id(pred_locs,mov,conf1,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf)
+    return link_id(pred_locs,mov,conf1,out_file,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf)
   else:
     return link(pred_locs,conf,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf)
 
@@ -936,13 +936,16 @@ def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_m
     merge_close(trk,params)
   return trk
 
-def link_id(pred_locs,mov_file,conf,pred_conf=None,pred_animal_conf=None,params_in=None):
+def link_id(pred_locs,mov_file,conf,out_file,pred_conf=None,pred_animal_conf=None,params_in=None):
   params = {}
   params['maxframes_delete']:3
   if params_in is not None:
     params.udpate(params_in)
-  trk = link(pred_locs,pred_conf,pred_animal_conf,params_in=params,do_merge_close=False,do_stitch=False)
+  trk = link(pred_locs,conf,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf,params_in=params,do_merge_close=False,do_stitch=False)
   id_classifier, tmp_trx = train_id_classifier(trk,mov_file,conf)
+  wt_out_file = out_file.replace('.trk','_idwts.p')
+  torch.save({'model_state_params':id_classifier.state_dict()},wt_out_file)
+
   def_params = get_default_params(conf)
   trk = link_trklet_id(trk,id_classifier,mov_file,conf,tmp_trx,min_len=def_params['maxframes_delete'])
   return trk
@@ -1051,7 +1054,8 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15,min_len=10):
 
   # For each tracklet chose n_per_trk random examples and the find their embedding.
 
-  logging.info('Sampling images from tracklets to assign identity to the tracklets ...')
+  logging.info(f'Sampling images from {trk.ntargets} tracklets to assign identity to the tracklets ...')
+  all_ims = []
   for ix in tqdm(range(trk.ntargets)):
     to_do_list = []
     for cc in range(n_per_trk):
@@ -1059,6 +1063,7 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15,min_len=10):
       to_do_list.append([ndx, ix], )
 
     curims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None,use_bsize=False)
+    all_ims.append(curims)
     if curims.shape[3] == 1:
       curims = np.tile(curims, [1, 1, 1, 3])
     zz, _ = PoseTools.preprocess_ims(curims, dummy_locs, conf, False, 1)

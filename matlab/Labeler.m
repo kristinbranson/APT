@@ -6211,6 +6211,7 @@ classdef Labeler < handle
       
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
         obj.gdata.axes_prev,lblPtsPlotInfo);
+      obj.prevAxesLabelsRedraw();
       
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up

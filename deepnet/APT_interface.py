@@ -1620,7 +1620,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,s
     assert not (on_gt and split), 'Cannot split gt data'
 
     lbl = h5py.File(conf.labelfile, 'r')
-    if not 'preProcData_MD_mov' in lbl.keys():
+    if not ( ('preProcData_MD_mov' in lbl.keys()) or ('preProcData_MD_mov' in lbl['gtcache'])):
         if conf.use_ht_trx or conf.use_bbox_trx:
             return db_from_trnpack_ht(conf, out_fns, nsamples=nsamples, split=split)
         else:
@@ -1705,7 +1705,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,s
         if occ_as_nan:
             cur_locs[cur_occ] = np.nan
         cur_occ = cur_occ.astype('float')
-        cur_out({'im': cur_frame, 'locs': cur_locs, 'info': info, 'occ': cur_occ})
+        data_dict= {'im': cur_frame, 'locs': cur_locs, 'info': info, 'occ': cur_occ}
+        if conf.is_multi:
+            data_dict['roi'] = []
+        cur_out(data_dict)
 
         if cur_out is out_fns[1] and split:
             val_count += 1
@@ -3381,7 +3384,7 @@ def classify_movie(conf, pred_fn, model_type,
         raw_file = pre_fix + '_raw' + ext
         write_trk(raw_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
         pred_conf = extra_dict['conf'] if 'conf' in extra_dict else None
-        trk = lnk.link_trklets(pred_locs, conf, mov_file, pred_conf=pred_conf, pred_animal_conf=pred_animal_conf)
+        trk = lnk.link_trklets(pred_locs, conf, mov_file, out_file,pred_conf=pred_conf, pred_animal_conf=pred_animal_conf)
         trk.T0 = start_frame
         out_file_tracklet = out_file
         trk.save(out_file_tracklet, saveformat='tracklet', trkInfo=info)
