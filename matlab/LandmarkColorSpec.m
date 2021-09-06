@@ -21,6 +21,7 @@ classdef LandmarkColorSpec < matlab.mixin.Copyable
   properties (Constant)
     % doesn't appear to be programmatically avail, inexplicably
     CMAPNAMES = {
+      'lightjet'
       'jet'
       'parula'
       'hsv'

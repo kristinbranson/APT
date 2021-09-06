@@ -1367,6 +1367,7 @@ if ~isempty(lcore)
   end
 end
 
+%disp(evt);
 if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
   switch evt.Key
     case 'leftarrow'
@@ -1544,9 +1545,9 @@ set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 handles.h_ignore_arrows = [handles.slider_frame];
 %set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
 %set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
-if ispc
-  set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
-end
+% if ispc
+%   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
+% end
 
 % eg when going from proj-with-trx to proj-no-trx, targets table needs to
 % be cleared
@@ -1665,9 +1666,15 @@ end
 
 wbmf = @(src,evt)cbkWBMF(src,evt,lObj);
 wbuf = @(src,evt)cbkWBUF(src,evt,lObj);
-if lObj.nview==1
-  imgzoompan(handles.axes_curr,'wbmf',wbmf,'wbuf',wbuf,...
-    'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+if lObj.nview==1 
+  if lObj.hasMovie 
+    % guard against callback during new proj creation etc; lObj.movienc/nr
+    % are NaN which creates a badly-inited imgzoompan. Theoretically seems
+    % this wouldn't matter as the next imgzoompan created (when movie
+    % actually added) should be properly initted...
+    imgzoompan(handles.figure,'wbmf',wbmf,'wbuf',wbuf,...
+      'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+  end
 else
   set(handles.figs_all,'WindowButtonMotionFcn',wbmf);
   set(handles.figs_all,'WindowButtonUpFcn',wbuf);

@@ -29,7 +29,7 @@ classdef ShiftArrowMovieNavMode
         case ShiftArrowMovieNavMode.NEXTLABELED
           %lpos = lObj.labeledposCurrMovie;
           s = lObj.labelsCurrMovie;
-          [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir);
+          [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir*2);
         case ShiftArrowMovieNavMode.NEXTIMPORTED
           if lObj.gtIsGTMode
             warningNoTrace('No imported labels available in GT mode.');
@@ -39,7 +39,7 @@ classdef ShiftArrowMovieNavMode
             iMov = lObj.currMovie;
             %lpos = lObj.labeledpos2{iMov};
             s = lObj.labels2{iMov};
-            [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir);
+            [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir*2);
             %[tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
           end
         case ShiftArrowMovieNavMode.NEXTTRACKED
