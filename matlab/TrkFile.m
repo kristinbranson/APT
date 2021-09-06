@@ -396,7 +396,12 @@ classdef TrkFile < dynamicprops
       if ~isempty(obj.pTrk)
         obj.npts = size(obj.pTrk{1},1); 
       else
-        obj.npts = nan;
+        try 
+          obj.npts = obj.trkInfo.params.n_classes;
+        catch ME
+          warningNoTrace('Could not determine .npts from tracklet TrkFile.');
+          obj.npts = nan;
+        end
       end
       obj.isfull = false;
     end
@@ -730,6 +735,7 @@ classdef TrkFile < dynamicprops
           % cat along "npoints" dim
           obj.(f) = cellfun(@(x,y)cat(1,x,y),obj.(f),o2.(f),'uni',0);
         end
+        obj.npts = obj.npts + o2.npts;
       end
     end
     

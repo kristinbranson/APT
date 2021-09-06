@@ -305,8 +305,8 @@ classdef Labels
     function [tf,f0,p0] = findLabelNear(s,frm,itgt,fdir)
       % find labeled frame for itgt 'near' frm
       %
-      % fdir: optional. one of 1, -1, [] (default) to search above, below,
-      % or in either direction relative to frm
+      % fdir: optional. one of +/-1, +/-2, [] (default) to search above, 
+      % below, or in either direction relative to frm
       
       if nargin<4
         fdir = [];
@@ -314,7 +314,11 @@ classdef Labels
       if isequal(fdir,1)
         i = find(s.tgt==itgt & s.frm>=frm);
       elseif isequal(fdir,-1)
-        i = find(s.tgt==itgt & s.frm<=frm);
+        i = find(s.tgt==itgt & s.frm<=frm,1,'last');
+      elseif isequal(fdir,2)
+        i = find(s.tgt==itgt & s.frm>frm);
+      elseif isequal(fdir,-2)
+        i = find(s.tgt==itgt & s.frm<frm,1,'last');
       else
         i = find(s.tgt==itgt);
       end

@@ -4383,8 +4383,8 @@ classdef Labeler < handle
       end
       obj.(PROPS.MFALUT)(end+1,:) = {[]};
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
-      trxinfo = obj.GetTrxInfo('',ifos.nframes);
-      obj.(PROPS.TIA)(end+1,:) = repmat({trxinfo},1,obj.nview);
+      trxinfo = cellfun(@(x)obj.GetTrxInfo('',x.nframes),ifos,'uni',0);
+      obj.(PROPS.TIA)(end+1,:) = trxinfo;
 %       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
 %       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
 %       obj.(PROPS.LPOSTAG){end+1,1} = false(nLblPts,nFrms,nTgt);
@@ -4392,7 +4392,7 @@ classdef Labeler < handle
       obj.(PROPS.LBL){end+1,1} = Labels.new(nLblPts);
       %obj.(PROPS.LBL2){end+1,1} = Labels.new(nLblPts);
       assert(~obj.maIsMA);
-      tfo = TrkFile(nlblPts,1:nTgt); % one target
+      tfo = TrkFile(nLblPts,1:nTgt); % one target
       tfo.initFrm2Tlt(nFrms);
       obj.(PROPS.LBL2){end+1,1} = tfo;
       if ~gt
@@ -6312,6 +6312,9 @@ classdef Labeler < handle
       
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
         obj.gdata.axes_prev,lblPtsPlotInfo);
+      if ~isempty(obj.prevAxesModeInfo)
+        obj.prevAxesLabelsRedraw();
+      end
       
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up

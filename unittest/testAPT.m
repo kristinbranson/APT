@@ -257,7 +257,7 @@ classdef testAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'roianma')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210823.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210902.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -364,17 +364,28 @@ classdef testAPT < handle
       info = self.info;
       cacheDir = testAPT.get_cache_dir();
       out_file = fullfile(tempdir,[info.proj_name '_data.tar.gz']); 
-      if exist(out_file,'file')
-        try
-          untar(out_file,cacheDir);
-        catch ME
-          websave(out_file,info.bundle_link);
-          untar(out_file,cacheDir);
-        end
-      else
-          websave(out_file,info.bundle_link);
-          untar(out_file,cacheDir);          
+            
+      try
+        untar(out_file,cacheDir);
+        return;
+      catch ME
+        % none, fallthru
       end
+
+      % fallback to websave
+      try
+        websave(out_file,info.bundle_link);
+      catch ME
+        if endsWith(ME.identifier,'SSLConnectionSystemFailure')
+          % JRC cluster
+          wo = weboptions('CertificateFilename','/etc/ssl/certs/ca-bundle.crt');
+          websave(out_file,info.bundle_link,wo);
+        else
+          rethrow(ME);
+        end
+      end
+      
+      untar(out_file,cacheDir);          
     end
     
     function test_full(self,varargin)
@@ -783,7 +794,7 @@ classdef testAPT < handle
           dotrack = str2double(dotrack);
           be = varargin{5};
           
-          TRNITERS = 350;
+          TRNITERS = 500;
           
           testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);

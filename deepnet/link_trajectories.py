@@ -18,13 +18,14 @@ import torch.nn.functional as F
 import PoseTools
 import movies
 import tempfile
+import copy
 
 # for debugging
 import matplotlib
 from matplotlib import cm
 import matplotlib.pyplot as plt
 
-def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None):
+def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False):
   """
   match_frame(pcurr,pnext,idscurr,params,lastid=np.nan)
   Uses the Hungarian algorithm to match targets tracked in the current
@@ -77,6 +78,8 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None):
   C[:ncurr, :nnext] = np.reshape(C1, (ncurr, nnext))
   
   for x1 in range(nnext):
+    if force_match: continue
+    # Don't do the ratio to second lowest match if force_match is on. This is used when estimating the maxcost parameter.
     if np.all(np.isnan(C1[:,x1])): continue
     x1_curr = np.nanargmin(C1[:,x1])
     curc = C1.copy()
@@ -589,7 +592,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
     ntargets_curr = pcurr.shape[2]
     ntargets_next = pnext.shape[2]
     idscurr = np.arange(ntargets_curr)
-    idsnext, _, _, costscurr = match_frame(pcurr, pnext, idscurr, params)
+    idsnext, _, _, costscurr = match_frame(pcurr, pnext, idscurr, params,force_match=True)
     ismatch = np.isin(idscurr, idsnext)
     assert np.count_nonzero(ismatch) == np.minimum(ntargets_curr, ntargets_next)
     costscurr = costscurr[:ntargets_curr]
@@ -833,8 +836,23 @@ def nonmaxs(trk,params):
       trk.pTrk[:,:,t,p_ndx] = np.mean(trk.pTrk[:,:,t,g],axis=2)
       trk.pTrk[:,:,t,to_remove] = np.nan
 
+def link_trklets(pred_locs,conf,mov,out_file,pred_conf=None,pred_animal_conf=None):
+  if conf.multi_stitch_id:
+    conf1 = copy.deepcopy(conf)
+    conf1.imsz = conf1.multi_stitch_id_cropsz
 
-def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=True):
+    if len(conf1.ht_pts)>0:
+      conf1.use_ht_trx = True
+      conf1.trx_align_theta = True
+    else:
+      conf1.use_bbox_trx = True
+      conf1.trx_align_theta = False
+    return link_id(pred_locs,mov,conf1,out_file,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf)
+  else:
+    return link(pred_locs,conf,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf)
+
+def get_default_params(conf):
+  # Update some of the parameters based on conf
   params = {}
   params['verbose'] = 1
   params['maxframes_missed'] = 10
@@ -845,6 +863,11 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_
   params['maxcost_heuristic'] = 'prctile'
   params['minconf_delete'] = 0.5
   params['nms_prctile'] = 50
+  return params
+
+
+def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=True):
+  params = get_default_params(conf)
   if params_in != None:
     params.update(params_in)
   nframes_test = np.inf
@@ -913,29 +936,35 @@ def link(pred_locs,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_
     merge_close(trk,params)
   return trk
 
-def link_id(pred_locs,mov_file,conf,pred_conf=None,pred_animal_conf=None,params_in=None):
+def link_id(pred_locs,mov_file,conf,out_file,pred_conf=None,pred_animal_conf=None,params_in=None):
   params = {}
   params['maxframes_delete']:3
   if params_in is not None:
     params.udpate(params_in)
-  trk = link(pred_locs,pred_conf,pred_animal_conf,params_in=params,do_merge_close=False,do_stitch=False)
+  trk = link(pred_locs,conf,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf,params_in=params,do_merge_close=False,do_stitch=False)
   id_classifier, tmp_trx = train_id_classifier(trk,mov_file,conf)
-  trk = link_trklet_id(trk,id_classifier,mov_file,conf,tmp_trx)
-  return trk
+  wt_out_file = out_file.replace('.trk','_idwts.p')
+  torch.save({'model_state_params':id_classifier.state_dict()},wt_out_file)
 
+  def_params = get_default_params(conf)
+  trk = link_trklet_id(trk,id_classifier,mov_file,conf,tmp_trx,min_len=def_params['maxframes_delete'])
+  return trk
 
 
 def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
   ss, ee = trk_in.get_startendframes()
-  tmp_trx = tempfile.mkstemp()
+  tmp_trx = tempfile.mkstemp()[1]
   trk_in.save(tmp_trx,saveformat='tracklet')
   # Save the current trk to be used as trx. Could be avoided but the whole image patch extracting pipeline exists with saved trx file, so not rewriting it.
 
   to_do_list = []
   num_done = 0
+  min_trx_len = 100
+  if np.count_nonzero((ee-ss)>min_trx_len)<conf.max_n_animals:
+    min_trx_len = np.percentile((ee-ss),20)-1
   for count in range(n_ex):
     # Choose 2 random patches for any tracklet and one other random patch from another tracklet that overlaps with the earlier selected tracklet. This gives us the triplet to train the id embedding.
-    ndx = np.random.choice(np.where((ee - ss) > 100)[0])
+    ndx = np.random.choice(np.where((ee - ss) >= min_trx_len)[0])
     overlaps = np.where((ee > ss[ndx]) & (ss < ee[ndx]))[0]
     overlaps = overlaps[overlaps != ndx]
     if overlaps.size == 0: continue
@@ -948,7 +977,8 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
   cap = movies.Movie(mov_file)
   trx_dict = apt.get_trx_info(tmp_trx, conf, cap.get_n_frames())
   trx = trx_dict['trx']
-  ims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None)
+  logging.info('Sampling images for training ID classifier ...')
+  ims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None,use_bsize=False)
 
   dat = []
   for ix in range(0, len(to_do_list), 3):
@@ -984,6 +1014,7 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
   bsize = 4
   dummy_locs = np.ones([bsize, 2, 2]) * ims.shape[1] / 2
 
+  logging.info('Training ID network ...')
   for epoch in tqdm(range(n_iters)):
     cur_d = []
     for bndx in range(bsize):
@@ -1012,7 +1043,8 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
 
   return net, tmp_trx
 
-def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15):
+
+def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15,min_len=10):
   cap = movies.Movie(mov_file)
   ss, ee = trk.get_startendframes()
   trx_dict = apt.get_trx_info(tmp_trx, conf, cap.get_n_frames())
@@ -1022,13 +1054,16 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15):
 
   # For each tracklet chose n_per_trk random examples and the find their embedding.
 
-  for ix in range(trk.ntargets):
+  logging.info(f'Sampling images from {trk.ntargets} tracklets to assign identity to the tracklets ...')
+  all_ims = []
+  for ix in tqdm(range(trk.ntargets)):
     to_do_list = []
     for cc in range(n_per_trk):
       ndx = np.random.choice(np.arange(ss[ix], ee[ix] + 1))
       to_do_list.append([ndx, ix], )
 
-    curims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None)
+    curims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None,use_bsize=False)
+    all_ims.append(curims)
     if curims.shape[3] == 1:
       curims = np.tile(curims, [1, 1, 1, 3])
     zz, _ = PoseTools.preprocess_ims(curims, dummy_locs, conf, False, 1)
@@ -1048,6 +1083,7 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15):
   assigned_ids = np.ones(rr.shape[0]) * -1
   to_remove = []
 
+  logging.info('Stitching tracklets based on identity ...')
   for xx in range(rr.shape[0]):
     if xx in to_remove:
       continue
@@ -1055,8 +1091,6 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15):
     dd = dd.reshape([dd.shape[0], -1])
     dd = np.percentile(dd, 70, axis=-1)
     # Find distance between all the patches of current tracklet to other tracklets. Match the tracklets if at least 70% of distances are less than the threshold
-
-    # dd = np.linalg.norm(rr[xx:xx+1,...]-rr,axis=-1)/np.sqrt(n_per_trk)
 
     close_ids = np.where(dd < thres)[0]
     for cid in close_ids:
@@ -1072,12 +1106,26 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15):
         to_remove.append(cid)
         assigned_ids[cid] = xx
 
+  # Delete the trks that have been merged
   trk.pTrk = np.delete(trk.pTrk, to_remove, -1)
   for k in trk.trkFields:
     if trk.__dict__[k] is not None:
       trk.__dict__[k] = np.delete(trk.__dict__[k], to_remove, -1)
   trk.ntargets = trk.ntargets - len(to_remove)
 
+
+  logging.info(f'Deleting short trajectories with length less than {min_len}')
+  # delete short tracks
+  sf,ef = trk.get_startendframes()
+  to_remove = np.where( (ef-sf)<=min_len)[0]
+  # Delete the trks that have been merged
+  trk.pTrk = np.delete(trk.pTrk, to_remove, -1)
+  for k in trk.trkFields:
+    if trk.__dict__[k] is not None:
+      trk.__dict__[k] = np.delete(trk.__dict__[k], to_remove, -1)
+  trk.ntargets = trk.ntargets - len(to_remove)
+
+  trk.convert2sparse()
   return trk
 
 
