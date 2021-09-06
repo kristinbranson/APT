@@ -2808,39 +2808,42 @@ classdef DeepTracker < LabelTracker
         'Can''t find stripped lbl file: %s\n',dlLblFileLcl);
       
       % generate stripped lbl for GT cache
-      [tfsucc,~,slblgt] = obj.lObj.trackCreateDeepTrackerStrippedLbl(...
-        'shuffleRows',false);
-      if ~tfsucc
-        error('Failed to create DL stripped lbl file.');
-      end
-      flds = fieldnames(slblgt);
-      fldsPP = flds(startsWith(flds,'preProcData'));
-      sgt = structrestrictflds(slblgt,fldsPP);
-      
-      lds = load(dlLblFileLcl,'-mat');
-      gtchanged = ~isfield(lds,'gtcache') || ~isequaln(lds.gtcache,sgt);
-      if gtchanged
-        % Note simply re-creating the entire stripped lbl might alter
-        % training data (movies labels etc) which would be highly
-        % undesirable.
+      if obj.lObj.maIsMA
         
-        fprintf('GT labels have changed since train...\n');
-        
-        % back up existing stripped lbl jic
-        nowstr = datestr(now,'yyyymmddTHHMMSS');
-        lblbak = sprintf('%s_%s.bak',dlLblFileLcl,nowstr);
-        [succ,msg] = copyfile(dlLblFileLcl,lblbak);
-        if ~succ
-          error('Error resaving stripped lbl: %s',msg);
+      else
+        [tfsucc,~,slblgt] = obj.lObj.trackCreateDeepTrackerStrippedLbl(...
+          'shuffleRows',false);
+        if ~tfsucc
+          error('Failed to create DL stripped lbl file.');
         end
-        fprintf('Backed up stripped lbl: %s.\n',dlLblFileLcl);
-        
-        %% load and resave.
-        lds.gtcache = sgt;
-        save(dlLblFileLcl,'-mat','-v7.3','-struct','lds');
-        fprintf('Resaved stripped lbl with updated GT state.\n');
+        flds = fieldnames(slblgt);
+        fldsPP = flds(startsWith(flds,'preProcData'));
+        sgt = structrestrictflds(slblgt,fldsPP);
+
+        lds = load(dlLblFileLcl,'-mat');
+        gtchanged = ~isfield(lds,'gtcache') || ~isequaln(lds.gtcache,sgt);
+        if gtchanged
+          % Note simply re-creating the entire stripped lbl might alter
+          % training data (movies labels etc) which would be highly
+          % undesirable.
+
+          fprintf('GT labels have changed since train...\n');
+
+          % back up existing stripped lbl jic
+          nowstr = datestr(now,'yyyymmddTHHMMSS');
+          lblbak = sprintf('%s_%s.bak',dlLblFileLcl,nowstr);
+          [succ,msg] = copyfile(dlLblFileLcl,lblbak);
+          if ~succ
+            error('Error resaving stripped lbl: %s',msg);
+          end
+          fprintf('Backed up stripped lbl: %s.\n',dlLblFileLcl);
+
+          %% load and resave.
+          lds.gtcache = sgt;
+          save(dlLblFileLcl,'-mat','-v7.3','-struct','lds');
+          fprintf('Resaved stripped lbl with updated GT state.\n');
+        end
       end
-      
 %       if gtResaveStrippedLbl
 %         % Modify&resave stripped lbl if nec, as GT movies labels etc
 %         % may have changed since training. Currently we classify/track GT
