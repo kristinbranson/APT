@@ -888,18 +888,18 @@ classdef landmark_specs < handle
       
       obj.AddPairButton = uicontrol(obj.SwapPairsTab,'style','pushbutton');
       obj.AddPairButton.Callback = @(s,e)obj.AddPairButtonPushed(e);
-      obj.AddPairButton.Position = [118 17 100 23];
+%      obj.AddPairButton.Position = [118 17 100 23];
       obj.AddPairButton.String = 'Add Pair';
       obj.RemovePairButton = uicontrol(obj.SwapPairsTab,'style','pushbutton');
       obj.RemovePairButton.Callback = @(s,e)obj.RemovePairButtonPushed(e);
-      obj.RemovePairButton.Position = [230 17 100 23];
+      %obj.RemovePairButton.Position = [230 17 100 23];
       obj.RemovePairButton.String = 'Remove Pair';
-      obj.AddPairButton.Position = [btnx0 BTNY0 btnw BTNH];
-      obj.RemovePairButton.Position = [btnx0+btnw+5 BTNY0 btnw BTNH];
-      obj.AddPairButton.FontSize = FSIZE;
-      obj.RemovePairButton.FontSize = FSIZE;
       obj.AddPairButton.Units = 'normalized';
       obj.RemovePairButton.Units = 'normalized';
+      obj.AddPairButton.Position = [btnx0 BTNY0 btnw BTNH];
+      obj.RemovePairButton.Position = [btnx0+btnw+BTNGAP BTNY0 btnw BTNH];
+      obj.AddPairButton.FontSize = FSIZE;
+      obj.RemovePairButton.FontSize = FSIZE;
       
       % Create RightPanel
       obj.RightPanel = uipanel('Parent',obj.hFig,'units','normalized',...
