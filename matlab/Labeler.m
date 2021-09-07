@@ -2530,13 +2530,13 @@ classdef Labeler < handle
     
     function projAddLandmarks(obj,nadd)
       
-      % if labeling mode is sequential, set to template
-      if strcmpi(obj.labelMode,'SEQUENTIAL'),
-        obj.labelingInit('labelMode',LabelMode.TEMPLATE,'dosettemplate',false);
-      end
+%       % if labeling mode is sequential, set to template
+%       if strcmpi(obj.labelMode,'SEQUENTIAL'),
+%         obj.labelingInit('labelMode',LabelMode.TEMPLATE,'dosettemplate',false);
+%       end
       
       if obj.nview>1,
-        warning('Adding landmarks for multiview projects not yet tested.');
+        warning('Adding landmarks for multiview projects not yet tested. Not sure if this will work!!');
       end
 
       isinit0 = obj.isinit;
@@ -2587,6 +2587,13 @@ classdef Labeler < handle
       obj.predPointsPlotInfo.Colors = feval(obj.predPointsPlotInfo.ColorMapName,newnphyspts);
       obj.impPointsPlotInfo.Colors = feval(obj.impPointsPlotInfo.ColorMapName,newnphyspts);
 
+      % reset reference frame plotting
+      obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
+        obj.gdata.axes_prev,obj.labelPointsPlotInfo);
+      if ~isempty(obj.prevAxesModeInfo)
+        obj.prevAxesLabelsRedraw();
+      end
+      
       % remake info timeline
       handles = guidata(obj.hFig);
       handles.labelTLInfo.delete();
@@ -3632,7 +3639,7 @@ classdef Labeler < handle
       s.trackerData = tdata;      
       % KB 20201216 update currTracker as well
       oldCurrTracker = s.currTracker;
-      if oldCurrTracker>0
+      if oldCurrTracker>0 && ~isempty(loc),
         s.currTracker = loc(oldCurrTracker);
       end
 %       
@@ -11416,6 +11423,18 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
+    function clearAllTrackers(obj)
+      for i = 1:numel(obj.trackersAll),
+        tObj = obj.trackersAll{i};
+        tObj.initHook();
+      end
+    end
+    
+    function clearCurrentTracker(obj)
+      tObj = obj.tracker;
+      tObj.initHook();
+    end
+    
     function [tfsucc,tblPCache,s] = ...
         trackCreateDeepTrackerStrippedLbl(obj,varargin)
       % For use with DeepTrackers. Create stripped lbl based on
@@ -14710,6 +14729,18 @@ classdef Labeler < handle
       end
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
+      % if any points are nan, set them to be somewhere ...
+      ismissing = any(isnan(lpos),2);
+      if nnz(~ismissing) > 1 && any(ismissing),
+        k = convhull(lpos(~ismissing,1),lpos(~ismissing,2));
+        for j = find(ismissing)',
+          i1 = randsample(numel(k)-1,1);
+          i2 = i1 + 1;
+          lambda = .25+.5*rand(1);
+          p = lpos(k(i1),:)*lambda + lpos(k(i2),:)*(1-lambda);
+          lpos(j,:) = p;
+        end
+      end
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
         obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
       if any(lpostag(ipts))

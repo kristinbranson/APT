@@ -1227,7 +1227,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     function refreshHotkeyDesc(obj)
       iSet0 = obj.numHotKeyPtSet;
       iSet1 = iSet0+9;
-      str = sprintf('Hotkeys 0-9 map to 3d points %d-%d',iSet0,iSet1);
+      str = sprintf('Hotkeys 1-9,0 map to 3d points %d-%d, ` (backquote) toggles',iSet0,iSet1);
       [obj.hAxXLabels(2:end).String] = deal(str);
       obj.txLblCoreAux.String = str;
     end

@@ -168,7 +168,7 @@ classdef LabelCoreTemplate < LabelCore
     % indicates whether tracking is present for that unadjusted point.
     lastSetAllUnadjustedResetType = LabelCoreTemplateResetType.RESET
     
-    kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
+    %kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
                  % the '1' hotkey maps to, eg typically this will take the 
                  % values 1, 11, 21, ...
                  
@@ -178,15 +178,6 @@ classdef LabelCoreTemplate < LabelCore
     hPtsMarkerPVNotPredUnadjusted; % HG PV-pairs for not that; reverts the above
     hPtsTxtPVPredUnadjusted % etc
     hPtsTxtPVNotPredUnadjusted
-  end  
-  
-  methods
-    
-    function set.kpfIPtFor1Key(obj,val)
-      obj.kpfIPtFor1Key = val;
-      obj.refreshTxLabelCoreAux();
-    end
-    
   end
   
   methods
@@ -818,12 +809,12 @@ classdef LabelCoreTemplate < LabelCore
       end
     end
     
-    function refreshTxLabelCoreAux(obj)
-      iPt0 = obj.kpfIPtFor1Key;
-      iPt1 = iPt0+9;
-      str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
-      obj.txLblCoreAux.String = str;      
-    end
+%     function refreshTxLabelCoreAux(obj)
+%       iPt0 = obj.kpfIPtFor1Key;
+%       iPt1 = iPt0+9;
+%       str = sprintf('Hotkeys 1-9,0 map to points %d-%d, ` (backquote) toggles',iPt0,iPt1);
+%       obj.txLblCoreAux.String = str;      
+%     end
             
   end
   
