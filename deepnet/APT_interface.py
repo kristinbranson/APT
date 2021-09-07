@@ -1620,7 +1620,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,s
     assert not (on_gt and split), 'Cannot split gt data'
 
     lbl = h5py.File(conf.labelfile, 'r')
-    if not ( ('preProcData_MD_mov' in lbl.keys()) or ('preProcData_MD_mov' in lbl['gtcache'])):
+    if not ( ('preProcData_MD_mov' in lbl.keys()) or ('gtcache' in lbl.keys() and 'preProcData_MD_mov' in lbl['gtcache'])):
         if conf.use_ht_trx or conf.use_bbox_trx:
             return db_from_trnpack_ht(conf, out_fns, nsamples=nsamples, split=split)
         else:
