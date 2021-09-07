@@ -816,8 +816,9 @@ classdef Labeler < handle
       n = numel(iMov);
       v = cell(n,obj.nview);
       
-      mfa = FSPath.macroReplace(obj.movieFilesAll,obj.projMacros);
-      mfaGT = FSPath.macroReplace(obj.movieFilesAllGT,obj.projMacros);
+      sMacro = obj.projMacros;
+      mfa = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
+      mfaGT = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       tfa = obj.trxFilesAll;
       tfaGT = obj.trxFilesAllGT;
       for i=1:n
@@ -837,9 +838,9 @@ classdef Labeler < handle
       v = cell(n,obj.nview);
       for i=1:n
         if gt
-          v(i,:) = obj.trxInfoAll(iMov(i),:);
-        else
           v(i,:) = obj.trxInfoAllGT(iMov(i),:);
+        else
+          v(i,:) = obj.trxInfoAll(iMov(i),:);
         end
       end
     end
