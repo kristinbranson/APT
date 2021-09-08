@@ -1394,7 +1394,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
                 done_mask = done_mask | create_mask(frame_eroi/mask_sc, mask_sz)
 
                 all_data.append(
-                    {'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
+                    {'im': curp, 'locs': curl, 'info': [info[0], info[1], endx], 'occ': cur_occ, 'roi': cur_roi,
                      'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top})
 
     return all_data
@@ -1565,7 +1565,10 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
 
         sndx = cur_t['split']
         if type(sndx) == list:
-            sndx = sndx[0]
+            if len(sndx)<1:
+                sndx = 0
+            else:
+                sndx = sndx[0]
         cur_out = out_fns[sndx]
 
         if conf.multi_only_ht:
