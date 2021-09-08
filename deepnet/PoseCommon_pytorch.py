@@ -236,7 +236,10 @@ class PoseCommon_pytorch(object):
                 prev_models = json.load(cf)
             model_file = prev_models[-1]
         logging.info('Loading model from {}'.format(model_file))
-        ckpt = torch.load(model_file)
+        if torch.cuda.is_available():
+            ckpt = torch.load(model_file)
+        else:
+            ckpt = torch.load(model_file,map_location=torch.device('cpu'))
         model.load_state_dict(ckpt['model_state_params'])
         if opt is not None:
             opt.load_state_dict(ckpt['optimizer_state_params'])
