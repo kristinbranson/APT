@@ -1259,27 +1259,26 @@ def create_mask(roi, sz):
 
 def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
     def random_crop_around_roi(roi_in):
-        x_min = np.clip(roi_in[..., 0].min(),0,conf.imsz[1])
-        y_min = np.clip(roi_in[..., 1].min(),0,conf.imsz[0])
-        x_max = np.clip(roi_in[..., 0].max(),0,conf.imsz[1])
-        y_max = np.clip(roi_in[..., 1].max(),0,conf.imsz[0])
+        x_min = np.clip(roi_in[..., 0].min(),0,conf.multi_frame_sz[1])
+        y_min = np.clip(roi_in[..., 1].min(),0,conf.multi_frame_sz[0])
+        x_max = np.clip(roi_in[..., 0].max(),0,conf.multi_frame_sz[1])
+        y_max = np.clip(roi_in[..., 1].max(),0,conf.multi_frame_sz[0])
 
         d_x = (conf.imsz[1] - (x_max - x_min)) * 0.9
         r_x = (np.random.rand() - 0.5) * d_x
         x_left = int(round((x_max + x_min) / 2 - conf.imsz[1] / 2 + r_x))
-        x_left = min(x_left, frame.shape[0] - conf.imsz[0])
+        x_left = min(x_left, frame.shape[1] - conf.imsz[1])
         x_left = max(x_left, 0)
         x_right = x_left + conf.imsz[1]
 
         d_y = (conf.imsz[0] - (y_max - y_min)) * 0.9
         r_y = (np.random.rand() - 0.5) * d_y
         y_top = int(round((y_max + y_min) / 2 - conf.imsz[0] / 2 + r_y))
-        y_top = min(y_top, frame.shape[1] - conf.imsz[1])
+        y_top = min(y_top, frame.shape[0] - conf.imsz[0])
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
-        assert (y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max) and (x_left-1) <= round(x_min) and (x_right+1) >= round(
-            x_max), 'Cropping for cluster is improper'
+        assert (y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max) and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max), 'Cropping for cluster is improper'
         return x_left, y_top, x_right, y_bottom
 
     def roi2patch(roi_in, x_left, y_top):
@@ -1309,7 +1308,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         n_extra_roi = 0 if extra_roi is None else len(extra_roi)
     else:
         n_extra_roi = 1
-        extra_roi = np.array([[0,0],[0,conf.multi_frame_sz[0]],[conf.multi_frame_sz[1],conf.multi_frame_sz[0]],[conf.multi_frame_sz[0],0]])[None,...].astype('float')
+        extra_roi = np.array([[0,0],[0,conf.multi_frame_sz[0]],[conf.multi_frame_sz[1],conf.multi_frame_sz[0]],[conf.multi_frame_sz[1],0]])[None,...].astype('float')
 
     if n_extra_roi > 0:
         extra_roi = extra_roi.copy()
