@@ -816,8 +816,9 @@ classdef Labeler < handle
       n = numel(iMov);
       v = cell(n,obj.nview);
       
-      mfa = FSPath.macroReplace(obj.movieFilesAll,obj.projMacros);
-      mfaGT = FSPath.macroReplace(obj.movieFilesAllGT,obj.projMacros);
+      sMacro = obj.projMacros;
+      mfa = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
+      mfaGT = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       tfa = obj.trxFilesAll;
       tfaGT = obj.trxFilesAllGT;
       for i=1:n
@@ -837,9 +838,9 @@ classdef Labeler < handle
       v = cell(n,obj.nview);
       for i=1:n
         if gt
-          v(i,:) = obj.trxInfoAll(iMov(i),:);
-        else
           v(i,:) = obj.trxInfoAllGT(iMov(i),:);
+        else
+          v(i,:) = obj.trxInfoAll(iMov(i),:);
         end
       end
     end
@@ -2528,6 +2529,114 @@ classdef Labeler < handle
       
     end
     
+    function projAddLandmarks(obj,nadd)
+      
+%       % if labeling mode is sequential, set to template
+%       if strcmpi(obj.labelMode,'SEQUENTIAL'),
+%         obj.labelingInit('labelMode',LabelMode.TEMPLATE,'dosettemplate',false);
+%       end
+      
+      if obj.nview>1,
+        warning('Adding landmarks for multiview projects not yet tested. Not sure if this will work!!');
+      end
+
+      isinit0 = obj.isinit;
+      obj.isinit = true;
+      %delete(obj.lblCore);
+      %obj.lblCore = [];
+      obj.preProcData = [];
+      obj.ppdb = [];
+
+      
+      oldnphyspts = obj.nPhysPoints;
+      oldnpts = obj.nLabelPoints;
+      nptsperset = size(obj.labeledposIPtSetMap,2);
+
+      newnphyspts = oldnphyspts+nadd;
+      newnpts = oldnpts + nadd*nptsperset;
+           
+      % update landmark info
+      
+      % landmark names - one per set
+      newnames = Labeler.defaultLandmarkNames(oldnphyspts+1:oldnphyspts+nadd);
+      obj.skelNames = cat(1,obj.skelNames,newnames);
+      
+      % pt2set
+      oldipt2set = reshape(obj.labeledposIPt2Set,[oldnphyspts,nptsperset]);
+      newipt2set = repmat(oldnphyspts+(1:nadd)',[1,nptsperset]);
+      obj.labeledposIPt2Set = reshape(cat(1,oldipt2set,newipt2set),[newnpts,1]);
+      
+      % pt2view
+      oldipt2view = reshape(obj.labeledposIPt2View,[oldnphyspts,nptsperset]);
+      newipt2view = repmat(1:nptsperset,[nadd,1]);
+      obj.labeledposIPt2View = reshape(cat(1,oldipt2view,newipt2view),[newnpts,1]);
+      
+      % this is changing for existing points if nview > 1
+      obj.labeledposIPtSetMap = reshape(1:newnpts,[newnphyspts,nptsperset]);
+      old2newpt = reshape(obj.labeledposIPtSetMap(1:oldnphyspts,:),[oldnpts,1]);
+      [~,new2oldpt] = ismember((1:newnpts)',old2newpt);
+      
+      % update labels
+      obj.labelPosAddLandmarks(new2oldpt);
+
+      % skeletonEdges and flipLandmarkMatches should not change
+      
+      obj.nLabelPoints = newnpts;
+      
+      % reset colors to defaults
+      obj.labelPointsPlotInfo.Colors = feval(obj.labelPointsPlotInfo.ColorMapName,newnphyspts);
+      obj.predPointsPlotInfo.Colors = feval(obj.predPointsPlotInfo.ColorMapName,newnphyspts);
+      obj.impPointsPlotInfo.Colors = feval(obj.impPointsPlotInfo.ColorMapName,newnphyspts);
+
+      % reset reference frame plotting
+      obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
+        obj.gdata.axes_prev,obj.labelPointsPlotInfo);
+      if ~isempty(obj.prevAxesModeInfo)
+        obj.prevAxesLabelsRedraw();
+      end
+      
+      % remake info timeline
+      handles = guidata(obj.hFig);
+      handles.labelTLInfo.delete();
+      handles.labelTLInfo = InfoTimeline(obj,handles.axes_timeline_manual,...
+        handles.axes_timeline_islabeled);
+      handles.labelTLInfo.initNewProject();
+      guidata(obj.hFig,handles);
+      
+      % clear tracking data
+      cellfun(@(x)x.clearTracklet(),obj.labels2);
+      cellfun(@(x)x.clearTracklet(),obj.labels2GT);
+            
+      % Reset .trackersAll
+      for i=1:numel(obj.trackersAll)
+        % explicitly delete, conservative cleanup
+        delete(obj.trackersAll{i}); % delete([]) does not err
+      end
+      obj.trackersAll = cell(1,0);
+      obj.trackInitAllTrackers();
+      % Trackers created/initted in projLoad and projNew; eg when loading,
+      % the loaded .lbl knows what trackers to create.
+      obj.currTracker = 1;
+      
+      obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      % not resetting trackParams, hopefully nothing in here that depends
+      % on number of landmarks
+      %obj.trackParams = [];
+      
+      obj.labeledposNeedsSave = true;
+      obj.needsSave = true;     
+      
+      obj.lblCore.init(newnphyspts,obj.labelPointsPlotInfo);
+%       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
+%         obj.gdata.axes_prev,obj.labelPointsPlotInfo);
+      obj.preProcInit();
+      obj.isinit = isinit0;
+      obj.labelsUpdateNewFrame(true);
+      %obj.labelingInit();
+      
+      
+    end
+    
     function projImport(obj,fname)
       % 'Import' the project fname, MERGING movies/labels into the current project.
           
@@ -3531,7 +3640,7 @@ classdef Labeler < handle
       s.trackerData = tdata;      
       % KB 20201216 update currTracker as well
       oldCurrTracker = s.currTracker;
-      if oldCurrTracker>0
+      if oldCurrTracker>0 && ~isempty(loc),
         s.currTracker = loc(oldCurrTracker);
       end
 %       
@@ -6302,6 +6411,19 @@ classdef Labeler < handle
       end
     end
     
+    function labelPosAddLandmarks(obj,new2oldpt)
+      % for all movies, for both training labels and gt labels, add new
+      % landmarks
+      
+      for i = 1:numel(obj.labels),
+        obj.labels{i} = Labels.remapLandmarks(obj.labels{i},new2oldpt);
+      end
+      for i = 1:numel(obj.labelsGT),
+        obj.labelsGT{i} = Labels.remapLandmarks(obj.labelsGT{i},new2oldpt);
+      end
+      
+    end
+    
     function ntgts = labelPosClearWithCompact_New(obj)
       % Clear all labels AND TAGS for current movie/frame/target;
       % AND compactify labels. for MA only
@@ -7836,6 +7958,12 @@ classdef Labeler < handle
             trkfiles = [];
         end
       end
+    end
+    
+    function LabelPointNames = defaultLandmarkNames(ptidx)
+      
+      LabelPointNames = arrayfun(@(x)sprintf('pt%d',x),ptidx','uni',0);
+      
     end
   end
 
@@ -11296,6 +11424,18 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
+    function clearAllTrackers(obj)
+      for i = 1:numel(obj.trackersAll),
+        tObj = obj.trackersAll{i};
+        tObj.initHook();
+      end
+    end
+    
+    function clearCurrentTracker(obj)
+      tObj = obj.tracker;
+      tObj.initHook();
+    end
+    
     function [tfsucc,tblPCache,s] = ...
         trackCreateDeepTrackerStrippedLbl(obj,varargin)
       % For use with DeepTrackers. Create stripped lbl based on
@@ -14590,6 +14730,18 @@ classdef Labeler < handle
       end
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
+      % if any points are nan, set them to be somewhere ...
+      ismissing = any(isnan(lpos),2);
+      if nnz(~ismissing) > 1 && any(ismissing),
+        k = convhull(lpos(~ismissing,1),lpos(~ismissing,2));
+        for j = find(ismissing)',
+          i1 = randsample(numel(k)-1,1);
+          i2 = i1 + 1;
+          lambda = .25+.5*rand(1);
+          p = lpos(k(i1),:)*lambda + lpos(k(i2),:)*(1-lambda);
+          lpos(j,:) = p;
+        end
+      end
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
         obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
       if any(lpostag(ipts))

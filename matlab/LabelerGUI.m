@@ -4212,15 +4212,19 @@ ClearStatus(handles);
 
 function menu_track_clear_tracker_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-res = questdlg('This will clear your trained tracker, along with all tracking results. Are you sure you want to proceed?',...
-  'Clear Model','Yes','Abort','Abort');
-if ~strcmpi(res,'Yes'),
+res = questdlg('Clear current tracker or all trackers? This will clear your trained tracker(s), along with all tracking results. Hit cancel if you do not want to do this.',...
+  'Clear Models','Current only','All','Cancel','Cancel');
+if strcmpi(res,'Cancel'),
   return;
+elseif strcmpi(res,'Current only'),
+  SetStatus(handles,'Clearing current trained tracker and all tracking results...');
+  lObj.clearCurrentTracker();
+  ClearStatus(handles);
+elseif strcmpi(res,'All'),
+  SetStatus(handles,'Clearing trained trackers and all tracking results...');
+  lObj.clearAllTrackers();
+  ClearStatus(handles);
 end
-SetStatus(handles,'Clearing trained tracker and all tracking results...');
-tObj = lObj.tracker;
-tObj.initHook();
-ClearStatus(handles);
 
 
 function menu_track_cpr_storefull_dont_store_Callback(hObject, eventdata, handles)

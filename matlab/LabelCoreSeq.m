@@ -39,18 +39,12 @@ classdef LabelCoreSeq < LabelCore
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
 
     % Templatemode-like behavior in 'adjust' and 'accepted' stages
-    kpfIPtFor1Key; % scalar positive integer. This is the point index that
+    % moved to parent class
+    %kpfIPtFor1Key; % scalar positive integer. This is the point index that
                    % the '1' hotkey maps to, eg typically this will take the 
                    % values 1, 11, 21, ...
   end
-  
-  methods
-    function set.kpfIPtFor1Key(obj,val)
-      obj.kpfIPtFor1Key = val;
-      obj.refreshTxLabelCoreAux();
-    end
-  end
-  
+    
   methods
     
     function obj = LabelCoreSeq(varargin)
@@ -446,12 +440,12 @@ classdef LabelCoreSeq < LabelCore
     end
     
     % C+P
-    function refreshTxLabelCoreAux(obj)
-      iPt0 = obj.kpfIPtFor1Key;
-      iPt1 = iPt0+9;
-      str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
-      obj.txLblCoreAux.String = str;      
-    end
+%     function refreshTxLabelCoreAux(obj)
+%       iPt0 = obj.kpfIPtFor1Key;
+%       iPt1 = iPt0+9;
+%       str = sprintf('Hotkeys 1-9,0 map to points %d-%d, ` (backquote) toggles',iPt0,iPt1);
+%       obj.txLblCoreAux.String = str;      
+%     end
     
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);

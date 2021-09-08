@@ -69,6 +69,22 @@ classdef LabelCore < handle
                           %   (HT mode does not use .tfEstOcc, relies on
                           %   markers.)
     tfSel;                % [nPts x 1] logical. If true, pt is currently selected.
+    
+    kpfIPtFor1Key; % scalar positive integer. This is the point index that
+    % the '1' hotkey maps to, eg typically this will take the
+    % values 1, 11, 21, ...
+    
+  end
+  
+  methods
+    function set.kpfIPtFor1Key(obj,val)
+      obj.kpfIPtFor1Key = val;
+      obj.refreshTxLabelCoreAux();
+      obj.setKpfIPtFor1Key(val);
+    end
+    function setKpfIPtFor1Key(obj,val) %#ok<INUSD>
+    end
+      
   end
   
   methods (Static)
@@ -226,6 +242,15 @@ classdef LabelCore < handle
       obj.hPtsOcc = [];
       obj.hPtsTxtOcc = [];
       set(obj.hAxOcc,'ButtonDownFcn','');
+    end
+    
+    % this function was duplicated in a lot of sub classes, adding it here
+    % so that we don't copy-paste code
+    function refreshTxLabelCoreAux(obj)
+      iPt0 = obj.kpfIPtFor1Key;
+      iPt1 = iPt0+9;
+      str = sprintf('Hotkeys 1-9,0 map to points %d-%d, ` (backquote) toggles',iPt0,iPt1);
+      obj.txLblCoreAux.String = str;      
     end
            
   end
