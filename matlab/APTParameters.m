@@ -531,17 +531,19 @@ classdef APTParameters
       % automatically set the parameters based on labels.
       
       assert(lobj.nview==1, 'Auto setting of parameters not tested for multivew');
+      view = 1;
       %%
       nmov = numel(lobj.labels);
-      npts = lobj.labels{1}.npts;
+      npts = lobj.nLabelPoints;
       all_labels = [];
       all_id = [];
       all_mov = [];
       pair_labels = [];
+      cur_pts = ((view-1)*2*npts+1):((view+1)*2*npts);
       for ndx = 1:nmov        
         if ~Labels.hasLbls(lobj.labels{ndx}), continue; end
 
-        all_labels = [all_labels lobj.labels{ndx}.p];
+        all_labels = [all_labels lobj.labels{ndx}.p(curpts,:,:)];
         n_labels = size(lobj.labels{ndx}.p,2);
         all_id = [all_id 1:n_labels];
         all_mov = [all_mov ones(1,n_labels)*ndx];
@@ -563,7 +565,7 @@ classdef APTParameters
               end
               
               pair_done(end+1) = ix*big_val+f;
-              cur_pair = [lobj.labels{ndx}.p(:,fndx);lobj.labels{ndx}.p(:,ix)];
+              cur_pair = [lobj.labels{ndx}.p(cur_pts,fndx);lobj.labels{ndx}.p(cur_pts,ix)];
               pair_labels = [pair_labels cur_pair];
               
             end
@@ -575,7 +577,7 @@ classdef APTParameters
       all_labels = reshape(all_labels,npts,2,[]);
       pair_labels = reshape(pair_labels,npts,2,2,[]);
       % animals are along the second last dimension.
-      % Third dim has the coordinates
+      % second dim has the coordinates
       
       l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
       l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
@@ -605,6 +607,58 @@ classdef APTParameters
       end
       warning(wstr);
       
+      crop_radius = max(l_span_pc);
+      crop_radius = ceil(crop_radius/32)*32;
+            
+      % Look at distances between labeled pairs to find what to set for
+      % tranlation range for data augmentation
+      min_pairs = min(pair_labels,[],1);
+      max_pairs = max(pair_labels,[],1);
+      ctr_pairs = (max_pairs+min_pairs)/2;
+      d_pairs = sqrt(sum( (ctr_pairs(:,:,1,:)-ctr_pairs(:,:,2,:)).^2,2));
+      d_pairs = squeeze(d_pairs);
+      d_pairs_pc = prctile(d_pairs,5);
+      d_pairs_min = min(d_pairs_pc);
+      
+      % If the distances between center of animals is much less than the
+      % span then warn about using bbox based methods
+      if(d_pairs_pc<min(l_span_pc/10))
+        wstr = 'The distances between the center of animals is much smaller than the spans of the animals';
+        wstr = sprintf('%s\n Avoid using object detection based top-down methods',wstr);
+        warning(wstr);
+      end
+      
+      trange_frame = min(lobj.movienr(view),lobj.movienc(view))/10;
+      trange_pair = d_pairs_pc/2;
+      trange_crop = min(l_span_pc)/10; 
+      trange_animal = min(trange_pair,trange_crop);
+      rrange = 15;
+      align_theta = lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta;
+      if ~lobj.maIsMA
+        if lobj.hasTrx
+          % If using cropping set trange to 10 percent of the crop size.
+          trange = max(5,trange_animal);
+          if align_theta
+            rrange = 15;
+          else
+            % Try to guess rotation range for single animal
+            % For this look at the angles from center of the frame/crop to
+            % the labels
+            l_thetas = atan2(all_labels(:,1,:)-lobj.movienc(view)/2,...
+              all_labels(:,2,:)-lobj.movienr(view)/2);
+            
+            
+            rrange = 180;
+          end
+        else
+          % Else set it to 10 percent of the crop size
+          trange = max(5,trange_frame);
+        end
+      else
+        trange_top = max(5,trange_frame);
+        trange_second = min(trange_crop,trange_single);
+        trange_second = max(5,trange_second);
+      end
       
       
       

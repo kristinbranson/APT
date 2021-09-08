@@ -1259,10 +1259,10 @@ def create_mask(roi, sz):
 
 def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
     def random_crop_around_roi(roi_in):
-        x_min = roi_in[..., 0].min()
-        y_min = roi_in[..., 1].min()
-        x_max = roi_in[..., 0].max()
-        y_max = roi_in[..., 1].max()
+        x_min = np.clip(roi_in[..., 0].min(),0,conf.imsz[1])
+        y_min = np.clip(roi_in[..., 1].min(),0,conf.imsz[0])
+        x_max = np.clip(roi_in[..., 0].max(),0,conf.imsz[1])
+        y_max = np.clip(roi_in[..., 1].max(),0,conf.imsz[0])
 
         d_x = (conf.imsz[1] - (x_max - x_min)) * 0.9
         r_x = (np.random.rand() - 0.5) * d_x
