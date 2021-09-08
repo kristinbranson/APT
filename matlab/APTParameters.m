@@ -527,6 +527,94 @@ classdef APTParameters
       end
     end
     
+    function sPrmAll = autosetparams(sPrmAll,lobj,nettype)
+      % automatically set the parameters based on labels.
+      
+      assert(lobj.nview==1, 'Auto setting of parameters not tested for multivew');
+      %%
+      nmov = numel(lobj.labels);
+      npts = lobj.labels{1}.npts;
+      all_labels = [];
+      all_id = [];
+      all_mov = [];
+      pair_labels = [];
+      for ndx = 1:nmov        
+        if ~Labels.hasLbls(lobj.labels{ndx}), continue; end
+
+        all_labels = [all_labels lobj.labels{ndx}.p];
+        n_labels = size(lobj.labels{ndx}.p,2);
+        all_id = [all_id 1:n_labels];
+        all_mov = [all_mov ones(1,n_labels)*ndx];
+        
+        if ~lobj.maIsMA, continue, end
+        pair_done = [];
+        big_val = 10000000;
+        for fndx = 1:numel(lobj.labels{ndx}.frm)
+          f = lobj.labels{ndx}.frm(fndx);
+          if nnz(lobj.labels{ndx}.frm==f)>1
+            idx = find(lobj.labels{ndx}.frm==f);
+            for ix = idx(:)'
+              if ix==fndx, continue, end
+              if any(pair_done==(f*big_val+ix))
+                continue
+              end
+              if any(pair_done==(ix*big_val+f))
+                continue
+              end
+              
+              pair_done(end+1) = ix*big_val+f;
+              cur_pair = [lobj.labels{ndx}.p(:,fndx);lobj.labels{ndx}.p(:,ix)];
+              pair_labels = [pair_labels cur_pair];
+              
+            end
+          end
+          
+        end
+        
+      end
+      all_labels = reshape(all_labels,npts,2,[]);
+      pair_labels = reshape(pair_labels,npts,2,2,[]);
+      % animals are along the second last dimension.
+      % Third dim has the coordinates
+      
+      l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
+      l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+      l_span = l_max-l_min;
+      
+      l_span_pc = prctile(l_span,95,2);
+      l_span_max = max(l_span,[],2);
+      
+      % Check and flag outliers..
+      if any( (l_span_max./l_span_pc)>2)
+        outliers = zeros(0,3);
+        for jj = find( (l_span_max/l_span_pc)>2)
+          ix = find(l_span(jj,:)>l_span_pc(jj)*2);
+          for xx = ix(:)'
+            mov = all_mov(xx);
+            yy = all_id(xx);
+            cur_fr = lobj.labels{mov}.frm(yy);
+            cur_tgt = lobj.labels{mov}.tgt(yy);
+            outliers(end+1,:) = [mov,cur_fr,cur_tgt];
+          end
+        end
+        wstr = 'Some bounding boxes have sizes much larger than normal. This suggests that they may have labeing errors\n';
+        wstr = sprintf('%s The list of examples is \n',wstr);
+        for zz = 1:size(outliers,1)
+          wstr = sprintf('%s Movie:%d, frame:%d, target:%d\n',wstr,outliers(zz,1),outliers(zz,2),outliers(zz,3));
+        end
+      end
+      warning(wstr);
+      
+      
+      
+      
+      
+      
+      
+      %%
+      
+    end
+    
   end
   methods (Static)
     function sPrm0 = defaultParamsOldStyle

@@ -1278,7 +1278,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
-        assert y_top <= round(y_min) and y_bottom >= round(y_max) and x_left <= round(x_min) and x_right >= round(
+        assert (y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max) and (x_left-1) <= round(x_min) and (x_right+1) >= round(
             x_max), 'Cropping for cluster is improper'
         return x_left, y_top, x_right, y_bottom
 
