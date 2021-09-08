@@ -1172,6 +1172,8 @@ def setup_ma(conf):
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
     cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
+    if cur_frame.ndim>2:
+        cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
     fr_sz = cur_frame.shape[:2]
     conf.multi_frame_sz = fr_sz
 
@@ -1429,6 +1431,7 @@ def show_crops(im, all_data, roi, extra_roi, conf):
 
 
 def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
+    # TODO: Maybe merge this with db_from_trnpack??
     lbl = h5py.File(conf.labelfile, 'r')
     occ_as_nan = conf.get('ignore_occluded', False)
     T = PoseTools.json_load(conf.json_trn_file)
@@ -1449,6 +1452,9 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
+        else:
+            cur_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2RGB)
+
         cur_locs = np.array(cur_t['pabs']) - 1
         ntgt = cur_t['ntgt']
         cur_locs = cur_locs.reshape([conf.nviews, 2, conf.n_classes, ntgt])
@@ -1465,7 +1471,10 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
 
         sndx = cur_t['split']
         if type(sndx) == list:
-            sndx = sndx[0]
+            if len(sndx)<1:
+                sndx = 0
+            else:
+                sndx = sndx[0]
         cur_out = out_fns[sndx]
 
         for ndx in range(len(cur_locs)):
@@ -1502,7 +1511,7 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
     return splits, sel
 
 
-def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
+def db_from_trnpack(conf, out_fns, nsamples=None, split=True,only_ht=True):
     # Creates db from new trnpack format instead of stripped label files.
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
@@ -1535,6 +1544,9 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
+        else:
+            cur_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2RGB)
+
         cur_locs = np.array(cur_t['pabs']) - 1
         ntgt = cur_t['ntgt']
         cur_locs = cur_locs.reshape([conf.nviews, 2, conf.n_classes, ntgt])

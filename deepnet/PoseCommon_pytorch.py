@@ -100,6 +100,9 @@ class coco_loader(torch.utils.data.Dataset):
         im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
+        else:
+            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
