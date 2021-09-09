@@ -646,9 +646,8 @@ classdef APTParameters
             % the labels
             l_thetas = atan2(all_labels(:,1,:)-lobj.movienc(view)/2,...
               all_labels(:,2,:)-lobj.movienr(view)/2);
-            
-            
-            rrange = 180;
+            ang_span = get_angle_span(l_thetas);
+            rrange = median(ang_span)/2;
           end
         else
           % Else set it to 10 percent of the crop size
@@ -667,6 +666,17 @@ classdef APTParameters
       
       %%
       
+    end
+    
+    function ang_span = get_angle_span(theta)
+      % Find the span of thetas. Hacky method that rotates the pts by
+      % 10degrees and then checks the span.
+      ang_span = ones(1,size(theta,1))*2*pi;
+      for offset = 0:10:360
+        thetao = mod(theta + offset*pi/180,2*pi);
+        cur_span = max(thetao,[],3) - min(thetao,[],3);
+        ang_span = min(ang_span,cur_span);
+      end
     end
     
   end

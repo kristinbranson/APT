@@ -538,6 +538,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         model.eval()
         self.model = model
         conf = self.conf
+        conf.batch_size = 1
         match_dist = conf.get('multi_match_dist',10)
 
         def pred_fn(ims, retrawpred=False):

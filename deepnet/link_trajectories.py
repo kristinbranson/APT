@@ -582,11 +582,12 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   set_default_params(params)
   allcosts = np.zeros((trk.ntargets, nsample))
   allcosts[:] = np.nan
-  
+
   for i in range(nsample):
     t = tsample[i]
     pcurr = trk.getframe(t)
     pnext = trk.getframe(t+nframes_skip)
+    if (pcurr.size<1) or (pnext.size<1): continue
     pcurr = pcurr[:, :, trk.real_idx(pcurr)]
     pnext = pnext[:, :, trk.real_idx(pnext)]
     ntargets_curr = pcurr.shape[2]

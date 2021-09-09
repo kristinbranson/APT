@@ -928,7 +928,9 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         test_pipeline = Compose(cfg.data.test.pipeline)
         device = next(model.parameters()).device
         max_n = conf.max_n_animals
+        min_n = conf.min_n_animals
         detr_nms = 0.7
+        detr_thr = 0.2
 
         def pred_fn(ims,retrawpred=False,show=False):
 
@@ -997,8 +999,9 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                     cur_ix = 0
                     while done_count<max_n:
                         cur_ix = cur_ix + 1
-                        if any(overlaps[cur_ix-1,:cur_ix-1]>detr_nms):
-                            continue
+                        if cur_ix>=overlaps.shape[0]: break
+                        if any(overlaps[cur_ix-1,:cur_ix-1]>detr_nms): continue
+                        if (res[0][cur_ix,4]<detr_thr) and done_count>=min_n: continue
                         cur_res[done_count,:] = res[0][cur_ix-1]
                         done_count += 1
 
