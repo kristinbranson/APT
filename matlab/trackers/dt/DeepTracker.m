@@ -3214,8 +3214,12 @@ classdef DeepTracker < LabelTracker
       reason = '';
       
       if obj.bgTrkIsRunning
-        reason = 'Tracking is already in progress.';
-        return;
+        if ~obj.bgTrnMonBGWorkerObj.getIsRunning
+          obj.bgTrkReset
+        else
+          reason = 'Tracking is already in progress.';
+          return;
+        end
       end
       
       % For now we do this check here even though the actual parfeval() 

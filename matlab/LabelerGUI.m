@@ -2755,6 +2755,15 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
+if handles.labelerObj.needsSave
+  res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
+  if strcmp(res,'Cancel')
+    return
+  elseif strcmp(res,'Save As')
+    menu_file_saveas_Callback(hObject, eventdata, handles)
+  end    
+end
+
 SetStatus(handles,'Training...');
 drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();

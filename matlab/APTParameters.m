@@ -527,23 +527,22 @@ classdef APTParameters
       end
     end
     
-    function sPrmAll = autosetparams(sPrmAll,lobj,nettype)
-      % automatically set the parameters based on labels.
+    function autoparams = compute_auto_params(lobj)
       
       assert(lobj.nview==1, 'Auto setting of parameters not tested for multivew');
-      view = 1;
       %%
+      view = 1;
       nmov = numel(lobj.labels);
       npts = lobj.nLabelPoints;
       all_labels = [];
       all_id = [];
       all_mov = [];
       pair_labels = [];
-      cur_pts = ((view-1)*2*npts+1):((view+1)*2*npts);
+      cur_pts = ((view-1)*2*npts+1):(view*2*npts);
       for ndx = 1:nmov        
         if ~Labels.hasLbls(lobj.labels{ndx}), continue; end
 
-        all_labels = [all_labels lobj.labels{ndx}.p(curpts,:,:)];
+        all_labels = [all_labels lobj.labels{ndx}.p(cur_pts,:,:)];
         n_labels = size(lobj.labels{ndx}.p,2);
         all_id = [all_id 1:n_labels];
         all_mov = [all_mov ones(1,n_labels)*ndx];
@@ -579,6 +578,7 @@ classdef APTParameters
       % animals are along the second last dimension.
       % second dim has the coordinates
       
+      %%
       l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
       l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
       l_span = l_max-l_min;
@@ -634,30 +634,61 @@ classdef APTParameters
       trange_animal = min(trange_pair,trange_crop);
       rrange = 15;
       align_theta = lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta;
+      
+      % Estimate the translation range and rotation ranges
       if ~lobj.maIsMA
         if lobj.hasTrx
           % If using cropping set trange to 10 percent of the crop size.
           trange = max(5,trange_animal);
-          if align_theta
-            rrange = 15;
-          else
-            % Try to guess rotation range for single animal
-            % For this look at the angles from center of the frame/crop to
-            % the labels
-            l_thetas = atan2(all_labels(:,1,:)-lobj.movienc(view)/2,...
-              all_labels(:,2,:)-lobj.movienr(view)/2);
-            ang_span = get_angle_span(l_thetas);
-            rrange = median(ang_span)/2;
-          end
+          rrange = 15;
         else
           % Else set it to 10 percent of the crop size
           trange = max(5,trange_frame);
+          % Try to guess rotation range for single animal
+          % For this look at the angles from center of the frame/crop to
+          % the labels
+          l_thetas = atan2(all_labels(:,1,:)-lobj.movienc(view)/2,...
+            all_labels(:,2,:)-lobj.movienr(view)/2);
+          ang_span = get_angle_span(l_thetas)*180/pi;
+          rrange = max(10,median(ang_span)/2);
         end
       else
         trange_top = max(5,trange_frame);
         trange_second = min(trange_crop,trange_single);
         trange_second = max(5,trange_second);
+        
+        if lobj.trackerIsTwoStage
+          if lobj.trackerIsObjDet
+            mid_labels = mean(all_labels,1);
+            l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+              all_labels(:,2,:)-mid_labels(:,2,:));
+            ang_span = get_angle_span(l_thetas)*180/pi;
+            rrange = max(10,median(ang_span)/2);
+          else
+            hd = all_labels(lobj.skelHead,:,:);
+            tl = all_labels(lobj.skelTail,:,:);
+            body_ctr = (hd+tl)/2;
+            l_thetas = atan2(all_labels(:,1,:)-body_ctr(:,1,:),...
+              all_labels(:,2,:)-body_ctr(:,2,:));
+            l_thetas_r = mod(l_thetas - l_thetas(lobj.skelHead,:,:),2*pi);
+            ang_span = get_angle_span(l_thetas_r)*180/pi;
+            rrange = max(10,median(ang_span)/2);
+          end
+        else
+          mid_labels = mean(all_labels,1);
+          l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+            all_labels(:,2,:)-mid_labels(:,2,:));
+          ang_span = get_angle_span(l_thetas)*180/pi;
+          rrange = max(10,median(ang_span)/2);
+          
+        end
       end
+
+    end
+    
+    function sPrm= autosetparams(sPrm,lobj,nettype)
+      % automatically set the parameters based on labels.
+      
       
       
       
@@ -671,10 +702,10 @@ classdef APTParameters
     function ang_span = get_angle_span(theta)
       % Find the span of thetas. Hacky method that rotates the pts by
       % 10degrees and then checks the span.
-      ang_span = ones(1,size(theta,1))*2*pi;
+      ang_span = ones(size(theta,1),1)*2*pi;
       for offset = 0:10:360
         thetao = mod(theta + offset*pi/180,2*pi);
-        cur_span = max(thetao,[],3) - min(thetao,[],3);
+        cur_span = prctile(thetao,98,3) - prctile(thetao,2,3);
         ang_span = min(ang_span,cur_span);
       end
     end

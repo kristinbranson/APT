@@ -624,12 +624,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
                 bpred = [mpred[ix][0] for ix in ord]
                 bpred = np.array(bpred)
-                npred = bpred.shape[0]
-                cur_pred[b,:npred,...] = bpred
                 opred = [mpred[ix][2] for ix in ord]
                 opred = np.array(opred)
-                cur_occ_pred[b,:npred,...] = opred
-                cur_joint_conf[b,:npred,...] = pconf[ord,None]
+                npred = bpred.shape[0]
+                if npred>0:
+                    cur_pred[b,:npred,...] = bpred
+                    cur_occ_pred[b,:npred,...] = opred
+                    cur_joint_conf[b,:npred,...] = pconf[ord,None]
 
 
             matched['ref'] = cur_pred
