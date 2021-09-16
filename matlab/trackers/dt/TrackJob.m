@@ -421,6 +421,12 @@ classdef TrackJob < handle
           obj.trxids = {};
           obj.trxfileLcl = {};
           obj.trkfileLcl = obj.trkfileLcl(:)'; % shape important
+          if isscalar(obj.trkfileLcl)
+            warningNoTrace('Two-stage tracker: using default stage1 trkfilename.');
+            [tflP,tflF,tflE] = fileparts(obj.trkfileLcl);
+            tflStg1 = fullfile(tflP,[tflF '_stg1' tflE]);
+            obj.trkfileLcl = {tflStg1 obj.trkfileLcl{1}};
+          end
         else
           obj.trxids = {};
           obj.trxfileLcl = {};
