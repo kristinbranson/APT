@@ -1453,13 +1453,16 @@ classdef Labeler < handle
       
       %APT.setpathsmart;
 
-      [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
+      [obj.isgui,projfile] = myparse_nocheck(varargin,'isgui',true,'projfile',[]);
       starttime = tic;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
       obj.tvTrx = TrackingVisualizerTrx(obj);
       fprintf('Opening GUI took %f s\n',toc(starttime));
+      if projfile
+        obj.projLoad(projfile);
+      end
     end
      
     function delete(obj)
@@ -11151,6 +11154,39 @@ classdef Labeler < handle
         end
       end
       
+    end
+    
+    function [tPrm,do_update] = trackSetAutoParams(obj)
+      % Compute auto parameters and update them based on user feedback
+
+      sPrmCurrent = obj.trackGetParams();
+      % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
+% eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
+% over.
+
+      % Start with default "new" parameter tree/specification
+      tPrm = APTParameters.defaultParamsTree;
+      % Overlay our starting pt
+      tPrm.structapply(sPrmCurrent);
+      if obj.trackerIsTwoStage && ~obj.trackerIsObjDet && isempty(obj.skelHead)
+        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks'));
+        landmark_specs('lObj',obj,'waiton_ui',true);
+        if isempty(obj.skelHead)
+          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters'));
+          do_update = false;
+          return;
+        end
+      end
+      
+      [tPrm,canceled, do_update] = APTParameters.autosetparams(tPrm,obj);
+      if canceled
+        obj.ClearStatus();
+        return
+      elseif do_update
+        sPrmNew = tPrm.structize;
+        obj.trackSetParams(sPrmNew);
+      end
+
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...

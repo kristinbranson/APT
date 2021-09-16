@@ -2772,6 +2772,9 @@ if ~tfCanTrain,
   ClearStatus(handles);
   return;
 end
+
+handles.labelerObj.trackSetAutoParams();
+
 fprintf('Training started at %s...\n',datestr(now));
 oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
@@ -3996,19 +3999,15 @@ SetStatus(handles,'Setting tracking parameters...');
 %   end
 % end
 
-sPrmCurrent = lObj.trackGetParams();
+[tPrm,do_update] = lObj.trackSetAutoParams();
 
-% Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
-% eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
-% over.
-
-% Start with default "new" parameter tree/specification
-tPrm = APTParameters.defaultParamsTree;
-% Overlay our starting pt
-tPrm.structapply(sPrmCurrent);
 sPrmNew = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
 
 if isempty(sPrmNew)
+  if do_update
+    RC.saveprop('lastCPRAPTParams',sPrmNew);
+    cbkSaveNeeded(lObj,true,'Parameters changed');
+  end
   % user canceled; none
 else
   lObj.trackSetParams(sPrmNew);
