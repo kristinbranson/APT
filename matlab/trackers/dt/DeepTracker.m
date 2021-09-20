@@ -1048,9 +1048,9 @@ classdef DeepTracker < LabelTracker
         infos{end+1} = sprintf('Parameters changed since training: %s',s);
         
         if isParamChangeLbler
-          if ~isParamChange
-            assert(obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.leap);
-          end
+%           if ~isParamChange
+%             assert(obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.leap);
+%           end
           infos{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.displayString);
         end        
       else
