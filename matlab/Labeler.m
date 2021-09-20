@@ -11540,8 +11540,9 @@ classdef Labeler < handle
           tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
+        prmsTgtCrop = tObj.sPrmAll.ROOT.MultiAnimal.TargetCrop;
         [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
-          'wbObj',wbObj);
+          'wbObj',wbObj,'prmsTgtCrop',prmsTgtCrop);
         if tfWB && wbObj.isCancel
           tfsucc = false;
           tblPCache = [];

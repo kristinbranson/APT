@@ -331,7 +331,7 @@ classdef DeepTracker < LabelTracker
   %% Params
   methods (Static)
     
-    function sPrmAll = massageParamsIfNecStc(net,sPrmAll,varargin)
+    function sPrmAll = massageParamsIfNecStc(net,netmode,sPrmAll,varargin)
       % net-specific parameter treatments
       %
       % net: DLNetType
@@ -354,7 +354,6 @@ classdef DeepTracker < LabelTracker
         'throwwarnings',true...
         );
       
-      %net = obj.trnNetType;
       switch net
         case {DLNetType.openpose DLNetType.leap}
           dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
@@ -399,6 +398,9 @@ classdef DeepTracker < LabelTracker
         otherwise
           % none
       end
+      
+      sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = ...
+        netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx;      
     end
     
   end
@@ -430,7 +432,9 @@ classdef DeepTracker < LabelTracker
       
     function sPrmAll = massageParamsIfNec(obj,sPrmAll,varargin) % obj const
       net = obj.trnNetType;
-      sPrmAll = DeepTracker.massageParamsIfNecStc(net,sPrmAll,varargin{:});
+      netmode = obj.trnNetMode;
+      sPrmAll = DeepTracker.massageParamsIfNecStc(net,netmode,...
+        sPrmAll,varargin{:});
     end
       
     function setAllParams(obj,sPrmAll)

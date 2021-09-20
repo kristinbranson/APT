@@ -139,6 +139,9 @@ classdef DeepTrackerTopDown < DeepTracker
 %       nvw = obj.lObj.nview;
 %      isSerialTrain = false;
       % backend; implement getFreeGPUs for bsub
+      if backEnd.type == DLBackEnd.Docker
+        obj.forceSerial = true;
+      end
       if obj.forceSerial
         nTrainJobs = 1;
         warningNoTrace('Forcing serial train.');
