@@ -2371,6 +2371,20 @@ classdef Labeler < handle
 
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
+      
+      % check that all movie files exist, allow macro fixes
+      for i = 1:obj.nmovies,
+        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,false));
+        if ~tfsuccess,
+          error('Labeler:file File(s) for movie %d: %s missing',i,obj.movieFilesAll{i});
+        end
+      end
+      for i = 1:obj.nmoviesGT,
+        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,true));
+        if ~tfsuccess,
+          error('Labeler:file File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
+        end
+      end
 
       obj.initTrxInfo();      
 
@@ -3639,7 +3653,7 @@ classdef Labeler < handle
       s.trackerData = tdata;      
       % KB 20201216 update currTracker as well
       oldCurrTracker = s.currTracker;
-      if oldCurrTracker>0 && ~isempty(loc),
+      if oldCurrTracker>0 && ~isempty(loc) && oldCurrTracker <= numel(loc),
         s.currTracker = loc(oldCurrTracker);
       end
 %       
@@ -4070,6 +4084,7 @@ classdef Labeler < handle
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
       end      
+      
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
@@ -4096,7 +4111,7 @@ classdef Labeler < handle
         end
       end
     end
-        
+
   end 
   
   %% Movie
