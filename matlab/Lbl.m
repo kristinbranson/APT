@@ -246,11 +246,7 @@ classdef Lbl
       slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
       [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
       
-      fsinfo = lObj.projFSInfo;
-      [lblP,lblS] = myfileparts(fsinfo.filename);
-      if isempty(slblname)
-        slblname = sprintf('%s_%s.lbl',lblS,tObj.algorithmName);
-      end
+      assert(~isempty(slblname));
       sfname = fullfile(packdir,slblname);
       save(sfname,'-mat','-v7.3','-struct','slbl');
       fprintf(1,'Saved %s\n',sfname);

@@ -11541,8 +11541,13 @@ classdef Labeler < handle
           tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
+        prmsTgtCropTmp = tObj.sPrmAll.ROOT.MultiAnimal.TargetCrop;
+        if tObj.trnNetMode.isTrnPack
+          % Temp fix; prob should just skip adding imcache to stripped lbl
+          prmsTgtCropTmp.AlignUsingTrxTheta = false;
+        end
         [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
-          'wbObj',wbObj);
+          'wbObj',wbObj,'prmsTgtCrop',prmsTgtCropTmp);
         if tfWB && wbObj.isCancel
           tfsucc = false;
           tblPCache = [];
