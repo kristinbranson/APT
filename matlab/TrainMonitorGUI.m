@@ -126,8 +126,10 @@ function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
 
 % Hint: delete(hObject) closes the figure
 
+tfbatch = batchStartupOptionUsed; % ci
 mode = get(handles.pushbutton_startstop,'UserData');
-if strcmpi(mode,'stop'),
+
+if strcmpi(mode,'stop') && ~tfbatch,
   
   res = questdlg({'Training currently in progress. Please stop training before'
     'closing this monitor. If you have already clicked Stop training,'
@@ -139,7 +141,7 @@ if strcmpi(mode,'stop'),
     delete(hObject);
   end
   
-elseif strcmpi(mode,'start') || strcmpi(mode,'done'),
+elseif strcmpi(mode,'start') || strcmpi(mode,'done') || tfbatch,
   
   delete(hObject);
   
