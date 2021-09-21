@@ -232,7 +232,13 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
     sess.run(TF.local_variables_initializer())
 
     # Restore variables from disk.
-    restorer.restore(sess, cfg.init_weights)
+    try:
+        print(f'Initializing weights from {cfg.init_weights}')
+        restorer.restore(sess, cfg.init_weights)
+    except Exception as e:
+        print(f'Could not load weights from {cfg.init_weights}')
+        print(e)
+
     if maxiters==None:
         max_iter = int(cfg.multi_step[-1][1])
     else:

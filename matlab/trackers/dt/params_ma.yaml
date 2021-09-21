@@ -6,7 +6,7 @@ ROOT:
     - max_n_animals: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',30,'','Important','ma',true]
     - multi_loss_mask: ['Unlabeled animals present',boolean,true,'Set this to false only if all animals are labeled in every labeled frame.',true,'','Important','ma',true]
     - multi_crop_ims: ['Crop images during training',boolean,true,'Set this to false to force training on the entire image/frame.',true,'','Beginner','~isObjDet',true]
-    - multi_match_dist: ['Non-max suppression distance',float,true,'If the distance between two poses is smaller than this value, then merge the two predictions. Mainly for MA-Grone.',10.0,'','Advanced',['ma'],true]    
+    - multi_match_dist: ['Non-max suppression distance',float,true,'The distance between two poses is compared to the bounding box sizes of the poses. If the average distance between the landmarks is smaller than this fraction (in percentage) of bounding box edge size, then merge the two predictions. Mainly for MA-Grone.',20.0,'','Advanced',['ma'],true]    
     - Detect:
       - ['Detection','',false,MultiAnimal settings.,'','','','',true]
       - BBox:
@@ -43,9 +43,9 @@ ROOT:
           - ['Data Augmentation','',false,'To learn invariances to certain kinds of perturbations, training data can be augmented by randomly perturbing each image during training.','','','','isHeadTail']
           - rrange: ['Rotate range',unsigned,true,'Augment by rotating training images and labels by a random angle less than this number of degrees in either direction.',20,'ParameterVisualizationPreproc#preproc1','Important','isHeadTail',true]
           - trange: ['Translation range',unsigned,true,'Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels. ',20,'ParameterVisualizationPreproc#preproc1','Important','isHeadTail',true]
-          - scale_factor_range: ['Scale factor range',float,true,'Augment by adjusting image scale by a random factor between (1/this number) to (this number). 1 indicates no scale adjustment, 2 indicates scaling by a factor between 1/2 to 2',1.2,'ParameterVisualizationPreproc#preproc1','Important','isHeadTail',true]
-          - crange: ['Contrast range',float,true,'Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment',0.1,'ParameterVisualizationPreproc#preproc1','Important','isHeadTail',true]
-          - brange: ['Brightness range',float,true,'Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.',0.1,'ParameterVisualizationPreproc#preproc1','Important','isHeadTail',true]
+          - scale_factor_range: ['Scale factor range',float,true,'Augment by adjusting image scale by a random factor between (1/this number) to (this number). 1 indicates no scale adjustment, 2 indicates scaling by a factor between 1/2 to 2',1.2,'ParameterVisualizationPreproc#preproc1','Advanced','isHeadTail',true]
+          - crange: ['Contrast range',float,true,'Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment',0.1,'ParameterVisualizationPreproc#preproc1','Advanced','isHeadTail',true]
+          - brange: ['Brightness range',float,true,'Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.',0.1,'ParameterVisualizationPreproc#preproc1','Advanced','isHeadTail',true]
           - horz_flip: ['Flip horizontally',boolean,true,'Augment by flipping the training image and labels horizontally (left to right). Set pairs of corresponding landmarks by selecting "Select landmark flip pairings" from the Track menu. ',0,'ParameterVisualizationPreproc#preproc1','Important','isHeadTail',true]
           - vert_flip: ['Flip vertically',boolean,true,'Augment by flipping the training image ang labels vertically (bottom to top). Set pairs of corresponding landmarks by selecting "Select landmark flip pairings" from the Track menu. ',0,'ParameterVisualizationPreproc#preproc1','Important','isHeadTail',true]
           - perturb_color: ['Perturb color',boolean,true,'Augment by perturbing image color.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isHeadTail',true]
@@ -55,10 +55,10 @@ ROOT:
           - label_blur_rad: ['Label uncertainty radius',float,true,'Standard deviation, in pixels, of the landmark location. In the label heatmap used for training, a Gaussian with this std-dev is placed at each landmark location. Only applicable to heatmap based methods. Not applicable to DeepLabCut and LEAP.',3.,'','Advanced','isTopDown',true]
     - TargetCrop:
       - ['Cropping around Detections','',false,"APT crops out regions centered around each detected animal and runs part-tracking on these image crops. These parameters describe how image patches around individual animals are cropped out.",'','','','']
-      - AutoRadius: ['Automatically determine crop radius',boolean,true,"If true, target crop radius will be set automatically.",true,'','Important',['isTopDown','hasTrx'],true]
+      - AutoRadius: ['Automatically determine crop radius',boolean,true,"If true, target crop radius will be set automatically.",false,'','Developer',['isTopDown','hasTrx'],true]
       - AutoRadiusSpanMultiplier: ['Keypoint span to crop radius multiplier',float,true,"Multiplicative factor for automatically calculating crop radius.",2.0,'','Developer',['isTopDown','hasTrx'],true]
-      - ManualRadius: ['Radius',unsigned,true,'Radius (in pixels) of the square cropped around each target.',50,'ParameterVisualizationTgtCropRadius','Advanced',['isTopDown','hasTrx'],true]
-      - AlignUsingTrxTheta: ['Align using trajectory theta',boolean,true,"If true, align cropped images using trx.theta.",false,'','Important','hasTrx',true]
+      - ManualRadius: ['Crop Radius',unsigned,true,'Radius (in pixels) of the square cropped around each target.',50,'ParameterVisualizationTgtCropRadius','Important',['isTopDown','hasTrx'],true]
+      - AlignUsingTrxTheta: ['Align using head-tail or using trajectory theta',boolean,true,"If true, align cropped images using head-tail orientation or using trx.theta if the project uses trx files.",true,'','Important',['hasTrx','isHeadTail'],true]
       - PadBkgd: ['Pad background',unsigned,true,'If the cropped regions need to be padded, this value indicates the image intensity to pad with.',0,'ParameterVisualizationPreproc#preproc1','Advanced',['hasTrx','isTopDown'],true]
     - LossMask:
       - ['Loss Masking','',false,Parameters for masking loss to handle unlabeled targets,'','']
@@ -68,4 +68,4 @@ ROOT:
       - AlignHeadTail: ['Align mask using head/tail landmark specifications',boolean,true,'If true, align masks to animal using head/tail landmarks',false,'','Important','ma',true]
     - TrackletStitch:
       - ['Tracklet Stitching','',false,Parameters for stitching tracked targets into tracklets,'','']
-      - multi_link_stage: ['Stitching stage',['first','second'],true,'Whether to stitch detections into tracklets at the first (detection) stage, or the second (pose-tracking) stage.','first','','Important','isTopDown',true]
+      - multi_link_stage: ['Stitching stage',['first','second','none'],true,'Whether to stitch detections into tracklets at the first (detection) stage, or the second (pose-tracking) stage.','first','','Important',['ma'],true]

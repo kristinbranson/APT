@@ -647,8 +647,13 @@ def training(conf, name='deepnet',restore=False, model_file=None):
                 logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
 
     if model_file is not None:
-        logging.info("Loading the weights from {}.. ".format(model_file))
-        model.load_weights(model_file)
+        try:
+            logging.info("Loading the weights from {}.. ".format(model_file))
+            model.load_weights(model_file)
+        except Exception as e:
+            logging.info(f'Could not initialize model weights from {model_file}')
+            logging.info(e)
+
 
     elif restore:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)

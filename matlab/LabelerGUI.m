@@ -599,6 +599,16 @@ handles.menu_track_cpr_view_diagnostics = uimenu('Parent',handles.menu_track,...
 moveMenuItemAfter(handles.menu_track_cpr_view_diagnostics,...
   handles.menu_track_cpr_show_replicates);
 
+handles.menu_track_auto_params_update = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_auto_params_update_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Auto compute training parameters',...
+  'Tag','menu_track_auto_params_update',...
+  'Checked','on',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_track_auto_params_update,...
+  handles.menu_track_setparametersfile);
+
+
 handles.menu_help_about = uimenu(...
   'Parent',handles.menu_help,...
   'Label','About',...
@@ -2755,6 +2765,15 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
+if handles.labelerObj.needsSave
+  res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
+  if strcmp(res,'Cancel')
+    return
+  elseif strcmp(res,'Save As')
+    menu_file_saveas_Callback(hObject, eventdata, handles)
+  end    
+end
+
 SetStatus(handles,'Training...');
 drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
@@ -2763,6 +2782,9 @@ if ~tfCanTrain,
   ClearStatus(handles);
   return;
 end
+
+handles.labelerObj.trackSetAutoParams();
+
 fprintf('Training started at %s...\n',datestr(now));
 oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
@@ -3987,19 +4009,15 @@ SetStatus(handles,'Setting tracking parameters...');
 %   end
 % end
 
-sPrmCurrent = lObj.trackGetParams();
+[tPrm,do_update] = lObj.trackSetAutoParams();
 
-% Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
-% eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
-% over.
-
-% Start with default "new" parameter tree/specification
-tPrm = APTParameters.defaultParamsTree;
-% Overlay our starting pt
-tPrm.structapply(sPrmCurrent);
 sPrmNew = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
 
 if isempty(sPrmNew)
+  if do_update
+    RC.saveprop('lastCPRAPTParams',sPrmNew);
+    cbkSaveNeeded(lObj,true,'Parameters changed');
+  end
   % user canceled; none
 else
   lObj.trackSetParams(sPrmNew);
@@ -4008,6 +4026,12 @@ else
 end
 
 ClearStatus(handles);
+
+function menu_track_auto_params_update_Callback(hObject,eventdata,handles)
+
+checked = get(hObject,'Checked');
+set(hObject,'Checked',~checked);
+handles.labelerObj.trackAutoSetParams = ~checked;
 
 function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;

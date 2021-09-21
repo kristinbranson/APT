@@ -331,7 +331,7 @@ classdef DeepTracker < LabelTracker
   %% Params
   methods (Static)
     
-    function sPrmAll = massageParamsIfNecStc(net,sPrmAll,varargin)
+    function sPrmAll = massageParamsIfNecStc(net,netmode,sPrmAll,varargin)
       % net-specific parameter treatments
       %
       % net: DLNetType
@@ -354,7 +354,6 @@ classdef DeepTracker < LabelTracker
         'throwwarnings',true...
         );
       
-      %net = obj.trnNetType;
       switch net
         case {DLNetType.openpose DLNetType.leap}
           dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
@@ -399,6 +398,9 @@ classdef DeepTracker < LabelTracker
         otherwise
           % none
       end
+      
+      sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = ...
+        netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx;      
     end
     
   end
@@ -430,7 +432,9 @@ classdef DeepTracker < LabelTracker
       
     function sPrmAll = massageParamsIfNec(obj,sPrmAll,varargin) % obj const
       net = obj.trnNetType;
-      sPrmAll = DeepTracker.massageParamsIfNecStc(net,sPrmAll,varargin{:});
+      netmode = obj.trnNetMode;
+      sPrmAll = DeepTracker.massageParamsIfNecStc(net,netmode,...
+        sPrmAll,varargin{:});
     end
       
     function setAllParams(obj,sPrmAll)
@@ -854,12 +858,19 @@ classdef DeepTracker < LabelTracker
       end
       
       modelChain0 = obj.trnName;
+      prev_models = [];
       switch dlTrnType
         case DLTrainType.New
           modelChain = datestr(now,'yyyymmddTHHMMSS');
           if ~isempty(modelChain0)
             assert(~strcmp(modelChain,modelChain0));
             fprintf('Training new model %s.\n',modelChain);
+            res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization (Recommended)?','Initialization','Yes','No','Cancel','Yes');
+            if ~strcmp(res,'Yes')
+              prev_models = [];
+            else
+              prev_models = {obj.trnLastDMC.trainCurrModelLnx};
+            end
           end
         case {DLTrainType.Restart DLTrainType.RestartAug}
           if isempty(modelChain0)
@@ -873,9 +884,9 @@ classdef DeepTracker < LabelTracker
                   
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
-          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);
+          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);
         case DLBackEnd.AWS
-          obj.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);          
+          obj.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);          
         otherwise
           assert(false);
       end
@@ -1042,9 +1053,9 @@ classdef DeepTracker < LabelTracker
         infos{end+1} = sprintf('Parameters changed since training: %s',s);
         
         if isParamChangeLbler
-          if ~isParamChange
-            assert(obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.leap);
-          end
+%           if ~isParamChange
+%             assert(obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.leap);
+%           end
           infos{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.displayString);
         end        
       else
@@ -1204,11 +1215,13 @@ classdef DeepTracker < LabelTracker
       %
       % TODO break up bsub/docker sep meths
 
-      [wbObj,existingTrnPackSLbl,trnStartCbk,trnCompleteCbk] = myparse(varargin,...
+      [wbObj,existingTrnPackSLbl,trnStartCbk,trnCompleteCbk,prev_models] = ...
+        myparse(varargin,...
         'wbObj',[],... 
         'existingTrnPackSLbl',[], ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
         'trnStartCbk',[], ...        
-        'trnCompleteCbk',[] ...
+        'trnCompleteCbk',[], ...
+        'prev_models',[] ...
         );
       
       % (aws check instance running)
@@ -1365,6 +1378,9 @@ classdef DeepTracker < LabelTracker
               dmc(ivw) = dmc(1).copy();
             end
             dmc(ivw).view = ivw-1; % 0-based
+            if ~isempty(prev_models)
+              [dmc.prev_models] = prev_models{:};
+            end
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
               aptroot,dmc(ivw),...
               'singArgs',singArgs,'trnCmdType',trnCmdType,...
@@ -1708,8 +1724,8 @@ classdef DeepTracker < LabelTracker
       %  - training aws job spawned
       %  - .trnLastDMC set
       
-      [wbObj] = myparse(varargin,...
-        'wbObj',[]... 
+      [wbObj,prev_models] = myparse(varargin,...
+        'wbObj',[],'prev_models',[] ... 
         );
             
       aws = backend.awsec2;
@@ -1735,7 +1751,8 @@ classdef DeepTracker < LabelTracker
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',nvw>1,... % currently all multiview projs train serially
         'reader',DeepModelChainReader.createFromBackEnd(backend),...
-        'filesep',obj.filesep...
+        'filesep',obj.filesep,...
+        'prev_models',prev_models...
         );
       dmcLcl = dmc.copy();
       dmcLcl.rootDir = obj.lObj.DLCacheDir;
@@ -3214,8 +3231,12 @@ classdef DeepTracker < LabelTracker
       reason = '';
       
       if obj.bgTrkIsRunning
-        reason = 'Tracking is already in progress.';
-        return;
+        if ~obj.bgTrnMonBGWorkerObj.getIsRunning
+          obj.bgTrkReset
+        else
+          reason = 'Tracking is already in progress.';
+          return;
+        end
       end
       
       % For now we do this check here even though the actual parfeval() 
@@ -4340,9 +4361,10 @@ classdef DeepTracker < LabelTracker
         modelChainID,trainID,dllbl,cache,errfile,netType,netMode,trainType,...
         view1b,mntPaths,gpuid,varargin)
                   
-      [dockerargs,isMultiView,baseargs0] = myparse(varargin,...
+      [dockerargs,isMultiView,baseargs0,prev_models] = myparse(varargin,...
         'dockerargs',{},...
         'isMultiView',false,...
+        'prev_models',[],...
         'baseargs',{} ...
         );
       
@@ -4350,6 +4372,9 @@ classdef DeepTracker < LabelTracker
       baseargs = [{'trainType' trainType 'filequote' filequote} baseargs0];
       if ~isMultiView,
         baseargs = [baseargs, {'view' view1b}];
+      end
+      if ~isempty(prev_models)
+        baseargs = [baseargs, {'prev_model',prev_models}];
       end
 
       if ischar(netType)
@@ -4402,6 +4427,9 @@ classdef DeepTracker < LabelTracker
     function [codestr,containerName] = trainCodeGenDockerDMC(...
         dmc,backend,mntPaths,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
+      if ~isempty(dmc.prev_models)
+        leftovers = [leftovers {'prev_model' dmc.prev_models{dmc.view+1}}];
+      end
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.netMode,...
@@ -4409,6 +4437,9 @@ classdef DeepTracker < LabelTracker
     end
     function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
+      if ~isempty(dmc.prev_models)
+        leftovers = [leftovers {'prev_model' dmc.prev_models{dmc.view+1}}];
+      end
       [codestr] = DeepTracker.trainCodeGenConda(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,trnCmdType,dmc.view+1,gpuid,...
@@ -4477,6 +4508,9 @@ classdef DeepTracker < LabelTracker
           'classify_val_out'
           dmc.valresultsLnx
           };
+      end
+      if ~isempty(dmc.prev_models)
+        baseargs(end+1:end+2) = {'prev_model' dmc.prev_models};
       end
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
@@ -4836,7 +4870,7 @@ classdef DeepTracker < LabelTracker
         codestr = sprintf('%s -model_files %s',codestr,...
           DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
       end
-      codestr = [codestr sprintf(' -type %s %s data_aug -out_file %s',...
+      codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
         char(nettype),[filequote dllbl filequote],[filequote outfile filequote])];
     end    
     

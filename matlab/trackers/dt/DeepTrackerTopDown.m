@@ -128,8 +128,8 @@ classdef DeepTrackerTopDown < DeepTracker
     end
     
     function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
-      [wbObj] = myparse(varargin,...        
-        'wbObj',[] ...
+      [wbObj,prev_models] = myparse(varargin,...        
+        'wbObj',[],'prev_models',[] ...
         );
             
       cacheDir = obj.lObj.DLCacheDir;      
@@ -139,6 +139,9 @@ classdef DeepTrackerTopDown < DeepTracker
 %       nvw = obj.lObj.nview;
 %      isSerialTrain = false;
       % backend; implement getFreeGPUs for bsub
+      if backEnd.type == DLBackEnd.Docker
+        obj.forceSerial = true;
+      end
       if obj.forceSerial
         nTrainJobs = 1;
         warningNoTrace('Forcing serial train.');
@@ -182,6 +185,9 @@ classdef DeepTrackerTopDown < DeepTracker
       dmc(2).netType = char(obj.trnNetType);
       dmc(2).netMode = obj.trnNetMode;
       dmc(2).iterFinal = sPrmGD.dl_steps;
+      if ~isempty(prev_models)
+        [dmc.prev_models] = prev_models{:};
+      end
 
       switch backEnd.type
         case DLBackEnd.Bsub
@@ -632,6 +638,13 @@ classdef DeepTrackerTopDown < DeepTracker
         % for stage==0/serial, netType/Mode passed in regular arguments are
         % for stage 2.
         baseargs = [baseargs0 {'maTopDownStage' 0}];
+        if ~isempty(dmcs(1).prev_models)
+          baseargs = [baseargs {'prev_model' dmcs(1).prev_models{dmcs(1).view+1}}];
+        end
+        if ~isempty(dmcs(2).prev_models)
+          baseargs = [baseargs {'prev_model2' dmcs(2).prev_models{dmcs(2).view+1}}];
+        end
+        
         args = { ...
           dmc1.modelChainID,dmc1.lblStrippedLnx,...
           dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
@@ -644,6 +657,9 @@ classdef DeepTrackerTopDown < DeepTracker
         for stg=1:2
           baseargs = [baseargs0 {'maTopDownStage' stg}];
           dmcS = dmcs(stg);
+          if ~isempty(dmcS.prev_models)
+            baseargs = [baseargs {'prev_model' dmcS.prev_models}];
+          end
           args = { ...
             dmcS.modelChainID,dmcS.lblStrippedLnx,...
             dmcS.rootDir,dmcS.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...

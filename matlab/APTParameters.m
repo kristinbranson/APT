@@ -219,6 +219,13 @@ classdef APTParameters
             % requiremetns)
             tree.Data.Visible = false;
           end
+        elseif all(ismember({'hasTrx' 'isHeadTail'},reqs))
+          if ~hasTrx && ~isht
+            % Special case/hack; if hasTrx and head-tail are both present, it's an
+            % OR condition (rather than AND which is the default for 2+
+            % requiremetns)
+            tree.Data.Visible = false;
+          end
         elseif ismember('isBotUp',reqs) && ~isbu
           tree.Data.Visible = false;
         elseif ismember('ma',reqs) && ~isma
@@ -527,6 +534,142 @@ classdef APTParameters
       end
     end
     
+    function [tPrm,canceled,do_update] = ...
+        autosetparams(tPrm,lobj)
+      % automatically set the parameters based on labels.
+      autoparams = compute_auto_params(lobj);
+      kk = autoparams.keys();
+      
+      res = 'Update';
+      canceled = false;
+      do_update = false;
+      % If values have been previously updated, then check if they are
+      % significantly (>10%) different now
+      %%
+      dstr = '';
+      diff = false;
+      identical = true;
+      default = true;
+
+      for ndx = 1:numel(kk)
+        nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+        prev_val = nd.Data.Value;
+        cur_val = autoparams(kk{ndx});
+        if (cur_val-prev_val)/(prev_val+0.001)>0.1
+          diff = true;
+        end
+        if nd.Data.DefaultValue~=nd.Data.Value
+          default = false;
+        end
+        if cur_val~=prev_val
+          identical = false;
+        end
+        extra_str = '';
+        if ~isempty(strfind(kk{ndx},'DataAugmentation')) && lobj.maIsMA && lobj.trackerIsTwoStage
+          if strfind(kk{ndx},'MultiAnimal.Detect')
+            extra_str = ' (first stage)';
+          else
+            extra_str = ' (second stage)';
+          end
+        end
+        dstr = sprintf('%s%s%s %d -> %d\n',dstr,nd.Data.DispName, extra_str,...
+                    prev_val,cur_val);
+
+      end
+
+      if diff
+        dstr = sprintf('Auto-computed parameters have changed from earlier by more than 10%% \nfor some of the parameters. Update the following parameters? \n%s',dstr);
+        
+        if lobj.trackAutoSetParams
+          if default
+            res = 'Update';
+          else
+            res = APTParameters.auto_gui(dstr,lobj);
+          end
+        else
+          res = 'Do not update';
+        end
+        if strcmp(res,'Cancel')
+          canceled = true;
+          return;
+        end
+      else
+        % All parameters are identical
+        do_udpate = false;
+        return;
+      end
+      
+      if strcmp(res,'Update')
+        for ndx = 1:numel(kk)
+          nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+          nd.Data.Value = autoparams(kk{ndx});
+        end
+        do_update = true;
+      end
+      
+    end
+    
+    function res = auto_gui(dstr,lobj)
+    %%    
+      margin = 10;
+      btn_w = 150;
+      btn_h = 30;
+      n_btn = 3;
+      min_w = n_btn*btn_w+(n_btn+1)*margin;
+      min_h = btn_h + 3*margin;
+
+     dstr= strtrim(dstr);
+     f = figure('units','pixels','position',[300,300,min_w,150],...
+       'toolbar','none','menu','none');
+     t = uicontrol('style','text','String',dstr,'units','pixels',...
+       'position',[0,0,250,100],'Parent',f);
+     text_sz = get(t,'Extent');
+
+%       c_box = uicontrol('style','checkbox','String','Always do this action',...
+%         'units','pixels','position',[0,0,250,100]);
+%       c_sz = get(c_box,'Extent');
+
+     min_h = min_h+text_sz(4);
+     min_w = max(min_w,text_sz(3)+2*margin);
+
+     f.Position(4) = min_h;
+     f.Position(3) = min_w;
+     t.Position(2) = 2*margin+btn_h;
+     t.Position(1) = (min_w-text_sz(3))/2;
+     t.Position(3:4) = t.Extent(3:4);
+%      c_box.Position(3) = c_box.Extent(3)+20;
+%      c_box.Position(4) = c_box.Extent(4);
+%      c_box.Position(2) = margin;
+%      c_box.Position(1) = (min_w-c_sz(3))/2;
+
+     btn_bottom = margin; 
+     btn_margin = (min_w-2*margin-n_btn*btn_w)/(n_btn-1);
+     btns = [];
+     btns(1) = uicontrol('style','pushbutton','String','Update',...
+       'units','pixels','position',[margin,btn_bottom,btn_w,btn_h],'Visible','on');
+     btns(2) = uicontrol('style','pushbutton','String','Do not update',...
+       'units','pixels','position',[margin+(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
+     btns(3) = uicontrol('style','pushbutton','String','Cancel',...
+       'units','pixels','position',[margin+2*(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
+
+     set(btns,'Callback',@p_call)
+     centerOnParentFigure(f,lobj.hFig);
+
+      function p_call(hobj,~,handles)
+        handles.action = get(hobj,'String');
+        handles.never_again = false; %get(c_box,'Value');
+        uiresume(f);
+        guidata(hobj,handles);
+      end
+      
+     uiwait(f)
+     handles = guidata(f);
+     res = handles.action;
+     delete(f);
+    end
+
+    
+    
   end
   methods (Static)
     function sPrm0 = defaultParamsOldStyle
@@ -536,6 +679,237 @@ classdef APTParameters
       % model
       sPrm0 = CPRParam.new2old(sPrm0,nan,nan);
     end
+  end
+end
+
+
+function autoparams = compute_auto_params(lobj)
+
+  assert(lobj.nview==1, 'Auto setting of parameters not tested for multivew');
+  %%
+  view = 1;
+  autoparams = containers.Map();
+  nmov = numel(lobj.labels);
+  npts = lobj.nLabelPoints;
+  all_labels = [];
+  all_id = [];
+  all_mov = [];
+  pair_labels = [];
+  cur_pts = ((view-1)*2*npts+1):(view*2*npts);
+  for ndx = 1:nmov        
+    if ~Labels.hasLbls(lobj.labels{ndx}), continue; end
+
+    all_labels = [all_labels lobj.labels{ndx}.p(cur_pts,:,:)];
+    n_labels = size(lobj.labels{ndx}.p,2);
+    all_id = [all_id 1:n_labels];
+    all_mov = [all_mov ones(1,n_labels)*ndx];
+
+    if ~lobj.maIsMA, continue, end
+    pair_done = [];
+    big_val = 10000000;
+    for fndx = 1:numel(lobj.labels{ndx}.frm)
+      f = lobj.labels{ndx}.frm(fndx);
+      if nnz(lobj.labels{ndx}.frm==f)>1
+        idx = find(lobj.labels{ndx}.frm==f);
+        for ix = idx(:)'
+          if ix==fndx, continue, end
+          if any(pair_done==(f*big_val+ix))
+            continue
+          end
+          if any(pair_done==(ix*big_val+f))
+            continue
+          end
+
+          pair_done(end+1) = ix*big_val+f;
+          cur_pair = [lobj.labels{ndx}.p(cur_pts,fndx);lobj.labels{ndx}.p(cur_pts,ix)];
+          pair_labels = [pair_labels cur_pair];
+
+        end
+      end
+
+    end
+
+  end
+  all_labels = reshape(all_labels,npts,2,[]);
+  pair_labels = reshape(pair_labels,npts,2,2,[]);
+  % animals are along the second last dimension.
+  % second dim has the coordinates
+
+  %%
+  l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
+  l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+  l_span = l_max-l_min;
+  % l_span is labels span in x and y direction
+
+  l_span_pc = prctile(l_span,95,2);
+  l_span_max = max(l_span,[],2);
+
+  % Check and flag outliers..
+  if any( (l_span_max./l_span_pc)>2)
+    outliers = zeros(0,3);
+    for jj = find( (l_span_max/l_span_pc)>2)
+      ix = find(l_span(jj,:)>l_span_pc(jj)*2);
+      for xx = ix(:)'
+        mov = all_mov(xx);
+        yy = all_id(xx);
+        cur_fr = lobj.labels{mov}.frm(yy);
+        cur_tgt = lobj.labels{mov}.tgt(yy);
+        outliers(end+1,:) = [mov,cur_fr,cur_tgt];
+      end
+    end
+    wstr = 'Some bounding boxes have sizes much larger than normal. This suggests that they may have labeing errors\n';
+    wstr = sprintf('%s The list of examples is \n',wstr);
+    for zz = 1:size(outliers,1)
+      wstr = sprintf('%s Movie:%d, frame:%d, target:%d\n',wstr,outliers(zz,1),outliers(zz,2),outliers(zz,3));
+    end
+    warning(wstr);
+  end
+
+  crop_radius = max(l_span_pc);
+  crop_radius = ceil(crop_radius/32)*32;
+  if lobj.trackerIsTwoStage || lobj.hasTrx
+    autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
+  end
+
+  % Look at distances between labeled pairs to find what to set for
+  % tranlation range for data augmentation
+  min_pairs = min(pair_labels,[],1);
+  max_pairs = max(pair_labels,[],1);
+  ctr_pairs = (max_pairs+min_pairs)/2;
+  d_pairs = sqrt(sum( (ctr_pairs(:,:,1,:)-ctr_pairs(:,:,2,:)).^2,2));
+  d_pairs = squeeze(d_pairs);
+  d_pairs_pc = prctile(d_pairs,5);
+  d_pairs_min = min(d_pairs_pc);
+
+  % If the distances between center of animals is much less than the
+  % span then warn about using bbox based methods
+  if(d_pairs_pc<min(l_span_pc/10)) && lobj.trackerIsObjDet
+    wstr = 'The distances between the center of animals is much smaller than the spans of the animals';
+    wstr = sprintf('%s\n Avoid using object detection based top-down methods',wstr);
+    warning(wstr);
+  end
+
+  trange_frame = min(lobj.movienr(view),lobj.movienc(view))/10;
+  trange_pair = d_pairs_pc/2;
+  trange_crop = min(l_span_pc)/10; 
+  trange_animal = min(trange_pair,trange_crop);
+  rrange = 15;
+  align_theta = lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta;
+
+  % Estimate the translation range and rotation ranges
+  if ~lobj.maIsMA
+    % Single animal autoparameters.
+    if lobj.hasTrx
+      % If has trx then just use defaults for rrange
+      % If using cropping set trange to 10 percent of the crop size.
+      trange = max(5,trange_animal);
+      trange = round(trange/5)*5;
+      if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta
+        rrange = 15;
+      else
+        rrange = 180;
+      end
+      autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      autoparams('DeepTrack.DataAugmentation.trange') = trange;
+    else
+      % No trx. 
+
+      % Else set it to 10 percent of the crop size
+      trange = max(5,trange_frame);
+      % Try to guess rotation range for single animal
+      % For this look at the angles from center of the frame/crop to
+      % the labels
+      l_thetas = atan2(all_labels(:,1,:)-lobj.movienc(view)/2,...
+        all_labels(:,2,:)-lobj.movienr(view)/2);
+      ang_span = get_angle_span(l_thetas)*180/pi;
+      rrange = min(180,max(10,median(ang_span)/2));
+      rrange = round(rrange/10)*10;
+      autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+    end
+  else
+    % Multi-animal. Two tranges for first and second stage. Applied
+    % depending on the workflow
+    trange_top = max(5,trange_frame);
+    trange_top = round(trange_top/5)*5;
+    trange_second = min(trange_crop,trange_animal);
+    trange_second = max(5,trange_second);
+    trange_second = round(trange_second/5)*5;
+
+    if lobj.trackerIsTwoStage
+      autoparams('DeepTrack.DataAugmentation.trange') = trange_second;
+      if lobj.trackerIsObjDet
+        % If uses object detection for the first stage then the look at
+        % the variation in angles relative to the center
+        mid_labels = mean(all_labels,1);
+        l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+          all_labels(:,2,:)-mid_labels(:,2,:));
+        ang_span = get_angle_span(l_thetas)*180/pi;
+        rrange = min(180,max(10,median(ang_span)/2));
+        rrange = round(rrange/10)*10;
+        autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      else
+        % Using head-tail for the first stage
+        align_trx_theta = lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta;
+
+        if align_trx_theta
+        % For head-tail based, find the angle span after aligning along
+        % the head-tail direction.
+
+          hd = all_labels(lobj.skelHead,:,:);
+          tl = all_labels(lobj.skelTail,:,:);
+          body_ctr = (hd+tl)/2;
+          l_thetas = atan2(all_labels(:,1,:)-body_ctr(:,1,:),...
+            all_labels(:,2,:)-body_ctr(:,2,:));
+          l_thetas_r = mod(l_thetas - l_thetas(lobj.skelHead,:,:),2*pi);
+          ang_span = get_angle_span(l_thetas_r)*180/pi;
+        else
+          % If not aligned along the head-tail then look at the angles
+          % from the center
+          warning('For head-tail based two-stage detection, align using head-tail is switched off. Aligning using head-tail will lead to better performance');
+          mid_labels = mean(all_labels,1);
+          l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+            all_labels(:,2,:)-mid_labels(:,2,:));
+          ang_span = get_angle_span(l_thetas)*180/pi;
+        end
+        rrange = min(180,max(10,median(ang_span)/2));
+        rrange = round(rrange/10)*10;
+        autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+        
+        mid_labels = mean(all_labels,1);
+        l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+          all_labels(:,2,:)-mid_labels(:,2,:));
+        ang_span = get_angle_span(l_thetas)*180/pi;
+        ang_span = ang_span([lobj.skelHead,lobj.skelTail]);
+        rrange = min(180,max(10,median(ang_span)/2));
+        rrange = round(rrange/10)*10;
+        autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.rrange') = rrange;
+
+        autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.trange') = trange_top;
+      end
+    else
+      % Bottom up. Just look at angles of landmarks to the center to
+      % see if the animals tend to be always aligned.
+      mid_labels = mean(all_labels,1);
+      l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+        all_labels(:,2,:)-mid_labels(:,2,:));
+      ang_span = get_angle_span(l_thetas)*180/pi;
+      rrange = min(180,max(10,median(ang_span)/2));
+      rrange = round(rrange/10)*10;
+      autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+
+    end
+  end
+
+end
+
+function ang_span = get_angle_span(theta)
+  % Find the span of thetas. Hacky method that rotates the pts by
+  % 10degrees and then checks the span.
+  ang_span = ones(size(theta,1),1)*2*pi;
+  for offset = 0:10:360
+    thetao = mod(theta + offset*pi/180,2*pi);
+    cur_span = prctile(thetao,98,3) - prctile(thetao,2,3);
+    ang_span = min(ang_span,cur_span);
   end
 end
 

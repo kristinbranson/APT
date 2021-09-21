@@ -47,6 +47,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     trkTaskKeyword; % arbitrary tracking task keyword; used for tracking output files
     trkTSstr % timestamp for tracking
+    prev_models = []; % prev model to start training from
   end
   properties (Dependent)
     dirProjLnx

@@ -536,6 +536,8 @@ classdef Labeler < handle
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
     trackParams; % all tracking parameters. init: C
+    trackAutoSetParams = true;
+    trackPrevModelInit = true;
   end
   properties
     trkResIDs % [nTR x 1] cellstr unique IDs
@@ -816,8 +818,9 @@ classdef Labeler < handle
       n = numel(iMov);
       v = cell(n,obj.nview);
       
-      mfa = FSPath.macroReplace(obj.movieFilesAll,obj.projMacros);
-      mfaGT = FSPath.macroReplace(obj.movieFilesAllGT,obj.projMacros);
+      sMacro = obj.projMacros;
+      mfa = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
+      mfaGT = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       tfa = obj.trxFilesAll;
       tfaGT = obj.trxFilesAllGT;
       for i=1:n
@@ -837,9 +840,9 @@ classdef Labeler < handle
       v = cell(n,obj.nview);
       for i=1:n
         if gt
-          v(i,:) = obj.trxInfoAll(iMov(i),:);
-        else
           v(i,:) = obj.trxInfoAllGT(iMov(i),:);
+        else
+          v(i,:) = obj.trxInfoAll(iMov(i),:);
         end
       end
     end
@@ -1452,13 +1455,16 @@ classdef Labeler < handle
       
       %APT.setpathsmart;
 
-      [obj.isgui] = myparse_nocheck(varargin,'isgui',true);
+      [obj.isgui,projfile] = myparse_nocheck(varargin,'isgui',true,'projfile',[]);
       starttime = tic;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
       obj.tvTrx = TrackingVisualizerTrx(obj);
       fprintf('Opening GUI took %f s\n',toc(starttime));
+      if projfile
+        obj.projLoad(projfile);
+      end
     end
      
     function delete(obj)
@@ -11167,6 +11173,38 @@ classdef Labeler < handle
       
     end
     
+    function [tPrm,do_update] = trackSetAutoParams(obj)
+      % Compute auto parameters and update them based on user feedback
+
+      sPrmCurrent = obj.trackGetParams();
+      % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
+% eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
+% over.
+
+      % Start with default "new" parameter tree/specification
+      tPrm = APTParameters.defaultParamsTree;
+      % Overlay our starting pt
+      tPrm.structapply(sPrmCurrent);
+      if obj.trackerIsTwoStage && ~obj.trackerIsObjDet && isempty(obj.skelHead)
+        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks'));
+        landmark_specs('lObj',obj,'waiton_ui',true);
+        if isempty(obj.skelHead)
+          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters'));
+          do_update = false;
+          return;
+        end
+      end
+      
+      [tPrm,canceled, do_update] = APTParameters.autosetparams(tPrm,obj);
+      if canceled
+        obj.ClearStatus();
+        return
+      elseif do_update
+        sPrmNew = tPrm.structize;
+        obj.trackSetParams(sPrmNew);
+      end
+    end
+    
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
         trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST
       % Conversion routine
@@ -11518,8 +11556,13 @@ classdef Labeler < handle
           tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
+        prmsTgtCropTmp = tObj.sPrmAll.ROOT.MultiAnimal.TargetCrop;
+        if tObj.trnNetMode.isTrnPack
+          % Temp fix; prob should just skip adding imcache to stripped lbl
+          prmsTgtCropTmp.AlignUsingTrxTheta = false;
+        end
         [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
-          'wbObj',wbObj);
+          'wbObj',wbObj,'prmsTgtCrop',prmsTgtCropTmp);
         if tfWB && wbObj.isCancel
           tfsucc = false;
           tblPCache = [];

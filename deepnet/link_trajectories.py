@@ -491,13 +491,15 @@ def delete_lowconf(trk, ids, params):
   nids = np.max(maxv) + 1
   tot_conf = np.zeros(nids)
   tot_count = np.zeros(nids)
+  sf,ef = trk.get_startendframes()
 
   for tid in range(trk.ntargets):
     _,edict = trk.gettarget(tid,True)
     cur_ids = ids.gettarget(tid)
     assert cur_ids.shape[0]==1 and cur_ids.shape[2] == 1, 'Ids returned should have shape (1,nframes,1)'
-    cur_ids = cur_ids[0,:,0]
+    cur_ids = cur_ids[0,:,0][sf[tid]:(ef[tid]+1)]
     cur_conf = edict['pTrkConf'].mean(axis=0)
+    cur_conf = cur_conf[(sf[tid]-trk.T0):(ef[tid]+1-trk.T0)]
     for j in range(nids):
       tot_conf[j] += np.nansum(cur_conf[cur_ids==j])
       tot_count[j] += np.nansum(cur_conf[cur_ids==j]>0)
@@ -582,13 +584,14 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   set_default_params(params)
   allcosts = np.zeros((trk.ntargets, nsample))
   allcosts[:] = np.nan
-  
+
   for i in range(nsample):
     t = tsample[i]
     pcurr = trk.getframe(t)
     pnext = trk.getframe(t+nframes_skip)
     pcurr = pcurr[:, :, trk.real_idx(pcurr)]
     pnext = pnext[:, :, trk.real_idx(pnext)]
+    if (pcurr.size<1) or (pnext.size<1): continue
     ntargets_curr = pcurr.shape[2]
     ntargets_next = pnext.shape[2]
     idscurr = np.arange(ntargets_curr)

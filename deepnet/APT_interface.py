@@ -30,8 +30,8 @@ import imageio
 import multiResData
 from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, check_fnum
 # from multiResData import *
-import leap.training
-from leap.training import train as leap_train
+# import leap.training
+# from leap.training import train as leap_train
 # import open_pose as op
 # import sb1 as sb
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
@@ -1053,7 +1053,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 
     from_list = True if db_dict is not None else False
     if from_list:
-        local_dirs = db_dict['movieFiles']
+        local_dirs = db_dict['moviesFiles']
         trx_files = db_dict['trxFiles']
     else:
         local_dirs = multiResData.find_local_dirs(conf.labelfile, conf.view, on_gt)
@@ -1172,6 +1172,8 @@ def setup_ma(conf):
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
     cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
+    if cur_frame.ndim>2:
+        cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
     fr_sz = cur_frame.shape[:2]
     conf.multi_frame_sz = fr_sz
 
@@ -1259,27 +1261,26 @@ def create_mask(roi, sz):
 
 def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
     def random_crop_around_roi(roi_in):
-        x_min = roi_in[..., 0].min()
-        y_min = roi_in[..., 1].min()
-        x_max = roi_in[..., 0].max()
-        y_max = roi_in[..., 1].max()
+        x_min = np.clip(roi_in[..., 0].min(),0,conf.multi_frame_sz[1])
+        y_min = np.clip(roi_in[..., 1].min(),0,conf.multi_frame_sz[0])
+        x_max = np.clip(roi_in[..., 0].max(),0,conf.multi_frame_sz[1])
+        y_max = np.clip(roi_in[..., 1].max(),0,conf.multi_frame_sz[0])
 
         d_x = (conf.imsz[1] - (x_max - x_min)) * 0.9
         r_x = (np.random.rand() - 0.5) * d_x
         x_left = int(round((x_max + x_min) / 2 - conf.imsz[1] / 2 + r_x))
-        x_left = min(x_left, frame.shape[0] - conf.imsz[0])
+        x_left = min(x_left, frame.shape[1] - conf.imsz[1])
         x_left = max(x_left, 0)
         x_right = x_left + conf.imsz[1]
 
         d_y = (conf.imsz[0] - (y_max - y_min)) * 0.9
         r_y = (np.random.rand() - 0.5) * d_y
         y_top = int(round((y_max + y_min) / 2 - conf.imsz[0] / 2 + r_y))
-        y_top = min(y_top, frame.shape[1] - conf.imsz[1])
+        y_top = min(y_top, frame.shape[0] - conf.imsz[0])
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
-        assert y_top <= round(y_min) and y_bottom >= round(y_max) and x_left <= round(x_min) and x_right >= round(
-            x_max), 'Cropping for cluster is improper'
+        assert (y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max) and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max), 'Cropping for cluster is improper'
         return x_left, y_top, x_right, y_bottom
 
     def roi2patch(roi_in, x_left, y_top):
@@ -1309,7 +1310,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         n_extra_roi = 0 if extra_roi is None else len(extra_roi)
     else:
         n_extra_roi = 1
-        extra_roi = np.array([[0,0],[0,conf.multi_frame_sz[0]],[conf.multi_frame_sz[1],conf.multi_frame_sz[0]],[conf.multi_frame_sz[0],0]])[None,...].astype('float')
+        extra_roi = np.array([[0,0],[0,conf.multi_frame_sz[0]],[conf.multi_frame_sz[1],conf.multi_frame_sz[0]],[conf.multi_frame_sz[1],0]])[None,...].astype('float')
 
     if n_extra_roi > 0:
         extra_roi = extra_roi.copy()
@@ -1395,7 +1396,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
                 done_mask = done_mask | create_mask(frame_eroi/mask_sc, mask_sz)
 
                 all_data.append(
-                    {'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
+                    {'im': curp, 'locs': curl, 'info': [info[0], info[1], endx], 'occ': cur_occ, 'roi': cur_roi,
                      'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top})
 
     return all_data
@@ -1430,6 +1431,7 @@ def show_crops(im, all_data, roi, extra_roi, conf):
 
 
 def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
+    # TODO: Maybe merge this with db_from_trnpack??
     lbl = h5py.File(conf.labelfile, 'r')
     occ_as_nan = conf.get('ignore_occluded', False)
     T = PoseTools.json_load(conf.json_trn_file)
@@ -1450,6 +1452,9 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
+        else:
+            cur_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2RGB)
+
         cur_locs = np.array(cur_t['pabs']) - 1
         ntgt = cur_t['ntgt']
         cur_locs = cur_locs.reshape([conf.nviews, 2, conf.n_classes, ntgt])
@@ -1466,7 +1471,10 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
 
         sndx = cur_t['split']
         if type(sndx) == list:
-            sndx = sndx[0]
+            if len(sndx)<1:
+                sndx = 0
+            else:
+                sndx = sndx[0]
         cur_out = out_fns[sndx]
 
         for ndx in range(len(cur_locs)):
@@ -1503,7 +1511,7 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
     return splits, sel
 
 
-def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
+def db_from_trnpack(conf, out_fns, nsamples=None, split=True,only_ht=True):
     # Creates db from new trnpack format instead of stripped label files.
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
@@ -1536,6 +1544,9 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
+        else:
+            cur_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2RGB)
+
         cur_locs = np.array(cur_t['pabs']) - 1
         ntgt = cur_t['ntgt']
         cur_locs = cur_locs.reshape([conf.nviews, 2, conf.n_classes, ntgt])
@@ -1566,7 +1577,10 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True):
 
         sndx = cur_t['split']
         if type(sndx) == list:
-            sndx = sndx[0]
+            if len(sndx)<1:
+                sndx = 0
+            else:
+                sndx = sndx[0]
         cur_out = out_fns[sndx]
 
         if conf.multi_only_ht:
@@ -2170,6 +2184,8 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
     elif model_type == 'mdn':
         pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file, name=name, distort=distort, **kwargs)
     elif model_type == 'leap':
+        import leap.training
+
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file, name=name, **kwargs)
     elif model_type == 'deeplabcut':
         cfg_dict = create_dlc_cfg_dict(conf, name)
@@ -2609,6 +2625,31 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
     return ret_dict_all, labeled_locs, info
 
+def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
+    if model_type == 'leap':
+        import leap.training
+        read_fn, n = leap.training.get_read_fn(conf, db_file)
+    elif model_type == 'deeplabcut':
+        cfg_dict = create_dlc_cfg_dict(conf)
+        [p, d] = os.path.split(db_file)
+        cfg_dict['project_path'] = p
+        cfg_dict['dataset'] = d
+        read_fn, db_len = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
+    else:
+        if conf.db_format == 'coco':
+            coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir=img_dir)
+            read_fn = iter(coco_reader).__next__
+            db_len = len(coco_reader)
+            conf.img_dim = 3
+        else:
+            is_multi = conf.is_multi
+            tf_iterator = multiResData.tf_reader(conf, db_file, False, is_multi=is_multi)
+            tf_iterator.batch_size = 1
+            read_fn = tf_iterator.next
+            db_len = tf_iterator.N
+
+    return read_fn,db_len
+
 
 def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, **kwargs):
     '''
@@ -2632,36 +2673,10 @@ def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None
     if classify_fcn is None:
         classify_fcn = classify_db2
 
-
-    if model_type == 'leap':
-        leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        ret = classify_fcn(conf, leap_gen, pred_fn, n, **kwargs)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
-    elif model_type == 'deeplabcut':
-        cfg_dict = create_dlc_cfg_dict(conf)
-        [p, d] = os.path.split(db_file)
-        cfg_dict['project_path'] = p
-        cfg_dict['dataset'] = d
-        read_fn, n = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
-        ret = classify_fcn(conf, read_fn, pred_fn, n, **kwargs)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
-    else:
-        if conf.db_format == 'coco':
-            coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir=img_dir)
-            read_fn = iter(coco_reader).__next__
-            db_len = len(coco_reader)
-            conf.img_dim = 3
-        else:
-            is_multi = conf.is_multi
-            tf_iterator = multiResData.tf_reader(conf, db_file, False, is_multi=is_multi)
-            tf_iterator.batch_size = 1
-            read_fn = tf_iterator.next
-            db_len = tf_iterator.N
-        ret = classify_fcn(conf, read_fn, pred_fn, db_len)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
+    read_fn, db_len = get_read_fn_all(model_type,conf,db_file,img_dir=img_dir)
+    ret = classify_fcn(conf, read_fn, pred_fn, db_len, **kwargs)
+    pred_locs, label_locs, info = ret[:3]
+    close_fn()
 
         # raise ValueError('Undefined model type')
 
@@ -2839,6 +2854,8 @@ def check_train_db(model_type, conf, out_file):
         read_fn = tf_iterator.next
         n = tf_iterator.N
     elif model_type == 'leap':
+        import leap.training
+
         db_file = os.path.join(conf.cachedir, 'leap_train.h5')
         print('Checking db from {}'.format(db_file))
         read_fn, n = leap.training.get_read_fn(conf, db_file)
@@ -2995,6 +3012,8 @@ def classify_list_file(args, view, view_ndx=0):
             else:
                 trxFiles.append(trxset)
         toTrack['trxFiles'] = trxFiles
+    else:
+        toTrack['trxFiles'] = [None,]*len(toTrack['movieFiles'])
 
     hasCrops = 'cropLocs' in toTrack
     cropLocs = None
@@ -3033,14 +3052,14 @@ def classify_list_file(args, view, view_ndx=0):
         else:
             assert False, 'Invalid frame specification in toTrack[%d]' % (i)
 
-    db_dict = {'moviesFiles':toTrack['movieFiles'],'trxFiles':toTrack['trxFiles'],'cropLocs':toTrack['cropLocs'],'toTrack':cur_list}
+    db_dict = {'moviesFiles':toTrack['movieFiles'],'trxFiles':toTrack['trxFiles'],'cropLocs':cropLocs,'toTrack':cur_list}
     db_file = tempfile.mkstemp()[1]
     db_file_val = tempfile.mkstemp()[1]
 
     lbl_file = args.lbl_file
     name = args.name
     first_stage = args.stage=='multi' or args.stage=='first'
-    conf = create_conf(lbl_file,view,name,cache_dir=args.cache_dir, net_type=args.type,conf_params=args.conf_params,first_stage=first_stage)
+    conf = create_conf(lbl_file,view,name,cache_dir=args.cache, net_type=args.type,conf_params=args.conf_params,first_stage=first_stage)
 
     if conf.db_format == 'coco':
         create_coco_db(conf,split=False,db_files=(db_file,db_file_val),use_cache=False,db_dict=db_dict)
@@ -3378,7 +3397,7 @@ def classify_movie(conf, pred_fn, model_type,
                         pred_animal_conf[ cur_f- min_first_frame,ix,:] = T[ix]['conf'][0,cur_f-first_frames[ix],0:1]
 
 
-    if (conf.is_multi and (conf.stage==None)) or (conf.stage==conf.multi_link_stage):
+    if (conf.is_multi and (conf.stage==None) and (conf.multi_link_stage!='none')) or (conf.stage==conf.multi_link_stage):
         # write out raw results before linking.
         pre_fix, ext = os.path.splitext(out_file)
         raw_file = pre_fix + '_raw' + ext
@@ -3430,6 +3449,7 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
             self.train_data_name = 'traindata'
         files = self.model_files()
     elif net_type == 'leap':
+        import leap.training
         files = leap.training.model_files(conf, name)
     elif net_type == 'openpose' or net_type == 'sb':
         files = op.model_files(conf, name)
@@ -3461,6 +3481,33 @@ def classify_movie_all(model_type, **kwargs):
         logging.exception('Could not track movie')
     close_fn()
 
+def gen_train_samples(conf,model_type='mdn_joint_fpn',n_samples=10,out_file=None):
+    # Create training samples.
+
+    import copy
+    import PoseCommon_pytorch
+    tconf = copy.deepcopy(conf)
+    tconf.batch_size = 1
+    tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
+    tself.create_data_gen()
+
+    ims = []
+    locs = []
+    info = []
+    mask = []
+    for ndx in range(n_samples):
+        next_db = tself.next_data('train')
+        ims.append(next_db['images'][0])
+        locs.append(next_db['locs'][0])
+        info.append(next_db['info'][0])
+        mask.append(next_db['mask'][0])
+
+    ims,locs,info,mask = map(np.array,[ims,locs,info,mask])
+
+    out_file = os.path.join(conf.cachedir,'training_samples')
+    hdf5storage.savemat(out_file, {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask})
+    logging.info('sample training data saved to %s' % out_file)
+
 
 def train_unet(conf, args, restore, split, split_file=None):
     if not args.skip_db:
@@ -3488,6 +3535,8 @@ def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
 
 
 def train_leap(conf, args, split, split_file=None):
+    from leap.training import train as leap_train
+
     assert (
                 conf.dl_steps % conf.display_step == 0), 'Number of training iterations must be a multiple of display steps for LEAP'
 
@@ -3547,7 +3596,7 @@ def train_deepcut(conf, args, split_file=None, model_file=None):
 
     cfg_dict = create_dlc_cfg_dict(conf, args.train_name)
     if model_file is not None:
-        cfg_dict.init_weights = model_file
+        cfg_dict['init_weights'] = model_file
     deepcut_train(cfg_dict,
                   displayiters=conf.display_step,
                   saveiters=conf.save_step,
@@ -3665,6 +3714,7 @@ def train_multi_stage(args, nviews):
         train(lbl_file, nviews, name, args, first_stage=True)
         args.type = args.type2
         args.conf_params = args.conf_params2
+        args.model_file = args.model_file2
         train(lbl_file, nviews, name, args, second_stage=True)
     elif args.stage == 'first':
         train(lbl_file, nviews, name, args, first_stage=True)
@@ -3784,9 +3834,8 @@ def parse_args(argv):
     parser.add_argument('-name', dest='name', help='Name for the run. Default - apt', default='apt')
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views',
                         default=None, type=int)
-    parser.add_argument('-model_files', dest='model_file',
-                        help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization',
-                        default=None, nargs='*')
+    parser.add_argument('-model_files', dest='model_file', help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
+    parser.add_argument('-model_files2', dest='model_file2', help='Use this model file for second stage. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
     parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
     parser.add_argument('-no_except', dest='no_except', help='Dont catch exception. Useful for debugging',
@@ -3975,6 +4024,10 @@ def check_args(args,nviews):
             args.model_file = [None]*nviews
         else:
             assert len(args.model_file) == nviews, 'Number of model files should be same as number of views for training'
+        if args.model_file2 is None:
+            args.model_file2 = [None]*nviews
+        else:
+            assert len(args.model_file2) == nviews, 'Number of model files should be same as number of views for training'
 
     elif args.sub_name == 'track' and args.list_file is not None:
         # KB 20190123: added list_file input option
@@ -3987,6 +4040,10 @@ def check_args(args,nviews):
             args.model_file = [None] * nviews
         else:
             assert len(args.model_file) == nviews, 'Number of model files should be same as the number of views to track (%d)' % nviews
+        if args.model_file2 is None:
+            args.model_file2 = [None] * nviews
+        else:
+            assert len(args.model_file2) == nviews, 'Number of model files should be same as the number of views to track (%d)' % nviews
 
     elif args.sub_name == 'track':
 
@@ -4001,6 +4058,10 @@ def check_args(args,nviews):
                 args.model_file = [None] * nviews
             else:
                 assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
+            if args.model_file2 is None:
+                args.model_file2 = [None] * nviews
+            else:
+                assert len(args.model_file2) == nviews, 'Number of movie files should be same as the number of trx files'
             if args.crop_loc is not None:
                 assert len(args.crop_loc) == 4 * nviews, 'cropping location should be specified as xlo xhi ylo yhi for all the views'
         else:
@@ -4028,6 +4089,10 @@ def check_args(args,nviews):
             args.model_file = [None] * len(views)
         else:
             assert len(args.model_file) == len(views), 'Number of model files specified must match number of views to be processed'
+        if args.model_file2 is None:
+            args.model_file2 = [None] * len(views)
+        else:
+            assert len(args.model_file2) == len(views), 'Number of model files specified must match number of views to be processed'
 
         assert args.out_files is not None
 
@@ -4039,9 +4104,16 @@ def check_args(args,nviews):
                 args.model_file = [None] * nviews
             else:
                 assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
+            if args.model_file2 is None:
+                args.model_file2 = [None] * nviews
+            else:
+                assert len(
+                    args.model_file2) == nviews, 'Number of movie files should be same as the number of trx files'
         else:
             if args.model_file is None:
                 args.model_file = [None]* nviews
+            if args.model_file2 is None:
+                args.model_file2 = [None]* nviews
 
 
 

@@ -100,6 +100,9 @@ class coco_loader(torch.utils.data.Dataset):
         im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
+        else:
+            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
@@ -233,7 +236,10 @@ class PoseCommon_pytorch(object):
                 prev_models = json.load(cf)
             model_file = prev_models[-1]
         logging.info('Loading model from {}'.format(model_file))
-        ckpt = torch.load(model_file)
+        if torch.cuda.is_available():
+            ckpt = torch.load(model_file)
+        else:
+            ckpt = torch.load(model_file,map_location=torch.device('cpu'))
         model.load_state_dict(ckpt['model_state_params'])
         if opt is not None:
             opt.load_state_dict(ckpt['optimizer_state_params'])
@@ -508,9 +514,15 @@ class PoseCommon_pytorch(object):
             else:
                 start_at = self.restore(model_file, model, opt, sched)
         else:
-            ckpt = torch.load(model_file)
-            model.load_state_dict(ckpt['model_state_params'])
-            logging.info('Inititalizing model weights from {}'.format(model_file))
+            try:
+                ckpt = torch.load(model_file)
+                model.load_state_dict(ckpt['model_state_params'])
+                logging.info('Inititalizing model weights from {}'.format(model_file))
+            except Exception as e:
+                logging.info(f'Could not initialize model weights from {model_file}')
+                logging.info(e)
+            start_at = 0
+            self.init_td()
 
         model.to(self.device)
         self.create_data_gen()
