@@ -9412,50 +9412,28 @@ classdef Labeler < handle
 %       obj.maPtNames = ptNames;
 %       %obj.maPtHeadTail = ht;
 %     end
-
+% 
     function r = maGetTgtCropRad(obj,prmsTgtCrop)
-      CROPRADMODFAC = 32;
-      if prmsTgtCrop.AutoRadius
-        cropszfac = prmsTgtCrop.AutoRadiusSpanMultiplier;
-        r = obj.maEstimateTgtCropRad(cropszfac);
-      else
-        r = prmsTgtCrop.ManualRadius;
-      end
-      r = ceil(r/CROPRADMODFAC)*CROPRADMODFAC;
-      fprintf(1,'Auto target crop radius: %d\n',r);
+      r = prmsTgtCrop.ManualRadius;
     end
-    function r = maEstimateTgtCropRad(obj,cropszfac)
-      % Don't call directly, doesn't apply mod32 constraint
-      spanptl = 99;
-      npts = obj.nLabelPoints;
-    
-      if false
-        [tf,~,ppdbICache] = obj.trackCreateDeepTrackerStrippedLbl('updateCacheOnly',true);
-        assert(tf);
-      
-        db = obj.ppdb.dat;
-        % poses should be aligned-or-not as appropriate based on params
-        p = db.pGT(ppdbICache,:);
-      elseif false
-        % unaligned
-        t = obj.labelGetMFTableLabeled();
-        p = t.p;          
-      else
-        % always just use all training data
-        
-        s = cat(1,obj.labels{:});
-        p = cat(2,s.p); % 2*npts x n
-        p = p.'; 
-      end
-      n = size(p,1);
-      xy = reshape(p,n,npts,2);
-      
-      xymin = squeeze(min(xy,[],2)); % n x 2
-      xymax = squeeze(max(xy,[],2)); % n x 2
-      xyspan = xymax-xymin;
-      xyspan = prctile(xyspan(:),spanptl);
-      r = xyspan/2*cropszfac;
-    end
+%     function r = maEstimateTgtCropRad(obj,cropszfac)
+%       % Don't call directly, doesn't apply mod32 constraint
+%       spanptl = 99;
+%       npts = obj.nLabelPoints;
+%     
+%       s = cat(1,obj.labels{:});
+%       p = cat(2,s.p); % 2*npts x n
+%       p = p.';
+% 
+%       n = size(p,1);
+%       xy = reshape(p,n,npts,2);
+%       
+%       xymin = squeeze(min(xy,[],2)); % n x 2
+%       xymax = squeeze(max(xy,[],2)); % n x 2
+%       xyspan = xymax-xymin;
+%       xyspan = prctile(xyspan(:),spanptl);
+%       r = xyspan/2*cropszfac;
+%     end
   
     function roi = maGetLossMask(obj,xy,sPrmLoss)
       % Compute mask roi for keypoints xy 
