@@ -514,9 +514,15 @@ class PoseCommon_pytorch(object):
             else:
                 start_at = self.restore(model_file, model, opt, sched)
         else:
-            ckpt = torch.load(model_file)
-            model.load_state_dict(ckpt['model_state_params'])
-            logging.info('Inititalizing model weights from {}'.format(model_file))
+            try:
+                ckpt = torch.load(model_file)
+                model.load_state_dict(ckpt['model_state_params'])
+                logging.info('Inititalizing model weights from {}'.format(model_file))
+            except Exception as e:
+                logging.info(f'Could not initialize model weights from {model_file}')
+                logging.info(e)
+            start_at = 0
+            self.init_td()
 
         model.to(self.device)
         self.create_data_gen()

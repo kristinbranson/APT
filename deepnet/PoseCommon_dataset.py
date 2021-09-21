@@ -236,8 +236,15 @@ class PoseCommon(object):
     def restore(self, sess, model_file=None):
         saver = self.saver
         if model_file is not None:
-            latest_model_file = model_file
-            saver['saver'].restore(sess, model_file)
+            try:
+                latest_model_file = model_file
+                saver['saver'].restore(sess, model_file)
+            except Exception as e:
+                logging.info(f'Could not load model weights from {model_file}')
+                logging.info(e)
+                latest_model_file = None
+                sess.run(tf.variables_initializer(PoseTools.get_vars('')), feed_dict=self.fd)
+
         else:
             grr = os.path.split(self.ckpt_file) # angry that get_checkpoint_state doesnt accept complete path to ckpt file. Damn idiots!
             latest_ckpt = tf.train.get_checkpoint_state(grr[0],grr[1])

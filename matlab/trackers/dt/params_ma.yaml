@@ -6,7 +6,7 @@ ROOT:
     - max_n_animals: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',30,'','Important','ma',true]
     - multi_loss_mask: ['Unlabeled animals present',boolean,true,'Set this to false only if all animals are labeled in every labeled frame.',true,'','Important','ma',true]
     - multi_crop_ims: ['Crop images during training',boolean,true,'Set this to false to force training on the entire image/frame.',true,'','Beginner','~isObjDet',true]
-    - multi_match_dist: ['Non-max suppression distance',float,true,'If the distance between two poses is smaller than this value, then merge the two predictions. Mainly for MA-Grone.',10.0,'','Advanced',['ma'],true]    
+    - multi_match_dist: ['Non-max suppression distance',float,true,'The distance between two poses is compared to the bounding box sizes of the poses. If the average distance between the landmarks is smaller than this fraction (in percentage) of bounding box edge size, then merge the two predictions. Mainly for MA-Grone.',20.0,'','Advanced',['ma'],true]    
     - Detect:
       - ['Detection','',false,MultiAnimal settings.,'','','','',true]
       - BBox:
@@ -68,4 +68,4 @@ ROOT:
       - AlignHeadTail: ['Align mask using head/tail landmark specifications',boolean,true,'If true, align masks to animal using head/tail landmarks',false,'','Important','ma',true]
     - TrackletStitch:
       - ['Tracklet Stitching','',false,Parameters for stitching tracked targets into tracklets,'','']
-      - multi_link_stage: ['Stitching stage',['first','second'],true,'Whether to stitch detections into tracklets at the first (detection) stage, or the second (pose-tracking) stage.','first','','Important','isTopDown',true]
+      - multi_link_stage: ['Stitching stage',['first','second','none'],true,'Whether to stitch detections into tracklets at the first (detection) stage, or the second (pose-tracking) stage.','first','','Important',['ma'],true]

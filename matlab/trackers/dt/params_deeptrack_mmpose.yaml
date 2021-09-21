@@ -18,4 +18,5 @@ ROOT:
     - predict_occluded: ['Predict occluded',boolean,true,'Predict whether landmarks are occluded or not. This parameter only has an effect if occluded landmarks *are* ignored',0,'','Beginner','',true]
     - mmpose_net: ['Network from MMPose',string,true,'Which pose estimation network to use from MMPose ','mspn','','Developer','',true]
     - mmpose_use_apt_augmentation: ['Use APT augmentation',boolean,true,'Use APTs augmentation routines for data augmention. Else use MMPoses native routines',0,'','Developer','',true]
+    - db_format: ['Database Format',string,false,'Db format','coco','','Developer','',true]
 

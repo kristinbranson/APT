@@ -30,8 +30,8 @@ import imageio
 import multiResData
 from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, check_fnum
 # from multiResData import *
-import leap.training
-from leap.training import train as leap_train
+# import leap.training
+# from leap.training import train as leap_train
 # import open_pose as op
 # import sb1 as sb
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
@@ -2184,6 +2184,8 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
     elif model_type == 'mdn':
         pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file, name=name, distort=distort, **kwargs)
     elif model_type == 'leap':
+        import leap.training
+
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file, name=name, **kwargs)
     elif model_type == 'deeplabcut':
         cfg_dict = create_dlc_cfg_dict(conf, name)
@@ -2623,6 +2625,31 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
     return ret_dict_all, labeled_locs, info
 
+def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
+    if model_type == 'leap':
+        import leap.training
+        read_fn, n = leap.training.get_read_fn(conf, db_file)
+    elif model_type == 'deeplabcut':
+        cfg_dict = create_dlc_cfg_dict(conf)
+        [p, d] = os.path.split(db_file)
+        cfg_dict['project_path'] = p
+        cfg_dict['dataset'] = d
+        read_fn, db_len = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
+    else:
+        if conf.db_format == 'coco':
+            coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir=img_dir)
+            read_fn = iter(coco_reader).__next__
+            db_len = len(coco_reader)
+            conf.img_dim = 3
+        else:
+            is_multi = conf.is_multi
+            tf_iterator = multiResData.tf_reader(conf, db_file, False, is_multi=is_multi)
+            tf_iterator.batch_size = 1
+            read_fn = tf_iterator.next
+            db_len = tf_iterator.N
+
+    return read_fn,db_len
+
 
 def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, **kwargs):
     '''
@@ -2646,36 +2673,10 @@ def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None
     if classify_fcn is None:
         classify_fcn = classify_db2
 
-
-    if model_type == 'leap':
-        leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        ret = classify_fcn(conf, leap_gen, pred_fn, n, **kwargs)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
-    elif model_type == 'deeplabcut':
-        cfg_dict = create_dlc_cfg_dict(conf)
-        [p, d] = os.path.split(db_file)
-        cfg_dict['project_path'] = p
-        cfg_dict['dataset'] = d
-        read_fn, n = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
-        ret = classify_fcn(conf, read_fn, pred_fn, n, **kwargs)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
-    else:
-        if conf.db_format == 'coco':
-            coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir=img_dir)
-            read_fn = iter(coco_reader).__next__
-            db_len = len(coco_reader)
-            conf.img_dim = 3
-        else:
-            is_multi = conf.is_multi
-            tf_iterator = multiResData.tf_reader(conf, db_file, False, is_multi=is_multi)
-            tf_iterator.batch_size = 1
-            read_fn = tf_iterator.next
-            db_len = tf_iterator.N
-        ret = classify_fcn(conf, read_fn, pred_fn, db_len)
-        pred_locs, label_locs, info = ret[:3]
-        close_fn()
+    read_fn, db_len = get_read_fn_all(model_type,conf,db_file,img_dir=img_dir)
+    ret = classify_fcn(conf, read_fn, pred_fn, db_len, **kwargs)
+    pred_locs, label_locs, info = ret[:3]
+    close_fn()
 
         # raise ValueError('Undefined model type')
 
@@ -2853,6 +2854,8 @@ def check_train_db(model_type, conf, out_file):
         read_fn = tf_iterator.next
         n = tf_iterator.N
     elif model_type == 'leap':
+        import leap.training
+
         db_file = os.path.join(conf.cachedir, 'leap_train.h5')
         print('Checking db from {}'.format(db_file))
         read_fn, n = leap.training.get_read_fn(conf, db_file)
@@ -3394,7 +3397,7 @@ def classify_movie(conf, pred_fn, model_type,
                         pred_animal_conf[ cur_f- min_first_frame,ix,:] = T[ix]['conf'][0,cur_f-first_frames[ix],0:1]
 
 
-    if (conf.is_multi and (conf.stage==None)) or (conf.stage==conf.multi_link_stage):
+    if (conf.is_multi and (conf.stage==None) and (conf.multi_link_stage!='none')) or (conf.stage==conf.multi_link_stage):
         # write out raw results before linking.
         pre_fix, ext = os.path.splitext(out_file)
         raw_file = pre_fix + '_raw' + ext
@@ -3446,6 +3449,7 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
             self.train_data_name = 'traindata'
         files = self.model_files()
     elif net_type == 'leap':
+        import leap.training
         files = leap.training.model_files(conf, name)
     elif net_type == 'openpose' or net_type == 'sb':
         files = op.model_files(conf, name)
@@ -3477,6 +3481,33 @@ def classify_movie_all(model_type, **kwargs):
         logging.exception('Could not track movie')
     close_fn()
 
+def gen_train_samples(conf,model_type='mdn_joint_fpn',n_samples=10,out_file=None):
+    # Create training samples.
+
+    import copy
+    import PoseCommon_pytorch
+    tconf = copy.deepcopy(conf)
+    tconf.batch_size = 1
+    tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
+    tself.create_data_gen()
+
+    ims = []
+    locs = []
+    info = []
+    mask = []
+    for ndx in range(n_samples):
+        next_db = tself.next_data('train')
+        ims.append(next_db['images'][0])
+        locs.append(next_db['locs'][0])
+        info.append(next_db['info'][0])
+        mask.append(next_db['mask'][0])
+
+    ims,locs,info,mask = map(np.array,[ims,locs,info,mask])
+
+    out_file = os.path.join(conf.cachedir,'training_samples')
+    hdf5storage.savemat(out_file, {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask})
+    logging.info('sample training data saved to %s' % out_file)
+
 
 def train_unet(conf, args, restore, split, split_file=None):
     if not args.skip_db:
@@ -3504,6 +3535,8 @@ def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
 
 
 def train_leap(conf, args, split, split_file=None):
+    from leap.training import train as leap_train
+
     assert (
                 conf.dl_steps % conf.display_step == 0), 'Number of training iterations must be a multiple of display steps for LEAP'
 
@@ -3563,7 +3596,7 @@ def train_deepcut(conf, args, split_file=None, model_file=None):
 
     cfg_dict = create_dlc_cfg_dict(conf, args.train_name)
     if model_file is not None:
-        cfg_dict.init_weights = model_file
+        cfg_dict['init_weights'] = model_file
     deepcut_train(cfg_dict,
                   displayiters=conf.display_step,
                   saveiters=conf.save_step,

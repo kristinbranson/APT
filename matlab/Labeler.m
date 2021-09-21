@@ -536,6 +536,8 @@ classdef Labeler < handle
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
     trackParams; % all tracking parameters. init: C
+    trackAutoSetParams = true;
+    trackPrevModelInit = true;
   end
   properties
     trkResIDs % [nTR x 1] cellstr unique IDs
@@ -11186,7 +11188,6 @@ classdef Labeler < handle
         sPrmNew = tPrm.structize;
         obj.trackSetParams(sPrmNew);
       end
-
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...

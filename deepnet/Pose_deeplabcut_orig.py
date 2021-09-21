@@ -4,7 +4,7 @@ import os
 import deeplabcut
 import APT_interface as apt
 import tempfile
-
+# Use ~/bransonlab/singularity/pytorch_mmpose.sif
 
 dlc_orig_dir  = '/groups/branson/bransonlab/mayank/apt_expts/deepcut_orig2'
 main_script = 'run_train.py'
@@ -15,7 +15,7 @@ class Pose_deeplabcut_orig(object):
         self.name = name
         self.conf = conf
 
-    def train_wrapper(self,restore=False):
+    def train_wrapper(self,restore=False,model_file=None):
         conf = self.conf
         fname = os.path.join(conf.cachedir,'run_dlc_orig_{}.sh'.format(self.name))
         cmd = 'source /groups/branson/home/kabram/anaconda3/etc/profile.d/conda.sh;\n'

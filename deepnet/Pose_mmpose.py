@@ -1,7 +1,7 @@
 import pathlib
 import os
 import sys
-sys.path.append('mmpose')
+sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(),'mmpose'))
 from mmcv import Config
 from mmpose.models import build_posenet
 import poseConfig
@@ -233,7 +233,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     # pretrained weights are now urls. So torch does the mapping
     # cfg.model.pretrained = os.path.join('mmpose',cfg.model.pretrained)
 
-    cfg.checkpoint_config.interval = conf.save_step
+    cfg.checkpoint_config.interval = min(conf.save_step,conf.dl_steps)
     cfg.checkpoint_config.filename_tmpl = run_name + '-{}'
     cfg.checkpoint_config.by_epoch = False
     cfg.checkpoint_config.max_keep_ckpts = conf.maxckpt

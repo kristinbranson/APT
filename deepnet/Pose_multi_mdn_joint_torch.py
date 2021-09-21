@@ -520,6 +520,106 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         return mean_d
 
 
+    def match_preds(self,locs,olocs,match_dist):
+        # Match predictions with offseted predictions
+        # Prefix o mean offset predictions
+        # To match the predictions, we first find the distances between predictions. If this distances is smaller than 10% (or so) of the average side size of the predictions bounding-box then we merge them.
+
+        matched = {}
+        hsz = self.offset // 2
+        conf = self.conf
+
+        # Initialize all the arrays.
+        olocs_orig = olocs['ref'] + hsz
+        locs_orig = locs['ref']
+        cur_pred = np.ones_like(olocs_orig) * np.nan
+        cur_joint_conf = np.ones_like(olocs_orig[..., 0]) * -100
+        cur_ref_conf = np.ones_like(olocs_orig[..., 0]) * -100
+        cur_occ_pred = np.ones_like(olocs_orig[..., 0]) * np.nan
+        dd = olocs_orig[:, :, np.newaxis, ...] - locs_orig[:, np.newaxis, ...]
+        dd = np.linalg.norm(dd, axis=-1).mean(-1)
+
+        # Bounding box sizes to compare the distances between predictions too.
+        bb = locs_orig.max(axis=-2) - locs_orig.min(axis=-2)
+        bb_sz = (bb[...,0]+bb[...,1])/2 # Ideally should be geometric mean but algebraic is better behaved.
+        obb = olocs_orig.max(axis=-2) - olocs_orig.min(axis=-2)
+        obb_sz = (obb[...,0]+obb[...,1])/2
+
+        conf_margin = 4
+        # Average both predictions if the confidences of the predictions are withing this of each other. Else pick the dominant one.
+
+        # match predictions from offset pred and normal preds
+        for b in range(dd.shape[0]):
+            done_offset = np.zeros(dd.shape[1])
+            done_locs = np.zeros(dd.shape[1])
+            mpred = []
+            for ix in range(dd.shape[1]):
+                if np.all(np.isnan(dd[b, :, ix])):
+                    continue
+                olocs_ndx = np.nanargmin(dd[b, :, ix])
+                # Find the closest one in offset prediction.
+
+                bb_avg = (bb_sz[b,ix]+obb_sz[b,olocs_ndx])/2
+                if dd[b, olocs_ndx, ix] < bb_avg*match_dist/100:
+
+                    # Select the one with higher confidence unless they both are close.
+                    if locs['conf_joint'][b, ix] < olocs['conf_joint'][b, olocs_ndx] - conf_margin:
+                        cc = olocs_orig[b, olocs_ndx, ...]
+                        oo = olocs['pred_occ'][b, olocs_ndx, ...]
+                    elif locs['conf_joint'][b, ix] - conf_margin > olocs['conf_joint'][b, olocs_ndx]:
+                        cc = locs_orig[b, ix, ...]
+                        oo = locs['pred_occ'][b, ix, ...]
+                    else:
+                        cc = (olocs_orig[b, olocs_ndx, ...] + locs_orig[b, ix, ...]) / 2
+                        oo = (olocs['pred_occ'][b, olocs_ndx, ...] + locs['pred_occ'][b, ix, ...]) / 2
+
+                    # code below is for selecting based on ref confidences.
+                    # cc = np.ones([conf.n_classes,2])*np.nan
+                    # for cls in range(conf.n_classes):
+                    #     if olocs['conf_ref'][b,olocs_ndx,cls] > locs['conf_ref'][b,ix,cls]:
+                    #         cc[cls,:] = olocs_orig[b,olocs_ndx,cls,:]
+                    #     else:
+                    #         cc[cls,:] = locs_orig[b,ix,cls,...]
+
+                    done_offset[olocs_ndx] = 1
+                    done_locs[ix] = 1
+                    mconf = max(olocs['conf_joint'][b, olocs_ndx], locs['conf_joint'][b, ix])
+                    # print(f'Matched {ix} with {olocs_ndx}')
+                else:
+                    cc = locs_orig[b, ix, ...]
+                    oo = locs['pred_occ'][b, ix]
+                    done_locs[ix] = 1
+                    mconf = locs['conf_joint'][b, ix]
+                mpred.append((cc, mconf, oo))
+
+            for ix in np.where(done_offset < 0.5)[0]:
+                if np.all(np.isnan(dd[b, ix, :])):
+                    continue
+                cc = olocs_orig[b, ix, ...]
+                oo = olocs['pred_occ'][b, ix]
+                mconf = olocs['conf_joint'][b, ix]
+                mpred.append((cc, mconf, oo))
+
+            pconf = np.array([m[1] for m in mpred])
+            ord = np.flip(np.argsort(pconf))[:conf.max_n_animals]
+            if len(ord) > conf.min_n_animals:
+                neg_ndx = np.where(pconf[ord[conf.min_n_animals:]] < 0)[0]
+                if neg_ndx.size > 0:
+                    ord = ord[:(conf.min_n_animals + neg_ndx[0])]
+
+            bpred = [mpred[ix][0] for ix in ord]
+            bpred = np.array(bpred)
+            opred = [mpred[ix][2] for ix in ord]
+            opred = np.array(opred)
+            npred = bpred.shape[0]
+            if npred > 0:
+                cur_pred[b, :npred, ...] = bpred
+                cur_occ_pred[b, :npred, ...] = opred
+                cur_joint_conf[b, :npred, ...] = pconf[ord, None]
+
+        matched['ref'] = cur_pred
+        return matched, cur_joint_conf, cur_occ_pred
+
     def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
         if max_n is not None:
             self.conf.max_n_animals = max_n
@@ -539,7 +639,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.model = model
         conf = self.conf
         conf.batch_size = 1
-        match_dist = conf.get('multi_match_dist',10)
+        match_dist = conf.get('multi_match_dist',20)
 
         def pred_fn(ims, retrawpred=False):
             locs_sz = (conf.batch_size, conf.n_classes, 2)
@@ -558,83 +658,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             locs = self.get_joint_pred(preds)
             olocs = self.get_joint_pred(opreds)
 
-            matched = {}
-            olocs_orig = olocs['ref'] + hsz
-            locs_orig = locs['ref']
-            cur_pred = np.ones_like(olocs_orig) * np.nan
-            cur_joint_conf = np.ones_like(olocs_orig[...,0]) * -100
-            cur_ref_conf = np.ones_like(olocs_orig[...,0]) * -100
-            cur_occ_pred = np.ones_like(olocs_orig[...,0])*np.nan
-            dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
-            dd = np.linalg.norm(dd,axis=-1).mean(-1)
-            conf_margin = 4
-            # match predictions from offset pred and normal preds
-            for b in range(dd.shape[0]):
-                done_offset = np.zeros(dd.shape[1])
-                done_locs = np.zeros(dd.shape[1])
-                mpred = []
-                for ix in range(dd.shape[1]):
-                    if np.all(np.isnan(dd[b,:,ix])):
-                        continue
-                    olocs_ndx = np.nanargmin(dd[b,:,ix])
-                    if dd[b,olocs_ndx,ix] < match_dist:
-                        # Select the one with higher confidence unless they both are close.
-                        if locs['conf_joint'][b,ix] < olocs['conf_joint'][b,olocs_ndx] - conf_margin:
-                            cc = olocs_orig[b, olocs_ndx, ...]
-                            oo = olocs['pred_occ'][b,olocs_ndx,...]
-                        elif locs['conf_joint'][b,ix] - conf_margin > olocs['conf_joint'][b,olocs_ndx] :
-                            cc = locs_orig[b, ix, ...]
-                            oo = locs['pred_occ'][b,ix,...]
-                        else:
-                            cc = (olocs_orig[b, olocs_ndx, ...] + locs_orig[b, ix, ...]) / 2
-                            oo = (olocs['pred_occ'][b,olocs_ndx,...] + locs['pred_occ'][b,ix,...])/2
 
-                        # below is for selecting based on ref confidences.
-                        # cc = np.ones([conf.n_classes,2])*np.nan
-                        # for cls in range(conf.n_classes):
-                        #     if olocs['conf_ref'][b,olocs_ndx,cls] > locs['conf_ref'][b,ix,cls]:
-                        #         cc[cls,:] = olocs_orig[b,olocs_ndx,cls,:]
-                        #     else:
-                        #         cc[cls,:] = locs_orig[b,ix,cls,...]
-                        done_offset[olocs_ndx] = 1
-                        done_locs[ix] = 1
-                        mconf = max(olocs['conf_joint'][b,olocs_ndx],locs['conf_joint'][b,ix])
-                        # print(f'Matched {ix} with {olocs_ndx}')
-                    else:
-                        cc = locs_orig[b,ix,...]
-                        oo = locs['pred_occ'][b,ix]
-                        done_locs[ix] = 1
-                        mconf = locs['conf_joint'][b,ix]
-                    mpred.append((cc,mconf,oo))
-
-                for ix in np.where(done_offset<0.5)[0]:
-                    if np.all(np.isnan(dd[b,ix,:])):
-                        continue
-                    cc = olocs_orig[b,ix,...]
-                    oo = olocs['pred_occ'][b,ix]
-                    mconf = olocs['conf_joint'][b,ix]
-                    mpred.append((cc,mconf,oo))
-
-                pconf = np.array([m[1] for m in mpred])
-                ord = np.flip(np.argsort(pconf))[:conf.max_n_animals]
-                if len(ord)>conf.min_n_animals:
-                    neg_ndx = np.where(pconf[ord[conf.min_n_animals:]]<0)[0]
-                    if neg_ndx.size>0:
-                        ord = ord[:(conf.min_n_animals+neg_ndx[0])]
-
-                bpred = [mpred[ix][0] for ix in ord]
-                bpred = np.array(bpred)
-                opred = [mpred[ix][2] for ix in ord]
-                opred = np.array(opred)
-                npred = bpred.shape[0]
-                if npred>0:
-                    cur_pred[b,:npred,...] = bpred
-                    cur_occ_pred[b,:npred,...] = opred
-                    cur_joint_conf[b,:npred,...] = pconf[ord,None]
-
-
-            matched['ref'] = cur_pred
-
+            matched, cur_joint_conf, cur_occ_pred = self.match_preds(locs,olocs,match_dist)
             ret_dict = {}
             ret_dict['locs'] = matched['ref'] * conf.rescale
             ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))

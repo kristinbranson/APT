@@ -534,7 +534,8 @@ classdef APTParameters
       end
     end
     
-    function [tPrm,canceled,do_update]= autosetparams(tPrm,lobj)
+    function [tPrm,canceled,do_update] = ...
+        autosetparams(tPrm,lobj)
       % automatically set the parameters based on labels.
       autoparams = compute_auto_params(lobj);
       kk = autoparams.keys();
@@ -577,19 +578,21 @@ classdef APTParameters
       end
 
       if diff
-        dstr = sprintf('Auto-computed parameters have changed by more than 10%% \nfor some of the parameters. Update the parameters? \n%s',dstr);
-      else
-        dstr = sprintf('Auto-computed parameters are similar to previous parameters \nfor all the parameters. Update the parameters? \n%s',dstr);
-      end
-
-      if diff && ~default
-        res = questdlg(dstr,'Update parameters?','Update','Do not update','Cancel','Update');
+        dstr = sprintf('Auto-computed parameters have changed from earlier by more than 10%% \nfor some of the parameters. Update the following parameters? \n%s',dstr);
+        
+        if lobj.trackAutoSetParams
+          if default
+            res = 'Update';
+          else
+            res = APTParameters.auto_gui(dstr,lobj);
+          end
+        else
+          res = 'Do not update';
+        end
         if strcmp(res,'Cancel')
           canceled = true;
           return;
         end
-      elseif default
-        res = 'Update';
       else
         % All parameters are identical
         do_udpate = false;
@@ -606,6 +609,66 @@ classdef APTParameters
       
     end
     
+    function res = auto_gui(dstr,lobj)
+    %%    
+      margin = 10;
+      btn_w = 150;
+      btn_h = 30;
+      n_btn = 3;
+      min_w = n_btn*btn_w+(n_btn+1)*margin;
+      min_h = btn_h + 3*margin;
+
+     dstr= strtrim(dstr);
+     f = figure('units','pixels','position',[300,300,min_w,150],...
+       'toolbar','none','menu','none');
+     t = uicontrol('style','text','String',dstr,'units','pixels',...
+       'position',[0,0,250,100],'Parent',f);
+     text_sz = get(t,'Extent');
+
+%       c_box = uicontrol('style','checkbox','String','Always do this action',...
+%         'units','pixels','position',[0,0,250,100]);
+%       c_sz = get(c_box,'Extent');
+
+     min_h = min_h+text_sz(4);
+     min_w = max(min_w,text_sz(3)+2*margin);
+
+     f.Position(4) = min_h;
+     f.Position(3) = min_w;
+     t.Position(2) = 2*margin+btn_h;
+     t.Position(1) = (min_w-text_sz(3))/2;
+     t.Position(3:4) = t.Extent(3:4);
+%      c_box.Position(3) = c_box.Extent(3)+20;
+%      c_box.Position(4) = c_box.Extent(4);
+%      c_box.Position(2) = margin;
+%      c_box.Position(1) = (min_w-c_sz(3))/2;
+
+     btn_bottom = margin; 
+     btn_margin = (min_w-2*margin-n_btn*btn_w)/(n_btn-1);
+     btns = [];
+     btns(1) = uicontrol('style','pushbutton','String','Update',...
+       'units','pixels','position',[margin,btn_bottom,btn_w,btn_h],'Visible','on');
+     btns(2) = uicontrol('style','pushbutton','String','Do not update',...
+       'units','pixels','position',[margin+(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
+     btns(3) = uicontrol('style','pushbutton','String','Cancel',...
+       'units','pixels','position',[margin+2*(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
+
+     set(btns,'Callback',@p_call)
+     centerOnParentFigure(f,lobj.hFig);
+
+      function p_call(hobj,~,handles)
+        handles.action = get(hobj,'String');
+        handles.never_again = false; %get(c_box,'Value');
+        uiresume(f);
+        guidata(hobj,handles);
+      end
+      
+     uiwait(f)
+     handles = guidata(f);
+     res = handles.action;
+     delete(f);
+    end
+
+    
     
   end
   methods (Static)
@@ -618,6 +681,7 @@ classdef APTParameters
     end
   end
 end
+
 
 function autoparams = compute_auto_params(lobj)
 

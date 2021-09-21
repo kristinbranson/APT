@@ -861,7 +861,12 @@ classdef DeepTracker < LabelTracker
           if ~isempty(modelChain0)
             assert(~strcmp(modelChain,modelChain0));
             fprintf('Training new model %s.\n',modelChain);
-            prev_models = obj.trnLastDMC.trainCurrModelLnx;
+            res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization (Recommended)?','Initialization','Yes','No','Cancel','Yes');
+            if ~strcmp(res,'Yes')
+              prev_models = [];
+            else
+              prev_models = {obj.trnLastDMC.trainCurrModelLnx};
+            end
           end
         case {DLTrainType.Restart DLTrainType.RestartAug}
           if isempty(modelChain0)
@@ -875,9 +880,9 @@ classdef DeepTracker < LabelTracker
                   
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
-          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj)%,'prev_models',prev_models);
+          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);
         case DLBackEnd.AWS
-          obj.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj)%,'prev_models',prev_models);          
+          obj.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);          
         otherwise
           assert(false);
       end
@@ -1254,8 +1259,7 @@ classdef DeepTracker < LabelTracker
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain,...
         'reader',DeepModelChainReader.createFromBackEnd(backEnd),...
-        'filesep',obj.filesep,...
-        'prev_models',prev_models...
+        'filesep',obj.filesep...
         );
 
       switch backEnd.type
@@ -1370,6 +1374,9 @@ classdef DeepTracker < LabelTracker
               dmc(ivw) = dmc(1).copy();
             end
             dmc(ivw).view = ivw-1; % 0-based
+            if ~isempty(prev_models)
+              [dmc.prev_models] = prev_models{:};
+            end
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
               aptroot,dmc(ivw),...
               'singArgs',singArgs,'trnCmdType',trnCmdType,...
@@ -4350,9 +4357,10 @@ classdef DeepTracker < LabelTracker
         modelChainID,trainID,dllbl,cache,errfile,netType,netMode,trainType,...
         view1b,mntPaths,gpuid,varargin)
                   
-      [dockerargs,isMultiView,baseargs0] = myparse(varargin,...
+      [dockerargs,isMultiView,baseargs0,prev_models] = myparse(varargin,...
         'dockerargs',{},...
         'isMultiView',false,...
+        'prev_models',[],...
         'baseargs',{} ...
         );
       
@@ -4360,6 +4368,9 @@ classdef DeepTracker < LabelTracker
       baseargs = [{'trainType' trainType 'filequote' filequote} baseargs0];
       if ~isMultiView,
         baseargs = [baseargs, {'view' view1b}];
+      end
+      if ~isempty(prev_models)
+        baseargs = [baseargs, {'prev_model',prev_models}];
       end
 
       if ischar(netType)
@@ -4412,6 +4423,9 @@ classdef DeepTracker < LabelTracker
     function [codestr,containerName] = trainCodeGenDockerDMC(...
         dmc,backend,mntPaths,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
+      if ~isempty(dmc.prev_models)
+        leftovers = [leftovers {'prev_model' dmc.prev_models{dmc.view+1}}];
+      end
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.netMode,...
@@ -4419,6 +4433,9 @@ classdef DeepTracker < LabelTracker
     end
     function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
+      if ~isempty(dmc.prev_models)
+        leftovers = [leftovers {'prev_model' dmc.prev_models{dmc.view+1}}];
+      end
       [codestr] = DeepTracker.trainCodeGenConda(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,trnCmdType,dmc.view+1,gpuid,...
@@ -4487,6 +4504,9 @@ classdef DeepTracker < LabelTracker
           'classify_val_out'
           dmc.valresultsLnx
           };
+      end
+      if ~isempty(dmc.prev_models)
+        baseargs(end+1:end+2) = {'prev_model' dmc.prev_models};
       end
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
