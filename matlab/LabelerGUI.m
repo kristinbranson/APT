@@ -2783,7 +2783,7 @@ if ~tfCanTrain,
   return;
 end
 
-handles.labelerObj.trackSetAutoParams();
+%handles.labelerObj.trackSetAutoParams();
 
 fprintf('Training started at %s...\n',datestr(now));
 oc1 = onCleanup(@()ClearStatus(handles));

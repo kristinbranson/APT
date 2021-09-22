@@ -11312,6 +11312,8 @@ classdef Labeler < handle
         error('Labeler:track','No movie.');
       end
       
+      obj.trackSetAutoParams();
+
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));
         % assert this as we do not fetch tblMFTp to treatInfPosAsOcc
