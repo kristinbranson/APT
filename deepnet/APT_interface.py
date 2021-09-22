@@ -1661,10 +1661,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,s
     # t_ndx = lbl['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
     # f_ndx = lbl['preProcData_MD_frm'].value[0, :].astype('int') - 1
     # occ = lbl['preProcData_MD_tfocc'].value.astype('bool')
-    m_ndx = cachegrp['preProcData_MD_mov'].value[0, :].astype('int')
-    t_ndx = cachegrp['preProcData_MD_iTgt'].value[0, :].astype('int') - 1
-    f_ndx = cachegrp['preProcData_MD_frm'].value[0, :].astype('int') - 1
-    occ = cachegrp['preProcData_MD_tfocc'].value.astype('bool')
+    m_ndx = cachegrp['preProcData_MD_mov'][()][0, :].astype('int')
+    t_ndx = cachegrp['preProcData_MD_iTgt'][()][0, :].astype('int') - 1
+    f_ndx = cachegrp['preProcData_MD_frm'][()][0, :].astype('int') - 1
+    occ = cachegrp['preProcData_MD_tfocc'][()].astype('bool')
 
     mov_split = None
     predefined = None
@@ -1697,7 +1697,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,s
         if m_ndx[ndx] < 0:
             continue
 
-        cur_frame = cachegrp[cachegrp['preProcData_I'][conf.view, ndx]].value.copy().T
+        cur_frame = cachegrp[cachegrp['preProcData_I'][conf.view, ndx]][()].T
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
         cur_locs = to_py(cachegrp['preProcData_P'][:, ndx].copy())

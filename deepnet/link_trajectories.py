@@ -1016,6 +1016,14 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
   optimizer = optim.Adam(net.parameters(), lr=0.00005)
   bsize = 4
   dummy_locs = np.ones([bsize, 2, 2]) * ims.shape[1] / 2
+  confd = copy.deepcopy(conf)
+  if confd.trx_align_theta:
+    confd.rrange = 15.
+  else:
+    confd.rrange = 180.
+  confd.trange = dat[0].shape[:2].min()/10
+  confd.horzFlip = False
+  confd.vertFlip = False
 
   logging.info('Training ID network ...')
   for epoch in tqdm(range(n_iters)):
@@ -1026,7 +1034,7 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
     curims = np.concatenate(cur_d, 0)
     if curims.shape[3] == 1:
       curims = np.tile(curims, [1, 1, 1, 3])
-    zz, _ = PoseTools.preprocess_ims(curims, dummy_locs, conf, True, 1)
+    zz, _ = PoseTools.preprocess_ims(curims, dummy_locs, confd, True, 1)
     zz = np.reshape(zz, (-1, 3,) + zz.shape[1:])
     zz = zz.transpose([1, 0, 4, 2, 3])
     zz = torch.tensor(zz, dtype=torch.float)

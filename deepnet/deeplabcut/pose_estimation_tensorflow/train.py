@@ -234,7 +234,10 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
     # Restore variables from disk.
     try:
         print(f'Initializing weights from {cfg.init_weights}')
-        restorer.restore(sess, cfg.init_weights)
+        wtfile = cfg.init_weights
+        if wtfile.endswith('.index'):
+            wtfile = ''.join(wtfile.rsplit('.index',1))
+        restorer.restore(sess, wtfile)
     except Exception as e:
         print(f'Could not load weights from {cfg.init_weights}')
         print(e)

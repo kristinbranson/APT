@@ -869,7 +869,7 @@ classdef DeepTracker < LabelTracker
             if ~strcmp(res,'Yes')
               prev_models = [];
             else
-              prev_models = {obj.trnLastDMC.trainCurrModelLnx};
+              prev_models = {obj.trnLastDMC.trainFinalModelLnx};
             end
           end
         case {DLTrainType.Restart DLTrainType.RestartAug}
@@ -1369,34 +1369,28 @@ classdef DeepTracker < LabelTracker
 
       syscmds = cell(nvw,1);
       
-      switch backEnd.type
-        case DLBackEnd.Bsub
-          mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
-          singArgs = {'bindpath',mntPaths};
-          for ivw=1:nvw
-            if ivw>1
-              dmc(ivw) = dmc(1).copy();
-            end
-            dmc(ivw).view = ivw-1; % 0-based
-            if ~isempty(prev_models)
-              [dmc.prev_models] = prev_models{:};
-            end
+      for ivw=1:nvw
+        if ivw>1
+          dmc(ivw) = dmc(1).copy();
+        end
+        dmc(ivw).view = ivw-1; % 0-based
+        if ~isempty(prev_models)
+          dmc(ivw).prev_models = prev_models{ivw};
+        end
+        switch backEnd.type
+          case DLBackEnd.Bsub
+            mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
+            singArgs = {'bindpath',mntPaths};
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
-              aptroot,dmc(ivw),...
-              'singArgs',singArgs,'trnCmdType',trnCmdType,...
-              'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
-          end
-        case DLBackEnd.Docker
-          mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
-          containerNames = cell(nTrainJobs,1);
-          logcmds = cell(nTrainJobs,1);
-          syscmds = cell(nTrainJobs,1);
-          for ivw=1:nvw,
-            if ivw>1
-              dmc(ivw) = dmc(1).copy();
-            end
-            dmc(ivw).view = ivw-1; % 0-based
-            if ivw <= nTrainJobs,
+                aptroot,dmc(ivw),...
+                'singArgs',singArgs,'trnCmdType',trnCmdType,...
+                'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
+          case DLBackEnd.Docker
+            mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
+            containerNames = cell(nTrainJobs,1);
+            logcmds = cell(nTrainJobs,1);
+            syscmds = cell(nTrainJobs,1);
+            if ivw <= nTrainJobs
               gpuid = gpuids(ivw);
               [syscmds{ivw},containerNames{ivw}] = ...
                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
@@ -1404,14 +1398,8 @@ classdef DeepTracker < LabelTracker
               logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
                 backEnd.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
-          end
-        case DLBackEnd.Conda
-          condaargs = {'condaEnv',obj.condaEnv};
-          for ivw=1:nvw,
-            if ivw>1
-              dmc(ivw) = dmc(1).copy();
-            end
-            dmc(ivw).view = ivw-1; % 0-based
+          case DLBackEnd.Conda
+            condaargs = {'condaEnv',obj.condaEnv};
             if ivw <= nTrainJobs,
               gpuid = gpuids(ivw);
               syscmds{ivw} = ...
@@ -1419,9 +1407,9 @@ classdef DeepTracker < LabelTracker
                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
                 'condaargs',condaargs);
             end
-          end
-        otherwise
-          assert(false);
+          otherwise
+            assert(false);
+        end
       end
       
       if obj.dryRunOnly
@@ -4361,10 +4349,10 @@ classdef DeepTracker < LabelTracker
         modelChainID,trainID,dllbl,cache,errfile,netType,netMode,trainType,...
         view1b,mntPaths,gpuid,varargin)
                   
-      [dockerargs,isMultiView,baseargs0,prev_models] = myparse(varargin,...
+      [dockerargs,isMultiView,prev_models,baseargs0] = myparse(varargin,...
         'dockerargs',{},...
         'isMultiView',false,...
-        'prev_models',[],...
+        'prev_model',[],...
         'baseargs',{} ...
         );
       
@@ -4374,7 +4362,7 @@ classdef DeepTracker < LabelTracker
         baseargs = [baseargs, {'view' view1b}];
       end
       if ~isempty(prev_models)
-        baseargs = [baseargs, {'prev_model',prev_models}];
+        baseargs = [baseargs, {'prev_model' prev_models}];
       end
 
       if ischar(netType)
@@ -4404,11 +4392,14 @@ classdef DeepTracker < LabelTracker
     function [codestr] = trainCodeGenConda(modelChainID,trainID,...
         dllbl,cache,errfile,netType,trainType,view1b,gpuid,varargin)
       
-      [condaargs,isMultiView,outfile] = myparse(varargin,'condaargs',{},'isMultiView',false,...
-        'outfile','');
+      [condaargs,isMultiView,outfile,prev_model] = myparse(varargin,'condaargs',{},'isMultiView',false,...
+        'outfile','','prev_model',[]);
       %fprintf(2,'TODO: restart/trainType\n');
       %baseargs = {'view' view1b};
       baseargs = {'trainType' trainType};
+      if ~isempty(prev_model)
+        baseargs = [baseargs,{'prev_model' prev_model}];
+      end
       if ~isMultiView,
         baseargs = [baseargs,{'view' view1b}];
       end
@@ -4428,7 +4419,7 @@ classdef DeepTracker < LabelTracker
         dmc,backend,mntPaths,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
       if ~isempty(dmc.prev_models)
-        leftovers = [leftovers {'prev_model' dmc.prev_models{dmc.view+1}}];
+        leftovers = [leftovers {'prev_model' dmc.prev_models}];
       end
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
@@ -4438,7 +4429,7 @@ classdef DeepTracker < LabelTracker
     function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
       if ~isempty(dmc.prev_models)
-        leftovers = [leftovers {'prev_model' dmc.prev_models{dmc.view+1}}];
+        leftovers = [leftovers {'prev_model' dmc.prev_models}];
       end
       [codestr] = DeepTracker.trainCodeGenConda(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
