@@ -4829,7 +4829,8 @@ classdef Labeler < handle
       
       tfsuccess = false;
       
-      PROPS = obj.gtGetSharedProps();
+      [iMov,gt] = iMov.get();
+      PROPS = obj.gtGetSharedPropsStc(gt);
       
       if ~all(cellfun(@isempty,obj.(PROPS.TFA)(iMov,:)))
         assert(~obj.isMultiView,...
@@ -4988,7 +4989,8 @@ classdef Labeler < handle
         'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
         ); 
       
-      tfsuccess = obj.movieCheckFilesExist(iMov); % throws
+      mIdx = MovieIndex(iMov,obj.gtIsGTMode);
+      tfsuccess = obj.movieCheckFilesExist(mIdx); % throws
       if ~tfsuccess
         return;
       end
