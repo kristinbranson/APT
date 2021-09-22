@@ -3325,6 +3325,19 @@ classdef Labeler < handle
       
     end
     
+    function printAllTrackerInfo(obj)
+      
+      for i = 1:numel(obj.trackersAll),
+        tObj = obj.trackersAll{i};
+        if ~isprop(tObj,'trnLastDMC') || isempty(tObj.trnLastDMC),
+          continue;
+        end
+        fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
+        fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
+      end
+      
+    end
+    
     function printInfo(lObj)
       fprintf('Lbl file: %s\n',lObj.projectfile);
       fprintf('Info printed: %s\n',datestr(now,'yyyymmddTHHMMSS'));
@@ -3342,14 +3355,7 @@ classdef Labeler < handle
       
       fprintf('Number of landmarks: %d\n',lObj.nPhysPoints);
       
-      for i = 1:numel(lObj.trackersAll),
-        tObj = lObj.trackersAll{i};
-        if ~isprop(tObj,'trnLastDMC') || isempty(tObj.trnLastDMC),
-          continue;
-        end
-        fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
-        fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
-      end
+      lObj.printAllTrackerInfo();
       
       fprintf('Back-end: %s\n',char(lObj.trackDLBackEnd.type));
       
