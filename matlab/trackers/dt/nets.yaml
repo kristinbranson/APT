@@ -82,15 +82,15 @@ openpose:
   doesOccPred: 0
   isMultiAnimal: 0
 
-leap:   
-  shortString: leap
-  displayString: LEAP
-  modelCheckpointPat: deepnet-%d
-  modelGlobs: [deepnet-%d, initial_model.h5, traindata*, training_info.mat]
-  trkAuxFields: [pTrkConf]
-  trkAuxLabels: [confidence]
-  doesOccPred: 0
-  isMultiAnimal: 0
+#leap:   
+#  shortString: leap
+#  displayString: LEAP
+#  modelCheckpointPat: deepnet-%d
+#  modelGlobs: [deepnet-%d, initial_model.h5, traindata*, training_info.mat]
+#  trkAuxFields: [pTrkConf]
+#  trkAuxLabels: [confidence]
+#  doesOccPred: 0
+#  isMultiAnimal: 0
 
 multi_mdn_joint_torch:
   shortString: magrone
