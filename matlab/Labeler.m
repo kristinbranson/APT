@@ -2377,6 +2377,20 @@ classdef Labeler < handle
 
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
+      
+      % check that all movie files exist, allow macro fixes
+      for i = 1:obj.nmovies,
+        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,false));
+        if ~tfsuccess,
+          error('Labeler:file File(s) for movie %d: %s missing',i,obj.movieFilesAll{i});
+        end
+      end
+      for i = 1:obj.nmoviesGT,
+        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,true));
+        if ~tfsuccess,
+          error('Labeler:file File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
+        end
+      end
 
       obj.initTrxInfo();      
 
@@ -3645,7 +3659,7 @@ classdef Labeler < handle
       s.trackerData = tdata;      
       % KB 20201216 update currTracker as well
       oldCurrTracker = s.currTracker;
-      if oldCurrTracker>0 && ~isempty(loc),
+      if oldCurrTracker>0 && ~isempty(loc) && oldCurrTracker <= numel(loc),
         s.currTracker = loc(oldCurrTracker);
       end
 %       
@@ -4076,6 +4090,7 @@ classdef Labeler < handle
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
       end      
+      
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
@@ -4102,7 +4117,7 @@ classdef Labeler < handle
         end
       end
     end
-        
+
   end 
   
   %% Movie
@@ -4814,7 +4829,8 @@ classdef Labeler < handle
       
       tfsuccess = false;
       
-      PROPS = obj.gtGetSharedProps();
+      [iMov,gt] = iMov.get();
+      PROPS = obj.gtGetSharedPropsStc(gt);
       
       if ~all(cellfun(@isempty,obj.(PROPS.TFA)(iMov,:)))
         assert(~obj.isMultiView,...
@@ -4973,7 +4989,8 @@ classdef Labeler < handle
         'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
         ); 
       
-      tfsuccess = obj.movieCheckFilesExist(iMov); % throws
+      mIdx = MovieIndex(iMov,obj.gtIsGTMode);
+      tfsuccess = obj.movieCheckFilesExist(mIdx); % throws
       if ~tfsuccess
         return;
       end
@@ -9397,50 +9414,28 @@ classdef Labeler < handle
 %       obj.maPtNames = ptNames;
 %       %obj.maPtHeadTail = ht;
 %     end
-
+% 
     function r = maGetTgtCropRad(obj,prmsTgtCrop)
-      CROPRADMODFAC = 32;
-      if prmsTgtCrop.AutoRadius
-        cropszfac = prmsTgtCrop.AutoRadiusSpanMultiplier;
-        r = obj.maEstimateTgtCropRad(cropszfac);
-      else
-        r = prmsTgtCrop.ManualRadius;
-      end
-      r = ceil(r/CROPRADMODFAC)*CROPRADMODFAC;
-      fprintf(1,'Auto target crop radius: %d\n',r);
+      r = prmsTgtCrop.ManualRadius;
     end
-    function r = maEstimateTgtCropRad(obj,cropszfac)
-      % Don't call directly, doesn't apply mod32 constraint
-      spanptl = 99;
-      npts = obj.nLabelPoints;
-    
-      if false
-        [tf,~,ppdbICache] = obj.trackCreateDeepTrackerStrippedLbl('updateCacheOnly',true);
-        assert(tf);
-      
-        db = obj.ppdb.dat;
-        % poses should be aligned-or-not as appropriate based on params
-        p = db.pGT(ppdbICache,:);
-      elseif false
-        % unaligned
-        t = obj.labelGetMFTableLabeled();
-        p = t.p;          
-      else
-        % always just use all training data
-        
-        s = cat(1,obj.labels{:});
-        p = cat(2,s.p); % 2*npts x n
-        p = p.'; 
-      end
-      n = size(p,1);
-      xy = reshape(p,n,npts,2);
-      
-      xymin = squeeze(min(xy,[],2)); % n x 2
-      xymax = squeeze(max(xy,[],2)); % n x 2
-      xyspan = xymax-xymin;
-      xyspan = prctile(xyspan(:),spanptl);
-      r = xyspan/2*cropszfac;
-    end
+%     function r = maEstimateTgtCropRad(obj,cropszfac)
+%       % Don't call directly, doesn't apply mod32 constraint
+%       spanptl = 99;
+%       npts = obj.nLabelPoints;
+%     
+%       s = cat(1,obj.labels{:});
+%       p = cat(2,s.p); % 2*npts x n
+%       p = p.';
+% 
+%       n = size(p,1);
+%       xy = reshape(p,n,npts,2);
+%       
+%       xymin = squeeze(min(xy,[],2)); % n x 2
+%       xymax = squeeze(max(xy,[],2)); % n x 2
+%       xyspan = xymax-xymin;
+%       xyspan = prctile(xyspan(:),spanptl);
+%       r = xyspan/2*cropszfac;
+%     end
   
     function roi = maGetLossMask(obj,xy,sPrmLoss)
       % Compute mask roi for keypoints xy 
@@ -11317,6 +11312,8 @@ classdef Labeler < handle
         error('Labeler:track','No movie.');
       end
       
+      obj.trackSetAutoParams();
+
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));
         % assert this as we do not fetch tblMFTp to treatInfPosAsOcc

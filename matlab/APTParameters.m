@@ -555,7 +555,8 @@ classdef APTParameters
         nd = tPrm.findnode(['ROOT.' kk{ndx}]);
         prev_val = nd.Data.Value;
         cur_val = autoparams(kk{ndx});
-        if (cur_val-prev_val)/(prev_val+0.001)>0.1
+        reldiff = (cur_val-prev_val)/(prev_val+0.001);
+        if isempty(reldiff) || reldiff>0.1 % first clause if eg prev_val empty
           diff = true;
         end
         if nd.Data.DefaultValue~=nd.Data.Value
