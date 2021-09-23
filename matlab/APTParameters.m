@@ -556,7 +556,7 @@ classdef APTParameters
         prev_val = nd.Data.Value;
         cur_val = autoparams(kk{ndx});
         reldiff = (cur_val-prev_val)/(prev_val+0.001);
-        if isempty(reldiff) || reldiff>0.1 % first clause if eg prev_val empty
+        if isempty(reldiff) || abs(reldiff)>0.1 % first clause if eg prev_val empty
           diff = true;
         end
         if nd.Data.DefaultValue~=nd.Data.Value
@@ -770,6 +770,9 @@ function autoparams = compute_auto_params(lobj)
   crop_radius = ceil(crop_radius/32)*32;
   if lobj.trackerIsTwoStage || lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
+  end
+  if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
+    autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
   end
 
   % Look at distances between labeled pairs to find what to set for
