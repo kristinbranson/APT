@@ -10,7 +10,8 @@
 # 1. Remove the entry here.
 # 2. Remove <net> from the enumeration block in DLNetType.
 # 3. Remove params_deeptrack_<net>.yaml.
-#
+# 4. Search/grep code for any hardcoded references to removed net (eg 
+#    DLNetType.leap) or that net type ('leap'); remove that code!
 #
 # Notes on names
 # - The top-level field <net> matches the Python deepnet nettype.
