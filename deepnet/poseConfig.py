@@ -159,6 +159,7 @@ class config(object):
         self.dlc_train_img_dir = 'train'
         self.dlc_train_data_file = 'train_data.p'
         self.dlc_augment = True
+        self.dlc_override_dlsteps = False
 
         # ---- dpk
         # "early" here is eg after initial setup in APT_interface

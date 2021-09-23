@@ -21,6 +21,7 @@ ROOT:
     - dlc_locref_loss_weight: ['Weight for location refinement loss',float,true,'Weight for location refinement loss',0.05,'','Developer','']
     - dlc_locref_stdev: ['Std-dev for location refinement',float,true,'Std-dev for location refinement. Check DeepLabCut and DeeperCut documentation',7.2801,'','Developer','']
     - dlc_use_apt_preprocess: ['Use APTs image augmentation.',boolean,true,'Use APTs image augmentation instead of DeepLabCuts native augmentaton',1,'','Advanced','']
+    - dlc_override_dlsteps: ['Override DLCs training iters',boolean,true,'Override DeepLabCuts default number of training iterations. DLCs is usually trained for a fixed number of iterations because it uses batch size of 1. You can override this and trained for number of iterations specified in the training iterations menu. The training however will use a batch size of 1.',0,'','Beginner','']
 
 
 

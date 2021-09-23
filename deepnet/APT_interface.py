@@ -3481,31 +3481,63 @@ def classify_movie_all(model_type, **kwargs):
         logging.exception('Could not track movie')
     close_fn()
 
-def gen_train_samples(conf,model_type='mdn_joint_fpn',n_samples=10,out_file=None):
+def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True):
     # Create training samples.
 
-    import copy
-    import PoseCommon_pytorch
-    tconf = copy.deepcopy(conf)
-    tconf.batch_size = 1
-    tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
-    tself.create_data_gen()
+    if out_file is None:
+        out_file = os.path.join(conf.cachedir,train_name+'_training_samples.mat')
 
-    ims = []
-    locs = []
-    info = []
-    mask = []
-    for ndx in range(n_samples):
-        next_db = tself.next_data('train')
-        ims.append(next_db['images'][0])
-        locs.append(next_db['locs'][0])
-        info.append(next_db['info'][0])
-        mask.append(next_db['mask'][0])
+    if model_type == 'deeplabcut':
+        logging.info('Generating training data samples is not supported for deeplabcut')
+        db_file = os.path.join(conf.cachedir,'train_data.p')
+        read_fn, dblen = get_read_fn_all(model_type,conf,db_file)
+        ims = []; locs = []; info = []
+        for ndx in range(nsamples):
+            next_db = read_fn()
+            ims.append(next_db[0][0])
+            locs.append(next_db[1])
+            info.append(next_db[2])
+        ims,locs,info = map(np.array,[ims,locs,info])
+        ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
 
-    ims,locs,info,mask = map(np.array,[ims,locs,info,mask])
+        save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1}
 
-    out_file = os.path.join(conf.cachedir,'training_samples')
-    hdf5storage.savemat(out_file, {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask})
+    else:
+        import copy
+        import PoseCommon_pytorch
+        tconf = copy.deepcopy(conf)
+        tconf.batch_size = 1
+        if not conf.is_multi:
+            tconf.max_n_animals = 1
+            tconf.min_n_animals = 1
+
+        tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
+        tself.create_data_gen()
+        if distort:
+            db_type = 'train'
+        else:
+            db_type = 'val'
+
+        ims = []
+        locs = []
+        info = []
+        mask = []
+        for ndx in range(nsamples):
+            next_db = tself.next_data(db_type)
+            ims.append(next_db['images'][0].numpy())
+            locs.append(next_db['locs'][0].numpy())
+            info.append(next_db['info'][0].numpy())
+            mask.append(next_db['mask'][0].numpy())
+
+        ims,locs,info, mask = map(np.array,[ims,locs,info,mask])
+        ims = ims.transpose([0,2,3,1])
+        locs[locs<-1000] = np.nan
+        if not conf.is_multi:
+            mask = np.array([])
+        save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
+
+        del tself
+    hdf5storage.savemat(out_file, save_dict)
     logging.info('sample training data saved to %s' % out_file)
 
 
@@ -3593,14 +3625,17 @@ def train_sb(conf, args, split, split_file=None):
 def train_deepcut(conf, args, split_file=None, model_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache, split_file=split_file)
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
+    if args.only_aug: return
 
     cfg_dict = create_dlc_cfg_dict(conf, args.train_name)
     if model_file is not None:
         cfg_dict['init_weights'] = model_file
+    dlc_steps = cfg_dict['dlc_train_steps'] if conf.dlc_override_dlsteps else None
     deepcut_train(cfg_dict,
                   displayiters=conf.display_step,
                   saveiters=conf.save_step,
-                  maxiters=cfg_dict['dlc_train_steps'],
+                  maxiters=dlc_steps,
                   max_to_keep=conf.maxckpt)
     tf.reset_default_graph()
 
@@ -3612,6 +3647,8 @@ def train_dpk(conf, args, split, split_file=None):
                         use_cache=args.use_cache,
                         split_file=split_file)
 
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
+    if args.only_aug: return
     tf.reset_default_graph()
     apt_dpk.train(conf)
 
@@ -3735,6 +3772,8 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
     else:
         views = [view]
 
+    # Create data aug images.
+
     for view_ndx, cur_view in enumerate(views):
         conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
 
@@ -3770,10 +3809,10 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
             elif net_type == 'sb':
                 assert not args.use_defaults
                 train_sb(conf, args, split, split_file=split_file)
-            elif net_type == 'leap':
-                if args.use_defaults:
-                    leap.training.set_leap_defaults(conf)
-                train_leap(conf, args, split, split_file=split_file)
+            # elif net_type == 'leap':
+            #     if args.use_defaults:
+            #         leap.training.set_leap_defaults(conf)
+            #     train_leap(conf, args, split, split_file=split_file)
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deeplabcut.train.set_deepcut_defaults(conf)
@@ -3794,6 +3833,9 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                     assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
                     conf.n_classes = 2
                     conf.flipLandmarkMatches = {}
+
+                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
+                if args.only_aug: continue
 
                 module_name = 'Pose_{}'.format(net_type)
                 pose_module = __import__(module_name)
@@ -3861,6 +3903,11 @@ def parse_args(argv):
                               help='Continue from previously unfinished traning. Only for unet')
     parser_train.add_argument('-split_file', dest='split_file',
                               help='Split file to split data for train and validation', default=None)
+    parser_train.add_argument('-no_aug', dest='no_aug', help='dont augment the images. Return the original images', default=False)
+    parser_train.add_argument('-aug_out', dest='aug_out', help='Destination to save the images', default=None)
+    parser_train.add_argument('-nsamples', dest='nsamples', default=9, help='Number of examples to be generated', type=int)
+    parser_train.add_argument('-only_aug',dest='only_aug',help='Only do data augmentation, do not train',action='store_true')
+
     # parser_train.add_argument('-classify_val', dest='classify_val',
     #                           help='Apply trained model to val db', action='store_true')
     # parser_train.add_argument('-classify_val_out', dest='classify_val_out',

@@ -111,6 +111,7 @@ class coco_loader(torch.utils.data.Dataset):
         else:
             info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
 
+        info = np.array(info)
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
         lndx = 0
         annos = []
@@ -132,6 +133,8 @@ class coco_loader(torch.utils.data.Dataset):
         im,locs, mask = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...])
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
+        if not self.conf.is_multi:
+            locs = locs[:,0]
 
         features = {'images':im,
                     'locs':locs[0,...],
@@ -359,10 +362,10 @@ class PoseCommon_pytorch(object):
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
         train_dl_coco = coco_loader(conf,trnjson,True)
-        if os.path.exists(valjson):
+        if os.path.exists(valjson) and (len(PoseTools.json_load(valjson)['annotations'])>0):
             val_dl_coco = coco_loader(conf,valjson,False)
         else:
-            logging.info('Val json file doesnt exist. Using training file for validation')
+            logging.info('Val json file doesnt exist or is empty. Using training file for validation')
             val_dl_coco = coco_loader(conf,trnjson,False)
         self.train_loader_raw = train_dl_coco
         self.val_loader_raw = val_dl_coco
@@ -381,8 +384,8 @@ class PoseCommon_pytorch(object):
         try:
             ndata = next(it)
         except StopIteration:
-            self.train_epoch += 1
             if dtype == 'train':
+                self.train_epoch += 1
                 if self.use_hard_mining and (self.step[0]/self.step[1]>0.001) and self.train_epoch>3:
                     wts = self.train_loader_raw.ex_wts
                     pcs = np.percentile(wts.numpy(),[5,95])
