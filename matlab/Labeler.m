@@ -3428,14 +3428,18 @@ classdef Labeler < handle
       % have their .trnNetTypes loaded as structs. Eliminate these
       % trackers.
       for iTrker=1:numel(s.trackerData)
-        nt = s.trackerData{iTrker}.trnNetType;
-        if isstruct(nt)
-          try
-            warningNoTrace('Removing obsolete tracker: %s',nt.ValueNames{1});
-          catch
-            warningNoTrace('Removing obsolete tracker: %d',iTrker);
+        if ~isempty(s.trackerData{iTrker}) && isfield(s.trackerData{iTrker},'trnNetType')
+          nt = s.trackerData{iTrker}.trnNetType;
+          if isstruct(nt)
+            try
+              warningNoTrace('Removing obsolete tracker: %s',nt.ValueNames{1});
+            catch
+              warningNoTrace('Removing obsolete tracker: %d',iTrker);
+            end
+            tf(iTrker) = false;
           end
-          tf(iTrker) = false;
+        else
+          % TODO: two-stage trackers
         end
       end
       
