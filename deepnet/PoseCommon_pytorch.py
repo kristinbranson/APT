@@ -155,7 +155,7 @@ class coco_loader(torch.utils.data.Dataset):
         for obj in anno:
             if 'segmentation' in obj:
                 rles = xtcocotools.mask.frPyObjects(
-                    obj['segmentation'], im_sz[0],
+                    np.array(obj['segmentation']), im_sz[0],
                     im_sz[1])
                 for rle in rles:
                     m += xtcocotools.mask.decode(rle)
