@@ -3082,6 +3082,16 @@ classdef Labeler < handle
       success = ndelete == numel(todelete);
     end
     
+    function success = projBundleTempDir(obj)
+      success = true;
+      [fname,pname,~] = uiputfile('*.tar','File to save the training bundle as...');
+      if isnumeric(fname)
+        return;
+      end
+      tfile = fullfile(pname,fname);
+      tar(tfile,obj.projTempDir);
+    end
+    
     function projClearTempDir(obj) % throws
       if isempty(obj.projTempDir)
         return;

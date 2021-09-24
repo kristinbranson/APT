@@ -192,6 +192,14 @@ handles.menu_file_clean_tempdir = uimenu('Parent',handles.menu_file,...
 moveMenuItemAfter(handles.menu_file_clean_tempdir,...
   handles.menu_file_crop_mode);
 
+handles.menu_file_bundle_tempdir = uimenu('Parent',handles.menu_file,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_bundle_tempdir_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Bundle temporary directory',...
+  'Tag','menu_file_bundle_tempdir',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_file_bundle_tempdir,...
+  handles.menu_file_clean_tempdir);
+
 % Label/Setup menu
 mnuLblSetup = handles.menu_labeling_setup;
 mnuLblSetup.Position = 3;
@@ -3353,6 +3361,12 @@ function menu_file_clean_tempdir_Callback(hObject,evtdata,handles)
 SetStatus(handles,'Deleting temp directories...');
 handles.labelerObj.projRemoveOtherTempDirs();
 ClearStatus(handles);
+
+function menu_file_bundle_tempdir_Callback(hObject,evtdata,handles)
+SetStatus(handles,'Bundling the temp directory...');
+handles.labelerObj.projBundleTempDir();
+ClearStatus(handles);
+
 
 function menu_help_Callback(hObject, eventdata, handles)
 

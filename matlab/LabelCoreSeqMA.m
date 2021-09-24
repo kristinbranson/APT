@@ -539,14 +539,17 @@ classdef LabelCoreSeqMA < LabelCore
           frm = lObj.currFrame;
           vroi = lObj.labelroiGet(frm);
           obj.roiRectDrawer.setRois(vroi);
-          obj.roiUpdatePBEdit(false);
+          obj.roiUpdatePBEdit(true);
         end
       end
     end
     function cbkRoiNew(obj)
       assert(obj.roiShow);
       obj.roiRectDrawer.newRoiDraw();
-      obj.roiUpdatePBEdit(true);
+      v = obj.roiRectDrawer.getRoisVerts();
+      obj.labeler.labelroiSet(v);
+
+%       obj.roiUpdatePBEdit(true);
     end
     function cbkRoiEdit(obj)
       tfEditingNew = obj.pbRoiEdit.Value;
