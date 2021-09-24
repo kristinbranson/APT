@@ -5,6 +5,14 @@
 # 2. Add <net> to the enumeration block in DLNetType
 # 3. Add a params_deeptrack_<net>.yaml
 #
+#
+# How to remove a deep network from APT
+# 1. Remove the entry here.
+# 2. Remove <net> from the enumeration block in DLNetType.
+# 3. Remove params_deeptrack_<net>.yaml.
+# 4. Search/grep code for any hardcoded references to removed net (eg 
+#    DLNetType.leap) or that net type ('leap'); remove that code!
+#
 # Notes on names
 # - The top-level field <net> matches the Python deepnet nettype.
 # - shortString is a single-world nickname. Currently unused.
@@ -77,16 +85,6 @@ openpose:
   displayString: OpenPose
   modelCheckpointPat: deepnet-%d
   modelGlobs: [deepnet-%d, traindata*]
-  trkAuxFields: [pTrkConf]
-  trkAuxLabels: [confidence]
-  doesOccPred: 0
-  isMultiAnimal: 0
-
-leap:   
-  shortString: leap
-  displayString: LEAP
-  modelCheckpointPat: deepnet-%d
-  modelGlobs: [deepnet-%d, initial_model.h5, traindata*, training_info.mat]
   trkAuxFields: [pTrkConf]
   trkAuxLabels: [confidence]
   doesOccPred: 0

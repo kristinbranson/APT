@@ -16,10 +16,10 @@ catch ME
   return;
 end
 
-if strcmp(net_type,'leap')
-  nsz = 2000;
-  return;
-end
+% if strcmp(net_type,'leap')
+%   nsz = 2000;
+%   return;
+% end
 
 if ~any(strcmp(net_type,fieldnames(A.mem_use)))
   warningNoTrace('No data for network type:%s\n',net_type);

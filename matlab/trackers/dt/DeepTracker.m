@@ -355,7 +355,7 @@ classdef DeepTracker < LabelTracker
         );
       
       switch net
-        case {DLNetType.openpose DLNetType.leap}
+        case {DLNetType.openpose}
           dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
           save_step = sPrmAll.ROOT.DeepTrack.Saving.save_step;
           display_step = sPrmAll.ROOT.DeepTrack.Saving.display_step;

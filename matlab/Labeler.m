@@ -2331,10 +2331,11 @@ classdef Labeler < handle
       
       % AL 20191002 occlusion-prediction viz, DLNetType enum changed
       % should-be-harmlessly
-      warnst = warning('off','MATLAB:class:EnumerationValueChanged');
+      % AL 20210923 net removal (see below)
+      warnst0 = warning('off','MATLAB:class:EnumerationValueChanged');
+      warnst1 = warning('off','MATLAB:class:EnumerationNameMissing'); 
       s = load(tlbl,'-mat');
-      warning(warnst);
-%       s = load(fname,'-mat');  
+      warning([warnst0 warnst1]);
 
       if ~all(isfield(s,{'VERSION' 'movieFilesAll'}))
         error('Labeler:load','Unexpected contents in Label file.');
@@ -3396,242 +3397,10 @@ classdef Labeler < handle
       
 	    % whether trackParams is stored -- update from 20190214
       isTrackParams = isfield(s,'trackParams');
-      
-      
-%       if ~isfield(s,'labeledposTS')
-%         nMov = numel(s.labeledpos);
-%         s.labeledposTS = cell(nMov,1);
-%         for iMov = 1:nMov
-%           lpos = s.labeledpos{iMov};
-%           [npts,~,nfrm,ntgt] = size(lpos);
-%           s.labeledposTS{iMov} = -inf(npts,nfrm,ntgt);
-%         end
-%         
-%         warningNoTrace('Label timestamps added (all set to -inf).');
-%       end
+      assert(isTrackParams);
             
-%       if ~isfield(s,'labeledpos2')
-%         s.labeledpos2 = cellfun(@(x)nan(size(x)),s.labeledpos,'uni',0);
-%       end
-      
-%       % 20160622
-%       if ~isfield(s,'nview') && ~isfield(s,'cfg')
-%         s.nview = 1;
-%       end
-%       if ~isfield(s,'viewNames') && ~isfield(s,'cfg')
-%         s.viewNames = {'1'};
-%       end
-% 
-%       % 20160629
-%       if isfield(s,'trackerClass')
-%         assert(isfield(s,'trackerData'));
-%       else
-%         if isfield(s,'CPRLabelTracker')
-%           s.trackerClass = 'CPRLabelTracker';
-%           s.trackerData = s.CPRLabelTracker;
-%         elseif isfield(s,'Interpolator')
-%           s.trackerClass = 'Interpolator';
-%           s.trackerData = s.Interpolator;
-%         else
-%           s.trackerClass = '';
-%           s.trackerData = [];
-%         end
-%       end
-      
-%       % 20160707
-%       if ~isfield(s,'labeledposMarked')
-%         s.labeledposMarked = cellfun(@(x)false(size(x)),s.labeledposTS,'uni',0);
-%       end
-
-%       % 20160822 Modernize legacy projects that don't have a .cfg prop. 
-%       % Create a cfg from the lbl contents and fill in any missing fields 
-%       % with the current pref.yaml.
-%       if ~isfield(s,'cfg')
-%         % Create a config out what is in s. The large majority of config
-%         % info is not present in s; all other fields start from defaults.
-%         
-%         % first deal with multiview new def of NumLabelPoints
-%         nPointsReal = s.nLabelPoints/s.nview;
-%         assert(round(nPointsReal)==nPointsReal);
-%         s.nLabelPoints = nPointsReal;
-%         
-%         ptNames = arrayfun(@(x)sprintf('point%d',x),1:s.nLabelPoints,'uni',0);
-%         ptNames = ptNames(:);
-%         cfg = struct(...
-%           'NumViews',s.nview,...
-%           'ViewNames',{s.viewNames},...
-%           'NumLabelPoints',s.nLabelPoints,...
-%           'LabelPointNames',{ptNames},...
-%           'LabelMode',char(s.labelMode),...
-%           'LabelPointsPlot',s.labelPointsPlotInfo);
-%         fldsRm = {'nview' 'viewNames' 'nLabelPoints' 'labelMode' 'labelPointsPlotInfo'};
-%         s = rmfield(s,fldsRm);
-% 
-%         cfgbase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
-%         if exist('pref.yaml','file')>0
-%           cfg1 = ReadYaml('pref.yaml');
-%           cfgbase = structoverlay(cfgbase,cfg1,'dontWarnUnrecog',true);
-%         end
-%         cfg = structoverlay(cfgbase,cfg,'dontWarnUnrecog',true);
-%         s.cfg = cfg;
-%       end
       s.cfg = Labeler.cfgModernize(s.cfg);
       
-%       % 20160816
-%       if isfield(s,'minv')
-%         assert(numel(s.minv)==numel(s.maxv));
-%         
-%         nminv = numel(s.minv);
-%         if nminv~=s.cfg.NumViews
-%           s.minv = repmat(s.minv(1),s.cfg.NumViews,1);
-%           s.maxv = repmat(s.maxv(1),s.cfg.NumViews,1);
-%         end
-%         
-%         % 20160927
-%         assert(isequal(numel(s.minv),numel(s.maxv),s.cfg.NumViews));
-%         for iView=1:s.cfg.NumViews
-%           s.cfg.View(iView).CLim.Min = s.minv(iView);
-%           s.cfg.View(iView).CLim.Max = s.maxv(iView);
-%         end
-%         s = rmfield(s,{'minv' 'maxv'});
-%       end
-      
-%       % 20160927
-%       if isfield(s,'movieForceGrayscale')
-%         s.cfg.Movie.ForceGrayScale = s.movieForceGrayscale;
-%         s = rmfield(s,'movieForceGrayscale');
-%       end
-%       
-%       % 20161213
-%       if ~isfield(s,'viewCalProjWide')
-%         if ~isempty(s.viewCalibrationData)
-%           % Prior to today, all viewCalibrationDatas were always proj-wide
-%           s.viewCalProjWide = true;
-%           assert(isscalar(s.viewCalibrationData));
-%         else
-%           s.viewCalProjWide = [];
-%         end
-%       end
-      
-%       % 20170808
-%       if ~isfield(s,'trackModeIdx')
-%         s.trackModeIdx = 1;
-%       end
-      
-%       % 20170829
-%       GTPROPS = {
-%         'movieFilesAllGT'
-%         'movieInfoAllGT'
-%         'trxFilesAllGT'
-%         'labeledposGT'
-%         'labeledposTSGT'
-%         'labeledpostagGT'
-%         'viewCalibrationDataGT'
-%         'gtIsGTMode'
-%         'gtSuggMFTable'
-%         'gtTblRes'
-%       };
-%       tfGTProps = isfield(s,GTPROPS);
-%       allGTPresent = all(tfGTProps);
-%       noGTPresent = ~any(tfGTProps);
-%       assert(allGTPresent || noGTPresent);
-%       if noGTPresent
-%         nview = s.cfg.NumViews;
-%         s.movieFilesAllGT = cell(0,nview);
-%         s.movieInfoAllGT = cell(0,nview);
-%         s.trxFilesAllGT = cell(0,nview);
-%         s.labeledposGT = cell(0,1);
-%         s.labeledposTSGT = cell(0,1);
-%         s.labeledpostagGT = cell(0,1);
-%         if isscalar(s.viewCalProjWide) && s.viewCalProjWide
-%           s.viewCalibrationDataGT = [];      trkersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
-
-%         else
-%           s.viewCalibrationDataGT = cell(0,1);
-%         end
-%         s.gtIsGTMode = false;
-%         s.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
-%         s.gtTblRes = [];
-%       end
-
-%       % 20170922
-%       if ~isfield(s,'suspSelectedMFT')
-%         s.suspSelectedMFT = [];
-%       end
-%       if ~isfield(s,'suspComputeFcn')
-%         s.suspComputeFcn = [];
-%       end
-%       
-%       % 20171102
-%       if ~isfield(s,'xvResults')
-%         s.xvResults = [];
-%         s.xvResultsTS = [];
-%       end
-      
-%       % 20171110
-%       for f={'labeledpostag' 'labeledpostagGT'},f=f{1}; %#ok<FXSET>
-%         val = s.(f);
-%         for i=1:numel(val)
-%           if iscell(val{i})
-%             val{i} = strcmp(val{i},'occ');
-%           end
-%         end
-%         s.(f) = val;
-%       end
-      
-      % 20180309 Preproc params
-      % If preproc params are present in trackerData, move them to s and 
-      % remove from trackerData
-      % KB 20190214: only do this if trackParams not set
-      
-      assert(isTrackParams);
-%       if ~isTrackParams,
-% 
-%         % KB 20190214: leave preproc in here if this is after the 20190214 change to parameters
-%         tfTrackerDataHasPPParams = ~isempty(s.trackerData) && ...
-%           isstruct(s.trackerData) && ...
-%           isfield(s.trackerData,'sPrm') && ...
-%           ~isempty(s.trackerData.sPrm) && ...
-%           isfield(s.trackerData.sPrm,'PreProc');
-%         if isfield(s,'preProcParams')
-%           assert(isfield(s,'preProcH0'));
-%           assert(~tfTrackerDataHasPPParams);
-%         else
-%           if tfTrackerDataHasPPParams
-%             ppPrm = s.trackerData.sPrm.PreProc;
-%             s.trackerData.sPrm = rmfield(s.trackerData.sPrm,'PreProc');
-%             
-%             % 20180314 BackSub. Move backsub-related fields from NborMask to
-%             % BackSub subprop.
-%             if isfield(ppPrm,'NeighborMask')
-%               assert(~isfield(ppPrm,'BackSub'));
-%               ppPrm.BackSub.BGType = ppPrm.NeighborMask.BGType;
-%               ppPrm.BackSub.BGReadFcn = ppPrm.NeighborMask.BGReadFcn;
-%               ppPrm.NeighborMask = rmfield(ppPrm.NeighborMask,{'BGType' 'BGReadFcn'});
-%             end
-%           else
-%             ppPrm = struct();
-%           end
-%           
-%           s.preProcParams = ppPrm;
-%           s.preProcH0 = [];
-%         end
-%         
-%         ppPrm0 = APTParameters.defaultPreProcParamsOldStyle();
-%         if ~isempty(s.preProcParams)
-%           ppPrm1 = s.preProcParams;
-%         else
-%           ppPrm1 = struct();
-%         end
-%         [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,ppPrm1,...
-%           'dontWarnUnrecog',true);
-%         if ~isempty(ppPrm0used)
-%           fprintf('Using default preprocessing parameters for: %s.\n',...
-%             String.cellstr2CommaSepList(ppPrm0used));
-%         end        
-%       end
-%       
-
       if ~isfield(s,'maIsMA')
         s.maIsMA = false;
       end
@@ -3654,6 +3423,26 @@ classdef Labeler < handle
         trkersInfo);
       %assert(all(tf));
       % AL: removing CPR for now until if/when updated 
+      % AL 20210923: Net removal
+      % When an entry is removed from DLNetType, affected trackerDatas will
+      % have their .trnNetTypes loaded as structs. Eliminate these
+      % trackers.
+      for iTrker=1:numel(s.trackerData)
+        if ~isempty(s.trackerData{iTrker}) && isfield(s.trackerData{iTrker},'trnNetType')
+          nt = s.trackerData{iTrker}.trnNetType;
+          if isstruct(nt)
+            try
+              warningNoTrace('Removing obsolete tracker: %s',nt.ValueNames{1});
+            catch
+              warningNoTrace('Removing obsolete tracker: %d',iTrker);
+            end
+            tf(iTrker) = false;
+          end
+        else
+          % TODO: two-stage trackers
+        end
+      end
+      
       s.trackerClass(~tf) = [];
       s.trackerData(~tf) = [];
       loc(~tf) = [];      
