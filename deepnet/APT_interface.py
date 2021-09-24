@@ -3486,6 +3486,8 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
 
     if out_file is None:
         out_file = os.path.join(conf.cachedir,train_name+'_training_samples.mat')
+    elif not out_file.endswith('.mat'):
+        out_file += '.mat'
 
     if model_type == 'deeplabcut':
         logging.info('Generating training data samples is not supported for deeplabcut')
@@ -3510,6 +3512,8 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
         if not conf.is_multi:
             tconf.max_n_animals = 1
             tconf.min_n_animals = 1
+        if model_type.startswith('detect'):
+            tconf.rrange = 0
 
         tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
         tself.create_data_gen()
@@ -3625,7 +3629,7 @@ def train_sb(conf, args, split, split_file=None):
 def train_deepcut(conf, args, split_file=None, model_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache, split_file=split_file)
-    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=args.aug_out+f'_{conf.view}')
     if args.only_aug: return
 
     cfg_dict = create_dlc_cfg_dict(conf, args.train_name)
@@ -3834,7 +3838,14 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                     conf.n_classes = 2
                     conf.flipLandmarkMatches = {}
 
-                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
+                if args.aug_out is not None:
+                    aug_out = args.aug_out + f'_{cur_view}'
+                    if first_stage or second_stage:
+                        estr = 'first' if first_stage else 'second'
+                        aug_out += '_' + estr
+                else:
+                    aug_out = None
+                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out)
                 if args.only_aug: continue
 
                 module_name = 'Pose_{}'.format(net_type)
