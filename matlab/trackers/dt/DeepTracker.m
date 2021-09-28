@@ -1431,7 +1431,8 @@ classdef DeepTracker < LabelTracker
             fprintf(1,'%s\n',syscmds{iview});
             [st,res] = system(syscmds{iview}); 
           end
-          obj.trainImageMontage(syscmds);
+          trnImgMatfiles = obj.trainImageParseCmds(syscmds);
+          obj.trainImageMontage(trnImgMatfiles);
         else
           warningNoTrace('%s backend: Training image generation currently only available when Training.',...
             backEnd.type);
@@ -1517,40 +1518,52 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trainImageMontage(obj,syscmds)
-      pppi = obj.lObj.labelPointsPlotInfo;
-      mrkrProps = struct2paramscell(pppi.MarkerProps);
-      margs0 = {'nr',3,'nc',3,'maskalpha',0.3,...
-        'framelblscolor',[1 1 0],...
-        'pplotargs',mrkrProps};
-%         'colors',pppi.Colors ...
-%         };
-
+    function trnImgMatfiles = trainImageParseCmds(obj,syscmds)
+      trnImgMatfiles = cell(0,1);
       for i=1:numel(syscmds)
         c = string(syscmds{i});
         toks = c.split(' ');
         iAugOut = find(strcmp(toks,'-aug_out'));
         if isempty(iAugOut)
-          warningNoTrace('View/stage %d: could not find -aug_out flag',i);
+          warningNoTrace('View/stage %d: no -aug_out flag',i);
           continue;
         end
         augOut = strip(toks{iAugOut+1},'''');
         pat = [augOut '*.mat'];
-        dd = dir(pat);        
+        dd = dir(pat);
         if isempty(dd)
           warningNoTrace('View/stage %d: no matches for training image file pattern: %s',...
             i,pat);
+        else
+          for j=1:numel(dd)
+            matfile = fullfile(dd(j).folder,dd(j).name);
+            trnImgMatfiles{end+1,1} = matfile; %#ok<AGROW>
+          end
+        end
+      end
+    end
+    
+    function trainImageMontage(obj,trnImgMats)
+      % trnImgMats: cellstr, or could be loaded mats
+      
+      pppi = obj.lObj.labelPointsPlotInfo;
+      mrkrProps = struct2paramscell(pppi.MarkerProps);
+      margs0 = {'nr',3,'nc',3,'maskalpha',0.3,...
+        'framelblscolor',[1 1 0],...
+        'pplotargs',mrkrProps};
+
+      for i=1:numel(trnImgMats)
+        ti = trnImgMats{i};
+        if isempty(ti)
           continue;
         end
-        for j=1:numel(dd)
-          dam = DataAugMontage();
-          matfile = fullfile(dd(j).folder,dd(j).name);
-          dam.init(matfile);
-          npts = size(dam.locs,2);
-          colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
-          margs = [margs0 {'colors' colors}];
-          dam.show(margs);
-        end
+        
+        dam = DataAugMontage();
+        dam.init(ti);
+        npts = size(dam.locs,2);
+        colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
+        margs = [margs0 {'colors' colors}];
+        dam.show(margs);
       end
     end
     

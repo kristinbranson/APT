@@ -487,22 +487,7 @@ classdef TrainMonitorViz < handle
     
     function showTrainingImages(obj)
       trnImgIfo = obj.trainWorkerObj.loadTrainingImages();
-      pppi = obj.dtObj.lObj.labelPointsPlotInfo;
-      mrkrProps = struct2paramscell(pppi.MarkerProps);
-      montageArgs = {'nr',3,'nc',3,'maskalpha',0.3,...
-        'framelblscolor',[1 1 0],...
-        'colors',pppi.Colors ...
-        'pplotargs',mrkrProps ...  
-        };
-      for i=1:numel(trnImgIfo)
-        tii = trnImgIfo{i};
-        if isempty(tii)
-          continue;
-        end
-        dam = DataAugMontage();
-        dam.init(tii);  
-        dam.show(montageArgs);
-      end
+      obj.dtObj.trainImageMontage(trnImgIfo);
     end
     
     function ss = queryAllJobsStatus(obj)
