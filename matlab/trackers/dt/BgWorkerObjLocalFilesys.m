@@ -140,6 +140,19 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
         fprintf('Error in updateIsRunning:\n%s\n',getReport(ME));
       end
     end
+    
+    function trnImgIfo = loadTrainingImages(obj)
+      dm = obj.dmcs;
+      trnImgIfo = cell(size(dm));
+      for i=1:numel(dm)
+        f = dm(i).trainImagesNameLnx;
+        if exist(f,'file')>0
+          trnImgIfo{i} = load(f,'-mat');
+        else
+          warningNoTrace('Training image file ''%s'' does not exist yet.',f);
+        end
+      end
+    end
         
   end
     
