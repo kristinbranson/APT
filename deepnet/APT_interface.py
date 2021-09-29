@@ -3560,6 +3560,13 @@ def train_unet(conf, args, restore, split, split_file=None):
 def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+
+    out_file = args.aug_out
+    if out_file is not None:
+        out_file = args.aug_out + f'_{conf.view}'
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=out_file)
+    if args.only_aug: return
+
     tf.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
@@ -3629,7 +3636,10 @@ def train_sb(conf, args, split, split_file=None):
 def train_deepcut(conf, args, split_file=None, model_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache, split_file=split_file)
-    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=args.aug_out+f'_{conf.view}')
+    out_file = args.aug_out
+    if out_file is not None:
+        out_file = args.aug_out + f'_{conf.view}'
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=out_file)
     if args.only_aug: return
 
     cfg_dict = create_dlc_cfg_dict(conf, args.train_name)

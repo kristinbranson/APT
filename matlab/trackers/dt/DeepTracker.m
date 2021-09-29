@@ -23,7 +23,7 @@ classdef DeepTracker < LabelTracker
     MDN_OCCLUDED_THRESH = 0.5;
   end
   properties % MOVE THIS TO BE
-    jrcgpuqueue = 'gpu_any';
+    jrcgpuqueue = 'gpu_rtx';
     jrcnslots = 1;
     jrcnslotstrack = 1; % transient
   end
@@ -4412,7 +4412,7 @@ classdef DeepTracker < LabelTracker
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
-        'gpuqueue','gpu_any',...
+        'gpuqueue','gpu_rtx',...
         'outfile','/dev/null');
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      
