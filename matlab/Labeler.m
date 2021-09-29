@@ -11117,7 +11117,11 @@ classdef Labeler < handle
         error('Labeler:track','No movie.');
       end
       
-      obj.trackSetAutoParams();
+      if obj.nview==1
+        obj.trackSetAutoParams();
+      else
+        warningNoTrace('Multiview: not auto-setting params.');
+      end
 
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));

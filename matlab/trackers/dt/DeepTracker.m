@@ -595,6 +595,12 @@ classdef DeepTracker < LabelTracker
           end
         end
       end
+      
+      if strcmp(s.jrcgpuqueue,'gpu_any')
+        s.jrcgpuqueue = 'gpu_rtx';
+        warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
+          s.jrcgpuqueue);
+      end
     end
   end
   
