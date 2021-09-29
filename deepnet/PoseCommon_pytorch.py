@@ -18,7 +18,7 @@ from torch import autograd
 import time
 import cv2
 import xtcocotools.mask
-
+import multiResData
 # autograd.set_detect_anomaly(True)
 
 def print_train_data(cur_dict):
@@ -89,14 +89,16 @@ class coco_loader(torch.utils.data.Dataset):
         self.ann = PoseTools.json_load(ann_file)
         self.conf = conf
         self.augment = augment
-        self.len = len(self.ann['images'])
+        self.len = max(conf.batch_size,len(self.ann['images']))
         self.ex_wts = torch.ones(self.len)
 
     def __len__(self):
-        return len(self.ann['images'])
+        return max(self.conf.batch_size,len(self.ann['images']))
 
     def __getitem__(self, item):
         conf = self.conf
+        if (self.conf.batch_size)> len(self.ann['images']):
+            item = np.random.randint(len(self.ann['images']))
         im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
@@ -343,11 +345,13 @@ class PoseCommon_pytorch(object):
         val_tfn = lambda f: decode_augment(f,conf,False)
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
         valtfr = trntfr
+        Z = multiResData.read_and_decode_without_session(trntfr,self.conf.n_classes,())
+        queue_sz = min(len(Z[0]),300)
         # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if not os.path.exists(valtfr):
             logging.info('Validation data set doesnt exist. Using train data set for validation')
             valtfr = trntfr
-        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=300)
+        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=queue_sz)
         val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
         self.train_loader_raw = train_dl_tf
         self.val_loader_raw = val_dl_tf

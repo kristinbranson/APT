@@ -106,18 +106,18 @@ common_conf['mmpose_net'] = '\\"mspn\\"'
 # These parameters got added when we moved to min changes to DLC and leap code. These don't exist the stripped label file and hence adding them manually.
 
 # for leap
-common_conf['use_leap_preprocessing'] = False
-common_conf['leap_val_size'] = 0.15
-common_conf['leap_preshuffle'] = True
-common_conf['leap_filters'] = 64
-common_conf['leap_val_batches_per_epoch'] = 10
-common_conf['leap_reduce_lr_factor'] = 0.1
-common_conf['leap_reduce_lr_patience'] = 3
-common_conf['leap_reduce_lr_min_delta'] = 1e-5
-common_conf['leap_reduce_lr_cooldown'] = 0
-common_conf['leap_reduce_lr_min_lr'] = 1e-10
-common_conf['leap_amsgrad'] = False
-common_conf['leap_upsampling'] = False
+# common_conf['use_leap_preprocessing'] = False
+# common_conf['leap_val_size'] = 0.15
+# common_conf['leap_preshuffle'] = True
+# common_conf['leap_filters'] = 64
+# common_conf['leap_val_batches_per_epoch'] = 10
+# common_conf['leap_reduce_lr_factor'] = 0.1
+# common_conf['leap_reduce_lr_patience'] = 3
+# common_conf['leap_reduce_lr_min_delta'] = 1e-5
+# common_conf['leap_reduce_lr_cooldown'] = 0
+# common_conf['leap_reduce_lr_min_lr'] = 1e-10
+# common_conf['leap_amsgrad'] = False
+# common_conf['leap_upsampling'] = False
 
 # for deeplabcut.
 common_conf['dlc_intermediate_supervision'] = False
@@ -786,6 +786,9 @@ def run_trainining_conf_helper(train_type, view0b, gpu_queue, kwargs):
     if op_af_graph is not None:
         conf_opts['op_affinity_graph'] = op_af_graph
 
+    if train_type in ['mmpose','mdn_joint_fpn']:
+        conf_opts['db_format'] = '\\"coco\\"'
+
     for k in kwargs.keys():
         conf_opts[k] = kwargs[k]
 
@@ -1002,7 +1005,7 @@ def create_normal_dbs(expname ='apt_expt'):
                 apt.create_deepcut_db(conf,split=False,use_cache=True)
             elif 'leap' in train_type:
                 apt.create_leap_db(conf,split=False,use_cache=True)
-            elif 'mmpose' in train_type:
+            elif train_type in ['mmpose', 'mdn_joint_fpn']:
                 apt.create_coco_db(conf, split=True)
             else:
                 apt.create_tfrecord(conf,split=False,use_cache=True)
@@ -1237,6 +1240,8 @@ def create_incremental_dbs(do_split=False):
                     apt.create_deepcut_db(conf, split=True, split_file=split_file,use_cache=True)
                 elif 'leap' in train_type:
                     apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
+                elif train_type in ['mmpose','mdn_joint_fpn']:
+                    apt.create_coco_db(conf,split=True,split_file=split_file,use_cache=True)
                 else:
                     apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
 
@@ -2139,11 +2144,11 @@ def get_incremental_results(dstr=PoseTools.datestr(),queue='gpu_rtx'):
                 else:
                     print('MISSING!!!! MISSING!!!! {} {}'.format(train_type,ndx))
 
-            out_file = os.path.join(conf.cachedir,train_name + '_results.p')
+            out_file = os.path.join(conf.cachedir,train_name_dstr + '_results.p')
             recomp = do_recompute(out_file,r_files)
 
             if recomp:
-                mdn_out = apt_expts.classify_db_all(conf,gt_file,r_files,train_type,name=train_name)
+                mdn_out = apt_expts.classify_db_all(conf,gt_file,r_files,train_type,name=train_name_dstr)
                 with open(out_file,'wb') as f:
                     pickle.dump([mdn_out,r_files],f)
             else:
@@ -2151,7 +2156,8 @@ def get_incremental_results(dstr=PoseTools.datestr(),queue='gpu_rtx'):
                 mdn_out = A[0]
 
             for x, a in enumerate(mdn_out):
-                a[-1] = train_size[x]
+                tndx = int(int(re.search('randsplit_round_(\d)',r_files[x])[1]))
+                a[-1] = train_size[tndx]
                 a[2] = np.array(a[2])
             mdn_out.insert(0,mdn_out[0])
             inc_exp[train_type] = mdn_out

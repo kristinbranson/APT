@@ -67,16 +67,20 @@ if sys.version_info.major > 2:
 reload(rae)
 rae.setup('alice')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+# # rae.create_incremental_dbs()
+# alice_incr_dstr = '20200716' #'20200608'
+# rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
+dstr = '20210708' #'20210629'
 # rae.create_incremental_dbs()
-alice_incr_dstr = '20200716' #'20200608'
-rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
+rae.run_incremental_training(dstr=dstr) #run_type = 'submit'
+
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-alice_incr_dstr = '20200716' #'20200608'
+alice_incr_dstr = '20210708' #'20200716' #'20200608'
 rae.get_incremental_results(dstr=alice_incr_dstr)
 
 ##
