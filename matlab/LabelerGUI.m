@@ -452,6 +452,12 @@ handles.menu_track_edit_skeleton = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_edit_skeleton_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_track_edit_skeleton,handles.menu_track_setparametersfile);
 
+handles.menu_track_viz_dataaug = uimenu('Parent',handles.menu_track,...
+  'Label','Visualize sample training images...',...
+  'Tag','menu_track_viz_dataaug',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_viz_dataaug_Callback',hObject,eventdata,guidata(hObject)));
+moveMenuItemAfter(handles.menu_track_viz_dataaug,handles.menu_track_edit_skeleton);
+
 % handles.menu_track_set_landmark_matches = uimenu(...
 %   'Parent',handles.menu_track,...
 %   'Label','Set landmark flip pairings...',...
@@ -475,7 +481,7 @@ handles.menu_track_training_data_montage = uimenu(...
   'Tag','menu_track_training_data_montage',...
   'Callback',@(h,evtdata)LabelerGUI('menu_track_training_data_montage_Callback',h,evtdata,guidata(h)));
 %moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
-moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_edit_skeleton);
+moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_viz_dataaug);
 delete(handles.menu_track_select_training_data);
 
 handles.menu_track_batch_track = uimenu(...
@@ -2399,7 +2405,7 @@ m.Children = [ ...
   handles.menu_track_backend_config_test...
   ];
 m.Children = m.Children(end:-1:1);
-%m.Children = m.Children(end:-1:1);
+handles.menu_track_viz_dataaug.Enable = oiDckr;
 
 
 function cbkTrackerMenu(src,evt)
@@ -4979,6 +4985,11 @@ else
   set(handles.menu_view_showhide_skeleton,'Enable','on','Checked','on');
   lObj.setShowSkeleton(true);
 end
+
+function menu_track_viz_dataaug_Callback(hObject,evtdata,handles)
+lObj = handles.labelerObj;
+t = lObj.tracker;
+t.retrain('augOnly',true);
 
 function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)
 if strcmpi(get(hObject,'Checked'),'off'),

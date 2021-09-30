@@ -869,7 +869,7 @@ classdef DeepTracker < LabelTracker
       switch dlTrnType
         case DLTrainType.New
           modelChain = datestr(now,'yyyymmddTHHMMSS');
-          if ~isempty(modelChain0)
+          if ~isempty(modelChain0) && ~augOnly
             assert(~strcmp(modelChain,modelChain0));
             fprintf('Training new model %s.\n',modelChain);
             res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization (Recommended)?','Initialization','Yes','No','Cancel','Yes');
