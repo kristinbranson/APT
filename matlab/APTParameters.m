@@ -536,6 +536,19 @@ classdef APTParameters
     
     function [tPrm,canceled,do_update] = ...
         autosetparams(tPrm,lobj)
+      
+%       if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
+%           % Using head-tail for the first stage
+%           align_trx_theta = tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value;
+% 
+%           if ~align_trx_theta
+%             res = questdlg('For head-tail based two-stage detection, align using head-tail is switched off. Aligning animals using the head-tail direction will lead to better performance. Align using the head-tail direction?','Yes','No','Yes');
+%             if strcmp(res,'Yes')
+%               tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value = 1;
+%             end
+%           end
+%       end
+      
       % automatically set the parameters based on labels.
       autoparams = compute_auto_params(lobj);
       kk = autoparams.keys();

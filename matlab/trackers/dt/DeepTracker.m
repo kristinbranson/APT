@@ -399,8 +399,8 @@ classdef DeepTracker < LabelTracker
           % none
       end
       
-      sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = ...
-        netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx;      
+%       sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = ...
+%         netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx;      
     end
     
   end
@@ -808,7 +808,8 @@ classdef DeepTracker < LabelTracker
       end
       
       tfCanTrain = true;      
-    end    
+    end
+    
     
     function retrain(obj,varargin)
       
@@ -858,7 +859,7 @@ classdef DeepTracker < LabelTracker
       if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
       end
-
+      
       obj.bgTrnReset();
       if ~isempty(oldVizObj),
         delete(oldVizObj);
@@ -872,11 +873,13 @@ classdef DeepTracker < LabelTracker
           if ~isempty(modelChain0) && ~augOnly
             assert(~strcmp(modelChain,modelChain0));
             fprintf('Training new model %s.\n',modelChain);
-            res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization (Recommended)?','Initialization','Yes','No','Cancel','Yes');
-            if ~strcmp(res,'Yes')
+            res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization?','Training Initialization','Yes','No','Cancel','Yes');
+            if strcmp(res,'No')
               prev_models = [];
-            else
+            elseif strcmp(res,'Yes')
               prev_models = {obj.trnLastDMC.trainFinalModelLnx};
+            else
+              return;
             end
           end
         case {DLTrainType.Restart DLTrainType.RestartAug}
@@ -888,6 +891,7 @@ classdef DeepTracker < LabelTracker
         otherwise
           assert(false);
       end
+      
                   
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
