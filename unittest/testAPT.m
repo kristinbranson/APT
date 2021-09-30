@@ -257,7 +257,7 @@ classdef testAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'roianma')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210902.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
