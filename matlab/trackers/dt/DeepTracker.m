@@ -802,6 +802,20 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
+%       % check batch size
+%       nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
+%       fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
+%       bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
+%       % Note: at this time, project-level params are set but NOT
+%       % tracker-level params
+%       sPrm = lblObj.trackGetParams();
+%       res = structapply(sPrm.ROOT,bsizeFcn);
+%       tfbsize = cell2mat(res.values);
+%       if any(tfbsize)
+%         reason = 'Your project has fewer labeled targets than a specified training batch size.';
+%         return;
+%       end
+      
       if obj.trnNetType==DLNetType.openpose && isempty(lblObj.skeletonEdges)
         reason = 'Please define a skeleton to track with OpenPose.';
         return;
@@ -2612,7 +2626,11 @@ classdef DeepTracker < LabelTracker
         tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true);
         tblMFT0 = tblMFT;
         if obj.lObj.maIsMA
-          tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked,'flds',{'mov' 'frm'});
+          % 20210930: turn off creation of discontiguous tblMFT's.
+          % - list_file codepath may be non-operational in MA
+          % - conceptually difficult due to stitching etc
+          % tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked,'flds',{'mov' 'frm'});
+
           tblMFT.iTgt(:) = 1;
         else
           tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked);
