@@ -747,7 +747,7 @@ handles.image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
-set(hObject,'WindowScrollWheelFcn',@scroll_callback);
+%set(hObject,'WindowScrollWheelFcn',@scroll_callback);
 % set(hObject,'WindowbuttonDownFcn',@dragstart_callback);
 % set(hObject,'Windowbuttonmotionfcn',@drag_callback);
 % set(hObject,'WindowbuttonUpFcn',@dragend_callback);
@@ -1434,13 +1434,11 @@ lcore = lObj.lblCore;
 if ~isempty(lcore)
   lcore.wbmf(src,evt);
 end
-%lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
 
 function cbkWBUF(src,evt,lObj)
 if ~isempty(lObj.lblCore)
   lObj.lblCore.wbuf(src,evt);
 end
-%lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkWSWF(src,evt,lObj)
 
@@ -1690,18 +1688,19 @@ end
 
 wbmf = @(src,evt)cbkWBMF(src,evt,lObj);
 wbuf = @(src,evt)cbkWBUF(src,evt,lObj);
-if lObj.nview==1 
-  if lObj.hasMovie 
-    % guard against callback during new proj creation etc; lObj.movienc/nr
-    % are NaN which creates a badly-inited imgzoompan. Theoretically seems
-    % this wouldn't matter as the next imgzoompan created (when movie
-    % actually added) should be properly initted...
-    imgzoompan(handles.figure,'wbmf',wbmf,'wbuf',wbuf,...
-      'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+movnr = lObj.movienr;
+movnc = lObj.movienc;
+figs = lObj.gdata.figs_all;
+if lObj.hasMovie
+  % guard against callback during new proj creation etc; lObj.movienc/nr
+  % are NaN which creates a badly-inited imgzoompan. Theoretically seems
+  % this wouldn't matter as the next imgzoompan created (when movie
+  % actually added) should be properly initted...
+  for ivw=1:lObj.nview
+    set(figs(ivw),'WindowScrollWheelFcn',@(src,evt)scroll_callback(src,evt,lObj));
+    imgzoompan(figs(ivw),'wbmf',wbmf,'wbuf',wbuf,...
+      'ImgWidth',movnc(ivw),'ImgHeight',movnr(ivw),'PanMouseButton',2);
   end
-else
-  set(handles.figs_all,'WindowButtonMotionFcn',wbmf);
-  set(handles.figs_all,'WindowButtonUpFcn',wbuf);
 end
 
 % Deal with Axis and Color limits.
@@ -2975,11 +2974,13 @@ if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
 
-function scroll_callback(hObject,eventdata,~)
-h = guidata(hObject);
-curp = get(h.axes_curr,'CurrentPoint');
-xlim = get(h.axes_curr,'XLim');
-ylim = get(h.axes_curr,'YLim');
+function scroll_callback(hObject,eventdata,lObj)
+gdata = lObj.gdata;
+ivw = find(hObject==gdata.figs_all);
+ax = gdata.axes_all(ivw);
+curp = get(ax,'CurrentPoint');
+xlim = get(ax,'XLim');
+ylim = get(ax,'YLim');
 if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
   return
 end
@@ -2991,13 +2992,14 @@ scrl = 1.2;
 if eventdata.VerticalScrollCount>0
   scrl = 1/scrl;
 end
-imglimx = get(h.image_curr,'XData');
-imglimy = get(h.image_curr,'YData');
+him = gdata.images_all(ivw);
+imglimx = get(him,'XData');
+imglimy = get(him,'YData');
 xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
 xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
 ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
 ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
-axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+axis(ax,[xlim(1),xlim(2),ylim(1),ylim(2)]);
 % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
 
 % function dragstart_callback(hObject,eventdata,~)
