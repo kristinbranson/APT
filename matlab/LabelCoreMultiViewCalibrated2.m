@@ -371,7 +371,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       % working set: unchanged
       
-      obj.clearSelected();
+%       obj.clearSelected();
       
       obj.projectionClear();
     end
@@ -398,6 +398,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         return;
       end
       
+      if evt.Button~=1
+        % eg, Button==3 for pan
+        return;
+      end      
+      
       iAx = find(src==obj.hAx);
       iWS = obj.iSetWorking;
       if ~isnan(iWS)
@@ -408,10 +413,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         obj.assignLabelCoordsIRaw(pos,iPt);
         obj.setPointAdjusted(iPt);
         
-        if ~obj.tfSel(iPt)
-          obj.clearSelected();
-          obj.toggleSelectPoint(iPt);
-        end
+%         if ~obj.tfSel(iPt)
+%           obj.clearSelected();
+%           obj.toggleSelectPoint(iPt);
+%         end
         
         obj.projectAddToAnchorSet(iPt)
         if obj.tfOcc(iPt)
@@ -450,7 +455,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     function setPtFullOcc(obj,iPt)
       obj.setPointAdjusted(iPt);
-      obj.clearSelected();
+%       obj.clearSelected();
       
       obj.tfOcc(iPt) = true;
       obj.tfEstOcc(iPt) = false;
@@ -563,15 +568,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
         lObj.labels2VizToggle();
       elseif strcmp(key,'space')
-        [tfSel,iSel] = obj.anyPointSelected();
-        if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
+        [tfSel,iSel] = obj.projectionPointSelected();
+        if tfSel && ~obj.tfOcc(iSel)
           obj.projectToggleState(iSel);
-        elseif ~isnan(obj.iSetWorking)
-          iView = find(gcf==obj.hFig);
-          if ~isempty(iView)
-            iPt = obj.iSet2iPt(obj.iSetWorking,iView);
-            obj.projectToggleState(iPt);
-          end
         end
       elseif strcmp(key,'s') && ~tfCtrl
         if obj.state==LabelState.ADJUST
@@ -582,7 +581,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       elseif any(strcmp(key,{'a' 'hyphen'}))
         lObj.frameDown(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
-        [tfSel,iSel] = obj.anyPointSelected();
+        [tfSel,iSel] = obj.projectionPointSelected();
         if tfSel
           obj.toggleEstOccPoint(iSel);
         end
@@ -595,15 +594,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         end
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         %[tfSel,iSel] = obj.anyPointSelected();
-        
-        iAx = find(get(0,'CurrentFigure')==obj.hFig);
-        iWS = obj.iSetWorking;
-        if isscalar(iAx) && ~isnan(iWS)
-          tfSel = true;
-          iSel = obj.iSet2iPt(iWS,iAx);
-        else
-          tfSel = false;
-        end
+
+        [tfSel,iSel,iAx] = obj.projectionPointSelected();
         if tfSel && ~obj.tfOcc(iSel)
           tfShift = any(strcmp('shift',modifier));
           xy = obj.getLabelCoordsI(iSel);
@@ -678,7 +670,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           tfClearOnly = iSet==obj.iSetWorking;
           obj.projectionWorkingSetClear();
           obj.projectionClear();
-          obj.clearSelected();
+%           obj.clearSelected();
           if ~tfClearOnly
             obj.projectionWorkingSetSet(iSet);
           end
@@ -805,6 +797,23 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     function tf = projectionWorkingSetPointInWS(obj,iPt)
       % Returns true if iPt is in current working set.
       tf = obj.iPt2iSet(iPt)==obj.iSetWorking;
+    end
+    
+    function [tfSel,iSelPt,iAx] = projectionPointSelected(obj)
+      % AL 20211004. Instead of using the notion of "selected"-ness from 
+      % LabelCore (.tfSel, .anyPointSelected, etc), use .iSetWorking and
+      % the figure/view-with-focus. ie, if one of the APT figures/views has
+      % focus, and a working set has been selected, then this implicitly
+      % defines a point that is being worked on (or "selected").
+
+      iAx = find(get(0,'CurrentFigure')==obj.hFig);
+      iWS = obj.iSetWorking;
+      tfSel = isscalar(iAx) && ~isnan(iWS);
+      if tfSel
+        iSelPt = obj.iSet2iPt(iWS,iAx);
+      else
+        iSelPt = nan;
+      end
     end
     
     function projectionInit(obj)
@@ -1078,7 +1087,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       deleteValidHandles(obj.pjtShow3D);
       obj.pjtShow3D = gobjects(0,1);
     end
-    
     
     function projectionRefresh(obj)
       switch obj.pjtState

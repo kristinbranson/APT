@@ -239,7 +239,7 @@ classdef Labeler < handle
     clim_manual = zeros(0,2);
   end
   properties (SetObservable,AbortSet)
-    movieFilesAllHaveLbls = false(0,1); % [nmovsetx1] logical. 
+    movieFilesAllHaveLbls = zeros(0,1); % [nmovsetx1] double; actually, "numLbledTgts"
         % How MFAHL is maintained
         % - At project load, it is updated fully.
         % - Trivial update on movieRm/movieAdd.
@@ -2399,8 +2399,8 @@ classdef Labeler < handle
       fcnNumLbledRows = @Labels.numLbls;
       obj.movieFilesAllHaveLbls = cellfun(fcnNumLbledRows,obj.labels);
       obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labelsGT);      
-      obj.movieFilesAllHaveLbls = cellfun(@Labels.hasLbls,obj.labels);
-      obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
+%       obj.movieFilesAllHaveLbls = cellfun(@Labels.hasLbls,obj.labels);
+%       obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
       obj.gtUpdateSuggMFTableLbledComplete();      
 
       % Tracker.
@@ -10960,6 +10960,11 @@ classdef Labeler < handle
     
     function [tPrm,do_update] = trackSetAutoParams(obj)
       % Compute auto parameters and update them based on user feedback
+      %
+      % AL: note this sets the project-level params based on the current
+      % tracker; if a user uses multiple tracker types (eg: MA-BU and 
+      % MA-TD) and switches between them, the behavior may be odd (eg the
+      % user may get prompted constantly about "changed suggestions" etc)
 
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
@@ -11117,7 +11122,11 @@ classdef Labeler < handle
         error('Labeler:track','No movie.');
       end
       
-      obj.trackSetAutoParams();
+      if obj.nview==1
+        obj.trackSetAutoParams();
+      else
+        warningNoTrace('Multiview: not auto-setting params.');
+      end
 
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));
@@ -11164,7 +11173,7 @@ classdef Labeler < handle
         return;
       end
       
-      % parameters set, whatever other checks tracker wants to do
+      % parameters set at project-level but not at tracker-level
       [tfCanTrain,reason] = obj.tracker.canTrain();
       if ~tfCanTrain,
         return;

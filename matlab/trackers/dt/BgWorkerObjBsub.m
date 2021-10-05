@@ -26,7 +26,6 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       obj.jobID(imov,iview) = jobid;
       
     end
-
     
     function killJob(obj,jID)
       % jID: scalar jobID

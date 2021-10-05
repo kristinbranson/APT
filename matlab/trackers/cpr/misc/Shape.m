@@ -996,7 +996,7 @@ classdef Shape
       % Visualize many Images+Shapes from a Trial set
       % 
       % I: [N] cell vec of images, all same size
-      % p: [NxD] shapes
+      % p: [NxDxntgtmax] shapes
       %
       % optional pvs
       % fig - handle to figure to use
@@ -1029,6 +1029,8 @@ classdef Shape
       opts.imsHeterogeneousPadColor = 0; % grayscale pad color 
       opts.rois = []; % (opt), [Nx4] roi rectangles will be plotted. Each row is [xlo xhi ylo yhi].
       opts.roisRectangleArgs = {'EdgeColor' [0 1 0] 'LineWidth',2}; % P-Vs used for plotting roi rects
+      opts.masks = []; % (opt) [N] cell vec of masks, all the same size. Masks are doubles in [0,1] and scale I directly. Masks MUST have 3 chans!
+      opts.maskalpha = 0.1;
       opts.ppFcn = []; % Optional preprocessing fcn for images
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
@@ -1040,6 +1042,7 @@ classdef Shape
       tfMD = ~isempty(opts.md);
       tfROI = ~isempty(opts.rois);
       tfpp = ~isempty(opts.ppFcn);
+      tfmask = ~isempty(opts.masks);
       
       N = numel(I);
       if opts.imsHeterogeneousSz
@@ -1061,6 +1064,7 @@ classdef Shape
       end      
       assert(size(p,1)==N);
       npts = size(p,2)/2;
+      ntgtmax = size(p,3);
       if tfMD
         assert(size(opts.md,1)==N);
       end
@@ -1095,9 +1099,10 @@ classdef Shape
       end
       
       [imnr,imnc] = size(I{1});
-      bigIm = nan(imnr*opts.nr,imnc*opts.nc);
-      bigP = nan(npts,2,nplot);
-      bigP2 = nan(npts,2,nplot);
+      BIGIMNCHAN = 3; % use color to enable ROIs etc
+      bigIm = nan(imnr*opts.nr,imnc*opts.nc,BIGIMNCHAN); 
+      bigP = nan(npts,2,ntgtmax,nplot);
+      bigP2 = nan(npts,2,ntgtmax,nplot);
       bigROI = nan(nplot,4);
       for iRow=1:opts.nr
         for iCol=1:opts.nc
@@ -1112,18 +1117,28 @@ classdef Shape
           if tfpp
             Ithis = opts.ppFcn(Ithis);
           end
-          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = Ithis;
+          if size(Ithis,3)<BIGIMNCHAN
+            Ithis = repmat(Ithis,1,1,BIGIMNCHAN);
+          end
+          if tfmask
+            maskthis = opts.masks{iIm};
+            Ithis = Ithis*(1-opts.maskalpha) + maskthis*opts.maskalpha;
+          end
+          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1), :) = Ithis;
           
-          xytmp = reshape(p(iIm,:),npts,2);
-          xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
-          xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
-          bigP(:,:,iPlt) = xytmp;
-          
-          if tfP2
-            xytmp = reshape(opts.p2(iIm,:),npts,2);
+          for itgt=1:ntgtmax
+            % surely suboptimal indexing
+            xytmp = reshape(p(iIm,:,itgt),npts,2);
             xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
             xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
-            bigP2(:,:,iPlt) = xytmp;            
+            bigP(:,:,itgt,iPlt) = xytmp;
+          
+            if tfP2
+              xytmp = reshape(opts.p2(iIm,:,itgt),npts,2);
+              xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
+              xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
+              bigP2(:,:,itgt,iPlt) = xytmp;            
+            end
           end
           
           if tfROI
@@ -1149,8 +1164,10 @@ classdef Shape
       hP1 = gobjects(npts,1);
       hP2 = gobjects(npts,1);
       for ipt=1:npts
-        bigx = squeeze(bigP(ipt,1,:));
-        bigy = squeeze(bigP(ipt,2,:));        
+        bigx = bigP(ipt,1,:,:);
+        bigy = bigP(ipt,2,:,:);
+        bigx = bigx(:);
+        bigy = bigy(:);
         hP1(ipt) = plot(bigx,bigy,'o','Color',colors(ipt,:),...
           opts.pplotargs{:});
         if opts.labelpts
@@ -1158,8 +1175,10 @@ classdef Shape
             'color',colors(ipt,:),opts.labelptsargs{:});
         end
         if tfP2
-          bigx = squeeze(bigP2(ipt,1,:));
-          bigy = squeeze(bigP2(ipt,2,:));
+          bigx = squeeze(bigP2(ipt,1,:,:));
+          bigy = squeeze(bigP2(ipt,2,:,:));
+          bigx = bigx(:);
+          bigy = bigy(:);
           hP2(ipt) = plot(bigx,bigy,...          
             opts.p2marker,'MarkerFaceColor',colors(ipt,:),...
             'MarkerEdgeColor',colors(ipt,:),'linewidth',2);

@@ -85,6 +85,12 @@ handles.pnlParams.Units = 'normalized';
 handles.figParameterSetupPos0 = handles.figParameterSetup.Position;
 cbkToggleParamVizPane = @(varargin)toggleParamVizPane(hFig,varargin{:});
 
+addPBViz = false && tfLabelerSupplied && ...
+  handles.labelerObj.trackDLBackEnd.type==DLBackEnd.Docker;
+if addPBViz
+  handles = addVizButton(handles);  
+end
+
 mc = ?PropertyLevelsEnum;
 levels_str = {mc.EnumerationMemberList.Name};
 levels = PropertyLevelsEnum(levels_str);
@@ -108,7 +114,6 @@ setappdata(hFig,'parameterVizHandler',pvh);
 setPropertiesPanel(handles);
 setappdata(hFig,'rootnode',rootnode); % save to glue rootnode back on at output
 
-cbkToggleParamVizPane(false);
 
 ax = handles.axViz;
 ax.XTick = [];
@@ -118,8 +123,24 @@ handles.output = [];
 
 guidata(handles.figParameterSetup,handles);
 
+cbkToggleParamVizPane(false);
+
+
 uiwait(hFig);
 % UIWAIT makes ParameterSetup wait for user response (see UIRESUME)
+
+function handles = addVizButton(handles)
+
+posApp = handles.pbApply.Position;
+posCcl = handles.pbCancel.Position;
+h = copyobj(handles.pbApply,handles.pbApply.Parent);
+dx = posApp(1)-posCcl(1);
+h.Position(1) = h.Position(1) + dx;
+h.String = 'Visualize';
+h.Callback = @pbVisualize_Callback;
+handles.pbVisualize = h;
+handles.popupmenu_level.Position(3) = handles.popupmenu_level.Position(3)+dx;
+
 
 function setPropertiesPanel(handles,varargin)
 
