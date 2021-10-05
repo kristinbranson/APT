@@ -8864,7 +8864,12 @@ classdef Labeler < handle
       if obj.cropProjHasCrops
         error('Currently unsupported for projects with cropping.');
       end
-      
+      switch trxCtredRotAlignMeth
+        case 'headtail'
+          if isempty(obj.skelHead) || isempty(obj.skelTail)
+            error('Please define head/tail landmarks under Track>Landmark parameters.');
+          end
+      end
       
       nvw = obj.nview;
       nphyspts = obj.nPhysPoints;
@@ -9081,16 +9086,8 @@ classdef Labeler < handle
             pWithTrx = [p(:,1:nphyspts)     pTrx(:,1) ...
                         p(:,nphyspts+1:end) pTrx(:,2)]; 
             if strcmp(trxCtredRotAlignMeth,'headtail')
-%               tObj = obj.tracker;
-%               if ~isempty(tObj) && strcmp(tObj.algorithmName,'cpr')
-%                 iptHead = tObj.sPrm.Reg.rotCorrection.iPtHead;
-%                 iptTail = tObj.sPrm.Reg.rotCorrection.iPtTail;
-%               else
-              sPrm = obj.trackGetParams;
-              sPrmRotCorr = sPrm.ROOT.CPR.RotCorrection;
-              iptHead = sPrmRotCorr.HeadPoint;
-              iptTail = sPrmRotCorr.TailPoint;
-                %error('Cannot use head-tail alignment method; no tracking rotational correction settings available.');
+              iptHead = obj.skelHead;
+              iptTail = obj.skelTail;
               pWithTrxAligned = Shape.alignOrientationsOrigin(pWithTrx,iptHead,iptTail); 
               % aligned based on iHead/iTailpts, now with arbitrary offset
               % b/c was rotated about origin. Note the presence of pTrx as
