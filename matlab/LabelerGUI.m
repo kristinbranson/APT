@@ -883,7 +883,7 @@ handles.h_nonma_only = [ ...
 set(handles.output,'Toolbar','figure');
 
 handles = initTblTrx(handles);
-handles = initTblFrames(handles);
+%handles = initTblFrames(handles);
 
 figSetPosAPTDefault(hObject);
 set(hObject,'Units','normalized');
@@ -1178,45 +1178,53 @@ else
   handles.tblTrx = jt;
 end
 
-function handles = initTblFrames(handles)
+function handles = initTblFrames(handles,isMA)
 tbl0 = handles.tblFrames;
-COLNAMES = {'Frame' 'Tgts' 'Pts'};
-
-if 1 
-  set(tbl0,...
-    'ColumnWidth',{100 50 'auto'},...
-    'ColumnName',COLNAMES,...
-    'Data',cell(0,numel(COLNAMES)),...
-    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
-    'FontUnits','points',...
-    'FontSize',9.75,... % matches .tblTrx
-    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
-  % AL 20210209: jtable performance is too painful for larger projs (more 
-  % labels in any single movie). As of 2020x only cost to using regular 
-  % table is inability to set selected/hilite row.
+if isMA
+  COLNAMES = {'Frame' 'Tgts' 'Pts' 'ROIs'};
+  COLWIDTH = {80 40 'auto' 'auto'};
 else
-  jt = uiextras.jTable.Table(...
-    'parent',tbl0.Parent,...
-    'Position',tbl0.Position,...
-    'SelectionMode','single',...
-    'Editable','off',...
-    'ColumnPreferredWidth',[100 50],...
-    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
-  set(jt,'Data',cell(0,numel(COLNAMES)));
-  cr = aptjava.StripedIntegerTableCellRenderer;
-  for i=0:2
-    jt.JColumnModel.getColumn(i).setCellRenderer(cr);
-  end
-  jt.JTable.Foreground = java.awt.Color.WHITE;
-  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-  h = jt.JTable.getTableHeader;
-  h.setPreferredSize(java.awt.Dimension(225,22));
-  jt.JTable.repaint;
-
-  delete(tbl0);
-  handles.tblFrames = jt;
+  COLNAMES = {'Frame' 'Tgts' 'Pts'};
+  COLWIDTH = {100 50 'auto'};
 end
+
+% if 1 
+set(tbl0,...
+  'ColumnWidth',COLWIDTH,...
+  'ColumnName',COLNAMES,...
+  'Data',cell(0,numel(COLNAMES)),...
+  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
+  'FontUnits','points',...
+  'FontSize',9.75,... % matches .tblTrx
+  'BackgroundColor',[.3 .3 .3; .45 .45 .45]);
+
+% AL 20210209: jtable performance is too painful for larger projs (more
+% labels in any single movie). As of 2020x only cost to using regular
+% table is inability to set selected/hilite row.
+
+% else
+%   jt = uiextras.jTable.Table(...
+%     'parent',tbl0.Parent,...
+%     'Position',tbl0.Position,...
+%     'SelectionMode','single',...
+%     'Editable','off',...
+%     'ColumnPreferredWidth',[100 50],...
+%     'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+%     'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
+%   set(jt,'Data',cell(0,numel(COLNAMES)));
+%   cr = aptjava.StripedIntegerTableCellRenderer;
+%   for i=0:2
+%     jt.JColumnModel.getColumn(i).setCellRenderer(cr);
+%   end
+%   jt.JTable.Foreground = java.awt.Color.WHITE;
+%   jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+%   h = jt.JTable.getTableHeader;
+%   h.setPreferredSize(java.awt.Dimension(225,22));
+%   jt.JTable.repaint;
+% 
+%   delete(tbl0);
+%   handles.tblFrames = jt;
+% end
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
@@ -1464,6 +1472,8 @@ lObj = src;
 handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
+
+handles = initTblFrames(handles,lObj.maIsMA);
 
 %curr_status_string=handles.txStatus.String;
 %SetStatus(handles,curr_status_string,true);

@@ -13831,28 +13831,35 @@ classdef Labeler < handle
       cfrm = obj.currFrame;
       tfRow = (tblFrms==cfrm);
       
-      [nTgtsCurFrm,nPtsCurFrm,nRois] = obj.labelPosLabeledFramesStats(cfrm);
-      if nTgtsCurFrm>0 || nRois>0
+      [nTgtsCurFrm,nPtsCurFrm,nRoisCurFrm] = obj.labelPosLabeledFramesStats(cfrm);
+      if nTgtsCurFrm>0 || nRoisCurFrm>0
         if any(tfRow)
           assert(nnz(tfRow)==1);
           iRow = find(tfRow);
-          dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
-          
+          if obj.maIsMA
+            dat(iRow,2:4) = {nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+          else
+            dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
+          end          
           set(tbl,'Data',dat);
           %tbl.setDataFast([iRow iRow],2:3,{nTgtsCurFrm nPtsCurFrm},...
           %  size(dat,1),size(dat,2));
-        else          
-          dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
-          n = size(dat,1);
+        else
+          if obj.maIsMA
+            dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+          else
+            dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
+          end
+          %n = size(dat,1);
           tblFrms(end+1,1) = cfrm;
           [~,idx] = sort(tblFrms);
           dat = dat(idx,:);
-          iRow = find(idx==n);
+          %iRow = find(idx==n);
           
           set(tbl,'Data',dat);
         end
       else
-        iRow = [];
+        %iRow = [];
         if any(tfRow)
           assert(nnz(tfRow)==1);
           dat(tfRow,:) = [];
@@ -13881,7 +13888,12 @@ classdef Labeler < handle
       iFrm = find(tfFrm);
 
       nTgtsLbledFrms = nTgts(tfFrm);
-      dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) ];
+      nRoisLbledFrms = nRois(tfFrm);
+      if obj.maIsMA
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) num2cell(nRoisLbledFrms)];
+      else
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) ];
+      end
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
 
