@@ -128,8 +128,8 @@ classdef DeepTrackerTopDown < DeepTracker
     end
     
     function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
-      [wbObj,prev_models] = myparse(varargin,...        
-        'wbObj',[],'prev_models',[] ...
+      [wbObj,prev_models,augOnly] = myparse(varargin,...        
+        'wbObj',[],'prev_models',[],'augOnly',false ...
         );
             
       cacheDir = obj.lObj.DLCacheDir;      
@@ -259,7 +259,7 @@ classdef DeepTrackerTopDown < DeepTracker
           tfSerial = (nTrainJobs==1);
           [syscmds,containerNames] = ...
             DeepTrackerTopDown.tdTrainCodeGenDockerDMC(tfSerial,...
-            backEnd,dmc,trnCmdType,mntPaths,gpuids);
+            backEnd,dmc,trnCmdType,mntPaths,gpuids,'augOnly',augOnly);
           logfiles = {dmc.trainLogLnx}';
           logfiles = logfiles(1:numel(syscmds)); % for serial, use first
           logcmds = cellfun( ...
@@ -289,7 +289,19 @@ classdef DeepTrackerTopDown < DeepTracker
       
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
-      else        
+      elseif augOnly
+        if backEnd.type==DLBackEnd.Docker
+          for iview=1:nTrainJobs
+            fprintf(1,'%s\n',syscmds{iview});
+            [st,res] = system(syscmds{iview}); 
+          end
+          trnImgMatfiles = obj.trainImageParseCmds(syscmds);
+          obj.trainImageMontage(trnImgMatfiles);
+        else
+          warningNoTrace('%s backend: Training image generation currently only available when Training.',...
+            backEnd.type);
+        end
+      else
         %TRNMON = 'TrkTrnMonVizSimpleStore';
         %fprintf(2,'hardcode trnmon: %s\n',TRNMON);
         obj.bgTrnStart(backEnd,dmc,'trnVizArgs',{'nsets',2}); 
@@ -565,7 +577,11 @@ classdef DeepTrackerTopDown < DeepTracker
     end
     
     function [codestr,containerName] = tdTrainCodeGenDockerDMC(tfSerial,...
-        backend,dmcs,trnCmdType,mntPaths,gpuids)
+        backend,dmcs,trnCmdType,mntPaths,gpuids,varargin)
+      
+      augOnly = myparse(varargin,...
+        'augOnly',false ...
+        );
       
       if tfSerial
         assert(isscalar(gpuids));
@@ -595,10 +611,24 @@ classdef DeepTrackerTopDown < DeepTracker
       end
       assert(numel(gpuids)==numel(stg));
       
-      [codestr,containerName] = arrayfun(...
-        @(zstg,zgpuid) DeepTracker.trainCodeGenDocker(...
-          args{:},zgpuid,'baseArgs',[baseargs0 {'maTopDownStage' zstg}]),...
-        stg(:),gpuids(:),'uni',0);
+      % recall, augOut is just the 'base' for any training montages (eg
+      % stg1/stg2 have appended suffixes)
+      if augOnly
+        [tmpp,tmpf] = fileparts(dmc1.errfileLnx);
+        augOut = [tmpp '/' tmpf];
+      else
+        augOut = '';
+      end
+       
+      stg = stg(:);
+      gpuids = gpuids(:);      
+      codestr = cell(size(stg));
+      containerName = cell(size(stg));
+      for i=1:numel(stg)
+        [codestr{i},containerName{i}] = DeepTracker.trainCodeGenDocker(...
+          args{:},gpuids(i),'baseArgs',[baseargs0 {'maTopDownStage' stg(i)}],...
+          'augOnly',augOnly,'augOut',augOut);
+      end
     end
     
     function codestr = tdTrainCodeGenSSHBsubSingDMC(...

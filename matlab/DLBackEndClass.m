@@ -549,7 +549,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       DFLTBINDPATH = {};
       [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,...
-        shmSize] = ...
+        tty,shmSize] = ...
         myparse(varargin,...
         'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
         'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
@@ -557,6 +557,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
         'detach',true, ...
+        'tty',false,...
         'shmsize',[] ... optional
         );
       
@@ -620,7 +621,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if tfDetach,
         detachstr = '-d';
       else
-        detachstr = '-i';
+        if tty
+          detachstr = '-it';
+        else
+          detachstr = '-i';
+        end        
       end
       
       otherargs = cell(0,1);

@@ -239,7 +239,7 @@ classdef Labeler < handle
     clim_manual = zeros(0,2);
   end
   properties (SetObservable,AbortSet)
-    movieFilesAllHaveLbls = false(0,1); % [nmovsetx1] logical. 
+    movieFilesAllHaveLbls = zeros(0,1); % [nmovsetx1] double; actually, "numLbledTgts"
         % How MFAHL is maintained
         % - At project load, it is updated fully.
         % - Trivial update on movieRm/movieAdd.
@@ -2399,8 +2399,8 @@ classdef Labeler < handle
       fcnNumLbledRows = @Labels.numLbls;
       obj.movieFilesAllHaveLbls = cellfun(fcnNumLbledRows,obj.labels);
       obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labelsGT);      
-      obj.movieFilesAllHaveLbls = cellfun(@Labels.hasLbls,obj.labels);
-      obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
+%       obj.movieFilesAllHaveLbls = cellfun(@Labels.hasLbls,obj.labels);
+%       obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
       obj.gtUpdateSuggMFTableLbledComplete();      
 
       % Tracker.
@@ -8864,7 +8864,12 @@ classdef Labeler < handle
       if obj.cropProjHasCrops
         error('Currently unsupported for projects with cropping.');
       end
-      
+      switch trxCtredRotAlignMeth
+        case 'headtail'
+          if isempty(obj.skelHead) || isempty(obj.skelTail)
+            error('Please define head/tail landmarks under Track>Landmark parameters.');
+          end
+      end
       
       nvw = obj.nview;
       nphyspts = obj.nPhysPoints;
@@ -9081,16 +9086,8 @@ classdef Labeler < handle
             pWithTrx = [p(:,1:nphyspts)     pTrx(:,1) ...
                         p(:,nphyspts+1:end) pTrx(:,2)]; 
             if strcmp(trxCtredRotAlignMeth,'headtail')
-%               tObj = obj.tracker;
-%               if ~isempty(tObj) && strcmp(tObj.algorithmName,'cpr')
-%                 iptHead = tObj.sPrm.Reg.rotCorrection.iPtHead;
-%                 iptTail = tObj.sPrm.Reg.rotCorrection.iPtTail;
-%               else
-              sPrm = obj.trackGetParams;
-              sPrmRotCorr = sPrm.ROOT.CPR.RotCorrection;
-              iptHead = sPrmRotCorr.HeadPoint;
-              iptTail = sPrmRotCorr.TailPoint;
-                %error('Cannot use head-tail alignment method; no tracking rotational correction settings available.');
+              iptHead = obj.skelHead;
+              iptTail = obj.skelTail;
               pWithTrxAligned = Shape.alignOrientationsOrigin(pWithTrx,iptHead,iptTail); 
               % aligned based on iHead/iTailpts, now with arbitrary offset
               % b/c was rotated about origin. Note the presence of pTrx as
@@ -10960,6 +10957,11 @@ classdef Labeler < handle
     
     function [tPrm,do_update] = trackSetAutoParams(obj)
       % Compute auto parameters and update them based on user feedback
+      %
+      % AL: note this sets the project-level params based on the current
+      % tracker; if a user uses multiple tracker types (eg: MA-BU and 
+      % MA-TD) and switches between them, the behavior may be odd (eg the
+      % user may get prompted constantly about "changed suggestions" etc)
 
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
@@ -11117,7 +11119,11 @@ classdef Labeler < handle
         error('Labeler:track','No movie.');
       end
       
-      obj.trackSetAutoParams();
+      if obj.nview==1
+        obj.trackSetAutoParams();
+      else
+        warningNoTrace('Multiview: not auto-setting params.');
+      end
 
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));
@@ -11164,7 +11170,7 @@ classdef Labeler < handle
         return;
       end
       
-      % parameters set, whatever other checks tracker wants to do
+      % parameters set at project-level but not at tracker-level
       [tfCanTrain,reason] = obj.tracker.canTrain();
       if ~tfCanTrain,
         return;
@@ -13831,28 +13837,35 @@ classdef Labeler < handle
       cfrm = obj.currFrame;
       tfRow = (tblFrms==cfrm);
       
-      [nTgtsCurFrm,nPtsCurFrm,nRois] = obj.labelPosLabeledFramesStats(cfrm);
-      if nTgtsCurFrm>0 || nRois>0
+      [nTgtsCurFrm,nPtsCurFrm,nRoisCurFrm] = obj.labelPosLabeledFramesStats(cfrm);
+      if nTgtsCurFrm>0 || nRoisCurFrm>0
         if any(tfRow)
           assert(nnz(tfRow)==1);
           iRow = find(tfRow);
-          dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
-          
+          if obj.maIsMA
+            dat(iRow,2:4) = {nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+          else
+            dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
+          end          
           set(tbl,'Data',dat);
           %tbl.setDataFast([iRow iRow],2:3,{nTgtsCurFrm nPtsCurFrm},...
           %  size(dat,1),size(dat,2));
-        else          
-          dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
-          n = size(dat,1);
+        else
+          if obj.maIsMA
+            dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+          else
+            dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
+          end
+          %n = size(dat,1);
           tblFrms(end+1,1) = cfrm;
           [~,idx] = sort(tblFrms);
           dat = dat(idx,:);
-          iRow = find(idx==n);
+          %iRow = find(idx==n);
           
           set(tbl,'Data',dat);
         end
       else
-        iRow = [];
+        %iRow = [];
         if any(tfRow)
           assert(nnz(tfRow)==1);
           dat(tfRow,:) = [];
@@ -13881,7 +13894,12 @@ classdef Labeler < handle
       iFrm = find(tfFrm);
 
       nTgtsLbledFrms = nTgts(tfFrm);
-      dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) ];
+      nRoisLbledFrms = nRois(tfFrm);
+      if obj.maIsMA
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) num2cell(nRoisLbledFrms)];
+      else
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) ];
+      end
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
 

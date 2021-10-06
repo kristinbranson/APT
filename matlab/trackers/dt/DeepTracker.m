@@ -595,6 +595,12 @@ classdef DeepTracker < LabelTracker
           end
         end
       end
+      
+      if strcmp(s.jrcgpuqueue,'gpu_any')
+        s.jrcgpuqueue = 'gpu_rtx';
+        warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
+          s.jrcgpuqueue);
+      end
     end
   end
   
@@ -796,6 +802,20 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
+%       % check batch size
+%       nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
+%       fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
+%       bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
+%       % Note: at this time, project-level params are set but NOT
+%       % tracker-level params
+%       sPrm = lblObj.trackGetParams();
+%       res = structapply(sPrm.ROOT,bsizeFcn);
+%       tfbsize = cell2mat(res.values);
+%       if any(tfbsize)
+%         reason = 'Your project has fewer labeled targets than a specified training batch size.';
+%         return;
+%       end
+      
       if obj.trnNetType==DLNetType.openpose && isempty(lblObj.skeletonEdges)
         reason = 'Please define a skeleton to track with OpenPose.';
         return;
@@ -807,10 +827,11 @@ classdef DeepTracker < LabelTracker
     
     function retrain(obj,varargin)
       
-      [wbObj,dlTrnType,oldVizObj] = myparse(varargin,...
+      [wbObj,dlTrnType,oldVizObj,augOnly] = myparse(varargin,...
         'wbObj',[],...
         'dlTrnType',DLTrainType.New, ...
-        'oldVizObj',[] ...
+        'oldVizObj',[], ...
+        'augOnly',false ...
         );
       
       if obj.bgTrnIsRunning
@@ -863,7 +884,7 @@ classdef DeepTracker < LabelTracker
       switch dlTrnType
         case DLTrainType.New
           modelChain = datestr(now,'yyyymmddTHHMMSS');
-          if ~isempty(modelChain0)
+          if ~isempty(modelChain0) && ~augOnly
             assert(~strcmp(modelChain,modelChain0));
             fprintf('Training new model %s.\n',modelChain);
             res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization?','Training Initialization','Yes','No','Cancel','Yes');
@@ -888,7 +909,8 @@ classdef DeepTracker < LabelTracker
                   
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
-          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);
+          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,...
+            'wbObj',wbObj,'prev_models',prev_models,'augOnly',augOnly);
         case DLBackEnd.AWS
           obj.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);          
         otherwise
@@ -1219,13 +1241,15 @@ classdef DeepTracker < LabelTracker
       %
       % TODO break up bsub/docker sep meths
 
-      [wbObj,existingTrnPackSLbl,trnStartCbk,trnCompleteCbk,prev_models] = ...
+      [wbObj,existingTrnPackSLbl,trnStartCbk,trnCompleteCbk,prev_models,...
+        augOnly] = ...
         myparse(varargin,...
         'wbObj',[],... 
         'existingTrnPackSLbl',[], ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
         'trnStartCbk',[], ...        
         'trnCompleteCbk',[], ...
-        'prev_models',[] ...
+        'prev_models',[], ...
+        'augOnly',false ...
         );
       
       % (aws check instance running)
@@ -1395,10 +1419,17 @@ classdef DeepTracker < LabelTracker
             logcmds = cell(nTrainJobs,1);
             syscmds = cell(nTrainJobs,1);
             if ivw <= nTrainJobs
-              gpuid = gpuids(ivw);
+              if augOnly
+                [tmpp,tmpf] = fileparts(dmc(ivw).errfileLnx);
+                augOut = [tmpp '/' tmpf];
+              else
+                augOut = '';
+              end                
+              gpuid = gpuids(ivw);              
               [syscmds{ivw},containerNames{ivw}] = ...
                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
-                'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType);
+                'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
+                'augOnly',augOnly,'augOut',augOut);
               logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
                 backEnd.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
@@ -1418,6 +1449,18 @@ classdef DeepTracker < LabelTracker
       
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
+      elseif augOnly
+        if backEnd.type==DLBackEnd.Docker
+          for iview=1:nTrainJobs
+            fprintf(1,'%s\n',syscmds{iview});
+            [st,res] = system(syscmds{iview}); 
+          end
+          trnImgMatfiles = obj.trainImageParseCmds(syscmds);
+          obj.trainImageMontage(trnImgMatfiles);
+        else
+          warningNoTrace('%s backend: Training image generation currently only available when Training.',...
+            backEnd.type);
+        end
       else
         obj.bgTrnStart(backEnd,dmc,'trnStartCbk',trnStartCbk,...
           'trnCompleteCbk',trnCompleteCbk);
@@ -1494,8 +1537,57 @@ classdef DeepTracker < LabelTracker
                 iview,res);
             end
           end
-        end        
+        end
         obj.trnLastDMC = dmc;
+      end
+    end
+    
+    function trnImgMatfiles = trainImageParseCmds(obj,syscmds)
+      trnImgMatfiles = cell(0,1);
+      for i=1:numel(syscmds)
+        c = string(syscmds{i});
+        toks = c.split(' ');
+        iAugOut = find(strcmp(toks,'-aug_out'));
+        if isempty(iAugOut)
+          warningNoTrace('View/stage %d: no -aug_out flag',i);
+          continue;
+        end
+        augOut = strip(toks{iAugOut+1},'''');
+        pat = [augOut '*.mat'];
+        dd = dir(pat);
+        if isempty(dd)
+          warningNoTrace('View/stage %d: no matches for training image file pattern: %s',...
+            i,pat);
+        else
+          for j=1:numel(dd)
+            matfile = fullfile(dd(j).folder,dd(j).name);
+            trnImgMatfiles{end+1,1} = matfile; %#ok<AGROW>
+          end
+        end
+      end
+    end
+    
+    function trainImageMontage(obj,trnImgMats)
+      % trnImgMats: cellstr, or could be loaded mats
+      
+      pppi = obj.lObj.labelPointsPlotInfo;
+      mrkrProps = struct2paramscell(pppi.MarkerProps);
+      margs0 = {'nr',3,'nc',3,'maskalpha',0.3,...
+        'framelblscolor',[1 1 0],...
+        'pplotargs',mrkrProps};
+
+      for i=1:numel(trnImgMats)
+        ti = trnImgMats{i};
+        if isempty(ti)
+          continue;
+        end
+        
+        dam = DataAugMontage();
+        dam.init(ti);
+        npts = size(dam.locs,2);
+        colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
+        margs = [margs0 {'colors' colors}];
+        dam.show(margs);
       end
     end
     
@@ -2534,7 +2626,11 @@ classdef DeepTracker < LabelTracker
         tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true);
         tblMFT0 = tblMFT;
         if obj.lObj.maIsMA
-          tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked,'flds',{'mov' 'frm'});
+          % 20210930: turn off creation of discontiguous tblMFT's.
+          % - list_file codepath may be non-operational in MA
+          % - conceptually difficult due to stitching etc
+          % tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked,'flds',{'mov' 'frm'});
+
           tblMFT.iTgt(:) = 1;
         else
           tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked);
@@ -4353,10 +4449,13 @@ classdef DeepTracker < LabelTracker
         modelChainID,trainID,dllbl,cache,errfile,netType,netMode,trainType,...
         view1b,mntPaths,gpuid,varargin)
                   
-      [dockerargs,isMultiView,prev_models,baseargs0] = myparse(varargin,...
+      [dockerargs,isMultiView,prev_models,augOnly,augOut,baseargs0] = ... 
+        myparse(varargin,...
         'dockerargs',{},...
         'isMultiView',false,...
         'prev_model',[],...
+        'augOnly',false, ...
+        'augOut','', ... % used only if augOnly==true  
         'baseargs',{} ...
         );
       
@@ -4375,7 +4474,7 @@ classdef DeepTracker < LabelTracker
         netTypeObj = netType;
       end
       basecmd = APTInterf.trainCodeGen(modelChainID,dllbl,cache,errfile,...
-        netTypeObj,netMode,baseargs{:});      
+        netTypeObj,netMode,baseargs{:},'augOnly',augOnly,'augOut',augOut);      
 
       if isempty(view1b),      
         containerName = [modelChainID '_' trainID '_' netMode.shortCode];
@@ -4391,7 +4490,8 @@ classdef DeepTracker < LabelTracker
         shmSize = [];
       end
       codestr = backend.codeGenDockerGeneral(basecmd,containerName,...
-        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:},'shmsize',shmSize);      
+        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:},...
+        'detach',~augOnly,'tty',augOnly,'shmsize',shmSize);      
     end
     function [codestr] = trainCodeGenConda(modelChainID,trainID,...
         dllbl,cache,errfile,netType,trainType,view1b,gpuid,varargin)
@@ -4421,14 +4521,19 @@ classdef DeepTracker < LabelTracker
     end
     function [codestr,containerName] = trainCodeGenDockerDMC(...
         dmc,backend,mntPaths,gpuid,varargin)
-      [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
+      [trnCmdType,augOnly,augOut,leftovers] = myparse_nocheck(varargin,...
+        'trnCmdType',dmc.trainType,...
+        'augOnly',false, ...
+        'augOut','' ...
+        );
       if ~isempty(dmc.prev_models)
         leftovers = [leftovers {'prev_model' dmc.prev_models}];
       end
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.netMode,...
-        trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:});
+        trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:},...
+        'augOnly',augOnly,'augOut',augOut);
     end
     function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
