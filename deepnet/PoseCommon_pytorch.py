@@ -329,7 +329,6 @@ class PoseCommon_pytorch(object):
     def compute_dist(self,output,labels):
         return np.nan
 
-
     def create_data_gen(self):
         if self.conf.db_format == 'tfrecord':
             return self.create_tf_data_gen()
@@ -355,9 +354,8 @@ class PoseCommon_pytorch(object):
         val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
         self.train_loader_raw = train_dl_tf
         self.val_loader_raw = val_dl_tf
-        randi = np.random.randint(1000)
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,worker_init_fn=lambda id: np.random.seed(id+randi))
+        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,worker_init_fn=lambda id: np.random.seed(id))
         self.val_dl = torch.utils.data.DataLoader(val_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
@@ -376,8 +374,7 @@ class PoseCommon_pytorch(object):
         self.train_loader_raw = train_dl_coco
         self.val_loader_raw = val_dl_coco
 
-        randi = np.random.randint(100000)
-        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,shuffle=True,worker_init_fn=lambda id: np.random.seed(id+randi))
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,shuffle=True,worker_init_fn=lambda id: np.random.seed(id))
         self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
@@ -407,8 +404,7 @@ class PoseCommon_pytorch(object):
                     train_sampler = None
                     shuffle = True if self.conf.db_format == 'coco' else False
 
-                randi = np.random.randint(100000)
-                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=lambda id: np.random.seed(id+randi))
+                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=lambda id: np.random.seed(id+100*self.train_epoch))
                 self.train_iter = iter(self.train_dl)
                 ndata = next(self.train_iter)
             else:
