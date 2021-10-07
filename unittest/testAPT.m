@@ -581,7 +581,6 @@ classdef testAPT < handle
           end
         end
       end
-
       assert(tndx > 0)
       lObj.trackSetCurrentTracker(tndx);
     end
