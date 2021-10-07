@@ -32,7 +32,7 @@ classdef DataAugMontage < handle
       I = mat2cell(obj.ims,ones(n,1),imnr,imnc,nch);
       I = cellfun(@squeeze,I,'uni',0);
       I = cellfun(@(x)x(:,:,1),I,'uni',0);
-      I = cellfun(@lclConvertIm2Double,I,'uni',0);
+      I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
       p = reshape(obj.locs,n,npts*d,ntgts);
       if isempty(obj.mask)
         masks = [];
@@ -57,17 +57,19 @@ classdef DataAugMontage < handle
     
   end
   
-end
-
-function img = lclConvertIm2Double(img)
-if isa(img,'uint8')
-  img = double(img)/255;
-elseif isa(img,'uint16')
-  img = double(img)/(2^16-1);
-elseif max(img(:))>1.0
-  % double, but assume in range [0,255]  
-  img = img/255;
-else
-  % none
-end
+  methods (Static)
+    function img = convertIm2Double(img)
+      if isa(img,'uint8')
+        img = double(img)/255;
+      elseif isa(img,'uint16')
+        img = double(img)/(2^16-1);
+      elseif max(img(:))>1.0
+        % double, but assume in range [0,255]
+        img = img/255;
+      else
+        % none
+      end
+    end
+  end
+  
 end

@@ -239,11 +239,11 @@ handles.menu_setup_label_overlay_montage = uimenu('Parent',handles.menu_labeling
   'Label','Label Overlay Montage',...
   'Tag','menu_setup_label_overlay_montage',...
   'Visible','on');
-handles.menu_setup_label_overlay_montage_trx_centered = uimenu('Parent',handles.menu_labeling_setup,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_overlay_montage_trx_centered_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Label Overlay Montage (trx centered)',...
-  'Tag','menu_setup_label_overlay_montage_trx_centered',...
-  'Visible','on');
+% handles.menu_setup_label_overlay_montage_trx_centered = uimenu('Parent',handles.menu_labeling_setup,...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_overlay_montage_trx_centered_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Label','Label Overlay Montage (trx centered)',...
+%   'Tag','menu_setup_label_overlay_montage_trx_centered',...
+%   'Visible','on');
 handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_set_nframe_skip_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set Frame Increment',...
@@ -274,8 +274,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_load_calibration_file'
    'menu_setup_use_calibration'
    'menu_setup_ma_twoclick_align'
-   'menu_setup_label_overlay_montage'
-   'menu_setup_label_overlay_montage_trx_centered'
+   'menu_setup_label_overlay_montage' % 'menu_setup_label_overlay_montage_trx_centered'
    'menu_setup_set_labeling_point'
    'menu_setup_set_nframe_skip'
    'menu_setup_lock_all_frames'
@@ -1766,8 +1765,8 @@ TRX_MENUS = {...
   'menu_view_trajectories_centervideoontarget'
   'menu_view_rotate_video_target_up'
   'menu_view_hide_trajectories'
-  'menu_view_plot_trajectories_current_target_only'
-  'menu_setup_label_overlay_montage_trx_centered'};
+  'menu_view_plot_trajectories_current_target_only'};
+%  'menu_setup_label_overlay_montage_trx_centered'};
 tftblon = lObj.hasTrx || lObj.maIsMA;
 onOff = onIff(tftblon);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
@@ -3415,27 +3414,40 @@ lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
 
 function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
-
-SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
-handles.labelerObj.labelOverlayMontage('trxCtred',false); 
-ClearStatus(handles);
-
-function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
-
 SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
 lObj = handles.labelerObj;
-hFig(1) = lObj.labelOverlayMontage('trxCtred',true,...
-  'trxCtredRotAlignMeth','none'); 
-try
-  hFig(2) = lObj.labelOverlayMontage('trxCtred',true,...
-    'trxCtredRotAlignMeth','headtail','hFig0',hFig(1)); 
-catch ME
-  warningNoTrace('Could not create head-tail aligned montage: %s',ME.message);
-  hFig(2) = figurecascaded(hFig(1));
+if lObj.hasTrx
+  lObj.labelOverlayMontage();
+  lObj.labelOverlayMontage('ctrMeth','trx');
+  lObj.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','trxtheta');
+  % could also use headtail for centering/alignment but skip for now.  
+else % lObj.maIsMA, or SA-non-trx
+  lObj.labelOverlayMontage();
+  lObj.labelOverlayMontage('ctrMeth','centroid');
+  tfHTdefined = ~isempty(lObj.skelHead) && ~isempty(lObj.skelTail);
+  if tfHTdefined  
+    lObj.labelOverlayMontage('ctrMeth','centroid','rotAlignMeth','headtail');
+  else
+    warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
+  end
 end
-hFig(3) = lObj.labelOverlayMontage('trxCtred',true,...
-  'trxCtredRotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
 ClearStatus(handles);
+
+% function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
+% 
+% SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
+% lObj = handles.labelerObj;
+% hFig(1) = lObj.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','none'); 
+% try
+%   hFig(2) = lObj.labelOverlayMontage('ctrMeth','trx',...
+%     'rotAlignMeth','headtail','hFig0',hFig(1)); 
+% catch ME
+%   warningNoTrace('Could not create head-tail aligned montage: %s',ME.message);
+%   hFig(2) = figurecascaded(hFig(1));
+% end
+% hFig(3) = lObj.labelOverlayMontage('ctrMeth','trx',...
+%   'rotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
+% ClearStatus(handles);
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
