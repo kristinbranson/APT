@@ -747,7 +747,7 @@ handles.image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
-set(hObject,'WindowScrollWheelFcn',@scroll_callback);
+%set(hObject,'WindowScrollWheelFcn',@scroll_callback);
 % set(hObject,'WindowbuttonDownFcn',@dragstart_callback);
 % set(hObject,'Windowbuttonmotionfcn',@drag_callback);
 % set(hObject,'WindowbuttonUpFcn',@dragend_callback);
@@ -889,7 +889,7 @@ handles.h_nonma_only = [ ...
 set(handles.output,'Toolbar','figure');
 
 handles = initTblTrx(handles);
-handles = initTblFrames(handles);
+%handles = initTblFrames(handles);
 
 figSetPosAPTDefault(hObject);
 set(hObject,'Units','normalized');
@@ -1184,45 +1184,53 @@ else
   handles.tblTrx = jt;
 end
 
-function handles = initTblFrames(handles)
+function handles = initTblFrames(handles,isMA)
 tbl0 = handles.tblFrames;
-COLNAMES = {'Frame' 'Tgts' 'Pts'};
-
-if 1 
-  set(tbl0,...
-    'ColumnWidth',{100 50 'auto'},...
-    'ColumnName',COLNAMES,...
-    'Data',cell(0,numel(COLNAMES)),...
-    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
-    'FontUnits','points',...
-    'FontSize',9.75,... % matches .tblTrx
-    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
-  % AL 20210209: jtable performance is too painful for larger projs (more 
-  % labels in any single movie). As of 2020x only cost to using regular 
-  % table is inability to set selected/hilite row.
+if isMA
+  COLNAMES = {'Frame' 'Tgts' 'Pts' 'ROIs'};
+  COLWIDTH = {80 40 'auto' 'auto'};
 else
-  jt = uiextras.jTable.Table(...
-    'parent',tbl0.Parent,...
-    'Position',tbl0.Position,...
-    'SelectionMode','single',...
-    'Editable','off',...
-    'ColumnPreferredWidth',[100 50],...
-    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
-  set(jt,'Data',cell(0,numel(COLNAMES)));
-  cr = aptjava.StripedIntegerTableCellRenderer;
-  for i=0:2
-    jt.JColumnModel.getColumn(i).setCellRenderer(cr);
-  end
-  jt.JTable.Foreground = java.awt.Color.WHITE;
-  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-  h = jt.JTable.getTableHeader;
-  h.setPreferredSize(java.awt.Dimension(225,22));
-  jt.JTable.repaint;
-
-  delete(tbl0);
-  handles.tblFrames = jt;
+  COLNAMES = {'Frame' 'Tgts' 'Pts'};
+  COLWIDTH = {100 50 'auto'};
 end
+
+% if 1 
+set(tbl0,...
+  'ColumnWidth',COLWIDTH,...
+  'ColumnName',COLNAMES,...
+  'Data',cell(0,numel(COLNAMES)),...
+  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
+  'FontUnits','points',...
+  'FontSize',9.75,... % matches .tblTrx
+  'BackgroundColor',[.3 .3 .3; .45 .45 .45]);
+
+% AL 20210209: jtable performance is too painful for larger projs (more
+% labels in any single movie). As of 2020x only cost to using regular
+% table is inability to set selected/hilite row.
+
+% else
+%   jt = uiextras.jTable.Table(...
+%     'parent',tbl0.Parent,...
+%     'Position',tbl0.Position,...
+%     'SelectionMode','single',...
+%     'Editable','off',...
+%     'ColumnPreferredWidth',[100 50],...
+%     'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+%     'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
+%   set(jt,'Data',cell(0,numel(COLNAMES)));
+%   cr = aptjava.StripedIntegerTableCellRenderer;
+%   for i=0:2
+%     jt.JColumnModel.getColumn(i).setCellRenderer(cr);
+%   end
+%   jt.JTable.Foreground = java.awt.Color.WHITE;
+%   jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+%   h = jt.JTable.getTableHeader;
+%   h.setPreferredSize(java.awt.Dimension(225,22));
+%   jt.JTable.repaint;
+% 
+%   delete(tbl0);
+%   handles.tblFrames = jt;
+% end
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
@@ -1434,13 +1442,11 @@ lcore = lObj.lblCore;
 if ~isempty(lcore)
   lcore.wbmf(src,evt);
 end
-%lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
 
 function cbkWBUF(src,evt,lObj)
 if ~isempty(lObj.lblCore)
   lObj.lblCore.wbuf(src,evt);
 end
-%lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkWSWF(src,evt,lObj)
 
@@ -1470,6 +1476,8 @@ lObj = src;
 handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
+
+handles = initTblFrames(handles,lObj.maIsMA);
 
 %curr_status_string=handles.txStatus.String;
 %SetStatus(handles,curr_status_string,true);
@@ -1690,18 +1698,19 @@ end
 
 wbmf = @(src,evt)cbkWBMF(src,evt,lObj);
 wbuf = @(src,evt)cbkWBUF(src,evt,lObj);
-if lObj.nview==1 
-  if lObj.hasMovie 
-    % guard against callback during new proj creation etc; lObj.movienc/nr
-    % are NaN which creates a badly-inited imgzoompan. Theoretically seems
-    % this wouldn't matter as the next imgzoompan created (when movie
-    % actually added) should be properly initted...
-    imgzoompan(handles.figure,'wbmf',wbmf,'wbuf',wbuf,...
-      'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+movnr = lObj.movienr;
+movnc = lObj.movienc;
+figs = lObj.gdata.figs_all;
+if lObj.hasMovie
+  % guard against callback during new proj creation etc; lObj.movienc/nr
+  % are NaN which creates a badly-inited imgzoompan. Theoretically seems
+  % this wouldn't matter as the next imgzoompan created (when movie
+  % actually added) should be properly initted...
+  for ivw=1:lObj.nview
+    set(figs(ivw),'WindowScrollWheelFcn',@(src,evt)scroll_callback(src,evt,lObj));
+    imgzoompan(figs(ivw),'wbmf',wbmf,'wbuf',wbuf,...
+      'ImgWidth',movnc(ivw),'ImgHeight',movnr(ivw),'PanMouseButton',2);
   end
-else
-  set(handles.figs_all,'WindowButtonMotionFcn',wbmf);
-  set(handles.figs_all,'WindowButtonUpFcn',wbuf);
 end
 
 % Deal with Axis and Color limits.
@@ -2975,11 +2984,13 @@ if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
 
-function scroll_callback(hObject,eventdata,~)
-h = guidata(hObject);
-curp = get(h.axes_curr,'CurrentPoint');
-xlim = get(h.axes_curr,'XLim');
-ylim = get(h.axes_curr,'YLim');
+function scroll_callback(hObject,eventdata,lObj)
+gdata = lObj.gdata;
+ivw = find(hObject==gdata.figs_all);
+ax = gdata.axes_all(ivw);
+curp = get(ax,'CurrentPoint');
+xlim = get(ax,'XLim');
+ylim = get(ax,'YLim');
 if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
   return
 end
@@ -2991,13 +3002,14 @@ scrl = 1.2;
 if eventdata.VerticalScrollCount>0
   scrl = 1/scrl;
 end
-imglimx = get(h.image_curr,'XData');
-imglimy = get(h.image_curr,'YData');
+him = gdata.images_all(ivw);
+imglimx = get(him,'XData');
+imglimy = get(him,'YData');
 xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
 xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
 ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
 ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
-axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+axis(ax,[xlim(1),xlim(2),ylim(1),ylim(2)]);
 % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
 
 % function dragstart_callback(hObject,eventdata,~)
