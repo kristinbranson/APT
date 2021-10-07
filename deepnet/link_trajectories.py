@@ -1021,7 +1021,7 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
     confd.rrange = 15.
   else:
     confd.rrange = 180.
-  confd.trange = dat[0].shape[:2].min()/10
+  confd.trange = min(dat[0].shape[:2])/10
   confd.horzFlip = False
   confd.vertFlip = False
 

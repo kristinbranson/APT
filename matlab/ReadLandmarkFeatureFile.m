@@ -1,6 +1,6 @@
 function features = ReadLandmarkFeatureFile(filename)
 
-rawpropinfo = ReadYaml(filename);
+rawpropinfo = yaml.ReadYaml(filename);
 
 features = EmptyLandmarkFeatureArray();
 
