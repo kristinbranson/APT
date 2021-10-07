@@ -1,4 +1,4 @@
-cmd = ' -name 20211001T143604 -view 1 -cache /groups/branson/home/kabram/temp/tt -type mdn_joint_fpn /groups/flyprojects/home/olympiad/.apt/tpea918f44_6013_416c_ae58_763c0d963c02/multitarget_bubble_training_20210523_allGT_AR_MAAPT_groneDSp5/20211001T143604_20211001T143605.lbl train -use_cache'
+cmd = '-name 20211001T142825 -view 1 -cache /groups/branson/home/kabram/temp/tt -type mdn /groups/flyprojects/home/olympiad/.apt/tp29cd37d0_58af_4ffd_97e3_6dfb8226d9b9/multitarget_bubble_training_20210523_allGT_AR_MAAPT_groneDSp5/20211001T142825_20211001T142826.lbl train -use_cache '
 # cmd = '-name 20210923T145356 -json_trn_file /home/al/.apt/tp9fd1a180_c707_479e_a3e3_d9abcc1a8535/rat_test/loc.json -stage multi -conf_params db_format \"coco\" -type multi_mdn_joint_torch -conf_params2 db_format \"tfrecord\" -type2 mdn_joint_fpn -cache"/home/al/.apt/tp9fd1a180_c707_479e_a3e3_d9abcc1a8535 train -use_cache -aug_out  /dat0/tmp/imgs.mat -only_aug'
 from reuse import *
 # cmd = cmd.replace('"/','/')
