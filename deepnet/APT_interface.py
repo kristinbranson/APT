@@ -382,7 +382,7 @@ def convert_to_coco(coco_info, ann, data, conf):
             w = lmax[0] - lmin[0]
             h = lmax[1] - lmin[1]
             bbox = [lmin[0], lmin[1], w, h]
-            segm = [bbox]
+            segm = [[lmin[0],lmin[1],lmin[0],lmax[1],lmax[0],lmax[1],lmax[0],lmin[1]]]
         else:
             lmin = roi[idx].min(axis=0).astype('float64')
             lmax = roi[idx].max(axis=0).astype('float64')
@@ -432,9 +432,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
 
     skeleton = [[i, i + 1] for i in range(conf.n_classes - 1)]
     names = ['pt_{}'.format(i) for i in range(conf.n_classes)]
-    categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}, {'id': 2,
-                                                                                                                'super_category': 'neg_box',
-                                                                                                                'name': 'neg_box'}]
+    categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}, {'id': 2, 'super_category': 'neg_box', 'name': 'neg_box'}]
 
     train_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
     train_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'train')}
@@ -3481,7 +3479,16 @@ def classify_movie_all(model_type, **kwargs):
         logging.exception('Could not track movie')
     close_fn()
 
-def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True):
+
+def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
+                           distort=True):
+    # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
+    p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort))
+    p.start()
+    p.join()
+
+
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True):
     # Create training samples.
 
     if out_file is None:
@@ -3507,6 +3514,8 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
     else:
         import copy
         import PoseCommon_pytorch
+        import gc
+        import torch
         tconf = copy.deepcopy(conf)
         tconf.batch_size = 1
         if not conf.is_multi:
@@ -3540,7 +3549,10 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
             mask = np.array([])
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
 
-        del tself
+        del tself.train_dl, tself.val_dl, tself
+        torch.cuda.empty_cache()
+        gc.collect()
+
     hdf5storage.savemat(out_file, save_dict)
     logging.info('sample training data saved to %s' % out_file)
 
