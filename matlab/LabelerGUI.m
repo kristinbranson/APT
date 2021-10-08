@@ -3423,12 +3423,14 @@ if lObj.hasTrx
   % could also use headtail for centering/alignment but skip for now.  
 else % lObj.maIsMA, or SA-non-trx
   lObj.labelOverlayMontage();
-  lObj.labelOverlayMontage('ctrMeth','centroid');
-  tfHTdefined = ~isempty(lObj.skelHead) && ~isempty(lObj.skelTail);
-  if tfHTdefined  
-    lObj.labelOverlayMontage('ctrMeth','centroid','rotAlignMeth','headtail');
-  else
-    warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
+  if ~lObj.isMultiView
+    lObj.labelOverlayMontage('ctrMeth','centroid');
+    tfHTdefined = ~isempty(lObj.skelHead) && ~isempty(lObj.skelTail);
+    if tfHTdefined  
+      lObj.labelOverlayMontage('ctrMeth','centroid','rotAlignMeth','headtail');
+    else
+      warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
+    end
   end
 end
 ClearStatus(handles);
