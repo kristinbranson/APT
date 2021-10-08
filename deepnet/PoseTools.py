@@ -507,7 +507,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None):
                   ((not conf.use_scale_factor_range) and srange < .01)
     
     if conf.rrange < 1 and conf.trange< 1 and no_rescale:
-        return img, locs
+        return img, locs, mask
 
     locs = locs.copy()
     img = img.copy()

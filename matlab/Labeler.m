@@ -818,7 +818,7 @@ classdef Labeler < handle
       n = numel(iMov);
       v = cell(n,obj.nview);
       
-      sMacro = obj.projMacros;
+      sMacro = obj.projMacrosGetWithAuto;
       mfa = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
       mfaGT = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       tfa = obj.trxFilesAll;
@@ -11068,6 +11068,7 @@ classdef Labeler < handle
       % MA-TD) and switches between them, the behavior may be odd (eg the
       % user may get prompted constantly about "changed suggestions" etc)
 
+        
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
 % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
@@ -11077,6 +11078,13 @@ classdef Labeler < handle
       tPrm = APTParameters.defaultParamsTree;
       % Overlay our starting pt
       tPrm.structapply(sPrmCurrent);
+      
+      if obj.isMultiView        
+        warningNoTrace('Multiview project: not auto-setting params.');
+        do_update = false;
+        return;
+      end      
+      
       if obj.trackerIsTwoStage && ~obj.trackerIsObjDet && isempty(obj.skelHead)
         uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks'));
         landmark_specs('lObj',obj,'waiton_ui',true);
@@ -11224,12 +11232,8 @@ classdef Labeler < handle
         error('Labeler:track','No movie.');
       end
       
-      if obj.nview==1
-        obj.trackSetAutoParams();
-      else
-        warningNoTrace('Multiview: not auto-setting params.');
-      end
-
+      obj.trackSetAutoParams();
+      
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));
         % assert this as we do not fetch tblMFTp to treatInfPosAsOcc
