@@ -8919,11 +8919,11 @@ classdef Labeler < handle
         if ~strcmp(ctrMeth,'none')
           switch rotAlignMeth
             case 'none'
-              rotStr = 'Unaligned';
+              rotStr = 'Centered, unaligned';
             case 'headtail'
-              rotStr = 'Head/tail aligned';
+              rotStr = 'Centered, head/tail aligned';
             case 'trxtheta'
-              rotStr = 'Trx/theta aligned';
+              rotStr = 'Centered, trx/theta aligned';
           end
         else
           rotStr = '';
