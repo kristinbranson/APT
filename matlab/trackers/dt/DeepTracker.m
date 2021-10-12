@@ -1590,6 +1590,83 @@ classdef DeepTracker < LabelTracker
         dam.show(margs);
       end
     end
+
+    function trainPackMontage(obj,varargin)
+      
+      [plotnr,plotnc] = myparse(varargin,...
+        'plotnr',3,...
+        'plotnc',4 ...
+        );
+      
+      dm = obj.trnLastDMC;
+      tfTrnPackExists = false;
+      if ~isempty(dm) && exist(dm(1).dirProjLnx,'dir')>0
+        tpdir = dm(1).dirProjLnx;
+        tfTrnPackExists = exist(fullfile(tpdir,'loc.json'),'file')>0;        
+      end
+      
+      tfsucc = false;
+      if tfTrnPackExists
+        try
+          [~,~,~,~,locg] = Lbl.loadPack(tpdir);
+          tfsucc = true; 
+        catch ME %#ok<NASGU>
+          emsg = 'Could not load training package.';
+        end                
+      else
+        emsg = 'Training package does not exist.';
+      end
+      
+      if ~tfsucc
+        errordlg(emsg,'Training package missing');
+      end
+      
+      ldata = locg.locdata;
+      I = arrayfun(@(x)imread(x.img{1}),ldata,'uni',0);
+      I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
+      N = numel(ldata);
+      D = size(ldata(1).pabs,1);
+      ntgtmax = max([ldata.ntgt]);
+      p = nan(N,D,ntgtmax);
+      rois = cell(N,1);
+      for i=1:N
+        ntgt = ldata(i).ntgt;
+        p(i,:,1:ntgt) = ldata(i).pabs;
+        roi = ldata(i).extra_roi.'; % nroi x 8
+        if ~isempty(roi)
+          roi = roi(:,[2 3 5 6]); % xlo xhi ylo yhi
+          rois{i} = roi;
+        else
+          rois{i} = nan(0,4);
+        end
+      end
+      lbls = arrayfun(@(x)sprintf('%d.%d',x.imov,x.frm),ldata,'uni',0);
+      if mean(I{1}(:))>0.5
+        lblscolor = [0 0 0];
+      else
+        lblscolor = [1 1 1];
+      end
+      
+      pppi = obj.lObj.labelPointsPlotInfo;
+      mrkrProps = struct2paramscell(pppi.MarkerProps);
+      margs0 = { ... %'framelblscolor',[1 1 0],...
+        'pplotargs',mrkrProps,...
+        'colors',pppi.Colors};
+      roiRectArgs = {'EdgeColor' [0 0 1] 'LineWidth' 2};
+    
+      tstr = sprintf('Training Data (%d images)',N);
+      args = {...
+        'rois',rois,'titlestr',tstr,...
+        'framelbls',lbls, ...
+        'framelblscolor',lblscolor, ...
+        'framelblsbgcolor','none',...
+        'framelblsIsFullSize',true,...
+        'roisRectangleArgs',roiRectArgs};
+      args = [args margs0];
+      h = Shape.montageTabbed(I,p,plotnr,plotnc,args{:});
+      set(h,'Name',tstr);      
+    end
+    
     
     function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,...
         sPrmAll,backEnd,varargin)
@@ -1620,9 +1697,9 @@ classdef DeepTracker < LabelTracker
         ID = datestr(now,'yyyymmddTHHMMSS');
         dataAugDir = fullfile(cacheDir,'DataAug',ID);
         if ~exist(dataAugDir,'dir'),
-          [succ,msg] = mkdir(dataAugDir);
+          [succ,emsg] = mkdir(dataAugDir);
           if ~succ
-            error('Failed to create dir %s: %s',dataAugDir,msg);
+            error('Failed to create dir %s: %s',dataAugDir,emsg);
           end
         end
         % Write stripped lblfile to local cache
