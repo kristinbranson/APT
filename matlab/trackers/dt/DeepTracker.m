@@ -1619,10 +1619,11 @@ classdef DeepTracker < LabelTracker
       
       if ~tfsucc
         errordlg(emsg,'Training package missing');
+        return;
       end
       
       ldata = locg.locdata;
-      I = arrayfun(@(x)imread(x.img{1}),ldata,'uni',0);
+      I = arrayfun(@(x)imread(fullfile(tpdir,x.img{1})),ldata,'uni',0);
       I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
       N = numel(ldata);
       D = size(ldata(1).pabs,1);
