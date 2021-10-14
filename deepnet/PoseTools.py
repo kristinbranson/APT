@@ -507,7 +507,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None):
                   ((not conf.use_scale_factor_range) and srange < .01)
     
     if conf.rrange < 1 and conf.trange< 1 and no_rescale:
-        return img, locs
+        return img, locs, mask
 
     locs = locs.copy()
     img = img.copy()
@@ -1488,7 +1488,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/bransonlab/mayank/singularity/pytorch_mmpose.sif',precmd='',numcores=2):
+def submit_job(name, cmd, dir,queue='gpu_rtx    ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/bransonlab/mayank/singularity/pytorch_mmpose.sif',precmd='',numcores=2):
     import subprocess
     sing_script = os.path.join(dir,  name + '.sh')
     sing_err = os.path.join(dir,  name + '.err')

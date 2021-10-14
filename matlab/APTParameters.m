@@ -536,6 +536,19 @@ classdef APTParameters
     
     function [tPrm,canceled,do_update] = ...
         autosetparams(tPrm,lobj)
+      
+%       if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
+%           % Using head-tail for the first stage
+%           align_trx_theta = tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value;
+% 
+%           if ~align_trx_theta
+%             res = questdlg('For head-tail based two-stage detection, align using head-tail is switched off. Aligning animals using the head-tail direction will lead to better performance. Align using the head-tail direction?','Yes','No','Yes');
+%             if strcmp(res,'Yes')
+%               tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value = 1;
+%             end
+%           end
+%       end
+      
       % automatically set the parameters based on labels.
       autoparams = compute_auto_params(lobj);
       kk = autoparams.keys();
@@ -556,7 +569,7 @@ classdef APTParameters
         prev_val = nd.Data.Value;
         cur_val = autoparams(kk{ndx});
         reldiff = (cur_val-prev_val)/(prev_val+0.001);
-        if isempty(reldiff) || reldiff>0.1 % first clause if eg prev_val empty
+        if isempty(reldiff) || abs(reldiff)>0.1 % first clause if eg prev_val empty
           diff = true;
         end
         if nd.Data.DefaultValue~=nd.Data.Value
@@ -770,6 +783,9 @@ function autoparams = compute_auto_params(lobj)
   crop_radius = ceil(crop_radius/32)*32;
   if lobj.trackerIsTwoStage || lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
+  end
+  if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
+    autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
   end
 
   % Look at distances between labeled pairs to find what to set for

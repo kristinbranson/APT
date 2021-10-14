@@ -48,6 +48,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trkTaskKeyword; % arbitrary tracking task keyword; used for tracking output files
     trkTSstr % timestamp for tracking
     prev_models = []; % prev model to start training from
+    
+    trainingImagesName = 'deepnet_training_samples.mat';
   end
   properties (Dependent)
     dirProjLnx
@@ -86,11 +88,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainFinalModelName
     trainCurrModelLnx
     trainCurrModelName
+    trainImagesNameLnx
+
     aptRepoSnapshotLnx
     aptRepoSnapshotName
     
     trainModelGlob
-    
     isRemote
   end
   methods
@@ -254,6 +257,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = get.trainCurrModelName(obj)
       pat = DLNetType.(obj.netType).mdlNamePat;
       v = sprintf(pat,obj.iterCurr);
+    end
+    function v = get.trainImagesNameLnx(obj)
+      v = [obj.dirModelChainLnx obj.filesep obj.trainingImagesName];      
     end
     function v = get.trainModelGlob(obj)
       v = DLNetType.(obj.netType).mdlGlobPat;      

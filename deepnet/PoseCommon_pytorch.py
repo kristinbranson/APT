@@ -18,7 +18,7 @@ from torch import autograd
 import time
 import cv2
 import xtcocotools.mask
-
+import multiResData
 # autograd.set_detect_anomaly(True)
 
 def print_train_data(cur_dict):
@@ -89,14 +89,16 @@ class coco_loader(torch.utils.data.Dataset):
         self.ann = PoseTools.json_load(ann_file)
         self.conf = conf
         self.augment = augment
-        self.len = len(self.ann['images'])
+        self.len = max(conf.batch_size,len(self.ann['images']))
         self.ex_wts = torch.ones(self.len)
 
     def __len__(self):
-        return len(self.ann['images'])
+        return max(self.conf.batch_size,len(self.ann['images']))
 
     def __getitem__(self, item):
         conf = self.conf
+        if (self.conf.batch_size)> len(self.ann['images']):
+            item = np.random.randint(len(self.ann['images']))
         im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
@@ -111,6 +113,7 @@ class coco_loader(torch.utils.data.Dataset):
         else:
             info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
 
+        info = np.array(info)
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
         lndx = 0
         annos = []
@@ -132,6 +135,8 @@ class coco_loader(torch.utils.data.Dataset):
         im,locs, mask = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...])
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
+        if not self.conf.is_multi:
+            locs = locs[:,0]
 
         features = {'images':im,
                     'locs':locs[0,...],
@@ -324,7 +329,6 @@ class PoseCommon_pytorch(object):
     def compute_dist(self,output,labels):
         return np.nan
 
-
     def create_data_gen(self):
         if self.conf.db_format == 'tfrecord':
             return self.create_tf_data_gen()
@@ -340,15 +344,18 @@ class PoseCommon_pytorch(object):
         val_tfn = lambda f: decode_augment(f,conf,False)
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
         valtfr = trntfr
+        Z = multiResData.read_and_decode_without_session(trntfr,self.conf.n_classes,())
+        queue_sz = min(len(Z[0]),300)
         # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if not os.path.exists(valtfr):
             logging.info('Validation data set doesnt exist. Using train data set for validation')
             valtfr = trntfr
-        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=300)
+        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=queue_sz)
         val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
         self.train_loader_raw = train_dl_tf
         self.val_loader_raw = val_dl_tf
-        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16)
+
+        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,worker_init_fn=lambda id: np.random.seed(id))
         self.val_dl = torch.utils.data.DataLoader(val_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
@@ -359,15 +366,15 @@ class PoseCommon_pytorch(object):
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
         train_dl_coco = coco_loader(conf,trnjson,True)
-        if os.path.exists(valjson):
+        if os.path.exists(valjson) and (len(PoseTools.json_load(valjson)['annotations'])>0):
             val_dl_coco = coco_loader(conf,valjson,False)
         else:
-            logging.info('Val json file doesnt exist. Using training file for validation')
+            logging.info('Val json file doesnt exist or is empty. Using training file for validation')
             val_dl_coco = coco_loader(conf,trnjson,False)
         self.train_loader_raw = train_dl_coco
         self.val_loader_raw = val_dl_coco
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,shuffle=True)
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,shuffle=True,worker_init_fn=lambda id: np.random.seed(id))
         self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
@@ -381,8 +388,8 @@ class PoseCommon_pytorch(object):
         try:
             ndata = next(it)
         except StopIteration:
-            self.train_epoch += 1
             if dtype == 'train':
+                self.train_epoch += 1
                 if self.use_hard_mining and (self.step[0]/self.step[1]>0.001) and self.train_epoch>3:
                     wts = self.train_loader_raw.ex_wts
                     pcs = np.percentile(wts.numpy(),[5,95])
@@ -397,7 +404,7 @@ class PoseCommon_pytorch(object):
                     train_sampler = None
                     shuffle = True if self.conf.db_format == 'coco' else False
 
-                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle)
+                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=lambda id: np.random.seed(id+100*self.train_epoch))
                 self.train_iter = iter(self.train_dl)
                 ndata = next(self.train_iter)
             else:

@@ -590,7 +590,7 @@ end
 
 function root = getRootGeneral()
   if isdeployed
-    root = ctfroot;
+    root = fullfile(ctfroot,'APT_deployed');
   else
     root = fileparts(mfilename('fullpath'));   
   end

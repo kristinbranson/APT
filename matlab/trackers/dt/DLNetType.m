@@ -41,7 +41,7 @@ classdef DLNetType < handle %dynamicprops
     deeplabcut ('deeplabcut')
     dpk ('dpk')
     openpose ('openpose')
-    leap ('leap')
+    %leap ('leap')
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')
     detect_mmdetect ('detect_mmdetect')

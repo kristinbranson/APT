@@ -18,11 +18,22 @@ classdef RectDrawer < handle
     function newRoiDraw(obj)
       hax = obj.ax;
       lims = axis(hax);
-      STARTSZFAC = 0.2;
-      wh = STARTSZFAC * (lims(2)-lims(1));
-      ht = STARTSZFAC * (lims(4)-lims(3)); 
-      pos = [lims([1 3]) wh ht];
-      h = images.roi.Rectangle(obj.ax,'Position',pos);
+%       STARTSZFAC = 0.2;
+%       wh = STARTSZFAC * (lims(2)-lims(1));
+%       ht = STARTSZFAC * (lims(4)-lims(3)); 
+%       pos = [lims([1 3]) wh ht];
+      pos = getrect(hax);
+      if (pos(1)+pos(3))<lims(1) ...
+        || (pos(2)+pos(4))<lims(3) ...
+        || pos(1)>lims(2) ...
+        || pos(2)>lims(4)
+        warning('ROI is completely outside the axes limits. Not adding it');
+        return
+      end
+      pos(1:2) = max(lims([1 3]),pos(1:2));
+      pos(3:4) = min(lims([2 4]),pos(3:4)+pos(1:2))-pos(1:2);
+      h = images.roi.Rectangle(obj.ax,'Position',pos,...
+        'InteractionsAllowed','none');
       h.addlistener('DeletingROI',@(s,e)obj.cbkROIDeleted(s,e));
       obj.hRect(end+1,1) = h;
     end

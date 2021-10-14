@@ -192,6 +192,14 @@ handles.menu_file_clean_tempdir = uimenu('Parent',handles.menu_file,...
 moveMenuItemAfter(handles.menu_file_clean_tempdir,...
   handles.menu_file_crop_mode);
 
+handles.menu_file_bundle_tempdir = uimenu('Parent',handles.menu_file,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_bundle_tempdir_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Bundle working directory',...
+  'Tag','menu_file_bundle_tempdir',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_file_bundle_tempdir,...
+  handles.menu_file_clean_tempdir);
+
 % Label/Setup menu
 mnuLblSetup = handles.menu_labeling_setup;
 mnuLblSetup.Position = 3;
@@ -231,11 +239,11 @@ handles.menu_setup_label_overlay_montage = uimenu('Parent',handles.menu_labeling
   'Label','Label Overlay Montage',...
   'Tag','menu_setup_label_overlay_montage',...
   'Visible','on');
-handles.menu_setup_label_overlay_montage_trx_centered = uimenu('Parent',handles.menu_labeling_setup,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_overlay_montage_trx_centered_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Label Overlay Montage (trx centered)',...
-  'Tag','menu_setup_label_overlay_montage_trx_centered',...
-  'Visible','on');
+% handles.menu_setup_label_overlay_montage_trx_centered = uimenu('Parent',handles.menu_labeling_setup,...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_overlay_montage_trx_centered_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Label','Label Overlay Montage (trx centered)',...
+%   'Tag','menu_setup_label_overlay_montage_trx_centered',...
+%   'Visible','on');
 handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_set_nframe_skip_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set Frame Increment',...
@@ -266,8 +274,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_load_calibration_file'
    'menu_setup_use_calibration'
    'menu_setup_ma_twoclick_align'
-   'menu_setup_label_overlay_montage'
-   'menu_setup_label_overlay_montage_trx_centered'
+   'menu_setup_label_overlay_montage' % 'menu_setup_label_overlay_montage_trx_centered'
    'menu_setup_set_labeling_point'
    'menu_setup_set_nframe_skip'
    'menu_setup_lock_all_frames'
@@ -444,6 +451,12 @@ handles.menu_track_edit_skeleton = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_edit_skeleton_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_track_edit_skeleton,handles.menu_track_setparametersfile);
 
+handles.menu_track_viz_dataaug = uimenu('Parent',handles.menu_track,...
+  'Label','Visualize sample training images...',...
+  'Tag','menu_track_viz_dataaug',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_viz_dataaug_Callback',hObject,eventdata,guidata(hObject)));
+moveMenuItemAfter(handles.menu_track_viz_dataaug,handles.menu_track_edit_skeleton);
+
 % handles.menu_track_set_landmark_matches = uimenu(...
 %   'Parent',handles.menu_track,...
 %   'Label','Set landmark flip pairings...',...
@@ -467,7 +480,7 @@ handles.menu_track_training_data_montage = uimenu(...
   'Tag','menu_track_training_data_montage',...
   'Callback',@(h,evtdata)LabelerGUI('menu_track_training_data_montage_Callback',h,evtdata,guidata(h)));
 %moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
-moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_edit_skeleton);
+moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_viz_dataaug);
 delete(handles.menu_track_select_training_data);
 
 handles.menu_track_batch_track = uimenu(...
@@ -733,7 +746,7 @@ handles.image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
-set(hObject,'WindowScrollWheelFcn',@scroll_callback);
+%set(hObject,'WindowScrollWheelFcn',@scroll_callback);
 % set(hObject,'WindowbuttonDownFcn',@dragstart_callback);
 % set(hObject,'Windowbuttonmotionfcn',@drag_callback);
 % set(hObject,'WindowbuttonUpFcn',@dragend_callback);
@@ -875,7 +888,7 @@ handles.h_nonma_only = [ ...
 set(handles.output,'Toolbar','figure');
 
 handles = initTblTrx(handles);
-handles = initTblFrames(handles);
+%handles = initTblFrames(handles);
 
 figSetPosAPTDefault(hObject);
 set(hObject,'Units','normalized');
@@ -1170,45 +1183,53 @@ else
   handles.tblTrx = jt;
 end
 
-function handles = initTblFrames(handles)
+function handles = initTblFrames(handles,isMA)
 tbl0 = handles.tblFrames;
-COLNAMES = {'Frame' 'Tgts' 'Pts'};
-
-if 1 
-  set(tbl0,...
-    'ColumnWidth',{100 50 'auto'},...
-    'ColumnName',COLNAMES,...
-    'Data',cell(0,numel(COLNAMES)),...
-    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
-    'FontUnits','points',...
-    'FontSize',9.75,... % matches .tblTrx
-    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
-  % AL 20210209: jtable performance is too painful for larger projs (more 
-  % labels in any single movie). As of 2020x only cost to using regular 
-  % table is inability to set selected/hilite row.
+if isMA
+  COLNAMES = {'Frame' 'Tgts' 'Pts' 'ROIs'};
+  COLWIDTH = {80 40 'auto' 'auto'};
 else
-  jt = uiextras.jTable.Table(...
-    'parent',tbl0.Parent,...
-    'Position',tbl0.Position,...
-    'SelectionMode','single',...
-    'Editable','off',...
-    'ColumnPreferredWidth',[100 50],...
-    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-    'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
-  set(jt,'Data',cell(0,numel(COLNAMES)));
-  cr = aptjava.StripedIntegerTableCellRenderer;
-  for i=0:2
-    jt.JColumnModel.getColumn(i).setCellRenderer(cr);
-  end
-  jt.JTable.Foreground = java.awt.Color.WHITE;
-  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-  h = jt.JTable.getTableHeader;
-  h.setPreferredSize(java.awt.Dimension(225,22));
-  jt.JTable.repaint;
-
-  delete(tbl0);
-  handles.tblFrames = jt;
+  COLNAMES = {'Frame' 'Tgts' 'Pts'};
+  COLWIDTH = {100 50 'auto'};
 end
+
+% if 1 
+set(tbl0,...
+  'ColumnWidth',COLWIDTH,...
+  'ColumnName',COLNAMES,...
+  'Data',cell(0,numel(COLNAMES)),...
+  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
+  'FontUnits','points',...
+  'FontSize',9.75,... % matches .tblTrx
+  'BackgroundColor',[.3 .3 .3; .45 .45 .45]);
+
+% AL 20210209: jtable performance is too painful for larger projs (more
+% labels in any single movie). As of 2020x only cost to using regular
+% table is inability to set selected/hilite row.
+
+% else
+%   jt = uiextras.jTable.Table(...
+%     'parent',tbl0.Parent,...
+%     'Position',tbl0.Position,...
+%     'SelectionMode','single',...
+%     'Editable','off',...
+%     'ColumnPreferredWidth',[100 50],...
+%     'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+%     'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
+%   set(jt,'Data',cell(0,numel(COLNAMES)));
+%   cr = aptjava.StripedIntegerTableCellRenderer;
+%   for i=0:2
+%     jt.JColumnModel.getColumn(i).setCellRenderer(cr);
+%   end
+%   jt.JTable.Foreground = java.awt.Color.WHITE;
+%   jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+%   h = jt.JTable.getTableHeader;
+%   h.setPreferredSize(java.awt.Dimension(225,22));
+%   jt.JTable.repaint;
+% 
+%   delete(tbl0);
+%   handles.tblFrames = jt;
+% end
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
@@ -1420,13 +1441,11 @@ lcore = lObj.lblCore;
 if ~isempty(lcore)
   lcore.wbmf(src,evt);
 end
-%lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
 
 function cbkWBUF(src,evt,lObj)
 if ~isempty(lObj.lblCore)
   lObj.lblCore.wbuf(src,evt);
 end
-%lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkWSWF(src,evt,lObj)
 
@@ -1456,6 +1475,8 @@ lObj = src;
 handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
+
+handles = initTblFrames(handles,lObj.maIsMA);
 
 %curr_status_string=handles.txStatus.String;
 %SetStatus(handles,curr_status_string,true);
@@ -1676,18 +1697,19 @@ end
 
 wbmf = @(src,evt)cbkWBMF(src,evt,lObj);
 wbuf = @(src,evt)cbkWBUF(src,evt,lObj);
-if lObj.nview==1 
-  if lObj.hasMovie 
-    % guard against callback during new proj creation etc; lObj.movienc/nr
-    % are NaN which creates a badly-inited imgzoompan. Theoretically seems
-    % this wouldn't matter as the next imgzoompan created (when movie
-    % actually added) should be properly initted...
-    imgzoompan(handles.figure,'wbmf',wbmf,'wbuf',wbuf,...
-      'ImgWidth',lObj.movienc,'ImgHeight',lObj.movienr,'PanMouseButton',2);
+movnr = lObj.movienr;
+movnc = lObj.movienc;
+figs = lObj.gdata.figs_all;
+if lObj.hasMovie
+  % guard against callback during new proj creation etc; lObj.movienc/nr
+  % are NaN which creates a badly-inited imgzoompan. Theoretically seems
+  % this wouldn't matter as the next imgzoompan created (when movie
+  % actually added) should be properly initted...
+  for ivw=1:lObj.nview
+    set(figs(ivw),'WindowScrollWheelFcn',@(src,evt)scroll_callback(src,evt,lObj));
+    imgzoompan(figs(ivw),'wbmf',wbmf,'wbuf',wbuf,...
+      'ImgWidth',movnc(ivw),'ImgHeight',movnr(ivw),'PanMouseButton',2);
   end
-else
-  set(handles.figs_all,'WindowButtonMotionFcn',wbmf);
-  set(handles.figs_all,'WindowButtonUpFcn',wbuf);
 end
 
 % Deal with Axis and Color limits.
@@ -1743,8 +1765,8 @@ TRX_MENUS = {...
   'menu_view_trajectories_centervideoontarget'
   'menu_view_rotate_video_target_up'
   'menu_view_hide_trajectories'
-  'menu_view_plot_trajectories_current_target_only'
-  'menu_setup_label_overlay_montage_trx_centered'};
+  'menu_view_plot_trajectories_current_target_only'};
+%  'menu_setup_label_overlay_montage_trx_centered'};
 tftblon = lObj.hasTrx || lObj.maIsMA;
 onOff = onIff(tftblon);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
@@ -2391,7 +2413,7 @@ m.Children = [ ...
   handles.menu_track_backend_config_test...
   ];
 m.Children = m.Children(end:-1:1);
-%m.Children = m.Children(end:-1:1);
+handles.menu_track_viz_dataaug.Enable = oiDckr;
 
 
 function cbkTrackerMenu(src,evt)
@@ -2961,11 +2983,13 @@ if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
 
-function scroll_callback(hObject,eventdata,~)
-h = guidata(hObject);
-curp = get(h.axes_curr,'CurrentPoint');
-xlim = get(h.axes_curr,'XLim');
-ylim = get(h.axes_curr,'YLim');
+function scroll_callback(hObject,eventdata,lObj)
+gdata = lObj.gdata;
+ivw = find(hObject==gdata.figs_all);
+ax = gdata.axes_all(ivw);
+curp = get(ax,'CurrentPoint');
+xlim = get(ax,'XLim');
+ylim = get(ax,'YLim');
 if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
   return
 end
@@ -2977,13 +3001,14 @@ scrl = 1.2;
 if eventdata.VerticalScrollCount>0
   scrl = 1/scrl;
 end
-imglimx = get(h.image_curr,'XData');
-imglimy = get(h.image_curr,'YData');
+him = gdata.images_all(ivw);
+imglimx = get(him,'XData');
+imglimy = get(him,'YData');
 xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
 xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
 ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
 ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
-axis(h.axes_curr,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+axis(ax,[xlim(1),xlim(2),ylim(1),ylim(2)]);
 % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
 
 % function dragstart_callback(hObject,eventdata,~)
@@ -3354,6 +3379,12 @@ SetStatus(handles,'Deleting temp directories...');
 handles.labelerObj.projRemoveOtherTempDirs();
 ClearStatus(handles);
 
+function menu_file_bundle_tempdir_Callback(hObject,evtdata,handles)
+SetStatus(handles,'Bundling the temp directory...');
+handles.labelerObj.projBundleTempDir();
+ClearStatus(handles);
+
+
 function menu_help_Callback(hObject, eventdata, handles)
 
 function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
@@ -3383,27 +3414,42 @@ lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
 
 function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
-
-SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
-handles.labelerObj.labelOverlayMontage('trxCtred',false); 
-ClearStatus(handles);
-
-function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
-
 SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
 lObj = handles.labelerObj;
-hFig(1) = lObj.labelOverlayMontage('trxCtred',true,...
-  'trxCtredRotAlignMeth','none'); 
-try
-  hFig(2) = lObj.labelOverlayMontage('trxCtred',true,...
-    'trxCtredRotAlignMeth','headtail','hFig0',hFig(1)); 
-catch ME
-  warningNoTrace('Could not create head-tail aligned montage: %s',ME.message);
-  hFig(2) = figurecascaded(hFig(1));
+if lObj.hasTrx
+  lObj.labelOverlayMontage();
+  lObj.labelOverlayMontage('ctrMeth','trx');
+  lObj.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','trxtheta');
+  % could also use headtail for centering/alignment but skip for now.  
+else % lObj.maIsMA, or SA-non-trx
+  lObj.labelOverlayMontage();
+  if ~lObj.isMultiView
+    lObj.labelOverlayMontage('ctrMeth','centroid');
+    tfHTdefined = ~isempty(lObj.skelHead) && ~isempty(lObj.skelTail);
+    if tfHTdefined  
+      lObj.labelOverlayMontage('ctrMeth','centroid','rotAlignMeth','headtail');
+    else
+      warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
+    end
+  end
 end
-hFig(3) = lObj.labelOverlayMontage('trxCtred',true,...
-  'trxCtredRotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
 ClearStatus(handles);
+
+% function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
+% 
+% SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
+% lObj = handles.labelerObj;
+% hFig(1) = lObj.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','none'); 
+% try
+%   hFig(2) = lObj.labelOverlayMontage('ctrMeth','trx',...
+%     'rotAlignMeth','headtail','hFig0',hFig(1)); 
+% catch ME
+%   warningNoTrace('Could not create head-tail aligned montage: %s',ME.message);
+%   hFig(2) = figurecascaded(hFig(1));
+% end
+% hFig(3) = lObj.labelOverlayMontage('ctrMeth','trx',...
+%   'rotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
+% ClearStatus(handles);
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -4965,6 +5011,11 @@ else
   set(handles.menu_view_showhide_skeleton,'Enable','on','Checked','on');
   lObj.setShowSkeleton(true);
 end
+
+function menu_track_viz_dataaug_Callback(hObject,evtdata,handles)
+lObj = handles.labelerObj;
+t = lObj.tracker;
+t.retrain('augOnly',true);
 
 function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)
 if strcmpi(get(hObject,'Checked'),'off'),
