@@ -1817,10 +1817,19 @@ classdef DeepTracker < LabelTracker
         cacheDir = APT.getdlcacheroot;
         assert(~isempty(cacheDir));
         
-        mfaf = GetLinkSources(lObj.movieFilesAllFull);
-        tfaf = GetLinkSources(lObj.trxFilesAllFull);
-        mfafgt = GetLinkSources(lObj.movieFilesAllGTFull);
-        tfafgt = GetLinkSources(lObj.trxFilesAllGTFull);
+        mfaf = lObj.movieFilesAllFull;
+        tfaf = lObj.trxFilesAllFull;
+        mfafgt = lObj.movieFilesAllGTFull;
+        tfafgt = lObj.trxFilesAllGTFull;
+        
+        [mfaf2,ischange] = GetLinkSources(mfaf);
+        mfaf(end+1:end+nnz(ischange)) = mfaf2(ischange);
+        [tfaf2,ischange] = GetLinkSources(tfaf);
+        tfaf(end+1:end+nnz(ischange)) = tfaf2(ischange);
+        [mfafgt2,ischange] = GetLinkSources(mfafgt);
+        mfafgt(end+1:end+nnz(ischange)) = mfafgt2(ischange);        
+        [tfafgt2,ischange] = GetLinkSources(tfafgt);
+        tfafgt(end+1:end+nnz(ischange)) = tfafgt2(ischange);        
                 
         projbps = cell(0,1);
         projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfaf,'.movieFilesAllFull');
