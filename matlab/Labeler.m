@@ -3336,7 +3336,11 @@ classdef Labeler < handle
       
     end
     
-    function printAllTrackerInfo(obj)
+    function printAllTrackerInfo(obj,fileinfo)
+      
+      if nargin < 2,
+        fileinfo = false;
+      end
       
       for i = 1:numel(obj.trackersAll),
         tObj = obj.trackersAll{i};
@@ -3345,6 +3349,10 @@ classdef Labeler < handle
         end
         fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
         fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
+        if fileinfo,
+          fprintf('  Stripped lbl file: %s\n',tObj.trnLastDMC.lblStrippedLnx);
+          fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx);
+        end
       end
       
     end
