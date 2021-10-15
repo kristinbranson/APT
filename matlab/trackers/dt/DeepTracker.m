@@ -1593,7 +1593,8 @@ classdef DeepTracker < LabelTracker
 
     function trainPackMontage(obj,varargin)
       
-      [plotnr,plotnc] = myparse(varargin,...
+      [maxnpages,plotnr,plotnc] = myparse(varargin,...
+        'maxnpages',6,...
         'plotnr',3,...
         'plotnc',4 ...
         );
@@ -1622,7 +1623,15 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
+      nplotpage = plotnr*plotnc;
+      nplotmax = maxnpages*nplotpage;      
       ldata = locg.locdata;
+      if numel(ldata)>nplotmax
+        warningNoTrace('Only showing %d/%d frames available in training package.',...
+          nplotmax,numel(ldata));
+        ldata = ldata(1:nplotmax);
+      end
+      
       I = arrayfun(@(x)imread(fullfile(tpdir,x.img{1})),ldata,'uni',0);
       I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
       N = numel(ldata);
