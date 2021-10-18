@@ -802,19 +802,20 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-%       % check batch size
-%       nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
-%       fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
-%       bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
-%       % Note: at this time, project-level params are set but NOT
-%       % tracker-level params
-%       sPrm = lblObj.trackGetParams();
-%       res = structapply(sPrm.ROOT,bsizeFcn);
-%       tfbsize = cell2mat(res.values);
-%       if any(tfbsize)
-%         reason = 'Your project has fewer labeled targets than a specified training batch size.';
-%         return;
-%       end
+      % check batch size
+      nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
+      fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
+      bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
+      % Note: at this time, project-level params are set but NOT
+      % tracker-level params
+      sPrmLblObj = lblObj.trackGetParams();
+      res = structapply(sPrmLblObj.ROOT,bsizeFcn);
+      tfbsize = cell2mat(res.values);
+      if any(tfbsize)
+        reason = sprintf('Your project has fewer labeled targets (%d) than a specified training batch size.',...
+          nLbledRows);
+        return;
+      end
       
       if obj.trnNetType==DLNetType.openpose && isempty(lblObj.skeletonEdges)
         reason = 'Please define a skeleton to track with OpenPose.';
