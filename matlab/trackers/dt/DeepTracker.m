@@ -802,19 +802,20 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-%       % check batch size
-%       nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
-%       fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
-%       bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
-%       % Note: at this time, project-level params are set but NOT
-%       % tracker-level params
-%       sPrm = lblObj.trackGetParams();
-%       res = structapply(sPrm.ROOT,bsizeFcn);
-%       tfbsize = cell2mat(res.values);
-%       if any(tfbsize)
-%         reason = 'Your project has fewer labeled targets than a specified training batch size.';
-%         return;
-%       end
+      % check batch size
+      nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
+      fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
+      bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
+      % Note: at this time, project-level params are set but NOT
+      % tracker-level params
+      sPrmLblObj = lblObj.trackGetParams();
+      res = structapply(sPrmLblObj.ROOT,bsizeFcn);
+      tfbsize = cell2mat(res.values);
+      if any(tfbsize)
+        reason = sprintf('Your project has fewer labeled targets (%d) than a specified training batch size.',...
+          nLbledRows);
+        return;
+      end
       
       if obj.trnNetType==DLNetType.openpose && isempty(lblObj.skeletonEdges)
         reason = 'Please define a skeleton to track with OpenPose.';
@@ -1593,7 +1594,8 @@ classdef DeepTracker < LabelTracker
 
     function trainPackMontage(obj,varargin)
       
-      [plotnr,plotnc] = myparse(varargin,...
+      [maxnpages,plotnr,plotnc] = myparse(varargin,...
+        'maxnpages',6,...
         'plotnr',3,...
         'plotnc',4 ...
         );
@@ -1622,7 +1624,15 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
+      nplotpage = plotnr*plotnc;
+      nplotmax = maxnpages*nplotpage;      
       ldata = locg.locdata;
+      if numel(ldata)>nplotmax
+        warningNoTrace('Only showing %d/%d frames available in training package.',...
+          nplotmax,numel(ldata));
+        ldata = ldata(1:nplotmax);
+      end
+      
       I = arrayfun(@(x)imread(fullfile(tpdir,x.img{1})),ldata,'uni',0);
       I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
       N = numel(ldata);
