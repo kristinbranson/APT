@@ -1023,7 +1023,7 @@ def read_trx_file(trx_file):
     if trx_file is None:
         return [], 1
     try:
-        trx = loadmat(trx_file)['trx'][0]
+        trx = sio.loadmat(trx_file)['trx'][0]
         n_trx = len(trx)
     except NotImplementedError:
         # trx file in v7.3 format
@@ -1042,7 +1042,7 @@ def get_cur_trx(trx_file, trx_ndx):
     if trx_file is None:
         return None, 1
     try:
-        trx = loadmat(trx_file)['trx'][0]
+        trx = sio.loadmat(trx_file)['trx'][0]
         cur_trx = trx[trx_ndx]
         n_trx = len(trx)
     except NotImplementedError:
