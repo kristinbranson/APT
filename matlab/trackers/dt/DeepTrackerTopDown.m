@@ -119,7 +119,7 @@ classdef DeepTrackerTopDown < DeepTracker
       end
       
       packdir = dlLblFileLclDir;
-      [~,~,sloc,~] = Lbl.genWriteTrnPack(obj.lObj,packdir,...
+      [~,~,sloc,~] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
         'strippedlblname',[slblf slble]);
     end
     
@@ -216,7 +216,7 @@ classdef DeepTrackerTopDown < DeepTracker
         assert(strcmp(dmc.lblStrippedLnx,dlLblFileLcl));
         
         tpjson = fullfile(tpdir,'trnpack.json');
-        tp = Lbl.hlpLoadJson(tpjson);
+        tp = TrnPack.hlpLoadJson(tpjson);
         nlbls = arrayfun(@(x)size(x.p,2),tp);
         dmc.nLabels = nlbls;
         

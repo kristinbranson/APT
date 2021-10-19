@@ -1322,7 +1322,7 @@ classdef DeepTracker < LabelTracker
         assert(strcmp(dmc.lblStrippedLnx,dlLblFileLcl));
         
         tpjson = fullfile(tpdir,'trnpack.json');
-        tp = Lbl.hlpLoadJson(tpjson);
+        tp = TrnPack.hlpLoadJson(tpjson);
         nlbls = arrayfun(@(x)size(x.p,2),tp);
         dmc.nLabels = nlbls;
         
@@ -1347,7 +1347,7 @@ classdef DeepTracker < LabelTracker
         tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
         if tfRequiresTrnPack
           packdir = dlLblFileLclDir;
-          [~,~,sloc,~] = Lbl.genWriteTrnPack(obj.lObj,packdir,...
+          [~,~,sloc,~] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
             'strippedlblname',dmc.lblStrippedName);
           dmc.nLabels = numel(sloc);
         else
@@ -1592,6 +1592,16 @@ classdef DeepTracker < LabelTracker
       end
     end
 
+    function [tf,tpdir] = trainPackExists(obj)
+      dm = obj.trnLastDMC;      
+      if ~isempty(dm) 
+        [tf,tpdir] = dm(1).trnPackExists();
+      else
+        tf = false;
+        tpdir = [];
+      end
+    end
+    
     function trainPackMontage(obj,varargin)
       
       [maxnpages,plotnr,plotnc] = myparse(varargin,...
@@ -1600,17 +1610,12 @@ classdef DeepTracker < LabelTracker
         'plotnc',4 ...
         );
       
-      dm = obj.trnLastDMC;
-      tfTrnPackExists = false;
-      if ~isempty(dm) && exist(dm(1).dirProjLnx,'dir')>0
-        tpdir = dm(1).dirProjLnx;
-        tfTrnPackExists = exist(fullfile(tpdir,'loc.json'),'file')>0;        
-      end
+      [tfTrnPackExists,tpdir] = obj.trainPackExists();     
       
       tfsucc = false;
       if tfTrnPackExists
         try
-          [~,~,~,~,locg] = Lbl.loadPack(tpdir);
+          [~,~,~,~,locg] = TrnPack.loadPack(tpdir);
           tfsucc = true; 
         catch ME %#ok<NASGU>
           emsg = 'Could not load training package.';
@@ -1677,8 +1682,7 @@ classdef DeepTracker < LabelTracker
       h = Shape.montageTabbed(I,p,plotnr,plotnc,args{:});
       set(h,'Name',tstr);      
     end
-    
-    
+       
     function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,...
         sPrmAll,backEnd,varargin)
       
@@ -5847,13 +5851,25 @@ classdef DeepTracker < LabelTracker
         % current movie should not change
         %obj.trackCurrResUpdate();
         %obj.newLabelerFrame();
-      end      
+      end  
+      
+      [tf,tpdir] = obj.trainPackExists();
+      if tf
+        warningNoTrace('Clearning training package image cache.');
+        TrnPack.clearims(tpdir);
+      end
     end
     function labelerMoviesReordered(obj,edata)
       mIdxOrig2New = edata.mIdxOrig2New;
       obj.movIdx2trkfile = mapKeyRemap(obj.movIdx2trkfile,mIdxOrig2New);
       
       % Assume trackCurrRes does not need update
+      
+      [tf,tpdir] = obj.trainPackExists();
+      if tf
+        warningNoTrace('Clearning training package image cache.');
+        TrnPack.clearims(tpdir);
+      end
     end
   end  
   
