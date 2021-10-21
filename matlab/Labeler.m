@@ -11577,8 +11577,7 @@ classdef Labeler < handle
           prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
           fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
           for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
-            v = s.(f);      assert(all(tfTD==[netmodes.isTwoStage]));
-
+            v = s.(f);
             assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
             s.(f) = v(prand,:);
           end
