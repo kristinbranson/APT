@@ -230,7 +230,7 @@ classdef TrnPack
       fclose(fh);
       fprintf(1,'Wrote %s.\n',jsonoutf);
     end
-    function [slbl,tp,loc,locg,loccc] = genWriteTrnPack(lObj,packdir,varargin)
+    function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,packdir,varargin)
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
@@ -279,7 +279,7 @@ classdef TrnPack
       else
         movinfo = lObj.movieInfoAll;
       end
-      [loc,locg,loccc] = TrnPack.genLocs(tp,movinfo);
+      locg = TrnPack.genLocs(tp,movinfo);
       if writeims
         if isempty(writeimsidx)
           writeimsidx = 1:numel(locg);
@@ -305,6 +305,8 @@ classdef TrnPack
       s.splitnames = {'trn'};
       s.locdata = locg;
       TrnPack.hlpSaveJson(s,packdir,jsonoutf);
+      
+      ntgtstot = sum([locg.ntgt]);
 
 %       % loccc: one row per cluster
 %       jsonoutf = 'locclus.json';
@@ -355,25 +357,25 @@ classdef TrnPack
       end
       sagg = cell2mat(sagg);
     end
-    function [sloc,slocg,sloccc] = genLocs(sagg,movInfoAll)
+    function slocg = genLocs(sagg,movInfoAll)
       assert(numel(sagg)==numel(movInfoAll));
       nmov = numel(sagg);
-      sloc = [];
+      %sloc = [];
       slocg = [];
-      sloccc = [];
+      %sloccc = [];
       for imov=1:nmov
         s = sagg(imov);
         movifo = movInfoAll{imov};
         imsz = [movifo.info.nr movifo.info.nc];
         fprintf(1,'mov %d (sz=%s): %s\n',imov,mat2str(imsz),s.mov);
         
-        slocI = TrnPack.genLocsI(s,imov);
+        %slocI = TrnPack.genLocsI(s,imov);
         slocgI = TrnPack.genLocsGroupedI(s,imov);
-        slocccI = TrnPack.genCropClusteredLocsI(s,imsz,imov);
+        %slocccI = TrnPack.genCropClusteredLocsI(s,imsz,imov);
         
-        sloc = [sloc; slocI]; %#ok<AGROW>
+        %sloc = [sloc; slocI]; %#ok<AGROW>
         slocg = [slocg; slocgI]; %#ok<AGROW>
-        sloccc = [sloccc; slocccI]; %#ok<AGROW>
+        %sloccc = [sloccc; slocccI]; %#ok<AGROW>
       end
     end
     function [sloc] = genLocsI(s,imov,varargin)
