@@ -336,12 +336,13 @@ classdef APTParameters
       
       tfChangeMade = false;
       
-      if sPrm.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta && ...
-         strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
-        warningNoTrace('CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta. Setting CPR OrientationType to ''arbitrary''.');
-        sPrm.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
-        tfChangeMade = true;
-      end
+%     20211026 MA CPR no longer supported
+%       if sPrm.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta && ...
+%          strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
+%         warningNoTrace('CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta. Setting CPR OrientationType to ''arbitrary''.');
+%         sPrm.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
+%         tfChangeMade = true;
+%       end
     end
     
     % convert from all parameters to various subsets 
