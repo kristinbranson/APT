@@ -9715,7 +9715,13 @@ classdef Labeler < handle
           'Add/select a movie first before setting the calibration object.');
       end
 
-      obj.viewCalCheckCalRigObj(crObj);
+      try
+        obj.viewCalCheckCalRigObj(crObj);
+      catch ME
+        if obj.nview == 2
+          rethrow(ME)
+        end
+      end
 
       vcdPW = obj.viewCalProjWide;
       if isempty(vcdPW)

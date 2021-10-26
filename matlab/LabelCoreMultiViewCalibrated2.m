@@ -932,7 +932,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       if ~obj.isCalRig,
         return;
       end
-      
+
       iPt1 = obj.pjtIPts(1);
       hPt1 = obj.hPts(iPt1);
       xy1 = [hPt1.XData hPt1.YData];
@@ -942,7 +942,30 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       for iAx = iAxOther
         hIm = obj.hIms(iAx);
         imroi = [hIm.XData hIm.YData];
-        [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
+        
+        if isfield(crig, 'nviews')
+          if iAx1 == 1 && iAx == 2
+            [x, y] = crig.caltech{1}.computeEpiPolarLine(1,xy1,iAx,imroi);
+          end
+          if iAx1 == 1 && iAx == 3
+            [x, y] = crig.caltech{2}.computeEpiPolarLine(1,xy1,iAx,imroi);
+          end
+          if iAx1 == 2 && iAx == 1
+            [x, y] = crig.caltech{1}.computeEpiPolarLine(2,xy1,iAx,imroi);
+          end
+          if iAx1 == 2 && iAx == 3
+            [x, y] = crig.caltech{3}.computeEpiPolarLine(1,xy1,iAx,imroi);
+          end
+          if iAx1 == 3 && iAx == 1
+            [x, y] = crig.caltech{2}.computeEpiPolarLine(2,xy1,iAx,imroi);
+          end
+          if iAx1 == 3 && iAx == 2
+            [x, y] = crig.caltech{3}.computeEpiPolarLine(2,xy1,iAx,imroi);
+          end
+        else
+          [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
+        end
+
         hEpi = obj.pjtHLinesEpi(iAx);
         set(hEpi,'XData',x,'YData',y,'Visible',onIff(obj.showCalibration),'Color',hPt1.Color);
         %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
@@ -985,7 +1008,36 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       iAxOther = setdiff(1:obj.nView,[iAx1 iAx2]);
       crig = obj.pjtCalRig;
       for iAx = iAxOther
-        [x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+        if isfield(crig, 'nviews')
+          if iAx1 == 1 && iAx == 2
+            %[x, y] = crig.caltech{1}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            [x,y] = crig.caltech{1}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+          end
+          if iAx1 == 1 && iAx == 3
+            %[x, y] = crig.caltech{2}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            [x,y] = crig.caltech{2}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+          end
+          if iAx1 == 2 && iAx == 1
+            %[x, y] = crig.caltech{1}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            [x,y] = crig.caltech{1}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+          end
+          if iAx1 == 2 && iAx == 3
+            %[x, y] = crig.caltech{3}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            [x,y] = crig.caltech{3}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+          end
+          if iAx1 == 3 && iAx == 1
+            %[x, y] = crig.caltech{2}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            [x,y] = crig.caltech{2}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+          end
+          if iAx1 == 3 && iAx == 2
+            %[x, y] = crig.caltech{3}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            [x,y] = crig.caltech{3}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+          end
+        else
+          %[x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
+          [x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+        end
+        %[x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
         set(obj.pjtHLinesRecon(iAx),...
           'XData',x,'YData',y,...
           'Visible',onIff(obj.showCalibration),'Color',hPt1.Color);
@@ -1095,7 +1147,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionSetCalRig(obj,crig)
-      assert(isa(crig,'CalRig'));
+      if ~isfield(crig, 'nviews')        
+        assert(isa(crig,'CalRig'));
+      end
       
       %20160923 hack legacy CalRigSH objs and EPlines workaround
       if isa(crig,'CalRigSH')
