@@ -40,12 +40,12 @@ end
 %   msgs{end+1} = 'Mask Neighbors Foreground Threshold must be non-negative.';
 % end
 
-if sPrm.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta && ...
-    strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
-  msgs{end+1} = 'CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta.';
-  isOk.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = false;
-  isOk.ROOT.CPR.RotCorrection.OrientationType = false;
-end
+% if sPrm.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta && ...
+%     strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
+%   msgs{end+1} = 'CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta.';
+%   isOk.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = false;
+%   isOk.ROOT.CPR.RotCorrection.OrientationType = false;
+% end
 
 function out = init(in,val)
 
