@@ -18,7 +18,7 @@ classdef TrnPack
         'loc',[] ... % (opt), specific loc struct array to show
         );
       
-      [~,~,~,loc,~] = TrnPack.loadPack(packdir);
+      [~,~,~,loc,~] = TrnPack.loadPack(packdir); % xxx api now broken
        
       hfig = figure(11);
       
@@ -70,7 +70,7 @@ classdef TrnPack
         );
       
       if isempty(locg)
-        [~,~,~,~,locg] = TrnPack.loadPack(packdir);
+        [~,~,~,locg] = TrnPack.loadPack(packdir);
       end
 
       hfig = figure(11);
@@ -131,7 +131,7 @@ classdef TrnPack
         'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
         );
       
-      [~,~,~,~,~,loccc] = TrnPack.loadPack(packdir);
+      [~,~,~,~,~,loccc] = TrnPack.loadPack(packdir); % xxx api now broken
 
       hfig = figure(11);
       
@@ -167,7 +167,7 @@ classdef TrnPack
       s = jsondecode(jse{1});
       fprintf(1,'loaded %s\n',jsonfile);
     end
-    function [slbl,j,tp,loc,locg,loccc] = loadPack(packdir)
+    function [slbl,j,tp,locg] = loadPack(packdir)
       % Load training package into MATLAB data structures
       %
       % slbl: 'stripped lbl' struct
@@ -203,23 +203,24 @@ classdef TrnPack
       jf = readtxtfile(jf);
       j = jsondecode(jf{1});
       
-      tpf = fullfile(packdir,'trnpack.json');
-      tp = TrnPack.hlpLoadJson(tpf);
+%       tpf = fullfile(packdir,'trnpack.json');
+%       tp = TrnPack.hlpLoadJson(tpf);
+      tp = [];
 
-      locf = fullfile(packdir,'loc0.json');
-      loc = TrnPack.hlpLoadJson(locf);
+%       locf = fullfile(packdir,'loc0.json');
+%       loc = TrnPack.hlpLoadJson(locf);
 
       locf = fullfile(packdir,'loc.json');
       locg = TrnPack.hlpLoadJson(locf);
 
-      locf = fullfile(packdir,'locclus.json');
-      if exist(locf,'file')>0
-        locjse = readtxtfile(locf);
-        loccc = jsondecode(locjse{1});
-        fprintf(1,'loaded %s\n',locf);
-      else
-        loccc = [];
-      end
+%       locf = fullfile(packdir,'locclus.json');
+%       if exist(locf,'file')>0
+%         locjse = readtxtfile(locf);
+%         loccc = jsondecode(locjse{1});
+%         fprintf(1,'loaded %s\n',locf);
+%       else
+%         loccc = [];
+%       end
     end
     
     function hlpSaveJson(s,packdir,jsonoutf)

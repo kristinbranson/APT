@@ -1615,7 +1615,7 @@ classdef DeepTracker < LabelTracker
       tfsucc = false;
       if tfTrnPackExists
         try
-          [~,~,~,~,locg] = TrnPack.loadPack(tpdir);
+          [~,~,~,locg] = TrnPack.loadPack(tpdir);
           tfsucc = true; 
         catch ME %#ok<NASGU>
           emsg = 'Could not load training package.';
