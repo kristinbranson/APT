@@ -1382,7 +1382,8 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
             # add examples of background not added earlier.
             for endx in range(n_extra_roi):
                 eroi_mask = create_mask(extra_roi[endx:endx + 1, ...]/mask_sc, mask_sz)
-                if (eroi_mask & done_mask).sum() / eroi_mask.sum() > 0.5:
+                if (eroi_mask.sum()<=4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > 0.5:
+				
                     done_eroi[endx] = 1.
                     continue
 
