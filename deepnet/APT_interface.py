@@ -3910,18 +3910,18 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
             exit(1)
 
         # Disabling this because it is hardly used MK 20210712
-        # if args.classify_val:
-        #     val_filename = get_valfilename(conf, net_type)
-        #     db_file = os.path.join(conf.cachedir, val_filename)
-        #     logging.info("Classifying {}... ".format(db_file))
-        #     preds, locs, info, model_file = classify_db_all(net_type, conf, db_file)
-        #     preds = to_mat(preds)
-        #     locs = to_mat(locs)
-        #     info = to_mat(info)
-        #     out_file = args.classify_val_out
-        #     logging.info("... done classifying, used model {}. Saving to {}".format(model_file, out_file))
-        #     out_dict = {'preds': preds, 'locs': locs, 'info': info, 'model_file': model_file}
-        #     hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+        if args.classify_val:
+            val_filename = get_valfilename(conf, net_type)
+            db_file = os.path.join(conf.cachedir, val_filename)
+            logging.info("Classifying {}... ".format(db_file))
+            preds, locs, info, model_file = classify_db_all(net_type, conf, db_file)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            info = to_mat(info)
+            out_file = args.classify_val_out
+            logging.info("... done classifying, used model {}. Saving to {}".format(model_file, out_file))
+            out_dict = {'preds': preds, 'locs': locs, 'info': info, 'model_file': model_file}
+            hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
 
 
 def parse_args(argv):
@@ -3965,11 +3965,11 @@ def parse_args(argv):
     parser_train.add_argument('-nsamples', dest='nsamples', default=9, help='Number of examples to be generated', type=int)
     parser_train.add_argument('-only_aug',dest='only_aug',help='Only do data augmentation, do not train',action='store_true')
 
-    # parser_train.add_argument('-classify_val', dest='classify_val',
-    #                           help='Apply trained model to val db', action='store_true')
-    # parser_train.add_argument('-classify_val_out', dest='classify_val_out',
-    #                           help='Store results of classify_val in this file (specified as a full path).',
-    #                           default=None)
+    parser_train.add_argument('-classify_val', dest='classify_val',
+                              help='Apply trained model to val db', action='store_true')
+    parser_train.add_argument('-classify_val_out', dest='classify_val_out',
+                              help='Store results of classify_val in this file (specified as a full path).',
+                              default=None)
 
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
