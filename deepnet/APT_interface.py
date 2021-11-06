@@ -4070,6 +4070,8 @@ def get_valfilename(conf, nettype):
         val_filename = 'leap_val.h5'
     elif nettype == 'deeplabcut':
         val_filename = 'val_data.p'
+    elif nettype == 'mdn_joint_fpn':
+        val_filename = conf.valfilename + '.json'
     else:
         raise ValueError('Unrecognized net type')
     return val_filename

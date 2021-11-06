@@ -4380,14 +4380,15 @@ classdef DeepTracker < LabelTracker
           res = load(resfile,'-mat');
           fprintf(1,'Loaded results file %s\n',resfile);
                     
-          assert(isequal(numel(res.info),size(res.locs,1),size(res.preds,1)));
+          predlocs = res.preds.locs;
+          assert(isequal(numel(res.info),size(res.locs,1),size(predlocs,1)));
           ni = numel(res.info);
 
-          errl2 = sqrt(sum((res.locs-res.preds).^2,3)); % [n_splti x npt]
+          errl2 = sqrt(sum((res.locs-predlocs).^2,3)); % [n_splti x npt]
 
           info = cat(1,info,cat(1,res.info{:}));
           locs = cat(1,locs,reshape(res.locs,ni,[]));
-          preds = cat(1,preds,reshape(res.preds,ni,[])); 
+          preds = cat(1,preds,reshape(predlocs,ni,[])); 
           errs = cat(1,errs,errl2);
           splt = cat(1,splt,isplt*ones(ni,1));
           mdlfile = cat(1,mdlfile,repmat({char(res.model_file)},ni,1));
