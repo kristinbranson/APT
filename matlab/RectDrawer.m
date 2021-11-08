@@ -27,8 +27,12 @@ classdef RectDrawer < handle
         || (pos(2)+pos(4))<lims(3) ...
         || pos(1)>lims(2) ...
         || pos(2)>lims(4)
-        warning('ROI is completely outside the axes limits. Not adding it');
-        return
+        warningNoTrace('ROI not added: ROI is completely outside the axes limits.');
+        return;
+      end
+      if pos(3)==0 || pos(4)==0
+        warningNoTrace('ROI not added: ROI has zero area.');
+        return;
       end
       pos(1:2) = max(lims([1 3]),pos(1:2));
       pos(3:4) = min(lims([2 4]),pos(3:4)+pos(1:2))-pos(1:2);

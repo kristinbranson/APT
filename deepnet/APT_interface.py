@@ -1018,6 +1018,27 @@ def test_preproc(lbl_file=None, cachedir=None):
     ax[1].scatter(locs2[ndx, :, 0], locs2[ndx, :, 1])
 
 
+def read_trx_file(trx_file):
+
+    trx = []
+    if trx_file is None:
+        return [], 1
+    try:
+        trx = sio.loadmat(trx_file)['trx'][0]
+        n_trx = len(trx)
+    except NotImplementedError:
+        # trx file in v7.3 format
+        # print('Trx file is in v7.3 format. Loading using h5py')
+        trx0 = h5py.File(trx_file, 'r')['trx']
+        n_trx = trx0['x'].shape[0]
+        for trx_ndx in range(n_trx):
+            cur_trx = {}
+            for k in trx0.keys():
+                cur_trx[k] = np.array(trx0[trx0[k][trx_ndx, 0]]).T
+            trx.append(cur_trx)
+    return trx, n_trx
+    
+    
 def get_cur_trx(trx_file, trx_ndx):
     if trx_file is None:
         return None, 1
@@ -1362,7 +1383,8 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
             # add examples of background not added earlier.
             for endx in range(n_extra_roi):
                 eroi_mask = create_mask(extra_roi[endx:endx + 1, ...]/mask_sc, mask_sz)
-                if (eroi_mask.sum()<4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > 0.5:
+                if (eroi_mask.sum()<=4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > 0.5:
+				
                     done_eroi[endx] = 1.
                     continue
 
@@ -1876,7 +1898,8 @@ def create_cv_split_files(conf, n_splits=3):
     for ndx, dir_name in enumerate(local_dirs):
         if conf.has_trx_file:
             trx_files = multiResData.get_trx_files(lbl, local_dirs)
-            trx = sio.loadmat(trx_files[ndx])['trx'][0]
+            trx,n_trx = read_trx_file(trx_files[ndx])
+            #trx = sio.loadmat(trx_files[ndx])['trx'][0]
             n_trx = len(trx)
         else:
             n_trx = 1
@@ -1976,11 +1999,12 @@ def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True
 def get_trx_info(trx_file, conf, n_frames):
     ''' all returned values are 0-indexed'''
     if conf.has_trx_file:
-        trx = sio.loadmat(trx_file)['trx'][0]
-        n_trx = len(trx)
-        end_frames = np.array([x['endframe'][0, 0] for x in trx])
+        trx,n_trx = read_trx_file(trx_file)
+        #trx = sio.loadmat(trx_file)['trx'][0]
+        #n_trx = len(trx)
+        end_frames = np.array([int(x['endframe'][0, 0]) for x in trx])
         first_frames = np.array(
-            [x['firstframe'][0, 0] for x in trx]) - 1  # for converting from 1 indexing to 0 indexing
+            [int(x['firstframe'][0, 0]) for x in trx]) - 1  # for converting from 1 indexing to 0 indexing
     elif conf.use_ht_trx or conf.use_bbox_trx:
         # convert trk file to trx file format.
         T = h5py.File(trx_file, 'r')

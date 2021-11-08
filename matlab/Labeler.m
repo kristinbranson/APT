@@ -818,7 +818,7 @@ classdef Labeler < handle
       n = numel(iMov);
       v = cell(n,obj.nview);
       
-      sMacro = obj.projMacros;
+      sMacro = obj.projMacrosGetWithAuto;
       mfa = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
       mfaGT = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       tfa = obj.trxFilesAll;
@@ -3336,7 +3336,11 @@ classdef Labeler < handle
       
     end
     
-    function printAllTrackerInfo(obj)
+    function printAllTrackerInfo(obj,fileinfo)
+      
+      if nargin < 2,
+        fileinfo = false;
+      end
       
       for i = 1:numel(obj.trackersAll),
         tObj = obj.trackersAll{i};
@@ -3345,6 +3349,10 @@ classdef Labeler < handle
         end
         fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
         fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
+        if fileinfo,
+          fprintf('  Stripped lbl file: %s\n',tObj.trnLastDMC.lblStrippedLnx);
+          fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx);
+        end
       end
       
     end
@@ -8846,25 +8854,27 @@ classdef Labeler < handle
     end
     
     function hFgs = labelOverlayMontage(obj,varargin)
-      [trxCtred,trxCtredRotAlignMeth,roiRadius,roiPadVal,hFig0] = myparse(varargin,...
-        'trxCtred',false,... % If true, center shapes relative to trx.x, trx.y
-        'trxCtredRotAlignMeth','none',... % Rotational alignment method when trxCentered=true. One of {'none','headtail','trxtheta'}. 
+      [ctrMeth,rotAlignMeth,roiRadius,roiPadVal,hFig0,...
+        addMarkerSizeSlider] = myparse(varargin,...
+        'ctrMeth','none',... % {'none' 'trx' 'centroid'}; see hlpOverlay...
+        'rotAlignMeth','none',... % Rotational alignment method when ctrMeth is not 'none'. One of {'none','headtail','trxtheta'}. 
         ... % 'trxCtredSizeNorm',false,... True to normalize shapes by trx.a, trx.b. SKIP THIS for now. Have found that doing this normalization tightens shape distributions a bit (when tracking/trx is good)
         'roiRadius',nan,... % A little unusual, used if .preProcParams.TargetCrop.Radius is not avail
         'roiPadVal',0,...% A little unsuual, used if .preProcParams.TargetCrop.PadBkgd is not avail
-        'hFig0',[]... % Optional, previous figure to use with figurecascaded
+        'hFig0',[],... % Optional, previous figure to use with figurecascaded
+        'addMarkerSizeSlider',true ...
         ); 
 
       if ~obj.hasMovie
         error('Please open a movie first.');
       end
-      if trxCtred && ~obj.hasTrx
+      if strcmp(ctrMeth,'trx') && ~obj.hasTrx
         error('Project does not have trx. Cannot perform trx-centered montage.');
       end
       if obj.cropProjHasCrops
         error('Currently unsupported for projects with cropping.');
       end
-      switch trxCtredRotAlignMeth
+      switch rotAlignMeth
         case 'headtail'
           if isempty(obj.skelHead) || isempty(obj.skelTail)
             error('Please define head/tail landmarks under Track>Landmark parameters.');
@@ -8879,13 +8889,15 @@ classdef Labeler < handle
       tMFT = obj.labelAddLabelsMFTable(tMFT);
             
       [ims,p] = obj.hlpOverlayMontageGenerateImP(tMFT,nphyspts,...
-        trxCtred,trxCtredRotAlignMeth,roiRadius,roiPadVal);
+        ctrMeth,rotAlignMeth,roiRadius,roiPadVal);
       n = size(p,1);
       % p is [n x nphyspts*nvw*2]
       p = reshape(p',[nphyspts nvw 2 n]);
       
       % KB 20181022 - removing references to ColorsSets
-      clrs = obj.labelPointsPlotInfo.Colors;
+      lppi = obj.labelPointsPlotInfo;
+      %mrkrProps = lppi.MarkerProps;      
+      clrs = lppi.Colors;
       ec = OlyDat.ExperimentCoordinator;      
 
       tbases = cell(nvw,1);
@@ -8912,14 +8924,14 @@ classdef Labeler < handle
         hold on;
 %         axis xy;
         set(hAxs(ivw),'XTick',[],'YTick',[],'Visible','on');
-        if trxCtred
-          switch trxCtredRotAlignMeth
+        if ~strcmp(ctrMeth,'none')
+          switch rotAlignMeth
             case 'none'
-              rotStr = 'Unaligned';
+              rotStr = 'Centered, unaligned';
             case 'headtail'
-              rotStr = 'Head/tail aligned';
+              rotStr = 'Centered, head/tail aligned';
             case 'trxtheta'
-              rotStr = 'Trx/theta aligned';
+              rotStr = 'Centered, trx/theta aligned';
           end
         else
           rotStr = '';
@@ -8974,6 +8986,35 @@ classdef Labeler < handle
         uistack(hM1,'bottom');
       end
       
+      if addMarkerSizeSlider
+        % just add it to view1
+        MAXMARKERSIZE = 64;
+        SLIDERWIDTH = 0.5;
+        SLIDERHEIGHT = .03;
+
+        ax1units = hAxs(1).Units;
+        hAxs(1).Units = 'normalized';
+        ax1yposnorm = hAxs(1).Position(2);
+        hAxs(1).Units = ax1units;
+        
+        hfig1 = hAxs(1).Parent;
+        hsld = uicontrol(hfig1,'style','slider');
+        hsld.Units = 'normalized';
+        hsld.Position(3) = SLIDERWIDTH;
+        hsld.Position(4) = SLIDERHEIGHT;
+        hsld.Position(1) = 0.5-hsld.Position(3)/2;
+        hsld.Position(2) = ax1yposnorm/2 - SLIDERHEIGHT/2;
+        addlistener(hsld,'ContinuousValueChange',@(s,e)set(hLns,'MarkerSize',(s.Value+.002)*MAXMARKERSIZE));
+%         htxt = uicontrol(hfig1,'style','text','String','Marker Size','HorizontalAlignment','right');
+%         htxt.Units = 'normalized';
+%         htxt.FontWeight = 'bold';
+%         htxt.FontAngle = 'italic';
+%         htxt.FontSize = 10;
+%         htxt.Position(3) = htxt.Extent(3);
+%         htxt.Position(1) = 0.5-htxt.Position(3)/2;
+%         htxt.Position(2) = hsld.Position(2)-htxt.Extent(4); 
+      end
+
       tor = TrainingOverlayReceiver(hAxs,tbases,tMFT);
       ec.registerObject(tor,'respond');    
     end
@@ -8986,138 +9027,210 @@ classdef Labeler < handle
         warningNoTrace('No shape selected.');
       end
     end
+    function imroi = hlpMontageImPadGrab(obj,im,xc,yc,rad,th,tfAlign,padval)
+      % grab a patch form an image centered around a certain point
+      % im: image
+      % xy/yc: center of patch
+      % rad: radius
+      % th: (optional) angle. only used if tfAlign
+      % tfAlign: logical. if true, grab patch with rot as given by th
+      % padval: background for padgrab
+
+      if tfAlign
+        % im: cropped + canonically rotated
+        imnr = size(im,1);
+        imnc = size(im,2);
+        xim = 1:imnc;
+        yim = 1:imnr;
+        [xgim,ygim] = meshgrid(xim,yim);
+        xroictr = -rad:rad;
+        yroictr = -rad:rad;
+        [xgroi,ygroi] = meshgrid(xroictr,yroictr);        
+        imroi = readpdf2chan(DataAugMontage.convertIm2Double(im),...
+          xgim,ygim,xgroi,ygroi,xc,yc,th);
+      else
+        % im: crop around current target, no rotation
+        [roiXlo,roiXhi,roiYlo,roiYhi] = xyRad2roi(xc,yc,rad);
+        imroi = padgrab2d(im,padval,roiYlo,roiYhi,roiXlo,roiXhi);
+      end
+    end
     function [ims,p] = hlpOverlayMontageGenerateImP(obj,tMFT,nphyspts,...
-        trxCtred,trxCtredRotAlignMeth,roiRadius,roiPadVal)
+        ctrMeth,rotAlignMeth,roiRadius,roiPadVal)
       % Generate images and shapes to plot
       %
       % tMFT: table with labeled frames
-      % trxCtred: If true, labels will be shifted to be relative to their
-      %  trx centers. If false, labels may/will wander over the image if/as
-      %  targets wander
-      % trxCtredRotAlignMeth: One of {'none','headtail','trxtheta'}:
+      %
+      % ctrMeth: {'none' 'trx' 'centroid'}
+      %   - none: labels may/will wander over the image if/as targets 
+      %           wander. 
+      %   - trx: patches will be grabbed and labels shifted appropriately,
+      %          centered on trx. asserts obj.hasTrx.
+      %   - centroid: patches will be centered on pose centroids. applies
+      %      to both MA and SA.
+      %
+      % if ctrMeth is not none, currently we require single-view.
+      % 
+      % rotAlignMeth: One of {'none','headtail','trxtheta'}. The latter two
+      %   require ctrMeth is 'trx' or 'centroid'.
       %  * 'none'. labels/shapes are not rotated. 
       %  * 'headtail'. shapes are aligned based on their iHead/iTail
       %  pts (taken from tracking parameters)
-      %  * 'trxtheta'. shapes are aligned based on their trx.theta. If the
-      %  trx.theta is incorrect then the alignment will be as well.
+      %  * 'trxtheta'. .hasTrx must be true. shapes are aligned based on 
+      %   their trx.theta. If the trx.theta is incorrect then the alignment 
+      %   will be as well.
+      %
       % roiRadius:
       % roiPadVal:
       % 
       % ims: [nview] cell array of images to plot
       % p: all labels [nlbledfrm x D==(nphyspts*nvw*d)]      
+
+      tfCtred = true;
+      switch ctrMeth
+        case 'none', tfCtred = false;
+        case 'trx', assert(obj.hasTrx);
+        case 'centroid' % none
+        otherwise, assert(false);
+      end
+          
+      tfAlign = true;
+      switch rotAlignMeth
+        case 'none', tfAlign = false;
+        case 'headtail'
+          % already asserted that .skelHead/Tail exist
+          assert(tfCtred);
+          iptHead = obj.skelHead;
+          iptTail = obj.skelTail;
+        case 'trxtheta'
+          assert(tfCtred);
+          assert(obj.hasTrx);
+        otherwise, assert(false);
+      end
       
       nvw = obj.nview;
-      
       ims = obj.gdata.images_all;
-      ims = arrayfun(@(x)x.CData,ims,'uni',0);
-      if trxCtred
+      ims = arrayfun(@(x)x.CData,ims,'uni',0); % current ims
+
+      if tfCtred
+        assert(nvw==1,'Currently, centered montages unsupported for multiview projects.');
+        
+        %%% roiRadius/roiPadVal handling %%%
         prms = obj.trackParams;
         if isempty(prms)
-          warningNoTrace('Parameters unset. Using supplied/default ROI radius and background pad value.');
-          if ~isnan(roiRadius)
-            % OK; user-supplied
-          else
-            [nr1,nc1] = size(ims{1});
-            roiRadius = min(floor(nr1/2),floor(nc1/2)); % b/c ... why not
-          end
+%           warningNoTrace('Parameters unset. Using supplied/default ROI radius and background pad value.');
+%           if ~isnan(roiRadius)
+%             % OK; user-supplied
+%           else
+%             [nr1,nc1] = size(ims{1});
+%             roiRadius = min(floor(nr1/2),floor(nc1/2)); % b/c ... why not
+%           end
           % roiPadVal has been supplied
         else
           prmsTgtCrop = prms.ROOT.MultiAnimal.TargetCrop;
           % Override roiRadius, roiPadVal with .preProcParams stuff
-          roiRadius = obj.maGetTgtCropRad(prmsTgtCrop);
+          % roiRadius = obj.maGetTgtCropRad(prmsTgtCrop);
           roiPadVal = prmsTgtCrop.PadBkgd;
         end
+        roiRadius = ceil(obj.maEstimateTgtCropRad(2.0));
+        % For now, always auto-compute roi radius. User may not have
+        % set or updated parameters; for SA projects (no trx), the 
+        % ROOT.MultiAnimal parameters are not even visible in tracking
+        % params UI etc
 
-        % Image: use image for current mov/frm/tgt
-        assert(nvw==1,'Expect single view for projects with trx.');
-        [xTrxCurrTgt,yTrxCurrTgt,thTrxCurrTgt] = ...
-          readtrx(obj.trx,obj.currFrame,obj.currTarget);
-        xTrxCurrTgt = double(xTrxCurrTgt);
-        yTrxCurrTgt = double(yTrxCurrTgt);
-        thTrxCurrTgt = double(thTrxCurrTgt);
-        switch trxCtredRotAlignMeth
-          case 'none'
-            % im: crop around current target, no rotation
-            [roiXloCurrTgt,roiXhiCurrTgt,roiYloCurrTgt,roiYhiCurrTgt] = ...
-              xyRad2roi(xTrxCurrTgt,yTrxCurrTgt,roiRadius);
-            ims{1} = padgrab(ims{1},roiPadVal,...
-              roiYloCurrTgt,roiYhiCurrTgt,roiXloCurrTgt,roiXhiCurrTgt); % asserted nvw==1
-          case {'headtail' 'trxtheta'}
-            % im: cropped + canonically rotated
-            im = ims{1};
-            [imnr,imnc] = size(im);
-            xim = 1:imnc;
-            yim = 1:imnr;
-            [xgim,ygim] = meshgrid(xim,yim);
-            xroictr = -roiRadius:roiRadius;
-            yroictr = -roiRadius:roiRadius;
-            [xgroi,ygroi] = meshgrid(xroictr,yroictr);
-            im = readpdf2(double(im),xgim,ygim,xgroi,ygroi,...
-              xTrxCurrTgt,yTrxCurrTgt,thTrxCurrTgt);
-            ims{1} = im;
-          otherwise
-            assert(false);
+        %%% xc, yc, th, base image (shown underneath labels) %%%
+        switch ctrMeth
+          case 'trx'
+            % Use image for current mov/frm/tgt
+            [xc,yc,th] = readtrx(obj.trx,obj.currFrame,obj.currTarget);
+            xc = double(xc);
+            yc = double(yc);
+            switch rotAlignMeth
+              case 'none'
+                th = nan;
+              case {'headtail' 'trxtheta'}
+                % we cheat a little here; in case of 'headtail', the base
+                % image is not aligned with h/t as it may not even be
+                % labeled. it is just a base image to guide the eye.
+                th = double(th);
+            end
+            % ims unchanged; use current ims{1}
+          case 'centroid'
+            % MA or SA (non-trx)
+            lbls = obj.labelsGTaware;
+            s = lbls{obj.currMovie};
+            if isempty(s.frm)
+              error('Please switch movies to one with a labeled frame.');
+            end
+            frm = s.frm(1);
+            xyLbl = reshape(s.p(:,1),[],2);
+            xyc = nanmean(xyLbl,1);
+            xc = xyc(1);
+            yc = xyc(2);
+            switch rotAlignMeth
+              case 'none'
+                th = nan;
+              case 'headtail'
+                xyHead = xyLbl(iptHead,:);
+                xyTail = xyLbl(iptTail,:);
+                xyHT = xyHead-xyTail;
+                th = atan2(xyHT(2),xyHT(1));                
+              case 'trxtheta'
+                itgt = s.tgt(1);
+                [~,~,th] = readtrx(obj.trx,frm,itgt);
+            end
+            mr = obj.movieReader; % note, nview==1
+            ims{1} = mr.readframe(frm);
         end
+        % asserted nview==1
+        ims{1} = obj.hlpMontageImPadGrab(ims{1},xc,yc,roiRadius,...
+          th,tfAlign,roiPadVal);
                 
-        % p (Shapes)
+        %%% p (Shapes) %%%
+        
+        % Step 1: add central pt when appropriate
         p = tMFT.p; % [nLbld x nphyspts*(nvw==1)*2]
-        pTrx = tMFT.pTrx; % [nLbld x 2]        
-        n = size(p,1);
-        switch trxCtredRotAlignMeth
+        switch ctrMeth
+          case 'trx'
+            pc = tMFT.pTrx; % [nLbld x 2]
+          case 'centroid'
+            assert(size(p,2)==nphyspts*2);
+            pc = [nanmean(p(:,1:nphyspts),2) nanmean(p(:,nphyspts+1:end),2)];
+        end
+        % central point added as (nphyspts+1)th point, we will use it to
+        % center our aligned shapes
+        pWithCtr = [p(:,1:nphyspts) pc(:,1) p(:,nphyspts+1:end) pc(:,2)];
+            
+        % Step 2: rotate
+        % Step 3: subtract off center pt
+        switch rotAlignMeth
           case 'none'
-            % AL20200522: this can all be optimized now, see eg 
-            % .xyAndTrx2ROI vectorized api and .labelMFTableAddROITrx
-            for i=1:n
-              xyRow = Shape.vec2xy(p(i,:));
-              xyTrxRow = Shape.vec2xy(pTrx(i,:));
-
-              [~,tfOOB,xyRoi] = Shape.xyAndTrx2ROI(xyRow,xyTrxRow,...
-                nphyspts,roiRadius);
-              if tfOOB
-                trow = tMFT(i,:);
-                warningNoTrace('Shape (mov %d,frm %d,tgt %d) falls outside ROI.',...
-                  trow.mov,trow.frm,trow.iTgt);
-              end
-              p(i,:) = Shape.xy2vec(xyRoi);
-            end
-          case {'headtail' 'trxtheta'}
-            % Add pTrx as (nphyspts+1)th point, we will use it to center
-            % our aligned shapes
-            pWithTrx = [p(:,1:nphyspts)     pTrx(:,1) ...
-                        p(:,nphyspts+1:end) pTrx(:,2)]; 
-            if strcmp(trxCtredRotAlignMeth,'headtail')
-              iptHead = obj.skelHead;
-              iptTail = obj.skelTail;
-              pWithTrxAligned = Shape.alignOrientationsOrigin(pWithTrx,iptHead,iptTail); 
-              % aligned based on iHead/iTailpts, now with arbitrary offset
-              % b/c was rotated about origin. Note the presence of pTrx as
-              % the "last" point should not affect iptHead/iptTail defns
-              
-            else % 'trxtheta'
-              thTrx = tMFT.thetaTrx;
-              pWithTrxAligned = Shape.rotate(pWithTrx,-thTrx,[0 0]); % could rotate about pTrx but shouldn't matter
-              % aligned based on trx.theta, now with arbitrary offset
-            end
-
-            twoRadP1 = 2*roiRadius+1;
-            for i=1:n
-              xyRowWithTrx = Shape.vec2xy(pWithTrxAligned(i,:));
-              xyRowWithTrx = bsxfun(@minus,xyRowWithTrx,xyRowWithTrx(end,:)); 
-              % subtract off pTrx. All pts/coords now relative to origin at
-              % pTrx, with shape aligned.
-              xyRow = xyRowWithTrx(1:end-1,:);
-              xyRow(:,1) = xyRow(:,1)+roiRadius+1;
-              xyRow(:,2) = xyRow(:,2)+roiRadius+1;
-              tfOOB = xyRow<1 | xyRow>twoRadP1; % [nphyspts x 2]
-              if any(tfOOB(:))
-                trow = tMFT(i,:);
-                warningNoTrace('Shape (mov %d,frm %d,tgt %d) falls outside ROI.',...
-                  trow.mov,trow.frm,trow.iTgt);
-              end
-              p(i,:) = Shape.xy2vec(xyRow); % in-place modification of p
-            end                        
-          otherwise
-            assert(false,'Unrecognized ''trxCtredRotAlignMeth''.');
+            pWithCtrAligned = pWithCtr;
+          case 'headtail'
+            pWithCtrAligned = Shape.alignOrientationsOrigin(pWithCtr,iptHead,iptTail);
+            % aligned based on iHead/iTailpts, now with arbitrary offset
+            % b/c was rotated about origin. Note the presence of pc as
+            % the "last" point should not affect iptHead/iptTail defns
+          case 'trxtheta'
+            thTrx = tMFT.thetaTrx;
+            pWithCtrAligned = Shape.rotate(pWithCtr,-thTrx,[0 0]); % could rotate about pTrx but shouldn't matter
+            % aligned based on trx.theta, now with arbitrary offset
+        end
+        
+        n = size(p,1);
+        twoRadP1 = 2*roiRadius+1;
+        for i=1:n
+          xyRowWithTrx = Shape.vec2xy(pWithCtrAligned(i,:));
+          xyRowWithTrx = bsxfun(@minus,xyRowWithTrx,xyRowWithTrx(end,:));
+          % subtract off pCtr. All pts/coords now relative to origin at
+          % pCtr, with shape aligned.
+          xyRow = xyRowWithTrx(1:end-1,:) + roiRadius + 1; % places origin at center of roi
+          tfOOB = xyRow<1 | xyRow>twoRadP1; % [nphyspts x 2]
+          if any(tfOOB(:))
+            trow = tMFT(i,:);
+            warningNoTrace('Shape (mov %d,frm %d,tgt %d) falls outside ROI.',...
+              trow.mov,trow.frm,trow.iTgt);
+          end
+          p(i,:) = Shape.xy2vec(xyRow); % in-place modification of p
         end
       else
         % ims: no change
@@ -9220,24 +9333,24 @@ classdef Labeler < handle
     function r = maGetTgtCropRad(obj,prmsTgtCrop)
       r = prmsTgtCrop.ManualRadius;
     end
-%     function r = maEstimateTgtCropRad(obj,cropszfac)
-%       % Don't call directly, doesn't apply mod32 constraint
-%       spanptl = 99;
-%       npts = obj.nLabelPoints;
-%     
-%       s = cat(1,obj.labels{:});
-%       p = cat(2,s.p); % 2*npts x n
-%       p = p.';
-% 
-%       n = size(p,1);
-%       xy = reshape(p,n,npts,2);
-%       
-%       xymin = squeeze(min(xy,[],2)); % n x 2
-%       xymax = squeeze(max(xy,[],2)); % n x 2
-%       xyspan = xymax-xymin;
-%       xyspan = prctile(xyspan(:),spanptl);
-%       r = xyspan/2*cropszfac;
-%     end
+    function r = maEstimateTgtCropRad(obj,cropszfac)
+      % Don't call directly, doesn't apply mod32 constraint
+      spanptl = 95;
+      npts = obj.nLabelPoints;
+    
+      s = cat(1,obj.labels{:});
+      p = cat(2,s.p); % 2*npts x n
+      p = p.';
+
+      n = size(p,1);
+      xy = reshape(p,n,npts,2);
+      
+      xymin = squeeze(min(xy,[],2)); % n x 2
+      xymax = squeeze(max(xy,[],2)); % n x 2
+      xyspan = xymax-xymin;
+      xyspan = prctile(xyspan(:),spanptl);
+      r = xyspan/2*cropszfac;
+    end
   
     function roi = maGetLossMask(obj,xy,sPrmLoss)
       % Compute mask roi for keypoints xy 
@@ -10963,6 +11076,7 @@ classdef Labeler < handle
       % MA-TD) and switches between them, the behavior may be odd (eg the
       % user may get prompted constantly about "changed suggestions" etc)
 
+        
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
 % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
@@ -10972,6 +11086,13 @@ classdef Labeler < handle
       tPrm = APTParameters.defaultParamsTree;
       % Overlay our starting pt
       tPrm.structapply(sPrmCurrent);
+      
+      if obj.isMultiView        
+        warningNoTrace('Multiview project: not auto-setting params.');
+        do_update = false;
+        return;
+      end      
+      
       if obj.trackerIsTwoStage && ~obj.trackerIsObjDet && isempty(obj.skelHead)
         uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks'));
         landmark_specs('lObj',obj,'waiton_ui',true);
@@ -11119,12 +11240,8 @@ classdef Labeler < handle
         error('Labeler:track','No movie.');
       end
       
-      if obj.nview==1
-        obj.trackSetAutoParams();
-      else
-        warningNoTrace('Multiview: not auto-setting params.');
-      end
-
+      obj.trackSetAutoParams();
+      
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));
         % assert this as we do not fetch tblMFTp to treatInfPosAsOcc
@@ -11293,7 +11410,7 @@ classdef Labeler < handle
       
       [wbObj,ppdata,sPrmAll,shuffleRows,updateCacheOnly] = myparse(varargin,...
         'wbObj',[],...
-        'ppdata',[],...
+        'ppdata',[],... % preproc data; or [] => auto-generate; or 'skip' => dont include ppdatacache in stripped lbl (eg for projs that use trnpacks)
         'sPrmAll',[],...
         'shuffleRows',true, ...
         'updateCacheOnly',false ... % if true, output args are 
@@ -11322,7 +11439,12 @@ classdef Labeler < handle
       %
       % Determine the training set
       % 
-      if isempty(ppdata),
+      tfSkipPPData = strcmp(ppdata,'skip') || ...
+                     isempty(ppdata) && tObj.trnNetMode.isTrnPack;
+      if tfSkipPPData
+        assert(~updateCacheOnly);
+        tblPCache = [];
+      elseif isempty(ppdata),
         treatInfPosAsOcc = ...
           isa(tObj,'DeepTracker') && tObj.trnNetType.doesOccPred;
         tblPCache = obj.preProcGetMFTableLbled(...
@@ -11416,51 +11538,58 @@ classdef Labeler < handle
 %       end
       
       % AL: moved above
-      if ~isempty(ppdata)
+      if ~isempty(ppdata) % includes tfSkipPPData
 %         ppdbICache = true(ppdata.N,1);
       else
         % De-objectize .ppdb.dat (CPRData)
         ppdata = s.ppdb.dat;
       end
       
-      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d %s rows.\n',...
-        numel(ppdbICache),ppdata.N,descstr);
-      
-      ppdataI = ppdata.I(ppdbICache,:);
-      ppdataP = ppdata.pGT(ppdbICache,:);
-      ppdataMD = ppdata.MD(ppdbICache,:);
-      
-      ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
-      ppMDflds = tblflds(ppdataMD);
-      s.preProcData_I = ppdataI;
-      s.preProcData_P = ppdataP;
-      for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
-        sfld = ['preProcData_MD_' f];
-        s.(sfld) = ppdataMD.(f);
-      end
-      if isfield(s,'ppdb'),
-        s = rmfield(s,'ppdb');
-      end
-      if isfield(s,'preProcData'),
-        s = rmfield(s,'preProcData');
-      end
-      
-      % 20201120 randomize training rows
-      if shuffleRows
-        fldsPP = fieldnames(s);
-        fldsPP = fldsPP(startsWith(fldsPP,'preProcData_'));
-        nTrn = size(ppdataI,1);
-        prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
-        fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
-        for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
-          v = s.(f);
-          assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
-          s.(f) = v(prand,:);
+      if ~tfSkipPPData
+        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d %s rows.\n',...
+          numel(ppdbICache),ppdata.N,descstr);
+
+        ppdataI = ppdata.I(ppdbICache,:);
+        ppdataP = ppdata.pGT(ppdbICache,:);
+        ppdataMD = ppdata.MD(ppdbICache,:);
+
+        ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
+        ppMDflds = tblflds(ppdataMD);
+        s.preProcData_I = ppdataI;
+        s.preProcData_P = ppdataP;
+        for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
+          sfld = ['preProcData_MD_' f];
+          s.(sfld) = ppdataMD.(f);
         end
-      else
-        prand = [];
+
+        if isfield(s,'ppdb'),
+          s = rmfield(s,'ppdb');
+        end
+        if isfield(s,'preProcData'),
+          s = rmfield(s,'preProcData');
+        end
+
+        % 20201120 randomize training rows
+        if shuffleRows
+          fldsPP = fieldnames(s);
+          fldsPP = fldsPP(startsWith(fldsPP,'preProcData_'));
+          nTrn = size(ppdataI,1);
+          prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
+          fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
+          for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
+            v = s.(f);
+            assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
+            s.(f) = v(prand,:);
+          end
+        else
+          prand = [];
+        end
+        s.preProcData_prand = prand;
+        
+        % check with Mayank, thought we wanted number of "underlying" chans
+        % but DL is erring when pp data is grayscale but NumChans is 3
+        s.cfg.NumChans = size(s.preProcData_I{1},3);
       end
-      s.preProcData_prand = prand;
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
@@ -11499,11 +11628,7 @@ classdef Labeler < handle
       % remove detect/DeepTrack from stage2
       s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
           s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');        
-      s.nLabels = ppdata.N;
-      
-      % check with Mayank, thought we wanted number of "underlying" chans
-      % but DL is erring when pp data is grayscale but NumChans is 3
-      s.cfg.NumChans = size(s.preProcData_I{1},3);
+      s.nLabels = ppdata.N;      
       
       tfsucc = true;
     end

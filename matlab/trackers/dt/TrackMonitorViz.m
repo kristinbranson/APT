@@ -126,7 +126,7 @@ classdef TrackMonitorViz < handle
         axwait.XLim = [0,1+obj.minFracComplete];
         obj.hline = gobjects(nstg,1);
         obj.htext = gobjects(nstg,1);
-        obj.nFramesToTrack = repmat(nFramesToTrack,2,1);
+        obj.nFramesToTrack = double(repmat(nFramesToTrack,2,1));
         obj.nFramesTracked = zeros(size(obj.nFramesToTrack));
         obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
         obj.jobDescs = TrackMonitorViz.initJobDescs(nMovSets,nview,true);        
@@ -318,6 +318,7 @@ classdef TrackMonitorViz < handle
                   end
                 end
               end
+              obj.nFramesTracked(ijob) = double(obj.nFramesTracked(ijob));
              
               if nJobs > 1,
                 sview = obj.jobDescs{ijob};

@@ -254,6 +254,16 @@ if floor(val)==val && val>=1
 else
   hObject.String = handles.nViews;
 end
+switch handles.nViews
+  case 1
+    handles.cbHasTrx.Enable = 'on';
+    handles.cbMA.Enable = 'on';    
+  otherwise
+    handles.cbHasTrx.Value = 0;
+    handles.cbMA.Value = 0;
+    handles.cbHasTrx.Enable = 'off';
+    handles.cbMA.Enable = 'off';
+end
 handles = advTableRefresh(handles);
 guidata(hObject,handles);
 % function pumLabelingMode_Callback(hObject, eventdata, handles)

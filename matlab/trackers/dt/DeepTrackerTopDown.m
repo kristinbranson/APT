@@ -105,7 +105,7 @@ classdef DeepTrackerTopDown < DeepTracker
       setAllParams@DeepTracker(obj,sPrmAll);      
     end
     
-    function sloc = genStrippedLblTrnPack(obj,dlLblFileLcl)
+    function ntgtstot = genStrippedLblTrnPack(obj,dlLblFileLcl)
       % Generate/write a trnpack/stripped lbl; can be used for both stages.
       %
       
@@ -119,7 +119,7 @@ classdef DeepTrackerTopDown < DeepTracker
       end
       
       packdir = dlLblFileLclDir;
-      [~,~,sloc,~] = Lbl.genWriteTrnPack(obj.lObj,packdir,...
+      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
         'strippedlblname',[slblf slble]);
     end
     
@@ -216,7 +216,7 @@ classdef DeepTrackerTopDown < DeepTracker
         assert(strcmp(dmc.lblStrippedLnx,dlLblFileLcl));
         
         tpjson = fullfile(tpdir,'trnpack.json');
-        tp = Lbl.hlpLoadJson(tpjson);
+        tp = TrnPack.hlpLoadJson(tpjson);
         nlbls = arrayfun(@(x)size(x.p,2),tp);
         dmc.nLabels = nlbls;
         
@@ -231,8 +231,7 @@ classdef DeepTrackerTopDown < DeepTracker
         dlLblFileLcl = dmc(1).lblStrippedLnx;
         tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
         assert(tfRequiresTrnPack);
-        sloc = obj.genStrippedLblTrnPack(dlLblFileLcl);
-        nlbls = numel(sloc);
+        nlbls = obj.genStrippedLblTrnPack(dlLblFileLcl);
         [dmc.nLabels] = deal(nlbls);
 
       else % Restart

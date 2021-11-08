@@ -802,19 +802,20 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-%       % check batch size
-%       nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
-%       fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
-%       bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
-%       % Note: at this time, project-level params are set but NOT
-%       % tracker-level params
-%       sPrm = lblObj.trackGetParams();
-%       res = structapply(sPrm.ROOT,bsizeFcn);
-%       tfbsize = cell2mat(res.values);
-%       if any(tfbsize)
-%         reason = 'Your project has fewer labeled targets than a specified training batch size.';
-%         return;
-%       end
+      % check batch size
+      nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
+      fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
+      bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
+      % Note: at this time, project-level params are set but NOT
+      % tracker-level params
+      sPrmLblObj = lblObj.trackGetParams();
+      res = structapply(sPrmLblObj.ROOT,bsizeFcn);
+      tfbsize = cell2mat(res.values);
+      if any(tfbsize)
+        reason = sprintf('Your project has fewer labeled targets (%d) than a specified training batch size.',...
+          nLbledRows);
+        return;
+      end
       
       if obj.trnNetType==DLNetType.openpose && isempty(lblObj.skeletonEdges)
         reason = 'Please define a skeleton to track with OpenPose.';
@@ -1321,7 +1322,7 @@ classdef DeepTracker < LabelTracker
         assert(strcmp(dmc.lblStrippedLnx,dlLblFileLcl));
         
         tpjson = fullfile(tpdir,'trnpack.json');
-        tp = Lbl.hlpLoadJson(tpjson);
+        tp = TrnPack.hlpLoadJson(tpjson);
         nlbls = arrayfun(@(x)size(x.p,2),tp);
         dmc.nLabels = nlbls;
         
@@ -1346,9 +1347,9 @@ classdef DeepTracker < LabelTracker
         tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
         if tfRequiresTrnPack
           packdir = dlLblFileLclDir;
-          [~,~,sloc,~] = Lbl.genWriteTrnPack(obj.lObj,packdir,...
+          [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
             'strippedlblname',dmc.lblStrippedName);
-          dmc.nLabels = numel(sloc);
+          dmc.nLabels = ntgtstot;
         else
           s = obj.trnCreateStrippedLbl('wbObj',wbObj);
           % store nLabels in dmc
@@ -1590,7 +1591,98 @@ classdef DeepTracker < LabelTracker
         dam.show(margs);
       end
     end
+
+    function [tf,tpdir] = trainPackExists(obj)
+      dm = obj.trnLastDMC;      
+      if ~isempty(dm) 
+        [tf,tpdir] = dm(1).trnPackExists();
+      else
+        tf = false;
+        tpdir = [];
+      end
+    end
     
+    function trainPackMontage(obj,varargin)
+      
+      [maxnpages,plotnr,plotnc] = myparse(varargin,...
+        'maxnpages',6,...
+        'plotnr',3,...
+        'plotnc',4 ...
+        );
+      
+      [tfTrnPackExists,tpdir] = obj.trainPackExists();     
+      
+      tfsucc = false;
+      if tfTrnPackExists
+        try
+          [~,~,~,locg] = TrnPack.loadPack(tpdir);
+          tfsucc = true; 
+        catch ME %#ok<NASGU>
+          emsg = 'Could not load training package.';
+        end                
+      else
+        emsg = 'Training package does not exist.';
+      end
+      
+      if ~tfsucc
+        errordlg(emsg,'Training package missing');
+        return;
+      end
+      
+      nplotpage = plotnr*plotnc;
+      nplotmax = maxnpages*nplotpage;      
+      ldata = locg.locdata;
+      if numel(ldata)>nplotmax
+        warningNoTrace('Only showing %d/%d frames available in training package.',...
+          nplotmax,numel(ldata));
+        ldata = ldata(1:nplotmax);
+      end
+      
+      I = arrayfun(@(x)imread(fullfile(tpdir,x.img{1})),ldata,'uni',0);
+      I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
+      N = numel(ldata);
+      D = size(ldata(1).pabs,1);
+      ntgtmax = max([ldata.ntgt]);
+      p = nan(N,D,ntgtmax);
+      rois = cell(N,1);
+      for i=1:N
+        ntgt = ldata(i).ntgt;
+        p(i,:,1:ntgt) = ldata(i).pabs;
+        roi = ldata(i).extra_roi.'; % nroi x 8
+        if ~isempty(roi)
+          roi = roi(:,[2 3 5 6]); % xlo xhi ylo yhi
+          rois{i} = roi;
+        else
+          rois{i} = nan(0,4);
+        end
+      end
+      lbls = arrayfun(@(x)sprintf('%d.%d',x.imov,x.frm),ldata,'uni',0);
+      if mean(I{1}(:))>0.5
+        lblscolor = [0 0 0];
+      else
+        lblscolor = [1 1 1];
+      end
+      
+      pppi = obj.lObj.labelPointsPlotInfo;
+      mrkrProps = struct2paramscell(pppi.MarkerProps);
+      margs0 = { ... %'framelblscolor',[1 1 0],...
+        'pplotargs',mrkrProps,...
+        'colors',pppi.Colors};
+      roiRectArgs = {'EdgeColor' [0 0 1] 'LineWidth' 2};
+    
+      tstr = sprintf('Training Data (%d images)',N);
+      args = {...
+        'rois',rois,'titlestr',tstr,...
+        'framelbls',lbls, ...
+        'framelblscolor',lblscolor, ...
+        'framelblsbgcolor','none',...
+        'framelblsIsFullSize',true,...
+        'roisRectangleArgs',roiRectArgs};
+      args = [args margs0];
+      h = Shape.montageTabbed(I,p,plotnr,plotnc,args{:});
+      set(h,'Name',tstr);      
+    end
+       
     function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,...
         sPrmAll,backEnd,varargin)
       
@@ -1620,9 +1712,9 @@ classdef DeepTracker < LabelTracker
         ID = datestr(now,'yyyymmddTHHMMSS');
         dataAugDir = fullfile(cacheDir,'DataAug',ID);
         if ~exist(dataAugDir,'dir'),
-          [succ,msg] = mkdir(dataAugDir);
+          [succ,emsg] = mkdir(dataAugDir);
           if ~succ
-            error('Failed to create dir %s: %s',dataAugDir,msg);
+            error('Failed to create dir %s: %s',dataAugDir,emsg);
           end
         end
         % Write stripped lblfile to local cache
@@ -1745,6 +1837,15 @@ classdef DeepTracker < LabelTracker
         mfafgt = lObj.movieFilesAllGTFull;
         tfafgt = lObj.trxFilesAllGTFull;
         
+        [mfaf2,ischange] = GetLinkSources(mfaf);
+        mfaf(end+1:end+nnz(ischange)) = mfaf2(ischange);
+        [tfaf2,ischange] = GetLinkSources(tfaf);
+        tfaf(end+1:end+nnz(ischange)) = tfaf2(ischange);
+        [mfafgt2,ischange] = GetLinkSources(mfafgt);
+        mfafgt(end+1:end+nnz(ischange)) = mfafgt2(ischange);        
+        [tfafgt2,ischange] = GetLinkSources(tfafgt);
+        tfafgt(end+1:end+nnz(ischange)) = tfafgt2(ischange);        
+                
         projbps = cell(0,1);
         projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfaf,'.movieFilesAllFull');
         if ~isempty(mfafgt)
@@ -5750,13 +5851,25 @@ classdef DeepTracker < LabelTracker
         % current movie should not change
         %obj.trackCurrResUpdate();
         %obj.newLabelerFrame();
-      end      
+      end  
+      
+      [tf,tpdir] = obj.trainPackExists();
+      if tf
+        warningNoTrace('Clearning training package image cache.');
+        TrnPack.clearims(tpdir);
+      end
     end
     function labelerMoviesReordered(obj,edata)
       mIdxOrig2New = edata.mIdxOrig2New;
       obj.movIdx2trkfile = mapKeyRemap(obj.movIdx2trkfile,mIdxOrig2New);
       
       % Assume trackCurrRes does not need update
+      
+      [tf,tpdir] = obj.trainPackExists();
+      if tf
+        warningNoTrace('Clearning training package image cache.');
+        TrnPack.clearims(tpdir);
+      end
     end
   end  
   
