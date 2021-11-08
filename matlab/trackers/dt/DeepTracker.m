@@ -2168,6 +2168,10 @@ classdef DeepTracker < LabelTracker
                  
       assert(obj.lObj.nview==1,'Currently only supported for single-view.');
 
+      if obj.lObj.gtIsGTMode
+        error('Unsupported in GT mode.');
+      end
+
       % --- C+P retrain ---
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
@@ -2202,12 +2206,86 @@ classdef DeepTracker < LabelTracker
       
       if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
+      end      
+      
+           
+      % Currently, cacheDir must be visible on the JRC shared filesys.
+      % In the future, we may need i) "localWSCache" and ii) "jrcCache".
+      
+      trnType = DLTrainType.New;
+      netObj = obj.trnNetType;
+      netMode = obj.trnNetMode;
+
+      % Base DMC, to be further copied/specified per-split
+      dmc = DeepModelChainOnDisk(...
+        'rootDir',cacheDir,...
+        'projID',projname,...
+        'netType',char(netObj),...
+        'netMode',netMode,...
+        'view',0,...  % 0b
+        'modelChainID','',... % to be filled in
+        'trainID','',... % to be filled in
+        'trainType',trnType,...
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
+        'isMultiView',false,...
+        'reader',DeepModelChainReader.createFromBackEnd(trnBackEnd),...
+        'filesep',obj.filesep,...
+        'doSplit',true ...
+        );
+
+      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
+      dmc.trainID = nowstr;
+      
+      
+      dlLblFileLcl = dmc.lblStrippedLnx;
+      dlLblFileLclDir = fileparts(dlLblFileLcl);
+      if exist(dlLblFileLclDir,'dir')==0
+        fprintf('Creating dir: %s\n',dlLblFileLclDir);
+        [succ,msg] = mkdir(dlLblFileLclDir);
+        if ~succ
+          error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
+        end
+      end
+      
+      % write slbl/trnpack
+      tfRequiresTrnPack = netObj.requiresTrnPack(netMode);
+      if tfRequiresTrnPack
+        packdir = dlLblFileLclDir;
+        [slbl,tp,locg,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
+          'strippedlblname',dmc.lblStrippedName);
+        dmc.nLabels = ntgtstot;
+        
+        tLbl = TrnPack.toMFT(tp);
+        
+        warningNoTrace('TODO: rois');
+%         tLbl = []; % XXX TODO
+%         % get labeled rows
+%         treatInfPosAsOcc = obj.trnNetType.doesOccPred;
+%         tLbl = obj.lObj.preProcGetMFTableLbled( ...
+%           'treatInfPosAsOcc',treatInfPosAsOcc ...
+%           );
+%         tLbl = tLbl(:,1:3);
+      else
+        slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
+        % store nLabels in dmc
+        dmc.nLabels = s.nLabels;
+
+        % Write stripped lblfile to local cache
+
+        save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
+        fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
+        
+        tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
+              slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
       end
 
-      slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
-      tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
-        slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
       
+
+
+      
+
+
       tblSplit.mov = double(tblSplit.mov);
       tf = ismember(tLbl,tblSplit(:,MFTable.FLDSID));
       nMissing = nnz(~tf);
@@ -2233,30 +2311,6 @@ classdef DeepTracker < LabelTracker
       
       obj.bgTrnReset();
       
-      cacheDir = obj.lObj.DLCacheDir;
-      
-      % Currently, cacheDir must be visible on the JRC shared filesys.
-      % In the future, we may need i) "localWSCache" and ii) "jrcCache".
-      
-
-      trnType = DLTrainType.New;
-
-      % Base DMC, to be further copied/specified per-split
-      dmc = DeepModelChainOnDisk(...
-        'rootDir',cacheDir,...
-        'projID',projname,...
-        'netType',char(obj.trnNetType),...
-        'netMode',obj.trnNetMode,...
-        'view',0,...  % 0b
-        'modelChainID','',... % to be filled in
-        'trainID','',... % to be filled in
-        'trainType',trnType,...
-        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
-        'isMultiView',false,...
-        'reader',DeepModelChainReader.createFromBackEnd(trnBackEnd),...
-        'filesep',obj.filesep,...
-        'doSplit',true ...
-        );
 
       nvw = obj.lObj.nview;
       isMultiViewTrain = false;
@@ -2279,30 +2333,14 @@ classdef DeepTracker < LabelTracker
         case DLBackEnd.Bsub
           aptroot = trnBackEnd.bsubSetRootUpdateRepo(cacheDir);
         case {DLBackEnd.Conda,DLBackEnd.Docker},
-          assert(false);
+          %assert(false);
           aptroot = APT.Root;
           %obj.downloadPretrainedWeights('aptroot',aptroot); 
       end
             
       trnCmdType = trnType;
-
+ 
       % LOOP STUFF
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
-      dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
-      dmc.trainID = nowstr;
-      
-      % Write stripped lblfile to local cache
-      dlLblFileLcl = dmc.lblStrippedLnx;
-      dlLblFileLclDir = fileparts(dlLblFileLcl);
-      if exist(dlLblFileLclDir,'dir')==0
-        fprintf('Creating dir: %s\n',dlLblFileLclDir);
-        [succ,msg] = mkdir(dlLblFileLclDir);
-        if ~succ
-          error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
-        end
-      end
-      save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
-      fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
 
       %dmc.nLabels = slbl.nLabels;
             

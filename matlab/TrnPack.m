@@ -592,7 +592,20 @@ classdef TrnPack
         error(mid,'Failed to clear image cache: %s',msg);
       end
     end
-    
+
+    function t = toMFT(tp)
+      mov = zeros(0,1);
+      frm = mov;
+      iTgt = mov;
+      for imov=1:numel(tp)
+        ntgt = numel(tp(imov).frm);
+        mov = cat(1,mov,repmat(imov,ntgt,1));
+        frm = cat(1,frm,tp(imov).frm);
+        iTgt = cat(1,iTgt,tp(imov).tgt);
+      end
+      t = table(mov,frm,iTgt);
+    end
+
 %     function writeimscc(sloccc,packdir)
 %       
 %       SUBDIRIM = 'imcc';
