@@ -12,7 +12,7 @@ import scipy
 
 from tqdm import tqdm
 import torch
-import torchvision.models.resnet as resnet
+from torchvision import models
 from torch import optim
 import torch.nn.functional as F
 import PoseTools
@@ -24,6 +24,7 @@ import copy
 import matplotlib
 from matplotlib import cm
 import matplotlib.pyplot as plt
+import cv2
 
 def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False):
   """
@@ -869,7 +870,8 @@ def get_default_params(conf):
   return params
 
 
-def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=True):
+def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=False):
+
   params = get_default_params(conf)
   if params_in != None:
     params.update(params_in)
@@ -931,8 +933,8 @@ def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_m
 
   if do_delete_short:
     ids, ids_short = delete_short(ids, isdummy, params)
-  if locs_conf is not None:
-    ids,ids_lowconf = delete_lowconf(trk,ids,params)
+#  if locs_conf is not None:
+#    ids,ids_lowconf = delete_lowconf(trk,ids,params)
   _, ids = ids.unique()
   trk.apply_ids(ids)
   if do_merge_close:
@@ -1009,7 +1011,7 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
       return loss_contrastive
 
   loss_history = []
-  net = resnet.resnet18(pretrained=True)
+  net = models.resnet.resnet18(pretrained=True)
   net.fc = torch.nn.Linear(in_features=512, out_features=5, bias=True)
   net = net.cuda()
   criterion = ContrastiveLoss()
@@ -1021,9 +1023,14 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
     confd.rrange = 15.
   else:
     confd.rrange = 180.
-  confd.trange = min(dat[0].shape[:2])/10
+  confd.trange = min(dat[0].shape[1:3])/10
   confd.horzFlip = False
   confd.vertFlip = False
+  confd.scale_factor_range = 1.
+  confd.brange = [-0.05,0.05]
+  confd.crange = [0.95,1.05]
+#  confd.rrange = 0.
+#  confd.trange = 0
 
   logging.info('Training ID network ...')
   for epoch in tqdm(range(n_iters)):
@@ -1046,12 +1053,13 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
     l1 = criterion(output1, output2, 0)
     l2 = criterion(output1, output3, 1)
     l3 = criterion(output2, output3, 1)
-    loss_contrastive = l1 + (l2 + l3) / 2
+    loss_contrastive = l1 + l2 + l3
     loss_contrastive.backward()
     optimizer.step()
 
     loss_history.append(loss_contrastive.item())
 
+##
   return net, tmp_trx
 
 
@@ -1080,6 +1088,7 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15,min_len=10):
     zz, _ = PoseTools.preprocess_ims(curims, dummy_locs, conf, False, 1)
     zz = zz.transpose([0, 3, 1, 2])
     zz = torch.tensor(zz, dtype=torch.float).cuda()
+    zz = zz/255. -0.5
     with torch.no_grad():
       oo = net(zz).cpu().numpy()
     preds.append(oo)
