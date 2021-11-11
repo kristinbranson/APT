@@ -883,32 +883,33 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
             assert(false);
         end
       else
-        switch obj.pjtState
-          case 0
-            obj.projectionSetAnchor(iPt);
-          case 1
-            if iPt==obj.pjtIPts(1)
-              obj.projectionClear();
-            elseif obj.projectionWorkingSetPointInWS(iPt)
-              obj.projectionSet2nd(iPt);
-            else
-              % iPt is neither anchor pt nor in anchor pt's working set
-              obj.projectionClear();
-              obj.projectionSetAnchor(iPt);
-            end
-          case 2
-            tf = iPt==obj.pjtIPts;
-            if any(tf)
-              idx = find(tf);
-              idxOther = mod(idx,2)+1;
-              iPtOther = obj.pjtIPts(idxOther);
-              obj.projectionClear();
-              obj.projectionSetAnchor(iPtOther);
-            else
-              obj.projectionClear();
-              obj.projectionSetAnchor(iPt);
-            end
-        end
+        obj.projectionSetAnchor(iPt);
+%         switch obj.pjtState
+%           case 0
+%             obj.projectionSetAnchor(iPt);
+%           case 1
+%             if iPt==obj.pjtIPts(1)
+%               obj.projectionClear();
+%             elseif obj.projectionWorkingSetPointInWS(iPt)
+%               obj.projectionSet2nd(iPt);
+%             else
+%               % iPt is neither anchor pt nor in anchor pt's working set
+%               obj.projectionClear();
+%               obj.projectionSetAnchor(iPt);
+%             end
+%           case 2
+%             tf = iPt==obj.pjtIPts;
+%             if any(tf)
+%               idx = find(tf);
+%               idxOther = mod(idx,2)+1;
+%               iPtOther = obj.pjtIPts(idxOther);
+%               obj.projectionClear();
+%               obj.projectionSetAnchor(iPtOther);
+%             else
+%               obj.projectionClear();
+%               obj.projectionSetAnchor(iPt);
+%             end
+%         end
       end
     end
     
@@ -945,22 +946,22 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         
         if isfield(crig, 'nviews')
           if iAx1 == 1 && iAx == 2
-            [x, y] = crig.caltech{1}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            [x, y] = crig.calibrations{1}.computeEpiPolarLine(1,xy1,iAx,imroi);
           end
           if iAx1 == 1 && iAx == 3
-            [x, y] = crig.caltech{2}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            [x, y] = crig.calibrations{2}.computeEpiPolarLine(1,xy1,iAx,imroi);
           end
           if iAx1 == 2 && iAx == 1
-            [x, y] = crig.caltech{1}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            [x, y] = crig.calibrations{1}.computeEpiPolarLine(2,xy1,iAx,imroi);
           end
           if iAx1 == 2 && iAx == 3
-            [x, y] = crig.caltech{3}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            [x, y] = crig.calibrations{3}.computeEpiPolarLine(1,xy1,iAx,imroi);
           end
           if iAx1 == 3 && iAx == 1
-            [x, y] = crig.caltech{2}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            [x, y] = crig.calibrations{2}.computeEpiPolarLine(2,xy1,iAx,imroi);
           end
           if iAx1 == 3 && iAx == 2
-            [x, y] = crig.caltech{3}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            [x, y] = crig.calibrations{3}.computeEpiPolarLine(2,xy1,iAx,imroi);
           end
         else
           [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
@@ -1004,38 +1005,39 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       hPt2 = obj.hPts(iPt2);
       
       xy1 = [hPt1.XData hPt1.YData];
-      xy2 = [hPt2.XData hPt2.YData];
-      iAxOther = setdiff(1:obj.nView,[iAx1 iAx2]);
+      xy1 = [hPt2.XData hPt2.YData];
+      iAxOther = setdiff(1:obj.nView, iAx1);
       crig = obj.pjtCalRig;
+      imroi = [];
       for iAx = iAxOther
         if isfield(crig, 'nviews')
           if iAx1 == 1 && iAx == 2
-            %[x, y] = crig.caltech{1}.computeEpiPolarLine(1,xy1,iAx,imroi);
-            [x,y] = crig.caltech{1}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+            [x, y] = crig.calibrations{1}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            %[x,y] = crig.calibrations{1}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
           end
           if iAx1 == 1 && iAx == 3
-            %[x, y] = crig.caltech{2}.computeEpiPolarLine(1,xy1,iAx,imroi);
-            [x,y] = crig.caltech{2}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+            [x, y] = crig.calibrations{2}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            %[x,y] = crig.calibrations{2}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
           end
           if iAx1 == 2 && iAx == 1
-            %[x, y] = crig.caltech{1}.computeEpiPolarLine(2,xy1,iAx,imroi);
-            [x,y] = crig.caltech{1}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+            [x, y] = crig.calibrations{1}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            %[x,y] = crig.calibrations{1}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
           end
           if iAx1 == 2 && iAx == 3
-            %[x, y] = crig.caltech{3}.computeEpiPolarLine(1,xy1,iAx,imroi);
-            [x,y] = crig.caltech{3}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+            [x, y] = crig.calibrations{3}.computeEpiPolarLine(1,xy1,iAx,imroi);
+            %[x,y] = crig.calibrations{3}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
           end
           if iAx1 == 3 && iAx == 1
-            %[x, y] = crig.caltech{2}.computeEpiPolarLine(2,xy1,iAx,imroi);
-            [x,y] = crig.caltech{2}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+            [x, y] = crig.calibrations{2}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            %[x,y] = crig.calibrations{2}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
           end
           if iAx1 == 3 && iAx == 2
-            %[x, y] = crig.caltech{3}.computeEpiPolarLine(2,xy1,iAx,imroi);
-            [x,y] = crig.caltech{3}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+            [x, y] = crig.calibrations{3}.computeEpiPolarLine(2,xy1,iAx,imroi);
+            %[x,y] = crig.calibrations{3}.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
           end
         else
-          %[x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
-          [x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
+          [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
+          %[x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
         end
         %[x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);
         set(obj.pjtHLinesRecon(iAx),...
