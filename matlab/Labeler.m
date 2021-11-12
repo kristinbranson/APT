@@ -9565,7 +9565,7 @@ classdef Labeler < handle
     function viewCalCheckCalRigObj(obj,crObj)
       % Basic checks on calrig obj
       
-      if ~(isequal(crObj,[]) || isa(crObj,'CalRig')&&isscalar(crObj) || isa(crObj,'struct')&&isfield(crObj,'type')&&strcmp(crObj.type,'multi_caltech'))
+      if ~(isequal(crObj,[]) || isa(crObj,'CalRig')&&isscalar(crObj))
         error('Labeler:viewCal','Invalid calibration object.');
       end
       nView = obj.nview;

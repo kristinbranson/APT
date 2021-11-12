@@ -141,13 +141,6 @@ classdef CalRig < handle
         % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
         obj = CalRig2CamCaltech(fname);
 %         tfSetViewRois = true;
-      elseif ismember('type', vars) && strcmp(s.type, 'multi_caltech')
-        % obj.caltech = {};
-        % obj.nviews = s.nviews;
-        % for i = 1:s.nviews
-        %   obj.caltech{i} = CalRig2CamCaltech(s.calibrations{i});
-        % end
-        obj = s;
       else
         error('CalRig:load',...
           'Calibration file ''%s'' has unrecognized contents.',fname);
