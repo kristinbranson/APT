@@ -224,7 +224,7 @@ classdef TrnPack
     end
     
     function hlpSaveJson(s,packdir,jsonoutf)
-      j = jsonencode(s);
+      j = jsonencode(s,'ConvertInfAndNaN',false);
       jsonoutf = fullfile(packdir,jsonoutf);
       fh = fopen(jsonoutf,'w');
       fprintf(fh,'%s\n',j);
@@ -314,7 +314,13 @@ classdef TrnPack
 %       TrnPack.hlpSaveJson(loccc,packdir,jsonoutf);      
     end
     
-    function sagg = aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,sPrmLossMask)
+    function sagg = aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,...
+        sPrmLossMask,varargin)
+      
+      [incPartialRows,treatInfPosAsOcc] = myparse(varargin,...
+        'incPartialRows',false,...
+        'treatInfPosAsOcc',true ...
+        );
       
       isgt = lObj.gtIsGTMode;
       PROPS = lObj.gtGetSharedProps;
@@ -325,11 +331,17 @@ classdef TrnPack
       mfafs = lObj.(fmfaf);
       nmov = numel(lbls);
       sagg = cell(nmov,1);
-%       saggroi = lObj.labelsRoi;
-%       szassert(saggroi,size(sagg));
       for imov=1:nmov
         s = lbls{imov};
         s.mov = mfafs{imov};
+        
+        % see also from Labeler/preProcGetMFTableLbled      
+        if ~incPartialRows
+          s = Labels.rmRows(s,@isnan,'partially-labeled');
+        end
+        if treatInfPosAsOcc
+          s = Labels.replaceInfWithNan(s);
+        end
         
         %% gen rois, bw
         n = size(s.p,2);
