@@ -13,11 +13,11 @@ classdef DLNetMode < handle
   % - DLNetMode
   
   enumeration 
-    singleAnimal ('sa', false, false, 0, false, false, false)
+    singleAnimal ('sa', false, false, 0, false, false, true)
     multiAnimalBU ('bu', true, false, 0, false, false, true)
     multiAnimalTDDetectObj ('tddobj', true, true, 1, false, true, true)
     multiAnimalTDDetectHT ('tddht', true, true, 1, true, false, true) 
-    multiAnimalTDPoseTrx ('tdptrx', true, true, 2, false, false, false)
+    multiAnimalTDPoseTrx ('tdptrx', true, true, 2, false, false, true)
     multiAnimalTDPoseObj ('tdpobj', true, true, 2, false, true, true)
     multiAnimalTDPoseHT ('tdpht', true, true, 2, true, false, true)
   end
