@@ -4,12 +4,12 @@ from __future__ import print_function
 import os
 
 os.environ['DLClight'] = 'False'
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import logging
 
-ll = logging.getLogger('matplotlib')
-ll.setLevel(logging.WARNING)
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('shapely.geos').setLevel(logging.WARNING)
 
 import shlex
 import argparse
@@ -39,6 +39,7 @@ import deeplabcut.pose_estimation_tensorflow.train
 import ast
 import tempfile
 import tensorflow
+tensorflow.get_logger().setLevel('INFO')
 
 vv = [int(v) for v in tensorflow.__version__.split('.')]
 if vv[0] == 1 and vv[1] > 12:
@@ -3931,8 +3932,7 @@ def parse_args(argv):
     parser.add_argument('-json_trn_file', dest='json_trn_file', help='Json file containing label information',
                         default=None)
     parser.add_argument('-name', dest='name', help='Name for the run. Default - apt', default='apt')
-    parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views',
-                        default=None, type=int)
+    parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views', default=None, type=int)
     parser.add_argument('-model_files', dest='model_file', help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
     parser.add_argument('-model_files2', dest='model_file2', help='Use this model file for second stage. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
@@ -3975,11 +3975,8 @@ def parse_args(argv):
     #                           help='cache dir for training')
 
     parser_classify = subparsers.add_parser('track', help='Track a movie')
-    parser_classify.add_argument("-mov", dest="mov",
-                                 help="movie(s) to track",
-                                 nargs='+')  # KB 20190123 removed required because list_file does not require mov
-    parser_classify.add_argument("-trx", dest="trx",
-                                 help='trx file for above movie', default=None, nargs='*')
+    parser_classify.add_argument("-mov", dest="mov",help="movie(s) to track", nargs='+')  # KB 20190123 removed required because list_file does not require mov
+    parser_classify.add_argument("-trx", dest="trx",help='trx file for above movie', default=None, nargs='*')
     parser_classify.add_argument('-start_frame', dest='start_frame', help='start tracking from this frame', nargs='*', type=int, default=1)
     parser_classify.add_argument('-end_frame', dest='end_frame', help='end frame for tracking', nargs='*', type=int, default=-1)
     parser_classify.add_argument('-skip_rate', dest='skip', help='frames to skip while tracking', default=1, type=int)
@@ -4070,7 +4067,7 @@ def get_valfilename(conf, nettype):
         val_filename = 'leap_val.h5'
     elif nettype == 'deeplabcut':
         val_filename = 'val_data.p'
-    elif nettype in ['mdn_joint_fpn', 'multi_mdn_joint_torch']:
+    elif conf.db_format == 'coco':
         val_filename = conf.valfilename + '.json'
     else:
         raise ValueError('Unrecognized net type')
@@ -4351,7 +4348,10 @@ def run(args):
     elif args.sub_name == 'classify':
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
+            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+            if conf.is_multi:
+                setup_ma(conf)
+
             out_file = args.out_files + '_{}.mat'.format(view)
             if args.db_file is not None:
                 db_file = args.db_file
