@@ -524,10 +524,10 @@ classdef Labels
       s2.frm = s.frm;
       s2.tgt = s.tgt;
     end
-    function s = addsplitsifnec(s)
-      n = size(s.p,2);
-      s.split = zeros(n,1,Labels.CLS_SPLIT);
-    end
+%     function s = addsplitsifnec(s)
+%       n = size(s.p,2);
+%       s.split = zeros(n,1,Labels.CLS_SPLIT);
+%     end
     function s = mergeviews(sarr)
       % sarr: array of Label structures
 
