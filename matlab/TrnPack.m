@@ -238,12 +238,11 @@ classdef TrnPack
       [writeims,writeimsidx,slblname,verbosejson,tblsplit] = myparse(varargin,...
         'writeims',true, ...
         'writeimsidx',[], ... % (opt) DEBUG ONLY
-        'strippedlblname',[], ... % short filename for stripped lbl
+        'strippedlblname',[], ... % (reqd) short filename for stripped lbl
         'verbosejson',false, ...
         'tblsplit', [] ...  % tbl with fields .mov, .frm, .split
                        ...  % all double/numeric and 1-based
-        );
-      
+        );      
       
       tfsplitsprovided = ~isempty(tblsplit);
       

@@ -825,16 +825,7 @@ classdef DeepTracker < LabelTracker
       tfCanTrain = true;      
     end
     
-    
-    function retrain(obj,varargin)
-      
-      [wbObj,dlTrnType,oldVizObj,augOnly] = myparse(varargin,...
-        'wbObj',[],...
-        'dlTrnType',DLTrainType.New, ...
-        'oldVizObj',[], ...
-        'augOnly',false ...
-        );
-      
+    function preretrain(obj)      
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
       end
@@ -858,7 +849,21 @@ classdef DeepTracker < LabelTracker
       fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
       fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');      
+      fprintf(1,'\n'); 
+    end
+    
+    function retrain(obj,varargin)
+      
+      [wbObj,dlTrnType,oldVizObj,augOnly] = myparse(varargin,...
+        'wbObj',[],...
+        'dlTrnType',DLTrainType.New, ...
+        'oldVizObj',[], ...
+        'augOnly',false ...
+        );
+     
+      obj.preretrain();
+      lblObj = obj.lObj;
+      trnBackEnd = lblObj.trackDLBackEnd;
       
       if obj.isTrkFiles(),        
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
@@ -2154,8 +2159,10 @@ classdef DeepTracker < LabelTracker
   end
   methods 
     function trainsplit(obj,tblSplit,varargin)
-      % tblSplit: [nlbledrows x 4] table. cols are MFT and 'split'.
-      %  tblSplit.split should be a 1-based (positive) int
+      % tblSplit: 
+      %   SA: [nlbledrows x 4] table. cols are MFT and .split
+      %   MA: [nlbledrows x 3] table. cols are MF and .split
+      %   In either case, .split should be a 1-based (positive) int
       %  
       % Any labeled rows not in tblSplit get added to tstfold 1 I guess.
       %
@@ -2172,42 +2179,13 @@ classdef DeepTracker < LabelTracker
         error('Unsupported in GT mode.');
       end
 
-      % --- C+P retrain ---
-      if obj.bgTrnIsRunning
-        error('Training is already in progress.');
-      end
+      obj.preretrain();
       
-      if obj.bgTrkIsRunning
-        error('Tracking is in progress.');
-      end
-      
-      cacheDir = obj.lObj.DLCacheDir;
-      if isempty(cacheDir)
-        error('No cache directory has been set.');
-      end
-      
-      lblObj = obj.lObj;
-      projname = lblObj.projname;
-      if isempty(projname)
-        error('Please give your project a name. The project name will be used to identify your trained models on disk.');
-      end      
-      
-      trnBackEnd = lblObj.trackDLBackEnd;
-      fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
-      fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
-      fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');
-      % --- C+P retrain ---
-
-%       assert(trnBackEnd.type==DLBackEnd.Bsub,...
-%         'Currently only supported for JRC Cluster backend.');
-%       
       obj.setAllParams(lblObj.trackGetParams());
       
       if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
       end      
-      
            
       % Currently, cacheDir must be visible on the JRC shared filesys.
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
@@ -2215,6 +2193,8 @@ classdef DeepTracker < LabelTracker
       trnType = DLTrainType.New;
       netObj = obj.trnNetType;
       netMode = obj.trnNetMode;
+      
+      % TODO: prev models
 
       % Base DMC, to be further copied/specified per-split
       dmc = DeepModelChainOnDisk(...
@@ -2235,8 +2215,7 @@ classdef DeepTracker < LabelTracker
 
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
-      dmc.trainID = nowstr;
-      
+      dmc.trainID = nowstr;      
       
       dlLblFileLcl = dmc.lblStrippedLnx;
       dlLblFileLclDir = fileparts(dlLblFileLcl);
@@ -2250,68 +2229,44 @@ classdef DeepTracker < LabelTracker
       
       % write slbl/trnpack
       tfRequiresTrnPack = netObj.requiresTrnPack(netMode);
-      if tfRequiresTrnPack
-        packdir = dlLblFileLclDir;
-        [slbl,tp,locg,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
-          'strippedlblname',dmc.lblStrippedName);
-        dmc.nLabels = ntgtstot;
-        
-        tLbl = TrnPack.toMFT(tp);
-        
-        warningNoTrace('TODO: rois');
-%         tLbl = []; % XXX TODO
-%         % get labeled rows
-%         treatInfPosAsOcc = obj.trnNetType.doesOccPred;
-%         tLbl = obj.lObj.preProcGetMFTableLbled( ...
-%           'treatInfPosAsOcc',treatInfPosAsOcc ...
-%           );
-%         tLbl = tLbl(:,1:3);
-      else
-        slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
-        % store nLabels in dmc
-        dmc.nLabels = s.nLabels;
+      assert(tfRequiresTrnPack); % 202111
 
-        % Write stripped lblfile to local cache
-
-        save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
-        fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
-        
-        tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
-              slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
-      end
+      packdir = dlLblFileLclDir;
+      [slbl,tp,locg,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
+        'strippedlblname',dmc.lblStrippedName,...
+        'tblsplit',tblSplit ...
+        );
+      % TODO: SA tblSplit will have tgts
+      dmc.nLabels = ntgtstot;
+      
+      
+      %         tLbl = []; % XXX TODO
+      %         % get labeled rows
+      %         treatInfPosAsOcc = obj.trnNetType.doesOccPred;
+      %         tLbl = obj.lObj.preProcGetMFTableLbled( ...
+      %           'treatInfPosAsOcc',treatInfPosAsOcc ...
+      %           );
+      %         tLbl = tLbl(:,1:3);
+      
+% %       else
+% %         slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
+% %         % store nLabels in dmc
+% %         dmc.nLabels = s.nLabels;
+% % 
+% %         % Write stripped lblfile to local cache
+% % 
+% %         save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
+% %         fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
+% %         
+% %         tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
+% %               slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
+% %       end
 
       
+      obj.bgTrnReset();      
 
-
+      % see trnSpawnBsubDocker
       
-
-
-      tblSplit.mov = double(tblSplit.mov);
-      tf = ismember(tLbl,tblSplit(:,MFTable.FLDSID));
-      nMissing = nnz(~tf);
-      if nMissing>0
-        warningNoTrace('%d labeled training rows not found in split table. These will be added to split 1.',nMissing);
-        tblSplit = [tblSplit; tLbl(~tf,:)];
-      end
-      tf = ismember(tblSplit(:,MFTable.FLDSID),tLbl);
-      nExtra = nnz(~tf);
-      if nExtra>0
-        warningNoTrace('Ignoring %d extraneous (unlabeled) rows in split table.',nExtra);
-        tblSplit(~tf,:) = [];
-      end
-      
-      splits = tblSplit.split;
-      assert(isequal(round(splits),splits));
-      assert(all(splits>0));
-      nSplits = max(splits);
-      assert(isequal(unique(splits),(1:nSplits)'));
-
-      fprintf(1,'Split summary:\n');
-      summary(categorical(splits));
-      
-      obj.bgTrnReset();
-      
-
       nvw = obj.lObj.nview;
       isMultiViewTrain = false;
       nTrainJobs = nvw;
@@ -2371,17 +2326,17 @@ classdef DeepTracker < LabelTracker
             end
             dmc(isplit).nLabels = nnz(tblSplit.split~=isplit);
             
-            jsplit = DeepTracker.tblSplt2Json(tblSplit,isplit);
-            jsplitfile = dmc(isplit).splitfileLnx;
-            fh = fopen(jsplitfile,'wt');
-            try
-              fprintf(fh,'%s\n',jsplit);
-            catch ME
-              fclose(fh);
-              rethrow(ME);
-            end
-            fclose(fh);
-            fprintf(1,'... saved splitfile %s\n',jsplitfile);
+%             jsplit = DeepTracker.tblSplt2Json(tblSplit,isplit);
+%             jsplitfile = dmc(isplit).splitfileLnx;
+%             fh = fopen(jsplitfile,'wt');
+%             try
+%               fprintf(fh,'%s\n',jsplit);
+%             catch ME
+%               fclose(fh);
+%               rethrow(ME);
+%             end
+%             fclose(fh);
+%             fprintf(1,'... saved splitfile %s\n',jsplitfile);
 
             syscmds{isplit} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
               aptroot,dmc(isplit),...
@@ -2466,7 +2421,7 @@ classdef DeepTracker < LabelTracker
               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
                 iview,res);
             end            
-          end
+          endtrnSpawnBsubDocker
         else
           nTrainJobs = numel(dmc);
           bgTrnWorkerObj.jobID = nan(1,nTrainJobs);
