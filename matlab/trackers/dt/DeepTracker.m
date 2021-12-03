@@ -5802,7 +5802,9 @@ classdef DeepTracker < LabelTracker
     function updateLandmarkColors(obj)
       ptsClrs = obj.lObj.predPointsPlotInfo.Colors;
       ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
-      obj.trkVizer.updateLandmarkColors(ptsClrs);      
+      if ~isempty(obj.trkVizer)
+        obj.trkVizer.updateLandmarkColors(ptsClrs);      
+      end
     end
     % For updating other cosmetics, go ahead and call obj.trkVizer methods
     % directly

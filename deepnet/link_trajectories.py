@@ -818,6 +818,7 @@ def nonmaxs(trk,params):
   for t in range(trk.pTrk.shape[2]):
     curd = dist_trk[t,...]
     curd[np.diag_indices(curd.shape[0])] = np.inf
+    if np.all(np.isnan(curd)|np.isinf(curd)): continue
     id1,id2 = np.where(curd<params['nms_max'])
     groups = []
     for ndx in range(len(id1)):
@@ -871,6 +872,7 @@ def get_default_params(conf):
 
 
 def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=False):
+  # pred_locs is nfr x nanimals x npts x 2
 
   params = get_default_params(conf)
   if params_in != None:
@@ -947,7 +949,8 @@ def link_id(pred_locs,mov_file,conf,out_file,pred_conf=None,pred_animal_conf=Non
   if params_in is not None:
     params.udpate(params_in)
   trk = link(pred_locs,conf,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf,params_in=params,do_merge_close=False,do_stitch=False)
-  id_classifier, tmp_trx = train_id_classifier(trk,mov_file,conf)
+  train_ims, tmp_trx = get_id_train_images(trk,mov_file,conf)
+  id_classifier = train_id_classifier(train_ims,conf)
   wt_out_file = out_file.replace('.trk','_idwts.p')
   torch.save({'model_state_params':id_classifier.state_dict()},wt_out_file)
 
@@ -955,8 +958,7 @@ def link_id(pred_locs,mov_file,conf,out_file,pred_conf=None,pred_animal_conf=Non
   trk = link_trklet_id(trk,id_classifier,mov_file,conf,tmp_trx,min_len=def_params['maxframes_delete'])
   return trk
 
-
-def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
+def get_id_train_images(trk_in,mov_file,conf,n_ex=10000):
   ss, ee = trk_in.get_startendframes()
   tmp_trx = tempfile.mkstemp()[1]
   trk_in.save(tmp_trx,saveformat='tracklet')
@@ -984,11 +986,15 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
   trx = trx_dict['trx']
   logging.info('Sampling images for training ID classifier ...')
   ims = apt.create_batch_ims(to_do_list, conf, cap, False, trx, None,use_bsize=False)
-
+  cap.close()
   dat = []
   for ix in range(0, len(to_do_list), 3):
     dat.append(ims[ix:(ix + 3)])
-  cap.close()
+
+  return dat, tmp_trx
+
+def train_id_classifier(dat,conf,n_iters=15000):
+
 
   # pt.show_stack(np.concatenate([dat[x] for x in np.random.choice(len(dat),10)],0),10,3,'gray')
   ##
@@ -1012,12 +1018,12 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
 
   loss_history = []
   net = models.resnet.resnet18(pretrained=True)
-  net.fc = torch.nn.Linear(in_features=512, out_features=5, bias=True)
+  net.fc = torch.nn.Linear(in_features=512, out_features=32, bias=True)
   net = net.cuda()
   criterion = ContrastiveLoss()
-  optimizer = optim.Adam(net.parameters(), lr=0.00005)
-  bsize = 4
-  dummy_locs = np.ones([bsize, 2, 2]) * ims.shape[1] / 2
+  optimizer = optim.Adam(net.parameters(), lr=0.0001)
+  bsize = 32
+  dummy_locs = np.ones([bsize, 2, 2]) * dat[0].shape[1] / 2
   confd = copy.deepcopy(conf)
   if confd.trx_align_theta:
     confd.rrange = 15.
@@ -1060,7 +1066,7 @@ def train_id_classifier(trk_in,mov_file,conf,n_ex=1000,n_iters=5000):
     loss_history.append(loss_contrastive.item())
 
 ##
-  return net, tmp_trx
+  return net
 
 
 def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15,min_len=10):
@@ -1075,6 +1081,7 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=15,min_len=10):
 
   logging.info(f'Sampling images from {trk.ntargets} tracklets to assign identity to the tracklets ...')
   all_ims = []
+  net.eval()
   for ix in tqdm(range(trk.ntargets)):
     to_do_list = []
     for cc in range(n_per_trk):

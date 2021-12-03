@@ -532,12 +532,15 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         # Initialize all the arrays.
         olocs_orig = olocs['ref'] + hsz
         locs_orig = locs['ref']
+        valid_locs = ~np.all(np.isnan(locs_orig),axis=(2,3))
+        valid_olocs = ~np.all(np.isnan(olocs_orig),axis=(2,3))
         cur_pred = np.ones_like(olocs_orig) * np.nan
         cur_joint_conf = np.ones_like(olocs_orig[..., 0]) * -100
         cur_ref_conf = np.ones_like(olocs_orig[..., 0]) * -100
         cur_occ_pred = np.ones_like(olocs_orig[..., 0]) * np.nan
         dd = olocs_orig[:, :, np.newaxis, ...] - locs_orig[:, np.newaxis, ...]
         dd = np.linalg.norm(dd, axis=-1).mean(-1)
+        # dd has offset predictions along axis 1 and normal predictions along axis 2
 
         # Bounding box sizes to compare the distances between predictions too.
         bb = locs_orig.max(axis=-2) - locs_orig.min(axis=-2)
@@ -550,12 +553,19 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         # match predictions from offset pred and normal preds
         for b in range(dd.shape[0]):
+            # loop over examples
             done_offset = np.zeros(dd.shape[1])
             done_locs = np.zeros(dd.shape[1])
             mpred = []
             for ix in range(dd.shape[1]):
+
+                if not valid_locs[b,ix]: continue
                 if np.all(np.isnan(dd[b, :, ix])):
+                    # no predictions at all in  offset predictions
+                    mpred.append((locs_orig[b,ix],locs['conf_joint'][b,ix],locs['pred_occ'][b,ix]))
+                    done_locs[ix] = 1
                     continue
+
                 olocs_ndx = np.nanargmin(dd[b, :, ix])
                 # Find the closest one in offset prediction.
 
@@ -593,7 +603,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 mpred.append((cc, mconf, oo))
 
             for ix in np.where(done_offset < 0.5)[0]:
-                if np.all(np.isnan(dd[b, ix, :])):
+                if not valid_olocs[b,ix]:
                     continue
                 cc = olocs_orig[b, ix, ...]
                 oo = olocs['pred_occ'][b, ix]
