@@ -79,7 +79,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     splitfileLnx % used only for trainsplit() or xv
     splitfileName % etc
     valresultsLnx % etc
+    valresultsBaseLnx % etc
     valresultsName % etc
+    valresultsNameBase % etc
     viewName
     killTokenLnx
     killTokenName
@@ -136,9 +138,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       trnID = obj.trainID;
       netMode = obj.netMode.shortCode;
       if obj.isMultiView
-        v = sprintf('%s_%s_%s.cmd',mdlChainID,trnID,netMode);
+        v = sprintf('%s_%s_%s',mdlChainID,trnID,netMode);
       else
-        v = sprintf('%sview%d_%s_%s.cmd',mdlChainID,obj.view,trnID,netMode);
+        v = sprintf('%sview%d_%s_%s',mdlChainID,obj.view,trnID,netMode);
+      end
+      if obj.doSplit
+        v = sprintf('%s.sh',v);
+      else
+        v = sprintf('%s.cmd',v);
       end
     end
     function v = get.splitfileLnx(obj)
@@ -155,9 +162,15 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = get.valresultsLnx(obj)
       v = [obj.dirTrkOutLnx obj.filesep obj.valresultsName];
     end    
+    function v = get.valresultsBaseLnx(obj)
+      v = [obj.dirTrkOutLnx obj.filesep obj.valresultsNameBase];
+    end    
     function v = get.valresultsName(obj)
-      v = sprintf('%s.mat',obj.trainID);
+      v = sprintf('%s_%d.mat',obj.trainID,obj.view);
     end
+    function v = get.valresultsNameBase(obj)
+      v = obj.trainID;
+    end 
     function v = get.errfileLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.errfileName];      
     end

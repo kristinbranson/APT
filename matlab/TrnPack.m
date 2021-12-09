@@ -294,9 +294,6 @@ classdef TrnPack
         nsplits = max(allsplits);
         assert(isequal(unique(allsplits),(1:nsplits)'));
         
-        % convert .split to 0b for py
-        tblsplit.split = tblsplit.split-1;
-
         tfsplitrowused = false(height(tblsplit),1);
         for imov=1:nmov
           tfmov = tblsplit.mov==imov;
@@ -330,7 +327,6 @@ classdef TrnPack
           tp(imov).split = zeros(size(tp(imov).frm),Labels.CLS_SPLIT);
         end
       end
-        
       
       if lObj.gtIsGTMode
         movinfo = lObj.movieInfoAllGT;

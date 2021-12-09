@@ -1494,9 +1494,10 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
         sndx = cur_t['split']
         if type(sndx) == list:
             if len(sndx)<1:
-                sndx = 0
+                sndx = 1 # still 1-based here
             else:
                 sndx = sndx[0]
+        sndx = sndx-1
         if val_split is not None:
             sndx = 1 if sndx==val_split else 0
         cur_out = out_fns[sndx]
@@ -1602,15 +1603,17 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
             cur_locs[cur_occ, :] = np.nan
         cur_occ = cur_occ.astype('float')
 
-        sndx = cur_t['split']
+        sndx = cur_t['split'] 
         if type(sndx) == list:
             if len(sndx)<1:
-                # default to split 0
-                sndx = 0
+                # default to split 1 (still 1-based here)
+                sndx = 1
             else:
                 sndx = sndx[0]
+        sndx = sndx-1
         if val_split is not None:
             sndx = 1 if sndx==val_split else 0
+
         cur_out = out_fns[sndx]
 
         if conf.multi_only_ht:
@@ -3971,7 +3974,7 @@ def parse_args(argv):
     parser_train.add_argument('-split_file', dest='split_file',
                               help='Split file to split data for train and validation', default=None)
     parser_train.add_argument('-val_split', dest='val_split',
-                              help='Split index to use for validation (trainpack)', default=None)
+                              help='Split index to use for validation (trainpack)', default=None, type=int)
     parser_train.add_argument('-no_aug', dest='no_aug', help='dont augment the images. Return the original images', default=False)
     parser_train.add_argument('-aug_out', dest='aug_out', help='Destination to save the images', default=None)
     parser_train.add_argument('-nsamples', dest='nsamples', default=9, help='Number of examples to be generated', type=int)
@@ -4023,6 +4026,10 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     if args.view is not None:
         args.view = convert(args.view, to_python=True)
+        
+    if args.sub_name == 'train':
+        args.val_split = convert(args.val_split, to_python=True)
+            
     if args.sub_name == 'track' and args.mov is not None:
         nmov = len(args.mov)
         args.trx_ids = parse_trx_ids_arg(args.trx_ids, nmov)
