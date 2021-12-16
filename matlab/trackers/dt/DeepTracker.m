@@ -4384,12 +4384,12 @@ classdef DeepTracker < LabelTracker
       tfE = cellfun(@exist,valresfiles);
       if all(tfE)
         nsplt = numel(dmc);
+        
         info = [];
         locs = [];
         preds = [];
-        errs = [];
         splt = [];
-        mdlfile = [];
+        %mdlfile = [];
         for isplt=1:nsplt          
           resfile = valresfiles{isplt};
           res = load(resfile,'-mat');
@@ -4400,23 +4400,28 @@ classdef DeepTracker < LabelTracker
           ni = numel(res.list);
           assert(isequal(ni,size(lbllocs,1),size(predlocs,1)));
 
-          errl2 = sqrt(sum((lbllocs-predlocs).^2,4)); % [n x maxnanimals x npts]
+          %errl2 = sqrt(sum((lbllocs-predlocs).^2,4)); % [n x maxnanimals x npts]
           info = cat(1,info,cat(1,res.list{:}));
           locs = cat(1,locs,lbllocs); %reshape(lbllocs,ni,[]));
           preds = cat(1,preds,predlocs); %reshape(predlocs,ni,[])); 
-          errs = cat(1,errs,errl2);
+          %errs = cat(1,errs,errl2);
           splt = cat(1,splt,isplt*ones(ni,1));
           %mdlfile = cat(1,mdlfile,repmat({char(res.model_file)},ni,1));
         end
         
-        info = cell2mat(info);          
+        info = cell2mat(info);
         LOCTHRESH = -1e3;
         tfLblExist = locs(:,:,1,1)>LOCTHRESH; % n x maxnanimals
-        tfPrdExist = preds(:,:,1,1)>LOCTHRESH;
+        tfPrdExist = preds(:,:,1,1)>LOCTHRESH; % note: nan will not count as existing
+        [~,~,npts,d] = size(locs);
+        locs(repmat(~tfLblExist,1,1,npts,d)) = nan;
+        preds(repmat(~tfPrdExist,1,1,npts,d)) = nan;
+        [~,match,matchcosts,~,~,nFP,nFN,nMch,nLbl,nPrd] = ...
+          maComparePredsLbls(locs,preds,tfLblExist,tfPrdExist);
 
-        tblXVres = table(info(:,1),info(:,2),info(:,3),...
-          preds,locs,errs,splt,tfLblExist,tfPrdExist,'VariableNames',...
-          [MFTable.FLDSID {'p' 'pLbl' 'err' 'fold' 'lblexist' 'prdexist'}]);
+        tblXVres = table(info(:,1),info(:,2),info(:,3),splt,...
+          preds,locs,nFP,nFN,nMch,nLbl,nPrd,match,matchcosts,'VariableNames',...
+          [MFTable.FLDSID {'fold' 'p' 'pLbl' 'numFP' 'numFN' 'numMatch' 'numLbl' 'numPred' 'matches' 'matchcosts'}]);
         obj.lObj.xvResults = tblXVres;
         obj.lObj.xvResultsTS = now;
         fprintf(1,'Set XV results on lObj.xvResults.*\n');
