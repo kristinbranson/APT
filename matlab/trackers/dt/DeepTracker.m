@@ -1604,13 +1604,18 @@ classdef DeepTracker < LabelTracker
     
     function trainPackMontage(obj,varargin)
       
-      [maxnpages,plotnr,plotnc] = myparse(varargin,...
+      [maxnpages,plotnr,plotnc,tpdir] = myparse(varargin,...
         'maxnpages',6,...
         'plotnr',3,...
-        'plotnc',4 ...
+        'plotnc',4, ...
+        'tpdir',[] ...
         );
       
-      [tfTrnPackExists,tpdir] = obj.trainPackExists();     
+      if ~isempty(tpdir)
+        tfTrnPackExists = exist(tpdir,'dir')>0;
+      else
+        [tfTrnPackExists,tpdir] = obj.trainPackExists();     
+      end
       
       tfsucc = false;
       if tfTrnPackExists
@@ -5797,7 +5802,9 @@ classdef DeepTracker < LabelTracker
     function updateLandmarkColors(obj)
       ptsClrs = obj.lObj.predPointsPlotInfo.Colors;
       ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
-      obj.trkVizer.updateLandmarkColors(ptsClrs);      
+      if ~isempty(obj.trkVizer)
+        obj.trkVizer.updateLandmarkColors(ptsClrs);      
+      end
     end
     % For updating other cosmetics, go ahead and call obj.trkVizer methods
     % directly
