@@ -2,6 +2,7 @@ import hdf5storage
 import numpy as np
 import copy
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 def convert(in_data,to_python):
   """
@@ -1150,7 +1151,7 @@ class Trk:
     for k in kwargs.keys():
       assert k in self.trkFields, f'Unknown tracking data type {k}'
       if kwargs[k] is not None:
-        assert isinstance(kwargs[k],np.ndarray)
+        assert isinstance(kwargs[k],Tracklet)
         self.__dict__[k] = kwargs[k]
 
   def setdata_dense(self,p,T0=None,**kwargs):
@@ -2004,7 +2005,7 @@ class Trk:
       pTrkConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkConf']
     if self.pTrkAnimalConf is not None:
       pTrkAnimalConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkAnimalConf']
-    for id in range(nids):
+    for id in tqdm(range(nids)):
       idx = ids.where(id)
       #idx=np.nonzero(ids==id)
       pTrk[:,:,idx[1],id]=self.pTrk[:,:,idx[1],idx[0]]

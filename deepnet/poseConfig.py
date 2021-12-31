@@ -26,6 +26,7 @@ class config(object):
         self.label_blur_rad = 3.  # 1.5
         self.imsz = [100,100]
         self.n_classes = 10
+        self.img_dim = 3
 
         self.batch_size = 8
         self.view = 0
@@ -39,6 +40,7 @@ class config(object):
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
+        self.has_trx_file = False
         self.trx_align_theta = True
         self.horz_flip = False
         self.vert_flip = False
