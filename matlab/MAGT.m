@@ -239,14 +239,13 @@ classdef MAGT
         nplot = height(tbl);
       end
       
-      tbl.escore = maMontageErrScore(tbl);
+      tbl.escore = MAGT.montageErrScore(tbl);
       tbl = sortrows(tbl,{'escore'},{'descend'});
       tbl = tbl(1:nplot,:);
       
       [tbl,I,tfReadFailed] = readImgFcn(tbl);
       
-      fprintf(2,'IMMMMM\n');
-      I = cellfun(@(x)double(x)/255,I,'uni',0);
+      I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
       
       %tblPostRead = tbl(:,{'pLbl' 'pTrk' 'mov' 'frm' 'iTgt' errfld});
       tblPostRead = tbl;

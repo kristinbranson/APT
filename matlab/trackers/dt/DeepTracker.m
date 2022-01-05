@@ -2336,9 +2336,8 @@ classdef DeepTracker < LabelTracker
             % "Inner"/cmdfile codegen
             xvcode = dmcI.cmdfileLnx;
             xvres = dmcI.valresultsBaseLnx;
-            CONFPARAMSEXTRA = {'dl_steps' '5000'};
-            fprintf(2,'Extra confparams\n');
-            %CONFPARAMSEXTRA = {};
+%             CONFPARAMSEXTRA = {'dl_steps' '500'};
+%             fprintf(2,'Extra confparams\n');
             APTInterf.splitTrainValCodeGenCmdfile(xvcode,xvres,...
               dmcI.modelChainID,...
               dmcI.lblStrippedLnx,dmcI.rootDir,dmcI.errfileLnx,...
@@ -4417,7 +4416,7 @@ classdef DeepTracker < LabelTracker
         locs(repmat(~tfLblExist,1,1,npts,d)) = nan;
         preds(repmat(~tfPrdExist,1,1,npts,d)) = nan;
         [~,match,matchcosts,~,~,nFP,nFN,nMch,nLbl,nPrd] = ...
-          maComparePredsLbls(locs,preds,tfLblExist,tfPrdExist);
+          MAGT.comparePredsLbls(locs,preds,tfLblExist,tfPrdExist);
 
         tblXVres = table(info(:,1),info(:,2),info(:,3),splt,...
           preds,locs,nFP,nFN,nMch,nLbl,nPrd,match,matchcosts,'VariableNames',...
@@ -4427,10 +4426,17 @@ classdef DeepTracker < LabelTracker
         fprintf(1,'Set XV results on lObj.xvResults.*\n');
 
         obj.notify('trainEnd');
+
+        splitProjDirs = fileparts(fileparts(valresfiles));
+        imreadfn = @(x)MAGT.readCoco(x,splitProjDirs);
+        NPLOTMAX = 240; % = (20 pages) * 3x4 montage
+        nplot = min(NPLOTMAX,height(tblXVres));
+        MAGT.trackLabelMontage(obj.lObj,tblXVres,'nplot',nplot,...
+          'readImgFcn',imreadfn);
       end
     end
     
-    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)      
+    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
       obj.updateLastDMCsCurrInfo();
       
       trnstrs = cell(size(obj.trnLastDMC));
