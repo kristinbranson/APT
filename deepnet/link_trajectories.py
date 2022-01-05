@@ -826,10 +826,10 @@ def mixed_colormap(n, cmfun=cm.jet):
   cm1 = cm0[idx, :]
   return cm1
 
-def nonmaxs(trk,params):
-  dist_trk = np.abs(trk.pTrk[..., None] - trk.pTrk[..., None, :]).sum(1).mean(0)
-  for t in range(trk.pTrk.shape[2]):
-    curd = dist_trk[t,...]
+def nonmax_supp(trk, params):
+  for t in range(trk.T0,trk.T1+1):
+    pcurr = trk.getframe(t)
+    curd = np.abs(pcurr[...,0,:,None]-pcurr[...,0,None,:]).sum(1).mean(0)
     curd[np.diag_indices(curd.shape[0])] = np.inf
     if np.all(np.isnan(curd)|np.isinf(curd)): continue
     id1,id2 = np.where(curd<params['nms_max'])
@@ -851,10 +851,11 @@ def nonmaxs(trk,params):
     for g in groups:
       p_ndx = g[0]
       to_remove = g[1:]
-      trk.pTrk[:,:,t,p_ndx] = np.mean(trk.pTrk[:,:,t,g],axis=2)
-      trk.pTrk[:,:,t,to_remove] = np.nan
+      pcurr[...,0,p_ndx] = np.mean(trk.pTrk[:,:,t,g],axis=2)
+      pcurr[...,0,to_remove] = np.nan
+      trk.setframe(pcurr,t)
 
-def link_trklets(pred_locs,conf,mov,out_file,pred_conf=None,pred_animal_conf=None):
+def link_trklets(trk,conf,mov,out_file):
   if conf.multi_stitch_id:
     conf1 = copy.deepcopy(conf)
     conf1.imsz = conf1.multi_stitch_id_cropsz
@@ -865,9 +866,9 @@ def link_trklets(pred_locs,conf,mov,out_file,pred_conf=None,pred_animal_conf=Non
     else:
       conf1.use_bbox_trx = True
       conf1.trx_align_theta = False
-    return link_id(pred_locs,mov,conf1,out_file,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf)
+    return link_id(trk,mov,conf1,out_file)
   else:
-    return link(pred_locs,conf,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf)
+    return link(trk,conf)
 
 
 def get_default_params(conf):
@@ -885,7 +886,7 @@ def get_default_params(conf):
   return params
 
 
-def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=False):
+def link(trk,conf,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=False):
   # pred_locs is nfr x nanimals x npts x 2
 
   params = get_default_params(conf)
@@ -893,18 +894,18 @@ def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_m
     params.update(params_in)
   nframes_test = np.inf
 
-  locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
-  if pred_conf is None:
-    locs_conf = None
-  else:
-    locs_conf = np.transpose(pred_conf,[2,0,1])
-  if pred_animal_conf is None:
-    locs_animal_conf = None
-  else:
-    locs_animal_conf = np.transpose(pred_animal_conf,[2,0,1])
-  ts = np.ones_like(locs_lnk[:,0, ...]) * apt.datetime2matlabdn()
-  tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-  trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf,pTrkAnimalConf=locs_animal_conf)
+  # locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
+  # if pred_conf is None:
+  #   locs_conf = None
+  # else:
+  #   locs_conf = np.transpose(pred_conf,[2,0,1])
+  # if pred_animal_conf is None:
+  #   locs_animal_conf = None
+  # else:
+  #   locs_animal_conf = np.transpose(pred_animal_conf,[2,0,1])
+  # ts = np.ones_like(locs_lnk[:,0, ...]) * apt.datetime2matlabdn()
+  # tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+  # trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf,pTrkAnimalConf=locs_animal_conf)
 
   T = np.minimum(np.inf, trk.T)
   # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
@@ -919,7 +920,7 @@ def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_m
 
   logging.info('maxcost set to %f' % params['maxcost'])
   logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
-  nonmaxs(trk,params)
+  nonmax_supp(trk, params)
   ids, costs = assign_ids(trk, params, T=nframes_test)
   if isinstance(ids, np.ndarray):
     nids_original = np.max(ids) + 1
@@ -958,12 +959,12 @@ def link(pred_locs,conf,pred_conf=None,pred_animal_conf=None,params_in=None,do_m
   return trk
 
 
-def link_id(pred_locs,mov_file,conf,out_file,pred_conf=None,pred_animal_conf=None,params_in=None):
+def link_id(trk,mov_file,conf,out_file, params_in=None):
   params = {}
   params['maxframes_delete']:3
   if params_in is not None:
     params.udpate(params_in)
-  trk = link(pred_locs,conf,pred_conf=pred_conf,pred_animal_conf=pred_animal_conf,params_in=params,do_merge_close=False,do_stitch=False)
+  trk = link(trk,conf, params_in=params,do_merge_close=False,do_stitch=False)
   train_data, tmp_trx  = get_id_train_images(trk,mov_file,conf)
   id_classifier, loss_history = train_id_classifier(train_data,conf, trk)
   wt_out_file = out_file.replace('.trk','_idwts.p')
