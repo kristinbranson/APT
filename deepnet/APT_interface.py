@@ -1037,8 +1037,8 @@ def read_trx_file(trx_file):
                 cur_trx[k] = np.array(trx0[trx0[k][trx_ndx, 0]]).T
             trx.append(cur_trx)
     return trx, n_trx
-    
-    
+
+
 def get_cur_trx(trx_file, trx_ndx):
     if trx_file is None:
         return None, 1
@@ -1384,7 +1384,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
             for endx in range(n_extra_roi):
                 eroi_mask = create_mask(extra_roi[endx:endx + 1, ...]/mask_sc, mask_sz)
                 if (eroi_mask.sum()<=4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > 0.5:
-				
+
                     done_eroi[endx] = 1.
                     continue
 
@@ -2995,7 +2995,7 @@ def classify_list_file(args, view, view_ndx=0):
     pred_locs = None
     list_file = args.list_file
     list_fp = open(list_file, 'r')
-    out_file = args.out_files[view_ndx]
+    out_file = args.out_files[view_ndx][0]
     part_file = out_file + '.part'  # following classify_movie naming
 
     if not os.path.isfile(list_file):
@@ -3201,7 +3201,7 @@ def convert_to_mat_trk(pred_locs, conf, start, end, trx_ids):
     return pred_dict
 
 
-def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, info, mov_file):
+def write_trk(out_file, pred_locs_in, extra_dict, start, info):
     '''
     pred_locs is the predicted locations of size
     n_frames x n_Trx x n_body_parts x 2
@@ -3223,10 +3223,9 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
         pred_occ = extra_dict['occ']
         tag = np.transpose(pred_occ, [2, 0, 1])
 
-    trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf)
-    trk.T0 = start
+    trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf,T0=start)
     trk.save(out_file, saveformat='tracklet', trkInfo=info)
-    return
+    return trk
 
     # Old code that saves extra information. Keeping it in for now MK - 20210319
     pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
@@ -3275,11 +3274,14 @@ def classify_movie(conf, pred_fn, model_type,
                    trx_ids=(),
                    model_file='',
                    name='',
-                   nskip_partfile=500, 
+                   nskip_partfile=500,
                    save_hmaps=False,
-                   crop_loc=None):
+                   predict_trk_file=None,
+                   crop_loc=[None]):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
 
+    if type(crop_loc) == list and crop_loc[0] is None:
+        crop_loc = None
     logging.info('classify_movie:')
     logging.info('mov_file: %s' % mov_file)
     logging.info('out_file: %s' % out_file)
@@ -3407,7 +3409,7 @@ def classify_movie(conf, pred_fn, model_type,
         if (cur_b % nskip_partfile == 0) & (cur_b > 0):
             # sys.stdout.write('\n')
             T1 = to_do_list[cur_start][0]
-            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, T1, trx_ids, conf, info, mov_file)
+            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, info)
 
     # Get the animal confidences for 2 stage tracking
     pred_animal_conf = None
@@ -3419,25 +3421,52 @@ def classify_movie(conf, pred_fn, model_type,
                     if (end_frames[ix] > cur_f) and (first_frames[ix] <= cur_f):
                         pred_animal_conf[ cur_f- min_first_frame,ix,:] = T[ix]['conf'][0,cur_f-first_frames[ix],0:1]
 
+    raw_file = raw_predict_file(predict_trk_file, out_file)
+    cur_out_file = raw_file if do_link(conf) else out_file
+    trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info)
 
-    if (conf.is_multi and (conf.stage==None) and (conf.multi_link_stage!='none')) or (conf.stage==conf.multi_link_stage):
-        # write out raw results before linking.
-        pre_fix, ext = os.path.splitext(out_file)
-        raw_file = pre_fix + '_raw' + ext
-        write_trk(raw_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
-        pred_conf = extra_dict['conf'] if 'conf' in extra_dict else None
-        trk = lnk.link_trklets(pred_locs, conf, mov_file, out_file,pred_conf=pred_conf, pred_animal_conf=pred_animal_conf)
-        trk.T0 = start_frame
-        out_file_tracklet = out_file
-        trk.save(out_file_tracklet, saveformat='tracklet', trkInfo=info)
-    else:
-        write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
+    # if do_link(conf):
+    #     # write out raw results before linking.
+    #     trk = write_trk(raw_file, pred_locs, extra_dict, start_frame, info)
+    #     # trk = lnk.link_trklets(trk, conf, mov_file, out_file)
+    #     # trk.T0 = start_frame
+    #     # out_file_tracklet = out_file
+    #     # trk.save(out_file_tracklet, saveformat='tracklet', trkInfo=info)
+    # else:
+    #     trk = write_trk(out_file, pred_locs, extra_dict, start_frame, info)
 
-    if os.path.exists(out_file + '.part') and not conf.is_multi:
+    if os.path.exists(out_file + '.part'):
         os.remove(out_file + '.part')
     cap.close()
     tf.reset_default_graph()
-    return pred_locs
+    return trk
+
+def raw_predict_file(predict_trk_file, out_file):
+    if predict_trk_file is None:
+        pre_fix, ext = os.path.splitext(out_file)
+        raw_file = pre_fix + '_raw' + ext
+    else:
+        raw_file = predict_trk_file
+    return raw_file
+
+def do_link(conf):
+    return (conf.is_multi and (conf.stage == None) and (conf.multi_link_stage != 'none')) or (conf.stage == conf.multi_link_stage)
+
+def link(args, view, view_ndx):
+    conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
+    if not do_link(conf): return
+
+    # return
+
+    movs = args.mov[view_ndx]
+    nmov = len(movs)
+    in_trk_files = args.predict_trk_files[view_ndx]
+    out_files = args.out_files[view_ndx]
+    for mov_ndx in range(nmov):
+        raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
+        trk = TrkFile.Trk(raw_file)
+        trk_linked = lnk.link_trklets(trk, conf, movs[mov_ndx], out_files[mov_ndx])
+        trk_linked.save(out_files[mov_ndx], saveformat='tracklet')
 
 
 def get_unet_pred_fn(conf, model_file=None, name='deepnet'):
@@ -3496,13 +3525,14 @@ def classify_movie_all(model_type, **kwargs):
     if conf.stage == 'first':
         conf.n_classes = 2
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name)
-    logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
+    # logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
-        classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+        trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
         close_fn()
         logging.exception('Could not track movie')
     close_fn()
+    return trk
 
 
 def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
@@ -3829,7 +3859,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
         conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
 
         conf.view = cur_view
-        model_file = args.model_file[view_ndx]
+        model_file = args.model_file[view_ndx][0]
         if args.split_file is not None:
             assert (os.path.exists(args.split_file))
             in_data = PoseTools.json_load(args.split_file)
@@ -3980,10 +4010,12 @@ def parse_args(argv):
     parser_classify.add_argument('-start_frame', dest='start_frame', help='start tracking from this frame', nargs='*', type=int, default=1)
     parser_classify.add_argument('-end_frame', dest='end_frame', help='end frame for tracking', nargs='*', type=int, default=-1)
     parser_classify.add_argument('-skip_rate', dest='skip', help='frames to skip while tracking', default=1, type=int)
-    parser_classify.add_argument('-out', dest='out_files', help='file to save tracking results to', required=True, nargs='+')
-    parser_classify.add_argument('-trx_ids', dest='trx_ids', help='only track these animals', nargs='*', type=int, default=[], action='append')
-    parser_classify.add_argument('-hmaps', dest='hmaps', help='generate heatmpas', action='store_true')
-    parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given xlo xhi ylo yhi', nargs='*', type=int, default=None)
+    parser_classify.add_argument('-out', dest='out_files', help='file to save tracking results to. For multi-animal: If track_type is only_predict this will have the raw unlinked predictions. If track_type is predict_link and no predict_trk_files is specified, then the raw unliked predictions will be saved to [out]_raw.trk.', required=True, nargs='+')
+    parser_classify.add_argument('-trx_ids', dest='trx_ids', help='only track these animals. For single animal project with trajectories', nargs='*', type=int, default=[], action='append')
+    # parser_classify.add_argument('-hmaps', dest='hmaps', help='generate heatmpas', action='store_true')
+    parser_classify.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not or only link. predict_link both predicts and links, only_predict only predicts but does not link, only_link only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
+    parser_classify.add_argument('-predict_trk_files', help='for multi-animal. When track_type is prdict_link, file to save raw unlinked predictions to. when track_type is only_link, the trk file containing raw unlinked predictions to be used as input for linking', nargs='+', default=None)
+    parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given as x_left x_right y_top (low) y_bottom (high) in matlabs 1-index format', nargs='*', type=int, default=None)
     parser_classify.add_argument('-list_file', dest='list_file', help='JSON file with list of movies, targets and frames to track', default=None)
     parser_classify.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the database for list file.')
 
@@ -4011,22 +4043,6 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     if args.view is not None:
         args.view = convert(args.view, to_python=True)
-    if args.sub_name == 'track' and args.mov is not None:
-        nmov = len(args.mov)
-        args.trx_ids = parse_trx_ids_arg(args.trx_ids, nmov)
-        if type(args.start_frame) == list:
-            assert all([a > 0 for a in args.start_frame]), 'Start frames must be positive integers'
-        else:
-            assert args.start_frame > 0, 'Start frames must be positive integers'
-        args.start_frame = to_py(args.start_frame)
-        args.start_frame = parse_frame_arg(args.start_frame, nmov, 0)
-        args.end_frame = parse_frame_arg(args.end_frame, nmov, np.Inf)
-
-        # logging.info('trx_ids = ' + str(args.trx_ids))
-        # logging.info('start_frame = ' + str(args.start_frame))
-        # logging.info('end_frame = ' + str(args.start_frame))
-
-        args.crop_loc = to_py(args.crop_loc)
 
     if args.sub_name != 'test':
         net_type = get_net_type(args.lbl_file)
@@ -4073,48 +4089,55 @@ def get_valfilename(conf, nettype):
         raise ValueError('Unrecognized net type')
     return val_filename
 
-def track_multi_stage(args,arg_ndx,view,crop_loc):
+def track_multi_stage(args, view_ndx, view, mov_ndx):
     name = args.name
     lbl_file = args.lbl_file
     if args.stage == 'multi':
         out_files = args.out_files
         args.out_files = args.trx
-        track_view_mov(lbl_file, view, arg_ndx, name, args, first_stage=True, crop_loc=crop_loc)
+        trk1 = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=True)
         args.out_files = out_files
         args.type = args.type2
         args.conf_params = args.conf_params2
-        track_view_mov(lbl_file, view, arg_ndx, name, args, second_stage=True, crop_loc=crop_loc)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, second_stage=True)
 
     elif args.stage == 'first':
-        track_view_mov(lbl_file, view, arg_ndx, name, args, first_stage=True, crop_loc=crop_loc)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=True)
     elif args.stage == 'second':
-        track_view_mov(lbl_file, view, arg_ndx, name, args, second_stage=True, crop_loc=crop_loc)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, second_stage=True)
     else:
-        track_view_mov(lbl_file, view, arg_ndx, name, args, crop_loc=crop_loc)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args)
+    return trk
 
 
-def track_view_mov(lbl_file,view_ndx,arg_ndx,name,args,crop_loc,first_stage=False,second_stage=False):
-    conf = create_conf(lbl_file, view_ndx,name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage)
+def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=False, second_stage=False):
 
-    classify_movie_all(args.type,
-                       conf=conf,
-                       mov_file=args.mov[arg_ndx],
-                       trx_file=args.trx[arg_ndx],
-                       out_file=args.out_files[arg_ndx],
-                       start_frame=args.start_frame[arg_ndx],
-                       end_frame=args.end_frame[arg_ndx],
-                       skip_rate=args.skip,
-                       trx_ids=args.trx_ids[arg_ndx],
-                       name=name,
-                       save_hmaps=args.hmaps,
-                       crop_loc=crop_loc[arg_ndx],
-                       model_file=args.model_file[arg_ndx],
-                       train_name=args.train_name
-                       )
+    conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage)
+
+    if not args.track_type == 'only_link':
+        trk = classify_movie_all(args.type,
+                           conf=conf,
+                           mov_file=args.mov[view_ndx][mov_ndx],
+                           trx_file=args.trx[view_ndx][mov_ndx],
+                           out_file=args.out_files[view_ndx][mov_ndx],
+                           start_frame=args.start_frame[mov_ndx],
+                           end_frame=args.end_frame[mov_ndx],
+                           skip_rate=args.skip,
+                           trx_ids=args.trx_ids,
+                           name=name,
+                           crop_loc=args.crop_loc[view_ndx][mov_ndx],
+                           model_file=args.model_file[view_ndx][0],
+                           train_name=args.train_name,
+                           predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx]
+                           )
+    else:
+        trk = None
+    return trk
 
 
 def check_args(args,nviews):
     # Does a check on on arguments and converts the arguments to appropriate format
+
     view = args.view
     if view is None:
         views = range(nviews)
@@ -4122,102 +4145,77 @@ def check_args(args,nviews):
         views = [view]
     nviews = len(views)
 
-    if args.sub_name == 'train':
-        if args.model_file is None:
-            args.model_file = [None]*nviews
-        else:
-            assert len(args.model_file) == nviews, 'Number of model files should be same as number of views for training'
-        if args.model_file2 is None:
-            args.model_file2 = [None]*nviews
-        else:
-            assert len(args.model_file2) == nviews, 'Number of model files should be same as number of views for training'
+    def reshape(x):
+        return np.array(x).reshape([nviews, -1]).tolist()
 
-    elif args.sub_name == 'track' and args.list_file is not None:
+    def set_checklen(x, n=nviews, varstr='', n_type='views'):
+        if x is None:
+            return [None]*n
+        else:
+            assert len(x) ==n, f"Number of {varstr} ({len(x)}) must match number of {n_type} ({n})"
+            return x
+
+
+    args.model_file = reshape(set_checklen(args.model_file,varstr='model files'))
+    args.model_file2 = reshape(set_checklen(args.model_file2,varstr='model files stage 2'))
+
+    if args.sub_name == 'track' and args.list_file is not None:
         # KB 20190123: added list_file input option
         assert args.mov is None, 'Input list_file should specify movie files'
         assert args.trx is None, 'Input list_file should specify trx files'
         assert args.crop_loc is None, 'Input list_file should specify crop locations'
-
         assert len(args.out_files) == nviews, 'Number of out files should be same as number of views to track (%d)' % nviews
-        if args.model_file is None:
-            args.model_file = [None] * nviews
-        else:
-            assert len(args.model_file) == nviews, 'Number of model files should be same as the number of views to track (%d)' % nviews
-        if args.model_file2 is None:
-            args.model_file2 = [None] * nviews
-        else:
-            assert len(args.model_file2) == nviews, 'Number of model files should be same as the number of views to track (%d)' % nviews
 
     elif args.sub_name == 'track':
 
-        if args.view is None:
+        nmov = len(args.mov)
+        args.trx_ids = parse_trx_ids_arg(args.trx_ids, nmov)
+        if type(args.start_frame) == list:
+            assert all([a > 0 for a in args.start_frame]), 'Start frames must be positive integers'
+        else:
+            assert args.start_frame > 0, 'Start frames must be positive integers'
+        args.start_frame = to_py(args.start_frame)
+        args.start_frame = parse_frame_arg(args.start_frame, nmov, 0)
+        args.end_frame = parse_frame_arg(args.end_frame, nmov, np.Inf)
+        args.crop_loc = to_py(args.crop_loc)
+
+        if nviews>1:
             assert len(args.mov) == nviews, 'Number of movie files should be same number of views'
             assert len(args.out_files) == nviews, 'Number of out files should be same as number of views'
-            if args.trx is None:
-                args.trx = [None] * nviews
-            else:
-                assert len(args.trx) == nviews, 'Number of movie files should be same as the number of trx files'
-            if args.model_file is None:
-                args.model_file = [None] * nviews
-            else:
-                assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
-            if args.model_file2 is None:
-                args.model_file2 = [None] * nviews
-            else:
-                assert len(args.model_file2) == nviews, 'Number of movie files should be same as the number of trx files'
+            args.mov = reshape(args.mov)
+            args.out_files = reshape(args.out_file)
+            args.trx = reshape(set_checklen(args.trx,varstr='trx files'))
             if args.crop_loc is not None:
-                assert len(args.crop_loc) == 4 * nviews, 'cropping location should be specified as xlo xhi ylo yhi for all the views'
+                assert len(args.crop_loc) % (4 * nviews)==0, 'cropping location should be specified as xlo xhi ylo yhi for all the views'
+                args.crop_loc = [int(x) for x in args.crop_loc]
+            else:
+                args.crop_loc = [None] * nviews
+            args.crop_loc = np.array(args.crop_loc).reshape([nviews,1,-1]).tolist()
         else:
             nmov = len(args.mov)
+            assert len(args.out_files) == nmov, 'Number of out files should be same as number of movies'
+            if args.track_type == 'only_link':
+                assert args.predict_trk_files is not None, 'When only linking, raw unlinked predictions must be given using -predict_trk_files'
 
-            def checklen(x, varstr):
-                assert len(x) == nmov, "Number of {} ({}) must match number of movies ({})".format(varstr, len(x), nmov)
+            args.mov = reshape(args.mov)
+            args.trx = reshape(set_checklen(args.trx,n=nmov,varstr='trx files',n_type='movies'))
+            args.out_files = reshape(set_checklen(args.out_files,n=nmov,varstr='output files',n_type='movies'))
+            args.predict_trk_files = reshape(set_checklen(args.predict_trk_files,n=nmov,varstr='predict_trk_files',n_type='movies'))
 
-            if args.trx is None:
-                args.trx = [None] * nmov
+            if args.crop_loc is None:
+                args.crop_loc = [None] * nmov
             else:
-                checklen(args.trx, 'trx')
-            if args.model_file is None:
-                args.model_file = [None] * nmov
-            elif len(args.model_file) == 1:
-                args.model_file = args.model_file * nmov
-            else:
-                checklen(args.model_file, 'model files')
-            checklen(args.out_files, 'output files')
+                assert len(args.crop_loc) % (4 * nmov)==0, 'cropping location should be specified (for given view) as xlo1 xhi1 ylo1 yhi1 xlo2 xhi2 ...'
+                args.crop_loc = [int(x) for x in args.crop_loc]
+            args.crop_loc = np.array(args.crop_loc).reshape([nviews,nmov,-1]).tolist()
 
 
     elif args.sub_name == 'gt_classify':
 
-        if args.model_file is None:
-            args.model_file = [None] * len(views)
-        else:
-            assert len(args.model_file) == len(views), 'Number of model files specified must match number of views to be processed'
-        if args.model_file2 is None:
-            args.model_file2 = [None] * len(views)
-        else:
-            assert len(args.model_file2) == len(views), 'Number of model files specified must match number of views to be processed'
-
         assert args.out_files is not None
-
         assert len(args.out_files) == len(views), 'Number of gt output files must match number of views to be processed'
 
-    elif args.sub_name == 'classify':
-        if args.view is None:
-            if args.model_file is None:
-                args.model_file = [None] * nviews
-            else:
-                assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
-            if args.model_file2 is None:
-                args.model_file2 = [None] * nviews
-            else:
-                assert len(
-                    args.model_file2) == nviews, 'Number of movie files should be same as the number of trx files'
-        else:
-            if args.model_file is None:
-                args.model_file = [None]* nviews
-            if args.model_file2 is None:
-                args.model_file2 = [None]* nviews
-
+        args.out_files = reshape(args.out_files)
 
 
 def run(args):
@@ -4260,77 +4258,14 @@ def run(args):
 
     elif args.sub_name == 'track':
 
-        if args.view is None:
-            for view_ndx, view in enumerate(views):
-                if args.crop_loc is not None:
-                    crop_loc = [int(x) for x in args.crop_loc]
-                    # crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
-                    # KB 20190123: crop_loc was being decremented twice, removed one
-                    crop_loc = np.array(crop_loc).reshape([len(views), 4])
-                else:
-                    crop_loc = [None]*nviews
-                track_multi_stage(args,view_ndx,view,crop_loc)
-                # conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
-                # if args.crop_loc is not None:
-                #     crop_loc = [int(x) for x in args.crop_loc]
-                #     # crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
-                #     # KB 20190123: crop_loc was being decremented twice, removed one
-                #     crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :]
-                # else:
-                #     crop_loc = None
-                #
-                # classify_movie_all(args.type,
-                #                    conf=conf,
-                #                    mov_file=args.mov[view_ndx],
-                #                    trx_file=args.trx[view_ndx],
-                #                    out_file=args.out_files[view_ndx],
-                #                    start_frame=args.start_frame[view_ndx],
-                #                    end_frame=args.end_frame[view_ndx],
-                #                    skip_rate=args.skip,
-                #                    trx_ids=args.trx_ids[view_ndx],
-                #                    name=name,
-                #                    save_hmaps=args.hmaps,
-                #                    crop_loc=crop_loc,
-                #                    model_file=args.model_file[view_ndx],
-                #                    train_name=args.train_name
-                #                    )
-        else:
-            nmov = len(args.mov)
-            if args.crop_loc is None:
-                crop_loc_list = [None] * nmov
-            else:
-                assert len(args.crop_loc) == 4 * nmov, 'cropping location should be specified (for given view) as xlo1 xhi1 ylo1 yhi1 xlo2 xhi2 ...'
-                args.crop_loc = [int(x) for x in args.crop_loc]
-                crop_loc_list = []
-                for imov in range(nmov):
-                    croparr = np.array(args.crop_loc[imov * 4:(imov + 1) * 4])
-                    crop_loc_list.append(croparr)
+        nmov = len(args.mov[0])
 
-            # AL for now require single view spec to not break bkwds
-            # args.view
+        for view_ndx, view in enumerate(views):
+            for mov_ndx in range(nmov):
+                track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx)
+            if not args.track_type == 'only_predict':
+                link(args, view=view, view_ndx=view_ndx)
 
-            for ndx in range(nmov):
-                track_multi_stage(args,ndx,args.view,crop_loc_list)
-                # conf = create_conf(lbl_file, args.view, name,
-                #                    net_type=args.type,
-                #                    cache_dir=args.cache,
-                #                    conf_params=args.conf_params)
-                # logging.info('Classifying movie {}: {}'.format(ndx, args.mov[ndx]))
-                # classify_movie_all(args.type,
-                #                    conf=conf,
-                #                    mov_file=args.mov[ndx],
-                #                    trx_file=args.trx[ndx],
-                #                    out_file=args.out_files[ndx],
-                #                    start_frame=args.start_frame[ndx],
-                #                    end_frame=args.end_frame[ndx],
-                #                    skip_rate=args.skip,
-                #                    trx_ids=args.trx_ids[ndx],
-                #                    name=name,
-                #                    save_hmaps=args.hmaps,
-                #                    crop_loc=crop_loc_list[ndx],
-                #                    model_file=args.model_file[ndx],
-                #                    train_name=args.train_name
-                #                    )
 
     elif args.sub_name == 'gt_classify':
 
