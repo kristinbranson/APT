@@ -495,7 +495,7 @@ def randomly_scale(img,locs,conf,group_sz=1):
     return img, locs
 
 
-def randomly_affine(img,locs, conf, group_sz=1, mask= None):
+def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.INTER_LINEAR):
 
     # KB 20191218 - replaced scale_range with scale_factor_range
     if conf.use_scale_factor_range:
@@ -591,7 +591,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None):
 
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=cv2.INTER_LINEAR)
+                ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=interp_method)
                 # Do not use inter_cubic. Leads to splotches.
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
@@ -1288,7 +1288,7 @@ def crop_to_size(img, sz):
     return out_img, dx, dy
 
 
-def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None):
+def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,interp_method=cv2.INTER_LINEAR):
     '''
 
     :param ims: Input image. It is converted to uint8 before applying the transformations. Size: B x H x W x C
@@ -1317,7 +1317,7 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None):
         if conf.vert_flip:
             xs, locs, mask = randomly_flip_ud(xs, locs, conf, group_sz=group_sz,mask=mask)
         ftime = time.time()
-        xs, locs, mask = randomly_affine(xs, locs, conf, group_sz=group_sz,mask=mask)
+        xs, locs, mask = randomly_affine(xs, locs, conf, group_sz=group_sz,mask=mask,interp_method=interp_method)
         rtime = time.time()
         xs = randomly_adjust(xs, conf, group_sz=group_sz)
         ctime = time.time()

@@ -1114,7 +1114,10 @@ class CompressedAvi:
             self.color_depth = im.size//self.width//self.height
 
         else:
-            self.source = cv2.VideoCapture( filename )
+            if os.path.splitext(filename)[1] in ['.jpg','.png','.jpeg']:
+                self.source = cv2.VideoCapture( filename,cv2.CAP_IMAGES )
+            else:
+                self.source = cv2.VideoCapture( filename )
             self.indexed_mjpg = False
             if not self.source.isOpened():
                 raise IOError( "OpenCV could not open the movie %s" % filename )

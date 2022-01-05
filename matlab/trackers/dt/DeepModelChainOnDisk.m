@@ -506,6 +506,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       obj.rootDir = cacheDirLocal;
       obj.reader = DeepModelChainReaderLocal();
     end
+    
+    function [tf,tpdir] = trnPackExists(obj)
+      % Training package exists
+      tpdir = obj.dirProjLnx;
+      tf = exist(tpdir,'dir')>0 && exist(fullfile(tpdir,'loc.json'),'file')>0;
+    end
        
   end
   

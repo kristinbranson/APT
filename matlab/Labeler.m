@@ -6746,6 +6746,8 @@ classdef Labeler < handle
       %          {physical pt,view,coordinate (x vs y)}
       %   * tblFT.tfocc should be logical of size [n x nLabelPoints]
       %
+      % Alternatively, tblFT can be a Labels struct.
+      %
       % iMov: optional scalar movie index into which labels are imported.
       %   Defaults to .currMovie.
       % 
@@ -6754,33 +6756,37 @@ classdef Labeler < handle
       docompact = myparse(varargin,...
         'docompact',false ...
         );
-      
-      % atm pTS are overwritten/set as "now"
-      tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'}); 
-      tblfldsdonotcontainassert(tblFT,{'mov'});
 
       if exist('iMov','var')==0
         iMov = obj.currMovie;
       end
       assert(iMov>0);
 
-      n = height(tblFT);
-      npts = obj.nLabelPoints;
-      szassert(tblFT.p,[n 2*npts]);
-      szassert(tblFT.tfocc,[n npts]);
-      assert(islogical(tblFT.tfocc));
-
-      PROPS = obj.gtGetSharedProps();
-      
-      warningNoTrace('Existing labels cleared!');
       tsnow = now;
-      tblFT.pTS = tsnow*ones(n,npts);
-      s = Labels.fromtable(tblFT);
+      if istable(tblFT)
+        % atm pTS are overwritten/set as "now"
+        tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'}); 
+        tblfldsdonotcontainassert(tblFT,{'mov'});
+
+        n = height(tblFT);
+        npts = obj.nLabelPoints;
+        szassert(tblFT.p,[n 2*npts]);
+        szassert(tblFT.tfocc,[n npts]);
+        %assert(islogical(tblFT.tfocc));
+
+        warningNoTrace('Existing labels cleared!');
+        tblFT.pTS = tsnow*ones(n,npts);
+        s = Labels.fromtable(tblFT);
+      else
+        s = tblFT;
+      end
       if docompact
         [s,nfrmslbl,nfrmscompact] = Labels.compactall(s);
         fprintf(1,'Movie %d: %d labeled frms, %d frms compactified.\n',...
           iMov,nfrmslbl,nfrmscompact);
       end
+      
+      PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LBL){iMov} = s;
               
       obj.updateFrameTableComplete();
@@ -11414,7 +11420,7 @@ classdef Labeler < handle
       
       [wbObj,ppdata,sPrmAll,shuffleRows,updateCacheOnly] = myparse(varargin,...
         'wbObj',[],...
-        'ppdata',[],...
+        'ppdata',[],... % preproc data; or [] => auto-generate; or 'skip' => dont include ppdatacache in stripped lbl (eg for projs that use trnpacks)
         'sPrmAll',[],...
         'shuffleRows',true, ...
         'updateCacheOnly',false ... % if true, output args are 
@@ -11443,7 +11449,12 @@ classdef Labeler < handle
       %
       % Determine the training set
       % 
-      if isempty(ppdata),
+      tfSkipPPData = strcmp(ppdata,'skip') || ...
+                     isempty(ppdata) && tObj.trnNetMode.isTrnPack;
+      if tfSkipPPData
+        assert(~updateCacheOnly);
+        tblPCache = [];
+      elseif isempty(ppdata),
         treatInfPosAsOcc = ...
           isa(tObj,'DeepTracker') && tObj.trnNetType.doesOccPred;
         tblPCache = obj.preProcGetMFTableLbled(...
@@ -11537,51 +11548,58 @@ classdef Labeler < handle
 %       end
       
       % AL: moved above
-      if ~isempty(ppdata)
+      if ~isempty(ppdata) % includes tfSkipPPData
 %         ppdbICache = true(ppdata.N,1);
       else
         % De-objectize .ppdb.dat (CPRData)
         ppdata = s.ppdb.dat;
       end
       
-      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d %s rows.\n',...
-        numel(ppdbICache),ppdata.N,descstr);
-      
-      ppdataI = ppdata.I(ppdbICache,:);
-      ppdataP = ppdata.pGT(ppdbICache,:);
-      ppdataMD = ppdata.MD(ppdbICache,:);
-      
-      ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
-      ppMDflds = tblflds(ppdataMD);
-      s.preProcData_I = ppdataI;
-      s.preProcData_P = ppdataP;
-      for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
-        sfld = ['preProcData_MD_' f];
-        s.(sfld) = ppdataMD.(f);
-      end
-      if isfield(s,'ppdb'),
-        s = rmfield(s,'ppdb');
-      end
-      if isfield(s,'preProcData'),
-        s = rmfield(s,'preProcData');
-      end
-      
-      % 20201120 randomize training rows
-      if shuffleRows
-        fldsPP = fieldnames(s);
-        fldsPP = fldsPP(startsWith(fldsPP,'preProcData_'));
-        nTrn = size(ppdataI,1);
-        prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
-        fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
-        for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
-          v = s.(f);
-          assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
-          s.(f) = v(prand,:);
+      if ~tfSkipPPData
+        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d %s rows.\n',...
+          numel(ppdbICache),ppdata.N,descstr);
+
+        ppdataI = ppdata.I(ppdbICache,:);
+        ppdataP = ppdata.pGT(ppdbICache,:);
+        ppdataMD = ppdata.MD(ppdbICache,:);
+
+        ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
+        ppMDflds = tblflds(ppdataMD);
+        s.preProcData_I = ppdataI;
+        s.preProcData_P = ppdataP;
+        for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
+          sfld = ['preProcData_MD_' f];
+          s.(sfld) = ppdataMD.(f);
         end
-      else
-        prand = [];
+
+        if isfield(s,'ppdb'),
+          s = rmfield(s,'ppdb');
+        end
+        if isfield(s,'preProcData'),
+          s = rmfield(s,'preProcData');
+        end
+
+        % 20201120 randomize training rows
+        if shuffleRows
+          fldsPP = fieldnames(s);
+          fldsPP = fldsPP(startsWith(fldsPP,'preProcData_'));
+          nTrn = size(ppdataI,1);
+          prand = obj.projDeterministicRandFcn(@()randperm(nTrn));
+          fprintf(1,'Shuffling training rows. Your RNG seed is: %d\n',obj.projRngSeed);
+          for f=fldsPP(:)',f=f{1}; %#ok<FXSET>
+            v = s.(f);
+            assert(ndims(v)==2 && size(v,1)==nTrn); %#ok<ISMAT>
+            s.(f) = v(prand,:);
+          end
+        else
+          prand = [];
+        end
+        s.preProcData_prand = prand;
+        
+        % check with Mayank, thought we wanted number of "underlying" chans
+        % but DL is erring when pp data is grayscale but NumChans is 3
+        s.cfg.NumChans = size(s.preProcData_I{1},3);
       end
-      s.preProcData_prand = prand;
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
@@ -11620,11 +11638,7 @@ classdef Labeler < handle
       % remove detect/DeepTrack from stage2
       s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
           s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');        
-      s.nLabels = ppdata.N;
-      
-      % check with Mayank, thought we wanted number of "underlying" chans
-      % but DL is erring when pp data is grayscale but NumChans is 3
-      s.cfg.NumChans = size(s.preProcData_I{1},3);
+      s.nLabels = ppdata.N;      
       
       tfsucc = true;
     end

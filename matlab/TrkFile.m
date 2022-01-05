@@ -36,7 +36,7 @@ classdef TrkFile < dynamicprops
     npts
   end
   properties (Dependent)
-    ntlts
+    ntracklets
   end
   
   methods 
@@ -44,7 +44,7 @@ classdef TrkFile < dynamicprops
 %       % assumes at least one tracklet...
 %       v = size(obj.pTrk{1},1);
 %     end
-    function v = get.ntlts(obj)
+    function v = get.ntracklets(obj)
       if obj.isfull
         v = size(obj.pTrk,4);
       else
@@ -416,14 +416,14 @@ classdef TrkFile < dynamicprops
       %tfInitFrm2Tlt = ~isequal(obj.frm2tlt,[]);
       %nfrm = size(obj.frm2tlt,1);
       
-      for i=1:obj.ntlts
+      for i=1:obj.ntracklets
         obj.startframes(i) = 0;
         obj.endframes(i) = -1;
       end
       
       tflds = obj.trkflds();
       for f=tflds(:)',f=f{1}; %#ok<FXSET>
-        for i=1:obj.ntlts
+        for i=1:obj.ntracklets
           v = obj.(f){i};
           if ndims(v)==3
             obj.(f){i} = v(:,:,1:0);
@@ -868,7 +868,7 @@ classdef TrkFile < dynamicprops
       else
         itgtsLive = find(tfhaspred);
         npt = obj.npts;
-        ntgt = obj.ntlts;
+        ntgt = obj.ntracklets;
         xy = nan(npt,2,ntgt);
         tfocc = false(npt,ntgt);
         pcell = obj.pTrk;
@@ -940,7 +940,7 @@ classdef TrkFile < dynamicprops
       % xy: [npt x 2 x nfrm] where nfrm=size(obj.frm2tlt,1)
       % occ: [npt x nfrm]
       
-      if iTlt > obj.ntlts
+      if iTlt > obj.ntracklets
         warningNoTrace('Tracklet %d exceeds available data.',iTlt);
         xy = nan(obj.npts,2,0);
         occ = nan(obj.npts,0);

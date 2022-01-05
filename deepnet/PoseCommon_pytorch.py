@@ -14,11 +14,11 @@ from tfrecord.torch.dataset import TFRecordDataset
 import errno
 import re
 import gc
-from torch import autograd
 import time
 import cv2
 import xtcocotools.mask
 import multiResData
+# from torch import autograd
 # autograd.set_detect_anomaly(True)
 
 def print_train_data(cur_dict):

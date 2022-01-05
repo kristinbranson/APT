@@ -33,7 +33,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
     deepnetrunlocal = true; 
     bsubaptroot = []; % root of APT repo for bsub backend running     
-    jrcsimplebindpaths = 0; 
+    jrcsimplebindpaths = 1; 
         
     awsec2 % used only for type==AWS
     awsgitbranch
@@ -150,6 +150,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           obj.dockerimgtag = currentTag;
         end
       end
+      % 20211101 turn on by default
+      obj.jrcsimplebindpaths = 1;
     end
     
     function testConfigUI(obj,cacheDir)

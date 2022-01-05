@@ -2,6 +2,7 @@ import hdf5storage
 import numpy as np
 import copy
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 def convert(in_data,to_python):
   """
@@ -112,7 +113,7 @@ def convertdense2sparsematrix(dense,defaultval=np.nan,tomatlab=False):
 
   return sparse
 
-def convertdense2tracklet(dense,defaultval=np.nan,ismatlab=False,startframes=None,endframes=None):
+def convertdense2tracklet(dense,defaultval=np.nan,ismatlab=False,startframes=None,endframes=None,T0=0):
   """
   convertdense2tracklet(dense,ismatlab=False,defaultval=np.nan,startframes=None,endframes=None)
   Convert input data from dense matrix format to tracklet format.
@@ -157,13 +158,14 @@ def convertdense2tracklet(dense,defaultval=np.nan,ismatlab=False,startframes=Non
         endframes[itgt]=-2
         nframes[itgt]=0
       else:
-        startframes[itgt]=idx[0]
-        endframes[itgt]=idx[-1]
+        startframes[itgt]=idx[0] + T0
+        endframes[itgt]=idx[-1] + T0
         nframes[itgt]=endframes[itgt]-startframes[itgt]+1
-    sparse[itgt]=dense[...,startframes[itgt]:endframes[itgt]+1,itgt]
+    sparse[itgt]=dense[...,(startframes[itgt]-T0):(endframes[itgt]+1-T0),itgt]
     if ismatlab:
       sparse[itgt] = to_py(sparse[itgt])
-    
+
+
   return sparse,startframes,endframes,nframes,sz
 
 
@@ -402,7 +404,7 @@ class Tracklet:
     if self.endframes is None:
       return 0
     else:
-      return self.T1+1
+      return self.T1-self.T0+1
     
   @property
   def T1(self):
@@ -997,14 +999,14 @@ class Tracklet:
       t1 = np.max(idx[1])
       newdata[id] = np.zeros(self.size_rest+(t1-t0+1,),dtype=self.dtype)
       newdata[id][:] = self.defaultval
-      newstartframes[id] = t0-T0
-      newendframes[id] = t1-T0
+      newstartframes[id] = t0+T0
+      newendframes[id] = t1+T0
       for itgt in range(self.ntargets):
         idx1 = idx[0] == itgt
         if not np.any(idx1):
           continue
         fs = idx[1][idx1]
-        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]-T0]
+        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
         
     self.data = newdata
     self.startframes = newstartframes
@@ -1150,7 +1152,7 @@ class Trk:
     for k in kwargs.keys():
       assert k in self.trkFields, f'Unknown tracking data type {k}'
       if kwargs[k] is not None:
-        assert isinstance(kwargs[k],np.ndarray)
+        assert isinstance(kwargs[k],Tracklet)
         self.__dict__[k] = kwargs[k]
 
   def setdata_dense(self,p,T0=None,**kwargs):
@@ -1241,7 +1243,7 @@ class Trk:
     if istracklet:
 
       self.pTrk = Tracklet(defaultval=self.defaultval)
-      
+
       self.pTrk.setdata(trk['pTrk'],startframes=trk['startframes'],endframes=trk['endframes'],ismatlab=True)
       self.size = self.pTrk.size
       self.nlandmarks = self.size[0]
@@ -1342,7 +1344,7 @@ class Trk:
       if consolidate:
         self.pTrk.consolidate(force=True)
       T0 = self.T0
-      T1 = T0+self.pTrk.T1-1
+      T1 = T0+self.pTrk.T-1
     else:
       T0 = self.T0
       T1 = self.T + self.T0 - 1
@@ -1355,18 +1357,15 @@ class Trk:
           self.__dict__[k].set_startendframes(self.pTrk.startframes,self.pTrk.endframes)
           trkData[k],_,_ = self.__dict__[k].to_mat()
     else:
-      trkData['pTrk'],trkData['startframes'],trkData['endframes'],_,_ = convertdense2tracklet(self.pTrk,defaultval=self.defaultval,ismatlab=False)
+      trkData['pTrk'],trkData['startframes'],trkData['endframes'],_,_ = convertdense2tracklet(self.pTrk,defaultval=self.defaultval,ismatlab=False,T0=self.T0)
       trkData['pTrk'] = to_mat(trkData['pTrk'])
       for k in self.trkFields:
         if self.__dict__[k] is not None:
-          trkData[k],_,_,_,_ = convertdense2tracklet(self.__dict__[k],defaultval=self.defaultval_dict[k],ismatlab=False,startframes=trkData['startframes'],endframes=trkData['endframes'])
+          trkData[k],_,_,_,_ = convertdense2tracklet(self.__dict__[k],defaultval=self.defaultval_dict[k],ismatlab=False,startframes=trkData['startframes'],endframes=trkData['endframes'],T0=self.T0)
           trkData[k] = to_mat(trkData[k])
 
       trkData['startframes'] = to_mat(trkData['startframes'])
       trkData['endframes'] = to_mat(trkData['endframes'])
-
-    trkData['startframes'] += T0
-    trkData['endframes'] += T0
 
     trkData['pTrkiTgt'] = to_mat(self.pTrkiTgt)
     for k in kwargs.keys():
@@ -1475,7 +1474,7 @@ class Trk:
       else:
         return p
 
-    p = self.pTrk.getframe(fs-self.T0)
+    p = self.pTrk.getframe(fs)
     if not extra:
       return p
 
@@ -1737,14 +1736,14 @@ class Trk:
       return
 
     newpTrk = Tracklet(defaultval=self.defaultval)
-    newpTrk.setdata_dense(self.pTrk)
+    newpTrk.setdata_dense(self.pTrk,T0=self.T0)
     self.pTrk = newpTrk
 
     #self.pTrk,self.startframes,self.endframes,self.nframes,self.size = convertdense2tracklet(self.pTrk)
     for k in self.trkFields:
       if self.__dict__[k] is not None:
         newTS = Tracklet(defaultval=self.defaultval_dict[k])
-        newTS.setdata_dense(self.__dict__[k],startframes=self.pTrk.startframes,endframes=self.pTrk.endframes)
+        newTS.setdata_dense(self.__dict__[k],startframes=self.pTrk.startframes,endframes=self.pTrk.endframes,T0=self.T0)
         self.__dict__[k] = newTS
       
     self.sparse_type='tracklet'
@@ -2004,7 +2003,7 @@ class Trk:
       pTrkConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkConf']
     if self.pTrkAnimalConf is not None:
       pTrkAnimalConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkAnimalConf']
-    for id in range(nids):
+    for id in tqdm(range(nids)):
       idx = ids.where(id)
       #idx=np.nonzero(ids==id)
       pTrk[:,:,idx[1],id]=self.pTrk[:,:,idx[1],idx[0]]
