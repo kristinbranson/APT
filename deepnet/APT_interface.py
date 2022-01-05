@@ -2933,7 +2933,7 @@ def check_train_db(model_type, conf, out_file):
 # KB 20190123: classify a list of movies, targets, and frames
 # save results to mat file out_file
 
-def compile_trk_info(conf, model_file, crop_loc, expname=None):
+def compile_trk_info(conf, model_file, crop_loc, mov_file, expname=None):
     '''
     Compile classification/predict metadata stored in eg trkfile.trkInfo
 
@@ -2960,7 +2960,7 @@ def compile_trk_info(conf, model_file, crop_loc, expname=None):
     info[u'crop_loc'] = to_mat(crop_loc)
     info[u'project_file'] = getattr(conf, 'project_file', '')
     info[u'git_commit'] = PoseTools.get_git_commit()
-
+    info[u'mov_file'] = mov_file
     return info
 
 
@@ -3180,7 +3180,7 @@ def classify_gt_data(args,view,view_ndx):
     to_mat_all_locs_in_dict(ret_dict_all)
     ret_dict_all['list'] = to_mat(np.array(info,dtype='double'))
     DUMMY_CROP_INFO = []
-    ret_dict_all['trkInfo'] = compile_trk_info(conf, model_file, DUMMY_CROP_INFO)
+    ret_dict_all['trkInfo'] = compile_trk_info(conf, model_file, DUMMY_CROP_INFO,'')
 
     savemat_with_catch_and_pickle(out_file, ret_dict_all)
 
@@ -3322,7 +3322,7 @@ def classify_movie(conf, pred_fn, model_type,
     bsize = conf.batch_size
     flipud = conf.flipud
 
-    info = compile_trk_info(conf, model_file, crop_loc, expname=name)
+    info = compile_trk_info(conf, model_file, crop_loc, mov_file, expname=name)
 
     if end_frames.size==0:
         pred_locs = np.zeros([1,0,conf.n_classes,2])

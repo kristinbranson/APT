@@ -94,6 +94,11 @@ catch
   handles.jtxStatus = [];
 end
 
+% somehow this got corrupted in .figs
+set(handles.tblFrames,'Data',[]);
+% Correct this, outdated in .figs
+set(handles.tblFrames,'ColumnName',{'Frame' 'Tgts' 'Pts'});
+
 syncStatusBarTextWhenClear(handles);
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');

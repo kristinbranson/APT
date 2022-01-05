@@ -6742,6 +6742,8 @@ classdef Labeler < handle
       %          {physical pt,view,coordinate (x vs y)}
       %   * tblFT.tfocc should be logical of size [n x nLabelPoints]
       %
+      % Alternatively, tblFT can be a Labels struct.
+      %
       % iMov: optional scalar movie index into which labels are imported.
       %   Defaults to .currMovie.
       % 
@@ -6750,33 +6752,37 @@ classdef Labeler < handle
       docompact = myparse(varargin,...
         'docompact',false ...
         );
-      
-      % atm pTS are overwritten/set as "now"
-      tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'}); 
-      tblfldsdonotcontainassert(tblFT,{'mov'});
 
       if exist('iMov','var')==0
         iMov = obj.currMovie;
       end
       assert(iMov>0);
 
-      n = height(tblFT);
-      npts = obj.nLabelPoints;
-      szassert(tblFT.p,[n 2*npts]);
-      szassert(tblFT.tfocc,[n npts]);
-      assert(islogical(tblFT.tfocc));
-
-      PROPS = obj.gtGetSharedProps();
-      
-      warningNoTrace('Existing labels cleared!');
       tsnow = now;
-      tblFT.pTS = tsnow*ones(n,npts);
-      s = Labels.fromtable(tblFT);
+      if istable(tblFT)
+        % atm pTS are overwritten/set as "now"
+        tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'}); 
+        tblfldsdonotcontainassert(tblFT,{'mov'});
+
+        n = height(tblFT);
+        npts = obj.nLabelPoints;
+        szassert(tblFT.p,[n 2*npts]);
+        szassert(tblFT.tfocc,[n npts]);
+        %assert(islogical(tblFT.tfocc));
+
+        warningNoTrace('Existing labels cleared!');
+        tblFT.pTS = tsnow*ones(n,npts);
+        s = Labels.fromtable(tblFT);
+      else
+        s = tblFT;
+      end
       if docompact
         [s,nfrmslbl,nfrmscompact] = Labels.compactall(s);
         fprintf(1,'Movie %d: %d labeled frms, %d frms compactified.\n',...
           iMov,nfrmslbl,nfrmscompact);
       end
+      
+      PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LBL){iMov} = s;
               
       obj.updateFrameTableComplete();
