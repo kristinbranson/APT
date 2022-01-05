@@ -1347,7 +1347,7 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=50,min_len=0,res
     if trk.__dict__[k] is not None:
       trk.__dict__[k] = np.delete(trk.__dict__[k], to_remove, -1)
   trk.ntargets = trk.ntargets - len(to_remove)
-
+  trk.pTrkiTgt=np.arange(trk.ntargets,dtype=int)
   trk.convert2sparse()
   return trk, assigned_ids
 
