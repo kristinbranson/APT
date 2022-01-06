@@ -4196,8 +4196,8 @@ def check_args(args,nviews):
         else:
             nmov = len(args.mov)
             assert len(args.out_files) == nmov, 'Number of out files should be same as number of movies'
-            if args.track_type == 'only_link':
-                assert args.predict_trk_files is not None, 'When only linking, raw unlinked predictions must be given using -predict_trk_files'
+            # if args.track_type == 'only_link':
+            #     assert args.predict_trk_files is not None, 'When only linking, raw unlinked predictions must be given using -predict_trk_files'
 
             args.mov = reshape(args.mov)
             args.trx = reshape(set_checklen(args.trx,n=nmov,varstr='trx files',n_type='movies'))

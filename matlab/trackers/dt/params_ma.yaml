@@ -78,4 +78,5 @@ ROOT:
       - link_strict_match_thres: ['Matching Threshold',unsigned,true,'Match a prediction only if the distance to closest match is smaller than the distance to the next closest match by this factor.',2,'','Advanced',['ma'],true]
       - link_id_training_iters: ['Identity Tracker Training steps',unsigned,true,'Number of steps to training the identity tracker for.',40000,'','Advanced',['ma'],true]
       - link_id_tracklet_samples: ['Tracklet Samples',unsigned,true,'Number of examples to sample from a tracklet when assigning identity.',25,'','Advanced',['ma'],true]
-      - link_id_rescle: ['Identity tracker downsampling factor',unsigned,true,'Amount to downsample the cropped animal images for identity tracking.',1,'','Advanced',['ma'],true]
+      - link_id_rescale: ['Identity tracker downsampling factor',unsigned,true,'Amount to downsample the cropped animal images for identity tracking.',1,'','Advanced',['ma'],true]
+      - link_id_mining_steps: ['Identity tracker mining steps',unsigned,true,'Number of times to do hard triplet mining during identity tracking.',10,'','Advanced',['ma'],true]

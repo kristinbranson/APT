@@ -883,7 +883,8 @@ def link_trklets(trk_file, conf, mov, out_file):
   trk = TrkFile.Trk(trk_file)
   if conf.link_id:
     conf1 = copy.deepcopy(conf)
-    conf1.imsz = conf1.multi_animal_crop_sz
+    ww = conf1.multi_animal_crop_sz
+    conf1.imsz = [ww,ww]
 
     if len(conf1.ht_pts)>0:
       conf1.use_ht_trx = True
