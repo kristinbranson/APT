@@ -746,12 +746,12 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet', conf_para
 
         if isModern:
             if 'TargetCrop' in dt_params['ImageProcessing']['MultiTarget']:
-                width = int(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['Radius'])) * 2 + 1
+                width = int(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['Radius'])) * 2
             else:
-                width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['Radius'])) * 2 + 1
+                width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['Radius'])) * 2
         else:
             # KB 20190212: replaced with preprocessing
-            width = int(read_entry(lbl['preProcParams']['TargetCrop']['Radius'])) * 2 + 1
+            width = int(read_entry(lbl['preProcParams']['TargetCrop']['Radius'])) * 2
         height = width
 
         if not isModern:
@@ -777,6 +777,11 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet', conf_para
             conf.imsz = (vid_nr, vid_nc)
     conf.labelfile = lbl_file
     conf.sel_sz = min(conf.imsz)
+
+    if 'MultiAnimal' in dt_params:
+        width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['Radius'])) * 2
+        conf.multi_animal_crop_sz = width
+
     if isModern:
         scale = float(read_entry(dt_params['DeepTrack']['ImageProcessing']['scale']))
         conf.adjust_contrast = int(read_entry(dt_params['DeepTrack']['ImageProcessing']['adjustContrast'])) > 0.5
@@ -1214,8 +1219,6 @@ def setup_ma(conf):
             max_sz = y_sz if y_sz > max_sz else max_sz
 
     max_sz = int(np.ceil((max_sz + 2) / 32)) * 32
-    # don't take max in case there is a weird outlier
-    conf.multi_max_animal_sz = np.nan
 
     if not conf.multi_crop_ims:
         conf.imsz = (fr_sz[0], fr_sz[1])
@@ -2990,7 +2993,7 @@ def classify_db_stage(args,view,view_ndx,db_file):
 
     else:
         conf = create_conf(lbl_file,view,name,args.type,cache_dir=args.cache,conf_params=args.conf_params)
-        model_file = args.model_file
+        model_file = args.model_file[view_ndx]
         ret_dict = classify_db_all(model_type=args.type,conf=conf,model_file=model_file,name=args.train_name,img_dir='train')
 
     return ret_dict
@@ -3463,7 +3466,7 @@ def raw_predict_file(predict_trk_file, out_file):
     return raw_file
 
 def do_link(conf):
-    return (conf.is_multi and (conf.stage == None) and (conf.multi_link_stage != 'none')) or (conf.stage == conf.multi_link_stage)
+    return (conf.is_multi and (conf.stage == None) and (conf.link_stage != 'none')) or (conf.stage == conf.link_stage)
 
 def link(args, view, view_ndx):
     conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
@@ -3477,8 +3480,7 @@ def link(args, view, view_ndx):
     out_files = args.out_files[view_ndx]
     for mov_ndx in range(nmov):
         raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
-        trk = TrkFile.Trk(raw_file)
-        trk_linked = lnk.link_trklets(trk, conf, movs[mov_ndx], out_files[mov_ndx])
+        trk_linked = lnk.link_trklets(raw_file, conf, movs[mov_ndx], out_files[mov_ndx])
         trk_linked.save(out_files[mov_ndx], saveformat='tracklet')
 
 
@@ -3872,7 +3874,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
         conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
 
         conf.view = cur_view
-        model_file = args.model_file[view_ndx][0]
+        model_file = args.model_file[view_ndx]
         if args.split_file is not None:
             assert (os.path.exists(args.split_file))
             in_data = PoseTools.json_load(args.split_file)
@@ -4143,7 +4145,7 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
                            trx_ids=args.trx_ids,
                            name=name,
                            crop_loc=args.crop_loc[view_ndx][mov_ndx],
-                           model_file=args.model_file[view_ndx][0],
+                           model_file=args.model_file[view_ndx],
                            train_name=args.train_name,
                            predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx]
                            )
@@ -4173,8 +4175,8 @@ def check_args(args,nviews):
             return x
 
 
-    args.model_file = reshape(set_checklen(args.model_file,varstr='model files'))
-    args.model_file2 = reshape(set_checklen(args.model_file2,varstr='model files stage 2'))
+    args.model_file = np.array(set_checklen(args.model_file,varstr='model files')).reshape([nviews,]).tolist()
+    args.model_file2 = np.array(set_checklen(args.model_file2,varstr='model files stage 2')).reshape([nviews,]).tolist()
 
     if args.sub_name == 'track' and args.list_file is not None:
         # KB 20190123: added list_file input option
@@ -4211,8 +4213,8 @@ def check_args(args,nviews):
         else:
             nmov = len(args.mov)
             assert len(args.out_files) == nmov, 'Number of out files should be same as number of movies'
-            if args.track_type == 'only_link':
-                assert args.predict_trk_files is not None, 'When only linking, raw unlinked predictions must be given using -predict_trk_files'
+            # if args.track_type == 'only_link':
+            #     assert args.predict_trk_files is not None, 'When only linking, raw unlinked predictions must be given using -predict_trk_files'
 
             args.mov = reshape(args.mov)
             args.trx = reshape(set_checklen(args.trx,n=nmov,varstr='trx files',n_type='movies'))
