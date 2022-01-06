@@ -212,9 +212,9 @@ class config(object):
         self.multi_bb_ex = 10 # extra margin to keep around annotations while generating masks
         self.multi_n_grid = 1 # Number of cells to split the image into for multianimal
         self.multi_link_cost = 5 # cost for linking trajectory. 5 is roughly the max movement in pixels per landmark that will not lead to death and birth of new trajectories.
-        self.multi_frame_sz = []
         # actual frame size
-        self.multi_max_animal_sz = None
+        self.multi_frame_sz = []
+        self.multi_animal_crop_sz = None
         # multi_use_mask is whether to mask the image or not
         self.multi_use_mask = False
         # whether to mask the loss or not
@@ -224,7 +224,7 @@ class config(object):
         # For NMS for pose. Suppress poses whose avg matching distance is less than this percentage of the bounding box edge size.
         self.multi_match_dist = 20
 
-        # For top-down
+        # ============= TOP-DOWN =================
 
         # For top-down networks, use these points as head tail
         self.ht_pts = []
@@ -236,12 +236,26 @@ class config(object):
         # Use bbox as trx surrogate for top-down networks.
         self.use_bbox_trx = False
         self.stage = None
-        self.multi_link_stage = 'first'
 
-        self.multi_stitch_id = False
-        self.multi_stitch_id_cropsz = []
+        # ============== LINKING ===============
+        self.link_stage = 'first'
+        self.link_maxcost_heuristic = 'secondorder'
+        self.link_maxcost_framesfit = 3
+        self.link_maxcost_mult = 2
+        self.link_maxcost_prctile = 95.
+        self.link_maxframes_delete = 0
+        self.link_maxframes_missed = 10
+        self.link_minconf_delete = 0.5
+        self.link_maxcost_secondorder_thresh = 4.
+        self.link_strict_match_thres = 2.
 
-
+        self.link_id = False
+        self.link_id_cropsz = []
+        self.link_id_training_iters = 40000
+        self.link_id_tracklet_samples = 50
+        self.link_id_rescale = 1
+        self.link_id_min_tracklet_len = 3
+        self.link_id_mining_steps = 10
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'

@@ -781,7 +781,7 @@ function autoparams = compute_auto_params(lobj)
   end
 
   crop_radius = max(l_span_pc);
-  crop_radius = ceil(crop_radius/32)*32;
+  crop_radius = ceil(crop_radius/16)*16;
   if lobj.trackerIsTwoStage || lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
   end

@@ -22,6 +22,7 @@ import tempfile
 import copy
 import multiprocessing as mp
 from tqdm.contrib.concurrent import process_map
+import hdf5storage
 
 # for debugging
 import matplotlib
@@ -82,6 +83,8 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   C1 = np.sum(np.abs(pcurr-pnext), axis=0)/nlandmarks
   C[:ncurr, :nnext] = np.reshape(C1, (ncurr, nnext))
 
+  strict_match_thres = params['strict_match_thres']
+
   if not force_match:
     # Don't do the ratio to second lowest match if force_match is on. This is used when estimating the maxcost parameter.
 
@@ -94,7 +97,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
       curc[x1, x1_curr] = np.nan
       curc[np.isnan(curc)] = np.inf
       c2 = np.min(curc[x1, :])
-      if c2 / (c1 + 0.0001) < 2:
+      if c2 / (c1 + 0.0001) < strict_match_thres:
         C[x1, :ncurr] = maxcost
 
     # If a next detection has 2 matches then break the tracklet
@@ -106,7 +109,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
       curc[x1_curr,x1] = np.nan
       curc[np.isnan(curc)] = np.inf
       c2 = np.min(curc[:,x1])
-      if c2/(c1+0.0001) < 2:
+      if c2/(c1+0.0001) < strict_match_thres:
         C[:nnext,x1] = maxcost
 
   # match
@@ -561,7 +564,7 @@ def merge_close(trk, params):
 
 
 
-def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, heuristic='secondorder'):
+def estimate_maxcost(trk, params, nsample=1000, nframes_skip=1):
   """
   maxcost = estimate_maxcost(trk,nsample=1000,prctile=95.,mult=None,nframes_skip=1,heuristic='secondorder')
   Estimate the threshold for the maximum cost for matching identities. This is done
@@ -580,22 +583,26 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   Default: 'secondorder'.
   Returns threshold on cost.
   """
-  
-  if (mult is None) and heuristic =='prctile':
-    mult = 100. / prctile
-  elif mult is None:
-    mult = 1.2
+
+  mult = params['maxcost_mult']
+  heuristic = params['maxcost_heuristic']
+  prctile = params['maxcost_prctile']
+  secondorder_thresh = params['maxcost_secondorder_thresh']
+
+  if mult is None:
+    if heuristic =='prctile':
+      mult = 100. / prctile
+    else:
+      mult = 1.2
+
   nsample = np.minimum(trk.T, nsample)
   tsample = np.round(np.linspace(trk.T0, trk.T1-nframes_skip-1, nsample)).astype(int)
-  params = {}
   minv, maxv = trk.get_min_max_val()
   minv = np.min(minv, axis=0)
   maxv = np.max(maxv, axis=0)
   bignumber = np.sum(maxv-minv) * 2.1
   # bignumber = np.sum(np.nanmax(p,axis=(1,2,3))-np.nanmin(p,axis=(1,2,3)))*2.1
   params['maxcost'] = bignumber
-  params['verbose'] = 0
-  set_default_params(params)
   allcosts = np.zeros((trk.ntargets, nsample))
   allcosts[:] = np.nan
 
@@ -624,7 +631,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
     qq = np.percentile(allcosts[isdata], np.arange(50, 100, 0.25))
     dd1 = qq[1:] - qq[:-1]
     dd2 = dd1[1:] - dd1[:-1]
-    all_ix = np.where(dd2 > 4)[0]
+    all_ix = np.where(dd2 > secondorder_thresh)[0]
     # threshold is where the second order increases by 4, so sort of the coefficient for the quadratic term.
     if len(all_ix) < 1:
         ix = 198 # choose 98 % as backup
@@ -656,7 +663,7 @@ def estimate_maxcost(trk, nsample=1000, prctile=95., mult=None, nframes_skip=1, 
   #         logging.info('i = %d, t = %d, nmiss = %d, ncurr = %d, nnext = %d, costs removed: %s'%(i,t,nmiss,ntargets_curr,ntargets_next,str(sortedcosts[:nmiss])))
 
 
-def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mult=None, heuristic='secondorder'):
+def estimate_maxcost_missed(trk, params, nsample=1000):
   """
   maxcost_missed = estimate_maxcost_missed(trk,maxframes_missednsample=1000,prctile=95.,mult=None, heuristic='secondorder')
   Estimate the threshold for the maximum cost for matching identities across > 1 frame.
@@ -674,10 +681,11 @@ def estimate_maxcost_missed(trk, maxframes_missed, nsample=1000, prctile=95., mu
   Default: 'secondorder'.
   Returns np.ndarray containing threshold on cost for each number of frames missed.
   """
-  
+
+  maxframes_missed = params['maxcost_framesfit']
   maxcost_missed = np.zeros(maxframes_missed)
   for nframes_skip in range(2, maxframes_missed+2):
-    maxcost_missed[nframes_skip-2] = estimate_maxcost(trk, prctile=prctile, mult=mult, nframes_skip=nframes_skip, nsample=nsample,heuristic=heuristic)
+    maxcost_missed[nframes_skip-2] = estimate_maxcost(trk, params,  nframes_skip=nframes_skip, nsample=nsample)
   return maxcost_missed
 
 
@@ -688,6 +696,22 @@ def set_default_params(params):
     params['weight_movement'] = 1.
   if 'maxframes_missed' not in params:
     params['maxframes_missed'] = np.inf
+
+
+def get_default_params(conf):
+  # Update some of the parameters based on conf
+  params = {}
+  params['verbose'] = 1
+  params['maxframes_missed'] = conf.link_maxframes_missed
+  params['maxframes_delete'] = conf.link_maxframes_delete
+  params['maxcost_prctile'] = conf.link_maxcost_prctile
+  params['maxcost_mult'] = conf.link_maxcost_mult
+  params['maxcost_framesfit'] = conf.link_maxcost_framesfit
+  params['maxcost_heuristic'] = conf.link_maxcost_heuristic
+  params['maxcost_secondorder_thresh'] = conf.link_maxcost_secondorder_thresh
+  params['minconf_delete'] = 0.5
+  params['strict_match_thres'] = conf.link_strict_match_thres
+  return params
 
 
 def test_assign_ids():
@@ -855,10 +879,11 @@ def nonmax_supp(trk, params):
       pcurr[...,0,to_remove] = np.nan
       trk.setframe(pcurr,t)
 
-def link_trklets(trk,conf,mov,out_file):
-  if conf.multi_stitch_id:
+def link_trklets(trk_file, conf, mov, out_file):
+  trk = TrkFile.Trk(trk_file)
+  if conf.link_id:
     conf1 = copy.deepcopy(conf)
-    conf1.imsz = conf1.multi_stitch_id_cropsz
+    conf1.imsz = conf1.multi_animal_crop_sz
 
     if len(conf1.ht_pts)>0:
       conf1.use_ht_trx = True
@@ -866,24 +891,9 @@ def link_trklets(trk,conf,mov,out_file):
     else:
       conf1.use_bbox_trx = True
       conf1.trx_align_theta = False
-    return link_id(trk,mov,conf1,out_file)
+    return link_id(trk, mov, conf1,out_file)
   else:
     return link(trk,conf)
-
-
-def get_default_params(conf):
-  # Update some of the parameters based on conf
-  params = {}
-  params['verbose'] = 1
-  params['maxframes_missed'] = 10
-  params['maxframes_delete'] = 10
-  params['maxcost_prctile'] = 95.
-  params['maxcost_mult'] = 3
-  params['maxcost_framesfit'] = 3
-  params['maxcost_heuristic'] = 'prctile'
-  params['minconf_delete'] = 0.5
-  params['nms_prctile'] = 50
-  return params
 
 
 def link(trk,conf,params_in=None,do_merge_close=False,do_stitch=True,do_delete_short=False):
@@ -894,33 +904,19 @@ def link(trk,conf,params_in=None,do_merge_close=False,do_stitch=True,do_delete_s
     params.update(params_in)
   nframes_test = np.inf
 
-  # locs_lnk = np.transpose(pred_locs, [2, 3, 0, 1])
-  # if pred_conf is None:
-  #   locs_conf = None
-  # else:
-  #   locs_conf = np.transpose(pred_conf,[2,0,1])
-  # if pred_animal_conf is None:
-  #   locs_animal_conf = None
-  # else:
-  #   locs_animal_conf = np.transpose(pred_animal_conf,[2,0,1])
-  # ts = np.ones_like(locs_lnk[:,0, ...]) * apt.datetime2matlabdn()
-  # tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-  # trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag,pTrkConf=locs_conf,pTrkAnimalConf=locs_animal_conf)
-
   T = np.minimum(np.inf, trk.T)
-  # p should be d x nlandmarks x maxnanimals x T, while pTrk is nlandmarks x d x T x maxnanimals
-  # p = np.transpose(trk['pTrk'],(1,0,3,2))
   nframes_test = int(np.minimum(T, nframes_test))
   if 'maxcost' not in params:
-    params['maxcost'] = estimate_maxcost(trk, prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
+    params['maxcost'] = estimate_maxcost(trk, params)
   if 'maxcost_missed' not in params:
-    params['maxcost_missed'] = estimate_maxcost_missed(trk, params['maxcost_framesfit'], prctile=params['maxcost_prctile'], mult=params['maxcost_mult'], heuristic=params['maxcost_heuristic'])
-  if 'nms_max' not in params:
-    params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
-
+    params['maxcost_missed'] = estimate_maxcost_missed(trk, params)
   logging.info('maxcost set to %f' % params['maxcost'])
   logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
-  nonmax_supp(trk, params)
+
+  # if 'nms_max' not in params:
+    # params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
+#  nonmax_supp(trk, params)
+
   ids, costs = assign_ids(trk, params, T=nframes_test)
   if isinstance(ids, np.ndarray):
     nids_original = np.max(ids) + 1
@@ -959,49 +955,46 @@ def link(trk,conf,params_in=None,do_merge_close=False,do_stitch=True,do_delete_s
   return trk
 
 
-def link_id(trk,mov_file,conf,out_file, params_in=None):
+def link_id(trk, mov_file, conf, out_file, params_in=None):
   params = {}
-  params['maxframes_delete']:3
+  params['maxframes_delete'] = conf.link_id_min_tracklet_len
   if params_in is not None:
     params.udpate(params_in)
   trk = link(trk,conf, params_in=params,do_merge_close=False,do_stitch=False)
-  train_data, tmp_trx  = get_id_train_images(trk,mov_file,conf)
-  id_classifier, loss_history = train_id_classifier(train_data,conf, trk)
-  wt_out_file = out_file.replace('.trk','_idwts.p')
-  torch.save({'model_state_params':id_classifier.state_dict()},wt_out_file)
 
+  # Read the linked trk as trx
+  tmp_trk = tempfile.mkstemp()[1]
+  trk.save(tmp_trk,saveformat='tracklet')
+  cap = movies.Movie(mov_file)
+  trx_dict = apt.get_trx_info(tmp_trk, conf, cap.get_n_frames())
+  trx = trx_dict['trx']
+  cap.close()
+
+  # train the identity model
+  train_data = get_id_train_images(trk, trx, mov_file, conf)
+  wt_out_file = out_file.replace('.trk','_idwts.p')
+  id_classifier, loss_history = train_id_classifier(train_data,conf, trk, save_file=wt_out_file)
+
+  # link using idt
   def_params = get_default_params(conf)
-  trk_out, matched = link_trklet_id(trk,id_classifier,mov_file,conf,tmp_trx,min_len=def_params['maxframes_delete'])
+  trk_out, matched = link_trklet_id(trk,id_classifier,mov_file,conf, trx,min_len=def_params['maxframes_delete'])
   return trk_out
 
 
-def get_id_train_images(trk_in,mov_file,conf,n_ex=10000,batch_size=8,num_workers=12):
+def get_id_train_images(trk_in, trx, mov_file, conf):
   ss, ee = trk_in.get_startendframes()
-  tmp_trx = tempfile.mkstemp()[1]
-  trk_in.save(tmp_trx,saveformat='tracklet')
   # Save the current trk to be used as trx. Could be avoided but the whole image patch extracting pipeline exists with saved trx file, so not rewriting it.
 
-  num_done = 0
-  min_trx_len = 100
+  min_trx_len = 10
   if np.count_nonzero((ee-ss)>min_trx_len)<conf.max_n_animals:
     min_trx_len = np.percentile((ee-ss),20)-1
-
-  cap = movies.Movie(mov_file)
-  trx_dict = apt.get_trx_info(tmp_trx, conf, cap.get_n_frames())
-  trx = trx_dict['trx']
-  cap.close()
 
   sel_trk = np.where((ee - ss) > min_trx_len)[0]
   sel_trk_info = list(zip(sel_trk, ss[sel_trk], ee[sel_trk]))
 
   data = read_ims_par(trx, sel_trk_info, mov_file, conf)
 
-  # logging.info('Creating ID data generator ...')
-  # id_dat = id_dset(mov_file,trx,conf,to_do_list)
-  # id_loader = torch.utils.data.DataLoader(id_dat,batch_size=batch_size,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id),pin_memory=True)
-  # id_iter = iter(id_loader)
-
-  return data, tmp_trx
+  return data
 
 def get_overlap(ss_t,ee_t,ss,ee, curidx):
   # For overlap either the start of the trajectory should lie within the range or the end
@@ -1146,7 +1139,7 @@ def tracklet_pred(ims, net, conf, rescale):
     rr = np.array(preds)
     return rr
 
-def train_id_classifier(data, conf, trk, n_iters=40000,save=False,save_file=None,rescale=1,flip90=False, bsz=16, use_sampling=True, num_times_sample=10,debug=False):
+def train_id_classifier(data, conf, trk, save=False,save_file=None, bsz=16):
 
   class ContrastiveLoss(torch.nn.Module):
     """
@@ -1181,10 +1174,14 @@ def train_id_classifier(data, conf, trk, n_iters=40000,save=False,save_file=None
   confd.trange = min(conf.imsz) / 15
   confd.horzFlip = False
   confd.vertFlip = False
-  confd.scale_factor_range = 1.
+  confd.scale_factor_range = 1.1
   confd.brange = [-0.05, 0.05]
   confd.crange = [0.95, 1.05]
+  rescale = conf.link_id_rescale
+  debug = conf.get('link_id_debug',False)
 
+  n_iters = conf.link_id_training_iters
+  num_times_sample = conf.link_id_mining_steps
   logging.info('Training ID network ...')
   net.train()
   net = net.cuda()
@@ -1204,10 +1201,13 @@ def train_id_classifier(data, conf, trk, n_iters=40000,save=False,save_file=None
   n_workers = 10 if not debug else 0
   train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id))
   train_iter = iter(train_loader)
+  ex_ims = next(train_iter).numpy()
+
+  hdf5storage.savemat(os.path.splitext(save_file)[0]+'_ims.mat',{'example_ims':ex_ims})
 
   for epoch in tqdm(range(n_iters)):
 
-    if epoch % sampling_period == 0 and epoch > 0 and use_sampling:
+    if epoch % sampling_period == 0 and epoch > 0:
       net = net.eval()
       ims = [dd[0] for dd in data]
       t_preds = tracklet_pred(ims, net, confd, rescale)
@@ -1247,18 +1247,16 @@ def train_id_classifier(data, conf, trk, n_iters=40000,save=False,save_file=None
 
     loss_history.append(loss_contrastive.item())
 
-##
-  wt_out_file = f'{save_file}-{n_iters}.p'
-  torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)
+  if save:
+    wt_out_file = f'{save_file}-{n_iters}.p'
+    torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)
+
   del train_iter, train_loader, train_dset
   return net, loss_history
 
 
-def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=50,min_len=0,rescale=1, min_len_select=5):
-  cap = movies.Movie(mov_file)
+def link_trklet_id(trk, net, mov_file, conf, trx, n_per_trk=50,min_len=0,rescale=1, min_len_select=5):
   ss, ee = trk.get_startendframes()
-  trx_dict = apt.get_trx_info(tmp_trx, conf, cap.get_n_frames())
-  trx = trx_dict['trx']
 
   # For each tracklet chose n_per_trk random examples and the find their embedding.
   sel_tgt = np.where((ee-ss+1)>=min_len_select)[0]
@@ -1282,7 +1280,6 @@ def link_trklet_id(trk, net, mov_file, conf, tmp_trx, n_per_trk=50,min_len=0,res
       oo = net(zz).cpu().numpy()
     preds.append(oo)
 
-  cap.close()
 
   # Now stitch the tracklets based on their identity
   trk.convert2dense()
