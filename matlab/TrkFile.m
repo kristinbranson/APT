@@ -359,6 +359,9 @@ classdef TrkFile < dynamicprops
           obj.addprop(prop);
         end
         obj.(prop) = s.(prop);
+        if isnumeric(obj.(prop)) && isinteger(obj.(prop)),
+          obj.(prop) = double(obj.(prop));
+        end
       end
       
       flds = obj.trkflds();
@@ -395,6 +398,7 @@ classdef TrkFile < dynamicprops
       
       if ~isempty(obj.pTrk)
         obj.npts = size(obj.pTrk{1},1); 
+        obj.nframes = double(max(obj.endframes));
       else
         try 
           obj.npts = obj.trkInfo.params.n_classes;

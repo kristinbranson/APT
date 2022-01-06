@@ -3245,7 +3245,7 @@ ClearStatus(handles)
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
 
-if batchStartupOptionUsed
+if ~verLessThan('matlab','9.6') && batchStartupOptionUsed
   return;
 end
 

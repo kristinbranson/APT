@@ -3376,7 +3376,11 @@ classdef Labeler < handle
       
       lObj.printAllTrackerInfo();
       
-      fprintf('Back-end: %s\n',char(lObj.trackDLBackEnd.type));
+      if isempty(lObj.trackDLBackEnd),
+        fprintf('Back-end: None\n');
+      else
+        fprintf('Back-end: %s\n',char(lObj.trackDLBackEnd.type));
+      end
       
       fprintf('N. train movies: %d\n',lObj.nmovies);
       [nlabels,nlabelspermovie,nlabelspertarget] = lObj.getNLabels();
