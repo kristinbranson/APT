@@ -19,7 +19,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
 
     jrchost = 'login1.int.janelia.org';
-    jrcprefix = 'source /etc/profile';
+    jrcprefix = ':'; % 'source /etc/profile';
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
   end
   properties

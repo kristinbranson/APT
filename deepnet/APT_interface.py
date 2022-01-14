@@ -422,7 +422,8 @@ def convert_to_coco(coco_info, ann, data, conf):
                                        'keypoints': out_locs.flatten().tolist(), 'category_id': 2})
 
 
-def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf,use_cache=True,db_dict=None):
+def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf, use_cache=True, db_dict=None,
+                    trnpack_val_split=None):
     # function that creates tfrecords using db_from_lbl
     if not os.path.exists(conf.cachedir):
         os.mkdir(conf.cachedir)
@@ -451,7 +452,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
     out_fns = [lambda data: convert_to_coco(train_info, train_ann, data, conf),
                lambda data: convert_to_coco(val_info, val_ann, data, conf)]
     if use_cache:
-        splits, __ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
+        splits, __ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt, trnpack_val_split=trnpack_val_split)
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
 
@@ -1460,7 +1461,7 @@ def show_crops(im, all_data, roi, extra_roi, conf):
         plt.plot(xx, yy)
 
 
-def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
+def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
     # TODO: Maybe merge this with db_from_trnpack??
     lbl = h5py.File(conf.labelfile, 'r')
     occ_as_nan = conf.get('ignore_occluded', False)
@@ -1502,9 +1503,12 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
         sndx = cur_t['split']
         if type(sndx) == list:
             if len(sndx)<1:
-                sndx = 0
+                sndx = 1 # still 1-based here
             else:
                 sndx = sndx[0]
+        sndx = sndx-1
+        if val_split is not None:
+            sndx = 1 if sndx==val_split else 0
         cur_out = out_fns[sndx]
 
         for ndx in range(len(cur_locs)):
@@ -1541,12 +1545,15 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, split=True):
     return splits, sel
 
 
-def db_from_trnpack(conf, out_fns, nsamples=None, split=True,only_ht=True):
+def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
     # Creates db from new trnpack format instead of stripped label files.
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
-    # dataset. If split is False, second element is not used and all data is
-    # outputted to training dataset
+    # dataset. 
+    #
+    # If val_split is not None, it should be an integer split index specifying the val split.
+    # In this case the training set is taken to be the complement (all other splits).
+    # 
     # the function will be give a list with:
     # 0: img,
     # 1: locations as a numpy array.
@@ -1605,12 +1612,17 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True,only_ht=True):
             cur_locs[cur_occ, :] = np.nan
         cur_occ = cur_occ.astype('float')
 
-        sndx = cur_t['split']
+        sndx = cur_t['split'] 
         if type(sndx) == list:
             if len(sndx)<1:
-                sndx = 0
+                # default to split 1 (still 1-based here)
+                sndx = 1
             else:
                 sndx = sndx[0]
+        sndx = sndx-1
+        if val_split is not None:
+            sndx = 1 if sndx==val_split else 0
+
         cur_out = out_fns[sndx]
 
         if conf.multi_only_ht:
@@ -1637,7 +1649,8 @@ def db_from_trnpack(conf, out_fns, nsamples=None, split=True,only_ht=True):
     return splits, sel
 
 
-def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,sel=None, nsamples=None, use_gt_cache=False):
+def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None, 
+    nsamples=None, use_gt_cache=False, trnpack_val_split=None):
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
     # dataset. If split is False, second element is not used and all data is
@@ -1666,9 +1679,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False,s
     lbl = h5py.File(conf.labelfile, 'r')
     if not ( ('preProcData_MD_mov' in lbl.keys()) or ('gtcache' in lbl.keys() and 'preProcData_MD_mov' in lbl['gtcache'])):
         if conf.use_ht_trx or conf.use_bbox_trx:
-            return db_from_trnpack_ht(conf, out_fns, nsamples=nsamples, split=split)
+            return db_from_trnpack_ht(conf, out_fns, nsamples=nsamples, val_split=trnpack_val_split)
         else:
-            return db_from_trnpack(conf, out_fns, nsamples=nsamples, split=split)
+            return db_from_trnpack(conf, out_fns, nsamples=nsamples, val_split=trnpack_val_split)
 
     # npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
     if use_gt_cache:
@@ -3916,7 +3929,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                     setup_ma(conf)
                 if not args.skip_db:
                     if conf.db_format == 'coco':
-                        create_coco_db(conf, split=split, split_file=split_file)
+                        create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
                     else:
                         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
 
@@ -3951,18 +3964,18 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
             exit(1)
 
         # Disabling this because it is hardly used MK 20210712
-        # if args.classify_val:
-        #     val_filename = get_valfilename(conf, net_type)
-        #     db_file = os.path.join(conf.cachedir, val_filename)
-        #     logging.info("Classifying {}... ".format(db_file))
-        #     preds, locs, info, model_file = classify_db_all(net_type, conf, db_file)
-        #     preds = to_mat(preds)
-        #     locs = to_mat(locs)
-        #     info = to_mat(info)
-        #     out_file = args.classify_val_out
-        #     logging.info("... done classifying, used model {}. Saving to {}".format(model_file, out_file))
-        #     out_dict = {'preds': preds, 'locs': locs, 'info': info, 'model_file': model_file}
-        #     hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+        if args.classify_val:
+            val_filename = get_valfilename(conf, net_type)
+            db_file = os.path.join(conf.cachedir, val_filename)
+            logging.info("Classifying {}... ".format(db_file))
+            preds, locs, info, model_file = classify_db_all(net_type, conf, db_file)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            info = to_mat(info)
+            out_file = args.classify_val_out
+            logging.info("... done classifying, used model {}. Saving to {}".format(model_file, out_file))
+            out_dict = {'preds': preds, 'locs': locs, 'info': info, 'model_file': model_file}
+            hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
 
 
 def parse_args(argv):
@@ -4000,16 +4013,18 @@ def parse_args(argv):
                               help='Continue from previously unfinished traning. Only for unet')
     parser_train.add_argument('-split_file', dest='split_file',
                               help='Split file to split data for train and validation', default=None)
+    parser_train.add_argument('-val_split', dest='val_split',
+                              help='Split index to use for validation (trainpack)', default=None, type=int)
     parser_train.add_argument('-no_aug', dest='no_aug', help='dont augment the images. Return the original images', default=False)
     parser_train.add_argument('-aug_out', dest='aug_out', help='Destination to save the images', default=None)
     parser_train.add_argument('-nsamples', dest='nsamples', default=9, help='Number of examples to be generated', type=int)
     parser_train.add_argument('-only_aug',dest='only_aug',help='Only do data augmentation, do not train',action='store_true')
 
-    # parser_train.add_argument('-classify_val', dest='classify_val',
-    #                           help='Apply trained model to val db', action='store_true')
-    # parser_train.add_argument('-classify_val_out', dest='classify_val_out',
-    #                           help='Store results of classify_val in this file (specified as a full path).',
-    #                           default=None)
+    parser_train.add_argument('-classify_val', dest='classify_val',
+                              help='Apply trained model to val db', action='store_true')
+    parser_train.add_argument('-classify_val_out', dest='classify_val_out',
+                              help='Store results of classify_val in this file (specified as a full path).',
+                              default=None)
 
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
@@ -4053,6 +4068,8 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     if args.view is not None:
         args.view = convert(args.view, to_python=True)
+    if args.sub_name == 'train':
+        args.val_split = convert(args.val_split, to_python=True)
 
     if args.sub_name != 'test':
         net_type = get_net_type(args.lbl_file)

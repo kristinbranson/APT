@@ -825,16 +825,7 @@ classdef DeepTracker < LabelTracker
       tfCanTrain = true;      
     end
     
-    
-    function retrain(obj,varargin)
-      
-      [wbObj,dlTrnType,oldVizObj,augOnly] = myparse(varargin,...
-        'wbObj',[],...
-        'dlTrnType',DLTrainType.New, ...
-        'oldVizObj',[], ...
-        'augOnly',false ...
-        );
-      
+    function preretrain(obj)      
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
       end
@@ -858,7 +849,21 @@ classdef DeepTracker < LabelTracker
       fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
       fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');      
+      fprintf(1,'\n'); 
+    end
+    
+    function retrain(obj,varargin)
+      
+      [wbObj,dlTrnType,oldVizObj,augOnly] = myparse(varargin,...
+        'wbObj',[],...
+        'dlTrnType',DLTrainType.New, ...
+        'oldVizObj',[], ...
+        'augOnly',false ...
+        );
+     
+      obj.preretrain();
+      lblObj = obj.lObj;
+      trnBackEnd = lblObj.trackDLBackEnd;
       
       if obj.isTrkFiles(),        
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
@@ -2159,8 +2164,10 @@ classdef DeepTracker < LabelTracker
   end
   methods 
     function trainsplit(obj,tblSplit,varargin)
-      % tblSplit: [nlbledrows x 4] table. cols are MFT and 'split'.
-      %  tblSplit.split should be a 1-based (positive) int
+      % tblSplit: 
+      %   SA: [nlbledrows x 4] table. cols are MFT and .split
+      %   MA: [nlbledrows x 3] table. cols are MF and .split
+      %   In either case, .split should be a 1-based (positive) int
       %  
       % Any labeled rows not in tblSplit get added to tstfold 1 I guess.
       %
@@ -2171,87 +2178,39 @@ classdef DeepTracker < LabelTracker
         'wbObj',[] ...
         );
                  
+      lblObj = obj.lObj;
       assert(obj.lObj.nview==1,'Currently only supported for single-view.');
 
-      % --- C+P retrain ---
-      if obj.bgTrnIsRunning
-        error('Training is already in progress.');
+      if obj.lObj.gtIsGTMode
+        error('Unsupported in GT mode.');
       end
-      
-      if obj.bgTrkIsRunning
-        error('Tracking is in progress.');
-      end
-      
-      cacheDir = obj.lObj.DLCacheDir;
-      if isempty(cacheDir)
-        error('No cache directory has been set.');
-      end
-      
-      lblObj = obj.lObj;
-      projname = lblObj.projname;
-      if isempty(projname)
-        error('Please give your project a name. The project name will be used to identify your trained models on disk.');
-      end      
-      
-      trnBackEnd = lblObj.trackDLBackEnd;
-      fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
-      fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
-      fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');
-      % --- C+P retrain ---
 
-%       assert(trnBackEnd.type==DLBackEnd.Bsub,...
-%         'Currently only supported for JRC Cluster backend.');
-%       
+      obj.preretrain();
+      
       obj.setAllParams(lblObj.trackGetParams());
       
       if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
-      end
-
-      slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
-      tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
-        slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
-      
-      tblSplit.mov = double(tblSplit.mov);
-      tf = ismember(tLbl,tblSplit(:,MFTable.FLDSID));
-      nMissing = nnz(~tf);
-      if nMissing>0
-        warningNoTrace('%d labeled training rows not found in split table. These will be added to split 1.',nMissing);
-        tblSplit = [tblSplit; tLbl(~tf,:)];
-      end
-      tf = ismember(tblSplit(:,MFTable.FLDSID),tLbl);
-      nExtra = nnz(~tf);
-      if nExtra>0
-        warningNoTrace('Ignoring %d extraneous (unlabeled) rows in split table.',nExtra);
-        tblSplit(~tf,:) = [];
-      end
-      
-      splits = tblSplit.split;
-      assert(isequal(round(splits),splits));
-      assert(all(splits>0));
-      nSplits = max(splits);
-      assert(isequal(unique(splits),(1:nSplits)'));
-
-      fprintf(1,'Split summary:\n');
-      summary(categorical(splits));
-      
-      obj.bgTrnReset();
-      
-      cacheDir = obj.lObj.DLCacheDir;
-      
+      end      
+           
       % Currently, cacheDir must be visible on the JRC shared filesys.
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
       
-
       trnType = DLTrainType.New;
+      netObj = obj.trnNetType;
+      netMode = obj.trnNetMode;
+      
+      % TODO: prev models
+      cacheDir = lblObj.DLCacheDir;
+      projname = lblObj.projname;
+      trnBackEnd = lblObj.trackDLBackEnd;
 
       % Base DMC, to be further copied/specified per-split
       dmc = DeepModelChainOnDisk(...
         'rootDir',cacheDir,...
         'projID',projname,...
-        'netType',char(obj.trnNetType),...
-        'netMode',obj.trnNetMode,...
+        'netType',char(netObj),...
+        'netMode',netMode,...
         'view',0,...  % 0b
         'modelChainID','',... % to be filled in
         'trainID','',... % to be filled in
@@ -2263,6 +2222,60 @@ classdef DeepTracker < LabelTracker
         'doSplit',true ...
         );
 
+      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
+      dmc.trainID = nowstr;      
+      
+      dlLblFileLcl = dmc.lblStrippedLnx;
+      dlLblFileLclDir = fileparts(dlLblFileLcl);
+      if exist(dlLblFileLclDir,'dir')==0
+        fprintf('Creating dir: %s\n',dlLblFileLclDir);
+        [succ,msg] = mkdir(dlLblFileLclDir);
+        if ~succ
+          error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
+        end
+      end
+      
+      % write slbl/trnpack
+      tfRequiresTrnPack = netObj.requiresTrnPack(netMode);
+      assert(tfRequiresTrnPack); % 202111
+
+      packdir = dlLblFileLclDir;
+      [slbl,tp,locg,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
+        'strippedlblname',dmc.lblStrippedName,...
+        'tblsplit',tblSplit ...
+        );
+      % TODO: SA tblSplit will have tgts
+      dmc.nLabels = ntgtstot;
+      
+      
+      %         tLbl = []; % XXX TODO
+      %         % get labeled rows
+      %         treatInfPosAsOcc = obj.trnNetType.doesOccPred;
+      %         tLbl = obj.lObj.preProcGetMFTableLbled( ...
+      %           'treatInfPosAsOcc',treatInfPosAsOcc ...
+      %           );
+      %         tLbl = tLbl(:,1:3);
+      
+% %       else
+% %         slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
+% %         % store nLabels in dmc
+% %         dmc.nLabels = s.nLabels;
+% % 
+% %         % Write stripped lblfile to local cache
+% % 
+% %         save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
+% %         fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
+% %         
+% %         tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
+% %               slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
+% %       end
+
+      
+      obj.bgTrnReset();      
+
+      % see trnSpawnBsubDocker
+      
       nvw = obj.lObj.nview;
       isMultiViewTrain = false;
       nTrainJobs = nvw;
@@ -2284,30 +2297,14 @@ classdef DeepTracker < LabelTracker
         case DLBackEnd.Bsub
           aptroot = trnBackEnd.bsubSetRootUpdateRepo(cacheDir);
         case {DLBackEnd.Conda,DLBackEnd.Docker},
-          assert(false);
+          %assert(false);
           aptroot = APT.Root;
           %obj.downloadPretrainedWeights('aptroot',aptroot); 
       end
             
       trnCmdType = trnType;
-
+ 
       % LOOP STUFF
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
-      dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
-      dmc.trainID = nowstr;
-      
-      % Write stripped lblfile to local cache
-      dlLblFileLcl = dmc.lblStrippedLnx;
-      dlLblFileLclDir = fileparts(dlLblFileLcl);
-      if exist(dlLblFileLclDir,'dir')==0
-        fprintf('Creating dir: %s\n',dlLblFileLclDir);
-        [succ,msg] = mkdir(dlLblFileLclDir);
-        if ~succ
-          error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
-        end
-      end
-      save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
-      fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
 
       %dmc.nLabels = slbl.nLabels;
             
@@ -2328,32 +2325,49 @@ classdef DeepTracker < LabelTracker
         case {DLBackEnd.Bsub DLBackEnd.Docker}
           mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
           singArgs = {'bindpath',mntPaths};
-          for isplit=1:nSplits
-                        
+          % splits verified in TrnPack.genWriteTrnPack
+          nsplits = max(tblSplit.split);
+          for isplit=1:nsplits
             if isplit>1
               dmc(isplit) = dmc(1).copy();
               dmc(isplit).modelChainID = ...
                 DeepModelChainOnDisk.modelChainIDForSplit(nowstr,isplit); 
               dmc(isplit).lblStrippedNameOverride = dmc(1).lblStrippedName;
             end
-            dmc(isplit).nLabels = nnz(tblSplit.split~=isplit);
+            dmcI = dmc(isplit);
+            dmcI.splitIdx = isplit;
+            dmcI.nLabels = nnz(tblSplit.split~=isplit);
             
-            jsplit = DeepTracker.tblSplt2Json(tblSplit,isplit);
-            jsplitfile = dmc(isplit).splitfileLnx;
-            fh = fopen(jsplitfile,'wt');
-            try
-              fprintf(fh,'%s\n',jsplit);
-            catch ME
-              fclose(fh);
-              rethrow(ME);
+            % "Inner"/cmdfile codegen
+            xvcode = dmcI.cmdfileLnx;
+            xvres = dmcI.valresultsBaseLnx;
+%             CONFPARAMSEXTRA = {'dl_steps' '500'};
+%             fprintf(2,'Extra confparams\n');
+            APTInterf.splitTrainValCodeGenCmdfile(xvcode,xvres,...
+              dmcI.modelChainID,...
+              dmcI.lblStrippedLnx,dmcI.rootDir,dmcI.errfileLnx,...
+              DLNetType.(dmcI.netType),dmcI.netMode,isplit,...
+              'confparamsextra',CONFPARAMSEXTRA,...
+              'view',1,'trainType',DLTrainType.New,...
+              'deepnetroot',[aptroot '/deepnet']);
+            fprintf(1,'Split %d: wrote cmdfile %s.\n',isplit,xvcode);
+            [succ,msg,id] = fileattrib(xvcode,'+x','a');
+            if ~succ
+              warningNoTrace('Failed to change file attributes for cmdfile %s: %s',...
+                xvcode,msg);
             end
-            fclose(fh);
-            fprintf(1,'... saved splitfile %s\n',jsplitfile);
 
-            syscmds{isplit} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
-              aptroot,dmc(isplit),...
-              'singArgs',singArgs,'trnCmdType',trnCmdType,...
-              'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
+            % "Outer" codegen
+            mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
+            singargs = {'bindpath',mntPaths};
+            bsubargs = {'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots ...
+              'outfile' dmcI.trainLogLnx};
+            sshargs = {};
+            codeOuter = dmcI.cmdfileLnx;
+            codeOuter = DeepTracker.codeGenSingGeneral(codeOuter,obj.trnNetMode,singargs{:});
+            codeOuter = DeepTracker.codeGenBsubGeneral(codeOuter,bsubargs{:});
+            codeOuter = DeepTracker.codeGenSSHGeneral(codeOuter,sshargs{:})
+            syscmds{isplit} = codeOuter;            
           end
 %         case DLBackEnd.Docker
 %           containerNames = cell(nTrainJobs,1);
@@ -2442,16 +2456,16 @@ classdef DeepTracker < LabelTracker
             syscmdrun = syscmds{iview};
             fprintf(1,'%s\n',syscmdrun);
             
-            cmdfile = dmc(iview).cmdfileLnx;
-            %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
-            [fh,msg] = fopen(cmdfile,'w');
-            if isequal(fh,-1)
-              warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
-            else
-              fprintf(fh,'%s\n',syscmdrun);
-              fclose(fh);
-              fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
-            end
+%             cmdfile = dmc(iview).cmdfileLnx;
+%             %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
+%             [fh,msg] = fopen(cmdfile,'w');
+%             if isequal(fh,-1)
+%               warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+%             else
+%               fprintf(fh,'%s\n',syscmdrun);
+%               fclose(fh);
+%               fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
+%             end
             
             if exist(dmc(iview).dirTrkOutLnx,'dir')==0
               [succ,msg] = mkdir(dmc(iview).dirTrkOutLnx);
@@ -4374,43 +4388,60 @@ classdef DeepTracker < LabelTracker
       tfE = cellfun(@exist,valresfiles);
       if all(tfE)
         nsplt = numel(dmc);
+        
         info = [];
         locs = [];
         preds = [];
-        errs = [];
         splt = [];
-        mdlfile = [];
+        %mdlfile = [];
         for isplt=1:nsplt          
           resfile = valresfiles{isplt};
           res = load(resfile,'-mat');
           fprintf(1,'Loaded results file %s\n',resfile);
                     
-          assert(isequal(numel(res.info),size(res.locs,1),size(res.preds,1)));
-          ni = numel(res.info);
+          predlocs = res.pred_locs.locs; % n x maxnanimals x npts x 2
+          lbllocs = res.labeled_locs; % etc
+          ni = numel(res.list);
+          assert(isequal(ni,size(lbllocs,1),size(predlocs,1)));
 
-          errl2 = sqrt(sum((res.locs-res.preds).^2,3)); % [n_splti x npt]
-
-          info = cat(1,info,cat(1,res.info{:}));
-          locs = cat(1,locs,reshape(res.locs,ni,[]));
-          preds = cat(1,preds,reshape(res.preds,ni,[])); 
-          errs = cat(1,errs,errl2);
+          %errl2 = sqrt(sum((lbllocs-predlocs).^2,4)); % [n x maxnanimals x npts]
+          info = cat(1,info,cat(1,res.list{:}));
+          locs = cat(1,locs,lbllocs); %reshape(lbllocs,ni,[]));
+          preds = cat(1,preds,predlocs); %reshape(predlocs,ni,[])); 
+          %errs = cat(1,errs,errl2);
           splt = cat(1,splt,isplt*ones(ni,1));
-          mdlfile = cat(1,mdlfile,repmat({char(res.model_file)},ni,1));
+          %mdlfile = cat(1,mdlfile,repmat({char(res.model_file)},ni,1));
         end
-          
-          
-        tblXVres = table(info(:,1),info(:,2),info(:,3),...
-          preds,locs,errs,splt,mdlfile,'VariableNames',...
-          [MFTable.FLDSID {'p' 'pLbl' 'err' 'fold' 'modelfile'}]);
+        
+        info = cell2mat(info);
+        LOCTHRESH = -1e3;
+        tfLblExist = locs(:,:,1,1)>LOCTHRESH; % n x maxnanimals
+        tfPrdExist = preds(:,:,1,1)>LOCTHRESH; % note: nan will not count as existing
+        [~,~,npts,d] = size(locs);
+        locs(repmat(~tfLblExist,1,1,npts,d)) = nan;
+        preds(repmat(~tfPrdExist,1,1,npts,d)) = nan;
+        [~,match,matchcosts,~,~,nFP,nFN,nMch,nLbl,nPrd] = ...
+          MAGT.comparePredsLbls(locs,preds,tfLblExist,tfPrdExist);
+
+        tblXVres = table(info(:,1),info(:,2),info(:,3),splt,...
+          preds,locs,nFP,nFN,nMch,nLbl,nPrd,match,matchcosts,'VariableNames',...
+          [MFTable.FLDSID {'fold' 'p' 'pLbl' 'numFP' 'numFN' 'numMatch' 'numLbl' 'numPred' 'matches' 'matchcosts'}]);
         obj.lObj.xvResults = tblXVres;
         obj.lObj.xvResultsTS = now;
         fprintf(1,'Set XV results on lObj.xvResults.*\n');
 
         obj.notify('trainEnd');
+
+        splitProjDirs = fileparts(fileparts(valresfiles));
+        imreadfn = @(x)MAGT.readCoco(x,splitProjDirs);
+        NPLOTMAX = 240; % = (20 pages) * 3x4 montage
+        nplot = min(NPLOTMAX,height(tblXVres));
+        MAGT.trackLabelMontage(obj.lObj,tblXVres,'nplot',nplot,...
+          'readImgFcn',imreadfn);
       end
     end
     
-    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)      
+    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
       obj.updateLastDMCsCurrInfo();
       
       trnstrs = cell(size(obj.trnLastDMC));
@@ -4691,9 +4722,10 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
     function codestr = trainCodeGenSSHBsubSingDMC(aptroot,dmc,varargin)
-      [singargs,bsubargs,trnCmdType] = myparse(varargin,...
+      [singargs,bsubargs,baseargsadd,trnCmdType] = myparse(varargin,...
         'singargs',{},...
         'bsubargs',{},...
+        'baseargsadd',{},...
         'trnCmdType',dmc.trainType...
         );
       
@@ -4706,18 +4738,15 @@ classdef DeepTracker < LabelTracker
       prefix = [DLBackEndClass.jrcprefix '; ' repoSScmd];      
       baseargs = {'view' dmc.view+1 'trainType' trnCmdType 'deepnetroot' [aptroot '/deepnet']};
       if dmc.doSplit
-        baseargs(end+1:end+6) = {
-          'split_file' 
-          dmc.splitfileLnx
-          'classify_val'
-          true
-          'classify_val_out'
-          dmc.valresultsLnx
+        baseargs(end+1:end+2) = {
+          'val_split' 
+          dmc.splitIdx % 'classify_val' true 'classify_val_out' dmc.valresultsLnx
           };
-      end
+      end      
       if ~isempty(dmc.prev_models)
         baseargs(end+1:end+2) = {'prev_model' dmc.prev_models};
       end
+      baseargs = [baseargs baseargsadd];
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.netMode,...
@@ -4726,7 +4755,6 @@ classdef DeepTracker < LabelTracker
         'bsubArgs',[bsubargs {'outfile' dmc.trainLogLnx}],...
         'sshargs',{'prefix' prefix});
     end
-        
     function downloadPretrainedExec(aptroot)
       % kb investigate: This doesn't work well on the cluster due to tf 
       % being a restricted site, plus /tmp acts weird

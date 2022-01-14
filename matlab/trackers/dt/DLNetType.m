@@ -71,6 +71,10 @@ classdef DLNetType < handle %dynamicprops
     end
     function tf = requiresTrnPack(obj,netMode)
       % whether training requires trnpack generation
+      
+      tf = true;
+      return
+      
       tf = obj.isMultiAnimal || ...
           (netMode~=DLNetMode.singleAnimal && ...
            netMode~=DLNetMode.multiAnimalTDPoseTrx);      

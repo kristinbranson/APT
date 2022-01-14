@@ -524,10 +524,10 @@ classdef Labels
       s2.frm = s.frm;
       s2.tgt = s.tgt;
     end
-    function s = addsplitsifnec(s)
-      n = size(s.p,2);
-      s.split = zeros(n,1,Labels.CLS_SPLIT);
-    end
+%     function s = addsplitsifnec(s)
+%       n = size(s.p,2);
+%       s.split = zeros(n,1,Labels.CLS_SPLIT);
+%     end
     function s = mergeviews(sarr)
       % sarr: array of Label structures
 
@@ -552,6 +552,48 @@ classdef Labels
       s.ts = cat(1,sarr.ts);
       s.occ = cat(1,sarr.occ);
       % .frm, .tgt unchanged
+    end
+    
+    function s = rmRows(s,predicateFcn,rmDispStr)
+      % predicateFcn: eg @isnan, @isinf
+      % rmDispStr: eg 'partially-labeled', 'fully-occluded' resp
+      
+      tf = any(predicateFcn(s.p),1);
+      nrm = nnz(tf);
+      if nrm>0
+        warningNoTrace('Labeler:nanData','Not including %d %s rows.',nrm,rmDispStr);
+        s.p(:,tf) = [];
+        s.ts(:,tf) = [];
+        s.occ(:,tf) = [];
+        s.frm(tf,:) = [];
+        s.tgt(tf,:) = [];
+        assert(~isfield(s,'split'));
+      end
+    end
+    function s = replaceInfWithNan(s)
+      
+      % Deal with full-occ rows in s in preparation from generating/writing 
+      % TrnPack. infs are written as 'null' to json. match legacy SA
+      % behavior by converting infs to nan. 
+      
+      tfinf = isinf(s.p);
+      tfinfX = tfinf(1:s.npts,:);
+      tfinfY = tfinf(s.npts+1:end,:);
+      assert(isequal(tfinfX,tfinfY),'Label corruption: fully-occluded labels.');
+      
+%       tf1 = tfinf(1:s.npts,:) | tfinf(s.npts+1:end,:);
+%       tf2 = s.occ>0;
+%       tfInfWithoutOcc = tf1 & ~tf2;
+%       % any point labeled as inf (fully-occ) should have .occ set to true 
+%       assert(~any(tfInfWithoutOcc(:),'Label corruption'); 
+      
+      nfulloccpts = nnz(tfinfX);
+      if nfulloccpts>0
+        warningNoTrace('Utilizing %d fully-occluded landmarks.',nfulloccpts);
+      end
+      
+      s.p(tfinf) = nan;
+      s.occ(tfinfX) = 1;
     end
   end
   methods (Static)

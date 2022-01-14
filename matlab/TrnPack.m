@@ -224,7 +224,7 @@ classdef TrnPack
     end
     
     function hlpSaveJson(s,packdir,jsonoutf)
-      j = jsonencode(s);
+      j = jsonencode(s,'ConvertInfAndNaN',false);
       jsonoutf = fullfile(packdir,jsonoutf);
       fh = fopen(jsonoutf,'w');
       fprintf(fh,'%s\n',j);
@@ -235,12 +235,16 @@ classdef TrnPack
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx,slblname,verbosejson] = myparse(varargin,...
+      [writeims,writeimsidx,slblname,verbosejson,tblsplit] = myparse(varargin,...
         'writeims',true, ...
         'writeimsidx',[], ... % (opt) DEBUG ONLY
-        'strippedlblname',[], ... % (opt) short filename for stripped lbl
-        'verbosejson',false ...
-        );
+        'strippedlblname',[], ... % (reqd) short filename for stripped lbl
+        'verbosejson',false, ...
+        'tblsplit', [] ...  % tbl with fields .mov, .frm, .split
+                       ...  % all double/numeric and 1-based
+        );      
+      
+      tfsplitsprovided = ~isempty(tblsplit);
       
       if exist(packdir,'dir')==0
         mkdir(packdir);
@@ -261,7 +265,7 @@ classdef TrnPack
       TrnPack.hlpSaveJson(jslbl,packdir,sfjname);     
 
       % use stripped lbl trackerData instead of tObj, as we have called
-      % addExtraPArams etc.
+      % addExtraParams etc.
       
       tdata2 = slbl.trackerData{2};  
       netmode2 = tdata2.trnNetMode;
@@ -275,6 +279,55 @@ classdef TrnPack
       sPrmBBox = sPrmMA.Detect.BBox; 
       sPrmLossMask = sPrmMA.LossMask;
       tp = TrnPack.aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,sPrmLossMask);
+      
+      % add splits to tp
+      nmov = numel(tp);
+      if tfsplitsprovided
+
+        % split verification
+        tblsplitMF = tblsplit(:,{'mov' 'frm'});
+        assert(height(tblsplitMF)==height(unique(tblsplitMF)),...
+          'Split table contains one or more duplicated (movie,frame) pairs.');
+        allsplits = tblsplit.split;
+        assert(isequal(round(allsplits),allsplits));
+        assert(all(allsplits>0));
+        nsplits = max(allsplits);
+        assert(isequal(unique(allsplits),(1:nsplits)'));
+        
+        tfsplitrowused = false(height(tblsplit),1);
+        for imov=1:nmov
+          tfmov = tblsplit.mov==imov;
+          idxmov = find(tfmov);
+          fsplit = tblsplit.frm(tfmov);
+          jsplit = tblsplit.split(tfmov);
+          
+          [tf,loc] = ismember(tp(imov).frm,fsplit);
+          split = zeros(size(tp(imov).frm),Labels.CLS_SPLIT);
+          nMissing = nnz(~tf);
+          if nMissing>0
+            warningNoTrace('Movie %d: %d labeled rows not found in split table. These will be added to split 1.',...
+              imov,nMissing);
+            split(~tf) = 1;
+          end          
+          
+          split(tf) = jsplit(loc);          
+          tfsplitrowused(idxmov(loc)) = true;
+          tp(imov).split = split;
+        end
+        
+        nExtra = nnz(~tfsplitrowused);
+        if nExtra>0
+          warningNoTrace('Ignoring %d unused/extraneous rows in split table.',nExtra);
+        end
+        
+        fprintf(1,'Split summary:\n');
+        summary(categorical(allsplits(tfsplitrowused)));
+      else
+        for imov=1:nmov
+          tp(imov).split = zeros(size(tp(imov).frm),Labels.CLS_SPLIT);
+        end
+      end
+      
       if lObj.gtIsGTMode
         movinfo = lObj.movieInfoAllGT;
       else
@@ -303,7 +356,11 @@ classdef TrnPack
       jsonoutf = 'loc.json';
       s = struct();
       s.movies = lObj.movieFilesAllFull;
-      s.splitnames = {'trn'};
+      if tfsplitsprovided
+        s.splitnames = arrayfun(@(x)sprintf('split%02d',x),1:nsplits,'uni',0);
+      else
+        s.splitnames = {'trn'};
+      end
       s.locdata = locg;
       TrnPack.hlpSaveJson(s,packdir,jsonoutf);
       
@@ -314,7 +371,13 @@ classdef TrnPack
 %       TrnPack.hlpSaveJson(loccc,packdir,jsonoutf);      
     end
     
-    function sagg = aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,sPrmLossMask)
+    function sagg = aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,...
+        sPrmLossMask,varargin)
+      
+      [incPartialRows,treatInfPosAsOcc] = myparse(varargin,...
+        'incPartialRows',false,...
+        'treatInfPosAsOcc',true ...
+        );
       
       isgt = lObj.gtIsGTMode;
       PROPS = lObj.gtGetSharedProps;
@@ -325,11 +388,17 @@ classdef TrnPack
       mfafs = lObj.(fmfaf);
       nmov = numel(lbls);
       sagg = cell(nmov,1);
-%       saggroi = lObj.labelsRoi;
-%       szassert(saggroi,size(sagg));
       for imov=1:nmov
         s = lbls{imov};
         s.mov = mfafs{imov};
+        
+        % see also from Labeler/preProcGetMFTableLbled      
+        if ~incPartialRows
+          s = Labels.rmRows(s,@isnan,'partially-labeled');
+        end
+        if treatInfPosAsOcc
+          s = Labels.replaceInfWithNan(s);
+        end
         
         %% gen rois, bw
         n = size(s.p,2);
@@ -419,7 +488,7 @@ classdef TrnPack
         'imgpat','im/%s.png' ...
         );
       
-      s = Labels.addsplitsifnec(s);
+%       s = Labels.addsplitsifnec(s);
 
       slocgrp = [];
       frmsun = unique([s.frm(:); s.frmroi(:)]);
@@ -592,7 +661,20 @@ classdef TrnPack
         error(mid,'Failed to clear image cache: %s',msg);
       end
     end
-    
+
+    function t = toMFT(tp)
+      mov = zeros(0,1);
+      frm = mov;
+      iTgt = mov;
+      for imov=1:numel(tp)
+        ntgt = numel(tp(imov).frm);
+        mov = cat(1,mov,repmat(imov,ntgt,1));
+        frm = cat(1,frm,tp(imov).frm);
+        iTgt = cat(1,iTgt,tp(imov).tgt);
+      end
+      t = table(mov,frm,iTgt);
+    end
+
 %     function writeimscc(sloccc,packdir)
 %       
 %       SUBDIRIM = 'imcc';
