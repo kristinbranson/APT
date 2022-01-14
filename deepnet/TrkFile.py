@@ -1012,6 +1012,16 @@ class Tracklet:
     self.startframes = newstartframes
     self.endframes = newendframes
     self.ntargets = nids
+
+  def del_short(self, min_len):
+    sf = self.startframes
+    ef = self.endframes
+    to_keep = np.where( (ef-sf)>=min_len)[0]
+    self.data = [self.data[ndx] for ndx in to_keep]
+    self.startframes = sf[to_keep]
+    self.endframes = ef[to_keep]
+    self.ntargets = len(to_keep)
+
     
   def __repr__(self):
     s = '<%s instance at %s\n'%(self.__class__.__name__, id(self))
@@ -2035,6 +2045,16 @@ class Trk:
     if self.pTrkAnimalConf is not None:
       self.pTrkAnimalConf = pTrkAnimalConf
     self.pTrkiTgt=np.arange(nids,dtype=int)
+
+  def del_short(self, min_len):
+    assert self.issparse, ' Delete short trajectory is implemented only for tracklet format'
+    self.pTrk.del_short(min_len)
+    for k in self.trkFields:
+      if self.__dict__[k] is not None:
+        self.__dict__[k].del_short(min_len)
+    self.ntargets = self.pTrk.ntargets
+
+
     
   def __repr__(self):
     s = '<%s instance at %s\n'%(self.__class__.__name__, id(self))

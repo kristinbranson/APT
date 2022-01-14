@@ -22,6 +22,20 @@ import itertools
 from os.path import expanduser
 from random import sample
 
+import tensorflow
+tensorflow.get_logger().setLevel('ERROR')
+
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0] == 1 and vv[1] > 12:
+    tf = tensorflow.compat.v1
+elif vv[0] == 2:
+    tf = tensorflow.compat.v1
+    tf.disable_v2_behavior()
+    tf.logging.set_verbosity(tf.logging.ERROR)
+else:
+    tf = tensorflow
+
+
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
 import PoseUNet_resnet as PoseURes
@@ -38,18 +52,6 @@ from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
 import tempfile
-import tensorflow
-tensorflow.get_logger().setLevel('INFO')
-
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0] == 1 and vv[1] > 12:
-    tf = tensorflow.compat.v1
-elif vv[0] == 2:
-    tf = tensorflow.compat.v1
-    tf.disable_v2_behavior()
-else:
-    tf = tensorflow
-
 import sys
 import h5py
 import numpy as np
@@ -85,6 +87,10 @@ except KeyError:
 if ISPY3 and user != 'ubuntu' and vv[0] == 1:  # AL 20201111 exception for AWS; running on older AMI
     import apt_dpk
 
+try:
+    tf.logging.set_verbosity(tf.logging.ERROR)
+except:
+    pass
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
@@ -3465,10 +3471,11 @@ def link(args, view, view_ndx):
     nmov = len(movs)
     in_trk_files = args.predict_trk_files[view_ndx]
     out_files = args.out_files[view_ndx]
+    raw_files = []
     for mov_ndx in range(nmov):
-        raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
-        trk_linked = lnk.link_trklets(raw_file, conf, movs[mov_ndx], out_files[mov_ndx])
-        trk_linked.save(out_files[mov_ndx], saveformat='tracklet')
+        raw_files.append(raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx]))
+    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files)
+    [trk_linked[mov_ndx].save(out_files[mov_ndx], saveformat='tracklet') for mov_ndx in range(nmov)]
 
 
 def get_unet_pred_fn(conf, model_file=None, name='deepnet'):
@@ -3531,6 +3538,7 @@ def classify_movie_all(model_type, **kwargs):
     try:
         trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
+        trk = None
         close_fn()
         logging.exception('Could not track movie')
     close_fn()

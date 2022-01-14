@@ -238,12 +238,12 @@ class config(object):
         self.stage = None
 
         # ============== LINKING ===============
-        self.link_stage = 'first'
+        self.link_stage = 'second'
         self.link_maxcost_heuristic = 'secondorder'
         self.link_maxcost_framesfit = 3
-        self.link_maxcost_mult = 2
+        self.link_maxcost_mult = 1.2
         self.link_maxcost_prctile = 95.
-        self.link_maxframes_delete = 0
+        self.link_maxframes_delete = 10
         self.link_maxframes_missed = 10
         self.link_minconf_delete = 0.5
         self.link_maxcost_secondorder_thresh = 4.
