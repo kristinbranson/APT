@@ -1002,7 +1002,7 @@ def link_id(trks, mov_files, conf, out_files, params):
 
   # link using idt
   def_params = get_default_params(conf)
-  trk_out, matched = link_trklet_id(linked_trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_delete'])
+  trk_out = link_trklet_id(linked_trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_delete'])
   return trk_out
 
 
