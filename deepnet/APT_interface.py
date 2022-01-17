@@ -3223,7 +3223,7 @@ def convert_to_mat_trk(pred_locs, conf, start, end, trx_ids):
     return pred_dict
 
 
-def write_trk(out_file, pred_locs_in, extra_dict, start, info):
+def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     '''
     pred_locs is the predicted locations of size
     n_frames x n_Trx x n_body_parts x 2
@@ -3246,6 +3246,9 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info):
         tag = np.transpose(pred_occ, [2, 0, 1])
 
     trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf,T0=start)
+    if (conf is not None)  and do_link(conf):
+        trk = lnk.link_pure(trk, conf)
+
     trk.save(out_file, saveformat='tracklet', trkInfo=info)
     return trk
 
@@ -3445,7 +3448,7 @@ def classify_movie(conf, pred_fn, model_type,
 
     raw_file = raw_predict_file(predict_trk_file, out_file)
     cur_out_file = raw_file if do_link(conf) else out_file
-    trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info)
+    trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info, conf)
 
     # if do_link(conf):
     #     # write out raw results before linking.

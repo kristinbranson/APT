@@ -189,6 +189,18 @@ def assign_ids(trk, params, T=np.inf):
     idscurr = idsnext
   return ids, costs
 
+def dummy_ids(trk):
+  T = int(trk.T)
+  ids = TrkFile.Tracklet(defaultval=-1, size=(1, trk.ntargets, T))
+  # allocate for speed!
+  [sf, ef] = trk.get_startendframes()
+  ids.allocate((1,), sf - trk.T0, np.minimum(T - 1, ef - trk.T0))
+  for t in range(trk.ntargets):
+    curid = np.ones(ef[t]-sf[t]+1)*t
+    ids.settargetframe(curid, t, np.arange(sf[t]-trk.T0,ef[t]-trk.T0+1))
+  return ids
+
+
 def match_frame_id(pcurr, pnext, idcost, params, defaultval=np.nan):
   """
   match_frame_id(pcurr,pnext,idcost,params,maxcost=None)
@@ -413,7 +425,7 @@ def stitch(trk, ids, params):
     assert np.any(isdummy.gettargetframe(ids_death, t)) == False
     
     for j in range(ids_death.size):
-      pcurr[:, :, j] = trk.gettargetframe(np.where(idscurr == ids_death[j])[2], t).reshape((trk.nlandmarks, trk.d))
+      pcurr[:, :, j] = trk.gettargetframe(np.where(idscurr == ids_death[j])[2], t+trk.T0).reshape((trk.nlandmarks, trk.d))
       # pcurr[:,:,j] = p[:,:,ids[:,t]==ids_death[j],t].reshape((d,nlandmarks))
     for nframes_skip in range(2, params['maxframes_missed']+2):
       # all ids that start at frame t+nframes_skip
@@ -425,7 +437,7 @@ def stitch(trk, ids, params):
       pnext = np.zeros((trk.nlandmarks, trk.d, ids_birth.size))
       for j in range(ids_birth.size):
         pnext[:, :, j] = trk.gettargetframe(np.where(ids.getframe(t+nframes_skip) == ids_birth[j])[2],
-                                            t+nframes_skip).reshape((trk.nlandmarks, trk.d))
+                                            t+nframes_skip+trk.T0).reshape((trk.nlandmarks, trk.d))
         # pnext[:,:,j]=p[:,:,ids[:,t+nframes_skip]==ids_birth[j],t+nframes_skip].reshape((d,nlandmarks))
       # try to match
       maxcost = params['maxcost_missed'][np.minimum(params['maxcost_missed'].size-1, nframes_skip-2)]
@@ -893,6 +905,54 @@ def nonmax_supp(trk, params):
       pcurr[...,0,to_remove] = np.nan
       trk.setframe(pcurr,t)
 
+
+def link_pure(trk, conf, do_delete_short=False):
+  params = get_default_params(conf)
+
+  if 'maxcost' not in params:
+    params['maxcost'] = estimate_maxcost(trk, params)
+  logging.info('maxcost set to %f' % params['maxcost'])
+
+  if 'maxcost_missed' not in params:
+    params['maxcost_missed'] = estimate_maxcost_missed(trk, params)
+    logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
+
+  params['maxframes_delete'] = conf.link_id_min_tracklet_len
+
+  T = np.minimum(np.inf, trk.T)
+  nframes_test = np.inf
+  nframes_test = int(np.minimum(T, nframes_test))
+
+  ids, costs = assign_ids(trk, params, T=nframes_test)
+
+  _, maxv = ids.get_min_max_val()
+  nids = np.max(maxv) + 1
+  # nids = np.max(ids)+1
+
+  # get starts and ends for each id
+  t0s = np.zeros(nids, dtype=int)
+  t1s = np.zeros(nids, dtype=int)
+  for id in range(nids):
+    idx = ids.where(id)
+    # idx = np.nonzero(id==ids)
+    t0s[id] = np.min(idx[1])
+    t1s[id] = np.max(idx[1])
+
+  # isdummy = np.zeros((ids.ntargets,ids.T),dtype=bool)
+  isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, ids.T))
+  isdummy.allocate((1,), t0s, t1s)
+
+  if do_delete_short:
+    ids, ids_short = delete_short(ids, isdummy, params)
+  #  if locs_conf is not None:
+  #    ids,ids_lowconf = delete_lowconf(trk,ids,params)
+
+  _, ids = ids.unique()
+  trk.apply_ids(ids)
+  return trk
+
+  return l_trk
+
 def link_trklets(trk_files, conf, movs, out_files):
 
   in_trks = [TrkFile.Trk(tt) for tt in trk_files]
@@ -924,7 +984,7 @@ def link_trklets(trk_files, conf, movs, out_files):
     else:
       conf1.use_bbox_trx = True
       conf1.trx_align_theta = False
-    return link_id(in_trks, movs, conf1,out_files, params)
+    return link_id(in_trks, trk_files, movs, conf1, out_files)
 
   else:
     out_trks = [link(trk,params) for trk in in_trks]
@@ -932,17 +992,8 @@ def link_trklets(trk_files, conf, movs, out_files):
 
 
 def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
-  # pred_locs is nfr x nanimals x npts x 2
-  T = np.minimum(np.inf, trk.T)
-  nframes_test = np.inf
-  nframes_test = int(np.minimum(T, nframes_test))
 
-  ids, costs = assign_ids(trk, params, T=nframes_test)
-  if isinstance(ids, np.ndarray):
-    nids_original = np.max(ids) + 1
-  else:
-    _, nids_original = ids.get_min_max_val()
-    nids_original = nids_original + 1
+  ids = dummy_ids(trk)
 
   if do_stitch:
     ids, isdummy = stitch(trk, ids, params)
@@ -975,34 +1026,33 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   return trk
 
 
-def link_id(trks, mov_files, conf, out_files, params):
+def link_id(trks, trk_files, mov_files, conf, out_files):
 
-  linked_trks = []
   all_trx = []
 
-  for trk, mov_file in zip(trks,mov_files):
-    l_trk = link(trk, params,do_merge_close=False,do_stitch=False)
-    linked_trks.append(l_trk)
+  for trk_file, mov_file in zip(trk_files,mov_files):
+    # l_trk = link(trk, params,do_merge_close=False,do_stitch=False)
+    # linked_trks.append(l_trk)
 
     # Read the linked trk as trx
-    tmp_trk = tempfile.mkstemp()[1]
-    trk.save(tmp_trk,saveformat='tracklet')
+    # tmp_trk = tempfile.mkstemp()[1]
+    # trk.save(tmp_trk,saveformat='tracklet')
     # Save the current trk to be used as trx. Could be avoided but the whole image patch extracting pipeline exists with saved trx file, so not rewriting it.
 
     cap = movies.Movie(mov_file)
-    trx_dict = apt.get_trx_info(tmp_trk, conf, cap.get_n_frames())
+    trx_dict = apt.get_trx_info(trk_file, conf, cap.get_n_frames())
     trx = trx_dict['trx']
     all_trx.append(trx)
     cap.close()
 
   # train the identity model
-  train_data = get_id_train_images(linked_trks, all_trx, mov_files, conf)
+  train_data = get_id_train_images(trks, all_trx, mov_files, conf)
   wt_out_file = out_files[0].replace('.trk','_idwts.p')
-  id_classifier, loss_history = train_id_classifier(train_data,conf, linked_trks, save_file=wt_out_file)
+  id_classifier, loss_history = train_id_classifier(train_data,conf, trks, save_file=wt_out_file)
 
   # link using idt
   def_params = get_default_params(conf)
-  trk_out = link_trklet_id(linked_trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_delete'])
+  trk_out = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_delete'])
   return trk_out
 
 
@@ -1011,11 +1061,11 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
   for trk, trx, mov_file in zip(linked_trks,all_trx,mov_files):
     ss, ee = trk.get_startendframes()
 
-    min_trx_len = 10
-    if np.count_nonzero((ee-ss)>min_trx_len)<conf.max_n_animals:
-      min_trx_len = np.percentile((ee-ss),20)-1
+    min_trx_len = conf.link_id_min_train_track_len
+    if np.count_nonzero((ee-ss+1)>min_trx_len)<conf.max_n_animals:
+      min_trx_len = min(1,np.percentile((ee-ss+1),20)-1)
 
-    sel_trk = np.where((ee - ss) > min_trx_len)[0]
+    sel_trk = np.where((ee - ss+1) > min_trx_len)[0]
     sel_trk_info = list(zip(sel_trk, ss[sel_trk], ee[sel_trk]))
 
     data = read_ims_par(trx, sel_trk_info, mov_file, conf)
@@ -1026,8 +1076,8 @@ def get_overlap(ss_t,ee_t,ss,ee, curidx):
   # For overlap either the start of the trajectory should lie within the range or the end
   # Since trk ends go to last frame + 1, less and greater comparisons have to be done carefully
   starts = np.maximum(ss_t,ss)
-  ends = np.minimum(ee_t,ee)
-  overlap_amt = np.array([len(range(st,en))/(ee-ss) for st,en in zip(starts,ends)])
+  ends = np.minimum(ee_t+1,ee+1)
+  overlap_amt = np.array([len(range(st,en))/(ee-ss+1) for st,en in zip(starts,ends)])
   overlap_tgts = np.where(overlap_amt>0)[0]
   overlap_tgts = np.array(list(set(overlap_tgts) - set([curidx])))
 
@@ -1105,7 +1155,7 @@ class id_dset(torch.utils.data.IterableDataset):
         overlap_im = data[overlap_tgt][0][overlap_im_idx]
 
         # Do an overlap check
-        check = np.zeros(cur_dat[3]-cur_dat[2])
+        check = np.zeros(cur_dat[3]-cur_dat[2]+1)
         odata = data[overlap_tgt]
         over_sf = np.maximum(0,odata[2]-cur_dat[2])
         over_ef = np.minimum(cur_dat[3]-cur_dat[2]+1, odata[3]-cur_dat[2]+1)
@@ -1113,8 +1163,8 @@ class id_dset(torch.utils.data.IterableDataset):
         if check.sum()<1:
           logging.info(f'mov:{sel_ndx}, tr1:{cur_dat[1]}:{cur_dat[2]}-{cur_dat[3]} im1:{cur_dat[4][idx_self1][0]} im2:{cur_dat[4][idx_self2][0]} d:{t_dist_self[idx_self1,idx_self2]}, neg:{odata[1]}:{odata[2]}-{odata[3]}, im3:{odata[4][overlap_im_idx][0]}')
           assert False, 'neg tracklet does not overlap'
-        if self.debug:
-          logging.info(f'mov:{sel_ndx}, tr1:{cur_dat[1]}:{cur_dat[2]}-{cur_dat[3]} im1:{cur_dat[4][idx_self1][0]} im2:{cur_dat[4][idx_self2][0]} d:{t_dist_self[idx_self1,idx_self2]}, neg:{odata[1]}:{odata[2]}-{odata[3]}, im3:{odata[4][overlap_im_idx][0]}')
+        # if self.debug:
+        #   logging.info(f'mov:{sel_ndx}, tr1:{cur_dat[1]}:{cur_dat[2]}-{cur_dat[3]} im1:{cur_dat[4][idx_self1][0]} im2:{cur_dat[4][idx_self2][0]} d:{t_dist_self[idx_self1,idx_self2]}, neg:{odata[1]}:{odata[2]}-{odata[3]}, im3:{odata[4][overlap_im_idx][0]}')
 
         curims.append(np.stack([im1, im2, overlap_im], 0))
 
@@ -1198,7 +1248,7 @@ def merge_parallel(data):
 def tracklet_pred(ims, net, conf, rescale):
     preds = []
     n_threads = min(24, mp.cpu_count())
-    n_batches = len(ims)//(3*n_threads)
+    n_batches = max(1,len(ims)//(3*n_threads))
     n_tr = len(ims)
     with mp.get_context('spawn').Pool(n_threads) as pool:
 
@@ -1322,7 +1372,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
     mining_dists.append([t_dist,overlap_dist, self_dist])
 
   train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=True, debug=debug)
-  n_workers = 10 #if not debug else 0
+  n_workers = 10 if not debug else 0
   train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id))
   train_iter = iter(train_loader)
   ex_ims = next(train_iter).numpy()
@@ -1413,7 +1463,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   logging.info('Stitching tracklets based on identity ...')
 
   t_info = [d[3:5] for d in all_data]
-  groups = cluster_tracklets_id(preds, pred_map, t_info)
+  groups = cluster_tracklets_id(preds, pred_map, t_info, conf.link_maxframes_delete)
 
   ids = []
   for trk, data in zip(linked_trks,all_data):
@@ -1431,7 +1481,6 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
       sf,ef = data[3:5]
       cur_p = np.ones(ef[trk_ndx]-sf[trk_ndx]+1)* ndx
       cur_id.settarget(cur_p, trk_ndx, sf[trk_ndx] -cur_trk.T0, ef[trk_ndx]-cur_trk.T0)
-
 
   #   cur_tgt = min(sel_tgt[gr])
   #   for gg in gr:
@@ -1456,23 +1505,30 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     nids = np.max(maxv) + 1
     t0s = np.zeros(nids, dtype=int)
     t1s = np.zeros(nids, dtype=int)
+    ids_remove = []
     for id in range(nids):
       idx = cur_id.where(id)
       # idx = np.nonzero(id==ids)
-      t0s[id] = np.min(idx[1])
-      t1s[id] = np.max(idx[1])
-
+      if idx[1].size>0:
+        t0s[id] = np.min(idx[1])
+        t1s[id] = np.max(idx[1])
+      else:
+        t1s[id] = -1
+        ids_remove.append(id)
     isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, cur_id.T))
     isdummy.allocate((1,), t0s, t1s)
 
     cur_id, ids_short = delete_short(cur_id, isdummy, params)
     _, cur_id = cur_id.unique()
+
+    ids_left = [i for i in range(nids) if (i not in ids_short) and (i not in ids_remove)]
     cur_trk.apply_ids(cur_id)
+    cur_trk.pTrkiTgt = np.array(ids_left)
 
   return linked_trks
 
 
-def cluster_tracklets_id(embed, pred_map, t_info):
+def cluster_tracklets_id(embed, pred_map, t_info, min_len):
 
   n_tr = embed.shape[0]
   n_ex = embed.shape[1]
@@ -1509,7 +1565,8 @@ def cluster_tracklets_id(embed, pred_map, t_info):
     cur_gr_ord = np.argsort(-tr_len[cur_gr])
     cur_gr = cur_gr[cur_gr_ord]
 
-    cur_groups = [[],]
+    cur_group = []
+    extra_groups = []
     ctline = [np.zeros(n) for n in n_fr]
     for cc in cur_gr:
       mov_ndx, trk_ndx = pred_map[cc]
@@ -1517,12 +1574,16 @@ def cluster_tracklets_id(embed, pred_map, t_info):
       sel_ee = t_info[mov_ndx][1][trk_ndx]
       prev_overlap = np.sum(ctline[mov_ndx][sel_ss:sel_ee+1])/(sel_ee-sel_ss+1)
       if prev_overlap>0.05:
-        cur_groups.append([cc])
+        if (sel_ee-sel_ss+1)>min_len:
+          extra_groups.append([cc])
       else:
-        cur_groups[0].append(cc)
+        cur_group.append(cc)
         ctline[mov_ndx][sel_ss:sel_ee+1] +=1
 
-    groups.extend(cur_groups)
+    tot_len = sum([ct.sum() for ct in ctline])
+    if tot_len>min_len:
+      groups.append(cur_group)
+    groups.extend(extra_groups)
 
   return groups
 

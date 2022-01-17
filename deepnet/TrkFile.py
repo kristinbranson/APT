@@ -1612,14 +1612,14 @@ class Trk:
       else:
         return p
     
-    p = self.pTrk.gettargetframe(targets,frames-self.T0)
+    p = self.pTrk.gettargetframe(targets,frames)
     
     if not extra:
       return p
     
     for k in self.trkFields:
       if self.__dict__[k] is not None:
-        edict[k] = self.__dict__[k].gettargetframe(targets,frames-self.T0)
+        edict[k] = self.__dict__[k].gettargetframe(targets,frames)
 
     return p,edict
 
