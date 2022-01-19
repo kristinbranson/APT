@@ -324,7 +324,7 @@ classdef TrnPack
         summary(categorical(allsplits(tfsplitrowused)));
       else
         for imov=1:nmov
-          tp(imov).split = zeros(size(tp(imov).frm),Labels.CLS_SPLIT);
+          tp(imov).split = ones(size(tp(imov).frm),Labels.CLS_SPLIT);
         end
       end
       
