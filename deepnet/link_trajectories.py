@@ -1413,18 +1413,24 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
 
     loss_history.append(loss_contrastive.item())
 
-  if save:
-    wt_out_file = f'{save_file}-{n_iters}.p'
-    torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)
+  wt_out_file = f'{save_file}-{n_iters}.p'
+  torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)
 
   del train_iter, train_loader, train_dset
   return net, loss_history
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5, debug=False):
 
   all_data = []
-  for trk, mov_file, trx in zip(linked_trks, mov_files, all_trx):
+  net.eval()
+  preds = None
+  pred_map = []
+
+  for ndx in range(len(linked_trks)):
+    trk = linked_trks[ndx]
+    mov_file = mov_files[ndx]
+    trx = all_trx[ndx]
     ss, ee = trk.get_startendframes()
 
     # For each tracklet chose n_per_trk random examples and the find their embedding.
@@ -1437,13 +1443,15 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     end_t = time.time()
     logging.info(f'Sampling images took {round((end_t-start_t)/60)} minutes')
     tgt_id = np.array([r[1] for r in data])
-    all_data.append([data, sel_tgt, tgt_id, ss ,ee, sel_ss, sel_ee])
+    if debug:
+      cur_d = [data, sel_tgt, tgt_id, ss ,ee, sel_ss, sel_ee]
+    else:
+      cur_d = [None, sel_tgt, tgt_id, ss ,ee, sel_ss, sel_ee]
 
-  net.eval()
-  preds = None
-  pred_map = []
-  for ndx, curd in enumerate(all_data):
-    data, sel_tgt, tgt_id = curd[:3]
+    all_data.append(cur_d)
+
+  # for ndx, curd in enumerate(all_data):
+  #   data, sel_tgt, tgt_id = curd[:3]
     ims = []
     for tgt_ndx, ix in tqdm(enumerate(sel_tgt)):
       curndx = np.where(tgt_id==ix)[0][0]
@@ -1519,7 +1527,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     isdummy.allocate((1,), t0s, t1s)
 
     cur_id, ids_short = delete_short(cur_id, isdummy, params)
-    _, cur_id = cur_id.unique()
+    if len(linked_trks)<2:
+      _, cur_id = cur_id.unique()
 
     ids_left = [i for i in range(nids) if (i not in ids_short) and (i not in ids_remove)]
     cur_trk.apply_ids(cur_id)
@@ -1560,7 +1569,11 @@ def cluster_tracklets_id(embed, pred_map, t_info, min_len):
     tr_len.append(cur_len)
   tr_len = np.array(tr_len)
 
-  for ndx in range(max(F)):
+  g_len = np.array([tr_len[F==(i+1)].sum() for i in range(max(F))])
+  f_order = np.argsort(g_len)[::-1]
+
+  # Create groups in order of their sizes
+  for ndx in f_order:
     cur_gr = np.where(np.array(F) == (ndx + 1))[0]
     cur_gr_ord = np.argsort(-tr_len[cur_gr])
     cur_gr = cur_gr[cur_gr_ord]

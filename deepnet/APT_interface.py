@@ -1506,7 +1506,8 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 sndx = 1 # still 1-based here
             else:
                 sndx = sndx[0]
-        sndx = sndx-1
+        if sndx>0:  # this condition is required because of a bug in front end. Remove when the bug is fixed 20220119 - MK
+            sndx = sndx-1
         if val_split is not None:
             sndx = 1 if sndx==val_split else 0
         cur_out = out_fns[sndx]
@@ -1615,11 +1616,12 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         sndx = cur_t['split'] 
         if type(sndx) == list:
             if len(sndx)<1:
-                # default to split 1 (still 1-based here)
+                # default split is 1 (still 1-based here)
                 sndx = 1
             else:
                 sndx = sndx[0]
-        sndx = sndx-1
+        if sndx>0:  # this condition is required because of a bug in front end where sndx is 0 by default. Remove when the bug is fixed 20220119 - MK
+            sndx = sndx-1
         if val_split is not None:
             sndx = 1 if sndx==val_split else 0
 
@@ -3361,7 +3363,7 @@ def classify_movie(conf, pred_fn, model_type,
     to_do_list = []
     for cur_f in range(start_frame, end_frame,skip_rate):
         for t in range(n_trx):
-            if not np.any(trx_ids == t):
+            if not np.any(trx_ids == t) and len(trx_ids)>0:
                 continue
             if (end_frames[t] > cur_f) and (first_frames[t] <= cur_f):
                 if T[t] is None or (not np.isnan(T[t]['x'][0, cur_f - first_frames[t]])):
@@ -3572,6 +3574,7 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
 def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True):
     # Create training samples.
 
+    import gc
     if out_file is None:
         out_file = os.path.join(conf.cachedir,train_name+'_training_samples.mat')
     elif not out_file.endswith('.mat'):
@@ -3595,7 +3598,6 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
     else:
         import copy
         import PoseCommon_pytorch
-        import gc
         import torch
         tconf = copy.deepcopy(conf)
         tconf.batch_size = 1
@@ -3630,12 +3632,13 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             mask = np.array([])
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
 
-        del tself.train_dl, tself.val_dl, tself
+        del tself.train_dl, tself.val_dl
         torch.cuda.empty_cache()
-        gc.collect()
 
-    hdf5storage.savemat(out_file, save_dict)
+    hdf5storage.savemat(out_file, save_dict,truncate_existing=True)
+    gc.collect()
     logging.info('sample training data saved to %s' % out_file)
+    return None
 
 
 def train_unet(conf, args, restore, split, split_file=None):
@@ -4153,7 +4156,7 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
                            start_frame=args.start_frame[mov_ndx],
                            end_frame=args.end_frame[mov_ndx],
                            skip_rate=args.skip,
-                           trx_ids=args.trx_ids,
+                           trx_ids=args.trx_ids[mov_ndx],
                            name=name,
                            crop_loc=args.crop_loc[view_ndx][mov_ndx],
                            model_file=args.model_file[view_ndx],

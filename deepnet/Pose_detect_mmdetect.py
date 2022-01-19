@@ -920,13 +920,14 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                     cfg.model.neck.rfp_backbone.pretrained = None
 
         model_file = self.get_latest_model_file() if model_file is None else model_file
-        model = inference.init_detector(cfg,model_file)
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        model = inference.init_detector(cfg,model_file,device=device)
         logging.info(f'Loaded model from {model_file}')
 
         cfg.data.test.pipeline[0].type = 'LoadImageFromWebcam'
         cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
         test_pipeline = Compose(cfg.data.test.pipeline)
-        device = next(model.parameters()).device
+        # device = next(model.parameters()).device
         max_n = conf.max_n_animals
         min_n = conf.min_n_animals
         detr_nms = 0.7
