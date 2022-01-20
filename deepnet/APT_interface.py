@@ -22,6 +22,20 @@ import itertools
 from os.path import expanduser
 from random import sample
 
+import tensorflow
+tensorflow.get_logger().setLevel('ERROR')
+
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0] == 1 and vv[1] > 12:
+    tf = tensorflow.compat.v1
+elif vv[0] == 2:
+    tf = tensorflow.compat.v1
+    tf.disable_v2_behavior()
+    tf.logging.set_verbosity(tf.logging.ERROR)
+else:
+    tf = tensorflow
+
+
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
 import PoseUNet_resnet as PoseURes
@@ -38,18 +52,6 @@ from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
 import tempfile
-import tensorflow
-tensorflow.get_logger().setLevel('INFO')
-
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0] == 1 and vv[1] > 12:
-    tf = tensorflow.compat.v1
-elif vv[0] == 2:
-    tf = tensorflow.compat.v1
-    tf.disable_v2_behavior()
-else:
-    tf = tensorflow
-
 import sys
 import h5py
 import numpy as np
@@ -85,6 +87,10 @@ except KeyError:
 if ISPY3 and user != 'ubuntu' and vv[0] == 1:  # AL 20201111 exception for AWS; running on older AMI
     import apt_dpk
 
+try:
+    tf.logging.set_verbosity(tf.logging.ERROR)
+except:
+    pass
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
@@ -1500,7 +1506,8 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 sndx = 1 # still 1-based here
             else:
                 sndx = sndx[0]
-        sndx = sndx-1
+        if sndx>0:  # this condition is required because of a bug in front end. Remove when the bug is fixed 20220119 - MK
+            sndx = sndx-1
         if val_split is not None:
             sndx = 1 if sndx==val_split else 0
         cur_out = out_fns[sndx]
@@ -1609,11 +1616,12 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         sndx = cur_t['split'] 
         if type(sndx) == list:
             if len(sndx)<1:
-                # default to split 1 (still 1-based here)
+                # default split is 1 (still 1-based here)
                 sndx = 1
             else:
                 sndx = sndx[0]
-        sndx = sndx-1
+        if sndx>0:  # this condition is required because of a bug in front end where sndx is 0 by default. Remove when the bug is fixed 20220119 - MK
+            sndx = sndx-1
         if val_split is not None:
             sndx = 1 if sndx==val_split else 0
 
@@ -3217,7 +3225,7 @@ def convert_to_mat_trk(pred_locs, conf, start, end, trx_ids):
     return pred_dict
 
 
-def write_trk(out_file, pred_locs_in, extra_dict, start, info):
+def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     '''
     pred_locs is the predicted locations of size
     n_frames x n_Trx x n_body_parts x 2
@@ -3240,6 +3248,9 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info):
         tag = np.transpose(pred_occ, [2, 0, 1])
 
     trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf,T0=start)
+    if (conf is not None)  and do_link(conf):
+        trk = lnk.link_pure(trk, conf)
+
     trk.save(out_file, saveformat='tracklet', trkInfo=info)
     return trk
 
@@ -3352,7 +3363,7 @@ def classify_movie(conf, pred_fn, model_type,
     to_do_list = []
     for cur_f in range(start_frame, end_frame,skip_rate):
         for t in range(n_trx):
-            if not np.any(trx_ids == t):
+            if not np.any(trx_ids == t) and len(trx_ids)>0:
                 continue
             if (end_frames[t] > cur_f) and (first_frames[t] <= cur_f):
                 if T[t] is None or (not np.isnan(T[t]['x'][0, cur_f - first_frames[t]])):
@@ -3439,7 +3450,7 @@ def classify_movie(conf, pred_fn, model_type,
 
     raw_file = raw_predict_file(predict_trk_file, out_file)
     cur_out_file = raw_file if do_link(conf) else out_file
-    trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info)
+    trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info, conf)
 
     # if do_link(conf):
     #     # write out raw results before linking.
@@ -3478,10 +3489,11 @@ def link(args, view, view_ndx):
     nmov = len(movs)
     in_trk_files = args.predict_trk_files[view_ndx]
     out_files = args.out_files[view_ndx]
+    raw_files = []
     for mov_ndx in range(nmov):
-        raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
-        trk_linked = lnk.link_trklets(raw_file, conf, movs[mov_ndx], out_files[mov_ndx])
-        trk_linked.save(out_files[mov_ndx], saveformat='tracklet')
+        raw_files.append(raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx]))
+    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files)
+    [trk_linked[mov_ndx].save(out_files[mov_ndx], saveformat='tracklet') for mov_ndx in range(nmov)]
 
 
 def get_unet_pred_fn(conf, model_file=None, name='deepnet'):
@@ -3544,6 +3556,7 @@ def classify_movie_all(model_type, **kwargs):
     try:
         trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
+        trk = None
         close_fn()
         logging.exception('Could not track movie')
     close_fn()
@@ -3561,6 +3574,7 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
 def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True):
     # Create training samples.
 
+    import gc
     if out_file is None:
         out_file = os.path.join(conf.cachedir,train_name+'_training_samples.mat')
     elif not out_file.endswith('.mat'):
@@ -3584,7 +3598,6 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
     else:
         import copy
         import PoseCommon_pytorch
-        import gc
         import torch
         tconf = copy.deepcopy(conf)
         tconf.batch_size = 1
@@ -3619,12 +3632,13 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             mask = np.array([])
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
 
-        del tself.train_dl, tself.val_dl, tself
+        del tself.train_dl, tself.val_dl
         torch.cuda.empty_cache()
-        gc.collect()
 
-    hdf5storage.savemat(out_file, save_dict)
+    hdf5storage.savemat(out_file, save_dict,truncate_existing=True)
+    gc.collect()
     logging.info('sample training data saved to %s' % out_file)
+    return None
 
 
 def train_unet(conf, args, restore, split, split_file=None):
@@ -4142,7 +4156,7 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
                            start_frame=args.start_frame[mov_ndx],
                            end_frame=args.end_frame[mov_ndx],
                            skip_rate=args.skip,
-                           trx_ids=args.trx_ids,
+                           trx_ids=args.trx_ids[mov_ndx],
                            name=name,
                            crop_loc=args.crop_loc[view_ndx][mov_ndx],
                            model_file=args.model_file[view_ndx],

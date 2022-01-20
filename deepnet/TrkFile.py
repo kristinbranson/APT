@@ -3,6 +3,7 @@ import numpy as np
 import copy
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import h5py
 
 def convert(in_data,to_python):
   """
@@ -386,6 +387,34 @@ def equals_nan(x,y):
   v = np.logical_or(x==y,np.logical_and(np.isnan(x),np.isnan(y)))
   return v
 
+def hdf5_to_py(A, h5file):
+  if isinstance(A, h5py._hl.dataset.Dataset):
+    if 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'str':
+      out = u''.join([chr(t) for t in A])
+    elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] in [b'list', b'tuple']:
+      out = [hdf5_to_py(t, h5file) for t in A[()].flatten().tolist()]
+    elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'bool':
+      out = bool(A[()])
+    elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'int':
+      out = int(A[()])
+    elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'float':
+      out = float(A[()])
+    elif 'Python.numpy.Container' in A.attrs and A.attrs['Python.numpy.Container'] == b'scalar' and A.attrs['Python.Type'] == b'numpy.float64':
+      out = np.array(A[()].flatten())
+    else:
+      out = A[()].T
+  elif isinstance(A,h5py._hl.group.Group):
+    out = {}
+    for key, val in A.items():
+      out[key] = hdf5_to_py(val, h5file)
+  elif isinstance(A,h5py.h5r.Reference):
+    out = hdf5_to_py(h5file[A],h5file)
+  elif isinstance(A,np.ndarray) and A.dtype=='O':
+    out = np.array([hdf5_to_py(x,h5file) for x in A])
+  else:
+    out = A
+  return out
+
 class Tracklet:
   """
   Tracklet
@@ -457,7 +486,9 @@ class Tracklet:
       
   @staticmethod
   def isTracklet(trk):
-    return isinstance(trk,dict) and 'startframes' in trk.keys()
+    ismat_tracklet = isinstance(trk,dict) and 'startframes' in trk.keys()
+    ish5py_tracklet = isinstance(trk,h5py._hl.files.File) and 'startframes' in trk.keys()
+    return (ismat_tracklet or ish5py_tracklet)
       
   def allocate(self,size_rest,startframes,endframes):
     self.max_startframes = startframes.copy()
@@ -1012,6 +1043,16 @@ class Tracklet:
     self.startframes = newstartframes
     self.endframes = newendframes
     self.ntargets = nids
+
+  def del_short(self, min_len):
+    sf = self.startframes
+    ef = self.endframes
+    to_keep = np.where( (ef-sf)>=min_len)[0]
+    self.data = [self.data[ndx] for ndx in to_keep]
+    self.startframes = sf[to_keep]
+    self.endframes = ef[to_keep]
+    self.ntargets = len(to_keep)
+
     
   def __repr__(self):
     s = '<%s instance at %s\n'%(self.__class__.__name__, id(self))
@@ -1205,7 +1246,7 @@ class Trk:
     trk.sparse_type=self.sparse_type
     
     return trk
-    
+
   def load(self,trkfile):
     """
     Load data from file trkfile and convert it to the current objects storage format.
@@ -1213,7 +1254,11 @@ class Trk:
     :return:
     """
     self.trkfile = trkfile
-    trk=hdf5storage.loadmat(trkfile,appendmat=False)
+    trk_f = h5py.File(trkfile,'r')
+    trk = hdf5_to_py(trk_f,trk_f)
+    trk_f.close()
+    #   trk = hdf5storage.loadmat(trkfile,appendmat=False)
+
     # trk will be dict for sparse matrix, list for tracklet, ndarray for dense
     istracklet = Tracklet.isTracklet(trk)
     self.issparse = istracklet or not isinstance(trk['pTrk'],np.ndarray)
@@ -1296,7 +1341,7 @@ class Trk:
 
     for key,val in trk.items():
       
-      if key in ['pTrk','pTrkFrm','pTrkTS','pTrkTag','pTrkiTgt','startframes','endframes']:
+      if key in ['pTrk','pTrkFrm','pTrkTS','pTrkTag','pTrkiTgt','startframes','endframes','#refs#']:
         continue
         
       self.trkData[key] = val
@@ -1602,14 +1647,14 @@ class Trk:
       else:
         return p
     
-    p = self.pTrk.gettargetframe(targets,frames-self.T0)
+    p = self.pTrk.gettargetframe(targets,frames)
     
     if not extra:
       return p
     
     for k in self.trkFields:
       if self.__dict__[k] is not None:
-        edict[k] = self.__dict__[k].gettargetframe(targets,frames-self.T0)
+        edict[k] = self.__dict__[k].gettargetframe(targets,frames)
 
     return p,edict
 
@@ -2035,6 +2080,16 @@ class Trk:
     if self.pTrkAnimalConf is not None:
       self.pTrkAnimalConf = pTrkAnimalConf
     self.pTrkiTgt=np.arange(nids,dtype=int)
+
+  def del_short(self, min_len):
+    assert self.issparse, ' Delete short trajectory is implemented only for tracklet format'
+    self.pTrk.del_short(min_len)
+    for k in self.trkFields:
+      if self.__dict__[k] is not None:
+        self.__dict__[k].del_short(min_len)
+    self.ntargets = self.pTrk.ntargets
+
+
     
   def __repr__(self):
     s = '<%s instance at %s\n'%(self.__class__.__name__, id(self))

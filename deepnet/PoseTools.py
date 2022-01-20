@@ -432,8 +432,12 @@ def randomly_adjust(img, conf, group_sz = 1):
     # and single channel
     num = img.shape[0]
     brange = conf.brange
+    if type(brange) == float:
+        brange = [-brange,brange]
     bdiff = brange[1] - brange[0]
     crange = conf.crange
+    if type(crange) == float:
+        crange = [1-crange, 1+crange]
     cdiff = crange[1] - crange[0]
     imax = conf.imax
     if (bdiff<0.01) and (cdiff<0.01):
