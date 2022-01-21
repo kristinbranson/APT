@@ -3471,7 +3471,7 @@ def classify_movie(conf, pred_fn, model_type,
 def raw_predict_file(predict_trk_file, out_file):
     if predict_trk_file is None:
         pre_fix, ext = os.path.splitext(out_file)
-        raw_file = pre_fix + '_raw' + ext
+        raw_file = pre_fix + '_pure' + ext
     else:
         raw_file = predict_trk_file
     return raw_file
@@ -3480,7 +3480,9 @@ def do_link(conf):
     return (conf.is_multi and (conf.stage == None) and (conf.link_stage != 'none')) or (conf.stage == conf.link_stage)
 
 def link(args, view, view_ndx):
-    conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
+    first_stage = args.stage=='first'
+    second_stage = args.stage == 'multi' or args.stage=='second'
+    conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage)
     if not do_link(conf): return
 
     # return

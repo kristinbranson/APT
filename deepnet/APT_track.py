@@ -13,6 +13,8 @@ import glob
 from pathlib import Path
 from datetime import datetime
 import APT_interface as apt
+import logging
+import numpy as np
 
 ##
 def parse_args(argv):
@@ -20,13 +22,17 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description='Track movies using the latest trained model in the APT lbl file')
     parser.add_argument("lbl_file", help="path to APT lbl file")
 #    parser.add_argument('-backend',help='Backend to use for tracking. Options are docker and conda',default='docker')
-    parser.add_argument("-mov", dest="mov",help="movie(s) to track. For multi-view projects, specify movies for all the views or specify the view for the single movie using -view", nargs='+')  # KB 20190123 removed required because list_file does not require mov
+    parser.add_argument('-list', help='Lists all the trained models present in the lbl file',action='store_true')
+    parser.add_argument("-model_ndx", help="Use this model number (model numbers can be found using -list) instead of the latest model",type=int,default=None)
+    parser.add_argument("-mov", dest="mov",help="movie(s) to track. For multi-view projects, specify movies for all the views or specify the view for the single movie using -view", nargs='+')
     parser.add_argument("-trx", dest="trx",help='trx file for movie', default=None, nargs='*')
     parser.add_argument('-start_frame', dest='start_frame', help='start frame for tracking', nargs='*', type=int, default=1)
     parser.add_argument('-end_frame', dest='end_frame', help='end frame for tracking', nargs='*', type=int, default=-1)
-    parser.add_argument('-out', dest='out_files', help='file to save tracking results to', required=True, nargs='+')
+    parser.add_argument('-out', dest='out_files', help='file to save tracking results to. If track_type is "predict_track" and no predict_trk_files are specified, the pure linked tracklets will be saved to files with _pure suffix. If track_type is "predict_only" the out file will have the pure linked tracklets and predict_trk_files will be ignored.', required=True, nargs='+')
     parser.add_argument('-crop_loc', dest='crop_loc', help='crop locations given as xlo xhi ylo yhi', nargs='*', type=int, default=None)
     parser.add_argument('-view', dest='view', help='track only for this view. If not specified, track for all the views', default=None, type=int)
+    parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
+    parser.add_argument('-perdict_trk_files', dest='view', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
 
     args = parser.parse_args(argv)
     return args
@@ -52,6 +58,31 @@ def get_pretty_name(model_type):
 
     return pstr
 
+def get_strs(tstamp, tstamps, mtypes, tdir):
+    ndx = [ix for ix, tt in enumerate(tstamps) if tt == tstamp]
+    multi_stage = True if len(ndx) > 1 else False
+    is_multi = [mm.startswith('multi_') for mm in mtypes]
+
+    if multi_stage:
+        first_stage = [ix for ix in ndx if is_multi[ix]][0]
+        second_stage = [ix for ix in ndx if ix != first_stage][0]
+        ndx = first_stage
+        extra = f' -type2 {mtypes[second_stage]} -stage multi '
+        if 'detect_' in mtypes[first_stage]:
+            extra = ' -conf_params2 use_bbox_trx True' + extra
+        else:
+            extra = ' -conf_params2 use_bbox_trx False' + extra
+
+        extra_2 = f' -trx {os.path.join(tdir, "temp.trk")} '
+    else:
+        ndx = ndx[0]
+        extra = ''
+        extra_2 = ''
+        second_stage = None
+
+    return ndx, extra, extra_2, multi_stage, second_stage
+
+
 def main(argv):
     args = parse_args(argv)
     lbl_file = args.lbl_file
@@ -63,6 +94,7 @@ def main(argv):
 
 ## Untar the label files
 
+    logging.info('Unbundling the label file.. ')
     tobj = TarFile.open(lbl_file)
     tobj.extractall(path=tdir)
 
@@ -73,45 +105,52 @@ def main(argv):
 
     tstamps_str = [Path(ff).name for ff in flist]
     tstamps = [datetime.strptime(tt,'%Y%m%dT%H%M%S') for tt in tstamps_str]
-    latest = max(tstamps)
-##
-    ndx = [ix for ix, tt in enumerate(tstamps) if tt==latest]
-    multi_stage = True if len(ndx)>1 else False
-    is_multi = [mm.startswith('multi_') for mm in mtypes]
+    u_tstamps = np.sort(np.unique(tstamps))
+    ##
+    if args.list:
 
-    if multi_stage:
-        first_stage = [ix for ix in ndx if is_multi[ix]][0]
-        second_stage = [ix for ix in ndx if ix!=first_stage][0]
-        ndx = first_stage
-        extra = f' -type2 {mtypes[second_stage]} -stage multi '
-        if 'detect_' in mtypes[first_stage]:
-            extra = ' -conf_params2 use_bbox_trx True' + extra
-        else:
-            extra = ' -conf_params2 use_bbox_trx False' + extra
+        for idx, cur in enumerate(u_tstamps):
+            ndx = [ix for ix, tt in enumerate(tstamps) if tt == cur]
+            multi_stage = True if len(ndx) > 1 else False
+            is_multi = [mm.startswith('multi_') for mm in mtypes]
 
-        extra_2 = f' -trx {os.path.join(tdir,"temp.trk")} '
+            if multi_stage:
+                first_stage = [ix for ix in ndx if is_multi[ix]][0]
+                second_stage = [ix for ix in ndx if ix != first_stage][0]
+                print(f'* Model {idx+1} -- multi-animal multi-stage with {get_pretty_name(mtypes[first_stage])} and {get_pretty_name(mtypes[first_stage])} networks, trained at {cur.strftime("%Y %b %m %H:%M")}')
+            else:
+                mstr = 'multi-animal' if is_multi[ndx[0]] else 'single-animal'
+                print(f'* Model {idx+1} -- {mstr} {get_pretty_name(mtypes[ndx[0]])} network, trained at {cur.strftime("%Y %b %m %H:%M")}')
+        return
+
+    if args.model_ndx is None:
+        m_stamp = max(tstamps)
     else:
-        ndx = ndx[0]
-        extra = ''
-        extra_2 = ''
+        m_stamp = u_tstamps[args.model_ndx-1]
+
+    ndx, extra, extra_2, multi_stage, second_stage = get_strs(m_stamp, tstamps,mtypes,tdir)
 
     stripped_lbl = glob.glob(tdir + f'/*/{tstamps_str[ndx]}_*.lbl')[0]
     cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {extra} track {extra_2}'
 
 ##
     a_argv = cmd.split() + argv[1:]
+    if '-model_ndx' in a_argv:
+        tndx = a_argv.index('-model_ndx')
+        a_argv.pop(tndx); a_argv.pop(tndx)
     pstr = get_pretty_name(mtypes[ndx])
     dstr = f'{tstamps[ndx]}'
-    str = f'Tracking using {pstr}'
+    mstr = 'multi-stage ' if multi_stage else ''
+    str1 = f'Tracking using {mstr}{pstr}'
     if multi_stage:
-        str = f'{str} and {get_pretty_name(mtypes[second_stage])} models'
+        str1 = f' {str1} (first-stage) and {get_pretty_name(mtypes[second_stage])} models'
     else:
-        str = f'{str} model'
-    str = f'{str} trained on {dstr}'
+        str1 = f'{str1} model'
+    str1 = f'{str1} trained on {dstr}'
     print('------------------------------------')
     print('------------------------------------')
     print('')
-    print(str)
+    print(str1)
     print('')
     print('------------------------------------')
     print('------------------------------------')
