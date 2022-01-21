@@ -458,13 +458,13 @@ class Tracklet:
   def nframes(self):
     return self.endframes - self.startframes + 1
   
-  def __init__(self,size=None,ntargets=None,defaultval=None,**kwargs):
+  def __init__(self,size=None,ntargets=None,defaultval=None,dtype=None,**kwargs):
     
     self.data = [] # data values, list with one nd-array per target
     self.startframes = None # 1-d array of first frame for each target
     self.endframes = None # 1-d array of last frame for each target
     self.size_rest = None # size fields before nframes and ntargets
-    self.dtype = float # data type
+    self.dtype = float if dtype is None else dtype# data type
     self.defaultval = np.nan # default value for sparsifying
     self.ntargets = 0 # number of targets
     self.max_startframes = None
@@ -1149,7 +1149,8 @@ class Trk:
     # for sparse format data
     self.defaultval = np.nan # default value when sparse
     self.trkFields = ['pTrkTS', 'pTrkTag', 'pTrkConf', 'pTrkAnimalConf']
-    self.defaultval_dict = {'pTrkTS':-np.inf,'pTrkTag':np.nan,'pTrkConf':np.nan,'pTrkAnimalConf':np.nan}
+    self.defaultval_dict = {'pTrkTS':-np.inf,'pTrkTag':False,'pTrkConf':np.nan,'pTrkAnimalConf':np.nan}
+    self.dtype_dict = {'pTrkTS':float,'pTrkTag':bool,'pTrkConf':float,'pTrkAnimalConf':float}
     self.sparse_type = 'tracklet' # type of sparse storing used, this should always be tracklet right now
     
     for key,val in kwargs.items():
@@ -1297,7 +1298,7 @@ class Trk:
 
       for k in self.trkFields:
         if k in trk:
-          self.__dict__[k] = Tracklet(defaultval=self.defaultval_dict[k])
+          self.__dict__[k] = Tracklet(defaultval=self.defaultval_dict[k],dtype=self.dtype_dict[k])
           self.__dict__[k].setdata(trk[k],ismatlab=True,startframes=trk['startframes'],endframes=trk['endframes'])
         
     elif self.issparse:
@@ -1311,7 +1312,7 @@ class Trk:
 
       for k in self.trkFields:
         if k in trk.keys():
-          self.__dict__[k] = Tracklet(defaultval=self.defaultval_dict[k])
+          self.__dict__[k] = Tracklet(defaultval=self.defaultval_dict[k],dtype=self.dtype_dict[k])
           self.__dict__[k].setdata(trk[k], ismatlab=True, startframes=self.pTrk.startframes,endframes=self.pTrk.endframes)
 
 
@@ -1787,7 +1788,7 @@ class Trk:
     #self.pTrk,self.startframes,self.endframes,self.nframes,self.size = convertdense2tracklet(self.pTrk)
     for k in self.trkFields:
       if self.__dict__[k] is not None:
-        newTS = Tracklet(defaultval=self.defaultval_dict[k])
+        newTS = Tracklet(defaultval=self.defaultval_dict[k],dtype=self.dtype_dict[k])
         newTS.setdata_dense(self.__dict__[k],startframes=self.pTrk.startframes,endframes=self.pTrk.endframes,T0=self.T0)
         self.__dict__[k] = newTS
       

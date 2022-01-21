@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 import tempfile
+from TrkFile import to_mat
 
 def parse_args(argv):
 
@@ -19,6 +20,32 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     return args
 
+def convert_trk2trx(trk):
+    ntargets = trk.ntargets
+    trx = {'x': [None, ] * ntargets, 'y': [None, ] * ntargets, \
+           'theta': [None, ] * ntargets, 'a': [None, ] * ntargets, \
+           'b': [None, ] * ntargets, 'startframes': np.zeros(ntargets, dtype=int), \
+           'endframes': np.zeros(ntargets, dtype=int),
+           'nframes': np.zeros(ntargets, dtype=int)}
+
+    for itgt in range(ntargets):
+        pts = trk.pTrk.data[itgt]
+        trx['x'][itgt] = pts[0].mean(axis=1).flatten()
+        trx['y'][itgt] = pts[1].mean(axis=1).flatten()
+        trx['theta'][itgt] = np.arctan2(pts[1,0]-pts[1,1],pts[0,0]-pts[0,1])
+        trx['a'][itgt] = np.linalg.norm(pts[0]-pts[1],axis=0)/4
+        trx['b'][itgt] = td['trx']['b'][0, itgt].flatten()
+        trx['startframes'][itgt] = trk.firstframes[itgt]
+        trx['endframes'][itgt] = trk.endframes[itgt] + 1
+
+    trx['x'] = to_mat(trx['x'])
+    trx['y'] = to_mat(trx['y'])
+    trx['startframes'] = to_mat(trx['startframes'])
+    trx['endframes'] = to_mat(trx['endframes'])
+    trx['nframes'] = trx['endframes'] - trx['startframes'] + 1
+
+    return trx
+
 
 def track_id_flybowl(argv):
     args = parse_args(argv)
@@ -26,7 +53,7 @@ def track_id_flybowl(argv):
         args.trx = [m.replace(Path(m).name,'registered_trx.mat') for m in args.mov]
 
     msz = args.crop_sz
-    conf.imsz = [int(msz), int(msz)]  # [128,128]
+    conf.multi_animal_crop_sz = int(msz)  # [128,128]
     conf.has_trx_file = False
     conf.use_bbox_trx = False
     conf.use_ht_trx = True
@@ -69,7 +96,7 @@ def track_id_flybowl(argv):
         locs_lnk = np.transpose(plocs, [2, 3, 0, 1])
 
         ts = np.ones_like(locs_lnk[:, 0, ...])
-        tag = np.ones(ts.shape) * np.nan  # tag which is always false for now.
+        tag = np.ones(ts.shape) <0  # tag which is always false for now.
         locs_conf = None
 
         trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf)
@@ -77,7 +104,9 @@ def track_id_flybowl(argv):
         trk = lnk.link_pure(trk, conf)
         trk.save(tmp_trx, saveformat='tracklet')
 
-    lnk.link_trklets(tfiles,conf,args.mov,args.out_files)
+    trks = lnk.link_trklets(tfiles,conf,args.mov,args.out_files)
+    for trk, out_file in zip(trks,args.out_files):
+        trk.save(out_file,saveformat='tracklet')
 
 
 if __name__ == "__main__":
