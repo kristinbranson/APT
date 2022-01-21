@@ -348,7 +348,7 @@ classdef Labeler < handle
   properties (SetObservable)
     showTrx;                  % true to show trajectories
     showTrxCurrTargetOnly;    % if true, plot only current target
-    showTrxIDLbl;             % true to show id label 
+    showTrxIDLbl;             % true to show id label. relevant if .hasTrx or .maIsMa
     showOccludedBox;          % whether to show the occluded box
     
     showSkeleton;             % true to plot skeleton 
@@ -2487,6 +2487,8 @@ classdef Labeler < handle
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       obj.setFlipLandmarkMatches(obj.flipLandmarkMatches);
 %       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
+      % AL20220113 otherwise labels2 cosmetics (eg text show/hide) not applied
+      obj.labels2VizShowHideUpdate();
       
       if ~wasbundled
         % DMC.rootDir point to original model locs
@@ -5984,11 +5986,18 @@ classdef Labeler < handle
     end
     
     function updateShowTrx(obj)
-      if ~obj.hasTrx
-        return;
+      if obj.maIsMA
+        % Consdider/todo: update showtrx/traj for MA        
+        % tv = obj.labeledpos2trkViz.      
+        %
+        % need to decide whether trx/traj should be separately toggleable.
+        % currently there is an overall tfHideViz which apples to both
+        % tv.tvmt and tv.tvtrx. if we enabled this, there would be another
+        % flag controlling display of trx/traj; tv.tvtrx would only show
+        % viz when both tfHideViz==false and tfShowTraj==true.
+      elseif obj.hasTrx
+        obj.updateTrx(true);      
       end
-    
-      obj.updateTrx(true);      
     end
     
     function updateTrx(obj,tfSetShow)
@@ -6002,21 +6011,11 @@ classdef Labeler < handle
       if obj.showTrx
         if obj.showTrxCurrTargetOnly
           tfShow = false(ntgts,1);
+          iTgtCurr = obj.currTarget;
           tfShow(iTgtCurr) = true;
         else
           tfShow = true(ntgts,1);
         end
-        
-        iMov = obj.currMovie;
-        PROPS = obj.gtGetSharedProps();
-        npts = obj.nLabelPoints;
-        t = obj.currFrame;
-        %p = reshape(obj.(PROPS.LPOS){iMov}(:,:,t,tfShow),2*npts,[]);
-        s = obj.(PROPS.LBL){iMov};
-        p = Labels.getLabelsF(s,t,ntgts); % [2*npts x ntgts]
-        p = p(:,tfShow); % [2*npts x nshow]
-        tfLbledShow = false(ntgts,1);
-        tfLbledShow(tfShow) = all(~isnan(p),1);  
       else
         tfShow = false(ntgts,1);
       end
@@ -7741,6 +7740,15 @@ classdef Labeler < handle
       % Todo, set on .trkRes*
     end
 
+    function updateTrajImportedColors(obj,colors,colormapname)
+      obj.projPrefs.Trx.TrajColor = colors;
+      obj.projPrefs.Trx.TrajColorMapName = colormapname;
+      lpos2tv = obj.labeledpos2trkViz;
+      if ~isempty(lpos2tv) && isa(lpos2tv,'TrackingVisualizerTracklets')
+        lpos2tv.updateTrajColors();
+      end      
+    end
+    
   end
   
   methods (Static)
@@ -13407,6 +13415,7 @@ classdef Labeler < handle
       I1 = CPRData.getFrames(tblMFT,...
         'movieInvert',obj.movieInvert,...
         'wbObj',wbObj);
+      I1 = cellfun(@DataAugMontage.convertIm2Double,I1,'uni',0);
 
       roisAll = obj.cropGetAllRois; 
       roisAll = roisAll(imov,:,:);

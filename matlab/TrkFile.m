@@ -850,6 +850,19 @@ classdef TrkFile < dynamicprops
 %       obj.frm2tltnnz = nnz(f2t); % number of live (frm,tlt) pairs
     end
     
+    function [n,f0,f1] = maxTrackletsLive(obj)
+      % maximum number of tracklets live at a given moment
+      tfkeep = obj.startframes<obj.endframes;      
+      f0 = min(obj.startframes(tfkeep));
+      f1 = max(obj.endframes(tfkeep));
+      cnt = zeros(f1-f0+1,1);
+      for i=1:obj.ntlts
+        idx = (obj.startframes(i):obj.endframes(i)) - f0 + 1;
+        cnt(idx) = cnt(idx)+1;
+      end
+      n = max(cnt);
+    end  
+    
     % TODO: consider API that excludes ~tfhaspred vals
     function [tfhaspred,xy,tfocc] = getPTrkFrame(obj,f)
       % get tracking for particular frame
@@ -914,6 +927,24 @@ classdef TrkFile < dynamicprops
         npt = obj.npts;
         xy = nan(npt,2);
         tfocc = false(npt,1);  
+      end
+    end
+    
+    function p = getPTrkFullOrdered(obj)
+      % return full pTrk array, ordered by x-coordinate of pt 1
+      
+      [maxtlt,f0,f1] = obj.maxTrackletsLive();
+      nf = f1-f0+1;
+      p = nan(obj.npts,2,nf,maxtlt);
+      for f=f0:f1
+        [tfhaspred,xy] = obj.getPTrkFrame(f);
+        xy = xy(:,:,tfhaspred); % [npt x 2 x ntgtlive_f]
+        ntgtlive = size(xy,3);
+        if ntgtlive>0
+          [~,idx] = sort(xy(1,1,:));
+          xy = xy(:,:,idx);
+          p(:,:,f-f0+1,1:ntgtlive) = xy;
+        end         
       end
     end
     
@@ -987,6 +1018,22 @@ classdef TrkFile < dynamicprops
       else
         error('Unknown field ''%s''.',ptrkfld);
       end
+    end
+    
+    function trackletViz(obj,ax,varargin)
+      plotargs = myparse(varargin,...
+        'plotargs',{'linewidth',2} ...
+        );
+      
+      axes(ax);
+      hold on;
+      %ntrx = numel(obj.pTrk);
+      for i=1:obj.ntlts
+        t = obj.startframes(i):obj.endframes(i);
+        p1 = squeeze(obj.pTrk{i}(1,1,:));
+        plot(t,p1,plotargs{:});
+      end
+      grid on;
     end
   end
   methods (Static)

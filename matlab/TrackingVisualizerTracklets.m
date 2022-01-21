@@ -5,7 +5,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   
   properties
     tvmt % scalar TrackingVisualizerMT
-    tvtrx % scalar TrackingVisualizerTrx
+    tvtrx % scalar TrackingVisualizerTrxMA
     ptrx % ptrx structure: has landmarks in addition to .x, .y
     %frm2trx % [nfrmmax] cell with frm2trx{f} giving iTgts (indices into 
       %.ptrx) that are live 
@@ -35,10 +35,17 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     lObj
   end
   
+  % 2022 viz, current tracklet, etc
+  %
+  % currTrklet. specifies current tracklet; current unknown to Labeler
+  % tfShowTrxTraj. show tvtrx viz or not. 
+  % obj.lObj.showTrxIDLbl. used when tfShowTrxTraj is true
+  
+  
   methods
     function obj = TrackingVisualizerTracklets(lObj,ptsPlotInfoFld,handleTagPfix)
       obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix);
-      obj.tvtrx = TrackingVisualizerTrx(lObj);
+      obj.tvtrx = TrackingVisualizerTrxMA(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
       obj.ntrxmax = 0;
@@ -59,7 +66,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgtmax);
       obj.hud.updateReadoutFields('hasTrklet',true);
     end
-    function trkInit(obj,trk)      
+    function trkInit(obj,trk)
       assert(isscalar(trk) && isa(trk,'TrkFile'));
       % for tracklets, currently single-view
       
@@ -122,14 +129,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.iTrxViz2iTrx = iTrx2Viz2iTrxNew;
       
       tvtrx = obj.tvtrx; %#ok<*PROPLC>
-      tfLiveTrx = false(tvtrx.nTrx,1);
-      if obj.tfShowTrxTraj
-        tfLiveTrx(1:nLive) = true; 
-      end
-      tfUpdateIDs = trxMappingChanged;      
-      
-      tvtrx.setShow(tfLiveTrx);
-      tvtrx.updateTrxCore(ptrx(iTrx),frm,tfLiveTrx,0,tfUpdateIDs);
+      tfUpdateIDs = trxMappingChanged;
+      tvtrx.updateLiveTrx(ptrx(iTrx),frm,tfUpdateIDs);
     end
     function trxSelected(obj,iTrx,tfforce)
       if nargin < 3
@@ -146,8 +147,11 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         obj.lObj.gdata.labelTLInfo.newTarget();
       end
     end
-    function updatePrimary(obj,iTgtPrimary)
-      % todo; currently no pred/target selection
+    function updatePrimary(obj,iTgtPrimary) %#ok<INUSD>
+      % currently unused. this API is used by Labeler. currently 
+      % Labeler/iTgtPrimary does not know about tracklet indices; so any
+      % index passed in via iTgtPrimary would not be comparable to
+      % .currTrklet etc.
     end
     function setShowOnlyPrimary(obj,tf)
       % none
@@ -156,12 +160,12 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvmt.setShowSkeleton(tf);
     end
     function setHideViz(obj,tf)
-      % xxx landmarks only
       obj.tvmt.setHideViz(tf);
+      obj.tvtrx.setHideViz(tf);
     end
-    function setAllShowHide(obj,tfHide,tfHideTxt,tfShowCurrTgtOnly)
-      % xxx landmarks only
-      obj.tvmt.setAllShowHide(tfHide,tfHideTxt,tfShowCurrTgtOnly);
+    function setAllShowHide(obj,tfHideOverall,tfHideTxtMT,tfShowCurrTgtOnly)
+      obj.tvmt.setAllShowHide(tfHideOverall,tfHideTxtMT,tfShowCurrTgtOnly);
+      obj.tvtrx.setAllShowHide(tfHideOverall,tfShowCurrTgtOnly);
     end
     function initAndUpdateSkeletonEdges(obj,sedges)
       obj.tvmt.initAndUpdateSkeletonEdges(sedges);
@@ -169,6 +173,12 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     function updateLandmarkColors(obj,ptsClrs)
       obj.tvmt.updateLandmarkColors(ptsClrs);
     end
+    function updateTrajColors(obj)
+      obj.tvtrx.updateColors();      
+    end
+%     function updateShowHideTraj(obj)
+%       % relies on lObj.showTrx. Yea, this is confused
+%     end
     function setMarkerCosmetics(obj,pvargs)
       % landmarks only
       obj.tvmt.setMarkerCosmetics(pvargs);
@@ -178,13 +188,15 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvmt.setTextCosmetics(pvargs);
     end
     function setTextOffset(obj,offsetPx)
-      % xxx currently only landmark text
+      % MT landmark text only
       obj.tvmt.setTextOffset(offsetPx);
     end
     function setHideTextLbls(obj,tf)
-      % xxx currently only landmark text
       obj.tvmt.setHideTextLbls(tf);
     end
+%     function setHideTrajTextLbls(obj,tf)
+%       obj.tvtrx.setHideTextLbls(tf);
+%     end
     function delete(obj)
       obj.tvmt.delete();
       obj.tvtrx.delete();

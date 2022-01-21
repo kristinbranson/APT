@@ -104,6 +104,17 @@ classdef Lbl
       j.ProjName = s.projname;
       j.Config = cfg;
       j.MovieInfo = mia(1,:);
+      if cfg.HasCrops
+        ci = s.movieFilesAllCropInfo;
+        nmov = numel(ci);
+        cropRois = nan(nmov,4);
+        for imov=1:nmov
+          cropRois(imov,:) = ci{imov}.roi;
+        end
+      else
+        cropRois = [];        
+      end
+      j.MovieCropRois = cropRois;
       assert(strcmp(s.trackerClass{2},'DeepTracker'));
       if isempty(s.trackerData{1})
         j.TrackerData = s.trackerData{2};
