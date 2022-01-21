@@ -13415,6 +13415,7 @@ classdef Labeler < handle
       I1 = CPRData.getFrames(tblMFT,...
         'movieInvert',obj.movieInvert,...
         'wbObj',wbObj);
+      I1 = cellfun(@DataAugMontage.convertIm2Double,I1,'uni',0);
 
       roisAll = obj.cropGetAllRois; 
       roisAll = roisAll(imov,:,:);
