@@ -1413,7 +1413,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
 
     loss_history.append(loss_contrastive.item())
 
-  wt_out_file = f'{save_file}-{n_iters}.p'
+  wt_out_file = f'{save_file}'
   torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)
 
   del train_iter, train_loader, train_dset

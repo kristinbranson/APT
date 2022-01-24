@@ -8,6 +8,10 @@ from pathlib import Path
 import numpy as np
 import tempfile
 from TrkFile import to_mat
+import hdf5storage
+from scipy import io as sio
+from numpy.core.records import fromarrays
+
 
 def parse_args(argv):
 
@@ -20,31 +24,83 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     return args
 
-def convert_trk2trx(trk):
+def convert_trk2trx(trk, orig_trx_file):
     ntargets = trk.ntargets
-    trx = {'x': [None, ] * ntargets, 'y': [None, ] * ntargets, \
-           'theta': [None, ] * ntargets, 'a': [None, ] * ntargets, \
-           'b': [None, ] * ntargets, 'startframes': np.zeros(ntargets, dtype=int), \
-           'endframes': np.zeros(ntargets, dtype=int),
-           'nframes': np.zeros(ntargets, dtype=int)}
+    trx = [{} for n in range(ntargets)]
+    otrx_a = hdf5storage.loadmat(orig_trx_file)
+    otrx = otrx_a['trx']
 
+    o_keys = ['a','b','x_mm','y_mm','theta_mm','a_mm','b_mm',
+              'wing_angler','wing_anglel','xwingl','xwingr','ywingl','ywingr',
+              'sex','timestamps']
+
+    # Convert head-tail points back to trx
     for itgt in range(ntargets):
         pts = trk.pTrk.data[itgt]
-        trx['x'][itgt] = pts[0].mean(axis=1).flatten()
-        trx['y'][itgt] = pts[1].mean(axis=1).flatten()
-        trx['theta'][itgt] = np.arctan2(pts[1,0]-pts[1,1],pts[0,0]-pts[0,1])
-        trx['a'][itgt] = np.linalg.norm(pts[0]-pts[1],axis=0)/4
-        trx['b'][itgt] = td['trx']['b'][0, itgt].flatten()
-        trx['startframes'][itgt] = trk.firstframes[itgt]
-        trx['endframes'][itgt] = trk.endframes[itgt] + 1
+        x_mat = to_mat(pts[:,0].mean(axis=0).flatten())
+        y_mat = to_mat(pts[:,1].mean(axis=0).flatten())
+        theta = np.arctan2(pts[0,1]-pts[1,1],pts[0,0]-pts[1,0])
+        cur_len = len(x_mat)
+        trx[itgt]['x'] = x_mat
+        trx[itgt]['y'] = y_mat
+        trx[itgt]['theta'] = theta
+        trx[itgt]['firstframe'] = float(trk.startframes[itgt]+1)
+        trx[itgt]['endframe'] = float(trk.endframes[itgt] + 1)
+        trx[itgt]['nframes'] = float(trx[itgt]['endframe'] - trx[itgt]['firstframe'] + 1)
+        trx[itgt]['off'] = -float(trk.startframes[itgt])
+        trx[itgt]['pxpermm'] = otrx[0,0]['pxpermm'][0,0]
+        trx[itgt]['arena'] = {'x':otrx[0,0]['arena']['x'][0,0][0,0],
+                              'y':otrx[0,0]['arena']['y'][0,0][0,0],
+                              'r':otrx[0,0]['arena']['r'][0,0][0,0]}
 
-    trx['x'] = to_mat(trx['x'])
-    trx['y'] = to_mat(trx['y'])
-    trx['startframes'] = to_mat(trx['startframes'])
-    trx['endframes'] = to_mat(trx['endframes'])
-    trx['nframes'] = trx['endframes'] - trx['startframes'] + 1
+        for fn in o_keys:
+            if fn == 'sex':
+                trx[itgt][fn] = [np.array(['m']) for i in range(cur_len)]
+            else:
+                trx[itgt][fn] = np.ones(cur_len)*np.nan
 
-    return trx
+        # For all the other remaining fields find the match in trx and fill them in
+        for ndx in range(len(x_mat)):
+            if np.isnan(x_mat[ndx]): continue
+            curf = trk.startframes[itgt] + ndx
+            match = None
+            all_d = []
+            for tgt in range(otrx.shape[1]):
+                if otrx['firstframe'][0,tgt][0,0] > (curf+1): continue
+                if otrx['endframe'][0,tgt][0,0] < (curf+1): continue
+                off = curf + otrx['off'][0,tgt][0,0]
+                cur_tx = otrx['x'][0,tgt][0,off]
+                cur_ty = otrx['y'][0,tgt][0,off]
+                cur_theta = otrx['theta'][0,tgt][0,off]
+                d = abs( cur_tx-x_mat[ndx]) + abs(cur_ty-y_mat[ndx]) + \
+                    abs(cur_theta- theta[ndx])
+                all_d.append(d)
+                if d < 1e-4:
+                    match = tgt
+                    break
+
+            assert match is not None, f'Could not find match for frame {curf} target {itgt}'
+
+            off = curf + otrx['off'][0, match][0,0]
+            for fn in o_keys:
+                trx[itgt][fn][ndx] = otrx[fn][0,match][0,off]
+        trx[itgt]['dt'] = np.diff(trx[itgt]['timestamps'])
+        trx[itgt]['sex'][0].dtype = np.void
+
+    # convert the data into records so that they get saved as struct array.
+    k = list(trx[0].keys())
+    v_trx = []
+    for curk in k:
+        curv = []
+        for ndx in range(len(trx)):
+            curv.append(trx[ndx][curk])
+        v_trx.append(curv)
+
+    out_trx = {'trx':fromarrays(v_trx, names=k)}
+    for k in otrx_a.keys():
+        if k.startswith('__') or k == 'trx': continue
+        out_trx[k] = otrx_a[k]
+    return out_trx
 
 
 def track_id_flybowl(argv):
@@ -74,6 +130,7 @@ def track_id_flybowl(argv):
             ncount[sf:(ef+1)] += 1
         nt = ncount.max().astype('int')
         plocs = np.ones([nfr, nt, 2, 2]) * np.nan
+        ts = np.ones([nfr,nt, 2]) *np.nan
         ndone = np.zeros(nfr).astype('int')
 
         all_locs = []
@@ -86,16 +143,18 @@ def track_id_flybowl(argv):
             locs_h = np.array([locs_hx, locs_hy])
             locs_t = np.array([locs_tx, locs_ty])
             locs = np.array([locs_h, locs_t])
+
             for zz in range(locs.shape[2]):
                 curf = trx['startframes'][ndx] + zz
                 plocs[curf, ndone[curf]] = locs[..., zz]
+                ts[curf,ndone[curf],:] = trx['b'][ndx][zz]
                 ndone[curf] += 1
 
             all_locs.append(locs)
 
         locs_lnk = np.transpose(plocs, [2, 3, 0, 1])
-
-        ts = np.ones_like(locs_lnk[:, 0, ...])
+        ts = np.transpose(ts, [2, 0, 1])
+        # ts = np.ones_like(locs_lnk[:, 0, ...])
         tag = np.ones(ts.shape) <0  # tag which is always false for now.
         locs_conf = None
 
@@ -105,8 +164,12 @@ def track_id_flybowl(argv):
         trk.save(tmp_trx, saveformat='tracklet')
 
     trks = lnk.link_trklets(tfiles,conf,args.mov,args.out_files)
-    for trk, out_file in zip(trks,args.out_files):
-        trk.save(out_file,saveformat='tracklet')
+    for ndx  in range(len(trks)):
+        trk = trks[ndx]
+        out_file = args.out_files[ndx]
+        trx_file = args.trx[ndx]
+        out_trx = convert_trk2trx(trk, trx_file)
+        sio.savemat(out_file,out_trx,appendmat=False)
 
 
 if __name__ == "__main__":
