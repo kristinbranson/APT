@@ -7834,7 +7834,8 @@ classdef Labeler < handle
       end
       tObj = obj.tracker;
       if ~isempty(tObj)
-        sMacro.trackertype = tObj.algorithmName;
+        algoName = tObj.algorithmName;
+        sMacro.trackertype = regexprep(algoName,'\s','_');
       else
         sMacro.trackertype = 'undefinedtracker';
       end
