@@ -907,6 +907,19 @@ def nonmax_supp(trk, params):
 
 
 def link_pure(trk, conf, do_delete_short=False):
+  """
+  Does pure linking. Pure is meant to suggest that there is very little chance of two different animals to be part of the same tracklet. The linking criterion barrier is such that we link predictions only if there is a significant margin that the predictions belong to the same animal -- prediction p1 is joined to p2 only if dist(p1,p2) < 2*min(dist(p1,p_others)).
+
+  :param trk:
+  :type trk:
+  :param conf:
+  :type conf:
+  :param do_delete_short:
+  :type do_delete_short:
+  :return:
+  :rtype:
+  """
+
   params = get_default_params(conf)
 
   if 'maxcost' not in params:
@@ -923,6 +936,7 @@ def link_pure(trk, conf, do_delete_short=False):
   nframes_test = np.inf
   nframes_test = int(np.minimum(T, nframes_test))
 
+  # Do the linking
   ids, costs = assign_ids(trk, params, T=nframes_test)
 
   _, maxv = ids.get_min_max_val()
@@ -954,7 +968,19 @@ def link_pure(trk, conf, do_delete_short=False):
   return l_trk
 
 def link_trklets(trk_files, conf, movs, out_files):
-
+  """
+  Links pure tracklets using id liking or motion based on conf.link_id
+  :param trk_files: trk files with pure linked trajectories
+  :type trk_files: list of str
+  :param conf:
+  :type conf: poseConfig.config
+  :param movs: movie files corresponding to the trk files
+  :type movs: list of str
+  :param out_files: Output files. The linked trajectories are not saved. The file names are used to save intermediate files for id tracking (wts, images etc).
+  :type out_files: list of str
+  :return: linked trk files
+  :rtype: list
+  """
   in_trks = [TrkFile.Trk(tt) for tt in trk_files]
   params = get_default_params(conf)
 
@@ -992,6 +1018,21 @@ def link_trklets(trk_files, conf, movs, out_files):
 
 
 def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
+  '''
+
+  :param trk: trk object
+  :type trk: TrkFile.Trk
+  :param params: linking parameters
+  :type params:
+  :param do_merge_close: whether to merge trajectories that are close or not
+  :type do_merge_close: bool
+  :param do_stitch: whether to do stitching across frames
+  :type do_stitch: bool
+  :param do_delete_short: to delete short trajectories
+  :type do_delete_short: bool
+  :return: linked trajectory
+  :rtype: TrkFile.Trk
+  '''
 
   ids = dummy_ids(trk)
 
@@ -1027,41 +1068,65 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
 
 
 def link_id(trks, trk_files, mov_files, conf, out_files):
-
+  '''
+  Link traj. based on identity
+  :param trks:
+  :type trks:
+  :param trk_files:
+  :type trk_files:
+  :param mov_files:
+  :type mov_files:
+  :param conf:
+  :type conf:
+  :param out_files:
+  :type out_files:
+  :return:
+  :rtype:
+  '''
   all_trx = []
 
   for trk_file, mov_file in zip(trk_files,mov_files):
-    # l_trk = link(trk, params,do_merge_close=False,do_stitch=False)
-    # linked_trks.append(l_trk)
-
-    # Read the linked trk as trx
-    # tmp_trk = tempfile.mkstemp()[1]
-    # trk.save(tmp_trk,saveformat='tracklet')
-    # Save the current trk to be used as trx. Could be avoided but the whole image patch extracting pipeline exists with saved trx file, so not rewriting it.
-
+    # Read the trk files as trx. The trx are required to generate animal examles.
     cap = movies.Movie(mov_file)
     trx_dict = apt.get_trx_info(trk_file, conf, cap.get_n_frames())
     trx = trx_dict['trx']
     all_trx.append(trx)
     cap.close()
 
-  # train the identity model
+  # generate the training images
   train_data = get_id_train_images(trks, all_trx, mov_files, conf)
   wt_out_file = out_files[0].replace('.trk','_idwts.p')
+  # train the identity model
   id_classifier, loss_history = train_id_classifier(train_data,conf, trks, save_file=wt_out_file)
 
-  # link using idt
+  # link using id model
   def_params = get_default_params(conf)
   trk_out = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_delete'])
   return trk_out
 
 
 def get_id_train_images(linked_trks, all_trx, mov_files, conf):
+  '''
+  Generate id training images.
+  :param linked_trks:
+  :type linked_trks:
+  :param all_trx:
+  :type all_trx:
+  :param mov_files:
+  :type mov_files:
+  :param conf:
+  :type conf:
+  :return:
+  :rtype:
+  '''
   all_data = []
   for trk, trx, mov_file in zip(linked_trks,all_trx,mov_files):
     ss, ee = trk.get_startendframes()
 
+    # ignore small tracklets
     min_trx_len = conf.link_id_min_train_track_len
+
+    # incase all traj are small
     if np.count_nonzero((ee-ss+1)>min_trx_len)<conf.max_n_animals:
       min_trx_len = min(1,np.percentile((ee-ss+1),20)-1)
 
@@ -1096,13 +1161,18 @@ def get_overlap(ss_t,ee_t,ss,ee, curidx):
 
 
 class id_dset(torch.utils.data.IterableDataset):
+  """
+  Data generator that generates difficult training examples using mining
+  """
 
   def __init__(self, all_data, mining_dists, trk_data, confd, rescale, valid, distort=True, debug=False):
+
       self.all_data = [all_data, mining_dists, trk_data, confd, rescale, valid, distort]
       self.debug = debug
 
   def __iter__(self):
     [all_data, mining_dists, trk_data, confd, rescale, valid, distort] = self.all_data
+
     while True:
       curims = []
       sel_ndx = np.random.randint(len(all_data))
@@ -1112,6 +1182,11 @@ class id_dset(torch.utils.data.IterableDataset):
       n_tr = len(data)
 
       while len(curims) < 1:
+
+        # Select principal tracklet with equal prob. based on 1) overall how far the samples from same tracklet are. 2) overall how close the images are to overlapping tracklets.
+
+        # self_dist_mean is small for a tracklet if its images are close to each other (not that useful for training), and large if images are far from each other (useful for training)
+        # overlap_dist_mean is large for a tracklet if its images are far from other tracklets (not that useful for training), and small if images are close to iamges of ovrlapping tracklets (useful for training)
 
         if np.random.rand() < 0.5:
           self_dist1 = self_dist_mean+0.2
@@ -1124,6 +1199,7 @@ class id_dset(torch.utils.data.IterableDataset):
         cur_dat = data[curidx]
 
         if not valid:
+          # Dummy data. To be used during early part of the training
           overlap_tgts, overlap_amt = get_overlap(ss_t,ee_t,ss_t[curidx],ee_t[curidx],curidx)
           t_dist_all = np.ones([len(overlap_tgts),cur_dat[0].shape[0], cur_dat[0].shape[0]])
           t_dist_self = np.ones([cur_dat[0].shape[0], cur_dat[0].shape[0]])
@@ -1132,17 +1208,22 @@ class id_dset(torch.utils.data.IterableDataset):
           t_dist_self = dists[curidx][0]
           t_dist_all = dists[curidx][1]
 
+        # no overlapping tracklet. can't be used for training
         if overlap_tgts.size < 1: continue
 
+        # Choose the first image such that image that is away from others has higher prob. 0.2 is added so that we don't end up concentrating on a small set in pathological cases
         wt_self = (t_dist_self + 0.2).sum(axis=1)
         wt_self = wt_self / wt_self.sum()
         idx_self1 = np.random.choice(len(cur_dat[0]), p=wt_self)
         im1 = cur_dat[0][idx_self1]
+
+        # Choose the second image such that image that is away from the first one has higher prob.
         wt_self2 = t_dist_self[idx_self1] + 0.2
         wt_self2 = wt_self2 / wt_self2.sum()
         idx_self2 = np.random.choice(len(cur_dat[0]), p=wt_self2)
         im2 = cur_dat[0][idx_self2]
 
+        # Select the 3 image from overlaping tracklet such that images that are close to both 1 and 2 have higher prob.
         t_dist_overlap_idx = (t_dist_all[:,idx_self1] + t_dist_all[:,idx_self2]) / 2
         overlap_wts = 2.2 - np.clip(t_dist_overlap_idx, 0, 2)
         overlap_wts = overlap_wts*overlap_amt[:,None]
@@ -1181,6 +1262,19 @@ def process_id_ims_par(im_arr,conf,distort,rescale):
   return res_arr
 
 def process_id_ims(curims, conf, distort, rescale):
+  """
+  Applies preprocessing to the images
+  :param curims:
+  :type curims:
+  :param conf:
+  :type conf:
+  :param distort:
+  :type distort:
+  :param rescale:
+  :type rescale:
+  :return:
+  :rtype:
+  """
   if curims.shape[3] == 1:
     curims = np.tile(curims, [1, 1, 1, 3])
   dummy_locs = np.ones([curims.shape[0],2,2]) * curims.shape[1]/2
@@ -1194,8 +1288,23 @@ def process_id_ims(curims, conf, distort, rescale):
   return zz
 
 def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
+  '''
+  Read images in parallel because otherwise it is really slow particularly for avis
+  :param trx:
+  :type trx:
+  :param trk_info:
+  :type trk_info:
+  :param mov_file:
+  :type mov_file:
+  :param conf:
+  :type conf:
+  :param n_ex:
+  :type n_ex:
+  :return:
+  :rtype:
+  '''
+
   n_threads = min(24, mp.cpu_count())
-  n_tr = len(trk_info)
   with mp.get_context('spawn').Pool(n_threads) as pool:
 
     trk_info_split = split_parallel(trk_info,n_threads)
@@ -1205,12 +1314,30 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
   for curf in data_files:
     data.append(PoseTools.pickle_load(curf))
     os.remove(curf)
+
   data = merge_parallel(data)
-  # ndx = np.argsort(np.array([d[1] for d in data]))
-  # data = [data[i] for i in ndx]
   return data
 
 def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
+  '''
+  Read n_ex number of random images from tracklets specified in trk_info. The number of the images that can be returned is limited by pickle to 2GB. So saving the images to temp file and returning the file. Uses existing code that extracts animal images based on trx
+  :param trx:
+  :type trx:
+  :param trk_info:
+  :type trk_info:
+  :param mov_file:
+  :type mov_file:
+  :param conf:
+  :type conf:
+  :param n_ex:
+  :type n_ex:
+  :param seed:
+  :type seed:
+  :return:
+  :rtype:
+  '''
+
+  # Very important to set the seed as otherwise same set of images would be returned
   np.random.seed(seed)
   cap = movies.Movie(mov_file)
 
@@ -1225,6 +1352,7 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
 
     cur_list = [[fr, cur_trk[0]] for fr in rand_frs]
 
+    # Use trx based image patch generator
     ims = apt.create_batch_ims(cur_list, conf, cap, False, trx, None, use_bsize=False)
     all_ims.append([ims, cur_trk[0],cur_trk[1],cur_trk[2],cur_list])
 
@@ -1235,6 +1363,15 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
   return tfile
 
 def split_parallel(x,n_threads):
+  '''
+  Splits an array to be used for multithreading
+  :param x:
+  :type x:
+  :param n_threads:
+  :type n_threads:
+  :return:
+  :rtype:
+  '''
   nx = len(x)
   split = [range((nx * n) // n_threads, (nx * (n + 1)) // n_threads) for n in range(n_threads)]
   split_x = tuple( tuple(x[s] for s in split[n]) for n in range(n_threads))
@@ -1246,6 +1383,19 @@ def merge_parallel(data):
   return data
 
 def tracklet_pred(ims, net, conf, rescale):
+    '''
+    Do prediction over a set of images (typically generated using read_tracklet_ims
+    :param ims:
+    :type ims:
+    :param net:
+    :type net:
+    :param conf:
+    :type conf:
+    :param rescale:
+    :type rescale:
+    :return:
+    :rtype:
+    '''
     preds = []
     n_threads = min(24, mp.cpu_count())
     n_batches = max(1,len(ims)//(3*n_threads))
@@ -1269,6 +1419,21 @@ def tracklet_pred(ims, net, conf, rescale):
     return rr
 
 def compute_mining_data(net, data, trk_data, rescale, confd):
+  '''
+  Computes the distance between overlapping tracklets.
+  :param net:
+  :type net:
+  :param data:
+  :type data:
+  :param trk_data:
+  :type trk_data:
+  :param rescale:
+  :type rescale:
+  :param confd:
+  :type confd:
+  :return:
+  :rtype:
+  '''
   ss_t, ee_t, _ = trk_data
   ims = [dd[0] for dd in data]
   n_tr = len(data)
@@ -1293,23 +1458,56 @@ def compute_mining_data(net, data, trk_data, rescale, confd):
   return dists, overlap_dist_mean, self_dist_mean
 
 def compute_dists(t_preds, ss_t, ee_t, all_xx):
+  """
+  Computes the distance between the embeddings for the images. Two distances are computed -- 1) self dist: This is the distance between the images that belong to the same tracklet 2) overlap dist: This is the distance between the images of a tracklet to all the other trajectories that overlap with it in time.
+  :param t_preds:
+  :type t_preds:
+  :param ss_t: start frames of the trajectories
+  :type ss_t:
+  :param ee_t: end frames of the trajectories
+  :type ee_t:
+  :param all_xx: trajectories to compute the distance for
+  :type all_xx: list of int
+  :return:
+  :rtype:
+  """
+
   dists = []
   for xx in all_xx:
     overlap_tgts, overlap_amt = get_overlap(ss_t, ee_t, ss_t[xx], ee_t[xx], xx)
     if overlap_tgts.size > 0:
       overlap_dist = np.linalg.norm(t_preds[xx:xx + 1, :, None] - t_preds[overlap_tgts, None], axis=-1)
       overlap_mean = np.mean(overlap_dist*overlap_amt[:,None,None])
+      # overlap_mean is large for a tracklet if its iamges are far from other tracklets (not that useful for training), and small if images are close to iamges of ovrlapping tracklets (useful for training)
     else:
       overlap_dist = []
       overlap_mean = 2.
 
     self_dist = np.linalg.norm(t_preds[xx, :, None] - t_preds[xx, None], axis=-1)
     self_mean = np.mean(self_dist)
+    # self_mean is small for a tracklet if all images are close to each other (not that useful for training), and large if iamges are far from each other (useful for training)
     dists.append([self_dist, overlap_dist, self_mean, overlap_mean, overlap_tgts, overlap_amt, xx])
   return dists
 
 
 def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16):
+  """
+  Trains the identity classifier/embedder
+  :param all_data:
+  :type all_data:
+  :param conf:
+  :type conf:
+  :param trks:
+  :type trks:
+  :param save:
+  :type save:
+  :param save_file:
+  :type save_file:
+  :param bsz:
+  :type bsz:
+  :return:
+  :rtype:
+  """
 
   class ContrastiveLoss(torch.nn.Module):
     """
@@ -1328,7 +1526,10 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
 
       return loss_contrastive
 
+
   loss_history = []
+
+  # model to use. we embed the animal images into 32 dim space
   net = models.resnet.resnet18(pretrained=True)
   net.fc = torch.nn.Linear(in_features=512, out_features=32, bias=True)
 
@@ -1336,12 +1537,15 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   criterion = ContrastiveLoss()
   optimizer = optim.Adam(net.parameters(), lr=0.0001)
 
+  # Create a new conf object so that we can use the posetools preprocessing function. However, we need to change the augmentation parameters and cropping parameters that are appropriate for the cropped images
+
   confd = copy.deepcopy(conf)
   if confd.trx_align_theta:
     confd.rrange = 10.
   else:
     confd.rrange = 180.
   confd.trange = min(conf.imsz) / 15
+  # no flipping business for id
   confd.horzFlip = False
   confd.vertFlip = False
   confd.scale_factor_range = 1.1
@@ -1349,6 +1553,8 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   confd.crange = [0.95, 1.05]
   rescale = conf.link_id_rescale
   n_iters = conf.link_id_training_iters
+
+  # how many times to sample. Actually it ends up being one less than specified
   num_times_sample = conf.link_id_mining_steps
   sampling_period = round(n_iters / num_times_sample)
   debug = conf.get('link_id_debug',False)
@@ -1357,6 +1563,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   net.train()
   net = net.cuda()
 
+  # Set mining distances to identical dummy values initially
   trk_data = []
   mining_dists = []
   for data, trk in zip(all_data,trks):
@@ -1371,17 +1578,20 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
     overlap_dist = np.ones(n_tr)
     mining_dists.append([t_dist,overlap_dist, self_dist])
 
+  # Create the dataset and dataloaders. Again seed is important!
   train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=True, debug=debug)
   n_workers = 10 if not debug else 0
   train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id))
   train_iter = iter(train_loader)
-  ex_ims = next(train_iter).numpy()
 
+  # Save example training images for debugging.
+  ex_ims = next(train_iter).numpy()
   hdf5storage.savemat(os.path.splitext(save_file)[0]+'_ims.mat',{'example_ims':ex_ims})
 
   for epoch in tqdm(range(n_iters)):
 
     if epoch % sampling_period == 0 and epoch > 0:
+      # compute the mining data and recreate datasets and dataloaders with updated mining data
       net = net.eval()
       mining_dists = []
       for data, cur_trk_data in zip(all_data,trk_data):
@@ -1401,6 +1611,8 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
     output = net(curims)
     output = output.reshape((-1,3) + output.shape[1:])
     output1, output2, output3 = output[:,0], output[:,1], output[:,2]
+    # output1, output2 are from the same tracklet so they should be close. output3 should be far from both output1 and output2
+
     l1 = criterion(output1, output2, 0)
     l2 = criterion(output1, output3, 1)
     l3 = criterion(output2, output3, 1)
@@ -1421,6 +1633,29 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
 
 
 def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5, debug=False):
+  """
+  Link tracklets using the identity network
+  :param linked_trks: PUre linked tracks
+  :type linked_trks: list of TrkFile.Trk
+  :param net: identity network
+  :type net:
+  :param mov_files:
+  :type mov_files: list of str
+  :param conf:
+  :type conf:
+  :param all_trx:
+  :type all_trx:
+  :param n_per_trk:
+  :type n_per_trk:
+  :param rescale:
+  :type rescale:
+  :param min_len_select:
+  :type min_len_select:
+  :param debug:
+  :type debug:
+  :return:
+  :rtype:
+  """
 
   all_data = []
   net.eval()
@@ -1428,12 +1663,13 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   pred_map = []
 
   for ndx in range(len(linked_trks)):
+    # Sample images from the tracklets
     trk = linked_trks[ndx]
     mov_file = mov_files[ndx]
     trx = all_trx[ndx]
     ss, ee = trk.get_startendframes()
 
-    # For each tracklet chose n_per_trk random examples and the find their embedding.
+    # For each tracklet chose n_per_trk random examples and the find their embedding. Ignore short tracklets
     sel_tgt = np.where((ee-ss+1)>=min_len_select)[0]
     sel_ss = ss[sel_tgt]; sel_ee = ee[sel_tgt]
     trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
@@ -1443,6 +1679,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     end_t = time.time()
     logging.info(f'Sampling images took {round((end_t-start_t)/60)} minutes')
     tgt_id = np.array([r[1] for r in data])
+
+    # Keep the images only if debugging. Else it will eat up memory
     if debug:
       cur_d = [data, sel_tgt, tgt_id, ss ,ee, sel_ss, sel_ee]
     else:
@@ -1450,8 +1688,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
 
     all_data.append(cur_d)
 
-  # for ndx, curd in enumerate(all_data):
-  #   data, sel_tgt, tgt_id = curd[:3]
+    # Reorder the images. pred_map keeps track of which sample belongs to which trajectory
     ims = []
     for tgt_ndx, ix in tqdm(enumerate(sel_tgt)):
       curndx = np.where(tgt_id==ix)[0][0]
@@ -1459,8 +1696,10 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
       ims.append(curims)
       pred_map.append([ndx, ix])
 
+    # Find the embeddings for the images
     cur_preds = tracklet_pred(ims, net, conf, rescale)
     assert cur_preds.shape[0] == len(sel_tgt), 'Tracklet prediction is not correct'
+
     if preds is None:
       preds = cur_preds
     else:
@@ -1468,10 +1707,12 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
 
   pred_map = np.array(pred_map)
 
+  # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   logging.info('Stitching tracklets based on identity ...')
-
   t_info = [d[3:5] for d in all_data]
   groups = cluster_tracklets_id(preds, pred_map, t_info, conf.link_maxframes_delete)
+
+  # Link the actual pose data. Id is TrkFile.Tracklet that keeps track about which tracklet in which frame belongs to which animal
 
   ids = []
   for trk, data in zip(linked_trks,all_data):
@@ -1531,6 +1772,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
       _, cur_id = cur_id.unique()
 
     ids_left = [i for i in range(nids) if (i not in ids_short) and (i not in ids_remove)]
+    # Apply the ids to trk.
     cur_trk.apply_ids(cur_id)
     cur_trk.pTrkiTgt = np.array(ids_left)
 
@@ -1538,6 +1780,19 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
 
 
 def cluster_tracklets_id(embed, pred_map, t_info, min_len):
+  """
+  Clusters tracklets using linkage
+  :param embed:
+  :type embed:
+  :param pred_map:
+  :type pred_map:
+  :param t_info:
+  :type t_info:
+  :param min_len:
+  :type min_len:
+  :return:
+  :rtype:
+  """
 
   n_tr = embed.shape[0]
   n_ex = embed.shape[1]
@@ -1572,7 +1827,8 @@ def cluster_tracklets_id(embed, pred_map, t_info, min_len):
   g_len = np.array([tr_len[F==(i+1)].sum() for i in range(max(F))])
   f_order = np.argsort(g_len)[::-1]
 
-  # Create groups in order of their sizes
+  # Create groups in order of their sizes. While creating groups ensure two tracklets that have significant overlap in time are not part of the same group.
+
   for ndx in f_order:
     cur_gr = np.where(np.array(F) == (ndx + 1))[0]
     cur_gr_ord = np.argsort(-tr_len[cur_gr])
@@ -1581,6 +1837,7 @@ def cluster_tracklets_id(embed, pred_map, t_info, min_len):
     cur_group = []
     extra_groups = []
     ctline = [np.zeros(n) for n in n_fr]
+    # ctline keeps track of the frames that are already part of the current group.
     for cc in cur_gr:
       mov_ndx, trk_ndx = pred_map[cc]
       sel_ss = t_info[mov_ndx][0][trk_ndx]

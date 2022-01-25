@@ -13,7 +13,7 @@ from scipy import io as sio
 from numpy.core.records import fromarrays
 
 
-def parse_args(argv):
+def parse_args(argv: list):
 
     parser = argparse.ArgumentParser(description='Apply ID tracking to fly tracker or CTrax tracked data')
     parser.add_argument("-mov", dest="mov",help="movie(s) to track. For multi-view projects, specify movies for all the views or specify the view for the single movie using -view", nargs='+')
@@ -25,6 +25,15 @@ def parse_args(argv):
     return args
 
 def convert_trk2trx(trk, orig_trx_file):
+    """
+    Convert the id linked trk into JAABA compatible trx file
+    :param trk:
+    :type trk:
+    :param orig_trx_file:
+    :type orig_trx_file:
+    :return:
+    :rtype:
+    """
     ntargets = trk.ntargets
     trx = [{} for n in range(ntargets)]
     otrx_a = hdf5storage.loadmat(orig_trx_file)
@@ -103,12 +112,20 @@ def convert_trk2trx(trk, orig_trx_file):
     return out_trx
 
 
-def track_id_flybowl(argv):
+def track_id_flybowl(argv: list):
+    """
+    ID tracks fly trx data
+    :param argv:
+    :return:
+    :rtype:
+    """
     args = parse_args(argv)
     if args.trx is None:
         args.trx = [m.replace(Path(m).name,'registered_trx.mat') for m in args.mov]
 
     msz = args.crop_sz
+
+    # conf parameters for fly id tracking
     conf.multi_animal_crop_sz = int(msz)  # [128,128]
     conf.has_trx_file = False
     conf.use_bbox_trx = False
@@ -119,6 +136,7 @@ def track_id_flybowl(argv):
 
     tfiles = []
     for trx_file in args.trx:
+        # Convert ctrx or flytracker trx data into head-tail trk data and do pure linking.
 
         tmp_trx = tempfile.mkstemp()[1]
         tfiles.append(tmp_trx)
@@ -160,10 +178,14 @@ def track_id_flybowl(argv):
 
         trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf)
         trk.convert2sparse()
+        # Undo trx linking an do pure linking for id tracking
         trk = lnk.link_pure(trk, conf)
         trk.save(tmp_trx, saveformat='tracklet')
 
+    # Do id tracking based linking
     trks = lnk.link_trklets(tfiles,conf,args.mov,args.out_files)
+
+    # convert back into trx
     for ndx  in range(len(trks)):
         trk = trks[ndx]
         out_file = args.out_files[ndx]
