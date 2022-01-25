@@ -7692,7 +7692,7 @@ classdef Labeler < handle
       %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
     end
     function [tfHideTxt,pvText] = hlpUpdateLandmarkCosmetics(obj,...
-        pvMarker,pvText,ptsPlotInfoFld)
+        pvMarker,pvText,textOffset,ptsPlotInfoFld)
       % set PVs on .ptsPlotInfo field; mild massage
       
       fns = fieldnames(pvMarker);
@@ -7705,13 +7705,14 @@ classdef Labeler < handle
       for f=fns(:)',f=f{1}; %#ok<FXSET>
         obj.(ptsPlotInfoFld).TextProps.(f) = pvText.(f);
       end
+      obj.(ptsPlotInfoFld).TextOffset = textOffset;
       % TrackingVisualizer wants this prop broken out
       tfHideTxt = strcmp(pvText.Visible,'off'); % could make .Visible field optional 
       pvText = rmfield(pvText,'Visible');
     end 
     function updateLandmarkPredictionCosmetics(obj,pvMarker,pvText,textOffset)
       [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
-        pvMarker,pvText,'predPointsPlotInfo');
+        pvMarker,pvText,textOffset,'predPointsPlotInfo');
       tAll = obj.trackersAll;
       for i=1:numel(tAll)
         if ~isempty(tAll{i})
@@ -7728,7 +7729,7 @@ classdef Labeler < handle
     
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
        [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
-        pvMarker,pvText,'impPointsPlotInfo');      
+        pvMarker,pvText,textOffset,'impPointsPlotInfo');      
       
       lpos2tv = obj.labeledpos2trkViz;
       if ~isempty(lpos2tv)
@@ -14928,7 +14929,7 @@ classdef Labeler < handle
       % We only create/init a tv if there are actually imported results for 
       % the current movie. Otherwise, obj.labeledpos2trkViz will be [] 
       % which optimizes browse speed.
-      tv = obj.createTrackingVisualizer('predPointsPlotInfo','labeledpos2');      
+      tv = obj.createTrackingVisualizer('impPointsPlotInfo','labeledpos2');      
       if ~isempty(obj.trackParams)
         maxNanimals = obj.trackParams.ROOT.MultiAnimal.max_n_animals;
         maxNanimals = max(ceil(maxNanimals*1.5),10);
