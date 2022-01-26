@@ -1595,10 +1595,15 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         cur_occ = cur_occ[conf.view, :]
         cur_occ = np.transpose(cur_occ, [1, 0])
 
-        cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
+        
+        if conf.nviews > 1 and len(cur_t['roi']) != conf.nviews*2*4*ntgt:
+            logging.warning('KB SAYS FIX THIS!!! Number of views > 1, but roi is not the right shape. Just using the first view ROI')
+            cur_roi = np.tile(np.array(cur_t['roi']).reshape([1, 2, 4, ntgt]),(conf.nviews,1,1,1))
+        else:
+            cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
         cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
 
-        if 'extra_roi' in cur_t.keys():
+        if 'extra_roi' in cur_t.keys() and np.size(cur_t['extra_roi']) > 0:
             extra_roi = np.array(cur_t['extra_roi'],dtype=np.float).reshape([conf.nviews, 2, 4, -1])
             extra_roi = np.transpose(extra_roi[conf.view, ...], [2, 1, 0])
         else:
