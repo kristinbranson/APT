@@ -14849,6 +14849,7 @@ classdef Labeler < handle
       obj.labelImportTrkGeneric(mIdx,trkfiles,'LBL2');
       obj.labels2TrkVizInit();
       obj.labels2VizUpdate();
+      obj.labels2VizShowHideUpdate();
       obj.notify('dataImported');
       RC.saveprop('lastTrkFileImported',trkfiles{end});
     end
@@ -14974,12 +14975,9 @@ classdef Labeler < handle
         if obj.maIsMA
           tv.newFrame(frm);
         else
-          %ntgts = obj.nTargets;
+          % nonMA: either SA, or SA-trx
           trk = obj.labels2GTaware{iMov};
           [tfhaspred,xy,tfocc] = trk.getPTrkFrame(frm);
-          % TODO consider .getPTrkFrame API that excludes ~tfhaspred
-          xy = xy(:,:,tfhaspred);
-          tfocc = tfocc(:,tfhaspred);          
           tv.updateTrackRes(xy,tfocc);
         end
       end
