@@ -53,6 +53,8 @@ function LandmarkColors_OpeningFcn(hObject, eventdata, handles, varargin)
 
 handles.output = hObject;
 
+hObject.CloseRequestFcn = @figure_landmarkcolors_CloseRequestFcn;
+
 lObj = varargin{1};
 handles.nlandmarks = lObj.nPhysPoints;
 handles.applyCbkFcn = varargin{2}; % sig:
@@ -389,8 +391,8 @@ else
   delete(handles.figure_landmarkcolors);
 end
 
-function figure_landmarkcolors_CloseRequestFcn(hObject, eventdata, handles)
-uiresume(handles.figure_landmarkcolors);
+function figure_landmarkcolors_CloseRequestFcn(hObject, eventdata)
+uiresume(hObject);
 
 function pbApply_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
