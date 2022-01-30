@@ -12326,8 +12326,8 @@ classdef Labeler < handle
       
       if obj.maIsMA
         tv = TrackingVisualizerTracklets(obj,ptsPlotInfoFld,gfxTagPfix);
-      else
-        tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
+      else        
+        tv = TrackingVisualizerMTFast(obj,ptsPlotInfoFld,gfxTagPfix);
       end
     end
   end
