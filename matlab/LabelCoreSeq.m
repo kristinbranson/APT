@@ -210,20 +210,16 @@ classdef LabelCoreSeq < LabelCore
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
-      tf = obj.anyPointSelected();
-      if tf
-        % none
-      else
         switch obj.state
           case {LabelState.ADJUST LabelState.ACCEPTED}          
             iPt = get(src,'UserData');
+            obj.toggleSelectPoint(iPt);
             % KB 20181029: removing adjust state
 %             if obj.state==LabelState.ACCEPTED
 %               obj.beginAdjust();
 %             end
             obj.iPtMove = iPt;
         end
-      end
     end
     
     function wbmf(obj,~,~)
@@ -390,6 +386,7 @@ classdef LabelCoreSeq < LabelCore
       obj.tfOcc(:) = false;
       obj.tfEstOcc(:) = false;
       obj.tfSel(:) = false;
+      set(obj.hPts(ishandle(obj.hPts)),'HitTest','off');
       if tfClearLabels
         obj.labeler.labelPosClear();
       end
@@ -424,6 +421,7 @@ classdef LabelCoreSeq < LabelCore
       end
       % KB 20181029: moved this here from beginAdjust as I remove adjust
       % mode
+      set(obj.hPts(ishandle(obj.hPts)),'HitTest','on');
       obj.iPtMove = nan;
       obj.clearSelected();
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
