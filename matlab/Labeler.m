@@ -15029,10 +15029,10 @@ classdef Labeler < handle
     function labels2VizShowHideUpdate(obj)
       tfHide = obj.labels2Hide;
       txtprops = obj.impPointsPlotInfo.TextProps;
-      tfHideTxt = strcmp(txtprops.Visible,'off');      
+      tfHideTxt = strcmp(txtprops.Visible,'off');
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
-        tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly);
+        tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly,obj.showSkeleton);
       end
     end
     

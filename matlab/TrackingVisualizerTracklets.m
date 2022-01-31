@@ -163,8 +163,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvmt.setHideViz(tf);
       obj.tvtrx.setHideViz(tf);
     end
-    function setAllShowHide(obj,tfHideOverall,tfHideTxtMT,tfShowCurrTgtOnly)
-      obj.tvmt.setAllShowHide(tfHideOverall,tfHideTxtMT,tfShowCurrTgtOnly);
+    function setAllShowHide(obj,tfHideOverall,tfHideTxtMT,tfShowCurrTgtOnly,tfShowSkel)
+      obj.tvmt.setAllShowHide(tfHideOverall,tfHideTxtMT,tfShowCurrTgtOnly,tfShowSkel);
       obj.tvtrx.setAllShowHide(tfHideOverall,tfShowCurrTgtOnly);
     end
     function initAndUpdateSkeletonEdges(obj,sedges)

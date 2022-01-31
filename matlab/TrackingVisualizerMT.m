@@ -319,9 +319,10 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       obj.showOnlyPrimary = tf;
       obj.updateShowHideAll();      
     end
-    function setAllShowHide(obj,tfHide,tfHideTxt,tfShowCurrTgtOnly)
+    function setAllShowHide(obj,tfHide,tfHideTxt,tfShowCurrTgtOnly,tfShowSkel)
       obj.tfHideViz = tfHide;
       obj.tfHideTxt = tfHideTxt;
+      obj.tfShowSkel = tfShowSkel;
       obj.showOnlyPrimary = tfShowCurrTgtOnly;
       obj.updateShowHideAll();      
     end
