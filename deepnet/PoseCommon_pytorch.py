@@ -344,7 +344,10 @@ class PoseCommon_pytorch(object):
         val_tfn = lambda f: decode_augment(f,conf,False)
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
         valtfr = trntfr
-        Z = multiResData.read_and_decode_without_session(trntfr,self.conf.n_classes,())
+        if conf.is_multi:
+            Z = multiResData.read_and_decode_without_session_multi(trntfr, self.conf.n_classes)
+        else:
+            Z = multiResData.read_and_decode_without_session(trntfr,self.conf.n_classes,())
         queue_sz = min(len(Z[0]),300)
         # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if not os.path.exists(valtfr):

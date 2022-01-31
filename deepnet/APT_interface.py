@@ -76,6 +76,7 @@ import shapely.geometry
 import TrkFile
 from scipy.ndimage import uniform_filter
 import multiprocessing
+import poseConfig
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10  # interval in seconds between writing n frames tracked
@@ -563,6 +564,10 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num, extra_str=''):
 
 
 def get_net_type(lbl_file):
+    if lbl_file.endswith('.json'):
+        lbl = PoseTools.json_load(lbl_file)
+        return lbl['TrackerData']['trnNetTypeString']
+
     lbl = h5py.File(lbl_file, 'r')
     dt_params_ndx = None
     for ndx in range(lbl['trackerClass'].shape[0]):
@@ -660,8 +665,13 @@ def conf_opts_pvargstr2dict(conf_str):
     return conf_opts
 
 
-def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None,first_stage=False,second_stage=False):
+def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', conf_params=None, quiet=False, json_trn_file=None,first_stage=False,second_stage=False,no_json=False):
 
+    if not no_json:
+        assert os.path.exists(lbl_file.replace('.lbl','.json'))
+        lbl_file = lbl_file.replace('.lbl','.json')
+    if lbl_file.endswith('.json'):
+        return create_conf_json(lbl_file=lbl_file,view=view, name=name, cache_dir=cache_dir, net_type=net_type, conf_params=conf_params, quiet=quiet, json_trn_file=json_trn_file, first_stage=first_stage, second_stage=second_stage)
     assert not (first_stage and second_stage), 'Configurations should either for first stage or second stage for multi stage tracking'
 
     try:
@@ -829,10 +839,9 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet', conf_para
         pass
     try:
         if isModern:
-            conf.unet_steps = int(read_entry(dt_params['DeepTrack']['GradientDescent']['dl_steps']))
+            conf.dl_steps = int(read_entry(dt_params['DeepTrack']['GradientDescent']['dl_steps']))
         else:
-            conf.unet_steps = int(read_entry(dt_params['dl_steps']))
-        conf.dl_steps = conf.unet_steps
+            conf.dl_steps = int(read_entry(dt_params['dl_steps']))
     except KeyError:
         pass
     try:
@@ -978,10 +987,170 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet', conf_para
     conf.unet_rescale = conf.rescale
     # conf.op_rescale = conf.rescale  # not used by op4
     # conf.dlc_rescale = conf.rescale
-    conf.leap_rescale = conf.rescale
+    # conf.leap_rescale = conf.rescale
 
     assert not (
                 conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
+    return conf
+
+
+def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None, first_stage=False, second_stage=False):
+    assert not (first_stage and second_stage), 'Configurations should either for first stage or second stage for multi stage tracking'
+
+    A = PoseTools.json_load(lbl_file)
+    net_names_dict = {'mdn': 'MDN',
+                      'dpk': 'DeepPoseKit',
+                      'openpose': 'OpenPose',
+                      'multi_openpose': 'MultiAnimalOpenPose',
+                      'sb': '',
+                      'unet': 'Unet',
+                      'deeplabcut': 'DeepLabCut',
+                      'leap': 'LEAP',
+                      'detect_mmdetect': 'MMDetect',
+                      'mdn_joint_fpn': 'GRONe',
+                      'multi_mdn_joint_torch': 'MultiAnimalGRONe',
+                      'mmpose': 'MSPN',
+                      }
+
+
+    conf = poseConfig.config()
+    proj_name = A['ProjName']
+    conf.set_exp_name(proj_name)
+    cc = A['Config']
+    conf.nviews = cc['NumViews']
+    conf.n_classes = cc['NumLabelPoints']
+    conf.selpts = np.arange(conf.n_classes)
+    conf.project_file = ''  ## TODO
+    conf.is_multi = cc['MultiAnimal'] > 0.5
+    conf.img_dim = cc['NumChans']
+    has_crops = cc['HasCrops']
+    conf.labelfile = lbl_file
+
+    conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
+    if not os.path.exists(conf.cachedir):
+        os.makedirs(conf.cachedir)
+
+    if first_stage:
+        conf.stage = 'first'
+    elif second_stage:
+        conf.stage = 'second'
+    else:
+        conf.stage = None
+
+    if not (first_stage or second_stage):
+        dt_params = A['TrackerData']['sPrmAll']['ROOT']
+    elif first_stage:
+        dt_params = A['TrackerData'][0]['sPrmAll']['ROOT']
+    elif second_stage:
+        dt_params = A['TrackerData'][1]['sPrmAll']['ROOT']
+    else:
+        assert False, 'Unknown stage type'
+
+    if second_stage:
+        # Find out whether head-tail or bbox detector. For this we need to look at the information from the first stage
+        if A['TrackerData'][0]['sPrmAll']['ROOT']['MultiAnimal']['Detect']['multi_only_ht']:
+            conf.use_ht_trx = True
+        else:
+            conf.use_bbox_trx = True
+
+    # If the project has trx file then we use the crop locs
+    # specified by the user. If the project doesnt have trx files
+    # then we use the crop size specified by user else use the whole frame.
+    if conf.has_trx_file or conf.use_ht_trx or conf.use_bbox_trx:
+        width = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
+        conf.imsz = (width, width)
+    elif has_crops:
+        crops = A['MovieCropRois'][0]
+        xlo, xhi, ylo, yhi = crops
+        conf.imsz = (int(yhi - ylo + 1), int(xhi - xlo + 1))
+    else:
+        conf.imsz = (A['MovieInfo']['NumRows'], A['MovieInfo']['NumCols'])
+
+    conf.labelfile = lbl_file
+    conf.sel_sz = min(conf.imsz)
+    conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
+    conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
+
+    def set_all(conf, cur_set, flatten=False):
+        for k in cur_set:
+            if type(cur_set[k]) is not dict:
+                conf.__dict__[k] = cur_set[k]
+
+    set_all(conf, dt_params['MultiAnimal'])
+    set_all(conf, dt_params['DeepTrack']['Saving'])
+    set_all(conf, dt_params['DeepTrack']['ImageProcessing'])
+    set_all(conf, dt_params['DeepTrack']['GradientDescent'])
+    set_all(conf, dt_params['DeepTrack']['DataAugmentation'])
+    set_all(conf, dt_params['DeepTrack']['LossFunction'])
+    set_all(conf, dt_params['MultiAnimal']['TrackletStitch'])
+    if 'Detect' in dt_params['MultiAnimal']:
+        set_all(conf, dt_params['MultiAnimal']['Detect'])
+    conf.rescale = float(conf.scale)
+    delattr(conf,'scale')
+    conf.ht_pts = to_py(dt_params['MultiAnimal']['Detect']['ht_pts'])
+
+    net_conf = dt_params['DeepTrack'][net_names_dict[net_type]]
+    set_all(conf, net_conf)
+
+    try:
+        conf.op_affinity_graph = poseConfig.parse_aff_graph(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
+    except KeyError:
+        pass
+
+    f_str = conf.flipLandmarkMatches
+    graph = {}
+    if f_str:
+        f_str = f_str.split(',')
+        for b in f_str:
+            mm = re.search('(\d+)\s+(\d+)', b)
+            n1 = int(mm.groups()[0]) - 1
+            n2 = int(mm.groups()[1]) - 1
+            graph['{}'.format(n1)] = n2
+            graph['{}'.format(n2)] = n1
+            # The keys have to be strings so that they can be saved in the trk file
+    conf.flipLandmarkMatches = graph
+    conf.mdn_groups = [(i,) for i in range(conf.n_classes)]
+
+    conf.json_trn_file = json_trn_file
+
+    if conf_params is not None:
+        cc = conf_params
+        assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
+        for n, v in zip(cc[0::2], cc[1::2]):
+            if not quiet:
+                print('Overriding param %s <= ' % n, v)
+            setattr(conf, n, ast.literal_eval(v))
+
+    # overrides for each network
+    if net_type == 'sb':
+        sb.update_conf(conf)
+    # elif net_type == 'openpose':
+    #     op.update_conf(conf)
+    elif net_type == 'dpk':
+        if conf.dpk_use_op_affinity_graph:
+            apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        else:
+            assert conf.dpk_skel_csv is not None
+            apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+
+    # elif net_type == 'deeplabcut':
+    #     conf.batch_size = 1
+    elif net_type == 'unet':
+        conf.use_pretrained_weights = False
+
+    conf.unet_rescale = conf.rescale
+    conf.brange = [-conf.brange,conf.brange]
+    conf.crange = [1-conf.crange,1+conf.crange]
+    conf.normalize_img_mean = conf.normalize
+    delattr(conf,'normalize')
+    conf.save_td_step = conf.display_step
+
+    assert not (conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
+
+    mat_lbl_file = lbl_file.replace('.json','.lbl')
+    if os.path.exists(mat_lbl_file):
+        conf_lbl = create_conf(mat_lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=net_type,conf_params=conf_params,quiet=quiet,json_trn_file=json_trn_file,first_stage=first_stage,second_stage=second_stage,no_json=True)
+        assert PoseTools.compare_conf_json_lbl(conf, conf_lbl,dt_params,net_type), 'Stripped label based conf and json based conf do not match!!'
     return conf
 
 
@@ -1463,7 +1632,6 @@ def show_crops(im, all_data, roi, extra_roi, conf):
 
 def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
     # TODO: Maybe merge this with db_from_trnpack??
-    lbl = h5py.File(conf.labelfile, 'r')
     occ_as_nan = conf.get('ignore_occluded', False)
     T = PoseTools.json_load(conf.json_trn_file)
     nfrms = len(T['locdata'])
@@ -1541,7 +1709,6 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 logging.info('{} number of examples added to the dbs'.format(count))
 
     logging.info('{} number of examples added to the training dbs'.format(count))
-    lbl.close()
 
     return splits, sel
 
@@ -1562,7 +1729,6 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
     # the function returns a list of [expid, frame_number and trxid] showing
     #  how the data was split between the two datasets.
 
-    lbl = h5py.File(conf.labelfile, 'r')
     occ_as_nan = conf.get('ignore_occluded', False)
     T = PoseTools.json_load(conf.json_trn_file)
     nfrms = len(T['locdata'])
@@ -1646,7 +1812,6 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
             logging.info('{} number of examples added to the dbs'.format(count))
 
     logging.info('{} number of examples added to the training dbs'.format(count))
-    lbl.close()
 
     return splits, sel
 
@@ -1677,6 +1842,13 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
     :return:
     '''
     assert not (on_gt and split), 'Cannot split gt data'
+
+    if conf.labelfile.endswith('.json'):
+        if conf.use_ht_trx or conf.use_bbox_trx:
+            return db_from_trnpack_ht(conf, out_fns, nsamples=nsamples, val_split=trnpack_val_split)
+        else:
+            return db_from_trnpack(conf, out_fns, nsamples=nsamples, val_split=trnpack_val_split)
+
 
     lbl = h5py.File(conf.labelfile, 'r')
     if not ( ('preProcData_MD_mov' in lbl.keys()) or ('gtcache' in lbl.keys() and 'preProcData_MD_mov' in lbl['gtcache'])):
@@ -4253,10 +4425,12 @@ def check_args(args,nviews):
         args.out_files = reshape(args.out_files)
 
 
-def run(args):
-    name = args.name
-
+def get_num_views(args):
     lbl_file = args.lbl_file
+    if lbl_file.endswith('.json'):
+        H = PoseTools.json_load(lbl_file)
+        return H['Config']['NumViews']
+
     try:
         try:
             H = loadmat(lbl_file)
@@ -4266,10 +4440,14 @@ def run(args):
     except TypeError as e:
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
         exit(1)
-
     # raise ValueError('I am an error')
-
     nviews = int(read_entry(H['cfg']['NumViews']))
+    return nviews
+
+def run(args):
+    name = args.name
+
+    nviews = get_num_views(args)
     view = args.view
     if view is None:
         views = range(nviews)
@@ -4387,25 +4565,23 @@ def main(argv):
     logging.info('Git Commit: {}'.format(repo_info))
     logging.info('Args: {}'.format(argv))
 
+    # import copy
+    # j_args = copy.deepcopy(args)
+    # j_args.lbl_file = j_args.lbl_file.replace('.lbl','.json')
+    # j_args.name += '_json'
+    # if j_args.sub_name =='track':
+    #     j_args.out_files = [a.replace('.trk','_json.trk') for a in j_args.out_files]
+
     if args.no_except:
         run(args)
     else:
         try:
+            # run(j_args)
             run(args)
         except Exception as e:
             logging.exception('UNKNOWN: APT_interface errored')
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
 
-# Legacy Code
-#
-# def train_unet_nodataset(conf, args, restore):
-#     ''' O'''
-#     if not args.skip_db:
-#         create_tfrecord(conf, False, use_cache=args.use_cache)
-#     tf.reset_default_graph()
-#     self = PoseUNet.PoseUNet(conf, name='deepnet')
-#     self.train_data_name = 'traindata'
-#     self.train_unet(restore=restore, train_type=1)
+    main(sys.argv[1:])
