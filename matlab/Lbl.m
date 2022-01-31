@@ -102,6 +102,7 @@ classdef Lbl
       
       j = struct();
       j.ProjName = s.projname;
+      j.ProjectFile = s.projectFile;
       j.Config = cfg;
       j.MovieInfo = mia(1,:);
       if cfg.HasCrops

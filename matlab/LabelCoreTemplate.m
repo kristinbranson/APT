@@ -336,22 +336,16 @@ classdef LabelCoreTemplate < LabelCore
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
       if ~tfShift
-        tf = obj.anyPointSelected();
-        if tf
-          iPt = get(src,'UserData');
-          obj.toggleSelectPoint(iPt);
-          % none
-        else
-          % prepare for click-drag of pt
-          
-          if obj.state==LabelState.ACCEPTED
-            % KB 20181029
-            %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
-          end
-          iPt = get(src,'UserData');
-          obj.iPtMove = iPt;
-          obj.tfMoved = false;
+        iPt = get(src,'UserData');
+        obj.toggleSelectPoint(iPt);
+        % prepare for click-drag of pt
+        
+        if obj.state==LabelState.ACCEPTED
+          % KB 20181029
+          %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
         end
+        obj.iPtMove = iPt;
+        obj.tfMoved = false;
       else
         iPt = get(src,'UserData');
         obj.toggleEstOccPoint(iPt);

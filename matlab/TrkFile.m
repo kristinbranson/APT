@@ -978,17 +978,22 @@ classdef TrkFile < dynamicprops
         return;
       end
       
-      ptrkI = obj.pTrk{iTlt};
-      npts = size(ptrkI,1);
-      nfrm = obj.nframes;
-      %nfrm = size(obj.frm2tlt,1);
-      xy = nan(npts,2,nfrm);
-      occ = false(npts,nfrm);
-      f0 = obj.startframes(iTlt);
-      f1 = obj.endframes(iTlt);
-      idx = f0:f1;
-      xy(:,:,idx) = ptrkI;
-      occ(:,idx) = obj.pTrkTag{iTlt};
+      if obj.isfull
+        xy = obj.pTrk(:,:,:,iTlt);
+        occ = obj.pTrkTag(:,:,iTlt);
+      else
+        ptrkI = obj.pTrk{iTlt};
+        npts = size(ptrkI,1);
+        nfrm = obj.nframes;
+        %nfrm = size(obj.frm2tlt,1);
+        xy = nan(npts,2,nfrm);
+        occ = false(npts,nfrm);
+        f0 = obj.startframes(iTlt);
+        f1 = obj.endframes(iTlt);
+        idx = f0:f1;
+        xy(:,:,idx) = ptrkI;
+        occ(:,idx) = obj.pTrkTag{iTlt};
+      end
     end
     
     function xyaux = getPAuxTgt(obj,iTlt,ptrkfld,varargin)

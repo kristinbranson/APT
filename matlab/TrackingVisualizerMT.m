@@ -146,10 +146,9 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       if postload
         ptclrspppi = obj.ptClrs;
       else
-        ptclrs = obj.lObj.LabelPointColors;
-        %ptclrs = brighten(ptclrs,TrackingVisualizerMT.CMAP_DARKEN_BETA);
-        obj.ptClrs = ptclrs;
-        obj.txtOffPx = pppi.TextOffset;
+        ptclrs = obj.lObj.Set2PointColors(pppi.Colors);
+        obj.ptClrs = ptclrs; % .ptClrs field now prob unnec
+        obj.txtOffPx = pppi.TextOffset; % .txtOffPx now prob unnec
       end
       szassert(ptclrs,[npts 3]);      
 
