@@ -798,6 +798,7 @@ classdef testAPT < handle
           testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
           testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
           testObj.test_train(...
             'net_type',iTracker,...
             'niters',TRNITERS,...
@@ -837,6 +838,7 @@ classdef testAPT < handle
           testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
           testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
           testObj.test_track(...
             'net_type',iTracker,...
             'block',true ...
@@ -852,6 +854,7 @@ classdef testAPT < handle
           testObj = testAPT('name',name);
           testObj.test_full('backend',be);            
           testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
           
         case 'hello'
           disp('hello!');
