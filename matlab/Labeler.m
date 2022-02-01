@@ -6168,14 +6168,38 @@ classdef Labeler < handle
       % tblMFT: table with fields .mov, .frm, .iTgt, .p, .tfocc. tblFT.mov are 
       % movie full-paths and they must match entries in 
       % obj.movieFilesAllFullGTaware *exactly*. 
-      % For multiview projects, tblFT.mov must match 
-      % obj.movieFilesAllFullGTaware(:,1).
+      %
+      % For multiview projects, rows of tblFT.mov are matched against rows 
+      % of obj.movieFilesAllFullGTaware.
+      %
+      % Legacy multiview behavior, still supported for now: tblFT.mov is a 
+      % column vector and is matched against obj.movieFilesAllFullGTaware(:,1).
       
       movs = tblMFT.mov;
-      mfaf1 = obj.movieFilesAllFullGTaware(:,1);
-      [tf,iMov] = ismember(movs,mfaf1); % iMov are movie indices
+      movwidth = size(movs,2);
+      nvw = obj.nview;
+      mfaf = obj.movieFilesAllFullGTaware;
+      if movwidth ~= nvw;
+        if movwidth==1
+          % legacy
+          warningNoTrace('Legacy API: matching view1 movies only.');
+          [tf,iMov] = ismember(movs,mfaf(:,1)); % iMov are movie indices          
+        else
+          error('The number of columns of .mov (%d) does not match the number of views in the project (%d)',...
+            movwidth,nvw);
+        end
+      else
+        movsID = movs(:,1);
+        mfafID = mfaf(:,1);
+        for ivw=2:nvw
+          movsID = strcat(movsID,'#',movs(:,ivw));
+          mfafID = strcat(mfafID,'#',mfaf(:,ivw));
+        end
+        [tf,iMov] = ismember(movsID,mfafID);
+      end
+      
       if ~all(tf)
-        movsbad = unique(movs(~tf));
+        movsbad = unique(movs(~tf,:));
         error('Movies not found in project: %s',...
           String.cellstr2CommaSepList(movsbad));
       end
