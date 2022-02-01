@@ -7727,6 +7727,29 @@ classdef Labeler < handle
       end      
     end
     
+%     function updateSkeletonCosmetics(obj,skelSpecs)
+%       for i=1:numel(skelSpecs)
+%         s = skelSpecs(i);
+%         lsetType = s.landmarkSetType;
+%         lObjUpdateMeth = lsetType.updateCosmeticsLabelerMethod();
+%         obj.(lObjUpdateMeth)(s.MarkerProps,s.TextProps,s.TextOffset);
+%       end
+%     end
+  
+    function updateSkeletonImportedCosmetics(obj,sPV)
+      % sPV: struct with PVs, eg 
+      % sPV.LineWidth
+      % sPV.color: [1 3]
+      
+      s = structoverlay(obj.impPointsPlotInfo.SkeletonProps,sPV);
+      obj.impPointsPlotInfo.SkeletonProps = s;
+      
+      lpos2tv = obj.labeledpos2trkViz;
+      if ~isempty(lpos2tv)        
+        lpos2tv.setSkeletonCosmetics(s);
+      end
+    end
+    
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
        [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
         pvMarker,pvText,textOffset,'impPointsPlotInfo');      
@@ -12326,8 +12349,15 @@ classdef Labeler < handle
       
       if obj.maIsMA
         tv = TrackingVisualizerTracklets(obj,ptsPlotInfoFld,gfxTagPfix);
-      else        
-        tv = TrackingVisualizerMTFast(obj,ptsPlotInfoFld,gfxTagPfix);
+      elseif obj.hasTrx
+        tfadvanced = RC.getpropdefault('optimizeImportedViz',false);
+        if tfadvanced
+          tv = TrackingVisualizerMTFast(obj,ptsPlotInfoFld,gfxTagPfix);
+        else
+          tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
+        end
+      else
+        tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
       end
     end
   end
@@ -14971,7 +15001,7 @@ classdef Labeler < handle
       if setlbls
         iMov = obj.currMovie;
         frm = obj.currFrame;
-        if obj.maIsMA
+        if obj.maIsMA || obj.hasTrx
           tv.newFrame(frm);
         else
           %ntgts = obj.nTargets;

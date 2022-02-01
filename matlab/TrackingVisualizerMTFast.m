@@ -138,10 +138,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
 %       obj.hPredTxt = [];
       deleteValidHandles(obj.hSkel);
       obj.hSkel = [];
-      deleteValidHandles(obj.hPch);
-      obj.hPch = [];
-      deleteValidHandles(obj.hPchTxt);
-      obj.hPchTxt = [];
+%       deleteValidHandles(obj.hPch);
+%       obj.hPch = [];
+%       deleteValidHandles(obj.hPchTxt);
+%       obj.hPchTxt = [];
     end
       
     function delete(obj)
@@ -175,9 +175,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       szassert(ptclrs,[npts 3]);      
 
       % init .xyVizPlotArgs*
-      [markerPVs,textPVs,pchTextPVs] = obj.convertLabelerCosmeticPVs(pppi);
+      [markerPVs,textPVs,pchTextPVs,skelPVs] = obj.convertLabelerCosmeticPVs(pppi);
       markerPVscell = struct2paramscell(markerPVs);
-      textPVscell = struct2paramscell(textPVs);
+      %textPVscell = struct2paramscell(textPVs);
+      skelPVs = struct2paramscell(skelPVs);
             
       ax = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),ax);
@@ -192,6 +193,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         %ptset = ipt2set(ipt);
         hTmp(ipt) = plot(ax(ivw),nan,nan,markerPVscell{:},...
           'Color',clr,...
+          'LineStyle','none',...
           'Tag',sprintf('%s_pred_%d',pfix,ipt));
 %         hTxt(iPt,iTgt) = text(nan,nan,num2str(ptset),...
 %           'Parent',ax(iVw),...
@@ -204,15 +206,14 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       nvw = obj.lObj.nview;
       obj.hSkel = gobjects(1,nvw);
       
-      skelClr = obj.skelEdgeColor;
+      %skelClr = obj.skelEdgeColor;
       for ivw=1:nvw
           ax = ax(ivw);
           % cf LabelCore.initSkeletonEdge
           obj.hSkel(ivw) = plot(ax,nan,nan,'-',...
-            'Color',skelClr,...
             'PickableParts','none',...
             'Tag',sprintf('TrackingVisualizerMTFast_Skel'),...
-            'LineWidth',pppi.SkeletonProps.LineWidth);           
+            skelPVs{:});
       end
 
       assert(~obj.doPch);
@@ -259,8 +260,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         xy = xy(:,:,tf);
       end
       
-      se = obj.sedges; % kx2  [e1pt1 e1pt2; e2pt1 e2pt2; ...; ekpt1 ekpt2]
-      k = size(se,2);
+      se = obj.skelEdges; % kx2  [e1pt1 e1pt2; e2pt1 e2pt2; ...; ekpt1 ekpt2]
+      k = size(se,1);
       npt = obj.nPts;
       ntgtshow = size(xy,3);
       
@@ -315,14 +316,14 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       obj.setShowOnlyPrimary(true);
     end
     function setShowOnlyPrimary(obj,tf)
-      obj.showOnlyPrimary = tf;
+      obj.tfShowOnlyPrimary = tf;
       obj.updateShowHideAll();      
     end
     function setAllShowHide(obj,tfHide,tfHideTxt,tfShowCurrTgtOnly,tfShowSkel)
       obj.tfHideViz = tfHide;
       obj.tfHideTxt = tfHideTxt;
       obj.tfShowSkel = tfShowSkel;
-      obj.showOnlyPrimary = tfShowCurrTgtOnly;
+      obj.tfShowOnlyPrimary = tfShowCurrTgtOnly;
       obj.updateShowHideAll();      
     end
     function updateShowHideAll(obj)
@@ -473,6 +474,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       
       obj.updateTrackRes(xy,[]);
     end
+    
+    function setSkeletonCosmetics(obj,pvargs)
+      set(obj.hSkel,pvargs);
+    end
 %     function cbkPchTextBDF(obj,s,e)
 %       iTgt = s.UserData;
 %       % lObj was supposed to be used as minimally as possible to access
@@ -482,12 +487,14 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
   end
   
   methods (Static)
-    function [markerPVs,textPVs,pchTextPVs] = convertLabelerCosmeticPVs(pppi)
+    function [markerPVs,textPVs,pchTextPVs,skelPVs] = ...
+                                      convertLabelerCosmeticPVs(pppi)
       % convert .ptsPlotInfo from labeler to that used by this obj
 
       markerPVs = TrackingVisualizerMTFast.convertLabelerMarkerPVs(pppi.MarkerProps);
       textPVs = TrackingVisualizerMTFast.convertLabelerTextPVs(pppi.TextProps);
       pchTextPVs = struct('FontSize',round(textPVs.FontSize*2.0));
+      skelPVs = pppi.SkeletonProps;
     end
     function markerPVs = convertLabelerMarkerPVs(markerPVs)
       %sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;

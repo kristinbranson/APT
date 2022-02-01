@@ -194,6 +194,9 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     function setHideTextLbls(obj,tf)
       obj.tvmt.setHideTextLbls(tf);
     end
+    function setSkeletonCosmetics(obj,pvargs)
+      obj.tvmt.setSkeletonCosmetics(pvargs);
+    end
 %     function setHideTrajTextLbls(obj,tf)
 %       obj.tvtrx.setHideTextLbls(tf);
 %     end

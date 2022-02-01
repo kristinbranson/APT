@@ -582,6 +582,9 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       
       obj.updateTrackRes(xy,[]);
     end
+    function setSkeletonCosmetics(obj,pvargs)
+      set(obj.hSkel,pvargs);
+    end
     function cbkPchTextBDF(obj,s,e)
       iTgt = s.UserData;
       % lObj was supposed to be used as minimally as possible to access
