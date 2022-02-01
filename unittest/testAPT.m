@@ -263,7 +263,7 @@ classdef testAPT < handle
         info.npts = nan;
         info.has_trx = false;
         info.proj_name = 'test';
-        info.sz = [];
+        info.sz = 150;
         info.bundle_link = '';
         info.op_graph = [];   
         
@@ -274,7 +274,7 @@ classdef testAPT < handle
         info.npts = nan;
         info.has_trx = true;
         info.proj_name = 'test';
-        info.sz = [];
+        info.sz = 90;
         info.bundle_link = '';
         info.op_graph = [];   
         
@@ -285,7 +285,7 @@ classdef testAPT < handle
         info.npts = nan;
         info.has_trx = true;
         info.proj_name = 'test';
-        info.sz = [];
+        info.sz = 90;
         info.bundle_link = '';
         info.op_graph = [];   
         
