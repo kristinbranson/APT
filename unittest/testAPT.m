@@ -263,7 +263,7 @@ classdef testAPT < handle
         info.npts = nan;
         info.has_trx = false;
         info.proj_name = 'test';
-        info.sz = [];
+        info.sz = 150;
         info.bundle_link = '';
         info.op_graph = [];   
         
@@ -274,7 +274,7 @@ classdef testAPT < handle
         info.npts = nan;
         info.has_trx = true;
         info.proj_name = 'test';
-        info.sz = [];
+        info.sz = 90;
         info.bundle_link = '';
         info.op_graph = [];   
         
@@ -285,7 +285,7 @@ classdef testAPT < handle
         info.npts = nan;
         info.has_trx = true;
         info.proj_name = 'test';
-        info.sz = [];
+        info.sz = 90;
         info.bundle_link = '';
         info.op_graph = [];   
         
@@ -798,6 +798,7 @@ classdef testAPT < handle
           testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
           testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
           testObj.test_train(...
             'net_type',iTracker,...
             'niters',TRNITERS,...
@@ -837,6 +838,7 @@ classdef testAPT < handle
           testObj = testAPT('name',name);
           testObj.test_setup('simpleprojload',1);
           testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
           testObj.test_track(...
             'net_type',iTracker,...
             'block',true ...
@@ -852,6 +854,7 @@ classdef testAPT < handle
           testObj = testAPT('name',name);
           testObj.test_full('backend',be);            
           testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
           
         case 'hello'
           disp('hello!');
