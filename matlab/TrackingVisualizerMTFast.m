@@ -1,6 +1,5 @@
 classdef TrackingVisualizerMTFast < TrackingVisualizerBase
 
-  % XXX TODO: txt lbls
   % XXX TODO: occ mrkrs
   % xxx todo: primary skel/hPred?
   
@@ -48,8 +47,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
                % frame. hPred(ipt) shows landmark ipt across all 
                % targets, primary or otherwise (so these cannot have 
                % different cosmetics)
-    
-    %hPredTxt; % [nPts] handle vec, text labels for hPred
+    hPredTxt; % [nPts] handle vec, text labels for hPred
+              % currently showing only for primary
     
     % Could have hSkelPrimary and hSkelOther
     hSkel   % [1xnview] skeleton line handle (all edges/tgts)
@@ -134,8 +133,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         deleteValidHandles(obj.hPred);
         obj.hPred = [];
       end
-%       deleteValidHandles(obj.hPredTxt);
-%       obj.hPredTxt = [];
+      deleteValidHandles(obj.hPredTxt);
+      obj.hPredTxt = [];
       deleteValidHandles(obj.hSkel);
       obj.hSkel = [];
 %       deleteValidHandles(obj.hPch);
@@ -177,31 +176,31 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % init .xyVizPlotArgs*
       [markerPVs,textPVs,pchTextPVs,skelPVs] = obj.convertLabelerCosmeticPVs(pppi);
       markerPVscell = struct2paramscell(markerPVs);
-      %textPVscell = struct2paramscell(textPVs);
+      textPVscell = struct2paramscell(textPVs);
       skelPVs = struct2paramscell(skelPVs);
             
       ax = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),ax);
       ipt2View = obj.ipt2vw;
-      %ipt2set = obj.lObj.labeledposIPt2Set;
+      ipt2set = obj.lObj.labeledposIPt2Set;
       hTmp = gobjects(npts,1);
-      %hTxt = gobjects(npts,ntgts);
+      hTxt = gobjects(npts,1);
       pfix = obj.handleTagPfix;
       for ipt = 1:npts
         clr = ptclrs(ipt,:);
         ivw = ipt2View(ipt);
-        %ptset = ipt2set(ipt);
+        ptset = ipt2set(ipt);
         hTmp(ipt) = plot(ax(ivw),nan,nan,markerPVscell{:},...
           'Color',clr,...
           'LineStyle','none',...
           'Tag',sprintf('%s_pred_%d',pfix,ipt));
-%         hTxt(iPt,iTgt) = text(nan,nan,num2str(ptset),...
-%           'Parent',ax(iVw),...
-%           'Color',clr,textPVscell{:},...
-%           'Tag',sprintf('%s_PrdRedTxt_%d_%d',pfix,iPt,iTgt));
+        hTxt(ipt) = text(nan,nan,num2str(ptset),...
+          'Parent',ax(ivw),...
+          'Color',clr,textPVscell{:},...
+          'Tag',sprintf('%s_PrdRedTxt_%d',pfix,ipt));
       end
       obj.hPred = hTmp;
-      %obj.hPredTxt = hTxt;
+      obj.hPredTxt = hTxt;
 
       nvw = obj.lObj.nview;
       obj.hSkel = gobjects(1,nvw);
@@ -327,16 +326,14 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       obj.updateShowHideAll();      
     end
     function updateShowHideAll(obj)
-
-      %onoffTxt = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
       
       if ~isempty(obj.hPred) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
         onoffViz = onIff(~obj.tfHideViz);
-        set(obj.hPred,'Visible',onoffViz);
-        %[obj.hPred.Visible] = deal(onoffViz);
-%         [obj.hPredTxt(:,tfTgtOnHideAffected).Visible] = deal(onoffTxt);
-%         [obj.hPredTxt(:,~tfTgtOnHideAffected).Visible] = deal('off');
+        set(obj.hPred,'Visible',onoffViz);        
+        onoffTxt = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
+        set(obj.hPredTxt,'Visible',onoffTxt);
         obj.updatePreds();
+        obj.updatePredsTxt();
       end
       
       if ~isempty(obj.hSkel)
@@ -374,6 +371,35 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         set(h(ipt),'XData',xdata(:),'YData',ydata(:));
       end
     end
+    function updatePredsTxt(obj)
+      % set obj.hPredTxt .XData, .YData appropriately per .xyCurr,
+      % .xyCurrITgts, and .tfShowOnlyPrimary
+      %
+      % effect of .tfHideViz/.tfHideTxt is controlled via 
+      % updateShowHideAll() and 'Visible' prop of .hPredTxt.
+      %
+      % Currently only shows txt for primary target. If there isn't a
+      % primary target nothing is shown!!
+      
+      if obj.tfHideViz || obj.tfHideTxt
+        return;
+      end
+      
+      if isempty(obj.iTgtPrimary) || isnan(obj.iTgtPrimary)
+        set(obj.hPredTxt,'Position',[nan nan]);
+      else
+        tf = obj.iTgtPrimary==obj.xyCurrITgts;
+        xy = obj.xyCurr; % [npt x 2 x ntgt]
+        xy = xy(:,:,tf);
+        xypos = xy + obj.txtOffPx;
+        h = obj.hPredTxt;
+        npt = obj.nPts;
+        for ipt=1:npt
+          pos = xypos(ipt,:,1); % 3rd dim should be 1 anyway; to be safe take first
+          set(h(ipt),'Position',pos(:)');
+        end
+      end
+    end
 %     function updateTrackResI(obj,xy,tfeo,iTgt)
 %     end
     function updateTrackRes(obj,xy,tfeo,xyITgts)
@@ -394,6 +420,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       obj.occCurr = tfeo;
       obj.xyCurrITgts = xyITgts;      
       obj.updatePreds();
+      obj.updatePredsTxt();
       obj.updateSkel();      
     end
     function newFrame(obj,frm)
@@ -430,7 +457,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       for iPt=1:npts
         clr = ptsClrs(iPt,:);
         set(obj.hPred(iPt),'Color',clr);
-        %set(obj.hPredTxt(iPt,:),'Color',clr);
+        set(obj.hPredTxt(iPt),'Color',clr);
       end
       %obj.ptClrs = ptsClrs;
     end
@@ -445,8 +472,6 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
     end
     function setTextCosmetics(obj,pvargs)
-      warningNoTrace('TODO');
-      return;
       if isstruct(pvargs)
         pvargs = obj.convertLabelerTextPVs(pvargs);
         arrayfun(@(x)set(x,pvargs),obj.hPredTxt);        
@@ -456,23 +481,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
     end
     function setTextOffset(obj,offsetPx)
-      warningNoTrace('TODO');
-      return;
-      
       obj.txtOffPx = offsetPx; 
-      
-      npts = obj.nPts;
-      ntgts = obj.nTgts;
-      
-      h = obj.hPred;
-      x = get(h,'XData');
-      y = get(h,'YData');
-      x = reshape(cell2mat(x(:)),[npts 1 ntgts]);
-      y = reshape(cell2mat(y(:)),[npts 1 ntgts]);
-      xy = cat(2,x,y);
-      szassert(xy,[npts 2 ntgts]);
-      
-      obj.updateTrackRes(xy,[]);
+      obj.updatePredsTxt();
     end
     
     function setSkeletonCosmetics(obj,pvargs)
