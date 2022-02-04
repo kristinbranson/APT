@@ -1555,8 +1555,8 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
     confd.rrange = 180.
   confd.trange = min(conf.imsz) / 15
   # no flipping business for id
-  confd.horzFlip = False
-  confd.vertFlip = False
+  confd.horz_flip = False
+  confd.vert_flip = False
   confd.scale_factor_range = 1.1
   confd.brange = [-0.05, 0.05]
   confd.crange = [0.95, 1.05]

@@ -640,8 +640,9 @@ classdef TrkFile < dynamicprops
       itgtsun = unique(cat(2,itgtsAll{:}));
       itgtmax = max(itgtsun);
       cls = class(obj.startframes);
-      itgt2spep = [intmax(cls)*ones(1,itgtmax,cls);...
-                   intmin(cls)*ones(1,itgtmax,cls)]; % rows: sf, ef
+      itgt2spep = [intmax('int64')*ones(1,itgtmax,'int64');...
+                   intmin('int64')*ones(1,itgtmax,'int64')]; % rows: sf, ef
+      itgt2spep = eval(sprintf('%s(itgt2spep)',cls));
       for iobj=1:nobj
         o = allobjs{iobj};
         itgtsI = o.pTrkiTgt;

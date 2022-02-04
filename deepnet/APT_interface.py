@@ -1020,7 +1020,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.nviews = cc['NumViews']
     conf.n_classes = cc['NumLabelPoints']
     conf.selpts = np.arange(conf.n_classes)
-    conf.project_file = ''  ## TODO
+    conf.project_file = A['ProjectFile']
     conf.is_multi = cc['MultiAnimal'] > 0.5
     conf.img_dim = cc['NumChans']
     has_crops = cc['HasCrops']
