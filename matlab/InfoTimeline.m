@@ -437,10 +437,14 @@ classdef InfoTimeline < handle
       obj.setLabelsFull();
     end
     
-    function setLabelsFull(obj)
+    function setLabelsFull(obj,runinit)
       % Get data and set .hPts, .hMarked
       
-      if isnan(obj.npts) || obj.lObj.isinit, return; end
+      if nargin < 2,
+        runinit = false;
+      end
+      
+      if isnan(obj.npts) || (~runinit && obj.lObj.isinit), return; end
       
       dat = obj.getDataCurrMovTgt(); % [nptsxnfrm]
       dat(isinf(dat)) = nan;
@@ -833,8 +837,14 @@ classdef InfoTimeline < handle
         % Navigate to clicked frame
         
         pos = get(src,'CurrentPoint');
+        if obj.lObj.hasTrx,
+          [sf,ef] = obj.lObj.trxGetFrameLimits();
+        else
+          sf = 1;
+          ef = obj.nfrm;
+        end
         frm = round(pos(1,1));
-        frm = min(max(frm,1),obj.nfrm);
+        frm = min(max(frm,sf),ef);
         obj.lObj.setFrame(frm);
       end
     end
@@ -1058,7 +1068,7 @@ classdef InfoTimeline < handle
             % the trackers are not updated (via
             % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
             % call which leads here.
-            if isvalid(obj.tracker)
+            if ~isempty(obj.tracker) && isvalid(obj.tracker)
               data = obj.tracker.getPropValues(pcode);
             else
               data = nan(obj.npts,1);

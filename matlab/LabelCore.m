@@ -109,6 +109,8 @@ classdef LabelCore < handle
       switch labelMode
         case LabelMode.SEQUENTIAL
           obj = LabelCoreSeq(labelerObj);
+        case LabelMode.SEQUENTIALADD
+          obj = LabelCoreSeqAdd(labelerObj);
         case LabelMode.TEMPLATE
           obj = LabelCoreTemplate(labelerObj);
         case LabelMode.HIGHTHROUGHPUT
@@ -121,6 +123,8 @@ classdef LabelCore < handle
           obj = LabelCoreMultiViewCalibrated2(labelerObj);
         case LabelMode.MULTIANIMAL
           obj = LabelCoreSeqMA(labelerObj);
+        otherwise
+          error('Unknown label mode %s',str(labelMode));
       end
       
     end
@@ -229,6 +233,7 @@ classdef LabelCore < handle
           'Tag',sprintf('LabelCore_Pts_%d',i));
       end
             
+      arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPtsOcc);
       set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
       
       obj.showOccHook();

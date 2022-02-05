@@ -1,5 +1,5 @@
-classdef LabelCoreSeq < LabelCore
-% Sequential labeling  
+classdef LabelCoreSeqAdd < LabelCoreSeq
+% Sequential adding of new landmarks
   
   % Label mode 1 (Sequential)
   %
@@ -26,17 +26,10 @@ classdef LabelCoreSeq < LabelCore
   %
   % Occluded. In the 'label' state, clicking in the full-occluded subaxis
   % sets the current point to be fully occluded. 
-  
+          
   properties
-    supportsSingleView = true;
-    supportsMultiView = false;
-    supportsCalibration = false;
-    supportsMultiAnimal = false;
-  end
-        
-  properties
-    iPtMove; % scalar. Either nan, or index of pt being moved
-    nPtsLabeled; % scalar integer. 0..nPts, or inf.
+    nadd; % number of landmarks being added
+    nold; % number of landmarks to leave frozen
 
     % Templatemode-like behavior in 'adjust' and 'accepted' stages
     % moved to parent class
@@ -47,15 +40,24 @@ classdef LabelCoreSeq < LabelCore
     
   methods
     
-    function obj = LabelCoreSeq(varargin)
-      obj = obj@LabelCore(varargin{:});
+    function obj = LabelCoreSeqAdd(varargin)
+      obj = obj@LabelCoreSeq(varargin{:});
       set(obj.tbAccept,'Enable','off');
     end
     
     function initHook(obj)
+      obj.nadd = obj.labeler.nLabelPointsAdd;
+      obj.nold = obj.nPts-obj.nadd;
       obj.txLblCoreAux.Visible = 'on';
-      obj.kpfIPtFor1Key = 1;
+      obj.kpfIPtFor1Key = obj.nold+1;
       obj.refreshTxLabelCoreAux();
+      
+      % points that were labeled in the past should not be selectable,
+      % movable
+      arrayfun(@(x)set(x,'HitTest','off','ButtonDownFcn',''),obj.hPts(1:obj.nold));
+      if ~isempty(obj.hPtsOcc),
+        arrayfun(@(x)set(x,'HitTest','off','ButtonDownFcn',''),obj.hPtsOcc(1:obj.nold));
+      end
       
       % AL 20190203 semi-hack. init to something/anything to avoid error 
       % with .state unset. Did the same with LabelCoreTemplate. A little
@@ -323,7 +325,7 @@ classdef LabelCoreSeq < LabelCore
       elseif strcmp(key,'backquote')
         iPt = obj.kpfIPtFor1Key+10;
         if iPt>obj.nPts
-          iPt = 1;
+          iPt = obj.nold+1;
         end
         obj.kpfIPtFor1Key = iPt;
       elseif any(strcmp(key,{'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
@@ -333,7 +335,7 @@ classdef LabelCoreSeq < LabelCore
             iPt = 10;
           end
           iPt = iPt+obj.kpfIPtFor1Key-1;
-          if iPt>obj.nPts
+          if iPt>obj.nPts || iPt <= obj.nold
             return;
           end
           %obj.clearSelected(iPt);
@@ -361,33 +363,33 @@ classdef LabelCoreSeq < LabelCore
       % labels.
       
       %ticinfo = tic;
-      [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
-      %fprintf('LabelCoreSeq.newFrameTarget 1: %f\n',toc(ticinfo));ticinfo = tic;
-      if tflabeled
-        obj.nPtsLabeled = obj.nPts;
-        obj.assignLabelCoords(lpos,'lblTags',lpostag);
-        %fprintf('LabelCoreSeq.newFrameTarget 2: %f\n',toc(ticinfo));ticinfo = tic;
-        obj.iPtMove = nan;
-        obj.beginAccepted(false); % Could possibly just call with true arg
-        %fprintf('LabelCoreSeq.newFrameTarget 3: %f\n',toc(ticinfo));ticinfo = tic;
+      [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsPtLabeled(iFrm,iTgt);
+      obj.nPtsLabeled = nnz(tflabeled);
+      
+      obj.assignLabelCoords(lpos,'lblTags',lpostag);
+      obj.iPtMove = nan;
+      
+      if obj.nPtsLabeled < obj.nold,
+        obj.beginAccepted(false);
+      elseif obj.nPtsLabeled == obj.nold,
+        obj.beginAdd(lpos,false);
       else
-        obj.beginLabel(false);
+        obj.beginAccepted(false);
       end
-      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));
     end
     
-    function beginLabel(obj,tfClearLabels)
+    function beginAdd(obj,lpos,tfClearLabels)
       % Enter Label state and clear all mode1 label state for current
       % frame/target
       
       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
         'String','Unlabeled','Enable','off','Value',0);
-      obj.assignLabelCoords(nan(obj.nPts,2));
-      obj.nPtsLabeled = 0;
+      obj.assignLabelCoords(lpos);
+      obj.nPtsLabeled = obj.nold;
       obj.iPtMove = nan;
-      obj.tfOcc(:) = false;
-      obj.tfEstOcc(:) = false;
-      obj.tfSel(:) = false;
+      obj.tfOcc(obj.nold+1:end) = false;
+      obj.tfEstOcc(obj.nold+1:end) = false;
+      obj.tfSel(obj.nold+1:end) = false;
       set(obj.hPts(ishandle(obj.hPts)),'HitTest','off');
       if tfClearLabels
         obj.labeler.labelPosClear();
@@ -423,7 +425,8 @@ classdef LabelCoreSeq < LabelCore
       end
       % KB 20181029: moved this here from beginAdjust as I remove adjust
       % mode
-      set(obj.hPts(ishandle(obj.hPts)),'HitTest','on');
+      hptsadd = obj.hPts(obj.nold+1:end);
+      set(hptsadd(ishandle(hptsadd)),'HitTest','on');
       obj.iPtMove = nan;
       obj.clearSelected();
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...

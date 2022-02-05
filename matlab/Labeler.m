@@ -391,6 +391,7 @@ classdef Labeler < handle
   properties (SetAccess=private)
     nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
     labelTemplate;
+    nLabelPointsAdd = 0; % scalar integer. This is set when projAddLandmarks is called
     
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views. init: C
@@ -2604,6 +2605,7 @@ classdef Labeler < handle
       % skeletonEdges and flipLandmarkMatches should not change
       
       obj.nLabelPoints = newnpts;
+      obj.nLabelPointsAdd = nadd + obj.nLabelPointsAdd;
       
       % reset colors to defaults
       obj.labelPointsPlotInfo.Colors = feval(obj.labelPointsPlotInfo.ColorMapName,newnphyspts);
@@ -2619,10 +2621,11 @@ classdef Labeler < handle
       
       % remake info timeline
       handles = guidata(obj.hFig);
-      handles.labelTLInfo.delete();
-      handles.labelTLInfo = InfoTimeline(obj,handles.axes_timeline_manual,...
-        handles.axes_timeline_islabeled);
+%      handles.labelTLInfo.delete();
+%       handles.labelTLInfo = InfoTimeline(obj,handles.axes_timeline_manual,...
+%         handles.axes_timeline_islabeled);
       handles.labelTLInfo.initNewProject();
+      handles.labelTLInfo.setLabelsFull(true);
       guidata(obj.hFig,handles);
       
       % clear tracking data
@@ -2654,6 +2657,7 @@ classdef Labeler < handle
       obj.preProcInit();
       obj.isinit = isinit0;
       obj.labelsUpdateNewFrame(true);
+      set(obj.gdata.menu_setup_sequential_add_mode,'Visible','on');
       %obj.labelingInit();
       
       
@@ -5723,6 +5727,14 @@ classdef Labeler < handle
       obj.tvTrx.init(true,numel(trx));
     end
        
+    function [sf,ef] = trxGetFrameLimits(obj)
+      % frm2trx(iFrm,iTgt) binary, whether target iTgt is alive at frame
+      % iFrm
+      iTgt = obj.currTarget;
+      sf = find(obj.frm2trx(:,iTgt),1);
+      ef = find(obj.frm2trx(:,iTgt),1,'last');
+    end
+    
     function tf = trxCheckFramesLive(obj,frms)
       % Check that current target is live for given frames
       %
@@ -6400,6 +6412,21 @@ classdef Labeler < handle
       lpos = reshape(p,[numel(p)/2 2]);
       lpostag = occ;
     end 
+    function [tfperpt,lpos,lpostag] = labelPosIsPtLabeled(obj,iFrm,iTrx)
+      % For current movie. Labeled includes fullyOccluded
+      %
+      % tf: scalar logical
+      % lpos: [nptsx2] xy coords for iFrm/iTrx
+      % lpostag: [npts] logical array 
+      
+      iMov = obj.currMovie;
+      PROPS = obj.gtGetSharedProps();
+      s = obj.(PROPS.LBL){iMov};
+      [tfperpt,p,occ] = Labels.isLabeledPerPtFT(s,iFrm,iTrx);
+      lpos = reshape(p,[numel(p)/2 2]);
+      lpostag = occ;
+    end 
+    
     function [iTgts] = labelPosIsLabeledFrm(obj,iFrm)
       % For current movie, find labeled targets in iFrm (if any)
       %
@@ -6597,6 +6624,10 @@ classdef Labeler < handle
       end
       obj.labeledposNeedsSave = true;
     end 
+    function labelPosSetIFullyOcc(obj,iPt)
+      xy = repmat(Labels.getFullyOccValue,[1,2]); % KB is this the right dimensionality??
+      obj.labelPosSetI(xy,iPt);
+    end
     
 %     function labelPosClearFramesI_Old(obj,frms,iPt)
 %       xy = nan(2,1);
