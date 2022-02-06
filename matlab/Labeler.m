@@ -6261,6 +6261,20 @@ classdef Labeler < handle
       end
     end
     
+    function labelPosClearPoints(obj,pts)
+      iMov = obj.currMovie;
+      iFrm = obj.currFrame;
+      iTgt = obj.currTarget;
+      
+      PROPS = obj.gtGetSharedProps();
+      s = obj.(PROPS.LBL){iMov};
+      [s,tfchanged] = Labels.rmFTP(s,iFrm,iTgt,pts);
+      if tfchanged,
+        obj.(PROPS.LBL){iMov} = s;
+        obj.labeledposNeedsSave = true;
+      end
+    end
+    
     function labelPosAddLandmarks(obj,new2oldpt)
       % for all movies, for both training labels and gt labels, add new
       % landmarks

@@ -42,7 +42,7 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
     
     function obj = LabelCoreSeqAdd(varargin)
       obj = obj@LabelCoreSeq(varargin{:});
-      set(obj.tbAccept,'Enable','off');
+      set(obj.tbAccept,'Enable','off','Style','pushbutton');
     end
     
     function initHook(obj)
@@ -80,7 +80,7 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
     end
     
     function clearLabels(obj)
-      obj.beginLabel(true);
+      obj.beginAdd([],true);
     end
     
     function acceptLabels(obj)
@@ -91,7 +91,60 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
     function unAcceptLabels(obj)
       % this doesn't do anything now
       %obj.beginAdjust();
+      fprintf('Next?\n');
+      [frm,tgt,mov] = obj.findUnlabeled();
+      if isempty(frm),
+        msgbox('No partially labeled frames found! You might be done!','Done adding landmarks','replace');
+        return;
+      end
+      if obj.labeler.currMovie ~= mov,
+        obj.labeler.movieSet(mov);
+      end
+      if obj.labeler.currTarget ~= tgt,
+        obj.labeler.setFrameAndTarget(frm,tgt);
+      else
+        obj.labeler.setFrame(frm);
+      end
     end
+    
+    function [frm,tgt,mov] = findUnlabeled(obj)
+      labels = obj.labeler.labelsGTaware();
+      currtgt = obj.labeler.currTarget;
+      currmov = obj.labeler.currMovie;
+      currfrm = obj.labeler.currFrame;
+      frms = Labels.isPartiallyLabeledT(labels{currmov},currtgt,obj.nold);
+      if ~isempty(frms),
+        i = find(frms > currfrm,1);
+        if isempty(i),
+          frm = frms(1);
+        else
+          frm = frms(i);
+        end
+        tgt = currtgt;
+        mov = currmov;
+        return;
+      end
+      [frms,tgts] = Labels.isPartiallyLabeledT(labels{currmov},nan,obj.nold);
+      if ~isempty(frms),
+        frm = frms(1);
+        tgt = tgts(1);
+        mov = currmov;
+        return;
+      end
+      for mov = 1:size(labels,1),
+        [frms,tgts] = Labels.isPartiallyLabeledT(labels{mov},nan,obj.nold);
+        if ~isempty(frms),
+          frm = frms(1);
+          tgt = tgts(1);
+          return;
+        end
+      end
+      frm = [];
+      tgt = [];
+      mov = [];
+    end
+    
+
     
     function axBDF(obj,src,evt) 
       if ~obj.labeler.isReady || evt.Button>1
@@ -161,7 +214,7 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
     function hlpAxBDFLabelState(obj,tfAxOcc,tfShift)
       
       % BDF in LabelState.LABEL. .tfOcc, .tfEstOcc, .tfSel start off as all
-      % false in beginLabel();
+      % false in beginAdd();
       
       nlbled = obj.nPtsLabeled;
       assert(nlbled<obj.nPts);
@@ -382,9 +435,11 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
       % Enter Label state and clear all mode1 label state for current
       % frame/target
       
-      set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','Unlabeled','Enable','off','Value',0);
-      obj.assignLabelCoords(lpos);
+      set(obj.tbAccept,'BackgroundColor',[0.0 0.0 0.4],...
+        'String','Adding','Enable','off','Value',0);
+      if ~isempty(lpos),
+        obj.assignLabelCoords(lpos);
+      end
       obj.nPtsLabeled = obj.nold;
       obj.iPtMove = nan;
       obj.tfOcc(obj.nold+1:end) = false;
@@ -392,28 +447,30 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
       obj.tfSel(obj.nold+1:end) = false;
       set(obj.hPts(ishandle(obj.hPts)),'HitTest','off');
       if tfClearLabels
-        obj.labeler.labelPosClear();
+        obj.labeler.labelPosClearPoints(obj.nold+1:obj.nPts);
+        [~,lpos,~] = obj.labeler.labelPosIsPtLabeled(obj.labeler.currFrame,obj.labeler.currTarget);
+        obj.assignLabelCoords(lpos);
       end
       obj.state = LabelState.LABEL;      
     end
     
-    function adjust2Label(obj)
-      % enter LABEL from ADJUST
-      set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','Unlabeled','Enable','off','Value',0);      
-      obj.iPtMove = nan;
-      obj.state = LabelState.LABEL;      
-    end      
-       
-    function beginAdjust(obj)
-      % Enter adjustment state for current frame/target
-      
-      assert(obj.nPtsLabeled==obj.nPts);
-      obj.iPtMove = nan;
-      set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
-        'Value',0,'Enable','off');
-      obj.state = LabelState.ADJUST;
-    end
+%     function adjust2Label(obj)
+%       % enter LABEL from ADJUST
+%       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
+%         'String','Unlabeled','Enable','off','Value',0);      
+%       obj.iPtMove = nan;
+%       obj.state = LabelState.LABEL;      
+%     end      
+%        
+%     function beginAdjust(obj)
+%       % Enter adjustment state for current frame/target
+%       
+%       assert(obj.nPtsLabeled==obj.nPts);
+%       obj.iPtMove = nan;
+%       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
+%         'Value',0,'Enable','off');
+%       obj.state = LabelState.ADJUST;
+%     end
     
     function beginAccepted(obj,tfSetLabelPos)
       % Enter accepted state (for current frame)
@@ -429,8 +486,8 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
       set(hptsadd(ishandle(hptsadd)),'HitTest','on');
       obj.iPtMove = nan;
       obj.clearSelected();
-      set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
-        'Value',1,'Enable','off');
+      set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Next',...
+        'Value',1,'Enable','on');
       obj.state = LabelState.ACCEPTED;
     end
     

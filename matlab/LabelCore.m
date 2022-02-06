@@ -148,6 +148,7 @@ classdef LabelCore < handle
       obj.tbAccept = gd.tbAccept;
       obj.pbClear = gd.pbClear;
       obj.txLblCoreAux = gd.txLblCoreAux;
+      set(obj.tbAccept,'Style','togglebutton');
     end
     
     function init(obj,nPts,ptsPlotInfo)
