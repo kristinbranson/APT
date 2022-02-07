@@ -116,6 +116,18 @@ classdef Labels
       s.p([ipt ipt+s.npts],i) = xy(:);
       s.ts(ipt,i) = now;
     end
+    function v = getFullyOccValue()
+      % v = Labels.getFullyOccValue()
+      % we use infinity to signify fully occluded
+      % added by KB 20220202
+      v = inf; 
+    end
+    function v = getUnlabeledValue()
+      % v = Labels.getUnlabeledValue()
+      % we use nan to signify that a point hasn't been labeled yet
+      % added by KB 20220202
+      v = nan; 
+    end
     function s = setoccFTI(s,frm,itgt,ipt)
       % ipt can be vector
       s = Labels.setoccvalFTI(s,frm,itgt,ipt,1);
@@ -155,6 +167,20 @@ classdef Labels
         s.tgt(i,:) = [];
       end
     end
+    function [s,tfchanged] = rmFTP(s,frm,itgt,pts)
+      % remove labels for given frm/itgt
+      
+      i = find(s.frm==frm & s.tgt==itgt);
+      tfchanged = ~isempty(i); % found our (frm,tgt)
+      if tfchanged
+        ptidx = false(size(s.occ,1),1);
+        ptidx(pts) = true;
+        s.p(repmat(ptidx,[2,1]),i) = Labels.getUnlabeledValue();
+        s.ts(ptidx,i) = Labels.getUnlabeledValue();
+        s.occ(ptidx,i) = false;
+      end
+    end
+    
     function [s,tfchanged] = clearFTI(s,frm,itgt,ipt)
       i = find(s.frm==frm & s.tgt==itgt);
       tfchanged = ~isempty(i); % found our (frm,tgt)
@@ -208,6 +234,32 @@ classdef Labels
         ts = -inf(s.npts,1);
       end
     end
+    function [tf] = isLabelerPerPt(s)
+      % [tf] = isLabelerPerPt(s)
+      % Added by KB 20220206
+      % tf(i,j) indicates whether landmark i is labeled for label j
+      tf = permute(any(~isnan(reshape(s.p,[size(s.p,1)/2, 2, size(s.p,2)])),2),[1,3,2]);      
+    end
+    function [tf,p,occ,ts] = isLabeledPerPtFT(s,frm,itgt)
+      % [tf,p,occ,ts] = isLabeledPerPtFT(s,frm,itgt)
+      % Added by KB 20220202, similar to isLabeledFT
+      % tf(i) indicates whether landmark i is labeled. 
+      % p, occ, ts returned are the landmarks locations, occluded labels,
+      % and timestamps
+      i = find(s.frm==frm & s.tgt==itgt,1);
+      tf = ~isempty(i);
+      if tf
+        p = s.p(:,i);
+        tf = any(~isnan(reshape(p,[numel(p)/2 2])),2);
+        occ = s.occ(:,i);
+        ts = s.ts(:,i);
+      else
+        tf = false(s.npts,1);
+        p = nan(2*s.npts,1);
+        occ = zeros(s.npts,1,Labels.CLS_OCC);
+        ts = -inf(s.npts,1);
+      end
+    end
     function itgts = isLabeledF(s,frm)
       % Find labeled targets (if any) for frame frm
       %
@@ -215,6 +267,17 @@ classdef Labels
       
       tf = s.frm==frm;
       itgts = s.tgt(tf);
+    end
+    function [frms,tgts] = isPartiallyLabeledT(s,itgt,nold)
+      if isnan(itgt) || isempty(itgt),
+        istgt = true(size(s.tgt));
+      else
+        istgt = s.tgt == itgt;
+      end
+      islabeled = Labels.isLabelerPerPt(s);
+      ispartial = istgt' & all(islabeled(1:nold,:),1) & ~any(islabeled(nold+1:end,:),1);
+      frms = s.frm(ispartial);
+      tgts = s.tgt(ispartial);
     end
     function frms = isLabeledT(s,itgt)
       % Find labeled frames (if any) for target itgt

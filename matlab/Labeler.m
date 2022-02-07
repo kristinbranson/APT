@@ -32,7 +32,8 @@ classdef Labeler < handle
       'fgEmpiricalPDF'...
       'projectHasTrx'...
       'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
-      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo'};
+      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo' ...
+      'nLabelPointsAdd'};
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
 %       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
@@ -391,6 +392,7 @@ classdef Labeler < handle
   properties (SetAccess=private)
     nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
     labelTemplate;
+    nLabelPointsAdd = 0; % scalar integer. This is set when projAddLandmarks is called
     
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views. init: C
@@ -1715,7 +1717,6 @@ classdef Labeler < handle
       cfg.NumLabelPoints = obj.nPhysPoints;
       cfg.LabelPointNames = obj.skelNames;
       cfg.LabelMode = char(obj.labelMode);
-
       % View stuff: read off current state of axes
       gd = obj.gdata;
       viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
@@ -2551,7 +2552,70 @@ classdef Labeler < handle
       
     end
     
+    function [movs,tgts,frms] = findPartiallyLabeledFrames(obj)
+      
+      labels = obj.labelsGTaware();
+      frms = zeros(0,1);
+      tgts = zeros(0,1);
+      movs = zeros(0,1);
+      nold = obj.nLabelPoints-obj.nLabelPointsAdd;
+      for mov = 1:size(labels,1),
+        [frmscurr,tgtscurr] = Labels.isPartiallyLabeledT(labels{mov},nan,nold);
+        ncurr = numel(frmscurr);
+        if ~isempty(frmscurr),
+          frms(end+1:end+ncurr,1) = frmscurr;
+          tgts(end+1:end+ncurr,1) = tgtscurr;
+          movs(end+1:end+ncurr,1) = mov;
+        end
+      end
+      
+    end
+    
+    function printPartiallyLabeledFrameInfo(obj)
+      [movs,tgts,frms] = obj.findPartiallyLabeledFrames();
+      if isempty(frms),
+        fprintf('No partially labeled frames left.\n');
+        return;
+      end
+      [~,order] = sortrows([movs,tgts,frms]);
+      fprintf('Mov\tTgt\tFrm\n');
+      for i = order(:)',
+        fprintf('%d\t%d\t%d\n',movs(i),tgts(i),frms(i));
+      end
+    end
+    
+    function projAddLandmarksFinished(obj)
+      
+      if obj.nLabelPointsAdd == 0,
+        return;
+      end
+      
+      % check if there are no partially labeled frames
+      [~,~,frms] = obj.findPartiallyLabeledFrames();
+      if numel(frms) > 0,
+        warndlg('There are still some partially labeled frames. You must label all partially labeled frames before finishing.','Not all frames completely labeled');
+        return;
+      end
+      
+      obj.nLabelPointsAdd = 0;
+      
+      % set label mode to sequential if sequential add
+      if obj.labelMode == LabelMode.SEQUENTIALADD,
+        obj.labelingInit('labelMode',LabelMode.SEQUENTIAL);
+      end
+      % hide sequential add mode
+      set(obj.gdata.menu_setup_sequential_add_mode,'Visible','off');
+      
+      
+    end
+    
     function projAddLandmarks(obj,nadd)
+      
+      if obj.nLabelPointsAdd > 0,
+        warndlg('Cannot add more landmarks twice in a row. If there are no more partially labeled frames, run projAddLandmarksFinished() to finish.','Cannot add landmarks twice');
+        return;
+      end
+      
       
 %       % if labeling mode is sequential, set to template
 %       if strcmpi(obj.labelMode,'SEQUENTIAL'),
@@ -2604,6 +2668,7 @@ classdef Labeler < handle
       % skeletonEdges and flipLandmarkMatches should not change
       
       obj.nLabelPoints = newnpts;
+      obj.nLabelPointsAdd = nadd*nptsperset;
       
       % reset colors to defaults
       obj.labelPointsPlotInfo.Colors = feval(obj.labelPointsPlotInfo.ColorMapName,newnphyspts);
@@ -2619,10 +2684,11 @@ classdef Labeler < handle
       
       % remake info timeline
       handles = guidata(obj.hFig);
-      handles.labelTLInfo.delete();
-      handles.labelTLInfo = InfoTimeline(obj,handles.axes_timeline_manual,...
-        handles.axes_timeline_islabeled);
+%      handles.labelTLInfo.delete();
+%       handles.labelTLInfo = InfoTimeline(obj,handles.axes_timeline_manual,...
+%         handles.axes_timeline_islabeled);
       handles.labelTLInfo.initNewProject();
+      handles.labelTLInfo.setLabelsFull(true);
       guidata(obj.hFig,handles);
       
       % clear tracking data
@@ -2654,6 +2720,7 @@ classdef Labeler < handle
       obj.preProcInit();
       obj.isinit = isinit0;
       obj.labelsUpdateNewFrame(true);
+      set(obj.gdata.menu_setup_sequential_add_mode,'Visible','on');
       %obj.labelingInit();
       
       
@@ -5723,6 +5790,14 @@ classdef Labeler < handle
       obj.tvTrx.init(true,numel(trx));
     end
        
+    function [sf,ef] = trxGetFrameLimits(obj)
+      % frm2trx(iFrm,iTgt) binary, whether target iTgt is alive at frame
+      % iFrm
+      iTgt = obj.currTarget;
+      sf = find(obj.frm2trx(:,iTgt),1);
+      ef = find(obj.frm2trx(:,iTgt),1,'last');
+    end
+    
     function tf = trxCheckFramesLive(obj,frms)
       % Check that current target is live for given frames
       %
@@ -6249,6 +6324,20 @@ classdef Labeler < handle
       end
     end
     
+    function labelPosClearPoints(obj,pts)
+      iMov = obj.currMovie;
+      iFrm = obj.currFrame;
+      iTgt = obj.currTarget;
+      
+      PROPS = obj.gtGetSharedProps();
+      s = obj.(PROPS.LBL){iMov};
+      [s,tfchanged] = Labels.rmFTP(s,iFrm,iTgt,pts);
+      if tfchanged,
+        obj.(PROPS.LBL){iMov} = s;
+        obj.labeledposNeedsSave = true;
+      end
+    end
+    
     function labelPosAddLandmarks(obj,new2oldpt)
       % for all movies, for both training labels and gt labels, add new
       % landmarks
@@ -6400,6 +6489,21 @@ classdef Labeler < handle
       lpos = reshape(p,[numel(p)/2 2]);
       lpostag = occ;
     end 
+    function [tfperpt,lpos,lpostag] = labelPosIsPtLabeled(obj,iFrm,iTrx)
+      % For current movie. Labeled includes fullyOccluded
+      %
+      % tf: scalar logical
+      % lpos: [nptsx2] xy coords for iFrm/iTrx
+      % lpostag: [npts] logical array 
+      
+      iMov = obj.currMovie;
+      PROPS = obj.gtGetSharedProps();
+      s = obj.(PROPS.LBL){iMov};
+      [tfperpt,p,occ] = Labels.isLabeledPerPtFT(s,iFrm,iTrx);
+      lpos = reshape(p,[numel(p)/2 2]);
+      lpostag = occ;
+    end 
+    
     function [iTgts] = labelPosIsLabeledFrm(obj,iFrm)
       % For current movie, find labeled targets in iFrm (if any)
       %
@@ -6597,6 +6701,10 @@ classdef Labeler < handle
       end
       obj.labeledposNeedsSave = true;
     end 
+    function labelPosSetIFullyOcc(obj,iPt)
+      xy = repmat(Labels.getFullyOccValue,[1,2]); % KB is this the right dimensionality??
+      obj.labelPosSetI(xy,iPt);
+    end
     
 %     function labelPosClearFramesI_Old(obj,frms,iPt)
 %       xy = nan(2,1);
@@ -11461,6 +11569,8 @@ classdef Labeler < handle
       % 
       tfSkipPPData = strcmp(ppdata,'skip') || ...
                      isempty(ppdata) && tObj.trnNetMode.isTrnPack;
+      tfSkipPPData = tfSkipPPData && tObj.lObj.maIsMA;
+                   %MK 7 feb 22 -- Adding preprocessing for single animal 
       if tfSkipPPData
         assert(~updateCacheOnly);
         tblPCache = [];
@@ -11492,10 +11602,10 @@ classdef Labeler < handle
         end
         
         prmsTgtCropTmp = tObj.sPrmAll.ROOT.MultiAnimal.TargetCrop;
-        if tObj.trnNetMode.isTrnPack
-          % Temp fix; prob should just skip adding imcache to stripped lbl
-          prmsTgtCropTmp.AlignUsingTrxTheta = false;
-        end
+%         if tObj.trnNetMode.isTrnPack
+%           % Temp fix; prob should just skip adding imcache to stripped lbl
+%           prmsTgtCropTmp.AlignUsingTrxTheta = false;
+%         end
         [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
           'wbObj',wbObj,'prmsTgtCrop',prmsTgtCropTmp);
         if tfWB && wbObj.isCancel

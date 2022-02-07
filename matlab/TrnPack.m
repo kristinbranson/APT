@@ -235,13 +235,14 @@ classdef TrnPack
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx,slblname,verbosejson,tblsplit] = myparse(varargin,...
+      [writeims,writeimsidx,slblname,verbosejson,tblsplit,view] = myparse(varargin,...
         'writeims',true, ...
         'writeimsidx',[], ... % (opt) DEBUG ONLY
         'strippedlblname',[], ... % (reqd) short filename for stripped lbl
         'verbosejson',false, ...
-        'tblsplit', [] ...  % tbl with fields .mov, .frm, .split
+        'tblsplit', [], ...  % tbl with fields .mov, .frm, .split
                        ...  % all double/numeric and 1-based
+        'view',1 ...
         );      
       
       tfsplitsprovided = ~isempty(tblsplit);
@@ -333,13 +334,25 @@ classdef TrnPack
       else
         movinfo = lObj.movieInfoAll;
       end
-      locg = TrnPack.genLocs(tp,movinfo);
-      if writeims
-        if isempty(writeimsidx)
-          writeimsidx = 1:numel(locg);
+      isma = lObj.maIsMA;
+      if isma
+        locg = TrnPack.genLocs(tp,movinfo);
+        if writeims
+          if isempty(writeimsidx)
+            writeimsidx = 1:numel(locg);
+          end
+
+          TrnPack.writeims(locg(writeimsidx),packdir);
         end
-        
-        TrnPack.writeims(locg(writeimsidx),packdir);
+      else
+        locg = TrnPack.genLocsSA(slbl,view);
+        if writeims
+          if isempty(writeimsidx)
+            writeimsidx = 1:numel(locg);
+          end
+
+          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl.preProcData_I);
+        end
       end
         
       if verbosejson
@@ -615,7 +628,48 @@ classdef TrnPack
         end
       end
     end
-    
+    function [sloc] = genLocsSA(slbl,view,varargin)
+    % Locs for Single animal. Use images in the lbl cache for now.
+    % mov is empty for now. Seemed too convoluted to include it for now.
+    % MK 07022022
+      imgpat = myparse(varargin,...
+        'imgpat','im/%s.png' ...
+        );
+      
+      nrows=size(slbl.preProcData_I,1);
+      sloc = [];
+      npts = slbl.cfg.NumLabelPoints;
+      if isnan(view), view = 1; end
+      sel_pts = ( (view-1)*2*npts+1):view*2*npts;
+      
+      for j=1:nrows
+        f = slbl.preProcData_MD_frm(j);
+        itgt = slbl.preProcData_MD_iTgt(j);
+        ts = slbl.preProcDataTS;
+        occ = slbl.preProcData_MD_tfocc(j,:);
+        roi = slbl.preProcData_MD_roi(j,:);
+        imov = slbl.preProcData_MD_mov(j);
+        
+        basefS = sprintf('mov%04d_frm%08d_tgt%05d_view%02d',imov,f,itgt,view);
+        img = sprintf(imgpat,basefS);
+        sloctmp = struct(...
+          'id',sprintf('mov%04d_frm%08d_tgt%05d_view%02d',imov,f,itgt,view),...
+          'idmovfrm',sprintf('mov%04d_frm%08d_tgt%05d_view%02d',imov,f,itgt,view),...
+          'img',{{img}},...
+          'imov',imov,...
+          'mov','',...
+          'frm',f,...
+          'itgt',itgt,...
+          'ntgt',1,...
+          'roi',roi,...
+          'p',slbl.preProcData_P(j,sel_pts), ...
+          'occ',occ, ...
+          'ts',ts ...
+          );
+        sloc = [sloc; sloctmp]; %#ok<AGROW>
+      end
+    end
+
     function writeims(sloc,packdir)
       % Currently single-view only
       
@@ -633,15 +687,20 @@ classdef TrnPack
         mov = sloc(idx(1)).mov;
         %mr.open(mov);
         fprintf(1,'Movie %d: %s\n',imov,mov);
+        rfcn = get_readframe_fcn(mov);
                 
-        parfor i=idx(:)'
+        for i=idx(:)'
+         % MK 07022022: Removing parfor. For avis and others parfor is slower than for
+         % normal for loop. And opening avis for every frame is extremely
+         % awful. And it seems the parfor err can be got around using
+         % feval. Even so it was faster to use for instead of parfor
+
           s = sloc(i);
           imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
           if exist(imfrmf,'file')>0
             fprintf(1,'Skipping, image already exists: %s\n',imfrmf);
           else
             % calling get_readframe_fcn outside parfor results in harderr
-            rfcn = get_readframe_fcn(mov);
             imfrm = rfcn(s.frm);
             imwrite(imfrm,imfrmf);
             fprintf(1,'Wrote %s\n',imfrmf);
@@ -649,6 +708,25 @@ classdef TrnPack
         end
       end
     end
+    function writeimsSA(sloc,packdir,ims)
+      % Write ims for Single animal
+      
+      sdir = TrnPack.SUBDIRIM;
+      if exist(fullfile(packdir,sdir),'dir')==0
+        mkdir(packdir,sdir);
+      end
+      
+      n=numel(sloc);
+      for i=1:n
+
+        s = sloc(i);
+        imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
+        imfrm = ims{i};
+        imwrite(imfrm,imfrmf);
+        fprintf(1,'Wrote %s\n',imfrmf);
+      end
+    end
+
     
     function clearims(packdir)
       sdir = TrnPack.SUBDIRIM;
