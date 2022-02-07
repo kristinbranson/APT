@@ -11569,6 +11569,8 @@ classdef Labeler < handle
       % 
       tfSkipPPData = strcmp(ppdata,'skip') || ...
                      isempty(ppdata) && tObj.trnNetMode.isTrnPack;
+      tfSkipPPData = tfSkipPPData && tObj.lObj.maIsMA;
+                   %MK 7 feb 22 -- Adding preprocessing for single animal 
       if tfSkipPPData
         assert(~updateCacheOnly);
         tblPCache = [];
@@ -11600,10 +11602,10 @@ classdef Labeler < handle
         end
         
         prmsTgtCropTmp = tObj.sPrmAll.ROOT.MultiAnimal.TargetCrop;
-        if tObj.trnNetMode.isTrnPack
-          % Temp fix; prob should just skip adding imcache to stripped lbl
-          prmsTgtCropTmp.AlignUsingTrxTheta = false;
-        end
+%         if tObj.trnNetMode.isTrnPack
+%           % Temp fix; prob should just skip adding imcache to stripped lbl
+%           prmsTgtCropTmp.AlignUsingTrxTheta = false;
+%         end
         [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
           'wbObj',wbObj,'prmsTgtCrop',prmsTgtCropTmp);
         if tfWB && wbObj.isCancel

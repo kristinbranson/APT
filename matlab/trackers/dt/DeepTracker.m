@@ -1353,7 +1353,7 @@ classdef DeepTracker < LabelTracker
         if tfRequiresTrnPack
           packdir = dlLblFileLclDir;
           [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
-            'strippedlblname',dmc.lblStrippedName);
+            'strippedlblname',dmc.lblStrippedName,'view',dmc.view);
           dmc.nLabels = ntgtstot;
         else
           s = obj.trnCreateStrippedLbl('wbObj',wbObj);
