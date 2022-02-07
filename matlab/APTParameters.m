@@ -751,8 +751,10 @@ function autoparams = compute_auto_params(lobj)
   % second dim has the coordinates
 
   %%
-  l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
-  l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+  %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
+  %l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+  l_min = permute(min(all_labels,[],1),[2,3,1]);
+  l_max = permute(max(all_labels,[],1),[2,3,1]);
   l_span = l_max-l_min;
   % l_span is labels span in x and y direction
 

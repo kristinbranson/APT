@@ -10,6 +10,7 @@ classdef LabelMode
 %     ERRORCORRECT ('ErrorCorrect')
     MULTIVIEWCALIBRATED2 ('Multiview')
     MULTIANIMAL ('MultiAnimal')
+    SEQUENTIALADD ('SequentialAdd')
   end
   methods
     function obj = LabelMode(pStr)

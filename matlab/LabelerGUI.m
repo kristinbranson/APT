@@ -268,6 +268,12 @@ handles.menu_setup_ma_twoclick_align = uimenu('Parent',handles.menu_labeling_set
   'Checked','off',...
   'Visible','on');
 
+handles.menu_setup_sequential_add_mode = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_sequential_add_mode_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Add landmarks mode',...
+  'Tag','menu_setup_sequential_add_mode',...
+  'Checked','off',...
+  'Visible','off');
 
 LABEL_MENU_ORDER = {
    'menu_setup_sequential_mode'
@@ -275,6 +281,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_highthroughput_mode'
    'menu_setup_multiview_calibrated_mode_2'   
    'menu_setup_multianimal_mode'   
+   'menu_setup_sequential_add_mode'
    'menu_setup_streamlined'
    'menu_setup_load_calibration_file'
    'menu_setup_use_calibration'
@@ -728,7 +735,8 @@ LABELMODE_SETUPMENU_MAP = ...
    LabelMode.TEMPLATE 'menu_setup_template_mode';
    LabelMode.HIGHTHROUGHPUT 'menu_setup_highthroughput_mode';
    LabelMode.MULTIVIEWCALIBRATED2 'menu_setup_multiview_calibrated_mode_2'; 
-   LabelMode.MULTIANIMAL 'menu_setup_multianimal_mode'};
+   LabelMode.MULTIANIMAL 'menu_setup_multianimal_mode';
+   LabelMode.SEQUENTIALADD 'menu_setup_sequential_add_mode'};
 tmp = LABELMODE_SETUPMENU_MAP;
 tmp(:,1) = cellfun(@char,tmp(:,1),'uni',0);
 tmp(2:end,2) = cellfun(@(x)handles.(x),tmp(2:end,2),'uni',0);
@@ -878,6 +886,7 @@ handles.h_singleview_only = [...
    handles.menu_setup_template_mode ...
    handles.menu_setup_highthroughput_mode ...
    handles.menu_setup_multianimal_mode ...
+   handles.menu_setup_sequential_add_mode ...
    ];
 handles.h_ma_only = [...
   handles.menu_setup_multianimal_mode ...
@@ -887,6 +896,10 @@ handles.h_nonma_only = [ ...
   handles.menu_setup_sequential_mode ...
   handles.menu_setup_template_mode ...
   handles.menu_setup_highthroughput_mode ...
+  handles.menu_setup_sequential_add_mode ...
+  ];
+handles.h_addpoints_only = [...
+  handles.menu_setup_sequential_add_mode ...
   ];
   
   
@@ -1141,6 +1154,11 @@ switch lower(state),
       set(handles.h_nonma_only,'Enable','off');
     else
       set(handles.h_ma_only,'Enable','off');
+    end
+    if lObj.nLabelPointsAdd == 0,
+      set(handles.h_addpoints_only,'Visible','off');
+    else
+      set(handles.h_addpoints_only,'Visible','on');
     end
 
   otherwise
@@ -1985,6 +2003,19 @@ lblMode = lObj.labelMode;
 menuSetupLabelModeHelp(handles,lblMode);
 switch lblMode
   case LabelMode.SEQUENTIAL
+    handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_set_nframe_skip.Visible = 'off';
+    handles.menu_setup_streamlined.Visible = 'off';
+    handles.menu_setup_unlock_all_frames.Visible = 'off';
+    handles.menu_setup_lock_all_frames.Visible = 'off';
+    handles.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_use_calibration.Visible = 'off';
+    handles.menu_setup_ma_twoclick_align.Visible = 'off';
+    handles.menu_view_zoom_toggle.Visible = 'off';
+    handles.menu_view_pan_toggle.Visible = 'off';
+    handles.menu_view_showhide_maroi.Visible = 'off';
+    handles.menu_view_showhide_maroiaux.Visible = 'off';
+  case LabelMode.SEQUENTIALADD
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'off';
@@ -3405,6 +3436,8 @@ function menu_help_about_Callback(hObject, eventdata, handles)
 about(handles.labelerObj);
 
 function menu_setup_sequential_mode_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menu_setup_sequential_add_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
 function menu_setup_template_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
