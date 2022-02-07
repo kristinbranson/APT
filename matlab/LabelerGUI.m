@@ -898,6 +898,9 @@ handles.h_nonma_only = [ ...
   handles.menu_setup_highthroughput_mode ...
   handles.menu_setup_sequential_add_mode ...
   ];
+handles.h_addpoints_only = [...
+  handles.menu_setup_sequential_add_mode ...
+  ];
   
   
 set(handles.output,'Toolbar','figure');
@@ -1151,6 +1154,11 @@ switch lower(state),
       set(handles.h_nonma_only,'Enable','off');
     else
       set(handles.h_ma_only,'Enable','off');
+    end
+    if lObj.nLabelPointsAdd == 0,
+      set(handles.h_addpoints_only,'Visible','off');
+    else
+      set(handles.h_addpoints_only,'Visible','on');
     end
 
   otherwise

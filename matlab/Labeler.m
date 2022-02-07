@@ -32,7 +32,8 @@ classdef Labeler < handle
       'fgEmpiricalPDF'...
       'projectHasTrx'...
       'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
-      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo'};
+      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo' ...
+      'nLabelPointsAdd'};
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
 %       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
@@ -1716,7 +1717,6 @@ classdef Labeler < handle
       cfg.NumLabelPoints = obj.nPhysPoints;
       cfg.LabelPointNames = obj.skelNames;
       cfg.LabelMode = char(obj.labelMode);
-
       % View stuff: read off current state of axes
       gd = obj.gdata;
       viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
@@ -2552,7 +2552,70 @@ classdef Labeler < handle
       
     end
     
+    function [movs,tgts,frms] = findPartiallyLabeledFrames(obj)
+      
+      labels = obj.labelsGTaware();
+      frms = zeros(0,1);
+      tgts = zeros(0,1);
+      movs = zeros(0,1);
+      nold = obj.nLabelPoints-obj.nLabelPointsAdd;
+      for mov = 1:size(labels,1),
+        [frmscurr,tgtscurr] = Labels.isPartiallyLabeledT(labels{mov},nan,nold);
+        ncurr = numel(frmscurr);
+        if ~isempty(frmscurr),
+          frms(end+1:end+ncurr,1) = frmscurr;
+          tgts(end+1:end+ncurr,1) = tgtscurr;
+          movs(end+1:end+ncurr,1) = mov;
+        end
+      end
+      
+    end
+    
+    function printPartiallyLabeledFrameInfo(obj)
+      [movs,tgts,frms] = obj.findPartiallyLabeledFrames();
+      if isempty(frms),
+        fprintf('No partially labeled frames left.\n');
+        return;
+      end
+      [~,order] = sortrows([movs,tgts,frms]);
+      fprintf('Mov\tTgt\tFrm\n');
+      for i = order(:)',
+        fprintf('%d\t%d\t%d\n',movs(i),tgts(i),frms(i));
+      end
+    end
+    
+    function projAddLandmarksFinished(obj)
+      
+      if obj.nLabelPointsAdd == 0,
+        return;
+      end
+      
+      % check if there are no partially labeled frames
+      [~,~,frms] = obj.findPartiallyLabeledFrames();
+      if numel(frms) > 0,
+        warndlg('There are still some partially labeled frames. You must label all partially labeled frames before finishing.','Not all frames completely labeled');
+        return;
+      end
+      
+      obj.nLabelPointsAdd = 0;
+      
+      % set label mode to sequential if sequential add
+      if obj.labelMode == LabelMode.SEQUENTIALADD,
+        obj.labelingInit('labelMode',LabelMode.SEQUENTIAL);
+      end
+      % hide sequential add mode
+      set(obj.gdata.menu_setup_sequential_add_mode,'Visible','off');
+      
+      
+    end
+    
     function projAddLandmarks(obj,nadd)
+      
+      if obj.nLabelPointsAdd > 0,
+        warndlg('Cannot add more landmarks twice in a row. If there are no more partially labeled frames, run projAddLandmarksFinished() to finish.','Cannot add landmarks twice');
+        return;
+      end
+      
       
 %       % if labeling mode is sequential, set to template
 %       if strcmpi(obj.labelMode,'SEQUENTIAL'),
@@ -2605,7 +2668,7 @@ classdef Labeler < handle
       % skeletonEdges and flipLandmarkMatches should not change
       
       obj.nLabelPoints = newnpts;
-      obj.nLabelPointsAdd = nadd + obj.nLabelPointsAdd;
+      obj.nLabelPointsAdd = nadd*nptsperset;
       
       % reset colors to defaults
       obj.labelPointsPlotInfo.Colors = feval(obj.labelPointsPlotInfo.ColorMapName,newnphyspts);

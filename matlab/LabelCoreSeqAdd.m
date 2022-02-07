@@ -91,7 +91,6 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
     function unAcceptLabels(obj)
       % this doesn't do anything now
       %obj.beginAdjust();
-      fprintf('Next?\n');
       [frm,tgt,mov] = obj.findUnlabeled();
       if isempty(frm),
         msgbox('No partially labeled frames found! You might be done!','Done adding landmarks','replace');
