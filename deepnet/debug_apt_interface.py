@@ -20,7 +20,7 @@ conf_json = apt.create_conf(json_file, view, name, cache_dir=cache_dir,net_type=
 
 
 ##
-cmd =  ['-name', '20220131T054001', '-view', '1', '-cache', '/groups/branson/home/kabram/.apt/tpced2cc5b_4585_47fc_8642_1238cedd7c97', '-err_file', '/groups/branson/home/kabram/.apt/tpced2cc5b_4585_47fc_8642_1238cedd7c97/multitarget_bubble_expandedbehavior_20180425_allGT_MK/20220131T054001view0_20220131T054002_tdptrx.err', '-conf_params','has_trx_file','True','sel_sz','160','imsz','(160,160)','-type', 'mdn', '-json_trn_file','/groups/branson/home/kabram/.apt/tpced2cc5b_4585_47fc_8642_1238cedd7c97/multitarget_bubble_expandedbehavior_20180425_allGT_MK/loc.json','/groups/branson/home/kabram/.apt/tpced2cc5b_4585_47fc_8642_1238cedd7c97/multitarget_bubble_expandedbehavior_20180425_allGT_MK/20220131T054001_20220131T054002.lbl', 'train', '-use_cache']
+cmd =   ['-name', '20220207T083112', '-view', '1', '-cache', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881', '-err_file', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881/multitarget_bubble/20220207T083112view0_20220207T083114_tdptrx.err', '-json_trn_file', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881/multitarget_bubble/loc.json', '-type', 'deeplabcut', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881/multitarget_bubble/20220207T083112_20220207T083114.lbl', 'train', '-use_cache']
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')

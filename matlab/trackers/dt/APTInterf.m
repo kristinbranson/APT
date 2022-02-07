@@ -8,6 +8,7 @@ classdef APTInterf
       isMA = netType.isMultiAnimal;
       isNewStyle = isMA || ...
         (netMode~=DLNetMode.singleAnimal && netMode~=DLNetMode.multiAnimalTDPoseTrx);
+      
       if isNewStyle
         basecmd = APTInterf.maTrainCodeGenTrnPack(modelChainID,dllbl,cache,errfile,...
           netType,netMode,varargin{:});
@@ -248,7 +249,12 @@ classdef APTInterf
       torchhome = APT.torchhome;
       
       tfview = ~isempty(view);
-      
+      [trnpack,dllblID] = fileparts(dllbl);
+      trnjson = fullfile(trnpack,'loc.json');
+      dllbljson = fullfile(trnpack,[dllblID '.json']);
+      dlj = readtxtfile(dllbljson);
+      dlj = jsondecode(dlj{1});
+  
       aptintrf = [deepnetroot fs 'APT_interface.py'];
       
       switch trainType
@@ -286,7 +292,10 @@ classdef APTInterf
         '-cache' ...
         [filequote cache filequote] ... % String.escapeSpaces(cache),...
         '-err_file' ...
-        [filequote errfile filequote]}]; ... % String.escapeSpaces(errfile),...
+        [filequote errfile filequote] ...
+        '-json_trn_file' ...
+        [filequote trnjson filequote]}
+        ]; ... % String.escapeSpaces(errfile),...
       if ~isempty(prev_model)
         code = [code {'-model_files' [filequote prev_model filequote]}];
       end

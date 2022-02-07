@@ -345,7 +345,7 @@ classdef TrnPack
           TrnPack.writeims(locg(writeimsidx),packdir);
         end
       else
-        locg = TrnPack.genLocsSA(slbl,view);
+        locg = TrnPack.genLocsSA(slbl);
         if writeims
           if isempty(writeimsidx)
             writeimsidx = 1:numel(locg);
@@ -628,7 +628,7 @@ classdef TrnPack
         end
       end
     end
-    function [sloc] = genLocsSA(slbl,view,varargin)
+    function [sloc] = genLocsSA(slbl,varargin)
     % Locs for Single animal. Use images in the lbl cache for now.
     % mov is empty for now. Seemed too convoluted to include it for now.
     % MK 07022022
@@ -638,23 +638,23 @@ classdef TrnPack
       
       nrows=size(slbl.preProcData_I,1);
       sloc = [];
-      npts = slbl.cfg.NumLabelPoints;
-      if isnan(view), view = 1; end
-      sel_pts = ( (view-1)*2*npts+1):view*2*npts;
+      c1 = size(slbl.preProcData_I{1},2);
+      r1 = size(slbl.preProcData_I{1},1);
+      roi = [1 1 c1 c1 1 r1 r1 1]';
+      split = 1;
       
       for j=1:nrows
         f = slbl.preProcData_MD_frm(j);
         itgt = slbl.preProcData_MD_iTgt(j);
         ts = slbl.preProcDataTS;
         occ = slbl.preProcData_MD_tfocc(j,:);
-        roi = slbl.preProcData_MD_roi(j,:);
         imov = slbl.preProcData_MD_mov(j);
         
-        basefS = sprintf('mov%04d_frm%08d_tgt%05d_view%02d',imov,f,itgt,view);
+        basefS = sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt);
         img = sprintf(imgpat,basefS);
         sloctmp = struct(...
-          'id',sprintf('mov%04d_frm%08d_tgt%05d_view%02d',imov,f,itgt,view),...
-          'idmovfrm',sprintf('mov%04d_frm%08d_tgt%05d_view%02d',imov,f,itgt,view),...
+          'id',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
+          'idmovfrm',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
           'img',{{img}},...
           'imov',imov,...
           'mov','',...
@@ -662,7 +662,8 @@ classdef TrnPack
           'itgt',itgt,...
           'ntgt',1,...
           'roi',roi,...
-          'p',slbl.preProcData_P(j,sel_pts), ...
+          'split',split,...
+          'pabs',slbl.preProcData_P(j,:), ...
           'occ',occ, ...
           'ts',ts ...
           );

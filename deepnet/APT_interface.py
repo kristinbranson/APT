@@ -1023,6 +1023,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.project_file = A['ProjectFile']
     conf.is_multi = cc['MultiAnimal'] > 0.5
     conf.img_dim = cc['NumChans']
+    conf.has_trx_file = cc['HasTrx']
     has_crops = cc['HasCrops']
     conf.labelfile = lbl_file
 
@@ -1779,6 +1780,8 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
             info = to_py([cur_t['imov'], cur_t['frm'], cur_t['ntgt']])
         else:
             info = to_py([cur_t['imov'], cur_t['frm'], cur_t['itgt']])
+            cur_locs = cur_locs[0]
+            cur_occ = cur_occ[0]
 
         if occ_as_nan:
             cur_locs[cur_occ, :] = np.nan

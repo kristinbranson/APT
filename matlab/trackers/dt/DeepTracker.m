@@ -1349,7 +1349,7 @@ classdef DeepTracker < LabelTracker
           end
         end        
         
-        tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
+        tfRequiresTrnPack = true; %netObj.requiresTrnPack(obj.trnNetMode);
         if tfRequiresTrnPack
           packdir = dlLblFileLclDir;
           [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
