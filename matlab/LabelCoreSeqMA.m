@@ -37,7 +37,7 @@ classdef LabelCoreSeqMA < LabelCore
     pbNewTgt % create a new target
     pbDelTgt % delete the current tgt
         
-    maxNumTgts = 400
+    maxNumTgts = 15
     tv % scalar TrackingVisualizerMT
     CLR_NEW_TGT = [0.470588235294118 0.670588235294118 0.188235294117647];
     CLR_DEL_TGT = [0.929411764705882 0.690196078431373 0.129411764705882];
