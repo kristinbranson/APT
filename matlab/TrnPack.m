@@ -656,9 +656,9 @@ classdef TrnPack
         imov = slbl.preProcData_MD_mov(j);
         if has_split
           curndx = find((tblsplit.mov == imov) & (tblsplit.frm ==f) & ...
-            (tblsplit.tgt == itgt));
+            (tblsplit.iTgt == itgt));
           assert(numel(curndx)==1);
-          split = tblsplit(curndx).split;
+          split = tblsplit(curndx,:).split;
         else          
           split = default_split;
         end
@@ -729,7 +729,8 @@ classdef TrnPack
     function writeimsSA(sloc,packdir,ims,view)
       % Write ims for Single animal
       
-      assert(isnan(view))
+      % XXX
+      %assert(isnan(view))
       % For multiview write the images only once for the first view
       
       sdir = TrnPack.SUBDIRIM;
