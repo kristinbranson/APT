@@ -345,13 +345,13 @@ classdef TrnPack
           TrnPack.writeims(locg(writeimsidx),packdir);
         end
       else
-        locg = TrnPack.genLocsSA(slbl);
+        locg = TrnPack.genLocsSA(slbl,tblsplit);
         if writeims
           if isempty(writeimsidx)
             writeimsidx = 1:numel(locg);
           end
 
-          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl.preProcData_I);
+          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl.preProcData_I,view);
         end
       end
         
@@ -628,7 +628,7 @@ classdef TrnPack
         end
       end
     end
-    function [sloc] = genLocsSA(slbl,varargin)
+    function [sloc] = genLocsSA(slbl,tblsplit,varargin)
     % Locs for Single animal. Use images in the lbl cache for now.
     % mov is empty for now. Seemed too convoluted to include it for now.
     % MK 07022022
@@ -641,7 +641,8 @@ classdef TrnPack
       c1 = size(slbl.preProcData_I{1},2);
       r1 = size(slbl.preProcData_I{1},1);
       roi = [1 1 c1 c1 1 r1 r1 1]';
-      split = 1;
+      has_split = ~isempty(tblspit);
+      default_split = 1;
       
       for j=1:nrows
         f = slbl.preProcData_MD_frm(j);
@@ -649,13 +650,25 @@ classdef TrnPack
         ts = slbl.preProcDataTS;
         occ = slbl.preProcData_MD_tfocc(j,:);
         imov = slbl.preProcData_MD_mov(j);
+        if has_split
+          curndx = find((tblsplit.mov == imov) & (tblsplit.frm ==f) & ...
+            (tblsplit.tgt == itgt));
+          assert(numel(curndx)==1);
+          split = tblsplit(curndx).split;
+        else          
+          split = default_split;
+        end
         
-        basefS = sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt);
-        img = sprintf(imgpat,basefS);
+        imgs = {};
+        for v=1:slbl.config.NViews
+          basefS = sprintf('mov%04d_frm%08d_tgt%05d_view%d',imov,f,itgt,v);
+          img = sprintf(imgpat,basefS);
+          imgs{v} = img;
+        end
         sloctmp = struct(...
           'id',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
           'idmovfrm',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
-          'img',{{img}},...
+          'img',{imgs},...
           'imov',imov,...
           'mov','',...
           'frm',f,...
@@ -709,8 +722,11 @@ classdef TrnPack
         end
       end
     end
-    function writeimsSA(sloc,packdir,ims)
+    function writeimsSA(sloc,packdir,ims,view)
       % Write ims for Single animal
+      
+      if view > 1, return; end
+      % For multiview write the images only once for the first view
       
       sdir = TrnPack.SUBDIRIM;
       if exist(fullfile(packdir,sdir),'dir')==0
@@ -719,12 +735,13 @@ classdef TrnPack
       
       n=numel(sloc);
       for i=1:n
-
-        s = sloc(i);
-        imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
-        imfrm = ims{i};
-        imwrite(imfrm,imfrmf);
-        fprintf(1,'Wrote %s\n',imfrmf);
+        for v=1:size(ims,2)
+          s = sloc(i);
+          imgfile = s.img{v};
+          im = ims{i,v};
+          imwrite(im,imgfile);
+          fprintf(1,'Wrote %s\n',imfrmf);
+        end
       end
     end
 
