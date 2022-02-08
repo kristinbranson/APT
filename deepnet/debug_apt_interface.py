@@ -20,7 +20,7 @@ conf_json = apt.create_conf(json_file, view, name, cache_dir=cache_dir,net_type=
 
 
 ##
-cmd =   ['-name', '20220207T083112', '-view', '1', '-cache', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881', '-err_file', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881/multitarget_bubble/20220207T083112view0_20220207T083114_tdptrx.err', '-json_trn_file', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881/multitarget_bubble/loc.json', '-type', 'deeplabcut', '/groups/branson/home/kabram/.apt/tp2648a37f_5acf_45db_9491_926275330881/multitarget_bubble/20220207T083112_20220207T083114.lbl', 'train', '-use_cache']
+cmd =   ['-name', '20220208T032134', '-view', '2', '-cache', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57', '-err_file', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57/2011_mouse_cam13/20220208T032134view1_20220208T032136_sa.err', '-json_trn_file', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57/2011_mouse_cam13/loc.json', '-type', 'mdn', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57/2011_mouse_cam13/20220208T032134_20220208T032136.lbl', 'train', '-use_cache']
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')

@@ -1026,6 +1026,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.has_trx_file = cc['HasTrx']
     has_crops = cc['HasCrops']
     conf.labelfile = lbl_file
+    conf.view = view
 
     conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
     if not os.path.exists(conf.cachedir):
@@ -1065,7 +1066,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         xlo, xhi, ylo, yhi = crops
         conf.imsz = (int(yhi - ylo + 1), int(xhi - xlo + 1))
     else:
-        conf.imsz = (A['MovieInfo']['NumRows'], A['MovieInfo']['NumCols'])
+        if conf.nviews>1:
+            conf.imsz = (A['MovieInfo'][view]['NumRows'], A['MovieInfo'][view]['NumCols'])
+        else:
+            conf.imsz = (A['MovieInfo']['NumRows'], A['MovieInfo']['NumCols'])
 
     conf.labelfile = lbl_file
     conf.sel_sz = min(conf.imsz)
@@ -1764,6 +1768,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
 
         
         if conf.nviews > 1 and len(cur_t['roi']) != conf.nviews*2*4*ntgt:
+            # Fixed this. But i like the image of KB screaming through code. so keeping it for posterity -- MK 08022022
             logging.warning('KB SAYS FIX THIS!!! Number of views > 1, but roi is not the right shape. Just using the first view ROI')
             cur_roi = np.tile(np.array(cur_t['roi']).reshape([1, 2, 4, ntgt]),(conf.nviews,1,1,1))
         else:

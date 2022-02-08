@@ -638,10 +638,14 @@ classdef TrnPack
       
       nrows=size(slbl.preProcData_I,1);
       sloc = [];
-      c1 = size(slbl.preProcData_I{1},2);
-      r1 = size(slbl.preProcData_I{1},1);
-      roi = [1 1 c1 c1 1 r1 r1 1]';
-      has_split = ~isempty(tblspit);
+      roi = [];
+      for v=1:size(slbl.preProcData_I,2)
+        c1 = size(slbl.preProcData_I{v},2);
+        r1 = size(slbl.preProcData_I{v},1);
+        cur_roi = [1 1 c1 c1 1 r1 r1 1]';
+        roi = [roi; cur_roi];
+      end
+      has_split = ~isempty(tblsplit);
       default_split = 1;
       
       for j=1:nrows
@@ -660,7 +664,7 @@ classdef TrnPack
         end
         
         imgs = {};
-        for v=1:slbl.config.NViews
+        for v=1:slbl.cfg.NumViews
           basefS = sprintf('mov%04d_frm%08d_tgt%05d_view%d',imov,f,itgt,v);
           img = sprintf(imgpat,basefS);
           imgs{v} = img;
@@ -725,7 +729,7 @@ classdef TrnPack
     function writeimsSA(sloc,packdir,ims,view)
       % Write ims for Single animal
       
-      if view > 1, return; end
+      assert(isnan(view))
       % For multiview write the images only once for the first view
       
       sdir = TrnPack.SUBDIRIM;
@@ -737,10 +741,10 @@ classdef TrnPack
       for i=1:n
         for v=1:size(ims,2)
           s = sloc(i);
-          imgfile = s.img{v};
+          imgfile = fullfile(packdir,s.img{v});
           im = ims{i,v};
           imwrite(im,imgfile);
-          fprintf(1,'Wrote %s\n',imfrmf);
+          fprintf(1,'Wrote %s\n',s.img{v});
         end
       end
     end
