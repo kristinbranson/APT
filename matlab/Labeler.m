@@ -8661,7 +8661,12 @@ classdef Labeler < handle
         else
           lpos = obj.labels2;
         end
-        assert(false,'TODO');
+ 
+        for i=1:numel(lpos)
+          if isa(lpos{i},'TrkFile')
+            lpos{i} = Labels.fromtable(lpos{i}.tableform('labelsColNames',true));
+          end
+        end
         % could use tracklet->tableform and merge
       else
         if isempty(useTrain),
