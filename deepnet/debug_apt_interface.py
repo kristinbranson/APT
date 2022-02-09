@@ -20,7 +20,7 @@ conf_json = apt.create_conf(json_file, view, name, cache_dir=cache_dir,net_type=
 
 
 ##
-cmd =   ['-name', '20220208T032134', '-view', '2', '-cache', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57', '-err_file', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57/2011_mouse_cam13/20220208T032134view1_20220208T032136_sa.err', '-json_trn_file', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57/2011_mouse_cam13/loc.json', '-type', 'mdn', '/groups/branson/home/kabram/.apt/tp4274bdfa_f9e7_4df6_82c0_1873c4824f57/2011_mouse_cam13/20220208T032134_20220208T032136.lbl', 'train', '-use_cache']
+cmd =   '-name 20220208T152545 -view 1 -cache /tmp/tpf0988e40_6e07_497d_be67_18c24021757f -json_trn_file /groups/flyprojects/home/olympiad/.apt/tpf0988e40_6e07_497d_be67_18c24021757f/multitarget_bubble_training_20210523_allGT_AR_MAAPT_groneDSp5/loc.json -type mdn /groups/flyprojects/home/olympiad/.apt/tpf0988e40_6e07_497d_be67_18c24021757f/multitarget_bubble_training_20210523_allGT_AR_MAAPT_groneDSp5/20220208T152545_20220208T152546.lbl train -use_cache'
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')

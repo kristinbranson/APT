@@ -6475,14 +6475,13 @@ classdef Labeler < handle
 %         lpostag = obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTrx);
 %       end
 %     end 
-    function [tf,lpos,lpostag] = labelPosIsLabeled(obj,iFrm,iTrx)
+    function [tf,lpos,lpostag] = labelPosIsLabeled(obj,iFrm,iTrx,varargin)
       % For current movie. Labeled includes fullyOccluded
       %
       % tf: scalar logical
       % lpos: [nptsx2] xy coords for iFrm/iTrx
       % lpostag: [npts] logical array 
-      
-      iMov = obj.currMovie;
+      iMov = myparse(varargin,'iMov',obj.currMovie);
       PROPS = obj.gtGetSharedProps();
       s = obj.(PROPS.LBL){iMov};
       [tf,p,occ] = Labels.isLabeledFT(s,iFrm,iTrx);
@@ -14495,7 +14494,10 @@ classdef Labeler < handle
         % have changed
         
         freezeInfo = obj.prevAxesModeInfo;
-        obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
+        try
+          obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
+        catch
+        end
       elseif ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         obj.prevAxesSetLabels(obj.currMovie,obj.prevFrame,obj.currTarget);
       else
@@ -14843,7 +14845,7 @@ classdef Labeler < handle
 %         lpostag = obj.labeledpostagGTaware;
 %         lpos = lpos{iMov}(:,:,frm,iTgt);
 %         lpostag = lpostag{iMov}(:,frm,iTgt);
-        [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt);      
+        [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);      
         if isrotated,
           lpos = [lpos,ones(size(lpos,1),1)]*info.A;
           lpos = lpos(:,1:2);

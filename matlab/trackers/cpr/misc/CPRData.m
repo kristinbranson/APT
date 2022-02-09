@@ -568,7 +568,7 @@ classdef CPRData < handle
                   roiDY = roiYhi-roiYlo;
                   assert(roiDX==roiDY && mod(roiDX,2)==0,...
                     'Expected square roi crop centered around trx.');
-                  roiRad = roiDX/2;
+                  roiRad = roiDX/2-0.5; % MK 09022022. Subtracting half so that the patch size is even. 
                   [imroi,Atmp] = CropImAroundTrx(...
                     im,trxx,trxy,trxth,roiRad,roiRad,'fillvalues',roiPadVal);
                   % Atmp transforms so that the trx center is located at
