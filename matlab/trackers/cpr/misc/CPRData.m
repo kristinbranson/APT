@@ -566,14 +566,14 @@ classdef CPRData < handle
     %                   htth = atan2(htdxy(2),htdxy(1));                  
                   roiDX = roiXhi-roiXlo; % span is <this>+1, expected to be odd
                   roiDY = roiYhi-roiYlo;
-                  assert(roiDX==roiDY && mod(roiDX,2)==0,...
+                  assert(roiDX==roiDY && mod(roiDX+1,2)==0,...
                     'Expected square roi crop centered around trx.');
-                  roiRad = roiDX/2-0.5; % MK 09022022. Subtracting half so that the patch size is even. 
+                  roiRad = roiDX/2; 
                   [imroi,Atmp] = CropImAroundTrx(...
                     im,trxx,trxy,trxth,roiRad,roiRad,'fillvalues',roiPadVal);
                   % Atmp transforms so that the trx center is located at
                   % 0,0. We want it to be at (roiRad+1,roiRad+1).
-                  Atmp(end,[1 2]) = Atmp(end,[1 2]) + roiRad+1;
+                  Atmp(end,[1 2]) = Atmp(end,[1 2]) + roiRad + 1;
                   tformA(:,:,iTrl,iVw) = Atmp;
                 else
                   if ndims(im) == 2 %#ok<ISMAT>

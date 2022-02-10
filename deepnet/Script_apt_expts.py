@@ -1103,3 +1103,19 @@ for britnum in range(3):
             rae.track(movid=movid, train_type=train_type,
                       start_ndx=starts[ndx],end_ndx=ends[ndx])
 
+
+
+## ======================================================
+## =================== MUlti Animal =====================
+## ======================================================
+
+
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+## Roian
+
+## Add neg ROIs for mask experiments
+robj = rae_ma.ma_expt('roian')
+robj.add_neg_roi_roian()

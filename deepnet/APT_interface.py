@@ -2231,7 +2231,11 @@ def get_trx_info(trx_file, conf, n_frames):
             if eframe <= sframe:
                 continue
             cur_pts = T[T['pTrk'][tndx, 0]][()] + 1
-            theta = np.arctan2(cur_pts[..., 1, 0] - cur_pts[..., 1, 1], cur_pts[..., 0, 0] - cur_pts[..., 0, 1])
+            if conf.use_bbox_trx:
+                # Theta 0 zero indicates animal facing right. So when theta is 0 the images are rotated by 90 degree so that they face upwards. To disable any rotation theta needs to be -90. Ideally conf.trx_align_theta should be false and this shouldn't be used, but adding it as a safeguard.
+                theta = np.ones_like(cur_pts[...,0,0])*(-np.pi/2)
+            else:
+                theta = np.arctan2(cur_pts[..., 1, 0] - cur_pts[..., 1, 1], cur_pts[..., 0, 0] - cur_pts[..., 0, 1])
             ctr = cur_pts.mean(-1)
             end_frames.append(eframe)
             first_frames.append(sframe)

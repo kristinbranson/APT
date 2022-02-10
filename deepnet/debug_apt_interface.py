@@ -20,7 +20,7 @@ conf_json = apt.create_conf(json_file, view, name, cache_dir=cache_dir,net_type=
 
 
 ##
-cmd =   '-name 20220208T152545 -view 1 -cache /tmp/tpf0988e40_6e07_497d_be67_18c24021757f -json_trn_file /groups/flyprojects/home/olympiad/.apt/tpf0988e40_6e07_497d_be67_18c24021757f/multitarget_bubble_training_20210523_allGT_AR_MAAPT_groneDSp5/loc.json -type mdn /groups/flyprojects/home/olympiad/.apt/tpf0988e40_6e07_497d_be67_18c24021757f/multitarget_bubble_training_20210523_allGT_AR_MAAPT_groneDSp5/20220208T152545_20220208T152546.lbl train -use_cache'
+cmd =   ['/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_08022022/openpose.json', '-name', 'openpose_crop_nomask_10022022', '-json_trn_file', '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_08022022/openpose/loc_neg.json', '-conf_params', 'multi_crop_ims', 'True', 'multi_loss_mask', 'False', 'dl_steps', '100000', '-cache', '/groups/branson/bransonlab/mayank/apt_cache_2', '-type', 'multi_openpose', 'train', '-use_cache']
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')

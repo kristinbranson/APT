@@ -11195,7 +11195,7 @@ classdef Labeler < handle
       
     end
     
-    function [tPrm,do_update] = trackSetAutoParams(obj)
+    function [tPrm,do_update] = trackSetAutoParams(obj,varargin)
       % Compute auto parameters and update them based on user feedback
       %
       % AL: note this sets the project-level params based on the current
@@ -11203,6 +11203,7 @@ classdef Labeler < handle
       % MA-TD) and switches between them, the behavior may be odd (eg the
       % user may get prompted constantly about "changed suggestions" etc)
 
+      silent = myparse(varargin,'silent',false);
         
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
@@ -11230,7 +11231,7 @@ classdef Labeler < handle
         end
       end
       
-      [tPrm,canceled, do_update] = APTParameters.autosetparams(tPrm,obj);
+      [tPrm,canceled, do_update] = APTParameters.autosetparams(tPrm,obj,'silent',silent);
       if canceled
         obj.ClearStatus();
         return
