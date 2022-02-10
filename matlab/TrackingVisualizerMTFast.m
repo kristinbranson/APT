@@ -207,12 +207,12 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       
       %skelClr = obj.skelEdgeColor;
       for ivw=1:nvw
-          ax = ax(ivw);
-          % cf LabelCore.initSkeletonEdge
-          obj.hSkel(ivw) = plot(ax,nan,nan,'-',...
-            'PickableParts','none',...
-            'Tag',sprintf('TrackingVisualizerMTFast_Skel'),...
-            skelPVs{:});
+        ax = ax(ivw);
+        % cf LabelCore.initSkeletonEdge
+        obj.hSkel(ivw) = plot(ax,nan,nan,'-',...
+          'PickableParts','none',...
+          'Tag',sprintf('TrackingVisualizerMTFast_Skel'),...
+          skelPVs{:});
       end
 
       assert(~obj.doPch);
@@ -249,9 +249,11 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       %           ]
       % .YData = etc
       
-      if obj.tfHideViz || ~obj.tfShowSkel
+      if obj.tfHideViz || ~obj.tfShowSkel 
         return
       end
+      
+      assert(isscalar(obj.hSkel),'Multiview support todo.');
       
       xy = obj.xyCurr; % [npt x 2 x ntgt]
       if obj.tfShowOnlyPrimary
@@ -259,9 +261,20 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         xy = xy(:,:,tf);
       end
       
-      se = obj.skelEdges; % kx2  [e1pt1 e1pt2; e2pt1 e2pt2; ...; ekpt1 ekpt2]
+      TrackingVisualizerMTFast.updateSkelStc(...
+                          obj.hSkel,obj.skelEdges,obj.nPts,xy);
+    end
+  end
+  methods (Static)
+    function updateSkelStc(hSkel,skelEdges,npt,xy)
+      % Set hSkel.XData/.YData per xy
+      %
+      % hSkel: graphics handle
+      % skelEdges: kx2 [e1pt1 e1pt2; e2pt1 e2pt2; ...; ekpt1 ekpt2]
+      % xy: [npt x 2 x ntgtshow]
+      
+      se = skelEdges;
       k = size(se,1);
-      npt = obj.nPts;
       ntgtshow = size(xy,3);
       
       totlen = k*ntgtshow*3;
@@ -288,8 +301,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       ydata(idatapt1) = xy(iypt1);
       ydata(idatapt2) = xy(iypt2);
       
-      set(obj.hSkel,'XData',xdata,'YData',ydata);
+      set(hSkel,'XData',xdata,'YData',ydata);
     end
+  end
+  methods
     function initAndUpdateSkeletonEdges(obj,sedges)
       % In our case we dont need to init the gfx handles.
       obj.skelEdges = sedges;
@@ -339,6 +354,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       if ~isempty(obj.hSkel)
         onoffSkel = onIff(~obj.tfHideViz && obj.tfShowSkel);
         set(obj.hSkel,'Visible',onoffSkel);
+        % because updateSkel() early returns if visible is off
         obj.updateSkel();
       end
     end
