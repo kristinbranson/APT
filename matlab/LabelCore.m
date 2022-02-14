@@ -405,10 +405,8 @@ classdef LabelCore < handle
       obj.redrawTextLabels(); % to utilize txtoffset
     end
     
-    function edges = skeletonEdges(obj)
-      
+    function edges = skeletonEdges(obj)      
       edges = obj.labeler.skeletonEdges;
-      
     end
     
     function updateSkeletonEdges(obj,ax,ptsPlotInfo)
@@ -423,9 +421,7 @@ classdef LabelCore < handle
       deleteValidHandles(obj.hSkel);
       obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
       for i = 1:size(obj.skeletonEdges,1),
-        %color = ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
-        color = [.7,.7,.7];
-        obj.hSkel(i) = LabelCore.initSkeletonEdge(ax,i,ptsPlotInfo,color);
+        obj.hSkel(i) = LabelCore.initSkeletonEdge(ax,i,ptsPlotInfo);
       end
       xy = obj.getLabelCoords();
       tfOccld = any(isinf(xy),2);
@@ -836,16 +832,12 @@ classdef LabelCore < handle
       end
     end
     
-    function h = initSkeletonEdge(ax,i,ptsPlotInfo,color)
-      
-      if nargin < 4,
-        color = [.7,.7,.7];
-      end
-      h = plot(ax(1),nan(2,1),nan(2,1),'-','Color',color,...
+    function h = initSkeletonEdge(ax,i,ptsPlotInfo)      
+      skelprops = ptsPlotInfo.SkeletonProps;
+      skelprops = struct2paramscell(skelprops);
+      h = plot(ax(1),nan(2,1),nan(2,1),'-', ... 
         'PickableParts','none','Tag',sprintf('LabelCore_Skel_%d',i),...
-        'LineWidth',ptsPlotInfo.MarkerProps.LineWidth); 
-      % Maybe should be using a dedicated skeleton LineWidth prop
-      
+        skelprops{:});
     end
     
     function setSkelCoords(xy,tfOccld,hSkel,edges)

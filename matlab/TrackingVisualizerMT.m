@@ -71,8 +71,6 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     showOnlyPrimary=false % logical scalar
     
     iTgtHide % [nhide currently must equal 1] tgt indices for hidden targets. 
-                
-    skelEdgeColor = [.7,.7,.7];
   end
   properties (Constant)
     SAVEPROPS = {'ipt2vw' 'ptClrs' 'txtOffPx' 'tfHideViz' 'tfHideTxt' ...
@@ -225,6 +223,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           TrackingVisualizerMT.convertLabelerCosmeticPVs(pppi);
       markerPVscell = struct2paramscell(markerPVs);
       textPVscell = struct2paramscell(textPVs);
+      skelPVscell = struct2paramscell(skelPVs);
       
       if postload
         % We init first with markerPVs/textPVs, then set saved custom PVs
@@ -236,9 +235,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       arrayfun(@(x)hold(x,'on'),ax);
 
       [obj.hXYPrdRed,obj.hXYPrdRedTxt] = ...
-            obj.hlpPlotTgts(ntgtsinitial,markerPVscell,textPVscell);
-      
-      obj.initSkeletonEdges(obj.lObj.skeletonEdges);
+            obj.hlpPlotTgts(ntgtsinitial,markerPVscell,textPVscell);      
       
       nvw = obj.lObj.nview;
       obj.hSkel = gobjects(1,nvw);      
@@ -248,7 +245,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         obj.hSkel(ivw) = plot(ax,nan,nan,'-',...
           'PickableParts','none',...
           'Tag',sprintf('TrackingVisualizerMT_Skel'),...
-          skelPVs{:});
+          skelPVscell{:});
       end
       
       if obj.doPch
@@ -296,7 +293,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     
     function initAndUpdateSkeletonEdges(obj,sedges)
       % Inits skel edges and sets their posns based on current hXYPrdRed.
-      obj.skelEdges = sedges;
+      %obj.skelEdges = sedges;
       obj.updateSkel();
     end
     function updateSkel(obj,xy)
@@ -315,7 +312,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         end
       else
         itgtshow = 1:ntgts;
-        itgtshow(1,obj.iTgtHide) = [];
+        itgtshow(:,obj.iTgtHide) = [];
       end      
       
       if nargin<2
@@ -342,7 +339,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         xy = xy(:,:,itgtshow);
       end
       
-      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,obj.skelEdges,npts,xy);
+      se = obj.lObj.skeletonEdges;      
+      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,se,npts,xy);
     end
     function setShowSkeleton(obj,tf)
       obj.tfShowSkel = tf;
@@ -725,8 +723,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % The point being that for eg MA labeling, we want smaller markers
       % etc on other targets.
 
-      markerPVs = obj.convertLabelerMarkerPVs(pppi.MarkerProps);
-      textPVs = obj.convertLabelerTextPVs(pppi.TextProps);
+      markerPVs = TrackingVisualizerMT.convertLabelerMarkerPVs(pppi.MarkerProps);
+      textPVs = TrackingVisualizerMT.convertLabelerTextPVs(pppi.TextProps);
       pchTextPVs = struct('FontSize',round(textPVs.FontSize*2.0));
       skelPVs = pppi.SkeletonProps;
     end

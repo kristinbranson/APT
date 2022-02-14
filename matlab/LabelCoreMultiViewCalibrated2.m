@@ -331,15 +331,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       for ivw = 1:obj.nView,
         for i = 1:size(obj.labeler.skeletonEdges,1),
           iEdge = (ivw-1)*nEdgesPerView+i;
-          %color = ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
-          color = [.7,.7,.7];
-          obj.hSkel(iEdge) = LabelCore.initSkeletonEdge(ax(ivw),iEdge,ptsPlotInfo,color);
+          obj.hSkel(iEdge) = LabelCore.initSkeletonEdge(ax(ivw),iEdge,ptsPlotInfo);
         end
       end
       xy = obj.getLabelCoords();
       tfOccld = any(isinf(xy),2);
-      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);
-      
+      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);      
     end
     
   end
