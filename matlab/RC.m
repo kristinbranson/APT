@@ -7,6 +7,19 @@ classdef RC
   
   methods (Static)
     
+    function v = getpropdefault(name,dfltval)
+      % get prop if it exists; if not, set prop to default val and return
+      % it
+      
+      rc = RC.load;
+      if isfield(rc,name)
+        v = rc.(name);
+      else
+        RC.saveprop(name,dfltval);
+        v = dfltval;
+      end
+    end
+    
     % AL 20150606: Currently every getprop involves a filesystem read
     function v = getprop(name)      
       rc = RC.load;

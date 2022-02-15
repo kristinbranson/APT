@@ -745,8 +745,9 @@ classdef TrkFile < dynamicprops
     end
     
     function t = tableform(obj,varargin)
-      ftonly = myparse(varargin,...
-        'ftonly',false ...
+      [ftonly,labelsColnames] = myparse(varargin,...
+        'ftonly',false, ...
+        'labelsColNames',false ... % if true, use columns compatable with Labels.fromtable()
         );
       
       assert(~obj.isfull);
@@ -768,11 +769,24 @@ classdef TrkFile < dynamicprops
         nd = nd(1);
         v = cellfun(@(x)permute(x,[nd 1:nd-1]),v,'uni',0); % put 'frame' dim first
         % convert to 2d arrays (in particular for pTrk)
-        v = cellfun(@(x)reshape(x,size(x,1),[]),v,'uni',0); 
+        for i=1:numel(v)
+          szv = size(v{i});
+          v{i} = reshape(v{i},szv(1),prod(szv(2:end)));
+        end
+        %AL 202202: this line prob should work but leads to incorrect sizes
+        %for empty arrs
+        %v = cellfun(@(x)reshape(x,size(x,1),[]),v,'uni',0); 
         s.(f) = cat(1,v{:});
-      end      
+      end
       
       t = struct2table(s);
+      
+      if labelsColnames
+        COLSFROM = {'^pTrk$' '^pTrkTS$' '^pTrkTag$'};
+        COLSTO = {'p' 'pTS' 'tfocc'};
+        colnames = regexprep(t.Properties.VariableNames,COLSFROM,COLSTO);
+        t.Properties.VariableNames = colnames;
+      end
     end
     
     function v = isalive(obj,f,itgt)

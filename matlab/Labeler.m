@@ -7834,6 +7834,29 @@ classdef Labeler < handle
       end      
     end
     
+%     function updateSkeletonCosmetics(obj,skelSpecs)
+%       for i=1:numel(skelSpecs)
+%         s = skelSpecs(i);
+%         lsetType = s.landmarkSetType;
+%         lObjUpdateMeth = lsetType.updateCosmeticsLabelerMethod();
+%         obj.(lObjUpdateMeth)(s.MarkerProps,s.TextProps,s.TextOffset);
+%       end
+%     end
+  
+    function updateSkeletonImportedCosmetics(obj,sPV)
+      % sPV: struct with PVs, eg 
+      % sPV.LineWidth
+      % sPV.color: [1 3]
+      
+      s = structoverlay(obj.impPointsPlotInfo.SkeletonProps,sPV);
+      obj.impPointsPlotInfo.SkeletonProps = s;
+      
+      lpos2tv = obj.labeledpos2trkViz;
+      if ~isempty(lpos2tv)        
+        lpos2tv.setSkeletonCosmetics(s);
+      end
+    end
+    
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
        [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
         pvMarker,pvText,textOffset,'impPointsPlotInfo');      
@@ -8637,7 +8660,12 @@ classdef Labeler < handle
         else
           lpos = obj.labels2;
         end
-        assert(false,'TODO');
+ 
+        for i=1:numel(lpos)
+          if isa(lpos{i},'TrkFile')
+            lpos{i} = Labels.fromtable(lpos{i}.tableform('labelsColNames',true));
+          end
+        end
         % could use tracklet->tableform and merge
       else
         if isempty(useTrain),
@@ -12436,6 +12464,13 @@ classdef Labeler < handle
       
       if obj.maIsMA
         tv = TrackingVisualizerTracklets(obj,ptsPlotInfoFld,gfxTagPfix);
+      elseif obj.hasTrx
+        tfadvanced = RC.getpropdefault('optimizeImportedViz',false);
+        if tfadvanced
+          tv = TrackingVisualizerMTFast(obj,ptsPlotInfoFld,gfxTagPfix);
+        else
+          tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
+        end
       else
         tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
       end
@@ -15085,7 +15120,7 @@ classdef Labeler < handle
       if setlbls
         iMov = obj.currMovie;
         frm = obj.currFrame;
-        if obj.maIsMA
+        if obj.maIsMA || obj.hasTrx
           tv.newFrame(frm);
         else
           % nonMA: either SA, or SA-trx
@@ -15140,10 +15175,10 @@ classdef Labeler < handle
     function labels2VizShowHideUpdate(obj)
       tfHide = obj.labels2Hide;
       txtprops = obj.impPointsPlotInfo.TextProps;
-      tfHideTxt = strcmp(txtprops.Visible,'off');      
+      tfHideTxt = strcmp(txtprops.Visible,'off');
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
-        tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly);
+        tv.setAllShowHide(tfHide,tfHideTxt,obj.labels2ShowCurrTargetOnly,obj.showSkeleton);
       end
     end
     

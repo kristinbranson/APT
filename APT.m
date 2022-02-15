@@ -583,6 +583,18 @@ classdef APT
       end
     end
     
+    function v = getprefdefault(name,dfltval)
+      v = RC.getpropdefault(name,dfltval);
+    end
+    
+    function v = getpref(name)
+      v = RC.getprop(name);
+    end
+    
+    function setpref(name,val)
+      RC.saveprop(name,val);
+    end
+    
   end
   
 end
