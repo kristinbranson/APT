@@ -18,9 +18,12 @@ classdef TrnPack
         'loc',[] ... % (opt), specific loc struct array to show
         );
       
-      [~,~,~,loc,~] = TrnPack.loadPack(packdir); % xxx api now broken
-       
-      hfig = figure(11);
+      [~,~,~,loc] = TrnPack.loadPack(packdir);      
+      loc = loc.locdata;
+      
+      nvw = numel(loc(1).img);
+      hfig = figure(11);      
+      axs = createsubplots(1,nvw);
       
       idmfun = unique({loc.idmovfrm}');
       nmfun = numel(idmfun);
@@ -28,30 +31,38 @@ classdef TrnPack
         idmf = idmfun{iidmf};
         is = find(strcmp({loc.idmovfrm}',idmf));
         
-        imf = fullfile(packdir,'im',[idmf '.png']);
-        if exist(imf,'file')==0
-          warningNoTrace('Skipping, image not found: %s',imf);
-          continue;
+        for ivw=1:nvw
+          imfS = loc(is(1)).img{ivw};
+          imf = fullfile(packdir,imfS);
+          if exist(imf,'file')==0
+            warningNoTrace('Skipping, image not found: %s',imf);
+            continue;
+          end
+
+          im = imread(imf);
+
+          axes(axs(ivw));
+          cla;          
+          imagesc(im);
+          colormap gray;
+          hold on;
+          axis square;
+
+          for j = is(:)'
+            s = loc(j);
+            xy = reshape(s.pabs,[],2);
+            npts = size(xy,1)/nvw;
+            iptsvw = (ivw-1)*npts + (1:npts)';            
+            scatter(xy(iptsvw,1),xy(iptsvw,2),scargs{:});        
+            plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
+          end
+
+          if ivw==1
+            tstr = sprintf('%s: %d tgts',idmf,numel(is));
+            title(tstr,ttlargs{:});
+          end
         end
-          
-        im = imread(imf);
         
-        clf;
-        ax = axes;
-        imagesc(im);
-        colormap gray;
-        hold on;
-        axis square;
-        
-        for j = is(:)'
-          s = loc(j);
-          xy = reshape(s.p,[],2);        
-          scatter(xy(:,1),xy(:,2),scargs{:});        
-          plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
-        end
-        
-        tstr = sprintf('%s: %d tgts',idmf,numel(is));
-        title(tstr,ttlargs{:});
         input(idmf);
       end        
     end
@@ -167,7 +178,7 @@ classdef TrnPack
       s = jsondecode(jse{1});
       fprintf(1,'loaded %s\n',jsonfile);
     end
-    function [slbl,j,tp,locg] = loadPack(packdir)
+    function [slbl,j,tp,locg] = loadPack(packdir,varargin)
       % Load training package into MATLAB data structures
       %
       % slbl: 'stripped lbl' struct
@@ -181,6 +192,10 @@ classdef TrnPack
       %
       % Note tp, loc, loccc contain equivalent info just in different
       % formats.
+      
+      incTrnPack = myparse(varargin,...
+        'incTrnPack',false ...
+        );
        
       dd = dir(fullfile(packdir,'*.lbl'));
       if ~isscalar(dd)
@@ -202,10 +217,13 @@ classdef TrnPack
       fprintf(1,'loaded %s\n',jf);
       jf = readtxtfile(jf);
       j = jsondecode(jf{1});
-      
-%       tpf = fullfile(packdir,'trnpack.json');
-%       tp = TrnPack.hlpLoadJson(tpf);
-      tp = [];
+
+      if incTrnPack
+        tpf = fullfile(packdir,'trnpack.json');
+        tp = TrnPack.hlpLoadJson(tpf);
+      else
+        tp = [];
+      end
 
 %       locf = fullfile(packdir,'loc0.json');
 %       loc = TrnPack.hlpLoadJson(locf);
@@ -351,7 +369,7 @@ classdef TrnPack
             writeimsidx = 1:numel(locg);
           end
 
-          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl.preProcData_I,view);
+          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl.preProcData_I);
         end
       end
         
@@ -726,13 +744,9 @@ classdef TrnPack
         end
       end
     end
-    function writeimsSA(sloc,packdir,ims,view)
+    function writeimsSA(sloc,packdir,ims)
       % Write ims for Single animal
-      
-      % XXX
-      %assert(isnan(view))
-      % For multiview write the images only once for the first view
-      
+            
       sdir = TrnPack.SUBDIRIM;
       if exist(fullfile(packdir,sdir),'dir')==0
         mkdir(packdir,sdir);
