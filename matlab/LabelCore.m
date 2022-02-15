@@ -409,6 +409,16 @@ classdef LabelCore < handle
       edges = obj.labeler.skeletonEdges;
     end
     
+    function skeletonCosmeticsUpdated(obj)
+      % Note: this assumes ptsPlotInfo passed to obj.init() was
+      % labelPointsPlotInfo. Mixing/matching some treatment here
+      
+      lObj = obj.labeler;
+      ppi = lObj.labelPointsPlotInfo;
+      obj.ptsPlotInfo.SkeletonProps = ppi.SkeletonProps;      
+      set(obj.hSkel,ppi.SkeletonProps);
+    end
+    
     function updateSkeletonEdges(obj,ax,ptsPlotInfo)
       
       if nargin < 2 || isempty(ax),
@@ -425,8 +435,7 @@ classdef LabelCore < handle
       end
       xy = obj.getLabelCoords();
       tfOccld = any(isinf(xy),2);
-      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);
-      
+      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);      
     end
     
     

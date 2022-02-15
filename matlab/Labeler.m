@@ -7834,28 +7834,31 @@ classdef Labeler < handle
         end
       end      
     end
-    
-%     function updateSkeletonCosmetics(obj,skelSpecs)
-%       for i=1:numel(skelSpecs)
-%         s = skelSpecs(i);
-%         lsetType = s.landmarkSetType;
-%         lObjUpdateMeth = lsetType.updateCosmeticsLabelerMethod();
-%         obj.(lObjUpdateMeth)(s.MarkerProps,s.TextProps,s.TextOffset);
-%       end
-%     end
-  
-    function updateSkeletonImportedCosmetics(obj,sPV)
+
+    function updateSkeletonCosmetics(obj,lsetType,sPV)
       % sPV: struct with PVs, eg 
       % sPV.LineWidth
-      % sPV.color: [1 3]
+      %
+      % Update obj.(ptsPlotInfoFld).SkeletonProps, then call downstream
+      % vizers
       
-      s = structoverlay(obj.impPointsPlotInfo.SkeletonProps,sPV);
-      obj.impPointsPlotInfo.SkeletonProps = s;
+      ptsPlotInfoFld = lsetType.labelerPropPlotInfo;
+      s0 = obj.(ptsPlotInfoFld).SkeletonProps;      
+      obj.(ptsPlotInfoFld).SkeletonProps = structoverlay(s0,sPV);
       
-      lpos2tv = obj.labeledpos2trkViz;
-      if ~isempty(lpos2tv)        
-        lpos2tv.setSkeletonCosmetics(s);
-      end
+      switch lsetType
+        case LandmarkSetType.Label
+          lc = obj.lblCore;
+          lc.skeletonCosmeticsUpdated();
+        case LandmarkSetType.Prediction
+          dt = obj.tracker;
+          dt.trkVizer.skeletonCosmeticsUpdated();
+        case LandmarkSetType.Imported
+          lpos2tv = obj.labeledpos2trkViz;
+          if ~isempty(lpos2tv)
+            lpos2tv.skeletonCosmeticsUpdated(s);
+          end
+      end         
     end
     
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)

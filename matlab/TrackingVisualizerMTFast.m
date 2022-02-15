@@ -499,10 +499,11 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     function setTextOffset(obj,offsetPx)
       obj.txtOffPx = offsetPx; 
       obj.updatePredsTxt();
-    end
-    
-    function setSkeletonCosmetics(obj,pvargs)
-      set(obj.hSkel,pvargs);
+    end    
+    function skeletonCosmeticsUpdated(obj)
+      ppiFld = obj.ptsPlotInfoFld;
+      ppi = obj.lObj.(ppiFld);
+      set(obj.hSkel,ppi.SkeletonInfo);
     end
 %     function cbkPchTextBDF(obj,s,e)
 %       iTgt = s.UserData;
