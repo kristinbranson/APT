@@ -260,7 +260,7 @@ classdef TrnPack
         'verbosejson',false, ...
         'tblsplit', [], ...  % tbl with fields .mov, .frm, .split
                        ...  % all double/numeric and 1-based
-        'view',nan ...
+        'view',nan ... % currently unused
         );      
       
       tfsplitsprovided = ~isempty(tblsplit);

@@ -289,6 +289,18 @@ classdef testAPT < handle
         info.bundle_link = '';
         info.op_graph = [];   
         
+      elseif strcmp(name,'sam2view')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 2;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 100; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+        
         
       else
         error('Unrecognized test name');
