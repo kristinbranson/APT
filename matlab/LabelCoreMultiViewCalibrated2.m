@@ -207,7 +207,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 %       ppi2 = obj.labeler.predPointsPlotInfo;
       %ppi2.FontSize = ppi.FontSize;
       
-      obj.updateSkeletonEdges([],ppi);
+      obj.updateSkeletonEdges();
       obj.updateShowSkeleton();
 
       pvMarker = struct2paramscell(ppi.MarkerProps);
@@ -312,18 +312,14 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
     end
     
-    function updateSkeletonEdges(obj,ax,ptsPlotInfo)
+    function updateSkeletonEdges(obj)
       
       if isempty(obj.iSet2iPt) || isempty(obj.labeler.skeletonEdges),
         return;
       end
       
-      if nargin < 2 || isempty(ax),
-        ax = obj.hAx;
-      end
-      if nargin < 3 || isempty(ptsPlotInfo),
-        ptsPlotInfo = obj.ptsPlotInfo;
-      end
+      ax = obj.hAx;
+      ptsPlotInfo = obj.ptsPlotInfo;
       
       deleteValidHandles(obj.hSkel);
       nEdgesPerView = size(obj.skeletonEdges,1)/obj.nView;

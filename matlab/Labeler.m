@@ -7729,6 +7729,34 @@ classdef Labeler < handle
       end
     end
     
+    function updateSkeletonCosmetics(obj,skelSpecs)
+      for i=1:numel(skelSpecs)
+        ss = skelSpecs(i);
+        lsetType = ss.landmarkSetType;
+      
+        ptsPlotInfoFld = lsetType.labelerPropPlotInfo;
+        s0 = obj.(ptsPlotInfoFld).SkeletonProps;      
+        obj.(ptsPlotInfoFld).SkeletonProps = structoverlay(s0,ss.SkeletonProps);
+      
+        switch lsetType
+          case LandmarkSetType.Label
+            lc = obj.lblCore;
+            lc.skeletonCosmeticsUpdated();
+          case LandmarkSetType.Prediction
+            dt = obj.tracker;
+            tv = dt.trkVizer;
+            if ~isempty(tv)              
+              tv.skeletonCosmeticsUpdated();
+            end
+          case LandmarkSetType.Imported
+            lpos2tv = obj.labeledpos2trkViz;
+            if ~isempty(lpos2tv)
+              lpos2tv.skeletonCosmeticsUpdated();
+            end
+        end
+      end          
+    end
+    
     function updateLandmarkLabelColors(obj,colors,colormapname)
       % colors: "setwise" colors
 
@@ -7833,32 +7861,6 @@ classdef Labeler < handle
           end
         end
       end      
-    end
-
-    function updateSkeletonCosmetics(obj,lsetType,sPV)
-      % sPV: struct with PVs, eg 
-      % sPV.LineWidth
-      %
-      % Update obj.(ptsPlotInfoFld).SkeletonProps, then call downstream
-      % vizers
-      
-      ptsPlotInfoFld = lsetType.labelerPropPlotInfo;
-      s0 = obj.(ptsPlotInfoFld).SkeletonProps;      
-      obj.(ptsPlotInfoFld).SkeletonProps = structoverlay(s0,sPV);
-      
-      switch lsetType
-        case LandmarkSetType.Label
-          lc = obj.lblCore;
-          lc.skeletonCosmeticsUpdated();
-        case LandmarkSetType.Prediction
-          dt = obj.tracker;
-          dt.trkVizer.skeletonCosmeticsUpdated();
-        case LandmarkSetType.Imported
-          lpos2tv = obj.labeledpos2trkViz;
-          if ~isempty(lpos2tv)
-            lpos2tv.skeletonCosmeticsUpdated(s);
-          end
-      end         
     end
     
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)

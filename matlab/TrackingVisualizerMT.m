@@ -638,7 +638,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function skeletonCosmeticsUpdated(obj)
       ppiFld = obj.ptsPlotInfoFld;
       ppi = obj.lObj.(ppiFld);
-      set(obj.hSkel,ppi.SkeletonInfo);
+      set(obj.hSkel,ppi.SkeletonProps);
     end
     function cbkPchTextBDF(obj,s,e)
       iTgt = s.UserData;

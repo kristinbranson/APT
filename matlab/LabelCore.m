@@ -166,7 +166,7 @@ classdef LabelCore < handle
       obj.hPtsTxtOcc = [];      
       
       ax = obj.hAx;
-      obj.updateSkeletonEdges(ax,ptsPlotInfo);
+      obj.updateSkeletonEdges();
       
       pvMarker = struct2paramscell(ptsPlotInfo.MarkerProps);
       pvText = struct2paramscell(ptsPlotInfo.TextProps);
@@ -419,14 +419,10 @@ classdef LabelCore < handle
       set(obj.hSkel,ppi.SkeletonProps);
     end
     
-    function updateSkeletonEdges(obj,ax,ptsPlotInfo)
+    function updateSkeletonEdges(obj)
       
-      if nargin < 2 || isempty(ax),
-        ax = obj.hAx;
-      end
-      if nargin < 3 || isempty(ptsPlotInfo),
-        ptsPlotInfo = obj.ptsPlotInfo;
-      end
+      ax = obj.hAx;
+      ptsPlotInfo = obj.ptsPlotInfo;
       
       deleteValidHandles(obj.hSkel);
       obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
