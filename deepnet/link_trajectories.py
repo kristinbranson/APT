@@ -172,7 +172,10 @@ def assign_ids(trk, params, T=np.inf):
   
   ids.settargetframe(idscurr, np.where(idxcurr.flatten())[0], 0)
   # ids[idxcurr,0] = idscurr
-  lastid = np.max(idscurr)
+  if idscurr.size == 0:
+    lastid = 0
+  else:
+    lastid = np.max(idscurr)
   costs = np.zeros(T-1)
   
   set_default_params(params)
@@ -394,8 +397,7 @@ def stitch(trk, ids, params):
   """
   _, maxv = ids.get_min_max_val()
   nids = np.max(maxv)+1
-  # nids = np.max(ids)+1
-  
+
   # get starts and ends for each id
   t0s = np.zeros(nids, dtype=int)
   t1s = np.zeros(nids, dtype=int)
@@ -597,7 +599,9 @@ def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1)
     else:
       mult = 1.2
 
-  if heuristic == 'prctile':
+  if allcosts.size==0:
+    maxcost = 10
+  elif heuristic == 'prctile':
     maxcost = mult * np.percentile(allcosts, prctile)
   elif heuristic == 'secondorder':
     # use sharp increase in 2nd order differences.
@@ -644,6 +648,8 @@ def estimate_maxcost_ind(trk, params, nsample=1000, nframes_skip=1):
   minv, maxv = trk.get_min_max_val()
   minv = np.min(minv, axis=0)
   maxv = np.max(maxv, axis=0)
+  if np.all(maxv==None) or np.all(minv==None):
+    return np.zeros(0)
   bignumber = np.sum(maxv-minv) * 2.1
   # bignumber = np.sum(np.nanmax(p,axis=(1,2,3))-np.nanmin(p,axis=(1,2,3)))*2.1
   allcosts = np.zeros((trk.ntargets, nsample))
@@ -1033,6 +1039,9 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   :return: linked trajectory
   :rtype: TrkFile.Trk
   '''
+
+  if trk.ntargets ==0:
+    return trk
 
   ids = dummy_ids(trk)
 
@@ -1546,8 +1555,8 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
     confd.rrange = 180.
   confd.trange = min(conf.imsz) / 15
   # no flipping business for id
-  confd.horzFlip = False
-  confd.vertFlip = False
+  confd.horz_flip = False
+  confd.vert_flip = False
   confd.scale_factor_range = 1.1
   confd.brange = [-0.05, 0.05]
   confd.crange = [0.95, 1.05]

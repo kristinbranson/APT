@@ -18,9 +18,12 @@ classdef TrnPack
         'loc',[] ... % (opt), specific loc struct array to show
         );
       
-      [~,~,~,loc,~] = TrnPack.loadPack(packdir); % xxx api now broken
-       
-      hfig = figure(11);
+      [~,~,~,loc] = TrnPack.loadPack(packdir);      
+      loc = loc.locdata;
+      
+      nvw = numel(loc(1).img);
+      hfig = figure(11);      
+      axs = createsubplots(1,nvw);
       
       idmfun = unique({loc.idmovfrm}');
       nmfun = numel(idmfun);
@@ -28,30 +31,38 @@ classdef TrnPack
         idmf = idmfun{iidmf};
         is = find(strcmp({loc.idmovfrm}',idmf));
         
-        imf = fullfile(packdir,'im',[idmf '.png']);
-        if exist(imf,'file')==0
-          warningNoTrace('Skipping, image not found: %s',imf);
-          continue;
+        for ivw=1:nvw
+          imfS = loc(is(1)).img{ivw};
+          imf = fullfile(packdir,imfS);
+          if exist(imf,'file')==0
+            warningNoTrace('Skipping, image not found: %s',imf);
+            continue;
+          end
+
+          im = imread(imf);
+
+          axes(axs(ivw));
+          cla;          
+          imagesc(im);
+          colormap gray;
+          hold on;
+          axis square;
+
+          for j = is(:)'
+            s = loc(j);
+            xy = reshape(s.pabs,[],2);
+            npts = size(xy,1)/nvw;
+            iptsvw = (ivw-1)*npts + (1:npts)';            
+            scatter(xy(iptsvw,1),xy(iptsvw,2),scargs{:});        
+            plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
+          end
+
+          if ivw==1
+            tstr = sprintf('%s: %d tgts',idmf,numel(is));
+            title(tstr,ttlargs{:});
+          end
         end
-          
-        im = imread(imf);
         
-        clf;
-        ax = axes;
-        imagesc(im);
-        colormap gray;
-        hold on;
-        axis square;
-        
-        for j = is(:)'
-          s = loc(j);
-          xy = reshape(s.p,[],2);        
-          scatter(xy(:,1),xy(:,2),scargs{:});        
-          plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
-        end
-        
-        tstr = sprintf('%s: %d tgts',idmf,numel(is));
-        title(tstr,ttlargs{:});
         input(idmf);
       end        
     end
@@ -167,7 +178,7 @@ classdef TrnPack
       s = jsondecode(jse{1});
       fprintf(1,'loaded %s\n',jsonfile);
     end
-    function [slbl,j,tp,locg] = loadPack(packdir)
+    function [slbl,j,tp,locg] = loadPack(packdir,varargin)
       % Load training package into MATLAB data structures
       %
       % slbl: 'stripped lbl' struct
@@ -181,6 +192,10 @@ classdef TrnPack
       %
       % Note tp, loc, loccc contain equivalent info just in different
       % formats.
+      
+      incTrnPack = myparse(varargin,...
+        'incTrnPack',false ...
+        );
        
       dd = dir(fullfile(packdir,'*.lbl'));
       if ~isscalar(dd)
@@ -202,10 +217,13 @@ classdef TrnPack
       fprintf(1,'loaded %s\n',jf);
       jf = readtxtfile(jf);
       j = jsondecode(jf{1});
-      
-%       tpf = fullfile(packdir,'trnpack.json');
-%       tp = TrnPack.hlpLoadJson(tpf);
-      tp = [];
+
+      if incTrnPack
+        tpf = fullfile(packdir,'trnpack.json');
+        tp = TrnPack.hlpLoadJson(tpf);
+      else
+        tp = [];
+      end
 
 %       locf = fullfile(packdir,'loc0.json');
 %       loc = TrnPack.hlpLoadJson(locf);
@@ -235,13 +253,14 @@ classdef TrnPack
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx,slblname,verbosejson,tblsplit] = myparse(varargin,...
+      [writeims,writeimsidx,slblname,verbosejson,tblsplit,view] = myparse(varargin,...
         'writeims',true, ...
         'writeimsidx',[], ... % (opt) DEBUG ONLY
         'strippedlblname',[], ... % (reqd) short filename for stripped lbl
         'verbosejson',false, ...
-        'tblsplit', [] ...  % tbl with fields .mov, .frm, .split
+        'tblsplit', [], ...  % tbl with fields .mov, .frm, .split
                        ...  % all double/numeric and 1-based
+        'view',nan ... % currently unused
         );      
       
       tfsplitsprovided = ~isempty(tblsplit);
@@ -333,13 +352,25 @@ classdef TrnPack
       else
         movinfo = lObj.movieInfoAll;
       end
-      locg = TrnPack.genLocs(tp,movinfo);
-      if writeims
-        if isempty(writeimsidx)
-          writeimsidx = 1:numel(locg);
+      isma = lObj.maIsMA;
+      if isma
+        locg = TrnPack.genLocs(tp,movinfo);
+        if writeims
+          if isempty(writeimsidx)
+            writeimsidx = 1:numel(locg);
+          end
+
+          TrnPack.writeims(locg(writeimsidx),packdir);
         end
-        
-        TrnPack.writeims(locg(writeimsidx),packdir);
+      else
+        locg = TrnPack.genLocsSA(slbl,tblsplit);
+        if writeims
+          if isempty(writeimsidx)
+            writeimsidx = 1:numel(locg);
+          end
+
+          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl.preProcData_I);
+        end
       end
         
       if verbosejson
@@ -615,7 +646,66 @@ classdef TrnPack
         end
       end
     end
-    
+    function [sloc] = genLocsSA(slbl,tblsplit,varargin)
+    % Locs for Single animal. Use images in the lbl cache for now.
+    % mov is empty for now. Seemed too convoluted to include it for now.
+    % MK 07022022
+      imgpat = myparse(varargin,...
+        'imgpat','im/%s.png' ...
+        );
+      
+      nrows=size(slbl.preProcData_I,1);
+      sloc = [];
+      roi = [];
+      for v=1:size(slbl.preProcData_I,2)
+        c1 = size(slbl.preProcData_I{v},2);
+        r1 = size(slbl.preProcData_I{v},1);
+        cur_roi = [1 1 c1 c1 1 r1 r1 1]';
+        roi = [roi; cur_roi];
+      end
+      has_split = ~isempty(tblsplit);
+      default_split = 1;
+      
+      for j=1:nrows
+        f = slbl.preProcData_MD_frm(j);
+        itgt = slbl.preProcData_MD_iTgt(j);
+        ts = slbl.preProcDataTS;
+        occ = slbl.preProcData_MD_tfocc(j,:);
+        imov = slbl.preProcData_MD_mov(j);
+        if has_split
+          curndx = find((tblsplit.mov == imov) & (tblsplit.frm ==f) & ...
+            (tblsplit.iTgt == itgt));
+          assert(numel(curndx)==1);
+          split = tblsplit(curndx,:).split;
+        else          
+          split = default_split;
+        end
+        
+        imgs = {};
+        for v=1:slbl.cfg.NumViews
+          basefS = sprintf('mov%04d_frm%08d_tgt%05d_view%d',imov,f,itgt,v);
+          img = sprintf(imgpat,basefS);
+          imgs{v} = img;
+        end
+        sloctmp = struct(...
+          'id',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
+          'idmovfrm',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
+          'img',{imgs},...
+          'imov',imov,...
+          'mov','',...
+          'frm',f,...
+          'itgt',itgt,...
+          'ntgt',1,...
+          'roi',roi,...
+          'split',split,...
+          'pabs',slbl.preProcData_P(j,:), ...
+          'occ',occ, ...
+          'ts',ts ...
+          );
+        sloc = [sloc; sloctmp]; %#ok<AGROW>
+      end
+    end
+
     function writeims(sloc,packdir)
       % Currently single-view only
       
@@ -633,15 +723,20 @@ classdef TrnPack
         mov = sloc(idx(1)).mov;
         %mr.open(mov);
         fprintf(1,'Movie %d: %s\n',imov,mov);
+        rfcn = get_readframe_fcn(mov);
                 
-        parfor i=idx(:)'
+        for i=idx(:)'
+         % MK 07022022: Removing parfor. For avis and others parfor is slower than for
+         % normal for loop. And opening avis for every frame is extremely
+         % awful. And it seems the parfor err can be got around using
+         % feval. Even so it was faster to use for instead of parfor
+
           s = sloc(i);
           imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
           if exist(imfrmf,'file')>0
             fprintf(1,'Skipping, image already exists: %s\n',imfrmf);
           else
             % calling get_readframe_fcn outside parfor results in harderr
-            rfcn = get_readframe_fcn(mov);
             imfrm = rfcn(s.frm);
             imwrite(imfrm,imfrmf);
             fprintf(1,'Wrote %s\n',imfrmf);
@@ -649,6 +744,26 @@ classdef TrnPack
         end
       end
     end
+    function writeimsSA(sloc,packdir,ims)
+      % Write ims for Single animal
+            
+      sdir = TrnPack.SUBDIRIM;
+      if exist(fullfile(packdir,sdir),'dir')==0
+        mkdir(packdir,sdir);
+      end
+      
+      n=numel(sloc);
+      for i=1:n
+        for v=1:size(ims,2)
+          s = sloc(i);
+          imgfile = fullfile(packdir,s.img{v});
+          im = ims{i,v};
+          imwrite(im,imgfile);
+          fprintf(1,'Wrote %s\n',s.img{v});
+        end
+      end
+    end
+
     
     function clearims(packdir)
       sdir = TrnPack.SUBDIRIM;

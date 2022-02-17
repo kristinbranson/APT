@@ -681,7 +681,9 @@ classdef Labels
         if ~any(idx),
           continue;
         end
-        [ism,j] = ismember([tbl.frm(idx),tbl.iTgt(idx)],[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
+        cc = Labels.CLS_MD;
+        frs = eval(sprintf('%s([tbl.frm(idx),tbl.iTgt(idx)])',cc));
+        [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
         idx = find(idx);
         idx = idx(ism);
         j = j(ism);

@@ -54,7 +54,7 @@ classdef Lbl
     function s = compressStrippedLbl(s,varargin)
       isMA = s.cfg.MultiAnimal;
       
-      CFG_GLOBS = {'Num' 'MultiAnimal'};
+      CFG_GLOBS = {'Num' 'MultiAnimal' 'HasTrx'};
       FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'cropProjHasCrops' ...
         'trackerClass' 'trackerData'};
       TRACKERDATA_FLDS = {'sPrmAll' 'trnNetMode' 'trnNetTypeString'};

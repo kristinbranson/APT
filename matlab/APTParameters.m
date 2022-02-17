@@ -536,19 +536,26 @@ classdef APTParameters
     end
     
     function [tPrm,canceled,do_update] = ...
-        autosetparams(tPrm,lobj)
+        autosetparams(tPrm,lobj,varargin)
       
-%       if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
-%           % Using head-tail for the first stage
-%           align_trx_theta = tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value;
-% 
-%           if ~align_trx_theta
-%             res = questdlg('For head-tail based two-stage detection, align using head-tail is switched off. Aligning animals using the head-tail direction will lead to better performance. Align using the head-tail direction?','Yes','No','Yes');
-%             if strcmp(res,'Yes')
-%               tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value = 1;
-%             end
-%           end
-%       end
+      silent = myparse(varargin,'silent',false);
+      
+      if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
+          % Using head-tail for the first stage
+          align_trx_theta = tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value;
+
+          if ~align_trx_theta
+            if silent
+              res = 'Yes';
+            else
+              res = questdlg('For head-tail based two-stage detection, align using head-tail is switched off. Aligning animals using the head-tail direction will lead to better performance. Align using the head-tail direction?','Align using head-tail','Yes','No','Yes');
+            end
+            if strcmp(res,'Yes')
+              tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value = 1;
+              lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = 1;
+            end
+          end
+      end
       
       % automatically set the parameters based on labels.
       autoparams = compute_auto_params(lobj);
@@ -596,7 +603,7 @@ classdef APTParameters
         dstr = sprintf('Auto-computed parameters have changed from earlier by more than 10%% \nfor some of the parameters. Update the following parameters? \n%s',dstr);
         
         if lobj.trackAutoSetParams
-          if default
+          if default || silent
             res = 'Update';
           else
             res = APTParameters.auto_gui(dstr,lobj);
@@ -834,7 +841,7 @@ function autoparams = compute_auto_params(lobj)
     else
       % No trx. 
 
-      % Else set it to 10 percent of the crop size
+      % Set translation range to 10 percent of the crop size
       trange = max(5,trange_frame);
       % Try to guess rotation range for single animal
       % For this look at the angles from center of the frame/crop to
@@ -849,7 +856,15 @@ function autoparams = compute_auto_params(lobj)
   else
     % Multi-animal. Two tranges for first and second stage. Applied
     % depending on the workflow
-    trange_top = max(5,trange_frame);
+    
+    if lobj.trackParams.ROOT.MultiAnimal.multi_crop_ims
+      % If we are cropping the images then use animal trange.
+      trange_top = trange_animal;
+    else
+      trange_top = trange_frame;
+    end
+    
+    trange_top = max(5,trange_top);
     trange_top = round(trange_top/5)*5;
     trange_second = min(trange_crop,trange_animal);
     trange_second = max(5,trange_second);
