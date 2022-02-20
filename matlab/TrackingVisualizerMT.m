@@ -114,6 +114,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
 
     function addTgts(obj,ntgtsadd)
       % plots/adds new gfx handles without touching existing
+      % Impacted gfx handles: .hXY*, .hPch*
       
       pppiFld = obj.ptsPlotInfoFld;
       pppi = obj.lObj.(pppiFld); 
@@ -121,17 +122,36 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           TrackingVisualizerMT.convertLabelerCosmeticPVs(pppi);
       markerPVscell = struct2paramscell(markerPVs);
       textPVscell = struct2paramscell(textPVs);
-      
-      [hPred,hTxt] = obj.hlpPlotTgts(ntgtsadd,markerPVscell,textPVscell);
-      [hPch1,hPchT] = obj.hlpPlotPches(ntgtsadd,pchTextPVs);
+
+      iTgtOffset = obj.nTgts;
+      [hPred,hTxt] = obj.hlpPlotTgts(ntgtsadd,iTgtOffset,markerPVscell,textPVscell);
+      [hPch1,hPchT] = obj.hlpPlotPches(ntgtsadd,iTgtOffset,pchTextPVs);
       
       obj.hXYPrdRed = [obj.hXYPrdRed hPred];
       obj.hXYPrdRedTxt = [obj.hXYPrdRedTxt hTxt];
       obj.hPch = [obj.hPch hPch1];
       obj.hPchTxt = [obj.hPchTxt hPchT];
     end
-    function [hPred,hTxt] = hlpPlotTgts(obj,ntgtsplot,markerPVscell,textPVscell)
+    function ensureNTgts(obj,ntgtsreqd)
+      % Ensure that obj can handle ntgtsreqd 
+      % Relevant gfx handles: .hXY*, .hPch*
+      
+      ntgts0 = obj.nTgts;
+      if  isempty(ntgtsreqd) || isnan(ntgtsreqd) || ntgts0>=ntgtsreqd
+        return;
+      end
+      
+      % increase
+      NTGTS_GROWTH_FAC = 2;
+      ntgtsadd = ntgts0*(NTGTS_GROWTH_FAC-1);
+      ntgtsadd = round(ntgtsadd);
+      obj.addTgts(ntgtsadd);
+    end
+    function [hPred,hTxt] = hlpPlotTgts(obj,ntgtsplot,itgtoffset,...
+        markerPVscell,textPVscell)
       % create/plot gfx handles for ntgtsplot targets
+      % 
+      % itgtoffset: graphics Tags range over itgtoffset+(1:ntgtsplot)
       
       ax = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),ax);
@@ -145,21 +165,22 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       hTxt = gobjects(npts,ntgtsplot);
       pfix = obj.handleTagPfix;
       for iTgt = 1:ntgtsplot
-      for iPt = 1:npts
-        clr = ptclrs(iPt,:);
-        iVw = ipt2View(iPt);
-        ptset = ipt2set(iPt);
-        hPred(iPt,iTgt) = plot(ax(iVw),nan,nan,markerPVscell{:},...
-          'Color',clr,...
-          'Tag',sprintf('%s_XYPrdRed_%d_%d',pfix,iPt,iTgt));
-        hTxt(iPt,iTgt) = text(nan,nan,num2str(ptset),...
-          'Parent',ax(iVw),...
-          'Color',clr,textPVscell{:},...
-          'Tag',sprintf('%s_PrdRedTxt_%d_%d',pfix,iPt,iTgt));
-      end
+        iTgtAbs = itgtoffset+iTgt;
+        for iPt = 1:npts
+          clr = ptclrs(iPt,:);
+          iVw = ipt2View(iPt);
+          ptset = ipt2set(iPt);
+          hPred(iPt,iTgt) = plot(ax(iVw),nan,nan,markerPVscell{:},...
+            'Color',clr,...
+            'Tag',sprintf('%s_XYPrdRed_%d_%d',pfix,iPt,iTgtAbs));
+          hTxt(iPt,iTgt) = text(nan,nan,num2str(ptset),...
+            'Parent',ax(iVw),...
+            'Color',clr,textPVscell{:},...
+            'Tag',sprintf('%s_PrdRedTxt_%d_%d',pfix,iPt,iTgtAbs));
+        end
       end
     end
-    function [hPc,hPchT] = hlpPlotPches(obj,ntgtsplot,pchTextPVs)
+    function [hPc,hPchT] = hlpPlotPches(obj,ntgtsplot,itgtoffset,pchTextPVs)
       ax = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),ax);
 
@@ -172,17 +193,18 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       hPc = gobjects(1,ntgtsplot);
       hPchT = gobjects(1,ntgtsplot);
       for iTgt = 1:ntgtsplot
+        iTgtAbs = itgtoffset+iTgt;
         hPc(iTgt) = patch(ax,nan,nan,clr,...
           'FaceAlpha',alp,...
           'PickableParts','none',...
-          'Tag',sprintf('%s_Pch_%d',pfix,iTgt));
-        hPchT(iTgt) = text(nan,nan,num2str(iTgt),...
+          'Tag',sprintf('%s_Pch_%d',pfix,iTgtAbs));
+        hPchT(iTgt) = text(nan,nan,num2str(iTgtAbs),...
           'Parent',ax,...
           'Color',[0 0 0],...
           'fontsize',pchTextPVs.FontSize,...
           'fontweight','bold',...
-          'Tag',sprintf('%s_PchTxt_%d',pfix,iTgt),...
-          'userdata',iTgt,...
+          'Tag',sprintf('%s_PchTxt_%d',pfix,iTgtAbs),...
+          'userdata',iTgtAbs,...
           'ButtonDownFcn',@(s,e)obj.cbkPchTextBDF(s,e));
       end
     end    
@@ -235,7 +257,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       arrayfun(@(x)hold(x,'on'),ax);
 
       [obj.hXYPrdRed,obj.hXYPrdRedTxt] = ...
-            obj.hlpPlotTgts(ntgtsinitial,markerPVscell,textPVscell);      
+            obj.hlpPlotTgts(ntgtsinitial,0,markerPVscell,textPVscell);      
       
       nvw = obj.lObj.nview;
       obj.hSkel = gobjects(1,nvw);      
@@ -249,7 +271,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       end
       
       if obj.doPch
-        [obj.hPch,obj.hPchTxt] = obj.hlpPlotPches(ntgtsinitial,pchTextPVs);
+        [obj.hPch,obj.hPchTxt] = obj.hlpPlotPches(ntgtsinitial,0,pchTextPVs);
       end
       
       if postload
@@ -297,6 +319,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       obj.updateSkel();
     end
     function updateSkel(obj,xy)
+      % xy (opt): if provided, must be [npts 2 ntgts].
+      
       if obj.tfHideViz || ~obj.tfShowSkel || isempty(obj.hSkel)
         return
       end
@@ -421,6 +445,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % tfeo: [npts] logical for est-occ; can be [] to skip
       % iTgt: target index to update
       
+      obj.ensureNTgts(iTgt);
+      
       npts = obj.nPts;
       %skelEdges = obj.lObj.skeletonEdges;
       h = obj.hXYPrdRed;
@@ -457,17 +483,17 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % xy: [npts x 2 x ntgtsgiven] 
       % tfeo: [npts x ntgtsgiven] logical for est-occ
       %
-      % ntgtsgiven must be <= .nTgts. Targets > ntgtsgiven are set to nan
-      % locs.
+      % Targets > ntgtsgiven are set to nan locs.
       
       if nargin<3
         tfeo = [];
       end
       
       ntgtsgiven = size(xy,3);
+      obj.ensureNTgts(ntgtsgiven);
       npts = obj.nPts;
-      ntgts = obj.nTgts;
-      assert(ntgtsgiven<=ntgts);
+      ntgts = obj.nTgts;      
+      %assert(ntgtsgiven<=ntgts);
       assert(isempty(tfeo)||ntgtsgiven==size(tfeo,2));
       
       %skelEdges = obj.lObj.skeletonEdges;
@@ -523,10 +549,12 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function updatePrimary(obj,iTgtPrimary)
       iTgtPrimary0 = obj.iTgtPrimary;
       iTgtChanged = ~isequal(iTgtPrimary,iTgtPrimary0);
-      obj.iTgtPrimary = iTgtPrimary;
       
       if iTgtChanged
-        % TODO 20220209: skel color primary?
+        obj.ensureNTgts(iTgtPrimary);
+        obj.iTgtPrimary = iTgtPrimary;
+
+      % TODO 20220209: skel color primary?
 %         trajClrCurr = obj.lObj.projPrefs.Trx.TrajColorCurrent;
 %         hSkl = obj.hSkel;
 %         if ~isempty(hSkl)
@@ -550,6 +578,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       if tfnochange
         return;
       end
+      
+      obj.ensureNTgts(iTgtHide);
 
       if obj.showOnlyPrimary
         tfTgtHide0on = iTgtHide0==obj.iTgtPrimary;
