@@ -555,6 +555,23 @@ classdef APTParameters
               lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = 1;
             end
           end
+          
+          align_trx_theta = tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value;
+          vert_flip = tPrm.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip').Data.Value;
+          if align_trx_theta && vert_flip
+            if silent
+              res = 'Yes';
+            else
+              res = questdlg('When aligning using head-tail for 2 stage tracking, horizontal flipping and not vertical flipping is recommended for augmentation as the animal is rotated to face up. Switch the augmentation flip augmentation type from vertical to horizontal?','Switch flipping?','Yes','No','Yes');
+            end
+            if strcmp(res,'Yes')
+              tPrm.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip').Data.Value = 0;
+              tPrm.findnode('ROOT.DeepTrack.DataAugmentation.horz_flip').Data.Value = 1;
+              lobj.trackParams.ROOT.DeepTrack.DataAugmentation.horz_flip = 1;
+              lobj.trackParams.ROOT.DeepTrack.DataAugmentation.vert_flip = 0;
+            end
+          
+          end
       end
       
       % automatically set the parameters based on labels.
@@ -843,6 +860,7 @@ function autoparams = compute_auto_params(lobj)
 
       % Set translation range to 10 percent of the crop size
       trange = max(5,trange_frame);
+      trange = round(trange/5)*5;
       % Try to guess rotation range for single animal
       % For this look at the angles from center of the frame/crop to
       % the labels
@@ -852,6 +870,7 @@ function autoparams = compute_auto_params(lobj)
       rrange = min(180,max(10,median(ang_span)/2));
       rrange = round(rrange/10)*10;
       autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      autoparams('DeepTrack.DataAugmentation.trange') = trange;
     end
   else
     % Multi-animal. Two tranges for first and second stage. Applied
@@ -871,6 +890,9 @@ function autoparams = compute_auto_params(lobj)
     trange_second = round(trange_second/5)*5;
 
     if lobj.trackerIsTwoStage
+      % For 2 stage DeepTrack.DataAugmentation is for the second stage
+      % and Multianiml.Detect.DeepTrack.DataAugmentation is for the first
+      % stage. Note DataAugmentation doesn't apply for bbox detection
       autoparams('DeepTrack.DataAugmentation.trange') = trange_second;
       if lobj.trackerIsObjDet
         % If uses object detection for the first stage then the look at
@@ -918,7 +940,6 @@ function autoparams = compute_auto_params(lobj)
         rrange = min(180,max(10,median(ang_span)/2));
         rrange = round(rrange/10)*10;
         autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.rrange') = rrange;
-
         autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.trange') = trange_top;
       end
     else
@@ -931,6 +952,7 @@ function autoparams = compute_auto_params(lobj)
       rrange = min(180,max(10,median(ang_span)/2));
       rrange = round(rrange/10)*10;
       autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      autoparams('DeepTrack.DataAugmentation.trange') = trange_top;
 
     end
   end

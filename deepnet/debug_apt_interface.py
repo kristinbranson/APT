@@ -1,26 +1,23 @@
 from reuse import *
-lbl_file = '/groups/branson/home/kabram/.apt/tpff9cfe24_ac0e_4b5e_bf5f_a60d3e31cdc2/four_points_180806/20220126T044932_20220126T044934.lbl'
-json_file = lbl_file.replace('.lbl','.json')
-jc = pt.json_load(json_file)
+import hdf5storage
 
+out_all = {}
+for k in C.keys():
+    preds = C[k][0,0,0][0,0]['locs']
+    locs = C[k][0,0,1]
+    info = C[k][0,0,2]
 
-view = 0
-cache_dir = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535'
-net_type = 'mdn_joint_fpn'
-first_stage = False
-second_stage = False
-name = 'test'
-json_trn_file = None
-conf_params = None
-quiet = False
+    preds = apt.to_mat(preds)
+    locs = apt.to_mat(locs)
+    info = apt.to_mat(info)
+    out_all[k] = {'pred_locs': preds, 'labeled_locs': locs, 'list': info, 'model_file': ''}
 
-conf_lbl = apt.create_conf(lbl_file, view, name, cache_dir=cache_dir,net_type=net_type,first_stage=first_stage,second_stage=second_stage)
-conf_json = apt.create_conf(json_file, view, name, cache_dir=cache_dir,net_type=net_type,first_stage=first_stage,second_stage=second_stage)
-
-
+out_file = '/groups/branson/bransonlab/mayank/apt_results/roian_ma_res_20220217_1.mat'
+hdf5storage.savemat(out_file, out_all, appendmat=False, truncate_existing=True)
 
 ##
-cmd =   ['/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_08022022/openpose.json', '-name', 'openpose_crop_nomask_10022022', '-json_trn_file', '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_08022022/openpose/loc_neg.json', '-conf_params', 'multi_crop_ims', 'True', 'multi_loss_mask', 'False', 'dl_steps', '100000', '-cache', '/groups/branson/bransonlab/mayank/apt_cache_2', '-type', 'multi_openpose', 'train', '-use_cache']
+cmd = ['/groups/branson/home/kabram/temp/ma_expts/roian/gt_packdir_08022022/gt_stripped.json', '-name', 'gt_db', '-json_trn_file', '/groups/branson/home/kabram/temp/ma_expts/roian/gt_packdir_08022022/loc.json', '-cache', '/groups/branson/bransonlab/mayank/apt_cache_2', '-type', 'multi_mdn_joint_torch', 'train', '-use_cache', '-only_aug']
+
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')

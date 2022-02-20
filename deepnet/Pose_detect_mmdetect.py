@@ -997,13 +997,13 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                     overlaps = overlaps.numpy()
                     overlaps[np.diag_indices(overlaps.shape[0])] = 0.
                     done_count = 0
-                    cur_ix = 0
+                    cur_ix = -1
                     while done_count<max_n:
                         cur_ix = cur_ix + 1
                         if cur_ix>=overlaps.shape[0]: break
-                        if any(overlaps[cur_ix-1,:cur_ix-1]>detr_nms): continue
+                        if (cur_ix> 0) and (any(overlaps[cur_ix-1,:cur_ix-1]>detr_nms)): continue
                         if (res[0][cur_ix,4]<detr_thr) and done_count>=min_n: continue
-                        cur_res[done_count,:] = res[0][cur_ix-1]
+                        cur_res[done_count,:] = res[0][cur_ix]
                         done_count += 1
 
                 else:

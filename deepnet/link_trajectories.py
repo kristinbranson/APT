@@ -988,22 +988,6 @@ def link_trklets(trk_files, conf, movs, out_files):
   :rtype: list
   """
   in_trks = [TrkFile.Trk(tt) for tt in trk_files]
-  params = get_default_params(conf)
-
-  if 'maxcost' not in params:
-    params['maxcost'] = estimate_maxcost(in_trks, params)
-  logging.info('maxcost set to %f' % params['maxcost'])
-
-  if 'maxcost_missed' not in params:
-    params['maxcost_missed'] = estimate_maxcost_missed(in_trks, params)
-    logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
-
-  params['maxframes_delete'] = conf.link_id_min_tracklet_len
-
-  # if 'nms_max' not in params:
-  # params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
-
-  #  nonmax_supp(trk, params)
 
   if conf.link_id:
     conf1 = copy.deepcopy(conf)
@@ -1019,6 +1003,22 @@ def link_trklets(trk_files, conf, movs, out_files):
     return link_id(in_trks, trk_files, movs, conf1, out_files)
 
   else:
+    params = get_default_params(conf)
+
+    if 'maxcost' not in params:
+      params['maxcost'] = estimate_maxcost(in_trks, params)
+    logging.info('maxcost set to %f' % params['maxcost'])
+
+    if 'maxcost_missed' not in params:
+      params['maxcost_missed'] = estimate_maxcost_missed(in_trks, params)
+      logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
+
+    params['maxframes_delete'] = conf.link_id_min_tracklet_len
+
+    # if 'nms_max' not in params:
+    # params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
+
+    #  nonmax_supp(trk, params)
     out_trks = [link(trk,params) for trk in in_trks]
     return out_trks
 
@@ -1097,7 +1097,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files):
   for trk_file, mov_file in zip(trk_files,mov_files):
     # Read the trk files as trx. The trx are required to generate animal examles.
     cap = movies.Movie(mov_file)
-    trx_dict = apt.get_trx_info(trk_file, conf, cap.get_n_frames())
+    trx_dict = apt.get_trx_info(trk_file, conf, cap.get_n_frames(),use_ht_pts=True)
     trx = trx_dict['trx']
     all_trx.append(trx)
     cap.close()

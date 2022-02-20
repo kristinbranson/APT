@@ -820,6 +820,8 @@ classdef TrkFile < dynamicprops
         for i = 1:numel(itgt),
           v(i,obj.startframes(itgt(i)):obj.endframes(itgt(i))) = true;
         end
+      elseif obj.ntracklets==0
+        v = false;
       else
         % v will be numel(f) x numel(itgt)
         v = f(:) >= obj.startframes(itgt) & f(:) <= obj.endframes(itgt);
