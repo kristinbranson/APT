@@ -745,9 +745,9 @@ classdef Shape
       for iview=1:nview
         x0 = round(xyTrx(iview,1,:)); % [1 x 1 x n]
         y0 = round(xyTrx(iview,2,:)); % etc
-        xlo = x0-radius;
+        xlo = x0-radius + 1; % MK 10022022. Adding 1 so that the patch is even sized
         xhi = x0+radius;
-        ylo = y0-radius;
+        ylo = y0-radius + 1;
         yhi = y0+radius;
         
         roicols = (1:4) + (iview-1)*4;

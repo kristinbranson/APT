@@ -392,7 +392,10 @@ def hdf5_to_py(A, h5file):
     if 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'str':
       out = u''.join([chr(t) for t in A])
     elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] in [b'list', b'tuple']:
-      out = [hdf5_to_py(t, h5file) for t in A[()].flatten().tolist()]
+      if 'Python.Empty' in A.attrs and A.attrs['Python.Empty'] == 1:
+        out = []
+      else:
+        out = [hdf5_to_py(t, h5file) for t in A[()].flatten().tolist()]
     elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'bool':
       out = bool(A[()])
     elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'int':
@@ -401,6 +404,8 @@ def hdf5_to_py(A, h5file):
       out = float(A[()])
     elif 'Python.numpy.Container' in A.attrs and A.attrs['Python.numpy.Container'] == b'scalar' and A.attrs['Python.Type'] == b'numpy.float64':
       out = np.array(A[()].flatten())
+    elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'numpy.ndarray' and 'Python.Empty' in A.attrs and A.attrs['Python.Empty'] == 1:
+      out = np.zeros(0)
     else:
       out = A[()].T
   elif isinstance(A,h5py._hl.group.Group):
@@ -608,7 +613,10 @@ class Tracklet:
     if defaultval is not None:
       self.setdefaultval(defaultval)
     self.ntargets = len(self.data)
-    self.size_rest = self.data[0].shape[:-1]
+    if len(self.data)>0:
+     self.size_rest = self.data[0].shape[:-1]
+    else:
+      self.size_rest = (0,0)
   
   def getframe(self,fs):
     """
@@ -931,16 +939,24 @@ class Tracklet:
     
     ax = len(self.size_rest)
     
-    itgt = 0
-    minv = np.nanmin(self.data[itgt],axis=ax)
-    maxv = np.nanmax(self.data[itgt],axis=ax)
-    
-    for itgt in range(1,self.ntargets):
+    maxvs = np.ones( (self.ntargets,) + self.size_rest)*np.nan
+    minvs = np.ones( (self.ntargets,) + self.size_rest)*np.nan
+    for itgt in range(self.ntargets):
       if self.data[itgt] is None or self.data[itgt].size==0:
         continue
-      minv = np.fmin(minv,np.nanmin(self.data[itgt],axis=ax))
-      maxv=np.fmax(maxv,np.nanmax(self.data[itgt],axis=ax))
-    
+      minvs[itgt] = np.nanmin(self.data[itgt],axis=ax)
+      maxvs[itgt] = np.nanmax(self.data[itgt],axis=ax)
+
+    if np.all(np.isnan(maxvs)):
+      maxv = -1
+    else:
+      maxv = np.nanmax(maxvs).astype(self.dtype)
+
+    if np.all(np.isnan(minvs)):
+      minv = -1
+    else:
+      minv = np.nanmin(minvs).astype(self.dtype)
+
     return minv,maxv
     
   def setntargets(self,ntargets,reinitialize=False):

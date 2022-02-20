@@ -91,7 +91,7 @@ class config(object):
         self.mdn_logit_eps_training = 0.001
         self.mdn_extra_layers = 1
         self.mdn_use_unet_loss = True
-        self.mdn_pred_dist = True
+        self.mdn_pred_dist = False
         self.pretrain_freeze_bnorm = True
 
         # ----- OPEN POSE PARAMS
@@ -339,6 +339,8 @@ def parse_aff_graph(aff_graph_str):
     '''
     graph = []
     aff_graph_str = aff_graph_str.split(',')
+    if len(aff_graph_str)==1 and aff_graph_str[0] == '':
+        return graph
     for b in aff_graph_str:
         mm = re.search('(\d+)\s+(\d+)', b)
         n1 = int(mm.groups()[0]) - 1

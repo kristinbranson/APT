@@ -14,5 +14,6 @@ ROOT:
   - ['','',false,DUMMY,'','','','']
   - MMDetect:
     - ['','',false,Object detection parameters,'','']
+    - db_format: ['DB Format',string,true,'Format for Training DB','coco','','Developer','']
     - test: ['Test prop',string,true,'Test','test','','Developer','',true]
 

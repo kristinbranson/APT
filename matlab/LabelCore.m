@@ -54,6 +54,9 @@ classdef LabelCore < handle
     nPts;                 % scalar integer 
     state;                % scalar LabelState
 
+    nexttbl = [];         % table with which frames, targets, and movies to advance to after completing a label
+    nexti = 1;            % which row of the table we are on
+
     % Optional logical "decorator" flags 
     % 
     % These flags provide additional metadata/state for labeled landmarks.
@@ -310,7 +313,29 @@ classdef LabelCore < handle
     
     function unAcceptLabels(obj) %#ok<MANU>
       % Called from tbAccept/Unaccept
-    end    
+    end
+
+    % setNextTable(obj,tbl)
+    % Set a table of frames, targets (for multi-target, hastrx projects),
+    % and movies to be labeled. What is done with this table is dependent
+    % on the LabelCore subclass -- the LabelCore superclass doesn't do
+    % anything with it. See LabelCoreSeqAdd for an example.
+    % Input: 
+    % tbl: MATLAB table, each row of which corresponds to a frame to label.
+    % It should have the following variables:
+    % 'mov': Full path of the movie you want to label
+    % 'iTgt': Index of the target you want to label (for multi-target,
+    % hastrx projects)
+    % 'frm': Frame number you want to label
+    function setNextTable(obj,tbl)
+      obj.nexttbl = tbl;
+      obj.nexti = 0;
+    end
+    function clearNextTable(obj)
+      obj.nexttbl = [];
+      obj.nexti = 1;
+    end
+
     
     function axBDF(obj,src,evt) %#ok<INUSD>
     end

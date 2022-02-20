@@ -113,8 +113,10 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       xy = nan(npts,2,nTrx);
       for j=1:nTrx
         ptrxJ = ptrx(iTrx(j));
-        idx = frm + ptrxJ.off;
-        xy(:,:,j) = ptrxJ.p(:,:,idx);
+        if ~isempty(ptrxJ.p)
+          idx = frm + ptrxJ.off;
+          xy(:,:,j) = ptrxJ.p(:,:,idx);
+        end
       end
       
       % update tvmt

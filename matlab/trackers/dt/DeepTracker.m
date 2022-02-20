@@ -596,7 +596,7 @@ classdef DeepTracker < LabelTracker
         end
       end
       
-      if strcmp(s.jrcgpuqueue,'gpu_any')
+      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any')
         s.jrcgpuqueue = 'gpu_rtx';
         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
           s.jrcgpuqueue);
@@ -1349,11 +1349,11 @@ classdef DeepTracker < LabelTracker
           end
         end        
         
-        tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
+        tfRequiresTrnPack = true; %netObj.requiresTrnPack(obj.trnNetMode);
         if tfRequiresTrnPack
           packdir = dlLblFileLclDir;
           [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
-            'strippedlblname',dmc.lblStrippedName);
+            'strippedlblname',dmc.lblStrippedName,'view',dmc.view);
           dmc.nLabels = ntgtstot;
         else
           s = obj.trnCreateStrippedLbl('wbObj',wbObj);
@@ -2347,7 +2347,7 @@ classdef DeepTracker < LabelTracker
               dmcI.modelChainID,...
               dmcI.lblStrippedLnx,dmcI.rootDir,dmcI.errfileLnx,...
               DLNetType.(dmcI.netType),dmcI.netMode,isplit,...
-              'confparamsextra',CONFPARAMSEXTRA,...
+              ... %'confparamsextra',CONFPARAMSEXTRA,...
               'view',1,'trainType',DLTrainType.New,...
               'deepnetroot',[aptroot '/deepnet']);
             fprintf(1,'Split %d: wrote cmdfile %s.\n',isplit,xvcode);

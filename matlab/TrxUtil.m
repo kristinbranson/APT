@@ -34,9 +34,14 @@ classdef TrxUtil
 
       ntrx = numel(ptrx);
       for i=1:ntrx
-        xymu = nanmean(ptrx(i).p,1);
-        ptrx(i).x = reshape(xymu(1,1,:),1,[]); 
-        ptrx(i).y = reshape(xymu(1,2,:),1,[]);
+        if length(ptrx(i).p)==0
+          ptrx(i).x = [];
+          ptrx(i).y = [];
+        else
+          xymu = nanmean(ptrx(i).p,1);
+          ptrx(i).x = reshape(xymu(1,1,:),1,[]); 
+          ptrx(i).y = reshape(xymu(1,2,:),1,[]);
+        end
       end
     end
     function ptrx = ptrxmerge(ptrx1,ptrx2)

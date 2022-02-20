@@ -481,7 +481,7 @@ def randomly_scale(img,locs,conf,group_sz=1):
                 sfactor = 1.0/sfactor
         else:
             sfactor = (np.random.rand()-0.5)*srange + 1
-            
+
         for g in range(group_sz):
             jj = img[st+g, ...].copy()
             # cur_img = zoom(jj, sfactor) if srange != 0 else jj
@@ -509,7 +509,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
     no_rescale = (conf.use_scale_factor_range and \
                   (srange > 1.0/1.01) and (srange < 1.01)) or \
                   ((not conf.use_scale_factor_range) and srange < .01)
-    
+
     if conf.rrange < 1 and conf.trange< 1 and no_rescale:
         return img, locs, mask
 
@@ -870,8 +870,97 @@ def get_vars(vstr):
     return b_list
 
 
+def compare_conf_json_lbl(conf_json, conf_lbl, jr, net_type):
+
+    net_names_dict = {'mdn': 'MDN',
+                      'dpk': 'DeepPoseKit',
+                      'openpose': 'OpenPose',
+                      'multi_openpose': 'MultiAnimalOpenPose',
+                      'unet': 'Unet',
+                      'deeplabcut': 'DeepLabCut',
+                      'detect_mmpose': 'MMDetect',
+                      'mdn_joint_fpn': 'GRONe',
+                      'multi_mdn_joint_torch': 'MultiAnimalGRONe',
+                      'mmpose': 'MSPN',
+                      }
+
+    # remove cpr and other stuff
+    to_remove = ['CPR', 'Track', 'ImageProcessing']
+    for k in to_remove:
+        L = jr[k]
+        for kk in L.keys():
+            if type(L[kk]) not in [dict]:
+                delattr(conf_lbl, kk)
+            else:
+                for kk1 in L[kk].keys():
+                    if hasattr(conf_lbl, kk1):
+                        delattr(conf_lbl, kk1)
+                    elif type(L[kk][kk1]) == dict:
+                        for kk2 in L[kk][kk1].keys():
+                            if hasattr(conf_lbl, kk2):
+                                delattr(conf_lbl, kk2)
+
+    def get_list(k, jj, cc):
+        cur_list = []
+        for c in dir(conf_lbl):
+            if c.startswith(k + '_'):
+                cur_list.append(c)
+        if type(jj) in [dict]:
+            for curk in jj.keys():
+                if type(jj[curk]) == dict:
+                    cur_list.extend(get_list(curk, jj[curk], cc))
+
+        return cur_list
+
+    a_list = []
+    for k in jr:
+        a_list.extend(get_list(k, jr[k], conf_lbl))
+
+    for k in net_names_dict:
+        if k == net_type: continue
+        if k == 'multi_mdn_joint_torch': continue
+        if net_names_dict[k] in jr['DeepTrack']:
+            a_list.extend(list(jr['DeepTrack'][net_names_dict[k]].keys()))
+
+    a_list.extend(
+        ['MultiAnimalGRONe', 'reconcile3dType', 'FGThresh', 'ManualRadius', 'AlignUsingTrxTheta', 'PadFloor', 'PadBkgd',
+         'MinAspectRatio', 'AlignHeadTail', 'PadFactor'])
+
+    for a in a_list:
+        if hasattr(conf_lbl, a) and not hasattr(conf_json, a):
+            delattr(conf_lbl, a)
+
+    b_list = ['adjustContrast']
+    b_list.extend(list(jr['MultiAnimal']['LossMask'].keys()))
+    for a in b_list:
+        if hasattr(conf_json, a):
+            delattr(conf_json, a)
+
+    ignore = ['labelfile', 'project_file', 'db_format']
+    ignore_vals = [[],[]]
+    for a in ignore:
+        ignore_vals[0].append(getattr(conf_json,a))
+        ignore_vals[1].append(getattr(conf_json,a))
+        delattr(conf_json, a)
+        delattr(conf_lbl, a)
+
+    if 'MSPN' in jr['DeepTrack']:
+        conf_json.mmpose_net = jr['DeepTrack']['MSPN']['mmpose_net']
+
+    if len(conf_lbl.op_affinity_graph) == 0:
+        conf_json.op_affinity_graph = []
+
+    match = compare_conf(conf_lbl, conf_json)
+
+    for ndx in range(len(ignore)):
+        setattr(conf_json,ignore[ndx], ignore_vals[0][ndx])
+        setattr(conf_lbl, ignore[ndx], ignore_vals[1][ndx])
+    return match
+
+
 def compare_conf(curconf, oldconf):
     ff = list(set(dir(curconf))|set(dir(oldconf)))
+    match = True
     for f in ff:
         if f[0:2] == '__' or f[0:3] == 'get':
             continue
@@ -881,6 +970,7 @@ def compare_conf(curconf, oldconf):
                     logging.warning('{} not equal'.format(f))
                     logging.warning('New:{}'.format(getattr(curconf, f)))
                     logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                    match = False
 
             elif type(getattr(curconf, f)) is list:
                 if type(getattr(oldconf, f)) is list:
@@ -888,24 +978,28 @@ def compare_conf(curconf, oldconf):
                         logging.warning('{} doesnt match'.format(f))
                         logging.warning('New:{}'.format(getattr(curconf, f)))
                         logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                        match = False
                 else:
                     logging.warning('%s doesnt match' % f)
                     logging.warning('New:{}'.format(getattr(curconf, f)))
                     logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                    match = False
             elif callable(getattr(curconf,f)):
                 pass
             elif getattr(curconf, f) != getattr(oldconf, f):
                 logging.warning('%s doesnt match' % f)
                 logging.warning('New:{}'.format(getattr(curconf, f)))
                 logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                match = False
 
         else:
             logging.warning('%s doesnt match' % f)
+            match = False
             if not hasattr(curconf,f):
                 logging.warning('New does not have {}'.format(f))
             else:
                 logging.warning('Old does not have {}'.format(f))
-
+    return match
 
 def open_movie(movie_name):
     cap = cv2.VideoCapture(movie_name)
@@ -1454,6 +1548,7 @@ def get_latest_model_file_keras(conf, name):
 def get_crop_loc(lbl,ndx,view, on_gt=False):
     ''' return crop loc in 0-indexed format
     For indexing add 1 to xhi and yhi.
+    Needs updating for json conf file -- MK 20220126
     '''
     from APT_interface import read_entry
     # this is unnecessarily ugly just because matlab.
@@ -1575,12 +1670,12 @@ def get_git_commit_old():
         label = 'Not a git repo'
     except Exception as e:
         label = "Error caught calling git: {}".format(e)
-        
+
     # AL: not sure what is best here
     try:
         label = str(label,'utf-8')
     except:
         # TypeError when label is already a str
         pass
-    
+
     return label

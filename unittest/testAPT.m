@@ -263,7 +263,7 @@ classdef testAPT < handle
         info.npts = nan;
         info.has_trx = false;
         info.proj_name = 'test';
-        info.sz = 150;
+        info.sz = 250;
         info.bundle_link = '';
         info.op_graph = [];   
         
@@ -288,6 +288,18 @@ classdef testAPT < handle
         info.sz = 90;
         info.bundle_link = '';
         info.op_graph = [];   
+        
+      elseif strcmp(name,'sam2view')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 2;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 100; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
         
         
       else
@@ -585,15 +597,14 @@ classdef testAPT < handle
       lObj.trackSetCurrentTracker(tndx);
     end
     
-    function set_params_base(self,has_trx,dl_steps,sz)
+    function set_params_base(self,has_trx,dl_steps,sz, batch_size)
       lObj = self.lObj;
-      tPrm = APTParameters.defaultParamsTree;
-      sPrm = tPrm.structize;      
-      % AL202107: why not use lObj.trackGetParams() here?
+      sPrm = lObj.trackGetParams();      
       
       sbase.AlignUsingTrxTheta = has_trx;
       sbase.dl_steps = dl_steps;
       sbase.ManualRadius = sz;
+      sbase.batch_size = batch_size;
       sPrm = structsetleaf(sPrm,sbase,'verbose',true);
 
       % AL: Note 'ManualRadius' by itself may not do anything since
@@ -658,18 +669,19 @@ classdef testAPT < handle
     
     
     function test_train(self,varargin)
-      [net_type,backend,niters,test_tracking,block,serial2stgtrain,params,...
-        aws_params] = myparse(varargin,...
+      [net_type,backend,niters,test_tracking,block,serial2stgtrain, ...
+        batch_size, params, aws_params] = myparse(varargin,...
             'net_type','mdn','backend','docker',...
             'niters',1000,'test_tracking',true,'block',true,...
             'serial2stgtrain',true,...
+            'batch_size',8,...
             'params',[],... % optional, struct; see structsetleaf
             'aws_params',struct());
           
       if ~isempty(net_type)
         self.setup_alg(net_type)
       end
-      self.set_params_base(self.info.has_trx,niters,self.info.sz);
+      self.set_params_base(self.info.has_trx,niters,self.info.sz, batch_size);
       if ~isempty(params)
         sPrm = self.lObj.trackGetParams();
         sPrm = structsetleaf(sPrm,params,'verbose',true);
@@ -708,7 +720,7 @@ classdef testAPT < handle
         while tObj.bgTrnIsRunning()
           pause(10);
         end
-        pause(10);
+        pause(30);
         if test_tracking
           self.test_track('block',block);
         end

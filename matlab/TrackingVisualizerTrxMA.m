@@ -195,7 +195,7 @@ classdef TrackingVisualizerTrxMA < handle
         trxCurr = trxLive(iTrx);
         t0 = trxCurr.firstframe;
         t1 = trxCurr.endframe;        
-        if t0<=frm && frm<=t1
+        if t0<=frm && frm<=t1 && ~isempty(trxCurr.x)
           idx = frm+trxCurr.off;
           xTrx = trxCurr.x(idx);
           yTrx = trxCurr.y(idx);
@@ -207,8 +207,13 @@ classdef TrackingVisualizerTrxMA < handle
         
         tTraj = max(frm-nPre,t0):min(frm+nPst,t1); % could be empty array
         iTraj = tTraj + trxCurr.off;
-        xTraj = trxCurr.x(iTraj);
-        yTraj = trxCurr.y(iTraj);
+        if ~isempty(trxCurr.x)
+          xTraj = trxCurr.x(iTraj);
+          yTraj = trxCurr.y(iTraj);
+        else
+          xTraj = nan;
+          yTraj = nan;
+        end
        
         set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj);
         %set(obj.hTrx(iTrx),'Color',color);

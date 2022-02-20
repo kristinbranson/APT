@@ -37,6 +37,7 @@ classdef TrkFile < dynamicprops
   end
   properties (Dependent)
     ntracklets
+    ntlts
   end
   
   methods 
@@ -44,6 +45,9 @@ classdef TrkFile < dynamicprops
 %       % assumes at least one tracklet...
 %       v = size(obj.pTrk{1},1);
 %     end
+    function v = get.ntlts(obj)
+      v = obj.ntracklets;
+    end
     function v = get.ntracklets(obj)
       if obj.isfull
         v = size(obj.pTrk,4);
@@ -367,7 +371,10 @@ classdef TrkFile < dynamicprops
       flds = obj.trkflds();
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         v = obj.(f);
-        assert(iscell(v));
+        if ~iscell(v),
+          warning('%s is not a cell',f);
+          continue;
+        end
         tfTag = strcmp(f,'pTrkTag');
         for i=1:numel(v)
           if isempty(v{i}) && size(v{i},1)==0 
@@ -640,8 +647,9 @@ classdef TrkFile < dynamicprops
       itgtsun = unique(cat(2,itgtsAll{:}));
       itgtmax = max(itgtsun);
       cls = class(obj.startframes);
-      itgt2spep = [intmax(cls)*ones(1,itgtmax,cls);...
-                   intmin(cls)*ones(1,itgtmax,cls)]; % rows: sf, ef
+      itgt2spep = [intmax('int64')*ones(1,itgtmax,'int64');...
+                   intmin('int64')*ones(1,itgtmax,'int64')]; % rows: sf, ef
+      itgt2spep = eval(sprintf('%s(itgt2spep)',cls));
       for iobj=1:nobj
         o = allobjs{iobj};
         itgtsI = o.pTrkiTgt;
@@ -870,7 +878,7 @@ classdef TrkFile < dynamicprops
       f0 = min(obj.startframes(tfkeep));
       f1 = max(obj.endframes(tfkeep));
       cnt = zeros(f1-f0+1,1);
-      for i=1:obj.ntlts
+      for i=1:obj.ntracklets
         idx = (obj.startframes(i):obj.endframes(i)) - f0 + 1;
         cnt(idx) = cnt(idx)+1;
       end
@@ -1047,7 +1055,7 @@ classdef TrkFile < dynamicprops
       axes(ax);
       hold on;
       %ntrx = numel(obj.pTrk);
-      for i=1:obj.ntlts
+      for i=1:obj.ntracklets
         t = obj.startframes(i):obj.endframes(i);
         p1 = squeeze(obj.pTrk{i}(1,1,:));
         plot(t,p1,plotargs{:});

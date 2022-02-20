@@ -89,8 +89,83 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
     end
     
     function unAcceptLabels(obj)
-      % this doesn't do anything now
-      %obj.beginAdjust();
+      % go to the next frame to label
+      if ~isempty(obj.nexttbl),
+        obj.goToNextTable();
+      else
+        obj.goToNextUnlabeled();
+      end
+    end
+
+    % setNextTable(obj,tbl)
+    % Set a table of frames, targets, and movies to be labeled. When you
+    % click the Next button, it will take you to the next unlabeled frame,
+    % target and movie from this table. 
+    % Input: 
+    % tbl: MATLAB table, each row of which corresponds to a frame to label.
+    % It should have the following variables:
+    % 'mov': Full path of the movie you want to label
+    % 'iTgt': Index of the target you want to label
+    % 'frm': Frame number you want to label
+    function setNextTable(obj,tbl)
+      setNextTable@LabelCore(obj,tbl);
+      obj.goToNextTable();
+    end
+
+    function goToNextTable(obj)
+
+      % find what is left to label
+      labels = obj.labeler.labelsGTaware();
+      todo = false(size(obj.nexttbl,1),1);
+      % this assumes single view
+      [movnames,~,rowidx] = unique(obj.nexttbl.mov);
+      for i = 1:numel(movnames),
+        idxcurr = rowidx == i;
+        [tf,mov,~,~] = obj.labeler.movieSetInProj(movnames{i});
+        if ~tf,
+          errordlg(sprintf('Movie %s is not in this project',movnames{i}),'Bad next table');
+          return;
+        end
+        [frms,tgts] = Labels.isPartiallyLabeledT(labels{mov},nan,obj.nold);
+        todo(idxcurr) = ismember(obj.nexttbl.frm(idxcurr),frms) & ismember(obj.nexttbl.iTgt(idxcurr),tgts);
+      end
+
+      % next unlabeled in our sequence
+      nextj = find(todo(obj.nexti+1:end),1);
+      if isempty(nextj),
+        nextj = find(todo,1);
+        if isempty(nextj),
+          msgbox('No partially labeled frames found within the table! You might be done!','Done adding landmarks','replace');
+          return;
+        else
+          obj.nexti = nextj;
+        end
+      else
+        obj.nexti = obj.nexti + nextj;
+      end
+
+      frm = obj.nexttbl.frm(obj.nexti);
+      if ismember('iTgt',obj.nexttbl.Properties.VariableNames),
+        tgt = obj.nexttbl.iTgt(obj.nexti);
+      end
+      movname = obj.nexttbl.mov{obj.nexti};
+      [tf,mov,~,~] = obj.labeler.movieSetInProj(movname);
+      if ~tf,
+        errordlg(sprintf('Movie %s is not in this project',movname),'Bad next table');
+        return;
+      end
+      if obj.labeler.currMovie ~= mov,
+        obj.labeler.movieSet(mov);
+      end
+      if obj.labeler.currTarget ~= tgt,
+        obj.labeler.setFrameAndTarget(frm,tgt);
+      else
+        obj.labeler.setFrame(frm);
+      end
+
+    end
+
+    function goToNextUnlabeled(obj)
       [frm,tgt,mov] = obj.findUnlabeled();
       if isempty(frm),
         msgbox('No partially labeled frames found! You might be done!','Done adding landmarks','replace');

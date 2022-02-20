@@ -1,13 +1,34 @@
+from reuse import *
+lbl_file = '/groups/branson/home/kabram/.apt/tpff9cfe24_ac0e_4b5e_bf5f_a60d3e31cdc2/four_points_180806/20220126T044932_20220126T044934.lbl'
+json_file = lbl_file.replace('.lbl','.json')
+jc = pt.json_load(json_file)
+
+
+view = 0
+cache_dir = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535'
+net_type = 'mdn_joint_fpn'
+first_stage = False
+second_stage = False
+name = 'test'
+json_trn_file = None
+conf_params = None
+quiet = False
+
+conf_lbl = apt.create_conf(lbl_file, view, name, cache_dir=cache_dir,net_type=net_type,first_stage=first_stage,second_stage=second_stage)
+conf_json = apt.create_conf(json_file, view, name, cache_dir=cache_dir,net_type=net_type,first_stage=first_stage,second_stage=second_stage)
+
+
 
 ##
-cmd = '-name 20220106T034105 -view 1 -cache /groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535 -model_files /groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535/more_than_two_mice/multi_mdn_joint_torch/view_0/20220106T034105/deepnet-100 -conf_params link_id True multi_animal_crop_sz 256 link_id_tracklet_samples 50 link_maxcost_mult 1.2 link_id_min_train_track_len 10 link_id_training_iters 40000 link_id_mining_steps 10 -type multi_mdn_joint_torch /groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535/more_than_two_mice/20220106T034105_20220106T034106.lbl track -out /groups/branson/home/kabram/temp/out0_id.trk /groups/branson/home/kabram/temp/out1_id.trk -mov /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_0.mjpg /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_1.mjpg -predict_trk_files /groups/branson/home/kabram/temp/roian_unmarked_0_pure_linked.trk /groups/branson/home/kabram/temp/roian_unmarked_1_pure_linked.trk -track_type only_link'
-# cmd= '/nrs/branson/mayank/apt_cache_2/four_points_180806/20210326T070533_20210326T070535.lbl -conf_params db_format \"coco\" rescale 2 batch_size 8 max_n_animals 2 multi_crop_ims True rrange 180 trange 30 is_multi True multi_use_mask False multi_loss_mask True link_id True multi_animal_crop_sz 256 link_maxost_mult 1.2 ht_pts \(0,1\) -json_trn_file /nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split_neg_tight.json -type multi_mdn_joint_torch -name roian_split_crop_ims_grone_pose_multi_rescale2_nomask -cache /nrs/branson/mayank/apt_cache_2 track -mov /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190523_m164564vocpb_m164564odor_m164301_ft164992.mjpg -out /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190523_m164564vocpb_m164564odor_m164301_ft164992_ds2_grone_id1.trk -predict_trk_files /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190523_m164564vocpb_m164564odor_m164301_ft164992_ds2_grone_id1_raw.trk -track_type only_link'
-# cmd = '/groups/branson/home/leea30/.apt/tp7ab981ab_949b_451a_9e37_85e61eaf20bd/vbs_pilot_bottom_up_track/20220105T150032_splt_001_20220105T150032.lbl -name 20220105T150032_splt_001 -json_trn_file /groups/branson/home/leea30/.apt/tp7ab981ab_949b_451a_9e37_85e61eaf20bd/vbs_pilot_bottom_up_track/loc.json -conf_params db_format \"coco\" dl_steps 500 -type multi_mdn_joint_torch -cache /groups/branson/home/leea30/.apt/tp7ab981ab_949b_451a_9e37_85e61eaf20bd classify -out /groups/branson/home/leea30/.apt/tp7ab981ab_949b_451a_9e37_85e61eaf20bd/vbs_pilot_bottom_up_track/multi_mdn_joint_torch/view_0/20220105T150032_splt_001/trk/20220105T150032'
+cmd =   ['/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_08022022/openpose.json', '-name', 'openpose_crop_nomask_10022022', '-json_trn_file', '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_08022022/openpose/loc_neg.json', '-conf_params', 'multi_crop_ims', 'True', 'multi_loss_mask', 'False', 'dl_steps', '100000', '-cache', '/groups/branson/bransonlab/mayank/apt_cache_2', '-type', 'multi_openpose', 'train', '-use_cache']
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')
-cmd = cmd.replace('\\','')
-apt.main(cmd.split())
+if type(cmd) == list:
+    apt.main(cmd)
+else:
+    cmd = cmd.replace('\\', '')
+    apt.main(cmd.split())
 
 ## creating conf two methods
 view = 0
