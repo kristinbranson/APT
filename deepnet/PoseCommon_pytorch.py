@@ -44,8 +44,10 @@ def decode_augment(features, conf, distort):
 
     if 'max_n' in features.keys():
         n_max = features['max_n'][0]
+        ntgt = features['ntgt'][0]
     else:
         n_max = None
+        ntgt = None
 
     if 'occ' in features.keys():
         features['occ'] = features['occ'].reshape([-1,n_pts])
@@ -58,7 +60,8 @@ def decode_augment(features, conf, distort):
         locs = features['locs'].reshape([1,n_pts,2])
         features['occ'] = features['occ'][0,...]
     else:
-        locs = features['locs'].reshape([1,n_max,n_pts,2])
+        locs = np.ones([1,n_max,n_pts,2])*np.nan
+        locs[:,:ntgt] = features['locs'].reshape([1,ntgt,n_pts,2])
 
     if 'trx_ndx' not in features.keys():
         features['trx_ndx'] = np.array([0])
@@ -67,10 +70,10 @@ def decode_augment(features, conf, distort):
     features['info'] = np.array([features['expndx'][0],features['ts'][0],features['trx_ndx'][0]])
 
 
-    ret = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale,mask=features['mask'])
+    ret = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale,mask=features['mask'][None,...,0])
     ims,locs = ret[:2]
     if features['mask'] is not None:
-        features['mask'] = ret[2]
+        features['mask'] = ret[2][0]
     else:
         features['mask'] = np.array([])
 
@@ -329,26 +332,24 @@ class PoseCommon_pytorch(object):
     def compute_dist(self,output,labels):
         return np.nan
 
-    def create_data_gen(self):
+    def create_data_gen(self,debug=False):
         if self.conf.db_format == 'tfrecord':
-            return self.create_tf_data_gen()
+            return self.create_tf_data_gen(debug=debug)
         elif self.conf.db_format =='coco':
-            return self.create_coco_data_gen()
+            return self.create_coco_data_gen(debug=debug)
         else:
             assert  False, 'Unknown data format type'
 
 
-    def create_tf_data_gen(self, **kwargs):
+    def create_tf_data_gen(self, debug=False,**kwargs):
         conf = self.conf
         train_tfn = lambda f: decode_augment(f,conf,True)
         val_tfn = lambda f: decode_augment(f,conf,False)
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
         valtfr = trntfr
-        if conf.is_multi:
-            Z = multiResData.read_and_decode_without_session_multi(trntfr, self.conf.n_classes)
-        else:
-            Z = multiResData.read_and_decode_without_session(trntfr,self.conf.n_classes,())
-        queue_sz = min(len(Z[0]),300)
+        xx = tf.python_io.tf_record_iterator(trntfr)
+        len_db = sum([1 for x in xx])
+        queue_sz = min(len_db,300)
         # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if not os.path.exists(valtfr):
             logging.info('Validation data set doesnt exist. Using train data set for validation')
@@ -357,14 +358,15 @@ class PoseCommon_pytorch(object):
         val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
         self.train_loader_raw = train_dl_tf
         self.val_loader_raw = val_dl_tf
+        num_workers = 0 if debug else 16
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,worker_init_fn=lambda id: np.random.seed(id))
+        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
         self.val_dl = torch.utils.data.DataLoader(val_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
 
 
-    def create_coco_data_gen(self, **kwargs):
+    def create_coco_data_gen(self, debug=False,**kwargs):
         conf = self.conf
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
@@ -377,7 +379,9 @@ class PoseCommon_pytorch(object):
         self.train_loader_raw = train_dl_coco
         self.val_loader_raw = val_dl_coco
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16,shuffle=True,worker_init_fn=lambda id: np.random.seed(id))
+        num_workers = 0 if debug else 16
+
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=num_workers,shuffle=True,worker_init_fn=lambda id: np.random.seed(id))
         self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)

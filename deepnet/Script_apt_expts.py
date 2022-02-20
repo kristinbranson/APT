@@ -1110,12 +1110,68 @@ for britnum in range(3):
 ## ======================================================
 
 
+## Roian
+
+## Add neg ROIs for mask experiments
 from importlib import reload
 import run_apt_ma_expts as rae_ma
 reload(rae_ma)
 
-## Roian
-
-## Add neg ROIs for mask experiments
 robj = rae_ma.ma_expt('roian')
 robj.add_neg_roi_roian()
+
+## Run training
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+robj = rae_ma.ma_expt('roian')
+robj.run_train(run_type='dry')
+
+## view training images
+
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('roian')
+robj.show_samples()
+
+##
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('roian')
+robj.get_status()
+
+
+##
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('roian')
+robj.get_results()
+
+## Alice
+
+## Add neg ROIs for experiments
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+robj = rae_ma.ma_expt('alice')
+# robj.get_neg_roi_alice(debug=True) # view the neg rois
+robj.add_neg_roi_alice()
+
+## Run training
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+robj = rae_ma.ma_expt('alice')
+robj.run_train(run_type='dry')
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+robj.show_samples()
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+robj.get_status()

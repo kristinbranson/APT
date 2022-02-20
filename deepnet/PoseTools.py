@@ -46,7 +46,7 @@ import time
 import subprocess
 import warnings
 warnings.filterwarnings("ignore",message="invalid value encountered in greater")
-
+import hdf5storage
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 ISPY3 = sys.version_info >= (3, 0)
@@ -1679,3 +1679,41 @@ def get_git_commit_old():
         pass
 
     return label
+
+
+def show_sample_images(sample_file,extra_txt = ''):
+    from matplotlib import pyplot as plt
+
+    ##
+    K = hdf5storage.loadmat(sample_file)
+    if K['mask'].size > 0 :
+        ims = K['ims'] * K['mask'][...,None]
+    else:
+        ims = K['ims']
+    ims = ims-ims.min()
+    ims = ims/ims.max()
+    ims = (255*ims).astype('uint8')
+    h,w = ims.shape[1:3]
+    ims = ims.reshape((3,3)+ims.shape[1:])
+    ims = ims.transpose([0, 2, 1, 3, 4])
+    ims = ims.reshape([3 * h, 3 * w, ims.shape[-1]])
+
+    locs = K['locs'].reshape((3,3)+K['locs'].shape[1:])
+    if locs.ndim==4:
+        locs[...,0] = locs[...,0] + h*np.arange(3)[None,:,None]
+        locs[...,1] = locs[...,1] + w*np.arange(3)[:,None,None]
+    else:
+        locs[..., 0] = locs[..., 0] + h * np.arange(3)[None, :, None, None]
+        locs[..., 1] = locs[..., 1] + w * np.arange(3)[:, None, None, None]
+    npts = locs.shape[-2]
+    locs = locs.reshape((-1,npts,2))
+    cmap = np.tile(get_cmap(npts),[locs.shape[0],1,1]).reshape([-1,4])
+
+    f = plt.figure()
+    if ims.shape[-1]==0:
+        plt.imshow(ims[...,0])
+    else:
+        plt.imshow(ims)
+    plt.scatter(locs[:, :, 0], locs[ :,:, 1],c=cmap)
+    plt.title(f'{extra_txt} height:{h}, width{w}')
+    return f
