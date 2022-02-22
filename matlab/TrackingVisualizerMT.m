@@ -322,7 +322,12 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % xy (opt): if provided, must be [npts 2 ntgts].
       
       if obj.tfHideViz || ~obj.tfShowSkel || isempty(obj.hSkel)
-        return
+        return;
+      end
+      
+      se = obj.lObj.skeletonEdges;
+      if isempty(se)
+        return;
       end
       
       npts = obj.nPts;
@@ -363,7 +368,6 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         xy = xy(:,:,itgtshow);
       end
       
-      se = obj.lObj.skeletonEdges;      
       TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,se,npts,xy);
     end
     function setShowSkeleton(obj,tf)
