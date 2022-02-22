@@ -277,6 +277,8 @@ def tf_serialize(data):
         'occ': float_feature(occ.flatten()),
         'ntgt': int64_feature(ntgt)
     }
+    if 'max_n' in data:
+        feature['max_n'] = int64_feature(data['max_n'])
     if rois is not None:
         mask = create_mask(rois, frame_in.shape[:2])
         feature['mask'] = bytes_feature(mask.tostring())
@@ -563,10 +565,15 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num, extra_str=''):
     # hdf5storage.savemat(mat_out,{'hm':hmaps})
 
 
-def get_net_type(lbl_file):
+def get_net_type(lbl_file,stage):
     if lbl_file.endswith('.json'):
         lbl = PoseTools.json_load(lbl_file)
-        return lbl['TrackerData']['trnNetTypeString']
+        if stage == 'second':
+            return lbl['TrackerData'][1]['trnNetTypeString']
+        elif isinstance(lbl['TrackerData'],list):
+            return lbl['TrackerData'][0]['trnNetTypeString']
+        else:
+            return lbl['TrackerData']['trnNetTypeString']
 
     lbl = h5py.File(lbl_file, 'r')
     dt_params_ndx = None
@@ -1556,7 +1563,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         cur_occ = occ[idx, ...]
 
         all_data.append({'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
-                         'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top})
+                         'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top, 'max_n':conf.max_n_animals})
 
     if n_extra_roi > 0:
         # bkg_sel_rate = conf.background_mask_sel_rate
@@ -1602,7 +1609,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
 
                 all_data.append(
                     {'im': curp, 'locs': curl, 'info': [info[0], info[1], endx], 'occ': cur_occ, 'roi': cur_roi,
-                     'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top})
+                     'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top,'max_n':conf.max_n_animals})
 
     return all_data
 
@@ -1813,8 +1820,9 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         if conf.is_multi and conf.multi_crop_ims:
             data_out = create_ma_crops(conf, cur_frame, cur_locs, info, cur_occ, cur_roi, extra_roi)
         else:
-            data_out = [{'im': cur_frame, 'locs': cur_locs, 'info': info, 'occ': cur_occ, 'roi': cur_roi,
-                         'extra_roi': extra_roi}]
+            data_out = [{'im': cur_frame, 'locs': cur_locs, 'info': info, 'occ': cur_occ, 'roi': cur_roi, 'extra_roi': extra_roi}]
+            if conf.is_multi:
+                data_out[0]['max_n']=conf.max_n_animals
         for curd in data_out:
             cur_out(curd)
 
@@ -2205,7 +2213,7 @@ def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True
     return all_f
 
 
-def get_trx_info(trx_file, conf, n_frames):
+def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
     ''' all returned values are 0-indexed'''
     if conf.has_trx_file:
         trx,n_trx = read_trx_file(trx_file)
@@ -2234,9 +2242,17 @@ def get_trx_info(trx_file, conf, n_frames):
             if conf.use_bbox_trx:
                 # Theta 0 zero indicates animal facing right. So when theta is 0 the images are rotated by 90 degree so that they face upwards. To disable any rotation theta needs to be -90. Ideally conf.trx_align_theta should be false and this shouldn't be used, but adding it as a safeguard.
                 theta = np.ones_like(cur_pts[...,0,0])*(-np.pi/2)
+                ctr = cur_pts.mean(-1)
             else:
-                theta = np.arctan2(cur_pts[..., 1, 0] - cur_pts[..., 1, 1], cur_pts[..., 0, 0] - cur_pts[..., 0, 1])
-            ctr = cur_pts.mean(-1)
+                if use_ht_pts:
+                    h_pts = cur_pts[...,:,conf.ht_pts[0]]
+                    t_pts = cur_pts[...,:,conf.ht_pts[1]]
+                    ctr = cur_pts[...,conf.ht_pts].mean(-1)
+                else:
+                    h_pts = cur_pts[...,:,0]
+                    t_pts = cur_pts[...,:,1]
+                    ctr = cur_pts.mean(-1)
+                theta = np.arctan2(h_pts[...,1] - t_pts[..., 1], h_pts[..., 0] - t_pts[..., 0])
             end_frames.append(eframe)
             first_frames.append(sframe)
             curtrx = {'x': ctr[None, ..., 0],
@@ -2917,15 +2933,12 @@ def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None
         # raise ValueError('Undefined model type')
 
     if fullret:
-        return ret
-    else:
         return pred_locs, label_locs, info, model_file
+    else:
+        return ret
 
 
-def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name=['deepnet','deepnet'],
-                    return_ims=False, img_dir='val',
-                    **kwargs
-                    ):
+def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name=['deepnet','deepnet'],  img_dir='val'):
     '''
         Classifies examples in DB.
 
@@ -2939,16 +2952,19 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     '''
 
     import copy
+    npts = conf[1].n_classes
     conf1 = copy.deepcopy(conf[0])
     conf1.n_classes = 2
+    conf2 = copy.deepcopy(conf[0])
+    conf2.n_classes = conf[1].n_classes
     pred_fn_top, close_fn_top, model_file_top = get_pred_fn(model_type[0], conf1, model_file[0], name=name[0])
 
     if conf[0].db_format == 'coco':
-        coco_reader = multiResData.coco_loader(conf[0], db_file, False, img_dir=img_dir)
+        coco_reader = multiResData.coco_loader(conf2, db_file, False, img_dir=img_dir)
         read_fn = iter(coco_reader).__next__
         db_len = len(coco_reader)
     else:
-        tf_iterator = multiResData.tf_reader(conf[0], db_file, False, is_multi=True)
+        tf_iterator = multiResData.tf_reader(conf2, db_file, False, is_multi=True)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         db_len = tf_iterator.N
@@ -2959,7 +2975,7 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     all_f = np.zeros((bsize,) + tuple(conf[0].imsz) + (conf[0].img_dim,))
     n_batches = int(math.ceil(float(db_len) / bsize))
     ret_dict_all = {}
-    labeled_locs = np.zeros([db_len, max_n, conf[0].n_classes, 2])
+    labeled_locs = np.zeros([db_len, max_n, npts, 2])
     info = []
     n = db_len
     single_data = []
@@ -3755,14 +3771,17 @@ def classify_movie_all(model_type, **kwargs):
 
 
 def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
-                           distort=True):
+                           distort=True,debug=False):
     # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
-    p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort))
-    p.start()
-    p.join()
+    if not debug:
+        p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort))
+        p.start()
+        p.join()
+    else:
+        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort,debug=debug)
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True,debug=False):
     # Create training samples.
 
     import gc
@@ -3799,7 +3818,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             tconf.rrange = 0
 
         tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
-        tself.create_data_gen()
+        tself.create_data_gen(debug=debug)
         if distort:
             db_type = 'train'
         else:
@@ -4135,6 +4154,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                     conf.n_classes = 2
                     conf.flipLandmarkMatches = {}
 
+
                 if args.aug_out is not None:
                     aug_out = args.aug_out + f'_{cur_view}'
                     if first_stage or second_stage:
@@ -4142,7 +4162,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                         aug_out += '_' + estr
                 else:
                     aug_out = None
-                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out)
+                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out,debug=args.debug)
                 if args.only_aug: continue
 
                 module_name = 'Pose_{}'.format(net_type)
@@ -4269,7 +4289,7 @@ def parse_args(argv):
         args.val_split = convert(args.val_split, to_python=True)
 
     if args.sub_name != 'test':
-        net_type = get_net_type(args.lbl_file)
+        net_type = get_net_type(args.lbl_file,args.stage)
         # command line has precedence over the one in label file.
         if args.type is None and net_type is not None:
             # AL20190719: don't understand this, in this branch the net_type was found in the lbl file?
@@ -4505,7 +4525,7 @@ def run(args):
     elif args.sub_name == 'data_aug':
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
+            conf = create_conf(args.lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
             out_file = args.out_files + '_{}.mat'.format(view)
             distort = not args.no_aug
             get_augmented_images(conf, out_file, distort, nsamples=args.nsamples)
@@ -4513,7 +4533,7 @@ def run(args):
     elif args.sub_name == 'classify':
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+            conf = create_conf(args.lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
             if conf.is_multi:
                 setup_ma(conf)
 
@@ -4535,7 +4555,7 @@ def run(args):
     elif args.sub_name == 'model_files':
         m_files = []
         for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
+            conf = create_conf(args.lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
         print(m_files)
 
