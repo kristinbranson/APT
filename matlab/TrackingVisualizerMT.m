@@ -253,8 +253,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         hXYPrdRedTxt0 = obj.hXYPrdRedTxt;
       end
       
-      ax = obj.hAxs;
-      arrayfun(@(x)hold(x,'on'),ax);
+      axs = obj.hAxs;
+      arrayfun(@(x)hold(x,'on'),axs);
 
       [obj.hXYPrdRed,obj.hXYPrdRedTxt] = ...
             obj.hlpPlotTgts(ntgtsinitial,0,markerPVscell,textPVscell);      
@@ -262,7 +262,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       nvw = obj.lObj.nview;
       obj.hSkel = gobjects(1,nvw);      
       for ivw=1:nvw
-        ax = ax(ivw);
+        ax = axs(ivw);
         % cf LabelCore.initSkeletonEdge
         obj.hSkel(ivw) = plot(ax,nan,nan,'-',...
           'PickableParts','none',...
