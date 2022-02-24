@@ -1317,11 +1317,16 @@ end
 
 CLOSESTR = 'Close anyway';
 DONTCLOSESTR = 'Cancel, don''t close';
-sel = questdlg('This figure is required for your current multiview project.',...
-  'Close Request Function',...
-  DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
-if isempty(sel)
-  sel = DONTCLOSESTR;
+tfbatch = batchStartupOptionUsed; % ci
+if tfbatch
+  sel = CLOSESTR;
+else
+  sel = questdlg('This figure is required for your current multiview project.',...
+    'Close Request Function',...
+    DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
+  if isempty(sel)
+    sel = DONTCLOSESTR;
+  end
 end
 switch sel
   case DONTCLOSESTR

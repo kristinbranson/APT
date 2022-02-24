@@ -1486,7 +1486,6 @@ classdef Labeler < handle
         be.shutdown();
       end
       if ~isempty(obj.projTempDir) && ~obj.projTempDirDontClearOnDestructor
-        % currently equate batchStartup <=> testing/CI etc
         obj.projRemoveTempDir();
       end
     end
