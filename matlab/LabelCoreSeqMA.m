@@ -472,6 +472,10 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.setTextCosmetics(pvText);
       obj.tv.setTextOffset(txtoffset);
     end
+    function skeletonCosmeticsUpdated(obj)
+      skeletonCosmeticsUpdated@LabelCore(obj);
+      obj.tv.skeletonCosmeticsUpdated();
+    end
     
     function preProcParamsChanged(obj)
       % react to preproc param mutation on lObj
