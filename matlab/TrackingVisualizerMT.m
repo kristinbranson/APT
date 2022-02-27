@@ -405,9 +405,6 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % * .hXYPrd* [npts x ntgt]
       % * .hSkel [nedge x ntgt]
       % * .hPch [ntgt]
-      %
-      % iTgtHide does not apply to skel or Pch. The only client atm is 
-      % LabelCoreSeqMA
       
       % 'overall' on/offness
       onoffViz = onIff(~obj.tfHideViz);
@@ -604,11 +601,13 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       [obj.hXYPrdRedTxt(:,iTgtHide0).Visible] = deal(onoffTxtH0);
       [obj.hXYPrdRed(:,iTgtHide).Visible] = deal('off');
       [obj.hXYPrdRedTxt(:,iTgtHide).Visible] = deal('off');
-      if ~isempty(obj.hSkel)
-        obj.updateSkel();
-      end
       
       obj.iTgtHide = iTgtHide;
+      
+      if ~isempty(obj.hSkel)
+        % Needs to occur after .iTgtHide is set
+        obj.updateSkel();
+      end
     end
     function updatePches(obj)
       if obj.doPch
