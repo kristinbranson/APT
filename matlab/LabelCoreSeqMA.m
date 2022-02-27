@@ -205,35 +205,34 @@ classdef LabelCoreSeqMA < LabelCore
     end
     
     function axOccBDF(obj,~,~)
-      assert(false,'Fully-occluded labels currently unsupported');
+      if ~obj.labeler.isReady,
+        return;
+      end
       
-%       if ~obj.labeler.isReady,
-%         return;
-%       end
-%       
-%       mod = obj.hFig.CurrentModifier;
-%       tfShift = any(strcmp(mod,'shift'));
-% 
-%       switch obj.state
-%         case LabelState.LABEL
-%           obj.hlpAxBDFLabelState(true,tfShift);
-%         case {LabelState.ADJUST LabelState.ACCEPTED}
-%           [tf,iSel] = obj.anyPointSelected();
-%           if tf
-%             if obj.tfEstOcc(iSel)
-%               obj.tfEstOcc(iSel) = false; 
-%               % following toggleSelectPoint call will call refreshPtMarkers
-%             end
-%             obj.toggleSelectPoint(iSel);        
-%             obj.tfOcc(iSel) = true;
-%             obj.refreshOccludedPts();
-%             % estOcc status unchanged
-%             if obj.state==LabelState.ACCEPTED
-%               % KB 20181029: removing adjust state
-%               %obj.beginAdjust();
-%             end
-%           end
-%       end
+      mod = obj.hFig.CurrentModifier;
+      tfShift = any(strcmp(mod,'shift'));
+
+      switch obj.state
+        case LabelState.LABEL
+          obj.hlpAxBDFLabelState(true,tfShift);
+        case {LabelState.ADJUST LabelState.ACCEPTED}
+          [tf,iSel] = obj.anyPointSelected();
+          if tf
+            obj.labeler.labelPosSetIFullyOcc(iSel);
+            if obj.tfEstOcc(iSel)
+              obj.tfEstOcc(iSel) = false; 
+              % following toggleSelectPoint call will call refreshPtMarkers
+            end
+            obj.toggleSelectPoint(iSel);
+            obj.tfOcc(iSel) = true;
+            obj.refreshOccludedPts();
+            % estOcc status unchanged
+            if obj.state==LabelState.ACCEPTED
+              % KB 20181029: removing adjust state
+              %obj.beginAdjust();
+            end
+          end
+      end
     end
        
     function hlpAxBDFTwoClick(obj,xy)
