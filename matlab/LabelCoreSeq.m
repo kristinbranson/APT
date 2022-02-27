@@ -142,6 +142,8 @@ classdef LabelCoreSeq < LabelCore
               obj.tfEstOcc(iSel) = false; 
               % following toggleSelectPoint call will call refreshPtMarkers
             else
+              % AL 20220224: looks like bug, seems this should always occur
+              % even if code enters if branch above
               obj.labeler.labelPosSetIFullyOcc(iSel);
             end
             obj.toggleSelectPoint(iSel);        

@@ -611,11 +611,9 @@ classdef LabelCore < handle
           set(obj.hSkel(j),'XData',xdata,'YData',ydata);
         end
       end
-
-      
     end
     
-    % XXX RENAME: refreshFullOccPtLocs
+    % TODO RENAME: refreshFullOccPtLocs
     function refreshOccludedPts(obj)
       % Set .hPts, .hPtsTxt, .hPtsOcc, .hPtsTxtOcc locs based on .tfOcc.
       %
