@@ -189,17 +189,23 @@ classdef LabelCoreSeqMA < LabelCore
         case LabelState.ACCEPTED
           [tf,iSel] = obj.anyPointSelected();
           if tf
+            lObj = obj.labeler;
             pos = get(obj.hAx,'CurrentPoint');
             pos = pos(1,1:2);
             obj.assignLabelCoordsIRaw(pos,iSel);
-            obj.labeler.labelPosSetI(pos,iSel);
+            lObj.labelPosSetI(pos,iSel);
             obj.tfEstOcc(iSel) = tfShift; % following toggleSelectPoint call will call refreshPtMarkers
             obj.toggleSelectPoint(iSel);
             if obj.tfOcc(iSel)
               obj.tfOcc(iSel) = false;
               obj.refreshOccludedPts();
             end
-            % estOcc status unchanged          
+            % estOcc status unchanged            
+            
+            % this is necessary to redraw any patches as appropriate
+            [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
+            iTgt = lObj.currTarget;
+            obj.tv.updateTrackResI(xy,tfeo,iTgt);
           end
       end
     end
@@ -218,19 +224,22 @@ classdef LabelCoreSeqMA < LabelCore
         case {LabelState.ADJUST LabelState.ACCEPTED}
           [tf,iSel] = obj.anyPointSelected();
           if tf
-            obj.labeler.labelPosSetIFullyOcc(iSel);
+            lObj = obj.labeler;
+            obj.assignLabelCoordsIRaw([nan nan],iSel); % refreshOccludedPts() also sets pt coords, but this also updates skel
+            lObj.labelPosSetIFullyOcc(iSel);
             if obj.tfEstOcc(iSel)
               obj.tfEstOcc(iSel) = false; 
               % following toggleSelectPoint call will call refreshPtMarkers
             end
             obj.toggleSelectPoint(iSel);
             obj.tfOcc(iSel) = true;
-            obj.refreshOccludedPts();
+            obj.refreshOccludedPts();            
             % estOcc status unchanged
-            if obj.state==LabelState.ACCEPTED
-              % KB 20181029: removing adjust state
-              %obj.beginAdjust();
-            end
+            
+            % this is necessary to redraw any patches as appropriate
+            [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
+            iTgt = lObj.currTarget;
+            obj.tv.updateTrackResI(xy,tfeo,iTgt);
           end
       end
     end
@@ -624,6 +633,7 @@ classdef LabelCoreSeqMA < LabelCore
 
       % handle other targets
       [xy,occ] = obj.labeler.labelMAGetLabelsFrm(iFrm);
+      xy(isinf(xy)) = nan; % inf => fully occluded. we replace with nan here so that ma ROIs are calculated correctly
       obj.tv.updateTrackRes(xy,occ);
 
       %ticinfo = tic;
@@ -700,7 +710,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj.updateTrxTable();
       lObj.InitializePrevAxesTemplate();
 
-      [xy,tfeo] = obj.getLabelCoords();
+      [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
       iTgt = lObj.currTarget;
       obj.tv.updateTrackResI(xy,tfeo,iTgt);
       % tv.hideTarget should already be set to lObj.currTarget
