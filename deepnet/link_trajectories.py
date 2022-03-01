@@ -1313,7 +1313,10 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
   :rtype:
   '''
 
-  n_threads = min(24, mp.cpu_count())
+  # KB this doesn't work on the cluster, returns all cores on the node, note just those assigned
+  #n_threads = min(24, mp.cpu_count())
+  n_threads = min(24, apt.available_cpu_count())
+  
   with mp.get_context('spawn').Pool(n_threads) as pool:
 
     trk_info_split = split_parallel(trk_info,n_threads)
@@ -1406,7 +1409,9 @@ def tracklet_pred(ims, net, conf, rescale):
     :rtype:
     '''
     preds = []
-    n_threads = min(24, mp.cpu_count())
+    # KB this doesn't work on the cluster, returns all cores on the node, note just those assigned
+    #n_threads = min(24, mp.cpu_count())
+    n_threads = min(24, apt.available_cpu_count())
     n_batches = max(1,len(ims)//(3*n_threads))
     n_tr = len(ims)
     with mp.get_context('spawn').Pool(n_threads) as pool:

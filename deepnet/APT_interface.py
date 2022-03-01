@@ -4378,6 +4378,14 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
         trk = None
     return trk
 
+def available_cpu_count():
+    
+    res = len(psutil.Process().cpu_affinity())
+    if res == 0:
+        res = mp.cpu_count()
+    
+    return res
+
 
 def check_args(args,nviews):
     # Does a check on on arguments and converts the arguments to appropriate format
