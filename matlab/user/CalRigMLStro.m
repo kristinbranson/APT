@@ -128,8 +128,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         );
       
       cs = obj.calSess;
-      bs = cs.BoardSet;
-      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
+      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -189,8 +189,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         );
       
       cs = obj.calSess;
-      bs = cs.BoardSet;
-      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
+      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -334,9 +334,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       sp = obj.stroParams;
       %       cp1 = sp.CameraParameters1;
       %       cp2 = sp.CameraParameters2;
-      bs = cs.BoardSet;
+      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
       
-      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -453,9 +453,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % sp = obj.stroParams;
       %       cp1 = sp.CameraParameters1;
       %       cp2 = sp.CameraParameters2;
-      bs = cs.BoardSet;
+      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
       
-      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -494,9 +494,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       sp = obj.stroParams;
       cp1 = sp.CameraParameters1;
       cp2 = sp.CameraParameters2;
-      bs = cs.BoardSet;
+      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
       
-      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -536,8 +536,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       sp = cs.CameraParameters;
       cp1 = sp.CameraParameters1;
       cp2 = sp.CameraParameters2;
-      bs = cs.BoardSet;
-      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
+      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -837,6 +837,17 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   end
   
   methods (Static)
+    function [bs,bps] = getCalSessionBoardSet(cs)
+      if isprop(cs,'BoardSet')
+        bs = cs.BoardSet;
+        bps = bs.BoardPoints;
+      elseif isprop(cs,'PatternSet')
+        bs = cs.PatternSet;
+        bps = bs.PatternPoints;
+      else
+        error('Cannot find ''BoardSet'' property in CalibrationSession.');
+      end
+    end
     function [fc,cc,kc,alpha_c] = camParams2Intrinsics(camParams)
       % convert ML-style intrinsics to Bouget-style
       
