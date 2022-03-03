@@ -80,8 +80,10 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
       obj.calSess = calSessObj;
       obj.int = obj.getInt();
-      
-      obj.autoCalibrateProj2NormFuncTol();
+
+      obj.eplineComputeMode = 'mostaccurate';
+      %obj.autoCalibrateProj2NormFuncTol();
+      obj.proj2NormFuncTol = nan; % AL20220302 no longer used
       obj.autoCalibrateEplineZrange();
       obj.runDiagnostics();
       
@@ -103,6 +105,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       end
     end
     
+    % AL20220302: currently unused, see .projected2normalized now relying
+    % on MATLAB/vision API for undistorting (removing nonlinearities)
     function autoCalibrateProj2NormFuncTol(obj,varargin)
       % Automatically set .proj2NormFuncTol by "round-tripping" calibration
       % points through projected2normalized/normalized2projected.
@@ -161,6 +165,10 @@ classdef CalRigMLStro < CalRigZhang2CamBase
           maxerr(1),maxerr(2));
         if all(maxerr<calPtL2RTerr)
           fprintf(' ... SUCCESS! Setting .proj2NormFuncTol to %.3g.\n',functol);
+          obj.proj2NormFuncTol = functol;
+          break;
+        elseif functol < 1e-13
+          fprintf(' ... STOPPING. Setting .proj2NormFuncTol to %.3g.\n',functol);
           obj.proj2NormFuncTol = functol;
           break;
         else
@@ -237,51 +245,54 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       ntestpts = size(testpts,1);
       fprintf(1,'Selecting zrange with %d test points.\n',ntestpts);
       
-      nInBounds = zeros(ntestpts,2);
-      while 1
-        zrangelims1 = zRangeWidthCtr(1,2) + 0.5*zRangeWidthCtr(1,1)*[-1 1];
-        zrangelims2 = zRangeWidthCtr(2,2) + 0.5*zRangeWidthCtr(2,1)*[-1 1];
-        zrangelims1 = max(zrangelims1,0);
-        zrangelims2 = max(zrangelims2,0);
-        % want zrangelims1/2 to be integer multiples of dz. That way, as 
-        % range is expanded, zrange1/2 are precise successive supersets to
-        % avoid edge effects where nInBounds has spurious changes by +/-1 
-        zrangelims1 = round(zrangelims1/dz)*dz;
-        zrangelims2 = round(zrangelims2/dz)*dz;        
-        zrange1 = zrangelims1(1):dz:zrangelims1(2);
-        zrange2 = zrangelims2(1):dz:zrangelims2(2);
-        
-        fprintf('View1 zrange (n=%d): %s.\nView2 zrange (n=%d): %s.\n',...
-          numel(zrange1),mat2str(zrange1([1 end])),...
-          numel(zrange2),mat2str(zrange2([1 end])));
-        
-        nInBoundsNew = nan(ntestpts,2);
-        for i=1:ntestpts
-          [~,~,~,tfOOB1] = ...
-            obj.computeEpiPolarLine(1,testpts(i,:)',2,roi,'z1range',zrange1);
-          [~,~,~,tfOOB2] = ...
-            obj.computeEpiPolarLine(2,testpts(i,:)',1,roi,'z1range',zrange2);
-          nInBoundsNew(i,:) = [nnz(~tfOOB1) nnz(~tfOOB2)];
-        end
-        
-        disp(nInBoundsNew);
-        
-        if isequal(nInBounds,nInBoundsNew)
-          fprintf('SUCCESS! Setting .eplineZrange.\n');
-          break;
-        end
-        
-        for ivw=1:2
-          if ~isequal(nInBounds(:,ivw),nInBoundsNew(:,ivw))
-            zRangeWidthCtr(ivw,1) = zRangeWidthCtr(ivw,1)*zrangeWidthTitrationFac;
+      ENOUGHPTS = 2e3;
+      NVW = 2;      
+      %nInBounds = zeros(ntestpts,NVW);
+      obj.eplineZrange = cell(1,NVW);
+      for ivw=1:NVW
+        fprintf(1,'Computing zrange for view %d...\n',ivw);
+        nInBounds = -ones(ntestpts,1);
+        while 1
+          zrangelims = zRangeWidthCtr(ivw,2) + 0.5*zRangeWidthCtr(ivw,1)*[-1 1];
+          zrangelims = max(zrangelims,0);
+          % want zrangelims to be integer multiples of dz. That way, as 
+          % range is expanded, zrange are precise successive supersets to
+          % avoid edge effects where nInBounds has spurious changes by +/-1 
+          zrangelims = round(zrangelims/dz)*dz;
+          zrange = zrangelims(1):dz:zrangelims(2);
+
+          fprintf('... zrange (n=%d): %s.\n',numel(zrange),mat2str(zrange([1 end])));
+
+          nInBoundsNew = nan(ntestpts,1);
+          ivwother = 3-ivw;
+          for ipt=1:ntestpts
+            [~,~,~,tfOOB] = ...
+              obj.computeEpiPolarLine(ivw,testpts(ipt,:)',ivwother,roi,'z1range',zrange);
+            nInBoundsNew(ipt) = nnz(~tfOOB);
           end
+
+          disp(nInBoundsNew);
+
+          tfPtIsGood = nInBounds==nInBoundsNew | nInBoundsNew>ENOUGHPTS;
+          % AL 20220302 second condition is required bc in some cases
+          % nInBoundsNew will continue to grow without bound; for example
+          % with both cameras close to each other and axis-aligned, viewing 
+          % a target together "in parallel". In this case, each increase
+          % in zrange will continually add points to the EP line (almost
+          % all of which will lie on top of each other).
+          if all(tfPtIsGood)
+            % All pts have either saturated by being unchanging, or their
+            % EPlines exceed ENOUGHPTS.
+            fprintf('SUCCESS! zrange found for view %d.\n',ivw);
+            break;
+          end
+
+          zRangeWidthCtr(ivw,1) = zRangeWidthCtr(ivw,1)*zrangeWidthTitrationFac;
+          nInBounds = nInBoundsNew;
         end
         
-        nInBounds = nInBoundsNew;
-        
+        obj.eplineZrange{ivw} = zrange;
       end
-      
-      obj.eplineZrange = {zrange1 zrange2};
     end
     
     function epdmu = calculateMeanEPlineSpacing(obj,calpts,roi,zrange1,zrange2)
@@ -645,6 +656,26 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
   methods % CalRig
     
+    function xn = projected2normalized(obj,xp,cam,varargin)
+      % ML-specific overload of project2normalized
+      
+      assert(size(xp,1)==2);
+      xp = xp.';
+      
+      [iView,camName] = obj.camArgHelper(cam);
+      cpFld = ['CameraParameters' num2str(iView)];
+      sp = obj.stroParams;
+      intprm = sp.(cpFld).Intrinsics;
+      %intprm = obj.int.(camName);
+      xud = undistortPoints(xp,intprm);
+
+      RDUMMY = eye(3);
+      TDUMMY = [0;0;1]; % z=1; the API doesn't really make sense and is not well 
+                   % documented, but this empirically works
+      xn = pointsToWorld(intprm,RDUMMY,TDUMMY,xud); 
+      xn = xn.';
+    end
+    
     function [xEPL,yEPL,Xc1,Xc1OOB] = ...
         computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
       
@@ -652,6 +683,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         case 'mostaccurate'
           [xEPL,yEPL,Xc1,Xc1OOB] = obj.computeEpiPolarLineBase(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         case 'fastest'
+          warningNoTrace('DEVELOPMENT CODEPATH.');
           % This codepath will err if 3rd/4th args are requested
           [xEPL,yEPL] = obj.computeEpiPolarLineEPline(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         otherwise
@@ -711,6 +743,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
           xEPL = imPoints(:,1);
           yEPL = imPoints(:,2);
         case 'normalized2projected'
+          warningNoTrace('DEVELOPMENT CODEPATH.');
+
           XcEpi = obj.camxform(Xc1,[iView1 iViewEpi]); % 3D seg, in frame of cam2
           xnEpi = [XcEpi(1,:)./XcEpi(3,:); XcEpi(2,:)./XcEpi(3,:)]; % normalize
           xpEpi = obj.normalized2projected(xnEpi,iViewEpi); % project
@@ -726,7 +760,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     end
     
     function [xEPL,yEPL] = ...
-        computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi)
+        computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
       % Use worldToImage
       
       warningNoTrace('Development codepath.');
