@@ -3036,7 +3036,7 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     close_fn_top()
     import shutil
     nv_dir = os.path.expanduser('~/.nv')
-    if os.path.exists(nv_dir): shutil.rmtree(nv_dir)
+    if os.path.exists(nv_dir): shutil.rmtree(nv_dir,ignore_errors=True)
 
 
     pred_fn_single, close_fn_single, model_file_single = get_pred_fn(model_type[1], conf[1], model_file[1], name=name[1])

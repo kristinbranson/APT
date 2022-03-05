@@ -919,6 +919,11 @@ function autoparams = compute_auto_params(lobj)
             all_labels(:,2,:)-body_ctr(:,2,:));
           l_thetas_r = mod(l_thetas - l_thetas(lobj.skelHead,:,:),2*pi);
           ang_span = get_angle_span(l_thetas_r)*180/pi;
+          
+          % Remove ang spans for head and tail because they will be always
+          % zero.
+          ht_pts = [lobj.skelHead, lobj.skelTail];
+          ang_span(ht_pts) = [];
         else
           % If not aligned along the head-tail then look at the angles
           % from the center
@@ -928,7 +933,11 @@ function autoparams = compute_auto_params(lobj)
             all_labels(:,2,:)-mid_labels(:,2,:));
           ang_span = get_angle_span(l_thetas)*180/pi;
         end
-        rrange = min(180,max(10,median(ang_span)/2));
+        if numel(ang_span)>0
+          rrange = min(180,max(10,median(ang_span)/2));
+        else
+          rrange = 15;
+        end
         rrange = round(rrange/10)*10;
         autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
         
