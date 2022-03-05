@@ -2263,8 +2263,8 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                       }
             # +1 for firstframe because curtrx is assumed to be in matlab format
             if 'pTrkConf' in T:
-                conf = T[T['pTrkConf'][tndx,0]][()]
-                curtrx['conf'] = conf[None,...]
+                confidence = T[T['pTrkConf'][tndx,0]][()]
+                curtrx['conf'] = confidence[None,...]
             trx.append(curtrx)
             n_trx += 1
         end_frames = np.array(end_frames)

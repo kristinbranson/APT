@@ -16,7 +16,7 @@ out_file = '/groups/branson/bransonlab/mayank/apt_results/roian_ma_res_20220217_
 hdf5storage.savemat(out_file, out_all, appendmat=False, truncate_existing=True)
 
 ##
-cmd = ['/groups/branson/home/kabram/temp/ma_expts/roian/gt_packdir_08022022/gt_stripped.json', '-name', 'gt_db', '-json_trn_file', '/groups/branson/home/kabram/temp/ma_expts/roian/gt_packdir_08022022/loc.json', '-cache', '/groups/branson/bransonlab/mayank/apt_cache_2', '-type', 'multi_mdn_joint_torch', 'train', '-use_cache', '-only_aug']
+cmd = '-name 20220305T042736 -view 1 -cache /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b -stage second -conf_params -type detect_mmdetect -conf_params2 use_bbox_trx True -type2 mdn_joint_fpn /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b/grapes/20220305T042736_20220305T042738.lbl track -out /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b/grapes/mdn_joint_fpn/view_0/20220305T042736/trk/IMG_3066_trn20220305T042736_iter10000_20220305T075704_mov1_vwj1.trk -mov /groups/branson/bransonlab/mayank/data/grapes/IMG_3066.avi -start_frame 693 -end_frame 893 -trx /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b/grapes/detect_mmdetect/view_0/20220305T042736/trk/IMG_3066_trn20220305T042736_iter20000_20220305T075704_mov1_vwj1.trk'
 
 from reuse import *
 # cmd = cmd.replace('"/','/')
