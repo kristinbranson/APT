@@ -37,7 +37,7 @@ classdef LabelCoreSeqMA < LabelCore
     pbNewTgt % create a new target
     pbDelTgt % delete the current tgt
         
-    maxNumTgts = 15
+    maxNumTgts = 5
     tv % scalar TrackingVisualizerMT
     CLR_NEW_TGT = [0.470588235294118 0.670588235294118 0.188235294117647];
     CLR_DEL_TGT = [0.929411764705882 0.690196078431373 0.129411764705882];
@@ -189,51 +189,59 @@ classdef LabelCoreSeqMA < LabelCore
         case LabelState.ACCEPTED
           [tf,iSel] = obj.anyPointSelected();
           if tf
+            lObj = obj.labeler;
             pos = get(obj.hAx,'CurrentPoint');
             pos = pos(1,1:2);
             obj.assignLabelCoordsIRaw(pos,iSel);
-            obj.labeler.labelPosSetI(pos,iSel);
+            lObj.labelPosSetI(pos,iSel);
             obj.tfEstOcc(iSel) = tfShift; % following toggleSelectPoint call will call refreshPtMarkers
             obj.toggleSelectPoint(iSel);
             if obj.tfOcc(iSel)
               obj.tfOcc(iSel) = false;
               obj.refreshOccludedPts();
             end
-            % estOcc status unchanged          
+            % estOcc status unchanged            
+            
+            % this is necessary to redraw any patches as appropriate
+            [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
+            iTgt = lObj.currTarget;
+            obj.tv.updateTrackResI(xy,tfeo,iTgt);
           end
       end
     end
     
     function axOccBDF(obj,~,~)
-      assert(false,'Fully-occluded labels currently unsupported');
+      if ~obj.labeler.isReady,
+        return;
+      end
       
-%       if ~obj.labeler.isReady,
-%         return;
-%       end
-%       
-%       mod = obj.hFig.CurrentModifier;
-%       tfShift = any(strcmp(mod,'shift'));
-% 
-%       switch obj.state
-%         case LabelState.LABEL
-%           obj.hlpAxBDFLabelState(true,tfShift);
-%         case {LabelState.ADJUST LabelState.ACCEPTED}
-%           [tf,iSel] = obj.anyPointSelected();
-%           if tf
-%             if obj.tfEstOcc(iSel)
-%               obj.tfEstOcc(iSel) = false; 
-%               % following toggleSelectPoint call will call refreshPtMarkers
-%             end
-%             obj.toggleSelectPoint(iSel);        
-%             obj.tfOcc(iSel) = true;
-%             obj.refreshOccludedPts();
-%             % estOcc status unchanged
-%             if obj.state==LabelState.ACCEPTED
-%               % KB 20181029: removing adjust state
-%               %obj.beginAdjust();
-%             end
-%           end
-%       end
+      mod = obj.hFig.CurrentModifier;
+      tfShift = any(strcmp(mod,'shift'));
+
+      switch obj.state
+        case LabelState.LABEL
+          obj.hlpAxBDFLabelState(true,tfShift);
+        case {LabelState.ADJUST LabelState.ACCEPTED}
+          [tf,iSel] = obj.anyPointSelected();
+          if tf
+            lObj = obj.labeler;
+            obj.assignLabelCoordsIRaw([nan nan],iSel); % refreshOccludedPts() also sets pt coords, but this also updates skel
+            lObj.labelPosSetIFullyOcc(iSel);
+            if obj.tfEstOcc(iSel)
+              obj.tfEstOcc(iSel) = false; 
+              % following toggleSelectPoint call will call refreshPtMarkers
+            end
+            obj.toggleSelectPoint(iSel);
+            obj.tfOcc(iSel) = true;
+            obj.refreshOccludedPts();            
+            % estOcc status unchanged
+            
+            % this is necessary to redraw any patches as appropriate
+            [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
+            iTgt = lObj.currTarget;
+            obj.tv.updateTrackResI(xy,tfeo,iTgt);
+          end
+      end
     end
        
     function hlpAxBDFTwoClick(obj,xy)
@@ -472,6 +480,10 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.setTextCosmetics(pvText);
       obj.tv.setTextOffset(txtoffset);
     end
+    function skeletonCosmeticsUpdated(obj)
+      skeletonCosmeticsUpdated@LabelCore(obj);
+      obj.tv.skeletonCosmeticsUpdated();
+    end
     
     function preProcParamsChanged(obj)
       % react to preproc param mutation on lObj
@@ -621,6 +633,7 @@ classdef LabelCoreSeqMA < LabelCore
 
       % handle other targets
       [xy,occ] = obj.labeler.labelMAGetLabelsFrm(iFrm);
+      xy(isinf(xy)) = nan; % inf => fully occluded. we replace with nan here so that ma ROIs are calculated correctly
       obj.tv.updateTrackRes(xy,occ);
 
       %ticinfo = tic;
@@ -697,7 +710,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj.updateTrxTable();
       lObj.InitializePrevAxesTemplate();
 
-      [xy,tfeo] = obj.getLabelCoords();
+      [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
       iTgt = lObj.currTarget;
       obj.tv.updateTrackResI(xy,tfeo,iTgt);
       % tv.hideTarget should already be set to lObj.currTarget

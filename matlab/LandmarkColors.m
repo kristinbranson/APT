@@ -22,7 +22,7 @@ function varargout = LandmarkColors(varargin)
 
 % Edit the above text to modify the response to help LandmarkColors
 
-% Last Modified by GUIDE v2.5 17-Jan-2021 23:42:04
+% Last Modified by GUIDE v2.5 17-Feb-2022 15:18:29
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -47,9 +47,10 @@ end
 function LandmarkColors_OpeningFcn(hObject, eventdata, handles, varargin)
 % [tfchanges,savedinfo] = LandmarkColors(lObj,cbk)
 
-% cbk sig: cbk(colorSpecs,markerSpecs)
+% cbk sig: cbk(colorSpecs,markerSpecs,skelSpecs)
 %   colorSpecs: array of LandmarkColorSpec objs (could be nonscalar)
 %   markerSpecs: [3] struct array nested Marker/TextProps etc
+%   skelSpecs: [3] struct array 
 
 handles.output = hObject;
 
@@ -58,6 +59,8 @@ hObject.CloseRequestFcn = @figure_landmarkcolors_CloseRequestFcn;
 lObj = varargin{1};
 handles.nlandmarks = lObj.nPhysPoints;
 handles.applyCbkFcn = varargin{2}; % sig:
+
+centerOnParentFigure(hObject,lObj.hFig);
 
 
 % Marker State
@@ -73,9 +76,14 @@ sPropsMrkr = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
 handles.colorSpecs = cellfun(@(x1,x2,x3)LandmarkColorSpec(x1,x2,x3),...
   lsetTypesCell,...
   repmat({lObj.nPhysPoints},3,1),ppiAll);
+% Skel State
+FLDS = {'SkeletonProps'};
+sPropsSkel = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
+[sPropsSkel.landmarkSetType] = deal(lsetTypesCell{:});
 
 handles.sPropsMrkr0 = sPropsMrkr;
 handles.colorSpecs0 = handles.colorSpecs.copy();
+handles.sPropsSkel0 = sPropsSkel;
 
 handles = initColorsPane(handles);
 updateColorsPane(handles);
@@ -91,12 +99,25 @@ set(tbl,'Data',cell(3,ncol),'RowName',{'Label' 'Prediction' 'Imported'});
 
 MarkerControlsSet(handles,sPropsMrkr);
 
+handles.sldSkeletonLineWidth.Min = -1; %log scale
+handles.sldSkeletonLineWidth.Max = 5;
+handles.hSldListener = addlistener(handles.sldSkeletonLineWidth,...
+  'ContinuousValueChange',@(s,e)sldSkeletonLineWidth_Callback(s,[],guidata(s)));
+SkelControlsSet(handles,sPropsSkel);
+
 set(handles.figure_landmarkcolors,'Name','Landmark Cosmetics');
 handles.saved = [];
 guidata(hObject, handles);
 
+handles.tblProps.CellEditCallback = @tblCellEditCallback;
+
 % UIWAIT makes LandmarkColors wait for user response (see UIRESUME)
 uiwait(handles.figure_landmarkcolors);
+
+
+function tblCellEditCallback(src,evt)
+handles = guidata(src);
+pbApply_Callback(handles.output,[],handles);
 
 
 %%%%%%%%%%
@@ -201,6 +222,7 @@ iCS = handles.pumShowing.Value;
 cs = cs(iCS);
 cs.setColormapName(cmapname);
 updateColorsPane(handles);
+pbApply_Callback(handles.output,[],handles);
 
 function slider_brightness_Callback(hObject, eventdata, handles)
 v = get(hObject,'Value');
@@ -209,6 +231,7 @@ iCS = handles.pumShowing.Value;
 cs = cs(iCS);
 cs.setBrightness(v);
 updateColorsPane(handles);
+pbApply_Callback(handles.output,[],handles);
 
 function edit_brightness_Callback(hObject, eventdata, handles)
 v = str2double(get(hObject,'String'));
@@ -223,6 +246,7 @@ else
   cs.setBrightness(v);
   %set(handles.slider_brightness,'Value',v);
   updateColorsPane(handles);
+  pbApply_Callback(handles.output,[],handles);
 end
 
 function radiobutton_colormap_Callback(hObject, eventdata, handles)
@@ -248,6 +272,7 @@ cs = cs(iCS);
 clr = uisetcolor(cs.colors(landmarki,:),sprintf('Landmark %d color',landmarki));
 cs.setColorManual(landmarki,clr);
 updateColorsPane(handles);
+pbApply_Callback(handles.output,[],handles);
 
 function pumShowing_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
@@ -341,6 +366,22 @@ s = struct(...
   'TextOffset',num2cell(txtOffset) ...
   );
 
+%%%%%%%%%%%%
+% SKELETON
+%%%%%%%%%%%%
+function SkelControlsSet(handles,s)
+s1 = s(1).SkeletonProps;
+handles.pbSkeletonColor.BackgroundColor = s1.Color;
+handles.sldSkeletonLineWidth.Value = log2(s1.LineWidth);
+
+function s = SkelControlsGet(handles)
+s0 = struct();
+s0.Color = handles.pbSkeletonColor.BackgroundColor;
+s0.LineWidth = 2^handles.sldSkeletonLineWidth.Value;
+s = struct(...
+  'landmarkSetType',num2cell(enumeration('LandmarkSetType')),...
+  'SkeletonProps',s0);
+
 
 %%%%%%%%%%%%%%%%%%
 % APPLY/DONE/ETC %
@@ -365,16 +406,21 @@ else
 end
 colorSpecs.setManualColorsToColormapIfNec();
 sPropsMrkr = MarkerControlsGet(handles);
+sPropsSkel = SkelControlsGet(handles);
 
 tfclrchanged = ~arrayfun(@isequal,colorSpecs,colorSpecs0);
 % We do something convoluted here as handles.sPropsMrkr0 might have
 % properties that are not visible/editable in the UI
 tfmkrchanged = ~arrayfun(@(x,y)isequaln(x,structoverlay(x,y)),...
   handles.sPropsMrkr0,sPropsMrkr);
+tfskelchanged = ~arrayfun(@(x,y)isequaln(x,structoverlay(x,y)),...
+  handles.sPropsSkel0,sPropsSkel);
+
 %~arrayfun(@isequaln,sPropsMrkr,handles.sPropsMrkr0);
 handles.saved = struct(...
   'colorSpecs',colorSpecs(tfclrchanged),...  
-  'markerSpecs',sPropsMrkr(tfmkrchanged) ...
+  'markerSpecs',sPropsMrkr(tfmkrchanged),...
+  'skeletonSpecs',sPropsSkel(tfskelchanged) ...
   );
 % Note either field of handles.saved could be empty
 
@@ -397,7 +443,7 @@ uiresume(hObject);
 function pbApply_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
 saved = handles.saved;
-handles.applyCbkFcn(saved.colorSpecs,saved.markerSpecs);
+handles.applyCbkFcn(saved.colorSpecs,saved.markerSpecs,saved.skeletonSpecs);
 guidata(hObject,handles);
 
 function pbCancel_Callback(hObject, eventdata, handles)
@@ -407,3 +453,16 @@ function pbDone_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
 guidata(hObject,handles);
 uiresume(handles.figure_landmarkcolors);
+
+function sldSkeletonLineWidth_Callback(hObject, eventdata, handles)
+pbApply_Callback(handles.output,[],handles);
+
+function sldSkeletonLineWidth_CreateFcn(hObject, eventdata, handles)
+if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+end
+
+function pbSkeletonColor_Callback(hObject, eventdata, handles)
+c0 = handles.pbSkeletonColor.BackgroundColor;
+handles.pbSkeletonColor.BackgroundColor = uisetcolor(c0);
+pbApply_Callback(handles.output,[],handles);

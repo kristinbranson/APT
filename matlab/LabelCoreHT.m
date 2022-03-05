@@ -113,9 +113,10 @@ classdef LabelCoreHT < LabelCore
   methods
     
     function newFrame(obj,~,iFrm1,iTgt)
-      lpos = obj.labeler.labeledposCurrMovie;
-            
-      xy = lpos(:,:,iFrm1,iTgt);
+      s = obj.labeler.labelsCurrMovie;
+      [tf,p] = Labels.isLabeledFT(s,iFrm1,iTgt);
+      xy = reshape(p,[],2);
+      %xy = lpos(:,:,iFrm1,iTgt);
       tfUnlbled = isnan(xy(:,1));
       tfLbledOrOcc = ~tfUnlbled;
 

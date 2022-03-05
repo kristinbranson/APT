@@ -489,7 +489,7 @@ classdef Labeler < handle
     % computes suspScore, suspSelectedMFT.
     % See .suspScore for required size/dims of suspScore and contents.
     % diagstr is arbitrary diagnostic info (assumed char for now).
-    
+     
     suspDiag; % Transient "userdata", diagnostic output from suspComputeFcn
     
 %     currSusp; % suspScore for current mov/frm/tgt. Can be [] indicating 'N/A'
@@ -1486,7 +1486,6 @@ classdef Labeler < handle
         be.shutdown();
       end
       if ~isempty(obj.projTempDir) && ~obj.projTempDirDontClearOnDestructor
-        % currently equate batchStartup <=> testing/CI etc
         obj.projRemoveTempDir();
       end
     end
@@ -7728,6 +7727,34 @@ classdef Labeler < handle
       end
     end
     
+    function updateSkeletonCosmetics(obj,skelSpecs)
+      for i=1:numel(skelSpecs)
+        ss = skelSpecs(i);
+        lsetType = ss.landmarkSetType;
+      
+        ptsPlotInfoFld = lsetType.labelerPropPlotInfo;
+        s0 = obj.(ptsPlotInfoFld).SkeletonProps;      
+        obj.(ptsPlotInfoFld).SkeletonProps = structoverlay(s0,ss.SkeletonProps);
+      
+        switch lsetType
+          case LandmarkSetType.Label
+            lc = obj.lblCore;
+            lc.skeletonCosmeticsUpdated();
+          case LandmarkSetType.Prediction
+            dt = obj.tracker;
+            tv = dt.trkVizer;
+            if ~isempty(tv)              
+              tv.skeletonCosmeticsUpdated();
+            end
+          case LandmarkSetType.Imported
+            lpos2tv = obj.labeledpos2trkViz;
+            if ~isempty(lpos2tv)
+              lpos2tv.skeletonCosmeticsUpdated();
+            end
+        end
+      end          
+    end
+    
     function updateLandmarkLabelColors(obj,colors,colormapname)
       % colors: "setwise" colors
 
@@ -7832,29 +7859,6 @@ classdef Labeler < handle
           end
         end
       end      
-    end
-    
-%     function updateSkeletonCosmetics(obj,skelSpecs)
-%       for i=1:numel(skelSpecs)
-%         s = skelSpecs(i);
-%         lsetType = s.landmarkSetType;
-%         lObjUpdateMeth = lsetType.updateCosmeticsLabelerMethod();
-%         obj.(lObjUpdateMeth)(s.MarkerProps,s.TextProps,s.TextOffset);
-%       end
-%     end
-  
-    function updateSkeletonImportedCosmetics(obj,sPV)
-      % sPV: struct with PVs, eg 
-      % sPV.LineWidth
-      % sPV.color: [1 3]
-      
-      s = structoverlay(obj.impPointsPlotInfo.SkeletonProps,sPV);
-      obj.impPointsPlotInfo.SkeletonProps = s;
-      
-      lpos2tv = obj.labeledpos2trkViz;
-      if ~isempty(lpos2tv)        
-        lpos2tv.setSkeletonCosmetics(s);
-      end
     end
     
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
@@ -9968,9 +9972,9 @@ classdef Labeler < handle
       nRow = nnz(tfInTbl);
       if nRow>0
         assert(nRow==1);
-        fprintf(2,'Todo: update inefficient\n');
-        lposXY = obj.labeledposGT{iMov}(:,:,frm,iTgt);
-        obj.gtSuggMFTableLbled(tfInTbl) = nnz(isnan(lposXY))==0;
+        s = obj.labelsGT{iMov};
+        [tf,p] = Labels.isLabeledFT(s,frm,iTgt);
+        obj.gtSuggMFTableLbled(tfInTbl) = tf && nnz(isnan(p))==0;
         obj.notify('gtSuggMFTableLbledUpdated');
       end
     end
@@ -10405,9 +10409,9 @@ classdef Labeler < handle
         error('Labeler:susp',...
           'Invalid ''suspscore'' output from suspicisouness computation.');
       end
-      lpos = obj.labeledposGTaware;
+      gt = obj.gtIsGTMode;
       for imov=1:nmov
-        [~,~,nfrm,ntgt] = size(lpos{imov});
+        [nfrm,ntgt] = obj.getNFrmNTrx(gt,imov);
         if ~isequal(size(suspscore{imov}),[nfrm ntgt])
           error('Labeler:susp',...
             'Invalid ''suspscore'' output from suspicisouness computation.');

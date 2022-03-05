@@ -140,7 +140,7 @@ classdef CalRig < handle
         % Bouget Calib_Results_stereo.mat file
         % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
         obj = CalRig2CamCaltech(fname);
-%         tfSetViewRois = true;        
+%         tfSetViewRois = true;
       else
         error('CalRig:load',...
           'Calibration file ''%s'' has unrecognized contents.',fname);

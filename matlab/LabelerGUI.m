@@ -1317,11 +1317,16 @@ end
 
 CLOSESTR = 'Close anyway';
 DONTCLOSESTR = 'Cancel, don''t close';
-sel = questdlg('This figure is required for your current multiview project.',...
-  'Close Request Function',...
-  DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
-if isempty(sel)
-  sel = DONTCLOSESTR;
+tfbatch = batchStartupOptionUsed; % ci
+if tfbatch
+  sel = CLOSESTR;
+else
+  sel = questdlg('This figure is required for your current multiview project.',...
+    'Close Request Function',...
+    DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
+  if isempty(sel)
+    sel = DONTCLOSESTR;
+  end
 end
 switch sel
   case DONTCLOSESTR
@@ -5015,13 +5020,15 @@ handles = guidata(hObject);
 lObj = handles.labelerObj;
 cbkApply = @(varargin)hlpApplyCosmetics(lObj,varargin{:});
 [ischange,savedres] = LandmarkColors(lObj,cbkApply);
-if ischange
-  cbkApply(savedres.colorSpecs,savedres.markerSpecs);
-end
+% AL 20220217: changes now applied immediately
+% if ischange
+%   cbkApply(savedres.colorSpecs,savedres.markerSpecs,savedres.skelSpecs);
+% end
 
-function hlpApplyCosmetics(lObj,colorSpecs,mrkrSpecs)
+function hlpApplyCosmetics(lObj,colorSpecs,mrkrSpecs,skelSpecs)
 lObj.updateLandmarkColors(colorSpecs);
 lObj.updateLandmarkCosmetics(mrkrSpecs);
+lObj.updateSkeletonCosmetics(skelSpecs);
 
 function menu_track_edit_skeleton_Callback(hObject, eventdata, handles)
 

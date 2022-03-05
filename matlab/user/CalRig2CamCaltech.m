@@ -350,9 +350,9 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         xprp = nan(d,n,nvw);
         rpe = nan(n,nvw);
       
-        X2 = obj.camxform(X,'lr');
-        xp1 = obj.project(X,'l');
-        xp2 = obj.project(X2,'r');
+        X2 = obj.camxform(X,'LR');
+        xp1 = obj.project(X,'L');
+        xp2 = obj.project(X2,'R');
         
         xprp(:,:,1) = xp1 + 1; % see .x2y
         xprp(:,:,2) = xp2 + 1;
@@ -512,6 +512,19 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       Xc2 = RR*Xc + repmat(TT,1,N);
     end
     
+    function t = summarizeIntrinsics(obj)
+      camnames = fieldnames(obj.int);
+      sall = [];
+      for cam=camnames(:)',cam=cam{1};
+        s = obj.int.(cam);
+        s.cc = s.cc.';
+        s.fc = s.fc.';
+        s.kc = s.kc.';
+        sall = [sall; s];
+      end
+      t = struct2table(sall,'rownames',camnames,'asarray',1);
+    end
+        
   end
       
 end

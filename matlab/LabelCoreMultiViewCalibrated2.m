@@ -207,7 +207,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 %       ppi2 = obj.labeler.predPointsPlotInfo;
       %ppi2.FontSize = ppi.FontSize;
       
-      obj.updateSkeletonEdges([],ppi);
+      obj.updateSkeletonEdges();
       obj.updateShowSkeleton();
 
       pvMarker = struct2paramscell(ppi.MarkerProps);
@@ -312,18 +312,14 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
     end
     
-    function updateSkeletonEdges(obj,ax,ptsPlotInfo)
+    function updateSkeletonEdges(obj)
       
       if isempty(obj.iSet2iPt) || isempty(obj.labeler.skeletonEdges),
         return;
       end
       
-      if nargin < 2 || isempty(ax),
-        ax = obj.hAx;
-      end
-      if nargin < 3 || isempty(ptsPlotInfo),
-        ptsPlotInfo = obj.ptsPlotInfo;
-      end
+      ax = obj.hAx;
+      ptsPlotInfo = obj.ptsPlotInfo;
       
       deleteValidHandles(obj.hSkel);
       nEdgesPerView = size(obj.skeletonEdges,1)/obj.nView;
@@ -331,15 +327,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       for ivw = 1:obj.nView,
         for i = 1:size(obj.labeler.skeletonEdges,1),
           iEdge = (ivw-1)*nEdgesPerView+i;
-          %color = ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
-          color = [.7,.7,.7];
-          obj.hSkel(iEdge) = LabelCore.initSkeletonEdge(ax(ivw),iEdge,ptsPlotInfo,color);
+          obj.hSkel(iEdge) = LabelCore.initSkeletonEdge(ax(ivw),iEdge,ptsPlotInfo);
         end
       end
       xy = obj.getLabelCoords();
       tfOccld = any(isinf(xy),2);
-      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);
-      
+      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);      
     end
     
   end
@@ -939,7 +932,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       if ~obj.isCalRig,
         return;
       end
-      
+
       iPt1 = obj.pjtIPts(1);
       hPt1 = obj.hPts(iPt1);
       xy1 = [hPt1.XData hPt1.YData];
@@ -949,7 +942,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       for iAx = iAxOther
         hIm = obj.hIms(iAx);
         imroi = [hIm.XData hIm.YData];
+        
+      
         [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
+      
         hEpi = obj.pjtHLinesEpi(iAx);
         set(hEpi,'XData',x,'YData',y,'Visible',onIff(obj.showCalibration),'Color',hPt1.Color);
         %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
@@ -989,7 +985,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       xy1 = [hPt1.XData hPt1.YData];
       xy2 = [hPt2.XData hPt2.YData];
-      iAxOther = setdiff(1:obj.nView,[iAx1 iAx2]);
+      iAxOther = setdiff(1:obj.nView, [iAx1 iAx2]);
       crig = obj.pjtCalRig;
       for iAx = iAxOther
         [x,y] = crig.reconstruct(iAx1,xy1,iAx2,xy2,iAx);

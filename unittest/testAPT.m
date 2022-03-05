@@ -753,11 +753,18 @@ classdef testAPT < handle
     function test_track_export(self)
       lObj = self.lObj;
       iMov = lObj.currMovie;
-      trkfile = tempname;
-      lObj.trackExportResults(iMov,'trkfiles',{trkfile});      
-      tfile = TrkFile.load(trkfile);
-      fprintf(1,'Exported and re-loaded trkfile!\n');
-      disp(tfile);
+      nvw = lObj.nview;
+      tfiles = arrayfun(@(x)tempname(),1:nvw,'uni',0);
+      lObj.trackExportResults(iMov,'trkfiles',tfiles);
+      
+      for ivw=1:nvw
+        trk = TrkFile.load(tfiles{ivw});
+        fprintf(1,'Exported and re-loaded trkfile!\n');
+        if nvw>1
+          fprintf(1,'  View %d:\n',ivw);
+        end
+        disp(trk);
+      end
     end
     
     function test_gtcompute(self,varargin)
