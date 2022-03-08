@@ -37,6 +37,7 @@ classdef TrkFile < dynamicprops
   end
   properties (Dependent)
     ntracklets
+    ntlts
   end
   
   methods 
@@ -45,6 +46,13 @@ classdef TrkFile < dynamicprops
 %       v = size(obj.pTrk{1},1);
 %     end
     function v = get.ntracklets(obj)
+      if obj.isfull
+        v = size(obj.pTrk,4);
+      else
+        v = numel(obj.pTrk);
+      end
+    end
+    function v = get.ntlts(obj)
       if obj.isfull
         v = size(obj.pTrk,4);
       else

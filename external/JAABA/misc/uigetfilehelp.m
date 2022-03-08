@@ -15,6 +15,6 @@ end
 varargout = cell(1,nargout);
 [varargout{:}] = uigetfile(inputs{:});
 
-if ~isnan(hhelp),
+if ishandle(hhelp),
   deletefileinfodialog(hhelp);
 end
