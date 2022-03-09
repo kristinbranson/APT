@@ -1019,6 +1019,11 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'mmpose': 'MSPN',
                       }
 
+    if not 'ProjectFile' in A:
+        # Backward compatibility - mk 09032022
+        mat_lbl_file = lbl_file.replace('.json', '.lbl')
+        return create_conf(mat_lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=net_type,conf_params=conf_params,quiet=quiet,json_trn_file=json_trn_file,first_stage=first_stage,second_stage=second_stage,no_json=True)
+
 
     conf = poseConfig.config()
     proj_name = A['ProjName']
