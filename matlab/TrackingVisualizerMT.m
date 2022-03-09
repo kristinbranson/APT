@@ -137,9 +137,11 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % Relevant gfx handles: .hXY*, .hPch*
       
       ntgts0 = obj.nTgts;
-      if  isempty(ntgtsreqd) || isnan(ntgtsreqd) || ntgts0>=ntgtsreqd
+      if isempty(ntgtsreqd) || isnan(ntgtsreqd) || ntgts0>=ntgtsreqd
         return;
       end
+      
+      ntgts0 = max(ntgts0,ntgtsreqd);
       
       % increase
       NTGTS_GROWTH_FAC = 2;

@@ -14187,16 +14187,16 @@ classdef Labeler < handle
     end    
     function updateFrameTableComplete(obj)
       [nTgts,nPts,nRois] = obj.labelPosLabeledFramesStats();
-      assert(isequal(nTgts>0,nPts>0));
-      tfFrm = nTgts>0 | nRois>0;
+      tfFrm = nTgts>0 | nPts>0 | nRois>0;
       iFrm = find(tfFrm);
 
       nTgtsLbledFrms = nTgts(tfFrm);
+      nPtsLbledFrms = nPts(tfFrm);
       nRoisLbledFrms = nRois(tfFrm);
       if obj.maIsMA
-        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) num2cell(nRoisLbledFrms)];
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) num2cell(nRoisLbledFrms)];
       else
-        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) ];
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) ];
       end
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
