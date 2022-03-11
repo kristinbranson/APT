@@ -517,6 +517,13 @@ handles.menu_track_all_movies = uimenu(...
   'Callback',@(h,evtdata)LabelerGUI('menu_track_all_movies_Callback',h,evtdata,guidata(h)));
 moveMenuItemAfter(handles.menu_track_all_movies,handles.menu_track_current_movie);
 
+handles.menu_track_id = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Link using Identity',...
+  'Tag','menu_track_id',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_id_Callback',h,evtdata,guidata(h)));
+moveMenuItemAfter(handles.menu_track_id,handles.menu_track_all_movies);
+
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
 
 handles.menu_track_trainincremental = handles.menu_track_retrain;
@@ -542,7 +549,7 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Label','Clear tracking results',...
   'Tag','menu_track_clear_tracking_results',...
   'Separator','on');  
-moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_all_movies);
+moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_id);
 
 handles.menu_track_clear_tracker = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracker_Callback',hObject,eventdata,guidata(hObject)),...
@@ -889,7 +896,8 @@ handles.h_singleview_only = [...
    handles.menu_setup_sequential_add_mode ...
    ];
 handles.h_ma_only = [...
-  handles.menu_setup_multianimal_mode ...
+  handles.menu_setup_multianimal_mode, ...
+  handles.menu_track_id ...
   ];
 handles.h_nonma_only = [ ...
   handles.menu_setup_multiview_calibrated_mode_2...
@@ -1152,8 +1160,10 @@ switch lower(state),
     end
     if lObj.maIsMA
       set(handles.h_nonma_only,'Enable','off');
+      set(handles.menu_track_id,'Checked',handles.labelerObj.track_id,'Visible','on');
     else
       set(handles.h_ma_only,'Enable','off');
+      set(handles.menu_track_id,'Visible','off');
     end
     if lObj.nLabelPointsAdd == 0,
       set(handles.h_addpoints_only,'Visible','off');
@@ -2882,7 +2892,7 @@ fprintf('Tracking started at %s...\n',datestr(now));
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);
 oc = onCleanup(@()delete(wbObj));
-handles.labelerObj.track(tblMFT,'wbObj',wbObj);
+handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_id',false);
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Tracking canceled');
   msgbox(msg,'Track');
@@ -4445,6 +4455,12 @@ if ~dostore,
   return;
 end
 trackBatch('lObj',lObj,'toTrack',toTrackOut);
+
+function menu_track_id_Callback(hObject,eventdata,handles)
+
+lObj = handles.labelerObj;
+lObj.track_id = ~lObj.track_id;
+set(handles.menu_track_id,'checked',lObj.track_id);
 
 % function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
 % lObj = handles.labelerObj;

@@ -33,7 +33,7 @@ classdef Labeler < handle
       'projectHasTrx'...
       'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
       'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo' ...
-      'nLabelPointsAdd'};
+      'nLabelPointsAdd' 'track_id'};
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
 %       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
@@ -546,6 +546,7 @@ classdef Labeler < handle
     trkRes % [nMov x nview x nTR] cell. cell array of TrkFile objs
     trkResGT % [nMovGT x nview x nTR] cell. etc
     trkResViz % [nTR x 1] cell. TrackingVisualizer vector
+    track_id = false;
   end
   properties (Dependent)
     trkResGTaware

@@ -675,8 +675,8 @@ def conf_opts_pvargstr2dict(conf_str):
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', conf_params=None, quiet=False, json_trn_file=None,first_stage=False,second_stage=False,no_json=False):
 
     if not no_json:
-        assert os.path.exists(lbl_file.replace('.lbl','.json'))
-        lbl_file = lbl_file.replace('.lbl','.json')
+        if os.path.exists(lbl_file.replace('.lbl','.json')):
+            lbl_file = lbl_file.replace('.lbl','.json')
     if lbl_file.endswith('.json'):
         return create_conf_json(lbl_file=lbl_file,view=view, name=name, cache_dir=cache_dir, net_type=net_type, conf_params=conf_params, quiet=quiet, json_trn_file=json_trn_file, first_stage=first_stage, second_stage=second_stage)
     assert not (first_stage and second_stage), 'Configurations should either for first stage or second stage for multi stage tracking'
