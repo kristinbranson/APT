@@ -498,7 +498,7 @@ if isempty(refHead)
             en_c = en + fakeStimShiftFrames;
             for t = st_c:en_c
 
-                if ~isnan(threeD_pos{trial}{point}(t,1))
+                if ~isnan(threeD_pos{trial}{1}(t,1))
                     counter = counter+1;
                     for point = 1:size(threeD_pos{trial},2)
                         allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3) ;
