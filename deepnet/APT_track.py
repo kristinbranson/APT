@@ -20,7 +20,7 @@ import numpy as np
 def parse_args(argv):
 
     parser = argparse.ArgumentParser(description='Track movies using the latest trained model in the APT lbl file')
-    parser.add_argument("lbl_file", help="path to APT lbl file")
+    parser.add_argument("lbl_file", help="path to APT lbl file or a directory when the lbl file has been unbundled using untar")
 #    parser.add_argument('-backend',help='Backend to use for tracking. Options are docker and conda',default='docker')
     parser.add_argument('-list', help='Lists all the trained models present in the lbl file',action='store_true')
     parser.add_argument("-model_ndx", help="Use this model number (model numbers can be found using -list) instead of the latest model",type=int,default=None)
@@ -86,17 +86,20 @@ def get_strs(tstamp, tstamps, mtypes, tdir):
 def main(argv):
     args = parse_args(argv)
     lbl_file = args.lbl_file
-    tdir = tempfile.mkdtemp()
-## For testing
-#    lbl_file = '/groups/branson/home/kabram/APT_projects/alice_ma_20210523_tdmodel_t2.lbl'
-#    tdir = '/tmp/tmp90as'
-#    os.makedirs(tdir,exist_ok=True)
+    if os.path.isdir(lbl_file):
+        tdir = lbl_file
+    else:
+        tdir = tempfile.mkdtemp()
+    ## For testing
+    #    lbl_file = '/groups/branson/home/kabram/APT_projects/alice_ma_20210523_tdmodel_t2.lbl'
+    #    tdir = '/tmp/tmp90as'
+    #    os.makedirs(tdir,exist_ok=True)
 
-## Untar the label files
+    ## Untar the label files
 
-    logging.info('Unbundling the label file.. ')
-    tobj = TarFile.open(lbl_file)
-    tobj.extractall(path=tdir)
+        logging.info('Unbundling the label file.. ')
+        tobj = TarFile.open(lbl_file)
+        tobj.extractall(path=tdir)
 
 ## Find all the stored models
 

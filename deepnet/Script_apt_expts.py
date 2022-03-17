@@ -1157,6 +1157,37 @@ import run_apt_ma_expts as rae_ma
 robj = rae_ma.ma_expt('roian')
 robj.run_incremental_train(t_types=[('grone','crop','mask')],queue='gpu_tesla')
 
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('roian')
+robj.show_incremental_results(t_type=['grone','crop','mask','first'])
+
+## ID Track movies
+import run_apt_ma_expts as rae_ma
+import PoseTools as pt
+import os
+robj = rae_ma.ma_expt('roian')
+
+loc_file = os.path.join(robj.gt_dir, rae_ma.loc_file_str)
+A = pt.json_load(loc_file)
+gt_movies = A['movies']
+
+t_types = [('2stageHT','crop','nomask'),
+           ('2stageHT','nocrop','nomask'),
+           ('2stageBBox','nomask'),
+           ('grone','crop','mask'),
+           ('grone','nocrop','mask')
+           ]
+run_type = 'dry'
+for cur_mov in gt_movies[-1:]:
+    exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
+    for tt in t_types:
+        cur_str = '_'.join(tt)
+        out_trk = os.path.join(robj.trk_dir,exp_name + f'_{cur_str}.trk')
+        robj.track(cur_mov,out_trk,t_types=[tt,],run_type=run_type)
+
+
+######################
 ## Alice
 
 ## Add neg ROIs for experiments
@@ -1216,3 +1247,5 @@ for cur_mov in gt_movies:
     exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
     out_trk = os.path.join(robj.trk_dir,exp_name + '_grone.trk')
     robj.track(cur_mov,out_trk,t_types=[('grone','crop')],run_type=run_type)
+
+

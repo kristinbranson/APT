@@ -942,6 +942,8 @@ def link_pure(trk, conf, do_delete_short=False):
   nframes_test = np.inf
   nframes_test = int(np.minimum(T, nframes_test))
 
+  trk.convert2sparse()
+
   # Do the linking
   ids, costs = assign_ids(trk, params, T=nframes_test)
 

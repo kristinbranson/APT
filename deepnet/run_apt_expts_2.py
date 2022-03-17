@@ -287,7 +287,7 @@ def run_jobs(cmd_name,
              run_dir=job_run_dir,
              queue='gpu_any',
              precmd='',
-             logdir=sdir,nslots=3,sing_img=sing_img):
+             logdir=sdir,nslots=3,sing_img=sing_img, timeout=80*60):
     logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
     errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 
@@ -314,7 +314,7 @@ def run_jobs(cmd_name,
                              run_dir=run_dir,
                              queue=queue,
                              precmd=precmd,numcores=nslots,
-                             timeout=80*60,sing_image=sing_img)
+                             timeout=timeout,sing_image=sing_img)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
