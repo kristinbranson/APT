@@ -19,7 +19,7 @@ function [q,trans,scaleFac,residuals,rotMat,axisAngleRad,EulerRPY]=computeRotati
 % rotMat = rotation in format of rotation matrix. Rotated points =
 % (rotMat*dataPoint')'
 %
-% axisAngleRad = rotation in axis-angle format.  [x,y,z,angle] format.
+% axisAngleRad = rotation in axis-angle format.  [0,0,0,x,y,z,angleInRadians] format.
 % Angle is in radians.
 %
 % EulerRPY = Euler angles describing rotation.  XYZ axis order convention
@@ -197,13 +197,6 @@ end
 %getting axis and angle directly from quaternion
 axisAngleRad = [0,0,0, (q(2:4)./norm(q(2:4)))',2*acos(q(1))];
 
-%axis-angle can get to same place in two ways CW theta around positive axis or
-%CW 360-theta around negative axis.  Constraining axis to only be
-%pointing in front of fly (positive X)
-if axisAngleRad(4)<0
-   axisAngleRad(4:6) = axisAngleRad(4:6).*-1;
-   axisAngleRad(7) = 360-axisAngleRad(7);
-end
 
 
 %% Euler angles

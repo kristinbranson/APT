@@ -67,7 +67,7 @@ function [translations, axisAngleDegXYZ, quaternions, frameStore,...
 %
 %            axisAngleDegXYZ = Rotation between 1st and each subsequent
 %            frame expressed in axis-angle format. Each frames data is
-%            ordered as [angle in deg, x,y,z coords of axis]
+%            ordered as [0,0,0,x,y,z,angleInDegrees]
 % 
 %            quaternions = = Rotation between 1st and each subsequent
 %            frame expressed in unit quaternions

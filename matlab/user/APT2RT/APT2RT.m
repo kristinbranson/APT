@@ -40,9 +40,10 @@ function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion,Eul
 % Outputs:
 %       
 %           axisAngleDegXYZ = Rotations relative to lab/body reference
-%           frame for each frame of each video.
-%           axisAngleDegXYZ(frame#,1,video#)=magnitude of rotation in
-%           Degrees. axisAngleDegXYZ(frame#,2:4,video#)=XYZ representation
+%           frame for each frame of each video. Format:
+%           [x,y,z,angleInDegrees]
+%           axisAngleDegXYZ(frame#,4,video#)=magnitude of rotation in
+%           Degrees. axisAngleDegXYZ(frame#,1:3,video#)=XYZ representation
 %           of axis of rotation.
 %
 %           translations = Translation of head for each frame of each

@@ -1,6 +1,6 @@
 function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,...
   quaternion,EulerAnglesDeg_XYZ,pivot,refHead] = ...
-    APT2RT(APTfilename,flynum2bodyLUT,flynum2calibLUT,...
+    APT2RT_al(APTfilename,flynum2bodyLUT,flynum2calibLUT,...
     predictions1orLabels0,pivot,refHead,varargin)
   
 %Takes APT project containing output of Maynak's tracker and estimates
@@ -43,9 +43,10 @@ function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,...
 % Outputs:
 %       
 %           axisAngleDegXYZ = Rotations relative to lab/body reference
-%           frame for each frame of each video.
-%           axisAngleDegXYZ(frame#,1,video#)=magnitude of rotation in
-%           Degrees. axisAngleDegXYZ(frame#,2:4,video#)=XYZ representation
+%           frame for each frame of each video. Format:
+%           [x,y,z,angleInDegrees]
+%           axisAngleDegXYZ(frame#,4,video#)=magnitude of rotation in
+%           Degrees. axisAngleDegXYZ(frame#,1:3,video#)=XYZ representation
 %           of axis of rotation.
 %
 %           translations = Translation of head for each frame of each
@@ -255,6 +256,7 @@ end
 
 %re-formatting body data into old Kine format for convinience of using old
 %functions
+bodyAPTorKine
 if bodyAPTorKine=='A' %if using APT data for body axis, reformatting it into old Kine format so don't have to alter downstream functions
 
     %reformatting bodyData from 2D APT format into old Kine 3D format just
