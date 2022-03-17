@@ -3027,6 +3027,7 @@ def main(argv):
 
     repo_info = PoseTools.get_git_commit()
     logging.info('Git Commit: {}'.format(repo_info))
+    logging.info('Args: {}'.format(argv))
 
     if args.no_except:
         run(args)
