@@ -30,13 +30,15 @@ def parse_args(argv):
     parser.add_argument('-end_frame', dest='end_frame', help='end frame for tracking', nargs='*', type=int, default=-1)
     parser.add_argument('-out', dest='out_files', help='file to save tracking results to. If track_type is "predict_track" and no predict_trk_files are specified, the pure linked tracklets will be saved to files with _pure suffix. If track_type is "predict_only" the out file will have the pure linked tracklets and predict_trk_files will be ignored.', nargs='+')
     parser.add_argument('-crop_loc', dest='crop_loc', help='crop locations given as xlo xhi ylo yhi', nargs='*', type=int, default=None)
-    parser.add_argument('-view', dest='view', help='track only for this view. If not specified, track for all the views', default=None, type=int)
+    parser.add_argument('-view', help='track only for this view. If not specified, track for all the views', default=None, type=int)
+    parser.add_argument('-stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
+
     parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
-    parser.add_argument('-perdict_trk_files', dest='view', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
-    parser.add_argument('-conf_params', dest='conf_params',
-                        help='conf params. These will override params from lbl file', default=None, nargs='*')
-    parser.add_argument('-conf_params2', dest='conf_params2',
-                        help='conf params for 2nd stage. These will override params from lbl file', default=None, nargs='*')
+    parser.add_argument('-perdict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
+    parser.add_argument('-conf_params',
+                        help='conf params. These will override params from lbl file. If the model is a 2 stage tracker then this will override the params only for the first stage', default=None, nargs='*')
+    parser.add_argument('-conf_params2',
+                        help='conf params for 2nd stage. These will override params from lbl file for 2nd stage tracker if the model is a 2 stage tracker', default=None, nargs='*')
 
     args = parser.parse_args(argv)
     return args
