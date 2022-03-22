@@ -20,7 +20,7 @@ import numpy as np
 def parse_args(argv):
 
     parser = argparse.ArgumentParser(description='Track movies using the latest trained model in the APT lbl file')
-    parser.add_argument("lbl_file", help="path to APT lbl file or a directory when the lbl file has been unbundled using untar")
+    parser.add_argument("-lbl_file", help="path to APT lbl file or a directory when the lbl file has been unbundled using untar")
 #    parser.add_argument('-backend',help='Backend to use for tracking. Options are docker and conda',default='docker')
     parser.add_argument('-list', help='Lists all the trained models present in the lbl file',action='store_true')
     parser.add_argument("-model_ndx", help="Use this model number (model numbers can be found using -list) instead of the latest model",type=int,default=None)
@@ -28,11 +28,15 @@ def parse_args(argv):
     parser.add_argument("-trx", dest="trx",help='trx file for movie', default=None, nargs='*')
     parser.add_argument('-start_frame', dest='start_frame', help='start frame for tracking', nargs='*', type=int, default=1)
     parser.add_argument('-end_frame', dest='end_frame', help='end frame for tracking', nargs='*', type=int, default=-1)
-    parser.add_argument('-out', dest='out_files', help='file to save tracking results to. If track_type is "predict_track" and no predict_trk_files are specified, the pure linked tracklets will be saved to files with _pure suffix. If track_type is "predict_only" the out file will have the pure linked tracklets and predict_trk_files will be ignored.', required=True, nargs='+')
+    parser.add_argument('-out', dest='out_files', help='file to save tracking results to. If track_type is "predict_track" and no predict_trk_files are specified, the pure linked tracklets will be saved to files with _pure suffix. If track_type is "predict_only" the out file will have the pure linked tracklets and predict_trk_files will be ignored.', nargs='+')
     parser.add_argument('-crop_loc', dest='crop_loc', help='crop locations given as xlo xhi ylo yhi', nargs='*', type=int, default=None)
     parser.add_argument('-view', dest='view', help='track only for this view. If not specified, track for all the views', default=None, type=int)
     parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
     parser.add_argument('-perdict_trk_files', dest='view', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
+    parser.add_argument('-conf_params', dest='conf_params',
+                        help='conf params. These will override params from lbl file', default=None, nargs='*')
+    parser.add_argument('-conf_params2', dest='conf_params2',
+                        help='conf params for 2nd stage. These will override params from lbl file', default=None, nargs='*')
 
     args = parser.parse_args(argv)
     return args
@@ -137,10 +141,14 @@ def main(argv):
     cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {extra} track {extra_2}'
 
 ##
-    a_argv = cmd.split() + argv[1:]
+    a_argv = cmd.split() + argv
     if '-model_ndx' in a_argv:
         tndx = a_argv.index('-model_ndx')
         a_argv.pop(tndx); a_argv.pop(tndx)
+    if '-lbl_file' in a_argv:
+        tndx = a_argv.index('-lbl_file')
+        a_argv.pop(tndx); a_argv.pop(tndx)
+
     pstr = get_pretty_name(mtypes[ndx])
     dstr = f'{tstamps[ndx]}'
     mstr = 'multi-stage ' if multi_stage else ''

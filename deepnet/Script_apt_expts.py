@@ -1234,6 +1234,7 @@ robj = rae_ma.ma_expt('alice')
 robj.get_incremental_results(t_types=[('grone','crop')])
 
 ## Track movies
+import os
 import run_apt_ma_expts as rae_ma
 import PoseTools as pt
 robj = rae_ma.ma_expt('alice')

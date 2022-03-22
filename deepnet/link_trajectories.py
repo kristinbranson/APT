@@ -1807,11 +1807,10 @@ def cluster_tracklets_id(embed, pred_map, t_info, min_len):
 
   n_tr = embed.shape[0]
   n_ex = embed.shape[1]
-  ddr = np.ones([n_tr, n_tr, n_ex, n_ex]) * np.nan
+  ddm = np.ones([n_tr, n_tr]) * np.nan
 
   for xx in tqdm(range(n_tr)):
-    ddr[xx, :] = np.linalg.norm(embed[xx, None, :, None] - embed[:, None, :], axis=-1)
-  ddm = np.median(ddr, axis=(2, 3))
+    ddm[xx, :] = np.median(np.linalg.norm(embed[xx, None, :, None] - embed[:, None, :], axis=-1), axis=(1,2))
   # plt.figure(); plt.imshow(ddm)
 
   import scipy.spatial.distance as ssd
