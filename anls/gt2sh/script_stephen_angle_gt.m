@@ -228,7 +228,161 @@ figure; hist(vectorize(axisAngleDegXYZ(:,4,:)));
 
 
 %%
-%  matlab/user/APT2RT/APT2RT.m                                 |   7 +-
-%  matlab/user/APT2RT/APT2RT_al.m                              |  10 +-
-%  matlab/user/APT2RT/computeRotations.m                       |   9 +-
-%  matlab/user/APT2RT/threeD2RT.m        
+
+ngt = size(K.(pred_net){end}.info,1);
+info = {};
+not_found = zeros(0,2);
+fly2dlt = readtable(FLYNUM2DLT,'Delimiter',',');
+fly2dlt.Properties.VariableNames = {'fly' 'calib'};
+all_calib = {};
+all_crops = {};
+is_enrich = [];
+
+enrich_ids = Q.allflyids(Q.enrichedflies);
+pred_info = squeeze(K.(pred_net){end}.info);
+
+% The path to some of the movies in the GT label file don't match the ones
+% in the pred lbl files.
+J.movieFilesAllGT{39,1} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly216/fly216_trial5/C001H001S0001/C001H001S0001_c.avi';
+J.movieFilesAllGT{39,2} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly216/fly216_trial5/C002H001S0001/C002H001S0001_c.avi';
+J.movieFilesAllGT{45,1} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly229_300ms_stim/fly229_trial10_125fps/C001H001S0001/C001H001S0001_c.avi';
+J.movieFilesAllGT{45,2} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly229_300ms_stim/fly229_trial10_125fps/C002H001S0001/C002H001S0001_c.avi';
+J.movieFilesAllGT{63,1} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_219_to_228_28_10_15_SS00325_x_norpAcsChrimsonFlp11/fly219/fly219_trial2/C001H001S0001/C001H001S0001_c.avi';
+J.movieFilesAllGT{63,2} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_219_to_228_28_10_15_SS00325_x_norpAcsChrimsonFlp11/fly219/fly219_trial2/C002H001S0001/C002H001S0001_c.avi';
+J.movieFilesAllGT{89,1} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_488_to_502_SS02323_and_SS00325_8_3_2017/fly492/C001H001S0007/C001H001S0007_c.avi';
+J.movieFilesAllGT{89,2} = '/groups/huston/hustonlab/flp-chrimson_experiments/fly_488_to_502_SS02323_and_SS00325_8_3_2017/fly492/C002H001S0007/C002H001S0007_c.avi';
+
+failed = {};
+data = {};
+
+%%
+for ndx =1:size(J.movieFilesAllGT,1)
+  
+  
+  % Find the flynumber for the current movie
+  mov_files = J.movieFilesAllGT{ndx,1};
+  mov_files = strrep(mov_files,'$flpCE','/groups/huston/hustonlab/flp-chrimson_experiments');
+  mov_files = strrep(mov_files,'\','/');
+  mov_files = strrep(mov_files,'_c_i.avi','_c.avi');
+  [~,ss1] = fileparts(fileparts(fileparts(mov_files)));  
+  hh = strsplit(ss1(4:end),'_');
+  fly_num = str2double(hh{1});
+  if isnan(fly_num)
+    [~,ss1] = fileparts(fileparts(fileparts(fileparts(mov_files))));
+    fly_num = str2double(ss1(4:end));    
+  end
+  
+  % load the calibration data
+  dndx = find(fly2dlt.fly==fly_num);
+  calfile = fly2dlt.calib{dndx};
+  cal2 = CalRig.loadCreateCalRigObjFromFile(calfile);  
+  all_calib{end+1} = cal2;
+  
+  % Whether enriched or not
+  cur_enrich = sum(enrich_ids==fly_num)>0.5;
+  if cur_enrich
+    is_enrich(end+1) = 1;
+  else
+    is_enrich(end+1) = 0;
+  end
+
+  % Find the prediction label file that matches the movie in the GT label
+  % file. This is required because there can be multiple prediction file
+  % for the same fly
+  tfile_ptn = sprintf('/groups/huston/hustonlab/flp-chrimson_experiments/APT_projectFiles/fly%d*.lbl',fly_num);
+  tfiles = dir(tfile_ptn);
+  matched = false;
+  for tndx = 1:numel(tfiles)
+    tlbl_file = fullfile(tfiles(tndx).folder,tfiles(tndx).name);
+    tlbl = loadLbl(tlbl_file);
+    
+    tlbl_mov = strrep(tlbl.movieFilesAll,'Z:\','/groups/huston/hustonlab/');
+    tlbl_mov = strrep(tlbl_mov,'\','/');
+    tlbl_mov = strrep(tlbl_mov,'_c_i.avi','_c.avi');
+    tlbl_mov_ndx = find(strcmp(tlbl_mov(:,1),mov_files));
+    
+    if ~isempty(tlbl_mov_ndx)
+      matched = true;
+      break;
+    end
+  end
+  
+  % There is one failure case
+  if ~matched
+    failed{end+1} = {ndx, mov_files};
+    continue
+  end
+
+  
+  % activation interval
+  activ_int = flyNum2stimFrames_SJH(fly_num);
+
+  % Find the GT frames that have been labeled
+  gt_labels = SparseLabelArray.full(J.labeledposGT{ndx});
+  frames = find(~isnan(gt_labels(1,1,:)));
+  
+  
+  max_f = 0;
+  for tndx = 1:numel(tlbl.labeledpos2)
+    max_f = max(tlbl.labeledpos2{tndx}.size(3),max_f);
+  end
+  
+  kk = nan(10,2,max_f,numel(tlbl.labeledpos2));
+  ll = nan(10,2,max_f,numel(tlbl.labeledpos2));
+  
+  for tndx = 1:numel(tlbl.labeledpos2)
+    cursz = tlbl.labeledpos2{tndx}.size(3);
+    kk(:,:,1:cursz,tndx) = SparseLabelArray.full(tlbl.labeledpos2{tndx});
+    if tndx==tlbl_mov_ndx
+      ll(:,:,1:cursz,tndx) = gt_labels;
+    end
+  end
+  
+  data{ndx} = {ndx, fly_num, kk,ll, mov_files, cal2, cur_enrich, tlbl_file};
+      
+end
+
+
+%%
+
+save('~/temp/stephen_GT_data.mat','data','failed');
+
+%%
+fly_nums = [];
+for ndx =1:size(J.movieFilesAllGT,1)
+  
+  
+  
+  % Find the flynumber for the current movie
+  mov_files = J.movieFilesAllGT{ndx,1};
+  mov_files = strrep(mov_files,'$flpCE','/groups/huston/hustonlab/flp-chrimson_experiments');
+  mov_files = strrep(mov_files,'\','/');
+  mov_files = strrep(mov_files,'_c_i.avi','_c.avi');
+  [~,ss1] = fileparts(fileparts(fileparts(mov_files)));  
+  hh = strsplit(ss1(4:end),'_');
+  fly_num = str2double(hh{1});
+  if isnan(fly_num)
+    [~,ss1] = fileparts(fileparts(fileparts(fileparts(mov_files))));
+    fly_num = str2double(ss1(4:end));    
+  end
+  fly_nums(ndx) = fly_num;
+end
+
+%%
+ufly_id = unique(fly_nums);
+fly_count = zeros(1,numel(ufly_id));
+for ndx =1:numel(ufly_id)
+  fly_count(ndx) = nnz(fly_nums==ufly_id(ndx));
+  if fly_count(ndx)>1
+    ix = find(fly_nums==ufly_id(ndx));
+    fprintf(' ----\n',fly_count(ndx));
+    for xx = ix(:)'
+      ll = SparseLabelArray.full(J.labeledposGT{xx});
+      frames = find(~isnan(ll(1,1,:)));
+      fprintf('%d %s\n',xx,J.movieFilesAllGT{xx,1});
+      fprintf('%d \n',frames);
+    end
+
+  end
+end
+
