@@ -127,7 +127,7 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
           return;
         end
         [frms,tgts] = Labels.isPartiallyLabeledT(labels{mov},nan,obj.nold);
-        todo(idxcurr) = ismember(obj.nexttbl.frm(idxcurr),frms) & ismember(obj.nexttbl.iTgt(idxcurr),tgts);
+        todo(idxcurr) = ismember([obj.nexttbl.frm(idxcurr),obj.nexttbl.iTgt(idxcurr)],[frms(:),tgts(:)],'rows');
       end
 
       % next unlabeled in our sequence

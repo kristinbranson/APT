@@ -1770,12 +1770,12 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
 
         cur_locs = np.array(cur_t['pabs']) - 1
         ntgt = cur_t['ntgt']
-        cur_locs = cur_locs.reshape([conf.nviews, 2, conf.n_classes, ntgt])
-        cur_locs = np.transpose(cur_locs[conf.view, ...], [2, 1, 0])
+        cur_locs = cur_locs.reshape([2, conf.nviews, conf.n_classes, ntgt])
+        cur_locs = np.transpose(cur_locs[:, conf.view, ...], [2, 1, 0])
 
         cur_occ = np.array(cur_t['occ'])
         cur_occ = cur_occ.reshape([conf.nviews, conf.n_classes, ntgt])
-        cur_occ = cur_occ[conf.view, :]
+        cur_occ = cur_occ[conf.view]
         cur_occ = np.transpose(cur_occ, [1, 0])
 
         
