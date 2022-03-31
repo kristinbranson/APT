@@ -160,7 +160,7 @@ classdef TrackJob < handle
     movfileRem = {};
     trxfileRem = {};
     trkfileRem = {};
-    trkoutdirRem = {};
+    trkoutdirRem = {}; % [nview]
     parttrkfileRem = {};
     rootdirRem = '';
     listfileRem = '';
@@ -330,7 +330,7 @@ classdef TrackJob < handle
       if isSerialMultiMov
         assert(~obj.tfmultiview);
         assert(obj.tfexternal);
-        assert(~obj.tfremote);
+        %assert(~obj.tfremote);
       end
       obj.tfserialmultimov = isSerialMultiMov;
 
@@ -779,24 +779,33 @@ classdef TrackJob < handle
       obj.trkfileRem = obj.trkfileLcl;
       obj.listfileRem = obj.listfileLcl;
       if obj.tfremote,
-        for i = 1:obj.nView,
-          mov = obj.movfileLcl{i};
+        if obj.tfserialmultimov
+          assert(obj.nView==1);
+          nmov = obj.nSerialMov;
+          trnstrUse = repmat(obj.trnstr,1,nmov);
+          trkoutdirRemUse = repmat(obj.trkoutdirRem,1,nmov);
+        else
+          nmov = obj.nView;
+          trnstrUse = obj.trnstr;
+          trkoutdirRemUse = obj.trkoutdirRem;
+        end
+        for imov = 1:nmov
+          mov = obj.movfileLcl{imov};
           [~,~,movE] = fileparts(mov);
           movsha = DeepTracker.getSHA(mov);
           movRemoteRel = [obj.remoteDataDirRel '/' movsha movE];
-          obj.movfileRem{i} = [obj.remoteRoot '/' movRemoteRel];
+          obj.movfileRem{imov} = [obj.remoteRoot '/' movRemoteRel];
           
           if obj.tftrx,
-            trx = obj.trxfileLcl{i};
+            trx = obj.trxfileLcl{imov};
             trxsha = DeepTracker.getSHA(trx);
             trxRemoteRel = [obj.remoteDataDirRel '/' trxsha];
-            obj.trxfileRem{i} = [obj.remoteRoot '/' trxRemoteRel];
+            obj.trxfileRem{imov} = [obj.remoteRoot '/' trxRemoteRel];
           end
           
-          trnstr0 = obj.trnstr{i};
+          trnstr0 = trnstrUse{imov};
           trkRemoteRel = [movsha '_' trnstr0 '_' obj.nowstr '.trk'];
-          obj.trkfileRem{i} = [obj.trkoutdirRem{i} '/' trkRemoteRel];
-          
+          obj.trkfileRem{imov} = [trkoutdirRemUse{imov} '/' trkRemoteRel];          
         end
         obj.listfileRem = [obj.dmcRem.dirModelChainLnx '/' obj.listfilestr];
       end
