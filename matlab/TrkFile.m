@@ -964,9 +964,9 @@ classdef TrkFile < dynamicprops
           obj.pTrkConf = obj.pTrkConf(newids);
         end
       end
-      if ~isequal(obj.pTrkiTgt,TrkFile.unsetVal),
-        obj.pTrkiTgt = obj.pTrkiTgt(newids);
-      end
+%       if ~isequal(obj.pTrkiTgt,TrkFile.unsetVal),
+%         obj.pTrkiTgt = obj.pTrkiTgt(newids);
+%       end
       
     end
     
