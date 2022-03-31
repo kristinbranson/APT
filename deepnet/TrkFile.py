@@ -1153,6 +1153,8 @@ class Trk:
     self.pTrkTS=None # timestamp data
     self.pTrkTag=None # tag (occlusion) data
     self.pTrkiTgt=None # 1-d array of target ids
+    # pTrkiTgt is NOT used for indexing, e.g.
+    # getPTrkTgt just gives pTrk[:,:,:,i]
     self.pTrkConf=None # array of confidences
     self.pTrkAnimalConf=None # array of animal confidences
     self.issparse=False # storage format

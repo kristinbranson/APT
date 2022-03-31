@@ -14,6 +14,8 @@ classdef TrkFile < dynamicprops
                                  %  npttrked=labeled.nLabelPoints, then .pTrkiPt=1:npttrked.
     pTrkFrm = TrkFile.unsetVal;  % [nfrm]. frames tracked
     pTrkiTgt = TrkFile.unsetVal; % [ntgt]. targets (1-based Indices) tracked
+                                 % this is NOT used for indexing, e.g.
+                                 % getPTrkTgt(i) just gives pTrk(:,:,:,i)
 
     % CPR-specific
     pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
