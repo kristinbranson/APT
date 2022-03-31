@@ -10436,9 +10436,9 @@ classdef Labeler < handle
         return;
       end
       
-      [tfCanTrack,reason] = PostProcess.canPostProcess(obj,tblMFT);
-
-      
+      if exist('tblMFT','var')
+        [tfCanTrack,reason] = PostProcess.canPostProcess(obj,tblMFT);
+      end
     end
     
     function tfCanTrack = trackAllCanTrack(obj)

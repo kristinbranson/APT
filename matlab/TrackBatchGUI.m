@@ -448,6 +448,11 @@ classdef TrackBatchGUI < handle
               return;
             end
           end
+          [tfCanTrack,reason] = obj.lObj.trackCanTrack();
+          if ~tfCanTrack
+            errordlg(['Error tracking: ',reason],'Error tracking');
+            return;
+          end
           trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack);
           delete(obj.gdata.fig);
         otherwise
