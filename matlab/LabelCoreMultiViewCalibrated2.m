@@ -883,39 +883,42 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
             assert(false);
         end
       else
-        switch obj.pjtState
-          case 0
-            obj.projectionSetAnchor(iPt);
-          case 1
-            if iPt==obj.pjtIPts(1)
-              obj.projectionClear();
-            elseif obj.projectionWorkingSetPointInWS(iPt)
-              obj.projectionSet2nd(iPt);
-            else
-              % iPt is neither anchor pt nor in anchor pt's working set
-              obj.projectionClear();
-              obj.projectionSetAnchor(iPt);
-            end
-          case 2
-            tf = iPt==obj.pjtIPts;
-            if any(tf)
-              idx = find(tf);
-              idxOther = mod(idx,2)+1;
-              iPtOther = obj.pjtIPts(idxOther);
-              obj.projectionClear();
-              obj.projectionSetAnchor(iPtOther);
-            else
-              obj.projectionClear();
-              obj.projectionSetAnchor(iPt);
-            end
-        end
+        obj.projectionSetAnchor(iPt);
+        % temporarily disabling anchor points. the usage model doesn't fit
+        % well on all projects.
+%         switch obj.pjtState
+%           case 0
+%             obj.projectionSetAnchor(iPt);
+%           case 1
+%             if iPt==obj.pjtIPts(1)
+%               obj.projectionClear();
+%             elseif obj.projectionWorkingSetPointInWS(iPt)
+%               obj.projectionSet2nd(iPt);
+%             else
+%               % iPt is neither anchor pt nor in anchor pt's working set
+%               obj.projectionClear();
+%               obj.projectionSetAnchor(iPt);
+%             end
+%           case 2
+%             tf = iPt==obj.pjtIPts;
+%             if any(tf)
+%               idx = find(tf);
+%               idxOther = mod(idx,2)+1;
+%               iPtOther = obj.pjtIPts(idxOther);
+%               obj.projectionClear();
+%               obj.projectionSetAnchor(iPtOther);
+%             else
+%               obj.projectionClear();
+%               obj.projectionSetAnchor(iPt);
+%             end
+%         end
       end
     end
     
     function projectionSetAnchor(obj,iPt1)
-      if ~isnan(obj.pjtIPts(1))
-        obj.projectionClear();
-      end
+      % if ~isnan(obj.pjtIPts(1))
+      obj.projectionClear();
+      % end
       hPt1 = obj.hPtsTxt(iPt1);
       set(hPt1,'String',[obj.hPtsTxtStrs{iPt1} 'a']);
       obj.pjtIPts(1) = iPt1;
