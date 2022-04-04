@@ -3,7 +3,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   % Note: ML Stro Calib App requires all ims/views to have the same size.
   
   properties
-    calSess % scalar Session from ML Stro calibration
+    nonMLinit = false; % if true, obj is not initialized from MATLAB stereo calibration
+    calSess % scalar Session from ML Stro calibration; or if .nonMLinit, scalar struct mirroring calSession object
     
     eplineComputeMode = 'mostaccurate'; % either 'mostaccurate' or 'fastest'
   end
@@ -62,30 +63,50 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   methods
     
     function obj = CalRigMLStro(calSess,varargin)
-      % calibSession: either a char filename for saved result from ML 
-      % Stereo Calib App; or the object within
+      % obj = CalRigMLStro(calSess) 
+      % calSess: one of:
+      %   1. a char filename for saved result from ML Stereo Calib App; 
+      %   2. the ML calibration Session object saved therein; 
+      %   3. char filename for APT-style rig config/param YAML file;
+      %   4. a YAML struct for such YAML contents
       
       offerSave = myparse(varargin, ...
         'offerSave',true...
         );
       
+      isYamlRig = false;
       if ischar(calSess)
-        s = load(calSess,'-mat','calibrationSession');
-        calSessObj = s.calibrationSession;
+        [~,~,ext] = fileparts(calSess);
+        switch ext
+          case '.yaml'
+            s = ReadYaml(calSess);
+            calSessObj = CalRigMLStro.rigYaml2CalSess(s);
+            isYamlRig = true;
+          case '.mat'
+            s = load(calSess,'-mat','calibrationSession');
+            calSessObj = s.calibrationSession;
+        end
       elseif isa(calSess,'vision.internal.calibration.tool.Session')
         calSessObj = calSess;
+      elseif isstruct(calSess) && isfield(calSess,'NumCameras')
+        calSessObj = CalRigMLStro.rigYaml2CalSess(calSess);
+        isYamlRig = true;
       else
         error('Input argument must be a MATLAB Stereo Calibration Session.');
       end
       
       obj.calSess = calSessObj;
+      obj.nonMLinit = isYamlRig;
       obj.int = obj.getInt();
 
       obj.eplineComputeMode = 'mostaccurate';
       %obj.autoCalibrateProj2NormFuncTol();
       obj.proj2NormFuncTol = nan; % AL20220302 no longer used
-      obj.autoCalibrateEplineZrange();
-      obj.runDiagnostics();
+
+      if ~isYamlRig
+        obj.autoCalibrateEplineZrange();
+        obj.runDiagnostics();
+      end
       
       if offerSave
         if ischar(calSess)
@@ -836,7 +857,12 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       xp1ud = cat(1,xp1ud{:});
       xp2ud = arrayfun(@(i)undistortPoints(xp2(:,i)',cp2),(1:n)','uni',0);
       xp2ud = cat(1,xp2ud{:});
-      X1 = triangulate(xp1ud,xp2ud,sp);
+      cm1 = cameraMatrix(cp1,eye(3),[0 0 0]);
+      cm2 = cameraMatrix(cp2,sp.RotationOfCamera2,sp.TranslationOfCamera2);
+      X1 = triangulate(xp1ud,xp2ud,cm1,cm2);
+      % X1 = triangulate(...,sp); 
+      % Don't use this sig beacuse in the case of .nonMLinit, MATLAB/Vision 
+      % doesn't ducktype and requires a real stereoParameters type
       
       xp1rp = worldToImage(cp1,eye(3),[0;0;0],X1,'applyDistortion',true);
       xp2rp = worldToImage(cp2,...
@@ -903,6 +929,12 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
       alpha_c = camParams.Skew;
       assert(isscalar(alpha_c));
+    end
+    function cs = rigYaml2CalSess(s)
+      % s: struct, rig yaml
+      cs = struct();
+      cs.cameraSet = CameraSet(s);
+      cs.CameraParameters = cs.cameraSet.getMatlabStereoParameters();
     end
   end
 
