@@ -117,7 +117,16 @@ classdef CalRig < handle
       if exist(fname,'file')==0
         error('Labeler:file','File ''%s'' not found.',fname);
       end
-      s = load(fname,'-mat'); % Could use whos('-file') with superclasses()
+
+      [~,~,ext] = fileparts(fname);
+      switch ext
+        case '.yaml'
+          % CalRigMLStro from Yaml
+          cr = CalRigMLStro(ReadYaml(fname),'offersave',false);
+          s = struct('calrig',cr);
+        otherwise
+          s = load(fname,'-mat'); % Could use whos('-file') with superclasses()
+      end
       vars = fieldnames(s);
       if numel(vars)==0
         error('CalRig:load','No variables found in file: %s.',fname);

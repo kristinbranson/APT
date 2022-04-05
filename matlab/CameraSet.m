@@ -48,12 +48,15 @@ classdef CameraSet < handle
 
       cams = obj.Cameras;
       sp = struct();
+      
       sp.CameraParameters1 = cams(1).getMatlabCameraIntrinsics;
+      %sp.CameraParameters1.Intrinsics = sp.CameraParameters1;
       sp.CameraParameters2 = cams(2).getMatlabCameraIntrinsics;
+      %sp.CameraParameters2.Intrinsics = sp.CameraParameters2;
 
       [R,t] = obj.getXformCams(1,2);
-      sp.RotationOfCamera2 = R;
-      sp.TranslationOfCamera2 = t;
+      sp.RotationOfCamera2 = R';
+      sp.TranslationOfCamera2 = t(:)';
     end
   end
 end
