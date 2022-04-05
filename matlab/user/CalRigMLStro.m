@@ -686,8 +686,15 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       [iView,camName] = obj.camArgHelper(cam);
       cpFld = ['CameraParameters' num2str(iView)];
       sp = obj.stroParams;
-      intprm = sp.(cpFld).Intrinsics;
-      %intprm = obj.int.(camName);
+      intprm = sp.(cpFld);
+      if isprop(sp,'Intrinsics')
+        % default MATLAB case
+        % stereoParams.CameraParameters1 is a cameraParameters
+        % <that>.Intrinsics is a cameraIntrinsics which is v similar
+        intprm = intprm.Intrinsics;
+      else
+        % already intrinsics
+      end
       xud = undistortPoints(xp,intprm);
 
       RDUMMY = eye(3);
