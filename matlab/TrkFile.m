@@ -670,6 +670,9 @@ classdef TrkFile < dynamicprops
       
       sfsNew = itgt2spep(1,itgtsun);
       efsNew = itgt2spep(2,itgtsun);
+      tfNoFrms = sfsNew>efsNew;
+      sfsNew(tfNoFrms) = 0;
+      efsNew(tfNoFrms) = -1;
       
       % 2. initialize new TrkFile with empty trkflds of right size
       % (nan-filled)
@@ -694,25 +697,27 @@ classdef TrkFile < dynamicprops
           itgt = o.pTrkiTgt(j);
           sp = o.startframes(j);
           ep = o.endframes(j);
-          %nf = ep-sp+1;
-          %off = 1-sp;
-          jall = itgt2jall(itgt);          
-          spall = objMerged.startframes(jall);
-          offall = 1-spall;
-          idxall = sp+offall:ep+offall;
-          noverlap = nnz(frmsAreSet{jall}(idxall));
-          frmsAreSet{jall}(idxall) = true;
-          if noverlap>0
-            warningNoTrace('Target %d: %d frames covered by two trkfiles. Overwriting.',...
-              itgt,noverlap);
-          end
-          
-          % write trkflds
-          for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
-            if strcmp(f,'pTrk')
-              objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
-            else
-              objMerged.(f){jall}(:,idxall) = o.(f){j};
+          if sp<=ep
+            %nf = ep-sp+1;
+            %off = 1-sp;
+            jall = itgt2jall(itgt);          
+            spall = objMerged.startframes(jall);
+            offall = 1-spall;
+            idxall = sp+offall:ep+offall;
+            noverlap = nnz(frmsAreSet{jall}(idxall));
+            frmsAreSet{jall}(idxall) = true;
+            if noverlap>0
+              warningNoTrace('Target %d: %d frames covered by two trkfiles. Overwriting.',...
+                itgt,noverlap);
+            end
+
+            % write trkflds
+            for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
+              if strcmp(f,'pTrk')
+                objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
+              else
+                objMerged.(f){jall}(:,idxall) = o.(f){j};
+              end
             end
           end
         end
