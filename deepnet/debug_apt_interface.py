@@ -1,23 +1,104 @@
-from reuse import *
-import hdf5storage
 
-out_all = {}
-for k in C.keys():
-    preds = C[k][0,0,0][0,0]['locs']
-    locs = C[k][0,0,1]
-    info = C[k][0,0,2]
+# Base 2 pass results 5 missing
+In [6]: mm2
+Out[6]:
+array([[ 1.89958583,  2.35633003,  3.76393846,  3.30938335],
+       [ 3.2768649 ,  3.73195728,  5.58196087,  4.92432583],
+       [ 7.26610094,  9.20664692,  7.47978016,  7.08772638],
+       [12.12042094, 18.01629484,  8.83288766,  9.14622588],
+       [19.57118223, 31.56303632, 12.20471055, 13.29906634],
+       [32.97769206, 57.76388514, 21.86080749, 24.53596093]])
 
-    preds = apt.to_mat(preds)
-    locs = apt.to_mat(locs)
-    info = apt.to_mat(info)
-    out_all[k] = {'pred_locs': preds, 'labeled_locs': locs, 'list': info, 'model_file': ''}
+# wt sum 2, upsample 4, base layer
+In [3]: mm
+Out[3]:
+array([[ 1.92436109,  2.51384764,  3.79696441,  3.27372806],
+       [ 3.33878672,  4.0119352 ,  5.48713002,  4.99472998],
+       [ 7.39694997, 10.07081369,  7.37263647,  7.13683736],
+       [12.06871859, 20.24080929,  9.02783332,  9.33484835],
+       [20.4200661 , 36.71611698, 14.38816937, 13.9135726 ],
+       [31.65845612, 54.5788165 , 23.27256091, 24.82880244]])
 
-out_file = '/groups/branson/bransonlab/mayank/apt_results/roian_ma_res_20220217_1.mat'
-hdf5storage.savemat(out_file, out_all, appendmat=False, truncate_existing=True)
+# wt sum 2, no upsample 7 missing
+array([[ 1.92654714,  2.47890569,  3.86055849,  3.27299725],
+       [ 3.35519018,  3.90903672,  5.44225691,  4.99007094],
+       [ 7.52485672,  9.38367134,  7.38405155,  7.16939987],
+       [12.23762691, 19.12252498,  9.02325248,  9.33163774],
+       [20.81535606, 36.25637025, 14.59836786, 14.13701568],
+       [31.06777333, 56.73084033, 24.45224429, 24.25205676]])
+
+# wt sum, 2 pass. 4 missing
+array([[ 1.9103634 ,  2.49004686,  3.82850658,  3.23434185],
+       [ 3.30459947,  3.90098398,  5.44919413,  5.02568686],
+       [ 7.38321369,  9.27610805,  7.3309828 ,  7.17768504],
+       [12.32732282, 19.03921682,  8.98976787,  9.20243294],
+       [20.56164999, 36.35485019, 13.88404477, 14.14665358],
+       [32.26127879, 55.49631551, 24.09104133, 23.65871966]])
+
 
 ##
-cmd = '-name 20220305T042736 -view 1 -cache /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b -stage second -conf_params -type detect_mmdetect -conf_params2 use_bbox_trx True -type2 mdn_joint_fpn /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b/grapes/20220305T042736_20220305T042738.lbl track -out /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b/grapes/mdn_joint_fpn/view_0/20220305T042736/trk/IMG_3066_trn20220305T042736_iter10000_20220305T075704_mov1_vwj1.trk -mov /groups/branson/bransonlab/mayank/data/grapes/IMG_3066.avi -start_frame 693 -end_frame 893 -trx /groups/branson/home/kabram/.apt/tp5ed23bbc_9eb9_4348_be82_4b7f0e6d5b3b/grapes/detect_mmdetect/view_0/20220305T042736/trk/IMG_3066_trn20220305T042736_iter20000_20220305T075704_mov1_vwj1.trk'
 
+aa = np.array([
+       [ 1.92093998,  2.49102359,  3.84747044,  3.34985059],
+       [ 3.27805797,  3.8371027 ,  5.50462337,  5.03632564],
+       [ 7.15790976,  9.06004831,  7.28597556,  7.09831449],
+       [12.39419474, 19.06424652,  8.72366047,  9.20836105],
+       [20.4017183 , 39.42236063, 13.12594344, 13.33916368],
+       [33.50575057, 60.        , 26.10889636, 26.05745934]])
+
+
+##
+from reuse import *
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('roian')
+
+import run_apt_expts_2 as rae
+gt_db = '/groups/branson/home/kabram/bransonlab/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/gt_db/train_TF.json'
+tfile = '/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch_2/view_0/grone_crop_mask_23022022/traindata'
+self = robj
+conf = pt.pickle_load(tfile)[1]
+conf.imsz = (self.imsz,self.imsz)
+conf.img_dim = 3
+conf.batch_size = 1
+conf.db_format = 'coco'
+conf.img_dim = 3
+
+cur_res = apt.classify_db_all('multi_mdn_joint_torch_2',conf,gt_db,img_dir='train',fullret=True)
+prcs = [50,75,90,95,98,99]
+cur_res2 = pt.pickle_load('/groups/branson/bransonlab/mayank/apt_results/roian_ma_res_20220227_grone_crop_mask_first.pkl')[0][0]
+pp = cur_res2['pred_locs']
+ll = cur_res2['labeled_locs']
+ll[ll < -1000] = np.nan
+dd = np.linalg.norm(ll[:, None] - pp[:, :, None], axis=-1)
+dd1 = find_dist_match(dd)
+valid_l = np.any(~np.isnan(ll[:, :, :, 0]), axis=-1)
+
+cur_dist = dd1[valid_l]
+
+vv = cur_dist.copy()
+vv[np.isnan(vv)] = 60.
+mm2 = np.nanpercentile(vv, prcs, axis=0, interpolation='nearest')
+
+##
+cmd = '/groups/branson/home/kabram/JAABAErrors/tp1bb9a188_bb04_451c_a02f_f4d80a7085c5/nails/20220412T072327_20220412T072334.json -name 20220412T072327 -json_trn_file /groups/branson/home/kabram/JAABAErrors/tp1bb9a188_bb04_451c_a02f_f4d80a7085c5/nails/loc.json  -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/JAABAErrors/tp1bb9a188_bb04_451c_a02f_f4d80a7085c5 train -use_cache'
+
+from reuse import *
+# cmd = cmd.replace('"/','/')
+# cmd = cmd.replace('" ',' ')
+if type(cmd) == list:
+    apt.main(cmd)
+else:
+    cmd = cmd.replace('\\', '')
+    apt.main(cmd.split())
+
+
+##
+cmd = '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageHT/conf_nocrop.json -name 2stageHT_nocrop_nomask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageHT/loc_neg.json -conf_params multi_loss_mask False rescale 2.56 batch_size 4 link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage first -type multi_mdn_joint_torch track -mov /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -out /groups/branson/home/kabram/temp/ma_expts/roian/trks/200918_m170234vocpb_m170234_odor_m170232_f0180322_2stageHT_nocrop_nomask.trk'
+
+# cmd = '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_nomask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask False link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage first -type detect_mmdetect track -mov /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -out /groups/branson/home/kabram/temp/ma_expts/roian/trks/200918_m170234vocpb_m170234_odor_m170232_f0180322_2stageBBox_nomask.trk'
+
+cmd = '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/grone/conf_crop.json -name tt -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/grone/loc_neg.json -conf_params multi_loss_mask True -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch train -use_cache'
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')

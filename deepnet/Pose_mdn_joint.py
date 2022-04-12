@@ -510,6 +510,7 @@ class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch
         model.eval()
         self.model = model
         conf = self.conf
+        match_dist_factor = conf.get('multi_match_dist_factor',0.2)
 
         def pred_fn(ims, retrawpred=False):
             locs_sz = (conf.batch_size, conf.n_classes, 2)

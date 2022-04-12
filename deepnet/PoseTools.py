@@ -129,12 +129,22 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
     smask = np.zeros((sz[0],szy_ds,szx_ds)) if mask is not None else None
     for ndx in range(sz[0]):
+        # using skimage transform which is really really slow
         # use anti_aliasing?
+        # if sz[3] == 1:
+        #     simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
+        # else:
+        #     simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
+        # if mask is not None:
+        #     smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
+
+        out_sz = simg.shape[1:3][::-1]
         if sz[3] == 1:
-            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
+            simg[ndx, :, :, 0] = cv2.resize(img[ndx, :, :, 0], out_sz, **kwargs)
         else:
-            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
+            simg[ndx, :, :, :] = cv2.resize(img[ndx, :, :, :], out_sz, **kwargs)
         if mask is not None:
+            # use skimage transform because it can work on boolean data
             smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
 
     # AL 20190909. see also create_label_images

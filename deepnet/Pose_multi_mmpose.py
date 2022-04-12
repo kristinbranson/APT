@@ -137,7 +137,7 @@ class Pose_multi_mmpose(Pose_mmpose):
         nt = cfg.test_pipeline[-2]['transforms'][-1]
         norm_trans = NormalizeTensor(nt['mean'],nt['std'])
 
-        match_dist = conf.get('multi_match_dist',10)
+        match_dist_factor = conf.multi_match_dist_factor
 
         def pred_fn(in_ims,retrawpred=False):
 
@@ -192,12 +192,16 @@ class Pose_multi_mmpose(Pose_mmpose):
                 all_array = np.array(all_preds)
                 # First sort of find the animal size to set a threshold
 
+                # Find average animal size for predictions
+                pred_sz = np.mean(all_array[0].max(axis=-2)-all_array[0].min(axis=-1))
+                nms_dist = pred_sz*match_dist_factor
+
                 # find the match indexes
                 dd_inter = np.linalg.norm(all_array[None, ..., :2] - all_array[:, None, ..., :2], axis=-1).mean(-1)
                 dd_inter = dd_inter.flatten()
                 dd_inter[::n_preds+1] = 10000
                 dd_inter = dd_inter.reshape([n_preds,n_preds])
-                xx, yy = np.where(dd_inter<match_dist)
+                xx, yy = np.where(dd_inter<nms_dist)
                 to_remove = []
                 for ndx,curx in enumerate(xx):
                     if curx in to_remove:

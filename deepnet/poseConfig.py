@@ -222,7 +222,7 @@ class config(object):
         # crop images during training
         self.multi_crop_ims = True
         # For NMS for pose. Suppress poses whose avg matching distance is less than this percentage of the bounding box edge size.
-        self.multi_match_dist = 20
+        self.multi_match_dist_factor = .2
 
         # ============= TOP-DOWN =================
 

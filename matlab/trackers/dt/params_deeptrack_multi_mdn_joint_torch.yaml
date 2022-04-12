@@ -15,6 +15,7 @@ ROOT:
   - MultiAnimalGRONe:
     - ['','',false,MultiAnimal settings.,'','']
     - db_format: ['DB Format',string,true,'Format for Training DB','coco','','Developer','']
+#    - mdn_joint_layer_num: ['Layer for joint prediction',int,true,'Layer number for joint pose prediction in the FPN neck',2,'','Developer','']
 
 
 
