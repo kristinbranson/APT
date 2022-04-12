@@ -1635,7 +1635,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
                 if conf.multi_use_mask:
                     curp = curp * cur_mask[..., np.newaxis]
 
-                final_sel = labels_within_mask(cur_pts.copy()-[x_top,y_left],cur_mask)
+                final_sel = labels_within_mask(cur_pts.copy()-[x_left,y_top],cur_mask)
 
                 cur_roi = roi[final_sel].copy() - [x_left, y_top]
                 curl = cur_pts[final_sel].copy() - [x_left, y_top]
