@@ -14,6 +14,8 @@ classdef TrkFile < dynamicprops
                                  %  npttrked=labeled.nLabelPoints, then .pTrkiPt=1:npttrked.
     pTrkFrm = TrkFile.unsetVal;  % [nfrm]. frames tracked
     pTrkiTgt = TrkFile.unsetVal; % [ntgt]. targets (1-based Indices) tracked
+                                 % this is NOT used for indexing, e.g.
+                                 % getPTrkTgt(i) just gives pTrk(:,:,:,i)
 
     % CPR-specific
     pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
@@ -34,6 +36,8 @@ classdef TrkFile < dynamicprops
     %         % are live.
     %frm2tltnnz % nnz(frm2tlt)
     npts
+    
+    trkfldsextra = {}; % extra fields added
   end
   properties (Dependent)
     ntracklets
@@ -154,10 +158,12 @@ classdef TrkFile < dynamicprops
       nowdt = now;
       obj.pTrkTS = arrayfun(@(x)nowdt*ones(npts,x),nfs,'uni',0);
       obj.pTrkTag = arrayfun(@(x)false(npts,x),nfs,'uni',0);
+      obj.trkfldsextra = {};
       for f=trkfldsextra(:)',f=f{1}; %#ok<FXSET>
         if ~isprop(obj,f)
           obj.addprop(f);
           obj.(f) = arrayfun(@(x)nan(npts,x),nfs,'uni',0);
+          obj.trkfldsextra{end+1} = f;
         end
       end
       
@@ -357,10 +363,12 @@ classdef TrkFile < dynamicprops
     
     function initFromTracklet(obj,s)
       flds = fieldnames(s);
+      obj.trkfldsextra = {};
       for prop=flds(:)',prop=prop{1}; %#ok<FXSET>
         if ~isprop(obj,prop)
           %warningNoTrace('Adding TrkFile property ''%s''.',prop);
           obj.addprop(prop);
+          obj.trkfldsextra{end+1} = prop;
         end
         obj.(prop) = s.(prop);
         if isnumeric(obj.(prop)) && isinteger(obj.(prop)),
@@ -662,6 +670,9 @@ classdef TrkFile < dynamicprops
       
       sfsNew = itgt2spep(1,itgtsun);
       efsNew = itgt2spep(2,itgtsun);
+      tfNoFrms = sfsNew>efsNew;
+      sfsNew(tfNoFrms) = 0;
+      efsNew(tfNoFrms) = -1;
       
       % 2. initialize new TrkFile with empty trkflds of right size
       % (nan-filled)
@@ -686,25 +697,27 @@ classdef TrkFile < dynamicprops
           itgt = o.pTrkiTgt(j);
           sp = o.startframes(j);
           ep = o.endframes(j);
-          %nf = ep-sp+1;
-          %off = 1-sp;
-          jall = itgt2jall(itgt);          
-          spall = objMerged.startframes(jall);
-          offall = 1-spall;
-          idxall = sp+offall:ep+offall;
-          noverlap = nnz(frmsAreSet{jall}(idxall));
-          frmsAreSet{jall}(idxall) = true;
-          if noverlap>0
-            warningNoTrace('Target %d: %d frames covered by two trkfiles. Overwriting.',...
-              itgt,noverlap);
-          end
-          
-          % write trkflds
-          for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
-            if strcmp(f,'pTrk')
-              objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
-            else
-              objMerged.(f){jall}(:,idxall) = o.(f){j};
+          if sp<=ep
+            %nf = ep-sp+1;
+            %off = 1-sp;
+            jall = itgt2jall(itgt);          
+            spall = objMerged.startframes(jall);
+            offall = 1-spall;
+            idxall = sp+offall:ep+offall;
+            noverlap = nnz(frmsAreSet{jall}(idxall));
+            frmsAreSet{jall}(idxall) = true;
+            if noverlap>0
+              warningNoTrace('Target %d: %d frames covered by two trkfiles. Overwriting.',...
+                itgt,noverlap);
+            end
+
+            % write trkflds
+            for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
+              if strcmp(f,'pTrk')
+                objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
+              else
+                objMerged.(f){jall}(:,idxall) = o.(f){j};
+              end
             end
           end
         end
@@ -926,6 +939,42 @@ classdef TrkFile < dynamicprops
           tfocc(:,j) = ptag(:,idx);
         end
       end
+    end
+    
+    function permuteIds(obj,newids)
+      
+      assert(numel(unique(newids))==obj.ntracklets);
+      
+      if obj.isfull,
+        if ~isequal(obj.pTrk,TrkFile.unsetVal),
+          obj.pTrk = obj.pTrk(:,:,:,newids);
+        end
+        if ~isequal(obj.pTrkTS,TrkFile.unsetVal),
+          obj.pTrkTS = obj.pTrkTS(:,:,newids);
+        end
+        if ~isequal(obj.pTrkTag,TrkFile.unsetVal),
+          obj.pTrkTag = obj.pTrkTag(:,:,newids);
+        end
+      else
+        if ~isequal(obj.pTrk,TrkFile.unsetVal),
+          obj.pTrk = obj.pTrk(newids);
+        end
+        if ~isequal(obj.pTrkTS,TrkFile.unsetVal),
+          obj.pTrkTS = obj.pTrkTS(newids);
+        end
+        if ~isequal(obj.pTrkTag,TrkFile.unsetVal),
+          obj.pTrkTag = obj.pTrkTag(newids);
+        end
+        obj.startframes = obj.startframes(newids);
+        obj.endframes = obj.endframes(newids);
+        if isprop(obj,'pTrkConf'),
+          obj.pTrkConf = obj.pTrkConf(newids);
+        end
+      end
+%       if ~isequal(obj.pTrkiTgt,TrkFile.unsetVal),
+%         obj.pTrkiTgt = obj.pTrkiTgt(newids);
+%       end
+      
     end
     
     function [tfhaspred,xy,tfocc] = getPTrkFT(obj,f,iTgt)
