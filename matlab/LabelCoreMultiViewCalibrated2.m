@@ -101,9 +101,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   properties
     iSetWorking      % scalar. Set index of working set. Can be nan for no working set.
 
-    pjtIPts          % [1 2] vector; current first/anchor working pt. either
-                     % [nan nan], [iPt1 nan], or [iPt1 iPt2]
-    pjtHLinesEpi     % [nview]. line handles for epipolar lines
+    pjtIPts          % [nview]. NaN if anchor point not clicked for a view.
+    pjtHLinesEpi     % [nview * (nview - 1)]. line handles for epipolar lines
     pjtHLinesRecon   % [nview]. line handles for reconstructed pts
     
     pjtCalRig         % Scalar some-kind-of-calibration object
@@ -127,6 +126,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     hAxXLabels; % [nview] xlabels for axes
     hAxXLabelsFontSize = 11;
+    showEpiLines = true;
   end
   
   methods % dep prop getters
@@ -411,7 +411,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 %           obj.toggleSelectPoint(iPt);
 %         end
         
-        obj.projectAddToAnchorSet(iPt)
+        obj.projectAddToAnchorSet(iPt, iAx)
         if obj.tfOcc(iPt)
           obj.tfOcc(iPt) = false;
           obj.refreshOccludedPts();
@@ -523,7 +523,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           % none
         else
           % point was clicked but not moved
-          obj.projectToggleState(iPt);
+          obj.projectToggleState(iPt, -1);
         end
       end
       obj.iPtMove = nan;
@@ -561,10 +561,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
         lObj.labels2VizToggle();
       elseif strcmp(key,'space')
-        [tfSel,iSel] = obj.projectionPointSelected();
-        if tfSel && ~obj.tfOcc(iSel)
-          obj.projectToggleState(iSel);
-        end
+        obj.toggleEpipolarState();
+        %[tfSel,iSel] = obj.projectionPointSelected();
+        %if tfSel && ~obj.tfOcc(iSel)
+        %  obj.projectToggleState(iSel, -1);
+        %end
       elseif strcmp(key,'s') && ~tfCtrl
         if obj.state==LabelState.ADJUST
           obj.acceptLabels();
@@ -810,8 +811,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionInit(obj)
-      obj.pjtIPts = [nan nan];
-      hLEpi = gobjects(1,obj.nView);
+      obj.pjtIPts = nan(1, obj.nView);
+      %obj.pjtIPts = [nan nan];
+      %hLEpi = gobjects(1,obj.nView * (obj.nView - 1));
+      hLEpi = gobjects(obj.nView, obj.nView);
       hLRcn = gobjects(1,obj.nView);
       ppimvcm = obj.ptsPlotInfo.MultiViewCalibratedMode;
       gdata = obj.labeler.gdata;
@@ -828,12 +831,19 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         % weirdness/bug. opengl('software') did not help.
         %
         % For now, include Marker with the line and see if it resolves.
-        hLEpi(iV) = plot(ax,nan,nan,'-',...
-          'LineWidth',ppimvcm.EpipolarLineWidth,...
-          'Marker','.',...
-          'MarkerSize',1,...
-          'PickableParts','none',...
-          'Tag',sprintf('LabelCoreMV_Epi%d',iV));
+        for j = 1:obj.nView
+%           if iV == j
+%             % skip when iV==j (the view for the clicked point is the same,
+%             % there is no epipolar line.
+%             continue
+%           end
+          hLEpi(iV, j) = plot(ax,nan,nan,'-',...
+            'LineWidth',ppimvcm.EpipolarLineWidth,...
+            'Marker','.',...
+            'MarkerSize',1,...
+            'PickableParts','none',...
+            'Tag',sprintf('LabelCoreMV_Epi%d',iV));
+        end
         hLRcn(iV) = plot(ax,nan,nan,ppimvcm.ReconstructedMarker,...
           'MarkerSize',ppimvcm.ReconstructedMarkerSize,...
           'LineWidth',ppimvcm.ReconstructedLineWidth,...
@@ -851,109 +861,111 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         set(obj.hPtsTxt(iPt),'String',obj.hPtsTxtStrs{iPt});
       end
       
-      obj.pjtIPts = [nan nan];
-      set(obj.pjtHLinesEpi,'Visible','off');
+      obj.pjtIPts = nan(1, obj.nView);
+      %obj.pjtIPts = [nan nan];
+      % this will look odd, but make sure the visibilty is true. Although
+      % the lines won't be visible due to the clearing. The next click will
+      % make the lines visible again.
+      obj.showEpiLines = true;
+
+      % it is not enough to set all the lines to be invisible. Otherwise,
+      % past clicked epipolor lines can become visible. So set all the
+      % lines to NaN
+      for i = 1:obj.nView
+        for j = 1:obj.nView
+          set(obj.pjtHLinesEpi(i, j),'XData',nan,'YData',nan,'Visible','off');
+        end
+      end
+      
+      %set(obj.pjtHLinesEpi,'Visible','off');
       set(obj.pjtHLinesRecon,'Visible','off');
       %obj.projectionWorkingSetClear();
     end
     
-    function projectAddToAnchorSet(obj,iPt)
-      if any(obj.pjtIPts==iPt)
-        % already anchored
+    function toggleEpipolarState(obj)
+      if obj.showEpiLines == true
+        obj.showEpiLines = false;
+        set(obj.pjtHLinesEpi,'Visible','off');
       else
-        obj.projectToggleState(iPt);
+        obj.showEpiLines = true;
+        set(obj.pjtHLinesEpi,'Visible','on');
       end
-    end
-    
-    function projectToggleState(obj,iPt)
-      % Toggle projection status of point iPt.
       
-      if obj.nView==2
-        switch obj.pjtState
-          case 0
-            obj.projectionSetAnchor(iPt);
-          case 1
-            if iPt==obj.pjtIPts(1)
-              obj.projectionClear();
-            else
-              obj.projectionClear();
-              obj.projectionSetAnchor(iPt);
-            end
-          case 2
-            assert(false);
-        end
+    end
+    
+    function projectAddToAnchorSet(obj,iPt,iAx)
+      obj.projectToggleState(iPt,iAx);
+      % if any(obj.pjtIPts==iPt)
+      %   % already anchored
+      % else
+      % end
+    end
+    
+    function projectToggleState(obj,iPt,iAx)
+      % Toggle projection status of point iPt.
+      if iAx == -1
+        obj.projectionRefreshEPlines();
       else
-        obj.projectionSetAnchor(iPt);
-        % temporarily disabling anchor points. the usage model doesn't fit
-        % well on all projects.
-%         switch obj.pjtState
-%           case 0
-%             obj.projectionSetAnchor(iPt);
-%           case 1
-%             if iPt==obj.pjtIPts(1)
-%               obj.projectionClear();
-%             elseif obj.projectionWorkingSetPointInWS(iPt)
-%               obj.projectionSet2nd(iPt);
-%             else
-%               % iPt is neither anchor pt nor in anchor pt's working set
-%               obj.projectionClear();
-%               obj.projectionSetAnchor(iPt);
-%             end
-%           case 2
-%             tf = iPt==obj.pjtIPts;
-%             if any(tf)
-%               idx = find(tf);
-%               idxOther = mod(idx,2)+1;
-%               iPtOther = obj.pjtIPts(idxOther);
-%               obj.projectionClear();
-%               obj.projectionSetAnchor(iPtOther);
-%             else
-%               obj.projectionClear();
-%               obj.projectionSetAnchor(iPt);
-%             end
-%         end
+        obj.projectionSetAnchor(iPt,iAx);
       end
     end
     
-    function projectionSetAnchor(obj,iPt1)
-      % if ~isnan(obj.pjtIPts(1))
-      obj.projectionClear();
-      % end
+    function projectionSetAnchor(obj,iPt1,iAx)
+%       idx = obj.pjtIPts == iPt1;
+%       if ~any(idx)
+%         % this point isn't part of the anchor list. add it to the anchor
+%         % list.
+%         nan_idx = find(isnan(obj.pjtIPts));
+%         obj.pjtIPts(nan_idx(1)) = iPt1;
+%       end
+      obj.pjtIPts(iAx) = iPt1;
+
       hPt1 = obj.hPtsTxt(iPt1);
       set(hPt1,'String',[obj.hPtsTxtStrs{iPt1} 'a']);
-      obj.pjtIPts(1) = iPt1;
-      assert(isnan(obj.pjtIPts(2)));
-      iSet1 = obj.iPt2iSet(iPt1);
-      obj.projectionWorkingSetSet(iSet1);
+
       obj.projectionRefreshEPlines();
     end
     
     function projectionRefreshEPlines(obj)
       % update EPlines based on .pjtIPt1 and coords of that hPt.
       
-      assert(obj.pjtState==1);
+      %assert(obj.pjtState==1);
       if ~obj.isCalRig,
         return;
       end
 
-      iPt1 = obj.pjtIPts(1);
-      hPt1 = obj.hPts(iPt1);
-      xy1 = [hPt1.XData hPt1.YData];
-      iAx1 = obj.iPt2iAx(iPt1);
-      iAxOther = setdiff(1:obj.nView,iAx1);
-      crig = obj.pjtCalRig;
-      for iAx = iAxOther
-        hIm = obj.hIms(iAx);
-        imroi = [hIm.XData hIm.YData];
+      % loop over the non nan points stored in pjtIPts, plot the epipolar line
+      % for each of these points.
+      for i = 1:length(obj.pjtIPts)
+        if isnan(obj.pjtIPts(i))
+          % it's probably safe to break at this point, because pjtIPts should be
+          % filled from lowest to highest idx, but to be safe, we'll check the
+          % rest of the pjtIPts'. This should be cleaned up as other refactoring
+          % is done.
+          continue;
+        end
+        iPt1 = obj.pjtIPts(i);
+        hPt1 = obj.hPts(iPt1);
+        xy1 = [hPt1.XData hPt1.YData];
+        iAx1 = obj.iPt2iAx(iPt1);
+        %iAxOther = setdiff(1:obj.nView,iAx1);
+        crig = obj.pjtCalRig;
+        %for iAx = iAxOther
+        for iAx = 1:obj.nView
+          if iAx == i
+            continue
+          end
+          hIm = obj.hIms(iAx);
+          imroi = [hIm.XData hIm.YData];
         
-      
-        [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
-      
-        hEpi = obj.pjtHLinesEpi(iAx);
-        set(hEpi,'XData',x,'YData',y,'Visible',onIff(obj.showCalibration),'Color',hPt1.Color);
-        %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
+          [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
+        
+          hEpi = obj.pjtHLinesEpi(iAx, i);
+          set(hEpi,'XData',x,'YData',y,'Visible',onIff(obj.showCalibration),'Color',hPt1.Color);
+          %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
+        end
+        %set(obj.pjtHLinesEpi(iAx1),'Visible','off');
       end
-      set(obj.pjtHLinesEpi(iAx1),'Visible','off');
     end
     
     function projectionSet2nd(obj,iPt2)
@@ -1088,16 +1100,17 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionRefresh(obj)
-      switch obj.pjtState
-        case 0
-          % none
-        case 1
-          obj.projectionRefreshEPlines();
-        case 2
-          obj.projectionRefreshReconPts();
-        otherwise
-          assert(false);
-      end
+      obj.projectionRefreshEPlines();
+%       switch obj.pjtState
+%         case 0
+%           % none
+%         case 1
+%           obj.projectionRefreshEPlines();
+%         case 2
+%           obj.projectionRefreshReconPts();
+%         otherwise
+%           assert(false);
+%       end
     end
     
     function projectionSetCalRig(obj,crig)
