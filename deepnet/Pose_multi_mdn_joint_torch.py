@@ -9,6 +9,9 @@ import PoseTools
 from torchvision.ops import misc as misc_nn_ops
 import pickle
 import os
+import cv2
+from torchvision import transforms
+import PIL
 
 class pred_layers(nn.Module):
 
@@ -214,13 +217,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,**kwargs):
         super(Pose_multi_mdn_joint_torch, self).__init__(conf, **kwargs)
-        use_fpn = self.conf.get('mdn_joint_use_fpn', True)
-        if use_fpn:
-            self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num',3)
-            self.fpn_ref_layer  = self.conf.get('mdn_joint_ref_layer_num',0)
-        else:
-            self.fpn_joint_layer = 3
-            self.fpn_ref_layer  = 3
+        self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num',3)
+        self.fpn_ref_layer  = self.conf.get('mdn_joint_ref_layer_num',0)
 
         self.offset = 4*(2**self.fpn_joint_layer)
         self.ref_scale = 4*(2**self.fpn_ref_layer)
@@ -362,7 +360,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         assign_norm = assign/ torch.unsqueeze(assign_sum+1e-10,dim=-1)
         dloss = (assign_norm*dd_all).sum(axis=-1)
         cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss)).sum(axis=-1)
-        wt_loss_all = (1.-assign.sum(axis=-1))**2
+
+        # We want only one prediction for each label. We penalize multiple predictions by taking the total weight that gets assigned to a label. This should sum to 1. However this leads to corner case where three close by pixels can have values < 0, but the sum of their sigmoids is 1. To avoid this have that they total weight for each label is 2. With this even for corner cases we will have that one pixels value is greater than 0. Also, this will force close by pixels too to predict the pose.
+        wt_loss_all = (2.-assign.sum(axis=-1))**2
         cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all)).sum(axis=-1)
 
         # Predict occluded loss
@@ -459,7 +459,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         preds_joint = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
         pred_occ = torch.ones([bsz,n_max, n_classes],device=self.device) * np.nan
         conf_joint = torch.ones([bsz,n_max],device=self.device)
-        match_dist = self.conf.multi_match_dist
+        match_dist_factor = self.conf.multi_match_dist_factor
         assert ll_joint_flat.shape[1] > n_min, f'The max number of animals with image size {self.conf.imsz} is {ll_joint_flat.shape[1]} while the minimum animals set is {n_min}'
         k = np.clip(n_max*5,n_min,ll_joint_flat.shape[1])
         for ndx in range(bsz):
@@ -478,7 +478,99 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 idx = unravel_index(sel_ex, [k_joint,n_y_j, n_x_j])
                 curp = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
                 dprev = torch.norm(preds_joint[ndx,...]-curp[None,...],dim=-1).mean(-1)
-                if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < match_dist):
+                # Find the animal size as the mean length of the bounding box
+                cur_sz =  torch.mean(curp.max(axis=-2)[0]-curp.min(axis=-2)[0])
+                nms_dist = cur_sz * match_dist_factor
+                if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < nms_dist):
+                    continue
+                preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
+                if self.conf.predict_occluded:
+                    pred_occ[ndx,done_count,...] = occ_out[ndx,...,idx[0],idx[1],idx[2]]
+                conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]]
+                for cls in range(n_classes):
+                    rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale
+                    mm = torch.round(rpred).int()
+                    mm_y = torch.clamp(mm[1],0,n_y_r-1)
+                    mm_x = torch.clamp(mm[0],0,n_x_r-1)
+                    pt_selex = logits_ref[ndx,cls,:,mm_y,mm_x].argmax()
+                    cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y,mm_x]
+                    preds_ref[ndx,done_count,cls,:] = cur_pred
+                    conf_ref[ndx,done_count,cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
+
+                done_count += 1
+
+        preds_ref = preds_ref.detach().cpu().numpy().copy()
+        preds_joint = preds_joint.detach().cpu().numpy().copy()
+        conf_ref = conf_ref.detach().cpu().numpy().copy()
+        conf_joint = conf_joint.detach().cpu().numpy().copy()
+        pred_occ = pred_occ.detach().cpu().numpy().copy()
+
+
+        return {'ref':preds_ref,'joint':preds_joint,'conf_joint':conf_joint,'conf_ref':conf_ref,'pred_occ':pred_occ}
+
+    def get_joint_pred_up(self,preds,up_sample=8):
+        n_max = self.conf.max_n_animals
+        n_min = self.conf.min_n_animals
+        locs_joint, logits_joint_in, locs_ref, logits_ref, occ_out = preds
+        bsz = locs_joint.shape[0]
+        n_classes = locs_joint.shape[1]
+
+        l_sh = logits_joint_in.shape
+        n_sh = (l_sh[2]*up_sample,l_sh[3]*up_sample)
+        logits_joint = torch.nn.functional.interpolate(logits_joint_in,size=n_sh,mode='bicubic')
+
+        # Do nms on logits_joint to reduce the number of candidates
+        min_logit = logits_joint.min()
+        l_pad = torch.nn.functional.pad(logits_joint, [1, 1, 1, 1], value=min_logit)
+        lx1 = l_pad[:, :, 1:-1, 0:-2]
+        lx2 = l_pad[:, :, 1:-1, 2:]
+        ly2 = l_pad[:, :, 2:, 1:-1]
+        ly1 = l_pad[:, :, 0:-2, 1:-1]
+        l_nms = (logits_joint > lx1) & (logits_joint > lx2) & (logits_joint > ly1) & (logits_joint > ly2)
+        logits_debug = logits_joint.clone()
+        logits_joint[~l_nms] = min_logit
+
+        n_x_j = locs_joint.shape[-1]; n_y_j = locs_joint.shape[-2]
+        n_x_r = locs_ref.shape[-1]; n_y_r = locs_ref.shape[-2]
+        locs_offset = self.offset
+        k_ref = locs_ref.shape[-3]
+        k_joint = locs_joint.shape[-3]
+        ll_joint_flat = logits_joint.reshape([-1,k_joint*n_sh[0]*n_sh[1]])
+        locs_ref = locs_ref * self.ref_scale
+
+        preds_ref = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
+        conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)
+        preds_joint = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
+        pred_occ = torch.ones([bsz,n_max, n_classes],device=self.device) * np.nan
+        conf_joint = torch.ones([bsz,n_max],device=self.device)
+        match_dist_factor = self.conf.multi_match_dist_factor
+        assert ll_joint_flat.shape[1] > n_min, f'The max number of animals with image size {self.conf.imsz} is {ll_joint_flat.shape[1]} while the minimum animals set is {n_min}'
+
+        k = np.clip(n_max*5,n_min,ll_joint_flat.shape[1])
+        for ndx in range(bsz):
+            # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
+            # n_preds = np.clip(n_preds,n_min,np.inf)
+            ids = ll_joint_flat[ndx,:].topk(k)[1]
+            done_count = 0
+            cur_n = 0
+            while (done_count < n_max) and (cur_n<len(ids)):
+                sel_ex = ids[cur_n]
+                cur_n += 1
+
+                if (ll_joint_flat[ndx,sel_ex] < 0) and (done_count >= n_min):
+                    break
+
+                idx = unravel_index(sel_ex, [k_joint,n_sh[0], n_sh[1]])
+                idx = list(idx)
+                idx[1] = torch.round(torch.true_divide(idx[1],up_sample)).int()
+                idx[2] = torch.round(torch.true_divide(idx[2],up_sample)).int()
+                curp = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
+                dprev = torch.norm(preds_joint[ndx,...]-curp[None,...],dim=-1).mean(-1)
+
+                # Find the animal size as the mean length of the bounding box
+                cur_sz =  torch.mean(curp.max(axis=-2)[0]-curp.min(axis=-2)[0])
+                nms_dist = cur_sz * match_dist_factor
+                if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < nms_dist):
                     continue
                 preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
                 if self.conf.predict_occluded:
@@ -520,7 +612,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         return mean_d
 
 
-    def match_preds(self,locs,olocs,match_dist):
+    def match_preds(self,locs,olocs,match_dist_factor):
         # Match predictions with offseted predictions
         # Prefix o mean offset predictions
         # To match the predictions, we first find the distances between predictions. If this distances is smaller than 10% (or so) of the average side size of the predictions bounding-box then we merge them.
@@ -570,7 +662,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 # Find the closest one in offset prediction.
 
                 bb_avg = (bb_sz[b,ix]+obb_sz[b,olocs_ndx])/2
-                if dd[b, olocs_ndx, ix] < bb_avg*match_dist/100:
+                if dd[b, olocs_ndx, ix] < bb_avg*match_dist_factor:
 
                     # Select the one with higher confidence unless they both are close.
                     if locs['conf_joint'][b, ix] < olocs['conf_joint'][b, olocs_ndx] - conf_margin:
@@ -648,38 +740,115 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         model.eval()
         self.model = model
         conf = self.conf
-        conf.batch_size = 1
-        match_dist = conf.get('multi_match_dist',20)
+        # conf.batch_size = 1
 
-        def pred_fn(ims, retrawpred=False):
+        # TODO: Change this to multi_match_dist_factor
+        match_dist_factor = self.conf.get('multi_match_dist_factor',0.2)
+
+        def pred_fn(ims_in, retrawpred=False):
             locs_sz = (conf.batch_size, conf.n_classes, 2)
             locs_dummy = np.zeros(locs_sz)
-
-            ims, _ = PoseTools.preprocess_ims(ims,locs_dummy,conf,False,conf.rescale)
-            with torch.no_grad():
-                preds = model({'images':torch.tensor(ims).permute([0,3,1,2])/255.})
-
-            # do prediction on half grid cell size offset images. o is for offset
-            hsz = self.offset//2
-            oims = np.pad(ims, [[0, 0], [0, hsz], [0, hsz], [0, 0]])[:, hsz:, hsz:, :]
-            with torch.no_grad():
-                opreds = model({'images':torch.tensor(oims).permute([0,3,1,2])/255.})
-
-            locs = self.get_joint_pred(preds)
-            olocs = self.get_joint_pred(opreds)
-
-
-            matched, cur_joint_conf, cur_occ_pred = self.match_preds(locs,olocs,match_dist)
+            ims_in, _ = PoseTools.preprocess_ims(ims_in,locs_dummy,conf,False,conf.rescale)
             ret_dict = {}
-            ret_dict['locs'] = matched['ref'] * conf.rescale
-            ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))
-            if self.conf.predict_occluded:
-                ret_dict['occ'] = cur_occ_pred
-            else:
-                ret_dict['occ'] = np.ones_like(cur_occ_pred)*np.nan
+            ret_dict['locs'] = []
+            ret_dict['conf'] = []
+            ret_dict['occ'] = []
             if retrawpred:
-                ret_dict['preds'] = [preds,opreds]
-                ret_dict['raw_locs'] = [locs,olocs]
+                ret_dict['preds'] = [[],[]]
+                ret_dict['raw_locs'] = [[],[]]
+
+            for ndx, ims in enumerate(ims_in):
+                # do prediction on half grid cell size offset images. o is for offset
+                hsz = self.offset//2
+                ims = torch.tensor(ims[None]).to(self.device).permute([0,3,1,2])/255.
+                oims = torch.nn.functional.pad(ims, [0, hsz,0, hsz])[:,:, hsz:, hsz:]
+                with torch.no_grad():
+                    preds = model({'images':ims})
+                    opreds = model({'images':oims})
+                    locs = self.get_joint_pred(preds)
+                    olocs = self.get_joint_pred(opreds)
+
+
+                matched, cur_joint_conf, cur_occ_pred = self.match_preds(locs,olocs,match_dist_factor)
+                ret_dict['locs'].append(matched['ref'] * conf.rescale)
+                ret_dict['conf'].append(1/(1+np.exp(-cur_joint_conf)))
+                if self.conf.predict_occluded:
+                    ret_dict['occ'].append(cur_occ_pred)
+                else:
+                    ret_dict['occ'].append(np.ones_like(cur_occ_pred)*np.nan)
+
+                if retrawpred:
+                    ret_dict['preds'][0].append(preds)
+                    ret_dict['preds'][1].append(opreds)
+                    ret_dict['raw_locs'][0].append(locs)
+                    ret_dict['raw_locs'][1].append(olocs)
+            ret_dict['locs'] = np.array(ret_dict['locs'] )
+            ret_dict['conf'] = np.array(ret_dict['conf'])
+            ret_dict['occ'] = np.array(ret_dict['occ'])
+            return ret_dict
+
+        def close_fn():
+            torch.cuda.empty_cache()
+
+        return pred_fn, close_fn, latest_model_file
+
+
+
+    def get_pred_fn_fast(self, model_file=None,max_n=None,imsz=None):
+        if max_n is not None:
+            self.conf.max_n_animals = max_n
+        if imsz is not None:
+            self.conf.imsz = imsz
+        model = self.create_model()
+        model = torch.nn.DataParallel(model)
+
+        if model_file is None:
+            latest_model_file = self.get_latest_model_file()
+        else:
+            latest_model_file = model_file
+
+        self.restore(latest_model_file,model)
+        model.to(self.device)
+        model.eval()
+        self.model = model
+        conf = self.conf
+        # conf.batch_size = 1
+        match_dist_factor = self.conf.get('multi_match_dist_factor',0.2)
+
+        def pred_fn(ims_in, retrawpred=False):
+            locs_sz = (conf.batch_size, conf.n_classes, 2)
+            locs_dummy = np.zeros(locs_sz)
+            ims_in, _ = PoseTools.preprocess_ims(ims_in,locs_dummy,conf,False,conf.rescale)
+            ret_dict = {}
+            ret_dict['locs'] = []
+            ret_dict['conf'] = []
+            ret_dict['occ'] = []
+            if retrawpred:
+                ret_dict['preds'] = [[]]
+                ret_dict['raw_locs'] = [[]]
+
+            for ndx, ims in enumerate(ims_in):
+                # do prediction on half grid cell size offset images. o is for offset
+                hsz = self.offset//2
+                ims = torch.tensor(ims[None]).to(self.device).permute([0,3,1,2])/255.
+                # oims = torch.nn.functional.pad(ims, [0, hsz,0, hsz])[:,:, hsz:, hsz:]
+                with torch.no_grad():
+                    preds = model({'images':ims})
+                    locs = self.get_joint_pred(preds)
+
+                ret_dict['locs'].append(locs['ref'][0] * conf.rescale)
+                ret_dict['conf'].append(1 / (1 + np.exp(-locs['conf_joint'][0])))
+                if self.conf.predict_occluded:
+                    ret_dict['occ'].append(locs['pred_occ'][0])
+                else:
+                    ret_dict['occ'].append(np.ones_like(locs['ref'][0][..., 0]) * np.nan)
+
+                if retrawpred:
+                    ret_dict['preds'].append(preds)
+                    ret_dict['raw_locs'].append(locs)
+            ret_dict['locs'] = np.array(ret_dict['locs'])
+            ret_dict['conf'] = np.array(ret_dict['conf'])
+            ret_dict['occ'] = np.array(ret_dict['occ'])
             return ret_dict
 
         def close_fn():

@@ -597,7 +597,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         cudaEnv = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d;',gpuid);
       else
         gpuArgs = cell(1,0);
-        cudaEnv = '';
+        cudaEnv = 'export CUDA_VISIBLE_DEVICES=;'; 
+        % MK 20220411 We need to explicitly set devices for pytorch when not using GPUS
       end
       
       homedir = getenv('HOME');

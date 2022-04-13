@@ -30,6 +30,10 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 import cv2
 import time
+import scipy.spatial.distance as ssd
+from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
+
+
 
 def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False):
   """
@@ -42,7 +46,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   it is preferable to kill one trajectory and create another if
   the matching error is > params['maxcost']
   Inputs:
-  d x nlandmarks x ncurr positions of landmarks of nnext animals
+  nlandmarks x d x ncurr positions of landmarks of nnext animals
   detected in the next frame
   idscurr: ncurr array, integer ids of the animals tracked in the
   current frame
@@ -58,8 +62,8 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   params['verbose']: Whether to print out information
   """
   
-  # pcurr: d x nlandmarks x ncurr
-  # pnext: d x nlandmarks x nnext
+  # pcurr: nlandmarks x d x ncurr
+  # pnext: nlandmarks x d x nnext
   
   # check sizes
   nlandmarks = pcurr.shape[0]
@@ -1078,7 +1082,7 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   return trk
 
 
-def link_id(trks, trk_files, mov_files, conf, out_files):
+def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
   '''
   Link traj. based on identity
   :param trks:
@@ -1104,11 +1108,14 @@ def link_id(trks, trk_files, mov_files, conf, out_files):
     all_trx.append(trx)
     cap.close()
 
+  if id_wts is not None and os.path.exists(id_wts):
+    id_classifier = load_id_wts(id_wts)
+  else:
   # generate the training images
-  train_data = get_id_train_images(trks, all_trx, mov_files, conf)
-  wt_out_file = out_files[0].replace('.trk','_idwts.p')
-  # train the identity model
-  id_classifier, loss_history = train_id_classifier(train_data,conf, trks, save_file=wt_out_file)
+    train_data = get_id_train_images(trks, all_trx, mov_files, conf)
+    wt_out_file = out_files[0].replace('.trk','_idwts.p')
+    # train the identity model
+    id_classifier, loss_history = train_id_classifier(train_data,conf, trks, save_file=wt_out_file)
 
   # link using id model
   def_params = get_default_params(conf)
@@ -1373,7 +1380,7 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
   cap.close()
   return tfile
 
-def split_parallel(x,n_threads):
+def split_parallel(x,n_threads,is_numpy=False):
   '''
   Splits an array to be used for multithreading
   :param x:
@@ -1385,7 +1392,10 @@ def split_parallel(x,n_threads):
   '''
   nx = len(x)
   split = [range((nx * n) // n_threads, (nx * (n + 1)) // n_threads) for n in range(n_threads)]
-  split_x = tuple( tuple(x[s] for s in split[n]) for n in range(n_threads))
+  if is_numpy:
+    split_x = tuple( x[split[n]] for n in range(n_threads))
+  else:
+    split_x = tuple( tuple(x[s] for s in split[n]) for n in range(n_threads))
   assert sum([len(curx) for curx in split_x]) == nx, 'Splitting failed'
   return split_x
 
@@ -1500,6 +1510,19 @@ def compute_dists(t_preds, ss_t, ee_t, all_xx):
     dists.append([self_dist, overlap_dist, self_mean, overlap_mean, overlap_tgts, overlap_amt, xx])
   return dists
 
+def load_id_wts(id_wts):
+  net = get_id_net()
+  cpt = torch.load(id_wts)
+  net.load_state_dict(cpt['model_state_params'])
+  return net.cuda()
+
+def get_id_net():
+  # model to use. we embed the animal images into 32 dim space
+  net = models.resnet.resnet18(pretrained=True)
+  net.fc = torch.nn.Linear(in_features=512, out_features=32, bias=True)
+
+  net = net.cuda()
+  return net
 
 def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16):
   """
@@ -1540,11 +1563,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
 
   loss_history = []
 
-  # model to use. we embed the animal images into 32 dim space
-  net = models.resnet.resnet18(pretrained=True)
-  net.fc = torch.nn.Linear(in_features=512, out_features=32, bias=True)
-
-  net = net.cuda()
+  net = get_id_net()
   criterion = ContrastiveLoss()
   optimizer = optim.Adam(net.parameters(), lr=0.0001)
 
@@ -1644,41 +1663,39 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
 
 
 def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5, debug=False):
-  """
-  Link tracklets using the identity network
-  :param linked_trks: PUre linked tracks
-  :type linked_trks: list of TrkFile.Trk
-  :param net: identity network
-  :type net:
-  :param mov_files:
-  :type mov_files: list of str
-  :param conf:
-  :type conf:
-  :param all_trx:
-  :type all_trx:
-  :param n_per_trk:
-  :type n_per_trk:
+  '''
+  Links the pure tracklets using identity
+
+  :param linked_trks: pure linked tracks
+  :param net: id network
+  :param mov_files: movie files
+  :param conf: poseconfig object
+  :param all_trx: pure linked tracks loaded in the trx format for apt.create_batch_ims
+  :param n_per_trk: number of samples to use per trk to designate an id.
   :param rescale:
-  :type rescale:
   :param min_len_select:
-  :type min_len_select:
   :param debug:
-  :type debug:
-  :return:
-  :rtype:
-  """
+  :return: list of id linked tracklets
+  '''
 
-  all_data = []
+  id_thresh = 0.5
+
   net.eval()
+  all_data = []
   preds = None
+  maxn_all = []
   pred_map = []
+  # pred_map keeps track of which sample belongs to which trajectory
 
+
+  # sample images for each tracklet and then find the embeddings for them
   for ndx in range(len(linked_trks)):
     # Sample images from the tracklets
     trk = linked_trks[ndx]
     mov_file = mov_files[ndx]
     trx = all_trx[ndx]
     ss, ee = trk.get_startendframes()
+    maxn_all.append(max(ee))
 
     # For each tracklet chose n_per_trk random examples and the find their embedding. Ignore short tracklets
     sel_tgt = np.where((ee-ss+1)>=min_len_select)[0]
@@ -1718,12 +1735,82 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
 
   pred_map = np.array(pred_map)
 
+  maxcosts_all = []
+  params = get_default_params(conf)
+  for tndx in range(len(linked_trks)):
+    maxcost_missed = estimate_maxcost_missed(linked_trks[tndx], params)
+    maxcost = estimate_maxcost(linked_trks[tndx], params)
+    maxcosts_all.append(np.array([maxcost, ] + maxcost_missed.tolist()))
+
+  minv, maxv = linked_trks[0].get_min_max_val()
+  minv = np.min(minv, axis=0)
+  maxv = np.max(maxv, axis=0)
+  bignumber = np.sum(maxv - minv) * 2000
+
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   logging.info('Stitching tracklets based on identity ...')
   t_info = [d[3:5] for d in all_data]
-  groups = cluster_tracklets_id(preds, pred_map, t_info, conf.link_maxframes_delete)
 
-  # Link the actual pose data. Id is TrkFile.Tracklet that keeps track about which tracklet in which frame belongs to which animal
+  dist_mat = get_id_dist_mat(preds)
+  n_tr = dist_mat.shape[0]
+  dist_mat[range(n_tr),range(n_tr)] = 0.
+
+  pred_map_orig = pred_map.copy()
+  rem_id_trks = np.zeros(dist_mat.shape[0]) < 0.5
+  groups = []
+  groups_only_id = []
+  used_trks = []
+
+
+  # create id clusters iteratively by first finding the largest cluster and then adding the missing links. Most of the codes dirtiness is for keeping track of the id tracks and other tracks that have been used till now
+  while True:
+    rem_id_idx = np.where(rem_id_trks)[0]
+    if len(rem_id_idx)==0:
+      break
+    elif len(rem_id_idx)==1:
+      gr = rem_id_idx
+    else:
+      dist_mat_cur = dist_mat[rem_id_trks, :][:,rem_id_trks]
+      pred_map_cluster = pred_map_orig[rem_id_trks]
+      gr_cur = get_largest_cluster(dist_mat_cur, id_thresh, t_info, pred_map_cluster)
+      far_ids = dist_mat_cur[gr_cur].mean(axis=0) > (2-id_thresh)
+      far_ids = rem_id_idx[far_ids]
+      gr = rem_id_idx[gr_cur]
+
+    gr = gr.tolist()
+    groups_only_id.append(gr.copy())
+
+    for mov_ndx in range(len(linked_trks)):
+      ids_ignore = []
+      for ff in far_ids:
+        if pred_map_orig[ff][0] == mov_ndx:
+          ids_ignore.append(pred_map_orig[ff][1])
+      for uu in used_trks:
+        if pred_map[uu][0] == mov_ndx:
+          ids_ignore.append(pred_map[uu][1])
+
+      gr, pred_map = add_missing_links(linked_trks, [gr], conf, pred_map, mov_ndx, ids_ignore, maxcosts_all[mov_ndx],maxn_all[mov_ndx], bignumber)
+      gr = gr[0]
+
+    for gg in gr:
+      if gg<len(rem_id_trks):
+        rem_id_trks[gg] = False
+
+    used_trks.extend(gr)
+    groups.append(gr)
+
+  # Old style grouping
+  # groups_new = groups.copy()
+  # pred_map_id = pred_map.copy()
+  # groups = cluster_tracklets_id(preds, pred_map_orig, t_info, conf.link_maxframes_delete)
+  #
+  # id_groups = groups.copy()
+  # pred_map = pred_map_orig.copy()
+  # for mov_ndx in range(len(linked_trks)):
+  #   groups, pred_map = add_missing_links(linked_trks, groups, conf, pred_map, mov_ndx, None, maxcosts_all[mov_ndx],maxn_all[mov_ndx],bignumber)
+
+
+  # Link the actual pose data. ids is TrkFile.Tracklet instance that keeps track about which tracklet in which frame belongs to which animal
 
   ids = []
   for trk, data in zip(linked_trks,all_data):
@@ -1790,31 +1877,282 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   return linked_trks
 
 
+def get_dist(p1, p2):
+  return np.sum(np.abs(p1 - p2), axis=(0, 1)) / p2.shape[0]
+
+##
+def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, maxcosts_all, maxn, bignumber):
+
+  params = get_default_params(conf)
+  mult = 3
+  max_link = 15*params['maxframes_missed']
+
+  st, en = linked_trks[tndx].get_startendframes()
+
+  occ = np.ones([len(groups), maxn], 'int') * -1
+  for ndx, gr in enumerate(groups):
+    for gg in gr:
+      mov_ndx, trk_ndx = pred_map[gg]
+      if mov_ndx == tndx:
+        occ[ndx, st[trk_ndx]:en[trk_ndx] + 1] = trk_ndx
+
+
+  # FInd all the breaks for the identity groups
+  breaks = []
+  for ndx in range(occ.shape[0]):
+    qq = np.zeros(maxn + 2) < 1
+    qq[1:-1] = occ[ndx] > -0.5
+
+    qq1 = np.where(qq[:-2] & (~qq[1:-1]))[0]
+    qq2 = np.where((~qq[1:-1]) & qq[2:])[0]
+    to_rem = (qq1==0) | (qq2==maxn-1)
+    qq1 = qq1[~to_rem]
+    qq2 = qq2[~to_rem]
+    breaks.append(np.array(list(zip(qq1, qq2))))
+
+  # FInd the linkinking costs between the tracklets
+  link_costs = get_link_costs(linked_trks[tndx], st, en, params)
+
+  if ignore_idx is None:
+    taken = [pred_map[g,1] for gr in groups for g in gr if pred_map[g,0]==tndx]
+  else:
+    taken = ignore_idx
+
+  linked_groups = groups.copy()
+  new_pred_map = []
+  logging.info('Filling in gaps between identity stitched tracklets.. ')
+  # MOst of the crappiness of the code is keeping track of what has been taken and what has not been
+  for ndx in range(len(linked_groups)):
+    for bx in tqdm(range(breaks[ndx].shape[0])):
+      b_st, b_en = breaks[ndx][bx, :]
+
+      if (b_st > 0) & (b_en<maxn) &( (b_en-b_st)<=max_link):
+        st_trk = occ[ndx][b_st - 1]
+        en_trk = occ[ndx][b_en + 1]
+        trk2add, cost = is_connected(link_costs, st_trk, en_trk, b_en + 1, st, en, maxcosts_all, taken, mult, bignumber)
+        if cost >= bignumber:
+          continue
+        for tid in trk2add:
+          match_pred = np.where((pred_map==[tndx,tid]).all(axis=1))[0]
+          if len(match_pred)>0:
+            linked_groups[ndx].append(match_pred[0])
+          else:
+            new_pred_map.append([tndx,tid])
+            linked_groups[ndx].append(len(pred_map)+len(new_pred_map)-1)
+          taken.append(tid)
+
+  if len(new_pred_map)>0:
+    new_pred_map = np.concatenate([pred_map, new_pred_map],axis=0)
+  else:
+    new_pred_map = pred_map
+  return linked_groups, new_pred_map
+
+##
+
+def is_connected(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult, bignumber):
+  '''
+
+  :param link_costs: cost of linking current tracklet to other tracklets
+  :param st_idx: tracklet id to start linking from
+  :param en_idx: tracklet id to link to
+  :param en_fr: end frame
+  :param st: all the tracklet starts
+  :param en: all the tracklet ends
+  :param maxcosts_all: linking costs across missing frames
+  :param taken: do no use these tracklets
+  :param mult:
+  :param bignumber:
+  :return: path for linking as a list of tracklets
+
+  This function uses the shorteset path algorithm. Cost of linking tracklets tr1 that ends at t and tr2 that starts at t+n is maxcosts_all[n-1]/2. This is because we only want to mildly penalize the missing frame, as otherwise the algorithm will try to fill in some other tracklet tr3 that could be far from both tr1 and tr2.
+  '''
+
+  link_st = en[st_idx] + 1
+  link_en = st[en_idx] - 1
+  taken_arr = np.zeros(len(st)) > 0.5
+  taken_arr[taken] = True
+
+  # int_trks are the intermediate tracklets that lie with the gap and are not taken
+  int_trks = np.where( (st>=link_st) & (en<= link_en) &
+~taken_arr)[0]
+  n_trks = len(int_trks)
+
+  # edge mat will be used to compute the shortest path. [:,0] corresponds to starting tracklet and [:,-1] correspoinds to ending tracklet
+  edge_mat = np.ones([n_trks+2,n_trks+2])*bignumber*(link_en-link_st+1)
+
+  if (link_en-link_st+1) < len(maxcosts_all):
+    edge_mat[0,-1] = maxcosts_all[link_st-link_en+1]/2
+
+  # Costs from start tracklet
+  for ix in range(link_costs[st_idx][1].shape[0]):
+    lix = int(link_costs[st_idx][1][ix, 0])
+    cost = link_costs[st_idx][1][ix, 1]
+    n_miss = int(link_costs[st_idx][1][ix, 2])
+    if lix not in int_trks: continue
+    lix_id = np.where(int_trks==lix)[0][0]
+    if cost > mult*maxcosts_all[n_miss]:
+      # If too far away then don't join. Will simply slow down the shortest path alg.
+      continue
+    if n_miss>0:
+      edge_mat[0,lix_id+1] = cost + maxcosts_all[n_miss-1]/2
+    else:
+      edge_mat[0,lix_id+1] = cost
+
+  # Costs to end tracklet
+  for ix in range(link_costs[en_idx][0].shape[0]):
+    lix = int(link_costs[en_idx][0][ix, 0])
+    cost = link_costs[en_idx][0][ix, 1]
+    n_miss = int(link_costs[en_idx][0][ix, 2])
+    if lix not in int_trks: continue
+    lix_id = np.where(int_trks==lix)[0][0]
+    if cost > mult*maxcosts_all[n_miss]:
+      # If too far away then don't join. Will simply slow down the shortest path alg.
+      continue
+    if n_miss>0:
+      edge_mat[lix_id+1,-1] = cost + maxcosts_all[n_miss-1]/2
+    else:
+      edge_mat[lix_id+1,-1] = cost
+
+  # If nothing connects to start or end then quit right away
+  if np.all(edge_mat[0]>bignumber) or np.all(edge_mat[:,-1]>bignumber):
+    return [], edge_mat[0,-1]
+
+  # For all other tracklets
+  for ix1 in range(n_trks):
+    cur_trk = int_trks[ix1]
+    for ix in range(link_costs[cur_trk][1].shape[0]):
+      lix = int(link_costs[cur_trk][1][ix, 0])
+      cost = link_costs[cur_trk][1][ix, 1]
+      n_miss = int(link_costs[cur_trk][1][ix, 2])
+      if lix not in int_trks: continue
+      lix_id = np.where(int_trks==lix)[0][0]
+      if cost > mult*maxcosts_all[n_miss]:
+        continue
+      if n_miss>0:
+        edge_mat[ix1+1,lix_id+1] = cost + maxcosts_all[n_miss-1]/2
+      else:
+        edge_mat[ix1+1,lix_id+1] = cost
+
+  dmat, conn_mat = scipy.sparse.csgraph.shortest_path(edge_mat,return_predecessors=True,indices=0)
+
+  path = []
+  p_start = 0
+  p_end = n_trks+1
+  while True:
+    if p_start == p_end:
+      break
+    if conn_mat[p_end] < -10:
+      path = []
+      break
+    path.append(conn_mat[p_end])
+    p_end = conn_mat[p_end]
+
+  # reconstruct the path in terms of tracklets
+  if len(path)>0:
+    path = path[:-1]
+    path = path[::-1]
+    path = [int_trks[ix-1] for ix in path]
+  return path, dmat[-1]
+
+
+def get_link_costs(tt, st, en, params):
+  maxn = max(en)
+  n_missed = params['maxcost_framesfit']
+  link_costs = []
+  for curt in range(tt.ntargets):
+
+    cur_st = st[curt]
+    cur_en = en[curt]
+    start_matches = []
+    p_cur = tt.gettargetframe(curt, cur_st)[..., 0]
+    for tends in range(n_missed + 1):
+      stfr = cur_st - tends - 1
+      if stfr < 0:
+        continue
+      trk_sts = np.where(en == stfr)[0]
+      for idx in trk_sts:
+        p_en = tt.gettargetframe(idx, stfr)[..., 0]
+        cur_cost = get_dist(p_cur, p_en)[0]
+        start_matches.append([idx, cur_cost, tends])
+    start_matches = np.array(start_matches)
+
+    end_matches = []
+    p_cur = tt.gettargetframe(curt, cur_en)[..., 0]
+    for tends in range(n_missed + 1):
+      enfr = cur_en + tends + 1
+      if enfr > maxn:
+        continue
+      trk_ends = np.where(st == enfr)[0]
+      for idx in trk_ends:
+        p_st = tt.gettargetframe(idx, enfr)[..., 0]
+        cur_cost = get_dist(p_cur, p_st)[0]
+        end_matches.append([idx, cur_cost, tends])
+    end_matches = np.array(end_matches)
+    link_costs.append([start_matches, end_matches])
+  return link_costs
+
+def embed_dist(xx,yy):
+  ddm = np.zeros([xx.shape[0],yy.shape[0]])
+  for ix in range(xx.shape[0]):
+   ddm[ix, :] = np.median(np.linalg.norm(xx[ix:ix+1] - yy, axis=-1), axis=(1, 2))
+  return ddm
+
+def get_id_dist_mat(embed):
+  n_threads = min(24, mp.cpu_count())
+  with mp.get_context('spawn').Pool(n_threads) as pool:
+    split_set = split_parallel(embed[:,:,None], n_threads, is_numpy=True)
+    processed_dist = pool.starmap(embed_dist, [(split_set[n], embed[:,None]) for n in range(n_threads)])
+    processed_dist = merge_parallel(processed_dist)
+    processed_dist =np.array(processed_dist)
+  return processed_dist
+
+def get_largest_cluster(dist_mat, thresh, t_info, pred_map):
+  distArray = ssd.squareform( dist_mat)
+  Z = linkage(distArray, 'average')
+  # plt.figure()
+  # dn = dendrogram(Z)
+
+  F = fcluster(Z, thresh, criterion='distance')
+
+  groups = []
+  n_fr = [max(sel[1]) for sel in t_info]
+  tr_len = []
+  for mov_ndx, trk_ndx in pred_map:
+    cur_len = t_info[mov_ndx][1][trk_ndx] - t_info[mov_ndx][0][trk_ndx] + 1
+    tr_len.append(cur_len)
+  tr_len = np.array(tr_len)
+
+  g_len = np.array([tr_len[F==(i+1)].sum() for i in range(max(F))])
+  largest_cluster = np.argmax(g_len)
+  sel_idx = np.where(F==(largest_cluster+1))[0]
+  cur_group = []
+  extra_groups = []
+  ctline = [np.zeros(n) for n in n_fr]
+  # ctline keeps track of the frames that are already part of the current group.
+  for cc in sel_idx:
+    mov_ndx, trk_ndx = pred_map[cc]
+    sel_ss = t_info[mov_ndx][0][trk_ndx]
+    sel_ee = t_info[mov_ndx][1][trk_ndx]
+    prev_overlap = np.sum(ctline[mov_ndx][sel_ss:sel_ee + 1]) / (sel_ee - sel_ss + 1)
+    if prev_overlap < 0.05:
+      cur_group.append(cc)
+      ctline[mov_ndx][sel_ss:sel_ee + 1] += 1
+
+  return cur_group
+
+
+
 def cluster_tracklets_id(embed, pred_map, t_info, min_len):
-  """
-  Clusters tracklets using linkage
-  :param embed:
-  :type embed:
-  :param pred_map:
-  :type pred_map:
-  :param t_info:
-  :type t_info:
-  :param min_len:
-  :type min_len:
-  :return:
-  :rtype:
-  """
 
   n_tr = embed.shape[0]
   n_ex = embed.shape[1]
-  ddm = np.ones([n_tr, n_tr]) * np.nan
-
-  for xx in tqdm(range(n_tr)):
-    ddm[xx, :] = np.median(np.linalg.norm(embed[xx, None, :, None] - embed[:, None, :], axis=-1), axis=(1,2))
+  ddm = get_id_dist_mat(embed)
+  # ddm = np.ones([n_tr, n_tr]) * np.nan
+  #
+  # for xx in tqdm(range(n_tr)):
+  #   ddm[xx, :] = np.median(np.linalg.norm(embed[xx, None, :, None] - embed[:, None, :], axis=-1), axis=(1,2))
   # plt.figure(); plt.imshow(ddm)
 
-  import scipy.spatial.distance as ssd
-  from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 
   ddm[range(n_tr), range(n_tr)] = 0.
   distArray = ssd.squareform( ddm)

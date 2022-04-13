@@ -77,6 +77,11 @@ import TrkFile
 from scipy.ndimage import uniform_filter
 import multiprocessing
 import poseConfig
+import torch
+
+torch.autograd.set_detect_anomaly(False)
+torch.autograd.profiler.profile(False)
+torch.autograd.profiler.emit_nvtx(False)
 
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10  # interval in seconds between writing n frames tracked
@@ -1016,6 +1021,8 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'detect_mmdetect': 'MMDetect',
                       'mdn_joint_fpn': 'GRONe',
                       'multi_mdn_joint_torch': 'MultiAnimalGRONe',
+                      'multi_mdn_joint_torch_1': 'MultiAnimalGRONe',
+                      'multi_mdn_joint_torch_2': 'MultiAnimalGRONe',
                       'mmpose': 'MSPN',
                       }
 
@@ -1418,7 +1425,9 @@ def setup_ma(conf):
         return
     else:
         logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
-        conf.imsz = (max_sz, max_sz)
+        y_sz = min(fr_sz[0],max_sz)
+        x_sz = min(fr_sz[1],max_sz)
+        conf.imsz = (y_sz,x_sz)
 
 
 def get_clusters(rois):
@@ -1511,6 +1520,17 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         roi_in[..., 1] = np.clip(roi_in[..., 1] + y_top, 0, conf.multi_frame_sz[0])
         return roi_in
 
+    def labels_within_mask(curl, mask):
+        sel = np.where(np.all((curl[..., 0] >= 0) & (curl[..., 1] >= 0) & (curl[..., 0] < conf.imsz[1]) & (curl[..., 1] < conf.imsz[0]), 1))[0]
+        if conf.multi_loss_mask:
+            curl = curl[sel].mean(axis=1)
+            cur_mask_pts = np.round(curl).astype('int')
+            pt_mask = mask[cur_mask_pts[...,1],cur_mask_pts[...,0]]
+            final_sel = sel[pt_mask]
+        else:
+            final_sel = sel
+        return final_sel
+
     clusters = get_clusters(roi)
     n_clusters = len(np.unique(clusters))
     all_data = []
@@ -1533,6 +1553,15 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         extra_roi[..., 0] = np.clip(extra_roi[..., 0], 0, conf.multi_frame_sz[1])
         extra_roi[..., 1] = np.clip(extra_roi[..., 1], 0, conf.multi_frame_sz[0])
 
+    # if frame.shape[0]< conf.imsz[0]:
+    #     frame = frame.copy()
+    #     pad_y = conf.imsz[0] - frame.shape[0]
+    #     frame = np.pad(frame,[[0,pad_y],[0,0],[0,0]])
+    # if frame.shape[1] < conf.imsz[1]:
+    #     frame = frame.copy()
+    #     pad_x = conf.imsz[1] - frame.shape[1]
+    #     frame = np.pad(frame, [[0, 0],[0,pad_x], [0, 0]])
+
     for cndx in range(n_clusters):
         idx = np.where(clusters == cndx)[0]
         cur_roi = roi[idx, ...].copy()
@@ -1540,8 +1569,7 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         x_left, y_top, x_right, y_bottom = random_crop_around_roi(cur_roi)
 
         curp = frame[y_top:y_bottom, x_left:x_right, :]
-        cur_roi[..., 0] -= x_left
-        cur_roi[..., 1] -= y_top
+        cur_roi -= [x_left,y_top]
 
         if n_extra_roi > 0:
             cur_eroi = roi2patch(extra_roi, x_left, y_top)
@@ -1562,10 +1590,13 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
 
         done_mask = done_mask | cur_done_mask
 
-        curl = cur_pts[idx, :, :].copy()
-        curl[:, :, 0] = curl[:, :, 0] - x_left
-        curl[:, :, 1] = curl[:, :, 1] - y_top
-        cur_occ = occ[idx, ...]
+        # select all the labels that fall within the mask
+        curl = cur_pts.copy() - [x_left,y_top]
+        final_sel = labels_within_mask(curl, cur_mask)
+
+        cur_roi = roi[final_sel].copy() - [x_left,y_top]
+        curl = cur_pts[final_sel].copy() -[x_left,y_top]
+        cur_occ = occ[final_sel]
 
         all_data.append({'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
                          'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top, 'max_n':conf.max_n_animals})
@@ -1599,12 +1630,17 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
                 y_bottom = y_top + conf.imsz[0]
                 x_right = x_left + conf.imsz[1]
                 curp = frame[y_top:y_bottom, x_left:x_right, :]
-                if conf.multi_use_mask:
-                    curp = curp * create_mask(cur_eroi, conf.imsz)[..., np.newaxis]
 
-                curl = np.ones_like(cur_pts[0:1, ...]) * np.nan
-                cur_occ = np.zeros_like(curl[..., 0])
-                cur_roi = np.zeros([1, 4, 2])
+                cur_mask = create_mask(cur_eroi, conf.imsz)
+                if conf.multi_use_mask:
+                    curp = curp * cur_mask[..., np.newaxis]
+
+                final_sel = labels_within_mask(cur_pts.copy()-[x_left,y_top],cur_mask)
+
+                cur_roi = roi[final_sel].copy() - [x_left, y_top]
+                curl = cur_pts[final_sel].copy() - [x_left, y_top]
+                cur_occ = occ[final_sel]
+
                 frame_eroi = roi_from_patch(cur_eroi, x_left, y_top)
 
                 if len(cur_eroi) == 0:
@@ -1638,6 +1674,7 @@ def show_crops(im, all_data, roi, extra_roi, conf):
             mm = mm | create_mask(a['extra_roi'], conf.imsz)
         ax[ndx].imshow(a['im'] * mm[:, :, None])
         ax[ndx].axis('off')
+        ax[ndx].scatter(a['locs'][...,0],a['locs'][...,1])
 
     plt.figure(f.number)
     plt.axis('off')

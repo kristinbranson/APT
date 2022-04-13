@@ -3771,7 +3771,7 @@ classdef DeepTracker < LabelTracker
                   dockerargs = [dockerargs {'gpuid',gpuids(imovjob,ivwjob)}]; %#ok<AGROW>
                 end
               else
-                dockerargs = {'isgpu' false 'dockerimg' 'bransonlabapt/apt_docker:latest_cpu'};
+                dockerargs = {'isgpu' false}; % 'dockerimg' 'bransonlabapt/apt_docker:latest_cpu'}; MK 20220411 We don't need a separate CPU image anymore
               end
               useLogFlag = ispc;
               
