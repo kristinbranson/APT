@@ -770,12 +770,12 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
 
                 matched, cur_joint_conf, cur_occ_pred = self.match_preds(locs,olocs,match_dist_factor)
-                ret_dict['locs'].append(matched['ref'] * conf.rescale)
-                ret_dict['conf'].append(1/(1+np.exp(-cur_joint_conf)))
+                ret_dict['locs'].append(matched['ref'][0] * conf.rescale)
+                ret_dict['conf'].append(1/(1+np.exp(-cur_joint_conf[0])))
                 if self.conf.predict_occluded:
-                    ret_dict['occ'].append(cur_occ_pred)
+                    ret_dict['occ'].append(cur_occ_pred[0])
                 else:
-                    ret_dict['occ'].append(np.ones_like(cur_occ_pred)*np.nan)
+                    ret_dict['occ'].append(np.ones_like(cur_occ_pred[0])*np.nan)
 
                 if retrawpred:
                     ret_dict['preds'][0].append(preds)
