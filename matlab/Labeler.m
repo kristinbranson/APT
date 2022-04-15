@@ -6362,7 +6362,7 @@ classdef Labeler < handle
       iTgt = obj.currTarget;      
       
       if iTgt==0
-        error('No targets.');
+        warning('No targets.');
       end
       
       PROPS = obj.gtGetSharedProps();

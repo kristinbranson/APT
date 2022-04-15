@@ -443,6 +443,30 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         [obj.hPchTxt(~tfTgtOn).Visible] = deal('off');
       end
     end
+    function set_hittest(obj,onoff)
+      if ~isempty(obj.hXYPrdRed) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
+        [obj.hXYPrdRed.HitTest] = deal(onoff);
+        [obj.hXYPrdRedTxt.HitTest] = deal(onoff);
+      end
+      
+      % skel, pch: not affected by hide
+      if ~isempty(obj.hSkel)
+        set(obj.hSkel,'HitTest',onoff);
+        % because updateSkel() early returns if visible is off
+        obj.updateSkel(); 
+      end      
+      if obj.doPch
+        [obj.hPch.HitTest] = deal(onoff);
+        [obj.hPchTxt.HitTest] = deal(onoff);
+      end            
+    end
+    function hittest_off_all(obj)
+      obj.set_hittest('off');
+    end
+    function hittest_on_all(obj)
+      obj.set_hittest('on');
+    end
+    
     function updateTrackResI(obj,xy,tfeo,iTgt)
       % xy: [npts x 2]
       % tfeo: [npts] logical for est-occ; can be [] to skip

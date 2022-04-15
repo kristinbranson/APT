@@ -626,10 +626,16 @@ class Tracklet:
     :return: p: nlandmarks x d x len(frames) x ntargets with data
     """
     fs = np.atleast_1d(fs)
+    min_fs = fs.min()
+    max_fs = fs.max()
     p=np.zeros(self.size_rest+ (fs.size,self.ntargets),dtype=self.dtype)
     p[:]=self.defaultval
+    st = self.startframes
+    en = self.endframes
     for itgt in range(self.ntargets):
       if self.data[itgt] is None:
+        continue
+      if (st[itgt] > max_fs) or (en[itgt] < min_fs):
         continue
       idx = np.nonzero(np.logical_and(fs >= self.startframes[itgt],fs <= self.endframes[itgt]))[0]
       if idx.size > 0:

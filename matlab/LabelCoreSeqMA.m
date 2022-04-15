@@ -714,7 +714,7 @@ classdef LabelCoreSeqMA < LabelCore
       iTgt = lObj.currTarget;
       obj.tv.updateTrackResI(xy,tfeo,iTgt);
       % tv.hideTarget should already be set to lObj.currTarget
-      
+      obj.tv.hittest_on_all()
       obj.beginAccepted();
     end
 
@@ -740,6 +740,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
+
     end
     function beginLabel(obj)
       % Enter Label state and clear all mode1 label state for current
@@ -748,7 +749,9 @@ classdef LabelCoreSeqMA < LabelCore
       obj.resetState();
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = obj.CLR_NEW_TGT;
-      obj.state = LabelState.LABEL;      
+      obj.state = LabelState.LABEL; 
+      obj.tv.hittest_off_all()
+
     end
             
     function storeLabels(obj)

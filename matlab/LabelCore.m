@@ -3,7 +3,7 @@ classdef LabelCore < handle
 %
 % Handles the details of labeling: the labeling state machine, managing 
 % in-progress labels, etc.
-%
+% BDF - button down fn
 % LabelCore intercepts all axes_curr (and children) BDFs, figure
 % Window*Fcns, figure keypresses, and tbAccept/pbClear signals to
 % implement the labeling state machine; ie labelng is enabled by ptsBDF,
