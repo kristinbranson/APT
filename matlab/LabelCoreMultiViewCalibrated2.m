@@ -102,7 +102,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     iSetWorking      % scalar. Set index of working set. Can be nan for no working set.
 
     pjtIPts          % [nview]. NaN if anchor point not clicked for a view.
-    pjtHLinesEpi     % [nview * (nview - 1)]. line handles for epipolar lines
+    pjtHLinesEpi     % [nview * nview]. line handles for epipolar lines. 
+                     %    .pjtHLinesEpi(ivw1,ivw2) is EP line shown in ivw1
+                     %    originating from ivw2
     pjtHLinesRecon   % [nview]. line handles for reconstructed pts
     
     pjtCalRig         % Scalar some-kind-of-calibration object
@@ -903,6 +905,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function projectToggleState(obj,iPt,iAx)
       % Toggle projection status of point iPt.
+      %
+      % AL: not sure this meth needs to exist bc callers who use iAx==-1 
+      % can just call refreshEPlines directly and then everybody else just
+      % calls projectionSetAnchor.  
       if iAx == -1
         obj.projectionRefreshEPlines();
       else
@@ -942,6 +948,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           % filled from lowest to highest idx, but to be safe, we'll check the
           % rest of the pjtIPts'. This should be cleaned up as other refactoring
           % is done.
+          % AL: seems like you need to keep looping bc .pjtIPts is indexed
+          % by view, so what if eg view N had an anchor but the others
+          % didnt?
           continue;
         end
         iPt1 = obj.pjtIPts(i);
