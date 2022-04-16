@@ -722,7 +722,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         matched['ref'] = cur_pred
         return matched, cur_joint_conf, cur_occ_pred
 
-    def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
+    def get_pred_fn_2pass(self, model_file=None,max_n=None,imsz=None):
         if max_n is not None:
             self.conf.max_n_animals = max_n
         if imsz is not None:
@@ -837,7 +837,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     locs = self.get_joint_pred(preds)
 
                 ret_dict['locs'].append(locs['ref'][0] * conf.rescale)
-                ret_dict['conf'].append(1 / (1 + np.exp(-locs['conf_joint'][0])))
+                conf_joint = 1/(1+np.exp(-locs['conf_joint']))
+                conf_ref = 1/(1+np.exp(-locs['conf_ref']))
+                pred_conf = conf_joint[...,None]*conf_ref
+                ret_dict['conf'].append(pred_conf[0])
                 if self.conf.predict_occluded:
                     ret_dict['occ'].append(locs['pred_occ'][0])
                 else:
@@ -856,3 +859,6 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         return pred_fn, close_fn, latest_model_file
 
+
+    def get_pred_fn(self,model_file,**kwargs):
+        return self.get_pred_fn_fast(model_file,**kwargs)

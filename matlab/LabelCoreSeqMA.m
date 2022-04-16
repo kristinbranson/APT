@@ -551,7 +551,7 @@ classdef LabelCoreSeqMA < LabelCore
           frm = lObj.currFrame;
           vroi = lObj.labelroiGet(frm);
           obj.roiRectDrawer.setRois(vroi);
-          obj.roiUpdatePBEdit(true);
+          obj.roiUpdatePBEdit(false);
         end
       end
     end
@@ -715,6 +715,10 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.updateTrackResI(xy,tfeo,iTgt);
       % tv.hideTarget should already be set to lObj.currTarget
       obj.tv.hittest_on_all()
+      if ~isempty(obj.labeler.tracker.trkVizer) && ...
+          ~isempty(obj.labeler.tracker.trkVizer.tvmt)
+        obj.labeler.tracker.trkVizer.tvmt.hittest_on_all();
+      end
       obj.beginAccepted();
     end
 
@@ -751,6 +755,10 @@ classdef LabelCoreSeqMA < LabelCore
       lObj.currImHud.hTxtTgt.BackgroundColor = obj.CLR_NEW_TGT;
       obj.state = LabelState.LABEL; 
       obj.tv.hittest_off_all()
+      if ~isempty(obj.labeler.tracker.trkVizer) && ...
+          ~isempty(obj.labeler.tracker.trkVizer.tvmt)
+        obj.labeler.tracker.trkVizer.tvmt.hittest_off_all();
+      end
 
     end
             
