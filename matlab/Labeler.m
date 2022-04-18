@@ -34,6 +34,12 @@ classdef Labeler < handle
       'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
       'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo' ...
       'nLabelPointsAdd' 'track_id'};
+    
+     % props to update when replace path is given during initialization
+     % MK 20220418
+    MOVIEPROPS = {'movieFilesAll' 'trxFilesAll' 'projMacros' ...
+      'movieFilesAllGT' 'trxFilesAllGT' }
+    
 %     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
 %       %'labeledpos2' 'nan'
 %       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
@@ -1458,7 +1464,9 @@ classdef Labeler < handle
       
       %APT.setpathsmart;
 
-      [obj.isgui,projfile] = myparse_nocheck(varargin,'isgui',true,'projfile',[]);
+      [obj.isgui,projfile, replace_path] = myparse_nocheck(varargin,...
+        'isgui',true,'projfile',[],...
+        'replace_path',{'',''});
       starttime = tic;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
@@ -1466,7 +1474,7 @@ classdef Labeler < handle
       obj.tvTrx = TrackingVisualizerTrx(obj);
       fprintf('Opening GUI took %f s\n',toc(starttime));
       if projfile
-        obj.projLoad(projfile);
+        obj.projLoad(projfile,'replace_path',replace_path);
       end
     end
      
@@ -2295,8 +2303,9 @@ classdef Labeler < handle
             
       starttime = tic;
       
-      nomovie = myparse(varargin,...
-        'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
+      [nomovie, replace_path] = myparse(varargin,...
+        'nomovie',false, ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
+        'replace_path',{'',''} ...
         );
             
       currMovInfo = [];
@@ -2358,7 +2367,20 @@ classdef Labeler < handle
       for f=LOADPROPS(:)',f=f{1}; %#ok<FXSET>
         if isfield(s,f)          
           if ~any(strcmp(f,lposProps))
-            obj.(f) = s.(f);
+            if ~any(strcmp(f,Labeler.MOVIEPROPS)) && ~isempty(replace_path{1})
+              obj.(f) = s.(f);
+            else
+              if isstruct(s.(f))
+                curf = s.(f);
+                fnames = fieldnames(curf);
+                for fndx = 1:numel(fnames)
+                  curf.(fnames{fndx}) = strrep(curf.(fnames{fndx}),replace_path{1},replace_path{2});
+                end
+              else
+                curf = strrep(s.(f),replace_path{1},replace_path{2});
+              end
+              obj.(f) = curf;
+            end
           else
             val = s.(f);
             assert(iscell(val));

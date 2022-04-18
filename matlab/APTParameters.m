@@ -777,13 +777,13 @@ function autoparams = compute_auto_params(lobj)
   %%
   %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
   %l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
-  l_min = permute(min(all_labels,[],1),[2,3,1]);
-  l_max = permute(max(all_labels,[],1),[2,3,1]);
+  l_min = permute(nanmin(all_labels,[],1),[2,3,1]);
+  l_max = permute(nanmax(all_labels,[],1),[2,3,1]);
   l_span = l_max-l_min;
   % l_span is labels span in x and y direction
 
   l_span_pc = prctile(l_span,95,2);
-  l_span_max = max(l_span,[],2);
+  l_span_max = nanmax(l_span,[],2);
 
   % Check and flag outliers..
   if any( (l_span_max./l_span_pc)>2)
@@ -806,7 +806,7 @@ function autoparams = compute_auto_params(lobj)
     warning(wstr);
   end
 
-  crop_radius = max(l_span_pc);
+  crop_radius = nanmax(l_span_pc);
   crop_radius = ceil(crop_radius/16)*16;
   if lobj.trackerIsTwoStage || lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;

@@ -81,7 +81,7 @@ vv[np.isnan(vv)] = 60.
 mm2 = np.nanpercentile(vv, prcs, axis=0, interpolation='nearest')
 
 ##
-cmd = '-name 20220416T024611 -view 1 -cache /groups/branson/home/kabram/.apt/tp48358839_4391_4561_af64_ec5f86f9aea2 -type multi_mdn_joint_torch /groups/branson/home/kabram/.apt/tp48358839_4391_4561_af64_ec5f86f9aea2/grapes/20220416T024611_20220416T024612.lbl track -out /groups/branson/home/kabram/.apt/tp48358839_4391_4561_af64_ec5f86f9aea2/grapes/multi_mdn_joint_torch/view_0/20220416T024611/trk/IMG_3066_trn20220416T024611_iter200_20220416T025230_mov1_vwj1.trk -mov /groups/branson/bransonlab/mayank/data/grapes/IMG_3066.avi -start_frame 692 -end_frame 712'
+cmd = '-name 20220416T062307 -view 1 -cache /groups/branson/home/kabram/.apt/tpfdb62ffb_de58_4bb8_9967_ac800831fcc1 -type multi_mdn_joint_torch /groups/branson/home/kabram/.apt/tpfdb62ffb_de58_4bb8_9967_ac800831fcc1/nails/20220416T062307_20220416T062311.lbl track -out /groups/branson/home/kabram/.apt/tpfdb62ffb_de58_4bb8_9967_ac800831fcc1/nails/multi_mdn_joint_torch/view_0/20220416T062307/trk/IMG_3067_trn20220416T062307_iter15000_20220418T020404_mov1_vwj1.trk -mov /groups/branson/bransonlab/mayank/data/nails/IMG_3067.avi -start_frame 299 -end_frame 453'
 
 from reuse import *
 # cmd = cmd.replace('"/','/')
