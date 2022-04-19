@@ -1402,6 +1402,11 @@ def setup_ma(conf):
     fr_sz = cur_frame.shape[:2]
     conf.multi_frame_sz = fr_sz
 
+    if not conf.multi_crop_ims:
+        conf.imsz = (fr_sz[0], fr_sz[1])
+        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
+        return
+
     max_sz = 0
     for selndx, cur_t in enumerate(T['locdata']):
         ntgt = cur_t['ntgt']
@@ -1419,15 +1424,10 @@ def setup_ma(conf):
 
     max_sz = int(np.ceil((max_sz + 2) / 32)) * 32
 
-    if not conf.multi_crop_ims:
-        conf.imsz = (fr_sz[0], fr_sz[1])
-        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
-        return
-    else:
-        logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
-        y_sz = min(fr_sz[0],max_sz)
-        x_sz = min(fr_sz[1],max_sz)
-        conf.imsz = (y_sz,x_sz)
+    logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
+    y_sz = min(fr_sz[0],max_sz)
+    x_sz = min(fr_sz[1],max_sz)
+    conf.imsz = (y_sz,x_sz)
 
 
 def get_clusters(rois):

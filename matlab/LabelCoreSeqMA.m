@@ -719,6 +719,10 @@ classdef LabelCoreSeqMA < LabelCore
           ~isempty(obj.labeler.tracker.trkVizer.tvmt)
         obj.labeler.tracker.trkVizer.tvmt.hittest_on_all();
       end
+      if ~isempty(obj.labeler.tracker.trkVizer) && ...
+          ~isempty(obj.labeler.tracker.trkVizer.tvtrx)
+        obj.labeler.tracker.trkVizer.tvtrx.hittest_on_all();
+      end
       obj.beginAccepted();
     end
 
@@ -758,6 +762,10 @@ classdef LabelCoreSeqMA < LabelCore
       if ~isempty(obj.labeler.tracker.trkVizer) && ...
           ~isempty(obj.labeler.tracker.trkVizer.tvmt)
         obj.labeler.tracker.trkVizer.tvmt.hittest_off_all();
+      end
+      if ~isempty(obj.labeler.tracker.trkVizer) && ...
+          ~isempty(obj.labeler.tracker.trkVizer.tvtrx)
+        obj.labeler.tracker.trkVizer.tvtrx.hittest_off_all();
       end
 
     end

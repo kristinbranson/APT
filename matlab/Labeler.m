@@ -970,7 +970,7 @@ classdef Labeler < handle
       if ~isempty(mmc) && isvalid(mmc)
         v = mmc.getSelectedMovies();
       else
-        error('Labeler:getMoviesSelected',...
+        obj.lerror('Labeler:getMoviesSelected',...
           'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
       end
     end
@@ -1397,7 +1397,7 @@ classdef Labeler < handle
         ppPrms = obj.preProcParams; %#ok<MCSUP>
         if isempty(ppPrms) || ...
            isempty(ppPrms.BackSub.BGType) || isempty(ppPrms.BackSub.BGReadFcn)
-            error('Background type and/or background read function are not set in tracking parameters.');
+            obj.lerror('Background type and/or background read function are not set in tracking parameters.');
         end
       end
       obj.movieViewBGsubbed = v;
@@ -1528,7 +1528,7 @@ classdef Labeler < handle
         obj.viewNames = arrayfun(@(x)sprintf('view%d',x),1:obj.nview,'uni',0);
       else
         if numel(cfg.ViewNames)~=obj.nview
-          error('Labeler:prefs',...
+          obj.lerror('Labeler:prefs',...
             'ViewNames: must specify %d names (one for each view)',obj.nview);
         end
         obj.viewNames = cfg.ViewNames;
@@ -1552,7 +1552,7 @@ classdef Labeler < handle
         set = setnames{iSet};
         iPts = iSet:npts3d:npts;
         if numel(iPts)~=obj.nview
-          error('Labeler:prefs',...
+          obj.lerror('Labeler:prefs',...
             'Number of point indices specified for ''%s'' does not equal number of views (%d).',set,obj.nview);
         end
         setmap(iSet,:) = iPts;
@@ -1564,7 +1564,7 @@ classdef Labeler < handle
       iptNotInAnyView = find(isnan(ipt2view));
       if ~isempty(iptNotInAnyView)
         iptNotInAnyView = arrayfun(@num2str,iptNotInAnyView,'uni',0);
-        error('Labeler:prefs',...
+        obj.lerror('Labeler:prefs',...
           'The following points are not located in any view or set: %s',...
            String.cellstr2CommaSepList(iptNotInAnyView));
       end
@@ -1848,7 +1848,7 @@ classdef Labeler < handle
       nptsrm = numel(iptsrm);
       nptsremain = cfg.NumLabelPoints-nptsrm;
       if nptsremain<=0
-        error('Cannot remove %d points as config.NumLabelPoints is %d.',...
+        obj.lerror('Cannot remove %d points as config.NumLabelPoints is %d.',...
           nptsrm,cfg.NumLabelPoints);
       end
       
@@ -2324,7 +2324,7 @@ classdef Labeler < handle
       end
       
       if exist(fname,'file')==0
-        error('Labeler:file','File ''%s'' not found.',fname);
+        obj.lerror('Labeler:file','File ''%s'' not found.',fname);
       else
         tmp = which(fname);
         if ~isempty(tmp)
@@ -2337,7 +2337,7 @@ classdef Labeler < handle
       
       % MK 20190204. Use Unbundling instead of loading.
       [success,tlbl,wasbundled] = obj.projUnbundleLoad(fname);
-      if ~success, error('Could not unbundle the label file %s',fname); end
+      if ~success, obj.lerror('Could not unbundle the label file %s',fname); end
       
       % AL 20191002 occlusion-prediction viz, DLNetType enum changed
       % should-be-harmlessly
@@ -2348,7 +2348,7 @@ classdef Labeler < handle
       warning([warnst0 warnst1]);
 
       if ~all(isfield(s,{'VERSION' 'movieFilesAll'}))
-        error('Labeler:load','Unexpected contents in Label file.');
+        obj.lerror('Labeler:load','Unexpected contents in Label file.');
       end
       RC.saveprop('lastLblFile',fname);
 
@@ -2367,7 +2367,7 @@ classdef Labeler < handle
       for f=LOADPROPS(:)',f=f{1}; %#ok<FXSET>
         if isfield(s,f)          
           if ~any(strcmp(f,lposProps))
-            if ~any(strcmp(f,Labeler.MOVIEPROPS)) && ~isempty(replace_path{1})
+            if ~any(strcmp(f,Labeler.MOVIEPROPS)) || isempty(replace_path{1})
               obj.(f) = s.(f);
             else
               if isstruct(s.(f))
@@ -2406,13 +2406,13 @@ classdef Labeler < handle
       for i = 1:obj.nmovies,
         tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,false));
         if ~tfsuccess,
-          error('Labeler:file File(s) for movie %d: %s missing',i,obj.movieFilesAll{i});
+          obj.lerror('Labeler:file File(s) for movie %d: %s missing',i,obj.movieFilesAll{i});
         end
       end
       for i = 1:obj.nmoviesGT,
         tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,true));
         if ~tfsuccess,
-          error('Labeler:file File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
+          obj.lerror('Labeler:file File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
         end
       end
 
@@ -2754,7 +2754,7 @@ classdef Labeler < handle
       assert(false,'Unsupported');
       
 %       if exist(fname,'file')==0
-%         error('Labeler:file','File ''%s'' not found.',fname);
+%         obj.lerror('Labeler:file','File ''%s'' not found.',fname);
 %       else
 %         tmp = which(fname);
 %         if ~isempty(tmp)
@@ -2766,12 +2766,12 @@ classdef Labeler < handle
 %       end
 %        
 %       [success, tlbl] = obj.projUnbundleLoad(fname);
-%       if ~success, error('Could not unbundle the label file %s',fname); end
+%       if ~success, obj.lerror('Could not unbundle the label file %s',fname); end
 %       s = load(tlbl,'-mat');
 %       obj.projClearTempDir();
 % %       s = load(fname,'-mat');
 %       if s.nLabelPoints~=obj.nLabelPoints
-%         error('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
+%         obj.lerror('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
 %           fname,s.nLabelPoints,obj.nLabelPoints);
 %       end
 %       
@@ -2860,7 +2860,7 @@ classdef Labeler < handle
       if exist(tname,'dir')==0
         [success,message,~] = mkdir(tname);
         if ~success
-          error('Could not create temp directory %s: %s',tname,message);
+          obj.lerror('Could not create temp directory %s: %s',tname,message);
         end        
       elseif cleartmp
         obj.projClearTempDir();
@@ -3011,7 +3011,7 @@ classdef Labeler < handle
       
       [rawLblFile,projtempdir] = obj.projGetRawLblFile();
       if ~exist(rawLblFile,'file')
-        error('Raw label file %s does not exist. Could not create bundled label file.',...
+        obj.lerror('Raw label file %s does not exist. Could not create bundled label file.',...
           rawLblFile);
       end
       
@@ -3074,7 +3074,7 @@ classdef Labeler < handle
               end
               allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
             catch ME
-              warningNoTrace('Nettype ''%s'' (view %d): error caught trying to save model. Trained model will not be saved for this net type:\n%s',...
+              warningNoTrace('Nettype ''%s'' (view %d): obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
                 dm.netType,ndx,ME.getReport());
             end
           end
@@ -3105,7 +3105,7 @@ classdef Labeler < handle
       [tfsucc,tblPTrn,s] = ...
         obj.trackCreateDeepTrackerStrippedLbl();
       if ~tfsucc,
-        error('Could not collect data for exporting.');
+        obj.lerror('Could not collect data for exporting.');
       end
       % preProcData_P is [nLabels,nViews,nParts,2]
       save(outfile,'-mat','-v7.3','-struct','s');
@@ -3190,7 +3190,7 @@ classdef Labeler < handle
       obj.projRemoveTempDir();
       [success, message, ~] = mkdir(obj.projTempDir);
       if ~success
-        error('Could not clear the temp directory %s',message);
+        obj.lerror('Could not clear the temp directory %s',message);
       end
     end
     
@@ -3218,19 +3218,19 @@ classdef Labeler < handle
     
     function projMacroAdd(obj,macro,val)
       if isfield(obj.projMacros,macro)
-        error('Labeler:macro','Macro ''%s'' already defined.',macro);
+        obj.lerror('Labeler:macro','Macro ''%s'' already defined.',macro);
       end
       obj.projMacros.(macro) = val;
     end
     
     function projMacroSet(obj,macro,val)
       if ~ischar(val)
-        error('Labeler:macro','Macro value must be a string.');
+        obj.lerror('Labeler:macro','Macro value must be a string.');
       end
       
       s = obj.projMacros;
       if ~isfield(s,macro)
-        error('Labeler:macro','''%s'' is not a macro in this project.',macro);
+        obj.lerror('Labeler:macro','''%s'' is not a macro in this project.',macro);
       end
       s.(macro) = val;
       obj.projMacros = s;
@@ -3276,7 +3276,7 @@ classdef Labeler < handle
     
     function projMacroRm(obj,macro)
       if ~isfield(obj.projMacros,macro)
-        error('Labeler:macro','Macro ''%s'' is not defined.',macro);
+        obj.lerror('Labeler:macro','Macro ''%s'' is not defined.',macro);
       end
       obj.projMacros = rmfield(obj.projMacros,macro);
     end
@@ -4054,7 +4054,7 @@ classdef Labeler < handle
         elseif iscellstr(moviefile)
           trxfile = repmat({''},size(moviefile));
         else
-          error('Labeler:movieAdd',...
+          obj.lerror('Labeler:movieAdd',...
             '''Moviefile'' must be a char or cellstr.');
         end
       end
@@ -4099,7 +4099,7 @@ classdef Labeler < handle
         % See movieSetInProj()
         if any(strcmp(movFile,obj.(PROPS.MFA)))
           if nMov==1
-            error('Labeler:dupmov',...
+            obj.lerror('Labeler:dupmov',...
               'Movie ''%s'' is already in project.',movFile);
           else
             warningNoTrace('Labeler:dupmov',...
@@ -4180,14 +4180,14 @@ classdef Labeler < handle
       % Read movies from batch file
       
       if exist(bfile,'file')==0
-        error('Labeler:movieAddBatchFile','Cannot find file ''%s''.',bfile);
+        obj.lerror('Labeler:movieAddBatchFile','Cannot find file ''%s''.',bfile);
       end
       movs = importdata(bfile);
       try
         movs = regexp(movs,',','split');
         movs = cat(1,movs{:});
       catch ME
-        error('Labeler:batchfile',...
+        obj.lerror('Labeler:batchfile',...
           'Error reading file %s: %s',bfile,ME.message);
       end
       if size(movs,2)~=obj.nview
@@ -4196,7 +4196,7 @@ classdef Labeler < handle
           bfile,obj.nview);
       end
       if ~iscellstr(movs)
-        error('Labeler:movieAddBatchFile',...
+        obj.lerror('Labeler:movieAddBatchFile',...
           'Could not parse file ''%s'' for filenames.',bfile);
       end
       nMovSetImport = size(movs,1);
@@ -4228,14 +4228,14 @@ classdef Labeler < handle
         );
 
       if obj.nTargets~=1
-        error('Labeler:movieSetAdd','Unsupported for nTargets>1.');
+        obj.lerror('Labeler:movieSetAdd','Unsupported for nTargets>1.');
       end
       
       PROPS = Labeler.gtGetSharedPropsStc(gt);
       
       moviefiles = cellstr(moviefiles);
       if numel(moviefiles)~=obj.nview
-        error('Labeler:movieAdd',...
+        obj.lerror('Labeler:movieAdd',...
           'Number of moviefiles supplied (%d) must match number of views (%d).',...
           numel(moviefiles),obj.nview);
       end
@@ -4254,7 +4254,7 @@ classdef Labeler < handle
       
       [tfmatch,imovmatch,tfMovsEq,moviefilesfull] = obj.movieSetInProj(moviefiles);
       if tfmatch
-        error('Labeler:dupmov',...
+        obj.lerror('Labeler:dupmov',...
           'Movieset matches current movieset %d in project.',imovmatch);
       end
       
@@ -4419,7 +4419,7 @@ classdef Labeler < handle
       nMovOrig = obj.getnmoviesGTawareArg(gt);
       assert(any(iMov==1:nMovOrig),'Invalid movie index ''%d''.',iMov);
       if iMov==obj.currMovie
-        error('Labeler:movieRm','Cannot remove current movie.');
+        obj.lerror('Labeler:movieRm','Cannot remove current movie.');
       end
       
       tfProceedRm = true;
@@ -4534,13 +4534,13 @@ classdef Labeler < handle
       nmov = obj.nmovies;
       p = p(:);
       if ~isequal(sort(p),(1:nmov)')
-        error('Input argument ''p'' must be a permutation of 1..%d.',nmov);
+        obj.lerror('Input argument ''p'' must be a permutation of 1..%d.',nmov);
       end
       
       tfSuspStuffEmpty = (isempty(obj.suspScore) || all(cellfun(@isempty,obj.suspScore))) ...
         && isempty(obj.suspSelectedMFT);
       if ~tfSuspStuffEmpty
-        error('Reordering is currently unsupported for projects with suspiciousness.');
+        obj.lerror('Reordering is currently unsupported for projects with suspiciousness.');
       end
       
       iMov0 = obj.currMovie;
@@ -4636,7 +4636,7 @@ classdef Labeler < handle
       % macro: must be a currently defined macro
       
       if ~obj.projMacroIsMacro(macro)
-        error('Labeler:macro','''%s'' is not a currently defined macro.',...
+        obj.lerror('Labeler:macro','''%s'' is not a currently defined macro.',...
           macro);
       end
       
@@ -4754,7 +4754,7 @@ classdef Labeler < handle
             movfileFull,'movie');
           qtitle = 'Movie not found';
           if isdeployed || ~obj.isgui,
-            error(qstr);
+            obj.lerror(qstr);
           end
           
           if FSPath.hasAnyMacro(movfile)
@@ -5139,7 +5139,7 @@ classdef Labeler < handle
 
       ppPrms = obj.preProcParams;
       if ~isempty(ppPrms) && ppPrms.BackSub.Use
-        error('Unsupported when background subtraction is enabled.');
+        obj.lerror('Unsupported when background subtraction is enabled.');
       end
     
       wbObj = WaitBarWithCancel('Histogram Equalization','cancelDisabled',true);
@@ -5180,7 +5180,7 @@ classdef Labeler < handle
             im = mr.readframe(f,'docrop',true);
             nchan = size(im,3);
             if nchan>1
-              error('Images must be grayscale.');
+              obj.lerror('Images must be grayscale.');
             end
 
             [cnt,bins] = imhist(im,nBinHist);
@@ -5217,7 +5217,7 @@ classdef Labeler < handle
         );
       
       if isempty(obj.preProcH0)
-        error('No target image histogram set in property ''%s''.');
+        obj.lerror('No target image histogram set in property ''%s''.');
       end
             
       obj.movieEstimateHistEqLUTsHlp(false,nFrmPerMov,'docheck',docheck,'wbObj',wbObj);
@@ -5271,7 +5271,7 @@ classdef Labeler < handle
             im = mr.readframe(f,'docrop',true);
             nchan = size(im,3);
             if nchan>1
-              error('Images must be grayscale.');
+              obj.lerror('Images must be grayscale.');
             end
             Isamp{iF} = im;
           end
@@ -5279,7 +5279,7 @@ classdef Labeler < handle
           try
             Isamp = cat(2,Isamp{:});
           catch ME
-            error('Cannot concatenate sampled movie frames: %s',ME.message);
+            obj.lerror('Cannot concatenate sampled movie frames: %s',ME.message);
           end
         
           hgram = obj.preProcH0.hgram(:,ivw);
@@ -5358,7 +5358,7 @@ classdef Labeler < handle
             im = mr.readframe(f,'docrop',true);
             nchan = size(im,3);
             if nchan>1
-              error('Images must be grayscale.');
+              obj.lerror('Images must be grayscale.');
             end
             Isampmov{iF} = im;
             Jsampmov{iF} = ifo.lut(uint32(im)+1);
@@ -5558,7 +5558,7 @@ classdef Labeler < handle
 %           obj.movieMovieReaderOpen(mr,mIdx,ivw);
 %           Isamp{imov} = mr.readframe(frm,'docrop',true);
 %           if size(Isamp{imov},3)>1
-%             error('Image must be grayscale.');
+%             obj.lerror('Image must be grayscale.');
 %           end
 %           lut = Tbins{imov,ivw};
 %           Jsamp{imov} = lut(uint32(Isamp{imov})+1);
@@ -5710,7 +5710,7 @@ classdef Labeler < handle
       else
         if exist(filename,'file')==0
           % Currently user will have to navigate to iMov to fix
-          error('Labeler:file','Cannot find trxfile ''%s''.',filename);
+          obj.lerror('Labeler:file','Cannot find trxfile ''%s''.',filename);
         end
         tmp = load(filename,'-mat','trx');
         if isfield(tmp,'trx')
@@ -5840,7 +5840,7 @@ classdef Labeler < handle
       
       tf = obj.trxCheckFramesLive(frms);
       if ~all(tf)
-        error('Labeler:target',...
+        obj.lerror('Labeler:target',...
           'Target %d is not live during specified frames.',obj.currTarget);
       end
     end   
@@ -6941,7 +6941,7 @@ classdef Labeler < handle
       [tf,iMov] = ismember(movs,mfaf1); % iMov are movie indices
       if ~all(tf)
         movsbad = unique(movs(~tf));
-        error('Movies not found in project: %s',...
+        obj.lerror('Movies not found in project: %s',...
           String.cellstr2CommaSepList(movsbad));
       end
       
@@ -8137,11 +8137,11 @@ classdef Labeler < handle
       nMov = numel(iMovs);
       nView = obj.nview;
       if size(trkfiles,1)~=nMov
-        error('Labeler:argSize',...
+        obj.lerror('Labeler:argSize',...
           'Numbers of movies and trkfiles supplied must be equal.');
       end
       if size(trkfiles,2)~=nView
-        error('Labeler:argSize',...
+        obj.lerror('Labeler:argSize',...
           'Number of columns in trkfiles (%d) must equal number of views in project (%d).',...
           size(trkfiles,2),nView);
       end
@@ -8175,7 +8175,7 @@ classdef Labeler < handle
       for i=1:numel(movfiles)
         mov = movfiles{i};
         if exist(mov,'file')==0
-          error('Labeler:noMovie','Cannot find movie: %s.',mov);
+          obj.lerror('Labeler:noMovie','Cannot find movie: %s.',mov);
         end
         
         [movdir,movname] = fileparts(mov);
@@ -8291,11 +8291,11 @@ classdef Labeler < handle
 %             tfInBounds = 1<=iPt & iPt<=nPhysPts;
 %             if any(~tfInBounds)
 %               if tfMV
-%                 error('Labeler:trkImport',...
+%                 obj.lerror('Labeler:trkImport',...
 %                   'View %d: trkfile contains information for more points than exist in project (number physical points=%d).',...
 %                   iVw,nPhysPts);
 %               else
-%                 error('Labeler:trkImport',...
+%                 obj.lerror('Labeler:trkImport',...
 %                   'Trkfile contains information for more points than exist in project (number of points=%d).',...
 %                   nPhysPts);
 %               end
@@ -8555,10 +8555,10 @@ classdef Labeler < handle
       );
 
       if ~obj.hasMovie
-        error('Labeler:noMovie','No movie currently open.');
+        obj.lerror('Labeler:noMovie','No movie currently open.');
       end
       if exist(fname,'file')>0
-        error('Labeler:movie','Output movie ''%s'' already exists. For safety reasons, this movie will not be overwritten. Please specify a new output moviename.',...
+        obj.lerror('Labeler:movie','Output movie ''%s'' already exists. For safety reasons, this movie will not be overwritten. Please specify a new output moviename.',...
           fname);
       end
       
@@ -8847,7 +8847,7 @@ classdef Labeler < handle
 %                   
 %       if obj.gtIsGTMode
 %         % Easy to support in GT mode, just unnec for now
-%         error('Labeler:gt','Not supported in GT mode.');
+%         obj.lerror('Labeler:gt','Not supported in GT mode.');
 %       end
 %       
 %       iMov = obj.currMovie;
@@ -8962,7 +8962,7 @@ classdef Labeler < handle
       assert(isa(tblMF.mov,'MovieIndex'));
      
       if ~obj.cropProjHasCrops
-        error('Project does not contain cropping information.');
+        obj.lerror('Project does not contain cropping information.');
       end
       
       obj.cropCheckCropSizeConsistency();
@@ -9048,18 +9048,18 @@ classdef Labeler < handle
         ); 
 
       if ~obj.hasMovie
-        error('Please open a movie first.');
+        obj.lerror('Please open a movie first.');
       end
       if strcmp(ctrMeth,'trx') && ~obj.hasTrx
-        error('Project does not have trx. Cannot perform trx-centered montage.');
+        obj.lerror('Project does not have trx. Cannot perform trx-centered montage.');
       end
       if obj.cropProjHasCrops
-        error('Currently unsupported for projects with cropping.');
+        obj.lerror('Currently unsupported for projects with cropping.');
       end
       switch rotAlignMeth
         case 'headtail'
           if isempty(obj.skelHead) || isempty(obj.skelTail)
-            error('Please define head/tail landmarks under Track>Landmark parameters.');
+            obj.lerror('Please define head/tail landmarks under Track>Landmark parameters.');
           end
       end
       
@@ -9341,7 +9341,7 @@ classdef Labeler < handle
             lbls = obj.labelsGTaware;
             s = lbls{obj.currMovie};
             if isempty(s.frm)
-              error('Please switch movies to one with a labeled frame.');
+              obj.lerror('Please switch movies to one with a labeled frame.');
             end
             frm = s.frm(1);
             xyLbl = reshape(s.p(:,1),[],2);
@@ -9444,8 +9444,8 @@ classdef Labeler < handle
       %  bbox by scalefac*bbox
       % xy: [npt x 2]
       % roi: [4x2]
-      xymin = min(xy,[],1);
-      xymax = max(xy,[],1);
+      xymin = nanmin(xy,[],1);
+      xymax = nanmax(xy,[],1);
       xyrad = scalefac * (xymax-xymin)/2 + fixedmargin;
       xymid = (xymax+xymin)/2;
       xylo = xymid-xyrad;
@@ -9463,8 +9463,8 @@ classdef Labeler < handle
       % 
       % roi: 4x2. four (x,y) corners of rectangular roi.
       
-      xymin = min(kps,[],1);
-      xymax = max(kps,[],1);
+      xymin = nanmin(kps,[],1);
+      xymax = nanmax(kps,[],1);
       
       if dopad
         rads = (xymax-xymin)/2;
@@ -9564,14 +9564,24 @@ classdef Labeler < handle
           warningNoTrace('No tail point defined; using centroid');
         end
 
-        v = xyH-xyT; % vec from tail->head
-        phi = atan2(v(2),v(1)); % azimuth of vec from t->h
+        if any(isnan(xyH)) && any(isnan(xyT))
+          phi = 0;
+        elseif any(isnan(xyH))
+          v = xyCent - xyT;
+          phi = atan2(v(2),v(1));
+        elseif any(isnan(xyT))
+          v = xyH - xyCent;
+          phi = atan2(v(2),v(1));
+        else
+          v = xyH-xyT; % vec from tail->head
+          phi = atan2(v(2),v(1)); % azimuth of vec from t->h
+        end
+
         R = rotationMatrix(-phi);
-        
+
         xyc = xy-xyCent; % kps centered about centroid
         Rxyc = R*xyc.'; % [2xnpts] centered, rotated kps
                         % vec from t->h should point to positive x
-        
         Rroi = Labeler.maComputeBboxGeneral(Rxyc.',minaa,dopad,padfac,padflr);
         % Rroi is [4x2]
         roi = R.'*Rroi.'; 
@@ -9589,11 +9599,11 @@ classdef Labeler < handle
       % Basic checks on calrig obj
       
       if ~(isequal(crObj,[]) || isa(crObj,'CalRig')&&isscalar(crObj))
-        error('Labeler:viewCal','Invalid calibration object.');
+        obj.lerror('Labeler:viewCal','Invalid calibration object.');
       end
       nView = obj.nview;
       if nView~=crObj.nviews
-        error('Labeler:viewCal',...
+        obj.lerror('Labeler:viewCal',...
           'Number of views in project inconsistent with calibration object.');
       end
 %     AL 20181108 very strict check, don't worry about this for now. Maybe 
@@ -9696,7 +9706,7 @@ classdef Labeler < handle
 %         'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
       
       if obj.nmovies==0 || obj.currMovie==0
-        error('Labeler:calib',...
+        obj.lerror('Labeler:calib',...
           'Add/select a movie first before setting the calibration object.');
       end
       
@@ -9734,7 +9744,7 @@ classdef Labeler < handle
       
       nMov = obj.nmoviesGTaware;
       if nMov==0 || obj.currMovie==0
-        error('Labeler:calib',...
+        obj.lerror('Labeler:calib',...
           'Add/select a movie first before setting the calibration object.');
       end
 
@@ -9868,7 +9878,7 @@ classdef Labeler < handle
     end
     function gtThrowErrIfInGTMode(obj)
       if obj.gtIsGTMode
-        error('Labeler:gt','Unsupported when in GT mode.');
+        obj.lerror('Labeler:gt','Unsupported when in GT mode.');
       end
     end
     function PROPS = gtGetSharedProps(obj)
@@ -9895,7 +9905,7 @@ classdef Labeler < handle
       end
       
       if ~istable(tblMFT) && ~all(tblfldscontains(tblMFT,MFTable.FLDSID))
-        error('Specified table is not a valid Movie-Frame-Target table.');
+        obj.lerror('Specified table is not a valid Movie-Frame-Target table.');
       end
       
       tblMFT = tblMFT(:,MFTable.FLDSID);
@@ -9910,13 +9920,13 @@ classdef Labeler < handle
       else
         [tf,tfGT] = tblMFT.mov.isConsistentSet();
         if ~(tf && tfGT)
-          error('All MovieIndices in input table must reference GT movies.');
+          obj.lerror('All MovieIndices in input table must reference GT movies.');
         end
         
         n0 = height(tblMFT);
         n1 = height(unique(tblMFT(:,MFTable.FLDSID)));
         if n0~=n1
-          error('Input table appears to contain duplicate rows.');
+          obj.lerror('Input table appears to contain duplicate rows.');
         end
         
         if sortcanonical
@@ -10106,7 +10116,7 @@ classdef Labeler < handle
         
       if useLabels2
         if ~obj.gtIsGTMode
-          error('Project is not in Ground-Truthing mode.');
+          obj.lerror('Project is not in Ground-Truthing mode.');
           % Only b/c in the next .labelGet* call we want GT mode. 
           % Pretty questionable. .labelGet* could accept GT flag
         end
@@ -10363,7 +10373,7 @@ classdef Labeler < handle
       
       fcn = obj.suspComputeFcn;
       if isempty(fcn)
-        error('Labeler:susp','No suspiciousness function has been set.');
+        obj.lerror('Labeler:susp','No suspiciousness function has been set.');
       end
       [suspscore,tblsusp,diagstr] = fcn(obj);
       if isempty(suspscore)
@@ -10377,7 +10387,7 @@ classdef Labeler < handle
       if ~isempty(tblsusp)
         if ~istable(tblsusp) && all(ismember(MFTable.FLDSSUSP,...
                                   tblsusp.Properties.VariableNames'))
-          error('Labeler:susp',...
+          obj.lerror('Labeler:susp',...
             'Invalid ''tblsusp'' output from suspicisouness computation.');
         end
       end
@@ -10414,7 +10424,7 @@ classdef Labeler < handle
       tbl = obj.suspSelectedMFT;
       nrow = height(tbl);
       if i<1 || i>nrow
-        error('Labeler:susp','Row ''%d'' out of bounds.',i);
+        obj.lerror('Labeler:susp','Row ''%d'' out of bounds.',i);
       end
       mftrow = tbl(i,:);
       if obj.currMovie~=mftrow.mov
@@ -10429,14 +10439,14 @@ classdef Labeler < handle
     function suspVerifyScore(obj,suspscore)
       nmov = obj.nmoviesGTaware;
       if ~(iscell(suspscore) && numel(suspscore)==nmov)
-        error('Labeler:susp',...
+        obj.lerror('Labeler:susp',...
           'Invalid ''suspscore'' output from suspicisouness computation.');
       end
       gt = obj.gtIsGTMode;
       for imov=1:nmov
         [nfrm,ntgt] = obj.getNFrmNTrx(gt,imov);
         if ~isequal(size(suspscore{imov}),[nfrm ntgt])
-          error('Labeler:susp',...
+          obj.lerror('Labeler:susp',...
             'Invalid ''suspscore'' output from suspicisouness computation.');
         end
       end
@@ -10575,10 +10585,10 @@ classdef Labeler < handle
 % 
 %       if ppPrms.histeq 
 %         if ppPrms.BackSub.Use
-%           error('Histogram Equalization and Background Subtraction cannot both be enabled.');
+%           obj.lerror('Histogram Equalization and Background Subtraction cannot both be enabled.');
 %         end
 %         if ppPrms.NeighborMask.Use
-%           error('Histogram Equalization and Neighbor Masking cannot both be enabled.');
+%           obj.lerror('Histogram Equalization and Neighbor Masking cannot both be enabled.');
 %         end
 %       end
 %       
@@ -10652,7 +10662,7 @@ classdef Labeler < handle
         );
       if isempty(prmsTgtCrop)
         if isempty(obj.trackParams)
-          error('Please set tracking parameters.');
+          obj.lerror('Please set tracking parameters.');
         else
           prmsTgtCrop = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
         end
@@ -10731,7 +10741,7 @@ classdef Labeler < handle
       end
       
       if obj.gtIsGTMode && ~gtModeOK
-        error('Unsupported in GT mode.');
+        obj.lerror('Unsupported in GT mode.');
       end
       
       tblP = obj.labelGetMFTableLabeled('wbObj',wbObj,...
@@ -11003,7 +11013,7 @@ classdef Labeler < handle
       if ~isPreProcParamsIn,
         prmpp = obj.preProcParams;
         if isempty(prmpp)
-          error('Please specify tracking parameters.');
+          obj.lerror('Please specify tracking parameters.');
         end
         dataCurr = obj.preProcData;
       end
@@ -11215,7 +11225,7 @@ classdef Labeler < handle
 
       [tfOK,msgs] = APTParameters.checkParams(sPrm);
       if ~tfOK,
-        error('%s. ',msgs{:});
+        obj.lerror('%s. ',msgs{:});
       end
       
       sPrm0 = obj.trackParams;
@@ -11400,10 +11410,10 @@ classdef Labeler < handle
     function trackTrain(obj)
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:track','No tracker set.');
+        obj.lerror('Labeler:track','No tracker set.');
       end
       if ~obj.hasMovie
-        error('Labeler:track','No movie.');
+        obj.lerror('Labeler:track','No movie.');
       end
       tObj.train();
     end
@@ -11417,10 +11427,10 @@ classdef Labeler < handle
       
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:track','No tracker set.');
+        obj.lerror('Labeler:track','No tracker set.');
       end
       if ~obj.hasMovie
-        error('Labeler:track','No movie.');
+        obj.lerror('Labeler:track','No movie.');
       end
       
       obj.trackSetAutoParams();
@@ -11535,7 +11545,7 @@ classdef Labeler < handle
       
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:track','No tracker set.');
+        obj.lerror('Labeler:track','No tracker set.');
       end
 
       if isa(mftset,'table'),
@@ -11556,7 +11566,7 @@ classdef Labeler < handle
     function trackTbl(obj,tblMFT,varargin)
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:track','No tracker set.');
+        obj.lerror('Labeler:track','No tracker set.');
       end
       tObj.track(tblMFT,varargin{:});
       % For template mode to see new tracking results
@@ -11604,12 +11614,12 @@ classdef Labeler < handle
       
       if ~obj.hasMovie
         % for NumChans see below
-        error('Please select/open a movie.');
+        obj.lerror('Please select/open a movie.');
       end
       
       tObj = obj.tracker;
       if isempty(tObj)
-        error('There is no current tracker selected.');
+        obj.lerror('There is no current tracker selected.');
       end
       
       isGT = obj.gtIsGTMode;
@@ -11645,7 +11655,7 @@ classdef Labeler < handle
         end
         
         if isempty(tblPCache)
-          error('No %s data available.',descstr);
+          obj.lerror('No %s data available.',descstr);
         end
         
         if obj.hasTrx
@@ -11714,7 +11724,7 @@ classdef Labeler < handle
       nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
       nchan = unique(nchan);
       if ~isscalar(nchan)
-        error('Number of channels differs across views.');
+        obj.lerror('Number of channels differs across views.');
       end
       s.cfg.NumChans = nchan; % see below, we change this again
       s.cfg.HasTrx = obj.hasTrx;
@@ -11919,11 +11929,11 @@ classdef Labeler < handle
       
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:track','No tracker set.');
+        obj.lerror('Labeler:track','No tracker set.');
       end
       if ~strcmp(tObj.algorithmName,'cpr')
         % DeepTrackers track in bg and already export to trk
-        error('Only CPR tracking supported.');
+        obj.lerror('Only CPR tracking supported.');
       end
 
       tblMFT = mftset.getMFTable(obj);
@@ -11984,7 +11994,7 @@ classdef Labeler < handle
             
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:track','No tracker set.');
+        obj.lerror('Labeler:track','No tracker set.');
       end
 
       [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovs,trkfiles,...
@@ -12041,7 +12051,7 @@ classdef Labeler < handle
       tfPart = ~isempty(partTst);
       
       if obj.gtIsGTMode
-        error('Unsupported in GT mode.');
+        obj.lerror('Unsupported in GT mode.');
       end
       
       if ~tfTblMFgt
@@ -12086,11 +12096,11 @@ classdef Labeler < handle
       
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:tracker','No tracker is available for this project.');
+        obj.lerror('Labeler:tracker','No tracker is available for this project.');
       end
       if ~strcmp(tObj.algorithmName,'cpr')
         % DeepTrackers do non-blocking/bg tracking
-        error('Only CPR tracking currently supported.');
+        obj.lerror('Only CPR tracking currently supported.');
       end      
 
       if ~dontInitH0
@@ -12213,11 +12223,11 @@ classdef Labeler < handle
                   
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Labeler:tracker','No tracker is available for this project.');
+        obj.lerror('Labeler:tracker','No tracker is available for this project.');
       end
       if ~strcmp(tObj.algorithmName,'cpr')
         % DeepTrackers do non-blocking/bg tracking
-        error('Only CPR tracking currently supported.');
+        obj.lerror('Only CPR tracking currently supported.');
       end      
 
       obj.preProcUpdateH0IfNec();
@@ -12869,7 +12879,7 @@ classdef Labeler < handle
       % Return TrackingVisualizer object for id, or err
       [tf,iTR] = obj.trackResFindID(id);
       if ~tf
-        error('Tracking results ''%s'' not found in project.',id);
+        obj.lerror('Tracking results ''%s'' not found in project.',id);
       end
       tv = obj.trkResViz{iTR};
     end
@@ -12893,7 +12903,7 @@ classdef Labeler < handle
     function trackResRmID(obj,id)
       iTR = find(strcmp(obj.trkResIDs,id));
       if isempty(iTR)
-        error('Tracking results ID ''%s'' not found in project',id);
+        obj.lerror('Tracking results ID ''%s'' not found in project',id);
       end
 
       assert(isscalar(iTR));
@@ -12907,7 +12917,7 @@ classdef Labeler < handle
     
     function trackResAddCurrMov(obj,id,trkfiles)
       if ~obj.hasMovie
-        error('No movie is open.');
+        obj.lerror('No movie is open.');
       end
       mIdx = obj.currMovIdx;
       obj.trackResAdd(id,mIdx,trkfiles);
@@ -13233,7 +13243,7 @@ classdef Labeler < handle
     
     function cropSetCropMode(obj,tf)
       if obj.hasTrx && tf
-        error('User-specied cropping is unsupported for projects with trx.');
+        obj.lerror('User-specied cropping is unsupported for projects with trx.');
       end
       
       obj.cropCheckCropSizeConsistency();
@@ -13363,7 +13373,7 @@ classdef Labeler < handle
       
       iMov = obj.currMovie;
       if iMov==0
-        error('No movie selected.');
+        obj.lerror('No movie selected.');
       end
       
       obj.cropSetNewRoi(iMov,iview,roi);
@@ -13382,7 +13392,7 @@ classdef Labeler < handle
       imnr = movIfo.nr;
       tfproper = CropInfo.roiIsProper(roi,imnc,imnr);
       if ~tfproper
-        error('ROI extends outside of video. Video image is %d x %d.\n',...
+        obj.lerror('ROI extends outside of video. Video image is %d x %d.\n',...
           imnc,imnr);
       end
       
@@ -13536,7 +13546,7 @@ classdef Labeler < handle
       % rois: [nmovGTaware x 4 x nview]
       
       if ~obj.cropProjHasCrops
-        error('Project does not have crops defined.');
+        obj.lerror('Project does not have crops defined.');
       end
       
       cInfoAll = obj.movieFilesAllCropInfoGTaware;
@@ -13559,10 +13569,10 @@ classdef Labeler < handle
         'figargs',{'WindowStyle','docked'});
       
       if obj.hasTrx
-        error('Unsupported for projects with trx.');
+        obj.lerror('Unsupported for projects with trx.');
       end
       if ~obj.cropProjHasCrops
-        error('Project does not have crops defined.');
+        obj.lerror('Project does not have crops defined.');
       end
       
       if isempty(imov)
@@ -13579,7 +13589,7 @@ classdef Labeler < handle
       mov = obj.movieFilesAllFullGTaware(imov,:);
       nmov = size(mov,1);
       if nmov==0
-        error('No movies.');
+        obj.lerror('No movies.');
       end
       frm = ones(nmov,1);
       iTgt = ones(nmov,1);
@@ -13722,7 +13732,7 @@ classdef Labeler < handle
           if changeTgtsIfNec
             iTgtsLive = find(frm2trxThisFrm);
             if isempty(iTgtsLive)
-              error('Labeler:target','No targets live in frame %d.',frm);              
+              obj.lerror('Labeler:target','No targets live in frame %d.',frm);              
             else
               iTgtsLiveDist = abs(iTgtsLive-iTgt);
               itmp = argmin(iTgtsLiveDist);
@@ -13733,7 +13743,7 @@ classdef Labeler < handle
               return;
             end
           else
-            error('Labeler:target','Target %d not live in frame %d.',...
+            obj.lerror('Labeler:target','Target %d not live in frame %d.',...
               iTgt,frm);
           end
         end
@@ -13817,7 +13827,7 @@ classdef Labeler < handle
       if obj.hasTrx
         frm = obj.currFrame;
         if ~obj.frm2trx(frm,iTgt)
-          error('Labeler:target',...
+          obj.lerror('Labeler:target',...
             'Target idx %d is not live at current frame (%d).',iTgt,frm);
         end
       end
@@ -13853,7 +13863,7 @@ classdef Labeler < handle
 %         {'positive' 'integer' '<=' obj.nTargets});
 
       if ~obj.isinit && obj.hasTrx && ~obj.frm2trx(frm,iTgt)
-        error('Labeler:target',...
+        obj.lerror('Labeler:target',...
           'Target idx %d is not live at current frame (%d).',iTgt,frm);
       end
 
@@ -14042,7 +14052,7 @@ classdef Labeler < handle
       if isempty(frms)
         obj.selectedFrames = frms;        
       elseif ~obj.hasMovie
-        error('Labeler:noMovie',...
+        obj.lerror('Labeler:noMovie',...
           'Cannot set selected frames when no movie is loaded.');
       else
         validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
@@ -14368,7 +14378,7 @@ classdef Labeler < handle
         case PrevAxesMode.LASTSEEN,
           v2 = find(strcmpi(contents,'Previous frame'));
         otherwise
-          error('Unknown previous axes mode');
+          obj.lerror('Unknown previous axes mode');
       end
       if v2 ~= v1,
         set(obj.gdata.popupmenu_prevmode,'Value',v2);
@@ -15033,7 +15043,7 @@ classdef Labeler < handle
       % Try to import default trk file for current movie into labels2. If
       % the file is not there, error.      
       if ~obj.hasMovie
-        error('Labeler:nomov','No movie is loaded.');
+        obj.lerror('Labeler:nomov','No movie is loaded.');
       end
       obj.labels2ImportTrkPromptAuto(obj.currMovie);
     end
@@ -15274,28 +15284,28 @@ classdef Labeler < handle
     function updateFGEmpiricalPDF(obj,varargin)
       
       if ~obj.hasTrx
-        error('Method only supported for projects with trx.');
+        obj.lerror('Method only supported for projects with trx.');
       end
       if obj.gtIsGTMode
-        error('Method is not supported in GT mode.');
+        obj.lerror('Method is not supported in GT mode.');
       end
       if obj.cropProjHasCrops
         % in general projs with trx would never use crop info 
-        error('Method unsupported for projects with cropping info.');
+        obj.lerror('Method unsupported for projects with cropping info.');
       end
       if obj.nview>1
-        error('Method is not supported for multiple views.');
+        obj.lerror('Method is not supported for multiple views.');
       end
       tObj = obj.tracker;
       if isempty(tObj)
-        error('Method only supported for projects with trackers.');
+        obj.lerror('Method only supported for projects with trackers.');
       end
       
       prmPP = obj.preProcParams;
       prmBackSub = prmPP.BackSub;
       prmNborMask = prmPP.NeighborMask;
       if isempty(prmBackSub.BGType) || isempty(prmBackSub.BGReadFcn)
-        error('Computing the empirical foreground PDF requires a background type and background read function to be defined in the tracking parameters.');
+        obj.lerror('Computing the empirical foreground PDF requires a background type and background read function to be defined in the tracking parameters.');
       end
       if ~prmNborMask.Use
         warningNoTrace('Neighbor masking is currently not turned on in your tracking parameters.');
@@ -15426,8 +15436,11 @@ classdef Labeler < handle
   methods
     
     function lerror(obj,varargin)
-      
-      msg = sprintf(varargin{2:end});
+      if isempty(regexp(varargin{1},'\w:\w','ONCE')) || ~isempty(regexp(varargin{1},'%','ONCE'))
+        msg = sprintf(varargin{1:end});
+      else
+        msg = sprintf(varargin{2:end});
+      end
       errordlg(msg,'APT Error');
       obj.ClearStatus();
       error(varargin{:});

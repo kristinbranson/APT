@@ -63,8 +63,8 @@ ROOT:
     - LossMask:
       - ['Loss Masking','',false,Parameters for masking loss to handle unlabeled targets,'','']
       - MinAspectRatio: ['Minimum Aspect Ratio',float,true,'Minimum aspect ratio for mask.',0.3,'','Advanced',['ma'],true]
-      - PadFactor: ['Padding factor',float,true,'Dimensionless factor controlling width of padding around target. A value of 1 indicates a tight fit around the landmark convex hull.',1.5,'','Advanced',['ma'],true]
-      - PadFloor: ['Minimum padding',float,true,'Minimum width of padding around target, in pixels.',32,'','Advanced',['ma'],true]
+      - PadFactor: ['Padding factor',float,true,'Dimensionless factor controlling width of padding around target. A value of 1 indicates a tight fit around the landmark convex hull.',1.5,'','Beginner',['ma'],true]
+      - PadFloor: ['Minimum padding',float,true,'Minimum width of padding around target, in pixels.',32,'','Beginner',['ma'],true]
       - AlignHeadTail: ['Align mask using head/tail landmark specifications',boolean,true,'If true, align masks to animal using head/tail landmarks',false,'','Important','ma',true]
     - TrackletStitch:
       - ['Tracklet Stitching','',false,Parameters for stitching tracked targets into tracklets,'','']

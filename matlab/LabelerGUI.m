@@ -52,7 +52,7 @@ end
 function LabelerGUI_OpeningFcn(hObject,eventdata,handles,varargin) 
 
 if verLessThan('matlab','8.4')
-  error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
+  handles.labelerObj.lerror('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
 handles.labelerObj = varargin{1};
@@ -1156,7 +1156,7 @@ switch lower(state),
     elseif lObj.nview > 1,
       set(handles.h_singleview_only,'Enable','off');
     else
-      error('Sanity check -- nview = 0');
+      handles.labelerObj.lerror('Sanity check -- nview = 0');
     end
     if lObj.maIsMA
       set(handles.h_nonma_only,'Enable','off');
@@ -3316,13 +3316,13 @@ function menu_file_managemovies_Callback(~,~,handles)
 if isfield(handles,'movieMgr')
   handles.movieMgr.setVisible(true);
 else
-  error('LabelerGUI:movieMgr','Please create or load a project.');
+  handles.labelerObj.lerror('LabelerGUI:movieMgr','Please create or load a project.');
 end
 
 function menu_file_import_labels_trk_curr_mov_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if ~lObj.hasMovie
-  error('LabelerGUI:noMovie','No movie is loaded.');
+  handles.labelerObj.lerror('LabelerGUI:noMovie','No movie is loaded.');
 end
 lObj.gtThrowErrIfInGTMode();
 iMov = lObj.currMovie;
@@ -3350,7 +3350,7 @@ handles.labelerObj.labelImportTrkPromptGenericSimple(iMov,...
 function menu_file_import_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if ~lObj.hasMovie
-  error('LabelerGUI:noMovie','No movie is loaded.');
+  handles.labelerObj.lerror('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie; % gt-aware
 SetStatus(handles,'Importing tracking results...');
@@ -4013,12 +4013,12 @@ end
 %   lObj = handles.labelerObj;
 %   lc = lObj.lblCore;
 %   if ~( ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration )
-%     error('LabelerGUI:multiView',...
+%     handles.labelerObj.lerror('LabelerGUI:multiView',...
 %       'Labeling mode must support multiple, calibrated views.');
 %   end
 %   vcd = lObj.viewCalibrationDataCurrent;
 %   if isempty(vcd)
-%     error('LabelerGUI:vcd','No view calibration data set.');
+%     handles.labelerObj.lerror('LabelerGUI:vcd','No view calibration data set.');
 %   end
 %   % Hmm, is this weird, getting the vcd off Labeler not LabelCore. They
 %   % should match however
@@ -4136,7 +4136,7 @@ function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 if isempty(tObj)
-  error('LabelerGUI:tracker','No tracker for this project.');
+  handles.labelerObj.lerror('LabelerGUI:tracker','No tracker for this project.');
 end
 if tObj.hasTrained && tObj.trnDataDownSamp
   resp = questdlg('A tracker has already been trained with downsampled training data. Proceeding will clear all previous trained/tracked results. OK?',...
@@ -4232,7 +4232,7 @@ if isempty(resp)
 end
 nfold = str2double(resp{1});
 if round(nfold)~=nfold || nfold<=1
-  error('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
+  handles.labelerObj.lerror('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
 end
       
 wbObj = WaitBarWithCancel('Cross Validation');
@@ -4466,7 +4466,7 @@ set(handles.menu_track_id,'checked',lObj.track_id);
 % lObj = handles.labelerObj;
 % iMov = lObj.currMovie;
 % if iMov==0
-%   error('LabelerGUI:noMov','No movie currently set.');
+%   handles.labelerObj.lerror('LabelerGUI:noMov','No movie currently set.');
 % end
 % [tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 % if ~tfok
@@ -4482,7 +4482,7 @@ function menu_file_export_all_movies_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 nMov = lObj.nmoviesGTaware;
 if nMov==0
-  error('LabelerGUI:noMov','No movies in project.');
+  handles.labelerObj.lerror('LabelerGUI:noMov','No movies in project.');
 end
 iMov = 1:nMov;
 [tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
@@ -4495,7 +4495,7 @@ function menu_track_set_labels_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 if lObj.gtIsGTMode
-  error('LabelerGUI:gt','Unsupported in GT mode.');
+  handles.labelerObj.lerror('LabelerGUI:gt','Unsupported in GT mode.');
 end
 if ~isempty(tObj) && tObj.getHasTrained()
   [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
@@ -4515,7 +4515,7 @@ else
   iMov = lObj.currMovie;
   frm = lObj.currFrame;
   if iMov==0
-    error('LabelerGUI:setLabels','No movie open.');
+    handles.labelerObj.lerror('LabelerGUI:setLabels','No movie open.');
   end
   
   if lObj.maIsMA
@@ -4545,7 +4545,7 @@ else
     lObj.lblCore.newFrame(frm,frm,1);
   else
     if lObj.nTrx>1
-      error('LabelerGUI:setLabels','Unsupported for multiple targets.');
+      handles.labelerObj.lerror('LabelerGUI:setLabels','Unsupported for multiple targets.');
     end
     %lpos2 = lObj.labeledpos2{iMov};
     p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
@@ -5009,7 +5009,7 @@ function menu_file_export_labels2_trk_curr_mov_Callback(hObject, eventdata, hand
 lObj = handles.labelerObj;
 iMov = lObj.currMovie;
 if iMov==0
-  error('LabelerGUI:noMov','No movie currently set.');
+  handles.labelerObj.lerror('LabelerGUI:noMov','No movie currently set.');
 end
 [tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok

@@ -275,6 +275,21 @@ classdef TrackingVisualizerTrxMA < handle
       obj.updateShowHideAll();
     end
     
+    function set_hittest(obj,onoff)
+      if ~isempty(obj.hTraj) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
+        [obj.hTraj.HitTest] = deal(onoff);
+        [obj.hTrx.HitTest] = deal(onoff);
+        [obj.hTrxTxt.HitTest] = deal(onoff);
+      end      
+    end
+    
+    function hittest_off_all(obj)
+      obj.set_hittest('off');
+    end
+    function hittest_on_all(obj)
+      obj.set_hittest('on');
+    end
+  
 %   Currently trx txtlbl viz controlled by lObj.showTrxIDLbl    
 %     function setHideTextLbls(obj,tfshow)
 %     end

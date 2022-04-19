@@ -81,7 +81,7 @@ vv[np.isnan(vv)] = 60.
 mm2 = np.nanpercentile(vv, prcs, axis=0, interpolation='nearest')
 
 ##
-cmd = '-name 20220416T062307 -view 1 -cache /groups/branson/home/kabram/.apt/tpfdb62ffb_de58_4bb8_9967_ac800831fcc1 -type multi_mdn_joint_torch /groups/branson/home/kabram/.apt/tpfdb62ffb_de58_4bb8_9967_ac800831fcc1/nails/20220416T062307_20220416T062311.lbl track -out /groups/branson/home/kabram/.apt/tpfdb62ffb_de58_4bb8_9967_ac800831fcc1/nails/multi_mdn_joint_torch/view_0/20220416T062307/trk/IMG_3067_trn20220416T062307_iter15000_20220418T020404_mov1_vwj1.trk -mov /groups/branson/bransonlab/mayank/data/nails/IMG_3067.avi -start_frame 299 -end_frame 453'
+cmd = ['/groups/branson/home/kabram/.apt/tpc690f2b9_5d41_439f_b241_7cfc922989e6/nails3/20220418T081448_20220418T081452.lbl', '-name', '20220418T081448', '-err_file', '/groups/branson/home/kabram/.apt/tpc690f2b9_5d41_439f_b241_7cfc922989e6/nails3/20220418T081448view0_20220418T081452_bu.err', '-json_trn_file', '/groups/branson/home/kabram/.apt/tpc690f2b9_5d41_439f_b241_7cfc922989e6/nails3/loc.json', '-conf_params', '-type', 'multi_mdn_joint_torch', '-cache', '/groups/branson/home/kabram/.apt/tpc690f2b9_5d41_439f_b241_7cfc922989e6', 'train', '-use_cache']
 
 from reuse import *
 # cmd = cmd.replace('"/','/')
