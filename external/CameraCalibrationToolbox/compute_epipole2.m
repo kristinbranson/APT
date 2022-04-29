@@ -1,7 +1,9 @@
 function [epipole] = compute_epipole2(xLp,R,T,...
   fc_right,cc_right,kc_right,alpha_c_right,...
   fc_left,cc_left,kc_left,alpha_c_left,varargin)
-% xLp: 0b per caltech toolbox conventions
+% xLp, cc_right, cc_left: 0b per caltech toolbox conventions
+%
+% epipole: 0b etc
 
 [roi,roifac,roiradius,N_line] = myparse(varargin,...
   'roi',[], ... % (opt) [xlo xhi ylo yhi] ROI (in right cam) in which to compute EP line (approx)

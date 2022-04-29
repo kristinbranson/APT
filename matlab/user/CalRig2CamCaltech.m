@@ -59,6 +59,8 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
     % When X_L=0, X_R=T_RL => T_RL is position of left cam wrt right
     omRL;
     TRL;
+
+    useEP2 = false;
   end
   properties (Dependent,Hidden)
     % extrinsic props all derived from .om_RL, .T_RL
@@ -124,6 +126,9 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       assert(numel(xy1)==2);
       %fprintf(1,'Cam %d: croppedcoords: %s\n',iAx,mat2str(round(pos(:)')));
 
+      % "view"/"target" nomenclature here a little confusing
+      % "view": where the EP line will be drawn; corresponds to iViewEpi
+      % "target": origin of click/xy1; corresponds to iView1
       if iView1 == 1
         view_R = rodrigues(obj.omRL);
         view_T = obj.TRL;
@@ -154,15 +159,30 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xLp = [xy1(1), xy1(2)] - 1;
       xLp = xLp';
       
-      % hack... we'll add 1000 to the last argument of compute_epipole
-      % what this does is to compute 1000 points on the epipolar line. This
-      % isn't great, the correct solution would probably to figure out the
-      % the bounds of the image space before computing points.
-      epipole = compute_epipole(xLp, view_R, view_T, view_fc, view_cc, view_kc, view_alpha_c, target_fc, target_cc, target_kc, target_alpha_c, 1000);
+      if obj.useEP2
+        epipole = compute_epipole2(xLp, view_R, view_T, view_fc, view_cc, ...
+          view_kc, view_alpha_c, target_fc, target_cc, target_kc, ...
+          target_alpha_c,'roi',roiEpi);
+      else
+        % hack... we'll add 1000 to the last argument of compute_epipole
+        % what this does is to compute 1000 points on the epipolar line. This
+        % isn't great, the correct solution would probably to figure out the
+        % the bounds of the image space before computing points.
+        %
+        % AL 20220428: Think the 1e3 is a 'diameter of interest' (in px) 
+        % for the EP line rather than a number of points; for the latter
+        % see N_line parameter in compute_epipole. See also
+        % compute_epipole2 for slightly improved range-of-interest
+        % estimation
+        epipole = compute_epipole(xLp, view_R, view_T, view_fc, view_cc, ...
+          view_kc, view_alpha_c, target_fc, target_cc, target_kc, ...
+          target_alpha_c,1000);
+      end
       xEPL = epipole(1, :) + 1;
       yEPL = epipole(2, :) + 1;
       
       % next lets limit the extents of the epipolar line.
+      
       yEPL(xEPL < 1) = [];
       xEPL(xEPL < 1) = [];
 
