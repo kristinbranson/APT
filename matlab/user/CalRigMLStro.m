@@ -712,7 +712,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         case 'caltech'
           [xEPL,yEPL] = ...
             obj.computeEpiPolarLineCaltech(iView1,xy1,iViewEpi,roiEpi,varargin{:});
-        case 'zray'
+        case {'zray' 'mostaccurate'} % accept 'mostaccurate' for legacy
           [xEPL,yEPL,Xc1,Xc1OOB] = ...
             obj.computeEpiPolarLineZRay(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         case 'fastest'
