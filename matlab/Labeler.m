@@ -961,6 +961,11 @@ classdef Labeler < handle
     function v = get.moviesSelected(obj) %#%GUIREQ
       % Find MovieManager in LabelerGUI
       
+      if ~obj.isinit,
+        v = [];
+        return;
+      end
+      
       handles = obj.gdata;
       if isfield(handles,'movieMgr')
         mmc = handles.movieMgr;
