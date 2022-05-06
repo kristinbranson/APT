@@ -156,6 +156,7 @@ classdef LabelCoreSeqMA < LabelCore
       obj.refreshTxLabelCoreAux();
       
       obj.state = LabelState.ACCEPTED; 
+      obj.enableControls();
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>
@@ -600,11 +601,18 @@ classdef LabelCoreSeqMA < LabelCore
     
     function cbkNewTgt(obj)
       lObj = obj.labeler;
-      ntgts = lObj.labelNumLabeledTgts();
-      lObj.setTargetMA(ntgts+1);
-      obj.newPrimaryTarget();
-      lObj.updateTrxTable();
-      obj.beginLabel();
+      
+      if obj.state == LabelState.LABEL,
+        % cancel
+        obj.beginAcceptedReset();
+      else % ACCEPTED
+        % add a new label
+        ntgts = lObj.labelNumLabeledTgts();
+        lObj.setTargetMA(ntgts+1);
+        obj.newPrimaryTarget();
+        lObj.updateTrxTable();
+        obj.beginLabel();
+      end
     end
     
     function cbkDelTgt(obj)
@@ -692,6 +700,26 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.updateHideTarget(iTgt); 
     end
 
+    function enableControls(obj)
+      
+      if obj.state == LabelState.LABEL,
+        set(obj.pbNewTgt,'Enable','on');
+        set(obj.pbDelTgt,'Enable','off');
+        set(obj.pbRoiNew,'Enable','off');
+        set(obj.pbRoiEdit,'Enable','off');
+        set(obj.pbNewTgt,'String','Cancel');
+
+      else
+        set(obj.pbNewTgt,'Enable','on');
+        set(obj.pbDelTgt,'Enable','on');
+        set(obj.pbRoiNew,'Enable','on');
+        set(obj.pbRoiEdit,'Enable','on');
+        set(obj.pbNewTgt,'String','New Target');
+
+      end
+      
+    end
+    
     function resetState(obj)
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
@@ -740,6 +768,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
+      obj.enableControls();
     end    
     function beginAcceptedReset(obj)
       % like beginAccepted, but reset first
@@ -748,6 +777,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
+      obj.enableControls();
 
     end
     function beginLabel(obj)
@@ -767,6 +797,7 @@ classdef LabelCoreSeqMA < LabelCore
           ~isempty(obj.labeler.tracker.trkVizer.tvtrx)
         obj.labeler.tracker.trkVizer.tvtrx.hittest_off_all();
       end
+      obj.enableControls();
 
     end
             
