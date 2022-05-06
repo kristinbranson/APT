@@ -89,6 +89,7 @@ classdef LabelCoreSeqMA < LabelCore
 
       obj.labeler.currImHud.updateReadoutFields('hasTgt',true);
       obj.labeler.gdata.axes_curr.Toolbar.Visible = 1;
+      obj.tcOn = obj.labeler.isTwoClickAlign;
     end
     function addMAbuttons(obj)
       btn = obj.pbRoiNew;

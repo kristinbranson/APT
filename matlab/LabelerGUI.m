@@ -3530,6 +3530,7 @@ function menu_setup_ma_twoclick_align_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lc = lObj.lblCore;
 tftc = ~lc.tcOn;
+lObj.isTwoClickAlign = tftc; % store the state
 lc.setTwoClickOn(tftc);
 hObject.Checked = onIff(tftc); % skip listener business for now
 
