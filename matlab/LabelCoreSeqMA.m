@@ -558,10 +558,19 @@ classdef LabelCoreSeqMA < LabelCore
     end
     function cbkRoiNew(obj)
       assert(obj.roiShow);
+      obj.labeler.SetStatus('Click and drag to add a box of pixels considered labeled. Hit Esc to cancel',false);
+      set(obj.pbNewTgt,'Enable','off');
+      set(obj.pbDelTgt,'Enable','off');
+      set(obj.pbRoiNew,'Enable','off');
+      set(obj.pbRoiEdit,'Enable','off');
       obj.roiRectDrawer.newRoiDraw();
       v = obj.roiRectDrawer.getRoisVerts();
       obj.labeler.labelroiSet(v);
-
+      obj.labeler.ClearStatus();
+      set(obj.pbNewTgt,'Enable','on');
+      set(obj.pbDelTgt,'Enable','on');
+      set(obj.pbRoiNew,'Enable','on');
+      set(obj.pbRoiEdit,'Enable','on');
 %       obj.roiUpdatePBEdit(true);
     end
     function cbkRoiEdit(obj)

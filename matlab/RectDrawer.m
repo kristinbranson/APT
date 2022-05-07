@@ -22,22 +22,47 @@ classdef RectDrawer < handle
 %       wh = STARTSZFAC * (lims(2)-lims(1));
 %       ht = STARTSZFAC * (lims(4)-lims(3)); 
 %       pos = [lims([1 3]) wh ht];
-      pos = getrect(hax);
+      try
+        h = drawrectangle(hax,'Rotatable',false);
+        pos = h.Position;
+        h.InteractionsAllowed = 'none';
+      catch ME
+        warning(getReport(ME));
+      end
+      if numel(pos) < 4,
+        try
+          delete(h);
+        catch ME
+          warning(getReport(ME));
+        end
+        return;
+      end
       if (pos(1)+pos(3))<lims(1) ...
         || (pos(2)+pos(4))<lims(3) ...
         || pos(1)>lims(2) ...
         || pos(2)>lims(4)
+        try
+          delete(h);
+        catch ME
+          warning(getReport(ME));
+        end
         warningNoTrace('ROI not added: ROI is completely outside the axes limits.');
         return;
       end
       if pos(3)==0 || pos(4)==0
+        try
+          delete(h);
+        catch ME
+          warning(getReport(ME));
+        end
         warningNoTrace('ROI not added: ROI has zero area.');
         return;
       end
       pos(1:2) = max(lims([1 3]),pos(1:2));
       pos(3:4) = min(lims([2 4]),pos(3:4)+pos(1:2))-pos(1:2);
-      h = images.roi.Rectangle(obj.ax,'Position',pos,...
-        'InteractionsAllowed','none');
+      h.Position = pos;
+%       h = images.roi.Rectangle(obj.ax,'Position',pos,...
+%         'InteractionsAllowed','none');
       h.addlistener('DeletingROI',@(s,e)obj.cbkROIDeleted(s,e));
       obj.hRect(end+1,1) = h;
     end
