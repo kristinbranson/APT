@@ -2052,6 +2052,7 @@ switch lblMode
     handles.menu_setup_load_calibration_file.Visible = 'off';
     handles.menu_setup_use_calibration.Visible = 'off';
     handles.menu_setup_ma_twoclick_align.Visible = 'on';
+    handles.menu_setup_ma_twoclick_align.Checked = lObj.isTwoClickAlign;
     handles.menu_view_zoom_toggle.Visible = 'on';
     handles.menu_view_pan_toggle.Visible = 'on';
     handles.menu_view_showhide_maroi.Visible = 'on';

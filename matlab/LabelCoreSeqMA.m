@@ -575,6 +575,11 @@ classdef LabelCoreSeqMA < LabelCore
     end
     function cbkRoiEdit(obj)
       tfEditingNew = obj.pbRoiEdit.Value;
+      if tfEditingNew,
+        obj.labeler.SetStatus('Drag corners to move label boxes. Right click and select "Delete Rectangle" to delete.',false);
+      else
+        obj.labeler.ClearStatus();
+      end
       rrd = obj.roiRectDrawer;
       rrd.setEdit(tfEditingNew);
       if ~tfEditingNew
