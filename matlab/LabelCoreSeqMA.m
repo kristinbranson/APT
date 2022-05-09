@@ -909,11 +909,11 @@ classdef LabelCoreSeqMA < LabelCore
       h{end+1} = '{\fontname{Courier}     arrow }: Otherwise, go back/forward one frame.';
       h{end+1} = sprintf('{\\fontname{Courier}   Up/down }: If kpt selected, move by %.1f px.',uppx);
       h{end+1} = '{\fontname{Courier}     arrow }';
-      h{end+1} = '{\fontname{Courier}   Shift + }';
-      h{end+1} = sprintf('{\\fontname{Courier}Left/right }: If kpt selected, move by %.1f px.',10*rightpx);
-      h{end+1} = '{\fontname{Courier}     arrow }';
-      h{end+1} = '{\fontname{Courier}   Shift + }';
-      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }: If kpt selected, move by %.1f px.',10*uppx);
+      h{end+1} = sprintf('{\\fontname{Courier}   Shift + }: If kpt selected, move by %.1f px.',10*rightpx);
+      h{end+1} = sprintf('{\\fontname{Courier}Left/right }  Otherwise, go to');
+      h{end+1} = sprintf('{\\fontname{Courier}     arrow }  %s',obj.labeler.movieShiftArrowNavMode.prettyStr);
+      h{end+1} = sprintf('{\\fontname{Courier}   Shift + }: If kpt selected, move by %.1f px.',10*uppx);
+      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }');
       h{end+1} = '{\fontname{Courier}     arrow }';
       h{end+1} = '{\fontname{Courier}Mouse scroll }: Zoom in/out.';
       h{end+1} = '{\fontname{Courier}Mouse right-click-drag }: Pan view.';
