@@ -858,7 +858,7 @@ classdef LabelCoreSeqMA < LabelCore
         ' - Push the New Target button.'
         };
       if obj.tcOn,
-        h{end+1} = ' - Click two points on the axes to zoom in on your target.';
+        h{end+1} = ' - Click two points on the new target to zoom in on it.';
         h{end+1} = '   Often, these points correspond to the animal''s head and tail.';
       end
       h{end+1} = ' - Click the locations of your keypoints in order.';
@@ -870,8 +870,8 @@ classdef LabelCoreSeqMA < LabelCore
       h{end+1} = '';
       h{end+1} = 'Use{\bf Label Boxes} to specify image regions that are completely labeled. ';
       h{end+1} = '  This is important for teaching the classifier what a negative label is. ';
-      h{end+1} = '  An image region is completely labeled if all keypoints in that region';
-      h{end+1} = '  are labeled. You e.g. can draw a label box around parts of the image';
+      h{end+1} = '  An image region is completely labeled if no keypoints in that region';
+      h{end+1} = '  are unlabeled. You e.g. can draw a label box around parts of the image';
       h{end+1} = '  that do not contain animals to add negative training examples.';
       h{end+1} = ' - Click New Label Box to add a new label box.';
       h{end+1} = '';
