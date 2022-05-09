@@ -3446,7 +3446,7 @@ if isempty(lblCore)
 else
   h = lblCore.getLabelingHelp();
 end
-msgbox(h,'Labeling Actions','help');
+msgbox(h,'Labeling Actions','help',struct('Interpreter','tex','WindowStyle','replace'));
 
 function menu_help_about_Callback(hObject, eventdata, handles)
 about(handles.labelerObj);

@@ -856,14 +856,71 @@ classdef LabelCoreSeqMA < LabelCore
       obj.refreshPtMarkers('iPts',iPt);
     end
     
-    function h = getLabelingHelp(obj) %#ok<MANU>
+    function h = getLabelingHelp(obj) 
       h = { ...
-        '* Use mouse-scroll and right-click-drag to zoom and pan.'
-        '* Click New Target to begin labeling a new target.'
-        '* Click to label keypoints sequentially. Hold shift for partially-occluded points.'
-        '* Drag keypoints to adjust after labeling.'
-        '* Use Label Boxes to specify regions in the image where everything is labeled correctly.'
+        'To{\bf add a target}: '
+        ' - Push the New Target button.'
         };
+      if obj.tcOn,
+        h{end+1} = ' - Click two points on the axes to zoom in on your target.';
+        h{end+1} = '   Often, these points correspond to the animal''s head and tail.';
+      end
+      h{end+1} = ' - Click the locations of your keypoints in order.';
+      h{end+1} = ' - Hold shift while clicking to annotate that a keypoint is occluded.';
+      h{end+1} = ' - You do not need to label all animals in each frame. ';
+      h{end+1} = '   the black boxes show regions of the image around your labeled';
+      h{end+1} = '   animals. APT only uses these boxes for training. If another';
+      h{end+1} = '   animal is inside one of your label boxes, you should label it.';
+      h{end+1} = '';
+      h{end+1} = 'Use{\bf Label Boxes} to specify image regions that are completely labeled. ';
+      h{end+1} = '  This is important for teaching the classifier what a negative label is. ';
+      h{end+1} = '  An image region is completely labeled if all keypoints in that region';
+      h{end+1} = '  are labeled. You e.g. can draw a label box around parts of the image';
+      h{end+1} = '  that do not contain animals to add negative training examples.';
+      h{end+1} = ' - Click New Label Box to add a new label box.';
+      h{end+1} = '';
+      h{end+1} = 'To{\bf set zoom}, at any time, mouse-scroll to zoom and';
+      h{end+1} = '  right-click-drag to pan.';
+      h{end+1} = '';
+      h{end+1} = 'To{\bf adjust labeled keypoints}:';
+      h{end+1} = ' - Select the corresponding target number from the "Targets" box. ';
+      h{end+1} = ' - Type the keypoint number and then click the new location. ';
+      h{end+1} = '';
+      h{end+1} = 'To{\bf edit Label Boxes}:';
+      h{end+1} = ' - Click Edit Label Boxes to enable editing. ';
+      h{end+1} = ' - Drag the corners of a box to move or resize it.';
+      h{end+1} = ' - Right-click the box and select Remove Rectangle to delete it.';
+      h{end+1} = ' - Re-click Edit Label Boxes to register your changes.';
+      h{end+1} = '';      
+      h{end+1} = '{\bf{Shortcuts}}:';
+      h{end+1} = '{\fontname{Courier} Ctrl  + w }: New Target.';
+      h{end+1} = '{\fontname{Courier} Ctrl  + z }: Undo Last Label Click.';      
+      h{end+1} = '{\fontname{Courier}         o }: Toggle whether selected kpt is occluded.';
+      h{end+1} = '{\fontname{Courier} Shift + a }: Rotate axes CCW by 2 degrees.';
+      h{end+1} = '{\fontname{Courier} Shift + d }: Rotate axes CW by 2 degrees.';
+      h{end+1} = '{\fontname{Courier} Ctrl  + a }: Toggle whether panning tool is on.';
+      h{end+1} = '{\fontname{Courier} Ctrl  + d }: Toggle whether zoom in tool is on.';
+      
+      h{end+1} = '{\fontname{Courier}    = OR d }: Forward one frame.';
+      h{end+1} = '{\fontname{Courier}    - OR a }: Backward one frame.';
+      h{end+1} = '{\fontname{Courier}       0-9 }: Un/Select kpt of current target.';
+      h{end+1} = '{\fontname{Courier}         ` }: Toggle which kpts 0-9 correspond to.';
+      rightpx = obj.labeler.videoCurrentRightVec;
+      rightpx = rightpx(1);
+      uppx = obj.labeler.videoCurrentUpVec;
+      uppx = abs(uppx(2));
+      h{end+1} = sprintf('{\\fontname{Courier}Left/right }: If kpt selected, move by %.1f px.',rightpx);
+      h{end+1} = '{\fontname{Courier}     arrow }: Otherwise, go back/forward one frame.';
+      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }: If kpt selected, move by %.1f px.',uppx);
+      h{end+1} = '{\fontname{Courier}     arrow }';
+      h{end+1} = '{\fontname{Courier}   Shift + }';
+      h{end+1} = sprintf('{\\fontname{Courier}Left/right }: If kpt selected, move by %.1f px.',10*rightpx);
+      h{end+1} = '{\fontname{Courier}     arrow }';
+      h{end+1} = '{\fontname{Courier}   Shift + }';
+      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }: If kpt selected, move by %.1f px.',10*uppx);
+      h{end+1} = '{\fontname{Courier}     arrow }';
+      h{end+1} = '{\fontname{Courier}Mouse scroll }: Zoom in/out.';
+      h{end+1} = '{\fontname{Courier}Mouse right-click-drag }: Pan view.';
     end
 
   end
