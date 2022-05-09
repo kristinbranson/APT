@@ -1374,7 +1374,7 @@ function cbkTrackerShowPredsCurrTargetOnlyChanged(src,evt,hmenu)
 tracker = evt.AffectedObject;
 hmenu.Checked = onIff(tracker.showPredsCurrTargetOnly);
 
-function cbkKPF(src,evt,lObj)
+function tfKPused = cbkKPF(src,evt,lObj)
 
 if ~lObj.isReady,
   return;
@@ -1451,6 +1451,7 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
       else
         lObj.frameDown(tfCtrl);
       end
+      tfKPused = true;
     case 'rightarrow'
       if tfShift
         sam = lObj.movieShiftArrowNavMode;
@@ -1463,6 +1464,7 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
       else
         lObj.frameUp(tfCtrl);
       end
+      tfKPused = true;
   end
   return;
 end

@@ -331,6 +331,8 @@ classdef LabelCoreSeqMA < LabelCore
       end
       tf = obj.anyPointSelected();
       obj.labeler.unsetdrag();
+      iPt = get(src,'UserData');
+      obj.toggleSelectPoint(iPt);
       if tf
         % none
       else
@@ -877,10 +879,14 @@ classdef LabelCoreSeqMA < LabelCore
       h{end+1} = '';
       h{end+1} = 'To{\bf set zoom}, at any time, mouse-scroll to zoom and';
       h{end+1} = '  right-click-drag to pan.';
+      h{end+1} = '  Type Ctrl + f to zoom out and show the full frame.';
       h{end+1} = '';
       h{end+1} = 'To{\bf adjust labeled keypoints}:';
       h{end+1} = ' - Select the corresponding target number from the "Targets" box. ';
-      h{end+1} = ' - Type the keypoint number and then click the new location. ';
+      h{end+1} = ' - Click the point or type its number to select a point. ';
+      h{end+1} = '   Once selected, click the new location or use the arrow keys';
+      h{end+1} = '   to move it. ';
+      h{end+1} = ' - Alternatively, you can click and drag the keypoint.';
       h{end+1} = '';
       h{end+1} = 'To{\bf edit Label Boxes}:';
       h{end+1} = ' - Click Edit Label Boxes to enable editing. ';
