@@ -384,13 +384,10 @@ classdef LabelCoreSeqMA < LabelCore
 
       tfKPused = true;
       lObj = obj.labeler;
-      if tfShft
-        switch key
-          case 'a'
-            camroll(obj.hAx,2);
-          case 'd'
-            camroll(obj.hAx,-2);
-        end
+      if tfShft && strcmp(key,'a'),
+        camroll(obj.hAx,2);
+      elseif tfShft && strcmp(key,'d'),
+        camroll(obj.hAx,-2);
       elseif strcmp(key,'w') && tfCtrl
         obj.cbkNewTgt();
       elseif strcmp(key,'z') && tfCtrl
@@ -407,10 +404,9 @@ classdef LabelCoreSeqMA < LabelCore
         lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'})) && ~tfCtrl
         lObj.frameDown(tfCtrl);
-      elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
+      elseif ~tfCtrl && any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
-          tfShift = any(strcmp('shift',modifier));
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
@@ -422,7 +418,7 @@ classdef LabelCoreSeqMA < LabelCore
             case 'downarrow'
               dxdy = -lObj.videoCurrentUpVec();
           end
-          if tfShift
+          if tfShft
             xy = xy + dxdy*10;
           else
             xy = xy + dxdy;

@@ -374,16 +374,17 @@ classdef Labels
       if nargin<4
         fdir = [];
       end
+      istgtmatch = isempty(itgt) || s.tgt==itgt;
       if isequal(fdir,1)
-        i = find(s.tgt==itgt & s.frm>=frm);
+        i = find(istgtmatch & s.frm>=frm);
       elseif isequal(fdir,-1)
-        i = find(s.tgt==itgt & s.frm<=frm,1,'last');
+        i = find(istgtmatch & s.frm<=frm,1,'last');
       elseif isequal(fdir,2)
-        i = find(s.tgt==itgt & s.frm>frm);
+        i = find(istgtmatch & s.frm>frm);
       elseif isequal(fdir,-2)
-        i = find(s.tgt==itgt & s.frm<frm,1,'last');
+        i = find(istgtmatch & s.frm<frm,1,'last');
       else
-        i = find(s.tgt==itgt);
+        i = find(istgtmatch);
       end
       fs = s.frm(i);
       tf = ~isempty(fs);
