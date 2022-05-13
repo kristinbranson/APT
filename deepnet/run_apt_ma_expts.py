@@ -849,6 +849,7 @@ class ma_expt(object):
         axx = axx.flat
         dropoff = self.dropoff
 
+        all_dist = []
         for idx,curt in enumerate(t_types):
             curt_str = '_'.join(curt)
 
@@ -864,6 +865,7 @@ class ma_expt(object):
             valid_l = np.any(~np.isnan(ll[:,:,:,0]),axis=-1)
 
             cur_dist = dd1[valid_l]
+            all_dist.append(cur_dist)
 
             ax = axx[idx]
             if ex_im.ndim == 2:

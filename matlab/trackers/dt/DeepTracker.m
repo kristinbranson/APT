@@ -23,7 +23,7 @@ classdef DeepTracker < LabelTracker
     MDN_OCCLUDED_THRESH = 0.5;
   end
   properties % MOVE THIS TO BE
-    jrcgpuqueue = 'gpu_rtx';
+    jrcgpuqueue = 'gpu_tesla';
     jrcnslots = 1;
     jrcnslotstrack = 1; % transient
   end

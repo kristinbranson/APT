@@ -573,7 +573,8 @@ class PoseCommon_pytorch(object):
             return t.detach().cpu().numpy()
 
     def diagnose(self, ims, out_file=None, **kwargs):
-        pred_fn, close_fn, model_file = self.get_pred_fn(**kwargs)
+        model_file = kwargs.pop('model_file')
+        pred_fn, close_fn, model_file = self.get_pred_fn(model_file,**kwargs)
         ret_dict = pred_fn(ims,retrawpred=True)
         conf = self.conf
 

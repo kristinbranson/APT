@@ -741,6 +741,7 @@ def get_default_params(conf):
   params['maxframes_missed'] = conf.link_maxframes_missed
   params['maxframes_delete'] = conf.link_maxframes_delete
   params['maxcost_prctile'] = conf.link_maxcost_prctile
+  params['maxframes_sel'] = conf.link_id_min_tracklet_len
   params['maxcost_mult'] = conf.link_maxcost_mult
   params['maxcost_framesfit'] = conf.link_maxcost_framesfit
   params['maxcost_heuristic'] = conf.link_maxcost_heuristic
@@ -1119,7 +1120,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
 
   # link using id model
   def_params = get_default_params(conf)
-  trk_out = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_delete'])
+  trk_out = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'])
   return trk_out
 
 
@@ -1151,7 +1152,8 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
     sel_trk = np.where((ee - ss+1) > min_trx_len)[0]
     sel_trk_info = list(zip(sel_trk, ss[sel_trk], ee[sel_trk]))
 
-    data = read_ims_par(trx, sel_trk_info, mov_file, conf)
+    data_files = read_ims_par(trx, sel_trk_info, mov_file, conf)
+    data = read_data_files(data_files)
     all_data.append(data)
   return all_data
 
@@ -1328,6 +1330,9 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
     trk_info_split = split_parallel(trk_info,n_threads)
     data_files = pool.starmap(read_tracklet_ims, [(trx, trk_info_split[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_threads)])
 
+  return data_files
+
+def read_data_files(data_files):
   data = []
   for curf in data_files:
     data.append(PoseTools.pickle_load(curf))
@@ -1335,6 +1340,7 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
 
   data = merge_parallel(data)
   return data
+
 
 def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
   '''
@@ -1703,35 +1709,38 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
     logging.info(f'Sampling images from {len(sel_ss)} tracklets to assign identity to the tracklets ...')
     start_t = time.time()
-    data = read_ims_par(trx, trk_info, mov_file, conf, n_ex=n_per_trk)
+    data_files = read_ims_par(trx, trk_info, mov_file, conf, n_ex=n_per_trk)
     end_t = time.time()
     logging.info(f'Sampling images took {round((end_t-start_t)/60)} minutes')
-    tgt_id = np.array([r[1] for r in data])
 
-    # Keep the images only if debugging. Else it will eat up memory
-    if debug:
-      cur_d = [data, sel_tgt, tgt_id, ss ,ee, sel_ss, sel_ee]
-    else:
-      cur_d = [None, sel_tgt, tgt_id, ss ,ee, sel_ss, sel_ee]
+    merge_data = []
+    merge_tgt_id = []
+    for curf in tqdm(data_files):
+      data = read_data_files([curf])
+      tgt_id = np.array([r[1] for r in data])
+      merge_tgt_id.extend(tgt_id.tolist())
 
+      if debug:
+        merge_data.extend(data)
+
+      # pred_map keeps track of which sample belongs to which trajectory
+      ims = []
+      for curndx in range(len(data)):
+        curims = data[curndx][0]
+        ims.append(curims)
+        pred_map.append([ndx, tgt_id[curndx]])
+
+      # Find the embeddings for the images
+      cur_preds = tracklet_pred(ims, net, conf, rescale)
+
+      if preds is None:
+        preds = cur_preds
+      else:
+        preds = np.concatenate([preds, cur_preds],axis=0)
+
+    merge_tgt_id = np.array(merge_tgt_id)
+    cur_d = [merge_data, sel_tgt, merge_tgt_id, ss, ee, sel_ss, sel_ee]
     all_data.append(cur_d)
-
-    # Reorder the images. pred_map keeps track of which sample belongs to which trajectory
-    ims = []
-    for tgt_ndx, ix in tqdm(enumerate(sel_tgt)):
-      curndx = np.where(tgt_id==ix)[0][0]
-      curims = data[curndx][0]
-      ims.append(curims)
-      pred_map.append([ndx, ix])
-
-    # Find the embeddings for the images
-    cur_preds = tracklet_pred(ims, net, conf, rescale)
-    assert cur_preds.shape[0] == len(sel_tgt), 'Tracklet prediction is not correct'
-
-    if preds is None:
-      preds = cur_preds
-    else:
-      preds = np.concatenate([preds, cur_preds],axis=0)
 
   pred_map = np.array(pred_map)
 
@@ -2035,7 +2044,7 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
 
   path = []
 
-  if dmat[-1]>bignumber:
+  if dmat[-1]>=bignumber:
     # This happens if thre is no path. In this case connect as much as possible to the st_idx tracklet and en_idx tracklet
     broken = True
     possible_end = np.where(dmat[1:-1]<bignumber)[0]
