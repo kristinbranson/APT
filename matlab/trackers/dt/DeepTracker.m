@@ -24,8 +24,8 @@ classdef DeepTracker < LabelTracker
   end
   properties % MOVE THIS TO BE
     jrcgpuqueue = 'gpu_tesla';
-    jrcnslots = 1;
-    jrcnslotstrack = 1; % transient
+    jrcnslots = 4;
+    jrcnslotstrack = 4; % transient
   end
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
