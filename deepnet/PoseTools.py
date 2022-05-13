@@ -934,7 +934,7 @@ def compare_conf_json_lbl(conf_json, conf_lbl, jr, net_type):
 
     a_list.extend(
         ['MultiAnimalGRONe', 'reconcile3dType', 'FGThresh', 'ManualRadius', 'AlignUsingTrxTheta', 'PadFloor', 'PadBkgd',
-         'MinAspectRatio', 'AlignHeadTail', 'PadFactor'])
+         'MinAspectRatio', 'AlignHeadTail', 'PadFactor','mdn_joint_layer_num'])
 
     for a in a_list:
         if hasattr(conf_lbl, a) and not hasattr(conf_json, a):
@@ -950,8 +950,8 @@ def compare_conf_json_lbl(conf_json, conf_lbl, jr, net_type):
     ignore_vals = [[],[]]
     for a in ignore:
         ignore_vals[0].append(getattr(conf_json,a))
-        ignore_vals[1].append(getattr(conf_json,a))
         delattr(conf_json, a)
+        ignore_vals[1].append(getattr(conf_lbl,a))
         delattr(conf_lbl, a)
 
     if 'MSPN' in jr['DeepTrack']:

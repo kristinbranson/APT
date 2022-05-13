@@ -254,7 +254,7 @@ class config(object):
         self.link_id_training_iters = 40000
         self.link_id_tracklet_samples = 50
         self.link_id_rescale = 1
-        self.link_id_min_tracklet_len = 3
+        self.link_id_min_tracklet_len = 5
         self.link_id_mining_steps = 10
         self.link_id_min_train_track_len = 10
 

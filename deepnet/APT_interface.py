@@ -3569,7 +3569,8 @@ def classify_movie(conf, pred_fn, model_type,
     logging.info('save_hmaps: ' + str(save_hmaps))
     logging.info('crop_loc: ' + str(crop_loc))
 
-    lnk_cost = conf.get('multi_link_cost', 5)
+    pre_fix, ext = os.path.splitext(out_file)
+    part_file = pre_fix + '_part' + ext
 
     cap = movies.Movie(mov_file)
     sz = (cap.get_height(), cap.get_width())
@@ -3683,7 +3684,7 @@ def classify_movie(conf, pred_fn, model_type,
         if (cur_b % nskip_partfile == 0) & (cur_b > 0):
             # sys.stdout.write('\n')
             T1 = to_do_list[cur_start][0]
-            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, info)
+            write_trk(part_file, pred_locs, extra_dict, start_frame, info)
 
     # Get the animal confidences for 2 stage tracking
     pred_animal_conf = None
@@ -3699,18 +3700,8 @@ def classify_movie(conf, pred_fn, model_type,
     cur_out_file = raw_file if do_link(conf) else out_file
     trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info, conf)
 
-    # if do_link(conf):
-    #     # write out raw results before linking.
-    #     trk = write_trk(raw_file, pred_locs, extra_dict, start_frame, info)
-    #     # trk = lnk.link_trklets(trk, conf, mov_file, out_file)
-    #     # trk.T0 = start_frame
-    #     # out_file_tracklet = out_file
-    #     # trk.save(out_file_tracklet, saveformat='tracklet', trkInfo=info)
-    # else:
-    #     trk = write_trk(out_file, pred_locs, extra_dict, start_frame, info)
-
-    if os.path.exists(out_file + '.part'):
-        os.remove(out_file + '.part')
+    if os.path.exists(part_file):
+        os.remove(part_file)
     cap.close()
     tf.reset_default_graph()
     return trk
@@ -3718,7 +3709,7 @@ def classify_movie(conf, pred_fn, model_type,
 def raw_predict_file(predict_trk_file, out_file):
     if predict_trk_file is None:
         pre_fix, ext = os.path.splitext(out_file)
-        raw_file = pre_fix + '_pure' + ext
+        raw_file = pre_fix + '_tracklet' + ext
     else:
         raw_file = predict_trk_file
     return raw_file
