@@ -290,7 +290,7 @@ classdef LabelCoreSeq < LabelCore
         lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
         lObj.frameDown(tfCtrl);
-      elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
+      elseif ~tfCtrl && any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
           tfShift = any(strcmp('shift',modifier));

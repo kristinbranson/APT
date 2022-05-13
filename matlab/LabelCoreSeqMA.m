@@ -78,6 +78,7 @@ classdef LabelCoreSeqMA < LabelCore
     function obj = LabelCoreSeqMA(varargin)
       obj = obj@LabelCore(varargin{:});
 
+      obj.roiAddButtons();
       obj.addMAbuttons();
       obj.tv = TrackingVisualizerMT(obj.labeler,'labelPointsPlotInfo',...
         'lblCoreSeqMA');
@@ -88,14 +89,19 @@ classdef LabelCoreSeqMA < LabelCore
 
       obj.labeler.currImHud.updateReadoutFields('hasTgt',true);
       obj.labeler.gdata.axes_curr.Toolbar.Visible = 1;
+      obj.tcOn = obj.labeler.isTwoClickAlign;
     end
     function addMAbuttons(obj)
-      btn = obj.tbAccept;
+      btn = obj.pbRoiNew;
+      YOFF_NORMALIZED = .01;
+      pos = btn.Position;
+      pos(2) = pos(2) + pos(4) + YOFF_NORMALIZED;
+      
       pb = uicontrol(...
         'parent',obj.hFig(1),...
         'style','pushbutton',...
         'units',btn.Units,...
-        'position',btn.Position,...
+        'position',pos,...
         'fontunits',btn.FontUnits,...
         'fontsize',btn.FontSize,...
         'fontweight',btn.FontWeight,...
@@ -105,12 +111,14 @@ classdef LabelCoreSeqMA < LabelCore
       );
       obj.pbNewTgt = pb;
       
-      btn = obj.pbClear;
+      btn = obj.pbRoiEdit;
+      pos = btn.Position;
+      pos(2) = pos(2) + pos(4) + YOFF_NORMALIZED;
       pb = uicontrol(...
         'parent',obj.hFig(1),...
         'style','pushbutton',...
         'units',btn.Units,...
-        'position',btn.Position,...
+        'position',pos,...
         'fontunits',btn.FontUnits,...
         'fontsize',btn.FontSize,...
         'fontweight',btn.FontWeight,...
@@ -148,6 +156,7 @@ classdef LabelCoreSeqMA < LabelCore
       obj.refreshTxLabelCoreAux();
       
       obj.state = LabelState.ACCEPTED; 
+      obj.enableControls();
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>
@@ -322,6 +331,8 @@ classdef LabelCoreSeqMA < LabelCore
       end
       tf = obj.anyPointSelected();
       obj.labeler.unsetdrag();
+      iPt = get(src,'UserData');
+      obj.toggleSelectPoint(iPt);
       if tf
         % none
       else
@@ -375,13 +386,10 @@ classdef LabelCoreSeqMA < LabelCore
 
       tfKPused = true;
       lObj = obj.labeler;
-      if tfShft
-        switch key
-          case 'a'
-            camroll(obj.hAx,2);
-          case 'd'
-            camroll(obj.hAx,-2);
-        end
+      if tfShft && strcmp(key,'a'),
+        camroll(obj.hAx,2);
+      elseif tfShft && strcmp(key,'d'),
+        camroll(obj.hAx,-2);
       elseif strcmp(key,'w') && tfCtrl
         obj.cbkNewTgt();
       elseif strcmp(key,'z') && tfCtrl
@@ -398,10 +406,9 @@ classdef LabelCoreSeqMA < LabelCore
         lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'})) && ~tfCtrl
         lObj.frameDown(tfCtrl);
-      elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
+      elseif ~tfCtrl && any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
-          tfShift = any(strcmp('shift',modifier));
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
@@ -413,7 +420,7 @@ classdef LabelCoreSeqMA < LabelCore
             case 'downarrow'
               dxdy = -lObj.videoCurrentUpVec();
           end
-          if tfShift
+          if tfShft
             xy = xy + dxdy*10;
           else
             xy = xy + dxdy;
@@ -494,15 +501,11 @@ classdef LabelCoreSeqMA < LabelCore
   methods % roi
     function roiInit(obj)
       obj.roiRectDrawer = RectDrawer(obj.hAx);
-      obj.roiAddButtons();
+      %obj.roiAddButtons();
       obj.roiSetShow(false);
     end
     function roiAddButtons(obj)
-      btn = obj.pbNewTgt;
-      YOFF_NORMALIZED = .01;
-      pos = btn.Position;
-      pos(2) = pos(2) + pos(4) + YOFF_NORMALIZED;
-      
+      btn = obj.tbAccept;      
       pb = uicontrol(...
         'parent',obj.hFig(1),...
         'style','pushbutton',...
@@ -512,16 +515,13 @@ classdef LabelCoreSeqMA < LabelCore
         'fontsize',btn.FontSize,...
         'fontweight',btn.FontWeight,...
         'backgroundcolor',obj.CLR_PBROINEW,...
-        'string','New ROI',...
+        'string','New Label Box',...
         'units',btn.Units,...
-        'position',pos,...
         'callback',@(s,e)obj.cbkRoiNew() ...      
       );
       obj.pbRoiNew = pb;
       
       btn = obj.pbClear;
-      pos = btn.Position;
-      pos(2) = pos(2) + pos(4) + YOFF_NORMALIZED;
       pb = uicontrol(...
         'parent',obj.hFig(1),...
         'style','togglebutton',...
@@ -531,9 +531,8 @@ classdef LabelCoreSeqMA < LabelCore
         'fontsize',btn.FontSize,...
         'fontweight',btn.FontWeight,...
         'backgroundcolor',obj.CLR_PBROIEDIT,...
-        'string','Edit ROIs',...
+        'string','Edit Label Boxes',...
         'units',btn.Units,...
-        'position',pos,...
         'callback',@(s,e)obj.cbkRoiEdit() ... 
       );
       obj.pbRoiEdit = pb;
@@ -557,14 +556,28 @@ classdef LabelCoreSeqMA < LabelCore
     end
     function cbkRoiNew(obj)
       assert(obj.roiShow);
+      obj.labeler.SetStatus('Click and drag to add a box of pixels considered labeled. Hit Esc to cancel',false);
+      set(obj.pbNewTgt,'Enable','off');
+      set(obj.pbDelTgt,'Enable','off');
+      set(obj.pbRoiNew,'Enable','off');
+      set(obj.pbRoiEdit,'Enable','off');
       obj.roiRectDrawer.newRoiDraw();
       v = obj.roiRectDrawer.getRoisVerts();
       obj.labeler.labelroiSet(v);
-
+      obj.labeler.ClearStatus();
+      set(obj.pbNewTgt,'Enable','on');
+      set(obj.pbDelTgt,'Enable','on');
+      set(obj.pbRoiNew,'Enable','on');
+      set(obj.pbRoiEdit,'Enable','on');
 %       obj.roiUpdatePBEdit(true);
     end
     function cbkRoiEdit(obj)
       tfEditingNew = obj.pbRoiEdit.Value;
+      if tfEditingNew,
+        obj.labeler.SetStatus('Drag corners to move label boxes. Right click and select "Delete Rectangle" to delete.',false);
+      else
+        obj.labeler.ClearStatus();
+      end
       rrd = obj.roiRectDrawer;
       rrd.setEdit(tfEditingNew);
       if ~tfEditingNew
@@ -579,7 +592,7 @@ classdef LabelCoreSeqMA < LabelCore
         str = 'Done Editing'; 
         val = 1;
       else
-        str = 'Edit ROIs';
+        str = 'Edit Label Boxes';
         val = 0;
       end
       set(obj.pbRoiEdit,'Value',val,'String',str);
@@ -600,11 +613,18 @@ classdef LabelCoreSeqMA < LabelCore
     
     function cbkNewTgt(obj)
       lObj = obj.labeler;
-      ntgts = lObj.labelNumLabeledTgts();
-      lObj.setTargetMA(ntgts+1);
-      obj.newPrimaryTarget();
-      lObj.updateTrxTable();
-      obj.beginLabel();
+      
+      if obj.state == LabelState.LABEL,
+        % cancel
+        obj.beginAcceptedReset();
+      else % ACCEPTED
+        % add a new label
+        ntgts = lObj.labelNumLabeledTgts();
+        lObj.setTargetMA(ntgts+1);
+        obj.newPrimaryTarget();
+        lObj.updateTrxTable();
+        obj.beginLabel();
+      end
     end
     
     function cbkDelTgt(obj)
@@ -692,6 +712,26 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.updateHideTarget(iTgt); 
     end
 
+    function enableControls(obj)
+      
+      if obj.state == LabelState.LABEL,
+        set(obj.pbNewTgt,'Enable','on');
+        set(obj.pbDelTgt,'Enable','off');
+        set(obj.pbRoiNew,'Enable','off');
+        set(obj.pbRoiEdit,'Enable','off');
+        set(obj.pbNewTgt,'String','Cancel');
+
+      else
+        set(obj.pbNewTgt,'Enable','on');
+        set(obj.pbDelTgt,'Enable','on');
+        set(obj.pbRoiNew,'Enable','on');
+        set(obj.pbRoiEdit,'Enable','on');
+        set(obj.pbNewTgt,'String','New Target');
+
+      end
+      
+    end
+    
     function resetState(obj)
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
@@ -740,6 +780,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
+      obj.enableControls();
     end    
     function beginAcceptedReset(obj)
       % like beginAccepted, but reset first
@@ -748,6 +789,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       obj.state = LabelState.ACCEPTED;
+      obj.enableControls();
 
     end
     function beginLabel(obj)
@@ -767,6 +809,7 @@ classdef LabelCoreSeqMA < LabelCore
           ~isempty(obj.labeler.tracker.trkVizer.tvtrx)
         obj.labeler.tracker.trkVizer.tvtrx.hittest_off_all();
       end
+      obj.enableControls();
 
     end
             
@@ -811,14 +854,75 @@ classdef LabelCoreSeqMA < LabelCore
       obj.refreshPtMarkers('iPts',iPt);
     end
     
-    function h = getLabelingHelp(obj) %#ok<MANU>
+    function h = getLabelingHelp(obj) 
       h = { ...
-        '* Use mouse-scroll and right-click-drag to zoom and pan.'
-        '* Click New Target to begin labeling a new target.'
-        '* Click to label keypoints sequentially. Hold shift for partially-occluded points.'
-        '* Drag keypoints to adjust after labeling.'
-        '* Use ROIs to specify regions in the image where everything is labeled correctly.'
+        'To{\bf add a target}: '
+        ' - Push the New Target button.'
         };
+      if obj.tcOn,
+        h{end+1} = ' - Click two points on the new target to zoom in on it.';
+        h{end+1} = '   Often, these points correspond to the animal''s head and tail.';
+      end
+      h{end+1} = ' - Click the locations of your keypoints in order.';
+      h{end+1} = ' - Hold shift while clicking to annotate that a keypoint is occluded.';
+      h{end+1} = ' - You do not need to label all animals in each frame. ';
+      h{end+1} = '   the black boxes show regions of the image around your labeled';
+      h{end+1} = '   animals. APT only uses these boxes for training. If another';
+      h{end+1} = '   animal is inside one of your label boxes, you should label it.';
+      h{end+1} = '';
+      h{end+1} = 'Use{\bf Label Boxes} to specify image regions that are completely labeled. ';
+      h{end+1} = '  This is important for teaching the classifier what a negative label is. ';
+      h{end+1} = '  An image region is completely labeled if no keypoints in that region';
+      h{end+1} = '  are unlabeled. You e.g. can draw a label box around parts of the image';
+      h{end+1} = '  that do not contain animals to add negative training examples.';
+      h{end+1} = ' - Click New Label Box to add a new label box.';
+      h{end+1} = '';
+      h{end+1} = 'To{\bf set zoom}, at any time, mouse-scroll to zoom and';
+      h{end+1} = '  right-click-drag to pan.';
+      h{end+1} = '  Type Ctrl + f to zoom out and show the full frame.';
+      h{end+1} = '';
+      h{end+1} = 'To{\bf adjust labeled keypoints}:';
+      h{end+1} = ' - Select the corresponding target number from the "Targets" box. ';
+      h{end+1} = ' - Click the point or type its number to select a point. ';
+      h{end+1} = '   Once selected, click the new location or use the arrow keys';
+      h{end+1} = '   to move it. ';
+      h{end+1} = ' - Alternatively, you can click and drag the keypoint.';
+      h{end+1} = '';
+      h{end+1} = 'To{\bf edit Label Boxes}:';
+      h{end+1} = ' - Click Edit Label Boxes to enable editing. ';
+      h{end+1} = ' - Drag the corners of a box to move or resize it.';
+      h{end+1} = ' - Right-click the box and select Remove Rectangle to delete it.';
+      h{end+1} = ' - Re-click Edit Label Boxes to register your changes.';
+      h{end+1} = '';      
+      h{end+1} = '{\bf{Shortcuts}}:';
+      h{end+1} = '{\fontname{Courier} Ctrl  + w }: New Target.';
+      h{end+1} = '{\fontname{Courier} Ctrl  + z }: Undo Last Label Click.';      
+      h{end+1} = '{\fontname{Courier}         o }: Toggle whether selected kpt is occluded.';
+      h{end+1} = '{\fontname{Courier} Shift + a }: Rotate axes CCW by 2 degrees.';
+      h{end+1} = '{\fontname{Courier} Shift + d }: Rotate axes CW by 2 degrees.';
+      h{end+1} = '{\fontname{Courier} Ctrl  + a }: Toggle whether panning tool is on.';
+      h{end+1} = '{\fontname{Courier} Ctrl  + d }: Toggle whether zoom in tool is on.';
+      
+      h{end+1} = '{\fontname{Courier}    = OR d }: Forward one frame.';
+      h{end+1} = '{\fontname{Courier}    - OR a }: Backward one frame.';
+      h{end+1} = '{\fontname{Courier}       0-9 }: Un/Select kpt of current target.';
+      h{end+1} = '{\fontname{Courier}         ` }: Toggle which kpts 0-9 correspond to.';
+      rightpx = obj.labeler.videoCurrentRightVec;
+      rightpx = rightpx(1);
+      uppx = obj.labeler.videoCurrentUpVec;
+      uppx = abs(uppx(2));
+      h{end+1} = sprintf('{\\fontname{Courier}Left/right }: If kpt selected, move by %.1f px.',rightpx);
+      h{end+1} = '{\fontname{Courier}     arrow }: Otherwise, go back/forward one frame.';
+      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }: If kpt selected, move by %.1f px.',uppx);
+      h{end+1} = '{\fontname{Courier}     arrow }';
+      h{end+1} = sprintf('{\\fontname{Courier}   Shift + }: If kpt selected, move by %.1f px.',10*rightpx);
+      h{end+1} = sprintf('{\\fontname{Courier}Left/right }  Otherwise, go to');
+      h{end+1} = sprintf('{\\fontname{Courier}     arrow }  %s',obj.labeler.movieShiftArrowNavMode.prettyStr);
+      h{end+1} = sprintf('{\\fontname{Courier}   Shift + }: If kpt selected, move by %.1f px.',10*uppx);
+      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }');
+      h{end+1} = '{\fontname{Courier}     arrow }';
+      h{end+1} = '{\fontname{Courier}Mouse scroll }: Zoom in/out.';
+      h{end+1} = '{\fontname{Courier}Mouse right-click-drag }: Pan view.';
     end
 
   end

@@ -29,7 +29,12 @@ classdef ShiftArrowMovieNavMode
         case ShiftArrowMovieNavMode.NEXTLABELED
           %lpos = lObj.labeledposCurrMovie;
           s = lObj.labelsCurrMovie;
-          [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir*2);
+          if lObj.hasTrx,
+            tgt = lObj.currTarget;
+          else
+            tgt = [];
+          end
+          [tffound,f] = Labels.findLabelNear(s,f0,tgt,dir*2);
         case ShiftArrowMovieNavMode.NEXTIMPORTED
           if lObj.gtIsGTMode
             warningNoTrace('No imported labels available in GT mode.');
