@@ -108,6 +108,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = get.viewName(obj)
       v = sprintf('view_%d',obj.view(1));
     end
+    function v = getNetDescriptor(obj)
+      v = sprintf('%s_view%d',char(obj.netType),obj.view);
+    end
     function v = get.dirViewLnx(obj)
       v = [obj.rootDir obj.filesep obj.projID obj.filesep char(obj.netType) obj.filesep sprintf('view_%d',obj.view)];
     end

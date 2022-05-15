@@ -1576,7 +1576,7 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trainImageMontage(obj,trnImgMats)
+    function hfigs = trainImageMontage(obj,trnImgMats,varargin)
       % trnImgMats: cellstr, or could be loaded mats
       
       pppi = obj.lObj.labelPointsPlotInfo;
@@ -1584,6 +1584,8 @@ classdef DeepTracker < LabelTracker
       margs0 = {'nr',3,'nc',3,'maskalpha',0.3,...
         'framelblscolor',[1 1 0],...
         'pplotargs',mrkrProps};
+
+      hfigs = myparse(varargin,'hfigs',[]);
 
       for i=1:numel(trnImgMats)
         ti = trnImgMats{i};
@@ -1596,7 +1598,12 @@ classdef DeepTracker < LabelTracker
         npts = size(dam.locs,2);
         colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
         margs = [margs0 {'colors' colors}];
-        dam.show(margs);
+        if numel(hfigs) >= i,
+          hfig = hfigs(i);
+        else
+          hfig = [];
+        end
+        hfigs(i) = dam.show(margs,'hfig',hfig);
       end
     end
 
@@ -4702,7 +4709,7 @@ classdef DeepTracker < LabelTracker
         netTypeObj = netType;
       end
       
-      baseargs = [baseargs {'confparamsfilequote','\\\"'}];
+      baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trainCodeGen(trnID,dllbl,cache,errfile,...
           netTypeObj,netMode,baseargs{:});      
       codestr = DeepTracker.codeGenSingGeneral(basecmd,netMode,singargs{:});
@@ -5059,6 +5066,8 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
+      baseargs = [baseargs {'ignore_local',1}];
+
       basecmd = DeepTracker.dataAugCodeGenBase(ID,dllbl,cache,errfile,...
         netType,outfile,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,netMode,singargs{:});
@@ -5191,7 +5200,7 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      baseargs = [baseargs {'confparamsfilequote','\\\"'}];
+      baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netmode,singargs{:});
     end

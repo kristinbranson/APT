@@ -9,6 +9,7 @@ classdef TrainMonitorViz < handle
     hannlastupdated % [1] textbox/annotation handle
     hline % [nviewx2xnset] line handle, one loss curve per view
     hlinekill % [nviewx2xnset] line handle, killed marker per view
+    trainMontageFigs = []; % figure handles for showing training image montages
     
     isKilled = false; % scalar, whether training has been halted
     lastTrainIter; % [nset x nview] last iteration of training
@@ -487,7 +488,7 @@ classdef TrainMonitorViz < handle
     
     function showTrainingImages(obj)
       trnImgIfo = obj.trainWorkerObj.loadTrainingImages();
-      obj.dtObj.trainImageMontage(trnImgIfo);
+      obj.trainMontageFigs = obj.dtObj.trainImageMontage(trnImgIfo,'hfigs',obj.trainMontageFigs);
     end
     
     function ss = queryAllJobsStatus(obj)

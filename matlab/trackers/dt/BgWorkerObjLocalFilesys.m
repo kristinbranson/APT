@@ -148,6 +148,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
         f = dm(i).trainImagesNameLnx;
         if exist(f,'file')>0
           trnImgIfo{i} = load(f,'-mat');
+          trnImgIfo{i}.name = dm(i).getNetDescriptor();
         else
           warningNoTrace('Training image file ''%s'' does not exist yet.',f);
         end

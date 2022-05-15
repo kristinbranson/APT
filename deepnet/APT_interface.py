@@ -4252,6 +4252,7 @@ def parse_args(argv):
     parser.add_argument('-type', dest='type', help='Network type', default=None)
     parser.add_argument('-type2', dest='type2', help='Network type for second stage', default=None)
     parser.add_argument('-stage', dest='stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
+    parser.add_argument('-ignore_local', dest='ignore_local', help='Whether to remove .local Python libraries from your path', default=0)
     subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
 
     parser_train = subparsers.add_parser('train', help='Train the detector')
@@ -4599,6 +4600,8 @@ def main(argv):
     if args.sub_name == 'test':
         print("Hello this is APT!")
         return
+    if args.ignore_local:
+        remove_local_path()
 
     log_formatter = logging.Formatter('%(asctime)s %(pathname)s %(funcName)s [%(levelname)-5.5s] %(message)s')
 
@@ -4634,6 +4637,8 @@ def main(argv):
     repo_info = PoseTools.get_git_commit()
     logging.info('Git Commit: {}'.format(repo_info))
     logging.info('Args: {}'.format(argv))
+    if args.ignore_local:
+        logging.info('Removed .local paths from Python path.')
 
     # import copy
     # j_args = copy.deepcopy(args)
@@ -4651,6 +4656,14 @@ def main(argv):
         except Exception as e:
             logging.exception('UNKNOWN: APT_interface errored')
 
+
+def remove_local_path():
+    for p in sys.path:
+        if ".local" in p:
+            sys.path.remove(p)
+
+def log_status(logging,stage,value='',info=''):
+    logging.info(f'>>APTSTATUS: {stage},{value},{info}<<')
 
 if __name__ == "__main__":
 
