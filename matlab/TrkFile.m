@@ -622,7 +622,7 @@ classdef TrkFile < dynamicprops
       fns = fieldnames(obj);
       trkflds = fns(startsWith(fns,'pTrk'));
       trkflds = setdiff(trkflds,{'pTrkiPt' 'pTrkFrm' 'pTrkiTgt' ...
-        'pTrkFull' 'pTrkFullFT'});
+        'pTrkFull' 'pTrkFullFT' 'pTrk3d'});
     end
         
     function objMerged = merge(obj,varargin)
