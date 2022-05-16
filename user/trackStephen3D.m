@@ -13,7 +13,7 @@ apt_root = APT.getRoot;
   );
 
 % create a dummy lObj to satisify parseToTrackJSON
-lObj = struct('nview',2,'isMultiView',true,...
+lObj = struct('nview',nvw,'isMultiView',true,...
   'hasTrx',false);
 lObj.trackParams.ROOT.PostProcess.reconcile3dType = 'trianglulate';
 
