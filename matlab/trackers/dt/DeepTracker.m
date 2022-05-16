@@ -20,10 +20,12 @@ classdef DeepTracker < LabelTracker
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
     
+    default_jrcgpuqueue = 'gpu_tesla';
+    
     MDN_OCCLUDED_THRESH = 0.5;
   end
   properties % MOVE THIS TO BE
-    jrcgpuqueue = 'gpu_tesla';
+    jrcgpuqueue = '';
     jrcnslots = 4;
     jrcnslotstrack = 4; % transient
   end
@@ -281,6 +283,7 @@ classdef DeepTracker < LabelTracker
   methods
     function obj = DeepTracker(lObj,varargin)
       obj@LabelTracker(lObj);
+      obj.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
       
       for i=1:2:numel(varargin)
         prop = varargin{i};
@@ -597,7 +600,7 @@ classdef DeepTracker < LabelTracker
       end
       
       if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any')
-        s.jrcgpuqueue = 'gpu_rtx';
+        s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
           s.jrcgpuqueue);
       end
@@ -4582,7 +4585,7 @@ classdef DeepTracker < LabelTracker
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
-        'gpuqueue','gpu_rtx',...
+        'gpuqueue',DeepTracker.default_jrcgpuqueue,...
         'outfile','/dev/null');
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      
