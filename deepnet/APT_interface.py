@@ -4370,13 +4370,24 @@ def track_multi_stage(args, view_ndx, view, mov_ndx):
     name = args.name
     lbl_file = args.lbl_file
     if args.stage == 'multi':
+        type1 = args.type
+        type2 = args.type2
+        conf_params1 = args.conf_params
+        conf_params2 = args.conf_params2
         out_files = args.out_files
+
         args.out_files = args.trx
         trk1 = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=True)
         args.out_files = out_files
         args.type = args.type2
         args.conf_params = args.conf_params2
         trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, second_stage=True)
+
+        # reset back to normal for linking
+        args.type = type1
+        args.type2 = type2
+        args.conf_params = conf_params1
+        args.conf_params2 = conf_params2
 
     elif args.stage == 'first':
         trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=True)
@@ -4460,7 +4471,7 @@ def check_args(args,nviews):
             assert len(args.mov) == nviews, 'Number of movie files should be same number of views'
             assert len(args.out_files) == nviews, 'Number of out files should be same as number of views'
             args.mov = reshape(args.mov)
-            args.out_files = reshape(args.out_file)
+            args.out_files = reshape(args.out_files)
             args.trx = reshape(set_checklen(args.trx,varstr='trx files'))
             if args.crop_loc is not None:
                 assert len(args.crop_loc) % (4 * nviews)==0, 'cropping location should be specified as xlo xhi ylo yhi for all the views'
@@ -4468,6 +4479,7 @@ def check_args(args,nviews):
             else:
                 args.crop_loc = [None] * nviews
             args.crop_loc = np.array(args.crop_loc).reshape([nviews,1,-1]).tolist()
+            args.predict_trk_files = reshape(set_checklen(args.predict_trk_files,n=nmov,varstr='predict_trk_files',n_type='movies'))
         else:
             nmov = len(args.mov)
             assert len(args.out_files) == nmov, 'Number of out files should be same as number of movies'
