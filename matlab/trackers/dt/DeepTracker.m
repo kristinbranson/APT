@@ -600,7 +600,7 @@ classdef DeepTracker < LabelTracker
       end
       
       if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any')
-        s.jrcgpuqueue = DeepTracker.default_jrcgpugueue;
+        s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
           s.jrcgpuqueue);
       end

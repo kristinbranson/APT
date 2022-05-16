@@ -109,7 +109,7 @@ def main(argv):
 
 ## Find all the stored models
 
-    flist = glob.glob(tdir + '/*/*/*/*')
+    flist = glob.glob(tdir + '/*/*/view_0/*')
     mtypes = [Path(ff).parent.parent.name for ff in flist]
 
     tstamps_str = [Path(ff).name for ff in flist]
