@@ -460,8 +460,6 @@ classdef APTInterf
       
       assert(~(tftrx && tfcrop));
       aptintrf = [deepnetroot fs 'APT_interface.py'];
-
-      conf_str = '';
       
       if updateWinPaths2LnxContainer
         fcnPathUpdate = @(x)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,lnxContainerMntLoc);
@@ -505,21 +503,10 @@ classdef APTInterf
       if tflog
         code = [code {'-log_file' [filequote log_file filequote]}];
       end
-      if track_id
-        conf_str = sprintf('%s link_id True',conf_str);
-      end
-      if tf2stg
-        if fileinfo.netmodeStage1.isObjDet
-          use_bbox_trx_val = 'True';
-        else
-          use_bbox_trx_val = 'False';
+        if track_id
+          code = [code {'-conf_params link_id True'}]
         end
-         conf_str = sprintf('%s use_bbox_trx %s',conf_str,use_bbox_trx_val);
-      end
-      if ~isempty(conf_str)
-        code = [code {sprintf('-conf_params %s', conf_str)}];
-      end
-      
+                      
       if tf2stg
         %szassert(outtrk,[1 nstage],...
         %  'Multiview or serial multimovie unsupported for two-stage trackers.');
@@ -534,7 +521,6 @@ classdef APTInterf
                       [filequote dllbl filequote] ...
                       'track' ...
                       '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk(:,2),filequote) }];        
-         conf_str = sprintf('%s use_bbox_trx %s',conf_str,use_bbox_trx_val);
       else
         code = [code {'-type' char(nettype) ...
                       [filequote dllbl filequote] ...
