@@ -484,7 +484,7 @@ classdef DeepTracker < LabelTracker
     end
     function sPrm = getParams(obj)
       sPrm = obj.sPrm;
-    end
+    end    
     function tc = getTrackerClassAugmented(obj)
       tc = {class(obj) 'trnNetType' obj.trnNetType};
     end

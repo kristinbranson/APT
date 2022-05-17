@@ -4,7 +4,10 @@ isOk = init(sPrm,true);
 msgs = {};
 
 % if using background subtraction, bgreadfcn must be set
-if sPrm.ROOT.ImageProcessing.BackSub.Use && isempty(sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn),
+if isSubField(sPrm,{'ROOT','ImageProcessing','BackSub','Use'}) && ...
+    sPrm.ROOT.ImageProcessing.BackSub.Use && ...
+    isSubField(sPrm,{'ROOT','ImageProcessing','BackSub','BgReadFcn'}) && ...
+    isempty(sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn),
   isOk.ROOT.ImageProcessing.BackSub.Use = false;
   isOk.ROOT.ImageProcessing.BackSub.BGReadFcn = false;
   msgs{end+1} = 'If background subtraction is enabled, Background Read Function must be set';
@@ -12,7 +15,10 @@ end
 
 % can either use background subtraction of histogram equalization, but not
 % both
-if sPrm.ROOT.ImageProcessing.BackSub.Use && sPrm.ROOT.ImageProcessing.HistEq.Use,
+if isSubField(sPrm,{'ROOT','ImageProcessing','BackSub','Use'}) && ...
+    sPrm.ROOT.ImageProcessing.BackSub.Use && ...
+    isSubField(sPrm,{'ROOT','ImageProcessing','HistEq','Use'}) && ...
+    sPrm.ROOT.ImageProcessing.HistEq.Use,
   isOk.ROOT.ImageProcessing.BackSub.Use = false;
   isOk.ROOT.ImageProcessing.HistEq.Use = false;
   msgs{end+1} = 'Background subtraction and histogram equalization cannot both be enabled.';
@@ -23,7 +29,8 @@ end
 %   msgs{end+1} = 'Histogram equalization: Num frames sample must be at least 1.';
 % end
 
-if sPrm.ROOT.MultiAnimal.TargetCrop.ManualRadius <= 0,
+if isSubField(sPrm,{'ROOT','MultiAnimal','TargetCrop','ManualRadius'}) && ...
+    sPrm.ROOT.MultiAnimal.TargetCrop.ManualRadius <= 0,
   isOk.ROOT.MultiAnimal.TargetCrop.ManualRadius = false;
   msgs{end+1} = 'Multitarget crop radius must be at least 1.';
 end

@@ -11225,8 +11225,9 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
-      [setall] = myparse(varargin,...
-        'all',false... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
+      [setall,istrack] = myparse(varargin,...
+        'all',false,... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
+        'istrack',false... % if true, this is being called by the trackSetTrackParams function
         ); 
       sPrm = APTParameters.enforceConsistency(sPrm);
 
@@ -11247,6 +11248,7 @@ classdef Labeler < handle
       obj.trackParams = sPrm;
       
       if tfPPprmsChanged
+        assert(~istrack);
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.preProcInitData();
         obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
@@ -11260,7 +11262,7 @@ classdef Labeler < handle
           % .movieInvert, cropInfo
         end
         
-        if obj.maIsMA
+        if obj.maIsMA && ~istrack,
           obj.lblCore.preProcParamsChanged();          
         end
       end
@@ -11279,9 +11281,9 @@ classdef Labeler < handle
         
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
-% eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
-% over.
-
+      % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
+      % over.
+      
       % Start with default "new" parameter tree/specification
       tPrm = APTParameters.defaultParamsTree;
       % Overlay our starting pt
@@ -11311,6 +11313,35 @@ classdef Labeler < handle
         sPrmNew = tPrm.structize;
         obj.trackSetParams(sPrmNew);
       end
+    end
+    
+    function [tPrm] = trackGetTrackParams(obj)
+      % Get current parameters related to tracking
+
+      sPrmCurrent = obj.trackGetParams();
+      sPrmCurrent = APTParameters.all2TrackParams(sPrmCurrent);
+      % Start with default "new" parameter tree/specification
+      tPrm = APTParameters.defaultTrackParamsTree();
+      % Overlay our starting pt
+      tPrm.structapply(sPrmCurrent);
+      
+    end
+    
+    function [sPrmAll] = trackSetTrackParams(obj,sPrmTrack,varargin)
+      
+      sPrmAll = obj.trackGetParams();
+      sPrmAll = APTParameters.setTrackParams(sPrmAll,sPrmTrack);
+      
+      obj.trackSetParams(sPrmAll,varargin{:},'istrack',true);
+      
+      % set all tracker parameters
+      for i = 1:numel(obj.trackersAll),
+        obj.trackersAll{i}.setTrackParams(sPrmTrack);
+      end
+%       if ~isempty(obj.tracker),
+%         obj.tracker.setParams(sPrmAll);
+%       end
+      
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
