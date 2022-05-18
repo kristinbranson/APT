@@ -855,6 +855,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             return ret_dict
 
         def close_fn():
+            del self.model
             torch.cuda.empty_cache()
 
         return pred_fn, close_fn, latest_model_file

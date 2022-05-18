@@ -6,19 +6,24 @@ pp3dtype = 'triangulate';
 net_mode = DLNetMode.singleAnimal;
 apt_root = APT.getRoot;
 
-[bindpath,backend,gpu_id] = myparse(varargin, ...
+[bindpath,backend,gpu_id,toTrack,save_raw] = ...
+  myparse(varargin, ...
   'bindpath',{'/groups','/nrs'},...
   'backend','singularity', ...
-  'gpu_id',0 ...
+  'gpu_id',0, ...
+  'toTrack',[], ...
+  'save_raw',false ...
   );
 
-% create a dummy lObj to satisify parseToTrackJSON
-lObj = struct('nview',nvw,'isMultiView',true,...
-  'hasTrx',false);
-lObj.trackParams.ROOT.PostProcess.reconcile3dType = 'trianglulate';
-
-[toTrack] = parseToTrackJSON(jsonfile,lObj);
-assert(~isempty(toTrack));
+if isempty(toTrack)
+  % create a dummy lObj to satisify parseToTrackJSON
+  lObj = struct('nview',nvw,'isMultiView',true,...
+    'hasTrx',false);
+  lObj.trackParams.ROOT.PostProcess.reconcile3dType = 'trianglulate';
+  
+  [toTrack] = parseToTrackJSON(jsonfile,lObj);
+  assert(~isempty(toTrack));
+end
 
 if size(toTrack.cropRois,2) > 1,
   cropRois = cell(size(toTrack.cropRois,1),1);
@@ -38,12 +43,17 @@ for ndx = 1:size(toTrack.movfiles,1)
      crop_str);
 
   if strcmp(backend, 'singularity')
+    if ~isempty(gpu_id)
+      baseCmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; %s',...
+      gpu_id, baseCmd);
+    end
     cmd_str = DeepTracker.codeGenSingGeneral(baseCmd,net_mode,'bindpath',bindpath);
   else
     backend = DLBackEndClass(DLBackEnd.Docker);
     cmd_str = backend.codeGenDockerGeneral(baseCmd,'run1','bindpath',bindpath,...
       'gpuid',gpu_id,'detach',false);
   end  
+  fprintf(cmd_str);
   system(cmd_str);
 
   calibrationfile=toTrack.calibrationfiles{ndx};
@@ -61,6 +71,12 @@ for ndx = 1:size(toTrack.movfiles,1)
 
   trk1 = trks{1};
   trk2 = trks{2};                
+  
+  if save_raw
+    raw_trk = strrep(trkfiles,'.trk','_raw.trk');
+    copyfile(trkfiles{1},raw_trk{1});
+    copyfile(trkfiles{2},raw_trk{2});
+  end
 
   [trk1save,trk2save] = PostProcess.triangulate(trk1,trk2,...
     toTrack.cropRois{ndx},vcd,pp3dtype);
