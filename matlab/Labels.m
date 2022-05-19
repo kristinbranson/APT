@@ -532,15 +532,12 @@ classdef Labels
         assert(isequal(trk.pTrkiPt(:)',1:size(trk.pTrk,1)),...
           'Unexpected point specification in .pTrkiPt.');
       end
-%       args = {};
-%       if isfield(trk,'pTrkFrm')
-%         args = [args {'frms' trk.pTrkFrm}];
-%       end
-%       if isfield(trk,'pTrkiTgt')
-%         args = [args {'tgts' trk.pTrkiTgt}];
-%       end
-      s = Labels.fromarray(trk.pTrk,'lposTS',trk.pTrkTS,...
-        'lpostag',trk.pTrkTag,'frms',trk.pTrkFrm,'tgts',trk.pTrkiTgt);
+      if trk.isfull
+        s = Labels.fromarray(trk.pTrk,'lposTS',trk.pTrkTS,...
+          'lpostag',trk.pTrkTag,'frms',trk.pTrkFrm,'tgts',trk.pTrkiTgt);
+      else
+        s = Labels.fromtable(trk.tableform('labelsColNames',true));
+      end
     end
     function ptrx = toPTrx(s)
       tgtsUn = unique(s.tgt);
