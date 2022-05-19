@@ -122,6 +122,21 @@ elseif strcmpi(ext,'.png'),
     fid = -1;
     isimseq = true;
   end
+elseif strcmpi(ext,'.jpg'),
+  info = imfinfo(filename);
+  isimseq = false;
+  filespec = regexprep(filename,'\d+\.jpg$','*.jpg');
+  imfiles = mydir(filespec);
+  if numel(imfiles) > 1,
+    imfiles = sort(imfiles);
+    im = imread(imfiles{1});
+    headerinfo = struct('nr',size(im,1),'nc',size(im,2),'ncolors',size(im,3),'nframes',numel(imfiles),...
+      'type','imseq','imfiles',{imfiles});
+    readframe = @(f) imseq_read_frame(f,imfiles);
+    nframes = headerinfo.nframes;
+    fid = -1;
+    isimseq = true;
+  end
 elseif strcmpi(ext,'.klb'),
   tfKLBLib = exist('readKLBslice','file')>0;
   if ~tfKLBLib
