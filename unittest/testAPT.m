@@ -726,6 +726,7 @@ classdef testAPT < handle
       centerOnParentFigure(wbObj.hWB,handles.figure);
       tObj = lObj.tracker;
       tObj.skip_dlgs = true;
+      lObj.silent = true;
       if lObj.trackerIsTwoStage && ~strcmp(backend,'bsub')
         tObj.forceSerial = serial2stgtrain;
       end      

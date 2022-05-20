@@ -11454,7 +11454,7 @@ classdef Labeler < handle
         retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
       
-	  % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
+      % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
       % tObj.clearTrackingResults();
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
