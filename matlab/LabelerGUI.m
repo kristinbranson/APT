@@ -3348,7 +3348,7 @@ if haslbls1
   end
 end
 handles.labelerObj.labelImportTrkPromptGenericSimple(iMov,...
-  'labelImportTrkGenericSimple','gtok',false);
+  'labelImportTrk','gtok',false);
 
 function menu_file_import_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
