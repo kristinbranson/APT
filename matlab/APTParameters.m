@@ -365,6 +365,12 @@ classdef APTParameters
       sPrmDT = sPrmAll.ROOT.DeepTrack;
       dlNetTypesPretty = APTParameters.getDLNetTypesPretty;
       v = rmfield(sPrmDT,intersect(fieldnames(sPrmDT),dlNetTypesPretty));
+      flds2remove = {'LossFunction','Saving','DataAugmentation','GradientDescent'};
+      for fndx = 1:numel(flds2remove)
+        if isfield(v,flds2remove{fndx})
+          v = rmfield(v,flds2remove{fndx});
+        end
+      end
     end
     
     % all parameters to specific dl parameters for input netType

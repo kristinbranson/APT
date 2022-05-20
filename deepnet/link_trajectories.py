@@ -1324,7 +1324,7 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
   :rtype:
   '''
 
-  n_threads = min(24, mp.cpu_count())
+  n_threads = min(24, mp.cpu_count(),len(trk_info))
   with mp.get_context('spawn').Pool(n_threads) as pool:
 
     trk_info_split = split_parallel(trk_info,n_threads)
@@ -1733,10 +1733,11 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
       # Find the embeddings for the images
       cur_preds = tracklet_pred(ims, net, conf, rescale)
 
-      if preds is None:
-        preds = cur_preds
-      else:
-        preds = np.concatenate([preds, cur_preds],axis=0)
+      if cur_preds.size>0:
+        if preds is None:
+          preds = cur_preds
+        else:
+          preds = np.concatenate([preds, cur_preds],axis=0)
 
     merge_tgt_id = np.array(merge_tgt_id)
     cur_d = [merge_data, sel_tgt, merge_tgt_id, ss, ee, sel_ss, sel_ee]

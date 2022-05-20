@@ -602,6 +602,7 @@ classdef Labeler < handle
     hFig; % handle to main LabelerGUI figure
     drag = false;
     drag_pt = [];
+    silent = false; % Don't open dialogs. Use defaults. For testing and debugging
   end
   properties (SetAccess=private)
     isinit = false;         % scalar logical; true during initialization, when some invariants not respected
@@ -11275,7 +11276,7 @@ classdef Labeler < handle
       % MA-TD) and switches between them, the behavior may be odd (eg the
       % user may get prompted constantly about "changed suggestions" etc)
 
-      silent = myparse(varargin,'silent',false);
+      silent = myparse(varargin,'silent',false) | obj.silent;
         
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
