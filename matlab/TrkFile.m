@@ -223,7 +223,8 @@ classdef TrkFile < dynamicprops
       end
       validateattributes(obj.pTrkTS,{'numeric'},{'size' [npttrk nfrm ntgt]},'','pTrkTS');
       
-      if isequal(obj.pTrkTag,TrkFile.unsetVal)
+      if isequal(obj.pTrkTag,TrkFile.unsetVal) || ...
+          ( all(size(obj.pTrkTag)==[npttrk nfrm]) && iscell(obj.pTrkTag))
         obj.pTrkTag = false(npttrk,nfrm,ntgt);
       end
       validateattributes(obj.pTrkTag,{'logical'},...

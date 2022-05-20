@@ -1177,10 +1177,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
 
     assert not (conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
 
-    mat_lbl_file = lbl_file.replace('.json','.lbl')
-    if os.path.exists(mat_lbl_file):
-        conf_lbl = create_conf(mat_lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=net_type,conf_params=conf_params,quiet=quiet,json_trn_file=json_trn_file,first_stage=first_stage,second_stage=second_stage,no_json=True)
-        assert PoseTools.compare_conf_json_lbl(conf, conf_lbl,dt_params,net_type), 'Stripped label based conf and json based conf do not match!!'
+    # mat_lbl_file = lbl_file.replace('.json','.lbl')
+    # if os.path.exists(mat_lbl_file):
+    #     conf_lbl = create_conf(mat_lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=net_type,conf_params=conf_params,quiet=quiet,json_trn_file=json_trn_file,first_stage=first_stage,second_stage=second_stage,no_json=True)
+    #     assert PoseTools.compare_conf_json_lbl(conf, conf_lbl,dt_params,net_type), 'Stripped label based conf and json based conf do not match!!'
     return conf
 
 

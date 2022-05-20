@@ -92,6 +92,7 @@ def get_strs(tstamp, tstamps, mtypes, tdir):
 def main(argv):
     args = parse_args(argv)
     lbl_file = args.lbl_file
+    del_tfile = False
     if os.path.isdir(lbl_file):
         tdir = lbl_file
     else:
@@ -106,6 +107,7 @@ def main(argv):
         logging.info('Unbundling the label file.. ')
         tobj = TarFile.open(lbl_file)
         tobj.extractall(path=tdir)
+        del_tfile = True
 
 ## Find all the stored models
 
@@ -130,6 +132,8 @@ def main(argv):
             else:
                 mstr = 'multi-animal' if is_multi[ndx[0]] else 'single-animal'
                 print(f'* Model {idx+1} -- {mstr} {get_pretty_name(mtypes[ndx[0]])} network, trained at {cur.strftime("%Y %b %m %H:%M")}')
+        if del_tfile:
+            os.remove(tdir)
         return
 
     if args.model_ndx is None:
@@ -169,6 +173,8 @@ def main(argv):
     print('------------------------------------')
     apt.main(a_argv)
 
+    if del_tfile:
+        os.remove(tdir)
 
 ##
 if __name__ == "__main__":

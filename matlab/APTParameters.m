@@ -383,6 +383,12 @@ classdef APTParameters
       sPrmDT = sPrmAll.ROOT.DeepTrack;
       dlNetTypesPretty = APTParameters.getDLNetTypesPretty;
       v = rmfield(sPrmDT,intersect(fieldnames(sPrmDT),dlNetTypesPretty));
+      flds2remove = {'LossFunction','Saving','DataAugmentation','GradientDescent'};
+      for fndx = 1:numel(flds2remove)
+        if isfield(v,flds2remove{fndx})
+          v = rmfield(v,flds2remove{fndx});
+        end
+      end
     end
 
     % all parameters to specific dl parameters for input netType
@@ -809,7 +815,7 @@ function autoparams = compute_auto_params(lobj)
   end
   all_labels = reshape(all_labels,npts,2,[]);
   pair_labels = reshape(pair_labels,npts,2,2,[]);
-  % animals are along the second last dimension.
+  % animals are along the last dimension.
   % second dim has the coordinates
 
   %%

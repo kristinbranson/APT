@@ -684,7 +684,7 @@ classdef LabelCore < handle
     function [xy,tfEO] = getLabelCoords(obj,occval)
       % occval: value to use in rows matching .tfOcc 
       if nargin<2
-        occval = inf;
+        occval = nan;
       end
       xy = nan(numel(obj.hPts),2);
       ish = ishandle(obj.hPts);

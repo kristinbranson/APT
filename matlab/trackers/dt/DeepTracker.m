@@ -448,8 +448,16 @@ classdef DeepTracker < LabelTracker
       
       obj.sPrmAll = sPrmAll;
       
-      if tfCommonChanged || tfPreProcChanged || tfSpecificChanged,
+      if tfCommonChanged || tfSpecificChanged
         obj.initHook();
+      elseif tfPreProcChanged
+        % This is likeyly if the tragetcrop size changes in which case 
+        % we should only reset the second stage but for now resetting the
+        % both the stages -- MK 20220520
+        if (obj.lObj.maIsMA && (obj.getNumStages > 1)) ||...
+            ~obj.lObj.maIsMA
+          obj.initHook();
+        end
       end
       if tfPostProcChanged
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');

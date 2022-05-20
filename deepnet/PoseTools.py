@@ -1114,7 +1114,7 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     for x in range(1,yy):
         plt.plot([x*isz2,x*isz2],[1,im_s.shape[0]-1],c=[0.3,0.3,0.3])
     for y in range(1,xx):
-        plt.plot([1,im_s.shape[1]-1],[y*isz2,y*isz2],c=[0.3,0.3,0.3])
+        plt.plot([1,im_s.shape[1]-1],[y*isz1,y*isz1],c=[0.3,0.3,0.3])
     plt.axis('off')
 
 def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11, hiliteptcolor=None):
