@@ -6967,6 +6967,7 @@ classdef Labeler < handle
     function labelImportTrk(obj,iMovs,trkfiles)
       mIdx = MovieIndex(iMovs,obj.gtIsGTMode);
       obj.labelImportTrkGeneric(mIdx,trkfiles,'LBL');
+      obj.labelsUpdateNewFrame(true);
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
