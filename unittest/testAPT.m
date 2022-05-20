@@ -18,7 +18,7 @@ classdef testAPT < handle
   
   % MA/roian, Kristin's suggestion:
   % testObj = testAPT('name','roianma');  
-  % testObj.test_full('nets',{},'setup_params',{'simpleprojload',1},'backend','bsub');
+  % testObj.test_full('nets',{},'setup_params',{'simpleprojload',1,'jrcgpuqueue','gpu_tesla','jrcnslots',4},'backend','bsub');
   % empty nets means test all nets
   
   % Carmen/GT workflow (proj on JRC/dm11)
@@ -428,9 +428,11 @@ classdef testAPT < handle
     
     function test_setup(self,varargin)
       self.setup_path();
-      [target_trk,simpleprojload] = myparse(varargin,...
+      [target_trk,simpleprojload,jrcgpuqueue,jrcnslots] = myparse(varargin,...
         'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame,...
-        'simpleprojload',false ... % if true, just load the proj; use when proj on local filesys with all deps
+        'simpleprojload',false, ... % if true, just load the proj; use when proj on local filesys with all deps
+        'jrcgpuqueue','',... % override gpu queue
+        'jrcnslots',[]... % override nslots
         );
       
       if simpleprojload
@@ -458,6 +460,21 @@ classdef testAPT < handle
       trk_pum_ndx = find(trkTypes == target_trk );      
       set(self.lObj.gdata.pumTrack,'Value',trk_pum_ndx);
       self.lObj.setSkeletonEdges(self.info.op_graph);
+      
+      if ~isempty(jrcgpuqueue),
+        for i = 1:numel(lObj.trackersAll),
+          if isprop(lObj.trackersAll{i},'jrcgpuqueue'),
+            lObj.trackersAll{i}.jrcgpuqueue = jrcgpuqueue;
+          end
+        end
+      end
+      if ~isempty(jrcnslots),
+        for i = 1:numel(lObj.trackersAll),
+          if isprop(lObj.trackersAll{i},'jrcnslots'),
+            lObj.trackersAll{i}.jrcnslots = jrcnslots;
+          end
+        end
+      end
     end
     
         
