@@ -1106,7 +1106,13 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     set_all(conf, dt_params['DeepTrack']['GradientDescent'])
     set_all(conf, dt_params['DeepTrack']['DataAugmentation'])
     set_all(conf, dt_params['DeepTrack']['LossFunction'])
-    set_all(conf, dt_params['MultiAnimal']['TrackletStitch'])
+    if 'TrackletStitch' in dt_params['MultiAnimal']:
+        set_all(conf, dt_params['MultiAnimal']['TrackletStitch'])
+        logging.warning('Your project is out of date. TrackletStitch should be a subfield of MultiAnimal.Track. At some point, you should retrain.')
+    if 'Track' in dt_params['MultiAnimal']:
+        set_all(conf, dt_params['MultiAnimal']['Track'])
+        if 'TrackletStitch' in dt_params['MultiAnimal']['Track']:
+            set_all(conf, dt_params['MultiAnimal']['Track']['TrackletStitch'])            
     if 'Detect' in dt_params['MultiAnimal']:
         set_all(conf, dt_params['MultiAnimal']['Detect'])
     conf.rescale = float(conf.scale)

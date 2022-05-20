@@ -11829,38 +11829,43 @@ classdef Labeler < handle
       %
       % Final Massage
       % 
+
+      % KB 20220517 - wanted to use this part of the code elsewhere, broke
+      % into another function
+      s.trackerData = DeepTracker.massageTrackerData(s.trackerData{s.currTracker},obj,...
+        'sPrmAll',sPrmAll);
       
-      tdata = s.trackerData{s.currTracker};
-      tfTD = isfield(tdata,'stg2');      
-      if tfTD
-        tdata = [tdata.stg1; tdata.stg2];
-      end
-      netmodes = [tdata.trnNetMode];
-      assert(all(tfTD==[netmodes.isTwoStage]));
-      
-      for i=1:numel(tdata)
-        if ~isempty(sPrmAll)
-          tdata(i).sPrmAll = sPrmAll;
-        end
-        tdata(i).sPrmAll = obj.addExtraParams(tdata(i).sPrmAll,...
-          tdata(i).trnNetMode);
-        tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
-      end
-      
-      if tfTD
-        s.trackerData = num2cell(tdata(:)');
-        
-        % stage 1 trackData; move Detect.DeepTrack to top-level
-        s.trackerData{1}.sPrmAll.ROOT.DeepTrack = ...
-          s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
-        s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
-      else
-        s.trackerData = {[] tdata};
-      end
-      % remove detect/DeepTrack from stage2
-      s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');        
+%       tdata = s.trackerData{s.currTracker};
+%       tfTD = isfield(tdata,'stg2');      
+%       if tfTD
+%         tdata = [tdata.stg1; tdata.stg2];
+%       end
+%       netmodes = [tdata.trnNetMode];
+%       assert(all(tfTD==[netmodes.isTwoStage]));
+%       
+%       for i=1:numel(tdata)
+%         if ~isempty(sPrmAll)
+%           tdata(i).sPrmAll = sPrmAll;
+%         end
+%         tdata(i).sPrmAll = obj.addExtraParams(tdata(i).sPrmAll,...
+%           tdata(i).trnNetMode);
+%         tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
+%       end
+%       
+%       if tfTD
+%         s.trackerData = num2cell(tdata(:)');
+%         
+%         % stage 1 trackData; move Detect.DeepTrack to top-level
+%         s.trackerData{1}.sPrmAll.ROOT.DeepTrack = ...
+%           s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
+%         s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+%           s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+%       else
+%         s.trackerData = {[] tdata};
+%       end
+%       % remove detect/DeepTrack from stage2
+%       s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+%           s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');        
       s.nLabels = ppdata.N;      
       
       tfsucc = true;
@@ -15155,7 +15160,7 @@ classdef Labeler < handle
       % which optimizes browse speed.
       tv = obj.createTrackingVisualizer('impPointsPlotInfo','labeledpos2');      
       if ~isempty(obj.trackParams)
-        maxNanimals = obj.trackParams.ROOT.MultiAnimal.max_n_animals;
+        maxNanimals = obj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
         maxNanimals = max(ceil(maxNanimals*1.5),10);
       else
         maxNanimals = 20;

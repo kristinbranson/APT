@@ -431,6 +431,7 @@ classdef APTParameters
       sPrmAll.ROOT.DeepTrack = structoverlay(sPrmAll.ROOT.DeepTrack,sPrmDT);      
     end
     
+    % set tracking-specific parameters
     function sPrmAll = setTrackParams(sPrmAll,sPrmTrack)
       sPrmAll.ROOT.Track = sPrmTrack.ROOT.Track;
       sPrmAll.ROOT.MultiAnimal.Track = sPrmTrack.ROOT.MultiAnimal;
@@ -547,8 +548,8 @@ classdef APTParameters
         end
         if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
           isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
-          sPrmAll.ROOT.MultiAnimal.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
-          sPrmAll.ROOT.MultiAnimal.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
+          sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
+          sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
           sPrmAll.ROOT.MultiAnimal.Detect = ...
             rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
         end

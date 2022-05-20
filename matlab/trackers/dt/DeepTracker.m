@@ -2572,6 +2572,48 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'... using %d gpus, multiview=%d, serialmov=%d\n',...
         numel(gpuids),isMultiView,isSerialMultiMov);
     end
+    
+    function tdata = massageTrackerData(tdata,lObj,varargin)
+      % massage of trackerData created with getSaveToken();
+      % this was part of Labeler.trackCreateDeepTrackerStrippedLbl()
+      % moved here so that it could be reused
+      % KB 20220517
+      
+      [sPrmAll] = myparse(varargin,'sPrmAll',[]);
+      
+      tfTD = isfield(tdata,'stg2');      
+      if tfTD
+        tdata = [tdata.stg1; tdata.stg2];
+      end
+      netmodes = [tdata.trnNetMode];
+      assert(all(tfTD==[netmodes.isTwoStage]));
+      
+      for i=1:numel(tdata)
+        if ~isempty(sPrmAll)
+          tdata(i).sPrmAll = sPrmAll;
+        end
+        tdata(i).sPrmAll = lObj.addExtraParams(tdata(i).sPrmAll,...
+          tdata(i).trnNetMode);
+        tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
+      end
+      
+      if tfTD
+        tdata = num2cell(tdata(:)');
+        
+        % stage 1 trackData; move Detect.DeepTrack to top-level
+        tdata{1}.sPrmAll.ROOT.DeepTrack = ...
+          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
+        tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+      else
+       tdata = {[] tdata};
+      end
+      % remove detect/DeepTrack from stage2
+      tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+          tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');    
+      
+    end
+    
   end
   methods
     
@@ -3991,6 +4033,27 @@ classdef DeepTracker < LabelTracker
         % detached
       bgObj.dispTrkOutDir();
     end
+    
+    function trkCreateConfig(obj,varargin)
+      % trkCreateConfig(obj,'sPrmAll',[])
+      % 
+      [sPrmAll] = myparse(varargin,'sPrmAll',[]);
+      
+      s = struct;
+      s.projectFile = obj.lObj.projectfile;
+      s.projectname = obj.lObj.projectname;
+      s.cfg = obj.lObj.getCurrentConfig();
+      tdata = obj.getSaveToken();
+      s.trackerData = LabelTracker.massageTrackerData(tdata,...
+        obj.lObj,'sPrmAll',sPrmAll);
+      slbl = Lbl.compressStrippedLbl(s);
+      [jse] = Lbl.jsonifyStrippedLbl(slbl);
+      jsonoutf = obj.trkLastDMC(1).trkConfigJsonLnx;
+      fh = fopen(jsonoutf,'w');
+      fprintf(fh,'%s\n',jse);
+      fclose(fh);
+    end
+    
   end
   methods (Static)
     function bgTrkWorkerObj = createBgTrkWorkerObj(nView,dmc,backend)
@@ -5818,7 +5881,7 @@ classdef DeepTracker < LabelTracker
         % might need to re-vizInit an existing trkVizer eg if number of trx 
         % has changed, maxNanimals has changed, etc.      
         if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.max_n_animals;
+          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
           maxNanimals = max(ceil(maxNanimals*1.5),10);
         else
           maxNanimals = 20;

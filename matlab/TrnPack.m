@@ -716,33 +716,32 @@ classdef TrnPack
       
       imovall = [sloc.imov]';
       imovun = unique(imovall);
-      %mr = MovieReader;
-      for imov=imovun(:)'
+      
+      fprintf(1,'Writing training images...\n');
+      
+      bufsize = 128;      
+      for iimov = 1:numel(imovun),
+        imov=imovun(iimov);
         idx = find(imovall==imov); % indices into sloc for this mov
         % idx cannot be empty
         mov = sloc(idx(1)).mov;
         %mr.open(mov);
-        fprintf(1,'Movie %d: %s\n',imov,mov);
-        rfcn = get_readframe_fcn(mov);
-                
-        for i=idx(:)'
-         % MK 07022022: Removing parfor. For avis and others parfor is slower than for
-         % normal for loop. And opening avis for every frame is extremely
-         % awful. And it seems the parfor err can be got around using
-         % feval. Even so it was faster to use for instead of parfor
+        fprintf(1,'Movie %d: %s (%d/%d)\n',imov,mov,iimov,numel(imovun));
+        [rfcn,~,fid] = get_readframe_fcn(mov);
+        frms = [sloc(idx).frm];
+        filenames = arrayfun(@(i) fullfile(packdir,sdir,[sloc(i).idmovfrm '.png']),idx,'Uni',0);
+        doskip = cellfun(@(x) exist(x,'file'),filenames) > 0;
+        if ~all(doskip),
+          res = parforOverVideo(rfcn,frms(~doskip),@(im,frm,i) imwriteCheck(im,filenames{i}),'bufsize',bufsize,'verbose',true);
+          assert(all(cell2mat(res)));
+        end
+        fprintf(1,'Wrote %d new images, %d existed previously\n',nnz(~doskip),nnz(doskip));
 
-          s = sloc(i);
-          imfrmf = fullfile(packdir,sdir,[s.idmovfrm '.png']);
-          if exist(imfrmf,'file')>0
-            fprintf(1,'Skipping, image already exists: %s\n',imfrmf);
-          else
-            % calling get_readframe_fcn outside parfor results in harderr
-            imfrm = rfcn(s.frm);
-            imwrite(imfrm,imfrmf);
-            fprintf(1,'Wrote %s\n',imfrmf);
-          end
+        if ~isempty(fid) && fid > 1,
+          fclose(fid);
         end
       end
+      
     end
     function writeimsSA(sloc,packdir,ims)
       % Write ims for Single animal
@@ -753,13 +752,16 @@ classdef TrnPack
       end
       
       n=numel(sloc);
-      for i=1:n
+      fprintf(1,'Writing %d training images...\n',n);
+
+      parfor i=1:n
+        imgnames = sloc(i).img;
         for v=1:size(ims,2)
-          s = sloc(i);
-          imgfile = fullfile(packdir,s.img{v});
+          imgfile = fullfile(packdir,imgnames{v});
           im = ims{i,v};
-          imwrite(im,imgfile);
-          fprintf(1,'Wrote %s\n',s.img{v});
+          if ~exist(imgfile,'file'),
+            imwrite(im,imgfile);
+          end
         end
       end
     end

@@ -91,9 +91,13 @@ classdef Lbl
       % j: raw struct
       
       cfg = s.cfg;
-      cfg.HasCrops = s.cropProjHasCrops;
-      mia = cellfun(@(x)struct('NumRows',x.info.nr,...
-                               'NumCols',x.info.nc),s.movieInfoAll);
+      if isfield(s,'cropProjHasCrops'),
+        cfg.HasCrops = s.cropProjHasCrops;
+      end
+      if isfield(s,'movieInfoAll'),
+        mia = cellfun(@(x)struct('NumRows',x.info.nr,...
+          'NumCols',x.info.nc),s.movieInfoAll);
+      end
       for ivw=1:size(mia,2)
         nr = [mia(:,ivw).NumRows];
         nc = [mia(:,ivw).NumCols];
@@ -101,29 +105,39 @@ classdef Lbl
       end
       
       j = struct();
-      j.ProjName = s.projname;
-      j.ProjectFile = s.projectFile;
-      j.Config = cfg;
-      j.MovieInfo = mia(1,:);
-      if cfg.HasCrops
-        ci = s.movieFilesAllCropInfo;
-        nmov = numel(ci);
-        cropRois = nan(nmov,4);
-        for imov=1:nmov
-          cropRois(imov,:) = ci{imov}.roi;
-        end
-      else
-        cropRois = [];        
+      if isfield(s,'projname'),
+        j.ProjName = s.projname;
       end
-      j.MovieCropRois = cropRois;
+      if isfield(s,'projectFile'),
+        j.ProjectFile = s.projectFile;
+      end
+      j.Config = cfg;
+      if isfield(s,'movieInfoAll'),
+        j.MovieInfo = mia(1,:);
+      end
+      if isfield(s,'cropProjHasCrops'),
+        if cfg.HasCrops,
+          ci = s.movieFilesAllCropInfo;
+          nmov = numel(ci);
+          cropRois = nan(nmov,4);
+          for imov=1:nmov
+            cropRois(imov,:) = ci{imov}.roi;
+          end
+        else
+          cropRois = [];
+        end
+        j.MovieCropRois = cropRois;
+      end
       assert(strcmp(s.trackerClass{2},'DeepTracker'));
       if isempty(s.trackerData{1})
         j.TrackerData = s.trackerData{2};
       else
         j.TrackerData = cell2mat(s.trackerData);
       end
-      
-      jse = jsonencode(j);
+      % KB 20220517 - added parameters here, as this is what is used when
+      % saving json to file finally, wanted to reuse this. 
+      % This output was never being used afaik.
+      jse = jsonencode(j,'ConvertInfAndNaN',false);
     end
   end
   
