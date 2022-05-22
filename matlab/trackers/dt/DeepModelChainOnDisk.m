@@ -69,8 +69,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainLogName
     trkLogLnx % for tracking output
     trkLogName
-    trkConfigJsonLnx % config
-    trkConfigJsonName
     trkErrfileLnx
     trkErrfileName
     trkSnapshotLnx
@@ -221,13 +219,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = sprintf('%s_%s_vw%d_%s.log',obj.trkTaskKeyword,obj.modelChainID, ...
         obj.view,obj.trkTSstr);
     end
-    function v = get.trkConfigJsonLnx(obj)
-      v = [obj.dirTrkOutLnx obj.filesep obj.trkConfigJsonName];
-    end
-    function v = get.trkConfigJsonName(obj)
-      v = sprintf('%s_%s_vw%d_%s_config.json',obj.trkTaskKeyword,obj.modelChainID, ...
-        obj.view,obj.trkTSstr);
-    end    
     function v = get.trkErrfileLnx(obj)
       v = [obj.dirTrkOutLnx obj.filesep obj.trkErrfileName];
     end

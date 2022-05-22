@@ -85,6 +85,19 @@ classdef DeepTrackerTopDown < DeepTracker
         v = 'bbox';
       end
     end
+    function setJrcgpuqueue(obj,v)
+      obj.jrcgpuqueue = v;
+      obj.stage1Tracker.jrcgpuqueue = v;      
+    end
+    function setJrcnslots(obj,v)
+      obj.jrcnslots = v;
+      obj.stage1Tracker.jrcnslots = v;      
+    end
+    function setJrcnslotstrack(obj,v)
+      obj.jrcnslotstrack = v;
+      obj.stage1Tracker.jrcnslotstrack = v;      
+    end
+
   end
     
   methods 
@@ -537,6 +550,11 @@ classdef DeepTrackerTopDown < DeepTracker
       s.stg1 = obj.stage1Tracker.getSaveToken();
       s.stg2 = getSaveToken@DeepTracker(obj);
     end
+    function s = getTrackSaveToken(obj)
+      s = obj.getSaveToken();
+      s.stg1.sPrmAll = APTParameters.all2TrackParams(s.stg1.sPrmAll,false);
+      s.stg2.sPrmAll = APTParameters.all2TrackParams(s.stg2.sPrmAll,false);
+    end
     
     function loadSaveToken(obj,s)
       s1 = DeepTracker.modernizeSaveToken(s.stg1);
@@ -552,6 +570,12 @@ classdef DeepTrackerTopDown < DeepTracker
       updateDLCache@DeepTracker(obj,dlcachedir);
       updateDLCache@DeepTracker(obj.stage1Tracker,dlcachedir);
     end
+    
+    function setTrackParams(obj,sPrmTrack)
+      setTrackParams@DeepTracker(obj,sPrmTrack);
+      setTrackParams@DeepTracker(obj.stage1Tracker,sPrmTrack);
+    end
+
     
   end
   

@@ -374,6 +374,7 @@ classdef APTInterf
       movtrk = fileinfo.movtrk; 
       % save as movtrk, except for 2 stage, this will be [nviewx2] or [nmovx2]
       outtrk = fileinfo.outtrk; 
+      configfile = fileinfo.configfile;
       
       [listfile,cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
         updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,...
@@ -494,6 +495,7 @@ classdef APTInterf
         end
         errfile = fcnPathUpdate(errfile);
         dllbl = fcnPathUpdate(dllbl);
+        configfile = fcnPathUpdate(configfile);
       end      
 
       code = { ...
@@ -519,9 +521,9 @@ classdef APTInterf
       if tflog
         code = [code {'-log_file' [filequote log_file filequote]}];
       end
-        if track_id
-          code = [code {'-conf_params link_id True'}]
-        end
+      if track_id
+        code = [code {'-conf_params link_id True'}];
+      end
                       
       if tf2stg
         %szassert(outtrk,[1 nstage],...
@@ -543,6 +545,7 @@ classdef APTInterf
                       'track' ...
                       '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
       end
+      code = [code {'-config_file' [filequote configfile filequote]}];
       if tflistfile
         code = [code {'-list_file' [filequote listfile filequote]}];
       else

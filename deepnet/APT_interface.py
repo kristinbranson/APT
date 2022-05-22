@@ -677,15 +677,17 @@ def conf_opts_pvargstr2dict(conf_str):
     return conf_opts
 
 
-def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', conf_params=None, quiet=False, json_trn_file=None,first_stage=False,second_stage=False,no_json=False):
+def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', conf_params=None, quiet=False, json_trn_file=None,first_stage=False,second_stage=False,no_json=False,config_file=None):
 
     if not no_json:
         if os.path.exists(lbl_file.replace('.lbl','.json')):
             lbl_file = lbl_file.replace('.lbl','.json')
     if lbl_file.endswith('.json'):
-        return create_conf_json(lbl_file=lbl_file,view=view, name=name, cache_dir=cache_dir, net_type=net_type, conf_params=conf_params, quiet=quiet, json_trn_file=json_trn_file, first_stage=first_stage, second_stage=second_stage)
+        return create_conf_json(lbl_file=lbl_file,view=view, name=name, cache_dir=cache_dir, net_type=net_type, conf_params=conf_params, quiet=quiet, json_trn_file=json_trn_file, first_stage=first_stage, second_stage=second_stage, config_file=config_file)
     assert not (first_stage and second_stage), 'Configurations should either for first stage or second stage for multi stage tracking'
 
+    assert config_file is None, 'Extra config file only implemented when main config is a json file'
+    
     try:
         try:
             lbl = loadmat(lbl_file)
@@ -1005,8 +1007,48 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
                 conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
     return conf
 
+def override_params(dt_params,dt_params_override):
+    for key in dt_params_override:
+        if isinstance(dt_params_override[key],dict):
+            # call recurrently
+            override_params(dt_params[key],dt_params_override[key])
+        else:
+            # base case
+            if key not in dt_params:
+                logging.info(f'Adding {key} = {dt_params_override[key]}')
+                dt_params[key] = dt_params_override[key] # base case
+            elif dt_params[key] != dt_params_override[key]:
+                logging.info(f'Replacing {key} = {dt_params[key]} with {dt_params_override[key]}')
+                dt_params[key] = dt_params_override[key] 
 
-def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None, first_stage=False, second_stage=False):
+def modernize_params(dt_params):
+    """
+    modernize_params(dt_params)
+    Updates to parameters for backwards compatability
+    """
+
+    # KB 20220516: moving tracking related parameters around
+    if 'MultiAnimal' in dt_params:
+        if 'Track' not in dt_params['MultiAnimal']:
+            logging.warning('Modernizing parameters: adding MultiAnimal.Track')
+            dt_params['MultiAnimal']['Track'] = {}
+        
+        if 'max_n_animals' in dt_params['MultiAnimal']:
+            logging.warning('Modernizing parameters: moving MultiAnimal.max_n_animals to MultiAnimal.Track.max_n_animals')
+            dt_params['MultiAnimal']['Track']['max_n_animals'] = dt_params['MultiAnimal']['max_n_animals']
+            del dt_params['MultiAnimal']['max_n_animals']
+
+        if 'min_n_animals' in dt_params['MultiAnimal']:
+            logging.warning('Modernizing parameters: moving MultiAnimal.min_n_animals to MultiAnimal.Track.min_n_animals')
+            dt_params['MultiAnimal']['Track']['min_n_animals'] = dt_params['MultiAnimal']['min_n_animals']
+            del dt_params['MultiAnimal']['min_n_animals']
+
+        if 'TrackletStitch' in dt_params['MultiAnimal']:
+            logging.warning('Modernizing parameters: moving MultiAnimal.TrackletStitch to MultiAnimal.Track.TrackletStitch')
+            dt_params['MultiAnimal']['Track']['TrackletStitch'] = dt_params['MultiAnimal']['TrackletStitch']
+            del dt_params['MultiAnimal']['TrackletStitch']
+
+def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None, first_stage=False, second_stage=False, config_file=None):
     assert not (first_stage and second_stage), 'Configurations should either for first stage or second stage for multi stage tracking'
 
     A = PoseTools.json_load(lbl_file)
@@ -1029,7 +1071,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     if not 'ProjectFile' in A:
         # Backward compatibility - mk 09032022
         mat_lbl_file = lbl_file.replace('.json', '.lbl')
-        return create_conf(mat_lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=net_type,conf_params=conf_params,quiet=quiet,json_trn_file=json_trn_file,first_stage=first_stage,second_stage=second_stage,no_json=True)
+        return create_conf(mat_lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=net_type,conf_params=conf_params,quiet=quiet,json_trn_file=json_trn_file,first_stage=first_stage,second_stage=second_stage,no_json=True,config_file=config_file)
 
 
     conf = poseConfig.config()
@@ -1067,6 +1109,21 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     else:
         assert False, 'Unknown stage type'
 
+    modernize_params(dt_params)
+        
+    if config_file is not None:
+        Aoverride = PoseTools.json_load(config_file)
+        if not (first_stage or second_stage):
+            dt_params_override = Aoverride['TrackerData']['sPrmAll']['ROOT']
+        elif first_stage:
+            dt_params_override = Aoverride['TrackerData'][0]['sPrmAll']['ROOT']
+        elif second_stage:
+            dt_params_override = Aoverride['TrackerData'][1]['sPrmAll']['ROOT']
+        else:
+            assert False, 'Unknown stage type'
+        modernize_params(dt_params_override)
+        override_params(dt_params,dt_params_override)
+        
     if second_stage:
         # Find out whether head-tail or bbox detector. For this we need to look at the information from the first stage
         if A['TrackerData'][0]['sPrmAll']['ROOT']['MultiAnimal']['Detect']['multi_only_ht']:
@@ -3726,7 +3783,7 @@ def do_link(conf):
 def link(args, view, view_ndx):
     first_stage = args.stage=='first'
     second_stage = args.stage == 'multi' or args.stage=='second'
-    conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage)
+    conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage,config_file=args.trk_config_file)
     if not do_link(conf): return
 
     # return
@@ -4300,7 +4357,7 @@ def parse_args(argv):
     parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given as x_left x_right y_top (low) y_bottom (high) in matlabs 1-index format', nargs='*', type=int, default=None)
     parser_classify.add_argument('-list_file', dest='list_file', help='JSON file with list of movies, targets and frames to track', default=None)
     parser_classify.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the database for list file.')
-
+    parser_classify.add_argument('-config_file', dest='trk_config_file', help='JSON file with parameters related to tracking.', default=None)
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
     parser_gt.add_argument('-out', dest='out_files', help='Mat file (full path with .mat extension) where GT output will be saved', nargs='+', required=True)
@@ -4376,6 +4433,7 @@ def get_valfilename(conf, nettype):
 def track_multi_stage(args, view_ndx, view, mov_ndx):
     name = args.name
     lbl_file = args.lbl_file
+    trk_config_file = args.trk_config_file
     if args.stage == 'multi':
         type1 = args.type
         type2 = args.type2
@@ -4384,11 +4442,11 @@ def track_multi_stage(args, view_ndx, view, mov_ndx):
         out_files = args.out_files
 
         args.out_files = args.trx
-        trk1 = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=True)
+        trk1 = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, first_stage=True)
         args.out_files = out_files
         args.type = args.type2
         args.conf_params = args.conf_params2
-        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, second_stage=True)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, second_stage=True)
 
         # reset back to normal for linking
         args.type = type1
@@ -4397,17 +4455,17 @@ def track_multi_stage(args, view_ndx, view, mov_ndx):
         args.conf_params2 = conf_params2
 
     elif args.stage == 'first':
-        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=True)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, first_stage=True)
     elif args.stage == 'second':
-        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, second_stage=True)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, second_stage=True)
     else:
-        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args)
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file)
     return trk
 
 
-def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=False, second_stage=False):
+def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=False, second_stage=False, trk_config_file=None):
 
-    conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage)
+    conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage,config_file=trk_config_file)
 
     if not args.track_type == 'only_link':
         trk = classify_movie_all(args.type,

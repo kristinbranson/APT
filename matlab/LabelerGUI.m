@@ -2590,7 +2590,7 @@ n = str2double(n{1});
 if isnan(n)
   return;
 end
-lObj.tracker.jrcnslots = n;
+lObj.tracker.setJrcnslots(n);
 
 
 

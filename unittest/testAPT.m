@@ -464,14 +464,14 @@ classdef testAPT < handle
       if ~isempty(jrcgpuqueue),
         for i = 1:numel(lObj.trackersAll),
           if isprop(lObj.trackersAll{i},'jrcgpuqueue'),
-            lObj.trackersAll{i}.jrcgpuqueue = jrcgpuqueue;
+            lObj.trackersAll{i}.setJrcgpuqueue(jrcgpuqueue);
           end
         end
       end
       if ~isempty(jrcnslots),
         for i = 1:numel(lObj.trackersAll),
           if isprop(lObj.trackersAll{i},'jrcnslots'),
-            lObj.trackersAll{i}.jrcnslots = jrcnslots;
+            lObj.trackersAll{i}.setJrcnslots(jrcnslots);
           end
         end
       end

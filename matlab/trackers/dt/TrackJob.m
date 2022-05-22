@@ -143,6 +143,7 @@ classdef TrackJob < handle
     
     % AL: Ideally we would enforce these all to be [nmovsettrk x nView]
     lblfileLcl = '';
+    configfileLcl = '';
     movfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if 
                      % tfserialmultimov, [nSerialMov]
                      % SHOULD PROB BE [nmov x nView x nSet]
@@ -168,6 +169,7 @@ classdef TrackJob < handle
     calibrationfileLcl = {}; % cellstr, [nSerialMov] % KB 20200504: added, but not used yet
     
     lblfileRem = '';
+    configfileRem = '';
     movfileRem = {};
     trxfileRem = {};
     trxfileStg1Rem = {};
@@ -218,6 +220,7 @@ classdef TrackJob < handle
     nmovsettrk 
 
     trkfile
+    configfile
     containerName
     movfile
     %movlocal
@@ -240,7 +243,7 @@ classdef TrackJob < handle
       end
       
       [ivw,trxids,frm0,frm1,cropRoi,tMFTConc,...
-        lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,...
+        lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,configfileLcl,...
         trkoutdirLcl,rootdirLcl,...
         isMultiView,isSerialMultiMov,isExternal,isRemote,nowstr,logfile,...
         errfile,modelChainID,isContiguous,calibrationfileLcl] = ...
@@ -255,6 +258,7 @@ classdef TrackJob < handle
         'movfileLcl',{},...
         'trxfileLcl',{},...
         'trkfileLcl',{},...
+        'configfileLcl','',...
         'trkoutdirLcl',{},...
         'rootdirLcl','',...
         'isMultiView',false,... % flag of whether we want to track all views in one track job
@@ -468,6 +472,11 @@ classdef TrackJob < handle
         obj.cropRoi = cropRoi(obj.ivw,:);
       end
       
+      if isempty(configfileLcl),
+        i = find(~cellfun(@isempty,obj.trkfileLcl),1);
+        obj.configfileLcl = TrackJob.trk2configfiles(obj.trkfileLcl{i});
+      end
+      
       obj.setLocalFiles();
       
       obj.setRemoteFiles();
@@ -479,7 +488,7 @@ classdef TrackJob < handle
       obj.setLogErrFiles('logfile',logfile,'errfile',errfile);      
       
     end
-    
+        
     function prepareFiles(obj)
       
       obj.checkCreateDirs();
@@ -515,7 +524,8 @@ classdef TrackJob < handle
           'nettypeStage1',obj.tObj.stage1Tracker.trnNetType,...
           'netmodeStage1',obj.tObj.stage1Tracker.trnNetMode,...
           'movtrk',{obj.movfileRem},...
-          'outtrk',{obj.trkfileRem});
+          'outtrk',{obj.trkfileRem},...
+          'configfile',obj.configfileRem);
       else
         fileargs = struct('trnID',obj.modelChainID,...
           'cache',obj.rootdirRem,...
@@ -524,9 +534,10 @@ classdef TrackJob < handle
           'nettype',obj.tObj.trnNetType,...
           'netmode',obj.tObj.trnNetMode,...
           'movtrk',{obj.movfileRem},...
-          'outtrk',{obj.trkfileRem});
+          'outtrk',{obj.trkfileRem},...
+          'configfile',obj.configfileRem);
       end
-      
+            
       switch obj.backend.type,
         
         case DLBackEnd.Bsub,
@@ -915,6 +926,7 @@ classdef TrackJob < handle
       obj.movfileRem = obj.movfileLcl;
       obj.trxfileRem = obj.trxfileLcl;
       obj.trkfileRem = obj.trkfileLcl;
+      obj.configfileRem = obj.configfileLcl;
       obj.listfileRem = obj.listfileLcl;
       if obj.tfremote,
         for i = 1:obj.nView,
@@ -936,6 +948,7 @@ classdef TrackJob < handle
           obj.trkfileRem{i} = [obj.trkoutdirRem{i} '/' trkRemoteRel];
           
         end
+        obj.configfileRem = TrackJob.trk2configfiles(obj.trkfileRem{1});
         obj.listfileRem = [obj.dmcRem.dirModelChainLnx '/' obj.listfilestr];
       end
       
@@ -1026,6 +1039,11 @@ classdef TrackJob < handle
       else
         v = obj.trkfileLcl{1};
       end      
+    end
+    
+    
+    function v = get.configfile(obj)
+      v = obj.configfileLcl;
     end
     
     function v = get.containerName(obj)
@@ -1167,6 +1185,22 @@ classdef TrackJob < handle
         end
       end
     end
+    
+    function configfiles = trk2configfiles(trkfiles)
+      isone = ischar(trkfiles);
+      if isone,
+        trkfiles = {trkfiles};
+      end
+      configfiles = cell(size(trkfiles));
+      for i = 1:numel(configfiles),
+        [p,n,~] = fileparts(trkfiles{i});
+        configfiles{i} = fullfile(p,['trkconfig_',n,'.json']);
+      end
+      if isone,
+        configfiles = configfiles{1};
+      end
+    end
+
 
   end
   

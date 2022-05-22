@@ -24,7 +24,7 @@ classdef DeepTracker < LabelTracker
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
-  properties % MOVE THIS TO BE
+  properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
     jrcgpuqueue = '';
     jrcnslots = 4;
     jrcnslotstrack = 4; % transient
@@ -278,12 +278,21 @@ classdef DeepTracker < LabelTracker
       btm = obj.bgTrkMonitor;
       v = ~isempty(btm) && btm.isRunning;
     end
+    function setJrcgpuqueue(obj,v)
+      obj.jrcgpuqueue = v;
+    end
+    function setJrcnslots(obj,v)
+      obj.jrcnslots = v;
+    end
+    function setJrcnslotstrack(obj,v)
+      obj.jrcnslotstrack = v;
+    end
   end
   
   methods
     function obj = DeepTracker(lObj,varargin)
       obj@LabelTracker(lObj);
-      obj.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
+      obj.setJrcgpuqueue(DeepTracker.default_jrcgpuqueue);
       
       for i=1:2:numel(varargin)
         prop = varargin{i};
@@ -506,6 +515,10 @@ classdef DeepTracker < LabelTracker
         obj.trnLastDMC = obj.trnLastDMC.copyAndDetach();
       end
     end
+    function s = getTrackSaveToken(obj)
+      s = obj.getSaveToken();
+      s.sPrmAll = APTParameters.all2TrackParams(s.sPrmAll,false);
+    end
     function loadSaveToken(obj,s)
       s = DeepTracker.modernizeSaveToken(s);
       
@@ -607,7 +620,7 @@ classdef DeepTracker < LabelTracker
         end
       end
       
-      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any')
+      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_rtx')
         s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
           s.jrcgpuqueue);
@@ -2592,21 +2605,25 @@ classdef DeepTracker < LabelTracker
       % moved here so that it could be reused
       % KB 20220517
       
-      [sPrmAll] = myparse(varargin,'sPrmAll',[]);
+      [sPrmAll,fortracking] = myparse(varargin,'sPrmAll',[],'fortracking',false);
       
       tfTD = isfield(tdata,'stg2');      
       if tfTD
         tdata = [tdata.stg1; tdata.stg2];
       end
-      netmodes = [tdata.trnNetMode];
-      assert(all(tfTD==[netmodes.isTwoStage]));
+      if isfield(tdata,'trnNetMode'),
+        netmodes = [tdata.trnNetMode];
+        assert(all(tfTD==[netmodes.isTwoStage]));
+      end
       
       for i=1:numel(tdata)
         if ~isempty(sPrmAll)
           tdata(i).sPrmAll = sPrmAll;
         end
-        tdata(i).sPrmAll = lObj.addExtraParams(tdata(i).sPrmAll,...
-          tdata(i).trnNetMode);
+        if ~fortracking,
+          tdata(i).sPrmAll = lObj.addExtraParams(tdata(i).sPrmAll,...
+            tdata(i).trnNetMode);
+        end
         tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
       end
       
@@ -2614,16 +2631,20 @@ classdef DeepTracker < LabelTracker
         tdata = num2cell(tdata(:)');
         
         % stage 1 trackData; move Detect.DeepTrack to top-level
-        tdata{1}.sPrmAll.ROOT.DeepTrack = ...
-          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
-        tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+        if isSubField(tdata{1}.sPrmAll,{'ROOT','MultiAnimal','Detect','DeepTrack'}),
+          tdata{1}.sPrmAll.ROOT.DeepTrack = ...
+            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
+          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+        end
       else
        tdata = {[] tdata};
       end
       % remove detect/DeepTrack from stage2
-      tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');    
+      if isSubField(tdata{1}.sPrmAll,{'ROOT','MultiAnimal','Detect'}),
+        tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+          tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+      end
       
     end
     
@@ -3773,9 +3794,14 @@ classdef DeepTracker < LabelTracker
                 'rootdirLcl',cacheDir,...
                 'nowstr',id); %#ok<AGROW>
             end
+            
             trksysinfo(imov,ivwjob).prepareFiles();
             
             tj = trksysinfo(imov,ivwjob);
+
+            % create track json file
+            obj.trkCreateConfig(tj.configfile);
+
             for i = 1:numel(tj.trkfileLcl),
               if tj.tf2stg
                 stgstr = 'Stage';
@@ -4047,21 +4073,21 @@ classdef DeepTracker < LabelTracker
       bgObj.dispTrkOutDir();
     end
     
-    function trkCreateConfig(obj,varargin)
+    function trkCreateConfig(obj,configfile,varargin)
       % trkCreateConfig(obj,'sPrmAll',[])
       % 
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
       
       s = struct;
       s.projectFile = obj.lObj.projectfile;
-      s.projectname = obj.lObj.projectname;
-      s.cfg = obj.lObj.getCurrentConfig();
-      tdata = obj.getSaveToken();
-      s.trackerData = LabelTracker.massageTrackerData(tdata,...
-        obj.lObj,'sPrmAll',sPrmAll);
+      s.projname = obj.lObj.projname;
+      %s.cfg = obj.lObj.getCurrentConfig();
+      tdata = obj.getTrackSaveToken();
+      s.trackerData = DeepTracker.massageTrackerData(tdata,...
+        obj.lObj,'sPrmAll',sPrmAll,'fortracking',true);
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
-      jsonoutf = obj.trkLastDMC(1).trkConfigJsonLnx;
+      jsonoutf = configfile;
       fh = fopen(jsonoutf,'w');
       fprintf(fh,'%s\n',jse);
       fclose(fh);

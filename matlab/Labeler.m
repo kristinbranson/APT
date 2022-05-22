@@ -11874,7 +11874,7 @@ classdef Labeler < handle
       sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
       sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
       
-       % ma stuff
+      % ma stuff
       prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
       r = obj.maGetTgtCropRad(prmsTgtCrop);
       % actual radius that will be used by backend

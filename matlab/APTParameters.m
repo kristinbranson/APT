@@ -89,12 +89,19 @@ classdef APTParameters
     end
         
     % all parameters to tracking (not training) parameters
-    function v = all2TrackParams(sPrmAll)
+    function v = all2TrackParams(sPrmAll,compress)
+      if nargin < 2,
+        compress = true;
+      end
       v = struct;
       v.ROOT = struct;
       v.ROOT.Track = sPrmAll.ROOT.Track;
-      v.ROOT.MultiAnimal = sPrmAll.ROOT.MultiAnimal.Track;
-      v.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;      
+      if compress,
+        v.ROOT.MultiAnimal = sPrmAll.ROOT.MultiAnimal.Track;
+      else
+        v.ROOT.MultiAnimal.Track = sPrmAll.ROOT.MultiAnimal.Track;
+      end
+      v.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
     end
 
     function sPrm0 = defaultParamsStruct
