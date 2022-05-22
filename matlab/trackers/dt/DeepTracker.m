@@ -2641,7 +2641,7 @@ classdef DeepTracker < LabelTracker
        tdata = {[] tdata};
       end
       % remove detect/DeepTrack from stage2
-      if isSubField(tdata{1}.sPrmAll,{'ROOT','MultiAnimal','Detect'}),
+      if isSubField(tdata{2}.sPrmAll,{'ROOT','MultiAnimal','Detect'}),
         tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
           tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
       end
