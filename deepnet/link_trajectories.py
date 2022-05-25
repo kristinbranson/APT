@@ -1201,6 +1201,7 @@ class id_dset(torch.utils.data.IterableDataset):
       ss_t, ee_t, _ = trk_data[sel_ndx]
       n_tr = len(data)
 
+      info = []
       while len(curims) < 1:
 
         # Select principal tracklet with equal prob. based on 1) overall how far the samples from same tracklet are. 2) overall how close the images are to overlapping tracklets.
@@ -1261,19 +1262,21 @@ class id_dset(torch.utils.data.IterableDataset):
         over_sf = np.maximum(0,odata[2]-cur_dat[2])
         over_ef = np.minimum(cur_dat[3]-cur_dat[2]+1, odata[3]-cur_dat[2]+1)
         check[over_sf:over_ef] = 1
+
         if check.sum()<1:
           logging.info(f'mov:{sel_ndx}, tr1:{cur_dat[1]}:{cur_dat[2]}-{cur_dat[3]} im1:{cur_dat[4][idx_self1][0]} im2:{cur_dat[4][idx_self2][0]} d:{t_dist_self[idx_self1,idx_self2]}, neg:{odata[1]}:{odata[2]}-{odata[3]}, im3:{odata[4][overlap_im_idx][0]}')
           assert False, 'neg tracklet does not overlap'
         # if self.debug:
         #   logging.info(f'mov:{sel_ndx}, tr1:{cur_dat[1]}:{cur_dat[2]}-{cur_dat[3]} im1:{cur_dat[4][idx_self1][0]} im2:{cur_dat[4][idx_self2][0]} d:{t_dist_self[idx_self1,idx_self2]}, neg:{odata[1]}:{odata[2]}-{odata[3]}, im3:{odata[4][overlap_im_idx][0]}')
-
+        info.append([sel_ndx,curidx,idx_self1,idx_self2, overlap_tgt,overlap_im_idx])
         curims.append(np.stack([im1, im2, overlap_im], 0))
 
       curims = np.array(curims)
+      info = np.array(info)
       curims = curims.reshape((-1,) + curims.shape[2:])
       curims = process_id_ims(curims, confd, distort, rescale)
       curims = curims.astype('float32')
-      yield curims
+      yield curims, info
 
 def process_id_ims_par(im_arr,conf,distort,rescale):
   res_arr = []
@@ -1284,16 +1287,6 @@ def process_id_ims_par(im_arr,conf,distort,rescale):
 def process_id_ims(curims, conf, distort, rescale):
   """
   Applies preprocessing to the images
-  :param curims:
-  :type curims:
-  :param conf:
-  :type conf:
-  :param distort:
-  :type distort:
-  :param rescale:
-  :type rescale:
-  :return:
-  :rtype:
   """
   if curims.shape[3] == 1:
     curims = np.tile(curims, [1, 1, 1, 3])
@@ -1596,7 +1589,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   debug = conf.get('link_id_debug',False)
 
   logging.info('Training ID network ...')
-  net.train()
+  net.eval()
   net = net.cuda()
 
   # Set mining distances to identical dummy values initially
@@ -1615,13 +1608,15 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
     mining_dists.append([t_dist,overlap_dist, self_dist])
 
   # Create the dataset and dataloaders. Again seed is important!
-  train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=True, debug=debug)
+  distort = True
+  train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=distort, debug=debug)
   n_workers = 10 if not debug else 0
   train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id))
   train_iter = iter(train_loader)
 
   # Save example training images for debugging.
-  ex_ims = next(train_iter).numpy()
+  ex_ims, ex_info = next(train_iter)
+  ex_ims = ex_ims.numpy()
   hdf5storage.savemat(os.path.splitext(save_file)[0]+'_ims.mat',{'example_ims':ex_ims})
 
   for epoch in tqdm(range(n_iters)):
@@ -1634,14 +1629,16 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
         cur_dists = compute_mining_data(net, data, cur_trk_data, rescale, confd)
         mining_dists.append(cur_dists)
 
-      net = net.train()
+      # net = net.train()
+      net =net.eval()
       del train_iter, train_loader, train_dset
-      train_dset =  id_dset(all_data,mining_dists,trk_data,confd,rescale,valid=True, distort=True, debug=debug)
-      train_loader = torch.utils.data.DataLoader(train_dset,batch_size=bsz,pin_memory=True,num_workers=10,worker_init_fn=lambda id: np.random.seed(id))
+      train_dset =  id_dset(all_data,mining_dists,trk_data,confd,rescale,valid=True, distort=distort, debug=debug)
+      train_loader = torch.utils.data.DataLoader(train_dset,batch_size=bsz,pin_memory=True,num_workers=10,worker_init_fn=lambda id: np.random.seed(id*epoch))
       train_iter = iter(train_loader)
 
 
-    curims = next(train_iter).cuda()
+    curims, data_info = next(train_iter)
+    curims = curims.cuda()
     curims = curims.reshape((-1,)+ curims.shape[2:])
     optimizer.zero_grad()
     output = net(curims)

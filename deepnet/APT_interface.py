@@ -3570,7 +3570,7 @@ def classify_movie(conf, pred_fn, model_type,
     logging.info('crop_loc: ' + str(crop_loc))
 
     pre_fix, ext = os.path.splitext(out_file)
-    part_file = pre_fix + '_part' + ext
+    part_file = out_file + '.part'
 
     cap = movies.Movie(mov_file)
     sz = (cap.get_height(), cap.get_width())

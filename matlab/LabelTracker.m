@@ -431,8 +431,11 @@ classdef LabelTracker < handle
       % This will need updating. DLNetType will include all types of nets
       % such as objdetect which will not qualify as eg regular/SA trackers.
       if isMA
-        info = cat(1,DeepTrackerTopDown.getTrackerInfos,...
-          DeepTrackerBottomUp.getTrackerInfos);
+        info = cat(1,DeepTrackerBottomUp.getTrackerInfos,...
+          DeepTrackerTopDown.getTrackerInfos ...,...
+          ... DeepTrackerTopDownCustom.getTrackerInfos...
+          );
+        % For custom 2stage trackers add the DeepTrackerTownDown again.
       else        
         dlnets = enumeration('DLNetType');
         dlnets = dlnets(~[dlnets.isMultiAnimal]);

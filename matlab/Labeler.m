@@ -11169,6 +11169,19 @@ classdef Labeler < handle
         {'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
       
       tAll = obj.trackersAll;
+      if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
+        prev = tAll{iTrk};
+        if ~DeepTrackerTopDownCustom.use_prev(prev)
+          ctorargs = DeepTrackerTopDownCustom.get_args(prev);
+          newTracker = DeepTrackerTopDownCustom(obj,ctorargs{1},ctorargs{2});
+          if newTracker.valid
+            tAll{iTrk} = newTracker;
+          else
+            return;
+          end
+        end
+      end
+      
       iTrk0 = obj.currTracker;
       if iTrk0>0
         tAll{iTrk0}.setHideViz(true);
