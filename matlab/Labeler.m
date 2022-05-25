@@ -11212,8 +11212,9 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
-      [setall] = myparse(varargin,...
-        'all',false... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
+      [setall,istrack] = myparse(varargin,...
+        'all',false,... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
+        'istrack',false... % if true, this is being called by the trackSetTrackParams function
         ); 
       sPrm = APTParameters.enforceConsistency(sPrm);
 
@@ -11234,6 +11235,7 @@ classdef Labeler < handle
       obj.trackParams = sPrm;
       
       if tfPPprmsChanged
+        assert(~istrack);
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.preProcInitData();
         obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
@@ -11247,7 +11249,7 @@ classdef Labeler < handle
           % .movieInvert, cropInfo
         end
         
-        if obj.maIsMA
+        if obj.maIsMA && ~istrack,
           obj.lblCore.preProcParamsChanged();          
         end
       end
@@ -11266,9 +11268,9 @@ classdef Labeler < handle
         
       sPrmCurrent = obj.trackGetParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
-% eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
-% over.
-
+      % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
+      % over.
+      
       % Start with default "new" parameter tree/specification
       tPrm = APTParameters.defaultParamsTree;
       % Overlay our starting pt
@@ -11298,6 +11300,35 @@ classdef Labeler < handle
         sPrmNew = tPrm.structize;
         obj.trackSetParams(sPrmNew);
       end
+    end
+    
+    function [tPrm] = trackGetTrackParams(obj)
+      % Get current parameters related to tracking
+
+      sPrmCurrent = obj.trackGetParams();
+      sPrmCurrent = APTParameters.all2TrackParams(sPrmCurrent);
+      % Start with default "new" parameter tree/specification
+      tPrm = APTParameters.defaultTrackParamsTree();
+      % Overlay our starting pt
+      tPrm.structapply(sPrmCurrent);
+      
+    end
+    
+    function [sPrmAll] = trackSetTrackParams(obj,sPrmTrack,varargin)
+      
+      sPrmAll = obj.trackGetParams();
+      sPrmAll = APTParameters.setTrackParams(sPrmAll,sPrmTrack);
+      
+      obj.trackSetParams(sPrmAll,varargin{:},'istrack',true);
+      
+      % set all tracker parameters
+      for i = 1:numel(obj.trackersAll),
+        obj.trackersAll{i}.setTrackParams(sPrmTrack);
+      end
+%       if ~isempty(obj.tracker),
+%         obj.tracker.setParams(sPrmAll);
+%       end
+      
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
@@ -11436,7 +11467,7 @@ classdef Labeler < handle
         retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
       
-	  % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
+      % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
       % tObj.clearTrackingResults();
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
@@ -11785,38 +11816,43 @@ classdef Labeler < handle
       %
       % Final Massage
       % 
+
+      % KB 20220517 - wanted to use this part of the code elsewhere, broke
+      % into another function
+      s.trackerData = DeepTracker.massageTrackerData(s.trackerData{s.currTracker},obj,...
+        'sPrmAll',sPrmAll);
       
-      tdata = s.trackerData{s.currTracker};
-      tfTD = isfield(tdata,'stg2');      
-      if tfTD
-        tdata = [tdata.stg1; tdata.stg2];
-      end
-      netmodes = [tdata.trnNetMode];
-      assert(all(tfTD==[netmodes.isTwoStage]));
-      
-      for i=1:numel(tdata)
-        if ~isempty(sPrmAll)
-          tdata(i).sPrmAll = sPrmAll;
-        end
-        tdata(i).sPrmAll = obj.addExtraParams(tdata(i).sPrmAll,...
-          tdata(i).trnNetMode);
-        tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
-      end
-      
-      if tfTD
-        s.trackerData = num2cell(tdata(:)');
-        
-        % stage 1 trackData; move Detect.DeepTrack to top-level
-        s.trackerData{1}.sPrmAll.ROOT.DeepTrack = ...
-          s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
-        s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
-      else
-        s.trackerData = {[] tdata};
-      end
-      % remove detect/DeepTrack from stage2
-      s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');        
+%       tdata = s.trackerData{s.currTracker};
+%       tfTD = isfield(tdata,'stg2');      
+%       if tfTD
+%         tdata = [tdata.stg1; tdata.stg2];
+%       end
+%       netmodes = [tdata.trnNetMode];
+%       assert(all(tfTD==[netmodes.isTwoStage]));
+%       
+%       for i=1:numel(tdata)
+%         if ~isempty(sPrmAll)
+%           tdata(i).sPrmAll = sPrmAll;
+%         end
+%         tdata(i).sPrmAll = obj.addExtraParams(tdata(i).sPrmAll,...
+%           tdata(i).trnNetMode);
+%         tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
+%       end
+%       
+%       if tfTD
+%         s.trackerData = num2cell(tdata(:)');
+%         
+%         % stage 1 trackData; move Detect.DeepTrack to top-level
+%         s.trackerData{1}.sPrmAll.ROOT.DeepTrack = ...
+%           s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
+%         s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+%           s.trackerData{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+%       else
+%         s.trackerData = {[] tdata};
+%       end
+%       % remove detect/DeepTrack from stage2
+%       s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+%           s.trackerData{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');        
       s.nLabels = ppdata.N;      
       
       tfsucc = true;
@@ -11851,7 +11887,7 @@ classdef Labeler < handle
       sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
       sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
       
-       % ma stuff
+      % ma stuff
       prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
       r = obj.maGetTgtCropRad(prmsTgtCrop);
       % actual radius that will be used by backend
@@ -15111,7 +15147,7 @@ classdef Labeler < handle
       % which optimizes browse speed.
       tv = obj.createTrackingVisualizer('impPointsPlotInfo','labeledpos2');      
       if ~isempty(obj.trackParams)
-        maxNanimals = obj.trackParams.ROOT.MultiAnimal.max_n_animals;
+        maxNanimals = obj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
         maxNanimals = max(ceil(maxNanimals*1.5),10);
       else
         maxNanimals = 20;

@@ -79,6 +79,31 @@ classdef APTParameters
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
+    function tPrm0 = defaultTrackParamsTree(varargin)
+      tPrm0 = APTParameters.defaultParamsTree(varargin{:});
+      tPrmTrack = tPrm0.findnode('ROOT.Track');
+      tPrmMA = tPrm0.findnode('ROOT.MultiAnimal.Track');
+      tPrmMA.Data.Field = 'MultiAnimal';
+      tPrmPostProcess = tPrm0.findnode('ROOT.PostProcess');
+      tPrm0.Children = [tPrmTrack;tPrmMA;tPrmPostProcess];
+    end
+        
+    % all parameters to tracking (not training) parameters
+    function v = all2TrackParams(sPrmAll,compress)
+      if nargin < 2,
+        compress = true;
+      end
+      v = struct;
+      v.ROOT = struct;
+      v.ROOT.Track = sPrmAll.ROOT.Track;
+      if compress,
+        v.ROOT.MultiAnimal = sPrmAll.ROOT.MultiAnimal.Track;
+      else
+        v.ROOT.MultiAnimal.Track = sPrmAll.ROOT.MultiAnimal.Track;
+      end
+      v.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
+    end
+
     function sPrm0 = defaultParamsStruct
       tPrm0 = APTParameters.defaultParamsTree('incDLNetSpecific',false);
       sPrm0 = tPrm0.structize();
@@ -372,7 +397,7 @@ classdef APTParameters
         end
       end
     end
-    
+
     % all parameters to specific dl parameters for input netType
     function v = all2DLSpecificParams(sPrmAll,netType)
       if ~ischar(netType),
@@ -417,6 +442,13 @@ classdef APTParameters
     % set common dl parameters
     function sPrmAll = setTrackDLParams(sPrmAll,sPrmDT)
       sPrmAll.ROOT.DeepTrack = structoverlay(sPrmAll.ROOT.DeepTrack,sPrmDT);      
+    end
+    
+    % set tracking-specific parameters
+    function sPrmAll = setTrackParams(sPrmAll,sPrmTrack)
+      sPrmAll.ROOT.Track = sPrmTrack.ROOT.Track;
+      sPrmAll.ROOT.MultiAnimal.Track = sPrmTrack.ROOT.MultiAnimal;
+      sPrmAll.ROOT.PostProcess = sPrmTrack.ROOT.PostProcess;  
     end
     
     % set specific dl parameters for input netType
@@ -529,11 +561,24 @@ classdef APTParameters
         end
         if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
           isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
-          sPrmAll.ROOT.MultiAnimal.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
-          sPrmAll.ROOT.MultiAnimal.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
+          sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
+          sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
           sPrmAll.ROOT.MultiAnimal.Detect = ...
             rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
-        end        
+        end
+        % KB 20220516: moving tracking related parameters around
+        if isfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals')
+          sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.max_n_animals;
+          sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals');
+        end
+        if isfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals')
+          sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.min_n_animals;
+          sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals');
+        end
+        if isfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch'),
+          sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = sPrmAll.ROOT.MultiAnimal.TrackletStitch;
+          sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch');
+        end
           
         sPrmDflt = APTParameters.defaultParamsStructAll;
         sPrmAll = structoverlay(sPrmDflt,sPrmAll,...

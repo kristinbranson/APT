@@ -16,6 +16,11 @@ classdef testAPT < handle
   % testObj.test_setup('simpleprojload',1);
   % testObj.test_train('net_type',[],'params',-1,'niters',1000);  
   
+  % MA/roian, Kristin's suggestion:
+  % testObj = testAPT('name','roianma');  
+  % testObj.test_full('nets',{},'setup_params',{'simpleprojload',1,'jrcgpuqueue','gpu_tesla','jrcnslots',4},'backend','bsub');
+  % empty nets means test all nets
+  
   % Carmen/GT workflow (proj on JRC/dm11)
   % testObj = testAPT('name','carmen');
   % testObj.test_setup('simpleprojload',1);
@@ -401,13 +406,19 @@ classdef testAPT < handle
     end
     
     function test_full(self,varargin)
-      [all_nets,backend,params,aws_params] = myparse(varargin,...
+      [all_nets,backend,params,aws_params,setup_params] = myparse(varargin,...
         'nets',{'mdn'},'backend','docker','params',{},...
-        'aws_params',struct());
-      self.test_setup();
+        'aws_params',struct(),'setup_params',{});
+      self.test_setup(setup_params{:});
 
-      if ischar(all_nets)
+      if ischar(all_nets) || isscalar(all_nets),
         all_nets = {all_nets};
+      end
+      if isempty(all_nets),
+        all_nets = num2cell(1:numel(self.lObj.trackersAll));
+      end
+      if isnumeric(all_nets),
+        all_nets = num2cell(all_nets);
       end
       for nndx = 1:numel(all_nets)
         self.test_train('net_type',all_nets{nndx},'backend',backend,...
@@ -417,9 +428,11 @@ classdef testAPT < handle
     
     function test_setup(self,varargin)
       self.setup_path();
-      [target_trk,simpleprojload] = myparse(varargin,...
+      [target_trk,simpleprojload,jrcgpuqueue,jrcnslots] = myparse(varargin,...
         'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame,...
-        'simpleprojload',false ... % if true, just load the proj; use when proj on local filesys with all deps
+        'simpleprojload',false, ... % if true, just load the proj; use when proj on local filesys with all deps
+        'jrcgpuqueue','',... % override gpu queue
+        'jrcnslots',[]... % override nslots
         );
       
       if simpleprojload
@@ -447,6 +460,21 @@ classdef testAPT < handle
       trk_pum_ndx = find(trkTypes == target_trk );      
       set(self.lObj.gdata.pumTrack,'Value',trk_pum_ndx);
       self.lObj.setSkeletonEdges(self.info.op_graph);
+      
+      if ~isempty(jrcgpuqueue),
+        for i = 1:numel(lObj.trackersAll),
+          if isprop(lObj.trackersAll{i},'jrcgpuqueue'),
+            lObj.trackersAll{i}.setJrcgpuqueue(jrcgpuqueue);
+          end
+        end
+      end
+      if ~isempty(jrcnslots),
+        for i = 1:numel(lObj.trackersAll),
+          if isprop(lObj.trackersAll{i},'jrcnslots'),
+            lObj.trackersAll{i}.setJrcnslots(jrcnslots);
+          end
+        end
+      end
     end
     
         
@@ -681,6 +709,7 @@ classdef testAPT < handle
       if ~isempty(net_type)
         self.setup_alg(net_type)
       end
+      fprintf('Training with tracker %s\n',self.lObj.tracker.algorithmNamePretty);
       self.set_params_base(self.info.has_trx,niters,self.info.sz, batch_size);
       if ~isempty(params)
         sPrm = self.lObj.trackGetParams();
@@ -697,6 +726,7 @@ classdef testAPT < handle
       centerOnParentFigure(wbObj.hWB,handles.figure);
       tObj = lObj.tracker;
       tObj.skip_dlgs = true;
+      lObj.silent = true;
       if lObj.trackerIsTwoStage && ~strcmp(backend,'bsub')
         tObj.forceSerial = serial2stgtrain;
       end      

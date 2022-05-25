@@ -6,7 +6,7 @@ classdef DataAugMontage < handle
     locs % [n x npts x d x ntgt]. 
     mask % [n x imnr x nc]
     isMA
-    
+    name = '' % character description
     maskrgb = [0 1 1];
   end
   
@@ -26,7 +26,9 @@ classdef DataAugMontage < handle
         obj.locs = permute(obj.locs,[1 3 4 2]);
       end
     end
-    function show(obj,montageargs,varargin)      
+    function hfig = show(obj,montageargs,varargin)
+      hfig = myparse(varargin,'hfig',[]);
+      
       [n,imnr,imnc,nch] = size(obj.ims);
       [m,npts,d,ntgts] = size(obj.locs);
       I = mat2cell(obj.ims,ones(n,1),imnr,imnc,nch);
@@ -45,6 +47,11 @@ classdef DataAugMontage < handle
       end
       
       mft = obj.idx;
+      didcreate = false;
+      if isempty(hfig) || ~ishandle(hfig),
+        hfig = figure('Name',sprintf('%s Training Examples',obj.name));
+        didcreate = true;
+      end
       lbls = arrayfun(@(x)sprintf('%d.%d.%d',mft(x,1),mft(x,2),mft(x,3)),...
         (1:n)','uni',0);
       Shape.montage(I,p,...
@@ -52,8 +59,12 @@ classdef DataAugMontage < handle
         'titlestr','Training Data (augmented)',...
         'framelbls',lbls, ...
         'idxs',1:n,...
-        montageargs{:} ...
+        montageargs{:},...
+        'fig',hfig...
         );
+      if didcreate,
+        truesize(hfig);
+      end
     end
     
   end

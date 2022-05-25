@@ -24,7 +24,7 @@ classdef DeepTracker < LabelTracker
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
-  properties % MOVE THIS TO BE
+  properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
     jrcgpuqueue = '';
     jrcnslots = 4;
     jrcnslotstrack = 4; % transient
@@ -278,12 +278,21 @@ classdef DeepTracker < LabelTracker
       btm = obj.bgTrkMonitor;
       v = ~isempty(btm) && btm.isRunning;
     end
+    function setJrcgpuqueue(obj,v)
+      obj.jrcgpuqueue = v;
+    end
+    function setJrcnslots(obj,v)
+      obj.jrcnslots = v;
+    end
+    function setJrcnslotstrack(obj,v)
+      obj.jrcnslotstrack = v;
+    end
   end
   
   methods
     function obj = DeepTracker(lObj,varargin)
       obj@LabelTracker(lObj);
-      obj.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
+      obj.setJrcgpuqueue(DeepTracker.default_jrcgpuqueue);
       
       for i=1:2:numel(varargin)
         prop = varargin{i};
@@ -492,7 +501,7 @@ classdef DeepTracker < LabelTracker
     end
     function sPrm = getParams(obj)
       sPrm = obj.sPrm;
-    end
+    end    
     function tc = getTrackerClassAugmented(obj)
       tc = {class(obj) 'trnNetType' obj.trnNetType};
     end
@@ -505,6 +514,10 @@ classdef DeepTracker < LabelTracker
       if ~isempty(obj.trnLastDMC)
         obj.trnLastDMC = obj.trnLastDMC.copyAndDetach();
       end
+    end
+    function s = getTrackSaveToken(obj)
+      s = obj.getSaveToken();
+      s.sPrmAll = APTParameters.all2TrackParams(s.sPrmAll,false);
     end
     function loadSaveToken(obj,s)
       s = DeepTracker.modernizeSaveToken(s);
@@ -607,7 +620,7 @@ classdef DeepTracker < LabelTracker
         end
       end
       
-      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any')
+      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_rtx')
         s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
           s.jrcgpuqueue);
@@ -904,7 +917,12 @@ classdef DeepTracker < LabelTracker
           if ~isempty(modelChain0) && ~augOnly
             assert(~strcmp(modelChain,modelChain0));
             fprintf('Training new model %s.\n',modelChain);
-            res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization?','Training Initialization','Yes','No','Cancel','Yes');
+            defaultans = 'Yes';
+            if isempty(obj.skip_dlgs) || ~obj.skip_dlgs,
+              res = questdlg('Previously trained models exist for current tracking algorithm. Do you want to use the previous model for initialization?','Training Initialization','Yes','No','Cancel',defaultans);
+            else
+              res = defaultans;
+            end
             if strcmp(res,'No')
               prev_models = [];
             elseif strcmp(res,'Yes')
@@ -1584,7 +1602,7 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trainImageMontage(obj,trnImgMats)
+    function hfigs = trainImageMontage(obj,trnImgMats,varargin)
       % trnImgMats: cellstr, or could be loaded mats
       
       pppi = obj.lObj.labelPointsPlotInfo;
@@ -1592,6 +1610,8 @@ classdef DeepTracker < LabelTracker
       margs0 = {'nr',3,'nc',3,'maskalpha',0.3,...
         'framelblscolor',[1 1 0],...
         'pplotargs',mrkrProps};
+
+      hfigs = myparse(varargin,'hfigs',[]);
 
       for i=1:numel(trnImgMats)
         ti = trnImgMats{i};
@@ -1604,7 +1624,12 @@ classdef DeepTracker < LabelTracker
         npts = size(dam.locs,2);
         colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
         margs = [margs0 {'colors' colors}];
-        dam.show(margs);
+        if numel(hfigs) >= i,
+          hfig = hfigs(i);
+        else
+          hfig = [];
+        end
+        hfigs(i) = dam.show(margs,'hfig',hfig);
       end
     end
 
@@ -2573,6 +2598,56 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'... using %d gpus, multiview=%d, serialmov=%d\n',...
         numel(gpuids),isMultiView,isSerialMultiMov);
     end
+    
+    function tdata = massageTrackerData(tdata,lObj,varargin)
+      % massage of trackerData created with getSaveToken();
+      % this was part of Labeler.trackCreateDeepTrackerStrippedLbl()
+      % moved here so that it could be reused
+      % KB 20220517
+      
+      [sPrmAll,fortracking] = myparse(varargin,'sPrmAll',[],'fortracking',false);
+      
+      tfTD = isfield(tdata,'stg2');      
+      if tfTD
+        tdata = [tdata.stg1; tdata.stg2];
+      end
+      if isfield(tdata,'trnNetMode'),
+        netmodes = [tdata.trnNetMode];
+        assert(all(tfTD==[netmodes.isTwoStage]));
+      end
+      
+      for i=1:numel(tdata)
+        if ~isempty(sPrmAll)
+          tdata(i).sPrmAll = sPrmAll;
+        end
+        if ~fortracking,
+          tdata(i).sPrmAll = lObj.addExtraParams(tdata(i).sPrmAll,...
+            tdata(i).trnNetMode);
+        end
+        tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
+      end
+      
+      if tfTD
+        tdata = num2cell(tdata(:)');
+        
+        % stage 1 trackData; move Detect.DeepTrack to top-level
+        if isSubField(tdata{1}.sPrmAll,{'ROOT','MultiAnimal','Detect','DeepTrack'}),
+          tdata{1}.sPrmAll.ROOT.DeepTrack = ...
+            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
+          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+        end
+      else
+       tdata = {[] tdata};
+      end
+      % remove detect/DeepTrack from stage2
+      if isSubField(tdata{2}.sPrmAll,{'ROOT','MultiAnimal','Detect'}),
+        tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
+          tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+      end
+      
+    end
+    
   end
   methods
     
@@ -3719,9 +3794,14 @@ classdef DeepTracker < LabelTracker
                 'rootdirLcl',cacheDir,...
                 'nowstr',id); %#ok<AGROW>
             end
+            
             trksysinfo(imov,ivwjob).prepareFiles();
             
             tj = trksysinfo(imov,ivwjob);
+
+            % create track json file
+            obj.trkCreateConfig(tj.configfile);
+
             for i = 1:numel(tj.trkfileLcl),
               if tj.tf2stg
                 stgstr = 'Stage';
@@ -3992,6 +4072,27 @@ classdef DeepTracker < LabelTracker
         % detached
       bgObj.dispTrkOutDir();
     end
+    
+    function trkCreateConfig(obj,configfile,varargin)
+      % trkCreateConfig(obj,'sPrmAll',[])
+      % 
+      [sPrmAll] = myparse(varargin,'sPrmAll',[]);
+      
+      s = struct;
+      s.projectFile = obj.lObj.projectfile;
+      s.projname = obj.lObj.projname;
+      %s.cfg = obj.lObj.getCurrentConfig();
+      tdata = obj.getTrackSaveToken();
+      s.trackerData = DeepTracker.massageTrackerData(tdata,...
+        obj.lObj,'sPrmAll',sPrmAll,'fortracking',true);
+      slbl = Lbl.compressStrippedLbl(s);
+      [jse] = Lbl.jsonifyStrippedLbl(slbl);
+      jsonoutf = configfile;
+      fh = fopen(jsonoutf,'w');
+      fprintf(fh,'%s\n',jse);
+      fclose(fh);
+    end
+    
   end
   methods (Static)
     function bgTrkWorkerObj = createBgTrkWorkerObj(nView,dmc,backend)
@@ -4710,7 +4811,7 @@ classdef DeepTracker < LabelTracker
         netTypeObj = netType;
       end
       
-      baseargs = [baseargs {'confparamsfilequote','\\\"'}];
+      baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trainCodeGen(trnID,dllbl,cache,errfile,...
           netTypeObj,netMode,baseargs{:});      
       codestr = DeepTracker.codeGenSingGeneral(basecmd,netMode,singargs{:});
@@ -5067,6 +5168,8 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
+      baseargs = [baseargs {'ignore_local',1}];
+
       basecmd = DeepTracker.dataAugCodeGenBase(ID,dllbl,cache,errfile,...
         netType,outfile,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,netMode,singargs{:});
@@ -5199,7 +5302,7 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      baseargs = [baseargs {'confparamsfilequote','\\\"'}];
+      baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netmode,singargs{:});
     end
@@ -5817,7 +5920,7 @@ classdef DeepTracker < LabelTracker
         % might need to re-vizInit an existing trkVizer eg if number of trx 
         % has changed, maxNanimals has changed, etc.      
         if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.max_n_animals;
+          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
           maxNanimals = max(ceil(maxNanimals*1.5),10);
         else
           maxNanimals = 20;

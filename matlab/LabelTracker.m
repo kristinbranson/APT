@@ -113,6 +113,14 @@ classdef LabelTracker < handle
     function sPrm = getParams(obj)
       sPrm = struct();
     end
+    
+    function setParams(obj,sPrm)
+      % this should only be done if one knows what one is doing! 
+      obj.sPrmAll = sPrm;
+    end
+    function setTrackParams(obj,sPrmTrack)
+      obj.sPrmAll = APTParameters.setTrackParams(obj.sPrmAll,sPrmTrack);
+    end
        
     function ppdata = fetchPreProcData(obj,tblP,ppPrms)
       % Fetch preprocessed data per this tracker. Don't update any cache

@@ -62,7 +62,7 @@ classdef APTInterf
       
       [deepnetroot,fs,filequote,confparamsextra,confparamsfilequote,...
         prev_model,torchhome,val_split,augOnly,augOut,...
-        clsfyIsClsfy,clsfyOut] = ...
+        clsfyIsClsfy,clsfyOut,ignore_local] = ...
         myparse_nocheck(varargin,...
         'deepnetroot',APT.getpathdl,...
         'filesep','/',...
@@ -77,7 +77,8 @@ classdef APTInterf
         'augOnly',false, ...
         'augOut','', ... % used only if augOnly==true        
         'clsfyIsClsfy',false,... % if true, classify not train
-        'clsfyOut',[] ...        
+        'clsfyOut',[], ...        
+        'ignore_local',[] ...
         );
       
       aptintrf = [deepnetroot fs 'APT_interface.py'];
@@ -100,7 +101,9 @@ classdef APTInterf
         '-conf_params'}, ...
         confParams, ...
         {'-type' netType}); ...
-
+      if ~isempty(ignore_local),
+        code = [code, {'-ignore_local',num2str(ignore_local)}];
+      end
       if ~isempty(prev_model)
         code = [code {'-model_files' [filequote prev_model filequote]}];
       end
@@ -129,7 +132,7 @@ classdef APTInterf
         isObjDet,netTypeStg1,netTypeStg2,trnjson,stage,varargin)
       
       [deepnetroot,fs,filequote,confparamsfilequote,...
-        prev_model,prev_model2,torchhome,augOnly,augOut] = ...
+        prev_model,prev_model2,torchhome,augOnly,augOut,ignore_local] = ...
         myparse_nocheck(varargin,...
         'deepnetroot',APT.getpathdl,...
         'filesep','/',...
@@ -141,7 +144,8 @@ classdef APTInterf
         'prev_model2',[],...
         'torchhome',APT.torchhome, ...
         'augOnly',false,...
-        'augOut','' ... % used only if augOnly==true
+        'augOut','', ... % used only if augOnly==true
+        'ignore_local',[]...
         );
       
       aptintrf = [deepnetroot fs 'APT_interface.py'];
@@ -158,6 +162,9 @@ classdef APTInterf
         '-json_trn_file' trnjson ...
         '-stage' STAGEFLAGS{stage+1} ...
         };
+      if ~isempty(ignore_local),
+        code = [code, {'-ignore_local',num2str(ignore_local)}];
+      end
               
       % set -conf_params, -type
       if stage==0 || stage==1 % inc stg1/detect
@@ -221,6 +228,7 @@ classdef APTInterf
           {'-only_aug' ...
           '-aug_out' augOut}];
       end
+      
       codestr = String.cellstr2DelimList(code,' ');
     end
     
@@ -229,7 +237,7 @@ classdef APTInterf
       % "reg" => regular, from pre-MA APT
       
       [view,deepnetroot,splitfile,classify_val,classify_val_out,val_split,...
-        trainType,fs,prev_model,filequote,augOnly,confparamsfilequote,augOut] = myparse(varargin,...
+        trainType,fs,prev_model,filequote,augOnly,confparamsfilequote,augOut,ignore_local] = myparse(varargin,...
         'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
         'deepnetroot',APT.getpathdl,...
         'split_file',[],...
@@ -242,7 +250,8 @@ classdef APTInterf
         'filequote','\"',... % quote char used to protect filenames/paths.
         'augOnly',false,...
         'confparamsfilequote','\"',... % this is used in other train code functions, adding here to remove warning
-        'augOut','' ... % used only if augOnly==true
+        'augOut','', ... % used only if augOnly==true
+        'ignore_local',[] ...
         ... % *IMPORTANT*: Default is escaped double-quote \" => caller
         ... % is expected to wrap in enclosing regular double-quotes " !!
         );
@@ -285,6 +294,9 @@ classdef APTInterf
         '-name' ...
         trnID ...
         };
+      if ~isempty(ignore_local),
+        code = [code, {'-ignore_local',num2str(ignore_local)}];
+      end
       if tfview
         code = [code {'-view' num2str(view)}];
       end
@@ -362,11 +374,12 @@ classdef APTInterf
       movtrk = fileinfo.movtrk; 
       % save as movtrk, except for 2 stage, this will be [nviewx2] or [nmovx2]
       outtrk = fileinfo.outtrk; 
+      configfile = fileinfo.configfile;
       
       [listfile,cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
         updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,...
         confparamsfilequote,tfserialmode,...
-        track_id] = ...
+        track_id,ignore_local] = ...
         myparse_nocheck(varargin,...
         'listfile','',...
         'cache',[],... % (opt) cachedir
@@ -386,7 +399,8 @@ classdef APTInterf
                         ... % is expected to wrap in enclosing regular double-quotes " !!
         'confparamsfilequote','\"', ...
         'serialmode',false, ...  % see serialmode above
-        'track_id',false ... % Track id over ride json conf setting
+        'track_id',false, ... % Track id over ride json conf setting
+        'ignore_local',[] ...
         );
       
      
@@ -481,6 +495,7 @@ classdef APTInterf
         end
         errfile = fcnPathUpdate(errfile);
         dllbl = fcnPathUpdate(dllbl);
+        configfile = fcnPathUpdate(configfile);
       end      
 
       code = { ...
@@ -491,6 +506,9 @@ classdef APTInterf
 
       if tfview
         code = [code {'-view' num2str(view)}]; % view: 1-based for APT_interface
+      end
+      if ~isempty(ignore_local),
+        code = [code, {'-ignore_local',num2str(ignore_local)}];
       end
       if tfcache
         code = [code {'-cache' [filequote cache filequote]}];
@@ -503,9 +521,9 @@ classdef APTInterf
       if tflog
         code = [code {'-log_file' [filequote log_file filequote]}];
       end
-        if track_id
-          code = [code {'-conf_params link_id True'}]
-        end
+      if track_id
+        code = [code {'-conf_params link_id True'}];
+      end
                       
       if tf2stg
         %szassert(outtrk,[1 nstage],...
@@ -527,6 +545,7 @@ classdef APTInterf
                       'track' ...
                       '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
       end
+      code = [code {'-config_file' [filequote configfile filequote]}];
       if tflistfile
         code = [code {'-list_file' [filequote listfile filequote]}];
       else
@@ -566,8 +585,7 @@ classdef APTInterf
       end
       if hmaps
         code = [code {'-hmaps'}];
-      end
-      
+      end      
       codestr = String.cellstr2DelimList(code,' ');
     end
     

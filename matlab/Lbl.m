@@ -52,24 +52,35 @@ classdef Lbl
       
     end
     function s = compressStrippedLbl(s,varargin)
-      isMA = s.cfg.MultiAnimal;
-      
-      CFG_GLOBS = {'Num' 'MultiAnimal' 'HasTrx'};
-      FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'cropProjHasCrops' ...
-        'trackerClass' 'trackerData'};
-      TRACKERDATA_FLDS = {'sPrmAll' 'trnNetMode' 'trnNetTypeString'};
-      if isMA
-        GLOBS = {'movieFilesAll' 'movieInfoAll' 'trxFilesAll'};
-        FLDSRM = {'projMacros'};
-      else
-        GLOBS = {'labeledpos' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'preProcData'};
-        FLDSRM = { ... % 'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
-                  'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT'};
+      iscfg = isfield(s,'cfg');
+      if iscfg,
+        isMA = s.cfg.MultiAnimal;
       end
       
-      fldscfg = fieldnames(s.cfg);      
-      fldscfgkeep = fldscfg(startsWith(fldscfg,CFG_GLOBS));
-      s.cfg = structrestrictflds(s.cfg,fldscfgkeep);
+      FLDS = {'cfg' 'projname' 'projectFile' 'projMacros' 'cropProjHasCrops' ...
+        'trackerClass' 'trackerData'};
+      if iscfg,
+        CFG_GLOBS = {'Num' 'MultiAnimal' 'HasTrx'};
+      else
+        FLDS = setdiff(FLDS,{'cfg'});
+      end
+      TRACKERDATA_FLDS = {'sPrmAll' 'trnNetMode' 'trnNetTypeString'};
+      if iscfg,
+        if isMA
+          GLOBS = {'movieFilesAll' 'movieInfoAll' 'trxFilesAll'};
+          FLDSRM = {'projMacros'};
+        else
+          GLOBS = {'labeledpos' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'preProcData'};
+          FLDSRM = { ... % 'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
+            'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT'};
+        end      
+        fldscfg = fieldnames(s.cfg);
+        fldscfgkeep = fldscfg(startsWith(fldscfg,CFG_GLOBS));
+        s.cfg = structrestrictflds(s.cfg,fldscfgkeep);
+      else
+        GLOBS = {};
+        FLDSRM = {};
+      end
 
       for i=1:numel(s.trackerData)
         if ~isempty(s.trackerData{i})
@@ -90,40 +101,63 @@ classdef Lbl
       % jse: jsonencoded struct
       % j: raw struct
       
-      cfg = s.cfg;
-      cfg.HasCrops = s.cropProjHasCrops;
-      mia = cellfun(@(x)struct('NumRows',x.info.nr,...
-                               'NumCols',x.info.nc),s.movieInfoAll);
-      for ivw=1:size(mia,2)
-        nr = [mia(:,ivw).NumRows];
-        nc = [mia(:,ivw).NumCols];
-        assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);        
+      iscfg = isfield(s,'cfg');
+      if iscfg,
+        cfg = s.cfg;
+        if isfield(s,'cropProjHasCrops'),
+          cfg.HasCrops = s.cropProjHasCrops;
+        end
+      end
+      if isfield(s,'movieInfoAll'),
+        mia = cellfun(@(x)struct('NumRows',x.info.nr,...
+          'NumCols',x.info.nc),s.movieInfoAll);
+        for ivw=1:size(mia,2)
+          nr = [mia(:,ivw).NumRows];
+          nc = [mia(:,ivw).NumCols];
+          assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);
+        end
       end
       
       j = struct();
-      j.ProjName = s.projname;
-      j.ProjectFile = s.projectFile;
-      j.Config = cfg;
-      j.MovieInfo = mia(1,:);
-      if cfg.HasCrops
-        ci = s.movieFilesAllCropInfo;
-        nmov = numel(ci);
-        cropRois = nan(nmov,4);
-        for imov=1:nmov
-          cropRois(imov,:) = ci{imov}.roi;
+      if isfield(s,'projname'),
+        j.ProjName = s.projname;
+      end
+      if isfield(s,'projectFile'),
+        j.ProjectFile = s.projectFile;
+      end
+      if iscfg,
+        j.Config = cfg;
+      end
+      if isfield(s,'movieInfoAll'),
+        j.MovieInfo = mia(1,:);
+      end
+      if isfield(s,'cropProjHasCrops'),
+        if cfg.HasCrops,
+          ci = s.movieFilesAllCropInfo;
+          nmov = numel(ci);
+          cropRois = nan(nmov,4);
+          for imov=1:nmov
+            cropRois(imov,:) = ci{imov}.roi;
+          end
+        else
+          cropRois = [];
         end
-      else
-        cropRois = [];        
+        j.MovieCropRois = cropRois;
       end
-      j.MovieCropRois = cropRois;
-      assert(strcmp(s.trackerClass{2},'DeepTracker'));
-      if isempty(s.trackerData{1})
-        j.TrackerData = s.trackerData{2};
-      else
-        j.TrackerData = cell2mat(s.trackerData);
+      if isfield(s,'trackerClass'),
+        assert(strcmp(s.trackerClass{2},'DeepTracker'));
       end
-      
-      jse = jsonencode(j);
+      if isfield(s,'trackerData'),
+        if isempty(s.trackerData{1})
+          j.TrackerData = s.trackerData{2};
+        else
+          j.TrackerData = cell2mat(s.trackerData);
+        end
+      end
+      % KB 20220517 - added parameters here, as this is what is used when
+      % saving json to file finally, wanted to reuse this. 
+      % This output was never being used afaik.
+      jse = jsonencode(j,'ConvertInfAndNaN',false);
     end
   end
   

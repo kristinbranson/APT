@@ -452,10 +452,9 @@ moveMenuItemAfter(handles.menu_view_showhide_maroiaux,handles.menu_view_showhide
 % moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
 set(handles.menu_track_setparametersfile,...
-  'Label','Configure tracking parameters...',...
+  'Label','Set training parameters...',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_setparametersfile_Callback',hObject,eventdata,guidata(hObject)),...
   'Separator','on'); % separator b/c trackers are listed above
-
 
 handles.menu_track_edit_skeleton = uimenu('Parent',handles.menu_track,...
   'Label','Landmark parameters...',...
@@ -463,11 +462,17 @@ handles.menu_track_edit_skeleton = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_edit_skeleton_Callback',hObject,eventdata,guidata(hObject)));
 moveMenuItemAfter(handles.menu_track_edit_skeleton,handles.menu_track_setparametersfile);
 
+handles.menu_track_settrackparams = uimenu('Parent',handles.menu_track,...
+  'Label','Set tracking parameters...',...
+  'Tag','menu_track_settrackparams',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_settrackparams_Callback',hObject,eventdata,guidata(hObject)));
+moveMenuItemAfter(handles.menu_track_settrackparams,handles.menu_track_edit_skeleton);
+
 handles.menu_track_viz_dataaug = uimenu('Parent',handles.menu_track,...
   'Label','Visualize sample training images...',...
   'Tag','menu_track_viz_dataaug',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_viz_dataaug_Callback',hObject,eventdata,guidata(hObject)));
-moveMenuItemAfter(handles.menu_track_viz_dataaug,handles.menu_track_edit_skeleton);
+moveMenuItemAfter(handles.menu_track_viz_dataaug,handles.menu_track_settrackparams);
 
 % handles.menu_track_set_landmark_matches = uimenu(...
 %   'Parent',handles.menu_track,...
@@ -2585,7 +2590,7 @@ n = str2double(n{1});
 if isnan(n)
   return;
 end
-lObj.tracker.jrcnslots = n;
+lObj.tracker.setJrcnslots(n);
 
 
 
@@ -4093,10 +4098,11 @@ function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
 if any(lObj.trackBGTrnIsRunning),
-  warndlg('Cannot change tracker parameters while trackers are training.','Training in progress','modal');
+  warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
   return;
 end
-SetStatus(handles,'Setting tracking parameters...');
+SetStatus(handles,'Setting training parameters...');
+
 
 % tObj = lObj.tracker;
 % assert(~isempty(tObj));
@@ -4129,6 +4135,24 @@ else
 end
 
 ClearStatus(handles);
+
+function menu_track_settrackparams_Callback(hObject, eventdata, handles)
+
+lObj = handles.labelerObj;
+SetStatus(handles,'Setting tracking parameters...');
+
+[tPrm] = lObj.trackGetTrackParams();
+
+sPrmTrack = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
+
+if ~isempty(sPrmTrack),
+  sPrmNew = lObj.trackSetTrackParams(sPrmTrack);
+  RC.saveprop('lastCPRAPTParams',sPrmNew);
+  cbkSaveNeeded(lObj,true,'Parameters changed');
+end
+
+ClearStatus(handles);
+
 
 function menu_track_auto_params_update_Callback(hObject,eventdata,handles)
 
