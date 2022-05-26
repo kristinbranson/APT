@@ -15,6 +15,15 @@ classdef TrainMonitorViz < handle
     lastTrainIter; % [nset x nview] last iteration of training
     
     axisXRange = 2e3; % [nset] show last (this many) iterations along x-axis
+
+    % AL 20220526. Testing MA/XV with 3 folds on bsub. Finding jobs are
+    % ending before xv results MATs are done writing to disk (and visible
+    % over NFS etc).
+    %
+    % Adding counter/delay so that jobs are considered "stopped" only once
+    % they read as stopped a certain number of times in resultsReceived().
+    % (Default polling time is 20-30seconds). 
+    jobStoppedRepeatsReqd = 2; 
     
     resLast % last training json contents received
     dtObj % DeepTracker Obj
@@ -157,6 +166,8 @@ classdef TrainMonitorViz < handle
       obj.isKilled = false;
       obj.lastTrainIter = zeros(nsets,nview);
       obj.axisXRange = repmat(obj.axisXRange,[1 nsets]);
+
+      obj.jobStoppedRepeatsReqd = 2; 
     end
     
     function delete(obj)
@@ -333,6 +344,12 @@ classdef TrainMonitorViz < handle
         isRunning = true;
       else
         isRunning = any(isRunning0);
+      end
+      if ~isRunning
+        if obj.jobStoppedRepeatsReqd>=1
+          obj.jobStoppedRepeatsReqd = obj.jobStoppedRepeatsReqd-1;
+          isRunning = true;
+        end
       end
 
       TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d, isErr = %d, isKilled = %d\n',isRunning,isTrainComplete,isErr,obj.isKilled);

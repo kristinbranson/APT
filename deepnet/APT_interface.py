@@ -4653,7 +4653,7 @@ def run(args):
             else:
                 val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info, _ = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
             # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
             preds = to_mat(preds)

@@ -4551,10 +4551,7 @@ classdef DeepTracker < LabelTracker
 
         splitProjDirs = fileparts(fileparts(valresfiles));
         imreadfn = @(x)MAGT.readCoco(x,splitProjDirs);
-        NPLOTMAX = 240; % = (20 pages) * 3x4 montage
-        nplot = min(NPLOTMAX,height(tblXVres));
-        MAGT.trackLabelMontage(obj.lObj,tblXVres,'nplot',nplot,...
-          'readImgFcn',imreadfn);
+        MAGT.report(tblXVres,obj.lObj,imreadfn);
       end
     end
     
