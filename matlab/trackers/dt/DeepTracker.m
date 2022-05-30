@@ -2560,6 +2560,13 @@ classdef DeepTracker < LabelTracker
       %   (assumes nview==1 currently)
 
       % this can be made much better!
+
+      if isempty(gpuidsall),
+        gpuids = [];
+        isMultiView = nview > 1;
+        isSerialMultiMov = true;
+        return;
+      end
       nmovs = nmovset*nview;
       ngpuall = numel(gpuidsall);
       if ngpuall>=nmovs
@@ -2929,8 +2936,7 @@ classdef DeepTracker < LabelTracker
             % TODO: see docker track other branch below
             gpuidsall = backend.getFreeGPUs(nmovies*nviews);
             if isempty(gpuidsall),
-              warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
-              return;
+              warning('No GPUs available with sufficient RAM available. Tracking using CPU which will be SLOW');
             end
             
             [gpuids,isMultiViewTrack,isSerialMultiMovTrack] = ...
@@ -2946,21 +2952,24 @@ classdef DeepTracker < LabelTracker
             else
               gpuids = backend.getFreeGPUs(obj.lObj.nview);
               if isempty(gpuids)
+                warning('No GPUs found with sufficient RAM. Tracking on CPU. This might be SLOW.')
                 % On linux, we couldn't find GPUs
                 % On win, .getFreeGPUs probably didn't play well with Docker
                 % on Windows (ie didnt do the intended query) but anyway we
                 % currently don't support GPU tracking on this codepath
-                
-                if ispc
-                  qstr = 'GPU tracking on Windows currently unsupported. Perform tracking on CPU?';
-                else
-                  qstr = 'No GPUs available with sufficient RAM locally. Perform tracking on CPU?';
-                end
-                tstr = 'GPU Tracking Unavailable';
-                btn = questdlg(qstr,tstr,'Yes','No/Cancel','Yes');
-                if isempty(btn)
-                  btn = 'No/Cancel';
-                end
+
+                % don't ask, just do it
+                btn = 'Yes';
+%                 if ispc
+%                   qstr = 'GPU tracking on Windows currently unsupported. Perform tracking on CPU?';
+%                 else
+%                   qstr = 'No GPUs available with sufficient RAM locally. Perform tracking on CPU?';
+%                 end
+%                 tstr = 'GPU Tracking Unavailable';
+%                 btn = questdlg(qstr,tstr,'Yes','No/Cancel','Yes');
+%                 if isempty(btn)
+%                   btn = 'No/Cancel';
+%                 end
                 switch btn
                   case 'Yes'
                     isMultiViewTrack = true;
