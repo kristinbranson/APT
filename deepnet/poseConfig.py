@@ -1,4 +1,6 @@
 from __future__ import division
+
+import logging
 from builtins import object
 from past.utils import old_div
 import os
@@ -6,7 +8,6 @@ import re
 # import localSetup
 import numpy as np
 import copy
-import logging
 
 class config(object):
     # ----- Names
@@ -68,15 +69,22 @@ class config(object):
         # ----- Data parameters
         # l1_cropsz = 0
         self.splitType = 'frame'
-        self.trainfilename = 'train_TF'
-        self.fulltrainfilename = 'fullTrain_TF'
-        self.valfilename = 'val_TF'
         self.valdatafilename = 'valdata'
         self.valratio = 0.3
         self.holdoutratio = 0.8
         self.flipud = False
         self.json_trn_file = None
         self.db_format = 'tfrecord' # other option is coco
+        #self.db_format = 'coco' # other option is coco
+
+        if self.db_format == 'tfrecord':
+            self.trainfilename = 'train_TF'
+            self.fulltrainfilename = 'fullTrain_TF'
+            self.valfilename = 'val_TF'
+        else:
+            self.trainfilename = 'traindata'
+            self.fulltrainfilename = 'fulltraindata'
+            self.valfilename = 'valdata'
 
         # ----- UNet params
         self.unet_rescale = 1

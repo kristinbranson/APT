@@ -1304,7 +1304,8 @@ classdef DeepTracker < LabelTracker
         gpuids = backEnd.getFreeGPUs(nvw);
         if numel(gpuids) < nvw,
           if nvw == 1 || numel(gpuids)<1,
-              error('No GPUs with sufficient RAM available locally');
+            gpuids = nan;
+            warning('No GPUs with sufficient RAM available locally');
           else
             gpuids = gpuids(1);
             isMultiViewTrain = true;
@@ -4681,12 +4682,16 @@ classdef DeepTracker < LabelTracker
       [condaEnv,gpuid] = myparse(varargin,...
         'condaEnv','APT',...
         'gpuid',0);
-      if ispc,
-        envcmd = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
-      else
-        envcmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID&& export CUDA_VISIBLE_DEVICES=%d',gpuid);
+      codestr = ['activate ',condaEnv];
+      if ~isnan(gpuid),
+        if ispc,
+          envcmd = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
+        else
+          envcmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID&& export CUDA_VISIBLE_DEVICES=%d',gpuid);
+        end
+         codestr = [codestr,' && ',envcmd];
       end
-      codestr = sprintf('activate %s&& %s&& %s',condaEnv,envcmd,basecmd);
+      codestr = [codestr,' && ',basecmd];
     end
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
