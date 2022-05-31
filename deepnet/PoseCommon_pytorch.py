@@ -10,7 +10,12 @@ import PoseTools
 import tfdatagen
 import time
 import tensorflow.compat.v1 as tf
-from tfrecord.torch.dataset import TFRecordDataset
+ISTFR = False
+try:
+    from tfrecord.torch.dataset import TFRecordDataset
+    ISTFR = True
+except:
+    print('TFRecordDataset not available')
 import errno
 import re
 import gc
@@ -20,6 +25,8 @@ import xtcocotools.mask
 import multiResData
 # from torch import autograd
 # autograd.set_detect_anomaly(True)
+
+ISWINDOWS = os.name == 'nt'
 
 def print_train_data(cur_dict):
     p_str = ''
@@ -342,6 +349,7 @@ class PoseCommon_pytorch(object):
 
 
     def create_tf_data_gen(self, debug=False,**kwargs):
+        assert ISTFR, 'TFRecordDataset unavailable'
         conf = self.conf
         train_tfn = lambda f: decode_augment(f,conf,True)
         val_tfn = lambda f: decode_augment(f,conf,False)
@@ -359,9 +367,23 @@ class PoseCommon_pytorch(object):
         self.train_loader_raw = train_dl_tf
         self.val_loader_raw = val_dl_tf
         num_workers = 0 if debug else 16
+        args = {
+            'batch_size': self.conf.batch_size,
+            'pin_memory': True,
+            'drop_last': True,
+        }
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
-        self.val_dl = torch.utils.data.DataLoader(val_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
+        if num_workers > 0:
+            #try:
+            #    self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
+            #except:
+            logging.warning(f'Could not create torch DataLoader with num_workers = {num_workers}, trying with 0')
+            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+        else:
+            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+
+        self.val_dl = torch.utils.data.DataLoader(val_dl_tf, **args)
+
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
 

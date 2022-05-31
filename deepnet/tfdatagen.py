@@ -24,8 +24,13 @@ import heatmap
 
 ISPY3 = sys.version_info >= (3, 0)
 
+ISDPK = False
 if ISPY3 and vv[0]==1:
-    import deepposekit as dpk
+    try:
+        import deepposekit as dpk
+        ISDPK = True
+    except:
+        print('deepposekit not available')
 
 
 logr = logging.getLogger('APT')
