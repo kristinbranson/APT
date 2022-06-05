@@ -44,14 +44,14 @@ strong.regular-font {
 
 <b>Requirements</b>:
 <ul>
-  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 418.39</a></li>
+  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 11.4</a></li>
   <li> <a href="https://docs.docker.com/install/">Docker</a></li> 
   <li> <a href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a></li>
 </ul>
 The following instructions will take you, step-by-step, through installing and configuring these requirements. 
 <ul>
   <li>
-    Install <b>CUDA</b> <a href="https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver">version >= 418.39</a>. This can be done by downloading and installing either the
+    Install <b>CUDA</b> <a href="https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver">version >= 11.4</a>. This can be done by downloading and installing either the
     <ul>
       <li><a href="https://developer.nvidia.com/cuda-downloads">CUDA Toolkit</a> or</li>
       <li><a href="https://www.nvidia.com/Download/index.aspx">CUDA driver</a> only.</li>
@@ -92,15 +92,15 @@ The following instructions will take you, step-by-step, through installing and c
 
 <b>Requirements</b>:
 <ul>
-  <li> <https://www.anaconda.com/distribution/>Anaconda Python 3.7</a></li>
-  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 418.39</a></li>
-<li>Python modules installed with Conda: tensorflow-gpu=1.13.1, keras=2.2.4, opencv=3.4.4 hdf5storage=0.1.15 imageio=2.5.0 scikit-image=0.15.0 matplotlib=3.0.3 future=0.17.1 easydict=1.9</li>
+  <li> <https://www.anaconda.com/distribution/>Anaconda Python 3</a></li>
+  <li> <a href="https://www.nvidia.com/Download/index.aspx">CUDA version >= 11.4</a></li>
+  <li> See <code>&#60;APT&#62;\install\apt_conda_environment.yml</code> for dependencies installed via conda.</li>
 </ul>
 The following instructions will take you, step-by-step, through installing and configuring these requirements. 
 <ul>
-  <li>
-    Install <https://www.anaconda.com/distribution/><b>Anaconda Python 3.7</b> version for Windows</a>.
-</li>
+    <li>
+	Install <https://www.anaconda.com/distribution/><b>Anaconda Python 3</b> version for Windows</a>. Instructions available <a href="https://docs.anaconda.com/anaconda/install/windows/">here</a>. Importantly, in "Advanced Options" check "<b>Add Anaconda3 to my PATH environment variable</b>".
+    </li>
   <li>
     Install <b>CUDA</b> <a href="https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver">version >= 418.39</a>. This can be done by downloading and installing either the
     <ul>
@@ -116,24 +116,21 @@ The following instructions will take you, step-by-step, through installing and c
 conda upgrade --all</pre>
       </li>
     <li>
-    Create and activate the <b>APT environment</b>. 
-    <pre>conda create --name APT
-conda activate APT</pre>
-    </li>
-    <li><b>Install dependencies</b>.
-    <pre>conda install -c anaconda tensorflow-gpu=1.13.1 keras=2.2.4
-conda install -c conda-forge opencv=3.4.4 hdf5storage=0.1.15 imageio=2.5.0 scikit-image=0.15.0 matplotlib=3.0.3 future=0.17.1 easydict=1.9</pre>
+    Create the <b>APT environment</b>:
+	<pre>
+conda env create --file <APT>\install\apt_conda_environment.yml</pre>
+	where <code>&#60;APT&#62;</code> is the path to your APT folder. 
     </li>
     </ul>
 </ul>
 
-<p>To use this back end within APT, select <b>Local (Conda)</b> under the <b>Track > GPU/Backend Configuration</b> menu. You can test that everything hooks up between Conda and APT by selecting menu item <b>Track > GPU/Backend Configuration > Test backend configuration</b>. </p>
+<p>To use this back end within APT, select <b>Local (Conda)</b> under the <b>Track > GPU/Backend Configuration</b> menu. You should test that everything hooks up between Conda and APT by selecting menu item <b>Track > GPU/Backend Configuration > Test backend configuration</b>. </p>
 
 
 <footer>
 <hr class="h1-divider">
 <center>
-<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated August 22, 2019</i>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated June 5, 2022</i>
 </center>
 </footer>
 
