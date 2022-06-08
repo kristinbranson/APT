@@ -1671,6 +1671,8 @@ def get_git_commit():
         label = str(label,'utf-8')
     except subprocess.CalledProcessError as e:
         label = 'Not a git repo'
+    except FileNotFoundError as e:
+        label = 'Git not installed'
     return label
 
 def get_git_commit_old():
