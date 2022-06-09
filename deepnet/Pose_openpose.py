@@ -20,7 +20,8 @@ class Pose_openpose(object):
         conf.op_paf_nstage = 5
         conf.op_map_nstage = 1
         conf.op_hires = True
-        conf.op_hires_ndeconv = 2
+        # MK, using default of 0 because 2 is really slow, 20220609
+#        conf.op_hires_ndeconv = 2
         conf.op_base_lr = 4e-5  # Gines 5e-5
         conf.op_weight_decay_kernel = 5e-4
         conf.op_hmpp_floor = 0.1

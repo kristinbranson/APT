@@ -11,21 +11,24 @@ import pickle
 import os
 import cv2
 from torchvision import transforms
-import PIL
+from torch.nn.parameter import Parameter
+
 
 class pred_layers(nn.Module):
 
     def __init__(self, n_in, n_out):
         super(pred_layers,self).__init__()
+        momentum=0.1
         self.conv1 = nn.Conv2d(n_in,n_in, 3, padding=1)
         torch.nn.init.xavier_normal_(self.conv1.weight)
-        self.bn1  = nn.BatchNorm2d(n_in)
+        self.bn1  = nn.BatchNorm2d(n_in,momentum=momentum)
+        # self.bn1  = my_bn(n_in,momentum=momentum)
         self.conv2 = nn.Conv2d(n_in,n_in, 3, padding=1)
         torch.nn.init.xavier_normal_(self.conv2.weight)
-        self.bn2  = nn.BatchNorm2d(n_in)
+        self.bn2  = nn.BatchNorm2d(n_in,momentum=momentum)
         self.conv3 = nn.Conv2d(n_in,n_in, 3, padding=1)
         torch.nn.init.xavier_normal_(self.conv3.weight)
-        self.bn3  = nn.BatchNorm2d(n_in)
+        self.bn3  = nn.BatchNorm2d(n_in,momentum=momentum)
         self.conv_out = nn.Conv2d(n_in,n_out, 1, padding=0)
         torch.nn.init.xavier_normal_(self.conv_out.weight)
 
@@ -36,6 +39,34 @@ class pred_layers(nn.Module):
         x = F.relu(x + x1)
         x = self.conv_out(x)
         return x
+
+
+class my_bn(nn.Module):
+    def __init__(self,num_features,**kwargs):
+        super(my_bn,self).__init__()
+        self.bn = nn.BatchNorm2d(num_features,**kwargs)
+        self.rmean = Parameter(torch.Tensor(1,num_features,1,1),requires_grad=False)
+        self.rvar = Parameter(torch.Tensor(1,num_features,1,1),requires_grad=False)
+        self.rmean.zero_()
+        self.rvar.zero_()
+
+
+    def forward(self,x):
+        if self.bn.training:
+            with torch.no_grad():
+                xm = x.mean(dim=[0, 2, 3], keepdim=True)
+                xsq = (x**2).mean(dim=[0,2,3],keepdim=True)
+                nb = self.bn.num_batches_tracked
+                new_rmean = xm/(nb+1) + self.rmean*nb/(nb+1)
+                new_rvar = xsq/(nb+1) + self.rvar*nb/(nb+1)
+                self.rmean.copy_(new_rmean)
+                self.rvar.copy_(new_rvar)
+        cur_var = self.rvar - self.rmean**2
+        x = (x-self.rmean)/(torch.sqrt(cur_var)+self.bn.eps)
+        with torch.no_grad():
+            y = self.bn(x)
+        return x
+
 
 
 def freeze_bn(m):
@@ -63,6 +94,7 @@ def nanmin(v):
         return torch.ones(device=v.device)*np.nan
     else:
         return torch.min(k)
+
 
 def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.FrozenBatchNorm2d, trainable_layers=3):
     """
@@ -223,9 +255,12 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.offset = 4*(2**self.fpn_joint_layer)
         self.ref_scale = 4*(2**self.fpn_ref_layer)
         self.locs_noise = self.conf.get('mdn_joint_ref_noise',0.1)
-        self.k_j = 4 if self.fpn_joint_layer ==3 else 1
+        # self.k_j = 4 if self.fpn_joint_layer ==3 else 1
+        self.k_j = 1
         self.k_r = 3
         self.wt_offset = self.conf.get('mdn_joint_wt_offset',-5)
+        self.version = 2.
+        # version 1 has k_j = 4
 
     def create_model(self):
         return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer,pred_occluded=self.conf.predict_occluded)
@@ -722,6 +757,15 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         matched['ref'] = cur_pred
         return matched, cur_joint_conf, cur_occ_pred
 
+    def set_version(self,model_file):
+        ckpt = torch.load(model_file, map_location=torch.device('cpu'))
+        k_j = ckpt['model_state_params']['module.wts_joint.conv_out.weight'].shape[0]
+        if k_j==4:
+            self.version = 1
+
+        self.k_j = k_j
+
+
     def get_pred_fn_2pass(self, model_file=None,max_n=None,imsz=None):
         if max_n is not None:
             self.conf.max_n_animals = max_n
@@ -799,17 +843,20 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             self.conf.max_n_animals = max_n
         if imsz is not None:
             self.conf.imsz = imsz
-        model = self.create_model()
-        model = torch.nn.DataParallel(model)
 
         if model_file is None:
             latest_model_file = self.get_latest_model_file()
         else:
             latest_model_file = model_file
 
+
+        model = self.create_model()
+        model = torch.nn.DataParallel(model)
+
+
         self.restore(latest_model_file,model)
         model.to(self.device)
-        model.eval()
+        model = model.eval()
         self.model = model
         conf = self.conf
         # conf.batch_size = 1
@@ -862,4 +909,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
 
     def get_pred_fn(self,model_file,**kwargs):
+        if model_file is None:
+            latest_model_file = self.get_latest_model_file()
+        else:
+            latest_model_file = model_file
+        self.set_version(latest_model_file)
         return self.get_pred_fn_fast(model_file,**kwargs)

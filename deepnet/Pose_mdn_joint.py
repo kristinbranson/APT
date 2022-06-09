@@ -497,13 +497,17 @@ class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch
         assert not self.conf.is_multi, 'This is for single animal'
         if imsz is not None:
             self.conf.imsz = imsz
-        model = self.create_model()
-        model = torch.nn.DataParallel(model)
+
 
         if model_file is None:
             latest_model_file = self.get_latest_model_file()
         else:
             latest_model_file = model_file
+
+        self.set_version(latest_model_file)
+
+        model = self.create_model()
+        model = torch.nn.DataParallel(model)
 
         self.restore(latest_model_file,model)
         model.to(self.device)

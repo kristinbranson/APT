@@ -732,7 +732,8 @@ classdef TrnPack
         filenames = arrayfun(@(i) fullfile(packdir,sdir,[sloc(i).idmovfrm '.png']),idx,'Uni',0);
         doskip = cellfun(@(x) exist(x,'file'),filenames) > 0;
         if ~all(doskip),
-          res = parforOverVideo(rfcn,frms(~doskip),@(im,frm,i) imwriteCheck(im,filenames{i}),'bufsize',bufsize,'verbose',true);
+          curfilenames = filenames(~doskip);
+          res = parforOverVideo(rfcn,frms(~doskip),@(im,frm,i) imwriteCheck(im,curfilenames{i}),'bufsize',bufsize,'verbose',true);
           assert(all(cell2mat(res)));
         end
         fprintf(1,'Wrote %d new images, %d existed previously\n',nnz(~doskip),nnz(doskip));

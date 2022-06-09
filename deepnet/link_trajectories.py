@@ -34,7 +34,6 @@ import scipy.spatial.distance as ssd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 
 
-
 def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False):
   """
   match_frame(pcurr,pnext,idscurr,params,lastid=np.nan)
@@ -1001,10 +1000,11 @@ def link_trklets(trk_files, conf, movs, out_files):
     ww = conf1.multi_animal_crop_sz
     conf1.imsz = [ww,ww]
 
-    if len(conf1.ht_pts)>0:
+    if len(conf1.ht_pts)>0 and conf1.ht_pts[0]>=0:
       conf1.use_ht_trx = True
       conf1.trx_align_theta = True
     else:
+      logging.warning('Head-Tail points are not defined. Assigning identity without aligning the animals!!')
       conf1.use_bbox_trx = True
       conf1.trx_align_theta = False
     return link_id(in_trks, trk_files, movs, conf1, out_files)
@@ -1099,6 +1099,8 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
   :return:
   :rtype:
   '''
+
+
   all_trx = []
 
   for trk_file, mov_file in zip(trk_files,mov_files):
@@ -1421,19 +1423,28 @@ def tracklet_pred(ims, net, conf, rescale):
     n_batches = max(1,len(ims)//(3*n_threads))
     n_tr = len(ims)
     with mp.get_context('spawn').Pool(n_threads) as pool:
+      processed_ims = pool.starmap(process_id_ims_par, [(ims[n:n+1],conf,False,rescale) for n in range(len(ims))])
+      processed_ims = merge_parallel(processed_ims)
+      for ix in range(len(processed_ims)):
+          zz = processed_ims[ix]
+          zz = zz.astype('float32')
+          zz = torch.tensor(zz).cuda()
+          with torch.no_grad():
+              oo = net(zz).cpu().numpy()
+          preds.append(oo)
 
-      for curb in range(n_batches):
-        cur_set = ims[(curb*n_tr)//n_batches:( (curb+1)*n_tr)//n_batches]
-        split_set = split_parallel(cur_set,n_threads)
-        processed_ims = pool.starmap(process_id_ims_par, [(split_set[n],conf,False,rescale) for n in range(n_threads)])
-        processed_ims = merge_parallel(processed_ims)
-        for ix in range(len(processed_ims)):
-            zz = processed_ims[ix]
-            zz = zz.astype('float32')
-            zz = torch.tensor(zz).cuda()
-            with torch.no_grad():
-                oo = net(zz).cpu().numpy()
-            preds.append(oo)
+      # for curb in range(n_batches):
+      #   cur_set = ims[(curb*n_tr)//n_batches:( (curb+1)*n_tr)//n_batches]
+      #   split_set = split_parallel(cur_set,n_threads)
+      #   processed_ims = pool.starmap(process_id_ims_par, [(split_set[n],conf,False,rescale) for n in range(n_threads)])
+      #   processed_ims = merge_parallel(processed_ims)
+      #   for ix in range(len(processed_ims)):
+      #       zz = processed_ims[ix]
+      #       zz = zz.astype('float32')
+      #       zz = torch.tensor(zz).cuda()
+      #       with torch.no_grad():
+      #           oo = net(zz).cpu().numpy()
+      #       preds.append(oo)
 
     rr = np.array(preds)
     return rr

@@ -1,9 +1,9 @@
-cmd = '-lbl_file /tmp/tmp1l2alnwf -mov /groups/huston/hustonlab/flp-chrimson_experiments/fly_3066_to_3074_flpNMN/fly3066/C001H001S0001/C001H001S0001_c.avi /groups/huston/hustonlab/flp-chrimson_experiments/fly_3066_to_3074_flpNMN/fly3066/C001H001S0001/C001H001S0001_c.avi -out /groups/branson/home/kabram/temp/C001H001S0001_c_sh_trn4992_gtcomplete_cacheddata_updated20200317_compress20200325_grone20220511_mdn_joint_fpn.trk /groups/branson/home/kabram/temp/C002H001S0001_c_sh_trn4992_gtcomplete_cacheddata_updated20200317_compress20200325_grone20220511_mdn_joint_fpn.trk -crop_loc 132 361 35 384 233 582 40 389'
+```cmd = '-lbl_file /tmp/tmp1l2alnwf -mov /groups/huston/hustonlab/flp-chrimson_experiments/fly_3066_to_3074_flpNMN/fly3066/C001H001S0001/C001H001S0001_c.avi /groups/huston/hustonlab/flp-chrimson_experiments/fly_3066_to_3074_flpNMN/fly3066/C001H001S0001/C001H001S0001_c.avi -out /groups/branson/home/kabram/temp/C001H001S0001_c_sh_trn4992_gtcomplete_cacheddata_updated20200317_compress20200325_grone20220511_mdn_joint_fpn.trk /groups/branson/home/kabram/temp/C002H001S0001_c_sh_trn4992_gtcomplete_cacheddata_updated20200317_compress20200325_grone20220511_mdn_joint_fpn.trk -crop_loc 132 361 35 384 233 582 40 389'
 import APT_track as tr
 tr.main(cmd.split())
 
 ##
-cmd = '-name 20220510T084206 -view 2 -cache /groups/branson/home/kabram/.apt/tp48f665f5_cb5a_48ef_933d_310bff7809f5 -json_trn_file /groups/branson/home/kabram/.apt/tp48f665f5_cb5a_48ef_933d_310bff7809f5/sh4992/loc.json -type mdn_joint_fpn /groups/branson/home/kabram/.apt/tp48f665f5_cb5a_48ef_933d_310bff7809f5/sh4992/20220510T084206_20220510T084206.lbl train -use_cache '
+cmd = '-name 20220608T000703 -view 1 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c -model_files /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c/floss/multi_mdn_joint_torch/view_0/20220608T000703/deepnet-20000 -conf_params rescale 4 imsz (3840,2160) link_id True multi_animal_crop_sz 608 -type multi_mdn_joint_torch /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c/floss/20220608T000703_20220608T000707.lbl track -out /groups/branson/bransonlab/mayank/data/floss/mom3_floss1.trk -config_file /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c/floss/multi_mdn_joint_torch/view_0/20220608T000703/trk/trkconfig_mom2_trn20220608T000703_iter15000_20220608T021442_mov1_vwj1.json -mov /groups/branson/bransonlab/mayank/data/floss/mom3.mp4 -track_type only_link'
 
 from reuse import *
 # cmd = cmd.replace('"/','/')
@@ -14,13 +14,9 @@ else:
     cmd = cmd.replace('\\', '')
     apt.main(cmd.split())
 
-
 ##
-cmd = '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageHT/conf_nocrop.json -name 2stageHT_nocrop_nomask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageHT/loc_neg.json -conf_params multi_loss_mask False rescale 2.56 batch_size 4 link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage first -type multi_mdn_joint_torch track -mov /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -out /groups/branson/home/kabram/temp/ma_expts/roian/trks/200918_m170234vocpb_m170234_odor_m170232_f0180322_2stageHT_nocrop_nomask.trk'
+cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_openpose -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
 
-# cmd = '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_nomask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask False link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage first -type detect_mmdetect track -mov /groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -out /groups/branson/home/kabram/temp/ma_expts/roian/trks/200918_m170234vocpb_m170234_odor_m170232_f0180322_2stageBBox_nomask.trk'
-
-cmd = '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/grone/conf_crop.json -name tt -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_23022022/grone/loc_neg.json -conf_params multi_loss_mask True -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch train -use_cache'
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')
@@ -2270,3 +2266,4 @@ self.create_db(split_file = '/home/mayank/temp/apt_cache/multitarget_bubble/mdn/
 ##
 import APT_interface as apt
 apt.main(cmd.split())
+```
