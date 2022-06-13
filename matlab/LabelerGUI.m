@@ -4232,29 +4232,21 @@ handles.labelerObj.gtShowGTManager();
 function menu_evaluate_crossvalidate_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
-if lObj.tracker.hasTrained
-  resp = questdlg('Any existing trained tracker and tracking results will be cleared. Proceed?',...
-    'Cross Validation',...
-    'OK, Proceed','Cancel','Cancel');
-  if isempty(resp)
-    resp = 'Cancel';
-  end
-  switch resp
-    case 'OK, Proceed'
-      % none
-    case 'Cancel'
-      return;
-    otherwise
-      assert(false);
-  end
-end
 
-% xvalidate currently requires CPR; allow treatInfPosAsOcc to default to
-% false
-tblMFgt = lObj.preProcGetMFTableLbled();
-inputstr = sprintf('This project has %d labeled frames.\nNumber of folds for k-fold cross validation:',...
-  height(tblMFgt));
-resp = inputdlg(inputstr,'Cross Validation',1,{'7'});
+tbl = lObj.labelGetMFTableLabeled;  
+if lObj.maIsMA
+  tbl = tbl(:,1:2);
+  tbl = unique(tbl);
+  str = 'frames';
+else
+  tbl = tbl(:,1:3);
+  str = 'targets';
+end
+n = height(tbl);
+
+inputstr = sprintf('This project has %d labeled %s.\nNumber of folds for k-fold cross validation:',...
+  n,str);
+resp = inputdlg(inputstr,'Cross Validation',1,{'3'});
 if isempty(resp)
   return;
 end
@@ -4262,68 +4254,11 @@ nfold = str2double(resp{1});
 if round(nfold)~=nfold || nfold<=1
   handles.labelerObj.lerror('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
 end
-      
-wbObj = WaitBarWithCancel('Cross Validation');
-oc = onCleanup(@()delete(wbObj));
-lObj.trackCrossValidate('kfold',nfold,'wbObj',wbObj,'tblMFgt',tblMFgt,...
-  'tblMFgtIsFinal',true);
-if wbObj.isCancel
-  msg = wbObj.cancelMessage('Cross validation canceled');
-  msgbox(msg,'Cross Validation');
-  return;
-end
 
-tblXVres = lObj.xvResults;
-nGT = height(tblXVres);
-nFold = max(tblXVres.fold);
-muErrPt = nanmean(tblXVres.dGTTrk,1); % [1xnpt]
-muErr = nanmean(muErrPt); % each pt equal wt
-fcnMuErr = @(zErr)nanmean(zErr(:));
-tblErrMov = rowfun(fcnMuErr,tblXVres,'GroupingVariables','mov',...
-  'InputVariables',{'dGTTrk'},'OutputVariableNames',{'err'});
-tblfldsassert(tblErrMov,{'mov' 'GroupCount','err'});
-tblErrMov.Properties.VariableNames{2} = 'count';
+tbl.split = ceil(nfold*rand(n,1));
 
-PTILES = [50 75 90 95];
-errptls = prctile(tblXVres.dGTTrk(:),PTILES);
-errptls = num2cell(errptls);
-errptlsstr = sprintf('%.1f, ',errptls{:});
-errptlsstr = errptlsstr(1:end-2);
-
-str = { ...
-  sprintf('GT dataset: %d labeled frames across %d movies',nGT,...
-    height(tblErrMov));
-  sprintf('Number of cross-validation folds: %d',nFold);
-  '';
-  sprintf('Mean err, all points (px): %.2f',muErr);
-  };
-  
-for imov=1:height(tblErrMov)
-  trow = tblErrMov(imov,:);
-  %   [path,movS] = myfileparts(trow.mov{1});
-  %   [~,path] = myfileparts(path);
-  %   mov = fullfile(path,movS);
-  str{end+1,1} = sprintf(' ... movie %d (%d rows): %.2f',double(trow.mov),...
-    trow.count,trow.err); %#ok<AGROW>
-end
-
-str{end+1,1} = '';
-str{end+1,1} = sprintf('Error, %sth percentiles (px):',mat2str(PTILES));
-
-errptlspts = prctile(tblXVres.dGTTrk,PTILES)'; % [nLabelPoints x nptiles]
-npts = size(errptlspts,1);
-for ipt=1:npts
-  errptlsI = errptlspts(ipt,:);
-  errptlsI = num2cell(errptlsI);
-  errptlsIstr = sprintf('%.1f, ',errptlsI{:});
-  errptlsIstr = errptlsIstr(1:end-2);
-  str{end+1,1} = sprintf(' ... point %d: %s',ipt,errptlsIstr); %#ok<AGROW>
-end
-str{end+1,1} = sprintf(' ... all points: %s',errptlsstr);
-str{end+1,1} = '';
-
-lObj.trackCrossValidateVizPrctiles(tblXVres,'prctiles',PTILES);
-CrossValidResults(lObj,str,tblXVres);
+t = lObj.tracker;
+t.trainsplit(tbl);
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
 sft = handles.labelerObj.tracker.storeFullTracking;

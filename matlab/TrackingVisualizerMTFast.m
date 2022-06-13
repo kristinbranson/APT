@@ -269,39 +269,50 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     function updateSkelStc(hSkel,skelEdges,npt,xy)
       % Set hSkel.XData/.YData per xy
       %
-      % hSkel: graphics handle
-      % skelEdges: kx2 [e1pt1 e1pt2; e2pt1 e2pt2; ...; ekpt1 ekpt2]
+      % hSkel: [nview] graphics handles
+      % skelEdges: kx2 [e1pt1 e1pt2; e2pt1 e2pt2; ...; ekpt1 ekpt2]. See
+      %   below
       % xy: [npt x 2 x ntgtshow]
+      %
+      % It is assumed that skelEdges is wrt view 1, and that those edges 
+      % apply to all views. Recall currently pts in all views correspond to 
+      % the same physical pts.
       
       se = skelEdges;
       k = size(se,1);
       ntgtshow = size(xy,3);
-      
       totlen = k*ntgtshow*3;
-      xdata = nan(1,totlen);
-      ydata = nan(1,totlen);
-      
-      idatapt1 = 1:3:totlen;
-      idatapt2 = 2:3:totlen;
-      % se(:,1) are edge pt1s. when we index into xy we need to skip npt*2
-      % for each successive tgt.
-      ixskip = 0:npt*2:npt*2*ntgtshow-1;
+     
+      nview = numel(hSkel);
+      nptphys = npt/nview;
+
+      % se(:,1) are edge pt1s. when we index into xyview we need to skip
+      % nptphys*2 for each successive tgt.
+      ixskip = 0:nptphys*2:nptphys*2*ntgtshow-1;
       isept1 = repmat(se(:,1),1,ntgtshow); % index into xy for edge pt1's
       isept2 = repmat(se(:,2),1,ntgtshow); % index into xy for edge pt2's
       ixpt1 = isept1 + ixskip; % auto singleton expansion
       ixpt2 = isept2 + ixskip; % etc
       % se(:,2) are edge pt2s. when we index into xy we need to skip npt
-      % to get past x's, then npt*2 for each successive tgt.      
-      iyskip = npt:npt*2:npt*2*ntgtshow-1;
+      % to get past x's, then npt*2 for each successive tgt.
+      iyskip = nptphys:nptphys*2:nptphys*2*ntgtshow-1;
       iypt1 = isept1 + iyskip;
       iypt2 = isept2 + iyskip;
-      
-      xdata(idatapt1) = xy(ixpt1);
-      xdata(idatapt2) = xy(ixpt2);
-      ydata(idatapt1) = xy(iypt1);
-      ydata(idatapt2) = xy(iypt2);
-      
-      set(hSkel,'XData',xdata,'YData',ydata);
+
+      idatapt1 = 1:3:totlen;
+      idatapt2 = 2:3:totlen;
+
+      for iview=1:nview
+        iptview = (1:nptphys) + (iview-1)*nptphys;
+        xyview = xy(iptview,:,:);
+        xdata = nan(1,totlen);
+        ydata = nan(1,totlen);
+        xdata(idatapt1) = xyview(ixpt1);
+        xdata(idatapt2) = xyview(ixpt2);
+        ydata(idatapt1) = xyview(iypt1);
+        ydata(idatapt2) = xyview(iypt2);        
+        set(hSkel(iview),'XData',xdata,'YData',ydata);
+      end
     end
   end
   methods

@@ -2,22 +2,19 @@ classdef MAGT
   
   methods (Static)
     
-    function report(tblRes,lObj,varargin)
+    function report(tblRes,lObj,imreadfcn,varargin)
       % Compare MA preds to lbls for xv, gt etc
       
       t = tblRes;
       % t.mov = MovieIndex(t.mov);
-      
+      NMONTAGEPLOTMAX = 240; % = (20 pages) * 3x4 montage
+
       [nmontage,fcnAggOverPts,aggLabel] = myparse(varargin,...
-        'nmontage',height(t),...
+        'nmontage',min(NMONTAGEPLOTMAX,height(t)),...
         'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
         'aggLabel','Max' ...
-        );
-      
-      
-      %t.aggOverPtsL2err = fcnAggOverPts(t.L2err);
-      % KB 20181022: Changed colors to match sets instead of points
-      
+        );      
+            
       clrs = lObj.LabelPointColors;
       nclrs = size(clrs,1);
       
@@ -80,13 +77,10 @@ classdef MAGT
       set(ax,'YTick',0.5+(1:nmovUn),'YTickLabel',yticklbl);
       set(ax,'XTick',0.5+(1:npts),'XTickLabel',xticklbl);
       axis(ax,'ij');
-      title(ax,'Mean GT err (px) by movie, landmark',args{:});
-      
-      % montage
-      % compute err score incorporating FP/FNs
-      errscore = 50000*t.numFN + 10000*t.numFP + cellfun(@(x)mean(x(:)),t.matchcosts);
-      nmontage = min(nmontage,height(t));
-      lObj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',h,'nplot',nmontage);
+      title(ax,'Mean GT err (px) by movie, landmark',args{:});   
+
+      MAGT.trackLabelMontage(lObj,tblRes,'nplot',nmontage,...
+        'readImgFcn',imreadfcn);
     end
 
     function errscore = montageErrScore(t)

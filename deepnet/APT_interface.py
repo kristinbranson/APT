@@ -22,6 +22,11 @@ import itertools
 from os.path import expanduser
 from random import sample
 
+# suppress tensorflow warnings cuz there are a lot of them!
+# hopefully they don't matter??
+import warnings
+warnings.filterwarnings('ignore')
+
 import tensorflow
 tensorflow.get_logger().setLevel('ERROR')
 
@@ -35,7 +40,6 @@ elif vv[0] == 2:
 else:
     tf = tensorflow
 
-
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
 import PoseUNet_resnet as PoseURes
@@ -46,8 +50,16 @@ from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, c
 # from multiResData import *
 # import leap.training
 # from leap.training import train as leap_train
-# import open_pose as op
-# import sb1 as sb
+
+# we shoud re-enable these at some point?
+ISOPENPOSE = False
+ISSB = False
+
+if ISOPENPOSE:
+    import open_pose as op
+if ISSB:
+    import sb1 as sb
+
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
@@ -63,7 +75,9 @@ import math
 import cv2
 import re
 from scipy import io as sio
-# import heatmap
+ISHEATMAP = False
+if ISHEATMAP:
+    import heatmap
 import time  # for timing between writing n frames tracked
 import tarfile
 import urllib
@@ -83,15 +97,23 @@ torch.autograd.set_detect_anomaly(False)
 torch.autograd.profiler.profile(False)
 torch.autograd.profiler.emit_nvtx(False)
 
+ISWINDOWS = os.name == 'nt'
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10  # interval in seconds between writing n frames tracked
+ISDPK = False
+KBDEBUG = False
 
 try:
     user = getpass.getuser()
 except KeyError:
     user = 'err'
 if ISPY3 and user != 'ubuntu' and vv[0] == 1:  # AL 20201111 exception for AWS; running on older AMI
-    import apt_dpk
+    try:
+        import apt_dpk
+        ISDPK = True
+    except:
+        print('deepposekit not available.')
+
 
 try:
     tf.logging.set_verbosity(tf.logging.ERROR)
@@ -268,7 +290,7 @@ def tf_serialize(data):
     ntgt = cur_loc.shape[0]
     rows, cols, depth = frame_in.shape
     expid, fnum, trxid = info
-    image_raw = frame_in.tostring()
+    image_raw = frame_in.tobytes()
 
     feature = {
         'height': int64_feature(rows),
@@ -286,7 +308,7 @@ def tf_serialize(data):
         feature['max_n'] = int64_feature(data['max_n'])
     if rois is not None:
         mask = create_mask(rois, frame_in.shape[:2])
-        feature['mask'] = bytes_feature(mask.tostring())
+        feature['mask'] = bytes_feature(mask.tobytes())
     example = tf.train.Example(features=tf.train.Features(feature=feature))
 
     return example.SerializeToString()
@@ -983,9 +1005,16 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
 
     # overrides for each network
     if net_type == 'sb':
-        sb.update_conf(conf)
-    # elif net_type == 'openpose':
-    #     op.update_conf(conf)
+        if ISSB:
+            sb.update_conf(conf)
+        else:
+            raise Exception('sb network not implemented')
+
+    elif net_type == 'openpose':
+        if ISOPENPOSE:
+            op.update_conf(conf)
+        else:
+            raise Exception('openpose not implemented')
     elif net_type == 'dpk':
         if conf.dpk_use_op_affinity_graph:
             apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
@@ -1210,9 +1239,15 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
 
     # overrides for each network
     if net_type == 'sb':
-        sb.update_conf(conf)
-    # elif net_type == 'openpose':
-    #     op.update_conf(conf)
+        if ISSB:
+            sb.update_conf(conf)
+        else:
+            raise Exception('sb network not implemented')
+    elif net_type == 'openpose':
+        if ISOPENPOSE:
+            op.update_conf(conf)
+        else:
+            raise Exception('openpose network not implemented')
     elif net_type == 'dpk':
         if conf.dpk_use_op_affinity_graph:
             apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
@@ -1536,7 +1571,9 @@ def create_mask(roi, sz):
         path = Path(rr)
         cgrid = path.contains_points(pts)
         if grid is not None:
-            grid = grid | cgrid
+            logging.warning('Code changed by KB because IDE was showing an error here, let KB know if this breaks!')
+            grid = np.logical_or(grid,cgrid)
+            #grid = grid | cgrid
         else:
             grid = cgrid
 
@@ -2532,10 +2569,17 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
     '''
     if model_type == 'dpk':
         pred_fn, close_fn, model_file = apt_dpk.get_pred_fn(conf, model_file, **kwargs)
-    # elif model_type == 'openpose':
-    #     pred_fn, close_fn, model_file = op.get_pred_fn(conf, model_file,name=name,**kwargs)
+    elif model_type == 'openpose':
+        if ISOPENPOSE:
+            pred_fn, close_fn, model_file = op.get_pred_fn(conf, model_file,name=name,**kwargs)
+        else:
+            raise Exception('openpose not implemented')
     elif model_type == 'sb':
-        pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name, **kwargs)
+        if ISSB:
+            pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name, **kwargs)
+        else:
+            raise Exception('sb network not implemented')
+
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file, name=name, **kwargs)
     elif model_type == 'mdn':
@@ -2731,6 +2775,9 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False,
                 all_ims[cur_start + ndx, ...] = all_f[ndx, ...]
             if 'hmaps' in ret_dict and return_hm and \
                     (cur_start + ndx) % hm_dec == 0:
+                if not ISHEATMAP:
+                    raise Exception('heatmap not implemented')
+
                 hmapidx = (cur_start + ndx) // hm_dec
                 hmthis = ret_dict['hmaps'][ndx, ...]
                 hmthis = hmthis + 1.0
@@ -2806,6 +2853,8 @@ def classify_db_multi(conf, read_fn, pred_fn, n, return_ims=False,
                 all_ims[cur_start + ndx, ...] = all_f[ndx, ...]
             if 'hmaps' in ret_dict and return_hm and \
                     (cur_start + ndx) % hm_dec == 0:
+                if not ISHEATMAP:
+                    raise Exception('heatmap not implemented')
                 hmapidx = (cur_start + ndx) // hm_dec
                 hmthis = ret_dict['hmaps'][ndx, ...]
                 hmthis = hmthis + 1.0
@@ -3834,7 +3883,11 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
         import leap.training
         files = leap.training.model_files(conf, name)
     elif net_type == 'openpose' or net_type == 'sb':
-        files = op.model_files(conf, name)
+        if ISOPENPOSE:
+            files = op.model_files(conf, name)
+        else:
+            raise Exception('openpose currently not implemented')
+
     elif net_type == 'deeplabcut':
         files = deeplabcut.pose_estimation_tensorflow.model_files(create_dlc_cfg_dict(conf, name), name)
     else:
@@ -3869,9 +3922,9 @@ def classify_movie_all(model_type, **kwargs):
 
 
 def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
-                           distort=True,debug=False):
+                           distort=True,debug=KBDEBUG):
     # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
-    if not debug:
+    if not ISWINDOWS and not debug:
         p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort))
         p.start()
         p.join()
@@ -4017,6 +4070,10 @@ def train_leap(conf, args, split, split_file=None):
 
 
 def train_openpose(conf, args, split, split_file=None):
+
+    if not ISOPENPOSE:
+        raise Exception('openpose not implemented')
+
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
 
@@ -4220,10 +4277,12 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                 train_unet(conf, args, restore, split, split_file=split_file)
             elif net_type == 'mdn':
                 train_mdn(conf, args, restore, split, split_file=split_file, model_file=model_file)
-            # elif net_type == 'openpose':
-            #     if args.use_defaults:
-            #         op.set_openpose_defaults(conf)
-            #     train_openpose(conf, args, split, split_file=split_file)
+            elif net_type == 'openpose':
+                if not ISOPENPOSE:
+                    raise Exception('openpose not implemented')
+                if args.use_defaults:
+                    op.set_openpose_defaults(conf)
+                train_openpose(conf, args, split, split_file=split_file)
             elif net_type == 'sb':
                 assert not args.use_defaults
                 train_sb(conf, args, split, split_file=split_file)
@@ -4655,7 +4714,7 @@ def run(args):
             else:
                 val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info, _ = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
             # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
             preds = to_mat(preds)

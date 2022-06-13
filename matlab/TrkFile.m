@@ -429,9 +429,6 @@ classdef TrkFile < dynamicprops
     function clearTracklet(obj)
       assert(~obj.isfull);
       
-      %tfInitFrm2Tlt = ~isequal(obj.frm2tlt,[]);
-      %nfrm = size(obj.frm2tlt,1);
-      
       for i=1:obj.ntracklets
         obj.startframes(i) = 0;
         obj.endframes(i) = -1;
@@ -447,11 +444,25 @@ classdef TrkFile < dynamicprops
             obj.(f){i} = v(:,1:0);
           end
         end
+      end      
+    end
+    
+    function rmTracklet(obj,iTlt)
+      assert(~obj.isfull);
+      
+      tf = numel(obj.pTrkiTgt)==obj.ntracklets;
+      if tf
+        obj.pTrkiTgt(:,iTlt) = [];
       end
       
-%       if tfInitFrm2Tlt
-%         obj.initFrm2Tlt(nfrm);
-%       end
+      obj.startframes(:,iTlt) = [];
+      obj.endframes(:,iTlt) = [];
+      
+      tflds = obj.trkflds();
+      for f=tflds(:)',f=f{1}; %#ok<FXSET>
+        assert(isrow(obj.(f)));
+        obj.(f)(:,iTlt) = [];
+      end
     end
     
     function s = structizePrepSave(obj)

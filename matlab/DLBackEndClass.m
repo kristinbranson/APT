@@ -751,10 +751,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
       [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
-        hedit.String{end+1} = 'FAILURE. Could not find free GPUs.'; drawnow;
-        return;
+        hedit.String{end+1} = 'WARNING. Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
+      else
+        hedit.String{end+1} = 'SUCCESS! Found available GPUs.'; drawnow;
       end
-      hedit.String{end+1} = 'SUCCESS! Found available GPUs.'; drawnow;
       
       hedit.String{end+1} = '';
       hedit.String{end+1} = 'All tests passed. Docker Backend should work for you.'; drawnow;
@@ -772,7 +772,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
       hedit.String = {sprintf('%s: Testing Conda Configuration...',datestr(now))}; 
       drawnow;
-      
+
+      % make sure conda is installed
+      hedit.String{end+1} = ''; drawnow;
+      hedit.String{end+1} = '** Checking for conda...'; drawnow;
+      cmd = 'conda -V';
+      hedit.String{end+1} = cmd; drawnow;
+      [st,res] = system(cmd);
+      reslines = splitlines(res);
+      if st~=0
+        hedit.String{end+1} = sprintf('FAILURE. Error with ''%s''. Make sure you have installed conda and added it to your PATH.',cmd); drawnow;
+        return;
+      end
+      hedit.String{end+1} = 'SUCCESS!'; drawnow;
+
+
       % activate APT
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing activate APT...'; drawnow;
@@ -785,7 +799,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       %reslinesdisp = reslines(1:min(4,end));
       %hedit.String = [hedit.String; reslinesdisp(:)];
       if st~=0
-        hedit.String{end+1} = 'FAILURE. Error with ''activate APT''. Does your system path include condabin?'; drawnow;
+        hedit.String{end+1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment APT',cmd); drawnow;
         return;
       end
       hedit.String{end+1} = 'SUCCESS!'; drawnow;
@@ -819,10 +833,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
       [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
-        hedit.String{end+1} = 'FAILURE. Could not find free GPUs.'; drawnow;
-        return;
+        hedit.String{end+1} = 'WARNING: Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
+      else
+        hedit.String{end+1} = sprintf('SUCCESS! Found available GPUs.'); drawnow;
       end
-      hedit.String{end+1} = sprintf('SUCCESS! Found available GPUs.'); drawnow;
       
       hedit.String{end+1} = '';
       hedit.String{end+1} = 'All tests passed. Conda Backend should work for you.'; drawnow;
