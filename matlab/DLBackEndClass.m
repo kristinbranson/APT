@@ -13,7 +13,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % would just be "DLBackEnd" and the enum/type would go away.
   
   properties (Constant)
-    minFreeMem = 9000; % in MiB
+    minFreeMem = 4000; % in MiB
     currentDockerImgTag = 'tf1.15_py3_20201027';
     
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
