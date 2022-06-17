@@ -80,8 +80,9 @@ dependencies:
     - MarkupSafe
     - matplotlib
     - mccabe
-    - mmcv-full==1.3.3
+#    - mmcv-full==1.3.8
 #    - mmcv-full==1.3.3 -f https://download.openmmlab.com/mmcv/dist/cu101/torch1.6.0/index.html
+    - git+https://github.com/open-mmlab/mmcv.git@e728608ac90c0a6e4046082e4d0a9996e2961f44
     - motmetrics
     - munkres
     - networkx

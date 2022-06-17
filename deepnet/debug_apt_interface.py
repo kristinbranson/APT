@@ -1,6 +1,6 @@
 
 
-cmd = '-name 20220608T000703 -view 1 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c -model_files /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c/floss/multi_mdn_joint_torch/view_0/20220608T000703/deepnet-20000 -conf_params rescale 2.5 imsz (1756,2340) link_id True multi_animal_crop_sz 416 -type multi_mdn_joint_torch /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c/floss/20220608T000703_20220608T000707.lbl track -out /groups/branson/bransonlab/mayank/data/floss/raw1_floss1.trk -config_file /groups/branson/home/kabram/.apt/tp1b71f908_483d_4167_9c05_4a5592082d3c/floss/multi_mdn_joint_torch/view_0/20220608T000703/trk/trkconfig_mom2_trn20220608T000703_iter15000_20220608T021442_mov1_vwj1.json -mov /groups/branson/bransonlab/mayank/data/floss/raw1.mp4 -track_type only_link'
+cmd = '/groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155/floss/20220609T090528_20220609T090531.lbl -name 20220609T090528 -json_trn_file /groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155/floss/loc.json -stage second -ignore_local 1 -model_files /groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155/floss/mmpose/view_0/20220609T072955/deepnet-200 -conf_params -type mmpose -cache /groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155 train -use_cache -skip_db'
 
 from reuse import *
 # cmd = cmd.replace('"/','/')
