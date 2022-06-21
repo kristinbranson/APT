@@ -4,6 +4,15 @@ classdef TrkFile < dynamicprops
     unsetVal = '__UNSET__';
     listfile_fns = {'pred_locs','to_track','pred_tag','list_file',...
       'pred_ts','pred_conf'};
+   
+    % AL 20220620: pTrk* props have shapes like [npt x d x nfrm] (eg: pTrk)
+    % or like [npt x nfrm] (eg: pTrkConf). Record properties of the first 
+    % type here with their dimension so that empty/new TrkFiles can be 
+    % initialized with the proper shaped-empty arrays. 
+    %
+    % Using [] instead of shaped emptys might be possible in some cases but
+    % it is safer to use shaped emptys.
+    ptrk_fns_dimensional = struct('pTrk',2,'pTrk3d',3,'pTrkSingleView',2);
   end
   
   properties
@@ -159,10 +168,17 @@ classdef TrkFile < dynamicprops
       obj.pTrkTS = arrayfun(@(x)nowdt*ones(npts,x),nfs,'uni',0);
       obj.pTrkTag = arrayfun(@(x)false(npts,x),nfs,'uni',0);
       obj.trkfldsextra = {};
+      s_ptrk_dim = obj.ptrk_fns_dimensional;
+      flds_ptrk_dim = fieldnames(s_ptrk_dim);
       for f=trkfldsextra(:)',f=f{1}; %#ok<FXSET>
         if ~isprop(obj,f)
           obj.addprop(f);
-          obj.(f) = arrayfun(@(x)nan(npts,x),nfs,'uni',0);
+          if any(strcmp(f,flds_ptrk_dim))
+            dim = s_ptrk_dim.(f);
+            obj.(f) = arrayfun(@(x)nan(npts,dim,x),nfs,'uni',0);
+          else
+            obj.(f) = arrayfun(@(x)nan(npts,x),nfs,'uni',0);
+          end
           obj.trkfldsextra{end+1} = f;
         end
       end
@@ -469,21 +485,18 @@ classdef TrkFile < dynamicprops
       warnst = warning('off','MATLAB:structOnObject');
       s = struct(obj);
       warning(warnst);
+      
+      mc = ? TrkFile;
+      mprops = mc.PropertyList;
+      tfrm = [mprops.Dependent] | [mprops.Constant];
+      rmpropnames = {mprops(tfrm).Name}';
+      s = rmfield(s,rmpropnames);
+      
       for f=fieldnames(s)',f=f{1}; %#ok<FXSET>
         if ischar(s.(f)) && strcmp(s.(f),TrkFile.unsetVal)
           s = rmfield(s,f);
         end
       end
-      
-      mc = ? TrkFile;
-      mprops = mc.PropertyList;
-      tfrm = [mprops.Dependent]; %  | [mprops.Hidden];
-      rmpropnames = {mprops(tfrm).Name}';
-      s = rmfield(s,rmpropnames);
-
-      % above check removes .unsetVal prop!initFromTra
-      
-      s = rmfield(s,'listfile_fns');
     end
 
     function save(obj,filename)
@@ -696,6 +709,9 @@ classdef TrkFile < dynamicprops
       % frmsAreSet{jall} is nframes_jall x 1 logical indicator vec covering
       % objMerged.startframes(jall):objMerged.endframes(jall)
       
+      s_ptrk_dim = obj.ptrk_fns_dimensional;
+      flds_ptrk_dim = fieldnames(s_ptrk_dim);
+      
       % 4. for each trkfile, for each iTgt, overlay flds. warn if 
       % overlapping frmsAreSet
       itgt2jall = nan(itgtmax,1);
@@ -725,7 +741,7 @@ classdef TrkFile < dynamicprops
 
             % write trkflds
             for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
-              if strcmp(f,'pTrk')
+              if any(strcmp(f,flds_ptrk_dim))
                 objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
               else
                 objMerged.(f){jall}(:,idxall) = o.(f){j};
@@ -734,6 +750,10 @@ classdef TrkFile < dynamicprops
           end
         end
       end
+      
+      % AL 20220621
+      % Not doing anything with frmsAreSet for now. objMerged should be
+      % initialized with nans for trkflds() props
           
       % not sure what to do here
       obj.pTrkFrm = [];
@@ -1187,6 +1207,9 @@ classdef TrkFile < dynamicprops
       trkflds = obj.trkflds();
       obj2 = TrkFile(npts,obj.pTrkiTgt,sfs,efs,trkflds);      
       
+      s_ptrk_dim = obj.ptrk_fns_dimensional;
+      flds_ptrk_dim = fieldnames(s_ptrk_dim);
+
       for itlt=1:ntlt
         if compactify
           p = obj.pTrk(:,:,:,itlt);
@@ -1212,7 +1235,7 @@ classdef TrkFile < dynamicprops
         
         for f=trkflds(:)',f=f{1}; %#ok<FXSET>
           v = obj.(f);
-          if strcmp(f,'pTrk') % branching off ndims(v) doesn't work if ntlt==1            
+          if any(strcmp(f,flds_ptrk_dim))
             obj2.(f){itlt} = v(:,:,idx,itlt);
           else
             obj2.(f){itlt} = v(:,idx,itlt);
