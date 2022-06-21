@@ -3682,7 +3682,7 @@ def classify_movie(conf, pred_fn, model_type,
     logging.info('crop_loc: ' + str(crop_loc))
 
     pre_fix, ext = os.path.splitext(out_file)
-    part_file = pre_fix + '_part' + ext
+    part_file = out_file + '.part'
 
     cap = movies.Movie(mov_file)
     sz = (cap.get_height(), cap.get_width())
@@ -3907,15 +3907,17 @@ def classify_movie_all(model_type, **kwargs):
     del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
     if conf.stage == 'first':
         conf.n_classes = 2
+        conf.op_affinity_graph = [[0, 1]]
+
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name)
     # logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
         trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
         trk = None
-        close_fn()
         logging.exception('Could not track movie')
-    close_fn()
+    finally:
+        close_fn()
     return trk
 
 
@@ -4308,7 +4310,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
                     assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
                     conf.n_classes = 2
                     conf.flipLandmarkMatches = {}
-
+                    conf.op_affinity_graph = [[0, 1]]
 
                 if args.aug_out is not None:
                     aug_out = args.aug_out + f'_{cur_view}'

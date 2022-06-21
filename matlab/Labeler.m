@@ -11169,6 +11169,21 @@ classdef Labeler < handle
         {'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
       
       tAll = obj.trackersAll;
+      if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
+        prev = tAll{iTrk};
+        if ~DeepTrackerTopDownCustom.use_prev(prev)
+          ctorargs = DeepTrackerTopDownCustom.get_args(prev);
+          newTracker = DeepTrackerTopDownCustom(obj,ctorargs{1},ctorargs{2});
+          if newTracker.valid
+            newTracker.initHook();
+            tAll{iTrk} = newTracker;
+            obj.trackersAll = tAll;
+          else
+            return;
+          end
+        end
+      end
+      
       iTrk0 = obj.currTracker;
       if iTrk0>0
         tAll{iTrk0}.setHideViz(true);
@@ -15133,7 +15148,7 @@ classdef Labeler < handle
       % the current movie. Otherwise, obj.labeledpos2trkViz will be [] 
       % which optimizes browse speed.
       tv = obj.createTrackingVisualizer('impPointsPlotInfo','labeledpos2');      
-      if ~isempty(obj.trackParams)
+      if ~isempty(obj.trackParams) && isfield(obj.trackParams.ROOT.MultiAnimal,'Track')
         maxNanimals = obj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
         maxNanimals = max(ceil(maxNanimals*1.5),10);
       else

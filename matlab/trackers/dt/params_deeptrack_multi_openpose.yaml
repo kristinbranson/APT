@@ -18,5 +18,6 @@ ROOT:
     - op_param_hmap_thres: ['Heatmap threshold',float,true,'Threshold to use on heatmaps for landmark detections. Heatmap predictions lie in the range between 0 to 1',0.1,'','Developer','',true]
     - op_param_paf_thres: ['PAF threshold',float,true,'Threshold to use on Pose Affinity Fields (PAF) for grouping landmarks into animals. PAF intensity values lie in the range between 0 to 1',0.05,'','Developer','',true]
     - ignore_occluded: ['Ignore occluded landmarks',boolean,true,'Do not train on landmarks labeled as occluded.',0,'','Beginner','',true]
+    - op_hires_ndeconv: ['Number of deconv layers',unsigned,true,'Number of deconvolution layers to improve the resolutions of the predictions',0,'','Beginner','',true]
     - db_format: ['DB Format',string,true,'Format for Training DB','tfrecord','','Developer','']
 

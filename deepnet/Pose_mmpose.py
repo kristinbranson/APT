@@ -33,11 +33,80 @@ import numpy as np
 ## Topdown dataset
 from mmpose.datasets.registry import DATASETS
 from mmpose.datasets.datasets.top_down.topdown_coco_dataset import TopDownCocoDataset
+from xtcocotools.coco import COCO
 
 @DATASETS.register_module()
 class TopDownAPTDataset(TopDownCocoDataset):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,
+                 ann_file,
+                 img_prefix,
+                 data_cfg,
+                 pipeline,
+                 test_mode=False):
+        # Overriding topdowncoocodataset init code because it is bad and awful with hardcoded values.
+        super(TopDownCocoDataset, self).__init__(ann_file, img_prefix, data_cfg, pipeline, test_mode=test_mode)
+        self.use_gt_bbox = data_cfg['use_gt_bbox']
+        self.bbox_file = data_cfg['bbox_file']
+        self.det_bbox_thr = data_cfg.get('det_bbox_thr', 0.0)
+        if 'image_thr' in data_cfg:
+            logging.warning(
+                'image_thr is deprecated, '
+                'please use det_bbox_thr instead', DeprecationWarning)
+            self.det_bbox_thr = data_cfg['image_thr']
+        self.use_nms = data_cfg.get('use_nms', True)
+        self.soft_nms = data_cfg['soft_nms']
+        self.nms_thr = data_cfg['nms_thr']
+        self.oks_thr = data_cfg['oks_thr']
+        self.vis_thr = data_cfg['vis_thr']
+
+        # self.ann_info['flip_pairs'] = [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10],
+        #                                [11, 12], [13, 14], [15, 16]]
+        #
+        self.ann_info['upper_body_ids'] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        self.ann_info['lower_body_ids'] = (11, 12, 13, 14, 15, 16)
+
+        self.ann_info['use_different_joint_weights'] = False
+        # self.ann_info['joint_weights'] = np.array(
+        #     [
+        #         1., 1., 1., 1., 1., 1., 1., 1.2, 1.2, 1.5, 1.5, 1., 1., 1.2,
+        #         1.2, 1.5, 1.5
+        #     ],
+        #     dtype=np.float32).reshape((self.ann_info['num_joints'], 1))
+
+        # 'https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/'
+        # 'pycocotools/cocoeval.py#L523'
+        # self.sigmas = np.array([
+        #     .26, .25, .25, .35, .35, .79, .79, .72, .72, .62, .62, 1.07, 1.07,
+        #     .87, .87, .89, .89
+        # ]) / 10.0
+
+        self.coco = COCO(ann_file)
+
+        cats = [
+            cat['name'] for cat in self.coco.loadCats(self.coco.getCatIds())
+        ]
+        self.classes = ['__background__'] + cats
+        self.num_classes = len(self.classes)
+        self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
+        self._class_to_coco_ind = dict(zip(cats, self.coco.getCatIds()))
+        self._coco_ind_to_class_ind = dict(
+            (self._class_to_coco_ind[cls], self._class_to_ind[cls])
+            for cls in self.classes[1:])
+        self.img_ids = self.coco.getImgIds()
+        self.num_images = len(self.img_ids)
+        self.id2name, self.name2id = self._get_mapping_id_name(self.coco.imgs)
+        self.dataset_name = 'coco'
+
+        self.db = self._get_db()
+
+        print(f'=> num_images: {self.num_images}')
+        print(f'=> load {len(self.db)} samples')
+
+
+        ## END MMPOSE INIT CODE
+
+
+        # My init code.
         import poseConfig
         conf = poseConfig.conf
 
@@ -160,6 +229,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     cfg.data_cfg.num_joints = conf.n_classes
     cfg.data_cfg.dataset_channel = [list(range(conf.n_classes))]
     cfg.data_cfg.inference_channel = list(range(conf.n_classes))
+    cfg.data_cfg.num_output_channels = conf.n_classes
 
     for ttype in ['train', 'val', 'test']:
         name = ttype if ttype is not 'test' else 'val'
@@ -216,7 +286,10 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
                 p.prob_half_body = 0.0
 
 
-    cfg.gpu_ids = range(1)
+    if torch.cuda.is_available():
+        cfg.gpu_ids = range(1)
+    else:
+        cfg.gpu_ids = []
     cfg.seed = None
     cfg.work_dir = conf.cachedir
 
@@ -251,6 +324,16 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         for sidx in range(len(cfg.model.keypoint_head.loss_keypoint.with_ae_loss)):
             if cfg.model.keypoint_head.loss_keypoint.with_ae_loss[sidx]:
                 cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] = cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx]* push_fac_mul
+
+
+    if 'keypoint_head' in cfg.model:
+        cfg.model.keypoint_head.out_channels = conf.n_classes
+    if conf.n_classes < 8:
+        try:
+            if cfg.model.keypoint_head.loss_keypoint[3].type == 'JointsOHKMMSELoss':
+                cfg.model.keypoint_head.loss_keypoint[3].topk = conf.n_classes
+        except:
+            pass
 
     return cfg
 
@@ -357,7 +440,7 @@ class Pose_mmpose(PoseCommon_pytorch):
             samples_per_gpu=cfg.data.get('samples_per_gpu', {}),
             workers_per_gpu=cfg.data.get('workers_per_gpu', {}),
             # cfg.gpus will be ignored if distributed
-            num_gpus=len(cfg.gpu_ids),
+            num_gpus=len(cfg.gpu_ids) if len(cfg.gpu_ids)>0 else 1,
             dist=distributed,
             seed=cfg.seed)
         dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
@@ -388,7 +471,8 @@ class Pose_mmpose(PoseCommon_pytorch):
                     broadcast_buffers=False,
                     find_unused_parameters=find_unused_parameters)
         else:
-            model = MMDataParallel(
+            if torch.cuda.is_available():
+                model = MMDataParallel(
                 model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
 
         # build runner
@@ -484,7 +568,8 @@ class Pose_mmpose(PoseCommon_pytorch):
 
         _ = load_checkpoint(model, model_file, map_location='cpu')
         logging.info(f'Loaded model from {model_file}')
-        model = MMDataParallel(model,device_ids=[0])
+        if torch.cuda.is_available():
+            model = MMDataParallel(model,device_ids=[0])
         # build part of the pipeline to do the same preprocessing as training
         test_pipeline = cfg.test_pipeline[2:]
         test_pipeline = Compose(test_pipeline)

@@ -859,9 +859,7 @@ function autoparams = compute_auto_params(lobj)
 
   crop_radius = nanmax(l_span_pc);
   crop_radius = ceil(crop_radius/16)*16;
-  if lobj.trackerIsTwoStage || lobj.hasTrx
-    autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
-  end
+  autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
   end
