@@ -1122,7 +1122,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
 
   # link using id model
   def_params = get_default_params(conf)
-  trk_out = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'])
+  trk_out = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds)
   return trk_out
 
 
@@ -1154,8 +1154,8 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
     sel_trk = np.where((ee - ss+1) > min_trx_len)[0]
     sel_trk_info = list(zip(sel_trk, ss[sel_trk], ee[sel_trk]))
 
-    data_files = read_ims_par(trx, sel_trk_info, mov_file, conf)
-    data = read_data_files(data_files)
+    data = read_ims_par(trx, sel_trk_info, mov_file, conf)
+    # data = read_data_files(data_files)
     all_data.append(data)
   return all_data
 
@@ -1319,13 +1319,24 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
   :rtype:
   '''
 
-  n_threads = min(24, mp.cpu_count(),len(trk_info))
+  n_trk = len(trk_info)
+  if n_trk < mp.cpu_count():
+    n_threads = n_trk
+  else:
+    bytes_per_trk = n_ex*conf.imsz[0]*conf.imsz[1]*3
+    max_pkl_bytes = 1024*1024*1024
+    n_trk_per_thrd = max_pkl_bytes//bytes_per_trk
+    n_threads = int(np.ceil(n_trk/n_trk_per_thrd))
+    n_threads = max( mp.cpu_count(),n_threads)
+
   with mp.get_context('spawn').Pool(n_threads) as pool:
 
     trk_info_split = split_parallel(trk_info,n_threads)
-    data_files = pool.starmap(read_tracklet_ims, [(trx, trk_info_split[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_threads)])
+    data = pool.starmap(read_tracklet_ims, [(trx, trk_info_split[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_threads)])
 
-  return data_files
+  data = merge_parallel(data)
+
+  return data
 
 def read_data_files(data_files):
   data = []
@@ -1375,11 +1386,11 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
     ims = apt.create_batch_ims(cur_list, conf, cap, False, trx, None, use_bsize=False)
     all_ims.append([ims, cur_trk[0],cur_trk[1],cur_trk[2],cur_list])
 
-  tfile = tempfile.mkstemp()[1]
-  with open(tfile,'wb') as f:
-    pickle.dump(all_ims,f)
-  cap.close()
-  return tfile
+  # tfile = tempfile.mkstemp()[1]
+  # with open(tfile,'wb') as f:
+  #   pickle.dump(all_ims,f)
+  # cap.close()
+  return all_ims
 
 def split_parallel(x,n_threads,is_numpy=False):
   '''
@@ -1676,7 +1687,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   return net, loss_history
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5, debug=False):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5, debug=False, keep_all_preds=False):
   '''
   Links the pure tracklets using identity
 
@@ -1717,14 +1728,21 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
     logging.info(f'Sampling images from {len(sel_ss)} tracklets to assign identity to the tracklets ...')
     start_t = time.time()
-    data_files = read_ims_par(trx, trk_info, mov_file, conf, n_ex=n_per_trk)
+    cur_data = read_ims_par(trx, trk_info, mov_file, conf, n_ex=n_per_trk)
     end_t = time.time()
     logging.info(f'Sampling images took {round((end_t-start_t)/60)} minutes')
 
     merge_data = []
     merge_tgt_id = []
-    for curf in tqdm(data_files):
-      data = read_data_files([curf])
+    s_sz = 200
+    # find ceil
+    n_split = int(np.ceil(len(cur_data)/s_sz))
+    for idx in tqdm(range(n_split)):
+
+      # data = read_data_files([curf])
+      ids1 = s_sz*idx
+      ids2 = min(s_sz*(idx+1), len(cur_data))
+      data = cur_data[ids1:ids2]
       tgt_id = np.array([r[1] for r in data])
       merge_tgt_id.extend(tgt_id.tolist())
 
@@ -1804,6 +1822,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     gr = gr.tolist()
     groups_only_id.append(gr.copy())
 
+    # Ignore the tracklets that have been used already for the next round.
     for mov_ndx in range(len(linked_trks)):
       ids_ignore = []
       for ff in far_ids:
@@ -1822,6 +1841,16 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
 
     used_trks.extend(gr)
     groups.append(gr)
+
+  # If we want to keep all the predictions, then we need to add the remaining tracklets to the groups
+  if keep_all_preds:
+    for mov_ndx in range(len(linked_trks)):
+      cur_used_ids = [pred_map[uu][1] for uu in used_trks if pred_map[uu][0] == mov_ndx]
+      for ids in range(linked_trks[mov_ndx].ntargets):
+        if ids not in cur_used_ids:
+          pred_map = np.concatenate([pred_map, [[mov_ndx, ids]]], axis=0)
+          groups.append([len(pred_map)-1])
+
 
   # Old style grouping
   # groups_new = groups.copy()
