@@ -1571,7 +1571,7 @@ def create_mask(roi, sz):
         path = Path(rr)
         cgrid = path.contains_points(pts)
         if grid is not None:
-            logging.warning('Code changed by KB because IDE was showing an error here, let KB know if this breaks!')
+#            logging.warning('Code changed by KB because IDE was showing an error here, let KB know if this breaks!')
             grid = np.logical_or(grid,cgrid)
             #grid = grid | cgrid
         else:
@@ -4803,5 +4803,4 @@ def log_status(logging,stage,value='',info=''):
     logging.info(f'>>APTSTATUS: {stage},{value},{info}<<')
 
 if __name__ == "__main__":
-    torch.multiprocessing.set_start_method('spawn')
     main(sys.argv[1:])

@@ -547,39 +547,43 @@ classdef APTParameters
           sPrmAll.ROOT.MultiAnimal.Detect = sPrmAll.ROOT.MultiAnimalDetection;
           sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'MultiAnimalDetection');
         end
-        if isfield(sPrmAll.ROOT.ImageProcessing,'MultiTarget') && ...
+        if isfield(sPrmAll.ROOT,'ImageProcessing') && ... 
+          isfield(sPrmAll.ROOT.ImageProcessing,'MultiTarget') && ...
            isfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop')
           sPrmAll.ROOT.MultiAnimal.TargetCrop = sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop;
           sPrmAll.ROOT.ImageProcessing.MultiTarget = ...
             rmfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop');
         end        
-        if isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')
-          sPrmAll.ROOT.MultiAnimal.TargetCrop.ManualRadius = ...
-             sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
-          sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
-            rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
+        if isfield(sPrmAll.ROOT,'MultiAnimal')
+          if isfield(sPrmAll.ROOT.MultiAnimal,'TargetCrop') && ...
+            isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')
+            sPrmAll.ROOT.MultiAnimal.TargetCrop.ManualRadius = ...
+               sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
+            sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
+              rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
+          end
+          if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
+            isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
+            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
+            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
+            sPrmAll.ROOT.MultiAnimal.Detect = ...
+              rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
+          end
+          % KB 20220516: moving tracking related parameters around
+          if isfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals')
+            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.max_n_animals;
+            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals');
+          end
+          if isfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals')
+            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.min_n_animals;
+            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals');
+          end
+          if isfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch'),
+            sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = sPrmAll.ROOT.MultiAnimal.TrackletStitch;
+            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch');
+          end
         end
-        if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
-          isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
-          sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
-          sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
-          sPrmAll.ROOT.MultiAnimal.Detect = ...
-            rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
-        end
-        % KB 20220516: moving tracking related parameters around
-        if isfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals')
-          sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.max_n_animals;
-          sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals');
-        end
-        if isfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals')
-          sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.min_n_animals;
-          sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals');
-        end
-        if isfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch'),
-          sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = sPrmAll.ROOT.MultiAnimal.TrackletStitch;
-          sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch');
-        end
-          
+        
         sPrmDflt = APTParameters.defaultParamsStructAll;
         sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
           'dontWarnUnrecog',true); % to allow removal of obsolete params

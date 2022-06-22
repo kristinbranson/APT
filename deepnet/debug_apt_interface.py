@@ -1,6 +1,6 @@
 
 
-cmd = '/groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155/floss/20220609T090528_20220609T090531.lbl -name 20220609T090528 -json_trn_file /groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155/floss/loc.json -stage second -ignore_local 1 -model_files /groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155/floss/mmpose/view_0/20220609T072955/deepnet-200 -conf_params -type mmpose -cache /groups/branson/home/kabram/.apt/tp78a1dc43_c4ac_44eb_a32f_2216ad459155 train -use_cache -skip_db'
+cmd = '/groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6/test/20220622T072842_20220622T072845.lbl -name 20220622T072842 -json_trn_file /groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6/test/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6 train -use_cache -skip_db'
 
 from reuse import *
 # cmd = cmd.replace('"/','/')
@@ -12,7 +12,7 @@ else:
     apt.main(cmd.split())
 
 ##
-cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_openpose -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
+cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
 
 from reuse import *
 # cmd = cmd.replace('"/','/')

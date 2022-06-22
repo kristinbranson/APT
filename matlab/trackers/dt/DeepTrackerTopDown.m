@@ -692,10 +692,18 @@ classdef DeepTrackerTopDown < DeepTracker
         % for stage 2.
         baseargs = [baseargs0 {'maTopDownStage' 0}];
         if ~isempty(dmcs(1).prev_models)
-          baseargs = [baseargs {'prev_model' dmcs(1).prev_models{dmcs(1).view+1}}];
+          if ischar(dmcs(1).prev_models)
+            baseargs = [baseargs {'prev_model' dmcs(1).prev_models}];
+          else          
+            baseargs = [baseargs {'prev_model' dmcs(1).prev_models{dmcs(1).view+1}}];
+          end
         end
         if ~isempty(dmcs(2).prev_models)
-          baseargs = [baseargs {'prev_model2' dmcs(2).prev_models{dmcs(2).view+1}}];
+          if ischar(dmcs(2).prev_models)
+            baseargs = [baseargs {'prev_model2' dmcs(2).prev_models}];
+          else            
+            baseargs = [baseargs {'prev_model2' dmcs(2).prev_models{dmcs(2).view+1}}];
+          end
         end
         
         args = { ...
