@@ -4803,5 +4803,5 @@ def log_status(logging,stage,value='',info=''):
     logging.info(f'>>APTSTATUS: {stage},{value},{info}<<')
 
 if __name__ == "__main__":
-
+    torch.multiprocessing.set_start_method('spawn')
     main(sys.argv[1:])
