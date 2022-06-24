@@ -3969,7 +3969,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             tconf.rrange = 0
 
         tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
-        tself.create_data_gen(debug=debug)
+        tself.create_data_gen(debug=debug,pin_mem=False)
         if distort:
             db_type = 'train'
         else:

@@ -1,6 +1,6 @@
 
 
-cmd = '/groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6/test/20220622T072842_20220622T072845.lbl -name 20220622T072842 -json_trn_file /groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6/test/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6 train -use_cache -skip_db'
+cmd = '/groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6/test/20220622T072842_20220622T072845.lbl -name 20220622T072842 -json_trn_file /groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6/test/loc.json -stage multi -ignore_local 1 -type multi_mdn_joint_torch -type2 mdn_joint_fpn -cache /groups/branson/home/kabram/.apt/tp0ee92179_9bd2_4c52_b2b6_d47380b989b6 train -use_cache -skip_db'
 
 from reuse import *
 # cmd = cmd.replace('"/','/')

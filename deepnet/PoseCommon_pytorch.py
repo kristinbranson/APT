@@ -341,11 +341,11 @@ class PoseCommon_pytorch(object):
     def compute_dist(self,output,labels):
         return np.nan
 
-    def create_data_gen(self,debug=False):
+    def create_data_gen(self,debug=False,pin_mem=True):
         if self.conf.db_format == 'tfrecord':
             return self.create_tf_data_gen(debug=debug)
         elif self.conf.db_format =='coco':
-            return self.create_coco_data_gen(debug=debug)
+            return self.create_coco_data_gen(debug=debug,pin_mem=pin_mem)
         else:
             assert  False, 'Unknown data format type'
 
@@ -390,7 +390,7 @@ class PoseCommon_pytorch(object):
         self.val_iter = iter(self.val_dl)
 
 
-    def create_coco_data_gen(self, debug=False,**kwargs):
+    def create_coco_data_gen(self, debug=False, pin_mem=True,**kwargs):
         conf = self.conf
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
@@ -405,7 +405,7 @@ class PoseCommon_pytorch(object):
 
         num_workers = 0 if debug else 16
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=num_workers,shuffle=True,worker_init_fn=dataloader_worker_init_fn)
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True,num_workers=num_workers,shuffle=True,worker_init_fn=dataloader_worker_init_fn)
         self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
