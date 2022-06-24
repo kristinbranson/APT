@@ -22,7 +22,7 @@ import gc
 import time
 import cv2
 import xtcocotools.mask
-import multiResData
+from functools import partial
 # from torch import autograd
 # autograd.set_detect_anomaly(True)
 
@@ -92,8 +92,8 @@ def decode_augment(features, conf, distort):
 
     return features
 
-def dataloader_worker_init_fn(id):
-    np.random.seed(id)
+def dataloader_worker_init_fn(id,epoch=0):
+    np.random.seed(id + 100*epoch)
 
 class coco_loader(torch.utils.data.Dataset):
 
@@ -341,7 +341,7 @@ class PoseCommon_pytorch(object):
     def compute_dist(self,output,labels):
         return np.nan
 
-    def create_data_gen(self,debug=False,pin_mem=True):
+    def create_data_gen(self,debug=False,pin_mem=False):
         if self.conf.db_format == 'tfrecord':
             return self.create_tf_data_gen(debug=debug)
         elif self.conf.db_format =='coco':
@@ -406,7 +406,7 @@ class PoseCommon_pytorch(object):
         num_workers = 0 if debug else 16
 
         self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True,num_workers=num_workers,shuffle=True,worker_init_fn=dataloader_worker_init_fn)
-        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
+        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
 
@@ -435,7 +435,7 @@ class PoseCommon_pytorch(object):
                     train_sampler = None
                     shuffle = True if self.conf.db_format == 'coco' else False
 
-                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=lambda id: np.random.seed(id+100*self.train_epoch))
+                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=partial(dataloader_worker_init_fn,epoch=self.train_epoch))
                 self.train_iter = iter(self.train_dl)
                 ndata = next(self.train_iter)
             else:

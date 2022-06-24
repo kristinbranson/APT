@@ -3969,7 +3969,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             tconf.rrange = 0
 
         tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
-        tself.create_data_gen(debug=debug,pin_mem=False)
+        tself.create_data_gen(debug=True,pin_mem=False)
         if distort:
             db_type = 'train'
         else:
@@ -3993,7 +3993,10 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             mask = np.array([])
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
 
-        del tself.train_dl, tself.val_dl
+        try:
+            del tself.train_dl, tself.val_dl
+        except:
+            pass
         torch.cuda.empty_cache()
 
     hdf5storage.savemat(out_file, save_dict,truncate_existing=True)
