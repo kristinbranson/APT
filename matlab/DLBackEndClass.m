@@ -643,6 +643,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         detachstr
         sprintf('--name %s',containerName);
         '--rm'
+        '--ipc=host'
         '--network host'
         };
         mountArgs(:);
