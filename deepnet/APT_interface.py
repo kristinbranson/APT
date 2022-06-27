@@ -2981,7 +2981,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
     ret_dict_all = {}
 
-    for cur_b in tqdm(range(n_batches)):
+    for cur_b in tqdm(range(n_batches),disable=True):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
@@ -3135,7 +3135,7 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     single_data = []
 
     # Predict the top level first
-    for cur_b in tqdm(range(n_batches)):
+    for cur_b in tqdm(range(n_batches),disable=True):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
@@ -3200,7 +3200,7 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     all_fs = np.zeros((conf[1].batch_size,) + tuple(conf[1].imsz) + (conf[1].img_dim,))
     n_batches = int(math.ceil(float(len(single_data)) / bsize))
 
-    for cur_b in tqdm(range(n_batches)):
+    for cur_b in tqdm(range(n_batches),disable=True):
         cur_start = cur_b * bsize
         ppe = min(len(single_data) - cur_start, bsize)
         for ndx in range(ppe):
@@ -3734,7 +3734,7 @@ def classify_movie(conf, pred_fn, model_type,
 
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
-    for cur_b in tqdm(range(n_batches)):
+    for cur_b in tqdm(range(n_batches),disable=True):
         cur_start = cur_b * bsize
         ppe = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
@@ -3925,21 +3925,27 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
                            distort=True,debug=KBDEBUG):
     # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
     if not ISWINDOWS and not debug:
-        p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort))
+        logging.info('launching sample training data generation')
+        p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort,False,True))
         p.start()
         p.join()
     else:
         gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort,debug=debug)
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True,debug=False):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True,debug=False,silent=False):
     # Create training samples.
+
+    # if silent:
+    #     sys.stdout = open("/dev/null", 'w')
 
     import gc
     if out_file is None:
         out_file = os.path.join(conf.cachedir,train_name+'_training_samples.mat')
     elif not out_file.endswith('.mat'):
         out_file += '.mat'
+
+    logging.info('generating sample training data.. ')
 
     if model_type == 'deeplabcut':
         logging.info('Generating training data samples is not supported for deeplabcut')
@@ -3969,7 +3975,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             tconf.rrange = 0
 
         tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf)
-        tself.create_data_gen(debug=True,pin_mem=False)
+        tself.create_data_gen(debug=False,pin_mem=False)
+        # For whatever reasons, debug=True hangs for second stage in 2 stage training when the training job is submitted to the cluster from command line.
         if distort:
             db_type = 'train'
         else:
