@@ -389,7 +389,7 @@ classdef APTInterf
       [listfile,cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file,log_file,...
         updateWinPaths2LnxContainer,lnxContainerMntLoc,fs,filequote,...
         confparamsfilequote,tfserialmode,...
-        track_id,ignore_local] = ...
+        do_linking,ignore_local] = ...
         myparse_nocheck(varargin,...
         'listfile','',...
         'cache',[],... % (opt) cachedir
@@ -409,7 +409,7 @@ classdef APTInterf
                         ... % is expected to wrap in enclosing regular double-quotes " !!
         'confparamsfilequote','\"', ...
         'serialmode',false, ...  % see serialmode above
-        'track_id',false, ... % Track id over ride json conf setting
+        'do_linking',true, ... % Track id over ride json conf setting
         'ignore_local',[] ...
         );
       
@@ -531,9 +531,6 @@ classdef APTInterf
       if tflog
         code = [code {'-log_file' [filequote log_file filequote]}];
       end
-      if track_id
-        code = [code {'-conf_params link_id True'}];
-      end
                       
       if tf2stg
         %szassert(outtrk,[1 nstage],...
@@ -556,6 +553,11 @@ classdef APTInterf
                       '-out' DeepTracker.cellstr2SpaceDelimWithQuote(outtrk,filequote) }];
       end
       code = [code {'-config_file' [filequote configfile filequote]}];
+
+      if ~do_linking
+        code = [code {'-track_type only_predict'}];
+      end
+
       if tflistfile
         code = [code {'-list_file' [filequote listfile filequote]}];
       else
