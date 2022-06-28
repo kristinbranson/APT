@@ -3987,7 +3987,10 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         info = []
         mask = []
         for ndx in range(nsamples):
-            next_db = tself.next_data(db_type)
+            try:
+                next_db = tself.next_data(db_type)
+            except:
+                break
             ims.append(next_db['images'][0].numpy())
             locs.append(next_db['locs'][0].numpy())
             info.append(next_db['info'][0].numpy())

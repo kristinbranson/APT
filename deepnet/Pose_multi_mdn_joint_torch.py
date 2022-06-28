@@ -495,7 +495,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         pred_occ = torch.ones([bsz,n_max, n_classes],device=self.device) * np.nan
         conf_joint = torch.ones([bsz,n_max],device=self.device)
         match_dist_factor = self.conf.multi_match_dist_factor
-        assert ll_joint_flat.shape[1] > n_min, f'The max number of animals with image size {self.conf.imsz} is {ll_joint_flat.shape[1]} while the minimum animals set is {n_min}'
+        assert ll_joint_flat.shape[1] >= n_min, f'The max number of animals with image size {self.conf.imsz} is {ll_joint_flat.shape[1]} while the minimum animals set is {n_min}'
         k = np.clip(n_max*5,n_min,ll_joint_flat.shape[1])
         for ndx in range(bsz):
             # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
