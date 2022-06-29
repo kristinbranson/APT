@@ -6191,12 +6191,16 @@ classdef Labeler < handle
       % initted
             
       [lblmode,dosettemplate] = myparse(varargin,...
-        'labelMode',[],... % if true, force a call to labelsUpdateNewFrame(true) at end of call. Poorly named option.
+        'labelMode',[],...
         'dosettemplate',true...
         );
       tfLblModeChange = ~isempty(lblmode);
       if tfLblModeChange
-        assert(isa(lblmode,'LabelMode'));
+        if ischar(lblmode)
+          lblmode = LabelMode.(lblmode);
+        else
+          assert(isa(lblmode,'LabelMode'));
+        end
       else
         lblmode = obj.labelMode;
       end
@@ -11192,7 +11196,7 @@ classdef Labeler < handle
       if iTrk>0
         tAll{iTrk}.setHideViz(false);
       end
-      obj.labelingInit();
+      obj.labelingInit('labelMode',obj.labelMode);
     end
     
     function sPrm = setTrackNFramesParams(obj,sPrm)

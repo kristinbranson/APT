@@ -135,6 +135,7 @@ classdef LabelCoreSeqMA < LabelCore
       delete(obj.pbDelTgt);
       delete(obj.pbRoiEdit);
       delete(obj.pbRoiNew);
+      delete(obj.roiRectDrawer);
       deleteValidHandles(obj.tcHpts);
     end
     

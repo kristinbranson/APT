@@ -11,6 +11,11 @@ classdef RectDrawer < handle
       obj.ax = hax;
       obj.hRect = gobjects(0,1);      
     end
+    function delete(obj)
+      deleteValidHandles(obj.hRect);
+      obj.hRect = [];
+      obj.ax = [];
+    end
     function initRois(obj)
       deleteValidHandles(obj.hRect);
       obj.hRect = gobjects(0,1);
