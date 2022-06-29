@@ -960,6 +960,7 @@ def link_pure(trk, conf, do_delete_short=False):
   t1s = np.zeros(nids, dtype=int)
   for id in range(nids):
     idx = ids.where(id)
+    if idx[0].size==0: continue
     # idx = np.nonzero(id==ids)
     t0s[id] = np.min(idx[1])
     t1s[id] = np.max(idx[1])

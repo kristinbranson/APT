@@ -2704,7 +2704,9 @@ classdef DeepTracker < LabelTracker
       % given trained tracker   
       
       obj.bgTrkReset();
-      track_id = false;
+      warning('off');
+      do_linking = myparse(varargin,'do_linking',true);
+      warning('on');
         
       % track an external movie. See trackGPUAllocate for supported
       % tracking modalities.
@@ -2712,12 +2714,11 @@ classdef DeepTracker < LabelTracker
         movfiles = tblMFT;
         % cropRois: if tfexternal, cell array of [nviewx4]
         [trxfiles,trkfiles,f0,f1,cropRois,targets,iview,...
-          calibrationfiles,calibrationdata, track_id] = myparse(varargin,...
+          calibrationfiles,calibrationdata] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{},...
           'iview',nan,... % used only if tfSerialMultiMov; CURRENTLY UNSUPPORTED
           'calibrationfiles',{},...
-          'calibrationdata',{},...
-          'track_id',false ...
+          'calibrationdata',{}...
           );
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
         [nmovies,nviews] = size(movfiles); 
@@ -2893,9 +2894,7 @@ classdef DeepTracker < LabelTracker
       else
         hmapArgs = {};
       end
-      if track_id
-        hmapArgs = [hmapArgs 'track_id' track_id];
-      end
+      hmapArgs = [hmapArgs 'do_linking' do_linking];
       
       % Could check here that for local dmcs, dmc.rootDir matches
       % obj.lObj.DLCacheDir (as in canTrack()). However the assertion that

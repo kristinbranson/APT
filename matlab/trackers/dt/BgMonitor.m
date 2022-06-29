@@ -82,7 +82,7 @@ classdef BgMonitor < handle
       % - TODO Note, when you change eg params, u need to call this. etc etc.
       % Any mutation that alters PP, train/track on the BG worker...
       
-      if obj.isRunning()
+      if obj.isRunning
         obj.notify('bgEnd');
       end
       

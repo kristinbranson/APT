@@ -3987,7 +3987,10 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         info = []
         mask = []
         for ndx in range(nsamples):
-            next_db = tself.next_data(db_type)
+            try:
+                next_db = tself.next_data(db_type)
+            except:
+                break
             ims.append(next_db['images'][0].numpy())
             locs.append(next_db['locs'][0].numpy())
             info.append(next_db['info'][0].numpy())
@@ -4696,6 +4699,13 @@ def run(args):
                 track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx)
             if not args.track_type == 'only_predict':
                 link(args, view=view, view_ndx=view_ndx)
+            else:
+                #move the _tracklet.trk files to .trk files
+                in_trk_files = args.predict_trk_files[view_ndx]
+                out_files = args.out_files[view_ndx]
+                for mov_ndx in range(len(in_trk_files)):
+                    raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
+                    os.rename(raw_file,out_files[mov_ndx])
 
 
     elif args.sub_name == 'gt_classify':
