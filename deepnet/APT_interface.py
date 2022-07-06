@@ -1521,6 +1521,9 @@ def setup_ma(conf):
             max_sz = y_sz if y_sz > max_sz else max_sz
 
     max_sz = int(np.ceil((max_sz + 2) / 32)) * 32
+    if max_sz!=conf.multi_crop_im_sz:
+        logging.warning('Important!!!---')
+        logging.warning(f'Crop sz computed in front-end {conf.multi_crop_im_sz} does not match crop size computed locally {max_sz}. Using back end computed size')
 
     logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
     y_sz = min(fr_sz[0],max_sz)
@@ -4697,15 +4700,17 @@ def run(args):
         for view_ndx, view in enumerate(views):
             for mov_ndx in range(nmov):
                 track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx)
-            if not args.track_type == 'only_predict':
-                link(args, view=view, view_ndx=view_ndx)
-            else:
-                #move the _tracklet.trk files to .trk files
-                in_trk_files = args.predict_trk_files[view_ndx]
-                out_files = args.out_files[view_ndx]
-                for mov_ndx in range(len(in_trk_files)):
-                    raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
-                    os.rename(raw_file,out_files[mov_ndx])
+
+            if args.type.startswith('multi_'):
+                if not args.track_type == 'only_predict':
+                    link(args, view=view, view_ndx=view_ndx)
+                else:
+                    #move the _tracklet.trk files to .trk files
+                    in_trk_files = args.predict_trk_files[view_ndx]
+                    out_files = args.out_files[view_ndx]
+                    for mov_ndx in range(len(in_trk_files)):
+                        raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
+                        os.rename(raw_file,out_files[mov_ndx])
 
 
     elif args.sub_name == 'gt_classify':

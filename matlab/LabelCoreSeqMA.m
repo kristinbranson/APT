@@ -369,6 +369,7 @@ classdef LabelCoreSeqMA < LabelCore
       end
       if obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ...
           ~isnan(obj.iPtMove)
+        obj.toggleSelectPoint(obj.iPtMove);
         obj.iPtMove = nan;
         obj.storeLabels();
       end
