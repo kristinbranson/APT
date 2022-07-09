@@ -5,6 +5,7 @@ Script to track offline from python without having to load an APT project into f
 
 import sys
 import os
+import shutil
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import argparse
 from tarfile import TarFile
@@ -174,7 +175,7 @@ def main(argv):
     apt.main(a_argv)
 
     if del_tfile:
-        os.remove(tdir)
+        shutil.rmtree(tdir)
 
 ##
 if __name__ == "__main__":

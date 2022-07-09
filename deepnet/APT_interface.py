@@ -1521,7 +1521,7 @@ def setup_ma(conf):
             max_sz = y_sz if y_sz > max_sz else max_sz
 
     max_sz = int(np.ceil((max_sz + 2) / 32)) * 32
-    if max_sz!=conf.multi_crop_im_sz:
+    if ('multi_crop_im_sz' in conf.__dict__) and (max_sz!=conf.multi_crop_im_sz):
         logging.warning('Important!!!---')
         logging.warning(f'Crop sz computed in front-end {conf.multi_crop_im_sz} does not match crop size computed locally {max_sz}. Using back end computed size')
 
