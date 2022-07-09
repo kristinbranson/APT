@@ -145,7 +145,17 @@ def main(argv):
     ndx, extra, extra_2, multi_stage, second_stage = get_strs(m_stamp, tstamps,mtypes,tdir)
 
     stripped_lbl = glob.glob(tdir + f'/*/{tstamps_str[ndx]}_*.lbl')[0]
-    cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {extra} track {extra_2}'
+
+    if args.view is not None:
+        view_str = f'-view {args.view}'
+        tndx = argv.index('-view')
+        argv.pop(tndx); argv.pop(tndx)
+
+    else:
+        view_str = ''
+
+    cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {view_str} {extra} track {extra_2}'
+
 
 ##
     a_argv = cmd.split() + argv
