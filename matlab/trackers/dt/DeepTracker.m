@@ -841,7 +841,8 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-      if obj.trnNetType==DLNetType.openpose && isempty(lblObj.skeletonEdges)
+      if (obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.multi_openpose) ...
+          && isempty(lblObj.skeletonEdges)
         reason = 'Please define a skeleton to track with OpenPose.';
         return;
       end
