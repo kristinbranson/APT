@@ -3734,6 +3734,7 @@ classdef DeepTracker < LabelTracker
             'rootdirLcl',cacheDir,...
             'nowstr',id); %#ok<AGROW> % HERE
           trksysinfo(1,ivwjob).prepareFiles();
+          obj.trkCreateConfig(trksysinfo(1,ivwjob).configfile);
           fprintf('View %d: %d trkfiles to be written, first to %s\n',...
             ivw,numel(trkfiles_curr),trksysinfo(1,ivwjob).trkfileLcl{1});
         end

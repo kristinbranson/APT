@@ -9497,6 +9497,42 @@ classdef Labeler < handle
 %       %obj.maPtHeadTail = ht;
 %     end
 % 
+    function crop_sz = get_ma_crop_sz(obj)
+      % Get crop sz for MA
+      sagg = TrnPack.aggregateLabelsAddRoi(obj,false,...
+        obj.trackParams.ROOT.MultiAnimal.Detect.BBox,...
+        obj.trackParams.ROOT.MultiAnimal.LossMask);
+      min_crop = obj.trackParams.ROOT.MultiAnimal.LossMask.PadFloor;
+      maxx = min_crop; maxy = min_crop;
+      for ndx = 1:numel(sagg)
+        frs = unique(sagg(ndx).frm);
+        for fndx = 1:numel(frs)
+          fr = frs(fndx);
+          idx = (sagg(ndx).frm == fr);
+          rois = sagg(ndx).roi(:,idx);
+          rect = [rois(1,:); rois(5,:);...
+            rois(3,:) - rois(1,:);...
+            rois(6,:) - rois(5,:)]';
+          
+          conn = rectint(rect,rect)>0;
+          gr = graph(conn);
+          components = conncomp(gr);
+          ncomp = max(components);
+          for cndx = 1:ncomp
+            cur_roi = rois(:,components==cndx);
+            xmin = min(cur_roi(1,:));
+            xmax = max(cur_roi(3,:));
+            ymin = min(cur_roi(5,:));
+            ymax = max(cur_roi(6,:));
+            maxx = max(maxx,xmax-xmin);
+            maxy = max(maxy,ymax-ymin);
+          end
+        end
+      end
+      crop_sz = max(maxx,maxy);
+      crop_sz = ceil(crop_sz/min_crop)*min_crop;
+    end
+
     function r = maGetTgtCropRad(obj,prmsTgtCrop)
       r = prmsTgtCrop.ManualRadius;
     end
@@ -11371,6 +11407,8 @@ classdef Labeler < handle
       sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;      
+      sPrm.ROOT.MultiAnimal.multi_crop_im_sz = obj.get_ma_crop_sz;
+
 %       if getall,
 %         sPrm = obj.addExtraParams(sPrm);
 %       end      
@@ -14189,6 +14227,9 @@ classdef Labeler < handle
         %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
         %tbl.setDataUnsafe(tbldat);
         set(tbl,'Data',tbldat);
+        tbl.Units = 'Pixel';
+        ww = tbl.Position(3);
+        tbl.ColumnWidth = {ww/2-5,ww/2-5};
       end
     end
     

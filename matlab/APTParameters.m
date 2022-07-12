@@ -631,8 +631,8 @@ classdef APTParameters
       
       % automatically set the parameters based on labels.
       autoparams = compute_auto_params(lobj);
-      kk = autoparams.keys();
       
+      kk = autoparams.keys();
       res = 'Update';
       canceled = false;
       do_update = false;
@@ -928,10 +928,13 @@ function autoparams = compute_auto_params(lobj)
   else
     % Multi-animal. Two tranges for first and second stage. Applied
     % depending on the workflow
+
     
     if lobj.trackParams.ROOT.MultiAnimal.multi_crop_ims
       % If we are cropping the images then use animal trange.
-      trange_top = trange_animal;
+      crop_sz = lobj.trackParams.ROOT.MultiAnimal.multi_crop_im_sz;
+      trange_crop = crop_sz/10;
+      trange_top = min(trange_pair,trange_crop);
     else
       trange_top = trange_frame;
     end

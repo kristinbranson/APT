@@ -68,7 +68,7 @@ if tfAPTOpen
   % call tracker.track to do the real tracking
   lObj.tracker.track(toTrack.movfiles,'trxfiles',toTrack.trxfiles,'trkfiles',toTrack.trkfiles,...
     'cropRois',cropRois,'calibrationfiles',toTrack.calibrationfiles,...
-    'targets',toTrack.targets,'f0',f0s,'f1',f1s,'track_id',lObj.track_id);
+    'targets',toTrack.targets,'f0',f0s,'f1',f1s); %,'track_id',lObj.track_id);
 else
   if ~strcmp(net,'cpr')
     error('Currently only supported for ''net''==''cpr''.');

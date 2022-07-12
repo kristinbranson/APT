@@ -20,9 +20,20 @@
 # - The string used in parameters structures is specified in the
 #   params_deeptrack_<net>.yaml.
 
+mdn_joint_fpn:   
+  shortString: grone
+  displayString: GRONe
+  modelCheckpointPat: deepnet-%d  
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*]
+  trkAuxFields: [pTrkConf, pTrkocc]
+  trkAuxLabels: [confidence, scr_occ]
+  doesOccPred: 1
+  isMultiAnimal: 0
+
+
 mdn:
   shortString: mdn  
-  displayString: MDN
+  displayString: MDN (Deprecated)
   modelCheckpointPat: deepnet-%d.index  
   modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*]  # matching files are considered important and saved to Lbl
   trkAuxFields: [pTrkConf, pTrkConf_unet, pTrkocc]
@@ -38,16 +49,6 @@ unet:
   trkAuxFields: [pTrkConf]
   trkAuxLabels: [confidence]
   doesOccPred: 0
-  isMultiAnimal: 0
-
-mdn_joint_fpn:   
-  shortString: grone
-  displayString: GRONe
-  modelCheckpointPat: deepnet-%d  
-  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*]
-  trkAuxFields: [pTrkConf, pTrkocc]
-  trkAuxLabels: [confidence, scr_occ]
-  doesOccPred: 1
   isMultiAnimal: 0
 
 mmpose:   

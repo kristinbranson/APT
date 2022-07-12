@@ -5,6 +5,7 @@ Script to track offline from python without having to load an APT project into f
 
 import sys
 import os
+import shutil
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import argparse
 from tarfile import TarFile
@@ -144,7 +145,17 @@ def main(argv):
     ndx, extra, extra_2, multi_stage, second_stage = get_strs(m_stamp, tstamps,mtypes,tdir)
 
     stripped_lbl = glob.glob(tdir + f'/*/{tstamps_str[ndx]}_*.lbl')[0]
-    cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {extra} track {extra_2}'
+
+    if args.view is not None:
+        view_str = f'-view {args.view}'
+        tndx = argv.index('-view')
+        argv.pop(tndx); argv.pop(tndx)
+
+    else:
+        view_str = ''
+
+    cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {view_str} {extra} track {extra_2}'
+
 
 ##
     a_argv = cmd.split() + argv
@@ -174,7 +185,7 @@ def main(argv):
     apt.main(a_argv)
 
     if del_tfile:
-        os.remove(tdir)
+        shutil.rmtree(tdir)
 
 ##
 if __name__ == "__main__":

@@ -434,7 +434,7 @@ classdef TrnPack
         %% gen rois, bw
         n = size(s.p,2);
         s.roi = nan(8,n);
-        fprintf(1,'mov %d: %d labeled frms.\n',imov,n);
+%        fprintf(1,'mov %d: %d labeled frms.\n',imov,n);
         for i=1:n
           p = s.p(:,i);
           xy = Shape.vec2xy(p);

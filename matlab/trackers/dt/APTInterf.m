@@ -454,9 +454,9 @@ classdef APTInterf
         end
         if tfmodel
           if isscalar(model_file)
-            model_file = repmat(model_file,nmovserialmode,1);
+            model_file = repmat(model_file,numel(view),1);
           else
-            assert(numel(model_file)==nmovserialmode);
+            assert(numel(model_file)==numel(view));
           end
         end        
       else

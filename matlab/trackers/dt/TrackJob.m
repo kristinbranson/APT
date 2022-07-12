@@ -299,7 +299,11 @@ classdef TrackJob < handle
       if isempty(isContiguous),
         if isempty(tMFTConc),
           isContiguous = true;
-          assert(~isempty(frm0) && ~isempty(frm1));
+          %MK 20220706. Not sure why the following assert statement is
+          %required if tracking multiple movies serially. Commenting it
+          %because it errors when tracking multiple movies on docker
+          %through batch tracking GUI in a MA project.
+%          assert(~isempty(frm0) && ~isempty(frm1));
         elseif isempty(frm0) || isempty(frm1),
           isContiguous = false;
           assert(~isempty(tMFTConc));
@@ -424,12 +428,17 @@ classdef TrackJob < handle
         elseif obj.tf2stg
           obj.trxids = {};
           obj.trxfileLcl = {};
-          obj.trkfileLcl = obj.trkfileLcl(:)'; % shape important
-          if isscalar(obj.trkfileLcl)
+%          obj.trkfileLcl = obj.trkfileLcl(:)'; % shape important
+          if numel(obj.trkfileLcl) == obj.nmovsettrk
             warningNoTrace('Two-stage tracker: using default stage1 trkfilename.');
-            [tflP,tflF,tflE] = fileparts(obj.trkfileLcl);
-            tflStg1 = fullfile(tflP,[tflF '_stg1' tflE]);
-            obj.trkfileLcl = {tflStg1 obj.trkfileLcl{1}};
+            tt = cell(obj.nmovsettrk,2);
+            for ndx = 1:numel(obj.movfileLcl)
+              [tflP,tflF,tflE] = fileparts(obj.trkfileLcl{ndx});
+              tflStg1 = fullfile(tflP,[tflF '_stg1' tflE]);
+              tt{ndx,1} = tflStg1;
+              tt{ndx,2} = obj.trkfileLcl{ndx};
+            end
+            obj.trkfileLcl = tt;
           end
         else
           obj.trxids = {};
