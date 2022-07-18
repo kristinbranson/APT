@@ -1875,34 +1875,40 @@ classdef DeepTracker < LabelTracker
       else
         lObj = obj.lObj;
         
-        macroCell = struct2cell(lObj.projMacrosGetWithAuto());
+        %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
         %cacheDir = obj.lObj.DLCacheDir;
         cacheDir = APT.getdlcacheroot;
         assert(~isempty(cacheDir));
         
         mfaf = lObj.movieFilesAllFull;
-        tfaf = lObj.trxFilesAllFull;
         mfafgt = lObj.movieFilesAllGTFull;
-        tfafgt = lObj.trxFilesAllGTFull;
         
         [mfaf2,ischange] = GetLinkSources(mfaf);
         mfaf(end+1:end+nnz(ischange)) = mfaf2(ischange);
-        [tfaf2,ischange] = GetLinkSources(tfaf);
-        tfaf(end+1:end+nnz(ischange)) = tfaf2(ischange);
         [mfafgt2,ischange] = GetLinkSources(mfafgt);
-        mfafgt(end+1:end+nnz(ischange)) = mfafgt2(ischange);        
-        [tfafgt2,ischange] = GetLinkSources(tfafgt);
-        tfafgt(end+1:end+nnz(ischange)) = tfafgt2(ischange);        
-                
+        mfafgt(end+1:end+nnz(ischange)) = mfafgt2(ischange);
+        if lObj.hasTrx
+          tfaf = lObj.trxFilesAllFull;
+          tfafgt = lObj.trxFilesAllGTFull;
+          [tfaf2,ischange] = GetLinkSources(tfaf);
+          tfaf(end+1:end+nnz(ischange)) = tfaf2(ischange);
+          [tfafgt2,ischange] = GetLinkSources(tfafgt);
+          tfafgt(end+1:end+nnz(ischange)) = tfafgt2(ischange);
+        end
+        
         projbps = cell(0,1);
-        projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfaf,'.movieFilesAllFull');
+        projbps = [projbps;mfaf];
+%         projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfaf,'.movieFilesAllFull');
         if ~isempty(mfafgt)
-          projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfafgt,'.movieFilesAllGTFull');
+          projbps = [projbps;mfafgt];
+          %projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfafgt,'.movieFilesAllGTFull');
         end
         if lObj.hasTrx
-          projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfaf,'.trxFilesAllFull');
+          projbps = [projbps;tfaf];
+          %projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfaf,'.trxFilesAllFull');
           if ~isempty(tfafgt)
-            projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfafgt,'.trxFilesAllGTFull');
+            projbps = [projbs;tfafgt];
+            %projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfafgt,'.trxFilesAllGTFull');
           end
         end
         
@@ -1917,8 +1923,9 @@ classdef DeepTracker < LabelTracker
         %dlroot = [aptroot '/deepnet'];
         % AL 202108: include all of <APT> due to git describe cmd which
         % looks in <APT>/.git
-        paths = [cacheDir;aptroot;macroCell(:);projbps(:);extradirs(:)];
-        paths = unique(paths);
+        paths = [cacheDir;aptroot;projbps(:);extradirs(:)];
+        paths = FSPath.commonbase(paths,1);
+        %paths = unique(paths);
       end
       
       cellfun(@(x)fprintf('  %s\n',x),paths);
