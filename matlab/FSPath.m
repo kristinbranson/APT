@@ -375,7 +375,16 @@ classdef FSPath
 %       end
       
       if isscalar(p)
-        base = p{1};
+        if exist(p{1},'dir'),
+          base = p{1};
+        else
+          assert(exist(p{1},'file')>0);
+          base = fileparts(p{1});
+        end
+        if base(end) == filesep,
+          base = base(1:end-1);
+        end
+        %base = p{1};
         return;
       end
       
@@ -407,6 +416,9 @@ classdef FSPath
         base = fullfile(parts{1}{1:i});
       else
         base = ['/' fullfile(parts{1}{1:i})];
+      end
+      if base(end) == filesep,
+        base = base(1:end-1);
       end
     end
       
