@@ -140,6 +140,7 @@ classdef TrackJob < handle
     logdir = '';
     logfile = '';
     errfile = '';
+    cmdfile = '';
     
     % AL: Ideally we would enforce these all to be [nmovsettrk x nView]
     lblfileLcl = '';
@@ -246,7 +247,7 @@ classdef TrackJob < handle
         lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,configfileLcl,...
         trkoutdirLcl,rootdirLcl,...
         isMultiView,isSerialMultiMov,isExternal,isRemote,nowstr,logfile,...
-        errfile,modelChainID,isContiguous,calibrationfileLcl] = ...
+        errfile,cmdfile,modelChainID,isContiguous,calibrationfileLcl] = ...
         myparse(varargin,...
         'ivw',[],...
         'targets',[],...
@@ -268,6 +269,7 @@ classdef TrackJob < handle
         'nowstr',[],...
         'logfile',{},...
         'errfile',{},...
+        'cmdfile',{},...
         'modelChainID','',...
         'isContiguous',[],...
         'calibrationfileLcl',[] ...
@@ -494,7 +496,7 @@ classdef TrackJob < handle
             
       obj.setId();
       
-      obj.setLogErrFiles('logfile',logfile,'errfile',errfile);      
+      obj.setLogErrFiles('logfile',logfile,'errfile',errfile,'cmdfile',cmdfile);      
       
     end
         
@@ -514,12 +516,12 @@ classdef TrackJob < handle
       
       [bsubargs,sshargs,baseargs,singargs,...
         dockerargs,mntpaths,useLogFlag,...
-        condaargs] = ...
+        condaargs,writecmdfile] = ...
         myparse(varargin,...
         'bsubargs',{},'sshargs',{},...
         'baseargs',{},'singargs',{},...
         'dockerargs',{},'mntpaths',{},'useLogFlag',ispc,...
-        'condaargs',{});
+        'condaargs',{},'writecmdfile',true);
       containerName = obj.id;
       baseargs = obj.getBaseArgs(baseargs);
 
@@ -597,6 +599,18 @@ classdef TrackJob < handle
         otherwise
           error('not implemented back end %s',obj.backend.type);
           
+      end
+      if writecmdfile,
+        try
+          fid = fopen(obj.cmdfile,'w');
+          if fid > 0,
+            fprintf(fid,obj.codestr);
+            fclose(fid);
+          end
+          fprintf('Track command saved to %s\n',obj.cmdfile);
+        catch ME,
+          warning('Could not write track command to file %s:\n%s',obj.cmdfile,getReport(ME));
+        end
       end
       codestr = obj.codestr;
     end
@@ -892,7 +906,7 @@ classdef TrackJob < handle
       %
       % AL: possible dup with DeepModelChainOnDisk
       
-      [logfile,errfile] = myparse(varargin,'logfile','','errfile',''); %#ok<PROPLC>
+      [logfile,errfile,cmdfile] = myparse(varargin,'logfile','','errfile','','cmdfile',''); %#ok<PROPLC>
       obj.logdir = obj.trkoutdirRem{1};
       isremote = obj.tfremote;
       if isempty(logfile), %#ok<PROPLC>
@@ -912,6 +926,11 @@ classdef TrackJob < handle
         end
       else
         obj.errfile = errfile; %#ok<PROPLC>
+      end
+      if isempty(cmdfile), %#ok<PROPLC>
+        obj.cmdfile = fullfile(obj.trkoutdirLcl{1},[obj.id,'.cmd']);
+      else
+        obj.cmdfile = cmdfile; %#ok<PROPLC>
       end
       if isremote
         obj.ssfile = [obj.logdir '/' obj.id '.aptsnapshot'];

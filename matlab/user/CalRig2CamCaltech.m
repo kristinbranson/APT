@@ -117,7 +117,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   
   methods
     
-    %#OK
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
       % See CalRig
       
@@ -223,7 +222,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   
   methods % coordinate conversions, projections, reconstructions
     
-    %#OK
     function xp = y2x(obj,y,cam)
       % Transform from cropped points to image projection points.
       %
@@ -250,7 +248,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xp = xp';
     end
     
-    %#OK
     function y = x2y(obj,xp,cam)
       % Transform projected points to cropped points.
       %
@@ -276,7 +273,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       y = [row(:) col(:)];
     end
      
-    %#OK
     function xp = normalized2projected(obj,xn,cam)
       % 
       
@@ -297,7 +293,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xp(:,tf) = xpCropped;
     end
     
-    %#OK
     function [xn,fval] = projected2normalized(obj,xp,cam)
       % Find normalized coords corresponding to projected coords.
       % This uses search/optimization to invert normalized2projected; note
@@ -489,7 +484,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       X1 = obj.camxform(X2,[cam2 cam1]);      
     end
         
-    %#OK
     function Xc2 = camxform(obj,Xc,type)
       % Extrinsic coord transformation: from camera1 coord sys to camera2
       %

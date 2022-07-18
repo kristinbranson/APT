@@ -747,7 +747,7 @@ classdef testAPT < handle
         % waitfor(ho,'data');
         
         pause(2);
-        while tObj.bgTrnIsRunning()
+        while tObj.bgTrnIsRunning
           pause(10);
         end
         pause(30);
@@ -773,7 +773,7 @@ classdef testAPT < handle
       kk(self.lObj.gdata.pbTrack,[],self.lObj.gdata);      
       if block,
         pause(2);
-        while self.lObj.tracker.bgTrkIsRunning()
+        while self.lObj.tracker.bgTrkIsRunning
           pause(10);
         end
         pause(10);
@@ -810,7 +810,7 @@ classdef testAPT < handle
       self.lObj.tracker.trackGT();
       if block,
         pause(2);
-        while self.lObj.tracker.bgTrkIsRunning()
+        while self.lObj.tracker.bgTrkIsRunning
           pause(10);
         end
         pause(10);
