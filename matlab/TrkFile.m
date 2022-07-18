@@ -1666,8 +1666,10 @@ classdef TrkFile < dynamicprops
         else
           didload = false;
           nFramesTracked = 0;
-          fprintf('try %d, variables in %s:\n',tryi,tfile);
-          disp(m);
+          if tryi > ntries/2,
+            fprintf('try %d, variables in %s:\n',tryi,tfile);
+            disp(m);
+          end
           pause(5);
         end
         if didload,
