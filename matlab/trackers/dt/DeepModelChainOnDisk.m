@@ -69,8 +69,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainLogName
     trkLogLnx % for tracking output
     trkLogName
+    trkName
     trkErrfileLnx
     trkErrfileName
+    trkCmdfileName
+    trkCmdfileLnx
     trkSnapshotLnx
     trkSnapshotName
     gtOutfileLnx
@@ -212,20 +215,33 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           end
       end
     end
+    function v = get.trkName(obj)
+      v = sprintf('%s_%s_vw%d_%s',obj.trkTaskKeyword,obj.modelChainID, ...
+        obj.view,obj.trkTSstr);
+    end    
+    
     function v = get.trkLogLnx(obj)
       v = [obj.dirTrkOutLnx obj.filesep obj.trkLogName];
     end
     function v = get.trkLogName(obj)
-      v = sprintf('%s_%s_vw%d_%s.log',obj.trkTaskKeyword,obj.modelChainID, ...
-        obj.view,obj.trkTSstr);
+      v = [obj.trkName,'.log'];
+%       v = sprintf('%s_%s_vw%d_%s.log',obj.trkTaskKeyword,obj.modelChainID, ...
+%         obj.view,obj.trkTSstr);
     end
     function v = get.trkErrfileLnx(obj)
       v = [obj.dirTrkOutLnx obj.filesep obj.trkErrfileName];
     end
     function v = get.trkErrfileName(obj)
-      v = sprintf('%s_%s_vw%d_%s.err',obj.trkTaskKeyword,obj.modelChainID, ...
-        obj.view,obj.trkTSstr);
-    end    
+      v = [obj.trkName,'.err'];
+%       v = sprintf('%s_%s_vw%d_%s.err',obj.trkTaskKeyword,obj.modelChainID, ...
+%         obj.view,obj.trkTSstr);
+    end
+    function v = get.trkCmdfileLnx(obj)
+      v = [obj.dirTrkOutLnx obj.filesep obj.trkCmdfileName];
+    end
+    function v = get.trkCmdfileName(obj)
+      v = [obj.trkName,'.cmd'];
+    end  
     function v = get.trkSnapshotLnx(obj)
       v = [obj.dirTrkOutLnx obj.filesep obj.trkSnapshotName];
     end

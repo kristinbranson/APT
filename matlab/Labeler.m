@@ -3181,13 +3181,16 @@ classdef Labeler < handle
       success = ndelete == numel(todelete);
     end
     
-    function success = projBundleTempDir(obj)
+    function success = projBundleTempDir(obj,tfile)
       success = true;
-      [fname,pname,~] = uiputfile('*.tar','File to save the training bundle as...');
-      if isnumeric(fname)
-        return;
+      if nargin < 2,
+        [fname,pname,~] = uiputfile('*.tar','File to save the training bundle as...');
+        
+        if isnumeric(fname)
+          return;
+        end
+        tfile = fullfile(pname,fname);
       end
-      tfile = fullfile(pname,fname);
       tar(tfile,obj.projTempDir);
     end
     
