@@ -136,6 +136,8 @@ handles.output = hObject;
 
 varargin = varargin(2:end); %#ok<NASGU>
 
+set(handles.menu_file_quick_open,'Visible','off');
+
 handles.menu_file_import_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_import_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Import Labels from Table (All Movies)',...
@@ -1075,7 +1077,7 @@ switch lower(state),
     set(handles.menu_file_save,'Enable','off');
     set(handles.menu_file_shortcuts,'Enable','off');
     set(handles.menu_file_new,'Enable','on');
-    set(handles.menu_file_quick_open,'Enable','on','Visible','on');
+    %set(handles.menu_file_quick_open,'Enable','on','Visible','on');
     
     set(handles.tbAdjustCropSize,'Enable','off');
     set(handles.pbClearAllCrops,'Enable','off');
@@ -1115,8 +1117,8 @@ switch lower(state),
     set(handles.menu_help,'Enable','on');
     
     % KB 20200504: I think this is confusing when a project is already open
-    set(handles.menu_file_quick_open,'Visible','off');
-
+    % AL 20220719: now always hiding
+    % set(handles.menu_file_quick_open,'Visible','off');
     
     set(handles.tbAdjustCropSize,'Enable','on');
     set(handles.pbClearAllCrops,'Enable','on');
@@ -3251,6 +3253,7 @@ if hlpSave(lObj)
   lObj.movieAdd(movfile,trxfile);
   lObj.movieSet(1,'isFirstMovie',true);      
 end
+% 
 function menu_file_new_Callback(hObject, eventdata, handles)
 SetStatus(handles,'Starting New Project',true);
 lObj = handles.labelerObj;
