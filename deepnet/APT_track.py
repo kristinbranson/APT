@@ -146,15 +146,30 @@ def main(argv):
 
     stripped_lbl = glob.glob(tdir + f'/*/{tstamps_str[ndx]}_*.lbl')[0]
 
+    pre_str = ''
     if args.view is not None:
-        view_str = f'-view {args.view}'
+        pre_str += f' -view {args.view}'
         tndx = argv.index('-view')
         argv.pop(tndx); argv.pop(tndx)
 
-    else:
-        view_str = ''
+    if args.conf_params is not None:
+        c_str = ' '.join(args.conf_params)
+        pre_str += f' -conf_params {c_str}'
+        tndx = argv.index('-conf_params')
+        argv.pop(tndx)
+        while not argv[tndx].startswith('-'):
+            argv.pop(tndx)
 
-    cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {view_str} {extra} track {extra_2}'
+    if args.conf_params2 is not None:
+        c_str = ' '.join(args.conf_params2)
+        pre_str += f' -conf_params2 {c_str}'
+        tndx = argv.index('-conf_params2')
+        argv.pop(tndx)
+        while not argv[tndx].startswith('-'):
+            argv.pop(tndx)
+
+
+    cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {pre_str} {extra} track {extra_2}'
 
 
 ##
