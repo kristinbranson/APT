@@ -938,6 +938,19 @@ handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
 handles.pbPlaySeg.CData = Icons.ims.playsegment;
 handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
+posn0 = handles.pbPlay.Position;
+posn1 = handles.pbPlaySeg.Position;
+dx = posn1(1)-posn0(1);
+hnew = copyobj(handles.pbPlaySeg,handles.pbPlaySeg.Parent);
+hnew.Position(1) = hnew.Position(1) + dx;
+handles.edit_frame.Position(1) = handles.edit_frame.Position(1) + dx;
+handles.slider_frame.Position([1 3]) = handles.slider_frame.Position([1 3]) + dx*[1 -1];
+hnew.CData = fliplr(hnew.CData);
+hnew.Callback = @(hObject,eventdata)LabelerGUI('pbPlaySegRev_Callback',hObject,eventdata,guidata(hObject));
+hnew.Tag = 'pbPlaySegRev';
+handles.pbPlaySegRev = hnew;
+
+
 %handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
 EnableControls(handles,'tooltipinit');
@@ -4674,7 +4687,12 @@ function pbPlaySeg_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-play(hObject,handles,'playsegment','videoPlaySegment');
+play(hObject,handles,'playsegment','videoPlaySegFwdEnding');
+function pbPlaySegRev_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
+play(hObject,handles,'playsegmentrev','videoPlaySegRevEnding');
 
 function pbPlay_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
