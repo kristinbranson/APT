@@ -149,11 +149,11 @@ If initpath is a directory and not in interactive mode, it's an error."""
 
         (front, ext) = os.path.splitext( self.fullpath )
         ext = ext.lower()
-        if ext not in known_extensions():
-            if ext in user_movie_classes:
-                print("Movie {}: will attempt to use user module to open".format(self.filename))
-            else:
-                print("Movie {}: unknown file extension; will try OpenCV to open".format(self.filename))
+        # if ext not in known_extensions():
+        #     if ext in user_movie_classes:
+        #         logging.debug("Movie {}: will attempt to use user module to open".format(self.filename))
+        #     else:
+        #         logging.debug("Movie {}: reading with OpenCV".format(self.filename))
 
         # read FlyMovieFormat
         if ext == '.fmf':
@@ -1134,6 +1134,7 @@ class CompressedAvi:
             self.fps = 30
             if DEBUG_MOVIES: print('Mjpg movie has index file. Reading it as indexed jpg')
             self.start_time = 0.
+            self.mjpeg_file = open(self.filename,'rb')
             im, _ = self.get_frame(0)
             self.width = im.shape[1]
             self.height = im.shape[0]
@@ -1194,6 +1195,19 @@ class CompressedAvi:
 
         if DEBUG_MOVIES: print("Done initializing CompressedAVI")
 
+    def close(self):
+        if self.indexed_mjpg:
+            if self.mjpeg_file is not None:
+                try:
+                    self.mjpeg_file.close()
+                except:
+                    print('Could not close mjpeg_file')
+        else:
+            if self.source is not None:
+                try:
+                    self.source.release()
+                except:
+                    print('Could not close OpenCV VideoCapture object')
 
     def get_all_timestamps( self ):
         return num.arange( self.n_frames )/self.fps + self.start_time
@@ -1205,20 +1219,18 @@ class CompressedAvi:
         if framenumber < 0: raise IndexError
 
         if self.indexed_mjpg:
-            with open(self.filename,'rb') as mjpeg_file:
-                mjpeg_file.seek(self.index_dat[framenumber,2])
-                frame_length = self.index_dat[framenumber,3] - self.index_dat[framenumber,2]
-                frame = mjpeg_file.read(frame_length)
-                if len(frame) != frame_length:
-                    raise ValueError('incomplete frame data')
-                if not (
-                    frame.startswith(b'\xff\xd8') and frame.endswith(b'\xff\xd9')
-                ):
-                    raise ValueError('invalid jpeg')
-                img = cv2.imdecode(num.frombuffer(frame, dtype=num.uint8), -1)
-                ts = self.index_dat[framenumber,1] - self.index_dat[0,1]
-                return (img,ts)
-
+            self.mjpeg_file.seek(self.index_dat[framenumber,2])
+            frame_length = self.index_dat[framenumber,3] - self.index_dat[framenumber,2]
+            frame = self.mjpeg_file.read(frame_length)
+            if len(frame) != frame_length:
+                raise ValueError('incomplete frame data')
+            if not (
+                frame.startswith(b'\xff\xd8') and frame.endswith(b'\xff\xd9')
+            ):
+                raise ValueError('invalid jpeg')
+            img = cv2.imdecode(num.frombuffer(frame, dtype=num.uint8), -1)
+            ts = self.index_dat[framenumber,1] - self.index_dat[0,1]
+            return (img,ts)
 
         # have we already stored this frame?
         if framenumber >= self.bufferframe0 and framenumber < self.bufferframe1:

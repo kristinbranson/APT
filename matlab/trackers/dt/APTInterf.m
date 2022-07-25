@@ -59,7 +59,7 @@ classdef APTInterf
       dlconfig = fileinfo.dlconfig;
       cache = fileinfo.cache;
       errfile = fileinfo.errfile;
-      netType = char(fileinfo.netType);
+      netType = char(fileinfo.nettype);
       trnjson = fileinfo.trainlocfile;
       
       [deepnetroot,fs,filequote,confparamsextra,confparamsfilequote,...
@@ -141,13 +141,14 @@ classdef APTInterf
     end
             
     function [codestr,code] = matdTrainCodeGen(fileinfo,...
-        isObjDet,netTypeStg1,netTypeStg2,stage,varargin)
+        isObjDet,netTypeStg1,stage,varargin)
       
       modelchainID = fileinfo.modelchainID;
       dlconfigfile = fileinfo.dlconfig;
       cache = fileinfo.cache;
       errfile = fileinfo.errfile;
       trnjson = fileinfo.trainlocfile;
+      netTypeStg2 = fileinfo.nettype;
 
       [deepnetroot,fs,filequote,confparamsfilequote,...
         prev_model,prev_model2,torchhome,augOnly,augOut,ignore_local] = ...

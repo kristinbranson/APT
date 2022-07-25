@@ -102,6 +102,8 @@ ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10  # interval in seconds between writing n frames tracked
 ISDPK = False
 KBDEBUG = False
+# control how often / whether tqdm displays info
+TQDM_PARAMS = {'mininterval': 5}
 
 try:
     user = getpass.getuser()
@@ -2992,7 +2994,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
     ret_dict_all = {}
 
-    for cur_b in tqdm(range(n_batches),disable=True):
+    for cur_b in tqdm(range(n_batches),**TQDM_PARAMS,unit='batch'):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
@@ -3146,7 +3148,7 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     single_data = []
 
     # Predict the top level first
-    for cur_b in tqdm(range(n_batches),disable=True):
+    for cur_b in tqdm(range(n_batches),**TQDM_PARAMS,unit='batch'):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
@@ -3211,7 +3213,7 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     all_fs = np.zeros((conf[1].batch_size,) + tuple(conf[1].imsz) + (conf[1].img_dim,))
     n_batches = int(math.ceil(float(len(single_data)) / bsize))
 
-    for cur_b in tqdm(range(n_batches),disable=True):
+    for cur_b in tqdm(range(n_batches),**TQDM_PARAMS,unit='batch'):
         cur_start = cur_b * bsize
         ppe = min(len(single_data) - cur_start, bsize)
         for ndx in range(ppe):
@@ -3756,7 +3758,7 @@ def classify_movie(conf, pred_fn, model_type,
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
     logging.info('Tracking...')
-    for cur_b in tqdm(range(n_batches),mininterval=5,unit='batch'):
+    for cur_b in tqdm(range(n_batches),**TQDM_PARAMS,unit='batch'):
         cur_start = cur_b * bsize
         ppe = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
@@ -3830,10 +3832,9 @@ def classify_movie(conf, pred_fn, model_type,
                     if (end_frames[ix] > cur_f) and (first_frames[ix] <= cur_f):
                         pred_animal_conf[ cur_f- min_first_frame,ix,:] = T[ix]['conf'][0,cur_f-first_frames[ix],0:1]
 
-    logging.info('Writing trk file...')
-
     raw_file = raw_predict_file(predict_trk_file, out_file)
     cur_out_file = raw_file if do_link(conf) else out_file
+    logging.info(f'Writing trk file {cur_out_file}...')
     trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info, conf)
 
     logging.info('Cleaning up...')
