@@ -118,22 +118,19 @@ classdef DeepTrackerTopDown < DeepTracker
       setAllParams@DeepTracker(obj,sPrmAll);      
     end
     
-    function ntgtstot = genStrippedLblTrnPack(obj,dlLblFileLcl)
+    function ntgtstot = genStrippedLblTrnPack(obj,dmc)
       % Generate/write a trnpack/stripped lbl; can be used for both stages.
       %
       
-      [dlLblFileLclDir,slblf,slble] = fileparts(dlLblFileLcl);
-      if exist(dlLblFileLclDir,'dir')==0
-        fprintf('Creating dir: %s\n',dlLblFileLclDir);
-        [succ,msg] = mkdir(dlLblFileLclDir);
+      dlConfigLclDir = dmc.dirProjLnx;
+      if exist(dlConfigLclDir,'dir')==0
+        fprintf('Creating dir: %s\n',dlConfigLclDir);
+        [succ,msg] = mkdir(dlConfigLclDir);
         if ~succ
-          error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
+          error('Failed to create dir %s: %s',dlConfigLclDir,msg);
         end
       end
-      
-      packdir = dlLblFileLclDir;
-      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
-        'strippedlblname',[slblf slble]);
+      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc);
     end
     
     function tf = isTrkFiles(obj)
@@ -211,13 +208,14 @@ classdef DeepTrackerTopDown < DeepTracker
       end
       
       % create/ensure stripped lbl; set trainID
-      tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
-                            trnType==DLTrainType.RestartAug;
+      tfGenNewFiles = trnType==DLTrainType.New || ...
+        trnType==DLTrainType.RestartAug;
       
       trnCmdType = trnType;
       
       netObj = obj.trnNetType;
       if false % ~isempty(existingTrnPackSLbl)        
+        % OBSOLETE code cannot be reached
         dlLblFileLcl = existingTrnPackSLbl;
         [tpdir,dllblf,~] = fileparts(dlLblFileLcl);
 
@@ -236,15 +234,14 @@ classdef DeepTrackerTopDown < DeepTracker
         fprintf('Using pre-existing stripped lbl/trnpack: %s.\n',tpdir);
         fprintf('trainID: %s. nLabels: %d.\n',trainID,dmc.nLabels);
         
-      elseif tfGenNewStrippedLbl
+      elseif tfGenNewFiles
         trainID = datestr(now,'yyyymmddTHHMMSS');
-        % Note dmc.trainID used in eg lblStrippedLnx
+        % Note dmc.trainID used in eg trainConfigLnx
         [dmc.trainID] = deal(trainID);
 
-        dlLblFileLcl = dmc(1).lblStrippedLnx;
         tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
         assert(tfRequiresTrnPack);
-        nlbls = obj.genStrippedLblTrnPack(dlLblFileLcl);
+        nlbls = obj.genStrippedLblTrnPack(dmc(1));
         [dmc.nLabels] = deal(nlbls);
 
       else % Restart
@@ -621,7 +618,7 @@ classdef DeepTrackerTopDown < DeepTracker
         'maTopDownStage1NetType' dmcs(1).netType ...
         'maTopDownStage1NetMode' dmcs(1).netMode};
       args = { backend,...
-        dmc1.modelChainID,dmc1.trainID,dmc1.lblStrippedLnx,...
+        dmc1.modelChainID,dmc1.trainID,dmc1.trainConfigLnx,...
         dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
         trnCmdType,dmc1.view+1,mntPaths }; 
 
@@ -707,7 +704,7 @@ classdef DeepTrackerTopDown < DeepTracker
         end
         
         args = { ...
-          dmc1.modelChainID,dmc1.lblStrippedLnx,...
+          dmc1.modelChainID,dmc1.trainConfigLnx,...
           dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
           'singargs',singargs,'sshargs',{'prefix' prefix},...
           'bsubArgs',[bsubargs {'outfile' dmc1.trainLogLnx}]};
@@ -722,7 +719,7 @@ classdef DeepTrackerTopDown < DeepTracker
             baseargs = [baseargs {'prev_model' dmcS.prev_models}];
           end
           args = { ...
-            dmcS.modelChainID,dmcS.lblStrippedLnx,...
+            dmcS.modelChainID,dmcS.trainConfigLnx,...
             dmcS.rootDir,dmcS.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
             'singargs',singargs,'sshargs',{'prefix' prefix},...
             'bsubArgs',[bsubargs {'outfile' dmcS.trainLogLnx}]};

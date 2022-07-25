@@ -11,6 +11,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   % how to actually read the (possibly remote) filesystem. This works fine 
   % for now future design unclear.
   
+  properties (Constant)
+    configFileExt = '.json'; % switching this to output json file in train/track commands
+    gen_strippedlblfile = false; % try disabling the stripped lbl file generation!!
+  end
+
   properties
     rootDir % root/parent "Models" dir
     projID 
@@ -34,7 +39,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     splitIdx = nan; % used if doSplit=true
     % if provided, overrides .lblStrippedName. used for each running splits
     % wherein a single stripped lbl is used in multiple runs
-    lblStrippedNameOverride = []; 
+    trainConfigNameOverride = []; 
     
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
@@ -58,9 +63,15 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     dirModelChainLnx
     dirTrkOutLnx
     dirAptRootLnx % loc of APT checkout (JRC)
-    
+
+    trainConfigLnx % full path to config for this train session
+    trainConfigName % short filename, no extension
     lblStrippedLnx % full path to stripped lbl file for this train session
-    lblStrippedName % short filename 
+    trainJsonLnx % full path to json config for this train session
+    trainPackName % don't hard code this - name of file containing training data
+    trainLocName % don't hard code this - name of file containing training annotations
+    trainPackLnx % full path to training data
+    trainLocLnx % full path to training annotations
     cmdfileLnx
     cmdfileName
     errfileLnx 
@@ -125,17 +136,37 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end 
     function v = get.dirAptRootLnx(obj)
       v = [obj.rootDir obj.filesep 'APT'];
-    end 
-    function v = get.lblStrippedLnx(obj)
-      v = [obj.dirProjLnx obj.filesep obj.lblStrippedName];      
     end
-    function v = get.lblStrippedName(obj)
-      if ~isempty(obj.lblStrippedNameOverride)
-        v = obj.lblStrippedNameOverride;
+    function v = get.trainConfigLnx(obj)
+      v = [obj.dirProjLnx obj.filesep obj.trainConfigName obj.configFileExt];
+    end
+    function v = get.trainConfigName(obj)
+      if ~isempty(obj.trainConfigNameOverride)
+        v = obj.trainConfigNameOverride;
       else
-        v = sprintf('%s_%s.lbl',obj.modelChainID,obj.trainID);
+        v = sprintf('%s_%s',obj.modelChainID,obj.trainID);
       end
     end
+    function v = get.lblStrippedLnx(obj)
+      warning('Reference to stripped lbl file. We are trying to remove these. Let Kristin know how you got here!');
+      v = [obj.dirProjLnx obj.filesep obj.trainConfigName '.lbl'];      
+    end
+    function v = get.trainJsonLnx(obj)
+      v = [obj.dirProjLnx obj.filesep obj.trainConfigName '.json'];      
+    end
+    function v = get.trainPackName(obj) %#ok<MANU> 
+      v = 'trnpack.json';
+    end
+    function v = get.trainLocName(obj) %#ok<MANU> 
+      v = 'loc.json';
+    end
+    function v = get.trainPackLnx(obj)
+      v = [obj.dirProjLnx obj.filesep obj.trainPackName];      
+    end
+    function v = get.trainLocLnx(obj)
+      v = [obj.dirProjLnx obj.filesep obj.trainLocName];
+    end
+
     function v = get.cmdfileLnx(obj)
       v = [obj.dirProjLnx obj.filesep obj.cmdfileName];      
     end
@@ -333,6 +364,25 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
       end
     end
+    function fileinfo = trainFileInfo(obj,use)
+      % to do: use can specify whether this is for docker etc. currently
+      % all the same
+      if ischar(obj.netType),
+        netTypeObj = DLNetType.(obj.netType);
+      else
+        netTypeObj = obj.netType;
+      end
+      fileinfo = struct(...
+        'modelchainID',obj.modelChainID,...
+        'trnID',obj.trainID,...
+        'dlconfig',obj.trainConfigLnx,...
+        'trainlocfile',obj.trainLocLnx,...
+        'trainpackfile',obj.trainPackLnx,...
+        'cache',obj.rootDir,...
+        'errfile',obj.errfileLnx,...
+        'nettype',netTypeObj,...
+        'netmode',obj.netMode);
+    end
     function printall(obj)
       mc = metaclass(obj);
       props = mc.PropertyList;
@@ -415,7 +465,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     
     % read nLabels from the stripped lbl file
     function readNLabels(obj)
-      if ~isempty(obj.lblStrippedLnx)
+      if strcmp(obj.configFileExt,'.json'),
+        assert(exist(obj.trainPacknx,'file') > 0);
+        obj.nLabels = TrnPack.readNLabels(obj.trainPackLnx);
+      else
+        assert(exist(obj.lblStrippedLnx,'file') > 0);
         s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
         obj.nLabels = size(s.preProcData_MD_frm,1);
       end

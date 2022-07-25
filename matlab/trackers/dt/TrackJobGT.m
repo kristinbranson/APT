@@ -93,12 +93,12 @@ classdef TrackJobGT < handle
     function codebase = codegenBase(obj,baseargs)
       dmc1 = obj.dmcsrem(1);
       cache = dmc1.rootDir;
-      dllbl = dmc1.lblStrippedLnx;
+      dlconfig = dmc1.trainConfigLnx;
       errfile = dmc1.trkErrfileLnx;
       gtoutfile = dmc1.gtOutfileLnx;
       trnID = dmc1.modelChainID;
 
-      codebase = DeepTracker.trackCodeGenBaseGTClassify(trnID,cache,dllbl,...
+      codebase = DeepTracker.trackCodeGenBaseGTClassify(trnID,cache,dlconfig,...
         gtoutfile,errfile,obj.nettype,baseargs{:});
     end
     function baseargs = codegenBaseArgs(obj)

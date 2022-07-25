@@ -94,6 +94,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
             self.dirname, self.filename = os.path.split( self.fullpath )
 
         elif self.interactive:
+            import wx
             # it's a directory -- ask for a filename in that directory
 
             # make a list of available file extensions, with selected default first
@@ -162,10 +163,14 @@ If initpath is a directory and not in interactive mode, it's an error."""
             except NameError:
                 if self.interactive:
                     wx.MessageBox( "Couldn't open \"%s\"\n(maybe FMF is not installed?)"%(filename), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Couldn't open \"%s\"\n(maybe FMF is not installed?)"%(self.fullpath))
                 raise
             except IOError:
                 if self.interactive:
                     wx.MessageBox( "I/O error opening \"%s\""%(self.fullpath), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "I/O error opening \"%s\""%(self.fullpath))
                 raise
         # read Static Background FlyMovieFormat
         elif ext == '.sbfmf':
@@ -175,10 +180,14 @@ If initpath is a directory and not in interactive mode, it's an error."""
             except NameError:
                 if self.interactive:
                     wx.MessageBox( "Couldn't open \"%s\"\n(maybe FMF is not installed?)"%(filename), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Couldn't open \"%s\"\n(maybe FMF is not installed?)"%(self.fullpath))
                 raise
             except IOError:
                 if self.interactive:
                     wx.MessageBox( "I/O error opening \"%s\""%(self.fullpath), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "I/O error opening \"%s\""%(self.fullpath))
                 raise
         # read Micro FlyMovieFormat
         elif ext == '.ufmf':
@@ -188,22 +197,32 @@ If initpath is a directory and not in interactive mode, it's an error."""
             except NameError:
                 if self.interactive:
                     wx.MessageBox( "Couldn't open \"%s\"\n(maybe UFMF is not installed?)"%(filename), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Couldn't open \"%s\"\n(maybe UFMF is not installed?)"%(self.fullpath) )
                 raise
             except IOError:
                 if self.interactive:
                     wx.MessageBox( "I/O error opening \"%s\""%(self.fullpath), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "I/O error opening \"%s\""%(self.fullpath) )
                 raise
             except ufmf.ShortUFMFFileError:
                 if self.interactive:
                     wx.MessageBox( "Error opening \"%s\". Short ufmf file."%(filename), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Error opening \"%s\". Short ufmf file."%(self.fullpath) )
                 raise
             except ufmf.CorruptIndexError:
                 if self.interactive:
                     wx.MessageBox( "Error opening \"%s\". Corrupt file index."%(filename), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Error opening \"%s\". Corrupt file index."%(self.fullpath) )
                 raise
             except ufmf.InvalidMovieFileException:
                 if self.interactive:
                     wx.MessageBox( "Error opening \"%s\". Invalid movie file."%(filename), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Error opening \"%s\". Invalid movie file."%(self.fullpath) )
                 raise
         # read AVI
         elif ext == '.avi':
@@ -220,9 +239,11 @@ If initpath is a directory and not in interactive mode, it's an error."""
                     self.h_mov = CompressedAvi( self.fullpath )
                     self.type = 'cavi'
                 except Exception as details:
+                    msgtxt = "Failed opening file \"%s\"."%( self.fullpath )
                     if self.interactive:
-                        msgtxt = "Failed opening file \"%s\"."%( self.fullpath )
                         wx.MessageBox( msgtxt, "Error", wx.ICON_ERROR|wx.OK )
+                    else:
+                        logging.error( msgtxt )
                     raise
                 else:
                     print("reading compressed AVI")
@@ -238,6 +259,8 @@ If initpath is a directory and not in interactive mode, it's an error."""
             except:
                 if self.interactive:
                     wx.MessageBox( "Failed opening file \"%s\"."%(self.fullpath), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Failed opening file \"%s\"."%(self.fullpath) )
                 raise
             else:
                 wstr = "Reading movie using user-defined movie module."
@@ -254,6 +277,8 @@ If initpath is a directory and not in interactive mode, it's an error."""
             except:
                 if self.interactive:
                     wx.MessageBox( "Failed opening file \"%s\"."%(self.fullpath), "Error", wx.ICON_ERROR|wx.OK )
+                else:
+                    logging.error( "Failed opening file \"%s\"."%(self.fullpath) )
                 raise
             else:
                 if self.interactive:
@@ -268,6 +293,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
         self.bufferedframe_stamp = None
         self.bufferedframe_num = None
 
+        logging.info('Video opened successfully.')
 
     def is_open( self ):
         return hasattr( self, 'h_mov' )

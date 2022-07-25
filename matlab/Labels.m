@@ -374,7 +374,11 @@ classdef Labels
       if nargin<4
         fdir = [];
       end
-      istgtmatch = isempty(itgt) || s.tgt==itgt;
+      if isempty(itgt),
+        istgtmatch = true(size(s.frm));
+      else
+        istgtmatch = s.tgt==itgt;
+      end
       if isequal(fdir,1)
         i = find(istgtmatch & s.frm>=frm);
       elseif isequal(fdir,-1)

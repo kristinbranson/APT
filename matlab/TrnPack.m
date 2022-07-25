@@ -178,6 +178,10 @@ classdef TrnPack
       s = jsondecode(jse{1});
       fprintf(1,'loaded %s\n',jsonfile);
     end
+    function nlbls = readNLabels(tpjson)
+       tp = TrnPack.hlpLoadJson(tpjson);
+       nlbls = arrayfun(@(x)size(x.p,2),tp);
+    end
     function [slbl,j,tp,locg] = loadPack(packdir,varargin)
       % Load training package into MATLAB data structures
       %
@@ -241,21 +245,22 @@ classdef TrnPack
 %       end
     end
     
-    function hlpSaveJson(s,packdir,jsonoutf)
+    function hlpSaveJson(s,jsonoutf)
       j = jsonencode(s,'ConvertInfAndNaN',false);
-      jsonoutf = fullfile(packdir,jsonoutf);
+      %jsonoutf = fullfile(packdir,jsonoutf);
       fh = fopen(jsonoutf,'w');
       fprintf(fh,'%s\n',j);
       fclose(fh);
       fprintf(1,'Wrote %s.\n',jsonoutf);
     end
-    function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,packdir,varargin)
+    function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,dmc,varargin)
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx,slblname,verbosejson,tblsplit,view] = myparse(varargin,...
+      [writeims,writeimsidx,trainConfigName,slblname,verbosejson,tblsplit,view] = myparse(varargin,...
         'writeims',true, ...
         'writeimsidx',[], ... % (opt) DEBUG ONLY
+        'trainConfigName','',...
         'strippedlblname',[], ... % (reqd) short filename for stripped lbl
         'verbosejson',false, ...
         'tblsplit', [], ...  % tbl with fields .mov, .frm, .split
@@ -264,6 +269,8 @@ classdef TrnPack
         );      
       
       tfsplitsprovided = ~isempty(tblsplit);
+
+      packdir = dmc.dirProjLnx;
       
       if exist(packdir,'dir')==0
         mkdir(packdir);
@@ -271,17 +278,22 @@ classdef TrnPack
       
       tObj = lObj.tracker;
       tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
+
       slbl = tObj.trnCreateStrippedLbl();
       slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
       [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
+
+      if strcmp(DeepModelChainOnDisk.configFileExt,'.lbl') || DeepModelChainOnDisk.gen_strippedlblfile,
+        sfname = dmc.lblStrippedLnx;
+%         assert(~isempty(slblname));
+%         sfname = fullfile(packdir,slblname);
+        save(sfname,'-mat','-v7.3','-struct','slbl');
+        fprintf(1,'Saved %s\n',sfname);
+      end
       
-      assert(~isempty(slblname));
-      sfname = fullfile(packdir,slblname);
-      save(sfname,'-mat','-v7.3','-struct','slbl');
-      fprintf(1,'Saved %s\n',sfname);
-      [~,slblnameS] = fileparts(slblname);
-      sfjname = sprintf('%s.json',slblnameS);
-      TrnPack.hlpSaveJson(jslbl,packdir,sfjname);     
+      if strcmp(DeepModelChainOnDisk.configFileExt,'.json'),
+        TrnPack.hlpSaveJson(jslbl,dmc.trainConfigLnx);
+      end
 
       % use stripped lbl trackerData instead of tObj, as we have called
       % addExtraParams etc.
@@ -375,8 +387,9 @@ classdef TrnPack
         
       if verbosejson
         % trnpack: one row per mov
-        jsonoutf = 'trnpack.json';
-        TrnPack.hlpSaveJson(tp,packdir,jsonoutf);
+        %jsonoutf = 'trnpack.json';
+        jsonoutf = dmc.trainPackLnx;
+        TrnPack.hlpSaveJson(tp,jsonoutf);
       end
       
 %       % loc: one row per labeled tgt
@@ -384,7 +397,8 @@ classdef TrnPack
 %       TrnPack.hlpSaveJson(loc,packdir,jsonoutf);
 
       % loc: one row per frm
-      jsonoutf = 'loc.json';
+      jsonoutf = dmc.trainLocLnx;
+      %jsonoutf = 'loc.json';
       s = struct();
       s.movies = lObj.movieFilesAllFull;
       if tfsplitsprovided
@@ -393,7 +407,7 @@ classdef TrnPack
         s.splitnames = {'trn'};
       end
       s.locdata = locg;
-      TrnPack.hlpSaveJson(s,packdir,jsonoutf);
+      TrnPack.hlpSaveJson(s,jsonoutf);
       
       ntgtstot = sum([locg.ntgt]);
 

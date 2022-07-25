@@ -139,6 +139,7 @@ def loadmat(filename):
     which are still mat-objects
     From: https://stackoverflow.com/questions/7008608/scipy-io-loadmat-nested-structures-i-e-dictionaries
     """
+    logging.info(f'loadmat called on {filename}')
     data = sio.loadmat(filename, struct_as_record=False, squeeze_me=True, appendmat=False)
     return _check_keys(data)
 
@@ -593,8 +594,8 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num, extra_str=''):
 
 
 def get_net_type(lbl_file,stage):
-    if lbl_file.endswith('.json'):
-        lbl = PoseTools.json_load(lbl_file)
+    lbl = load_config_file(lbl_file)
+    if get_raw_config_filetype(lbl) == 'json':
         if stage == 'second':
             return lbl['TrackerData'][1]['trnNetTypeString']
         elif isinstance(lbl['TrackerData'],list):
@@ -602,7 +603,6 @@ def get_net_type(lbl_file,stage):
         else:
             return lbl['TrackerData']['trnNetTypeString']
 
-    lbl = h5py.File(lbl_file, 'r')
     dt_params_ndx = None
     for ndx in range(lbl['trackerClass'].shape[0]):
         cur_tracker = ''.join([chr(c) for c in lbl[lbl['trackerClass'][ndx][0]]])
@@ -701,24 +701,19 @@ def conf_opts_pvargstr2dict(conf_str):
 
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', conf_params=None, quiet=False, json_trn_file=None,first_stage=False,second_stage=False,no_json=False,config_file=None):
 
-    if not no_json:
-        if os.path.exists(lbl_file.replace('.lbl','.json')):
-            lbl_file = lbl_file.replace('.lbl','.json')
-    if lbl_file.endswith('.json'):
-        return create_conf_json(lbl_file=lbl_file,view=view, name=name, cache_dir=cache_dir, net_type=net_type, conf_params=conf_params, quiet=quiet, json_trn_file=json_trn_file, first_stage=first_stage, second_stage=second_stage, config_file=config_file)
+    if type(lbl_file) == str:
+        lbl = load_config_file(lbl_file,no_json=no_json)
+    else:
+        lbl = lbl_file
+        lbl_file = get_raw_config_filename(lbl)
+    if get_raw_config_filetype(lbl) == 'json':
+        return create_conf_json(lbl_file=lbl,view=view, name=name, cache_dir=cache_dir, net_type=net_type, conf_params=conf_params, quiet=quiet, json_trn_file=json_trn_file, first_stage=first_stage, second_stage=second_stage, config_file=config_file)
+
+    # somewhat obsolete codepath - lbl files should have been replaced by json files
     assert not (first_stage and second_stage), 'Configurations should either for first stage or second stage for multi stage tracking'
 
     assert config_file is None, 'Extra config file only implemented when main config is a json file'
     
-    try:
-        try:
-            lbl = loadmat(lbl_file)
-        except (NotImplementedError, ValueError):
-            # logging.info('Label file is in v7.3 format. Loading using h5py')
-            lbl = h5py.File(lbl_file, 'r')
-    except TypeError as e:
-        logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
-
     from poseConfig import config
     from poseConfig import parse_aff_graph
     conf = config()
@@ -1078,9 +1073,20 @@ def modernize_params(dt_params):
             del dt_params['MultiAnimal']['TrackletStitch']
 
 def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None, first_stage=False, second_stage=False, config_file=None):
+    """
+    conf = create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None, first_stage=False, second_stage=False, config_file=None)
+    lbl_file: either the name of the main json config file or its pre-loaded contents (output of load_config_file(<jsonfile>)
+    Add more description here!
+    """
+
     assert not (first_stage and second_stage), 'Configurations should either for first stage or second stage for multi stage tracking'
 
-    A = PoseTools.json_load(lbl_file)
+    if type(lbl_file) == str:
+        A = load_config_file(lbl_file)
+    else:
+        A = lbl_file
+        lbl_file = get_raw_config_filename(A)
+      
     net_names_dict = {'mdn': 'MDN',
                       'dpk': 'DeepPoseKit',
                       'openpose': 'OpenPose',
@@ -1099,9 +1105,9 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
 
     if not 'ProjectFile' in A:
         # Backward compatibility - mk 09032022
-        mat_lbl_file = lbl_file.replace('.json', '.lbl')
+        logging.warning('json file missing ProjectFile field, reverting to .lbl file. This functionality may be obsolete in the future.')
+        mat_lbl_file = get_raw_config_filename(A).replace('.json', '.lbl')
         return create_conf(mat_lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=net_type,conf_params=conf_params,quiet=quiet,json_trn_file=json_trn_file,first_stage=first_stage,second_stage=second_stage,no_json=True,config_file=config_file)
-
 
     conf = poseConfig.config()
     proj_name = A['ProjName']
@@ -1373,6 +1379,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
     #  how the data was split between the two datasets.
 
     # assert not (on_gt and split), 'Cannot split gt data'
+    logging.warning('Calling db_from_lbl. This function is obsolete, and hopefully is not called anymore...')
 
     from_list = True if db_dict is not None else False
     if from_list:
@@ -2361,6 +2368,7 @@ def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True
 def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
     ''' all returned values are 0-indexed'''
     if conf.has_trx_file:
+        logging.info('Reading trx file...')
         trx,n_trx = read_trx_file(trx_file)
         #trx = sio.loadmat(trx_file)['trx'][0]
         #n_trx = len(trx)
@@ -3369,7 +3377,7 @@ def classify_db_stage(args,view,view_ndx,db_file):
     return ret_dict
 
 
-def classify_list_file(args, view, view_ndx=0):
+def classify_list_file(args, view, view_ndx=0, conf_raw=None):
     # ivw is the index into movieFiles, trxFiles. It corresponds to view, but
     # perhaps not absolute view. E.g. if view 1 is the only view being tracked in
     # this call, then movieFiles should have only one movie per movie set, and
@@ -3465,7 +3473,11 @@ def classify_list_file(args, view, view_ndx=0):
     db_file = tempfile.mkstemp()[1]
     db_file_val = tempfile.mkstemp()[1]
 
-    lbl_file = args.lbl_file
+    if conf_raw is None:
+        lbl_file = args.lbl_file
+    else:
+        lbl_file = conf_raw
+      
     name = args.name
     first_stage = args.stage=='multi' or args.stage=='first'
     conf = create_conf(lbl_file,view,name,cache_dir=args.cache, net_type=args.type,conf_params=args.conf_params,first_stage=first_stage)
@@ -3508,7 +3520,7 @@ def classify_list_file(args, view, view_ndx=0):
     return success, pred_locs
 
 
-def classify_gt_data(args,view,view_ndx):
+def classify_gt_data(args,view,view_ndx,conf_raw=None):
     ''' Classify GT data in the label file.
 
     View classified is per conf.view; out_file, model_file should be specified for this view.
@@ -3516,7 +3528,11 @@ def classify_gt_data(args,view,view_ndx):
     Saved values are 1-indexed.
     '''
 
-    lbl_file = args.lbl_file
+    if conf_raw is None:
+        lbl_file = load_config_file(args.lbl_file)
+    else:
+        lbl_file = conf_raw
+      
     name = args.name
     assert args.stage not in ['first','second'], 'GT classification can not be done in individual stages'
     if args.stage == 'multi':
@@ -3672,22 +3688,20 @@ def classify_movie(conf, pred_fn, model_type,
     if type(crop_loc) == list and crop_loc[0] is None:
         crop_loc = None
     logging.info('classify_movie:')
-    logging.info('mov_file: %s' % mov_file)
-    logging.info('out_file: %s' % out_file)
-    logging.info('trx_file: %s' % trx_file)
-    logging.info('start_frame: ' + str(start_frame))
-    logging.info('end_frame: ' + str(end_frame))
-    logging.info('skip_rate: ' + str(skip_rate))
-    logging.info('trx_ids: ' + str(trx_ids))
-    logging.info('model_file: %s' % model_file)
-    logging.info('name: %s' % name)
-    logging.info('save_hmaps: ' + str(save_hmaps))
-    logging.info('crop_loc: ' + str(crop_loc))
+    logging.info(f'mov_file: {mov_file}\n' + \
+                 f'out_file: {out_file}\n' + \
+                 f'trx_file: {trx_file}\n' + \
+                 f'start_frame: {start_frame}, end_frame: {end_frame}, skip_rate: {skip_rate}\n' + \
+                 f'trx_ids: {trx_ids}\n' + \
+                 f'model_file: {model_file}\n' + \
+                 f'name: {name}\n' + \
+                 f'crop_loc: {crop_loc}')
 
     pre_fix, ext = os.path.splitext(out_file)
     part_file = out_file + '.part'
 
     cap = movies.Movie(mov_file)
+    logging.info('Preparing to track...')
     sz = (cap.get_height(), cap.get_width())
     n_frames = int(cap.get_n_frames())
     trx_dict = get_trx_info(trx_file, conf, n_frames)
@@ -3701,12 +3715,16 @@ def classify_movie(conf, pred_fn, model_type,
     bsize = conf.batch_size
     flipud = conf.flipud
 
+    logging.info('Organizing output trk file metadata...')
     info = compile_trk_info(conf, model_file, crop_loc, mov_file, expname=name)
 
     if end_frames.size==0:
+        logging.warning('No frames to track, writing empty trk file.')
         pred_locs = np.zeros([1,0,conf.n_classes,2])
         write_trk(out_file, pred_locs, {}, 0, 1, [], conf, info, mov_file)
         return
+
+    logging.info('Determining frames to track...')
 
     if end_frame < 0: end_frame = end_frames.max()
     if end_frame > end_frames.max(): end_frame = end_frames.max()
@@ -3737,7 +3755,8 @@ def classify_movie(conf, pred_fn, model_type,
 
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
-    for cur_b in tqdm(range(n_batches),disable=True):
+    logging.info('Tracking...')
+    for cur_b in tqdm(range(n_batches),mininterval=5,unit='batch'):
         cur_start = cur_b * bsize
         ppe = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
@@ -3811,9 +3830,13 @@ def classify_movie(conf, pred_fn, model_type,
                     if (end_frames[ix] > cur_f) and (first_frames[ix] <= cur_f):
                         pred_animal_conf[ cur_f- min_first_frame,ix,:] = T[ix]['conf'][0,cur_f-first_frames[ix],0:1]
 
+    logging.info('Writing trk file...')
+
     raw_file = raw_predict_file(predict_trk_file, out_file)
     cur_out_file = raw_file if do_link(conf) else out_file
     trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info, conf)
+
+    logging.info('Cleaning up...')
 
     if os.path.exists(part_file):
         os.remove(part_file)
@@ -4051,6 +4074,8 @@ def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
 
 
 def train_leap(conf, args, split, split_file=None):
+    
+    # leap is currently commented out, this code is obsolete
     from leap.training import train as leap_train
 
     assert (
@@ -4222,9 +4247,12 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
     return cfg_dict
 
 
-def train_multi_stage(args, nviews):
+def train_multi_stage(args, nviews, conf_raw=None):
     name = args.name
-    lbl_file = args.lbl_file
+    if conf_raw is None:
+        lbl_file = load_config_file(args.lbl_file)
+    else:
+        lbl_file = conf_raw
     if args.stage == 'multi':
         # if not args.debug:
         #     args1 = {'lbl_file':lbl_file,'nviews':nviews,'name':name,'args':args,'first_stage':True}
@@ -4252,7 +4280,7 @@ def train_multi_stage(args, nviews):
         train(lbl_file, nviews, name, args)
 
 
-def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
+def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
     ''' Creates training db and calls the appropriate network's training function '''
 
     view = args.view
@@ -4266,7 +4294,7 @@ def train(lblfile, nviews, name, args,first_stage=False,second_stage=False):
     # Create data aug images.
 
     for view_ndx, cur_view in enumerate(views):
-        conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
+        conf = create_conf(lbl_file, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
 
         conf.view = cur_view
         model_file = args.model_file[view_ndx]
@@ -4463,13 +4491,16 @@ def parse_args(argv):
         args.val_split = convert(args.val_split, to_python=True)
 
     if args.sub_name != 'test':
-        net_type = get_net_type(args.lbl_file,args.stage)
         # command line has precedence over the one in label file.
-        if args.type is None and net_type is not None:
-            # AL20190719: don't understand this, in this branch the net_type was found in the lbl file?
-            # Shouldn't we be using/assigning to net_type here.
-            logging.info("No network type specified on command line or in the lbl file. Selecting MDN")
-            args.type = 'mdn'
+        if args.type is None:
+            net_type = get_net_type(args.lbl_file,args.stage)
+            if net_type is not None:
+                # AL20190719: don't understand this, in this branch the net_type was found in the lbl file?
+                # Shouldn't we be using/assigning to net_type here.
+                args.type = net_type
+            else:
+                logging.info("No network type specified on command line or in the lbl file. Selecting MDN")
+                args.type = 'mdn'
     return args
 
 
@@ -4507,9 +4538,12 @@ def get_valfilename(conf, nettype):
         raise ValueError('Unrecognized net type')
     return val_filename
 
-def track_multi_stage(args, view_ndx, view, mov_ndx):
+def track_multi_stage(args, view_ndx, view, mov_ndx, conf_raw=None):
     name = args.name
-    lbl_file = args.lbl_file
+    if conf_raw is None:
+        lbl_file = load_config_file(args.lbl_file)
+    else:
+        lbl_file = conf_raw
     trk_config_file = args.trk_config_file
     if args.stage == 'multi':
         type1 = args.type
@@ -4648,30 +4682,90 @@ def check_args(args,nviews):
 
         args.out_files = reshape(args.out_files)
 
+def get_raw_config_filetype(H):
+    return H['ConfFileType']
 
-def get_num_views(args):
-    lbl_file = args.lbl_file
+def get_raw_config_filename(H):
+    return H['FileName']
+
+def load_config_file(lbl_file,no_json=False):
+    """
+    H = load_config_file(lbl_file,no_json=False)
+    :param lbl_file:
+    :param no_json:
+    :return:
+    H: dictionary containing raw info loaded in from the .lbl or .json file
+    Loads configuration info from either a .json or .lbl (mat) file and stores it in a dict.
+    No processing on this dict is done. Processing is done by create_conf or create_conf_json.
+    The following fields are added to the dict:
+    'ConfigFileType': 'json' or 'lbl'
+    'FileName': name of the file loaded
+    """
+    
+    if not no_json:
+        if os.path.exists(lbl_file.replace('.lbl','.json')):
+            lbl_file = lbl_file.replace('.lbl','.json')
+
+    logging.info(f'Loading config file {lbl_file}')
+    
     if lbl_file.endswith('.json'):
         H = PoseTools.json_load(lbl_file)
-        return H['Config']['NumViews']
-
-    try:
+        H['ConfFileType'] = 'json'
+    elif lbl_file.endswith('.lbl'):
+        # somewhat obsolete codepath - lbl files should have been replaced by json files
+        logging.warning('.lbl files have been replaced with .json files. This functionality may be removed in the future')
         try:
             H = loadmat(lbl_file)
         except NotImplementedError:
             logging.info('Label file is in v7.3 format. Loading using h5py')
-            H = h5py.File(lbl_file, 'r')
-    except TypeError as e:
-        logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
+            try:
+                H = h5py.File(lbl_file, 'r')
+            except TypeError as e:
+                logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
+            exit(1)
+        H['ConfFileType'] = 'lbl'
+    else:
+        logging.exception(f'Cannot read config file {lbl_file}')
         exit(1)
-    # raise ValueError('I am an error')
-    nviews = int(read_entry(H['cfg']['NumViews']))
+    H['FileName'] = lbl_file
+    return H
+
+def get_num_views(args=None,conf_raw=None):
+    if conf_raw is None:
+        conf_raw = load_config_file(args.lbl_file)
+      
+    if get_raw_config_filetype(conf_raw) == 'json':
+        nviews = conf_raw['Config']['NumViews']
+    else:
+        nviews = int(read_entry(conf_raw['cfg']['NumViews']))
+      
     return nviews
 
 def run(args):
-    name = args.name
+    """
+    run(args)
+    Main function for training or tracking with APT, called by the wrapper function "main".
+    args is the parsed argument object created by "parse_args". 
+    """
 
-    nviews = get_num_views(args)
+    # whether to train, track, etc.
+    cmd = args.sub_name
+
+    # artifacts from training / tracking will be stored in the directory
+    # cachedir = cache/proj_name/type/view_{view}/name
+    # where cache, type, view, and name are command line arguments and proj_name is read from the config file
+
+    # name: name of the subdirectory in which we will store artifacts
+    name = args.name
+    
+    # read the config files once
+    if args.lbl_file is not None:
+        conf_raw = load_config_file(args.lbl_file)
+    else:
+        conf_raw = None
+
+    # which view/views to train/track in
+    nviews = get_num_views(conf_raw=conf_raw)
     view = args.view
     if view is None:
         views = range(nviews)
@@ -4680,10 +4774,10 @@ def run(args):
     nviews = len(views)
     check_args(args,nviews)
 
-    if args.sub_name == 'train':
-        train_multi_stage(args,nviews)
+    if cmd == 'train':
+        train_multi_stage(args,nviews,conf_raw)
 
-    elif args.sub_name == 'track' and args.list_file is not None:
+    elif cmd == 'track' and args.list_file is not None:
         # KB 20190123: added list_file input option
 
         for view_ndx, view in enumerate(views):
@@ -4693,13 +4787,13 @@ def run(args):
             success, pred_locs = classify_list_file(args,view=view,view_ndx=view_ndx)
             assert success, 'Error classifying list_file ' + args.list_file + 'view ' + str(view)
 
-    elif args.sub_name == 'track':
+    elif cmd == 'track':
 
         nmov = len(args.mov[0])
 
         for view_ndx, view in enumerate(views):
             for mov_ndx in range(nmov):
-                track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx)
+                track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
             if args.type.startswith('multi_'):
                 if not args.track_type == 'only_predict':
@@ -4713,23 +4807,23 @@ def run(args):
                         os.rename(raw_file,out_files[mov_ndx])
 
 
-    elif args.sub_name == 'gt_classify':
+    elif cmd == 'gt_classify':
 
         for view_ndx, view in enumerate(views):
-            classify_gt_data(args, view,view_ndx)
+            classify_gt_data(args, view,view_ndx,conf_raw=conf_raw)
 
-    elif args.sub_name == 'data_aug':
+    elif cmd == 'data_aug':
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(args.lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
+            conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
             out_file = args.out_files + '_{}.mat'.format(view)
             distort = not args.no_aug
             get_augmented_images(conf, out_file, distort, nsamples=args.nsamples)
 
-    elif args.sub_name == 'classify':
+    elif cmd == 'classify':
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(args.lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+            conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
             if conf.is_multi:
                 setup_ma(conf)
 
@@ -4748,30 +4842,28 @@ def run(args):
             hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list': info}, appendmat=False,
                                 truncate_existing=True)
 
-    elif args.sub_name == 'model_files':
+    elif cmd == 'model_files':
         m_files = []
         for view_ndx, view in enumerate(views):
-            conf = create_conf(args.lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
+            conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
         print(m_files)
 
 
-def main(argv):
-    args = parse_args(argv)
-
-    if args.sub_name == 'test':
-        print("Hello this is APT!")
-        return
-    if args.ignore_local:
-        remove_local_path()
-
+def set_up_logging(args):
+    """
+    errh,logh = set_up_logging(args)
+    Set all logging parameters based on parsed argument object args.
+    Returns handles to error (errh) and basic info loggers (logh). 
+    """
+    
     log_formatter = logging.Formatter('%(asctime)s %(pathname)s %(funcName)s [%(levelname)-5.5s] %(message)s')
 
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers
         log.removeHandler(hdlr)
 
-    # add err logging
+    # set up logging
     if args.err_file is None:
         err_file = os.path.join(expanduser("~"), '{}.err'.format(args.name))
     else:
@@ -4796,6 +4888,28 @@ def main(argv):
     log.addHandler(logh)
     log.setLevel(logging.DEBUG)
 
+    return errh,logh
+        
+def main(argv):
+    """
+    main(...)
+    Main function for running APT. Parses command line parameters, sets up logging, then calls "run" function to do most of the work.
+    """
+    args = parse_args(argv)
+
+    if args.sub_name == 'test':
+        print("Hello this is APT!")
+        return
+
+    # issues arise with docker and installed python packages that end up getting bound
+    # remove these from the python path if ignore_local == 1
+    if args.ignore_local:
+        remove_local_path()
+
+    # set up logging to files
+    errh,logh = set_up_logging(args)
+        
+    # write commit info to log
     repo_info = PoseTools.get_git_commit()
     logging.info('Git Commit: {}'.format(repo_info))
     logging.info('Args: {}'.format(argv))
@@ -4809,6 +4923,7 @@ def main(argv):
     # if j_args.sub_name =='track':
     #     j_args.out_files = [a.replace('.trk','_json.trk') for a in j_args.out_files]
 
+    # main function
     if args.no_except:
         run(args)
     else:

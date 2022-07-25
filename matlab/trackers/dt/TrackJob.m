@@ -143,8 +143,9 @@ classdef TrackJob < handle
     cmdfile = '';
     
     % AL: Ideally we would enforce these all to be [nmovsettrk x nView]
-    lblfileLcl = '';
-    configfileLcl = '';
+    trainconfigLcl = '';
+    lblfileLcl = ''; % lblfileLcl should be obsolete soon
+    trackconfigLcl = '';
     movfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if 
                      % tfserialmultimov, [nSerialMov]
                      % SHOULD PROB BE [nmov x nView x nSet]
@@ -169,8 +170,9 @@ classdef TrackJob < handle
     listfileLcl = '';
     calibrationfileLcl = {}; % cellstr, [nSerialMov] % KB 20200504: added, but not used yet
     
+    trainconfigRem = '';
     lblfileRem = '';
-    configfileRem = '';
+    trackconfigRem = '';
     movfileRem = {};
     trxfileRem = {};
     trxfileStg1Rem = {};
@@ -244,7 +246,7 @@ classdef TrackJob < handle
       end
       
       [ivw,trxids,frm0,frm1,cropRoi,tMFTConc,...
-        lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,configfileLcl,...
+        trainconfigLcl,movfileLcl,trxfileLcl,trkfileLcl,trackconfigLcl,...
         trkoutdirLcl,rootdirLcl,...
         isMultiView,isSerialMultiMov,isExternal,isRemote,nowstr,logfile,...
         errfile,cmdfile,modelChainID,isContiguous,calibrationfileLcl] = ...
@@ -255,11 +257,11 @@ classdef TrackJob < handle
         'frm1',[],...
         'cropRoi',[],... % serialmode: either [], or [nmovset x 4]
         'tMFTConc',[],...
-        'lblfileLcl','',...
+        'trainconfigLcl','',...
         'movfileLcl',{},...
         'trxfileLcl',{},...
         'trkfileLcl',{},...
-        'configfileLcl','',...
+        'trackconfigLcl','',...
         'trkoutdirLcl',{},...
         'rootdirLcl','',...
         'isMultiView',false,... % flag of whether we want to track all views in one track job
@@ -390,14 +392,14 @@ classdef TrackJob < handle
       end
       obj.rootdirRem = obj.dmcRem(1).rootDir;
       
-      if isempty(lblfileLcl),
-        lblfileLcl = unique({obj.dmcLcl.lblStrippedLnx});
-        assert(isscalar(lblfileLcl));
-        obj.lblfileLcl = lblfileLcl{1};
+      if isempty(trainconfigLcl),
+        trainconfigLcl = unique({obj.dmcLcl.trainConfigLnx});
+        assert(isscalar(trainconfigLcl));
+        obj.trainconfigLcl = trainconfigLcl{1};
       else
-        obj.lblfileLcl = lblfileLcl;
+        obj.trainconfigLcl = trainconfigLcl;
       end
-      obj.lblfileRem = obj.dmcRem.lblStrippedLnx;
+      obj.trainconfigRem = obj.dmcRem.trainConfigLnx;
       
       obj.trkoutdirRem = cell(1,obj.nView);
       for i = 1:obj.nView,
@@ -483,9 +485,9 @@ classdef TrackJob < handle
         obj.cropRoi = cropRoi(obj.ivw,:);
       end
       
-      if isempty(configfileLcl),
+      if isempty(trackconfigLcl),
         i = find(~cellfun(@isempty,obj.trkfileLcl),1);
-        obj.configfileLcl = TrackJob.trk2configfiles(obj.trkfileLcl{i});
+        obj.trackconfigLcl = TrackJob.trk2configfiles(obj.trkfileLcl{i});
       end
       
       obj.setLocalFiles();
@@ -528,7 +530,7 @@ classdef TrackJob < handle
       if obj.tf2stg
         fileargs = struct('trnID',obj.modelChainID,...
           'cache',obj.rootdirRem,...
-          'dllbl',obj.lblfileRem,...
+          'dlconfig',obj.trainconfigRem,...
           'errfile',obj.errfile,...
           'nettype',obj.tObj.trnNetType,...
           'netmode',obj.tObj.trnNetMode,...
@@ -536,17 +538,17 @@ classdef TrackJob < handle
           'netmodeStage1',obj.tObj.stage1Tracker.trnNetMode,...
           'movtrk',{obj.movfileRem},...
           'outtrk',{obj.trkfileRem},...
-          'configfile',obj.configfileRem);
+          'configfile',obj.trackconfigRem);
       else
         fileargs = struct('trnID',obj.modelChainID,...
           'cache',obj.rootdirRem,...
-          'dllbl',obj.lblfileRem,...
+          'dlconfig',obj.trainconfigRem,...
           'errfile',obj.errfile,...
           'nettype',obj.tObj.trnNetType,...
           'netmode',obj.tObj.trnNetMode,...
           'movtrk',{obj.movfileRem},...
           'outtrk',{obj.trkfileRem},...
-          'configfile',obj.configfileRem);
+          'configfile',obj.trackconfigRem);
       end
             
       switch obj.backend.type,
@@ -954,7 +956,7 @@ classdef TrackJob < handle
       obj.movfileRem = obj.movfileLcl;
       obj.trxfileRem = obj.trxfileLcl;
       obj.trkfileRem = obj.trkfileLcl;
-      obj.configfileRem = obj.configfileLcl;
+      obj.trackconfigRem = obj.trackconfigLcl;
       obj.listfileRem = obj.listfileLcl;
       if obj.tfremote,
         for i = 1:obj.nView,
@@ -976,7 +978,7 @@ classdef TrackJob < handle
           obj.trkfileRem{i} = [obj.trkoutdirRem{i} '/' trkRemoteRel];
           
         end
-        obj.configfileRem = TrackJob.trk2configfiles(obj.trkfileRem{1});
+        obj.trackconfigRem = TrackJob.trk2configfiles(obj.trkfileRem{1});
         obj.listfileRem = [obj.dmcRem.dirModelChainLnx '/' obj.listfilestr];
       end
       
@@ -1003,7 +1005,7 @@ classdef TrackJob < handle
       end
             
       % errors out if fails
-      obj.checkUploadFiles({obj.lblfileLcl},{obj.lblfileRem},'Lbl file');
+      obj.checkUploadFiles({obj.trackconfigLcl},{obj.trackconfigRem},'Config file');
       obj.checkUploadFiles(obj.movfileLcl,obj.movfileRem,'Movie file');
       if obj.tftrx,
         obj.checkUploadFiles(obj.trxfileLcl,obj.trxfileRem,'Trx file');
@@ -1071,7 +1073,7 @@ classdef TrackJob < handle
     
     
     function v = get.configfile(obj)
-      v = obj.configfileLcl;
+      v = obj.trackconfigLcl;
     end
     
     function v = get.containerName(obj)
