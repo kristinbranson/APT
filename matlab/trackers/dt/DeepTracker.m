@@ -1907,7 +1907,7 @@ classdef DeepTracker < LabelTracker
           projbps = [projbps;tfaf];
           %projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfaf,'.trxFilesAllFull');
           if ~isempty(tfafgt)
-            projbps = [projbs;tfafgt];
+            projbps = [projbps;tfafgt];
             %projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfafgt,'.trxFilesAllGTFull');
           end
         end
