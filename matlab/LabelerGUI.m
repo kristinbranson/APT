@@ -938,20 +938,27 @@ handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
 handles.pbPlaySeg.CData = Icons.ims.playsegment;
 handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
-posn0 = handles.pbPlay.Position;
-posn1 = handles.pbPlaySeg.Position;
-dx = posn1(1)-posn0(1);
-hnew = copyobj(handles.pbPlaySeg,handles.pbPlaySeg.Parent);
-hnew.Position(1) = hnew.Position(1) + dx;
+% Add play-segment-reverse btn
+SHRINKFAC = 0.7;
+hps0 = handles.pbPlaySeg;
+hps0right0 = hps0.Position(1)+hps0.Position(3);
+hps0.Position(3) = hps0.Position(3)*SHRINKFAC;
+btngap = hps0.Position(1)-handles.pbPlay.Position(1)-handles.pbPlay.Position(3);
+
+hps1 = copyobj(hps0,hps0.Parent);
+hps1.Position(1) = hps1.Position(1) + hps0.Position(3)+btngap/2;
+set(hps1,...
+  'CData',fliplr(hps1.CData),...
+  'Callback',@(hObject,eventdata)LabelerGUI('pbPlaySegRev_Callback',hObject,eventdata,guidata(hObject)),...
+  'Enable',hps0.Enable,...
+  'Tag','pbPlaySegRev');
+handles.pbPlaySegRev = hps1;
+handles.pbPlaySegBoth = [hps0 hps1];
+
+hps1right1 = hps1.Position(1)+hps1.Position(3);
+dx = hps1right1 - hps0right0; % edit_frame, slider_frame shifted to right by this much
 handles.edit_frame.Position(1) = handles.edit_frame.Position(1) + dx;
 handles.slider_frame.Position([1 3]) = handles.slider_frame.Position([1 3]) + dx*[1 -1];
-hnew.CData = fliplr(hnew.CData);
-hnew.Callback = @(hObject,eventdata)LabelerGUI('pbPlaySegRev_Callback',hObject,eventdata,guidata(hObject));
-hnew.Tag = 'pbPlaySegRev';
-handles.pbPlaySegRev = hnew;
-
-
-%handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
 EnableControls(handles,'tooltipinit');
 set(handles.figure,'Visible','on');
@@ -1027,7 +1034,7 @@ switch lower(state),
     set(handles.pbSetZoom,'Enable','off');
     set(handles.pbResetZoom,'Enable','off');
     set(handles.sldZoom,'Enable','off');
-    set(handles.pbPlaySeg,'Enable','off');
+    set(handles.pbPlaySegBoth,'Enable','off');
     set(handles.pbPlay,'Enable','off');
     set(handles.slider_frame,'Enable','off');
     set(handles.edit_frame,'Enable','off');
@@ -1064,7 +1071,7 @@ switch lower(state),
     set(handles.pbSetZoom,'Enable','off');
     set(handles.pbResetZoom,'Enable','off');
     set(handles.sldZoom,'Enable','off');
-    set(handles.pbPlaySeg,'Enable','off');
+    set(handles.pbPlaySegBoth,'Enable','off');
     set(handles.pbPlay,'Enable','off');
     set(handles.slider_frame,'Enable','off');
     set(handles.edit_frame,'Enable','off');
@@ -1111,7 +1118,7 @@ switch lower(state),
     set(handles.pbSetZoom,'Enable','off');
     set(handles.pbResetZoom,'Enable','off');
     set(handles.sldZoom,'Enable','off');
-    set(handles.pbPlaySeg,'Enable','off');
+    set(handles.pbPlaySegBoth,'Enable','off');
     set(handles.pbPlay,'Enable','off');
     set(handles.slider_frame,'Enable','off');
     set(handles.edit_frame,'Enable','off');
@@ -1151,7 +1158,7 @@ switch lower(state),
     set(handles.pbSetZoom,'Enable','on');
     set(handles.pbResetZoom,'Enable','on');
     set(handles.sldZoom,'Enable','on');
-    set(handles.pbPlaySeg,'Enable','on');
+    set(handles.pbPlaySegBoth,'Enable','on');
     set(handles.pbPlay,'Enable','on');
     set(handles.slider_frame,'Enable','on');
     set(handles.edit_frame,'Enable','on');
