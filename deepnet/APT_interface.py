@@ -4796,7 +4796,7 @@ def run(args):
             for mov_ndx in range(nmov):
                 track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
-            if args.type.startswith('multi_'):
+            if args.stage == 'multi':
                 if not args.track_type == 'only_predict':
                     link(args, view=view, view_ndx=view_ndx)
                 else:
