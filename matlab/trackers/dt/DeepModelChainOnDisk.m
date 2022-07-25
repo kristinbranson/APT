@@ -214,7 +214,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = get.errfileName(obj)
       mdlChainID = obj.modelChainID;
       trnID = obj.trainID;
-      netMode = obj.netMode.shortCode;
+      netMode = obj.netMode.shortCode; %#ok<*PROP> 
       if obj.isMultiView,
         v = sprintf('%s_%s_%s.err',mdlChainID,trnID,netMode);
       else
@@ -364,7 +364,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
       end
     end
-    function fileinfo = trainFileInfo(obj,use)
+    function fileinfo = trainFileInfo(obj,use) %#ok<INUSD> 
       % to do: use can specify whether this is for docker etc. currently
       % all the same
       if ischar(obj.netType),
@@ -372,9 +372,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       else
         netTypeObj = obj.netType;
       end
+      %'modelchainID',obj.modelChainID,...
       fileinfo = struct(...
-        'modelchainID',obj.modelChainID,...
-        'trnID',obj.trainID,...
+        'trnID',obj.modelChainID,...
         'dlconfig',obj.trainConfigLnx,...
         'trainlocfile',obj.trainLocLnx,...
         'trainpackfile',obj.trainPackLnx,...
