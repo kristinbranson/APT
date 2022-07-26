@@ -3854,6 +3854,8 @@ hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
 arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
+handles.labelerObj.movieCenterOnTarget = false;
+
 
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
