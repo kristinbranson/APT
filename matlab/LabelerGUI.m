@@ -2767,6 +2767,9 @@ lObj = evt.AffectedObject;
 tf = lObj.movieCenterOnTarget;
 mnu = lObj.gdata.menu_view_trajectories_centervideoontarget;
 mnu.Checked = onIff(tf);
+if tf,
+  lObj.videoZoom(lObj.targetZoomRadiusDefault);
+end
 
 function cbkMovieRotateTargetUpChanged(src,evt)
 lObj = evt.AffectedObject;
