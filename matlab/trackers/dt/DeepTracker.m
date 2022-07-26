@@ -1358,6 +1358,8 @@ classdef DeepTracker < LabelTracker
         [tpdir,dllblf,~] = fileparts(dlConfigLcl);
 
         % dlConfigLcl should look like <modelChainID>_<trainID>.<configExt>
+        % FIX THIS - this looks like the trainID is parsed out of the
+        % config file name...
         pat = sprintf('%s_(?<trainID>[0-9T]+)$',modelChainID);
         toks = regexp(dllblf,pat,'names');        
         trainID = toks.trainID;
