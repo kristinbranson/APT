@@ -1626,6 +1626,10 @@ classdef DeepTracker < LabelTracker
 
       hfigs = myparse(varargin,'hfigs',[]);
 
+      if isempty(hfigs),
+        hfigs = nan(1,numel(trnImgMats));
+      end
+
       for i=1:numel(trnImgMats)
         ti = trnImgMats{i};
         if isempty(ti)
@@ -1637,7 +1641,7 @@ classdef DeepTracker < LabelTracker
         npts = size(dam.locs,2);
         colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
         margs = [margs0 {'colors' colors}];
-        if numel(hfigs) >= i,
+        if numel(hfigs) >= i && hfigs(i) > 0 && ishandle(hfigs(i)),
           hfig = hfigs(i);
         else
           hfig = [];
