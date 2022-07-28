@@ -1142,8 +1142,8 @@ classdef TrkFile < dynamicprops
           if ~any(isinterval), continue; end
 
           idx = f(isinterval) + offs(j);
-          xy(:,:,isinterval,i) = ptgt(:,:,idx(isinterval));
-          tfocc(:,isinterval,i) = ptag(:,idx(isinterval));
+          xy(:,:,isinterval,i) = ptgt(:,:,idx);
+          tfocc(:,isinterval,i) = ptag(:,idx);
         end
       end
 
