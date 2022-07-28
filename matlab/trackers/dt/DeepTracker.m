@@ -2841,7 +2841,7 @@ classdef DeepTracker < LabelTracker
         end
 
         % figure out what to track
-        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true);
+        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true,'aliveonly',true);
         tblMFT0 = tblMFT;
         if obj.lObj.maIsMA
           % 20210930: turn off creation of discontiguous tblMFT's.
@@ -5752,6 +5752,7 @@ classdef DeepTracker < LabelTracker
     
   end
   methods
+    
     function tblTrkRes = getTrackingResultsTable(obj,mIdxs,varargin) % obj const
       % Get all current tracking results in a table
       %
@@ -5763,8 +5764,9 @@ classdef DeepTracker < LabelTracker
       % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
       %          size(tblTrkRes.pTrk,2)==npttrk*d
   
-      ftonly = myparse(varargin,...
-        'ftonly',false...
+      [ftonly,aliveonly] = myparse(varargin,...
+        'ftonly',false,...
+        'aliveonly',false...
         );
       
 %       isMA = obj.lObj.maIsMA;
@@ -5792,8 +5794,9 @@ classdef DeepTracker < LabelTracker
       tblTrkRes = [];
       %pTrkiPt = -1;
       for i=1:numel(mIdxs)
+
         if tfhasres(i)
-          tbls = cellfun(@(x)x.tableform('ftonly',ftonly),trk(i,:),'uni',0);
+          tbls = cellfun(@(x)x.tableform('ftonly',ftonly,'aliveonly',aliveonly),trk(i,:),'uni',0);
           tblI = TrkFile.mergetablesMultiview(tbls{:});         
 %           if isMA
 %             tbl = TrxUtil.tableFT(trk{i,1});
@@ -5878,7 +5881,7 @@ classdef DeepTracker < LabelTracker
         
         %frm = min(frm,size(xyPCM,3));
         %xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
-        [tfhaspred,xy,tfocc] = xyPCM.getPTrkFrame(frm);
+        [tfhaspred,xy,tfocc] = xyPCM.getPTrkFrame(frm,'collapse',true);
         
 %         if nargout>1
 %           fprintf(2,'TODOXXX');
