@@ -570,7 +570,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       obj.updateSkel(xy);      
     end
     function newFrame(obj,frm)
-      [tfhaspred,xy,tfocc] = obj.trk.getPTrkFrame(frm);
+      [tfhaspred,xy,tfocc] = obj.trk.getPTrkFrame(frm,'collapse',true);
       obj.updateTrackRes(xy,tfocc);
     end
     function updatePrimary(obj,iTgtPrimary)
