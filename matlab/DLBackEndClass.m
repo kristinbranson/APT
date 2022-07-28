@@ -565,16 +565,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       aptdeepnet = APT.getpathdl;
       
-      tfWinAppLnxContainer = ispc;
-      if tfWinAppLnxContainer
+      tfwin = ispc;
+      if tfwin
         % 1. Special treatment for bindpath. src are windows paths, dst are
         % linux paths inside /mnt.
         % 2. basecmd massage. All paths in basecmd will be windows paths;
         % these need to be replaced with the container paths under /mnt.
-        srcbindpath = bindpath;
-        dstbindpath = cellfun(...
-          @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
-          srcbindpath,'uni',0);
+
+%         srcbindpath = regexprep(bindpath,'\\','\\\');
+%         dstbindpath = cellfun(...
+%           @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
+%           srcbindpath,'uni',0);
+
+        srcbindpath = {'/mnt'};
+        dstbindpath = {'/mnt'};
         mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
           srcbindpath,dstbindpath,'uni',0);
         deepnetrootContainer = ...
@@ -611,8 +615,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         dockercmd = sprintf('%s docker',dockerApiVerExport);
         dockercmdend = '';
         filequote = '"';
+
+        if tfwin
+          dockercmd = ['wsl ' dockercmd];
+        end
       else
-        if tfWinAppLnxContainer
+        if tfwin
           error('Docker execution on remote host currently unsupported on Windows.');
           % Might work fine, maybe issue with double-quotes
         end

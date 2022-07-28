@@ -4683,8 +4683,10 @@ classdef DeepTracker < LabelTracker
     end
     
     function plnx = codeGenPathUpdateWin2LnxContainer(pwin,mntloc)
+      % only used for Docker containers currently
+
       PAT1 = '^(?<drivelet>[a-zA-Z]):\\';
-      REP1 = sprintf('%s/$<drivelet>/',mntloc);
+      REP1 = sprintf('%s/${lower($<drivelet>)}/',mntloc);
       PAT2 = '^\\\\(?<server>[^/\\]+)[/\\]';
       REP2 = sprintf('%s/$<server>/',mntloc);
       PAT3 = '\\';
