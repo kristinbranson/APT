@@ -1478,6 +1478,7 @@ def running_in_docker():
 
 
 def json_load(filename):
+    logging.info(f'json_load called on {filename}')
     with open(filename,'r') as f:
         K = json.load(f)
     return K

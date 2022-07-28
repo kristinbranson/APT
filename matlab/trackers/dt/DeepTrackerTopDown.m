@@ -118,22 +118,19 @@ classdef DeepTrackerTopDown < DeepTracker
       setAllParams@DeepTracker(obj,sPrmAll);      
     end
     
-    function ntgtstot = genStrippedLblTrnPack(obj,dlLblFileLcl)
+    function ntgtstot = genStrippedLblTrnPack(obj,dmc)
       % Generate/write a trnpack/stripped lbl; can be used for both stages.
       %
       
-      [dlLblFileLclDir,slblf,slble] = fileparts(dlLblFileLcl);
-      if exist(dlLblFileLclDir,'dir')==0
-        fprintf('Creating dir: %s\n',dlLblFileLclDir);
-        [succ,msg] = mkdir(dlLblFileLclDir);
+      dlConfigLclDir = dmc.dirProjLnx;
+      if exist(dlConfigLclDir,'dir')==0
+        fprintf('Creating dir: %s\n',dlConfigLclDir);
+        [succ,msg] = mkdir(dlConfigLclDir);
         if ~succ
-          error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
+          error('Failed to create dir %s: %s',dlConfigLclDir,msg);
         end
       end
-      
-      packdir = dlLblFileLclDir;
-      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,packdir,...
-        'strippedlblname',[slblf slble]);
+      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc);
     end
     
     function tf = isTrkFiles(obj)
@@ -152,10 +149,11 @@ classdef DeepTrackerTopDown < DeepTracker
 %       nvw = obj.lObj.nview;
 %      isSerialTrain = false;
       % backend; implement getFreeGPUs for bsub
-      if backEnd.type == DLBackEnd.Docker
-        obj.forceSerial = true;
+      tfSerial = obj.forceSerial;
+      if backEnd.type == DLBackEnd.Docker,
+        tfSerial = true;
       end
-      if obj.forceSerial
+      if tfSerial,
         nTrainJobs = 1;
         warningNoTrace('Forcing serial train.');
       else
@@ -211,13 +209,14 @@ classdef DeepTrackerTopDown < DeepTracker
       end
       
       % create/ensure stripped lbl; set trainID
-      tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
-                            trnType==DLTrainType.RestartAug;
+      tfGenNewFiles = trnType==DLTrainType.New || ...
+        trnType==DLTrainType.RestartAug;
       
       trnCmdType = trnType;
       
       netObj = obj.trnNetType;
       if false % ~isempty(existingTrnPackSLbl)        
+        % OBSOLETE code cannot be reached
         dlLblFileLcl = existingTrnPackSLbl;
         [tpdir,dllblf,~] = fileparts(dlLblFileLcl);
 
@@ -236,15 +235,14 @@ classdef DeepTrackerTopDown < DeepTracker
         fprintf('Using pre-existing stripped lbl/trnpack: %s.\n',tpdir);
         fprintf('trainID: %s. nLabels: %d.\n',trainID,dmc.nLabels);
         
-      elseif tfGenNewStrippedLbl
+      elseif tfGenNewFiles
         trainID = datestr(now,'yyyymmddTHHMMSS');
-        % Note dmc.trainID used in eg lblStrippedLnx
+        % Note dmc.trainID used in eg trainConfigLnx
         [dmc.trainID] = deal(trainID);
 
-        dlLblFileLcl = dmc(1).lblStrippedLnx;
         tfRequiresTrnPack = netObj.requiresTrnPack(obj.trnNetMode);
         assert(tfRequiresTrnPack);
-        nlbls = obj.genStrippedLblTrnPack(dlLblFileLcl);
+        nlbls = obj.genStrippedLblTrnPack(dmc(1));
         [dmc.nLabels] = deal(nlbls);
 
       else % Restart
@@ -599,6 +597,36 @@ classdef DeepTrackerTopDown < DeepTracker
         };
     end
     
+%     function tdTrainCodeGenDMC(tfSerial,backend,dmcs,trnCmdType,varargin)
+% 
+%       [augOnly,gpuids,mndPaths] = myparse(varargin,...
+%         'augOnly',false,...
+%         'gpuids',[],... % docker only
+%         'mntPaths',{}... % docker only
+%         );
+% 
+%       if backend.type == 'Docker', %#ok<BDSCA> seems to work ... 
+%         if tfSerial
+%           assert(isscalar(gpuids));
+%         else
+%           assert(numel(gpuids)==2);
+%         end
+%       end
+% 
+%       % where dmc1 is used here, it should not matter whether dmcs(1) or dmcs(2) is used.
+%       dmc1 = dmcs(end);
+%       baseargs0 = {...
+%         'view' dmc1.view+1,...
+%         'trainType',trnCmdType,...
+%         'maTopDown' true ... % missing: 'maTopDownStage'
+%         'maTopDownStage1NetType' dmcs(1).netType ...
+%         'maTopDownStage1NetMode' dmcs(1).netMode};
+%       fileinfo = dmcs(2).trainFileInfo('topdown');
+%         
+%       args = { backend,fileinfo };
+%       
+%     end
+
     function [codestr,containerName] = tdTrainCodeGenDockerDMC(tfSerial,...
         backend,dmcs,trnCmdType,mntPaths,gpuids,varargin)
       
@@ -615,15 +643,20 @@ classdef DeepTrackerTopDown < DeepTracker
       assert(~any([dmcs.doSplit]));
             
       % where dmc1 is used here, it should matter whether dmcs(1) or dmcs(2) is used.
-      dmc1 = dmcs(1);      
+      dmc1 = dmcs(end);
       baseargs0 = {...
         'maTopDown' true ... % missing: 'maTopDownStage'
         'maTopDownStage1NetType' dmcs(1).netType ...
         'maTopDownStage1NetMode' dmcs(1).netMode};
-      args = { backend,...
-        dmc1.modelChainID,dmc1.trainID,dmc1.lblStrippedLnx,...
-        dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
-        trnCmdType,dmc1.view+1,mntPaths }; 
+
+      fileinfo = dmcs(2).trainFileInfo('topdown_docker');
+      args = { backend,fileinfo,...
+        trnCmdType,dmcs(2).view+1,mntPaths }; 
+
+%       args = { backend,...
+%         dmc1.modelChainID,dmc1.trainID,dmc1.trainConfigLnx,...
+%         dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
+%         trnCmdType,dmc1.view+1,mntPaths }; 
 
       if tfSerial
         % for stage==0/serial, netType/Mode passed in regular arguments are
@@ -707,8 +740,7 @@ classdef DeepTrackerTopDown < DeepTracker
         end
         
         args = { ...
-          dmc1.modelChainID,dmc1.lblStrippedLnx,...
-          dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
+          dmcs(2).trainFileInfo('topdown_SSHBsubSing_serial'),...
           'singargs',singargs,'sshargs',{'prefix' prefix},...
           'bsubArgs',[bsubargs {'outfile' dmc1.trainLogLnx}]};
         codestr = DeepTracker.trainCodeGenSSHBsubSing(args{:},'baseArgs',baseargs);
@@ -722,8 +754,7 @@ classdef DeepTrackerTopDown < DeepTracker
             baseargs = [baseargs {'prev_model' dmcS.prev_models}];
           end
           args = { ...
-            dmcS.modelChainID,dmcS.lblStrippedLnx,...
-            dmcS.rootDir,dmcS.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
+            dmcS.trainFileInfo('topdown_SSHBsubSing_sequential'),...
             'singargs',singargs,'sshargs',{'prefix' prefix},...
             'bsubArgs',[bsubargs {'outfile' dmcS.trainLogLnx}]};
           codestr{stg} = DeepTracker.trainCodeGenSSHBsubSing(args{:},'baseArgs',baseargs);

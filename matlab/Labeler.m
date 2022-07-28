@@ -3452,7 +3452,7 @@ classdef Labeler < handle
         fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
         fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
         if fileinfo,
-          fprintf('  Stripped lbl file: %s\n',tObj.trnLastDMC.lblStrippedLnx);
+          fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx);
           fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx);
         end
       end
@@ -13259,7 +13259,26 @@ classdef Labeler < handle
       obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
         'setFrameArgs',{'updateTables',false,'updateLabels',false});
     end
-    
+    function videoPlaySegFwdEnding(obj)
+      % Play segment ending at .currFrame
+      f = obj.currFrame;
+      df = obj.moviePlaySegRadius;
+      fstart = max(1,f-df);
+      fend = f;
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    end
+    function videoPlaySegRevEnding(obj)
+      % Play segment (reversed) ending at .currFrame
+      f = obj.currFrame;
+      df = obj.moviePlaySegRadius;
+      fstart = min(f+df,obj.nframes);
+      fend = f;
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    end
+
+
     function videoPlaySegmentCore(obj,fstart,fend,varargin)
       
       [setFrameArgs,freset] = myparse(varargin,...
@@ -13267,6 +13286,8 @@ classdef Labeler < handle
         'freset',nan);
       tfreset = ~isnan(freset);
             
+      tffwd = fend>fstart;
+
       ticker = tic;
       while true
         % Ways to exit loop:
@@ -13281,27 +13302,20 @@ classdef Labeler < handle
                   
         dtsec = toc(ticker);
         df = dtsec*obj.moviePlayFPS;
-        f = ceil(df)+fstart;
-        if f > fend
-          break;
+        if tffwd
+          f = ceil(df)+fstart;
+          if f > fend
+            break;
+          end
+        else
+          f = fstart-ceil(df);
+          if f < fend
+            break;
+          end
         end
 
         obj.setFrame(f,setFrameArgs{:});
         drawnow('limitrate');
-
-%         dtsec = toc(ticker);
-%         pause_time = (f-fstart)/obj.moviePlayFPS - dtsec;
-%         if pause_time <= 0,
-%           if handles.guidata.mat_lt_8p4
-%             drawnow;
-%             % MK Aug 2015: There is a drawnow in status update so no need to draw again here
-%             % for 2014b onwards.
-%             %     else
-%             %       drawnow('limitrate');
-%           end
-%         else
-%           pause(pause_time);
-%         end
       end
       
       if tfreset
