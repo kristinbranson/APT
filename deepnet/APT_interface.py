@@ -4813,6 +4813,7 @@ def run(args):
             for mov_ndx in range(nmov):
                 track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
+
             if not args.track_type == 'only_predict':
                 link(args, view=view, view_ndx=view_ndx)
             else:
@@ -4821,7 +4822,8 @@ def run(args):
                 out_files = args.out_files[view_ndx]
                 for mov_ndx in range(len(in_trk_files)):
                     raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
-                    os.rename(raw_file,out_files[mov_ndx])
+                    if os.path.exists(raw_file):
+                        os.rename(raw_file,out_files[mov_ndx])
 
 
     elif cmd == 'gt_classify':
