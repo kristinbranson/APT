@@ -3997,7 +3997,8 @@ classdef DeepTracker < LabelTracker
       bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk);
       
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); % AL partially dups stuff in .trkCompleteCbk
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
+      % AL partially dups stuff in .trkCompleteCbk
       
       %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
@@ -4320,6 +4321,9 @@ classdef DeepTracker < LabelTracker
           if mIdx(i)==obj.lObj.currMovIdx
             obj.trackCurrResUpdate(); % calls vizInit(false)
             if obj.lObj.maIsMA
+              % Jumping to the firstframe was super annoying!!
+              % changing so that we don't MK 20220729
+              
               % For MA, for now we automatically jump to the startframe for 
               % the first tracklet; and we select it. This enables the 
               % Tracklet HUD and timeline.
@@ -4330,13 +4334,28 @@ classdef DeepTracker < LabelTracker
               if isempty(tv.ptrx)
                 obj.newLabelerFrame();
               else
-                f0 = tv.ptrx(1).firstframe;
-                if f0~=obj.lObj.currFrame
-                  obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+                curfr = obj.lObj.currFrame; 
+                ss = [tv.ptrx(:).firstframe];
+                ee = [tv.ptrx(:).endframe];                
+                active = find((ss<=curfr)&(ee>=curfr),1);
+                if isempty(active)
+                  sel = 1;
+                  f0 = tv.ptrx(sel).firstframe;
+                  if f0~=obj.lObj.currFrame
+                    obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+                  end
                 else
+                  sel = active;
                   obj.newLabelerFrame();
                 end
-                tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
+                tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+%                 f0 = tv.ptrx(1).firstframe;
+%                 if f0~=obj.lObj.currFrame
+%                   obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+%                 else
+%                   obj.newLabelerFrame();
+%                 end
+%                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
               end
             else
               obj.newLabelerFrame();

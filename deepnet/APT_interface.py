@@ -3824,11 +3824,8 @@ def classify_movie(conf, pred_fn, model_type,
                     else:
                         extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
 
-        # if cur_b % 20 == 19:
-        #     sys.stdout.write('.')
         if (cur_b % nskip_partfile == 0) & (cur_b > 0):
-            # sys.stdout.write('\n')
-            T1 = to_do_list[cur_start][0]
+            #Write partial trk files . no linking
             write_trk(part_file, pred_locs, extra_dict, start_frame, info)
 
     # Get the animal confidences for 2 stage tracking
@@ -3845,6 +3842,7 @@ def classify_movie(conf, pred_fn, model_type,
     cur_out_file = raw_file if do_link(conf) else out_file
     logging.info(f'Writing trk file {cur_out_file}...')
     trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info, conf)
+    #Write final trk file but maybe do pure linking if required
 
     logging.info('Cleaning up...')
 
@@ -4567,7 +4565,7 @@ def track_multi_stage(args, view_ndx, view, mov_ndx, conf_raw=None):
         out_files = args.out_files
         model_file1 = args.model_file
         model_file2 = args.model_file2
-        name2 = args.name2 if args.name2 else name1
+        name2 = args.name2 if args.name2 else name
 
         args.out_files = args.trx
         trk1 = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, first_stage=True)
@@ -4815,16 +4813,15 @@ def run(args):
             for mov_ndx in range(nmov):
                 track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
-            if args.stage == 'multi':
-                if not args.track_type == 'only_predict':
-                    link(args, view=view, view_ndx=view_ndx)
-                else:
-                    #move the _tracklet.trk files to .trk files
-                    in_trk_files = args.predict_trk_files[view_ndx]
-                    out_files = args.out_files[view_ndx]
-                    for mov_ndx in range(len(in_trk_files)):
-                        raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
-                        os.rename(raw_file,out_files[mov_ndx])
+            if not args.track_type == 'only_predict':
+                link(args, view=view, view_ndx=view_ndx)
+            else:
+                #move the _tracklet.trk files to .trk files
+                in_trk_files = args.predict_trk_files[view_ndx]
+                out_files = args.out_files[view_ndx]
+                for mov_ndx in range(len(in_trk_files)):
+                    raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
+                    os.rename(raw_file,out_files[mov_ndx])
 
 
     elif cmd == 'gt_classify':
