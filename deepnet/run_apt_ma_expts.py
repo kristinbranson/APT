@@ -981,6 +981,31 @@ class ma_expt(object):
             params= settings['params']
             alg = t[0]
 
+            assert not 'second' in t, 'Use only first stage for tracking'
+            if alg.startswith('2stage'):
+                import poseConfig, tempfile
+                import PoseCommon_pytorch
+                t2 = [tt for tt in t if 'mask' not in tt]
+                t2[-1] = 'second'
+                t2 = tuple(t2)
+                settings2 = self.get_settings(t2)
+                cache_dir2 = settings2['train_cache_dir'].format(0)
+                cc = poseConfig.conf
+                cc.cachedir = cache_dir2
+                net2 = settings2['net_type']
+                sobj = PoseCommon_pytorch.PoseCommon_pytorch(cc)
+                latest_model_file = sobj.get_latest_model_file()
+
+                params2 = settings2['params']
+                conf_str2 = ' '.join([f'{k} {v}' for k, v in params2.items()])
+                t_file = tempfile.mkstemp()[1]
+
+                stg2_str = f'-stage multi -model_files2 {latest_model_file} -conf_params2 {conf_str2} -type2 {settings2["net_type"]} -name2 {settings2["train_name"]}'
+                stg2_str_track = f'-trx {t_file}'
+            else:
+                stg2_str = ''
+                stg2_str_track = ''
+
             trk_name = os.path.split(trk_file)[1]
             trk_name = os.path.splitext(trk_name)[0]
             job_name = self.name + '_' + train_name + '_' + trk_name
@@ -988,7 +1013,7 @@ class ma_expt(object):
             conf_str = ' '.join([f'{k} {v}' for k, v in params.items()])
             conf_str += ' link_id True'
 
-            cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} -type {net_type} track -mov {mov_file} -out {trk_file}'
+            cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} {stg2_str} -type {net_type} track -mov {mov_file} -out {trk_file} {stg2_str_track}'
             precmd = 'export CUDA_VISIBLE_DEVICES=0'
 
             if run_type == 'dry':
@@ -996,6 +1021,7 @@ class ma_expt(object):
                 print(f'{job_name}:')
                 print(f'{cmd}')
             elif run_type == 'submit':
+                print(f'{cmd}')
                 rae.run_jobs(job_name,
                          cmd,
                          run_dir=run_dir,

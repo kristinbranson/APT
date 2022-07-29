@@ -1,7 +1,8 @@
 
 
-cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']
+# cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']
 
+cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_mask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask True link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageBBox_nocrop_second_23022022/deepnet-100000 -conf_params2  -type2 mdn_joint_fpn -name2 2stageBBox_nocrop_second_23022022 -type detect_mmdetect track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_bbox.trk -trx /tmp/tmp2aodc5my -start_frame 1 -end_frame 30'
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')

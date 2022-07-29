@@ -4404,6 +4404,7 @@ def parse_args(argv):
     parser.add_argument('-json_trn_file', dest='json_trn_file', help='Json file containing label information',
                         default=None)
     parser.add_argument('-name', dest='name', help='Name for the run. Default - apt', default='apt')
+    parser.add_argument('-name2', help='Name for the second stage run. If not specified use -name', default=None)
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views', default=None, type=int)
     parser.add_argument('-model_files', dest='model_file', help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
     parser.add_argument('-model_files2', dest='model_file2', help='Use this model file for second stage. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
@@ -4552,19 +4553,25 @@ def track_multi_stage(args, view_ndx, view, mov_ndx, conf_raw=None):
         conf_params1 = args.conf_params
         conf_params2 = args.conf_params2
         out_files = args.out_files
+        model_file1 = args.model_file
+        model_file2 = args.model_file2
+        name2 = args.name2 if args.name2 else name1
 
         args.out_files = args.trx
         trk1 = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, first_stage=True)
         args.out_files = out_files
         args.type = args.type2
         args.conf_params = args.conf_params2
-        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, second_stage=True)
+        args.model_file = args.model_file2
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name2, args, trk_config_file=trk_config_file, second_stage=True)
 
         # reset back to normal for linking
         args.type = type1
         args.type2 = type2
         args.conf_params = conf_params1
         args.conf_params2 = conf_params2
+        args.model_file = model_file1
+        args.model_file2 = model_file2
 
     elif args.stage == 'first':
         trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, first_stage=True)
