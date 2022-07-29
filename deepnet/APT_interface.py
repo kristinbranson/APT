@@ -457,6 +457,9 @@ def convert_to_coco(coco_info, ann, data, conf):
 
 def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf, use_cache=True, db_dict=None,
                     trnpack_val_split=None):
+    
+    logging.info('Rewriting data in COCO format...')
+    
     # function that creates tfrecords using db_from_lbl
     if not os.path.exists(conf.cachedir):
         os.mkdir(conf.cachedir)
@@ -489,6 +492,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
 
+    logging.info('Rewriting training labels...')
     with open(train_filename + '.json', 'w') as f:
         json.dump(train_ann, f)
     if split or len(splits) > 1:
@@ -1812,7 +1816,9 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
         sel = np.arange(len(T['locdata']))
 
     pack_dir = os.path.split(conf.json_trn_file)[0]
-    for selndx, cur_t in enumerate(T['locdata']):
+    logging.info('Resaving training images...')
+
+    for selndx, cur_t in enumerate(tqdm(T['locdata'],**TQDM_PARAMS,unit='example')):
 
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
@@ -1909,7 +1915,10 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         sel = np.arange(len(T['locdata']))
 
     pack_dir = os.path.split(conf.json_trn_file)[0]
-    for selndx, cur_t in enumerate(T['locdata']):
+    # as far as I can tell, the images in train/val will be the same as those in im unless
+    # conf.is_multi and conf.multi_crop_ims
+    logging.info('Resaving training images...')
+    for selndx, cur_t in enumerate(tqdm(T['locdata'],**TQDM_PARAMS,unit='example')):
 
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
@@ -1983,8 +1992,8 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         count[sndx] += 1
         splits[sndx].append(info)
 
-        if selndx % 100 == 99 and selndx > 0:
-            logging.info('{} number of examples added to the dbs'.format(count))
+        # if selndx % 100 == 99 and selndx > 0:
+        #     logging.info('{} number of examples added to the dbs'.format(count))
 
     logging.info('{} number of examples added to the training dbs'.format(count))
 
@@ -3961,7 +3970,7 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
 
 
 def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True,debug=False,silent=False):
-    # Create training samples.
+    # Create image of sample training samples with data augmentation
 
     # if silent:
     #     sys.stdout = open("/dev/null", 'w')
@@ -3972,7 +3981,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
     elif not out_file.endswith('.mat'):
         out_file += '.mat'
 
-    logging.info('generating sample training data.. ')
+    logging.info('Generating sample training images... ')
 
     if model_type == 'deeplabcut':
         logging.info('Generating training data samples is not supported for deeplabcut')
@@ -4295,6 +4304,7 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
     # Create data aug images.
 
     for view_ndx, cur_view in enumerate(views):
+        logging.info('Configuring...')
         conf = create_conf(lbl_file, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
 
         conf.view = cur_view
@@ -4368,10 +4378,12 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
                 if args.only_aug: continue
 
                 module_name = 'Pose_{}'.format(net_type)
+                logging.info(f'Importing pose module {module_name}')
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
                 self = getattr(pose_module, module_name)(conf, name=args.train_name)
                 # self.name = args.train_name
+                logging.info('Starting training...')
                 self.train_wrapper(restore=restore, model_file=model_file)
 
         except tf.errors.InternalError as e:

@@ -149,10 +149,11 @@ classdef DeepTrackerTopDown < DeepTracker
 %       nvw = obj.lObj.nview;
 %      isSerialTrain = false;
       % backend; implement getFreeGPUs for bsub
-      if backEnd.type == DLBackEnd.Docker
-        obj.forceSerial = true;
+      tfSerial = obj.forceSerial;
+      if backEnd.type == DLBackEnd.Docker,
+        tfSerial = true;
       end
-      if obj.forceSerial
+      if tfSerial,
         nTrainJobs = 1;
         warningNoTrace('Forcing serial train.');
       else
@@ -596,6 +597,36 @@ classdef DeepTrackerTopDown < DeepTracker
         };
     end
     
+%     function tdTrainCodeGenDMC(tfSerial,backend,dmcs,trnCmdType,varargin)
+% 
+%       [augOnly,gpuids,mndPaths] = myparse(varargin,...
+%         'augOnly',false,...
+%         'gpuids',[],... % docker only
+%         'mntPaths',{}... % docker only
+%         );
+% 
+%       if backend.type == 'Docker', %#ok<BDSCA> seems to work ... 
+%         if tfSerial
+%           assert(isscalar(gpuids));
+%         else
+%           assert(numel(gpuids)==2);
+%         end
+%       end
+% 
+%       % where dmc1 is used here, it should not matter whether dmcs(1) or dmcs(2) is used.
+%       dmc1 = dmcs(end);
+%       baseargs0 = {...
+%         'view' dmc1.view+1,...
+%         'trainType',trnCmdType,...
+%         'maTopDown' true ... % missing: 'maTopDownStage'
+%         'maTopDownStage1NetType' dmcs(1).netType ...
+%         'maTopDownStage1NetMode' dmcs(1).netMode};
+%       fileinfo = dmcs(2).trainFileInfo('topdown');
+%         
+%       args = { backend,fileinfo };
+%       
+%     end
+
     function [codestr,containerName] = tdTrainCodeGenDockerDMC(tfSerial,...
         backend,dmcs,trnCmdType,mntPaths,gpuids,varargin)
       
@@ -612,15 +643,20 @@ classdef DeepTrackerTopDown < DeepTracker
       assert(~any([dmcs.doSplit]));
             
       % where dmc1 is used here, it should matter whether dmcs(1) or dmcs(2) is used.
-      dmc1 = dmcs(1);      
+      dmc1 = dmcs(end);
       baseargs0 = {...
         'maTopDown' true ... % missing: 'maTopDownStage'
         'maTopDownStage1NetType' dmcs(1).netType ...
         'maTopDownStage1NetMode' dmcs(1).netMode};
-      args = { backend,...
-        dmc1.modelChainID,dmc1.trainID,dmc1.trainConfigLnx,...
-        dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
-        trnCmdType,dmc1.view+1,mntPaths }; 
+
+      fileinfo = dmcs(2).trainFileInfo('topdown_docker');
+      args = { backend,fileinfo,...
+        trnCmdType,dmcs(2).view+1,mntPaths }; 
+
+%       args = { backend,...
+%         dmc1.modelChainID,dmc1.trainID,dmc1.trainConfigLnx,...
+%         dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
+%         trnCmdType,dmc1.view+1,mntPaths }; 
 
       if tfSerial
         % for stage==0/serial, netType/Mode passed in regular arguments are
@@ -704,8 +740,7 @@ classdef DeepTrackerTopDown < DeepTracker
         end
         
         args = { ...
-          dmc1.modelChainID,dmc1.trainConfigLnx,...
-          dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
+          dmcs(2).trainFileInfo('topdown_SSHBsubSing_serial'),...
           'singargs',singargs,'sshargs',{'prefix' prefix},...
           'bsubArgs',[bsubargs {'outfile' dmc1.trainLogLnx}]};
         codestr = DeepTracker.trainCodeGenSSHBsubSing(args{:},'baseArgs',baseargs);
@@ -719,7 +754,7 @@ classdef DeepTrackerTopDown < DeepTracker
             baseargs = [baseargs {'prev_model' dmcS.prev_models}];
           end
           args = { ...
-            dmcS.trainFileInfo('topdown_SSHBsubSing'),...
+            dmcS.trainFileInfo('topdown_SSHBsubSing_sequential'),...
             'singargs',singargs,'sshargs',{'prefix' prefix},...
             'bsubArgs',[bsubargs {'outfile' dmcS.trainLogLnx}]};
           codestr{stg} = DeepTracker.trainCodeGenSSHBsubSing(args{:},'baseArgs',baseargs);

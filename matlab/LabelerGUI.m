@@ -2771,6 +2771,9 @@ lObj = evt.AffectedObject;
 tf = lObj.movieCenterOnTarget;
 mnu = lObj.gdata.menu_view_trajectories_centervideoontarget;
 mnu.Checked = onIff(tf);
+if tf,
+  lObj.videoZoom(lObj.targetZoomRadiusDefault);
+end
 
 function cbkMovieRotateTargetUpChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -3858,6 +3861,8 @@ hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
 arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
+handles.labelerObj.movieCenterOnTarget = false;
+
 
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

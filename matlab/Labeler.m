@@ -13848,7 +13848,7 @@ classdef Labeler < handle
       try
         obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
       catch ME
-        warning(ME.identifier,'Could not set previous frame: %s',ME.message);
+        warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
       end
       
       %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -15088,7 +15088,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       frm = obj.currFrame;
       trk = obj.(PROPS.LBL2){iMov};
-      [tf,lpos2] = trk.getPTrkFT(frm,iTgt);
+      [tf,lpos2] = trk.getPTrkFT(frm,iTgt,'collapse',true);
     end
     
     % 20210524 no callers atm
@@ -15256,7 +15256,7 @@ classdef Labeler < handle
         else
           % nonMA: either SA, or SA-trx
           trk = obj.labels2GTaware{iMov};
-          [tfhaspred,xy,tfocc] = trk.getPTrkFrame(frm);
+          [tfhaspred,xy,tfocc] = trk.getPTrkFrame(frm,'collapse',true);
           tv.updateTrackRes(xy,tfocc);
         end
       end

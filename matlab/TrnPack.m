@@ -197,6 +197,10 @@ classdef TrnPack
       % Note tp, loc, loccc contain equivalent info just in different
       % formats.
       
+      if ~DeepModelChainOnDisk.gen_strippedlblfile,
+        error('This code will not run without the stripped lbl file. Tell Kristin how you got here.');
+      end
+
       incTrnPack = myparse(varargin,...
         'incTrnPack',false ...
         );

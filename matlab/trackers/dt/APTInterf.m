@@ -4,7 +4,7 @@ classdef APTInterf
   methods (Static)
 
     function basecmd = trainCodeGen(fileinfo,varargin)
-      isMA = fileinfo.nettype.isMultiAnimal;
+      isMA = fileinfo.nettype.isMultiAnimal; % this means is bottom-up multianimal
       isNewStyle = isMA || ...
         (fileinfo.netmode~=DLNetMode.singleAnimal && fileinfo.netmode~=DLNetMode.multiAnimalTDPoseTrx);
       

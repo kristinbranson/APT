@@ -1358,6 +1358,8 @@ classdef DeepTracker < LabelTracker
         [tpdir,dllblf,~] = fileparts(dlConfigLcl);
 
         % dlConfigLcl should look like <modelChainID>_<trainID>.<configExt>
+        % FIX THIS - this looks like the trainID is parsed out of the
+        % config file name...
         pat = sprintf('%s_(?<trainID>[0-9T]+)$',modelChainID);
         toks = regexp(dllblf,pat,'names');        
         trainID = toks.trainID;
@@ -1624,6 +1626,10 @@ classdef DeepTracker < LabelTracker
 
       hfigs = myparse(varargin,'hfigs',[]);
 
+      if isempty(hfigs),
+        hfigs = nan(1,numel(trnImgMats));
+      end
+
       for i=1:numel(trnImgMats)
         ti = trnImgMats{i};
         if isempty(ti)
@@ -1635,7 +1641,7 @@ classdef DeepTracker < LabelTracker
         npts = size(dam.locs,2);
         colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
         margs = [margs0 {'colors' colors}];
-        if numel(hfigs) >= i,
+        if numel(hfigs) >= i && hfigs(i) > 0 && ishandle(hfigs(i)),
           hfig = hfigs(i);
         else
           hfig = [];
@@ -2861,7 +2867,7 @@ classdef DeepTracker < LabelTracker
         end
 
         % figure out what to track
-        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true);
+        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true,'aliveonly',true);
         tblMFT0 = tblMFT;
         if obj.lObj.maIsMA
           % 20210930: turn off creation of discontiguous tblMFT's.
@@ -5762,6 +5768,7 @@ classdef DeepTracker < LabelTracker
     
   end
   methods
+    
     function tblTrkRes = getTrackingResultsTable(obj,mIdxs,varargin) % obj const
       % Get all current tracking results in a table
       %
@@ -5773,8 +5780,9 @@ classdef DeepTracker < LabelTracker
       % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
       %          size(tblTrkRes.pTrk,2)==npttrk*d
   
-      ftonly = myparse(varargin,...
-        'ftonly',false...
+      [ftonly,aliveonly] = myparse(varargin,...
+        'ftonly',false,...
+        'aliveonly',false...
         );
       
 %       isMA = obj.lObj.maIsMA;
@@ -5802,8 +5810,9 @@ classdef DeepTracker < LabelTracker
       tblTrkRes = [];
       %pTrkiPt = -1;
       for i=1:numel(mIdxs)
+
         if tfhasres(i)
-          tbls = cellfun(@(x)x.tableform('ftonly',ftonly),trk(i,:),'uni',0);
+          tbls = cellfun(@(x)x.tableform('ftonly',ftonly,'aliveonly',aliveonly),trk(i,:),'uni',0);
           tblI = TrkFile.mergetablesMultiview(tbls{:});         
 %           if isMA
 %             tbl = TrxUtil.tableFT(trk{i,1});
@@ -5888,7 +5897,7 @@ classdef DeepTracker < LabelTracker
         
         %frm = min(frm,size(xyPCM,3));
         %xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
-        [tfhaspred,xy,tfocc] = xyPCM.getPTrkFrame(frm);
+        [tfhaspred,xy,tfocc] = xyPCM.getPTrkFrame(frm,'collapse',true);
         
 %         if nargout>1
 %           fprintf(2,'TODOXXX');
