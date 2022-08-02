@@ -457,6 +457,9 @@ def convert_to_coco(coco_info, ann, data, conf):
 
 def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf, use_cache=True, db_dict=None,
                     trnpack_val_split=None):
+    
+    logging.info('Rewriting data in COCO format...')
+    
     # function that creates tfrecords using db_from_lbl
     if not os.path.exists(conf.cachedir):
         os.mkdir(conf.cachedir)
@@ -489,6 +492,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
 
+    logging.info('Rewriting training labels...')
     with open(train_filename + '.json', 'w') as f:
         json.dump(train_ann, f)
     if split or len(splits) > 1:
@@ -1812,7 +1816,9 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
         sel = np.arange(len(T['locdata']))
 
     pack_dir = os.path.split(conf.json_trn_file)[0]
-    for selndx, cur_t in enumerate(T['locdata']):
+    logging.info('Resaving training images...')
+
+    for selndx, cur_t in enumerate(tqdm(T['locdata'],**TQDM_PARAMS,unit='example')):
 
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
@@ -1909,7 +1915,10 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         sel = np.arange(len(T['locdata']))
 
     pack_dir = os.path.split(conf.json_trn_file)[0]
-    for selndx, cur_t in enumerate(T['locdata']):
+    # as far as I can tell, the images in train/val will be the same as those in im unless
+    # conf.is_multi and conf.multi_crop_ims
+    logging.info('Resaving training images...')
+    for selndx, cur_t in enumerate(tqdm(T['locdata'],**TQDM_PARAMS,unit='example')):
 
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
@@ -1983,8 +1992,8 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         count[sndx] += 1
         splits[sndx].append(info)
 
-        if selndx % 100 == 99 and selndx > 0:
-            logging.info('{} number of examples added to the dbs'.format(count))
+        # if selndx % 100 == 99 and selndx > 0:
+        #     logging.info('{} number of examples added to the dbs'.format(count))
 
     logging.info('{} number of examples added to the training dbs'.format(count))
 
@@ -3815,11 +3824,8 @@ def classify_movie(conf, pred_fn, model_type,
                     else:
                         extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
 
-        # if cur_b % 20 == 19:
-        #     sys.stdout.write('.')
         if (cur_b % nskip_partfile == 0) & (cur_b > 0):
-            # sys.stdout.write('\n')
-            T1 = to_do_list[cur_start][0]
+            #Write partial trk files . no linking
             write_trk(part_file, pred_locs, extra_dict, start_frame, info)
 
     # Get the animal confidences for 2 stage tracking
@@ -3836,6 +3842,7 @@ def classify_movie(conf, pred_fn, model_type,
     cur_out_file = raw_file if do_link(conf) else out_file
     logging.info(f'Writing trk file {cur_out_file}...')
     trk = write_trk(cur_out_file, pred_locs, extra_dict, start_frame, info, conf)
+    #Write final trk file but maybe do pure linking if required
 
     logging.info('Cleaning up...')
 
@@ -3961,7 +3968,7 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
 
 
 def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True,debug=False,silent=False):
-    # Create training samples.
+    # Create image of sample training samples with data augmentation
 
     # if silent:
     #     sys.stdout = open("/dev/null", 'w')
@@ -3972,7 +3979,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
     elif not out_file.endswith('.mat'):
         out_file += '.mat'
 
-    logging.info('generating sample training data.. ')
+    logging.info('Generating sample training images... ')
 
     if model_type == 'deeplabcut':
         logging.info('Generating training data samples is not supported for deeplabcut')
@@ -4295,6 +4302,7 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
     # Create data aug images.
 
     for view_ndx, cur_view in enumerate(views):
+        logging.info('Configuring...')
         conf = create_conf(lbl_file, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
 
         conf.view = cur_view
@@ -4368,10 +4376,12 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
                 if args.only_aug: continue
 
                 module_name = 'Pose_{}'.format(net_type)
+                logging.info(f'Importing pose module {module_name}')
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
                 self = getattr(pose_module, module_name)(conf, name=args.train_name)
                 # self.name = args.train_name
+                logging.info('Starting training...')
                 self.train_wrapper(restore=restore, model_file=model_file)
 
         except tf.errors.InternalError as e:
@@ -4404,6 +4414,7 @@ def parse_args(argv):
     parser.add_argument('-json_trn_file', dest='json_trn_file', help='Json file containing label information',
                         default=None)
     parser.add_argument('-name', dest='name', help='Name for the run. Default - apt', default='apt')
+    parser.add_argument('-name2', help='Name for the second stage run. If not specified use -name', default=None)
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views', default=None, type=int)
     parser.add_argument('-model_files', dest='model_file', help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
     parser.add_argument('-model_files2', dest='model_file2', help='Use this model file for second stage. For tracking this overrides the latest model file. For training this will be used for initialization', default=None, nargs='*')
@@ -4552,19 +4563,25 @@ def track_multi_stage(args, view_ndx, view, mov_ndx, conf_raw=None):
         conf_params1 = args.conf_params
         conf_params2 = args.conf_params2
         out_files = args.out_files
+        model_file1 = args.model_file
+        model_file2 = args.model_file2
+        name2 = args.name2 if args.name2 else name
 
         args.out_files = args.trx
         trk1 = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, first_stage=True)
         args.out_files = out_files
         args.type = args.type2
         args.conf_params = args.conf_params2
-        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, second_stage=True)
+        args.model_file = args.model_file2
+        trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name2, args, trk_config_file=trk_config_file, second_stage=True)
 
         # reset back to normal for linking
         args.type = type1
         args.type2 = type2
         args.conf_params = conf_params1
         args.conf_params2 = conf_params2
+        args.model_file = model_file1
+        args.model_file2 = model_file2
 
     elif args.stage == 'first':
         trk = track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, trk_config_file=trk_config_file, first_stage=True)
@@ -4796,15 +4813,16 @@ def run(args):
             for mov_ndx in range(nmov):
                 track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
-            if args.stage == 'multi':
-                if not args.track_type == 'only_predict':
-                    link(args, view=view, view_ndx=view_ndx)
-                else:
-                    #move the _tracklet.trk files to .trk files
-                    in_trk_files = args.predict_trk_files[view_ndx]
-                    out_files = args.out_files[view_ndx]
-                    for mov_ndx in range(len(in_trk_files)):
-                        raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
+
+            if not args.track_type == 'only_predict':
+                link(args, view=view, view_ndx=view_ndx)
+            else:
+                #move the _tracklet.trk files to .trk files
+                in_trk_files = args.predict_trk_files[view_ndx]
+                out_files = args.out_files[view_ndx]
+                for mov_ndx in range(len(in_trk_files)):
+                    raw_file = raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx])
+                    if os.path.exists(raw_file):
                         os.rename(raw_file,out_files[mov_ndx])
 
 

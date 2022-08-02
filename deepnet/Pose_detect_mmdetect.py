@@ -760,13 +760,16 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
     def train_wrapper(self,restore=False, model_file=None):
 
         # From mmdetection/tools/train.py
+        logging.info('Saving config to _cfg.py file')
         cfg = self.cfg
         cfg.dump(os.path.join(self.conf.cachedir, self.name + '_cfg.py'))
+        logging.info('Initializing model')
         model = build_detector(
             cfg.model,
             train_cfg=cfg.get('train_cfg'),
             test_cfg=cfg.get('test_cfg'))
         model.init_weights()
+        logging.info('Building dataset...')
         dataset = [build_dataset(cfg.data.train)]
 
         if len(cfg.workflow) == 2:
@@ -798,6 +801,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             cfg.resume_from = self.get_latest_model_file()
             cfg.load_from = None
 
+        logging.info('Creating data loader...')
         dataloader_setting = dict(
             samples_per_gpu=cfg.data.get('samples_per_gpu', {}),
             workers_per_gpu=cfg.data.get('workers_per_gpu', {}),
@@ -820,6 +824,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             model = MMDataParallel(
                 model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
 
+        logging.info('Creating optimizer...')
         # build runner
         optimizer = build_optimizer(model, cfg.optimizer)
         if self.conf.get('mmpose_use_epoch_runner', False):
@@ -884,9 +889,12 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         runner.register_hook(td_hook)
 
         if cfg.resume_from:
+            logging.info('Loading training resume point...')
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
+            logging.info('Loading initialization point...')
             runner.load_checkpoint(cfg.load_from)
+        logging.info('Starting training...')
         runner.run(data_loaders, cfg.workflow)
 
 

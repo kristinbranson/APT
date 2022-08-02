@@ -1623,7 +1623,7 @@ def submit_job(name, cmd, dir,queue='gpu_rtx    ',gpu_model=None,timeout=72*60,r
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh login1 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh login1.int.janelia.org '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     with open(bsub_script,'w') as f:
         f.write(cmd)
         f.write('\n')

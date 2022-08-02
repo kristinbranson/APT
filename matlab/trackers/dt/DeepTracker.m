@@ -2878,7 +2878,7 @@ classdef DeepTracker < LabelTracker
         end
 
         % figure out what to track
-        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true);
+        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true,'aliveonly',true);
         tblMFT0 = tblMFT;
         if obj.lObj.maIsMA
           % 20210930: turn off creation of discontiguous tblMFT's.
@@ -4008,7 +4008,8 @@ classdef DeepTracker < LabelTracker
       bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk);
       
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); % AL partially dups stuff in .trkCompleteCbk
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
+      % AL partially dups stuff in .trkCompleteCbk
       
       %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
@@ -4331,6 +4332,9 @@ classdef DeepTracker < LabelTracker
           if mIdx(i)==obj.lObj.currMovIdx
             obj.trackCurrResUpdate(); % calls vizInit(false)
             if obj.lObj.maIsMA
+              % Jumping to the firstframe was super annoying!!
+              % changing so that we don't MK 20220729
+              
               % For MA, for now we automatically jump to the startframe for 
               % the first tracklet; and we select it. This enables the 
               % Tracklet HUD and timeline.
@@ -4341,13 +4345,28 @@ classdef DeepTracker < LabelTracker
               if isempty(tv.ptrx)
                 obj.newLabelerFrame();
               else
-                f0 = tv.ptrx(1).firstframe;
-                if f0~=obj.lObj.currFrame
-                  obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+                curfr = obj.lObj.currFrame; 
+                ss = [tv.ptrx(:).firstframe];
+                ee = [tv.ptrx(:).endframe];                
+                active = find((ss<=curfr)&(ee>=curfr),1);
+                if isempty(active)
+                  sel = 1;
+                  f0 = tv.ptrx(sel).firstframe;
+                  if f0~=obj.lObj.currFrame
+                    obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+                  end
                 else
+                  sel = active;
                   obj.newLabelerFrame();
                 end
-                tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
+                tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+%                 f0 = tv.ptrx(1).firstframe;
+%                 if f0~=obj.lObj.currFrame
+%                   obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+%                 else
+%                   obj.newLabelerFrame();
+%                 end
+%                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
               end
             else
               obj.newLabelerFrame();
@@ -5796,6 +5815,7 @@ classdef DeepTracker < LabelTracker
     
   end
   methods
+    
     function tblTrkRes = getTrackingResultsTable(obj,mIdxs,varargin) % obj const
       % Get all current tracking results in a table
       %
@@ -5807,8 +5827,9 @@ classdef DeepTracker < LabelTracker
       % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
       %          size(tblTrkRes.pTrk,2)==npttrk*d
   
-      ftonly = myparse(varargin,...
-        'ftonly',false...
+      [ftonly,aliveonly] = myparse(varargin,...
+        'ftonly',false,...
+        'aliveonly',false...
         );
       
 %       isMA = obj.lObj.maIsMA;
@@ -5836,8 +5857,9 @@ classdef DeepTracker < LabelTracker
       tblTrkRes = [];
       %pTrkiPt = -1;
       for i=1:numel(mIdxs)
+
         if tfhasres(i)
-          tbls = cellfun(@(x)x.tableform('ftonly',ftonly),trk(i,:),'uni',0);
+          tbls = cellfun(@(x)x.tableform('ftonly',ftonly,'aliveonly',aliveonly),trk(i,:),'uni',0);
           tblI = TrkFile.mergetablesMultiview(tbls{:});         
 %           if isMA
 %             tbl = TrxUtil.tableFT(trk{i,1});
@@ -5922,7 +5944,7 @@ classdef DeepTracker < LabelTracker
         
         %frm = min(frm,size(xyPCM,3));
         %xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
-        [tfhaspred,xy,tfocc] = xyPCM.getPTrkFrame(frm);
+        [tfhaspred,xy,tfocc] = xyPCM.getPTrkFrame(frm,'collapse',true);
         
 %         if nargout>1
 %           fprintf(2,'TODOXXX');
