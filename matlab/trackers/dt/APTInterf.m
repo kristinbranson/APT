@@ -349,6 +349,9 @@ classdef APTInterf
           {'-only_aug' ...
           '-aug_out' augOut}];
       end
+      if fileinfo.pipeToLogfile
+        code = [code {'&>' fileinfo.logfile}];
+      end
       codestr = String.cellstr2DelimList(code,' ');
     end
         
@@ -521,6 +524,9 @@ classdef APTInterf
         errfile = fcnPathUpdate(errfile);
         dlconfig = fcnPathUpdate(dlconfig);
         configfile = fcnPathUpdate(configfile);
+        if tflistfile
+          listfile = fcnPathUpdate(listfile);
+        end
       end      
 
       code = { ...

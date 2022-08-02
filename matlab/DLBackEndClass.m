@@ -142,6 +142,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   methods
     
     function modernize(obj)
+      % 20220728 Win/Conda migration to WSL2/Docker
+      if obj.type==DLBackEnd.Conda
+        if ispc
+          warningNoTrace('Updating Windows backend from Conda -> Docker. If you have not already, please see the documentation for Windows/WSL2 setup instructions.');
+          obj.type = DLBackEnd.Docker;
+        else
+          warningNoTrace('Unexpected Conda backend on %s. APT may not work correctly.');
+        end
+      end
       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
         currentTag = DLBackEndClass.currentDockerImgTag;
         if ~strcmp(obj.dockerimgtag,currentTag)
@@ -478,11 +487,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   methods % Docker
 
-    function s = dockercmd(obj)
-      if isempty(obj.dockerremotehost)
-        s = 'docker';
+    function [cmd,cmdend] = dockercmd(obj)
+      apiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
+      remHost = obj.dockerremotehost;
+      if isempty(remHost),
+        cmd = sprintf('%s docker',apiVerExport);
+        cmdend = '';
       else
-        s = sprintf('ssh -t %s docker',obj.dockerremotehost);
+        cmd = sprintf('ssh -t %s "%s docker',remHost,apiVerExport);
+        cmdend = '"';        
+      end
+      if ispc
+        cmd = ['wsl ' cmd];
       end
     end
 
@@ -495,16 +511,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      if isempty(obj.dockerremotehost),
-        dockercmd = 'docker';
-        dockercmdend = '';
-        filequote = '"';
-      else
-        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
-        dockercmdend = '"';
-        filequote = '\"';
-      end    
-      
+      [dockercmd,dockercmdend] = obj.dockercmd();      
       FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
       cmd = sprintf('%s version --format ''%s''%s',dockercmd,FMTSPEC,dockercmdend);
       
@@ -686,13 +693,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
       
-      if isempty(obj.dockerremotehost),
-        dockercmd = 'docker';
-        dockercmdend = '';
-      else
-        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
-        dockercmdend = '"';
-      end      
+      [dockercmd,dockercmdend] = obj.dockercmd();
       cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
       fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;
