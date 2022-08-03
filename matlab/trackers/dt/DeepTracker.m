@@ -1444,6 +1444,10 @@ classdef DeepTracker < LabelTracker
       % We have (modelChainID,trainID) config file on disk. 
 
       syscmds = cell(nvw,1);
+      if backEnd.type == DLBackEnd.Docker,
+        containerNames = cell(nTrainJobs,1);
+        logcmds = cell(nTrainJobs,1);
+      end
       
       for ivw=1:nvw
         if ivw>1
@@ -1463,9 +1467,6 @@ classdef DeepTracker < LabelTracker
                 'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
           case DLBackEnd.Docker
             mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
-            containerNames = cell(nTrainJobs,1);
-            logcmds = cell(nTrainJobs,1);
-            syscmds = cell(nTrainJobs,1);
             if ivw <= nTrainJobs
               if augOnly
                 [tmpp,tmpf] = fileparts(dmc(ivw).errfileLnx);
