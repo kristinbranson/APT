@@ -34,13 +34,13 @@ classdef DLNetType < handle %dynamicprops
   end
   
   enumeration 
-    mdn ('mdn')
-    unet ('unet')
     mdn_joint_fpn ('mdn_joint_fpn')
     mmpose ('mmpose')
     deeplabcut ('deeplabcut')
     dpk ('dpk')
     openpose ('openpose')
+    mdn ('mdn')
+    unet ('unet')
     %leap ('leap')
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')
