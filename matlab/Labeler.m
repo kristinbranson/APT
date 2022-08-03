@@ -6153,6 +6153,12 @@ classdef Labeler < handle
       if ~isempty(tv)
         tv.setShowSkeleton(tf);
       end
+      dt = obj.tracker;
+      tv = dt.trkVizer;
+      if ~isempty(tv)
+        tv.setShowSkeleton(tf);
+      end
+
     end
     function setShowMaRoi(obj,tf)
       obj.showMaRoi = logical(tf);
