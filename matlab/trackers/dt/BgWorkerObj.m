@@ -33,7 +33,7 @@ classdef BgWorkerObj < handle
   
   properties
     % TODO Reconcile/cleanup
-    % For BgTrainWorkerObjs, nviews is now guaranteed to equal numel(dmcs).
+    % For BgTrainWorkerObjs
     %   In general, for training, the number of actual views is not
     %   important to BgWorkers; the concept of "views" can be replaced by 
     %   "stages" with no changes in code.
@@ -44,7 +44,6 @@ classdef BgWorkerObj < handle
     %
     % Actually, .dmcs are not used in BgTrackWorkerObj classes, so just
     % move .dmcs.
-    nviews
     
     % This belongs in a BgTrainWorkerObj subclass as it isn't used by
     % BgTrackWorkerObjs.
@@ -62,16 +61,18 @@ classdef BgWorkerObj < handle
   
   methods
     
-    function obj = BgWorkerObj(nviews,dmcs,varargin)
+    function obj = BgWorkerObj(dmcs,varargin)
       if nargin == 0,
         return;
       end
-      obj.nviews = nviews;
-      assert(numel(dmcs)==nviews);
       obj.dmcs = dmcs;
       obj.reset();
     end
     
+    function v = n(obj)
+      v = obj.dmcs.n;
+    end
+
     function logFiles = getLogFiles(obj)
       fprintf('Using BgWorkerObj.getLogFiles ... maybe shouldn''t happen.\n');
       logFiles = {};
@@ -128,14 +129,11 @@ classdef BgWorkerObj < handle
       else
         lscmd = 'ls -al';
       end
-      ds = {obj.dmcs.dirProjLnx}';
-      ds = unique(ds);
-      for i=1:numel(ds)
-        cmd = sprintf('%s "%s"',lscmd,ds{i});
-        fprintf('### %s\n',ds{i});
-        system(cmd);
-        fprintf('\n');
-      end
+      dpl = obj.dmcs.dirProjLnx; % should only be one
+      cmd = sprintf('%s "%s"',lscmd,dpl);
+      fprintf('### %s\n',dpl);
+      system(cmd);
+      fprintf('\n');
     end
     
     function dispModelChainDir(obj)
@@ -144,20 +142,23 @@ classdef BgWorkerObj < handle
       else
         lscmd = 'ls -al';
       end
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('%s "%s"',lscmd,dmc.dirModelChainLnx);
-        fprintf('### View %d: %s\n',ivw,dmc.dirModelChainLnx);
+      for i=1:obj.n,
+        dmcl = dmc.dirModelChainLnx(i);
+        dmcl = dmcl{1};
+        [ijob,ivw,istage] = obj.dmc.ind2sub(i);
+        cmd = sprintf('%s "%s"',lscmd,dmcl);
+        fprintf('### Model %d, job %d, view %d, stage %d: %s\n',ivw,ijob,ivw,istage,dmcl);
         system(cmd);
         fprintf('\n');
       end
     end
     
     function dispTrkOutDir(obj)
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al "%s"',dmc.dirTrkOutLnx);
-        fprintf('### View %d: %s\n',ivw,dmc.dirTrkOutLnx);
+      dtol = obj.dmcs.dirTrkOutLnx;
+      for i = 1:obj.n,
+        [ijob,ivw,istage] = obj.dmc.ind2sub(i);
+        cmd = sprintf('ls -al "%s"',dtol);
+        fprintf('### Model %d, job %d, view %d, stage %d: %s\n',i,ijob,ivw,istage,dtol{i});
         system(cmd);
         fprintf('\n');
       end

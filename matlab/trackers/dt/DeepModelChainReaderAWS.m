@@ -33,16 +33,18 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
       tf = true;
     end
     
-    function maxiter = getMostRecentModel(obj,dmc)
+    function [maxiter,idx] = getMostRecentModel(obj,dmc,varargin)
       % maxiter is nan if something bad happened or if DNE
       
+      % TODO allow polling for multiple models at once
       aws = obj.awsec2;
-      fspollargs = {'mostrecentmodel' dmc.dirModelChainLnx};
+      [dirModelChainLnx,idx] = dmc.dirModelChainLnx(varargin{:});
+      fspollargs = {'mostrecentmodel' dirModelChainLnx};
       [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
       if tfsucc
         maxiter = str2double(res{1}); % includes 'DNE'->nan
       else
-        maxiter = nan;
+        maxiter = nan(1,numel(idx));
       end
     end
     

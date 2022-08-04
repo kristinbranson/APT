@@ -125,7 +125,7 @@ classdef DeepTracker < LabelTracker
     % that point onwards. Conceptually a user could switch backends to
     % local and that would allow the movie to "move back down" but we're
     % not going to worry about that for now.
-    trnLastDMC % [nview] Last DeepModelChainOnDisk(s), set during training
+    trnLastDMC % Last DeepModelChainOnDisk, set during training
     trnTblP % transient, unmanaged. Training rows for last retrain
     
     trnSplitLastDMC % [nsplit] Last DMCs, one per split; transient/unmanaged
@@ -250,7 +250,7 @@ classdef DeepTracker < LabelTracker
       if isempty(dmc)
         v = '';
       else
-        v = {dmc.modelChainID};
+        v = dmc.getModelChainID();
         assert(all(strcmp(v{1},v)));
         v = v{1};
       end
@@ -260,7 +260,7 @@ classdef DeepTracker < LabelTracker
       if isempty(dmc)
         v = '';
       else
-        v = {dmc.trainID};
+        v = dmc.getTrainID();
         assert(all(strcmp(v{1},v)));
         v = v{1};
       end
@@ -425,10 +425,10 @@ classdef DeepTracker < LabelTracker
     % AL 20190415. Note on DeepTrack.Saving.CacheDir
     % Currently nothing never refers to
     % DeepTrackerObj.sPrmAll.Saving.CacheDir. Instead, only lObj.DLCacheDir
-    % and DeepTrackerObj.trnLastDMC(iview).rootDir are used. 
+    % and DeepTrackerObj.trnLastDMC.rootDir are used. 
     %
     % - (re)train time: DeepTrackerObj uses lObj.DLCacheDir and sets 
-    % .trnLastDMC(:).rootDir to this location.
+    % .trnLastDMC.rootDir to this location.
     % - track time: currently we assert that lObj.DLCacheDir matches the
     % .rootDir of any local DMCs to be used
     
@@ -541,19 +541,17 @@ classdef DeepTracker < LabelTracker
     end
     function updateDLCache(obj,dlcachedir)
       dmc = obj.trnLastDMC;
-      for ivw = 1:numel(dmc)
-        if ~dmc(ivw).isRemote
-          dmc(ivw).rootDir = dlcachedir;
-        else
-          warningNoTrace('Unexpected remote DMC detected for net %s, view %d.',...
-            tObj.trnNetType.prettyStr,ivw);
-          % At save-time we should be updating DMCs to local
-          
-          % Don't update dmc(ivw).rootDir in this case
-          
-          % Nonfatal dont return
-        end
-      end
+      if ~dmc.isRemote
+        dmc.setRootDir(dlcachedir);
+      else
+        warningNoTrace('Unexpected remote DMC detected for net %s.',...
+          tObj.trnNetType.prettyStr);
+      end        
+      % At save-time we should be updating DMCs to local
+
+      % Don't update dmc(ivw).rootDir in this case
+
+      % Nonfatal dont return
     end
   end
   methods (Static)
@@ -604,8 +602,7 @@ classdef DeepTracker < LabelTracker
       end
       % Add .reader to any .trnLastDMCs; assume local filesys
       if isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC) && ~isfield(s.trnLastDMC,'reader')
-        rdrObj = DeepModelChainReaderLocal();
-        [s.trnLastDMC.reader] = deal(rdrObj);
+        s.trnLastDMC.reader = DeepModelChainReaderLocal();
       end
       
       % 20190415
@@ -617,10 +614,9 @@ classdef DeepTracker < LabelTracker
       
       % 20190520: filesep needed for local windows
       if isfield(s,'trnLastDMC'),
-        for i = 1:numel(s.trnLastDMC),
-          if ~isempty(s.trnLastDMC(i)) && isempty(s.trnLastDMC(i).filesep),
-            s.trnLastDMC.filesep = '/';
-          end
+        % I don't see how this could happen -- filesep is by default '/'
+        if ~isempty(s.trnLastDMC),
+          s.trnLastDMC.checkFileSep();
         end
       end
       
@@ -668,7 +664,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart(obj,backEnd,dmcs,varargin)
+    function bgTrnStart(obj,backEnd,dmc,varargin)
       % fresh start new training monitor 
             
       [trnStartCbk,trnCompleteCbk,trainSplits,trnVizArgs] = myparse(varargin,...
@@ -688,24 +684,19 @@ classdef DeepTracker < LabelTracker
       else
         trnStartCbk = @(s,e)obj.notify('trainStart');
       end
+      nmodels = dmc.n;
       if ~isempty(trnCompleteCbk)
-        nvw = obj.lObj.nview;
       elseif trainSplits
         % unchecked codepath 20210806
-        nvw = numel(dmcs);
         assert(backEnd.type==DLBackEnd.Bsub);
         trnCompleteCbk = @(s,e) obj.xvStoppedCbk(s,e);
       else
-        nvw = obj.lObj.nview;
         trnCompleteCbk = @(s,e) obj.trainStoppedCbk(s,e);
       end
-      ndmcs = numel(dmcs);
-      if ndmcs~=nvw
-        netmode = obj.trnNetMode;
-        tf2stg = netmode.isTwoStage;
+      netmode = obj.trnNetMode;
+      tf2stg = netmode.isTwoStage;
+      if dmc.nstages > 1,
         assert(tf2stg);        
-%         warningNoTrace('BG Monitor: Number of DMCs (%d) does not match number of views (%d).',...
-%           ndmcs,nvw);
       end
       
       trnMonObj = BgTrainMonitor;
@@ -717,21 +708,21 @@ classdef DeepTracker < LabelTracker
       switch backEnd.type
         case DLBackEnd.Bsub
           if trainSplits
-            trnWrkObj = BgTrainSplitWorkerObjBsub(ndmcs,dmcs);            
+            trnWrkObj = BgTrainSplitWorkerObjBsub(dmc);            
           else
-            trnWrkObj = BgTrainWorkerObjBsub(ndmcs,dmcs);
+            trnWrkObj = BgTrainWorkerObjBsub(dmc);
           end
         case DLBackEnd.Conda
-          trnWrkObj = BgTrainWorkerObjConda(ndmcs,dmcs);
+          trnWrkObj = BgTrainWorkerObjConda(dmc);
         case DLBackEnd.Docker
-          trnWrkObj = BgTrainWorkerObjDocker(ndmcs,dmcs,backEnd);
+          trnWrkObj = BgTrainWorkerObjDocker(dmc,backEnd);
         case DLBackEnd.AWS
-          trnWrkObj = BgTrainWorkerObjAWS(ndmcs,dmcs,backEnd.awsec2);
+          trnWrkObj = BgTrainWorkerObjAWS(dmc,backEnd.awsec2);
         otherwise
           assert(false);
       end
 
-      trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,obj,trnWrkObj,...
+      trnVizObj = feval(obj.bgTrnMonitorVizClass,nmodels,obj,trnWrkObj,...
         backEnd.type,'trainSplits',trainSplits,trnVizArgs{:});
                 
       trnMonObj.prepare(trnVizObj,trnWrkObj);

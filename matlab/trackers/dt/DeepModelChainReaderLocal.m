@@ -3,20 +3,21 @@ classdef DeepModelChainReaderLocal < DeepModelChainReader
     function  tf = getModelIsRemote(obj)
       tf = false;
     end
-    function maxiter = getMostRecentModel(obj,dmc)
-      maxiter = nan;
-      
-      modelglob = dmc.trainModelGlob;
-      modelfiles = mydir(fullfile(dmc.dirModelChainLnx,modelglob));
-      if isempty(modelfiles),
-        return;
-      end
-      
-      maxiter = -1;
-      for i = 1:numel(modelfiles),
-        iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
-        if iter > maxiter,
-          maxiter = iter;
+    function [maxiter,idx] = getMostRecentModel(obj,dmc,varargin)
+      [modelglob,idx] = dmc.trainModelGlob(varargin{:});
+      [dirModelChainLnx] = dmc.dirModelChainLnx(idx);
+
+      maxiter = nan(1,numel(idx));
+      for i = 1:numel(idx),
+        modelfiles= mydir(fullfile(dirModelChainLnx{i},modelglob{i}));
+        if isempty(modelfiles),
+          continue;
+        end
+        for j = 1:numel(modelfiles),
+          iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{j});
+          if ~isempty(iter),
+            maxiter(i) = max(maxiter(i),iter);
+          end
         end
       end
     end
