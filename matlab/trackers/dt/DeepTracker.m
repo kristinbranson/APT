@@ -23,10 +23,10 @@ classdef DeepTracker < LabelTracker
   end
   properties (Constant)
     singularity_image = '/groups/branson/bransonlab/apt/sif/apt20201027.sif';
-    jrcgpuqueue_default = 'gpu_tesla';
+    default_jrcgpuqueue = 'gpu_tesla';
   end
   properties
-    jrcgpuqueue = DeepTracker.jrcgpuqueue_default;
+    jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
     jrcnslots = 1;
     jrcnslotstrack = 1; % transient
   end
@@ -528,6 +528,14 @@ classdef DeepTracker < LabelTracker
           end
         end
       end
+
+      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_rtx')
+        s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
+        warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
+          s.jrcgpuqueue);
+      end
+
+
     end
   end
   
@@ -4144,7 +4152,7 @@ classdef DeepTracker < LabelTracker
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
-        'gpuqueue',DeepTracker.jrcgpuqueue_default,...
+        'gpuqueue',DeepTracker.default_jrcgpuqueue,...
         'outfile','/dev/null');
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      
