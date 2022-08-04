@@ -19,11 +19,14 @@ classdef DeepTracker < LabelTracker
       '%s/pretrained/resnet_v1_50.ckpt'... 
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
-    
     MDN_OCCLUDED_THRESH = 0.5;
   end
+  properties (Constant)
+    singularity_image = '/groups/branson/bransonlab/apt/sif/apt20201027.sif';
+    jrcgpuqueue_default = 'gpu_tesla';
+  end
   properties
-    jrcgpuqueue = 'gpu_any';
+    jrcgpuqueue = DeepTracker.jrcgpuqueue_default;
     jrcnslots = 1;
     jrcnslotstrack = 1; % transient
   end
@@ -4095,7 +4098,7 @@ classdef DeepTracker < LabelTracker
       dobj = DLBackEndClass(1);
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/groups/branson/bransonlab/apt/sif/prod.sif' ...
+        'singimg',DeepTracker.singularity_image ...
         );
         %'singimg',sprintf('docker://%s:%s', dobj.dockerimgroot ,dobj.dockerimgtag));
       delete(dobj);
@@ -4133,7 +4136,7 @@ classdef DeepTracker < LabelTracker
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
-        'gpuqueue','gpu_any',...
+        'gpuqueue',DeepTracker.jrcgpuqueue_default,...
         'outfile','/dev/null');
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      
