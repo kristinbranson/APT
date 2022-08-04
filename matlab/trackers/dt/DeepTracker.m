@@ -2526,16 +2526,20 @@ classdef DeepTracker < LabelTracker
           end
 
         case DLBackEnd.AWS
-          % TODO: AWS gpu provisioning
-          %args = {'isMultiView',isMultiViewTrack,'isSerialMultiMov',true};
           if isexternal,
             args = {};
             if obj.lObj.hasTrx,
               args = [args,{'trxfiles',trxfiles,'targets',targets}];
             end
+            GPU_ID_DUMMY = 1; % one gpu in EC2 currently
+            [~,isMultiViewTrack,isSerialMultiMovTrack] = ...
+              DeepTracker.trackGPUAllocate(nmovies,nviews,GPU_ID_DUMMY);
+            args = {'isMultiView',isMultiViewTrack,...
+              'isSerialMultiMov',isSerialMultiMovTrack};
             tfSuccess = obj.trkSpawn(backend,[],[],dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,...
-              'calibrationfiles',calibrationfiles,args{:});
+              'calibrationfiles',calibrationfiles,...
+              args{:});
           else
             obj.trkSpawn(backend,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1,'isMultiView',true);
@@ -3142,7 +3146,7 @@ classdef DeepTracker < LabelTracker
         );
       
       isexternal = ~isempty(movs);
-
+      
       tftrx = obj.lObj.hasTrx;
       
       if isexternal,
@@ -3227,6 +3231,10 @@ classdef DeepTracker < LabelTracker
             trxfiles_curr = trxfiles(:,ivw);
           else
             trxfiles_curr = {};
+          end
+          if isempty(frm0) && isempty(frm1),
+            frm0 = 1;
+            frm1 = inf;
           end
           trkfiles_curr = trkfiles(:,ivw);
           trksysinfo(ivwjob) = TrackJob(obj,backend,...
@@ -4136,7 +4144,11 @@ classdef DeepTracker < LabelTracker
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
+<<<<<<< HEAD
         'gpuqueue',DeepTracker.jrcgpuqueue_default,...
+=======
+        'gpuqueue','gpu_rtx',...
+>>>>>>> 5c8099c4dd7fc9db4c7d3525a3ae3bdefeca317e
         'outfile','/dev/null');
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
         nslots,gpuqueue,outfile,basecmd);      

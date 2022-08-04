@@ -1,5 +1,5 @@
 function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,...
-  quaternion,EulerAnglesDeg_XYZ,pivot,refHead] = ...
+  quaternion,EulerAnglesDeg_XYZ,pivot,refHead,threeD_pos] = ...
     APT2RT_al(APTfilename,flynum2bodyLUT,flynum2calibLUT,...
     predictions1orLabels0,pivot,refHead,varargin)
   
@@ -500,7 +500,7 @@ if isempty(refHead)
             en_c = en + fakeStimShiftFrames;
             for t = st_c:en_c
 
-                if ~isnan(threeD_pos{trial}{point}(t,1))
+                if ~isnan(threeD_pos{trial}{1}(t,1))
                     counter = counter+1;
                     for point = 1:size(threeD_pos{trial},2)
                         allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3) ;

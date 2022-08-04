@@ -1,0 +1,31 @@
+---
+NumCameras: 2
+CameraNames: [front,side]
+
+# Cameras enumerated below
+# - RadialDistortions could accept variable number of elements with 0.0 as default
+# - TangentialDistortions or other distortion coeffs can be added in future
+# - Rotation (R), Translation (t) defined so that
+#
+#     [x;y;z] = R*[p;q;r] + t,
+#
+#       where (x,y,z) and (p,q,r) are in the camera/"world" coord system respectively	
+
+front: 
+  ImageSize: [480, 640] # nr, nc
+  FocalLengths: [534.3144425005255, 534.3110452510584] # fx, fy
+  PrincipalPoint: [342.6367137117883, 234.4245207961644] # px, py (1-based or 0-based?)
+  Skew: 0
+  RadialDistortions: [-0.292177185491196, 0.113413077396075, 0.00001]
+  Rotation: [0,0,0]
+  Translation: [0,0,0]
+
+side:
+  ImageSize: [480, 640]
+  FocalLengths: [537.3940049616827, 537.0103632874804]
+  PrincipalPoint: [326.6194337628963, 250.5805438225938]
+  Skew: 0
+  RadialDistortions: [-0.289290173351601, 0.103918371734971, 0.000012]
+  Rotation: [0.009644136095192, 0.005730219518603, -0.003262250274025]
+  Translation: [-83.097330764462370, 1.060517724639445, 0.039181607862498]
+
