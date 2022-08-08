@@ -142,13 +142,14 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
     end
     
     function trnImgIfo = loadTrainingImages(obj)
-      dm = obj.dmcs;
-      trnImgIfo = cell(size(dm));
-      for i=1:numel(dm)
-        f = dm(i).trainImagesNameLnx;
+      trnImgIfo = cell(1,obj.dmcs.n);
+      for i=1:obj.dmcs.n,
+        f = obj.dmcs.trainImagesNameLnx(i);
+        f = f{1};
         if exist(f,'file')>0
           trnImgIfo{i} = load(f,'-mat');
-          trnImgIfo{i}.name = dm(i).getNetDescriptor();
+          trnImgIfo{i}.name = obj.dmcs.getNetDescriptor(i);
+          trnImgIfo{i}.name = trnImgIfo{i}.name{1};
         else
           warningNoTrace('Training image file ''%s'' does not exist yet.',f);
         end

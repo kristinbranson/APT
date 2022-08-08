@@ -122,33 +122,30 @@ classdef BgWorkerObj < handle
         tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
       end
     end
-    
-    function dispProjDir(obj)
+
+    function lsdir(obj,dir) %#ok<INUSL> 
       if ispc 
         lscmd = 'dir';
       else
         lscmd = 'ls -al';
       end
-      dpl = obj.dmcs.dirProjLnx; % should only be one
-      cmd = sprintf('%s "%s"',lscmd,dpl);
-      fprintf('### %s\n',dpl);
+      cmd = sprintf('%s "%s"',lscmd,dir);
       system(cmd);
+    end
+    
+    function dispProjDir(obj)
+      fprintf('### %s\n',dpl);
+      obj.lsdir(dpl);
       fprintf('\n');
     end
     
     function dispModelChainDir(obj)
-      if ispc 
-        lscmd = 'dir';
-      else
-        lscmd = 'ls -al';
-      end
       for i=1:obj.n,
         dmcl = dmc.dirModelChainLnx(i);
         dmcl = dmcl{1};
         [ijob,ivw,istage] = obj.dmc.ind2sub(i);
-        cmd = sprintf('%s "%s"',lscmd,dmcl);
         fprintf('### Model %d, job %d, view %d, stage %d: %s\n',ivw,ijob,ivw,istage,dmcl);
-        system(cmd);
+        obj.lsdir(dmcl);
         fprintf('\n');
       end
     end

@@ -22,12 +22,8 @@ classdef BgTrainWorkerObj < BgWorkerObj
       % complete
       f = obj.dmcs.trainFinalModelLnx()';
     end
-    
-    function sRes = compute(obj) % obj const except for .trnLogLastStep
-      % sRes: [nviewx1] struct array.
-            
-      % - Read the json for every view and see if it has been updated.
-      % - Check for completion 
+
+    function sRes = initComputeResults(obj)
       nmodels = obj.dmcs.n;
       %trainCompleteFiles = obj.getTrainCompleteArtifacts();
       sRes = struct(...
@@ -40,15 +36,56 @@ classdef BgTrainWorkerObj < BgWorkerObj
         'tfUpdate',false(1,nmodels),... % (only if jsonPresent==true) array, true if the current read represents an updated training iter.
         'contents',cell(1,nmodels),... % (only if jsonPresent==true) array, if tfupdate is true, this can contain all json contents.
         'trainCompletePath',obj.dmcs.trainCompleteArtifacts(),... % cell of cell of char, full paths to artifact indicating train complete
+        'trainFinalModel',obj.dmcs.trainFinalModelLnx(),...
         'tfComplete',false(1,nmodels),... % array, true if trainCompletePath exists
         'errFile',obj.dmcs.errfileLnx,... % cell of char, full path to DL err file, should be only one
         'errFileExists',false(1,nmodels),... % array, true of errFile exists and has size>0
         'logFile',obj.dmcs.trainLogLnx,... % cell of char, full path to Bsub logfile
-        'logFileExists',false(1,nmodels),... % array logical 
+        'logFileExists',false(1,nmodels),... % array logical
         'logFileErrLikely',false(1,nmodels),... % array, true if Bsub logfile suggests error
         'killFile',obj.getKillFiles(),... % char, full path to KILL tokfile
         'killFileExists',false(1,nmodels)... % scalar, true if KILL tokfile found
         );
+    end
+
+    function sRes = readTrainLoss(obj,sRes,imodel,jsoncurr)
+      try
+        trnLog = jsondecode(jsoncurr);
+      catch ME
+        warning('Failed to read json file for training model %d progress update:\n%s',imodel,getReport(ME));
+        if numel(obj.trnLogPrev) >= imodel && ~isempty(obj.trnLogPrev{imodel}),
+          trnLog = obj.trnLogPrev{imodel};
+        else
+          sRes.jsonPresent(imodel) = false;
+          return;
+        end
+      end
+      newStep = trnLog.step(end);
+      if numel(obj.trnLogLastStep) >= imodel,
+        lastKnownStep = obj.trnLogLastStep(imodel);
+      else
+        lastKnownStep = -1;
+      end
+      tfupdate = newStep>lastKnownStep;
+      sRes.tfUpdate(imodel) = tfupdate;
+      if tfupdate
+        sRes.lastTrnIter(imodel) = newStep;
+        obj.trnLogLastStep(imodel) = newStep;
+      else
+        sRes.lastTrnIter(imodel) = lastKnownStep;
+      end
+      sRes.contents{imodel} = trnLog;
+
+    end
+    
+    function sRes = compute(obj) % obj const except for .trnLogLastStep
+      % sRes: [nviewx1] struct array.
+            
+      % - Read the json for every view and see if it has been updated.
+      % - Check for completion 
+      nmodels = obj.dmcs.n;
+      sRes = obj.initComputeResults();
+
       sRes(iijob).jsonPresent = cellfun(@obj.fileExists,sRes.jsonPath);
       for i=1:nmodels,
         sRes.tfComplete(i) = all(cellfun(@obj.fileExists,sRes.trainCompleteFiles{i}));
@@ -68,33 +105,8 @@ classdef BgTrainWorkerObj < BgWorkerObj
       % loop through all models trained in this job
       for i = 1:nmodels,
         if sRes.jsonPresent(i),
-          try
-            jsoncurr = obj.fileContents(sRes.jsonPath{i});
-            trnLog = jsondecode(jsoncurr);
-          catch ME
-            warning('Failed to read json file for training model %d progress update:\n%s',i,getReport(ME));
-            if numel(obj.trnLogPrev) >= i && ~isempty(obj.trnLogPrev{i}),
-              trnLog = obj.trnLogPrev{i};
-            else
-              sRes.jsonPresent(i) = false;
-              continue;
-            end
-          end
-          newStep = trnLog.step(end);
-          if numel(obj.trnLogLastStep) >= i,
-            lastKnownStep = obj.trnLogLastStep(i);
-          else
-            lastKnownStep = -1;
-          end
-          tfupdate = newStep>lastKnownStep;
-          sRes.tfUpdate(i) = tfupdate;
-          if tfupdate
-            sRes.lastTrnIter(i) = newStep;
-            obj.trnLogLastStep(i) = newStep;
-          else
-            sRes.lastTrnIter(i) = lastKnownStep;
-          end
-          sRes.contents{i} = trnLog;
+          [jsoncurr] = obj.fileContents(sRes.jsonPath{i});
+          sRes = obj.readTrainLoss(sRes,i,jsoncurr);
         end
       end
       sRes.pollsuccess = true;

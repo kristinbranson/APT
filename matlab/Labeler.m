@@ -2531,39 +2531,16 @@ classdef Labeler < handle
         for iTrker = 1:numel(obj.trackersAll)
           tObj = obj.trackersAll{iTrker};
           if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
-            dmc = tObj.trnLastDMC;            
-            for ivw = 1:numel(dmc)
-              dm = dmc(ivw);
-              try                
-                if dm.isRemote
-                  warningNoTrace('Net %s, view %d. Remote Model detected. This will not migrated/preserved.',dm.netType,ivw);
-                  continue;
-                end
-                
-                if ivw==1
-                  fprintf(1,'Detected model for nettype ''%s'' in %s.\n',...
-                    dm.netType,dm.rootDir);
-                end
-                
-                tfsucc = dm.updateCurrInfo();
-                if ~tfsucc
-                  warningNoTrace('Failed to update model iteration for model with net type %s.',...
-                    char(dm.netType));
-                end
-                
-                modelFiles = dm.findModelGlobsLocal();
-                assert(~strcmp(dm.rootDir,obj.projTempDir)); % Possible filesep issues
-                modelFilesDst = strrep(modelFiles,dm.rootDir,obj.projTempDir);
-                for mndx = 1:numel(modelFiles)
-                  copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-                  % for a given tracker, multiple DMCs this could re-copy
-                  % proj-level artifacts like stripped lbls
-                  fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
-                end                
-              catch ME
-                warningNoTrace('Nettype ''%s'' (view %d): error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
-                  dm.netType,ivw,ME.getReport());
+            dmc = tObj.trnLastDMC;
+            try
+              if dmc.isRemote
+                warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
+              else
+                dmc.copyModelFiles(projtempdir,true);
               end
+            catch ME
+              warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
+                tObj.trnNetType,ME.getReport());
             end
           end
         end
@@ -3030,61 +3007,32 @@ classdef Labeler < handle
       % but since there isn't much in way of relative path support in
       % matlabs tar/zip functions, we will also have to copy them first the
       % temp directory. sigh.
-      
+
       for iTrker = 1:numel(obj.trackersAll)
         tObj = obj.trackersAll{iTrker};
         if isa(tObj,'DeepTracker')
           % a lot of unnecessary moving around is to maintain the directory
           % structure - MK 20190204
-          
+
           dmc = tObj.trnGetDMCs();
-          for ndx = 1:numel(dmc)
-            dm = dmc(ndx);
-            
-            try
-              tfsucc = dm.updateCurrInfo();
-              if ~tfsucc
-                warningNoTrace('Failed to update model iteration for model with net type %s.',...
-                  char(dm.netType));
+          try
+            if dmc.isRemote
+              try
+                dm.mirrorFromRemoteAws(projtempdir);
+              catch
+                warningNoTrace('Could not check if trackers had been downloaded from AWS.');
               end
-
-              if dm.isRemote
-                try
-                  dm.mirrorFromRemoteAws(projtempdir);
-                catch
-                  warningNoTrace('Could not check if trackers had been downloaded from AWS.');
-                end
-              end
-
-              if verbose>0 && ndx==1
-                fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
-                  dm.netType,dm.rootDir);
-              end
-
-              modelFiles = dm.findModelGlobsLocal();
-              if strcmp(dm.rootDir,projtempdir) % Possible filesep issues 
-                % DMC already lives in the right place
-                if verbose>1
-                  cellfun(@(x)fprintf(1,'%s\n',x),modelFiles);
-                end
-                modelFilesDst = modelFiles;
-              else
-                % eg legacy projects (raw/unbundled)
-                modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
-                for mndx = 1:numel(modelFiles)
-                  copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-                  % for a given tracker, multiple DMCs this could re-copy
-                  % proj-level artifacts like stripped lbls
-                  if verbose>1                    
-                    fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
-                  end
-                end
-              end
-              allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
-            catch ME
-              warningNoTrace('Nettype ''%s'' (view %d): obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
-                dm.netType,ndx,ME.getReport());
             end
+
+            if verbose,
+              fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
+                tObj.trnNetType,dmc.getRootDir);
+            end
+            modelFilesDst = dmc.copyModelFiles(projtempdir,verbose);
+            allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
+          catch ME
+            warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
+              tObj.trnNetType,ndx,ME.getReport());
           end
         end
       end
@@ -3449,11 +3397,19 @@ classdef Labeler < handle
         if ~isprop(tObj,'trnLastDMC') || isempty(tObj.trnLastDMC),
           continue;
         end
-        fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
-        fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
-        if fileinfo,
-          fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx);
-          fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx);
+        for j = 1:numel(tObj.trnLastDMC.n),
+          nettype = tObj.trnLastDMC.getType(j);
+          nettype = char(nettype{1});
+          netmode = tObj.trnLastDMC.getNetMode(j);
+          netmode = char(netmode{1});
+          trainid = tObj.trnLastDMC.getTrainID(j);
+          trainid = trainid{1};
+          fprintf('Tracker %d: %s, view %d, stage %d, mode %s\n',i,nettype,tObj.trnLastDMC.getView(j),tObj.trnLastDMC.getStages(j),netmode);
+          fprintf('  Trained %s for %d iterations on %d labels\n',trainid,tObj.trnLastDMC.getIterCurr(j),tObj.trnLastDMC.getNLabels(j));
+          if fileinfo,
+            fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx(j));
+            fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx(j));
+          end
         end
       end
       
@@ -3612,17 +3568,22 @@ classdef Labeler < handle
 %           end
 %         end
 
+        % KB 20220804 refactor DMC
+        if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
+          s.trackerData{i}.trnLastDMC = DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC);
+        end
+
         if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
           if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
             assert(all(strcmp(s.trackerData{i}.trnName,...
-                              {s.trackerData{i}.trnLastDMC.modelChainID})));
+                              s.trackerData{i}.trnLastDMC.getModelChainID())));
           end
           s.trackerData{i} = rmfield(s.trackerData{i},'trnName');
         end
         if isfield(s.trackerData{i},'trnNameLbl') && ~isempty(s.trackerData{i}.trnNameLbl)
           if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
             assert(all(strcmp(s.trackerData{i}.trnNameLbl,...
-                              {s.trackerData{i}.trnLastDMC.trainID})));
+                              s.trackerData{i}.trnLastDMC.getTrainID())));
           end
           s.trackerData{i} = rmfield(s.trackerData{i},'trnNameLbl');
         end

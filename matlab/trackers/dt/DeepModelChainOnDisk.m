@@ -18,7 +18,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainLocName = 'loc.json';
     trainingImagesName = 'deepnet_training_samples.mat';
 
-    props_numeric = {'jobidx','stage','view','iterFinal','iterCurr','nLabels'};
+    props_numeric = {'jobidx','stage','view','splitIdx','iterFinal','iterCurr','nLabels'};
     props_cell = {'netType','netMode','modelChainID','trainID','restartTS','trainConfigNameOverride'};
     props_bool = {'isMultiView','isMultiStage'};
 
@@ -145,7 +145,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function [v,idx] = getSplits(obj,varargin)
       idx = obj.select(varargin{:});
-      v = obj.splitidx(idx);
+      v = obj.splitIdx(idx);
     end
     function v = get.isRemote(obj)
       v = obj.reader.getModelIsRemote();
@@ -168,7 +168,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function v = isSplit(obj,varargin)
       idx = obj.select(varargin{:});
-      v = obj.splitidx(idx) > 0;
+      v = obj.splitIdx(idx) > 0;
     end
 
     % dirProjLnx should be the same for all jobs, views, stages
@@ -188,6 +188,30 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       idx = obj.select(varargin{:});
       v = obj.view(idx);
     end
+    function [v,idx] = getNetType(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = obj.netType(idx);
+    end
+    function [v,idx] = getNetMode(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = obj.netMode(idx);
+    end
+    function [v,idx] = getIterCurr(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = obj.iterCurr(idx);
+    end
+    function [v,idx] = getIterFinal(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = obj.iterFinal(idx);
+    end
+    function [v,idx] = getNLabels(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = obj.nLabels(idx);
+    end
+    function [v,idx] = getIsMultiView(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = obj.isMultiView(idx);
+    end
     function v = getRootDir(obj)
       v = obj.rootDir;
     end
@@ -205,10 +229,15 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         obj.filesep = '/';
       end
     end
-    function v = job2views(obj,ijob)
+    function setPrevModels(obj,prev_models,varargin)
+      idx = obj.select(varargin{:});
+      assert(numel(prev_models) == numel(idx));
+      obj.prev_models(idx) = prev_models;
+    end
+    function v = job2view(obj,ijob)
       v = unique(obj.view(obj.jobidx==ijob));
     end
-    function v = job2stages(obj,ijob)
+    function v = job2stage(obj,ijob)
       v = unique(obj.stage(obj.jobidx==ijob));
     end
     function autoSetIsMultiView(obj)
@@ -653,8 +682,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           obj.(varargin{iprop}) = varargin{iprop+1};
         end
       end
-      if isempty(nmodels),
-        nmodels = max(numel(obj.view),numel(obj.jobidx),numel(obj.stage),numel(obj.splitIdx));
+
+      obj.autoFix(nmodels);
+    end
+    
+    function autoFix(obj,nmodels)
+
+      if nargin < 2 || isempty(nmodels),
+        nmodels = max([numel(obj.view),numel(obj.jobidx),numel(obj.stage),numel(obj.splitIdx)]);
       end
       if isempty(obj.view),
         obj.view = zeros(1,nmodels);
@@ -687,13 +722,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         obj.trainID = repmat({obj.trainID},[1,nmodels]);
       end
       assert(~isempty(obj.projID));
-      if ischar(obj.projID),
-        obj.projID = repmat({obj.projID},[1,nmodels]);
-      end
       assert(~isempty(obj.rootDir));
-      if ischar(obj.projID),
-        obj.rootDir = repmat({obj.rootDir},[1,nmodels]);
-      end
       assert(~isempty(obj.netType));
       if numel(obj.netType) == 1,
         obj.netType = repmat({obj.netType},[1,nmodels]);
@@ -701,14 +730,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       assert(~isempty(obj.netMode));
       if numel(obj.netMode) == 1,
         obj.netMode = repmat({obj.netMode},[1,nmodels]);
-      end
-      % not required when training
-      if ischar(obj.trkTaskKeyword),
-        obj.trkTaskKeyword = repmat({obj.trkTaskKeyword},[1,nmodels]);
-      end
-      % not required when training
-      if ischar(obj.trkTSstr),
-        obj.trkTSstr = repmat({obj.trkTSstr},[1,nmodels]);
       end
 
       for i = 1:numel(obj.netType),
@@ -742,6 +763,23 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       obj.checkFileSep();
 
     end
+
+    function tf = isPostRefactor202208(obj)
+
+      nmodels = max([numel(obj.view),numel(obj.jobidx),numel(obj.stage),numel(obj.splitIdx)]);
+
+      tf = nmodels==numel(obj.jobidx) && nmodels==numel(obj.stage) && ...
+          nmodels==numel(obj.view) && nmodels==numel(obj.splitIdx) && ...
+          nmodels==numel(obj.modelChainID) && ...
+          nmodels==numel(obj.trainID) && ...
+          nmodels==numel(obj.projID) && ...
+          nmodels==numel(obj.netType) && ...
+          nmodels==numel(obj.netMode);
+      tf = tf && isequal(numel(unique(obj.view)) > 1,obj.isMultiView);
+      tf = tf && isequal(numel(unique(obj.stage)) > 1,obj.isMultiStage);
+
+    end
+
     function obj = merge(obj,dmc)
       assert(isequaln(obj.projID,dmc.projID));
       tocheck = {'rootDir','trkTaskKeyword','trkTSstr'};
@@ -749,13 +787,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         prop = tocheck{i};
         if ~isequal(obj.(prop),dmc.(prop)),
           warning('Differing values for %s, using %s',prop,obj.(prop));
-        end
-      end
-      tocheck = {'doSplit','splitIdx'};
-      for i = 1:numel(tocheck),
-        prop = tocheck{i};
-        if ~isequaln(obj.(prop),dmc.(prop)),
-          warning('Differing values for %s, using %d',prop,obj.(prop));
         end
       end
       tocat = obj.props_numeric;
@@ -806,6 +837,23 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         dmc.(prop) = obj.(prop)(idx(idx <= ncurr));
       end
     end
+
+    function dmcs = splitByJob(obj)
+      unique_jobs = unique(obj.jobidx);
+      isfirst = true;
+      for ijob = unique_jobs(:)',
+        idx = obj.select('jobidx',ijob);
+        dmccurr = obj.selectSubset(idx);
+        if isfirst,
+          dmcs = dmccurr;
+          isfirst = false;
+        else
+          dmcs(end+1) = dmccurr;
+        end
+      end
+    end
+
+
     function [dmc1,dmc2] = split(obj,varargin)
       idx1 = obj.select(varargin{:});
       idx2 = true(1,obj.n);
@@ -830,23 +878,32 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function fileinfo = trainFileInfo(obj,varargin) 
       idx = obj.select(varargin{:});
-      if ~any(idx),
-        fileinfo = [];
-        return;
-      end
-      for ii = 1:numel(idx),
-        i = idx(ii);
-        fileinfocurr = struct(...
-          'modelchainID',obj.modelChainID{i},...
-          'trnID',obj.trainID{i},...
-          'dlconfig',obj.trainConfigLnx(i),...
-          'trainlocfile',obj.trainLocLnx(i),...
-          'cache',obj.rootDir,...
-          'errfile',obj.errfileLnx(i),...
-          'nettype',obj.netType{i},...
-          'netmode',obj.netMode{i});
-        fileinfo(ii) = fileinfocurr; %#ok<AGROW> 
-      end
+      fileinfo = struct(...
+        'modelchainID',obj.modelChainID(idx),...
+        'trnID',obj.trainID(idx),...
+        'dlconfig',obj.trainConfigLnx,...
+        'trainlocfile',obj.trainLocLnx,...
+        'cache',obj.rootDir,...
+        'errfile',obj.errfileLnx(idx),...
+        'nettype',obj.netType(idx),...
+        'netmode',obj.netMode(idx));
+    end
+    function fileinfo = trainFileInfoSingle(obj,varargin)
+      [fileinfo,idx] = trainFileInfo(varargin{:});
+      if numel(idx) == 1, return; end
+      fileinfo.modelChainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
+      fileinfo.trnID = DeepModelChainOnDisk.getCheckSingle(fileinfo.trnID);
+      fileinfo.errfileLnx = DeepModelChainOnDisk.getCheckSingle(fileinfo.errfileLnx);
+      fileinfo.netType = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
+      fileinfo = struct(...
+        'modelchainID',obj.modelChainID(idx),...
+        'trnID',obj.trainID(idx),...
+        'dlconfig',obj.trainConfigLnx,...
+        'trainlocfile',obj.trainLocLnx,...
+        'cache',obj.rootDir,...
+        'errfile',obj.errfileLnx(idx),...
+        'nettype',obj.netType(idx),...
+        'netmode',obj.netMode(idx));
     end
 %     % OBSOLETE
 %     function printall(obj)
@@ -922,6 +979,34 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
       end      
     end
+    function modelFilesDst = copyModelFiles(obj,newRootDir,debug)
+      if nargin < 3,
+        debug = false;
+      end
+      % nothing to do
+      if isequal(obj.getRootDir(),newRootDir), 
+        return;
+      end
+      if obj.isRemote
+        warningNoTrace('Remote model detected. This will not be migrated.');
+        return;
+      end
+      tfsucc = obj.updateCurrInfo();
+      if ~all(tfsucc),
+        warningNoTrace('Failed to update model iteration count for for net type %s.',...
+          char(obj.trnNetType));
+      end
+      modelFiles = obj.findModelGlobsLocal();
+      modelFiles = cat(1,modelFiles{:});
+      modelFiles = unique(modelFiles);
+      modelFilesDst = strrep(modelFiles,obj.getRootDir(),newRootDir);
+      for mndx = 1:numel(modelFiles)
+        copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+        if debug,
+          fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+        end
+      end
+    end
     
     function tfSuccess = updateCurrInfo(obj)
       % Update .iterCurr by probing filesys
@@ -938,7 +1023,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
     
-    % read nLabels from the stripped lbl file
+    % read nLabels from config file
     function readNLabels(obj)
       if strcmp(obj.configFileExt,'.json'),
         trainLocLnx = obj.trainLocLnx();
@@ -948,7 +1033,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           assert(exist(un{i},'file') > 0);
           nLabels1(idx==i) = TrnPack.readNLabels(un{i});
         end
-        obj.nLabels = nLabels1;
+        obj.setNLabels(nLabels1);
       else
         lblStrippedLnx = obj.lblStrippedLnx();
         [un,~,idx] = unique(lblStrippedLnx);
@@ -958,13 +1043,29 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
           nLabels1(idx==i) = size(s.preProcData_MD_frm,1);
         end
-        obj.nLabels = nLabels1;
+        obj.setNLabels(nLabels1);
       end
     end
-    
+
+    function setNLabels(obj,nLabels,varargin)
+      idx = obj.select(varargin{:});
+      obj.nLabels(idx) = nLabels;
+    end
+
+     function setRestartTS(obj,restartTS)
+      if ischar(restartTS),
+        obj.restartTS = repmat({restartTS},[1,obj.n]);
+      elseif numel(restartTS) == 1,
+        obj.restartTS = repmat(restartTS,[1,obj.n]);
+      else
+        assert(numel(restartTS)==obj.n);
+        obj.restartTS = restartTS;
+      end
+    end
+
     % whether training has actually started
     function tf = isPartiallyTrained(obj)      
-      tf = ~isempty(obj.iterCurr);      
+      tf = ~isempty(obj.iterCurr) & ~isnan(obj.iterCurr);
     end
     
     function mirror2remoteAws(obj,aws)
@@ -1092,7 +1193,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       tpdir = obj.dirProjLnx;
       tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
     end
-       
+
   end
   
   
@@ -1132,6 +1233,145 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         idx = idx & splitidx1 == info.splitIdx;
       end
       idx = find(idx);
+    end
+
+    function obj = modernize(dmcs)
+
+      if isempty(dmcs)
+        obj = dmcs;
+        return;
+      end
+
+      % is this post-refactor from 202208?
+      isrefactored = numel(dmcs) == 1 && dmcs.isPostRefactor202208();
+
+      if ~isrefactored,
+        % is this multi-view, multi-stage?
+        view = [dmcs.view];
+        isMultiView = numel(unique(view)) > 1;
+        isMultiStage = numel(dmcs) > numel(unique(view));
+        % can't be both
+        assert(~(isMultiView&&isMultiStage));
+        if isMultiView,
+          nmodels = numel(view);
+          stage = ones(1,nmodels);
+        else
+          nmodels = numel(dmcs);
+          stage = 1:nmodels;
+        end
+        jobidx = zeros(1,nmodels);
+        splitIdx = zeros(1,nmodels);
+        modelChainID = cell(1,nmodels);
+        trainID = cell(1,nmodels);
+        restartTS = repmat({''},[1,nmodels]);
+        trainType = cell(1,nmodels);
+        netType = cell(1,nmodels);
+        netMode = cell(1,nmodels);
+        trainConfigNameOverride = cell(1,nmodels);
+        iterCurr = nan(1,nmodels);
+        iterFinal = nan(1,nmodels);
+        nLabels = nan(1,nmodels);
+        prev_models = dmcs(1).prev_models;
+
+        j = 0;
+        for i = 1:numel(dmcs),
+          ncurr = numel(dmcs(i).view);
+          jobidx(j+1:j+ncurr) = i;
+          if ~isnan(dmcs(i).splitIdx),
+            splitIdx(j+1:j+ncurr) = dmcs(i).splitIdx;
+          end
+          modelChainID(j+1:j+ncurr) = repmat({dmcs(i).modelChainID},[1,ncurr]);
+          trainID(j+1:j+ncurr) = repmat({dmcs(i).trainID},[1,ncurr]);
+          trainType(j+1:j+ncurr) = repmat({dmcs(i).trainType},[1,ncurr]);
+          netType(j+1:j+ncurr) = repmat({dmcs(i).netType},[1,ncurr]);
+          netMode(j+1:j+ncurr) = repmat({dmcs(i).netMode},[1,ncurr]);
+          if ~isempty(dmcs(i).restartTS),
+            restartTS(j+1:j+ncurr) = repmat({dmcs.(i).restartTS},[1,ncurr]);
+          end
+          if ~isempty(dmcs(i).trainConfigNameOverride),
+            trainConfigNameOverride(j+1:j+ncurr) = repmat({dmcs.(i).trainConfigNameOverride},[1,ncurr]);
+          end
+          if ~isempty(dmcs(i).iterCurr),
+            iterCurr(j+1:j+ncurr) = dmcs(i).iterCurr;
+          end
+          if ~isempty(dmcs(i).iterFinal),
+            iterFinal(j+1:j+ncurr) = dmcs(i).iterFinal;
+          end
+          if ~isempty(dmcs(i).nLabels),
+            nLabels(j+1:j+ncurr) = dmcs(i).nLabels;
+          end
+          if ~isempty(dmcs(i).prev_models),
+            prev_models(j+1:j+ncurr) = dmcs(i).prev_models;
+          end
+          j = j + numel(dmcs(i).view);
+        end
+        obj = DeepModelChainOnDisk(...
+          'view',view,...
+          'stage',stage,...
+          'jobidx',jobidx,...
+          'splitIdx',splitIdx,...
+          'modelChainID',modelChainID,...
+          'trainID',trainID,...
+          'rootDir',dmcs(1).rootDir,...
+          'projID',dmcs(1).projID,...
+          'netType',netType,...
+          'netMode',netMode,...
+          'restartTS',restartTS,...
+          'trainType',trainType,...
+          'trainConfigNameOverride',trainConfigNameOverride,...
+          'iterFinal',iterFinal,...
+          'iterCurr',iterCurr,...
+          'nLabels',nLabels,...
+          'prev_models',prev_models,...
+          'filesep',dmcs(1).filesep,...
+          'trkTaskKeyword',dmcs(1).trkTaskKeyword,...
+          'trkTSstr',dmcs(1).trkTSstr...
+          );
+      else
+        assert(numel(dmcs)==1);
+        obj = dmcs;
+      end
+    end
+    function info = TrackerInfo(dmc)
+      if isempty(dmc),
+        info.nmodels = 0;
+        info.isTrainStarted = false;
+        info.isTrainRestarted = false;
+        info.trainStartTS = [];
+        info.iterCurr = 0;
+        info.iterFinal = nan;
+        info.nLabels = 0;
+      else
+        info.nmodels = dmc.n;
+        info.isTrainStarted = true;
+        info.isTrainRestarted = strcmp(dmc.trainType,'Restart');
+        info.trainStartTS = datenum(dmc.modelChainID,'yyyymmddTHHMMSS');
+        assert(all(~isnan(info.trainStartTS)));
+        info.iterCurr = dmc.iterCurr;
+        if isempty(dmc.iterCurr),
+          info.iterCurr = zeros(1,dmc.n);
+        else
+          info.iterCurr = dmc.iterCurr;
+        end
+        if isempty(dmc.iterFinal),
+          info.iterFinal = zeros(1,dmc.n);
+        else
+          info.iterFinal = dmc.iterFinal;
+        end
+        if isempty(dmc.nLabels),
+          info.nLabels = nan(1,dmc.n);
+        else
+          info.nLabels = dmc.nLabels;
+        end
+      end
+
+    end
+
+    function s = getCheckSingle(s)
+      if ~ischar(s) && numel(s) > 1,
+        assert(numel(unique(s))==1);
+        s = s{1};
+      end
     end
 
   end

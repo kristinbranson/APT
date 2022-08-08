@@ -245,6 +245,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           s = char(obj.type);
       end
     end
+
+    function v = isLocal(obj)
+      v = isequal(obj.type,DLBackEnd.Docker) || isequal(obj.type,DLBackEnd.Conda);
+    end
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
       % Get free gpus subject to minFreeMem constraint (see optional PVs)
@@ -994,10 +998,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       obj.awsUpdateRepo();
       aws = obj.awsec2;
-      for i=1:numel(dmc)
-        if ~dmc(i).isRemote
-          dmc(i).mirror2remoteAws(aws);
-        end
+      if ~isempty(dmc) && dmc.isRemote,
+        dmc.mirror2remoteAws(aws);
       end
       
       setstatusfn('Tracking...');      
