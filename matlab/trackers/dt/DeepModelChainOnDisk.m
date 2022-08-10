@@ -763,9 +763,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       if isempty(obj.trainConfigNameOverride),
         obj.trainConfigNameOverride = repmat({''},[1,nmodels]);
       else
-        obj.trainConfigNameOverride = DeepModelChainOnDisk.toCellArray(obj.trainConfigNameOverride,nmodels);
+        obj.trainConfigNameOverride = DeepModelChainOnDisk.toCellArray(obj.trainConfigNameOverride,nmodels,true);
       end
-
+      if isempty(obj.prev_models),
+        obj.prev_models = repmat({''},[1,nmodels]);
+      else
+        obj.prev_models = DeepModelChainOnDisk.toCellArray(obj.prev_models,nmodels,true);
+      end
       
       for i = 1:numel(obj.netType),
         if ischar(obj.netType{i}),

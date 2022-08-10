@@ -250,9 +250,7 @@ classdef DeepTracker < LabelTracker
       if isempty(dmc)
         v = '';
       else
-        v = dmc.getModelChainID();
-        assert(all(strcmp(v{1},v)));
-        v = v{1};
+        v = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       end
     end
     function v = get.trnNameLbl(obj)
@@ -260,9 +258,7 @@ classdef DeepTracker < LabelTracker
       if isempty(dmc)
         v = '';
       else
-        v = dmc.getTrainID();
-        assert(all(strcmp(v{1},v)));
-        v = v{1};
+        v = DeepModelChainOnDisk.getCheckSingle(dmc.getTrainID());
       end
     end
     function v = get.filesep(obj)
@@ -1476,8 +1472,7 @@ classdef DeepTracker < LabelTracker
               DeepTracker.trainCodeGenDockerDMC(dmcjob,backEnd,mntPaths,gpuid,...
               'isMultiView',dmcjob.getIsMultiView(1),'trnCmdType',trnCmdType,...
               'augOnly',augOnly,'augOut',augOut);
-            logfile = dmcjob.trainLogLnx(1);
-            logfile = logfile{1};
+            logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
             logcmds{ijob} = sprintf('%s logs -f %s &> "%s" &',...
               backEnd.dockercmd,containerNames{ijob},logfile);
           case DLBackEnd.Conda
@@ -1552,7 +1547,7 @@ classdef DeepTracker < LabelTracker
             syscmdrun = syscmds{ijob};
             fprintf(1,'%s\n',syscmdrun);
             
-            cmdfile = dmc(ijob).cmdfileLnx;
+            cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.cmdfileLnx);
             %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
             [fh,msg] = fopen(cmdfile,'w');
             if isequal(fh,-1)
@@ -2919,9 +2914,7 @@ classdef DeepTracker < LabelTracker
       
       dmcLcl = dmc.copy();
       dmcLcl.setRootDir(obj.lObj.DLCacheDir);
-      dlConfigLcl = unique(dmcLcl.trainConfigLnx);
-      assert(isscalar(dlConfigLcl));
-      dlConfigLcl = dlConfigLcl{1};
+      dlConfigLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.trainConfigLnx);
       assert(exist(dlConfigLcl,'file')>0);
       
       switch backend.type
@@ -3144,9 +3137,7 @@ classdef DeepTracker < LabelTracker
       lclCacheDir = obj.lObj.DLCacheDir;
       dmcLcl = dmc.copy();
       [dmcLcl.rootDir] = deal(lclCacheDir);
-      dlLblFileLcl = unique({dmcLcl.lblStrippedLnx});
-      assert(isscalar(dlLblFileLcl));
-      dlLblFileLcl = dlLblFileLcl{1};
+      dlLblFileLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.lblStrippedLnx);
       assert(exist(dlLblFileLcl,'file')>0,...
         'Can''t find config file: %s\n',dlLblFileLcl);
       
@@ -3608,9 +3599,7 @@ classdef DeepTracker < LabelTracker
       % shouldn't be necessary, given previous line checking that these
       % things are the same??
       %dmcLcl.setRootDir(cacheDir);
-      dlConfigLcl = unique(dmcLcl.trainConfigLnx);
-      assert(isscalar(dlConfigLcl));
-      dlConfigLcl = dlConfigLcl{1};
+      dlConfigLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.trainConfigLnx);
       if exist(dlConfigLcl,'file')==0
         reason = sprintf('Cannot find training file: %s\n',dlConfigLcl);
         return;
