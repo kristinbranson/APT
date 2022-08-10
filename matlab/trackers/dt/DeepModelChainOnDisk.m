@@ -19,7 +19,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainingImagesName = 'deepnet_training_samples.mat';
 
     props_numeric = {'jobidx','stage','view','splitIdx','iterFinal','iterCurr','nLabels'};
-    props_cell = {'netType','netMode','modelChainID','trainID','restartTS','trainConfigNameOverride'};
+    props_cell = {'netType','netMode','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword'};
     props_bool = {'isMultiView','isMultiStage'};
 
   end
@@ -107,7 +107,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
     filesep ='/'; % file separator
 
-    trkTaskKeyword = ''; % arbitrary tracking task keyword; used for tracking output files
+    trkTaskKeyword = {}; % arbitrary tracking task keyword; used for tracking output files
     trkTSstr = '';% timestamp for tracking
     prev_models = []; % prev model to start training from
   end
@@ -148,7 +148,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = obj.splitIdx(idx);
     end
     function v = get.isRemote(obj)
-      v = obj.reader.getModelIsRemote();
+      if isempty(obj.reader),
+        v = false;
+      else
+        v = obj.reader.getModelIsRemote();
+      end
     end
     function idx = select(obj,varargin)
       idx = DeepModelChainOnDisk.selectHelper(obj,varargin{:});
@@ -195,6 +199,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function [v,idx] = getNetMode(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.netMode(idx);
+    end
+    function [v,idx] = getTrkTaskKeyword(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = obj.trkTaskKeyword(idx);
+    end
+    function v = getTrkTSstr(obj)
+      v = obj.trkTSstr;
+    end
+    function setTrkTaskKeyword(obj,v,varargin)
+      idx = obj.select(varargin{:});
+      ncurr = numel(idx);
+      obj.trkTaskKeyword(idx) = DeepModelChainOnDisk.toCellArray(v,ncurr);
+    end
+    function setTrkTSstr(obj,v),
+      assert(ischar(v));
+      obj.trkTSstr = v;
     end
     function [v,idx] = getIterCurr(obj,varargin)
       idx = obj.select(varargin{:});
@@ -361,7 +381,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           viewstr = sprintf('view%d',obj.view(i));
         end
         v{i} = sprintf('%s%s_%s_%s',obj.modelChainID{i},viewstr,obj.trainID{i},obj.netMode{i}.shortCode);
-        if obj.isSplit(i)
+        if obj.isSplit,
           v{i} = [v{i},'.sh'];
         else
           v{i} = [v{i},'.cmd'];
@@ -433,7 +453,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         else
           viewstr = sprintf('view%d',obj.view(i));
         end
-        v{i} = sprintf('%s_%s_%s.err',obj.modelChainID{i},viewstr,obj.trainID{i},obj.netMode{i}.shortCode);
+        v{i} = sprintf('%s%s_%s_%s.err',obj.modelChainID{i},viewstr,obj.trainID{i},obj.netMode{i}.shortCode);
       end
     end
     function [v,idx] = trainLogLnx(obj,varargin)
@@ -444,6 +464,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
     function [v,idx] = trainLogName(obj,varargin)
+      try
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
@@ -458,9 +479,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         else
           restartstr = '';
         end
-        v{ii} = sprintf('%s_%s_%s_%s%s.log',obj.modelChainID{i},viewstr,...
+        v{ii} = sprintf('%s%s_%s_%s_%s%s.log',obj.modelChainID{i},viewstr,...
           obj.trainID{i},obj.netMode{i}.shortCode,...
-          lower(char(obj.trnType{i})),restartstr);
+          lower(char(obj.trainType{i})),restartstr);
+      end
+      catch
+        fprintf('here!\n');
       end
     end
     function [v,idx] = trkName(obj,varargin)
@@ -468,7 +492,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         i = idx(ii);
-        v{ii} = sprintf('%s_%s_vw%d_%s',obj.trkTaskKeyword,obj.modelChainID, ...
+        v{ii} = sprintf('%s_%s_vw%d_%s',obj.trkTaskKeyword{i},obj.modelChainID, ...
           obj.view(i),obj.trkTSstr);
       end
     end    
@@ -521,7 +545,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         i = idx(ii);
-        v{ii} = sprintf('%s_%s_vw%d_%s.aptsnapshot',obj.trkTaskKeyword,obj.modelChainID{i}, ...
+        v{ii} = sprintf('%s_%s_vw%d_%s.aptsnapshot',obj.trkTaskKeyword{i},obj.modelChainID{i}, ...
           obj.view{i},obj.trkTSstr);
       end
     end
@@ -547,7 +571,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function [v,idx] = killTokenLnx(obj,varargin)
       [killTokenName,idx] = obj.killTokenName(varargin{:});
-      if any(obj.isMultiView(idx)),
+      if ~all(obj.isMultiView(idx)),
         dirModelChainLnx = obj.dirModelChainLnx(varargin{:});
       end
       v = cell(1,numel(idx));
@@ -589,7 +613,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
     function [v,idx] = trainCompleteArtifacts(obj,varargin)
-      [trainFinalModelLnx,idx] = obj.trainFinalModeLnx(varargin{:});
+      [trainFinalModelLnx,idx] = obj.trainFinalModelLnx(varargin{:});
       v = cell(1,numel(idx));
       for i = 1:numel(idx),
         v{i} = {trainFinalModelLnx{i}}; %#ok<CCAT1> 
@@ -605,10 +629,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function [v,idx] = trainFinalModelName(obj,varargin)
       idx = obj.select(varargin{:});
-      pat = obj.netType.mdlNamePat;
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         i = idx(ii);
+        pat = obj.netType{i}.mdlNamePat;
         v{ii} = sprintf(pat,obj.iterFinal(i));
       end
     end    
@@ -714,24 +738,35 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
       % put in more checking, or robustness to skimping on parameters
       assert(~isempty(obj.modelChainID));
-      if ischar(obj.modelChainID),
-        obj.modelChainID = repmat({obj.modelChainID},[1,nmodels]);
-      end
+      obj.modelChainID = DeepModelChainOnDisk.toCellArray(obj.modelChainID,nmodels);
+      assert( (numel(obj.modelChainID)==nmodels) && all(cellfun(@ischar,obj.modelChainID)) );
       assert(~isempty(obj.trainID));
-      if ischar(obj.trainID),
-        obj.trainID = repmat({obj.trainID},[1,nmodels]);
-      end
+      obj.trainID = DeepModelChainOnDisk.toCellArray(obj.trainID,nmodels);
       assert(~isempty(obj.projID));
       assert(~isempty(obj.rootDir));
       assert(~isempty(obj.netType));
-      if numel(obj.netType) == 1,
-        obj.netType = repmat({obj.netType},[1,nmodels]);
-      end
+      obj.netType = DeepModelChainOnDisk.toCellArray(obj.netType,nmodels);
       assert(~isempty(obj.netMode));
-      if numel(obj.netMode) == 1,
-        obj.netMode = repmat({obj.netMode},[1,nmodels]);
+      obj.netMode = DeepModelChainOnDisk.toCellArray(obj.netMode,nmodels);
+      assert(~isempty(obj.trainType));
+      obj.trainType = DeepModelChainOnDisk.toCellArray(obj.trainType,nmodels);
+      if isempty(obj.trkTaskKeyword),
+        obj.trkTaskKeyword = repmat({''},[1,nmodels]);
+      else
+        obj.trkTaskKeyword = DeepModelChainOnDisk.toCellArray(obj.trkTaskKeyword,nmodels);
+      end
+      if isempty(obj.restartTS),
+        obj.restartTS = repmat({''},[1,nmodels]);
+      else
+        obj.restartTS = DeepModelChainOnDisk.toCellArray(obj.restartTS,nmodels);
+      end
+      if isempty(obj.trainConfigNameOverride),
+        obj.trainConfigNameOverride = repmat({''},[1,nmodels]);
+      else
+        obj.trainConfigNameOverride = DeepModelChainOnDisk.toCellArray(obj.trainConfigNameOverride,nmodels);
       end
 
+      
       for i = 1:numel(obj.netType),
         if ischar(obj.netType{i}),
           obj.netType{i} = DLNetType.(obj.netType{i});
@@ -782,7 +817,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     function obj = merge(obj,dmc)
       assert(isequaln(obj.projID,dmc.projID));
-      tocheck = {'rootDir','trkTaskKeyword','trkTSstr'};
+      tocheck = {'rootDir','trkTSstr'};
       for i = 1:numel(tocheck),
         prop = tocheck{i};
         if ~isequal(obj.(prop),dmc.(prop)),
@@ -848,7 +883,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           dmcs = dmccurr;
           isfirst = false;
         else
-          dmcs(end+1) = dmccurr;
+          dmcs(end+1) = dmccurr; %#ok<AGROW> 
         end
       end
     end
@@ -1218,8 +1253,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         idx = varargin{:};
         return;
       end
+      if isempty(varargin),
+        idx = 1:numel(info.view);
+        return;
+      end
       [jobidx1,view1,stage1,splitidx1] = myparse(varargin,'jobidx','all','view','all','stage','all','splitidx','all'); 
-      idx = false(1,numel(info.view));
+      idx = true(1,numel(info.view));
       if ~isequal(jobidx1,'all'), 
         idx = idx & jobidx1 == info.jobidx; 
       end
@@ -1271,7 +1310,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         iterCurr = nan(1,nmodels);
         iterFinal = nan(1,nmodels);
         nLabels = nan(1,nmodels);
-        prev_models = dmcs(1).prev_models;
+        prev_models = cell(1,nmodels);
+        trkTaskKeyword = cell(1,nmodels);
 
         j = 0;
         for i = 1:numel(dmcs),
@@ -1280,16 +1320,26 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           if ~isnan(dmcs(i).splitIdx),
             splitIdx(j+1:j+ncurr) = dmcs(i).splitIdx;
           end
-          modelChainID(j+1:j+ncurr) = repmat({dmcs(i).modelChainID},[1,ncurr]);
-          trainID(j+1:j+ncurr) = repmat({dmcs(i).trainID},[1,ncurr]);
-          trainType(j+1:j+ncurr) = repmat({dmcs(i).trainType},[1,ncurr]);
-          netType(j+1:j+ncurr) = repmat({dmcs(i).netType},[1,ncurr]);
-          netMode(j+1:j+ncurr) = repmat({dmcs(i).netMode},[1,ncurr]);
+          modelChainID(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).modelChainID,ncurr,true);
+          trainID(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).trainID,ncurr,true);
+          trainType(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).trainType,ncurr);
+          netType(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).netType,ncurr);
+          netMode(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).netMode,ncurr);
+          if isempty(dmcs(i).trkTaskKeyword),
+            trkTaskKeyword(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray('',ncurr);
+          else
+            try
+              trkTaskKeyword(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).trkTaskKeyword,ncurr);
+            catch
+              warning('Do not know how to modernize trkTaskKeyword setting to be empty strings.');
+              trkTaskKeyword(j+1:j+ncurr) = repmat({''},[1,ncurr]);
+            end
+          end
           if ~isempty(dmcs(i).restartTS),
-            restartTS(j+1:j+ncurr) = repmat({dmcs.(i).restartTS},[1,ncurr]);
+            restartTS(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).restartTS,ncurr,true);
           end
           if ~isempty(dmcs(i).trainConfigNameOverride),
-            trainConfigNameOverride(j+1:j+ncurr) = repmat({dmcs.(i).trainConfigNameOverride},[1,ncurr]);
+            trainConfigNameOverride(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).trainConfigNameOverride,ncurr,true);
           end
           if ~isempty(dmcs(i).iterCurr),
             iterCurr(j+1:j+ncurr) = dmcs(i).iterCurr;
@@ -1301,7 +1351,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
             nLabels(j+1:j+ncurr) = dmcs(i).nLabels;
           end
           if ~isempty(dmcs(i).prev_models),
-            prev_models(j+1:j+ncurr) = dmcs(i).prev_models;
+            prev_models(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).prev_models,ncurr,true);
           end
           j = j + numel(dmcs(i).view);
         end
@@ -1324,7 +1374,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           'nLabels',nLabels,...
           'prev_models',prev_models,...
           'filesep',dmcs(1).filesep,...
-          'trkTaskKeyword',dmcs(1).trkTaskKeyword,...
+          'trkTaskKeyword',trkTaskKeyword,...
           'trkTSstr',dmcs(1).trkTSstr...
           );
       else
@@ -1368,10 +1418,57 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
 
     function s = getCheckSingle(s)
-      if ~ischar(s) && numel(s) > 1,
-        assert(numel(unique(s))==1);
-        s = s{1};
+      if isempty(s),
+        error('input is empty');
       end
+      if iscell(s),
+        if ischar(s{1}),
+          assert(numel(unique(s))==1);
+        end
+        s = s{1};
+      elseif ischar(s),
+        % nothing to do
+      else
+        if isnumeric(s),
+          assert(numel(unique(s))==1);
+        end
+        s = s(1);
+      end
+    end
+
+    function v = toCellArray(v,ncurr,ischarcellarray)
+
+      if nargin < 3,
+        ischarcellarray = false;
+      end
+      
+      % sometimes there are cells of cells for some reason?
+      while iscell(v) && numel(v) == 1,
+        v = v{1};
+      end
+      if ischarcellarray && isequal(v,[]),
+        v = '';
+      end
+      if iscell(v),
+        if numel(v) == 1,
+          v = repmat(v,[1,ncurr]);
+        else
+          assert(numel(v)==ncurr);
+        end
+      elseif ischarcellarray && isequal(v,[]),
+        v = repmat({''},[1,ncurr]);
+      elseif ischar(v) || numel(v) == 1,
+        v = repmat({v},[1,ncurr]);
+      elseif numel(v) == ncurr,
+        vin = v;
+        v = cell(1,ncurr);
+        for i = 1:ncurr,
+          v{i} = vin(i);
+        end
+      else
+        error('Could not convert to cell array of length %d',ncurr);
+      end
+
     end
 
   end

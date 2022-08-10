@@ -541,12 +541,14 @@ classdef DeepTracker < LabelTracker
     end
     function updateDLCache(obj,dlcachedir)
       dmc = obj.trnLastDMC;
-      if ~dmc.isRemote
-        dmc.setRootDir(dlcachedir);
-      else
-        warningNoTrace('Unexpected remote DMC detected for net %s.',...
-          tObj.trnNetType.prettyStr);
-      end        
+      if ~isempty(dmc),
+        if ~dmc.isRemote
+          dmc.setRootDir(dlcachedir);
+        else
+          warningNoTrace('Unexpected remote DMC detected for net %s.',...
+            obj.trnNetType.displayString);
+        end
+      end
       % At save-time we should be updating DMCs to local
 
       % Don't update dmc(ivw).rootDir in this case
@@ -729,7 +731,7 @@ classdef DeepTracker < LabelTracker
           assert(false);
       end
 
-      trnVizObj = feval(obj.bgTrnMonitorVizClass,nmodels,obj,trnWrkObj,...
+      trnVizObj = feval(obj.bgTrnMonitorVizClass,dmc,obj,trnWrkObj,...
         backEnd.type,'trainSplits',trainSplits,trnVizArgs{:});
                 
       trnMonObj.prepare(trnVizObj,trnWrkObj);
@@ -929,7 +931,7 @@ classdef DeepTracker < LabelTracker
             if strcmp(res,'No')
               prev_models = [];
             elseif strcmp(res,'Yes')
-              prev_models = {obj.trnLastDMC.trainFinalModelLnx};
+              prev_models = obj.trnLastDMC.trainFinalModelLnx;
             else
               return;
             end
@@ -1320,7 +1322,7 @@ classdef DeepTracker < LabelTracker
         trainID = obj.trnNameLbl;
       end
     end
-    function aptroot = setupBackEndTrain(obj,backEnd)
+    function aptroot = setupBackEndTrain(obj,backEnd,cacheDir)
       switch backEnd.type
         case DLBackEnd.Bsub
           aptroot = backEnd.bsubSetRootUpdateRepo(cacheDir);
@@ -1402,7 +1404,7 @@ classdef DeepTracker < LabelTracker
 
       % Currently, cacheDir must be visible on the JRC shared filesys.
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
-      aptroot = obj.setupBackEndTrain(backEnd);
+      aptroot = obj.setupBackEndTrain(backEnd,cacheDir);
             
       trnCmdType = trnType;
       
@@ -1447,9 +1449,18 @@ classdef DeepTracker < LabelTracker
         logcmds = cell(njobs,1);
       end
 
-      for ijob = 1:numel(unique_jobs),
+      nTrainJobs = numel(unique_jobs);
+      for ijob = 1:nTrainJobs,
         assert(ijob==unique_jobs(ijob));
         dmcjob = dmc.selectSubset('jobidx',ijob);
+
+        if augOnly
+          [tmpp,tmpf] = DeepModelChainOnDisk.getCheckSingle(dmcjob.errfileLnx);
+          augOut = [tmpp '/' tmpf];
+        else
+          augOut = '';
+        end
+
         switch backEnd.type
           case DLBackEnd.Bsub
             mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
@@ -1964,7 +1975,7 @@ classdef DeepTracker < LabelTracker
       %  - training aws job spawned
       %  - .trnLastDMC set
 
-      assert('TODO: update AWS code');
+      error('TODO: update AWS code');
 
       [wbObj,prev_models] = myparse(varargin,...
         'wbObj',[],'prev_models',[] ... 
@@ -3125,11 +3136,9 @@ classdef DeepTracker < LabelTracker
       obj.updateLastDMCsCurrInfo();      
       dmc = obj.trnLastDMC;
       nowstr = datestr(now,'yyyymmddTHHMMSS');
-      % TODO: check if this code is used, update if it is
-      dmc.setTrkTaskKeyword(taskKeywords); 
-      for i=1:nvw
-        dmc(i).trkTaskKeyword = taskKeywords{i};
-        dmc(i).trkTSstr = nowstr;
+      dmc.setTrkTSstr(nowstr);
+      for i=1:nvw,
+        dmc.setTrkTaskKeyword(taskKeywords{i},'view',i);
       end
       
       lclCacheDir = obj.lObj.DLCacheDir;
@@ -4118,10 +4127,10 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static)
-    function bgTrkWorkerObj = createBgTrkWorkerObj(nView,dmc,backend)
+    function bgTrkWorkerObj = createBgTrkWorkerObj(nView,~,backend)
 
       % dmc is not used in BgTrackWorkerObj subclasses!
-      dmcDummy = nan(1,nView);
+      dmcDummy = [];%nan(1,nView);
       switch backend.type
         case DLBackEnd.Bsub
           bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmcDummy);
@@ -4819,7 +4828,7 @@ classdef DeepTracker < LabelTracker
     function [codestr,containerName] = trainCodeGenDockerDMC(...
         dmc,backend,mntPaths,gpuid,varargin)
       [trnCmdType,augOnly,augOut,leftovers] = myparse_nocheck(varargin,...
-        'trnCmdType',dmc.trainType,...
+        'trnCmdType',dmc.trainType,... 
         'augOnly',false, ...
         'augOut','' ...
         );
@@ -4834,18 +4843,19 @@ classdef DeepTracker < LabelTracker
 %         'augOnly',augOnly,'augOut',augOut);
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
         dmc.trainFileInfo(),...
-        trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:},...
+        trnCmdType,dmc.getView()+1,mntPaths,gpuid,leftovers{:},...
         'augOnly',augOnly,'augOut',augOut);
     end
     function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
       [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
       trnCmdType = DeepModelChainOnDisk.getCheckSingle(trnCmdType);
-      if ~isempty(dmc.prev_models)
-        leftovers = [leftovers {'prev_model' dmc.prev_models}];
+      prev_models = dmcs.getPrevModels();
+      if ~isempty(prev_models)
+        leftovers = [leftovers {'prev_model' prev_models}];
       end
       [codestr] = DeepTracker.trainCodeGenConda(...
-        dmc.trainFileInfo(),trnCmdType,dmc.view+1,gpuid,...
-        'outfile',dmc.trainLogLnx,leftovers{:});
+        dmc.trainFileInfo(),trnCmdType,dmc.getView()+1,gpuid,...
+        'outfile',DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx),leftovers{:});
     end
     function codestr = trainCodeGenSing(fileinfo,varargin)
       [baseargs,singargs] = myparse(varargin,...
@@ -4891,22 +4901,24 @@ classdef DeepTracker < LabelTracker
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
       prefix = [DLBackEndClass.jrcprefix '; ' repoSScmd];      
-      baseargs = {'view' dmc.view+1 'trainType' trnCmdType 'deepnetroot' [aptroot '/deepnet']};
-      if dmc.doSplit
+      baseargs = {'view' dmc.getView()+1 'trainType' trnCmdType 'deepnetroot' [aptroot '/deepnet']};
+      % TODO this split probably won't work properly
+      if dmc.isSplit
         baseargs(end+1:end+2) = {
           'val_split' 
           dmc.splitIdx % 'classify_val' true 'classify_val_out' dmc.valresultsLnx
           };
-      end      
-      if ~isempty(dmc.prev_models)
-        baseargs(end+1:end+2) = {'prev_model' dmc.prev_models};
+      end
+      prev_models = dmc.getPrevModels();
+      if ~isempty(prev_models)
+        baseargs(end+1:end+2) = {'prev_model' prev_models};
       end
       baseargs = [baseargs baseargsadd];
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.trainFileInfo(),...
         'baseArgs',baseargs,...
         'singargs',singargs,...
-        'bsubArgs',[bsubargs {'outfile' dmc.trainLogLnx}],...
+        'bsubArgs',[bsubargs {'outfile' DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx)}],...
         'sshargs',{'prefix' prefix});
     end
     function downloadPretrainedExec(aptroot)
@@ -5007,7 +5019,7 @@ classdef DeepTracker < LabelTracker
         'deepnetroot','/home/ubuntu/APT/deepnet',...
         'trainType',dmc.trainType};
       if incViewFlag
-        trnCodeGenArgs = [trnCodeGenArgs {'view' dmc.view+1}];
+        trnCodeGenArgs = [trnCodeGenArgs {'view' dmc.getView()+1}];
       end
       
       codestr = {
@@ -5714,8 +5726,8 @@ classdef DeepTracker < LabelTracker
       if ~tfSuccess,
         return;
       end
-      isCurr = strcmp(obj.trnLastDMC(ivw).modelChainID,trkInfo.trn_ts) && ...
-        (obj.trnLastDMC(ivw).iterCurr==trkInfo.iter);
+      isCurr = strcmp(DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.modelChainID('view',ivw)),trkInfo.trn_ts) && ...
+        (DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getIterCurr('view',ivw))==trkInfo.iter);
     end
     
     function tf = isTrkFiles(obj)
@@ -5777,7 +5789,8 @@ classdef DeepTracker < LabelTracker
     function s = printIter(iterCurr,iterFinal)
 
       s = '';
-      for i = 1:obj.n,
+      assert(numel(iterCurr)==numel(iterFinal));
+      for i = 1:numel(iterCurr),
         s = [s,sprintf('%d/%d, ',iterCurr(i),iterFinal(i))]; %#ok<AGROW> 
       end
       if ~isempty(s),

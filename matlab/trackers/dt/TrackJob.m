@@ -191,7 +191,7 @@ classdef TrackJob < handle
     tf2stg = false;
     tfremote = false;    
 
-    dmcLcl = []; % [nView x nset] dmc
+    dmcLcl = []; 
     dmcRem = [];
     
     tMFTConc = [];
@@ -375,35 +375,36 @@ classdef TrackJob < handle
         obj.rootdirLcl = rootdirLcl;
       end
       
-      % obj.dmc*: shape important
       if obj.tf2stg
-        obj.dmcRem = obj.tObj.trnLastDMC(:)';
+        obj.dmcRem = obj.tObj.trnLastDMC;
         obj.dmcLcl = obj.dmcRem;
       else
-        obj.dmcRem = obj.tObj.trnLastDMC(obj.ivw);
-        obj.dmcRem = obj.dmcRem(:);
+        obj.dmcRem = obj.tObj.trnLastDMC.selectSubset('view',obj.ivw);
         obj.dmcLcl = obj.dmcRem;
       end      
       if obj.tfremote,
-        for i = 1:numel(obj.dmcLcl);
-          obj.dmcLcl(i) = obj.dmcRem(i).copy();
-          obj.dmcLcl(i).rootDir = obj.rootdirLcl;
-        end
+        obj.dmcLcl = obj.dmcRem.copy();
+        obj.dmcLcl.setRootDir(obj.rootdirLcl);
       end
-      obj.rootdirRem = obj.dmcRem(1).rootDir;
+      obj.rootdirRem = obj.dmcRem.getRootDir();
       
       if isempty(trainconfigLcl),
-        trainconfigLcl = unique({obj.dmcLcl.trainConfigLnx});
-        assert(isscalar(trainconfigLcl));
-        obj.trainconfigLcl = trainconfigLcl{1};
+        obj.trainconfigLcl = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.trainConfigLnx);
       else
         obj.trainconfigLcl = trainconfigLcl;
       end
       obj.trainconfigRem = obj.dmcRem.trainConfigLnx;
       
-      obj.trkoutdirRem = cell(1,obj.nView);
-      for i = 1:obj.nView,
-        obj.trkoutdirRem{i} = obj.dmcRem(i).dirTrkOutLnx;
+      if obj.tf2stg,
+        nstage = 2;
+      else
+        nstage = 1;
+      end
+      obj.trkoutdirRem = cell(obj.nView,nstage);
+      for ivw = 1:obj.nView,
+        for istage = 1:nstage,
+          obj.trkoutdirRem{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirTrkOutLnx('view',ivw,'stage',istage));
+        end
       end
       
       %if obj.tfexternal
@@ -412,13 +413,17 @@ classdef TrackJob < handle
       %else
       
       % in case of obj.tfexternal, trkoutdirLcl still used for trk errfile
-      nset = 1 + double(obj.tf2stg);
       if isempty(trkoutdirLcl)
-        obj.trkoutdirLcl = arrayfun(@(x)x.dirTrkOutLnx,obj.dmcLcl,'uni',0);
+        obj.trkoutdirLcl = cell(obj.nView,nstage);
+        for ivw = 1:obj.nView,
+          for istage = 1:nstage,
+            obj.trkoutdirLcl{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.dirTrkOutLnx('view',ivw,'stage',istage));
+          end
+        end
       else
-        obj.trkoutdirLcl = trkoutdirLcl;
+          obj.trkoutdirLcl = trkoutdirLcl;
       end
-      szassert(obj.trkoutdirLcl,[obj.nView nset]);
+      szassert(obj.trkoutdirLcl,[obj.nView nstage]);
       
       if obj.tfexternal,
         assert(~isempty(movfileLcl) && ~isempty(trkfileLcl));
@@ -979,7 +984,7 @@ classdef TrackJob < handle
           
         end
         obj.trackconfigRem = TrackJob.trk2configfiles(obj.trkfileRem{1});
-        obj.listfileRem = [obj.dmcRem.dirModelChainLnx '/' obj.listfilestr];
+        obj.listfileRem = [DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirModelChainLnx('view',i)) '/' obj.listfilestr];
       end
       
     end

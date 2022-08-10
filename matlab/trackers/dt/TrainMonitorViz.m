@@ -92,7 +92,7 @@ classdef TrainMonitorViz < handle
             
       stage = dmc.getStages();
       view = dmc.getViews();
-      splitidx = dmc.getSplit();
+      splitidx = dmc.getSplits();
       nmodels = dmc.n;
       % sets currently correspond to stages
       [unique_stages,~,obj.setidx] = unique(stage);
@@ -216,6 +216,10 @@ classdef TrainMonitorViz < handle
       %
       % trnComplete: scalar logical, true when all views done
       
+      if nargin < 3,
+        forceupdate = false;
+      end
+
       tfSucc = false;
       msg = ''; %#ok<NASGU>
       
@@ -252,8 +256,8 @@ classdef TrainMonitorViz < handle
             contents = res.contents{i};
             % hmm really want to mark the last 2k interval when model is
             % actually saved
-            set(hkill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end));
-            set(hkill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end));
+            set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end));
+            set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end));
           end
           handles = guidata(obj.hfig);
           handles.pushbutton_startstop.Enable = 'on';
@@ -263,9 +267,9 @@ classdef TrainMonitorViz < handle
           contents = res.contents{i};
           if ~isempty(contents)
             % re-use kill marker
-            set(hkill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
+            set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
               'color',[0 0.5 0],'marker','o');
-            set(hkill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end),...
+            set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end),...
               'color',[0 0.5 0],'marker','o');
           end
         end
@@ -343,13 +347,13 @@ classdef TrainMonitorViz < handle
       end
 
       TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
-        isRunning,nnz(isTrainComplete),obj.nmodel,nnz(isErr),obj.nmodel,nnz(obj.isKilled),obj.nmodel);
+        isRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
       
       if any(obj.isKilled),
-        status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodel);
+        status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
         tfSucc = false;
       elseif isErr,
-        status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodel,mat2str(obj.lastTrainIter));
+        status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter));
         tfSucc = false;
       elseif all(isTrainComplete),
         status = 'Training complete.';

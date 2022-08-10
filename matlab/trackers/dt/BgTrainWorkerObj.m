@@ -26,26 +26,25 @@ classdef BgTrainWorkerObj < BgWorkerObj
     function sRes = initComputeResults(obj)
       nmodels = obj.dmcs.n;
       %trainCompleteFiles = obj.getTrainCompleteArtifacts();
-      sRes = struct(...
-        'identifiers',obj.dmcs.getIdentifiers(),...
-        'pollsuccess',false,... % if true, remote poll cmd was successful
-        'pollts',now,... % datenum time that poll cmd returned
-        'jsonPath',obj.dmcs.trainDataLnx,... % cell of chars, full paths to json trn loss being polled
-        'jsonPresent',false(1,nmodels),... % array, true if corresponding file exists. if false, remaining fields are indeterminate
-        'lastTrnIter',nan(1,nmodels),... % array, (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
-        'tfUpdate',false(1,nmodels),... % (only if jsonPresent==true) array, true if the current read represents an updated training iter.
-        'contents',cell(1,nmodels),... % (only if jsonPresent==true) array, if tfupdate is true, this can contain all json contents.
-        'trainCompletePath',obj.dmcs.trainCompleteArtifacts(),... % cell of cell of char, full paths to artifact indicating train complete
-        'trainFinalModel',obj.dmcs.trainFinalModelLnx(),...
-        'tfComplete',false(1,nmodels),... % array, true if trainCompletePath exists
-        'errFile',obj.dmcs.errfileLnx,... % cell of char, full path to DL err file, should be only one
-        'errFileExists',false(1,nmodels),... % array, true of errFile exists and has size>0
-        'logFile',obj.dmcs.trainLogLnx,... % cell of char, full path to Bsub logfile
-        'logFileExists',false(1,nmodels),... % array logical
-        'logFileErrLikely',false(1,nmodels),... % array, true if Bsub logfile suggests error
-        'killFile',obj.getKillFiles(),... % char, full path to KILL tokfile
-        'killFileExists',false(1,nmodels)... % scalar, true if KILL tokfile found
-        );
+      sRes = struct;
+      sRes.identifiers = obj.dmcs.getIdentifiers();
+      sRes.pollsuccess = false; % if true, remote poll cmd was successful
+      sRes.pollts = now; % datenum time that poll cmd returned
+      sRes.jsonPath = obj.dmcs.trainDataLnx; % cell of chars, full paths to json trn loss being polled
+      sRes.jsonPresent = false(1,nmodels); % array, true if corresponding file exists. if false, remaining fields are indeterminate
+      sRes.lastTrnIter = nan(1,nmodels); % array, (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
+      sRes.tfUpdate = false(1,nmodels); % (only if jsonPresent==true) array, true if the current read represents an updated training iter.
+      sRes.contents = cell(1,nmodels); % (only if jsonPresent==true) array, if tfupdate is true, this can contain all json contents.
+      sRes.trainCompletePath = obj.dmcs.trainCompleteArtifacts(); % cell of cell of char, full paths to artifact indicating train complete
+      sRes.trainFinalModel = obj.dmcs.trainFinalModelLnx();
+      sRes.tfComplete = false(1,nmodels); % array, true if trainCompletePath exists
+      sRes.errFile = obj.dmcs.errfileLnx; % cell of char, full path to DL err file, should be only one
+      sRes.errFileExists = false(1,nmodels); % array, true of errFile exists and has size>0
+      sRes.logFile = obj.dmcs.trainLogLnx; % cell of char, full path to Bsub logfile
+      sRes.logFileExists = false(1,nmodels); % array logical
+      sRes.logFileErrLikely = false(1,nmodels); % array, true if Bsub logfile suggests error
+      sRes.killFile = obj.getKillFiles(); % char, full path to KILL tokfile
+      sRes.killFileExists = false(1,nmodels); % scalar, true if KILL tokfile found
     end
 
     function sRes = readTrainLoss(obj,sRes,imodel,jsoncurr)
@@ -86,9 +85,9 @@ classdef BgTrainWorkerObj < BgWorkerObj
       nmodels = obj.dmcs.n;
       sRes = obj.initComputeResults();
 
-      sRes(iijob).jsonPresent = cellfun(@obj.fileExists,sRes.jsonPath);
+      sRes.jsonPresent = cellfun(@obj.fileExists,sRes.jsonPath);
       for i=1:nmodels,
-        sRes.tfComplete(i) = all(cellfun(@obj.fileExists,sRes.trainCompleteFiles{i}));
+        sRes.tfComplete(i) = cellfun(@obj.fileExists,sRes.trainCompletePath{i});
       end
       [unique_jobs,idx1,jobidx] = unique(sRes.identifiers.jobidx);
       % one error, log, and kill file per job
@@ -115,16 +114,10 @@ classdef BgTrainWorkerObj < BgWorkerObj
     function reset(obj) 
       % clears/inits .trnLogLastStep, the only mutatable prop
       if isempty(obj.dmcs),
-        obj.trnLogLastStep = {};
+        obj.trnLogLastStep = [];
         return;
       end
-      jobs = obj.dmcs.getJobs();
-      [unique_jobs,~,jobidx] = unique(jobs);
-      njobs = numel(unique_jobs);
-      obj.trnLogLastStep = cell(1,njobs);
-      for i = 1:njobs,
-        obj.trnLogLastStep{i} = repmat(-1,1,nnz(jobidx==i));
-      end
+      obj.trnLogLastStep = repmat(-1,[1,obj.dmcs.n]);
       
       killFiles = obj.getKillFiles();
       for i = 1:numel(killFiles),

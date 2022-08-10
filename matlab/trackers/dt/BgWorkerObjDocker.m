@@ -6,8 +6,8 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
 
   methods
     
-    function obj = BgWorkerObjDocker(nviews,dmcs,backend,varargin)
-      obj@BgWorkerObjLocalFilesys(nviews,dmcs,varargin{:});
+    function obj = BgWorkerObjDocker(dmcs,backend,varargin)
+      obj@BgWorkerObjLocalFilesys(dmcs,varargin{:});
       obj.dockerremotehost = backend.dockerremotehost;
     end
     

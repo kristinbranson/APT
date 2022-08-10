@@ -3570,7 +3570,12 @@ classdef Labeler < handle
 
         % KB 20220804 refactor DMC
         if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
-          s.trackerData{i}.trnLastDMC = DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC);
+          try
+            s.trackerData{i}.trnLastDMC = DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC);
+          catch ME
+            warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
+            s.trackerData{i}.trnLastDMC = [];
+          end
         end
 
         if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
