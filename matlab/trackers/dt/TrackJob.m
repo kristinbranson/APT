@@ -379,7 +379,7 @@ classdef TrackJob < handle
         obj.dmcRem = obj.tObj.trnLastDMC;
         obj.dmcLcl = obj.dmcRem;
       else
-        obj.dmcRem = obj.tObj.trnLastDMC.selectSubset('view',obj.ivw);
+        obj.dmcRem = obj.tObj.trnLastDMC.selectSubset('view',obj.ivw-1);
         obj.dmcLcl = obj.dmcRem;
       end      
       if obj.tfremote,
@@ -403,7 +403,7 @@ classdef TrackJob < handle
       obj.trkoutdirRem = cell(obj.nView,nstage);
       for ivw = 1:obj.nView,
         for istage = 1:nstage,
-          obj.trkoutdirRem{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirTrkOutLnx('view',ivw,'stage',istage));
+          obj.trkoutdirRem{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirTrkOutLnx('view',ivw-1,'stage',istage));
         end
       end
       
@@ -417,7 +417,7 @@ classdef TrackJob < handle
         obj.trkoutdirLcl = cell(obj.nView,nstage);
         for ivw = 1:obj.nView,
           for istage = 1:nstage,
-            obj.trkoutdirLcl{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.dirTrkOutLnx('view',ivw,'stage',istage));
+            obj.trkoutdirLcl{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.dirTrkOutLnx('view',ivw-1,'stage',istage));
           end
         end
       else
@@ -984,7 +984,7 @@ classdef TrackJob < handle
           
         end
         obj.trackconfigRem = TrackJob.trk2configfiles(obj.trkfileRem{1});
-        obj.listfileRem = [DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirModelChainLnx('view',i)) '/' obj.listfilestr];
+        obj.listfileRem = [DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirModelChainLnx('view',i-1)) '/' obj.listfilestr];
       end
       
     end

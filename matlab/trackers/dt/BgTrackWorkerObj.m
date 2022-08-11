@@ -16,6 +16,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
     nMovies = 1 % number of movies being tracked    
     nMovJobs = []; % number of jobs movies are broken into. Either 1 (for 
                    % serial multimov), or .nMovies.
+    nviews = 1; % number of views being tracked                   
     nViewJobs = 1 % number of jobs views are broken into
     % nStages (see Dependent, below) % number of stages. Equals 2 for
                                    % top-down tracking
@@ -52,8 +53,11 @@ classdef BgTrackWorkerObj < BgWorkerObj
     
     
   methods
-    function obj = BgTrackWorkerObj(varargin)
+    function obj = BgTrackWorkerObj(nviews,varargin)
       obj@BgWorkerObj(varargin{:});
+      if nargin >= 1,
+        obj.nviews = nviews;
+      end
     end    
     
     function initFiles(obj,movfiles,trkfiles,logfiles,dlerrfiles,...

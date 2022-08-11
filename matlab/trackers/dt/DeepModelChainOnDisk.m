@@ -624,7 +624,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainCurrModelName] = obj.trainCurrModelName(idx);
       v = cell(1,numel(idx));
       for i = 1:numel(idx),
-        v = [dirModelChainLnx{i} obj.filesep trainCurrModelName{i}];
+        v{i} = [dirModelChainLnx{i} obj.filesep trainCurrModelName{i}];
       end
     end
     function [v,idx] = trainFinalModelName(obj,varargin)
@@ -638,10 +638,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end    
     function [v,idx] = trainCurrModelName(obj,varargin)
       idx = obj.select(varargin{:});
-      pat = DLNetType.(obj.netType).mdlNamePat;
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         i = idx(ii);
+        pat = obj.netType{i}.mdlNamePat;
         v{ii} = sprintf(pat,obj.iterCurr(i));
       end
     end
@@ -917,15 +917,20 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function fileinfo = trainFileInfo(obj,varargin) 
       idx = obj.select(varargin{:});
-      fileinfo = struct(...
-        'modelchainID',obj.modelChainID(idx),...
-        'trnID',obj.trainID(idx),...
-        'dlconfig',obj.trainConfigLnx,...
-        'trainlocfile',obj.trainLocLnx,...
-        'cache',obj.rootDir,...
-        'errfile',obj.errfileLnx(idx),...
-        'nettype',obj.netType(idx),...
-        'netmode',obj.netMode(idx));
+      fileinfo = struct;
+      fileinfo.modelchainID = obj.modelChainID(idx);
+      fileinfo.trnID = obj.trainID(idx);
+      fileinfo.dlconfig = obj.trainConfigLnx;
+      fileinfo.trainlocfile = obj.trainLocLnx;
+      fileinfo.cache = obj.rootDir;
+      fileinfo.errfile = obj.errfileLnx(idx);
+      fileinfo.nettype = obj.netType(idx);
+      fileinfo.netmode = obj.netMode(idx);
+      fileinfo.view = obj.view(idx);
+      fileinfo.jobidx = obj.jobidx(idx);
+      fileinfo.stage = obj.stage(idx);
+      fileinfo.splitidx = obj.splitidx(idx);
+      fileinfo.selectfun = @(idx1) DeepModelChainOnDisk.selectHelper(fileinfo,idx);
     end
     function fileinfo = trainFileInfoSingle(obj,varargin)
       [fileinfo,idx] = trainFileInfo(varargin{:});

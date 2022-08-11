@@ -3131,7 +3131,7 @@ classdef DeepTracker < LabelTracker
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       dmc.setTrkTSstr(nowstr);
       for i=1:nvw,
-        dmc.setTrkTaskKeyword(taskKeywords{i},'view',i);
+        dmc.setTrkTaskKeyword(taskKeywords{i},'view',i-1);
       end
       
       lclCacheDir = obj.lObj.DLCacheDir;
@@ -5715,8 +5715,8 @@ classdef DeepTracker < LabelTracker
       if ~tfSuccess,
         return;
       end
-      isCurr = strcmp(DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.modelChainID('view',ivw)),trkInfo.trn_ts) && ...
-        (DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getIterCurr('view',ivw))==trkInfo.iter);
+      isCurr = strcmp(DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getModelChainID('view',ivw-1)),trkInfo.trn_ts) && ...
+        (DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getIterCurr('view',ivw-1))==trkInfo.iter);
     end
     
     function tf = isTrkFiles(obj)
