@@ -333,12 +333,24 @@ classdef APTInterf
         '-json_trn_file' ...
         [filequote trnjson filequote]}
         ]; ... % String.escapeSpaces(errfile),...
-      if ~isempty(prev_model) && ~isempty(prev_model{1}),
-        code = [code {'-model_files' [filequote prev_model{1} filequote]}]; 
-      end
-      for istage = 2:numel(prev_model),
-        if ~isempty(prev_model{istage}),
-          code = [code {sprintf('-model_files%d',istage) [filequote prev_model{istage} filequote]}]; %#ok<AGROW>
+      unique_stages = unique(fileinfo.stage);
+
+      for istage = 1:numel(unique_stages),
+        stage = unique_stages(istage);
+        isfirstview = true;
+        idx1 = find(fileinfo.stage==stage);
+        for i = idx1(:)',
+          if numel(prev_model) >= i && ~isempty(prev_model{i}),
+            if isfirstview,
+              if istage == 1,
+                code{end+1} = '-model_files'; %#ok<AGROW> 
+              else
+                code{end+1} = sprintf('-model_files%d',istage); %#ok<AGROW> 
+              end
+              isfirstview = false;
+            end
+            code{end+1} = [filequote prev_model{i} filequote]; %#ok<AGROW> 
+          end
         end
       end
       code = [code ...
