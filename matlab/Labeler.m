@@ -7906,6 +7906,12 @@ classdef Labeler < handle
   end
   
   methods (Static)
+    function sMacro = movTrkFileMacroDescs()
+      sMacro = struct;
+      sMacro.movdir = '<full path to movie>';
+      sMacro.movfile = '<base name of movie>';
+      sMacro.expname = '<name of movie parent directory>';
+    end
     function trkfile = genTrkFileName(rawname,sMacro,movfile,varargin)      
       % Generate a trkfilename from rawname by macro-replacing.      
       
@@ -7914,6 +7920,7 @@ classdef Labeler < handle
         );
       
       [sMacro.movdir,sMacro.movfile] = fileparts(movfile);
+      [~,sMacro.expname] = fileparts(sMacro.movdir);
       trkfile = FSPath.macroReplace(rawname,sMacro);
       if enforceExt
         if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))

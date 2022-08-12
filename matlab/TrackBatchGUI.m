@@ -176,8 +176,12 @@ classdef TrackBatchGUI < handle
         'FontSize',FONTSIZE,...
         'Units','normalized','Position',[trkeditx,coltitley,colw,rowh],...
         'Tag','Trk title');
+      movmacrodescs = Labeler.movTrkFileMacroDescs();
       smacros = obj.lObj.baseTrkFileMacros();
-      macrotooltip = sprintf('Trkfile locations will be auto-generated based on this field. Available macros:\n$movdir -> <movie folder>\n$movfile -> <movie file>\n');
+      macrotooltip = sprintf('Trkfile locations will be auto-generated based on this field. Available macros:\n');
+      for f=fieldnames(movmacrodescs)',f=f{1}; %#ok<FXSET>
+        macrotooltip = [macrotooltip sprintf('$%s -> %s\n',f,movmacrodescs.(f))]; %#ok<AGROW>
+      end
       for f=fieldnames(smacros)',f=f{1}; %#ok<FXSET>
         macrotooltip = [macrotooltip sprintf('$%s -> %s\n',f,smacros.(f))]; %#ok<AGROW>
       end

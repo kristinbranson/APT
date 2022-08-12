@@ -19,7 +19,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainingImagesName = 'deepnet_training_samples.mat';
 
     props_numeric = {'jobidx','stage','view','splitIdx','iterFinal','iterCurr','nLabels'};
-    props_cell = {'netType','netMode','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword'};
+    props_cell = {'netType','netMode','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword','prev_models'};
     props_bool = {'isMultiView','isMultiStage'};
 
   end
@@ -375,7 +375,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         i = idx(ii);
-        if obj.isMultiView(i),
+        if obj.isMultiView(i), % this job is for multiple views
           viewstr = '';
         else
           viewstr = sprintf('view%d',obj.view(i));
@@ -448,7 +448,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         i = idx(ii);
-        if obj.isMultiView(i),
+        if obj.isMultiView(i), % this job is for multiple views
           viewstr = '';
         else
           viewstr = sprintf('view%d',obj.view(i));
@@ -469,7 +469,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         i = idx(ii);
-        if ~obj.isMultiView(i),
+        if obj.isMultiView(i), % this job is for multiple views
           viewstr = '';
         else
           viewstr = sprintf('view%d',obj.view(i));
@@ -800,6 +800,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         obj.nLabels = repmat(obj.nLabels,[1,nmodels]);
       end
       obj.checkFileSep();
+      if isempty(obj.reader),
+        obj.reader = DeepModelChainReaderLocal();
+      end
 
     end
 
@@ -915,39 +918,37 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
       end
     end
-    function fileinfo = trainFileInfo(obj,varargin) 
+    function [fileinfo,idx] = trainFileInfo(obj,varargin) 
       idx = obj.select(varargin{:});
       fileinfo = struct;
-      fileinfo.modelchainID = obj.modelChainID(idx);
-      fileinfo.trnID = obj.trainID(idx);
+      fileinfo.modelChainID = obj.modelChainID(idx);
+      fileinfo.trainID = obj.trainID(idx);
       fileinfo.dlconfig = obj.trainConfigLnx;
       fileinfo.trainlocfile = obj.trainLocLnx;
       fileinfo.cache = obj.rootDir;
       fileinfo.errfile = obj.errfileLnx(idx);
-      fileinfo.nettype = obj.netType(idx);
-      fileinfo.netmode = obj.netMode(idx);
+      fileinfo.netType = obj.netType(idx);
+      fileinfo.netMode = obj.netMode(idx);
       fileinfo.view = obj.view(idx);
       fileinfo.jobidx = obj.jobidx(idx);
       fileinfo.stage = obj.stage(idx);
-      fileinfo.splitidx = obj.splitidx(idx);
+      fileinfo.splitidx = obj.splitIdx(idx);
       fileinfo.selectfun = @(idx1) DeepModelChainOnDisk.selectHelper(fileinfo,idx);
     end
-    function fileinfo = trainFileInfoSingle(obj,varargin)
-      [fileinfo,idx] = trainFileInfo(varargin{:});
-      if numel(idx) == 1, return; end
+    function [fileinfo,idx] = trainFileInfoSingle(obj,varargin)
+      [fileinfo,idx] = obj.trainFileInfo(varargin{:});
       fileinfo.modelChainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
-      fileinfo.trnID = DeepModelChainOnDisk.getCheckSingle(fileinfo.trnID);
-      fileinfo.errfileLnx = DeepModelChainOnDisk.getCheckSingle(fileinfo.errfileLnx);
-      fileinfo.netType = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
-      fileinfo = struct(...
-        'modelchainID',obj.modelChainID(idx),...
-        'trnID',obj.trainID(idx),...
-        'dlconfig',obj.trainConfigLnx,...
-        'trainlocfile',obj.trainLocLnx,...
-        'cache',obj.rootDir,...
-        'errfile',obj.errfileLnx(idx),...
-        'nettype',obj.netType(idx),...
-        'netmode',obj.netMode(idx));
+      fileinfo.trainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.trainID);
+      fileinfo.dlconfig = DeepModelChainOnDisk.getCheckSingle(fileinfo.dlconfig);
+      % fileinfo.trainlocfile is already a char
+      % fileinfo.cache is already a char
+      fileinfo.errfile = DeepModelChainOnDisk.getCheckSingle(fileinfo.errfile);
+      % fileinfo.netType is a cell still
+      fileinfo.netMode = DeepModelChainOnDisk.getCheckSingle(fileinfo.netMode);
+      % fileinfo.view may be a vector
+      fileinfo.jobidx = DeepModelChainOnDisk.getCheckSingle(fileinfo.jobidx);
+      % fileinfo.stage may be a vector
+      % fileinfo.splitidx may be a vector
     end
 %     % OBSOLETE
 %     function printall(obj)
@@ -1384,7 +1385,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           'prev_models',prev_models,...
           'filesep',dmcs(1).filesep,...
           'trkTaskKeyword',trkTaskKeyword,...
-          'trkTSstr',dmcs(1).trkTSstr...
+          'trkTSstr',dmcs(1).trkTSstr,...
+          'reader',dmcs(1).reader...
           );
       else
         assert(numel(dmcs)==1);
@@ -1430,16 +1432,29 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       if isempty(s),
         error('input is empty');
       end
+      class_tochar = {'DLNetType','DLNetMode','DLTrainType'};
       if iscell(s),
         if ischar(s{1}),
           assert(numel(unique(s))==1);
+        else
+          t = class(s);
+          if ismember(t,class_tochar),
+            schar = cellfun(@char,s,'Uni',0);
+            assert(numel(unique(schar))==1);
+          end
         end
         s = s{1};
-      elseif ischar(s),
+      elseif ischar(s) || numel(s) == 1,
         % nothing to do
       else
         if isnumeric(s),
           assert(numel(unique(s))==1);
+        else
+          t = class(s);
+          if ismember(t,class_tochar),
+            schar = arrayfun(@char,s,'Uni',0);
+            assert(numel(unique(schar))==1);
+          end
         end
         s = s(1);
       end

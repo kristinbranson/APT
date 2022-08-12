@@ -20,9 +20,13 @@ classdef DeepTracker < LabelTracker
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
     
-    default_jrcgpuqueue = 'gpu_tesla';
+    default_jrcgpuqueue = 'gpu_rtx8000';
     
     MDN_OCCLUDED_THRESH = 0.5;
+  end
+  properties (Constant)
+    SINGULARITY_IMG_PATH = '/groups/branson/bransonlab/apt/sif/prod.sif';
+    SINGULARITY_IMG_PATH_DETECT = '/groups/branson/bransonlab/apt/sif/det.sif';
   end
   properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
     jrcgpuqueue = '';
@@ -605,7 +609,7 @@ classdef DeepTracker < LabelTracker
         % KB 20220804
         s.trnLastDMC = DeepModelChainOnDisk.modernize(s.trnLastDMC);
         % Add .reader to any .trnLastDMCs; assume local filesys
-        if (isstruct(s.trnLastDMC) && ~isfield(s.trnLastDMC,'reader')),
+        if isempty(s.trnLastDMC.reader),
           s.trnLastDMC.reader = DeepModelChainReaderLocal();
         end
       end
@@ -625,7 +629,7 @@ classdef DeepTracker < LabelTracker
         end
       end
       
-      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_rtx')
+      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_tesla')
         s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
           s.jrcgpuqueue);
@@ -1049,7 +1053,7 @@ classdef DeepTracker < LabelTracker
 
         s = '';
         for i = 1:numel(obj.trackerInfo.trainStartTS),
-          s = [s,datestr(obj.trackerInfo.trainStartTS),', ']; %#ok<AGROW> 
+          s = [s,datestr(obj.trackerInfo.trainStartTS(i)),', ']; %#ok<AGROW> 
         end
         if ~isempty(s), s = s(1:end-2); end
         infos{end+1} = sprintf('Train start: %s',s);
@@ -1470,7 +1474,7 @@ classdef DeepTracker < LabelTracker
             gpuid = gpuids(ijob);
             [syscmds{ijob},containerNames{ijob}] = ...
               DeepTracker.trainCodeGenDockerDMC(dmcjob,backEnd,mntPaths,gpuid,...
-              'isMultiView',dmcjob.getIsMultiView(1),'trnCmdType',trnCmdType,...
+              'isMultiView',DeepModelChainOnDisk.getCheckSingle(dmcjob.getIsMultiView),'trnCmdType',trnCmdType,...
               'augOnly',augOnly,'augOut',augOut);
             logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
             logcmds{ijob} = sprintf('%s logs -f %s &> "%s" &',...
@@ -1542,7 +1546,6 @@ classdef DeepTracker < LabelTracker
           end
         else
           bgTrnWorkerObj.jobID = nan(1,nTrainJobs);
-          assert(nTrainJobs==numel(dmc));
           for ijob=1:nTrainJobs
             syscmdrun = syscmds{ijob};
             fprintf(1,'%s\n',syscmdrun);
@@ -4694,10 +4697,10 @@ classdef DeepTracker < LabelTracker
       dobj = DLBackEndClass(1);
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/groups/branson/bransonlab/apt/sif/prod.sif' ...
+        'singimg',DeepTracker.SINGULARITY_IMG_PATH...
         );
       if netMode.isObjDet
-        singimg = '/groups/branson/bransonlab/apt/sif/det.sif';
+        singimg = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
       end
       delete(dobj);
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
@@ -4757,9 +4760,9 @@ classdef DeepTracker < LabelTracker
         'baseargs',{} ...
         );
 
-      modelChainID = fileinfo.modelchainID;
-      trainID = fileinfo.trnID;
-      netMode = fileinfo.netmode;
+      modelChainID = fileinfo.modelChainID;
+      trainID = fileinfo.trainID;
+      netMode = fileinfo.netMode;
 
       filequote = backend.getFileQuoteDockerCodeGen;
       baseargs = [{'trainType' trainType 'filequote' filequote} baseargs0];
@@ -4780,7 +4783,7 @@ classdef DeepTracker < LabelTracker
       end
 
       % using this bool as torch proxy?
-      tfRequiresTrnPack = fileinfo.nettype.requiresTrnPack(fileinfo.netmode);
+      tfRequiresTrnPack = DeepModelChainOnDisk.getCheckSingle(fileinfo.netType).requiresTrnPack(fileinfo.netMode);
       if tfRequiresTrnPack
         shmSize = 8;
       else
@@ -4831,7 +4834,7 @@ classdef DeepTracker < LabelTracker
 %         trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:},...
 %         'augOnly',augOnly,'augOut',augOut);
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
-        dmc.trainFileInfo(),...
+        dmc.trainFileInfoSingle(),...
         trnCmdType,dmc.getView()+1,mntPaths,gpuid,leftovers{:},...
         'augOnly',augOnly,'augOut',augOut);
     end
@@ -4843,7 +4846,7 @@ classdef DeepTracker < LabelTracker
         leftovers = [leftovers {'prev_model' prev_models}];
       end
       [codestr] = DeepTracker.trainCodeGenConda(...
-        dmc.trainFileInfo(),trnCmdType,dmc.getView()+1,gpuid,...
+        dmc.trainFileInfoSingle(),trnCmdType,dmc.getView()+1,gpuid,...
         'outfile',DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx),leftovers{:});
     end
     function codestr = trainCodeGenSing(fileinfo,varargin)
@@ -4853,7 +4856,7 @@ classdef DeepTracker < LabelTracker
       
       baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trainCodeGen(fileinfo,baseargs{:});      
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netmode,singargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netMode,singargs{:});
     end
     function codestr = trainCodeGenBsubSing(fileinfo,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
@@ -4904,7 +4907,7 @@ classdef DeepTracker < LabelTracker
       end
       baseargs = [baseargs baseargsadd];
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
-        dmc.trainFileInfo(),...
+        dmc.trainFileInfoSingle(),...
         'baseArgs',baseargs,...
         'singargs',singargs,...
         'bsubArgs',[bsubargs {'outfile' DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx)}],...
@@ -5004,7 +5007,7 @@ classdef DeepTracker < LabelTracker
       assert(isscalar(dmc));
       
       trnCodeGenArgs = {
-        dmc.trainFileInfo(),...
+        dmc.trainFileInfoSingle(),...
         'deepnetroot','/home/ubuntu/APT/deepnet',...
         'trainType',dmc.trainType};
       if incViewFlag
@@ -5341,7 +5344,7 @@ classdef DeepTracker < LabelTracker
         'singargs',{});
       baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netmode,singargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netMode,singargs{:});
     end
     function codestr = trackCodeGenBsubSing(fileinfo,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
