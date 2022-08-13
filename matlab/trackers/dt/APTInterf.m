@@ -408,7 +408,7 @@ classdef APTInterf
       % - model_file is unsupplied, or [1] cellstr, or [nmov] cellstr      
 
       modelChainID = fileinfo.modelChainID;
-      dlconfig = fileinfo.dlconfig;
+      dlconfig = DeepModelChainOnDisk.getCheckSingle(fileinfo.dlconfig);
       errfile = fileinfo.errfile;
       netType = char(DeepModelChainOnDisk.getCheckSingle(fileinfo.netType)); % for 2-stage, this is the stage2 nettype
       netMode = fileinfo.netMode; % " netmode

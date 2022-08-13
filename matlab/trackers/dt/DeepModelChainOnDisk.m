@@ -950,6 +950,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % fileinfo.stage may be a vector
       % fileinfo.splitidx may be a vector
     end
+    function [fileinfo,idx] = trackFileInfo(obj,varargin)
+      % TODO update and test
+      [fileinfo,idx] = obj.trainFileInfo(varargin{:});
+      fileinfo.errfile = obj.trkErrfileLnx(idx);
+      fileinfo.logfile = obj.trkLogfileLnx(idx);
+      fileinfo.configfile = obj.trkConfigLnx(idx);
+    end
 %     % OBSOLETE
 %     function printall(obj)
 %       mc = metaclass(obj);

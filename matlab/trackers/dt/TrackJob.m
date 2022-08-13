@@ -402,8 +402,9 @@ classdef TrackJob < handle
       end
       obj.trkoutdirRem = cell(obj.nView,nstage);
       for ivw = 1:obj.nView,
+        view = obj.ivw(ivw);
         for istage = 1:nstage,
-          obj.trkoutdirRem{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirTrkOutLnx('view',ivw-1,'stage',istage));
+          obj.trkoutdirRem{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirTrkOutLnx('view',view-1,'stage',istage));
         end
       end
       
@@ -416,8 +417,9 @@ classdef TrackJob < handle
       if isempty(trkoutdirLcl)
         obj.trkoutdirLcl = cell(obj.nView,nstage);
         for ivw = 1:obj.nView,
+          view = obj.ivw(ivw);
           for istage = 1:nstage,
-            obj.trkoutdirLcl{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.dirTrkOutLnx('view',ivw-1,'stage',istage));
+            obj.trkoutdirLcl{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.dirTrkOutLnx('view',view-1,'stage',istage));
           end
         end
       else
@@ -533,27 +535,29 @@ classdef TrackJob < handle
       baseargs = obj.getBaseArgs(baseargs);
 
       if obj.tf2stg
-        fileargs = struct('modelchainID',obj.modelChainID,...
-          'cache',obj.rootdirRem,...
-          'dlconfig',obj.trainconfigRem,...
-          'errfile',obj.errfile,...
-          'nettype',obj.tObj.trnNetType,...
-          'netmode',obj.tObj.trnNetMode,...
-          'nettypeStage1',obj.tObj.stage1Tracker.trnNetType,...
-          'netmodeStage1',obj.tObj.stage1Tracker.trnNetMode,...
-          'movtrk',{obj.movfileRem},...
-          'outtrk',{obj.trkfileRem},...
-          'configfile',obj.trackconfigRem);
+        fileargs = struct;
+        fileargs.modelChainID = obj.modelChainID;
+        fileargs.cache = obj.rootdirRem;
+        fileargs.dlconfig = obj.trainconfigRem;
+        fileargs.errfile = obj.errfile;
+        fileargs.netType = obj.tObj.trnNetType;
+        fileargs.netMode = obj.tObj.trnNetMode;
+        fileargs.nettypeStage1 = obj.tObj.stage1Tracker.trnNetType;
+        fileargs.netmodeStage1 = obj.tObj.stage1Tracker.trnNetMode;
+        fileargs.movtrk = obj.movfileRem;
+        fileargs.outtrk = obj.trkfileRem;
+        fileargs.configfile = obj.trackconfigRem;
       else
-        fileargs = struct('modelchainID',obj.modelChainID,...
-          'cache',obj.rootdirRem,...
-          'dlconfig',obj.trainconfigRem,...
-          'errfile',obj.errfile,...
-          'nettype',obj.tObj.trnNetType,...
-          'netmode',obj.tObj.trnNetMode,...
-          'movtrk',{obj.movfileRem},...
-          'outtrk',{obj.trkfileRem},...
-          'configfile',obj.trackconfigRem);
+        fileargs = struct;
+        fileargs.modelChainID = obj.modelChainID;
+        fileargs.cache = obj.rootdirRem;
+        fileargs.dlconfig = obj.trainconfigRem;
+        fileargs.errfile = obj.errfile;
+        fileargs.netType = obj.tObj.trnNetType;
+        fileargs.netMode = obj.tObj.trnNetMode;
+        fileargs.movtrk = obj.movfileRem;
+        fileargs.outtrk = obj.trkfileRem;
+        fileargs.configfile = obj.trackconfigRem;
       end
             
       switch obj.backend.type,

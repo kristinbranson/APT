@@ -1265,7 +1265,6 @@ classdef DeepTracker < LabelTracker
     end
 
     function [jobidx,view,stage,gpuids] = SplitTrainIntoJobs(obj,backEnd)
-      global FORCEONEJOB;
       nview = obj.nview; %#ok<PROPLC> 
       nstage = obj.getNumStages();
       [view,stage] = ndgrid(1:nview,1:nstage); %#ok<PROPLC> 
@@ -1275,10 +1274,6 @@ classdef DeepTracker < LabelTracker
       if backEnd.isLocal(),
         % how many gpus do we have available?
         gpuids = backEnd.getFreeGPUs(nmodel);
-        if isequal(FORCEONEJOB,true),
-          warning('Forcing one GPU job');
-          gpuids = gpuids(1);
-        end
         if numel(gpuids) < nmodel,
           if numel(gpuids)<1,
             gpuids = nan;

@@ -326,11 +326,19 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [freemem,order] = sort(gpuInfo.freemem,'descend');
       gpuid = gpuInfo.id(order);
       ngpu = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
+
+      global FORCEONEJOB;
+      if isequal(FORCEONEJOB,true),
+        warning('Forcing one GPU job');
+        ngpu = 1;
+      end
+      
       freemem = freemem(1:ngpu);
       gpuid = gpuid(1:ngpu);
       
       ngpureturn = min(ngpu,nrequest);
       gpuid = gpuid(1:ngpureturn);
+
       freemem = freemem(1:ngpureturn);
       
       obj.gpuids = gpuid;
