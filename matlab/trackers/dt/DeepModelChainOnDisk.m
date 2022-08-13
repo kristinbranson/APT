@@ -19,7 +19,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainingImagesName = 'deepnet_training_samples.mat';
 
     props_numeric = {'jobidx','stage','view','splitIdx','iterFinal','iterCurr','nLabels'};
-    props_cell = {'netType','netMode','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword','prev_models'};
+    props_cell = {'netType','netMode','trainType','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword','prev_models'};
     props_bool = {'isMultiView','isMultiStage'};
 
   end
@@ -1305,14 +1305,26 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         % is this multi-view, multi-stage?
         view = [dmcs.view];
         isMultiView = numel(unique(view)) > 1;
-        isMultiStage = numel(dmcs) > numel(unique(view));
+        netMode = {};
+        for i = 1:numel(dmcs),
+          if iscell(dmcs(i).netMode),
+            netMode = [netMode,cellfun(@char,dmcs(i).netMode,'Uni',0)];
+          elseif ischar(dmcs(i).netMode),
+            netMode{end+1} = dmcs(i).netMode;
+          elseif numel(dmcs(i).netMode) > 1,
+            netMode = [netMode,arrayfun(@char,dmcs(i).netMode,'Uni',0)];
+          else
+            netMode{end+1} = char(dmcs(i).netMode);
+          end
+        end
+        isMultiStage = numel(unique(netMode));
         % can't be both
         assert(~(isMultiView&&isMultiStage));
         if isMultiView,
           nmodels = numel(view);
           stage = ones(1,nmodels);
-        else
-          nmodels = numel(dmcs);
+        elseif isMultiStage,
+          nmodels = numel(netMode);
           stage = 1:nmodels;
         end
         jobidx = zeros(1,nmodels);

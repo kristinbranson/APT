@@ -153,14 +153,17 @@ classdef TrainMonitorViz < handle
           hkill(i,j) = plot(obj.haxs(j,iset),nan,nan,'rx','markersize',12,'linewidth',2);
         end
       end
-      if nmodels > 1,
+      ismultiview = numel(unique(view)) > 1;
+      ismultisplit = numel(unique(splitidx(splitidx>0))) > 1;
+      islegend = ismultiview || ismultisplit;
+      if islegend,
         legstrs = repmat({''},[1,nmodels]);
-        if numel(unique(splitidx(splitidx>0)))>1,
+        if ismultisplit,
           for i = 1:nmodels,
             legstrs{i} = [legstrs{i},sprintf('split %d ',splitidx(i))];
           end
         end
-        if numel(unique(view)) > 1,
+        if ismultiview,
           for i = 1:nmodels,
             legstrs{i} = [legstrs{i},sprintf('view %d ',view(i))];
           end
@@ -184,11 +187,12 @@ classdef TrainMonitorViz < handle
     end
     
     function splitaxs(obj,nsets)
-      h = obj.haxs;
-      szassert(h,[2 1]);
+      hax = obj.haxs;
+      szassert(hax,[2 1]);
+      haxnew = gobjects(2,nsets);
       SPACERFAC = 0.98;
-      for i=1:numel(h)
-        posn = h(i).Position;
+      for i=1:numel(hax)
+        posn = hax(i).Position;
         w0 = posn(3);
         h = posn(4);
         x0 = posn(1);
@@ -198,16 +202,17 @@ classdef TrainMonitorViz < handle
         x = x0;
         for j=1:nsets,
           if j == 1,
-            hnew = h(i);
+            hnew = hax(i);
           else
-            hnew = copyobj(h(i),h(i).Parent);
+            hnew = copyobj(hax(i),hax(i).Parent);
           end
           hnew.Position = [x,y,w,h];
+          haxnew(i,j) = hnew;
           x = x + w+gap;
         end
 
       end
-      obj.haxs = h;
+      obj.haxs = haxnew;
     end
         
     function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)

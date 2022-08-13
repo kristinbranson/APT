@@ -167,6 +167,17 @@ classdef APTInterf
         'ignore_local',[]...
         );
       
+      % currently this only works with a single view
+      if ~isempty(prev_model),
+        prev_model = DeepModelChainOnDisk.getCheckSingle(prev_model);
+      end
+      if ~isempty(prev_model2),
+        prev_model2 = DeepModelChainOnDisk.getCheckSingle(prev_model2);
+      end
+      if ~isempty(netTypeStg1),
+        netTypeStg1 = char(DeepModelChainOnDisk.getCheckSingle(netTypeStg1));
+      end
+
       aptintrf = [deepnetroot fs 'APT_interface.py'];
       
       STAGEFLAGS = {'multi' 'first' 'second'};
