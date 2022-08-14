@@ -175,7 +175,7 @@ classdef TrainMonitorViz < handle
       obj.hlinekill = hkill;
       obj.resLast = [];
       obj.isKilled = false(1,nmodels);
-      obj.lastTrainIter = zeros(nsets,nmodels);
+      obj.lastTrainIter = zeros(1,nmodels);
       obj.axisXRange = repmat(obj.axisXRange,[1 nsets]);
 
       obj.jobStoppedRepeatsReqd = 2; 
@@ -226,7 +226,7 @@ classdef TrainMonitorViz < handle
       end
 
       tfSucc = false;
-      msg = ''; %#ok<NASGU>
+      msg = '';
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
@@ -243,7 +243,7 @@ classdef TrainMonitorViz < handle
 
       % for each axes, record if any line got updated and max xlim
       tfAnyLineUpdate = false(1,obj.nset);
-      lineUpdateMaxStep = zeros(1,obj.nset);
+      lineUpdateMaxStep = zeros(1,obj.nmodels);
 
       for i = 1:obj.nmodels,
         if res.jsonPresent(i) && (forceupdate || res.tfUpdate(i)),
@@ -252,7 +252,7 @@ classdef TrainMonitorViz < handle
           set(obj.hline(i,2),'XData',contents.step,'YData',contents.train_dist);
           iset = obj.setidx(i);
           tfAnyLineUpdate(iset) = true;
-          lineUpdateMaxStep(iset) = max(lineUpdateMaxStep(iset),contents.step(end));
+          lineUpdateMaxStep(i) = max(lineUpdateMaxStep(i),contents.step(end));
         end
 
         if res.killFileExists(i),
@@ -287,13 +287,13 @@ classdef TrainMonitorViz < handle
           handles.popupmenu_actions.Value = i;
         end
       end
-      
-      for iset=1:obj.nset
-        if tfAnyLineUpdate(iset)
-          obj.lastTrainIter(iset,:) = ...
-            max(obj.lastTrainIter(iset,:),lineUpdateMaxStep(iset));
-          obj.adjustAxes(max(obj.lastTrainIter(iset,:)),iset);
-          %obj.dtObj.setTrackerInfo('iterCurr',obj.lastTrainIter);
+
+      for i = 1:obj.nmodels,
+        obj.lastTrainIter(i) = max(obj.lastTrainIter(i),lineUpdateMaxStep(i));
+      end
+      for iset = 1:obj.nset,
+        if tfAnyLineUpdate(iset),
+          obj.adjustAxes(max(obj.lastTrainIter(obj.setidx==iset)),iset);
         end
       end
       

@@ -453,7 +453,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         else
           viewstr = sprintf('view%d',obj.view(i));
         end
-        v{i} = sprintf('%s%s_%s_%s.err',obj.modelChainID{i},viewstr,obj.trainID{i},obj.netMode{i}.shortCode);
+        v{i} = sprintf('%s%s_%s_%s.err',obj.modelChainID{i},viewstr,obj.trainID{i},obj.netModeName(i));
+      end
+    end
+    function netmodestr = netModeName(obj,i)
+      if obj.isMultiStage(i),
+        netmodestr = 'multistage';
+      else
+        netmodestr = obj.netMode{i}.shortCode;
       end
     end
     function [v,idx] = trainLogLnx(obj,varargin)
@@ -480,7 +487,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           restartstr = '';
         end
         v{ii} = sprintf('%s%s_%s_%s_%s%s.log',obj.modelChainID{i},viewstr,...
-          obj.trainID{i},obj.netMode{i}.shortCode,...
+          obj.trainID{i},obj.netModeName(i),...
           lower(char(obj.trainType{i})),restartstr);
       end
       catch
@@ -929,6 +936,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       fileinfo.errfile = obj.errfileLnx(idx);
       fileinfo.netType = obj.netType(idx);
       fileinfo.netMode = obj.netMode(idx);
+      fileinfo.netModeName = cell(1,numel(idx));
+      for i = 1:numel(idx),
+        fileinfo.netModeName{i} = obj.netModeName(i);
+      end
       fileinfo.view = obj.view(idx);
       fileinfo.jobidx = obj.jobidx(idx);
       fileinfo.stage = obj.stage(idx);
@@ -944,7 +955,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % fileinfo.cache is already a char
       fileinfo.errfile = DeepModelChainOnDisk.getCheckSingle(fileinfo.errfile);
       % fileinfo.netType is a cell still
-      fileinfo.netMode = DeepModelChainOnDisk.getCheckSingle(fileinfo.netMode);
+      % fileinfo.netMode is a cell still
+      fileinfo.netModeName = DeepModelChainOnDisk.getCheckSingle(fileinfo.netModeName);
       % fileinfo.view may be a vector
       fileinfo.jobidx = DeepModelChainOnDisk.getCheckSingle(fileinfo.jobidx);
       % fileinfo.stage may be a vector
@@ -1456,7 +1468,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         if ischar(s{1}),
           assert(numel(unique(s))==1);
         else
-          t = class(s);
+          t = class(s{1});
           if ismember(t,class_tochar),
             schar = cellfun(@char,s,'Uni',0);
             assert(numel(unique(schar))==1);

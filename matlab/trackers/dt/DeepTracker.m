@@ -1473,7 +1473,8 @@ classdef DeepTracker < LabelTracker
             syscmds{ijob} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
                 aptroot,dmcjob,...
                 'singArgs',singArgs,'trnCmdType',trnCmdType,...
-                'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots});
+                'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots},...
+                'isTopDown',nstages>1);
           case DLBackEnd.Docker
             mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
             gpuid = gpuids(ijob);
@@ -4755,19 +4756,24 @@ classdef DeepTracker < LabelTracker
         fileinfo,trainType,...
         view1b,mntPaths,gpuid,varargin)
                   
-      [dockerargs,isMultiView,prev_models,augOnly,augOut,baseargs0] = ... 
+      [dockerargs,isMultiView,prev_models,prev_models2,augOnly,augOut,baseargs0] = ... 
         myparse(varargin,...
         'dockerargs',{},...
         'isMultiView',false,...
         'prev_model',[],...
+        'prev_model2',[],...
         'augOnly',false, ...
         'augOut','', ... % used only if augOnly==true  
         'baseargs',{} ...
         );
 
+      if ~isMultiView,
+        view1b = DeepModelChainOnDisk.getCheckSingle(view1b);
+      end
+
       modelChainID = fileinfo.modelChainID;
       trainID = fileinfo.trainID;
-      netMode = fileinfo.netMode;
+      netModeName = fileinfo.netModeName;
 
       filequote = backend.getFileQuoteDockerCodeGen;
       baseargs = [{'trainType' trainType 'filequote' filequote} baseargs0];
@@ -4777,18 +4783,24 @@ classdef DeepTracker < LabelTracker
       if ~isempty(prev_models)
         baseargs = [baseargs, {'prev_model' prev_models}];
       end
+      if ~isempty(prev_models2),
+        baseargs = [baseargs, {'prev_model2' prev_models2}];
+      end
 
       basecmd = APTInterf.trainCodeGen(fileinfo,...
         baseargs{:},'augOnly',augOnly,'augOut',augOut);      
 
       if isMultiView,      
-        containerName = [modelChainID '_' trainID '_' netMode.shortCode];
+        containerName = [modelChainID '_' trainID '_' netModeName];
       else
-        containerName = [modelChainID '_' trainID '_' netMode.shortCode '_view' num2str(view1b)];
+        containerName = [modelChainID '_' trainID '_' netModeName '_view' num2str(view1b)];
       end
 
       % using this bool as torch proxy?
-      tfRequiresTrnPack = DeepModelChainOnDisk.getCheckSingle(fileinfo.netType).requiresTrnPack(fileinfo.netMode);
+      tfRequiresTrnPack = false;
+      for i = 1:numel(fileinfo.netType),
+        tfRequiresTrnPack = tfRequiresTrnPack || fileinfo.netType{i}.requiresTrnPack(fileinfo.netMode{i});
+      end
       if tfRequiresTrnPack
         shmSize = 8;
       else
@@ -4822,6 +4834,20 @@ classdef DeepTracker < LabelTracker
         'gpuid',gpuid,condaargs{:});
       
     end
+    function baseargs = trainTopDownBaseArgs(dmc)
+      stages = unique(dmc.getStages());
+      if numel(stages) > 1,
+        stagearg = 0;
+      else
+        stagearg = stages;
+      end
+      baseargs = {...
+        'maTopDown' true ... % missing: 'maTopDownStage'
+        'maTopDownStage1NetType' dmc.getNetType('stage',1) ...
+        'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
+        'maTopDownStage' stagearg ...
+        };
+    end
     function [codestr,containerName] = trainCodeGenDockerDMC(...
         dmc,backend,mntPaths,gpuid,varargin)
       [trnCmdType,augOnly,augOut,isTopDown,leftovers] = myparse_nocheck(varargin,...
@@ -4831,22 +4857,28 @@ classdef DeepTracker < LabelTracker
         'isTopDown',false...
         );
       trnCmdType = DeepModelChainOnDisk.getCheckSingle(trnCmdType);
-      if ~isempty(dmc.prev_models)
-        leftovers = [leftovers {'prev_model' dmc.prev_models}];
+      if ~isempty(dmc.prev_models),
+        if isTopDown,
+          stages = unique(dmc.getStages());
+          for i = 1:numel(stages),
+            stage = stages(i);
+            prev_models = dmc.getPrevModels('stage',stage);
+            if isempty(prev_models),
+              continue;
+            end
+            if i == 1,
+              arg = 'prev_model';
+            else
+              arg = sprintf('prev_model%d',i);
+            end
+            leftovers = [leftovers {arg,prev_models}]; %#ok<AGROW> 
+          end
+        else
+          leftovers = [leftovers {'prev_model' dmc.prev_models}];
+        end
       end
       if isTopDown,
-        stages = unique(dmc.getStages());
-        if numel(stages) > 1,
-          stagearg = 0;
-        else
-          stagearg = stages;
-        end
-        baseargs = {...
-        'maTopDown' true ... % missing: 'maTopDownStage'
-        'maTopDownStage1NetType' dmc.getNetType('stage',1) ...
-        'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
-        'maTopDownStage' stagearg ...
-        };
+        baseargs = DeepTracker.trainTopDownBaseArgs(dmc);
       else
         baseargs = {};
       end
@@ -4899,11 +4931,12 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
     function codestr = trainCodeGenSSHBsubSingDMC(aptroot,dmc,varargin)
-      [singargs,bsubargs,baseargsadd,trnCmdType] = myparse(varargin,...
+      [singargs,bsubargs,baseargsadd,trnCmdType,isTopDown] = myparse(varargin,...
         'singargs',{},...
         'bsubargs',{},...
         'baseargsadd',{},...
-        'trnCmdType',dmc.trainType...
+        'trnCmdType',dmc.trainType,...
+        'isTopDown',false...
         );
       trnCmdType = DeepModelChainOnDisk.getCheckSingle(trnCmdType);
       if isempty(aptroot)
@@ -4926,6 +4959,9 @@ classdef DeepTracker < LabelTracker
       prev_models = dmc.getPrevModels();
       if ~isempty(prev_models)
         baseargs(end+1:end+2) = {'prev_model' prev_models};
+      end
+      if isTopDown,
+        baseargs = [baseargs, DeepTracker.trainTopDownBaseArgs(dmc)];
       end
       baseargs = [baseargs baseargsadd];
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...

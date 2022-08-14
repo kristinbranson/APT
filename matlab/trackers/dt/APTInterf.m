@@ -6,7 +6,7 @@ classdef APTInterf
     function basecmd = trainCodeGen(fileinfo,varargin)
       isMA = fileinfo.netType{1}.isMultiAnimal; % this means is bottom-up multianimal
       isNewStyle = isMA || ...
-        (fileinfo.netMode~=DLNetMode.singleAnimal && fileinfo.netMode~=DLNetMode.multiAnimalTDPoseTrx);
+        (fileinfo.netMode{1}~=DLNetMode.singleAnimal && fileinfo.netMode{1}~=DLNetMode.multiAnimalTDPoseTrx);
       
       if isNewStyle
         basecmd = APTInterf.maTrainCodeGenTrnPack(fileinfo,varargin{:});
@@ -43,11 +43,11 @@ classdef APTInterf
 %       assert(maTopDown == ~isscalar(dlj.TrackerData));
       
       if maTopDown
-        isObjDet = netMode.isObjDet;
+        isObjDet = any(cellfun(@(x) x.isObjDet,netMode));
         [codestr,code] = APTInterf.matdTrainCodeGen(fileinfo,isObjDet,maTopDownStage1NetType,maTopDownStage,...
           leftovers{:});
       else
-        assert(netMode==DLNetMode.multiAnimalBU);
+        assert(all(cellfun(@(x) x==DLNetMode.multiAnimalBU,netMode)));
         [codestr,code] = APTInterf.mabuTrainCodeGen(fileinfo,leftovers{:});
       end
     end
@@ -148,7 +148,7 @@ classdef APTInterf
       cache = fileinfo.cache;
       errfile = fileinfo.errfile;
       trnjson = fileinfo.trainlocfile;
-      netTypeStg2 = char(DeepModelChainOnDisk.getCheckSingle(fileinfo.netType));
+      netTypeStg2 = char(fileinfo.netType{end});
 
       [deepnetroot,fs,filequote,confparamsfilequote,...
         prev_model,prev_model2,torchhome,augOnly,augOut,ignore_local] = ...
@@ -470,7 +470,7 @@ classdef APTInterf
       tfview = ~isempty(view);
       tfcrop = ~isempty(croproi) && ~all(any(isnan(croproi),2),1);
       tflog = ~isempty(log_file);
-      tf2stg = netMode.isTwoStage;
+      tf2stg = any(cellfun(@(x) x.isTwoStage,netMode));
       nstage = 1+double(tf2stg);
       tfmodel = ~isempty(model_file) && ~tf2stg; % -model_file arg not working in Py for 2stg yet
       
