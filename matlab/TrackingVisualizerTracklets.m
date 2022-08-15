@@ -134,6 +134,9 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       tfUpdateIDs = trxMappingChanged;
       tvtrx.updateLiveTrx(ptrx(iTrx),frm,tfUpdateIDs);
     end
+    function iTrxViz = iTrx2iTrxViz(obj,iTrx)
+       [~,iTrxViz] = ismember(iTrx,obj.iTrxViz2iTrx);
+    end
     function trxSelected(obj,iTrx,tfforce)
       if nargin < 3
         tfforce = false;

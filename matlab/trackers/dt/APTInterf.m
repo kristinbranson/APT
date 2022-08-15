@@ -473,7 +473,7 @@ classdef APTInterf
       tfview = ~isempty(view);
       tfcrop = ~isempty(croproi) && ~all(any(isnan(croproi),2),1);
       tflog = ~isempty(log_file);
-      tf2stg = any(cellfun(@(x) x.isTwoStage,netMode));
+      tf2stg = netMode.isTwoStage;
       nstage = 1+double(tf2stg);
       tfmodel = ~isempty(model_file) && ~tf2stg; % -model_file arg not working in Py for 2stg yet
       
