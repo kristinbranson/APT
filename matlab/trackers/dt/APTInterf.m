@@ -107,7 +107,10 @@ classdef APTInterf
         code = [code, {'-ignore_local',num2str(ignore_local)}];
       end
       if ~isempty(prev_model)
-        code = [code {'-model_files' [filequote prev_model filequote]}];
+        code = [code {'-model_files'}];
+        for i = 1:numel(prev_model),
+          code = [code, {[filequote prev_model{i} filequote]}]; %#ok<AGROW> 
+        end
       end
       
       code = [code {'-cache' [filequote cache filequote]}];
