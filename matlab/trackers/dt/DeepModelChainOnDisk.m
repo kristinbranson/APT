@@ -1011,7 +1011,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         gnetspecific = cellfun(@(x)[dmcl{ii} obj.filesep x],gnetspecific,'uni',0);
       
         g{i} = [{ ...
-          [obj.dirProjLnx obj.filesep sprintf('%s_%s*',obj.modelChainID(i),obj.trainID(i))]; ... % lbl
+          [obj.dirProjLnx obj.filesep sprintf('%s_%s*',obj.modelChainID{i},obj.trainID{i})]; ... % lbl
           [dmcl{ii} obj.filesep sprintf('%s*',obj.trainID{i})]; ... % toks, logs, errs
           };...
           gnetspecific(:)];
@@ -1047,6 +1047,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       if nargin < 3,
         debug = false;
       end
+      modelFiles = obj.findModelGlobsLocal();
+      modelFiles = cat(1,modelFiles{:});
+      modelFiles = unique(modelFiles);
+      modelFilesDst = strrep(modelFiles,obj.getRootDir(),newRootDir);
       % nothing to do
       if isequal(obj.getRootDir(),newRootDir), 
         return;
@@ -1057,13 +1061,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
       tfsucc = obj.updateCurrInfo();
       if ~all(tfsucc),
-        warningNoTrace('Failed to update model iteration count for for net type %s.',...
-          char(obj.trnNetType));
+        for i = find(~tfsucc(:)'),
+          warningNoTrace('Failed to update model iteration count for for net type %s.',...
+            char(obj.netType{i}));
+        end
       end
-      modelFiles = obj.findModelGlobsLocal();
-      modelFiles = cat(1,modelFiles{:});
-      modelFiles = unique(modelFiles);
-      modelFilesDst = strrep(modelFiles,obj.getRootDir(),newRootDir);
       for mndx = 1:numel(modelFiles)
         copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
         if debug,

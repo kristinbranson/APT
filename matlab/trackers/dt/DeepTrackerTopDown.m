@@ -528,10 +528,6 @@ classdef DeepTrackerTopDown < DeepTracker
       end
     end
     
-    function dmcs = trnGetDMCs(obj)
-      dmcs = [obj.stage1Tracker.trnLastDMC(:); obj.trnLastDMC(:)];
-    end
-    
     function tc = getTrackerClassAugmented(obj2)
       obj1 = obj2.stage1Tracker;
       tc = {class(obj2) ...

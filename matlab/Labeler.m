@@ -2059,7 +2059,7 @@ classdef Labeler < handle
         catch ME
           save(fname,'-mat','-struct','s');
           msg = ME.getReport();
-          warningNoTrace('Saved raw project file %s. Error caught during bundled project save: %s\n',...
+          warningNoTrace('Saved raw project file %s. Error caught during bundled project save:\n%s\n',...
             fname,msg);          
         end
       else
@@ -3015,6 +3015,9 @@ classdef Labeler < handle
           % structure - MK 20190204
 
           dmc = tObj.trnGetDMCs();
+          if isempty(dmc),
+            continue;
+          end
           try
             if dmc.isRemote
               try
