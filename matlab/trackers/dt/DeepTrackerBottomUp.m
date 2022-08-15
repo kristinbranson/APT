@@ -2,7 +2,8 @@ classdef DeepTrackerBottomUp < DeepTracker
 
   methods
     function v = getAlgorithmNameHook(obj)
-      v = sprintf('MA Bottom Up');
+      %v = sprintf('MA Bottom Up');
+      v = obj.trnNetType.shortString;
     end
     function v = getAlgorithmNamePrettyHook(obj)      
       v = sprintf('Bottom Up: %s',obj.trnNetType.displayString);

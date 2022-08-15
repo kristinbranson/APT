@@ -61,7 +61,8 @@ classdef DeepTrackerTopDown < DeepTracker
   end
   methods
     function v = getAlgorithmNameHook(obj)
-      v = sprintf('MA Top Down');%,obj.trnNetMode.shortCode,...
+      v = sprintf('Stg1%s_Stg2%s',obj.stage1Tracker.trnNetMode.shortCode,obj.trnNetMode.shortCode);
+      %v = sprintf('MA Top Down');%,obj.trnNetMode.shortCode,...
 %        obj.stage1Tracker.trnNetMode.shortCode);
     end
     function v = getAlgorithmNamePrettyHook(obj)
