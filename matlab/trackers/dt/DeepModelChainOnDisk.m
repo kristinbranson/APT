@@ -1082,11 +1082,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % will update for all
       maxiter = obj.reader.getMostRecentModel(obj);
       obj.iterCurr = maxiter;
-      tfSuccess = maxiter >= 0;
+      tfSuccess = all(maxiter >= 0);
       
-      if maxiter>obj.iterFinal
-        warningNoTrace('Current model iteration (%d) exceeds specified maximum/target iteration (%d).',...
-          maxiter,obj.iterFinal);
+      if any(maxiter>obj.iterFinal),
+        warningNoTrace('Current model iteration exceeds specified maximum/target iteration: %s.',...
+           DeepTracker.printIter(maxiter,obj.iterFinal));
       end
     end
     
