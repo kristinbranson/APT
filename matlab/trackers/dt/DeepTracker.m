@@ -4705,7 +4705,7 @@ classdef DeepTracker < LabelTracker
         'bindpath',DFLTBINDPATH,...
         'singimg',DeepTracker.SINGULARITY_IMG_PATH...
         );
-      if netMode.isObjDet
+      if netMode{end}.isObjDet
         singimg = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
       end
       delete(dobj);
