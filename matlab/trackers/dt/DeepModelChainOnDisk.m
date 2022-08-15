@@ -1010,7 +1010,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         gnetspecific = netty.getModelGlobs(obj.iterCurr(i));
         gnetspecific = cellfun(@(x)[dmcl{ii} obj.filesep x],gnetspecific,'uni',0);
       
-        g{i} = [{ ...
+        g{ii} = [{ ...
           [obj.dirProjLnx obj.filesep sprintf('%s_%s*',obj.modelChainID{i},obj.trainID{i})]; ... % lbl
           [dmcl{ii} obj.filesep sprintf('%s*',obj.trainID{i})]; ... % toks, logs, errs
           };...
@@ -1027,7 +1027,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       for ii = 1:numel(idx),
         i = idx(ii);
         mdlFiles{ii} = cell(0,1);
-        globs = obj.modelGlobsLnx(i);
+        globs = obj.modelGlobsLnx(i); 
+        assert(numel(globs)==1);
         globs = globs{1};
         for j = 1:numel(globs),
           g = globs{j};
@@ -1036,9 +1037,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
             dd = dir(g);
             mdlFilesNew = {dd.name}';
             mdlFilesNew = cellfun(@(x) fullfile(gP,x),mdlFilesNew,'uni',0);
-            mdlFiles{i} = [mdlFiles{i}; mdlFilesNew]; 
+            mdlFiles{ii} = [mdlFiles{i}; mdlFilesNew]; 
           elseif exist(g,'file')>0
-            mdlFiles{i}{end+1,1} = g; 
+            mdlFiles{ii}{end+1,1} = g; 
           end
         end
       end      

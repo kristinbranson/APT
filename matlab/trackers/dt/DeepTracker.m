@@ -4614,6 +4614,7 @@ classdef DeepTracker < LabelTracker
       trnstrs = cell(1,obj.trnLastDMC.n);
       modelFiles = cell(1,obj.trnLastDMC.n);
       for i = 1:obj.trnLastDMC.n,
+        assert(~isnan(obj.trnLastDMC.iterCurr(i)));
         trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC.iterCurr(i));
         modelFiles(i) = obj.trnLastDMC.trainCurrModelLnx(i);
         modelFiles{i} = regexprep(modelFiles{i},'\.index$','');
@@ -4706,7 +4707,10 @@ classdef DeepTracker < LabelTracker
         'bindpath',DFLTBINDPATH,...
         'singimg',DeepTracker.SINGULARITY_IMG_PATH...
         );
-      if netMode{end}.isObjDet
+      if iscell(netMode),
+        netMode = netMode{end};
+      end
+      if netMode.isObjDet
         singimg = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
       end
       delete(dobj);
