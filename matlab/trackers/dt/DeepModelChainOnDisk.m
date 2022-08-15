@@ -1323,16 +1323,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         netMode = {};
         for i = 1:numel(dmcs),
           if iscell(dmcs(i).netMode),
-            netMode = [netMode,cellfun(@char,dmcs(i).netMode,'Uni',0)];
+            netMode = [netMode,cellfun(@char,dmcs(i).netMode,'Uni',0)]; %#ok<AGROW> 
           elseif ischar(dmcs(i).netMode),
-            netMode{end+1} = dmcs(i).netMode;
+            netMode{end+1} = dmcs(i).netMode; %#ok<AGROW> 
           elseif numel(dmcs(i).netMode) > 1,
-            netMode = [netMode,arrayfun(@char,dmcs(i).netMode,'Uni',0)];
+            netMode = [netMode,arrayfun(@char,dmcs(i).netMode,'Uni',0)]; %#ok<AGROW> 
           else
-            netMode{end+1} = char(dmcs(i).netMode);
+            netMode{end+1} = char(dmcs(i).netMode); %#ok<AGROW> 
           end
         end
-        isMultiStage = numel(unique(netMode));
+        isMultiStage = numel(unique(netMode))>1;
         % can't be both
         assert(~(isMultiView&&isMultiStage));
         if isMultiView,
