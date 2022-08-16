@@ -15,6 +15,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   properties (Constant)
     minFreeMem = 9000; % in MiB
     currentDockerImgTag = 'tf23_mmdetection';
+    currentDockerImgRoot = 'bransonlabapt/apt_docker';
     
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
 
@@ -39,7 +40,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     awsgitbranch
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
-    dockerimgroot = 'bransonlabapt/apt_docker';
+    dockerimgroot = DLBackEndClass.currentDockerImgRoot;
     % We have an instance prop for this to support running on older/custom
     % docker images.
     dockerimgtag = DLBackEndClass.currentDockerImgTag;
@@ -86,6 +87,93 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.type = ty;
     end
     
+    function cmd = wrapBaseCommand(obj,basecmd,varargin)
+
+      switch obj.type,
+        case DLBackEnd.Bsub,
+          cmd = obj.wrapBaseCommandBsub(basecmd,varargin{:});
+        case DLBackEnd.Docker
+          cmd = obj.codeGenDockerGeneral(basecmd,varargin{:});
+        case DLBackEnd.Conda
+          cmd = obj.wrapCommandConda(basecmd);
+        case DLBackEnd.AWS
+          cmd = obj.wrapCommandAWS(basecmd);
+        otherwise
+          error('Not implemented: %s',obj.type);
+      end
+    end
+
+    function cmd = logCommand(obj,containerName,logfile)
+      assert(obj.type == DLBackEnd.Docker);
+      cmd = sprintf('%s logs -f %s &> "%s" &',...
+        obj.dockercmd,containerName,logfile);
+    end
+
+    function v = ignore_local(obj)
+      % this is useful for singularity, not needed for Docker, probably bad
+      % for Conda
+      if obj.type == DLBackEnd.Bsub,
+        v = true;
+      else
+        v = false;
+      end
+    end
+
+    function jobID = parseJobID(obj,res)
+      switch obj.type
+        case DLBackEnd.Bsub,
+          jobID = DLBackEndClass.parseJobIDBsub(res);
+        case DLBackEnd.Docker,
+          jobID = DLBackEndClass.parseJobIDDocker(res);
+        otherwise
+          error('Not implemented: %s',obj.type);
+      end
+    end
+
+    function [tfSucc,jobID] = run(obj,syscmds,varargin)
+
+      [logcmds,cmdfiles,jobdesc] = myparse(varargin,'logcmds',{},'cmdfiles',{},'jobdesc','job');
+
+      if ~isempty(cmdfiles),
+        DLBackEndClass.writeCmdToFile(syscmds,cmdfiles,jobdesc);
+      end
+      njobs = numel(syscmds);
+      tfSucc = false(1,njobs);
+      tfSuccLog = true(1,njobs);
+      jobID = cell(1,njobs);
+      for ijob=1:njobs,
+        fprintf(1,'%s\n',syscmds{ijob});
+        if obj.type == DLBackEnd.Conda,
+          [jobID{ijob},st,res] = parfevalsystem(syscmds{ijob});
+          tfSucc(ijob) = st == 0;
+        else
+          [st,res] = system(syscmds{ijob});
+          tfSucc(ijob) = st == 0;
+          if tfSucc(ijob),
+            jobID{ijob} = obj.parseJobID(res);
+          end
+        end
+        if ~tfSucc(ijob),
+          warning('Failed to spawn %s %d: %s',jobdesc,ijob,res{ijob});
+        else
+          jobidstr = jobID{ijob};
+          if isnumeric(jobidstr),
+            jobidstr = num2str(jobidstr);
+          end
+          fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
+        end
+        if numel(logcmds) >= ijob,
+          fprintf(1,'%s\n',logcmds{ijob});
+          [st2,res2] = system(logcmds{ijob});
+          tfSuccLog(ijob) = st2 == 0;
+          if ~tfSuccLog(ijob),
+            warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
+          end
+        end
+      end
+
+    end
+
     function delete(obj)
       % AL 20191218
       % DLBackEndClass can now be deep-copied (see copyAndDetach below) as 
@@ -275,7 +363,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnet}; % don't use guarded
-          codestr = obj.codeGenDockerGeneral(basecmd,'aptTestContainer',...
+          codestr = obj.codeGenDockerGeneral(basecmd,...
+            'containername','aptTestContainer',...
             'bindpath',bindpath,...
             'detach',false);
           if verbose
@@ -372,7 +461,160 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end
   
   methods (Static)
-    
+
+    function tfSucc = writeCmdToFile(syscmds,cmdfiles,jobdesc)
+
+      if nargin < 3,
+        jobdesc = 'job';
+      end
+      if ischar(syscmds),
+        syscmds = {syscmds};
+      end
+      if ischar(cmdfiles),
+        cmdfiles = {cmdfiles};
+      end
+      tfSucc = false(1,numel(syscmds));
+      assert(numel(cmdfiles) == numel(syscmds));
+      for i = 1:numel(syscmds),
+        [fh,msg] = fopen(cmdfiles{i},'w');
+        if isequal(fh,-1)
+          warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+        else
+          fprintf(fh,'%s\n',syscmds{i});
+          fclose(fh);
+          fprintf(1,'Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfiles{i});
+          tfSucc(i) = true;
+        end
+      end
+
+    end
+
+    function jobid = parseJobIDStatic(res,type)
+      switch type,
+        case DLBackEnd.Bsub,
+          jobid = parseJobIDBsub(res);
+        case DLBackEnd.Docker,
+          jobid = parseJobIDDocker(res);
+        otherwise
+          error('Not implemented: %s',type);
+      end
+    end
+
+    function jobid = parseJobIDBSub(res)
+      PAT = 'Job <(?<jobid>[0-9]+)>';
+      stoks = regexp(res,PAT,'names');
+      if ~isempty(stoks)
+        jobid = str2double(stoks.jobid);
+      else
+        jobid = nan;
+        warning('Could not parse job id from:\n%s\',res);
+      end
+    end
+
+    function jobID = parseJobIDDocker(res)
+      res = regexp(res,'\n','split');
+      res = regexp(res,'^[0-9a-f]+$','once','match');
+      l = cellfun(@numel,res);
+      try
+        res = res{find(l==64,1)};
+        assert(~isempty(res));
+        jobID = strtrim(res);
+      catch ME,
+        warning('Could not parse job id from:\n%s\',res);
+        disp(getReport(ME));
+        jobID = '';
+      end
+    end
+
+    function cmd = wrapCommandConda(basecmd,varargin) %#ok<INUSD,STOUT> 
+      error('Not implemented');
+    end
+
+    function cmd = wrapCommandAWS(basecmd,varargin) %#ok<STOUT,INUSD> 
+      error('Not implemented');
+    end
+
+    function cmdout = wrapCommandSing(cmdin,varargin)
+
+      DFLTBINDPATH = {
+        '/groups'
+        '/nrs'
+        '/scratch'};
+      [bindpath,singimg] = myparse(varargin,...
+        'bindpath',DFLTBINDPATH,...
+        'singimg',DeepTracker.SINGULARITY_IMG_PATH...
+        );
+      bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
+      Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
+      Bflagsstr = sprintf('%s ',Bflags{:});
+      esccmd = String.escapeQuotes(cmdin);
+      cmdout = sprintf('singularity exec --nv %s %s bash -c "%s"',...
+        Bflagsstr,singimg,esccmd);
+
+    end
+
+    function cmdout = wrapCommandBsub(cmdin,varargin)
+      [nslots,gpuqueue,logfile] = myparse(bsubargs,...
+        'nslots',DeepTracker.default_jrcnslots_train,...
+        'gpuqueue',DeepTracker.default_jrcgpuqueue,...
+        'logfile','/dev/null');
+      esccmd = String.escapeQuotes(cmdin);
+      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" "%s"',...
+        nslots,gpuqueue,logfile,esccmd);
+    end
+
+    function cmdout = wrapCommandSSH(remotecmd,varargin)
+
+      [host,prefix,sshoptions,timeout,extraprefix] = myparse(varargin,...
+        'host',DLBackEndClass.jrchost,...
+        'prefix',DLBackEndClass.jrcprefix,...
+        'sshoptions','-o "StrictHostKeyChecking no" -t',...
+        'timeout',[],...
+        'extraprefix','');
+
+      if ~isempty(extraprefix),
+        prefix = [prefix '; ' extraprefix];
+      end
+
+      if ~isempty(prefix),
+        remotecmd = [prefix,'; ',remotecmd];
+      end
+
+      remotecmd = String.escapeQuotes(remotecmd);
+
+      if ~isempty(timeout),
+        sshoptions1 = ['-o "ConnectTimeout ',num2str(timeout),'"'];
+        if ~ischar(sshoptions) || isempty(sshoptions),
+          sshoptions = sshoptions1;
+        else
+          sshoptions = [sshoptions,' ',sshoptions1];
+        end
+      end
+      if ~ischar(sshoptions) || isempty(sshoptions),
+        sshcmd = 'ssh';
+      else
+        sshcmd = ['ssh ',sshoptions];
+      end
+
+      cmdout = sprintf('%s %s "%s"',sshcmd,host,remotecmd);
+
+    end
+
+    function cmd = wrapBaseCommandBsub(basecmd,varargin)
+
+      [singargs,bsubargs,sshargs] = myparse('varargin','singargs',{},'bsubargs',{},'sshargs',{});
+      cmd = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
+      cmd = DLBackEndClass.wrapCommandBsub(cmd,bsubargs{:});
+
+      % already on cluster?
+      tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
+      if ~tfOnCluster,
+        cmd = DLBackEndClass.wrapCommandSSH(cmd,sshargs{:});
+      end
+
+    end
+
+
     function [hfig,hedit] = createFigTestConfig(figname)
       hfig = dialog('Name',figname,'Color',[0,0,0],'WindowStyle','normal');
       hedit = uicontrol(hfig,'Style','edit','Units','normalized',...
@@ -507,19 +749,22 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      if isempty(obj.dockerremotehost),
-        dockercmd = 'docker';
-        dockercmdend = '';
-        filequote = '"';
-      else
-        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
-        dockercmdend = '"';
-        filequote = '\"';
-      end    
-      
+%       if isempty(obj.dockerremotehost),
+%         dockercmd = 'docker';
+%         dockercmdend = '';
+%         filequote = '"';
+%       else
+%         dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
+%         dockercmdend = '"';
+%         filequote = '\"';
+%       end
+%       
       FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
-      cmd = sprintf('%s version --format ''%s''%s',dockercmd,FMTSPEC,dockercmdend);
-      
+      cmd = sprintf('docker version --format ''%s''%s',FMTSPEC);
+      if ~isempty(obj.dockerremotehost),
+        cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+      end
+
       tfsucc = false;
       clientver = '';
       clientapiver = '';
@@ -545,26 +790,27 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function filequote = getFileQuoteDockerCodeGen(obj) 
-      % get filequote to use with codeGenDockerGeneral      
-      if isempty(obj.dockerremotehost)
-        % local Docker run
-        filequote = '"';
-      else
-        filequote = '\"';
-      end
-    end
+%     function filequote = getFileQuoteDockerCodeGen(obj) 
+%       % get filequote to use with codeGenDockerGeneral      
+%       if isempty(obj.dockerremotehost)
+%         % local Docker run
+%         filequote = '"';
+%       else
+%         filequote = '\"';
+%       end
+%     end
     
-    function codestr = codeGenDockerGeneral(obj,basecmd,containerName,varargin)
+    function codestr = codeGenDockerGeneral(obj,basecmd,varargin)
       % Take a base command and run it in a docker img
       %
       % basecmd: currently assumed to have any filenames/paths protected by
       %   filequote as returned by obj.getFileQuoteDockerCodeGen
       
       DFLTBINDPATH = {};
-      [bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,...
+      [containerName,bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,...
         tty,shmSize] = ...
         myparse(varargin,...
+        'containername','',...
         'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
         'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
@@ -574,6 +820,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         'tty',false,...
         'shmsize',[] ... optional
         );
+      assert(~isempty(containerName));
       
       aptdeepnet = APT.getpathdl;
       
@@ -592,15 +839,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         deepnetrootContainer = ...
           DeepTracker.codeGenPathUpdateWin2LnxContainer(aptdeepnet,bindMntLocInContainer);
         userArgs = {};
-        bashCmdQuote = '"';
       else
-        mountArgsFcn = @(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x);
+        mountArgsFcn = @(x)sprintf('--mount "type=bind,src=%s,dst=%s"',x,x);
         % Can use raw bindpaths here; already in single-quotes, addnl
         % quotes unnec
         mountArgs = cellfun(mountArgsFcn,bindpath,'uni',0);
         deepnetrootContainer = aptdeepnet;
         userArgs = {'--user' '$(id -u):$(id -g)'};
-        bashCmdQuote = '''';
       end
       
       if isgpu
@@ -617,20 +862,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       user = getenv('USER');
       
       dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
-      
-      if isempty(obj.dockerremotehost),
-        % local Docker run
-        dockercmd = sprintf('%s docker',dockerApiVerExport);
-        dockercmdend = '';
-        filequote = '"';
-      else
-        if tfWinAppLnxContainer
+
+      dockercmd = sprintf('%s docker',dockerApiVerExport);
+
+      if ~isempty(obj.dockerremotehost) && tfWinAppLnxContainer,
           error('Docker execution on remote host currently unsupported on Windows.');
           % Might work fine, maybe issue with double-quotes
-        end
-        dockercmd = sprintf('ssh -t %s "%s docker',obj.dockerremotehost,dockerApiVerExport);
-        dockercmdend = '"';
-        filequote = '\"';
       end
       
       if tfDetach,
@@ -647,7 +884,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ~isempty(shmSize)
         otherargs{end+1,1} = sprintf('--shm-size=%dG',shmSize);
       end
-      
+
       codestr = [
         {
         dockercmd
@@ -664,19 +901,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherargs(:);
         {
         '-w'
-        [filequote deepnetrootContainer filequote]
+        ['"' deepnetrootContainer '"']
         '-e'
         ['USER=' user]
         dockerimg
-        sprintf('bash -c %sexport HOME=%s; %s cd %s; %s%s%s',...
-         bashCmdQuote,[filequote homedir filequote],cudaEnv,...
-         [filequote deepnetrootContainer filequote],basecmd,... % basecmd should have filenames protected by \"
-         bashCmdQuote,dockercmdend);
         }
         ];
-      
+      bashcmd = sprintf('export HOME="%s"; %s cd "%s"; %s',...
+        homedir,cudaEnv,deepnetrootContainer,basecmd);
+      escbashcmd = sprintf('bash -c "%s"',String.escapeQuotes(bashcmd));
+      codestr{end+1} = escbashcmd;      
       codestr = sprintf('%s ',codestr{:});
       codestr = codestr(1:end-1);
+      if ~isempty(obj.dockerremotehost),
+        codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
+      end
     end
     
     function [tfsucc,hedit] = testDockerConfig(obj)

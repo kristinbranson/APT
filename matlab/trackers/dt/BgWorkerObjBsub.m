@@ -12,14 +12,15 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       if nargin < 4,
         imov = 1;
       end
-      PAT = 'Job <(?<jobid>[0-9]+)>';
-      stoks = regexp(res,PAT,'names');
-      if ~isempty(stoks)
-        jobid = str2double(stoks.jobid);
-      else
-        jobid = nan;
-        warningNoTrace('Failed to ascertain jobID.');
-      end
+      jobid = DLBackEndClass.parseJobIDBsub(res);
+%       PAT = 'Job <(?<jobid>[0-9]+)>';
+%       stoks = regexp(res,PAT,'names');
+%       if ~isempty(stoks)
+%         jobid = str2double(stoks.jobid);
+%       else
+%         jobid = nan;
+%         warningNoTrace('Failed to ascertain jobID.');
+%       end
       fprintf('Process job (view %d, mov %d) spawned, jobid=%d.\n\n',...
         iview,imov,jobid);
       % assigning to 'local' workerobj, not the one copied to workers

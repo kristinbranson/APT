@@ -25,9 +25,20 @@ classdef String
         s = [sprintf(pat,c{1:end-1}) c{end}];
       end
     end
+
+    function s = quoteCellStr(c,q)
+      if nargin < 2,
+        q = '"';
+      end
+      s = cellfun(@(x) [q x q],c,'Uni',0);
+    end
     
     function s = escapeSpaces(s)
       s = regexprep(s,'([^\\]) ','$1\\ ');
+    end
+
+    function outcmd = escapeQuotes(incmd)
+      outcmd = strrep(strrep(incmd,'\','\\'),'"','\"');
     end
     
     % see civilizedStringFromCellArrayOfStrings

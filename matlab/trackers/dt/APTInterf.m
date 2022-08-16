@@ -1,9 +1,124 @@
 classdef APTInterf
   % CodeGen methods for APT_interface.py
+
+  properties (Constant)
+    pymodule = 'APT_interface.py';
+    pymoduleparentdir = 'deepnet';
+  end
   
   methods (Static)
 
+    function codestr = trainCodeGenBase(dmc,varargin)
+      
+      [aptroot,filesep0,filequote,confparamsextra,...
+        torchhome,val_split,...
+        ignore_local] = ...
+        myparse(varargin,...
+        'aptroot',APT.Root,...
+        'filesep','/',...
+        'filequote','"',... % quote char used to protect filenames/paths.
+        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+        ... % is expected to wrap in enclosing regular double-quotes " !!
+        'confparamsextra',{},...
+        'torchhome',APT.torchhome, ...
+        'val_split',[],...
+        'ignore_local',[]... % whether to remove local python modules from the path
+        );
+      aptintrf = [aptroot filesep0 APTInterf.pymoduleparentdir filesep0 APTInterf.pymodule];
+
+      modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
+      trainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
+      cacheRootDir = dmc.getRootDir();
+      errfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
+      tfFollowsObjDet = dmc.getFollowsObjDet();
+      stages = unique(dmc.getStages());
+      views = unique(dmc.getViews());
+      nstages = numel(stages);
+      nviews = numel(views);
+      % one net type per stage
+      stage2netType = cell(1,nstages);
+      for istage = 1:nstages,
+        stage = stages(istage);
+        stage2netType{istage} = char(DeepModelChainOnDisk.getCheckSingle(dmc.getNetType('stage',stage)));
+      end
+      trainLocFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLocLnx());
+      stage2prevModels = cell(1,nstages);
+      for istage = 1:nstages,
+        stage = stages(istage);
+        % cell of length nviews or empty
+        stage2prevModels{istage} = dmc.getPrevModels('stage',stage); 
+        assert(isempty(stage2prevModels{istage}) || numel(stage2prevModels{istage}) == nviews);
+      end
+      % trainType has to be unique - only one parameter to APT_interface to
+      % specify this
+      trainType = DeepModelChainOnDisk.getCheckSingle(dmc.getTrainType);
+
+      % MK 20220128 -- db_format should come from params_deeptrack_net.yaml
+%       confParams = { ... %        'is_multi' 'True' ...    'max_n_animals' num2str(maxNanimals) ...
+%         'db_format' [confparamsfilequote 'coco' confparamsfilequote] ... % when the job is submitted the double quote need to escaped. This is tested fro cluster. Not sure for AWS etc. MK 20210226
+%         confparamsextra{:} ...
+%         };
+      confParams = confparamsextra;
+      
+      code = { ...
+        APTInterf.getTorchHomeCode(torchhome,filequote) ...
+        'python' ...
+        [filequote aptintrf filequote] ...
+        trainConfig ...
+        '-name' modelChainID ...
+        '-err_file' [filequote errfile filequote] ... 
+        '-json_trn_file' trainLocFile...
+        };
+
+      % conf params
+      code = [code {'-conf_params'} confParams];
+
+      % only training stage 2 in this job
+      if tfFollowsObjDet(1),
+        code = [code {'use_bbox_trx' 'True'}];
+      end
+
+      % type for the first stage trained in this job
+      code = [code,{'-type',stage2netType{1}}];
+      if ~isempty(stage2prevModels{1}),
+        code = [code {'-model_files'} String.quoteCellStr(stage2prevModels{1},filequote)];
+      end
+
+      % conf params for the second stage trained in this job
+      if nstages > 1,
+        assert(nstages==2);
+        code = [code,{'-conf_params2'}];
+        code = [code,{'-type2',stage2netType{2}}];
+        if tfFollowsObjDet(2),
+          code = [code {'use_bbox_trx' 'True'}];
+        end
+        if ~isempty(stage2prevModels{2}),
+          code = [code {'-model_files2'} String.quoteCellStr(stage2prevModels{2},filequote)];
+        end
+      end
+
+      if ~isempty(ignore_local),
+        code = [code, {'-ignore_local',num2str(ignore_local)}];
+      end
+      
+      code = [code {'-cache' [filequote cacheRootDir filequote]}];
+      code = [code {'train' '-use_cache'}];
+
+      if trainType == DLTrainType.Restart,
+        code = [code {'-continue -skip_db'}];
+      end
+
+      dosplit = ~isempty(val_split);
+      if dosplit
+        code = [code {'-val_split' num2str(val_split)}];
+      end      
+
+      codestr = String.cellstr2DelimList(code,' ');
+
+    end
+
     function basecmd = trainCodeGen(fileinfo,varargin)
+      warning('Obsolete code');
       isMA = fileinfo.netType{1}.isMultiAnimal; % this means is bottom-up multianimal
       isNewStyle = isMA || ...
         (fileinfo.netMode{1}~=DLNetMode.singleAnimal && fileinfo.netMode{1}~=DLNetMode.multiAnimalTDPoseTrx);
@@ -22,6 +137,8 @@ classdef APTInterf
       % netType/netMode: for TopDown trackers, these are currently ALWAYS
       % stage2. pass stage1 in the varargin. Yes, this is a little weird if
       % maTopDownStage=='first'.
+
+      warning('Obsolete code');
       
       [maTopDown,maTopDownStage,maTopDownStage1NetType,...
         maTopDownStage1NetMode,leftovers] = ...
@@ -53,6 +170,9 @@ classdef APTInterf
     end
     
     function [codestr,code] = mabuTrainCodeGen(fileinfo,varargin)
+
+      warning('Obsolete code');
+
       % Simplified relative to trainCodeGen
 
       modelChainID = fileinfo.modelChainID;
@@ -146,6 +266,8 @@ classdef APTInterf
     function [codestr,code] = matdTrainCodeGen(fileinfo,...
         isObjDet,netTypeStg1,stage,varargin)
       
+      warning('Obsolete code');
+
       modelChainID = fileinfo.modelChainID;
       dlconfigfile = fileinfo.dlconfig;
       cache = fileinfo.cache;
