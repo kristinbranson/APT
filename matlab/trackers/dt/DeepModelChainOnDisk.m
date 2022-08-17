@@ -20,7 +20,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     props_numeric = {'jobidx','stage','view','splitIdx','iterFinal','iterCurr','nLabels'};
     props_cell = {'netType','netMode','trainType','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword','prev_models'};
-    props_bool = {'isMultiView','isMultiStage','tfFollowsObjDet'};
+    props_bool = {'tfFollowsObjDet'};
 
   end
 
@@ -92,8 +92,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
                     % identifies a restart
     trainType = {}; % cell of DLTrainType
     
-    isMultiView = []; % whether this was trained with one call to APT_interface for all views
-    isMultiStage = []; % whether this was trained with one call to APT_interface for all stages
+    isMultiViewTracker = []; % whether this tracker is part of a multi-view tracker
+    isMultiStageTracker = []; % whether this tracker is part of a multi-stage tracker
     tfFollowsObjDet = []; % whether the previous stage was an object detection stage
     % if provided, overrides .lblStrippedName. used for each running splits
     % wherein a single stripped lbl is used in multiple runs
@@ -238,10 +238,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       idx = obj.select(varargin{:});
       v = obj.nLabels(idx);
     end
-    function [v,idx] = getIsMultiView(obj,varargin)
-      idx = obj.select(varargin{:});
-      v = obj.isMultiView(idx);
-    end
     function [v,idx] = getFollowsObjDet(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.tfFollowsObjDet(idx);
@@ -274,21 +270,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = job2stage(obj,ijob)
       v = unique(obj.stage(obj.jobidx==ijob));
     end
-    function autoSetIsMultiView(obj)
-      v = false(1,obj.n);
-      for ijob = 1:obj.njobs,
-        viewcurr = obj.job2view(ijob);
-        v(obj.jobidx==ijob) = numel(viewcurr) > 1;
-      end
-      obj.isMultiView = v;
+    function resetIsMultiViewTracker(obj)
+      obj.isMultiViewTracker = numel(unique(obj.view))>1;
     end
-    function autoSetIsMultiStage(obj)
-      v = false(1,obj.n);
-      for ijob = 1:obj.njobs,
-        stagecurr = obj.job2stage(ijob);
-        v(obj.jobidx==ijob) = numel(stagecurr) > 1;
-      end
-      obj.isMultiStage = v;
+    function resetIsMultiStageTracker(obj)
+      obj.isMultiStageTracker = numel(unique(obj.stage))>1;
     end
     function idx = setFollowsObjDet(obj,isObjDet,varargin)
       idx = obj.select(varargin{:});
@@ -297,7 +283,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function resetFollowsObjDet(obj)
       stages = obj.getStages();
       ustages = unique(stages);
-      uviews = unique(obj.getViews());
       obj.setFollowsObjDet(false,'stage',1);
       for stagei = 2:numel(ustages),
         stagecurr = ustages(stagei);
@@ -305,8 +290,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         idxcurr = obj.select('stage',stagecurr);
         for ii = 1:numel(idxcurr),
           icurr = idxcurr(ii);
-          [~,ivwcurr,~,~] = obj.ind2sub(icurr);
-          netModePrev = obj.getNetMode('stage',stageprev,'view',uviews(ivwcurr));
+          [~,vwcurr,~,~] = obj.ind2sub(icurr);
+          netModePrev = DeepModelChainOnDisk.getCheckSingle(obj.getNetMode('stage',stageprev,'view',vwcurr));
           if isempty(netModePrev),
             isObjDet = false;
           else
@@ -413,14 +398,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function [v,idx] = trainCmdfileName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
+      isMultiViewJob = obj.isMultiViewJob(idx);
+      netModeName = obj.netModeName(idx);
       for ii = 1:numel(idx),
         icurr = idx(ii);
-        if obj.isMultiView(icurr), % this job is for multiple views
+        if isMultiViewJob(ii), % this job is for multiple views
           viewstr = '';
         else
           viewstr = sprintf('view%d',obj.view(icurr));
         end
-        v{icurr} = sprintf('%s%s_%s_%s',obj.modelChainID{icurr},viewstr,obj.trainID{icurr},obj.netMode{icurr}.shortCode);
+        v{icurr} = sprintf('%s%s_%s_%s',obj.modelChainID{icurr},viewstr,obj.trainID{icurr},obj.netModeName{ii});
         if obj.isSplit,
           v{icurr} = [v{icurr},'.sh'];
         else
@@ -486,9 +473,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function [v,idx] = errfileName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
+      isMultiViewJob = obj.isMultiViewJob(idx);
       for ii = 1:numel(idx),
         icurr = idx(ii);
-        if obj.isMultiView(icurr), % this job is for multiple views
+        if isMultiViewJob(ii), % this job is for multiple views
           viewstr = '';
         else
           viewstr = sprintf('view%d',obj.view(icurr));
@@ -497,14 +485,34 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{icurr} = sprintf('%s%s_%s_%s.err',obj.modelChainID{icurr},viewstr,obj.trainID{icurr},netModeName{1});
       end
     end
+    function v = isMultiStageJob(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = false(1,obj.n);
+      for ijob = 1:obj.njobs,
+        stagecurr = obj.job2stage(ijob);
+        v(obj.jobidx==ijob) = numel(stagecurr) > 1;
+      end
+      v = v(idx);
+    end
+    function v = isMultiViewJob(obj,varargin)
+      idx = obj.select(varargin{:});
+      v = false(1,obj.n);
+      for ijob = 1:obj.njobs,
+        viewcurr = obj.job2view(ijob);
+        v(obj.jobidx==ijob) = numel(viewcurr) > 1;
+      end
+      v = v(idx);
+    end
+
     function [netmodestr,idx] = netModeName(obj,varargin)
       idx = obj.select(varargin{:});
       netmodestr = cell(1,numel(idx));
+      isMultiStageJob = obj.isMultiStageJob(idx);
       for i = 1:numel(idx),
-        if obj.isMultiStage(idx(i)),
+        if isMultiStageJob(i),
           netmodestr{i} = 'multistage';
         else
-          netmodestr{i} = obj.netMode{i}.shortCode;
+          netmodestr{i} = obj.netMode{idx(i)}.shortCode;
         end
       end
     end
@@ -516,12 +524,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
     function [v,idx] = trainLogName(obj,varargin)
-      try
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
+      isMultiViewJob = obj.isMultiViewJob(idx);
       for ii = 1:numel(idx),
         icurr = idx(ii);
-        if obj.isMultiView(icurr), % this job is for multiple views
+        if isMultiViewJob(ii), % this job is for multiple views
           viewstr = '';
         else
           viewstr = sprintf('view%d',obj.view(icurr));
@@ -534,9 +542,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{ii} = sprintf('%s%s_%s_%s_%s%s.log',obj.modelChainID{icurr},viewstr,...
           obj.trainID{icurr},DeepModelChainOnDisk.getCheckSingle(obj.netModeName(icurr)),...
           lower(char(obj.trainType{icurr})),restartstr);
-      end
-      catch
-        fprintf('here!\n');
       end
     end
     function [v,idx] = trkName(obj,varargin)
@@ -623,16 +628,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function [v,idx] = killTokenLnx(obj,varargin)
       [killTokenName,idx] = obj.killTokenName(varargin{:});
-      if ~all(obj.isMultiView(idx)),
+      isMultiViewJob = obj.isMultiViewJob(idx);
+      if ~all(isMultiViewJob),
         dirModelChainLnx = obj.dirModelChainLnx(varargin{:});
       end
       v = cell(1,numel(idx));
-      for ii = 1:numel(idx),
-        icurr = idx(ii);
-        if obj.isMultiView(icurr),
-          v{ii} = [obj.dirProjLnx obj.filesep killTokenName{ii}];
+      for i = 1:numel(idx),
+        if isMultiViewJob(i),
+          v{i} = [obj.dirProjLnx obj.filesep killTokenName{i}];
         else
-          v{ii} = [dirModelChainLnx{ii} obj.filesep killTokenName{ii}];
+          v{i} = [dirModelChainLnx{i} obj.filesep killTokenName{i}];
         end
       end
     end    
@@ -659,7 +664,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function v = trainContainerName(obj,varargin)
       idx = obj.select(varargin{:});
       DeepModelChainOnDisk.getCheckSingle(obj.getJobs(idx));
-      if any(obj.getIsMultiView(idx)),
+      isMultiViewJob = obj.isMultiViewJob(idx);
+      if any(isMultiViewJob),
         viewstr = '';
       else
         view1 = DeepModelChainOnDisk.getCheckSingle(obj.getView(idx));
@@ -870,11 +876,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           obj.netMode{i} = DLNetMode.(obj.netMode{i});
         end
       end
-      if isempty(obj.isMultiView),
-        obj.autoSetIsMultiView();
+      if isempty(obj.isMultiViewTracker),
+        obj.resetIsMultiViewTracker();
       end
-      if isempty(obj.isMultiStage),
-        obj.autoSetIsMultiStage();
+      if isempty(obj.isMultiStageTracker),
+        obj.resetIsMultiStageTracker();
       end
       if isempty(obj.tfFollowsObjDet),
         obj.tfFollowsObjDet = false(1,nmodels);
@@ -910,8 +916,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           nmodels==numel(obj.projID) && ...
           nmodels==numel(obj.netType) && ...
           nmodels==numel(obj.netMode);
-      tf = tf && isequal(numel(unique(obj.view)) > 1,obj.isMultiView);
-      tf = tf && isequal(numel(unique(obj.stage)) > 1,obj.isMultiStage);
+      %tf = tf && isequal(numel(unique(obj.view)) > 1,obj.isMultiView);
+      %tf = tf && isequal(numel(unique(obj.stage)) > 1,obj.isMultiStage);
 
     end
 
@@ -957,7 +963,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
         obj.(prop) = [v,dmc.(prop)];
       end
-
+      obj.resetFollowsObjDet();
+      obj.resetIsMultiViewTracker();
+      obj.resetIsMultiStageTracker();
     end
     function dmc = selectSubset(obj,varargin)
       idx = obj.select(varargin{:});
@@ -1506,6 +1514,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           'reader',dmcs(1).reader...
           );
         obj.resetFollowsObjDet();
+        obj.resetIsMultiViewTracker();
+        obj.resetIsMultiStageTracker();
       else
         assert(numel(dmcs)==1);
         obj = dmcs;

@@ -500,7 +500,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function jobid = parseJobIDBSub(res)
+    function jobid = parseJobIDBsub(res)
       PAT = 'Job <(?<jobid>[0-9]+)>';
       stoks = regexp(res,PAT,'names');
       if ~isempty(stoks)
@@ -548,13 +548,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
       esccmd = String.escapeQuotes(cmdin);
-      cmdout = sprintf('singularity exec --nv %s %s bash -c "%s"',...
+      cmdout = sprintf('singularity exec --nv %s "%s" bash -c "%s"',...
         Bflagsstr,singimg,esccmd);
 
     end
 
     function cmdout = wrapCommandBsub(cmdin,varargin)
-      [nslots,gpuqueue,logfile] = myparse(bsubargs,...
+      [nslots,gpuqueue,logfile] = myparse(varargin,...
         'nslots',DeepTracker.default_jrcnslots_train,...
         'gpuqueue',DeepTracker.default_jrcgpuqueue,...
         'logfile','/dev/null');
@@ -602,7 +602,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function cmd = wrapBaseCommandBsub(basecmd,varargin)
 
-      [singargs,bsubargs,sshargs] = myparse('varargin','singargs',{},'bsubargs',{},'sshargs',{});
+      [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
       cmd = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
       cmd = DLBackEndClass.wrapCommandBsub(cmd,bsubargs{:});
 

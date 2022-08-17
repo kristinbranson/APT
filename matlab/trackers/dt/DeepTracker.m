@@ -1458,7 +1458,7 @@ classdef DeepTracker < LabelTracker
         dmcjob = dmc.selectSubset('jobidx',ijob);
 
         basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backEnd.ignore_local,'aptroot',aptroot);
-        backendArgs = obj.getBackEndArgs(backEnd,gpuids(ijob),dmc,aptroot);
+        backendArgs = obj.getBackEndArgs(backEnd,gpuids(ijob),dmcjob,aptroot);
         syscmds{ijob} = backEnd.wrapBaseCommand(basecmd,backendArgs{:});
         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
 
@@ -1540,7 +1540,7 @@ classdef DeepTracker < LabelTracker
         npts = size(dam.locs,2);
         colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
         margs = [margs0 {'colors' colors}];
-        if numel(hfigs) >= i && hfigs(i) > 0 && ishandle(hfigs(i)),
+        if numel(hfigs) >= i && hfigs(i) > 0 && ishandle(hfigs(i)) && ~any(hfigs(1:i-1)==hfigs(i)),
           hfig = hfigs(i);
         else
           hfig = [];

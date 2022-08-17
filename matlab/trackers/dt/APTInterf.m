@@ -64,11 +64,24 @@ classdef APTInterf
         APTInterf.getTorchHomeCode(torchhome,filequote) ...
         'python' ...
         [filequote aptintrf filequote] ...
-        trainConfig ...
+        [filequote trainConfig filequote] ...
         '-name' modelChainID ...
         '-err_file' [filequote errfile filequote] ... 
-        '-json_trn_file' trainLocFile...
+        '-json_trn_file' [filequote trainLocFile filequote]...
         };
+
+      if dmc.isMultiStageTracker,
+        if nstages > 1,
+          stageflag = 'multi';
+        elseif stage == 1,
+          stageflag = 'first';
+        elseif stage == 2,
+          stageflag = 'second';
+        else
+          error('Stage must be 1 or 2');
+        end
+        code = [code {'-stage', stageflag}];
+      end
 
       % conf params
       code = [code {'-conf_params'} confParams];
@@ -88,10 +101,10 @@ classdef APTInterf
       if nstages > 1,
         assert(nstages==2);
         code = [code,{'-conf_params2'}];
-        code = [code,{'-type2',stage2netType{2}}];
         if tfFollowsObjDet(2),
           code = [code {'use_bbox_trx' 'True'}];
         end
+        code = [code,{'-type2',stage2netType{2}}];
         if ~isempty(stage2prevModels{2}),
           code = [code {'-model_files2'} String.quoteCellStr(stage2prevModels{2},filequote)];
         end
