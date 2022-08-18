@@ -2781,12 +2781,17 @@ tf = lObj.movieRotateTargetUp;
 if tf
   ax = lObj.gdata.axes_curr;
   warnst = warning('off','LabelerGUI:axDir');
-  for f={'XDir' 'YDir'},f=f{1}; %#ok<FXSET>
-    if strcmp(ax.(f),'reverse')
-      warningNoTrace('LabelerGUI:ax','Setting main axis .%s to ''normal''.',f);
-      ax.(f) = 'normal';
-    end
-  end
+  % When axis is in image mode, ydir should be reversed!
+  ax.XDir = 'normal';
+  ax.YDir = 'reverse';
+
+%   for f={'XDir' 'YDir'},f=f{1}; %#ok<FXSET>
+%     if strcmp(ax.(f),'reverse')
+%       warningNoTrace('LabelerGUI:ax','Setting main axis .%s to ''normal''.',f);
+%       ax.(f) = 'normal';
+%     end
+%   end
+
   warning(warnst);
 end
 mnu = lObj.gdata.menu_view_rotate_video_target_up;
@@ -3065,7 +3070,7 @@ function axescurrYDirChanged(hObject,eventdata,handles)
 videoRotateTargetUpAxisDirCheckWarn(handles);
 function videoRotateTargetUpAxisDirCheckWarn(handles)
 ax = handles.axes_curr;
-if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
+if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'normal')) && ...
     handles.labelerObj.movieRotateTargetUp
   warningNoTrace('LabelerGUI:axDir',...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');

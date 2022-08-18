@@ -1,4 +1,6 @@
 
+## Single animal - old .. do not use
+
 all_types = ['openpose','mdn','unet','resnet_unet','deeplabcut']
 import APT_interface as apt
 import tensorflow as tf
@@ -71,5 +73,164 @@ imsz = np.array([f[1] for f in files])
 io.savemat('data/network_size.mat',{'mem_use':all_mem_use,
     'batch_size':np.array(bszs),'im_sz':np.array(imsz)})
 
-##
+## Multi-animal
+
+# you might have to set cuda_visible in terminal before launching python
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+device = 0
+
+import multiprocessing
+
+# multiprocessing.set_start_method('spawn')
+import nvidia_smi # Install using pip install nvidia-ml-py3
+import time
+
+lbl_file = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/grone/conf_crop.json'
+all_types = ['multi_mdn_joint_torch','multi_openpose','detect_mmdetect']
+json_trn_file = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/grone/loc_neg.json'
+
+scale_range = [2,1.5,1,0.75,0.5]
+bszs = range(2,12,4)
+crop_sz = 352
+import PoseTools as pt
+
+out_file = 'data/network_size_ma.mat'
+
+nvidia_smi.nvmlInit()
+
+all_mem_use = {}
+for cur_type in all_types:
+
+    # Create the dbs and skip db creation later for faster stuff
+    # parent_conn, child_conn = multiprocessing.Pipe()
+    # p = multiprocessing.Process(target=find_mem_ma, args=(lbl_file, json_trn_file, cur_type, bszs[0], scale_range[0], child_conn))
+    # p.start()
+    # while p.is_alive():
+    #     time.sleep(2)
+    # success = parent_conn.recv()
+    # p.join()
+
+    xx = []
+    for scale in scale_range:
+        cc = []
+        for bsz in bszs:
+            cmd = f'{lbl_file} -name sz_test -no_except -json_trn_file {json_trn_file} -conf_params rescale {scale} batch_size {bsz} multi_loss_mask True dl_steps 100 op_hires_ndeconv 0 -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type {cur_type} train -use_cache'
+
+            parent_conn, child_conn = multiprocessing.Pipe()
+            p = multiprocessing.Process(target=pt.find_mem,args=(cmd,child_conn,True))
+            p.start()
+            max_mem = 0
+            while p.is_alive():
+                handle = nvidia_smi.nvmlDeviceGetHandleByIndex(device)
+                info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+                mem = info.used
+                max_mem = max(mem,max_mem)
+                time.sleep(2)
+
+            success = parent_conn.recv()
+            p.join()
+            cc.append([max_mem,success])
+            time.sleep(5)
+
+        xx.append(cc)
+    all_mem_use[cur_type] = np.array(xx)
+
+
+nvidia_smi.nvmlShutdown()
+from scipy import io
+io.savemat(out_file,{'mem_use':all_mem_use,
+    'batch_size':np.array(bszs),'im_sz':np.array(crop_sz),'scales':np.array(scale_range)})
+
+
+## single animal new
+
+
+# you might have to set cuda_visible in terminal before launching python
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+device = 0
+create_db = False
+
+import multiprocessing
+
+# multiprocessing.set_start_method('spawn')
+import nvidia_smi # Install using pip install nvidia-ml-py3
+import time
+
+lbl_file = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageHT/conf_nocrop.json'
+all_types = ['mdn_joint_fpn','mmpose','openpose','deeplabcut']
+json_trn_file = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageHT/loc_neg.json'
+
+scale_range = [2,1.5,1,0.75,0.5]
+bszs = range(2,12,4)
+crop_sz = 160
+import PoseTools as pt
+
+out_file = 'data/network_size.mat'
+
+
+nvidia_smi.nvmlInit()
+
+all_mem_use = {}
+
+for cur_type in all_types:
+
+    if create_db:
+    # Create the dbs and skip db creation later for faster stuff
+        parent_conn, child_conn = multiprocessing.Pipe()
+        cmd = f'{lbl_file} -name sz_test -no_except -json_trn_file {json_trn_file} -conf_params rescale {scale_range[0]} batch_size {bszs[0]}  dl_steps 100 op_hires_ndeconv 0 -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage second  -type {cur_type} train -use_cache'
+        p = multiprocessing.Process(target=pt.find_mem, args=(cmd, child_conn,False))
+        p.start()
+        max_mem = 0
+        for count in range(300):
+            if not p.is_alive():
+                break
+            handle = nvidia_smi.nvmlDeviceGetHandleByIndex(device)
+            info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+            mem = info.used
+            max_mem = max(mem, max_mem)
+            time.sleep(2)
+        success = parent_conn.recv()
+        p.join()
+
+    xx = []
+    for scale in scale_range:
+        cc = []
+        for bsz in bszs:
+            cmd = f'{lbl_file} -name sz_test -no_except -json_trn_file {json_trn_file} -conf_params rescale {scale} batch_size {bsz}  dl_steps 100 op_hires_ndeconv 0 -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage second  -type {cur_type} train -use_cache'
+
+            parent_conn, child_conn = multiprocessing.Pipe()
+            p = multiprocessing.Process(target=pt.find_mem,args=(cmd,child_conn,True))
+            p.start()
+            max_mem = 0
+            done = False
+            for count in range(300):
+                if not p.is_alive():
+                    done = True
+                    break
+                handle = nvidia_smi.nvmlDeviceGetHandleByIndex(device)
+                info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+                mem = info.used
+                max_mem = max(mem,max_mem)
+                time.sleep(2)
+
+            if not done:
+                success = True
+                p.terminate()
+            else:
+                success = parent_conn.recv()
+
+            p.join()
+            cc.append([max_mem,success])
+            time.sleep(5)
+
+        xx.append(cc)
+    all_mem_use[cur_type] = np.array(xx)
+
+
+nvidia_smi.nvmlShutdown()
+from scipy import io
+io.savemat(out_file,{'mem_use':all_mem_use,
+    'batch_size':np.array(bszs),'im_sz':np.array(crop_sz),'scales':np.array(scale_range)})
 

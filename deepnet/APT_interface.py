@@ -37,6 +37,11 @@ elif vv[0] == 2:
     tf = tensorflow.compat.v1
     tf.disable_v2_behavior()
     tf.logging.set_verbosity(tf.logging.ERROR)
+    try:
+        gpu_devices = tensorflow.config.list_physical_devices('GPU')[0]
+        tensorflow.config.experimental.set_memory_growth(gpu_devices,True)
+    except:
+        pass
 else:
     tf = tensorflow
 
@@ -52,11 +57,12 @@ from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, c
 # from leap.training import train as leap_train
 
 # we shoud re-enable these at some point?
-ISOPENPOSE = False
+# openpose works -- open_pose4 though -- MK 20220816
+ISOPENPOSE = True
 ISSB = False
 
 if ISOPENPOSE:
-    import open_pose as op
+    import open_pose4 as op
 if ISSB:
     import sb1 as sb
 
@@ -1496,7 +1502,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
         cap.close()  # close the movie handles
         logging.info('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
 
-    logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
+    # logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
     lbl.close()
     return splits
 
@@ -1877,10 +1883,10 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
             count[sndx] += 1
             splits[sndx].append(info)
 
-            if selndx % 100 == 99 and selndx > 0:
-                logging.info('{} number of examples added to the dbs'.format(count))
+            # if selndx % 100 == 99 and selndx > 0:
+            #     logging.info('{} number of examples added to the dbs'.format(count))
 
-    logging.info('{} number of examples added to the training dbs'.format(count))
+    # logging.info('{} number of examples added to the training dbs'.format(count))
 
     return splits, sel
 
@@ -1995,7 +2001,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         # if selndx % 100 == 99 and selndx > 0:
         #     logging.info('{} number of examples added to the dbs'.format(count))
 
-    logging.info('{} number of examples added to the training dbs'.format(count))
+    # logging.info('{} number of examples added to the training dbs'.format(count))
 
     return splits, sel
 
@@ -2132,10 +2138,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
             count += 1
             splits[0].append(info)
 
-        if selndx % 100 == 99 and selndx > 0:
-            logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
-
-    logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
+        # if selndx % 100 == 99 and selndx > 0:
+        #     logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
+    #
+    # logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
     lbl.close()
 
     return splits, sel

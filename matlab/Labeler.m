@@ -1430,6 +1430,10 @@ classdef Labeler < handle
       end
     end
     function set.movieRotateTargetUp(obj,v)
+      if obj.maIsMA && (obj.currTarget==0)
+        warningNoTrace('Labeler:MA', 'No labeled target selected. Not rotating');
+        return
+      end
       if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
         %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
         obj.movieCenterOnTarget = true; %#ok<MCSUP>
@@ -13087,6 +13091,10 @@ classdef Labeler < handle
       if ~tfexternal
         [x,y,th] = obj.currentTargetLoc();
       end
+      if isnan(x)
+        warningNoTrace('No target selected');
+        return;
+      end
 
       dx = x-x0;
       dy = y-y0;
@@ -14087,6 +14095,10 @@ classdef Labeler < handle
         cfrm = obj.currFrame;
         imov = obj.currMovie;
         itgt = obj.currTarget;
+        if itgt==0
+          x=NaN; y=NaN; th=NaN;
+          return 
+        end
         lpos = obj.labelsGTaware;
         s = lpos{imov};        
         [tf,p] = Labels.isLabeledFT(s,cfrm,itgt);
