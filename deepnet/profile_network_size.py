@@ -100,6 +100,7 @@ out_file = 'data/network_size_ma.mat'
 nvidia_smi.nvmlInit()
 
 all_mem_use = {}
+##
 for cur_type in all_types:
 
     # Create the dbs and skip db creation later for faster stuff
@@ -174,6 +175,7 @@ nvidia_smi.nvmlInit()
 
 all_mem_use = {}
 
+##
 for cur_type in all_types:
 
     if create_db:
