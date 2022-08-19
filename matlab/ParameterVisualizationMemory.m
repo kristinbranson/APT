@@ -94,6 +94,11 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         obj.downsample = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.ImageProcessing.scale;
         obj.nettype = lObj.tracker.stage1Tracker.algorithmName;
         obj.batchsize = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent.batch_size;        
+      elseif obj.is_ma
+        obj.downsample = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+        obj.nettype = string(lObj.tracker.trnNetType);
+        obj.batchsize = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;        
+        
       else
         obj.downsample = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
         obj.nettype = lObj.tracker.algorithmName;
