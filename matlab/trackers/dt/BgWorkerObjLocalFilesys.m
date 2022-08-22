@@ -143,11 +143,17 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
     
     function trnImgIfo = loadTrainingImages(obj)
       trnImgIfo = cell(1,obj.dmcs.n);
+      necfields = {'idx','ims','locs'};
       for i=1:obj.dmcs.n,
         f = obj.dmcs.trainImagesNameLnx(i);
         f = f{1};
         if exist(f,'file')>0
-          trnImgIfo{i} = load(f,'-mat');
+          infocurr = load(f,'-mat');
+          if ~all(isfield(infocurr,necfields)),
+            warningNoTrace('Training image file ''%s'' exists, but not all fields (yet) saved in it.',f);
+            continue;
+          end
+          trnImgIfo{i} = infocurr;          
           trnImgIfo{i}.name = obj.dmcs.getNetDescriptor(i);
           trnImgIfo{i}.name = trnImgIfo{i}.name{1};
         else

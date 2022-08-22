@@ -83,6 +83,12 @@ classdef APTInterf
         code = [code {'-stage', stageflag}];
       end
 
+      if dmc.isMultiViewTracker,
+        if nviews == 1,
+          code = [code {'-view', num2str(views+1)}];
+        end
+      end
+
       % conf params
       code = [code {'-conf_params'} confParams];
 

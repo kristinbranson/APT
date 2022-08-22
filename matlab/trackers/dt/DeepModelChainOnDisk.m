@@ -407,7 +407,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         else
           viewstr = sprintf('view%d',obj.view(icurr));
         end
-        v{icurr} = sprintf('%s%s_%s_%s',obj.modelChainID{icurr},viewstr,obj.trainID{icurr},obj.netModeName{ii});
+        v{icurr} = sprintf('%s%s_%s_%s',obj.modelChainID{icurr},viewstr,obj.trainID{icurr},netModeName{ii});
         if obj.isSplit,
           v{icurr} = [v{icurr},'.sh'];
         else
@@ -747,21 +747,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{ii} = sprintf('%s_%s.aptsnapshot',obj.modelChainID{icurr},obj.trainID{icurr});
       end
     end
-    function v = singularityImgPath(obj)
+    function v = singularityImgPath(obj) %#ok<MANU> 
       % to do: make this a property of each network type
-      netModes1 = obj.getNetMode();
-      isObjDet = false;
-      for i = 1:numel(netModes1),
-        if netModes1{i}.isObjDet,
-          isObjDet = true;
-          break;
-        end
-      end
-      if isObjDet,
-        v = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
-      else
-        v = DeepTracker.SINGULARITY_IMG_PATH;
-      end
+      v = DeepTracker.SINGULARITY_IMG_PATH;
+%       netModes1 = obj.getNetMode();
+%       isObjDet = false;
+%       for i = 1:numel(netModes1),
+%         if netModes1{i}.isObjDet,
+%           isObjDet = true;
+%           break;
+%         end
+%       end
+%       if isObjDet,
+%         v = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
+%       else
+%         v = DeepTracker.SINGULARITY_IMG_PATH;
+%       end
     end
     function v = dockerImgPath(obj,backend) %#ok<INUSL> 
       % todo: this should depend on what type of tracker
