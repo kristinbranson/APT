@@ -100,7 +100,7 @@ classdef APTInterf
         '-name' modelchainID ...
         '-err_file' [filequote errfile filequote] ...
         };
-      if fileinfo.pipeToLogfile
+      if fileinfo.useLogfileArg
         code = [code {'-log_file' fileinfo.logfile}];
       end
       code = cat(2,code,...
@@ -184,7 +184,7 @@ classdef APTInterf
         dlconfigfile ...
         '-name' modelchainID ...
         '-err_file' [filequote errfile filequote]};
-      if fileinfo.pipeToLogfile
+      if fileinfo.useLogfileArg
         code = [code {'-log_file' fileinfo.logfile}];
       end
       code = cat(2,code,...
@@ -342,7 +342,7 @@ classdef APTInterf
         '-json_trn_file' ...
         [filequote trnjson filequote]}
         ]; ... % String.escapeSpaces(errfile),...
-      if fileinfo.pipeToLogfile
+      if fileinfo.useLogfileArg
         code = [code {'-log_file' fileinfo.logfile}];
       end
       if ~isempty(prev_model)
