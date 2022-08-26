@@ -31,16 +31,18 @@ classdef DLNetType < handle %dynamicprops
                 % will be included in the stripped lbl as p=nan and tfocc=true.
                 % (and this is the only effect)
     isMultiAnimal % TODO: rename to "isMA bottom up" or similar
+    docker % docker tag
+    sing % path to singularity image
   end
   
   enumeration 
-    mdn ('mdn')
-    unet ('unet')
     mdn_joint_fpn ('mdn_joint_fpn')
     mmpose ('mmpose')
     deeplabcut ('deeplabcut')
     dpk ('dpk')
     openpose ('openpose')
+    mdn ('mdn')
+    unet ('unet')
     %leap ('leap')
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')

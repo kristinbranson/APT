@@ -29,6 +29,8 @@ mdn_joint_fpn:
   trkAuxLabels: [confidence, scr_occ]
   doesOccPred: 1
   isMultiAnimal: 0
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 
 mdn:
@@ -40,6 +42,8 @@ mdn:
   trkAuxLabels: [conf_mdn, conf_unet, scr_occ]
   doesOccPred: 1
   isMultiAnimal: 0
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 unet:
   shortString: unet
@@ -50,6 +54,8 @@ unet:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 mmpose:   
   shortString: mspn
@@ -60,6 +66,8 @@ mmpose:
   trkAuxLabels: [confidence, scr_occ]
   doesOccPred: 1
   isMultiAnimal: 0
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 deeplabcut:   
   shortString: dlc
@@ -70,6 +78,8 @@ deeplabcut:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 dpk:   
   shortString: dpk
@@ -80,6 +90,8 @@ dpk:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 0
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 openpose:   
   shortString: openpose
@@ -90,6 +102,8 @@ openpose:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 multi_mdn_joint_torch:
   shortString: magrone
@@ -100,6 +114,8 @@ multi_mdn_joint_torch:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 1
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 multi_openpose:
   shortString: maopenpose
@@ -110,6 +126,8 @@ multi_openpose:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 1
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
 detect_mmdetect:
   shortString: mmdetect
@@ -120,5 +138,5 @@ detect_mmdetect:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 1
-
-
+  docker: tf23_mmdetection
+  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif

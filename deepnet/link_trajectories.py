@@ -1119,7 +1119,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
     train_data = get_id_train_images(trks, all_trx, mov_files, conf)
     wt_out_file = out_files[0].replace('.trk','_idwts.p')
     # train the identity model
-    id_classifier, loss_history = train_id_classifier(train_data,conf, trks, save_file=wt_out_file)
+    id_classifier, loss_history = train_id_classifier(train_data,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size)
 
   # link using id model
   def_params = get_default_params(conf)

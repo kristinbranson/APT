@@ -524,12 +524,12 @@ handles.menu_track_all_movies = uimenu(...
   'Callback',@(h,evtdata)LabelerGUI('menu_track_all_movies_Callback',h,evtdata,guidata(h)));
 moveMenuItemAfter(handles.menu_track_all_movies,handles.menu_track_current_movie);
 
-handles.menu_track_id = uimenu(...
-  'Parent',handles.menu_track,...
-  'Label','Link using Identity',...
-  'Tag','menu_track_id',...
-  'Callback',@(h,evtdata)LabelerGUI('menu_track_id_Callback',h,evtdata,guidata(h)));
-moveMenuItemAfter(handles.menu_track_id,handles.menu_track_all_movies);
+% handles.menu_track_id = uimenu(...
+%   'Parent',handles.menu_track,...
+%   'Label','Link using Identity',...
+%   'Tag','menu_track_id',...
+%   'Callback',@(h,evtdata)LabelerGUI('menu_track_id_Callback',h,evtdata,guidata(h)));
+% moveMenuItemAfter(handles.menu_track_id,handles.menu_track_all_movies);
 
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
 
@@ -556,7 +556,7 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Label','Clear tracking results',...
   'Tag','menu_track_clear_tracking_results',...
   'Separator','on');  
-moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_id);
+moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_all_movies);
 
 handles.menu_track_clear_tracker = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_clear_tracker_Callback',hObject,eventdata,guidata(hObject)),...
@@ -903,7 +903,7 @@ handles.h_singleview_only = [...
    ];
 handles.h_ma_only = [...
   handles.menu_setup_multianimal_mode, ...
-  handles.menu_track_id ...
+  %handles.menu_track_id ...
   ];
 handles.h_nonma_only = [ ...
   handles.menu_setup_multiview_calibrated_mode_2...
@@ -1186,10 +1186,10 @@ switch lower(state),
     end
     if lObj.maIsMA
       set(handles.h_nonma_only,'Enable','off');
-      set(handles.menu_track_id,'Checked',handles.labelerObj.track_id,'Visible','on');
+%      set(handles.menu_track_id,'Checked',handles.labelerObj.track_id,'Visible','on');
     else
       set(handles.h_ma_only,'Enable','off');
-      set(handles.menu_track_id,'Visible','off');
+%      set(handles.menu_track_id,'Visible','off');
     end
     if lObj.nLabelPointsAdd == 0,
       set(handles.h_addpoints_only,'Visible','off');
@@ -2774,12 +2774,17 @@ tf = lObj.movieRotateTargetUp;
 if tf
   ax = lObj.gdata.axes_curr;
   warnst = warning('off','LabelerGUI:axDir');
-  for f={'XDir' 'YDir'},f=f{1}; %#ok<FXSET>
-    if strcmp(ax.(f),'reverse')
-      warningNoTrace('LabelerGUI:ax','Setting main axis .%s to ''normal''.',f);
-      ax.(f) = 'normal';
-    end
-  end
+  % When axis is in image mode, ydir should be reversed!
+  ax.XDir = 'normal';
+  ax.YDir = 'reverse';
+
+%   for f={'XDir' 'YDir'},f=f{1}; %#ok<FXSET>
+%     if strcmp(ax.(f),'reverse')
+%       warningNoTrace('LabelerGUI:ax','Setting main axis .%s to ''normal''.',f);
+%       ax.(f) = 'normal';
+%     end
+%   end
+
   warning(warnst);
 end
 mnu = lObj.gdata.menu_view_rotate_video_target_up;
@@ -3058,7 +3063,7 @@ function axescurrYDirChanged(hObject,eventdata,handles)
 videoRotateTargetUpAxisDirCheckWarn(handles);
 function videoRotateTargetUpAxisDirCheckWarn(handles)
 ax = handles.axes_curr;
-if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
+if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'normal')) && ...
     handles.labelerObj.movieRotateTargetUp
   warningNoTrace('LabelerGUI:axDir',...
     'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
@@ -4485,7 +4490,9 @@ tObj = lObj.tracker;
 if lObj.gtIsGTMode
   handles.labelerObj.lerror('LabelerGUI:gt','Unsupported in GT mode.');
 end
-if ~isempty(tObj) && tObj.getHasTrained()
+
+if ~isempty(tObj) && tObj.getHasTrained() && (~lObj.maIsMA)
+  % single animal. Use prediction if available else use imported below
   [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
   itgt = lObj.currTarget;
   if ~tfhaspred(itgt)
@@ -4507,30 +4514,79 @@ else
   end
   
   if lObj.maIsMA
-    s = lObj.labels2{iMov};
-    itgtsImported = Labels.isLabeledF(s,frm);
-    ntgts = numel(itgtsImported);
-    switch ntgts
-      case 0
-        msgbox('No predictions for current frame.');
-        return;
-      case 1
-        iTgtImp = itgtsImported;
-      otherwise
-        iTgtImp = lObj.labeledpos2trkViz.currTrklet;
-        if isnan(iTgtImp)
-          msgbox('Please select a tracklet.');
-          return;
+    % We need to be smart about which to use. 
+    % If only one of imported or prediction exist for the current frame then use whichever exists
+    % If both exist for current frame, then don't do anything and error.
+    
+    useImported = true;
+    usePred = true;
+    % getting imported info old sytle. Doesn't work anymore
+    
+%     s = lObj.labels2{iMov};
+%     itgtsImported = Labels.isLabeledF(s,frm);
+%     ntgtsImported = numel(itgtsImported);
+ 
+    % check if we can use imported
+    imp_trk = lObj.labeledpos2trkViz;
+    if isempty(imp_trk)
+      useImported=false;
+    elseif isnan(imp_trk.currTrklet)
+      useImported=false;
+    else
+      s = lObj.labels2{iMov};
+      iTgtImp = imp_trk.currTrklet;
+      if isnan(iTgtImp)
+        useImported = false;
+      else
+        [tfhaspred,xy,tfocc] = s.getPTrkFrame(frm,'collapse',true);
+        if ~tfhaspred(iTgtImp)
+          useImported = false;
         end
+      end
     end
-    [~,p,occ] = Labels.isLabeledFT(s,frm,iTgtImp);
-    xy = reshape(p,[],2);
-    % Taken from LabelCoreSeqMA/cbkNewTgt. Hmm
+      
+    % check if we can use pred
+    if isempty(tObj)
+      usePred = false;
+    elseif isempty(tObj.trkVizer)
+      usePred = false;
+    else
+      [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
+      iTgtPred = tObj.trkVizer.currTrklet;
+      if isnan(iTgtPred)
+        usePred = false;
+      elseif ~tfhaspred(iTgtPred)
+        usePred = false;      
+      end
+    end
+    
+    if usePred && useImported
+      msgbox('Both imported and prediction exist for current frame. Cannot decide which to use. Skipping');
+      return
+    end
+    
+    if (~usePred) && (~useImported)
+      msgbox('No predictions for current frame or no valid tracklet selected. Nothing to use as a label');
+      return
+    end
+
+    if useImported
+      s = lObj.labels2{iMov};
+      iTgt = imp_trk.currTrklet;
+      [~,xy,tfocc] = s.getPTrkFrame(frm,'collapse',true);      
+    else
+      iTgt = tObj.trkVizer.currTrklet;
+      [~,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
+    end
+    xy = xy(:,:,iTgt); % "targets" treatment differs from below
+    occ = tfocc(:,iTgt);
     ntgts = lObj.labelNumLabeledTgts();
     lObj.setTargetMA(ntgts+1);
-    lObj.updateTrxTable();
     lObj.labelPosSet(xy,occ);
-    lObj.lblCore.newFrame(frm,frm,1);
+    lObj.updateTrxTable();
+    iTgt = lObj.currTarget;
+    lObj.lblCore.tv.updateTrackResI(xy,occ,iTgt);
+
   else
     if lObj.nTrx>1
       handles.labelerObj.lerror('LabelerGUI:setLabels','Unsupported for multiple targets.');

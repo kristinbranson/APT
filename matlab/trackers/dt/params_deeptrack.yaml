@@ -44,8 +44,8 @@ ROOT:
       - normalize_loss_batch: ['Normalize the loss',boolean,true,'Normalize the loss by the batch size. Not normalizing is better',0,'','Developer','isDeepTrack',true]
     - DataAugmentation:
       - ['Data Augmentation','',false,'To learn invariances to certain kinds of perturbations, training data can be augmented by randomly perturbing each image during training.','','','','']
-      - rrange: ['Rotate range',unsigned,true,'Augment by rotating training images and labels by a random angle less than this number of degrees in either direction.',20,'','Important','isDeepTrack',true]
-      - trange: ['Translation range',unsigned,true,'Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels. ',20,'','Important','isDeepTrack',true]
+      - rrange: ['Rotate range',unsigned,true,'Augment by rotating training images and labels by a random angle less than this number of degrees in either direction.',20,'','Beginner','isDeepTrack',true]
+      - trange: ['Translation range',unsigned,true,'Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels. ',20,'','Beginner','isDeepTrack',true]
 #      - scale_range: ['Scale range',float,true,'Obsolete. This has been replaced by Scale factor range. Augment by adjusting image scale by a random amount between (1-this number) to (1+this number). 0 indicates no scale adjustment, 1 indicates scaling by a factor between 0 to 2',0,'','Developer','isDeepTrack',true]
       - scale_factor_range: ['Scale factor range',float,true,'Augment by adjusting image scale by a random factor between (1/this number) to (this number). 1 indicates no scale adjustment, 2 indicates scaling by a factor between 1/2 to 2',1.2,'','Advanced','isDeepTrack',true]
       - crange: ['Contrast range',float,true,'Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment',0.1,'','Advanced','isDeepTrack',true]

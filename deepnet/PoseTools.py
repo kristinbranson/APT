@@ -1730,3 +1730,29 @@ def show_sample_images(sample_file,extra_txt = ''):
     plt.scatter(locs[:, :, 0], locs[ :,:, 1],c=cmap)
     plt.title(f'{extra_txt} height:{h}, width{w}')
     return f
+
+def find_mem(cmd, conn, skip_db=False):
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+    import APT_interface as apt
+    import torch
+    available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+    print(available_gpus)
+
+    if skip_db:
+        cmd += ' -skip_db'
+    print(cmd)
+    success = True
+    try:
+        apt.main(cmd.split())
+    except:
+        success = False
+        pass
+    # sess = tf.get_default_session()
+    # if sess is None:
+    #     sess = tf.Session()
+    # mem_use = sess.run(tf.contrib.memory_stats.MaxBytesInUse())/1024/1024
+    # tf.reset_default_graph()
+    conn.send(success)
+
