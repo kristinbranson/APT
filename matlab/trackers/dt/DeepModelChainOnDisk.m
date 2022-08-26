@@ -377,7 +377,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       else
         netTypeObj = obj.netType;
       end
-      tfIncLog = strcmp(use,'docker') && ispc;
+      tfIncLog = ~isempty(regexp(use,'docker','once')) && ispc;
       if tfIncLog        
         logfile = cntrPathFcn(obj.trainLogLnx);
       else
