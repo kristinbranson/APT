@@ -5621,7 +5621,7 @@ classdef DeepTracker < LabelTracker
       end
       trk = obj.trkP;
       if ~isempty(iTgt) && ~isnan(iTgt) && ~isempty(trk)
-        tpos = trk.getPTrkTgt(iTgt);
+        tpos = trk.getPTrkTgtPadded(iTgt,lo.nframes);
         nt = obj.trnNetType;
         taux = arrayfun(@(x)trk.getPAuxTgt(iTgt,x,'missingok',true),...
           nt.trkAuxFields(:),'uni',0);
