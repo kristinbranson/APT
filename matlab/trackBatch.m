@@ -43,12 +43,16 @@ if tfAPTOpen
   assert(~isempty(toTrack));
 
   if iscell(toTrack.f0s),
-    f0s = cell2mat(toTrack.f0s);
+    f0s = ones(size(toTrack.f0s));
+    idx = ~cellfun(@isempty,toTrack.f0s);
+    f0s(idx) = cell2mat(toTrack.f0s(idx));
   else
     f0s = toTrack.f0s;
   end
   if iscell(toTrack.f1s),
-    f1s = cell2mat(toTrack.f1s);
+    f1s = inf(size(toTrack.f1s));
+    idx = ~cellfun(@isempty,toTrack.f1s);
+    f1s(idx) = cell2mat(toTrack.f1s(idx));
   else
     f1s = toTrack.f1s;
   end

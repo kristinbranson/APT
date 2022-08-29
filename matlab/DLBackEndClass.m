@@ -790,15 +790,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-%     function filequote = getFileQuoteDockerCodeGen(obj) 
-%       % get filequote to use with codeGenDockerGeneral      
-%       if isempty(obj.dockerremotehost)
-%         % local Docker run
-%         filequote = '"';
-%       else
-%         filequote = '\"';
-%       end
-%     end
+    function filequote = getFileQuoteDockerCodeGen(obj) 
+      % get filequote to use with codeGenDockerGeneral      
+      if isempty(obj.dockerremotehost)
+        % local Docker run
+        filequote = '"';
+      else
+        filequote = '\"';
+      end
+    end
     
     function codestr = codeGenDockerGeneral(obj,basecmd,varargin)
       % Take a base command and run it in a docker img

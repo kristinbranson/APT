@@ -699,6 +699,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{icurr} = [dirModelChainLnx{icurr} obj.filesep trainCurrModelName{icurr}];
       end
     end
+    function [v,idx] = trainCurrModelSuffixlessLnx(obj,varargin)
+      [v,idx] = obj.trainCurrModelLnx(varargin{:});
+      v = regexprep(v,'\.index$','');
+    end
     function [v,idx] = trainFinalModelName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -922,7 +926,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     end
 
-    function obj = merge(obj,dmc)
+    function merge(obj,dmc)
       assert(isequaln(obj.projID,dmc.projID));
       tocheck = {'rootDir','trkTSstr'};
       for i = 1:numel(tocheck),

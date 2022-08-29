@@ -783,6 +783,13 @@ classdef Labeler < handle
 %       v = all(tf);
 %       assert(v || ~any(tf));
     end
+    function v = getMovieFilesAllCropInfoGTAware(obj)
+      if obj.gtIsGTMode,
+        v = obj.movieFilesAllGTCropInfo;
+      else
+        v = obj.movieFilesAllCropInfo;
+      end
+    end
     function v = getMovieFilesAllCropInfoMovIdx(obj,mIdx)
       % mIdx: scalar MovieIndex 
       % v: empty, or [nview] CropInfo array 
@@ -11602,9 +11609,27 @@ classdef Labeler < handle
         assert(isa(mftset,'MFTSet'));
         tblMFT = mftset.getMFTable(obj,'istrack',true);
       end
-      
-      tObj.track(tblMFT,varargin{:});
-      
+
+      global KBDEBUG;
+      if KBDEBUG,
+        if obj.cropProjHasCrops,
+          cropInfo = obj.getMovieFilesAllCropInfoGTAware();
+          croprois = cell([obj.nmoviesGTaware,obj.nview]);
+          for i = 1:obj.nmoviesGTAware,
+            for j = 1:obj.nview,
+              croprois{i,j} = cropInfo{i}(j).roi;
+            end
+          end
+        else
+          croprois = [];
+        end
+        totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',obj.movieFilesAllFullGTaware,...
+          'trxfiles',obj.trxFilesAllFullGTaware,'views',1:obj.nview,'croprois',croprois,...
+          'calibrationdata',obj.viewCalibrationDataGTaware);
+        tObj.trackNew(totrackinfo,varargin{:});
+      else
+        tObj.track(tblMFT,varargin{:});
+      end      
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
       
