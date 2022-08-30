@@ -867,7 +867,6 @@ listeners{end+1,1} = addlistener(lObj,'showMaRoiAux','PostSet',@cbkShowMaRoiAuxC
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
 handles.menu_track_trackers = cell(0,1); % menus added in cbkTrackersAllChanged
-handles.menu_track_backends = cell(0,1); % menus added in cbkTrackersAllChanged
 
 hZ = zoom(hObject);
 hZ.ActionPostCallback = @cbkPostZoom;
@@ -2275,7 +2274,6 @@ mnu.Checked = onIff(tf);
 
 function handles = setupAvailTrackersMenu(handles,tObjs)
 % set up menus and put in handles.menu_track_trackers (cell arr)
-% also, handles.menu_track_backends
 
 cellfun(@delete,handles.menu_track_trackers);
 
@@ -2328,8 +2326,9 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','Local (Conda)',...
     'Callback',@cbkTrackerBackendMenu,...
     'Tag','menu_track_backend_config_conda',...
-    'userdata',DLBackEnd.Conda);
-  if ispc,
+    'userdata',DLBackEnd.Conda,...
+    'Visible',false);
+  if false %ispc,
     handles.menu_track_backend_config_docker.Enable = 'off';
   else
     handles.menu_track_backend_config_conda.Enable = 'off';
@@ -2374,12 +2373,6 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','(JRC) Set number of slots for training...',...
     'Callback',@cbkTrackerBackendSetJRCNSlots,...
     'Tag','menu_track_backend_config_jrc_setconfig');  
-
-%   handles.menu_track_backends{end+1,1} = uimenu( ...
-%     'Parent',handles.menu_track_backend_config,...
-%     'Label','(AWS) Send start instance',...
-%     'Visible','off',...
-%     'Tag','menu_track_backend_config_aws_setinstance');
 end
 
 function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
@@ -2473,7 +2466,7 @@ oiCnda = onIff(beType==DLBackEnd.Conda);
 oiAWS = onIff(beType==DLBackEnd.AWS);
 set(handles.menu_track_backend_config_jrc,'checked',oiBsub);
 set(handles.menu_track_backend_config_docker,'checked',oiDckr);
-set(handles.menu_track_backend_config_conda,'checked',oiCnda);
+% set(handles.menu_track_backend_config_conda,'checked',oiCnda);
 set(handles.menu_track_backend_config_aws,'checked',oiAWS);
 set(handles.menu_track_backend_config_aws_setinstance,'visible',oiAWS);
 set(handles.menu_track_backend_config_aws_configure,'visible',oiAWS);
@@ -3073,7 +3066,7 @@ ax = handles.axes_curr;
 if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'normal')) && ...
     handles.labelerObj.movieRotateTargetUp
   warningNoTrace('LabelerGUI:axDir',...
-    'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
+    'Main axis ''XDir'' or ''YDir'' is set to be flipped and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
 
 function scroll_callback(hObject,eventdata,lObj)

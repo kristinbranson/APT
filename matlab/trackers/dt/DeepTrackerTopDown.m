@@ -267,16 +267,17 @@ classdef DeepTrackerTopDown < DeepTracker
         case DLBackEnd.Docker
           mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
           tfSerial = (nTrainJobs==1);
-          [syscmds,containerNames] = ...
+          [syscmds,containerNames,doDockerLogs] = ...
             DeepTrackerTopDown.tdTrainCodeGenDockerDMC(tfSerial,...
             backEnd,dmc,trnCmdType,mntPaths,gpuids,'augOnly',augOnly);
-          logfiles = {dmc.trainLogLnx}';
-          logfiles = logfiles(1:numel(syscmds)); % for serial, use first
-          logcmds = cellfun( ...
-            @(zcntnr,zlogfile) sprintf('%s logs -f %s &> "%s" &',...
+          if doDockerLogs
+            logfiles = {dmc.trainLogLnx}';
+            logfiles = logfiles(1:numel(syscmds)); % for serial, use first
+            logcmds = cellfun( ...
+              @(zcntnr,zlogfile) sprintf('%s logs -f %s &> "%s" &',...
                                       backEnd.dockercmd,zcntnr,zlogfile),...
               containerNames(:),logfiles(:),'uni',0);
-          
+          end
         case DLBackEnd.Conda
           assert(false,'Unsupported'); % XXX TODO
           condaargs = {'condaEnv',obj.condaEnv};
@@ -329,12 +330,14 @@ classdef DeepTrackerTopDown < DeepTracker
             if st==0
               bgTrnWorkerObj.parseJobID(res,iview);
               
-              fprintf(1,'%s\n',logcmds{iview});
-              [st2,res2] = system(logcmds{iview});
-              if st2==0
-              else
-                fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
-                  iview,res2);
+              if doDockerLogs
+                fprintf(1,'%s\n',logcmds{iview});
+                [st2,res2] = system(logcmds{iview});
+                if st2==0
+                else
+                  fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
+                    iview,res2);
+                end
               end
             else
               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
@@ -627,8 +630,8 @@ classdef DeepTrackerTopDown < DeepTracker
 %       
 %     end
 
-    function [codestr,containerName] = tdTrainCodeGenDockerDMC(tfSerial,...
-        backend,dmcs,trnCmdType,mntPaths,gpuids,varargin)
+    function [codestr,containerName,doDockerLogs] = ...
+        tdTrainCodeGenDockerDMC(tfSerial,backend,dmcs,trnCmdType,mntPaths,gpuids,varargin)
       
       augOnly = myparse(varargin,...
         'augOnly',false ...
@@ -649,7 +652,16 @@ classdef DeepTrackerTopDown < DeepTracker
         'maTopDownStage1NetType' dmcs(1).netType ...
         'maTopDownStage1NetMode' dmcs(1).netMode};
 
-      fileinfo = dmcs(2).trainFileInfo('topdown_docker');
+      if ispc
+        pathConvertFcn = @DeepTracker.codeGenPathUpdateWin2LnxContainerWSL2;
+        doDockerLogs = false;
+        baseargs0 = [baseargs0 {'deepnetroot' pathConvertFcn(APT.getpathdl)}];
+      else
+        pathConvertFcn = @(x)x;
+        doDockerLogs = true;
+      end
+      fileinfo = dmcs(2).trainFileInfo('topdown_docker',...
+                'containerPathConvertFcn',pathConvertFcn);
       args = { backend,fileinfo,...
         trnCmdType,dmcs(2).view+1,mntPaths }; 
 

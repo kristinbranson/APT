@@ -142,6 +142,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   methods
     
     function modernize(obj)
+      % 20220728 Win/Conda migration to WSL2/Docker
+      if obj.type==DLBackEnd.Conda
+        if ispc
+          warningNoTrace('Updating Windows backend from Conda -> Docker. If you have not already, please see the documentation for Windows/WSL2 setup instructions.');
+          obj.type = DLBackEnd.Docker;
+        else
+          warningNoTrace('Unexpected Conda backend on %s. APT may not work correctly.');
+        end
+      end
       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
         currentTag = DLBackEndClass.currentDockerImgTag;
         if ~strcmp(obj.dockerimgtag,currentTag)
@@ -478,11 +487,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   methods % Docker
 
-    function s = dockercmd(obj)
-      if isempty(obj.dockerremotehost)
-        s = 'docker';
+    function [cmd,cmdend] = dockercmd(obj)
+      apiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
+      remHost = obj.dockerremotehost;
+      if isempty(remHost),
+        cmd = sprintf('%s docker',apiVerExport);
+        cmdend = '';
       else
-        s = sprintf('ssh -t %s docker',obj.dockerremotehost);
+        cmd = sprintf('ssh -t %s "%s docker',remHost,apiVerExport);
+        cmdend = '"';        
+      end
+      if ispc
+        cmd = ['wsl ' cmd];
       end
     end
 
@@ -495,16 +511,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      if isempty(obj.dockerremotehost),
-        dockercmd = 'docker';
-        dockercmdend = '';
-        filequote = '"';
-      else
-        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
-        dockercmdend = '"';
-        filequote = '\"';
-      end    
-      
+      [dockercmd,dockercmdend] = obj.dockercmd();      
       FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
       cmd = sprintf('%s version --format ''%s''%s',dockercmd,FMTSPEC,dockercmdend);
       
@@ -565,16 +572,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       aptdeepnet = APT.getpathdl;
       
-      tfWinAppLnxContainer = ispc;
-      if tfWinAppLnxContainer
+      tfwin = ispc;
+      if tfwin
         % 1. Special treatment for bindpath. src are windows paths, dst are
         % linux paths inside /mnt.
         % 2. basecmd massage. All paths in basecmd will be windows paths;
         % these need to be replaced with the container paths under /mnt.
-        srcbindpath = bindpath;
-        dstbindpath = cellfun(...
-          @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
-          srcbindpath,'uni',0);
+
+%         srcbindpath = regexprep(bindpath,'\\','\\\');
+%         dstbindpath = cellfun(...
+%           @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
+%           srcbindpath,'uni',0);
+
+        srcbindpath = {'/mnt'};
+        dstbindpath = {'/mnt'};
         mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
           srcbindpath,dstbindpath,'uni',0);
         deepnetrootContainer = ...
@@ -611,8 +622,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         dockercmd = sprintf('%s docker',dockerApiVerExport);
         dockercmdend = '';
         filequote = '"';
+
+        if tfwin
+          dockercmd = ['wsl ' dockercmd];
+        end
       else
-        if tfWinAppLnxContainer
+        if tfwin
           error('Docker execution on remote host currently unsupported on Windows.');
           % Might work fine, maybe issue with double-quotes
         end
@@ -678,13 +693,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
       
-      if isempty(obj.dockerremotehost),
-        dockercmd = 'docker';
-        dockercmdend = '';
-      else
-        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
-        dockercmdend = '"';
-      end      
+      [dockercmd,dockercmdend] = obj.dockercmd();
       cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
       fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;

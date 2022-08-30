@@ -140,7 +140,6 @@ classdef Shape
       % oriented, and if not, then p1 has same overall alignment as p0
     end
     
-    %#3DOK
     function [pAug,info] = randInitShapes(pN,Naug,model,bboxes,varargin)
       % Simple shape augmenter/randomizer
       %
@@ -370,7 +369,6 @@ classdef Shape
         'bbox1',bboxes(1,:));
     end
     
-    %# 3DOK
     function bbJ = jitterBbox(bb,L,d,uncertfac)
       % Randomly jitter bounding box. The offset (x1...xd) is jittered by
       % random values (positive or negative) with max magnitude

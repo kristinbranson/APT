@@ -156,8 +156,20 @@ classdef BgWorkerObj < handle
     function dispTrkOutDir(obj)
       for ivw=1:obj.nviews
         dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al "%s"',dmc.dirTrkOutLnx);
-        fprintf('### View %d: %s\n',ivw,dmc.dirTrkOutLnx);
+        if isnan(dmc)
+          % AL: This is prob not quite right in all cases (multiview,
+          % MATD/BU, etc.) but this is a dev/debug method.
+          dirTrk = fileparts(obj.artfctTrkfiles{1,ivw,1});
+        else
+          dirTrk = dmc.dirTrkOutLnx;
+        end
+        if ispc
+          cmd = 'dir';
+        else
+          cmd = 'ls -al';
+        end
+        cmd = sprintf('%s "%s"',cmd,dirTrk);
+        fprintf('### View %d: %s\n',ivw,dirTrk);
         system(cmd);
         fprintf('\n');
       end

@@ -1447,8 +1447,10 @@ classdef DeepTracker < LabelTracker
       if backEnd.type == DLBackEnd.Docker,
         containerNames = cell(nTrainJobs,1);
         logcmds = cell(nTrainJobs,1);
+        doDockerLogs = cell(nTrainJobs,1);
+        % syscmds = cell(nTrainJobs,1);
       end
-      
+
       for ivw=1:nvw
         if ivw>1
           dmc(ivw) = dmc(1).copy();
@@ -1475,12 +1477,18 @@ classdef DeepTracker < LabelTracker
                 augOut = '';
               end                
               gpuid = gpuids(ivw);              
-              [syscmds{ivw},containerNames{ivw}] = ...
+              [syscmds{ivw},containerNames{ivw},doDockerLogs{ivw}] = ...
                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
                 'augOnly',augOnly,'augOut',augOut);
-              logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
-                backEnd.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
+              
+              if doDockerLogs{ivw}
+                trainlogLnx = dmc(ivw).trainLogLnx;
+                logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
+                  backEnd.dockercmd,containerNames{ivw},trainlogLnx);
+              else
+                % logcmds{ivw} is []
+              end
             end
           case DLBackEnd.Conda
             condaargs = {'condaEnv',obj.condaEnv};
@@ -1525,12 +1533,14 @@ classdef DeepTracker < LabelTracker
             if st==0
               bgTrnWorkerObj.parseJobID(res,iview);
               
-              fprintf(1,'%s\n',logcmds{iview});
-              [st2,res2] = system(logcmds{iview});
-              if st2==0
-              else
-                fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
-                  iview,res2);
+              if doDockerLogs{iview}
+                fprintf(1,'%s\n',logcmds{iview});
+                [st2,res2] = system(logcmds{iview});
+                if st2==0
+                else
+                  fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
+                    iview,res2);
+                end
               end
             else
               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
@@ -4725,9 +4735,15 @@ classdef DeepTracker < LabelTracker
         Bflagsstr,singimg,basecmd);
     end
     
+    function plnx = codeGenPathUpdateWin2LnxContainerWSL2(pwin)
+      MNTLOC = '/mnt';
+      plnx = DeepTracker.codeGenPathUpdateWin2LnxContainer(pwin,MNTLOC);
+    end
     function plnx = codeGenPathUpdateWin2LnxContainer(pwin,mntloc)
+      % only used for Docker containers currently
+
       PAT1 = '^(?<drivelet>[a-zA-Z]):\\';
-      REP1 = sprintf('%s/$<drivelet>/',mntloc);
+      REP1 = sprintf('%s/${lower($<drivelet>)}/',mntloc);
       PAT2 = '^\\\\(?<server>[^/\\]+)[/\\]';
       REP2 = sprintf('%s/$<server>/',mntloc);
       PAT3 = '\\';
@@ -4832,7 +4848,7 @@ classdef DeepTracker < LabelTracker
         'gpuid',gpuid,condaargs{:});
       
     end
-    function [codestr,containerName] = trainCodeGenDockerDMC(...
+    function [codestr,containerName,doDockerLogs] = trainCodeGenDockerDMC(...
         dmc,backend,mntPaths,gpuid,varargin)
       [trnCmdType,augOnly,augOut,leftovers] = myparse_nocheck(varargin,...
         'trnCmdType',dmc.trainType,...
@@ -4847,9 +4863,21 @@ classdef DeepTracker < LabelTracker
 %         dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.netMode,...
 %         trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:},...
 %         'augOnly',augOnly,'augOut',augOut);
+      if ispc
+        pathConvertFcn = @(pth)DeepTracker.codeGenPathUpdateWin2LnxContainerWSL2(pth);
+        baseargs = {'deepnetroot' pathConvertFcn(APT.getpathdl)};
+        doDockerLogs = false;
+      else
+        pathConvertFcn = @(x)x;
+        baseargs = {};
+        doDockerLogs = true;
+      end
+      fileInfoCodeGen = dmc.trainFileInfo('docker',...
+          'containerPathConvertFcn',pathConvertFcn);
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
-        dmc.trainFileInfo('docker'),...
+        fileInfoCodeGen,...
         trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:},...
+        'baseargs',baseargs,...
         'augOnly',augOnly,'augOut',augOut);
     end
     function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
@@ -5122,7 +5150,7 @@ classdef DeepTracker < LabelTracker
       
       [trxfileRem,isWinBackend] = myparse(varargin,...
         'trxFiles',{},...
-        'isWinBackend',false ...
+        'isWinBackend',ispc ...
         );
       
       nviews = size(movfileRem,2);
@@ -5174,14 +5202,13 @@ classdef DeepTracker < LabelTracker
       end
 
       if isWinBackend
-        % AL20200929. json validity requires escaping backslash
-        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','\\\\');
-        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','\\\\');
+        fcnUpdate = @DeepTracker.codeGenPathUpdateWin2LnxContainerWSL2;
+        listinfo.movieFiles = fcnUpdate(listinfo.movieFiles);
+        listinfo.trxFiles = fcnUpdate(listinfo.trxFiles);
       end
       fid = fopen(listfileLcl,'w');
       fprintf(fid,jsonencode(listinfo));
-      fclose(fid);
-      
+      fclose(fid);      
     end
     
     function codestr = dataAugCodeGenSSHBsubSing(ID,dlconfigfile,cache,errfile,...
