@@ -1058,7 +1058,7 @@ classdef InfoTimeline < handle
                   iTgt = 1;
                 end
               end              
-              [lpos,lpostag] = s.getPTrkTgtPadded(iTgt,nfrmtot);
+              [lpos,lpostag] = s.getPTrkTgt(iTgt);
             end
             data = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
 

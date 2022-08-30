@@ -1191,41 +1191,18 @@ classdef TrkFile < dynamicprops
       end
     end
     
-    function [xy,occ] = getPTrkTgtPadded(obj,iTlt,nfrmtot)
-      % Wrapper for getPTrkTgt which returns "full" timeseries of length
-      % nfrmtot
-
-      [xy0,occ0,fr0] = obj.getPTrkTgt(iTlt);
-      if isnan(nfrmtot)
-        xy = xy0;
-        occ = occ0;
-        return;
-      end
-
-      ntlt = numel(iTlt);
-      xy = nan(obj.npts,2,nfrmtot,ntlt);
-      occ = false(obj.npts,nfrmtot,ntlt);
-      if isempty(fr0)
-        % none
-      else        
-        xy(:,:,fr0,:) = xy0;
-        occ(:,fr0,:) = occ0;
-      end
-    end
     function [xy,occ,fr] = getPTrkTgt(obj,iTlt)
       % get tracking for particular target
       %
       % iTlt: tracklet index
       %
-      % xy: [npt x 2 x numel(fr) x numel(iTlt)] 
-      % occ: [npt x numel(fr) x numel(iTlt)]
-      % fr: vector of absolute frame numbers labeling xy, occ
+      % xy: [npt x 2 x nfrm x numel(iTlt)] where nfrm=size(obj.frm2tlt,1)
+      % occ: [npt x nfrm x numel(iTlt)]
       
       if any(iTlt) > obj.ntracklets
         warningNoTrace('Tracklet %d exceeds available data.',iTlt);
         xy = nan(obj.npts,2,0);
-        occ = false(obj.npts,0);
-        fr = nan(1,0);
+        occ = nan(obj.npts,0);
         return;
       end
 
@@ -1239,6 +1216,23 @@ classdef TrkFile < dynamicprops
       fr = sf:ef;
       
       [~,xy,occ] = obj.getPTrkFT(sf:ef,iTlt);
+
+%       if obj.isfull
+%         xy = obj.pTrk(:,:,:,iTlt);
+%         occ = obj.pTrkTag(:,:,iTlt);
+%       else
+%         ptrkI = obj.pTrk{iTlt};
+%         npts = size(ptrkI,1);
+%         nfrm = obj.nframes;
+%         %nfrm = size(obj.frm2tlt,1);
+%         xy = nan(npts,2,nfrm);
+%         occ = false(npts,nfrm);
+%         f0 = obj.startframes(iTlt);
+%         f1 = obj.endframes(iTlt);
+%         idx = f0:f1;
+%         xy(:,:,idx) = ptrkI;
+%         occ(:,idx) = obj.pTrkTag{iTlt};
+%       end
     end
     
     function xyaux = getPAuxTgt(obj,iTlt,ptrkfld,varargin)
