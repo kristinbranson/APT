@@ -387,11 +387,17 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
       
       h = obj.hPred;
-      npt = obj.nPts;
-      for ipt=1:npt
-        xdata = xy(ipt,1,:); % [1 1 ntgtshow]
-        ydata = xy(ipt,2,:);
-        set(h(ipt),'XData',xdata(:),'YData',ydata(:));
+      
+      if isempty(xy)
+        % no data; hide x/y for all pts
+        set(h,'XData',nan,'YData',nan);
+      else
+        npt = obj.nPts;
+        for ipt=1:npt
+          xdata = xy(ipt,1,:); % [1 1 ntgtshow]
+          ydata = xy(ipt,2,:);
+          set(h(ipt),'XData',xdata(:),'YData',ydata(:));
+        end
       end
     end
     function updatePredsTxt(obj)

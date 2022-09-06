@@ -12429,7 +12429,7 @@ classdef Labeler < handle
       if obj.maIsMA
         tv = TrackingVisualizerTracklets(obj,ptsPlotInfoFld,gfxTagPfix);
       elseif obj.hasTrx
-        tfadvanced = RC.getpropdefault('optimizeImportedViz',false);
+        tfadvanced = true; %RC.getpropdefault('optimizeImportedViz',false);
         if tfadvanced
           tv = TrackingVisualizerMTFast(obj,ptsPlotInfoFld,gfxTagPfix);
         else
