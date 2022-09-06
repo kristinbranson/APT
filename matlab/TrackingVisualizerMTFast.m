@@ -137,10 +137,6 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       obj.hPredTxt = [];
       deleteValidHandles(obj.hSkel);
       obj.hSkel = [];
-%       deleteValidHandles(obj.hPch);
-%       obj.hPch = [];
-%       deleteValidHandles(obj.hPchTxt);
-%       obj.hPchTxt = [];
     end
       
     function delete(obj)
@@ -412,23 +408,30 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         return;
       end
       
-      if isempty(obj.iTgtPrimary) || isnan(obj.iTgtPrimary)
+      itgtP = obj.iTgtPrimary;
+      itgtXY = obj.xyCurrITgts;
+      if isempty(itgtP) || isempty(itgtXY)
         set(obj.hPredTxt,'Position',[nan nan]);
-      else
-        tf = obj.iTgtPrimary==obj.xyCurrITgts;
-        xy = obj.xyCurr; % [npt x 2 x ntgt]
-        xy = xy(:,:,tf);
-        xypos = xy + obj.txtOffPx;
-        h = obj.hPredTxt;
-        npt = obj.nPts;
-        for ipt=1:npt
-          pos = xypos(ipt,:,1); % 3rd dim should be 1 anyway; to be safe take first
-          set(h(ipt),'Position',pos(:)');
-        end
+        return;
+      end
+
+      tf = itgtP==itgtXY; % includes isnan(itgtP)
+      if ~any(tf)
+        set(obj.hPredTxt,'Position',[nan nan]);
+        return;
+      end
+
+      xy = obj.xyCurr; % [npt x 2 x ntgt]
+      xy = xy(:,:,tf);
+      xypos = xy + obj.txtOffPx;
+      h = obj.hPredTxt;
+      npt = obj.nPts;
+      for ipt=1:npt
+        pos = xypos(ipt,:,1); % 3rd dim should be 1 anyway; to be safe take first
+        set(h(ipt),'Position',pos(:)');
       end
     end
-%     function updateTrackResI(obj,xy,tfeo,iTgt)
-%     end
+
     function updateTrackRes(obj,xy,tfeo,xyITgts)
       % update .xyCurr, .occCur, .xyCurrITgts, then call updates for gfx
       % handles.
@@ -441,6 +444,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       if nargin < 3
         [npts,~,ntgts] = size(xy);
         tfeo = false(npts,ntgts);
+        xyITgts = (1:ntgts)';
       end
       
       obj.xyCurr = xy;
