@@ -398,6 +398,8 @@ classdef LabelTracker < handle
       else 
         tpostag = false(npts,nfrms,ntgts);
         data = ComputeLandmarkFeatureFromPos(tpos,tpostag,bodytrx,prop);
+        % XXX lpos,lpostag,t0,t1,nfrmtot,bodytrx,prop)
+        % [dmat2,units] = ComputeLandmarkFeatureFromPos(lpos,lpostag,t0,t1,nfrmtot,bodytrx,prop)
       end
     end
     

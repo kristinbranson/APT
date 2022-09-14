@@ -1042,7 +1042,7 @@ classdef InfoTimeline < handle
             nfrmtot = labeler.nframes;
             if strcmp(ptype,'Labels'),
               s = labeler.labelsGTaware{iMov};
-              [lpos,lpostag] = Labels.getLabelsT(s,iTgt,nfrmtot);
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
               lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             else
               s = labeler.labels2GTaware{iMov};
@@ -1057,11 +1057,15 @@ classdef InfoTimeline < handle
                 else
                   iTgt = 1;
                 end
-              end              
-              [lpos,lpostag] = s.getPTrkTgtPadded(iTgt,nfrmtot);
+              end  
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt(obj,iTgt);
             end
-            data = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
-
+            if tfhasdata
+              data = ComputeLandmarkFeatureFromPos(...
+                lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);
+            else
+              data = nan(obj.npts,1); % looks like we don't need 2nd dim to be nfrmtot
+            end
           case 'Predictions'
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
@@ -1098,7 +1102,7 @@ classdef InfoTimeline < handle
         data = nan(obj.npts,1);
       else
         s = labeler.labelsGTaware{iMov};       
-        [p,~] = Labels.getLabelsT(s,iTgt,obj.nfrm);
+        [p,~] = Labels.getLabelsT_full(s,iTgt,obj.nfrm);
         xy = reshape(p,obj.npts,2,obj.nfrm);
         data = reshape(all(~isnan(xy),2),obj.npts,obj.nfrm);
       end
