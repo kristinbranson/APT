@@ -1266,8 +1266,12 @@ classdef TrkFile < dynamicprops
       end
 
       if obj.isfull,
-        sf = 1;
-        ef = size(obj.pTrk,3);
+        if ~isempty(obj.startframes),
+          sf = obj.startframes(1);
+        else
+          sf = 1;
+        end
+        ef = size(obj.pTrk,3) + sf - 1;
       else
         sf = min(obj.startframes);
         ef = max(obj.endframes);
