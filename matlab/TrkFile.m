@@ -1088,7 +1088,7 @@ classdef TrkFile < dynamicprops
       
     end
     
-    function [tfhaspred,xy,tfocc,aux,auxlbl] = getPTrkFT(obj,f,iTgt,varargin)
+    function [tfhaspred,xy,tfocc,aux] = getPTrkFT(obj,f,iTgt,varargin)
       % get tracking for particular frame, tgt
       %
       % f: (absolute) frame index
@@ -1101,7 +1101,6 @@ classdef TrkFile < dynamicprops
       % tfocc: [npt x numel(fr) x numel(iTgt)]
       % aux (opt): [npt x numel(fr) x numel(iTgt) x numaux] Auxiliary
       %   stats, returned if 'auxflds' specified
-      % auxlbl (opt): [numaux] cellstr, labels for aux(:,:,:,iaux)
       %
       % KB 20220728: modified to be able to give multiple frames and
       % targets. 
@@ -1112,22 +1111,40 @@ classdef TrkFile < dynamicprops
       % don't make this depend on isalive, let isalive call this
       %tfhaspred = obj.isalive(f,iTgt);
 
-      %tfhaspred = obj.frm2tlt(f,iTgt);
+      [collapse,auxflds] = myparse(varargin,...
+        'collapse',false,...
+        'auxflds',[] ... % (opt). cellstr, aux fields to return. no checks are done that these fields exist
+        );
 
-      collapse = myparse(varargin,'collapse',false);
+      tfaux = ~isequal(auxflds,[]);
+      if tfaux
+        naux = numel(auxflds);
+        aux = nan(obj.npts,numel(f),numel(iTgt),naux);
+      else
+        naux = 0;
+        aux = [];
+      end
 
       if obj.isfull
         xy = obj.pTrk(:,:,f,iTgt);
         tfocc = obj.pTrkTag(:,f,iTgt);
+        for iaux=1:naux
+          fld = auxflds{iaux};
+          aux(:,:,:,iaux) = obj.(fld)(:,f,iTgt);
+        end
       else
         nfrm = numel(f);
         ntgt = numel(iTgt);
         %itgtsLive = find(tfhaspred);
         npt = obj.npts;
         xy = nan(npt,2,nfrm,ntgt);
-        tfocc = false(npt,nfrm,ntgt);
+        tfocc = false(npt,nfrm,ntgt); 
         pcell = obj.pTrk;
         pcelltag = obj.pTrkTag;
+        for iaux=naux:-1:1
+          %pcellaux only created if naux>=1
+          pcellaux{iaux} = obj.(auxflds{iaux});
+        end
         offs = 1-obj.startframes;
         sf = obj.startframes(iTgt);
         ef = obj.endframes(iTgt);
@@ -1139,15 +1156,19 @@ classdef TrkFile < dynamicprops
   %       f = double(f);
 
         for i=1:ntgt,
+          isinterval = f >= sf(i) & f <= ef(i);
+          if ~any(isinterval), continue; end
+
           j = iTgt(i);
           ptgt = pcell{j};
           ptag = pcelltag{j};
-          isinterval = f >= sf(i) & f <= ef(i);
-          if ~any(isinterval), continue; end
 
           idx = f(isinterval) + offs(j);
           xy(:,:,isinterval,i) = ptgt(:,:,idx);
           tfocc(:,isinterval,i) = ptag(:,idx);
+          for iaux=1:naux
+            aux(:,isinterval,i,iaux) = pcellaux{iaux}(:,idx);
+          end
         end
       end
 
@@ -1158,6 +1179,9 @@ classdef TrkFile < dynamicprops
         tfhaspred = permute(tfhaspred,[2,1]);
         xy = permute(xy,[1,2,4,3]);
         tfocc = permute(tfocc,[1,3,2]);
+        if tfaux
+          aux = permute(aux,[1,3,4,2]);
+        end
       end
 
     end
@@ -1216,16 +1240,23 @@ classdef TrkFile < dynamicprops
 %         occ(:,fr0,:) = occ0;
 %       end
 %     end
-    function [tfhasdata,xy,occ,sf,ef] = getPTrkTgt(obj,iTlt)
+  
+  function [tfhasdata,xy,occ,sf,ef,aux] = getPTrkTgt(obj,iTlt,varargin)
       % get tracking for particular target
       %
       % iTlt: tracklet index
       %
-      % tfhasdata: true if data for iTlt is present (currently, could be all nans)
+      % tfhasdata: true if data for iTlt is present (currently, could still be all nans)
       % xy: [npt x 2 x numel(fr) x numel(iTlt)] 
       % occ: [npt x numel(fr) x numel(iTlt)]
       % sf: start frame, labels xy(:,:,1,:)
-      % ef: end frame, labels xy(:,:,end,:) 
+      % ef: end frame, labels xy(:,:,end,:)
+      % aux (opt): [npt x numel(fr) x numel(iTlt) x numaux] Auxiliary
+      %   stats, returned if 'auxflds' specified
+      
+      auxflds = myparse(varargin,...
+        'auxflds',[] ... % cellstr; addnl stats to return
+        );
       
       tfhasdata = false;
 
@@ -1242,44 +1273,56 @@ classdef TrkFile < dynamicprops
       end
 
       if ~tfhasdata
-        xy = nan(obj.npts,2,0);
-        occ = false(obj.npts,0);
+        % as if nframes=0
+        ntlt = numel(iTlt);
+        xy = nan(obj.npts,2,0,ntlt);
+        occ = false(obj.npts,0,ntlt);
         sf = nan;
         ef = nan;
+
+        tfAux = ~isequal(auxflds,[]);
+        if tfAux
+          naux = numel(auxflds);
+          aux = nan(obj.npts,0,ntlt,naux);
+        end
       else
-        [~,xy,occ] = obj.getPTrkFT(sf:ef,iTlt);
+        [~,xy,occ,aux] = obj.getPTrkFT(sf:ef,iTlt,'auxflds',auxflds);
+        % first output arg (tfhaspred) of getPTrkFT is not used here. Note 
+        % tfhasdata as returned by current function differs semantically 
+        % from tfhaspred
+        %
         % sf, ef already set
       end
     end
     
-    function xyaux = getPAuxTgt(obj,iTlt,ptrkfld,varargin)
-      % get aux tracking timeseries (eg confidences) for particular tgt
-      %
-      % iTlt: tracklet index
-      % ptrkfld: field, eg 'pTrkConf'
-      %
-      % xyaux: [npt x nfrm] auxiliary tracking
-      
-      missingok = myparse(varargin,...
-        'missingok',false ...
-        );
-      
-      npts = size(obj.pTrk{iTlt},1);
-      nfrm = obj.nframes;
-      %nfrm = size(obj.frm2tlt,1);
-      xyaux = nan(npts,nfrm);
-      
-      if isprop(obj,ptrkfld)      
-        pauxI = obj.(ptrkfld){iTlt};
-        f0 = obj.startframes(iTlt);
-        f1 = obj.endframes(iTlt);
-        xyaux(:,f0:f1) = pauxI;
-      elseif missingok
-        % none; xyaux all nans
-      else
-        error('Unknown field ''%s''.',ptrkfld);
-      end
-    end
+%     function xyaux = getPAuxTgt(obj,iTlt,ptrkfld,varargin)
+%       % get aux tracking timeseries (eg confidences) for particular tgt
+%       %
+%       % iTlt: tracklet index
+%       % ptrkfld: field, eg 'pTrkConf'
+%       %
+%       % xyaux: [npt x nfrm] auxiliary tracking
+%       
+%       missingok = myparse(varargin,...
+%         'missingok',false ...
+%         );
+%       
+%       npts = size(obj.pTrk{iTlt},1);
+%       nfrm = obj.nframes;
+%       %nfrm = size(obj.frm2tlt,1);
+%       xyaux = nan(npts,nfrm);
+%       
+%       if isprop(obj,ptrkfld)      
+%         pauxI = obj.(ptrkfld){iTlt};
+%         f0 = obj.startframes(iTlt);
+%         f1 = obj.endframes(iTlt);
+%         xyaux(:,f0:f1) = pauxI;
+%       elseif missingok
+%         % none; xyaux all nans
+%       else
+%         error('Unknown field ''%s''.',ptrkfld);
+%       end
+%     end
     
     function trackletViz(obj,ax,varargin)
       plotargs = myparse(varargin,...
