@@ -138,7 +138,7 @@ classdef APTInterf
       aptintrf = [aptroot filesep0 APTInterf.pymoduleparentdir filesep0 APTInterf.pymodule];
     end
 
-    function [codestr,code] = trackCodeGenBaseNew(dmc,totrackinfo,varargin)
+    function [codestr,code] = trackCodeGenBaseNew(totrackinfo,varargin)
       
       % Serial mode: 
       % - movtrk is [nmov] array
@@ -148,12 +148,13 @@ classdef APTInterf
       % - croproi is unsupplied, or [xlo1 xhi1 ylo1 yhi1 xlo2 ... yhi_nmov] or row vec of [4*nmov]
       % - model_file is unsupplied, or [1] cellstr, or [nmov] cellstr      
 
-      [frm0,frm1,...
+      [filequote,frm0,frm1,...
         listfile,trxids,trxtrk,...
         croproi,do_linking,...
         aptroot,filesep0,...
         torchhome,ignore_local] = ...
         myparse(varargin,...
+        'filequote','"',...
         'frm0',[],'frm1',[],...
         'listfile','',...
         'trxids',[],...
@@ -166,14 +167,16 @@ classdef APTInterf
         'ignore_local',[]... % whether to remove local python modules from the path
         );
 
+      dmc = totrackinfo.trainDMC;
+
       aptintrf = APTInterf.aptInterfacePath(aptroot,filesep0);
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       trainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
       cacheRootDir = dmc.getRootDir();
 
-      stages = unique(dmc.getStages());
-      views = unique(dmc.getViews());
+      stages = totrackinfo.stages;
+      views = totrackinfo.views;
       nstages = numel(stages);
       nviews = numel(views);
       stage2models = cell(1,nstages);
@@ -183,7 +186,6 @@ classdef APTInterf
         stage2models{istage} = dmc.trainCurrModelSuffixlessLnx('stage',stage);
         assert(numel(stage2models{istage}) == nviews);
       end
-
 
       % one net type per stage
       stage2netType = cell(1,nstages);
@@ -198,7 +200,7 @@ classdef APTInterf
       %movtrk = fileinfo.movtrk; 
       % save as movtrk, except for 2 stage, this will be [nviewx2] or [nmovx2]
       %outtrk = fileinfo.outtrk; 
-      configfile = DeepModelChainOnDisk.getCheckSingle(dmc.trackconfigRem());
+      configfile = totrackinfo.trackconfigfile;
 
       % this should happen outside
 %       if updateWinPaths2LnxContainer
@@ -234,60 +236,66 @@ classdef APTInterf
       end
       if dmc.isMultiViewTracker,
         if nviews == 1,
-          code = [code {'-view', num2str(views+1)}];
+          code = [code {'-view', num2str(views)}];
         end
       end
       code = [code {'-type', stage2netType{1}} ...
         {'-model_files'}, String.quoteCellStr(stage2models{1},filequote)];
       if nstages > 1,
         assert(nstages==2);
-      code = [code {'-type2', stage2netType{2}} ...
-        {'-model_files2'}, String.quoteCellStr(stage2models{2},filequote)];
+        code = [code {'-type2', stage2netType{2}} ...
+          {'-model_files2'}, String.quoteCellStr(stage2models{2},filequote)];
       end
 
       if ~isempty(ignore_local),
         code = [code, {'-ignore_local',num2str(ignore_local)}];
       end
       code = [code {'-cache' [filequote cacheRootDir filequote]}];
-      code = [code {'-err_file' [filequote errfile filequote]}];
       code = [code {'-config_file' [filequote configfile filequote]}];
 
       if ~do_linking
         code = [code {'-track_type only_predict'}]; % i think this might be in the track config file?
       end
 
-      % output is the final stage trk file
-      code = [code {'-track'} ...
-        {'-out'} String.quoteCellStr(totrackinfo.stage2trkfiles{end},filequote)];
+      [movidx,frm0,frm1,trxids,nextra] = totrackinfo.getIntervals();
 
+      % output is the final stage trk file
+      trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
+      code = [code {'track'} ...
+        {'-out'} String.quoteCellStr(trkfiles(movidx,:,:),filequote)];
+
+      % convert to frms, trxids
       if ~isempty(totrackinfo.listfile),
         code = [code {'-list_file' [filequote totrackinfo.listfile filequote]}];
       else
-        code = [code {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.moviefiles,filequote)}];
-        frm0 = totrackinfo.frm0;
-        frm1 = totrackinfo.frm1;
-        frm0(isnan(frm0)) = 1;
-        frm1(isnan(frm1)|isinf(frm1)) = -1;
-        frm0 = round(frm0);
-        frm1 = round(frm1);
-        if ~isempty(frm0) && ~isempty(frm1) && ~all(frm0==1) && ~all(frm1==-1),
+        if sum(nextra) > 0,
+          warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
+        end
+        code = [code {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.movfiles(movidx,:),filequote)}];
+        if ~all(frm0==1 & frm1==-1),
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
-        if ~isempty(totrackinfo.trxfiles),
-          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.trxfiles,filequote)}];
+        if totrackinfo.hasTrxfiles,
+          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.trxfiles(movidx,:),filequote)}];
         elseif nstages > 1,
           code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.stage2trkfiles{1},filequote)}];
         end
-        for i = 1:numel(totrackinfo.trxids),
-          code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
+        if totrackinfo.hasTrxids,
+          for i = 1:numel(totrackinfo.trxids(movidx)),
+            code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
+          end
         end
       end
-      croproi = round(totrackinfo.croproi);
-      if ~isempty(croproi) && ~all(any(isnan(croproi),2),1),
-        croproirowvec = croproi';
-        croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode
-        code = [code {'-crop_loc' num2str(croproirowvec)}];
+      if totrackinfo.hasCroprois,
+        croproi = round(totrackinfo.croprois);
+        if ~isempty(croproi) && ~all(any(isnan(croproi),2),1),
+          croproirowvec = croproi';
+          croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode
+          code = [code {'-crop_loc' num2str(croproirowvec)}];
+        end
       end
+
+      
       codestr = String.cellstr2DelimList(code,' ');
     end
 

@@ -1484,7 +1484,6 @@ classdef DeepTracker < LabelTracker
       % At this point
       % We have (modelChainID,trainID) config file on disk. 
 
-      jobidx = dmc.getJobs();
       unique_jobs = unique(jobidx);
       njobs = numel(unique_jobs);
       syscmds = cell(njobs,1);
@@ -1494,7 +1493,6 @@ classdef DeepTracker < LabelTracker
         logcmds = cell(njobs,1);
       end
 
-      njobs = numel(unique_jobs);
       for ijob = 1:njobs,
         assert(ijob==unique_jobs(ijob));
         dmcjob = dmc.selectSubset('jobidx',ijob);
@@ -1846,11 +1844,12 @@ classdef DeepTracker < LabelTracker
             %tfafgt = lObj.trxFilesAllGTFull;
           end
         else
-          projbps = jobinfo.totrackinfo.getMovfiles();
-          trxfiles = jobinfo.totrackinfo.getTrxfiles();
-          if ~isempty(trxfiles),
-            projbps = [projbps;trxfiles(:)];
-          end
+          projbps = jobinfo;
+%           projbps = jobinfo.totrackinfo.getMovfiles();
+%           trxfiles = jobinfo.totrackinfo.getTrxfiles();
+%           if ~isempty(trxfiles),
+%             projbps = [projbps;trxfiles(:)];
+%           end
         end
         
         [projbps2,ischange] = GetLinkSources(projbps);
@@ -1873,8 +1872,13 @@ classdef DeepTracker < LabelTracker
       if isequal(cmdtype,'train'),
         dmc = jobinfo;
       else
-        trksysinfo = jobinfo;
-        dmc = trksysinfo.dmcRem;
+        totrackinfo = jobinfo;
+        global KBDEBUG;
+        if KBDEBUG,
+          dmc = totrackinfo.dmcRem;
+        else
+          dmc = totrackinfo.trainDMC;
+        end
       end
 
       switch backEnd.type
@@ -1884,7 +1888,7 @@ classdef DeepTracker < LabelTracker
             logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
             nslots = obj.jrcnslots;
           else % track
-            logfile = trksysinfo.logfile;
+            logfile = totrackinfo.logfile;
             nslots = obj.jrcnslotstrack;
           end
 
@@ -1906,8 +1910,8 @@ classdef DeepTracker < LabelTracker
 %             'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots},...
 %             'isTopDown',nstages>1);
         case DLBackEnd.Docker
-          if isequal(cmdtype,'train'),
-            containerName = trksysinfo.containerName;
+          if isequal(cmdtype,'track'),
+            containerName = totrackinfo.containerName;
           else
             containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
           end
@@ -2697,7 +2701,7 @@ classdef DeepTracker < LabelTracker
     % - When tracking is done for all views, we stop the bgMonitor and we
     % are done.
     
-    function trackNew(obj,totrackinfo,varargin)
+    function trackNew(obj,varargin)
 
        if obj.bgTrkIsRunning
         error('Tracking is already in progress.');
@@ -2714,19 +2718,21 @@ classdef DeepTracker < LabelTracker
         error('No trained tracker found.');
       end
 
-      % nothing to track?
-      if totrackinfo.isempty(),
-        warning('Nothing to track. Should probably catch this earlier.');
-        return;
-      end
-
       % do_linking: when in multi-animal mode, should we train an id 
       % recognizer to link trajectories. I suspect we don't need this
       % anymore since this is in the tracking config?
       % isexternal: whether we want to combine this with loaded-in tracking
       % results (this is predicted vs imported)
-      [do_linking,isexternal,wbObj] = myparse(varargin,'do_linking',true,...
+      [totrackinfo,do_linking,isexternal,wbObj] = ...
+        myparse(varargin,'totrackinfo',[],'do_linking',true,...
         'isexternal',false,'wbObj',[]);
+      assert(~isempty(totrackinfo));
+
+      % nothing to track?
+      if totrackinfo.isempty(),
+        warning('Nothing to track. Should probably catch this earlier.');
+        return;
+      end
 
       sPrmLabeler = obj.lObj.trackGetParams();
       sPrmSet = obj.massageParamsIfNec(sPrmLabeler);
@@ -2808,7 +2814,7 @@ classdef DeepTracker < LabelTracker
       % check if we will overwrite any existing trkfiles, prompt user about
       % deleting
       % trkfiles could be empty if not set yet
-      trkfiles = toTrackInfo.getTrkfiles();
+      trkfiles = totrackinfo.getTrkfiles();
       trkfilesexist = cellfun(@exist,trkfiles);
       if any(trkfilesexist(:)),
         trkfilesdelete = trkfiles(trkfilesexist>0);
@@ -3774,72 +3780,69 @@ classdef DeepTracker < LabelTracker
       [do_linking] = myparse(varargin,'do_linking',true);
 
       % split up movies, views into jobs
-      [jobs,gpuids] = obj.SplitTrackIntoJobs(backEnd);
+      [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
       njobs = numel(jobs);
 
       cacheDir = obj.lObj.DLCacheDir;
-      aptroot = obj.setupBackEndTrain(backEnd,cacheDir);
+      aptroot = obj.setupBackEndTrain(backend,cacheDir);
 
       nowstr = datestr(now,'yyyymmddTHHMMSS');
 
       syscmds = cell(1,njobs);
-      cmdfiles = cell(1,njobs);
+      cmdfiles = cell(1,njobs);      
       logcmds = {};
 
-      for imovjob = 1:size(jobs,1),
-        for ivwjob = 1:size(jobs,2),
-          id = sprintf('%s_mov%d_vw%d',nowstr,imovjob,ivwjob);
-          totrackinfojob = totrackinfo.selectSubset(jobs{imovjob,ivwjob}{:});
-          dmcjob = obj.trnLastDMC.selectSubset('view',totrackinfo.job.views);
-          trksysinfo(imovjob,ivwjob) = ...
-            TrackJobKB('tracker',obj,...
-            'dmc',dmcjob,...
-            'backend',backend,...
-            'totrackinfo',totrackinfojob,...
-            'jobid',id); %#ok<AGROW> 
-          trksysinfo(imovjob,ivwjob).prepareFiles();
-          obj.trkCreateConfig(trksysinfo(imovjob,ivwjob).configfile);
+      totrackinfojobs = [];
 
-          % print info about this job
-          jobinfostr = cell(1,numel(jobs{imovjob,ivwjob}));
-          for i = 1:2:numel(jobs{imovjob,ivwjob}),
-            jobinfostr{(i+1)/2} = [jobs{imovjob,ivwjob}{i},': ',mat2str(jobs{imovjob,ivwjob}{i+1})];
-          end
-          jobinfostr = String.cellstr2DelimList(jobinfostr);
-          ijob = sub2ind(size(jobs),imovjob,ivwjob);
-          trkfiles_curr = trksysinfo(imovjob,ivwjob).trkfileLcl;
-          fprintf('Job %d: %s\n%d trkfiles to be written, first to %s\n',...
-            ijob,jobinfostr,ivwjob,numel(trkfiles_curr),trkfiles_curr{1});
+      totrackinfo.setTrainDMC(obj.trnLastDMC);
+      totrackinfo.setTrackid(nowstr);
+      totrackinfo.setDefaultTrkfiles();
+      totrackinfo.setDefaultTrackConfigFile();
 
+      for ijob = 1:numel(jobs),
+        [imovjob,ivwjob] = ind2sub(size(jobs),ijob);
+        id = sprintf('mov%d_vw%d',imovjob,ivwjob);
+        totrackinfojob = totrackinfo.selectSubset(jobs{ijob}{:});
+        dmcjob = obj.trnLastDMC.selectSubset('view',totrackinfojob.views-1);
+        totrackinfojob.setTrainDMC(dmcjob);
+        totrackinfojob.setTrackid(id);
+        totrackinfojob.setDefaultFiles();
 
-          basecmd = trksysinfo(ijob).setBaseCodeStr('do_linking',do_linking);
-          backendArgs = obj.getBackEndArgs(backEnd,gpuids(ijob),trksysinfo(ijob),aptroot,'track');
-          syscmds{ijob} = backEnd.wrapBaseCommand(basecmd,backendArgs{:});
-          cmdfiles{ijob} = trksysinfo(ijob).cmdfile;
-          if backEnd.type == DLBackEnd.Docker,
-            containerName = trysysinfo(ijob).containerName;
-            logfile = trysysinfo(ijob).logfile;
-            logcmds{ijob} = backEnd.logCommand(containerName,logfile); %#ok<AGROW>
-          end
+        basecmd = APTInterf.trackCodeGenBaseNew(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_linking',do_linking);
+        backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),totrackinfojob,aptroot,'track');
+        syscmds{ijob} = backEnd.wrapBaseCommand(basecmd,backendArgs{:});
+        cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
+
+        if backEnd.type == DLBackEnd.Docker,
+          containerName = totrackinfo.containerName;
+          logfile = totrackinfo.logfile;
+          logcmds{ijob} = backEnd.logCommand(containerName,logfile); %#ok<AGROW> 
         end
+
+        totrackinfojob.prepareFiles();
+        obj.trkCreateConfig(totrackinfojob.trackconfigfile);
+
+        if ijob == 1,
+          totrackinfojobs = totrackinfojob;
+        else
+          totrackinfojobs(imovjob,ivwjob) = totrackinfojob; %#ok<AGROW> 
+        end
+
       end
 
       if obj.dryRunOnly
-        arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
-          trksysinfo);
-        tfSuccess = true;
+        fprintf(1,'Dry run, not tracking:\n');
+        fprintf('%s\n',syscmds{:});
         return;
       end
 
       % start track monitor
       assert(isempty(obj.bgTrkMonitor));
 
-      % don't understand how this works for an array of jobs
       [logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend);
       % movfiles is nMovies x nViews
-      bgTrkWorkerObj.initFiles(movfiles,outfiles,logfiles,errfiles,...
-        partfiles,isexternal);
+      bgTrkWorkerObj.initFilesNew(totrackinfojobs);
       
       tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
       if any(tfErrFileErr)

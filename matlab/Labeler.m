@@ -11624,9 +11624,9 @@ classdef Labeler < handle
           croprois = [];
         end
         totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',obj.movieFilesAllFullGTaware,...
-          'trxfiles',obj.trxFilesAllFullGTaware,'views',1:obj.nview,'croprois',croprois,...
+          'trxfiles',obj.trxFilesAllFullGTaware,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
           'calibrationdata',obj.viewCalibrationDataGTaware);
-        tObj.trackNew(totrackinfo,varargin{:});
+        tObj.trackNew('totrackinfo',totrackinfo,varargin{:});
       else
         tObj.track(tblMFT,varargin{:});
       end      

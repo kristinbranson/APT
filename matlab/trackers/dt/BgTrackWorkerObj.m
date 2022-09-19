@@ -12,6 +12,8 @@ classdef BgTrackWorkerObj < BgWorkerObj
     % running. Rather than keep track of this, we store mIdx/movfile in the
     % worker. When tracking is done, if the metadata doesn't match what
     % the client has, the client can decide what to do.
+
+    totrackinfos = [];
     
     nMovies = 1 % number of movies being tracked    
     nMovJobs = []; % number of jobs movies are broken into. Either 1 (for 
@@ -29,22 +31,24 @@ classdef BgTrackWorkerObj < BgWorkerObj
     mIdx = [] % Movie index
     isexternal = false % whether we are tracking movies that are part of the lbl project
     movfiles % [nMovies x nview] full paths movie being tracked
+    partFileIsTextStatus % logical scalar. If true, partfiles are a 
+          % textfile containing a single line '<nfrmsdone>' 
+          % indicating tracking status. Otherwise, partfiles are mat-files.
+  end
+  properties (Dependent)
+    views
+    nStages
     artfctTrkfiles % [nMovies x nviews x nStages] full paths trkfile to be generated/output
     artfctLogfiles % [nMovJobs x nViewJobs] cellstr of fullpaths to bsub logs
     artfctErrFiles % [nMovJobs x nViewJobs] char fullpath to DL errfile    
     artfctPartTrkfiles % [nMovies x nviews x nStages] full paths to partial trkfile to be generated/output
-    partFileIsTextStatus % logical scalar. If true, partfiles are a 
-          % textfile containing a single line '<nfrmsdone>' 
-          % indicating tracking status. Otherwise, partfiles are mat-files.
     killFiles % [nMovJobs x nViewJobs]
-  end
-  properties (Dependent)
-    nViewsPerJob
-    nStages
+
+
   end  
   methods
-    function v = get.nViewsPerJob(obj)
-      v = obj.nviews / obj.nViewJobs;
+    function v = get.views(obj)
+      v = unique(cat(2,obj.totrackinfo.views));
     end
     function v = get.nStages(obj)
       v = size(obj.artfctTrkfiles,3);
@@ -58,57 +62,61 @@ classdef BgTrackWorkerObj < BgWorkerObj
       if nargin >= 1,
         obj.nviews = nviews;
       end
-    end    
-    
-    function initFiles(obj,movfiles,trkfiles,logfiles,dlerrfiles,...
-                            partfiles,isexternal)
-      % 
-      %
-      % movfiles: [nMovs x obj.nviews] just stored metadata ". However, the
-      %   size is meaningful, see above
-      % trkfiles: [nMovs x nviews x nsets].
-      % logfiles: [nMovJobs x nViewJobs]. Every DL job has one logfile;
-      %   this could represent multiple movies (across moviesets or views)
-      % dlerrfiles: like logfiles
-      % partfiles: like trkfiles
-      % 
-      
-      obj.nMovies = size(movfiles,1);
-      %assert(size(movfiles,2)==obj.nviews);
-      obj.movfiles = movfiles;
-            
-      %szassert(trkfiles,size(movfiles));
-      sztrk = size(trkfiles);
-      assert(isequal(sztrk(1:2),size(movfiles)));
-      obj.artfctTrkfiles = trkfiles;
-      
-      [obj.nMovJobs,obj.nViewJobs] = size(logfiles);      
-      obj.artfctLogfiles = logfiles;
-      assert(obj.nMovJobs==1 || obj.nMovJobs==obj.nMovies);
-      
-      szassert(dlerrfiles,size(logfiles));      
-      obj.artfctErrFiles = dlerrfiles;
-      
-      szassert(partfiles,size(trkfiles));
-      obj.artfctPartTrkfiles = partfiles;
-      obj.partFileIsTextStatus = false;
-
-      obj.killFiles = cell(obj.nMovJobs,obj.nViewJobs);
-      for imovjb = 1:obj.nMovJobs,
-        for ivwjb = 1:obj.nViewJobs,
-          if obj.nMovJobs > 1, % nMovJob==nMovies
-            obj.killFiles{imovjb,ivwjb} = sprintf('%s.mov%d_vwjb%d.KILLED',...
-              logfiles{imovjb,ivwjb},imovjb,ivwjb);
-          else
-            % Could be single-movie job or multimovieserial job
-            obj.killFiles{ivwjb} = sprintf('%s.%d.KILLED',logfiles{ivwjb},ivwjb);
-          end
-        end
-      end
-      
-      assert(isscalar(isexternal));
-      obj.isexternal = isexternal;
     end
+
+    function initFiles(obj,totrackinfos)
+      obj.totrackinfos = totrackinfos;
+    end
+    
+%     function initFiles(obj,movfiles,trkfiles,logfiles,dlerrfiles,...
+%                             partfiles,isexternal)
+%       % 
+%       %
+%       % movfiles: [nMovs x obj.nviews] just stored metadata ". However, the
+%       %   size is meaningful, see above
+%       % trkfiles: [nMovs x nviews x nsets].
+%       % logfiles: [nMovJobs x nViewJobs]. Every DL job has one logfile;
+%       %   this could represent multiple movies (across moviesets or views)
+%       % dlerrfiles: like logfiles
+%       % partfiles: like trkfiles
+%       % 
+%       
+%       obj.nMovies = size(movfiles,1);
+%       %assert(size(movfiles,2)==obj.nviews);
+%       obj.movfiles = movfiles;
+%             
+%       %szassert(trkfiles,size(movfiles));
+%       sztrk = size(trkfiles);
+%       assert(isequal(sztrk(1:2),size(movfiles)));
+%       obj.artfctTrkfiles = trkfiles;
+%       
+%       [obj.nMovJobs,obj.nViewJobs] = size(logfiles);      
+%       obj.artfctLogfiles = logfiles;
+%       assert(obj.nMovJobs==1 || obj.nMovJobs==obj.nMovies);
+%       
+%       szassert(dlerrfiles,size(logfiles));      
+%       obj.artfctErrFiles = dlerrfiles;
+%       
+%       szassert(partfiles,size(trkfiles));
+%       obj.artfctPartTrkfiles = partfiles;
+%       obj.partFileIsTextStatus = false;
+% 
+%       obj.killFiles = cell(obj.nMovJobs,obj.nViewJobs);
+%       for imovjb = 1:obj.nMovJobs,
+%         for ivwjb = 1:obj.nViewJobs,
+%           if obj.nMovJobs > 1, % nMovJob==nMovies
+%             obj.killFiles{imovjb,ivwjb} = sprintf('%s.mov%d_vwjb%d.KILLED',...
+%               logfiles{imovjb,ivwjb},imovjb,ivwjb);
+%           else
+%             % Could be single-movie job or multimovieserial job
+%             obj.killFiles{ivwjb} = sprintf('%s.%d.KILLED',logfiles{ivwjb},ivwjb);
+%           end
+%         end
+%       end
+%       
+%       assert(isscalar(isexternal));
+%       obj.isexternal = isexternal;
+%     end
     
     function setPartfileIsTextStatus(obj,tf)
       obj.partFileIsTextStatus = tf;

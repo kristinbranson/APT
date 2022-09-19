@@ -978,11 +978,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = '   (This can take some time the first time the docker image is pulled)'; 
       drawnow;
       deepnetroot = [APT.Root '/deepnet'];
+      homedir = getenv('HOME');
       %deepnetrootguard = [filequote deepnetroot filequote];
       basecmd = 'python APT_interface.py lbl test hello';
-      cmd = obj.codeGenDockerGeneral(basecmd,'containerTest',...
+      cmd = obj.codeGenDockerGeneral(basecmd,...
+        'containername','containerTest',...
         'detach',false,...
-        'bindpath',{deepnetroot});      
+        'bindpath',{deepnetroot,homedir});
+      hedit.String{end+1} = cmd;
       RUNAPTHELLO = 1;
       if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
         %fprintf(1,'%s\n',cmd);
