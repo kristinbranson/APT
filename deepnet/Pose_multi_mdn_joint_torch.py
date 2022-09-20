@@ -490,10 +490,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         locs_ref = locs_ref * self.ref_scale
 
         preds_ref = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
-        conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)
+        conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)*-100
         preds_joint = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
         pred_occ = torch.ones([bsz,n_max, n_classes],device=self.device) * np.nan
-        conf_joint = torch.ones([bsz,n_max],device=self.device)
+        conf_joint = torch.ones([bsz,n_max],device=self.device)*-100
         match_dist_factor = self.conf.multi_match_dist_factor
         assert ll_joint_flat.shape[1] >= n_min, f'The max number of animals with image size {self.conf.imsz} is {ll_joint_flat.shape[1]} while the minimum animals set is {n_min}'
         k = np.clip(n_max*5,n_min,ll_joint_flat.shape[1])
@@ -915,3 +915,4 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             latest_model_file = model_file
         self.set_version(latest_model_file)
         return self.get_pred_fn_fast(model_file,**kwargs)
+        # return self.get_pred_fn_2pass(model_file,**kwargs)

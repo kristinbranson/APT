@@ -236,6 +236,14 @@ else
 end
 
 function etProjectName_Callback(hObject, eventdata, handles)
+name = hObject.String;
+if ~all(isstrprop(name,'alphanum')) 
+  % This unfortunately invalidates _ also. Checking for it seems more work
+  % than worth. MK 20220913
+  warndlg('Name should have only alphanumberic characters');
+  hObject.String = '';
+end
+
 function etNumberOfPoints_Callback(hObject, eventdata, handles)
 %fprintf('etNOP enter');
 val = str2double(hObject.String);

@@ -4744,9 +4744,10 @@ def load_config_file(lbl_file,no_json=False):
             logging.info('Label file is in v7.3 format. Loading using h5py')
             try:
                 H = h5py.File(lbl_file, 'r')
+                H = dict(H)
             except TypeError as e:
                 logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
-            exit(1)
+                sys.exit(1)
         H['ConfFileType'] = 'lbl'
     else:
         logging.exception(f'Cannot read config file {lbl_file}')
