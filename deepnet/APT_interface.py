@@ -4935,6 +4935,7 @@ def main(argv):
 
     if args.sub_name == 'test':
         print("Hello this is APT!")
+        return
 
     # issues arise with docker and installed python packages that end up getting bound
     # remove these from the python path if ignore_local == 1

@@ -34,7 +34,22 @@ import scipy.spatial.distance as ssd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 
 
-def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False):
+def angle_span(pcurr,pnext):
+  z = pcurr-pnext
+  y = np.linalg.norm(z,axis=1)
+  an = np.arctan2(z[:,1],z[:,0])*180/np.pi
+  an = an[y>3]
+
+  sp = []
+  incr = 10
+  for c in np.arange(0,360,incr):
+    an = np.mod(an+c,360)
+    cur_sp = an.max()-an.min()
+    sp.append(cur_sp)
+  ang_span = min(sp) if len(sp)>1 else 0
+  return ang_span
+
+def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False,t=0):
   """
   match_frame(pcurr,pnext,idscurr,params,lastid=np.nan)
   Uses the Hungarian algorithm to match targets tracked in the current
@@ -100,8 +115,8 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
       curc[x1, x1_curr] = np.nan
       curc[np.isnan(curc)] = np.inf
       c2 = np.min(curc[x1, :])
-      if c2 / (c1 + 0.0001) < strict_match_thres:
-        C[x1, :ncurr] = maxcost
+      if (c2 / (c1 + 0.0001)) < strict_match_thres:
+        C[x1, :nnext] = maxcost*2
 
     # If a next detection has 2 matches then break the tracklet
     for x1 in range(nnext):
@@ -112,8 +127,21 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
       curc[x1_curr,x1] = np.nan
       curc[np.isnan(curc)] = np.inf
       c2 = np.min(curc[:,x1])
-      if c2/(c1+0.0001) < strict_match_thres:
-        C[:nnext,x1] = maxcost
+      if (c2/(c1+0.0001)) < strict_match_thres:
+        C[:ncurr,x1] = maxcost*2
+
+    for x1 in range(ncurr):
+      for x2 in range(nnext):
+        has_match = np.any(C[x1,:nnext] < maxcost) or np.any(C[:ncurr,x2]<maxcost)
+        if has_match: continue
+        if maxcost<C[x1,x2]<maxcost*1.95:
+          p1 = np.reshape(pcurr[:,x1,0],[nlandmarks,d])
+          p2 = np.reshape(pnext[:,0,x2],[nlandmarks,d])
+          a_span = angle_span(p1,p2)
+          if a_span<=180:
+            red_factor = max(a_span,90)/180
+            C[x1,x2] = C[x1,x2]*red_factor
+
 
   # match
   idxcurr, idxnext = opt.linear_sum_assignment(C)
@@ -188,7 +216,7 @@ def assign_ids(trk, params, T=np.inf):
     idxnext = trk.real_idx(pnext)
     pnext = pnext[:, :, idxnext]
     idsnext, lastid, costs[t-1-trk.T0], _ = \
-      match_frame(pcurr, pnext, idscurr, params, lastid)
+      match_frame(pcurr, pnext, idscurr, params, lastid,t=t)
     ids.settargetframe(idsnext, np.where(idxnext.flatten())[0], t-trk.T0)
     # ids[t,idxnext] = idsnext
     pcurr = pnext
@@ -596,32 +624,42 @@ def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1)
   prctile = params['maxcost_prctile']
   secondorder_thresh = params['maxcost_secondorder_thresh']
 
-  if mult is None:
-    if heuristic =='prctile':
-      mult = 100. / prctile
-    else:
-      mult = 1.2
+  if heuristic =='prctile':
+    mult = 1.2
+  #   mult = 100. / prctile
+  # else:
+  #   mult = 1.2
 
   if allcosts.size==0:
     maxcost = 10
   elif heuristic == 'prctile':
     maxcost = mult * np.percentile(allcosts, prctile)
   elif heuristic == 'secondorder':
+
     # use sharp increase in 2nd order differences.
     isz = 4.
-    qq = np.percentile(allcosts, np.arange(50, 100, 1 / isz))
-    dd1 = qq[1:] - qq[:-1]
-    dd2 = dd1[1:] - dd1[:-1]
-    all_ix = np.where(dd2 > secondorder_thresh)[0]
-    # threshold is where the second order increases by 4, so sort of the coefficient for the quadratic term.
-    if len(all_ix) < 1:
-      ix = 198  # choose 98 % as backup
-    else:
-      ix = all_ix[0]
-    ix = np.clip(ix, 5, 198) + 1
-    logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost' % (
-    nframes_skip, ix / isz + 50, qq[ix]))
+    xx = np.arange(50, 100, 1 / isz)
+    qq = np.percentile(allcosts, xx)
+
+    ix, knee_val = PoseTools.find_knee(xx,qq)
+    # The knee isn't too far from the diagonal, then don't use knee
+    if knee_val<0.2:
+      ix = 198
+
+    # dd1 = qq[1:] - qq[:-1]
+    # dd2 = dd1[1:] - dd1[:-1]
+    # all_ix = np.where(dd2 > secondorder_thresh)[0]
+    # # threshold is where the second order increases by 4, so sort of the coefficient for the quadratic term.
+    # if len(all_ix) < 1:
+    #   ix = 198  # choose 98 % as backup
+    # else:
+    #   ix = all_ix[0]
+    # ix = np.clip(ix, 5, 198) + 1
+
     maxcost = mult * qq[ix]
+
+    logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost' % (
+    nframes_skip, ix / isz + 50, maxcost))
 
   return maxcost
 
@@ -1003,10 +1041,12 @@ def link_trklets(trk_files, conf, movs, out_files):
 
     if len(conf1.ht_pts)>0 and conf1.ht_pts[0]>=0:
       conf1.use_ht_trx = True
+      conf1.use_bbox_trx = False
       conf1.trx_align_theta = True
     else:
       logging.warning('Head-Tail points are not defined. Assigning identity without aligning the animals!!')
       conf1.use_bbox_trx = True
+      conf1.use_ht_trx = False
       conf1.trx_align_theta = False
     return link_id(in_trks, trk_files, movs, conf1, out_files)
 
@@ -1640,7 +1680,9 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   # Save example training images for debugging.
   ex_ims, ex_info = next(train_iter)
   ex_ims = ex_ims.numpy()
-  hdf5storage.savemat(os.path.splitext(save_file)[0]+'_ims.mat',{'example_ims':ex_ims})
+  im_save_file = os.path.splitext(save_file)[0]+'_ims.mat'
+  hdf5storage.savemat(im_save_file,{'example_ims':ex_ims})
+  logging.info(f'Saved sampled ID training images to {im_save_file}')
 
   for epoch in tqdm(range(n_iters)):
 
@@ -1704,7 +1746,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   :return: list of id linked tracklets
   '''
 
-  id_thresh = 0.5
+  thresh_perc = 5 # percentile to use for thresholds
 
   net.eval()
   all_data = []
@@ -1795,6 +1837,31 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   t_info = [d[3:5] for d in all_data]
 
   dist_mat = get_id_dist_mat(preds)
+  diag_mat = np.diag(dist_mat)
+
+
+  # Find thresholds for close and far
+
+  # use intra tracklet distance to find the close threshold
+  close_thresh = np.percentile(diag_mat,100-thresh_perc)
+  close_thresh = max(0.5,close_thresh)
+
+  # use distance to overlapping tracklets to find the far thresholds. Using just the first movie for now
+  mov1_sel = pred_map[:,0]==0
+  sel = pred_map[mov1_sel, 1]
+  st_sel = all_data[0][-2]
+  en_sel = all_data[0][-1]
+  ns = sel.size
+
+  overlap = np.zeros([ns,ns])
+  for ndx in range(ns):
+    aa, bb = get_overlap(st_sel, en_sel, st_sel[ndx], en_sel[ndx], ndx)
+    overlap[ndx, aa] = bb
+  mov1_dist = dist_mat[np.ix_(mov1_sel,mov1_sel)]
+  overlap_dist = mov1_dist[overlap>0.1]
+  far_thresh = np.percentile(overlap_dist,thresh_perc)
+
+
   n_tr = dist_mat.shape[0]
   dist_mat[range(n_tr),range(n_tr)] = 0.
 
@@ -1815,8 +1882,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     else:
       dist_mat_cur = dist_mat[rem_id_trks, :][:,rem_id_trks]
       pred_map_cluster = pred_map_orig[rem_id_trks]
-      gr_cur = get_largest_cluster(dist_mat_cur, id_thresh, t_info, pred_map_cluster)
-      far_ids = dist_mat_cur[gr_cur].mean(axis=0) > (2-id_thresh)
+      gr_cur = get_largest_cluster(dist_mat_cur, close_thresh, t_info, pred_map_cluster)
+      far_ids = dist_mat_cur[gr_cur].mean(axis=0) > far_thresh
       far_ids = rem_id_idx[far_ids]
       gr = rem_id_idx[gr_cur]
 
@@ -1927,14 +1994,57 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     # Apply the ids to trk.
     cur_trk.apply_ids(cur_id)
     cur_trk.pTrkiTgt = np.array(ids_left)
+    interpolate_gaps(cur_trk)
 
   return linked_trks
+
+
+def interpolate_gaps(trk):
+  '''
+  Fill in small gaps using interpolation
+  :param trk:
+  :return:
+  '''
+
+  thresh = 0.5
+  # If the radio of (distance of the pose across the gap) and
+  # (the size of the animal) is less than this thresh than interpolate
+
+  max_gap = 3
+  ss,ee = trk.get_startendframes()
+  for xx in range(trk.ntargets):
+      pp = trk.gettargetframe(xx,np.arange(ss[xx],ee[xx]+1))
+      jj = pp[0, 0, :, 0]
+      qq = np.ones(jj.shape[0]+2)>0
+      qq[1:-1] = np.isnan(jj)
+
+      qq1 = np.where(   qq[:-2]   & (~qq[1:-1]) )[0]
+      qq2 = np.where( (~qq[1:-1]) &   qq[2:] )[0]
+      rr = qq1[1:]-qq2[:-1]-1
+      for ndx in range(rr.size):
+          a1 = pp[:,:,qq1[ndx+1],0]
+          a2 = pp[:,:,qq2[ndx],0]
+          dd = a1-a2
+          dd = np.linalg.norm(dd,axis=1).mean()
+          dd = dd/rr[ndx] # amortize the distance by the gap size
+          sz1 = a1.max(axis=0)-a1.min(axis=0)
+          sz1 = np.mean(sz1)
+          sz2 = a2.max(axis=0)-a2.min(axis=0)
+          sz2 = np.mean(sz2)
+          csz = (sz1+sz2)/2
+
+          if (rr[ndx]<= max_gap) and (dd/csz < thresh):
+            for dim in range(pp.shape[1]):
+              ii = PoseTools.linspacev(a1[:,dim],a2[:,dim],rr[ndx]+2)
+
+              pp[:,dim,qq2[ndx]+1:qq1[ndx+1],0] = ii[:,1:-1]
+      trk.settarget(pp[...,0],xx,ss[xx],ee[xx])
 
 
 def get_dist(p1, p2):
   return np.sum(np.abs(p1 - p2), axis=(0, 1)) / p2.shape[0]
 
-##
+
 def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, maxcosts_all, maxn, bignumber, link_costs_arr):
 
   params = get_default_params(conf)
