@@ -186,7 +186,8 @@ classdef LabelTracker < handle
       tfocc = [];
     end
 
-    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
+    function [tfhasdata,xy,occ,sf,ef,aux,auxlbl] = ...
+                                    getTrackingResultsCurrMovieTgt(obj)
       % Get current tracking results for current movie, tgt
       %
       % MA: current tgt is currently-selected tracklet
@@ -194,14 +195,23 @@ classdef LabelTracker < handle
       % This is a convenience method as it is a special case of 
       % getTrackingResults. Concrete LabelTrackers will also typically have 
       % the current movie's tracking results cached.
-      % 
-      % tpos: [npts d nfrm], or empty/[] will be accepted if no
-      % results are available. 
-      % taux: [npts nfrm naux], or empty/[]
-      % tauxlbl: [naux] cellstr 
-      tpos = [];
-      taux = [];
-      tauxlbl = cell(0,1);
+      %
+      % tfhasdata: true if data is present. if false, remaining outputs
+      %   are indeterminate
+      % xy: [npt x 2 x numfrm]. numfrm = ef-sf+1
+      % occ: [npt x numfrm]
+      % sf: start frame, labels xy(:,:,1)
+      % ef: end frame, labels xy(:,:,end)
+      % aux (opt): [npt x numfrm x numaux] Auxiliary stats for this tracker
+      % auxlbl: [numaux] cellstr 
+      
+      tfhasdata = false;
+      xy = [];
+      occ = [];
+      sf = nan;
+      ef = nan;
+      aux = [];
+      auxlbl = cell(0,1);
     end
       
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
@@ -343,19 +353,26 @@ classdef LabelTracker < handle
     end
     
     function data = getPropValues(obj,prop)
-      % Return the values of a particular property for
-      % infotimeline
+      % Return the values of a particular property for timeline
+      %
+      % data: [labeler.nframes] timeseries
       
       labeler = obj.lObj;
       npts = labeler.nLabelPoints;
       nfrms = labeler.nframes;
-      ntgts = labeler.nTargets;
+      %ntgts = labeler.nTargets;
       iTgt = labeler.currTarget;
       if iTgt == 0,
         iTgt = 1;
       end
       iMov = labeler.currMovie;
-      [tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovieTgt();
+            
+      %[tpos,taux,tauxlbl] = obj.getTrack$movdir/$movfile_$projfile_$trackertypeingResultsCurrMovieTgt();      
+      [tfhasdata,xy,occ,sf,ef,aux,auxlbl] = obj.getTrackingResultsCurrMovieTgt();
+      if ~tfhasdata
+        data = nan(npts,nfrms);
+        return;
+      end
       
       needtrx = obj.lObj.hasTrx && strcmpi(prop.coordsystem,'Body');
       if needtrx,
@@ -364,22 +381,17 @@ classdef LabelTracker < handle
         bodytrx = bodytrx(iTgt);
       else
         bodytrx = [];
-      end
-      
-      if isempty(tpos)
-        % edge case uninitted (not sure why)
-        %tpos = nan(npts,2,nfrms);
-        data = nan(npts,nfrms);
-        return;
-      end
+      end      
       
       plist = obj.propList();
       plistcodes = {plist.code}';
       tfaux = any(strcmp(prop.code,plistcodes));
       if tfaux
-        iaux = find(strcmp(tauxlbl,prop.feature));
+        % 20220919: appears auxiliary props won't ever need bodytrx
+        
+        iaux = find(strcmp(auxlbl,prop.feature));
         assert(isscalar(iaux));
-        data = taux(:,:,iaux);
+        data = aux(:,:,iaux); % [npts x (ef-sf+1)]
         
         % cf ComputeLandmarkFeatureFromPos
         if strcmpi(prop.transform,'none')
@@ -392,14 +404,13 @@ classdef LabelTracker < handle
             % data unchanged
           else
             data = feval(fun,struct('data',data));
-            data = data.data;
+            %data = data.data;
           end
         end
-      else 
-        tpostag = false(npts,nfrms,ntgts);
-        data = ComputeLandmarkFeatureFromPos(tpos,tpostag,bodytrx,prop);
-        % XXX lpos,lpostag,t0,t1,nfrmtot,bodytrx,prop)
-        % [dmat2,units] = ComputeLandmarkFeatureFromPos(lpos,lpostag,t0,t1,nfrmtot,bodytrx,prop)
+        
+        data = padData(data,sf,ef,nfrms);
+      else
+        [data,units] = ComputeLandmarkFeatureFromPos(xy,occ,sf,ef,nfrms,bodytrx,prop);
       end
     end
     

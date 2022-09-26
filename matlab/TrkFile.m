@@ -1167,7 +1167,8 @@ classdef TrkFile < dynamicprops
           xy(:,:,isinterval,i) = ptgt(:,:,idx);
           tfocc(:,isinterval,i) = ptag(:,idx);
           for iaux=1:naux
-            aux(:,isinterval,i,iaux) = pcellaux{iaux}(:,idx);
+            paux = pcellaux{iaux}{j};
+            aux(:,isinterval,i,iaux) = paux(:,idx);
           end
         end
       end
@@ -1247,11 +1248,11 @@ classdef TrkFile < dynamicprops
       % iTlt: tracklet index
       %
       % tfhasdata: true if data for iTlt is present (currently, could still be all nans)
-      % xy: [npt x 2 x numel(fr) x numel(iTlt)] 
-      % occ: [npt x numel(fr) x numel(iTlt)]
+      % xy: [npt x 2 x numfrm x numel(iTlt)]. numfrm = ef-sf+1
+      % occ: [npt x numfrm x numel(iTlt)]
       % sf: start frame, labels xy(:,:,1,:)
       % ef: end frame, labels xy(:,:,end,:)
-      % aux (opt): [npt x numel(fr) x numel(iTlt) x numaux] Auxiliary
+      % aux (opt): [npt x numfrm x numel(iTlt) x numaux] Auxiliary
       %   stats, returned if 'auxflds' specified
       
       auxflds = myparse(varargin,...
@@ -1266,9 +1267,10 @@ classdef TrkFile < dynamicprops
         tfhasdata = true;
         sf = 1;
         ef = size(obj.pTrk,3);
-      elseif ~obj.isfull && ~isempty(obj.startframes)
+      elseif ~obj.isfull && obj.hasdata()
         tfhasdata = true;
-        sf = min(obj.startframes);
+        % .startframes can contain 0s when tracklet has no data
+        sf = max(min(obj.startframes),1); 
         ef = max(obj.endframes);
       end
 

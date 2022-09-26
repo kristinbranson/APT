@@ -25,8 +25,8 @@ mdn_joint_fpn:
   displayString: GRONe
   modelCheckpointPat: deepnet-%d  
   modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*]
-  trkAuxFields: [pTrkConf, pTrkocc]
-  trkAuxLabels: [confidence, scr_occ]
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
   doesOccPred: 1
   isMultiAnimal: 0
   docker: tf23_mmdetection

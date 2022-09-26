@@ -121,10 +121,3 @@ bodytrx2.endframe = t1-t0+1;
 if isfield(bodytrx,'pxpermm'),
   bodytrx2.pxpermm = bodytrx.pxpermm;
 end
-
-function data = padData(dat,t0,t1,nfrm)
-% dat.data: [npt x nfrmdat] arr. nfrmdat=t1-t0+1
-% data: [npt x nfrm]
-sz = size(dat.data);
-assert(sz(2)==t1-t0+1);
-data = cat(2,nan(sz(1),t0-1),dat.data,nan(sz(1),nfrm-t1));
