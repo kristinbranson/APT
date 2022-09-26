@@ -35,7 +35,7 @@ def parse_args(argv):
     parser.add_argument('-stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
 
     parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
-    parser.add_argument('-perdict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
+    parser.add_argument('-predict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
     parser.add_argument('-conf_params',
                         help='conf params. These will override params from lbl file. If the model is a 2 stage tracker then this will override the params only for the first stage', default=None, nargs='*')
     parser.add_argument('-conf_params2',
@@ -134,7 +134,7 @@ def main(argv):
                 mstr = 'multi-animal' if is_multi[ndx[0]] else 'single-animal'
                 print(f'* Model {idx+1} -- {mstr} {get_pretty_name(mtypes[ndx[0]])} network, trained at {cur.strftime("%Y %b %m %H:%M")}')
         if del_tfile:
-            os.remove(tdir)
+            shutil.rmtree(tdir)
         return
 
     if args.model_ndx is None:
@@ -144,7 +144,15 @@ def main(argv):
 
     ndx, extra, extra_2, multi_stage, second_stage = get_strs(m_stamp, tstamps,mtypes,tdir)
 
-    stripped_lbl = glob.glob(tdir + f'/*/{tstamps_str[ndx]}_*.lbl')[0]
+    stripped_lbls = glob.glob(tdir + f'/*/{tstamps_str[ndx]}_*.lbl')
+    usestrippedlbl = len(stripped_lbls) > 0
+    if usestrippedlbl:
+        config_file = stripped_lbls[0]
+    else:
+        json_configs = glob.glob(tdir + f'/*/{tstamps_str[ndx]}_*.json')
+        assert len(json_configs) > 0, f'Could not find either json config or stripped lbl file'
+        config_file = json_configs[0]
+        #model_files = glob.glob()
 
     pre_str = ''
     if args.view is not None:
@@ -169,7 +177,11 @@ def main(argv):
             argv.pop(tndx)
 
 
-    cmd = f'{stripped_lbl} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {pre_str} {extra} track {extra_2}'
+    # if usestrippedlbl:
+    #     cmd = f'{config_file} '
+    # else:
+    #     cmd = ''
+    cmd = f'{config_file} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {pre_str} {extra} track {extra_2}'
 
 
 ##

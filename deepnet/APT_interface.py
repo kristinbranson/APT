@@ -4707,11 +4707,20 @@ def check_args(args,nviews):
         args.out_files = reshape(args.out_files)
 
 def get_raw_config_filetype(H):
-    return H['ConfFileType']
+    if type(H) == dict and 'ConfFileType' in H:
+        return H['ConfFileType']
+    elif type(H) == h5py._hl.files.File:
+        return 'lbl'
+    else:
+        raise ValueError('Could not determine config file type')
 
 def get_raw_config_filename(H):
-    return H['FileName']
-
+    if type(H) == dict and 'FileName' in H:
+        return H['FileName']
+    elif type(H) == h5py._hl.files.File:
+        return H.file.filename
+    else:
+        raise ValueError('Could not determine config file name')
 def load_config_file(lbl_file,no_json=False):
     """
     H = load_config_file(lbl_file,no_json=False)
@@ -4725,7 +4734,7 @@ def load_config_file(lbl_file,no_json=False):
     'ConfigFileType': 'json' or 'lbl'
     'FileName': name of the file loaded
     """
-    
+
     if not no_json:
         if os.path.exists(lbl_file.replace('.lbl','.json')):
             lbl_file = lbl_file.replace('.lbl','.json')
@@ -4735,6 +4744,7 @@ def load_config_file(lbl_file,no_json=False):
     if lbl_file.endswith('.json'):
         H = PoseTools.json_load(lbl_file)
         H['ConfFileType'] = 'json'
+        H['FileName'] = lbl_file
     elif lbl_file.endswith('.lbl'):
         # somewhat obsolete codepath - lbl files should have been replaced by json files
         logging.warning('.lbl files have been replaced with .json files. This functionality may be removed in the future')
@@ -4745,13 +4755,14 @@ def load_config_file(lbl_file,no_json=False):
             try:
                 H = h5py.File(lbl_file, 'r')
             except TypeError as e:
-                logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
-            exit(1)
-        H['ConfFileType'] = 'lbl'
+                msg = 'Could not read the lbl file {}'.format(lbl_file)
+                logging.exception(msg)
+                raise
+        #H = {'ConfFileType':'lbl','hdf5':H1}
     else:
-        logging.exception(f'Cannot read config file {lbl_file}')
-        exit(1)
-    H['FileName'] = lbl_file
+        msg = f'Cannot read config file {lbl_file}'
+        logging.exception(msg)
+        raise ValueError(msg)
     return H
 
 def get_num_views(args=None,conf_raw=None):
@@ -4874,7 +4885,6 @@ def run(args):
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
         print(m_files)
 
-
 def set_up_logging(args):
     """
     errh,logh = set_up_logging(args)
@@ -4920,6 +4930,7 @@ def main(argv):
     main(...)
     Main function for running APT. Parses command line parameters, sets up logging, then calls "run" function to do most of the work.
     """
+
     args = parse_args(argv)
 
     if args.sub_name == 'test':
@@ -4956,8 +4967,7 @@ def main(argv):
             # run(j_args)
             run(args)
         except Exception as e:
-            logging.exception('UNKNOWN: APT_interface errored')
-
+            logging.exception('APT_interface errored: {e}, {type(e)}')
 
 def remove_local_path():
     for p in sys.path:

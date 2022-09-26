@@ -282,6 +282,53 @@ classdef TrkFile < dynamicprops
       obj.nframes = nfrm;
       
     end
+
+    function initFromSparse(obj,s)
+
+      flds = fieldnames(s);
+      sz = size(s.p);
+      npts = sz(1)/2;
+      frm0 = double(min(s.frm));
+      frm1 = double(max(s.frm));
+      T = frm1-frm0+1;
+      tgts = unique(double(s.tgt));
+      ntgts = numel(tgts);
+
+      pTrk = nan([sz(1),T,ntgts]);
+      isocc = isfield(s,'occ');
+      if isocc,
+        pTrkTag = false([npts,T,ntgts]);
+      end
+      for itgt = 1:numel(tgts),
+        tgt = tgts(itgt);
+        idxcurr = s.tgt == tgt;
+        pTrkcurr = nan([sz(1),T]);
+        pTrkcurr(:,s.frm(idxcurr)-frm0+1) = s.p(:,idxcurr);
+        pTrk(:,:,itgt) = pTrkcurr;
+        if isocc,
+          pTrkTagcurr = false([npts,T]);
+          pTrkTagcurr(:,s.frm(idxcurr)-frm0+1) = s.occ(:,idxcurr)>0;
+          pTrkTag(:,:,itgt) = pTrkTagcurr;
+        end
+      end
+      obj.pTrk = reshape(pTrk,[npts,2,T,ntgts]);
+      if isocc,
+        obj.pTrkTag = pTrkTag;
+      end
+      obj.pTrkFrm = reshape(frm0:frm1,[T,1]);
+      obj.pTrkiTgt = tgts;
+      extraflds = setdiff(flds,{'p','ts','occ','frm','tgt'});
+      if ~isempty(extraflds),
+        ss = sprintf(' %s',extraflds{:});
+        warning('Unknown extra fields ignored:%s',ss);
+      end
+      obj.startframes = frm0;
+      obj.endframes = frm1;
+
+      obj.isfull = true;
+      obj.initUnsetFull();
+      
+    end
     
     function initFromTableFull(obj,s,varargin)
       %
@@ -515,7 +562,10 @@ classdef TrkFile < dynamicprops
     function v = isValidLoadFullMatrix(s)
       v = isfield(s,'pTrk');
     end
-    
+    function v = isValidSparse(s)
+      v = all(isfield(s,{'p','frm','tgt'}));
+    end
+
     % v = isValidLoadTable(s)
     % whether the struct resulting from loading is a table trk file
     function v = isValidLoadTable(s)
@@ -533,6 +583,8 @@ classdef TrkFile < dynamicprops
         filetype = 'fullmatrix';
       elseif TrkFile.isValidLoadTable(s),
         filetype = 'table';
+      elseif TrkFile.isValidSparse(s),
+        filetype = 'sparse';
       else
         filetype = '';
       end
@@ -578,7 +630,7 @@ classdef TrkFile < dynamicprops
 %         return;        
 %       end        
         
-      s = TrkFile.modernizeStruct(s);      
+      s = TrkFile.modernizeStruct(s,filetype);      
       trkfileObj = TrkFile();
       switch filetype,
         case 'tracklet'
@@ -618,6 +670,8 @@ classdef TrkFile < dynamicprops
               trkfileObj.(f) = s.(f);
             end
           end
+        case 'sparse',
+          trkfileObj.initFromSparse(s);
       end
     end
     
@@ -625,7 +679,7 @@ classdef TrkFile < dynamicprops
       trkfileObj = TrkFile.load(filename,'issilent',true,varargin{:});
     end
     
-    function s = modernizeStruct(s)
+    function s = modernizeStruct(s,filetype)
       if isfield(s,'pred_conf'),
         s = rmfield(s,'pred_conf');
       end
@@ -1116,27 +1170,32 @@ classdef TrkFile < dynamicprops
         'auxflds',[] ... % (opt). cellstr, aux fields to return. no checks are done that these fields exist
         );
 
+      nfrm = numel(f);
+      ntgt = numel(iTgt);
+      npt = obj.npts;
+      
       tfaux = ~isequal(auxflds,[]);
       if tfaux
         naux = numel(auxflds);
-        aux = nan(obj.npts,numel(f),numel(iTgt),naux);
+        aux = nan(npt,nfrm,ntgt,naux);
       else
         naux = 0;
         aux = [];
       end
 
       if obj.isfull
-        xy = obj.pTrk(:,:,f,iTgt);
-        tfocc = obj.pTrkTag(:,f,iTgt);
+        if ~isempty(obj.startframes),
+          ifrm = f - obj.startframes(1) + 1;
+        else
+          ifrm = f;
+        end
+        xy = obj.pTrk(:,:,ifrm,iTgt);
+        tfocc = obj.pTrkTag(:,ifrm,iTgt);
         for iaux=1:naux
           fld = auxflds{iaux};
-          aux(:,:,:,iaux) = obj.(fld)(:,f,iTgt);
+          aux(:,:,:,iaux) = obj.(fld)(:,ifrm,iTgt);
         end
       else
-        nfrm = numel(f);
-        ntgt = numel(iTgt);
-        %itgtsLive = find(tfhaspred);
-        npt = obj.npts;
         xy = nan(npt,2,nfrm,ntgt);
         tfocc = false(npt,nfrm,ntgt); 
         pcell = obj.pTrk;
@@ -1265,12 +1324,16 @@ classdef TrkFile < dynamicprops
         warningNoTrace('Tracklet index exceeds available data.');
       elseif obj.isfull && ~isempty(obj.pTrk)
         tfhasdata = true;
-        sf = 1;
-        ef = size(obj.pTrk,3);
+        if ~isempty(obj.startframes),
+          sf = obj.startframes(1);
+        else
+          sf = 1;
+        end
+        ef = size(obj.pTrk,3) + sf - 1;
       elseif ~obj.isfull && obj.hasdata()
         tfhasdata = true;
         % .startframes can contain 0s when tracklet has no data
-        sf = max(min(obj.startframes),1); 
+        sf = max(min(obj.startframes),1);       
         ef = max(obj.endframes);
       end
 
