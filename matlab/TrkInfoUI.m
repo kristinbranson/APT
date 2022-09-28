@@ -11,6 +11,7 @@ else
     curmov = lobj.currMovie;
     h.mov_tbl.Selection = [curmov 1];
     h.curmov = curmov;
+    h.lobj = lobj;
     guidata(f,h);
     update_movie(f);
   end
@@ -185,7 +186,7 @@ function [tdat,sf,ef,breaks,top_links] = get_data(trk)
   
   for ndx = 1:n_trk
     nfr = ef(ndx)-sf(ndx)+1;
-    curt = trk.getPTrkTgt(ndx);
+    [~,curt] = trk.getPTrkTgt(ndx);
     valid_pred = shiftdim(~all(isnan(curt(:,1,:)),1),2);
     n_pred = nnz(valid_pred);
     [si,ei] = get_interval_ends(valid_pred);
@@ -248,7 +249,7 @@ else
   if ~haspred
     % set frame to the closest frame that has prediction for the current
     % fly
-    tdat = trk.getPtrkTgt(tgt);
+    [~,tdat] = trk.getPtrkTgt(tgt);
     vfr = find(~all(isnan(tdat),[1,2]));
     closest = argmin(abs(vfr-curfr+sf));
     lobj.setFrame(vfr(closest));
@@ -277,21 +278,23 @@ sf = trk.startframes(curtrk);
 ef = trk.endframes(curtrk);
 valid = trk.getPTrkFT(sf:ef,curtrk);
 [ss,ee] = get_interval_ends(valid);
+ee = ee-1;
+ss = [ss;ee];
 curfr = lobj.currFrame;
 if curfr<sf
   warning('No previous breaks');
 elseif curfr>ef
   lobj.setFrame(ef);
 else
-  ee(ee>=(curfr-sf+2)) = nan;
-  if all(isnan(ee))
+  ss(ss>=(curfr-sf+1)) = nan;
+  if all(isnan(ss))
     lobj.setFrame(sf);
   else
-    sndx = argmax(ee);
-    lobj.setFrame(ee(sndx)-1);
+    sndx = argmax(ss);
+    lobj.setFrame(ss(sndx)+sf-1);
   end
 end
-if ~isempty(h.curtrk) || (h.curtrk ~= curtrk)
+if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
 guidata(handles,h);
@@ -310,6 +313,8 @@ sf = trk.startframes(curtrk);
 ef = trk.endframes(curtrk);
 valid = trk.getPTrkFT(sf:ef,curtrk);
 [ss,ee] = get_interval_ends(valid);
+ee = ee-1;
+ss = [ss;ee];
 curfr = lobj.currFrame;
 if curfr>ef
   warning('No next breaks');
@@ -321,10 +326,10 @@ else
     lobj.setFrame(ef);
   else
     sndx = argmin(ss);
-    lobj.setFrame(ss(sndx));
+    lobj.setFrame(ss(sndx)+sf-1);
   end
 end
-if ~isempty(h.curtrk) || (h.curtrk ~= curtrk)
+if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
 guidata(handles,h);
@@ -358,7 +363,7 @@ lobj = h.lobj;
 
 ef = trk.endframes(curtrk);
 lobj.setFrame(ef);
-if ~isempty(h.curtrk) || (h.curtrk ~= curtrk)
+if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
 guidata(handles,h);

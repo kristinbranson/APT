@@ -4720,6 +4720,7 @@ if hlpSave(handles.labelerObj)
       && isvalid(handles.movieMgr)
     delete(handles.movieMgr);
   end  
+  delete(findall(0,'tag','TrkInfoUI'));
   delete(handles.figure);
   delete(handles.labelerObj);
 end

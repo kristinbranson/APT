@@ -1361,21 +1361,32 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
   '''
 
   n_trk = len(trk_info)
-  if n_trk < mp.cpu_count():
-    n_threads = n_trk
+  max_pool = 20
+  if n_trk < max_pool:
+    n_pool = n_trk
+    n_batches = 1
   else:
-    bytes_per_trk = n_ex*conf.imsz[0]*conf.imsz[1]*3
+    bytes_per_trk = n_ex*conf.imsz[0]*conf.imsz[1]*3*8*1.1
+    # 1.1 is sort of extra buffer
     max_pkl_bytes = 1024*1024*1024
     n_trk_per_thrd = max_pkl_bytes//bytes_per_trk
-    n_threads = int(np.ceil(n_trk/n_trk_per_thrd))
-    n_threads = max( mp.cpu_count(),n_threads)
+    n_jobs = int(np.ceil(n_trk/n_trk_per_thrd))
+    if n_jobs >max_pool:
+      n_batches = int(np.ceil(n_jobs/max_pool))
+      n_pool = 20
+    else:
+      n_batches = 1
+      n_pool = n_jobs
 
-  with mp.get_context('spawn').Pool(n_threads) as pool:
-
-    trk_info_split = split_parallel(trk_info,n_threads)
-    data = pool.starmap(read_tracklet_ims, [(trx, trk_info_split[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_threads)])
-
-  data = merge_parallel(data)
+  data = []
+  # out = read_tracklet_ims(trx, trk_info[::n_jobs], mov_file, conf, n_ex, np.random.randint(100000))
+  trk_info_batches = split_parallel(trk_info,n_batches)
+  with mp.get_context('spawn').Pool(n_pool) as pool:
+    for ndx in range(n_batches):
+      trk_info_split = split_parallel(trk_info_batches[ndx],n_pool)
+      cur_data = pool.starmap(read_tracklet_ims, [(trx, trk_info_split[n], mov_file, conf, n_ex, np.random.randint(100000)+ndx) for n in range(n_pool)])
+      cur_data = merge_parallel(cur_data)
+      data.extend(cur_data)
 
   return data
 
