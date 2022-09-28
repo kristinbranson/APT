@@ -1174,7 +1174,7 @@ switch lower(state),
     handles.pbTrack.Enable = onOff;
     handles.menu_view_hide_predictions.Enable = onOff;    
     
-    tfGoTgts = ~lObj.maIsMA && ~lObj.gtIsGTMode;
+    tfGoTgts = ~lObj.gtIsGTMode;
     set(handles.menu_go_targets_summary,'Enable',onIff(tfGoTgts));
     
     if lObj.nview == 1,
@@ -4251,7 +4251,11 @@ function menu_track_trainincremental_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
 
 function menu_go_targets_summary_Callback(hObject, eventdata, handles)
-handles.labelerObj.targetsTableUI();
+if handles.labelerObj.maIsMA
+  TrkInfoUI(handles.labelerObj);
+else
+  handles.labelerObj.targetsTableUI();
+end
 
 function menu_go_nav_prefs_Callback(hObject, eventdata, handles)
 handles.labelerObj.navPrefsUI();
