@@ -92,6 +92,7 @@ import link_trajectories as lnk
 from matplotlib.path import Path
 from PoseCommon_pytorch import coco_loader
 from tqdm import tqdm
+import io
 import shapely.geometry
 import TrkFile
 from scipy.ndimage import uniform_filter
@@ -4430,7 +4431,7 @@ def parse_args(argv):
                         action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
-    parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
+    parser.add_argument('-log_file', dest='log_file', help='Log file', default=None)
     parser.add_argument('-conf_params', dest='conf_params',
                         help='conf params. These will override params from lbl file', default=None, nargs='*')
     parser.add_argument('-conf_params2', dest='conf_params2',
@@ -4885,6 +4886,23 @@ def run(args):
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
         print(m_files)
 
+class TqdmToLogger(io.StringIO):
+    """
+    Output stream for TQDM which will output to logger module instead of
+    the StdOut.
+    """
+    logger = None
+    level = None
+    buf = ''
+    def __init__(self,logger,level=None):
+        super(TqdmToLogger, self).__init__()
+        self.logger = logger
+        self.level = level or logging.INFO
+    def write(self,buf):
+        self.buf = buf.strip('\r\n\t ')
+    def flush(self):
+        self.logger.log(self.level, self.buf)
+
 def set_up_logging(args):
     """
     errh,logh = set_up_logging(args)
@@ -4923,6 +4941,9 @@ def set_up_logging(args):
     log.addHandler(logh)
     log.setLevel(logging.DEBUG)
 
+    tqdm_logger = TqdmToLogger(log,level=logging.INFO)
+    TQDM_PARAMS['file'] = tqdm_logger
+    
     return errh,logh
         
 def main(argv):
