@@ -130,17 +130,17 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
       if (c2/(c1+0.0001)) < strict_match_thres:
         C[:ncurr,x1] = maxcost*2
 
-    for x1 in range(ncurr):
-      for x2 in range(nnext):
-        has_match = np.any(C[x1,:nnext] < maxcost) or np.any(C[:ncurr,x2]<maxcost)
-        if has_match: continue
-        if maxcost<C[x1,x2]<maxcost*1.95:
-          p1 = np.reshape(pcurr[:,x1,0],[nlandmarks,d])
-          p2 = np.reshape(pnext[:,0,x2],[nlandmarks,d])
-          a_span = angle_span(p1,p2)
-          if a_span<=180:
-            red_factor = max(a_span,90)/180
-            C[x1,x2] = C[x1,x2]*red_factor
+    # for x1 in range(ncurr):
+    #   for x2 in range(nnext):
+    #     has_match = np.any(C[x1,:nnext] < maxcost) or np.any(C[:ncurr,x2]<maxcost)
+    #     if has_match: continue
+    #     if maxcost<C[x1,x2]<maxcost*1.95:
+    #       p1 = np.reshape(pcurr[:,x1,0],[nlandmarks,d])
+    #       p2 = np.reshape(pnext[:,0,x2],[nlandmarks,d])
+    #       a_span = angle_span(p1,p2)
+    #       if a_span<=180:
+    #         red_factor = max(a_span,90)/180
+    #         C[x1,x2] = C[x1,x2]*red_factor
 
 
   # match

@@ -1940,18 +1940,24 @@ classdef DeepTracker < LabelTracker
           end
         end
         
-%         % add in home directory and their ancestors
-%         homedir = getuserdir;
-%         homeancestors = [{homedir},getpathancestors(homedir)];
-%         if isunix,
-%           homeancestors = setdiff(homeancestors,{'/'});
-%         end
+        if backend.type==DLBackEnd.Docker
+          % docker writes to ~/.cache. So we need home directory. MK
+          % 20220922
+          % add in home directory and their ancestors
+          homedir = getuserdir;
+          homeancestors = [{homedir},getpathancestors(homedir)];
+          if isunix
+            homeancestors = setdiff(homeancestors,{'/'});
+          end
+        else
+          homeancestors = {};
+        end
         
         fprintf('Using auto-generated container bind-paths:\n');
         %dlroot = [aptroot '/deepnet'];
         % AL 202108: include all of <APT> due to git describe cmd which
         % looks in <APT>/.git
-        paths = [cacheDir;aptroot;projbps(:);extradirs(:)];
+        paths = [cacheDir;aptroot;projbps(:);extradirs(:);homeancestors(:)];
         paths = FSPath.commonbase(paths,1);
         %paths = unique(paths);
       end
@@ -4359,7 +4365,7 @@ classdef DeepTracker < LabelTracker
                   sel = active;
                   obj.newLabelerFrame();
                 end
-                tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+                tv.trxSelectedTrxID(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
 %                 f0 = tv.ptrx(1).firstframe;
 %                 if f0~=obj.lObj.currFrame
 %                   obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
