@@ -260,7 +260,7 @@ class config(object):
         self.link_id = False
         self.link_id_cropsz = -1
         self.link_id_training_iters = 40000
-        self.link_id_tracklet_samples = 50
+        self.link_id_tracklet_samples = 25
         self.link_id_rescale = 1
         self.link_id_min_tracklet_len = 5
         self.link_id_mining_steps = 10
