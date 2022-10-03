@@ -177,6 +177,34 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         end
       end
     end    
+    function centerPrimary(obj)
+      %use whatever the current zoom to center on the primary target if it
+      %is outside current video
+      lobj = obj.lObj;
+      currframe = lobj.currFrame;
+      trx_curr = obj.ptrx(obj.currTrklet);
+      if (currframe<trx_curr.firstframe)|| (currframe>trx_curr.endframe)
+        warning('Frame is outside current tracklets range. Not centering on the animal');
+        return;
+      end
+      
+      ndx_fr = currframe + trx_curr.off;
+      pts_curr = trx_curr.p(:,:,ndx_fr);      
+      if all(isnan(pts_curr(:)))
+        warning('No data for primary animal for current frame. Not centering on the animal');
+        return; 
+      end
+      minx=nanmin(pts_curr(:,1)); maxx=nanmax(pts_curr(:,1));
+      miny=nanmin(pts_curr(:,2)); maxy=nanmax(pts_curr(:,2));      
+
+      v = lobj.videoCurrentAxis();
+      x_ok = (minx>= (v(1)-1))&(maxx<=(v(2)+1));
+      y_ok = (miny>= (v(3)-1))&(maxy<=(v(4)+1));
+      if x_ok && y_ok
+        return;
+      end
+      lobj.videoCenterOn(trx_curr.x(ndx_fr),trx_curr.y(ndx_fr));      
+    end
     function updatePrimary(obj,iTgtPrimary) %#ok<INUSD>
       % currently unused. this API is used by Labeler. currently 
       % Labeler/iTgtPrimary does not know about tracklet indices; so any

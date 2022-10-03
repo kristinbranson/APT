@@ -6,17 +6,40 @@
 
 #cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_mask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask True link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageBBox_nocrop_second_23022022/deepnet-100000 -conf_params2  -type2 mdn_joint_fpn -name2 2stageBBox_nocrop_second_23022022 -type detect_mmdetect track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_1_bbox.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/aa.trk -track_type only_predict -start_frame 48800 -end_frame 49000'
 
-cmd = ['-name', '20220706T143920', '-view', '1', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/temp/tpdf5131e7_6ebc_4c43_8101_1a1ae583f41e', '-model_files', '/groups/branson/home/kabram/temp/tpdf5131e7_6ebc_4c43_8101_1a1ae583f41e/four_points_180806/multi_mdn_joint_torch/view_0/20220706T143920/deepnet-40000', '-type', 'multi_mdn_joint_torch', '/groups/branson/home/kabram/temp/tpdf5131e7_6ebc_4c43_8101_1a1ae583f41e/four_points_180806/20220706T143920_20220706T143920.json', 'track', '-out', '/groups/branson/home/kabram/temp/tpdf5131e7_6ebc_4c43_8101_1a1ae583f41e/190412_m1f0_sbpbm164301_no_odor_m164564_f164992_four_points_220419_add_spkr_frames_trained2_jh_MA_Bottom_Up_220926.trk', '-config_file', '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/trkconfig_190412_m1f0_sbpbm164301_no_odor_m164564_f164992_four_points_220419_add_spkr_frames_trained2_jh_MA_Bottom_Up_220926.json', '-mov', '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190412_m1f0_sbpbm164301_no_odor_m164564_f164992.mjpg','-track_type','only_link']
+cmd = ['-name',
+ '20220912T141250',
+ '-view',
+ '1',
+ '-ignore_local',
+ '1',
+ '-cache',
+ '/groups/romani/home/hoellerj/.apt/tp08e45df7_b16e_471b_bfef_dd1d8c6f1a3c',
+ '-model_files',
+ '/groups/romani/home/hoellerj/.apt/tp08e45df7_b16e_471b_bfef_dd1d8c6f1a3c/mouse_tail/multi_mdn_joint_torch/view_0/20220912T141250/deepnet-10000',
+ '-type',
+ 'multi_mdn_joint_torch',
+ '/groups/romani/home/hoellerj/.apt/tp08e45df7_b16e_471b_bfef_dd1d8c6f1a3c/mouse_tail/20220912T141250_20220912T141250.json',
+ 'track',
+ '-out',
+ '/groups/branson/home/kabram/temp/190412_m1f0_sbpbm164301_no_odor_m164564_f164992_MouseTail_tracked_MA_Bottom_Up.trk',
+ '-config_file',
+ '/groups/romani/home/hoellerj/Documents/APT/examples/Mouse/trkconfig_190412_m1f0_sbpbm164301_no_odor_m164564_f164992_MouseTail_tracked_MA_Bottom_Up.json',
+ '-mov',
+ '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190412_m1f0_sbpbm164301_no_odor_m164564_f164992.mjpg',
+ '-track_type',
+ 'only_link']
+
 if type(cmd)!=list:
     cmd = cmd.replace('"','')
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')
-if type(cmd) == list:
-    apt.main(cmd)
-else:
-    cmd = cmd.replace('\\', '')
-    apt.main(cmd.split())
+if __name__ == '__main__':
+    if type(cmd) == list:
+        apt.main(cmd)
+    else:
+        cmd = cmd.replace('\\', '')
+        apt.main(cmd.split())
 
 ##
 cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
@@ -2270,4 +2293,3 @@ self.create_db(split_file = '/home/mayank/temp/apt_cache/multitarget_bubble/mdn/
 ##
 import APT_interface as apt
 apt.main(cmd.split())
-```

@@ -13054,6 +13054,14 @@ classdef Labeler < handle
       x0 = mean(get(obj.gdata.axes_curr,'XLim'));
       y0 = mean(get(obj.gdata.axes_curr,'YLim'));
     end
+    function v = videoCurrentAxis(obj)
+      v = axis(obj.gdata.axes_curr);
+    end
+    function videoCenterOn(obj,x,y)
+      [xsz,ysz] = obj.videoCurrentSize();
+      lims = [x-xsz/2,x+xsz/2,y-ysz/2,y+ysz/2];
+      axis(obj.gdata.axes_curr,lims);      
+    end
     
     function xy = videoClipToVideo(obj,xy)
       % Clip coords to video size.

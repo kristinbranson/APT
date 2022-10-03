@@ -258,13 +258,24 @@ end
 
 if strcmp(h.sel_btn.Value, 'Predicted')
   lobj.tracker.trkVizer.trxSelectedTrxID(tgt,true);
+  lobj.tracker.trkVizer.centerPrimary;
 else
   lobj.labeledpos2trkViz.trxSelectedTrxID(tgt,true);
+  lobj.labeledpos2trkViz.centerPrimary;
 end
 h.curtrk = tgt;
 guidata(h.fig,h);
 end
 
+function centerPrimary(h)
+lobj = h.lobj;
+if strcmp(h.sel_btn.Value, 'Predicted')
+  lobj.tracker.trkVizer.centerPrimary;
+else
+  lobj.labeledpos2trkViz.centerPrimary;
+end
+
+end
 function prev_btn_callback(handles,event,~)
 h = guidata(handles);
 if isempty(h.tbl.Selection)
@@ -297,6 +308,7 @@ end
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
+centerPrimary(h);
 guidata(handles,h);
 end
 
@@ -332,6 +344,7 @@ end
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
+centerPrimary(h);
 guidata(handles,h);
 end
 
@@ -349,6 +362,7 @@ lobj.setFrame(sf);
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
+centerPrimary(h);
 guidata(handles,h);
 end
 
@@ -366,6 +380,7 @@ lobj.setFrame(ef);
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
+centerPrimary(h);
 guidata(handles,h);
 end
 

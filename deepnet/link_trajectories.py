@@ -1036,7 +1036,10 @@ def link_trklets(trk_files, conf, movs, out_files):
 
   if conf.link_id:
     conf1 = copy.deepcopy(conf)
-    ww = conf1.multi_animal_crop_sz
+    if conf1.link_id_cropsz<0:
+      ww = conf1.multi_animal_crop_sz
+    else:
+      ww = conf1.link_id_cropsz
     conf1.imsz = [ww,ww]
 
     if len(conf1.ht_pts)>0 and conf1.ht_pts[0]>=0:
@@ -1321,10 +1324,15 @@ class id_dset(torch.utils.data.IterableDataset):
       curims = curims.astype('float32')
       yield curims, info
 
-def process_id_ims_par(im_arr,conf,distort,rescale):
+def process_id_ims_par(im_arr,conf,distort,rescale,n):
   res_arr = []
+  tot_size = 0
   for ims in im_arr:
-    res_arr.append(process_id_ims(ims,conf,distort,rescale))
+    cur_ims = process_id_ims(ims,conf,distort,rescale)
+    res_arr.append(cur_ims)
+    tot_size += cur_ims.size*cur_ims.itemsize
+  tot_size = tot_size/1024/1024/1024
+  print(f'Total size for {n} is {tot_size}')
   return res_arr
 
 def process_id_ims(curims, conf, distort, rescale):
@@ -1370,24 +1378,23 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
     # 1.1 is sort of extra buffer
     max_pkl_bytes = 1024*1024*1024
     n_trk_per_thrd = max_pkl_bytes//bytes_per_trk
+    n_trk_per_thrd = max(1,n_trk_per_thrd)
     n_jobs = int(np.ceil(n_trk/n_trk_per_thrd))
     if n_jobs >max_pool:
       n_batches = int(np.ceil(n_jobs/max_pool))
-      n_pool = 20
+      n_pool = max_pool
     else:
       n_batches = 1
       n_pool = n_jobs
 
   data = []
+  # for debugging
   # out = read_tracklet_ims(trx, trk_info[::n_jobs], mov_file, conf, n_ex, np.random.randint(100000))
   trk_info_batches = split_parallel(trk_info,n_batches)
   with mp.get_context('spawn').Pool(n_pool) as pool:
-    for ndx in range(n_batches):
-      trk_info_split = split_parallel(trk_info_batches[ndx],n_pool)
-      cur_data = pool.starmap(read_tracklet_ims, [(trx, trk_info_split[n], mov_file, conf, n_ex, np.random.randint(100000)+ndx) for n in range(n_pool)])
-      cur_data = merge_parallel(cur_data)
-      data.extend(cur_data)
-
+    args = [(trx, trk_info[n:n+1], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_trk)]
+    data = pool.starmap(read_tracklet_ims,args,chunksize=n_trk_per_thrd)
+  data = merge_parallel(data)
   return data
 
 def read_data_files(data_files):
@@ -1467,34 +1474,52 @@ def merge_parallel(data):
   data = [i for sublist in data for i in sublist]
   return data
 
+def do_pred(zz1,net):
+  zz2 = zz1.astype('float32')
+  zz = torch.tensor(zz2).cuda()
+  with torch.no_grad():
+    oo = net(zz).cpu().numpy()
+  return oo
+
+
 def tracklet_pred(ims, net, conf, rescale):
-    '''
-    Do prediction over a set of images (typically generated using read_tracklet_ims
-    :param ims:
-    :type ims:
-    :param net:
-    :type net:
-    :param conf:
-    :type conf:
-    :param rescale:
-    :type rescale:
-    :return:
-    :rtype:
-    '''
     preds = []
     n_threads = min(24, mp.cpu_count())
     n_batches = max(1,len(ims)//(3*n_threads))
     n_tr = len(ims)
-    with mp.get_context('spawn').Pool(n_threads) as pool:
-      processed_ims = pool.starmap(process_id_ims_par, [(ims[n:n+1],conf,False,rescale) for n in range(len(ims))])
-      processed_ims = merge_parallel(processed_ims)
-      for ix in range(len(processed_ims)):
-          zz = processed_ims[ix]
-          zz = zz.astype('float32')
-          zz = torch.tensor(zz).cuda()
-          with torch.no_grad():
-              oo = net(zz).cpu().numpy()
-          preds.append(oo)
+    import time
+    a = time.time()
+    im_sz_in = ims[0].size * ims[0].itemsize
+
+    im_sz_out = im_sz_in * 3 if (ims[0].shape[3] == 1) else im_sz_in
+    im_sz_out = im_sz_out / rescale / rescale
+    im_sz = max(im_sz_in,im_sz_out)
+
+    # max size of data that can be sent or recieved to multiprocess threads is 1GB because of pickle limit in py 3.7. So set the chunksize accounting for that, capping it at max 10. The 1GB probably will get increased when updating python versions
+    chunksize = max(1, int(np.floor(1024 * 1024 * 1024 / im_sz)))
+    chunksize = min(10, chunksize)
+    # chunksize = 1
+    print(f'chunksize {chunksize}')
+
+    # if images are bigger than 200mb then don't use multiprcoessing because it'll need huge amount of memory
+    im_small = im_sz_out/1024/1024 < 200
+
+    ims_split = split_parallel(ims,len(ims)//chunksize+1)
+
+
+    if im_small:
+      print('Using multi process for smaller images')
+      with mp.get_context('spawn').Pool(n_threads) as pool:
+        args = [(ims_split[n], conf, False, rescale, n) for n in range(len(ims_split))]
+        for curims in pool.starmap(process_id_ims_par,args,chunksize=1):
+          for zz1 in curims:
+            oo = do_pred(zz1,net)
+            preds.append(oo)
+    else:
+      for zz in ims:
+        zz1 = process_id_ims(zz, conf, False, rescale)
+        oo = do_pred(zz1,net)
+        preds.append(oo)
 
       # for curb in range(n_batches):
       #   cur_set = ims[(curb*n_tr)//n_batches:( (curb+1)*n_tr)//n_batches]
@@ -1509,6 +1534,8 @@ def tracklet_pred(ims, net, conf, rescale):
       #           oo = net(zz).cpu().numpy()
       #       preds.append(oo)
 
+    b = time.time()
+    print(f'Time to compute {b-a}, chunksize {chunksize}')
     rr = np.array(preds)
     return rr
 
