@@ -1351,7 +1351,7 @@ def process_id_ims(curims, conf, distort, rescale):
   zz = zz / im_std
   return zz
 
-def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
+def read_ims_par(trx, trk_info, mov_file, conf):
   '''
   Read images in parallel because otherwise it is really slow particularly for avis
   :param trx:
@@ -1368,6 +1368,7 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
   :rtype:
   '''
 
+  n_ex = conf.link_id_tracklet_samples
   n_trk = len(trk_info)
   max_pool = 20
   if n_trk < max_pool:
