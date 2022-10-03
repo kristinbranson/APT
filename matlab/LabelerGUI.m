@@ -2373,6 +2373,13 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','(JRC) Set number of slots for training...',...
     'Callback',@cbkTrackerBackendSetJRCNSlots,...
     'Tag','menu_track_backend_config_jrc_setconfig');  
+
+  handles.menu_track_backend_config_jrc_setconfig_track = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','off',...
+    'Label','(JRC) Set number of slots for tracking...',...
+    'Callback',@cbkTrackerBackendSetJRCNSlotsTrack,...
+    'Tag','menu_track_backend_config_jrc_setconfig_track');  
 end
 
 function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
@@ -2472,6 +2479,7 @@ set(handles.menu_track_backend_config_aws_setinstance,'visible',oiAWS);
 set(handles.menu_track_backend_config_aws_configure,'visible',oiAWS);
 set(handles.menu_track_backend_config_setdockerssh,'visible',oiDckr);
 set(handles.menu_track_backend_config_jrc_setconfig,'visible',oiBsub);
+set(handles.menu_track_backend_config_jrc_setconfig_track,'visible',oiBsub);
 
 m = handles.menu_track_backend_config;
 % Menu item ordering seems very buggy. Setting .Position on menu items
@@ -2488,6 +2496,7 @@ m.Children = [ ...
   handles.menu_track_backend_config_aws_configure...
   handles.menu_track_backend_config_setdockerssh...
   handles.menu_track_backend_config_jrc_setconfig...
+  handles.menu_track_backend_config_jrc_setconfig_track...
   handles.menu_track_backend_config_test...
   ];
 m.Children = m.Children(end:-1:1);
@@ -2610,6 +2619,19 @@ if isnan(n)
   return;
 end
 lObj.tracker.setJrcnslots(n);
+
+function cbkTrackerBackendSetJRCNSlotsTrack(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+n = inputdlg('Number of cluster slots for tracking','a',1,{num2str(lObj.tracker.jrcnslots)});
+if isempty(n)
+  return;
+end
+n = str2double(n{1});
+if isnan(n)
+  return;
+end
+lObj.tracker.setJrcnslotstrack(n);
 
 
 
