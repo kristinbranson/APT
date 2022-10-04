@@ -2623,7 +2623,7 @@ lObj.tracker.setJrcnslots(n);
 function cbkTrackerBackendSetJRCNSlotsTrack(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-n = inputdlg('Number of cluster slots for tracking','a',1,{num2str(lObj.tracker.jrcnslots)});
+n = inputdlg('Number of cluster slots for tracking','a',1,{num2str(lObj.tracker.jrcnslotstrack)});
 if isempty(n)
   return;
 end
