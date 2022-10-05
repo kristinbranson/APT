@@ -1150,7 +1150,7 @@ classdef TrkFile < dynamicprops
       % if both f and iTgt are non-scalar, then the we will return
       % tracking info for the cross product of frame and target
       %
-      % tfhaspred: logical scalar, whether pred is present
+      % tfhaspred: [numel(fr) x numel(iTgt)] whether pred is present
       % xy: [npt x 2 x numel(fr) x numel(iTgt)]
       % tfocc: [npt x numel(fr) x numel(iTgt)]
       % aux (opt): [npt x numel(fr) x numel(iTgt) x numaux] Auxiliary
@@ -1299,20 +1299,26 @@ classdef TrkFile < dynamicprops
 %         xy(:,:,fr0,:) = xy0;
 %         occ(:,fr0,:) = occ0;
 %       end
-%     end
+%     end 
   
-  function [tfhasdata,xy,occ,sf,ef,aux] = getPTrkTgt(obj,iTlt,varargin)
+  function [tfhasdata,xy,occ,sf,ef,aux] = getPTrkTgt2(obj,iTlt,varargin)
+    % Convenience wrapper
+    [xy,occ,fr,aux] = obj.getPTrkTgt(iTlt,varargin{:});
+    tfhasdata = ~isempty(xy); % note, xy could be all nans etc && TrkFile.isAliveHelper(xy);
+    sf = fr(1);
+    ef = fr(end);
+  end
+
+  function [xy,occ,fr,aux] = getPTrkTgt(obj,iTlt,varargin)
       % get tracking for particular target
       %
       % iTlt: tracklet index
       %
-      % tfhasdata: true if data for iTlt is present (currently, could still be all nans)
       % xy: [npt x 2 x numfrm x numel(iTlt)]. numfrm = ef-sf+1
       % occ: [npt x numfrm x numel(iTlt)]
-      % sf: start frame, labels xy(:,:,1,:)
-      % ef: end frame, labels xy(:,:,end,:)
-      % aux (opt): [npt x numfrm x numel(iTlt) x numaux] Auxiliary
-      %   stats, returned if 'auxflds' specified
+      % fr: [numfrm] frames, labels 3rd dim of xy
+      % aux: [npt x numfrm x numel(iTlt) x numaux] Auxiliary
+      %   stats, meaningful if 'auxflds' specified
       
       auxflds = myparse(varargin,...
         'auxflds',[] ... % cellstr; addnl stats to return
@@ -1342,16 +1348,20 @@ classdef TrkFile < dynamicprops
         ntlt = numel(iTlt);
         xy = nan(obj.npts,2,0,ntlt);
         occ = false(obj.npts,0,ntlt);
-        sf = nan;
-        ef = nan;
+        fr = nan;
+%         sf = nan;
+%         ef = nan;
 
         tfAux = ~isequal(auxflds,[]);
         if tfAux
           naux = numel(auxflds);
           aux = nan(obj.npts,0,ntlt,naux);
+        else
+          aux = [];
         end
       else
-        [~,xy,occ,aux] = obj.getPTrkFT(sf:ef,iTlt,'auxflds',auxflds);
+        fr = sf:ef;
+        [~,xy,occ,aux] = obj.getPTrkFT(fr,iTlt,'auxflds',auxflds);
         % first output arg (tfhaspred) of getPTrkFT is not used here. Note 
         % tfhasdata as returned by current function differs semantically 
         % from tfhaspred

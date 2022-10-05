@@ -186,7 +186,7 @@ function [tdat,sf,ef,breaks,top_links] = get_data(trk)
   
   for ndx = 1:n_trk
     nfr = ef(ndx)-sf(ndx)+1;
-    [~,curt] = trk.getPTrkTgt(ndx);
+    curt = trk.getPTrkTgt(ndx);
     valid_pred = shiftdim(~all(isnan(curt(:,1,:)),1),2);
     n_pred = nnz(valid_pred);
     [si,ei] = get_interval_ends(valid_pred);
@@ -249,7 +249,7 @@ else
   if ~haspred
     % set frame to the closest frame that has prediction for the current
     % fly
-    [~,tdat] = trk.getPtrkTgt(tgt);
+    tdat = trk.getPtrkTgt(tgt);
     vfr = find(~all(isnan(tdat),[1,2]));
     closest = argmin(abs(vfr-curfr+sf));
     lobj.setFrame(vfr(closest));

@@ -5631,7 +5631,7 @@ classdef DeepTracker < LabelTracker
         nt = obj.trnNetType;
         auxflds = nt.trkAuxFields;
         auxlbl = nt.trkAuxLabels(:);
-        [tfhasdata,xy,occ,sf,ef,aux] = trk.getPTrkTgt(iTgt,'auxflds',auxflds);        
+        [tfhasdata,xy,occ,sf,ef,aux] = trk.getPTrkTgt2(iTgt,'auxflds',auxflds);        
       else
         tfhasdata = false;
         xy = [];
