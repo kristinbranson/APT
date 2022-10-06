@@ -1374,12 +1374,13 @@ def read_ims_par(trx, trk_info, mov_file, conf):
   if n_trk < max_pool:
     n_pool = n_trk
     n_batches = 1
+    n_trk_per_thrd = 1
   else:
     bytes_per_trk = n_ex*conf.imsz[0]*conf.imsz[1]*3*8*1.1
     # 1.1 is sort of extra buffer
     max_pkl_bytes = 1024*1024*1024
-    n_trk_per_thrd = max_pkl_bytes//bytes_per_trk
-    n_trk_per_thrd = max(1,n_trk_per_thrd)
+    n_trk_per_thrd = (0.9*max_pkl_bytes)//bytes_per_trk
+    n_trk_per_thrd = int(max(1,n_trk_per_thrd))
     n_jobs = int(np.ceil(n_trk/n_trk_per_thrd))
     if n_jobs >max_pool:
       n_batches = int(np.ceil(n_jobs/max_pool))
