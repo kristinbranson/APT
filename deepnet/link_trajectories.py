@@ -1819,7 +1819,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   return net, loss_history
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5, debug=False, keep_all_preds=False):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False):
   '''
   Links the pure tracklets using identity
 
@@ -1828,7 +1828,6 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   :param mov_files: movie files
   :param conf: poseconfig object
   :param all_trx: pure linked tracks loaded in the trx format for apt.create_batch_ims
-  :param n_per_trk: number of samples to use per trk to designate an id.
   :param rescale:
   :param min_len_select:
   :param debug:
@@ -1860,7 +1859,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
     logging.info(f'Sampling images from {len(sel_ss)} tracklets to assign identity to the tracklets ...')
     start_t = time.time()
-    cur_data = read_ims_par(trx, trk_info, mov_file, conf, n_ex=n_per_trk)
+    cur_data = read_ims_par(trx, trk_info, mov_file, conf)
     end_t = time.time()
     logging.info(f'Sampling images took {round((end_t-start_t)/60)} minutes')
 
@@ -1945,7 +1944,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   overlap = np.zeros([ns,ns])
   for ndx in range(ns):
     aa, bb = get_overlap(st_sel, en_sel, st_sel[ndx], en_sel[ndx], ndx)
-    overlap[ndx, aa] = bb
+    if aa.size > 0:
+      overlap[ndx, aa] = bb
   mov1_dist = dist_mat[np.ix_(mov1_sel,mov1_sel)]
   overlap_dist = mov1_dist[overlap>0.1]
   far_thresh = np.percentile(overlap_dist,thresh_perc)
