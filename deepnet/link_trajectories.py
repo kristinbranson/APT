@@ -32,7 +32,7 @@ import cv2
 import time
 import scipy.spatial.distance as ssd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
-
+from torch.utils.data import Dataset,DataLoader
 
 def angle_span(pcurr,pnext):
   z = pcurr-pnext
@@ -1324,7 +1324,7 @@ class id_dset(torch.utils.data.IterableDataset):
       curims = curims.astype('float32')
       yield curims, info
 
-def process_id_ims_par(im_arr,conf,distort,rescale,n):
+def process_id_ims_par(im_arr,conf,distort,rescale,n,idx):
   res_arr = []
   tot_size = 0
   for ims in im_arr:
@@ -1333,7 +1333,7 @@ def process_id_ims_par(im_arr,conf,distort,rescale,n):
     tot_size += cur_ims.size*cur_ims.itemsize
   tot_size = tot_size/1024/1024/1024
   print(f'Total size for {n} is {tot_size}')
-  return res_arr
+  return idx, res_arr
 
 def process_id_ims(curims, conf, distort, rescale):
   """
@@ -1477,69 +1477,118 @@ def merge_parallel(data):
   return data
 
 def do_pred(zz1,net):
-  zz2 = zz1.astype('float32')
-  zz = torch.tensor(zz2).cuda()
+  # zz2 = zz1.astype('float32')
+  # zz = torch.tensor(zz2).cuda()
   with torch.no_grad():
-    oo = net(zz).cpu().numpy()
+    oo = net(zz1.cuda()).cpu().numpy()
+  # del zz2,zz
   return oo
 
 
+class tracklet_pred_dataset(Dataset):
+    def __init__(self, ims,conf,rescale,distort):
+        self.ims = ims
+        self.conf = conf
+        self.distort = distort
+        self.rescale = rescale
+
+    def __len__(self):
+        return len(self.ims)
+
+    def __getitem__(self, idx):
+      cur_ims = process_id_ims(self.ims[idx], self.conf, self.distort, self.rescale)
+      return cur_ims.astype('float32')
+
 def tracklet_pred(ims, net, conf, rescale):
+    dataset = tracklet_pred_dataset(ims, conf, rescale, False)
+    loader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=20, worker_init_fn=lambda id: np.random.seed(id * 8999))
     preds = []
-    n_threads = min(24, mp.cpu_count())
-    n_batches = max(1,len(ims)//(3*n_threads))
-    n_tr = len(ims)
-    import time
-    a = time.time()
-    im_sz_in = ims[0].size * ims[0].itemsize
+    for pims in loader:
+      preds.append(do_pred(pims[0],net))
 
-    im_sz_out = im_sz_in * 3 if (ims[0].shape[3] == 1) else im_sz_in
-    im_sz_out = im_sz_out / rescale / rescale
-    im_sz = max(im_sz_in,im_sz_out)
+    del loader
+    preds = np.array(preds)
+    return preds
 
-    # max size of data that can be sent or recieved to multiprocess threads is 1GB because of pickle limit in py 3.7. So set the chunksize accounting for that, capping it at max 10. The 1GB probably will get increased when updating python versions
-    chunksize = max(1, int(np.floor(1024 * 1024 * 1024 / im_sz)))
-    chunksize = min(10, chunksize)
-    # chunksize = 1
-    print(f'chunksize {chunksize}')
-
-    # if images are bigger than 200mb then don't use multiprcoessing because it'll need huge amount of memory
-    im_small = im_sz_out/1024/1024 < 200
-
-    ims_split = split_parallel(ims,len(ims)//chunksize+1)
-
-
-    if im_small:
-      print('Using multi process for smaller images')
-      with mp.get_context('spawn').Pool(n_threads) as pool:
-        args = [(ims_split[n], conf, False, rescale, n) for n in range(len(ims_split))]
-        for curims in pool.starmap(process_id_ims_par,args,chunksize=1):
-          for zz1 in curims:
-            oo = do_pred(zz1,net)
-            preds.append(oo)
-    else:
-      for zz in ims:
-        zz1 = process_id_ims(zz, conf, False, rescale)
-        oo = do_pred(zz1,net)
-        preds.append(oo)
-
-      # for curb in range(n_batches):
-      #   cur_set = ims[(curb*n_tr)//n_batches:( (curb+1)*n_tr)//n_batches]
-      #   split_set = split_parallel(cur_set,n_threads)
-      #   processed_ims = pool.starmap(process_id_ims_par, [(split_set[n],conf,False,rescale) for n in range(n_threads)])
-      #   processed_ims = merge_parallel(processed_ims)
-      #   for ix in range(len(processed_ims)):
-      #       zz = processed_ims[ix]
-      #       zz = zz.astype('float32')
-      #       zz = torch.tensor(zz).cuda()
-      #       with torch.no_grad():
-      #           oo = net(zz).cpu().numpy()
-      #       preds.append(oo)
-
-    b = time.time()
-    print(f'Time to compute {b-a}, chunksize {chunksize}')
-    rr = np.array(preds)
-    return rr
+    # preds = []
+    # n_threads = min(24, mp.cpu_count())
+    # n_batches = max(1,len(ims)//(3*n_threads))
+    # n_tr = len(ims)
+    # import time
+    # a = time.time()
+    # im_sz_in = ims[0].size * ims[0].itemsize
+    #
+    # im_sz_out = im_sz_in * 3 if (ims[0].shape[3] == 1) else im_sz_in
+    # im_sz_out = im_sz_out / rescale / rescale
+    # im_sz = max(im_sz_in,im_sz_out)
+    #
+    # # max size of data that can be sent or recieved to multiprocess threads is 1GB because of pickle limit in py 3.7. So set the chunksize accounting for that, capping it at max 10. The 1GB probably will get increased when updating python versions
+    # chunksize = max(1, int(np.floor(1024 * 1024 * 1024 / im_sz)))
+    # chunksize = min(10, chunksize)
+    # # chunksize = 1
+    # print(f'chunksize {chunksize}')
+    #
+    # # if images are bigger than 200mb then don't use multiprcoessing because it'll need huge amount of memory
+    # im_small = im_sz_out/1024/1024 < 200
+    #
+    # ims_split = split_parallel(ims, n_tr//chunksize+1)
+    # idx_split = split_parallel(range(n_tr), n_tr//chunksize+1)
+    #
+    # preds = [[] for i in range(n_tr)]
+    # done = []
+    #
+    # if im_small:
+    #   def cbk(res):
+    #
+    #     ndx,zz_all = res
+    #     for idx,zz1 in zip(ndx,zz_all):
+    #       oo = do_pred(zz1, net)
+    #       preds[idx] = oo
+    #       done.append(idx)
+    #       print(f'Adding data for {idx}')
+    #       del zz1
+    #
+    #   print('Using multi process for smaller images')
+    #   with mp.get_context('spawn').Pool(n_threads,maxtasksperchild=10) as pool:
+    #     args = [(ims[n:n+1], conf, False, rescale, n,range(n,n+1)) for n in range(n_tr)]
+    #     res = []
+    #     for ndx in range(n_tr):
+    #       cur_res  = pool.apply_async(process_id_ims_par,args[ndx],callback=cbk)
+    #       res.append(cur_res)
+    #     for cur_res in res:
+    #       cur_res.wait()
+    #
+    #     # for curims in res_pool.get():
+    #     #   ndx,zz1 = curims
+    #     #   oo = do_pred(zz1,net)
+    #     #   preds[ndx] = oo
+    #     #   done.append(ndx)
+    #     #   del zz1
+    #   assert(len(done)==len(preds))
+    # else:
+    #   for zz in ims:
+    #     zz1 = process_id_ims(zz, conf, False, rescale)
+    #     oo = do_pred(zz1,net)
+    #     preds.append(oo)
+    #     del zz1
+    #
+    #   # for curb in range(n_batches):
+    #   #   cur_set = ims[(curb*n_tr)//n_batches:( (curb+1)*n_tr)//n_batches]
+    #   #   split_set = split_parallel(cur_set,n_threads)
+    #   #   processed_ims = pool.starmap(process_id_ims_par, [(split_set[n],conf,False,rescale) for n in range(n_threads)])
+    #   #   processed_ims = merge_parallel(processed_ims)
+    #   #   for ix in range(len(processed_ims)):
+    #   #       zz = processed_ims[ix]
+    #   #       zz = zz.astype('float32')
+    #   #       zz = torch.tensor(zz).cuda()
+    #   #       with torch.no_grad():
+    #   #           oo = net(zz).cpu().numpy()
+    #   #       preds.append(oo)
+    #
+    # b = time.time()
+    # print(f'Time to compute {b-a}, chunksize {chunksize}')
+    # rr = np.array(preds)
+    # return rr
 
 def compute_mining_data(net, data, trk_data, rescale, confd):
   '''
