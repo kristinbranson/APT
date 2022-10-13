@@ -960,11 +960,12 @@ classdef Labeler < handle
       
       movfilefull = obj.projLocalizePath(movFile);
       assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
-      
-      mr = MovieReader;
-      mr.open(movfilefull);
-      v = mr.nframes;
-      mr.close();
+      v = MovieReader.getNFrames(movfilefull);
+
+%       mr = MovieReader;
+%       mr.open(movfilefull);
+%       v = mr.nframes;
+%       mr.close();
     end
     
     

@@ -363,7 +363,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
       end
     end
-
     function [v,idx] = lblStrippedLnx(obj,varargin)
       warning('OBSOLETE: Reference to stripped lbl file. We are trying to remove these. Let Kristin know how you got here!');
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});

@@ -1844,12 +1844,20 @@ classdef DeepTracker < LabelTracker
             %tfafgt = lObj.trxFilesAllGTFull;
           end
         else
-          projbps = jobinfo;
-%           projbps = jobinfo.totrackinfo.getMovfiles();
-%           trxfiles = jobinfo.totrackinfo.getTrxfiles();
-%           if ~isempty(trxfiles),
-%             projbps = [projbps;trxfiles(:)];
-%           end
+          global KBDEBUG;
+          if KBDEBUG,
+            projbps = jobinfo.getMovfiles();
+            projbps = projbps(:);
+            if lObj.hasTrx,
+              trxfiles = jobinfo.getTrxfiles();
+              trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
+              if ~isempty(trxfiles),
+                projbps = [projbps;trxfiles(:)];
+              end
+            end
+          else
+            projbps = jobinfo;
+          end
         end
         
         [projbps2,ischange] = GetLinkSources(projbps);
@@ -1872,12 +1880,11 @@ classdef DeepTracker < LabelTracker
       if isequal(cmdtype,'train'),
         dmc = jobinfo;
       else
-        totrackinfo = jobinfo;
         global KBDEBUG;
         if KBDEBUG,
-          dmc = totrackinfo.dmcRem;
+          dmc = jobinfo.trainDMC;
         else
-          dmc = totrackinfo.trainDMC;
+          dmc = jobinfo.dmcRem;
         end
       end
 
@@ -1888,7 +1895,7 @@ classdef DeepTracker < LabelTracker
             logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
             nslots = obj.jrcnslots;
           else % track
-            logfile = totrackinfo.logfile;
+            logfile = jobinfo.logfile;
             nslots = obj.jrcnslotstrack;
           end
 
@@ -1911,7 +1918,7 @@ classdef DeepTracker < LabelTracker
 %             'isTopDown',nstages>1);
         case DLBackEnd.Docker
           if isequal(cmdtype,'track'),
-            containerName = totrackinfo.containerName;
+            containerName = jobinfo.containerName;
           else
             containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
           end
@@ -3805,18 +3812,18 @@ classdef DeepTracker < LabelTracker
         totrackinfojob = totrackinfo.selectSubset(jobs{ijob}{:});
         dmcjob = obj.trnLastDMC.selectSubset('view',totrackinfojob.views-1);
         totrackinfojob.setTrainDMC(dmcjob);
-        totrackinfojob.setTrackid(id);
+        totrackinfojob.setJobid(id);
         totrackinfojob.setDefaultFiles();
 
         basecmd = APTInterf.trackCodeGenBaseNew(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_linking',do_linking);
         backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),totrackinfojob,aptroot,'track');
-        syscmds{ijob} = backEnd.wrapBaseCommand(basecmd,backendArgs{:});
-        cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
+        syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
+        cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile);
 
-        if backEnd.type == DLBackEnd.Docker,
-          containerName = totrackinfo.containerName;
-          logfile = totrackinfo.logfile;
-          logcmds{ijob} = backEnd.logCommand(containerName,logfile); %#ok<AGROW> 
+        if backend.type == DLBackEnd.Docker,
+          containerName = totrackinfojob.containerName;
+          logfile = totrackinfojob.logfile;
+          logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
         end
 
         totrackinfojob.prepareFiles();
@@ -3839,40 +3846,35 @@ classdef DeepTracker < LabelTracker
       % start track monitor
       assert(isempty(obj.bgTrkMonitor));
 
-      [logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
+      %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend);
       % movfiles is nMovies x nViews
-      bgTrkWorkerObj.initFilesNew(totrackinfojobs);
-      
-      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
-      if any(tfErrFileErr)
-        error('There is an existing error in an error file: ''%s''.',...
-          String.cellstr2CommaSepList(errfiles));
-      end
+      bgTrkWorkerObj.initFiles(totrackinfojobs);
 
       % KB 20190115: adding trkviz
-      nFramesTrack = obj.getNFramesTrack(trksysinfo);
+      nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
       nFramesTrackSum = sum(nFramesTrack);
       fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
         numel(nFramesTrack));
 
-      trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
+      trkVizObj = feval(obj.bgTrkMonitorVizClass,totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
+      bgTrkMonitorObj = BgTrackMonitor;
       bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk);
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
       addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
 
       % run the jobs
-      [tfSuccess,jobID] = backEnd.run(syscmds,...
+      [tfSuccess,jobID] = backend.run(syscmds,...
         'logcmds',logcmds,...
         'cmdfiles',cmdfiles,...
-        'jobdesc','training job');
+        'jobdesc','tracking job');
 
-      if backEnd.type == DLBackEnd.Bsub,
+      if backend.type == DLBackEnd.Bsub,
         jobID = cell2mat(jobID);
       end
       bgTrkWorkerObj.jobID = jobID;
-      obj.trkSysInfo = trksysinfo;
+      obj.trkSysInfo = totrackinfojobs;
     end
 
     function tfSuccess = trkSpawn(obj,backend,mIdx,tMFTConc,...
@@ -4301,7 +4303,7 @@ classdef DeepTracker < LabelTracker
       obj.trkSysInfo = trksysinfo;
     end
         
-    function nframes = getNFramesTrack(obj,trksysinfo) %#ok<INUSL>
+    function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>
       % This returns a [nmovsettrk] array, the number of frames to be
       % tracked in each movieset.
       %
@@ -4312,13 +4314,13 @@ classdef DeepTracker < LabelTracker
 
       NMOVSET_WB_THRESH = 8;
       
-      if isscalar(trksysinfo)
+      if isscalar(totrackinfo)
         % could be a single regular TrackJob, or a single TrakcJob with
         % tfserialmov=true
-        nframes = trksysinfo.getNFramesTrack();
+        nframes = totrackinfo.getNFramesTrack();
       else
-        [nmovsets,nvjobs] = size(trksysinfo); %#ok<ASGLU>
-        maxNSerialMov = max([trksysinfo.nmovsettrk]);      
+        [nmovsets,nvjobs] = size(totrackinfo); %#ok<ASGLU>
+        maxNSerialMov = max([totrackinfo.nmovsettrk]);      
         
         % AL202108 Don't understand this init or subsequent logic. What is
         % defn/size of nframes to be returned?
@@ -4338,7 +4340,7 @@ classdef DeepTracker < LabelTracker
             hWB.updateFracWithNumDen(i);
           end
           % works if trksysinfo is multiview or not          
-          nframes(1:trksysinfo(i,1).nmovsettrk,i) = trksysinfo(i,1).getNFramesTrack();
+          nframes(1:totrackinfo(i,1).nmovsettrk,i) = totrackinfo(i,1).getNFramesTrack();
         end
         nframes = nframes(:);
       end

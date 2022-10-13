@@ -13,45 +13,55 @@ classdef BgTrackWorkerObj < BgWorkerObj
     % worker. When tracking is done, if the metadata doesn't match what
     % the client has, the client can decide what to do.
 
+    nviews = 0;
     totrackinfos = [];
     
-    nMovies = 1 % number of movies being tracked    
-    nMovJobs = []; % number of jobs movies are broken into. Either 1 (for 
-                   % serial multimov), or .nMovies.
-    nviews = 1; % number of views being tracked                   
-    nViewJobs = 1 % number of jobs views are broken into
-    % nStages (see Dependent, below) % number of stages. Equals 2 for
-                                   % top-down tracking
-
-    % 2-stage note. Currently, 2-stage tracking always runs serially and 
-    % for both stages. The output of stage1 is required for stage2;
-    % tracking just stage1, or just tracking stage2 (with a pre-generated 
-    % stage1 output) is possible but not a crucial workflow.                                   
-    
-    mIdx = [] % Movie index
     isexternal = false % whether we are tracking movies that are part of the lbl project
-    movfiles % [nMovies x nview] full paths movie being tracked
     partFileIsTextStatus % logical scalar. If true, partfiles are a 
           % textfile containing a single line '<nfrmsdone>' 
           % indicating tracking status. Otherwise, partfiles are mat-files.
   end
   properties (Dependent)
-    views
-    nStages
-    artfctTrkfiles % [nMovies x nviews x nStages] full paths trkfile to be generated/output
-    artfctLogfiles % [nMovJobs x nViewJobs] cellstr of fullpaths to bsub logs
-    artfctErrFiles % [nMovJobs x nViewJobs] char fullpath to DL errfile    
-    artfctPartTrkfiles % [nMovies x nviews x nStages] full paths to partial trkfile to be generated/output
-    killFiles % [nMovJobs x nViewJobs]
+    views % unique views being tracked
+    movfiles % nmovies x nviews - all movies being tracked simultaneously
+    stages % unique stages being tracked
+    nStages % number of unique stages being tracked
+    njobs % number of jobs being tracked simultaneously
+    nMovies % number of movies being tracked    
+%     artfctTrkfiles % [nMovies x nviews x nStages] full paths trkfile to be generated/output
+%     artfctLogfiles % [nMovJobs x nViewJobs] cellstr of fullpaths to bsub logs
+%     artfctErrFiles % [nMovJobs x nViewJobs] char fullpath to DL errfile    
+%     artfctPartTrkfiles % [nMovies x nviews x nStages] full paths to partial trkfile to be generated/output
+%     killFiles % [nMovJobs x nViewJobs]
 
 
   end  
   methods
     function v = get.views(obj)
-      v = unique(cat(2,obj.totrackinfo.views));
+      if isempty(obj.totrackinfos),
+        v = [];
+      else
+        v = unique(cat(2,obj.totrackinfos.views));
+      end
+    end
+    function v = get.stages(obj)
+      if isempty(obj.totrackinfos),
+        v = [];
+      else
+        v = unique(cat(2,obj.totrackinfos.stages));
+      end
     end
     function v = get.nStages(obj)
-      v = size(obj.artfctTrkfiles,3);
+      v = numel(obj.stages);
+    end
+    function v = get.njobs(obj)
+      v = numel(obj.totrackinfos);
+    end
+    function v = get.movfiles(obj)
+      v = ToTrackInfo.mergeGetMovfiles(obj.totrackinfos);
+    end
+    function v = get.nMovies(obj)
+      v = size(obj.movfiles,1);
     end
   end
     
@@ -59,13 +69,14 @@ classdef BgTrackWorkerObj < BgWorkerObj
   methods
     function obj = BgTrackWorkerObj(nviews,varargin)
       obj@BgWorkerObj(varargin{:});
-      if nargin >= 1,
+      if nargin > 1,
         obj.nviews = nviews;
       end
     end
 
     function initFiles(obj,totrackinfos)
       obj.totrackinfos = totrackinfos;
+      obj.nviews = numel(obj.totrackinfos);
     end
     
 %     function initFiles(obj,movfiles,trkfiles,logfiles,dlerrfiles,...
@@ -121,6 +132,18 @@ classdef BgTrackWorkerObj < BgWorkerObj
     function setPartfileIsTextStatus(obj,tf)
       obj.partFileIsTextStatus = tf;
     end
+
+    function vout = replicateJobs(obj,vin)
+
+      vout = repmat(vin(1),[obj.nMovies,obj.nviews,obj.nStages]);
+      for i = 1:numel(obj.totrackinfos),
+        movidxcurr = obj.totrackinfos(i).getMovidx();
+        viewscurr = obj.totrackinfos(i).views();
+        stagescurr = obj.totrackinfos(i).stages();
+        vout(movidxcurr,viewscurr,stagescurr) = vin(i,:);        
+      end
+
+    end
       
     function sRes = compute(obj)
       % sRes: [nMovies x nviews x nStages] struct array      
@@ -128,25 +151,26 @@ classdef BgTrackWorkerObj < BgWorkerObj
       % Order important, check if job is running first. If we check after
       % looking at artifacts, job may stop in between time artifacts and 
       % isRunning are probed.
-      % isRunning is nMovJobs x nViewJobs
+      % isRunning does not seem to do anything right now!!
       isRunning = obj.getIsRunning();
       if isempty(isRunning)
-        isRunning = true(size(obj.killFiles));
+        isRunning = true(obj.njobs,1);
       else
-        szassert(isRunning,size(obj.killFiles));
+        szassert(isRunning,[obj.njobs,1]);
       end
-      isRunning = num2cell(isRunning);
       
-      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0); % nMovJobs x nViewJobs
-      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctLogfiles,'uni',0); % nMovJobs x nViewJobs
-      bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0); % nMovJobs x nViewJobs
+      errfiles = obj.getErrFile(); % njobs x 1
+      logfiles = obj.getErrFile(); % njobs x 1
+      killfiles = obj.getKillFiles(); % njobs x 1
+      parttrkfiles = obj.getPartTrkFile(); % nmovies x nviews x nstages
+      trkfiles = obj.getTrkFile(); % nmovies x nviews x nstages
       
       % KB 20190115: also get locations of part track files and timestamps
       % of last modification
-      partTrkFileTimestamps = nan(size(obj.artfctPartTrkfiles)); % nMovies x nviews x nStages
-      parttrkfileNfrmtracked = nan(size(obj.artfctPartTrkfiles)); % nMovies x nviews x nStages
-      for i = 1:numel(obj.artfctPartTrkfiles),
-        parttrkfile = obj.artfctPartTrkfiles{i};
+      partTrkFileTimestamps = nan(size(parttrkfiles)); % nmovies x nviews x nstages
+      parttrkfileNfrmtracked = nan(size(parttrkfiles)); % nmovies x nviews x nstages
+      for i = 1:numel(parttrkfiles),
+        parttrkfile = parttrkfiles{i};
         tmp = dir(parttrkfile);
         if ~isempty(tmp),
           partTrkFileTimestamps(i) = tmp.datenum;
@@ -163,49 +187,36 @@ classdef BgTrackWorkerObj < BgWorkerObj
           end
         end
       end
-        
-      killFileExists = false(size(obj.killFiles)); % nMovJobs x nViewJobs
-      for i = 1:numel(obj.killFiles),
-        killFileExists(i) = obj.fileExists(obj.killFiles{i});
-      end
-      
-      if ~iscell(obj.mIdx),
-        midx = {obj.mIdx};
-      else
-        midx = obj.mIdx;
-      end
-      % number of views handled per job
-      nVwPerJob = obj.nViewsPerJob;
-      nMovsetsPerJob = obj.nMovies / obj.nMovJobs;
-      % Recall some modalities: 
-      % 1. Single movieset, one job per view => .nMovJobs=1, .nViewJobs=.nviews
-      % 2. Single movieset, one job for all views => .nMovJobs=1, nViewJobs=1
-      % 3. Multiple movies, one job per movie, single view => .nMovJobs=.nMovies, .nViewJobs=1
-      % 4. Multiple movies, one job per movie, multi view => not sure we do this?
-      % 5. Multiple movies, one job for all movies, single view => .nMovJobs=1, .nViewJobs=1
+
+
+
+      isRunning = obj.replicateJobs(isRunning);
+      killFileExists = cellfun(@obj.fileExists,killfiles);
+      tfComplete = cellfun(@obj.fileExists,trkfiles);
+      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
+      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
+      bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
       % nMovies x nviews x nStages
       % We return/report a results structure for every movie/trkfile, even
       % if views/movs are tracked serially (nMovJobs>1 or nViewJobs>1). In
       % this way the monitor can track/viz the progress of each movie/view.
       
-      nStg = obj.nStages;
       sRes = struct(...
-        'tfComplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
-        'isRunning',repmat(isRunning,[nMovsetsPerJob,nVwPerJob,nStg]),...
-        'errFile',repmat(obj.artfctErrFiles,[nMovsetsPerJob,nVwPerJob,nStg]),... % char, full path to DL err file
-        'errFileExists',repmat(tfErrFileErr,[nMovsetsPerJob,nVwPerJob,nStg]),... % true of errFile exists and has size>0
-        'logFile',repmat(obj.artfctLogfiles,[nMovsetsPerJob,nVwPerJob,nStg]),... % char, full path to Bsub logfile
-        'logFileExists',repmat(logFilesExist,[nMovsetsPerJob,nVwPerJob,nStg]),...
-        'logFileErrLikely',repmat(bsuberrlikely,[nMovsetsPerJob,nVwPerJob,nStg]),... % true if bsub logfile looks like err
-        'mIdx',midx{1},...
-        'iview',num2cell(repmat(1:obj.nviews,[obj.nMovies,1,nStg])),...
-        'movfile',repmat(obj.movfiles,[1,1,nStg]),...
-        'trkfile',obj.artfctTrkfiles,...
-        'parttrkfile',obj.artfctPartTrkfiles,...
+        'tfComplete',num2cell(obj.replicateJobs(tfComplete)),...
+        'isRunning',num2cell(obj.replicateJobs(isRunning)),...
+        'errFile',obj.replicateJobs(errfiles),... % char, full path to DL err file
+        'errFileExists',num2cell(obj.replicateJobs(tfErrFileErr)),... % true of errFile exists and has size>0
+        'logFile',obj.replicateJobs(logfiles),... % char, full path to Bsub logfile
+        'logFileExists',num2cell(obj.replicateJobs(logFilesExist)),...
+        'logFileErrLikely',num2cell(obj.replicateJobs(bsuberrlikely)),... % true if bsub logfile looks like err
+        'iview',num2cell(repmat(1:obj.nviews,[obj.nMovies,1,obj.nStages])),...
+        'movfile',repmat(obj.movfiles,[1,1,obj.nStages]),...
+        'trkfile',trkfiles,...
+        'parttrkfile',parttrkfiles,...
         'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
-        'killFile',repmat(obj.killFiles,[nMovsetsPerJob,nVwPerJob,nStg]),...
-        'killFileExists',repmat(num2cell(killFileExists),[nMovsetsPerJob,nVwPerJob,nStg]),...
+        'killFile',obj.replicateJobs(killfiles),...
+        'killFileExists',num2cell(obj.replicateJobs(killFileExists)),...
         'isexternal',obj.isexternal... % scalar expansion
         );
       if obj.partFileIsTextStatus
@@ -215,28 +226,28 @@ classdef BgTrackWorkerObj < BgWorkerObj
       end
     end
     
-    function reset(obj)
+    function reset(obj) %#ok<MANU> 
       % For BgTrackWorkerObjs, this appears to only be called at 
       % BgWorkerObj-construction time. So not a useful meth currently.
       
-      killFiles = obj.getKillFiles(); %#ok<PROP>
-      assert(isempty(killFiles));
+%       killFiles = obj.getKillFiles(); 
+%       assert(isempty(killFiles));
 %       for i = 1:numel(killFiles), %#ok<PROP>
 %         if exist(killFiles{i},'file'), %#ok<PROP>
 %           delete(killFiles{i}); %#ok<PROP>
 %         end
 %       end
       
-      logFiles = obj.getLogFiles();
-      assert(isempty(logFiles));
+%       logFiles = obj.getLogFiles();
+%       assert(isempty(logFiles));
 %       for i = 1:numel(logFiles),
 %         if exist(logFiles{i},'file'),
 %           delete(logFiles{i});
 %         end
 %       end
       
-      errFiles = obj.getErrFile();
-      assert(isempty(errFiles));
+%       errFiles = obj.getErrFile();
+%       assert(isempty(errFiles));
 %       for i = 1:numel(errFiles),
 %         if exist(errFiles{i},'file'),
 %           delete(errFiles{i});
@@ -246,15 +257,29 @@ classdef BgTrackWorkerObj < BgWorkerObj
     end
     
     function logFiles = getLogFiles(obj)
-      logFiles = unique(obj.artfctLogfiles(:));
+      logFiles = cell(numel(obj.totrackinfos),1);
+      for i = 1:numel(obj.totrackinfos),
+        logFiles{i} = obj.totrackinfos(i).getLogfile();
+      end
     end
     function errFiles = getErrFile(obj)
-      errFiles = unique(obj.artfctErrFiles(:));
+      errFiles = cell(numel(obj.totrackinfos),1);
+      for i = 1:numel(obj.totrackinfos),
+        errFiles{i} = obj.totrackinfos(i).getErrfile();
+      end
     end
     function killFiles = getKillFiles(obj)
-      killFiles = obj.killFiles(:);
+      killFiles = cell(numel(obj.totrackinfos),1);
+      for i = 1:numel(obj.totrackinfos),
+        killFiles{i} = obj.totrackinfos(i).getKillfile();
+      end
     end
-
+    function v = getTrkFile(obj)
+      v = ToTrackInfo.mergeGetTrkfiles(obj.totrackinfos);
+    end
+    function v = getPartTrkFile(obj)
+      v = ToTrackInfo.mergeGetParttrkfiles(obj.totrackinfos);
+    end
   end
   
 end
