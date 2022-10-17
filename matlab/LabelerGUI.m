@@ -2927,7 +2927,7 @@ fprintf('Tracking started at %s...\n',datestr(now));
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);
 oc = onCleanup(@()delete(wbObj));
-handles.labelerObj.track(tblMFT,'wbObj',wbObj,'do_linking',false);
+handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Tracking canceled');
   msgbox(msg,'Track');

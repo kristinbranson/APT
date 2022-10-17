@@ -4,6 +4,7 @@ classdef TrackBatchGUI < handle
     toTrack = [];
     lObj = [];
     hParent = [];
+    isma = [];
     nmovies = 0;
     page = 1;
     npages = 1;
@@ -21,6 +22,7 @@ classdef TrackBatchGUI < handle
   methods
     function obj = TrackBatchGUI(lObj,varargin)
       obj.lObj = lObj;
+      obj.isma = lObj.maIsMA;
       obj.hParent = obj.lObj.gdata.figure;      
       toTrack = myparse(varargin,'toTrack',struct);
       
@@ -93,7 +95,12 @@ classdef TrackBatchGUI < handle
       pagebuttoncolor = [0,0,0];
       addbuttoncolor = [.7,0,.7];
       
-      colw = ((1-2*border) - (filebuttonw+colborder)*2)/2;
+      colw = ((1-2*border) - (filebuttonw+colborder)*2);
+      if obj.isma
+        colw = colw/3;
+      else
+        colw = colw/2;
+      end
       
       allmovieh = 1 - 3*border - rowh*4 - 4*rowborder - border;
       obj.nmovies_per_page = floor(allmovieh/(rowh+rowborder))-3;
@@ -101,7 +108,12 @@ classdef TrackBatchGUI < handle
       obj.setNPages();
       moveditx = border;
       coltitley = 1-border-rowh;
-      trkeditx = moveditx + colw + colborder;
+      if obj.isma
+        detecteditx = moveditx + colw + colborder;
+        trkeditx = detectitx+ colw + colborder;
+      else
+        trkeditx = moveditx + colw + colborder;
+      end
       detailsbuttonx = trkeditx+colw+colborder;
       deletebuttonx = detailsbuttonx+filebuttonw+colborder;
       rowys = coltitley - (rowh+rowborder)*(1:obj.nmovies_per_page);
@@ -131,13 +143,26 @@ classdef TrackBatchGUI < handle
       
       % save, track, cancel
       controlbuttonw = .15;
-      controlbuttonstrs = {'Save','Load','Track','Cancel'};
-      controlbuttontags = {'save','load','track','cancel'};
-      controlbuttoncolors = ...
-        [0,0,.8
-        0,.7,.7
-        0,.7,0
-        .4,.4,.4];
+      if obj.isma
+        controlbuttonstrs = {'Save','Load','Detect','Link','Detect and Link','Cancel'};
+        controlbuttontags = {'save','load','detect','link','track','cancel'};
+        controlbuttoncolors = ...
+          [0,0,.8
+          0,.7,.7
+          0,.7,0
+          0,.7,0
+          0,.7,0
+          .4,.4,.4];
+        
+      else
+        controlbuttonstrs = {'Save','Load','Track','Cancel'};
+        controlbuttontags = {'save','load','track','cancel'};
+        controlbuttoncolors = ...
+          [0,0,.8
+          0,.7,.7
+          0,.7,0
+          .4,.4,.4];        
+      end
       ncontrolbuttons = numel(controlbuttonstrs);
       allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*colborder;
       controlbuttonx1 = .5-allcontrolbuttonw/2;
@@ -145,9 +170,11 @@ classdef TrackBatchGUI < handle
       controlbuttony = border;
       
       defaultmovfiles = cell(1,obj.nmovies_per_page);
+      defaultdetectfiles = cell(1,obj.nmovies_per_page);
       defaulttrkfiles = cell(1,obj.nmovies_per_page);
-      for i = 1:obj.nmovies_per_page,
+      for i = 1:obj.nmovies_per_page
         defaultmovfiles{i} = sprintf('pathtomovie%disveryveryvery/long/movieloc%d.avi',i,i);
+        defaultdetectfiles{i} = sprintf('pathtotrk%disveryveryvery/long/outputtrkloc%d_tracklet.trk',i,i);
         defaulttrkfiles{i} = sprintf('pathtotrk%disveryveryvery/long/outputtrkloc%d.trk',i,i);
       end
       obj.gdata = struct;
@@ -176,6 +203,13 @@ classdef TrackBatchGUI < handle
         'FontSize',FONTSIZE,...
         'Units','normalized','Position',[trkeditx,coltitley,colw,rowh],...
         'Tag','Trk title');
+      if obj.isma
+        obj.gdata.txt_trktitle = uicontrol('Style','text','String','Output Detect trk',...
+        'ForegroundColor','w','BackgroundColor','k','FontWeight','bold',...
+        'FontSize',FONTSIZE,...
+        'Units','normalized','Position',[detecteditx,coltitley,colw,rowh],...
+        'Tag','Detect title');        
+      end
       movmacrodescs = Labeler.movTrkFileMacroDescs();
       smacros = obj.lObj.baseTrkFileMacros();
       macrotooltip = sprintf('Trkfile locations will be auto-generated based on this field. Available macros:\n');
@@ -224,6 +258,7 @@ classdef TrackBatchGUI < handle
         visible = 'off';
         movfilecurr = defaultmovfiles{i};
         trkfilecurr = defaulttrkfiles{i};
+        detectfilecurr = defaultdetectfiles{i};
         obj.gdata.edit_movie(i) = uicontrol('Style','edit','String',movfilecurr,...
           'ForegroundColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
           'Units','normalized','Enable','on','Position',[moveditx,rowys(i),colw,rowh],...
@@ -236,6 +271,14 @@ classdef TrackBatchGUI < handle
           'Tag',sprintf('edit_trk%d',i),'UserData',i,...
           'HorizontalAlignment','right','Visible',visible,...
           'Callback',@(h,e) obj.edit_trk_Callback(h,e,i));
+        if obj.isma
+          obj.gdata.edit_detect(i) = uicontrol('Style','edit','String',detectfilecurr,...
+          'ForegroundColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
+          'Units','normalized','Enable','on','Position',[detecteditx,rowys(i),colw,rowh],...
+          'Tag',sprintf('edit_detect%d',i),'UserData',i,...
+          'HorizontalAlignment','right','Visible',visible,...
+          'Callback',@(h,e) obj.edit_detect_Callback(h,e,i));
+        end
         obj.gdata.button_details(i) = uicontrol('Style','pushbutton','String','...',...
           'ForegroundColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
           'Units','normalized','Enable','on','Position',[detailsbuttonx,rowys(i),filebuttonw,rowh],...
@@ -290,10 +333,12 @@ classdef TrackBatchGUI < handle
         if moviei <= obj.nmovies,
           movfilecurr = obj.toTrack.movfiles{moviei,1};
           trkfilecurr = obj.toTrack.trkfiles{moviei,1};
+          detectfilecurr = obj.toTrack.detectfiles{moviei,1};
           visible = 'on';
         else
           movfilecurr = '';
           trkfilecurr = '';
+          detectfilecurr = '';
           visible = 'off';
         end
         if obj.page == 1 && i == 1,
@@ -301,6 +346,9 @@ classdef TrackBatchGUI < handle
         end
         set(obj.gdata.edit_movie(i),'String',movfilecurr);
         set(obj.gdata.edit_trk(i),'String',trkfilecurr);
+        if obj.isma
+          set(obj.gdata.edit_detect(i),'String',detectfilecurr);
+        end
         obj.setRowVisible(i,visible);
         set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
           obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
@@ -312,6 +360,9 @@ classdef TrackBatchGUI < handle
     function setRowVisible(obj,i,visible)
       set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
         obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
+      if obj.isma
+              set(obj.gdata.edit_detect(i),'Visible',visible);
+      end
     end
     
     function moviei = item2MovieIdx(obj,itemi)
@@ -333,6 +384,11 @@ classdef TrackBatchGUI < handle
         movdata.cropRois = obj.toTrack.cropRois(moviei,:);
         movdata.targets = obj.toTrack.targets{moviei};
         movdata.f0s = obj.toTrack.f0s(moviei);
+        if obj.isma
+          movdata.detectfiles = obj.toTrack.detectfiles(moviei,:);
+        else
+          movdata.detectfiles = [];
+        end
         if iscell(movdata.f0s),
           movdata.f0s = movdata.f0s{1};
         end
@@ -350,6 +406,11 @@ classdef TrackBatchGUI < handle
         obj.toTrack.trxfiles(moviei,:) = movdata.trxfiles;
       else
         obj.toTrack.trxfiles(moviei,:) = repmat({''},[1,nview]);
+      end
+      if obj.isma
+        obj.toTrack.detectfiles(moviei,:) = movdata.detectfiles;
+      else
+        obj.toTrack.detectfiles(moviei,:) = repmat({''},[1,nview]);
       end
       if isfield(movdata,'calibrationfiles'),
         obj.toTrack.calibrationfiles{moviei,1} = movdata.calibrationfiles;
@@ -388,15 +449,24 @@ classdef TrackBatchGUI < handle
       end
       set(obj.gdata.edit_movie(itemi),'String',obj.toTrack.movfiles{moviei,1});
       set(obj.gdata.edit_trk(itemi),'String',obj.toTrack.trkfiles{moviei,1});
+      if obj.isma
+        set(obj.gdata.edit_detect(itemi),'String',obj.toTrack.detectfiles{moviei,1});
+      end
       obj.setRowVisible(itemi,'on');      
     end
     function pb_details_Callback(obj,h,e,itemi) %#ok<*INUSL>
       obj.setBusy();
       moviei = obj.item2MovieIdx(itemi);
       movdata = obj.getMovData(moviei);      
+      if obj.isma
+        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+          movdata,'defaulttrkpat',obj.defaulttrkpat,...
+          'defaultdetectpat',obj.defaultdetectpat);
+      else
       movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
         movdata,'defaulttrkpat',obj.defaulttrkpat,...
         'defaulttrxpat',obj.defaulttrxpat);
+      end
       [movdataout,dostore] = movdetailsobj.run();
       if dostore,
         obj.setMovData(moviei,movdataout);
@@ -416,6 +486,9 @@ classdef TrackBatchGUI < handle
       obj.toTrack.movfiles(moviei,:) = [];
       obj.toTrack.trkfiles(moviei,:) = [];
       obj.toTrack.trxfiles(moviei,:) = [];
+      if obj.isma
+        obj.toTrack.detectfiles(moviei,:) = [];
+      end
       obj.toTrack.calibrationfiles(moviei) = [];
       obj.toTrack.targets(moviei) = [];
       obj.toTrack.f0s(moviei) = [];
@@ -431,9 +504,15 @@ classdef TrackBatchGUI < handle
     end
           
     function pb_add_Callback(obj,h,e,movdat) %#ok<*INUSD>
+      if obj.isma
+        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+        movdat,'defaulttrkpat',obj.defaulttrkpat,...
+        'defaultdetectpat',obj.defaultdetectpat);
+      else
       movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
         movdat,'defaulttrkpat',obj.defaulttrkpat,...
         'defaulttrxpat',obj.defaulttrxpat);
+      end
       movdataout = movdetailsobj.run();
       if ~isfield(movdataout,'movfiles') || isempty(movdataout.movfiles) || ...
           isempty(movdataout.movfiles{1}),
@@ -485,7 +564,7 @@ classdef TrackBatchGUI < handle
             end
           end
           obj.loadOrSaveToFile(tag);
-        case 'track',
+        case {'track','link','detect'}
           if obj.nmovies == 0,
             uiwait(errordlg('No movies selected.'));
             return;
@@ -501,7 +580,7 @@ classdef TrackBatchGUI < handle
               end
             end
           end
-          trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack);
+          trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack,'tracktype',tag);
           delete(obj.gdata.fig);
         otherwise
           error('Callback for %s not implemented',tag);
@@ -591,6 +670,11 @@ classdef TrackBatchGUI < handle
       if tfgentrx
         trx = obj.genTrkfile(movie,defaulttrx,'enforceExt',false);
       end
+      defaultdetect = obj.defaultdetectpat;
+      tfgendetect = obj.isma && ~isempty(defaultdetect);
+      if tfgendetect
+        detect = obj.genTrkfile(movie,defaultdetect);
+      end
       
       if moviei>obj.nmovies
         nvw = obj.lObj.nview;
@@ -607,6 +691,11 @@ classdef TrackBatchGUI < handle
           trxfiles{1} = trx;
           movdata.trxfiles = trxfiles;
         end
+        if tfgendetect
+          detectfiles = cell(1,nvw);
+          detectfiles{1} = detect;
+          movdata.detectfiles = detectfiles;
+        end
         obj.pb_add_Callback([],[],movdata);
       else
         obj.toTrack.movfiles{moviei,1} = movie;
@@ -616,7 +705,10 @@ classdef TrackBatchGUI < handle
         if tfgentrx
           obj.toTrack.trxfiles{moviei,1} = trx;
         end
-        if tfgentrk || tfgentrx
+        if tfgendetect
+          obj.toTrack.detectfiles{moviei,1} = detect;
+        end
+        if tfgentrk || tfgentrx || tfgendetect
           obj.updateMovieList();
         end
         % mutating .toTrack outside setMovData
@@ -631,6 +723,17 @@ classdef TrackBatchGUI < handle
       end
       trk = h.String;
       obj.toTrack.trkfiles{moviei,1} = trk;
+      % mutating .toTrack outside setMovData
+      obj.needsSave = true;
+    end
+    function edit_detect_Callback(obj,h,e,itemi)
+      moviei = obj.item2MovieIdx(itemi);
+      if moviei>obj.nmovies
+        obj.pb_add_Callback([],[],[]);
+        return;
+      end
+      detect = h.String;
+      obj.toTrack.detectfiles{moviei,1} = detect;
       % mutating .toTrack outside setMovData
       obj.needsSave = true;
     end

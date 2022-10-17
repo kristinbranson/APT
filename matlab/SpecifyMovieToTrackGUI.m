@@ -8,6 +8,7 @@ classdef SpecifyMovieToTrackGUI < handle
     nview = 1;
     hastrx = false;
     iscrop = false;
+    isma = false;
     docalibrate = false;
     nfields = nan;
     gdata = [];
@@ -20,16 +21,20 @@ classdef SpecifyMovieToTrackGUI < handle
     dostore = false;
     defaulttrkpat = [];
     defaulttrxpat = [];
+    defaultdetectpat = [];
+    track_type = 'track';
   end
   methods
     function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
       
-      [defaulttrkpat,defaulttrxpat] = myparse(varargin,...
+      [defaulttrkpat,defaulttrxpat,defaultdetectpat] = myparse(varargin,...
         'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
+        'defaultdetectpat',[], ...
         'defaulttrxpat',[] ...
         );
 
       obj.lObj = lObj;
+      obj.isma = lObj.maIsMA;
       obj.hParent = hParent;
 
       obj.nview = obj.lObj.nview;
@@ -54,6 +59,7 @@ classdef SpecifyMovieToTrackGUI < handle
 
       obj.defaulttrkpat = defaulttrkpat;
       obj.defaulttrxpat = defaulttrxpat;
+      obj.defaultdetectpat = defaultdetectpat;
       obj.initMovData(movdata);
 
       obj.createGUI();      
@@ -80,6 +86,17 @@ classdef SpecifyMovieToTrackGUI < handle
           movI = obj.movdata.movfiles{ivw};
           if ~isempty(movI) && isempty(obj.movdata.trkfiles{ivw})
             obj.movdata.trkfiles{ivw} = obj.genTrkfile(movI,obj.defaulttrkpat);
+          end
+        end
+      end
+      if obj.isma && ~isfield(obj.movdata,'detectfiles') 
+        obj.movdata.detectfiles = repmat({''},[1,obj.nview]);
+      end
+      if ~isempty(obj.defaultdetectpat)
+        for ivw=1:obj.nview
+          movI = obj.movdata.movfiles{ivw};
+          if ~isempty(movI) && isempty(obj.movdata.detectfiles{ivw})
+            obj.movdata.detectfiles{ivw} = obj.genTrkfile(movI,obj.defaultdetectpat);
           end
         end
       end
@@ -121,6 +138,9 @@ classdef SpecifyMovieToTrackGUI < handle
       if iscell(obj.movdata.f1s),
         obj.movdata.f1s = obj.movdata.f1s{1};
       end
+      if ~isfield(obj.movdata,'track_type'),
+        obj.movdata.track_type = 'track';
+      end
       
       obj.rowinfo = struct;
       obj.rowinfo.movie = struct;
@@ -136,6 +156,13 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.rowinfo.trk.ext = '*.trk';
       obj.rowinfo.trk.type = 'outputfile';
       obj.rowinfo.trk.isvalperview = true;
+      
+      obj.rowinfo.detect = struct;
+      obj.rowinfo.detect.prompt = 'Output detection file';
+      obj.rowinfo.detect.movdatafield = 'detectfiles';
+      obj.rowinfo.detect.ext = '*.trk';
+      obj.rowinfo.detect.type = 'outputfile';
+      obj.rowinfo.detect.isvalperview = true;
       
       obj.rowinfo.trx = struct;
       obj.rowinfo.trx.prompt = 'Multitarget trx file';
@@ -194,7 +221,9 @@ classdef SpecifyMovieToTrackGUI < handle
     function createGUI(obj)
       
       % movies, trks, trx, crop, calibration
-      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + double(obj.iscrop)*obj.nview + double(obj.nview>1) + 2;
+      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ... 
+        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ... 
+        double(obj.isma)*obj.nview + 2;
       figname = 'Specify movie to track';
       
       obj.colorinfo.backgroundcolor = [0,0,0];
@@ -255,11 +284,21 @@ classdef SpecifyMovieToTrackGUI < handle
       % rowh
       % border
       
-      controlbuttonstrs = {'Done','Cancel'};
-      controlbuttontags = {'done','cancel'};
-      controlbuttoncolors = ...
-        [0,0,.8
-        0,.7,.7];
+      if obj.isma
+        controlbuttonstrs = {'Detect','Link','Track','Cancel'};
+        controlbuttontags = {'detect','link','track','cancel'};
+        controlbuttoncolors = ...
+          [0,0,.8
+          0,0,.8
+          0,0,.8
+          0,.7,.7];
+      else
+        controlbuttonstrs = {'Done','Cancel'};
+        controlbuttontags = {'done','cancel'};
+        controlbuttoncolors = ...
+          [0,0,.8
+          0,.7,.7];
+      end
       ncontrolbuttons = numel(controlbuttonstrs);
       controlbuttonw = .15;
       allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*obj.posinfo.colborder;
@@ -286,6 +325,20 @@ classdef SpecifyMovieToTrackGUI < handle
         end
         obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.movfiles{i});
         rowi = rowi + 1;
+      end
+      
+      if obj.isma
+        for i = 1:obj.nview,
+          tag = 'detect';
+          if obj.nview > 1,
+            str = sprintf('Output detect view %d:',i);
+          else
+            str = 'Output detect:';
+          end
+          obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
+          rowi = rowi + 1;
+        end
+      
       end
       
       for i = 1:obj.nview,
@@ -539,6 +592,13 @@ classdef SpecifyMovieToTrackGUI < handle
           obj.isgood.trk(i) = obj.checkRowValue('trk',i);
           set(obj.gdata.trk.rowedit(i),'String',trkI);
         end
+        if obj.isma && ~isempty(obj.defaultdetectpat)
+          movI = obj.movdata.movfiles{i};
+          trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
+          obj.movdata.detectfiles{i} = trkI;
+          obj.isgood.detect(i) = obj.checkRowValue('detect',i);
+          set(obj.gdata.detect.rowedit(i),'String',trkI);
+        end
         if obj.hastrx && ~isempty(obj.defaulttrxpat)
           movI = obj.movdata.movfiles{i};
           trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
@@ -618,6 +678,13 @@ classdef SpecifyMovieToTrackGUI < handle
         trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
         obj.movdata.trkfiles{i} = trkI;
         obj.isgood.trk(i) = obj.checkRowValue('trk',i);
+        set(obj.gdata.detect.rowedit(i),'String',trkI);
+      end
+      if strcmp(ri.movdatafield,'movfiles') && ~isempty(obj.defaultdetectpat)
+        movI = obj.movdata.movfiles{i};
+        trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
+        obj.movdata.detectfiles{i} = trkI;
+        obj.isgood.detect(i) = obj.checkRowValue('trk',i);
         set(obj.gdata.trk.rowedit(i),'String',trkI);
       end
       if strcmp(ri.movdatafield,'movfiles') && obj.hastrx && ~isempty(obj.defaulttrxpat)
@@ -718,11 +785,11 @@ classdef SpecifyMovieToTrackGUI < handle
     
     function pb_control_Callback(obj,h,e,tag)
       
-      if ismember(lower(tag),{'done','apply'}),
+      if ismember(lower(tag),{'done','apply','track','link','detect'}),
         
         fns = fieldnames(obj.isgood);
         isgood = true;
-        for i = 1:numel(fns),
+        for i = 1:numel(fns)
           isgood = isgood && all(obj.isgood.(fns{i}));
         end
         
@@ -732,7 +799,13 @@ classdef SpecifyMovieToTrackGUI < handle
         end
         obj.dostore = true;
       end
-      if ismember(lower(tag),{'done','cancel'}),
+      if obj.isma
+        if ismember(lower(tag),{'track','link','detect'})
+          obj.track_type = lower(tag);
+          obj.movdata.track_type = lower(tag);
+        end
+      end
+      if ismember(lower(tag),{'done','cancel','track','link','detect'}),
         delete(obj.gdata.fig);
       end
       
