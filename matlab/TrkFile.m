@@ -885,7 +885,7 @@ classdef TrkFile < dynamicprops
         v = cellfun(@(x)permute(x,[nd 1:nd-1]),v,'uni',0); % put 'frame' dim first
         % convert to 2d arrays (in particular for pTrk)
         for i=1:numel(v)
-          if isalive,
+          if aliveonly && isalive,
             v{i} = v{i}(isalive{i},:);
           else
             szv = size(v{i});

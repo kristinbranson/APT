@@ -251,6 +251,9 @@ classdef APTInterf
         code = [code, {'-ignore_local',num2str(ignore_local)}];
       end
       code = [code {'-cache' [filequote cacheRootDir filequote]}];
+
+      code = [code {'track'}];
+
       code = [code {'-config_file' [filequote configfile filequote]}];
 
       if ~do_linking
@@ -261,8 +264,7 @@ classdef APTInterf
 
       % output is the final stage trk file
       trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
-      code = [code {'track'} ...
-        {'-out'} String.quoteCellStr(trkfiles(movidx,:,:),filequote)];
+      code = [code {'-out'} String.quoteCellStr(trkfiles(movidx,:,:),filequote)];
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile),

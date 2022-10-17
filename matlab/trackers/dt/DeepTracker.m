@@ -1268,14 +1268,16 @@ classdef DeepTracker < LabelTracker
 
     function [jobs,gpuids] = SplitTrackIntoJobs(obj,backEnd,totrackinfo) %#ok<INUSL> 
 
-      nmovies = totrackinfo.nmovies;
+      [movidx] = totrackinfo.getIntervals();
+
+      nmovies = numel(movidx);
       nviews = numel(totrackinfo.views);
       % default: one movie & view per job
       jobs = cell(nmovies,nviews);
       gpuids = nan(nmovies,nviews);
       for i = 1:nmovies,
         for j = totrackinfo.views,
-          jobs{i,j} = {'movie',i,'view',totrackinfo.views(j)};
+          jobs{i,j} = {'movie',movidx(i),'view',totrackinfo.views(j)};
         end
       end
 
@@ -1879,13 +1881,10 @@ classdef DeepTracker < LabelTracker
 
       if isequal(cmdtype,'train'),
         dmc = jobinfo;
+        containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
       else
-        global KBDEBUG;
-        if KBDEBUG,
-          dmc = jobinfo.trainDMC;
-        else
-          dmc = jobinfo.dmcRem;
-        end
+        dmc = jobinfo.trainDMC;
+        containerName = jobinfo.containerName;
       end
 
       switch backEnd.type
@@ -1907,7 +1906,7 @@ classdef DeepTracker < LabelTracker
 
           backEndArgs = {...
             'singargs',{'bindpath',mntPaths,'singimg',singimg},...
-            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile},...
+            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName},...
             'sshargs',{'extraprefix',extraprefix}...
             };
 %           singArgs = {'bindpath',mntPaths};
@@ -1917,11 +1916,6 @@ classdef DeepTracker < LabelTracker
 %             'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots},...
 %             'isTopDown',nstages>1);
         case DLBackEnd.Docker
-          if isequal(cmdtype,'track'),
-            containerName = jobinfo.containerName;
-          else
-            containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
-          end
           mntPaths = obj.genContainerMountPathBsubDocker(backEnd,cmdtype,jobinfo);
           dockerimg = dmc.dockerImgPath(backEnd);
           isgpu = ~isempty(gpuid) && ~isnan(gpuid);
@@ -3803,8 +3797,7 @@ classdef DeepTracker < LabelTracker
 
       totrackinfo.setTrainDMC(obj.trnLastDMC);
       totrackinfo.setTrackid(nowstr);
-      totrackinfo.setDefaultTrkfiles();
-      totrackinfo.setDefaultTrackConfigFile();
+      totrackinfo.setDefaultFiles();
 
       for ijob = 1:numel(jobs),
         [imovjob,ivwjob] = ind2sub(size(jobs),ijob);
@@ -4504,128 +4497,107 @@ classdef DeepTracker < LabelTracker
     
     function trkCompleteCbk(obj,res)
 
-      try,
-      
-      [nMovSets,nViews,nStgs] = size(res);
-      isexternal = res(1).isexternal;
-      
-      for i = 1:numel(obj.trkSysInfo),
-        obj.trkSysInfo(i).downloadRemoteResults();
-      end
+      try
 
-      if isexternal,
-        if obj.lObj.isMultiView
-          % AL 20201116: protected this codepath by checking for multiview.
-          % This codepath was broken for 'external' tracking of multiple 
-          % (eg 2) movies for a single-view proj.
-          for i = 1:nMovSets,
-            movfiles = [obj.trkSysInfo(i,:).movfileLcl];
-            trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
-            calibrationfile = obj.trkSysInfo(i,1).calibrationfileLcl;
-            cropROIs = cat(1,obj.trkSysInfo(i,:).cropRoi);
-            obj.trkPostProcIfNec(movfiles,trkfiles,'calibrationfile',calibrationfile,...
-              'cropROIS',cropROIs);
-          end
-        end
-        for i=1:numel(res),
-          fprintf('Tracking complete for %s, results saved to %s.\n',...
-            res(i).movfile,res(i).trkfile);
-        end
-      else
-        % AL20200305: we do postproc and update obj.trackRes here. For now
-        % now putting this in the ~isexternal branch; "external" tracking
-        % will never update DeepTracker results even if the movies are
-        % present in the proj etc.
-        
-        assert(nMovSets==1); % currently true for nonexternal tracking; to be lifted later
-        mIdx = repmat(MovieIndex(1),nMovSets,1);
-        tffound = false(nMovSets,1);
-        for i = 1:nMovSets,
-          % This line might be fragile wrt user input for external tracking
-          ISTAGE = 1; % movies should be the same across stages (when applicable)
-          [tffound(i),mIdx(i)] = obj.lObj.getMovIdxMovieFilesAllFull({res(i,:,ISTAGE).movfile});
-          if ~tffound(i) % && ~isexternal,
-            warning('Tracked movie [%s] does not correspond to any movie in the lbl file',...
-              sprintf('%s ',res(i,:,ISTAGE).movfile));
-          end
-        end
-        
-        for i = 1:nMovSets,
-          if ~tffound(i),
-            % conservative, take no action for now
-            continue;
-          end
-                    
-          % we perform this check b/c while tracking has been running in
-          % the bg, the project could have been updated, movies
-          % renamed/reordered etc.
-          
-          assert(~isexternal); % => we are not in "serialmultimov" situation
-          % trkfiles = [obj.trkSysInfo(i,:).trkfileLcl];
-          trkfiles = obj.trkSysInfo(i,:).getTrkFilesSingleMov();
-          trkfiles = trkfiles(:);
-          obj.trkPostProcIfNec(mIdx(i),trkfiles);
-          obj.trackResAddTrkfile(mIdx(i),trkfiles);
-          if mIdx(i)==obj.lObj.currMovIdx
-            obj.trackCurrResUpdate(); % calls vizInit(false)
-            if obj.lObj.maIsMA
-              % Jumping to the firstframe was super annoying!!
-              % changing so that we don't MK 20220729
-              
-              % For MA, for now we automatically jump to the startframe for 
-              % the first tracklet; and we select it. This enables the 
-              % Tracklet HUD and timeline.
-              %
-              % bit of a hack here as special-casing and end-running
-              % TrackingVisualizerBase api.
-              tv = obj.trkVizer;
-              if isempty(tv.ptrx)
-                obj.newLabelerFrame();
-              else
-                curfr = obj.lObj.currFrame; 
-                ss = [tv.ptrx(:).firstframe];
-                ee = [tv.ptrx(:).endframe];                
-                active = find((ss<=curfr)&(ee>=curfr),1);
-                if isempty(active)
-                  sel = 1;
-                  f0 = tv.ptrx(sel).firstframe;
-                  if f0~=obj.lObj.currFrame
-                    obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
-                  end
-                else
-                  obj.newLabelerFrame();
-                  sel = tv.iTrx2iTrxViz(active);
-                end
+        %[nMovies,nViews,nStgs] = size(res);
+        nMovies = obj.trkSysInfo.nmovies;
+        nStages = obj.trkSysInfo.nstages;
+        nViews = obj.trkSysInfo.nviews;
 
-                tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
-%                 f0 = tv.ptrx(1).firstframe;
-%                 if f0~=obj.lObj.currFrame
-%                   obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
-%                 else
-%                   obj.newLabelerFrame();
-%                 end
-%                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
+        for movi = 1:nMovies,
+          movfiles = obj.trkSysInfo.getMovfiles('movie',movi);
+          % seems to only be using the last stage of tracking
+          trkfiles = obj.trkSysInfo.getTrkfiles('movie',movi,'stage',nStages);
+          croproi = obj.trkSysInfo.getCroprois('movie',movi);
+          calibrationfile = obj.trkSysInfo.getCalibrationfiles('movie',movi);
+          if ~isempty(calibrationfile),
+            calibrationfile = calibrationfile{1};
+          end
+          caldata = obj.trkSysInfo.getCalibrationdata('movie',movi);
+          obj.trkPostProcIfNec(movfiles,trkfiles,'caldata',caldata,'calibrationfile',...
+            calibrationfile,'cropROIs',cat(1,croproi{:}));
+          moviestr = String.cellstr2DelimList(movfiles,', ');
+
+          fprintf('Tracking complete for %s, results saved to:\n',moviestr);
+          for vwi = 1:nViews,
+            for stgi = 1:nStages,
+              fprintf('  View %d, stage %d: %s\n',vwi,stgi,DeepModelChainOnDisk.getCheckSingle(obj.trkSysInfo.getTrkfiles('movie',movi,'view',vwi,'stage',stgi)));
+            end
+          end
+          [tffound,mIdx] = obj.lObj.getMovIdxMovieFilesAllFull(movfiles);
+          if tffound,
+            obj.trackResAddTrkfile(mIdx,trkfiles);
+            if mIdx==obj.lObj.currMovIdx,
+              obj.trackCurrResUpdate(); % calls vizInit(false)
+              if obj.lObj.maIsMA
+                obj.jumpToNearestTracking();
+                % Jumping to the firstframe was super annoying!!
+                % changing so that we don't MK 20220729
+
+                % For MA, for now we automatically jump to the startframe for
+                % the first tracklet; and we select it. This enables the
+                % Tracklet HUD and timeline.
+                %
+                % bit of a hack here as special-casing and end-running
+                % TrackingVisualizerBase api.
               end
-            else
               obj.newLabelerFrame();
             end
-            if ~isexternal, % always true
-              fprintf('Tracking complete for current movie at %s.\n',datestr(now));
-            end
-          else
-            if ~isexternal, % always true
-              iMov = mIdx.get();
-              fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
-            end
           end
         end
-      end
       
       catch ME,
         warning('Error gathering tracking results:\n%s',getReport(ME));
       end
       
     end
+
+    function jumpToNearestTracking(obj)
+      % Jump to the startframe of the first tracklet and select it. This enables the
+      % Tracklet HUD and timeline.
+      %
+      % bit of a hack here as special-casing and end-running
+      % TrackingVisualizerBase api.
+      if ~obj.lObj.maIsMA,
+        return;
+      end
+      tv = obj.trkVizer;
+      if isempty(tv.ptrx)
+        return;
+      end
+      curfr = obj.lObj.currFrame;
+      ss = [tv.ptrx(:).firstframe];
+      ee = [tv.ptrx(:).endframe];
+      active = find((ss<=curfr)&(ee>=curfr),1);
+      if isempty(active)
+        % closest tracklet
+        [min_ss,sel_ss] = min(abs(curfr-ss));
+        [min_ee,sel_ee] = min(abs(curfr-ee));
+        if min_ss < min_ee,
+          sel = sel_ss;
+        else
+          sel = sel_ee;
+        end
+        f0 = tv.ptrx(sel).firstframe;
+        if f0~=obj.lObj.currFrame
+          obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+        end
+      else
+        %obj.newLabelerFrame();
+        sel = tv.iTrx2iTrxViz(active);
+        obj.lObj.setFrame(curfr); % this should result in call to .newLabelerFrame();
+      end
+
+      tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+      %                 f0 = tv.ptrx(1).firstframe;
+      %                 if f0~=obj.lObj.currFrame
+      %                   obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+      %                 else
+      %                   obj.newLabelerFrame();
+      %                 end
+      %                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
+    end
+
 
     function trkCompleteCbkAWS(obj,backend,trkfilesLocal,res)
       fprintf('AWS: tracking complete at %s\n',datestr(now));
@@ -4669,77 +4641,58 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function trkPostProcIfNec(obj,mIdx,trkfiles,varargin) % obj const
+    function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const
       % When appropriate, perform postprocessing and re-save trkfiles in
       % place.
             
-      [pp3dtype,calibrationfile,rois] = myparse(varargin,...
+      [pp3dtype,calibrationfile,rois,vcd] = myparse(varargin,...
         'pp3dtype',obj.sPrmAll.ROOT.PostProcess.reconcile3dType, ...
         'calibrationfile','',...
-        'cropROIs',[]...
+        'cropROIs',[],...
+        'caldata',[]...
         );
-      
-      isexternal = ~isnumeric(mIdx);
-      
-      do3dreconcile = ~strcmp(pp3dtype,'none');      
+
+      do3dreconcile = ~strcmp(pp3dtype,'none');
       nvw = obj.lObj.nview;
+      moviestr = String.cellstr2DelimList(movfiles,', ');
       %npts = obj.lObj.nPhysPoints;
-      
-      if do3dreconcile && nvw==2
-        if ~isempty(calibrationfile) || (~obj.lObj.viewCalProjWide && isexternal),
-          assert(~isempty(calibrationfile));
-          vcd = CalRig.loadCreateCalRigObjFromFile(calibrationfile);
-        else
-          vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
-        end
+
+      if do3dreconcile && nvw>=2
         if isempty(vcd),
-          if isexternal,
-            if iscell(mIdx),
-              moviestr = mIdx{1};
-            elseif ischar(mIdx),
-              moviestr = mIdx;
-            else
-              moviestr = 'external movie';
-            end
+          if ~isempty(calibrationfile),
+            vcd = CalRig.loadCreateCalRigObjFromFile(calibrationfile);
           else
-            moviestr = obj.lObj.moviePrettyStr(mIdx);
+            warningNoTrace('Cannot perform 3D postprocessing; calibration data unset for %s.',moviestr);
+            return;
           end
-          warningNoTrace('Cannot perform 3D postprocessing; calibration data unset for %s.',moviestr);
-          return;
+
+          assert(numel(trkfiles)==nvw);
+          [trks,tfsucc] = ...
+            cellfun(@(x)DeepTracker.hlpLoadTrk(x,'rawload',true),trkfiles,'uni',0);
+          tfsucc = cell2mat(tfsucc);
+          if ~all(tfsucc)
+            ivwFailed = find(~tfsucc);
+            ivwFailedStr = num2str(ivwFailed(:)');
+            warningNoTrace('Cannot perform 3D postprocessing of %s; could not load trkfiles for views: %s.',moviestr,ivwFailedStr);
+            return;
+          end
+          trksave = cell(size(trks));
+
+          try
+            [trksave{:}] = PostProcess.triangulate(trks{:},...
+              rois,vcd,pp3dtype);
+          catch ME
+            warningNoTrace('3d postprocessing %s failed: %s',moviestr,ME.getReport());
+            return;
+          end
+
+          for i = 1:numel(trksave),
+            trksavecurr = trksave{i};
+            save(trkfiles{i},'-append','-struct','trksavecurr');
+            fprintf(1,'Saved/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
+              trkfiles{i});
+          end
         end
-          
-        assert(numel(trkfiles)==nvw);
-        
-        [trks,tfsucc] = ...
-          cellfun(@(x)DeepTracker.hlpLoadTrk(x,'rawload',true),trkfiles,'uni',0);
-        tfsucc = cell2mat(tfsucc);
-        if ~all(tfsucc)
-          ivwFailed = find(~tfsucc);
-          ivwFailedStr = num2str(ivwFailed(:)');
-          warningNoTrace('Cannot perform 3D postprocessing; could not load trkfiles for views: %s.',ivwFailedStr);
-          return;
-        end
-        
-        trk1 = trks{1};
-        trk2 = trks{2};                
-        if ~isexternal,
-          rois = obj.lObj.getMovieRoiMovIdx(mIdx);
-        end
-        
-        try
-          [trk1save,trk2save] = PostProcess.triangulate(trk1,trk2,...
-            rois,vcd,pp3dtype);
-        catch ME
-          warningNoTrace('3d postprocessing failed: %s',ME.getReport());
-          return;
-        end
-        
-        save(trkfiles{1},'-append','-struct','trk1save');
-        fprintf(1,'Saved/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
-          trkfiles{1});
-        save(trkfiles{2},'-append','-struct','trk2save');
-        fprintf(1,'Saved/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
-          trkfiles{2});
       end
     end
 

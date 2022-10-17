@@ -3582,7 +3582,8 @@ classdef Labeler < handle
         % KB 20220804 refactor DMC
         if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
           try
-            s.trackerData{i}.trnLastDMC = DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC);
+            s.trackerData{i}.trnLastDMC = DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
+              'netmode',[s.trackerData{1}.trnNetMode]);
           catch ME
             warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
             s.trackerData{i}.trnLastDMC = [];
@@ -5959,6 +5960,9 @@ classdef Labeler < handle
       
       trxinfo = struct;
       if ~isempty(tFileFull)
+        if nargin < 3,
+          nframes = [];
+        end
         tmptrx = obj.getTrx(tFileFull,nframes);
         nTgt = numel(tmptrx);
         trxinfo.ntgts = nTgt;
@@ -11611,26 +11615,39 @@ classdef Labeler < handle
         tblMFT = mftset.getMFTable(obj,'istrack',true);
       end
 
-      global KBDEBUG;
-      if KBDEBUG,
-        if obj.cropProjHasCrops,
-          cropInfo = obj.getMovieFilesAllCropInfoGTAware();
-          croprois = cell([obj.nmoviesGTaware,obj.nview]);
-          for i = 1:obj.nmoviesGTAware,
-            for j = 1:obj.nview,
-              croprois{i,j} = cropInfo{i}(j).roi;
-            end
-          end
-        else
-          croprois = [];
-        end
-        totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',obj.movieFilesAllFullGTaware,...
-          'trxfiles',obj.trxFilesAllFullGTaware,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
-          'calibrationdata',obj.viewCalibrationDataGTaware);
-        tObj.trackNew('totrackinfo',totrackinfo,varargin{:});
+      % which movies are we tracking?
+      [movidx,~,newmov] = unique(tblMFT.mov);
+      tblMFT.mov = newmov;
+      movfiles = obj.movieFilesAllFullGTaware;
+      movfiles = movfiles(movidx);
+
+      % get data associated with those movies
+      if obj.hasTrx,
+        trxfiles = obj.trxFilesAllFullGTaware;
+        trxfiles = trxfiles(movidx);
       else
-        tObj.track(tblMFT,varargin{:});
-      end      
+        trxfiles = {};
+      end
+
+      if obj.cropProjHasCrops,
+        cropInfo = obj.getMovieFilesAllCropInfoGTAware();
+        croprois = cell([numel(movfiles),obj.nview]);
+        for i = 1:numel(movfiles),
+          for j = 1:obj.nview,
+            croprois{i,j} = cropInfo{movidx(i)}(j).roi;
+          end
+        end
+      else
+        croprois = {};
+      end
+      caldata = obj.viewCalibrationDataGTaware;
+      if ~isempty(caldata),
+        caldata = caldata(movidx);
+      end
+      totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
+        'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
+        'calibrationdata',caldata);
+      tObj.trackNew('totrackinfo',totrackinfo,varargin{:});
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
       

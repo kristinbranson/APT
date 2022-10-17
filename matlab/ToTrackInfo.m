@@ -68,6 +68,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       % set things that we can set automatically
       % check things that were set manually
       obj.checkFix(); 
+      if obj.tblMFTIsSet,
+        obj = obj.consolidateTblMFT();
+      end
 
     end
     function convertTblMFTToContiguous(obj)
@@ -241,6 +244,16 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setTblMFT(obj,tblMFT1)
       obj.tblMFT = MFTable.sortCanonical(tblMFT1);
     end
+    function obj = consolidateTblMFT(obj)
+      if ~obj.tblMFTIsSet,
+        return;
+      end
+      [movskeep] = unique(obj.tblMFT.mov);
+      if numel(movskeep) < obj.nmovies,
+        obj = obj.selectSubset('movie',movskeep);
+      end
+      
+    end
 
     function idx = select(obj,prop,varargin)
       if numel(varargin) == 1,
@@ -410,8 +423,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if reset || isempty(obj.trackconfigfile),
         obj.setDefaultTrackConfigFile();
       end
+
+      % rest of files require jobid to be set
       if isempty(obj.jobid),
-        warning('jobid not set');
+        %warning('jobid not set');
         return;
       end
       if reset || isempty(obj.logfile),
@@ -426,7 +441,6 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if reset || isempty(obj.cmdfile),
         obj.setDefaultCmdfile();
       end
-
     end
 
     function setTrainDMC(obj,v)
@@ -457,7 +471,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function v = trackjobid(obj)
-      v = [obj.trackid,'_',obj.jobid];
+      v = ['track_',obj.trackid,'_',obj.jobid];
     end
 
    
@@ -1035,7 +1049,6 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       [movieidx1,views1,stages1] = myparse(varargin,'movie',1:obj.nmovies,...
         'view',obj.views,'stage',obj.stages);
       args = {'movie',movieidx1,'view',views1,'stage',stages1};
-
       tti = ToTrackInfo('nmovies',numel(movieidx1),'views',views1,'stages',stages1);
       tti.setFrm0(obj.getFrm0(args{:}));
       tti.setFrm1(obj.getFrm1(args{:}));
@@ -1055,7 +1068,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       tti.setCalibrationdata(obj.getCalibrationdata(args{:}));
       tti.setTrackid(obj.getTrackid());
       if obj.tblMFTIsSet(),
-        tti.setTblMFT(obj.tblMFT(ismember(obj.tblMFT.mov,movieidx1),:));
+        [ism,idx] = ismember(obj.tblMFT.mov,movieidx1);
+        newtbl = obj.tblMFT(ism,:);
+        newtbl.mov(ism) = idx(ism);
+        tti.setTblMFT(newtbl);
       end
       tti.checkFix();
 
@@ -1230,14 +1246,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
          
       for i = 1:numel(movidx1),
         movi = movidx1(i);
-        trxfile = obj.getTrxfile('movie',movi,'view',1);
-        trxinfo = lObj.GetTrxInfo(obj,trxfile,f1(movi));
+        trxfile = DeepModelChainOnDisk.getCheckSingle(obj.getTrxfiles('movie',movi,'view',1));
+        trxinfo = lObj.GetTrxInfo(trxfile);
         ids = trxids1{i};
         if isempty(ids),
           ids = 1:obj.ntgts;
         end
-        ffs = max(f0(movi),trxinfo.firstframes(ids));
-        efs = min(f1(movi),trxinfo.endframes(ids));
+        ffs = max(f0(i),trxinfo.firstframes(ids));
+        efs = min(f1(i),trxinfo.endframes(ids));
         nframestrack(movi) = sum(efs-ffs);
       end
 

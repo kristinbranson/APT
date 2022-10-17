@@ -554,13 +554,19 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function cmdout = wrapCommandBsub(cmdin,varargin)
-      [nslots,gpuqueue,logfile] = myparse(varargin,...
+      [nslots,gpuqueue,logfile,jobname] = myparse(varargin,...
         'nslots',DeepTracker.default_jrcnslots_train,...
         'gpuqueue',DeepTracker.default_jrcgpuqueue,...
-        'logfile','/dev/null');
+        'logfile','/dev/null',...
+        'jobname','');
       esccmd = String.escapeQuotes(cmdin);
-      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" "%s"',...
-        nslots,gpuqueue,logfile,esccmd);
+      if isempty(jobname),
+        jobnamestr = '';
+      else
+        jobnamestr = [' -J ',jobname];
+      end
+      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s "%s"',...
+        nslots,gpuqueue,logfile,jobnamestr,esccmd);
     end
 
     function cmdout = wrapCommandSSH(remotecmd,varargin)

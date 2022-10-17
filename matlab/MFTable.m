@@ -97,7 +97,7 @@ classdef MFTable
     end
     
     function tbl = sortCanonical(tbl)
-      assert(isa(tbl.mov,'MovieIndex'));
+      %assert(isa(tbl.mov,'MovieIndex'));
       tfgt = tbl.mov<0;
       tblGT = tbl(tfgt,:);
       tblReg = tbl(~tfgt,:);

@@ -674,7 +674,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       modelChainID1 = DeepModelChainOnDisk.getCheckSingle(obj.getModelChainID(idx));
       trainID1 = DeepModelChainOnDisk.getCheckSingle(obj.getTrainID(idx));
       netModeName1 = DeepModelChainOnDisk.getCheckSingle(obj.netModeName(idx));
-      v = [modelChainID1 '_' trainID1 '_' netModeName1 viewstr];
+      v = ['train_' modelChainID1 '_' trainID1 '_' netModeName1 viewstr];
     end
     function [v,idx] = trainFinalModelLnx(obj,varargin)
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
@@ -1402,12 +1402,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       idx = find(idx);
     end
 
-    function obj = modernize(dmcs)
+    function obj = modernize(dmcs,varargin)
 
       if isempty(dmcs)
         obj = dmcs;
         return;
       end
+
+      netmodes = myparse(varargin,'netmode',[]);
 
       % is this post-refactor from 202208?
       isrefactored = numel(dmcs) == 1 && dmcs.isPostRefactor202208();
@@ -1418,7 +1420,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         isMultiView = numel(unique(view)) > 1;
         netMode = {};
         for i = 1:numel(dmcs),
-          if iscell(dmcs(i).netMode),
+          if isempty(dmcs(i).netMode),
+            netMode = netmodes(i);
+          elseif iscell(dmcs(i).netMode),
             netMode = [netMode,cellfun(@char,dmcs(i).netMode,'Uni',0)]; %#ok<AGROW> 
           elseif ischar(dmcs(i).netMode),
             netMode{end+1} = dmcs(i).netMode; %#ok<AGROW> 
@@ -1464,7 +1468,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           trainID(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).trainID,ncurr,true);
           trainType(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).trainType,ncurr);
           netType(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).netType,ncurr);
-          netMode(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(dmcs(i).netMode,ncurr);
+          if isempty(dmcs(i).netMode),
+            netmodecurr = netmodes(i);
+          else
+            netmodecurr = dmcs(i).netMode;
+          end
+          netMode(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray(netmodecurr,ncurr);
           if isempty(dmcs(i).trkTaskKeyword),
             trkTaskKeyword(j+1:j+ncurr) = DeepModelChainOnDisk.toCellArray('',ncurr);
           else
