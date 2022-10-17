@@ -1257,6 +1257,7 @@ classdef TrkFile < dynamicprops
       %
       % xy: [npt x 2 x nfrm x numel(iTlt)] where nfrm=size(obj.frm2tlt,1)
       % occ: [npt x nfrm x numel(iTlt)]
+      % fr: [1 x nfrm] which frames were tracked
       
       if any(iTlt) > obj.ntracklets
         warningNoTrace('Tracklet %d exceeds available data.',iTlt);
@@ -1266,8 +1267,12 @@ classdef TrkFile < dynamicprops
       end
 
       if obj.isfull,
-        sf = 1;
-        ef = size(obj.pTrk,3);
+        if ~isempty(obj.startframes),
+          sf = obj.startframes(1);
+        else
+          sf = 1;
+        end
+        ef = size(obj.pTrk,3) + sf - 1;
       else
         sf = min(obj.startframes);
         ef = max(obj.endframes);

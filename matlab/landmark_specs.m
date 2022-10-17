@@ -645,7 +645,7 @@ classdef landmark_specs < handle
       obj.updateTableSwap();
       obj.anyChangeMade = true;
     end
-    %#OK
+
 %     function SpecifyHeadButtonPushed(obj, event)
 %       if isempty(obj.htISelected)
 %         error('Please select a point.');

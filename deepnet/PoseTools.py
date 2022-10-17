@@ -1730,3 +1730,63 @@ def show_sample_images(sample_file,extra_txt = ''):
     plt.scatter(locs[:, :, 0], locs[ :,:, 1],c=cmap)
     plt.title(f'{extra_txt} height:{h}, width{w}')
     return f
+
+def find_mem(cmd, conn, skip_db=False):
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+    import APT_interface as apt
+    import torch
+    available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+    print(available_gpus)
+
+    if skip_db:
+        cmd += ' -skip_db'
+    print(cmd)
+    success = True
+    try:
+        apt.main(cmd.split())
+    except:
+        success = False
+        pass
+    # sess = tf.get_default_session()
+    # if sess is None:
+    #     sess = tf.Session()
+    # mem_use = sess.run(tf.contrib.memory_stats.MaxBytesInUse())/1024/1024
+    # tf.reset_default_graph()
+    conn.send(success)
+
+
+def linspacev(start,end,n):
+    if n == 1:
+        return end
+    d_vec = np.ones([1,n])
+    d_vec[0,:] = np.arange(n)/(n-1)
+    ret = start[:,None] + (end[:,None]-start[:,None])*d_vec
+    return ret
+
+
+def find_knee(x,y):
+    # based on https://towardsdatascience.com/detecting-knee-elbow-points-in-a-graph-d13fc517a63c
+    # can you kneed but installing it is a pain
+    # so using distance to the diagnol as surrogate for finding the knee
+    x = x.copy()
+    y = y.copy()
+    x = x-x.min()
+    x = x/x.max()
+    y = y-y.min()
+    y = y/y.max()
+    npts = x.shape[0]
+
+    d1 = []
+    for ix in range(npts):
+        xc = x[ix]; yc = y[ix]
+        p = np.array([xc,yc])
+        p1 = np.array([1,1])
+        p2 = np.array([0,0])
+        dist_diag = np.linalg.norm(np.cross(p2-p1, p1-p))/np.linalg.norm(p2-p1)
+        d1.append(dist_diag)
+
+    d1 = np.array(d1)
+    knee_pt = np.argmax(d1)
+    return knee_pt, d1[knee_pt]

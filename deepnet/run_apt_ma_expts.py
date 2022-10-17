@@ -998,7 +998,8 @@ class ma_expt(object):
 
                 params2 = settings2['params']
                 conf_str2 = ' '.join([f'{k} {v}' for k, v in params2.items()])
-                t_file = tempfile.mkstemp()[1]
+                t_file = trk_file.replace('.trk','_stg1.trk')
+                #t_file = tempfile.mkstemp()[1]
 
                 stg2_str = f'-stage multi -model_files2 {latest_model_file} -conf_params2 {conf_str2} -type2 {settings2["net_type"]} -name2 {settings2["train_name"]}'
                 stg2_str_track = f'-trx {t_file}'

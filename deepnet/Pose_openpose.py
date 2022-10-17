@@ -3,6 +3,18 @@ import os
 import pickle
 import PoseTools
 
+import tensorflow
+tensorflow.get_logger().setLevel('ERROR')
+
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if vv[0] == 1 and vv[1] > 12:
+    tf = tensorflow.compat.v1
+elif vv[0] == 2:
+    tf = tensorflow.compat.v1
+    tf.disable_v2_behavior()
+    tf.logging.set_verbosity(tf.logging.ERROR)
+    gpu_devices = tensorflow.config.list_physical_devices('GPU')[0]
+    tensorflow.config.experimental.set_memory_growth(gpu_devices,True)
 
 class Pose_openpose(object):
     name = 'deepnet'

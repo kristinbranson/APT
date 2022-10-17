@@ -642,6 +642,9 @@ classdef DeepTrackerTopDown < DeepTracker
         'maTopDownStage1NetType' dmcs(1).netType ...
         'maTopDownStage1NetMode' dmcs(1).netMode};
 
+      % looks like there is some path conversion happening for Windows
+      % figure out what that is
+      % {'deepnetroot' pathConvertFcn(APT.getpathdl)}
       fileinfo = dmcs(2).trainFileInfoSingle('topdown_docker');
       args = { backend,fileinfo,...
         trnCmdType,dmcs(2).view+1,mntPaths }; 

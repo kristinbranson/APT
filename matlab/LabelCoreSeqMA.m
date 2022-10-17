@@ -158,6 +158,18 @@ classdef LabelCoreSeqMA < LabelCore
       
       obj.state = LabelState.ACCEPTED; 
       obj.enableControls();
+      
+      % MK 20220902, not sure where is the best place to add extra points
+      % when projAddLandmarks is used.
+      % Realized that add landmarks isn't enabled for multi-animal yet. 
+      % when we do this might be handy, so keeping it around
+%       if obj.nPts ~= obj.tv.nPts
+%         delete(obj.tv);
+%         obj.tv = TrackingVisualizerMT(obj.labeler,'labelPointsPlotInfo',...
+%           'lblCoreSeqMA');
+%         obj.tv.doPch = true;
+%         obj.tv.vizInit('ntgts',obj.maxNumTgts);
+%       end
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>

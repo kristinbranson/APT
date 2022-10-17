@@ -37,6 +37,11 @@ elif vv[0] == 2:
     tf = tensorflow.compat.v1
     tf.disable_v2_behavior()
     tf.logging.set_verbosity(tf.logging.ERROR)
+    try:
+        gpu_devices = tensorflow.config.list_physical_devices('GPU')[0]
+        tensorflow.config.experimental.set_memory_growth(gpu_devices,True)
+    except:
+        pass
 else:
     tf = tensorflow
 
@@ -52,11 +57,12 @@ from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, c
 # from leap.training import train as leap_train
 
 # we shoud re-enable these at some point?
-ISOPENPOSE = False
+# openpose works -- open_pose4 though -- MK 20220816
+ISOPENPOSE = True
 ISSB = False
 
 if ISOPENPOSE:
-    import open_pose as op
+    import open_pose4 as op
 if ISSB:
     import sb1 as sb
 
@@ -86,6 +92,7 @@ import link_trajectories as lnk
 from matplotlib.path import Path
 from PoseCommon_pytorch import coco_loader
 from tqdm import tqdm
+import io
 import shapely.geometry
 import TrkFile
 from scipy.ndimage import uniform_filter
@@ -1496,7 +1503,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
         cap.close()  # close the movie handles
         logging.info('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
 
-    logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
+    # logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
     lbl.close()
     return splits
 
@@ -1877,10 +1884,10 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
             count[sndx] += 1
             splits[sndx].append(info)
 
-            if selndx % 100 == 99 and selndx > 0:
-                logging.info('{} number of examples added to the dbs'.format(count))
+            # if selndx % 100 == 99 and selndx > 0:
+            #     logging.info('{} number of examples added to the dbs'.format(count))
 
-    logging.info('{} number of examples added to the training dbs'.format(count))
+    # logging.info('{} number of examples added to the training dbs'.format(count))
 
     return splits, sel
 
@@ -1995,7 +2002,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         # if selndx % 100 == 99 and selndx > 0:
         #     logging.info('{} number of examples added to the dbs'.format(count))
 
-    logging.info('{} number of examples added to the training dbs'.format(count))
+    # logging.info('{} number of examples added to the training dbs'.format(count))
 
     return splits, sel
 
@@ -2132,10 +2139,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
             count += 1
             splits[0].append(info)
 
-        if selndx % 100 == 99 and selndx > 0:
-            logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
-
-    logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
+        # if selndx % 100 == 99 and selndx > 0:
+        #     logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
+    #
+    # logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
     lbl.close()
 
     return splits, sel
@@ -4424,7 +4431,7 @@ def parse_args(argv):
                         action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
-    parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
+    parser.add_argument('-log_file', dest='log_file', help='Log file', default=None)
     parser.add_argument('-conf_params', dest='conf_params',
                         help='conf params. These will override params from lbl file', default=None, nargs='*')
     parser.add_argument('-conf_params2', dest='conf_params2',
@@ -4701,11 +4708,20 @@ def check_args(args,nviews):
         args.out_files = reshape(args.out_files)
 
 def get_raw_config_filetype(H):
-    return H['ConfFileType']
+    if type(H) == dict and 'ConfFileType' in H:
+        return H['ConfFileType']
+    elif type(H) == h5py._hl.files.File:
+        return 'lbl'
+    else:
+        raise ValueError('Could not determine config file type')
 
 def get_raw_config_filename(H):
-    return H['FileName']
-
+    if type(H) == dict and 'FileName' in H:
+        return H['FileName']
+    elif type(H) == h5py._hl.files.File:
+        return H.file.filename
+    else:
+        raise ValueError('Could not determine config file name')
 def load_config_file(lbl_file,no_json=False):
     """
     H = load_config_file(lbl_file,no_json=False)
@@ -4719,7 +4735,7 @@ def load_config_file(lbl_file,no_json=False):
     'ConfigFileType': 'json' or 'lbl'
     'FileName': name of the file loaded
     """
-    
+
     if not no_json:
         if os.path.exists(lbl_file.replace('.lbl','.json')):
             lbl_file = lbl_file.replace('.lbl','.json')
@@ -4729,6 +4745,7 @@ def load_config_file(lbl_file,no_json=False):
     if lbl_file.endswith('.json'):
         H = PoseTools.json_load(lbl_file)
         H['ConfFileType'] = 'json'
+        H['FileName'] = lbl_file
     elif lbl_file.endswith('.lbl'):
         # somewhat obsolete codepath - lbl files should have been replaced by json files
         logging.warning('.lbl files have been replaced with .json files. This functionality may be removed in the future')
@@ -4739,13 +4756,14 @@ def load_config_file(lbl_file,no_json=False):
             try:
                 H = h5py.File(lbl_file, 'r')
             except TypeError as e:
-                logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
-            exit(1)
-        H['ConfFileType'] = 'lbl'
+                msg = 'Could not read the lbl file {}'.format(lbl_file)
+                logging.exception(msg)
+                raise
+        #H = {'ConfFileType':'lbl','hdf5':H1}
     else:
-        logging.exception(f'Cannot read config file {lbl_file}')
-        exit(1)
-    H['FileName'] = lbl_file
+        msg = f'Cannot read config file {lbl_file}'
+        logging.exception(msg)
+        raise ValueError(msg)
     return H
 
 def get_num_views(args=None,conf_raw=None):
@@ -4868,6 +4886,22 @@ def run(args):
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
         print(m_files)
 
+class TqdmToLogger(io.StringIO):
+    """
+    Output stream for TQDM which will output to logger module instead of
+    the StdOut.
+    """
+    logger = None
+    level = None
+    buf = ''
+    def __init__(self,logger,level=None):
+        super(TqdmToLogger, self).__init__()
+        self.logger = logger
+        self.level = level or logging.INFO
+    def write(self,buf):
+        self.buf = buf.strip('\r\n\t ')
+    def flush(self):
+        self.logger.log(self.level, self.buf)
 
 def set_up_logging(args):
     """
@@ -4907,6 +4941,9 @@ def set_up_logging(args):
     log.addHandler(logh)
     log.setLevel(logging.DEBUG)
 
+    tqdm_logger = TqdmToLogger(log,level=logging.INFO)
+    TQDM_PARAMS['file'] = tqdm_logger
+    
     return errh,logh
         
 def main(argv):
@@ -4914,6 +4951,7 @@ def main(argv):
     main(...)
     Main function for running APT. Parses command line parameters, sets up logging, then calls "run" function to do most of the work.
     """
+
     args = parse_args(argv)
 
     if args.sub_name == 'test':
@@ -4950,8 +4988,7 @@ def main(argv):
             # run(j_args)
             run(args)
         except Exception as e:
-            logging.exception('UNKNOWN: APT_interface errored')
-
+            logging.exception('APT_interface errored: {e}, {type(e)}')
 
 def remove_local_path():
     for p in sys.path:

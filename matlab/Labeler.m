@@ -1438,6 +1438,10 @@ classdef Labeler < handle
       end
     end
     function set.movieRotateTargetUp(obj,v)
+      if obj.maIsMA && (obj.currTarget==0)
+        warningNoTrace('Labeler:MA', 'No labeled target selected. Not rotating');
+        return
+      end
       if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
         %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
         obj.movieCenterOnTarget = true; %#ok<MCSUP>
@@ -3548,11 +3552,6 @@ classdef Labeler < handle
       if oldCurrTracker>0 && ~isempty(loc) && oldCurrTracker <= numel(loc),
         s.currTracker = loc(oldCurrTracker);
       end
-%       
-%       s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
-%         trkersInfo(nExistingTrkers+1:nDfltTrkers);
-%       s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
-%         repmat({[]},1,nDfltTrkers-nExistingTrkers);
       
       % 2019ed0207: added nLabels to dmc
       % 20190404: remove .trnName, .trnNameLbl as these dup DMC
@@ -3606,71 +3605,6 @@ classdef Labeler < handle
         end
       end
       
-%       % 20180604
-%       if ~isfield(s,'labeledpos2GT')
-%         s.labeledpos2GT = cell(size(s.labeledposGT));
-%         for i=1:numel(s.labeledposGT)
-%           lposGTval = s.labeledposGT{i};
-%           if isstruct(lposGTval)
-%             s.labeledpos2GT{i} = SparseLabelArray.createEmpty(...
-%               lposGTval.size,lposGTval.type);
-%           else
-%             s.labeledpos2GT{i} = SparseLabelArray.createEmpty(...
-%               size(lposGTval),'nan');
-%           end
-%         end
-%       end
-      
-%       % 20180619 Crop
-%       CROPFLDS = {'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' 'cropIsCropMode'};
-%       tfCropFlds = isfield(s,CROPFLDS);
-%       assert(all(tfCropFlds) || ~any(tfCropFlds));
-%       if ~any(tfCropFlds)
-%         s.cropIsCropMode = false;
-%         s.movieFilesAllCropInfo = cell(size(s.movieFilesAll,1),1);
-%         s.movieFilesAllGTCropInfo = cell(size(s.movieFilesAllGT,1),1);
-%       end
-      
-%       % 20180706 movieReadPreLoadMovies
-%       if ~isfield(s,'movieReadPreLoadMovies')
-%         s.movieReadPreLoadMovies = false;
-%       end
-      
-%       % 20180710 data cache
-%       if ~isfield(s,'preProcSaveData')
-%         s.preProcSaveData = false;
-%       end
-      
-%       % 20180801 HistEqLUT
-%       LUTFLDS = {'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT'};
-%       tfLutFlds = isfield(s,LUTFLDS);
-%       assert(all(tfLutFlds) || ~any(tfLutFlds));
-%       if ~any(tfLutFlds)
-%         s.movieFilesAllHistEqLUT = cell(size(s.movieFilesAll));
-%         s.movieFilesAllGTHistEqLUT = cell(size(s.movieFilesAllGT));
-%       end
-      
-%       % 20181022 projectHasTrx
-%       if ~isfield(s,'projectHasTrx'),
-%         s.projectHasTrx = ~isempty(s.trxFilesAll) && ~isempty(s.trxFilesAll{1});
-%       end
-      
-%       % 20181101 movieInfo.readerobj (VideoReader) throwing warnings if
-%       % movs moved 
-%       for i=1:numel(s.movieInfoAll)
-%         if isfield(s.movieInfoAll{i}.info,'readerobj')
-%           % AL/SH XVid 20190328; Matlab apparent poor cleanup of
-%           % VideoReader objs
-%           rObj = s.movieInfoAll{i}.info.readerobj;
-%           if isobject(rObj)
-%             warningNoTrace('Deleting VideoReader obj with path %s/%s',...
-%               rObj.Path,rObj.Name);
-%             delete(rObj);
-%           end
-%           s.movieInfoAll{i}.info = rmfield(s.movieInfoAll{i}.info,'readerobj');
-%         end
-%       end
-      
 %         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       % 20181215 factor dlbackend out of DeepTrackers into single/common
       % prop on Labeler
@@ -3679,91 +3613,16 @@ classdef Labeler < handle
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       end
       % 20201028 docker/sing backend img/tag update
-      s.trackDLBackEnd.modernize();
-        
+      s.trackDLBackEnd.modernize();        
       
       % 20181220 DL common parameters
-      assert(isTrackParams);
-%       if ~isTrackParams && ~isfield(s,'trackDLParams')
-%         cachedirs = cell(0,1);
-%         for i=2:numel(s.trackerData)
-%           td = s.trackerData{i};
-%           if ~isempty(td) && ~isempty(td.sPrm),
-%             if isfield(td.sPrm,'CacheDir'),
-%               cacheDir = td.sPrm.CacheDir;
-%             elseif isfield(td.sPrm,'Saving') && isfield(td.sPrm.Saving,'CacheDir'),
-%               cacheDir = td.sPrm.Saving.CacheDir;
-%             else
-%               cacheDir = '';
-%             end
-%             tfHasCache = ~isempty(cacheDir);
-%             if tfHasCache
-%               cachedirs{end+1,1} = cacheDir; %#ok<AGROW>
-%             end
-%           end
-%         end
-%         if ~isempty(cachedirs)
-%           if ~all(strcmp(cachedirs,cachedirs{1}))
-%             warningNoTrace('Project contains multiple DeepTracker cache directories: %s. Using first cache dir.',...          
-%              String.cellstr2CommaSepList(cachedirs));
-%           end
-%           cdir = cachedirs{1};
-%         else
-%           cdir = '';
-%         end
-%         % KB 20190212: set all common parameters, not just cachedir
-%         %s.trackDLParams = struct('CacheDir',cdir);
-%         s.trackDLParams = APTParameters.defaultParamsStructDTCommon;
-%         s.trackDLParams.Saving.CacheDir = cdir;
-%       end
-      
-%       % 20190124 DL data cache; set
-%       % .preProcParams.TargetCrop.AlignUsingTrxTheta based on cpr parameter
-%       if s.preProcSaveData && ~isfield(s,'ppdb')
-%         s.ppdb = [];
-%       end
-      
-      assert(isTrackParams);
-%       if ~isTrackParams && ~isempty(s.trackerData{1})
-%         cprprms = s.trackerData{1}.sPrm;
-%         if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
-%           % legacy project has 3-way enum param for cpr under .TrainInit and
-%           % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
-%           % this val. Then remove these parameters now too although
-%           % CPRLT.modernizeParams would have done it.
-%           
-%           assert(~s.preProcParams.TargetCrop.AlignUsingTrxTheta); % default value added above
-%           s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;
-%           s.trackerData{1}.sPrm.TrainInit = rmfield(s.trackerData{1}.sPrm.TrainInit,'usetrxorientation');
-%           s.trackerData{1}.sPrm.TestInit = rmfield(s.trackerData{1}.sPrm.TestInit,'usetrxorientation');
-%           
-%           if s.preProcParams.TargetCrop.AlignUsingTrxTheta
-%             % .AlignUsingTrxTheta has mutated from default value. Any
-%             % existing DL cache and trackers need to be cleared
-%             s.ppdb = [];
-%             warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
-%             for iTrker=1:numel(s.trackerData)
-%               if strcmp(s.trackerClass{iTrker}{1},'DeepTracker') && ~isempty(s.trackerData{iTrker})
-%                 s.trackerData{iTrker}.trnLastDMC = [];
-%                 s.trackerData{iTrker}.movIdx2trkfile = containers.Map('keytype','int32','valuetype','any');
-%                 warningNoTrace('Cleared Deep Learning tracker of type ''%s''.',char(s.trackerData{iTrker}.trnNetType));
-%               end
-%             end
-%           end
-%         end
-%       end
+      assert(isTrackParams);      
       
       % KB 20190212: reorganized DL parameters -- many specific parameters
       % were moved to common, and organized common parameters. leaf names
       % should all be the same, and unique, so just match leaves
       s = reorganizeDLParams(s); 
-      
-      % KB 20190214: all parameters are combined now
-      assert(isTrackParams);
-%       if ~isTrackParams,
-%         s.trackParams = Labeler.trackGetParamsFromStruct(s);
-%       end
-      
+            
       % KB 20191218: replaced scale_range with scale_factor_range
       if isstruct(s.trackParams) && isfield(s.trackParams,'ROOT') && ...
           isstruct(s.trackParams.ROOT) && isfield(s.trackParams.ROOT,'DeepTrack') && ...
@@ -3793,12 +3652,6 @@ classdef Labeler < handle
           continue;
         end
         
-%         tfCPRHasTrained = strcmp(s.trackerClass{i}{1},'CPRLabelTracker') ...
-%                        && ~isempty(s.trackerData{i}.trnResRC) ...
-%                        && any([s.trackerData{i}.trnResRC.hasTrained]);
-%         tfDTHasTrained = strcmp(s.trackerClass{i}{1},'DeepTracker') ...
-%                        && ~isempty(s.trackerData{i}.trnLastDMC);
-
         if ~isfield(s.trackerData{i},'sPrmAll') || isempty(s.trackerData{i}.sPrmAll),
           if isfield(s.trackerData{i},'sPrm') && ~isempty(s.trackerData{i}.sPrm)
             % legacy proj: .sPrm present
@@ -3840,15 +3693,7 @@ classdef Labeler < handle
         % 2. .sPrm has been removed in all cases.
         % 3. For modern projs that have .sPrmAll, this may not yet be
         % modernized. Responsibility for modernization will now be in the
-        % LabelTrackers/loadSaveToken. Hmm not sure this is best. 
-        
-%         % KB 20190331: adding in post-processing parameters if missing
-          % AL 20190712: This is now LabelTracker/loadSaveToken's
-          % responsibility
-%         if ~isempty(s.trackerData{i}.sPrmAll) && ...
-%     	     ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
-%           s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
-%         end          
+        % LabelTrackers/loadSaveToken. Hmm not sure this is best.         
       end
       
       if isfield(s,'preProcParams'),
@@ -3986,8 +3831,7 @@ classdef Labeler < handle
       % causes trouble
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
-      end      
-      
+      end
     end
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
@@ -6134,6 +5978,12 @@ classdef Labeler < handle
       if ~isempty(tv)
         tv.setShowSkeleton(tf);
       end
+      dt = obj.tracker;
+      tv = dt.trkVizer;
+      if ~isempty(tv)
+        tv.setShowSkeleton(tf);
+      end
+
     end
     function setShowMaRoi(obj,tf)
       obj.showMaRoi = logical(tf);
@@ -12598,7 +12448,7 @@ classdef Labeler < handle
       if obj.maIsMA
         tv = TrackingVisualizerTracklets(obj,ptsPlotInfoFld,gfxTagPfix);
       elseif obj.hasTrx
-        tfadvanced = RC.getpropdefault('optimizeImportedViz',false);
+        tfadvanced = true; %RC.getpropdefault('optimizeImportedViz',false);
         if tfadvanced
           tv = TrackingVisualizerMTFast(obj,ptsPlotInfoFld,gfxTagPfix);
         else
@@ -13099,6 +12949,10 @@ classdef Labeler < handle
       tfexternal = nargin>1;
       if ~tfexternal
         [x,y,th] = obj.currentTargetLoc();
+      end
+      if isnan(x)
+        warningNoTrace('No target selected');
+        return;
       end
 
       dx = x-x0;
@@ -14100,6 +13954,10 @@ classdef Labeler < handle
         cfrm = obj.currFrame;
         imov = obj.currMovie;
         itgt = obj.currTarget;
+        if itgt==0
+          x=NaN; y=NaN; th=NaN;
+          return 
+        end
         lpos = obj.labelsGTaware;
         s = lpos{imov};        
         [tf,p] = Labels.isLabeledFT(s,cfrm,itgt);

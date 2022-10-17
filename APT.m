@@ -300,7 +300,7 @@ classdef APT
         exist('ReadYaml','file')==0;
     end
     
-    function pposetf = getpathdl(r)
+    function pposetf = getpathdl()
       r = APT.Root;
       pposetf = fullfile(r,'deepnet');
     end

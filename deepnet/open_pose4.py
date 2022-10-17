@@ -1,6 +1,9 @@
 from __future__ import print_function
 from __future__ import division
-
+import os
+import sys
+stderr = sys.stderr
+sys.stderr = open(os.devnull, 'w')
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Concatenate
 from tensorflow.keras.layers import Activation, Input, Lambda, PReLU
@@ -42,6 +45,8 @@ import util
 import vgg_cpm
 from vgg_cpm import conv
 import multiprocessing
+
+sys.stderr = stderr
 
 '''
 Adapted from:

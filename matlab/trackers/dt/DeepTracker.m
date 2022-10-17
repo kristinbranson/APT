@@ -1491,6 +1491,8 @@ classdef DeepTracker < LabelTracker
       syscmds = cell(njobs,1);
       cmdfiles = cell(njobs,1);
       logcmds = {};
+      % looks like logging may be disabled for docker + win? figure out what
+      % should happen here
       if backEnd.type == DLBackEnd.Docker,
         logcmds = cell(njobs,1);
       end

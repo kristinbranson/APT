@@ -844,9 +844,6 @@ classdef TrackJob < handle
       else
         args = {};
       end
-      if ispc && obj.backend.type == DLBackEnd.Conda
-        args(end+1:end+2) = {'isWinBackend' true};
-      end
       DeepTracker.trackWriteListFile(...
         obj.movfileRem,obj.movfileLcl,obj.tMFTConc,obj.listfileLcl,args{:});
     end
