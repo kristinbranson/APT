@@ -742,27 +742,28 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonBGWorkerObj = trnWrkObj;
     end
     
-    function bgTrnRestart(obj,bgTrnMonitorObj)
-      % Mostly for debugging hanging monitors. "Kills" current bg training
-      % monitor and restarts.
-      
-      fprintf(2,'Needs cleanup\n');
-      
-      if isempty(obj.bgTrnMonitor) || isempty(obj.bgTrnMonBGWorkerObj)
-        error('Training monitor does not exist.');
-      end
-      
-      workerObj = obj.bgTrnMonBGWorkerObj;
-      fprintf(1,'Restarting bg train monitor. Monitor cls: %s. Worker cls: %s\n',...
-        class(bgTrnMonitorObj),class(workerObj));
-
-      workerObj.reset();
-      delete(obj.bgTrnMonitor);
-      obj.bgTrnMonitor = [];
-      obj.bgTrnMonBGWorkerObj = [];
-      
-      obj.bgTrnStart(bgTrnMonitorObj,workerObj); % xxx TODO
-    end
+    % not called by anything, commenting out
+%     function bgTrnRestart(obj,bgTrnMonitorObj)
+%       % Mostly for debugging hanging monitors. "Kills" current bg training
+%       % monitor and restarts.
+%       
+%       fprintf(2,'Needs cleanup\n');
+%       
+%       if isempty(obj.bgTrnMonitor) || isempty(obj.bgTrnMonBGWorkerObj)
+%         error('Training monitor does not exist.');
+%       end
+%       
+%       workerObj = obj.bgTrnMonBGWorkerObj;
+%       fprintf(1,'Restarting bg train monitor. Monitor cls: %s. Worker cls: %s\n',...
+%         class(bgTrnMonitorObj),class(workerObj));
+% 
+%       workerObj.reset();
+%       delete(obj.bgTrnMonitor);
+%       obj.bgTrnMonitor = [];
+%       obj.bgTrnMonBGWorkerObj = [];
+%       
+%       obj.bgTrnStart(bgTrnMonitorObj,workerObj); % xxx TODO
+%     end
 
     function bgTrnReset(obj)
       % stop the training monitor
@@ -856,6 +857,7 @@ classdef DeepTracker < LabelTracker
       tfCanTrain = true;      
     end
     
+    % there seems to be overlap between canTrain and pretrain -- why? 
     function preretrain(obj)      
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
@@ -884,6 +886,15 @@ classdef DeepTracker < LabelTracker
     end
     
     function retrain(obj,varargin)
+      % retrain(obj,...)
+      % Main training function
+      % Called by Labeler.trackRetrain
+      % Checks whether tracking results already exist, and what to do about
+      % them. 
+      % Sets parameters. 
+      % Checks whether to start from previously trained models. 
+      % calls trnSpawn to actually do anything.
+      % also can call trnSpawnAWS but this is obsolete
       
       [wbObj,dlTrnType,oldVizObj,augOnly] = myparse(varargin,...
         'wbObj',[],...
@@ -906,7 +917,6 @@ classdef DeepTracker < LabelTracker
       end
       
       obj.setAllParams(lblObj.trackGetParams());
-      
       if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
       end
@@ -951,9 +961,10 @@ classdef DeepTracker < LabelTracker
                   
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
-          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,...
+          obj.trnSpawn(trnBackEnd,dlTrnType,modelChain,...
             'wbObj',wbObj,'prev_models',prev_models,'augOnly',augOnly);
         case DLBackEnd.AWS
+          error('Not implemented');
           obj.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);          
         otherwise
           assert(false);
@@ -1112,133 +1123,135 @@ classdef DeepTracker < LabelTracker
       props = obj.trnNetType.timelinePropList;
     end
     
-    function [augims,dataAugDir] = dataAug(obj,ppdata,varargin)
-      
-      [sPrmAll,dataAugDir] = myparse(varargin,...
-        'sPrmAll',[],'dataAugDir','' ...
-        );
-      
-      if isempty(sPrmAll),
-        sPrmAll = obj.sPrmAll;
-      end
-      if isempty(sPrmAll)
-        error('Tracking parameters not set.');
-      end
-      sPrmAll = obj.lObj.addExtraParams(sPrmAll,obj.trnNetMode);
-      
-      cacheDir = obj.lObj.DLCacheDir;
-      if isempty(cacheDir)
-        error('No cache directory has been set.');
-      end
-      
-      lblObj = obj.lObj;
-%       projname = lblObj.projname;
-%       if isempty(projname)
-%         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
+    % I believe this is not working right now/obsolete
+%     function [augims,dataAugDir] = dataAug(obj,ppdata,varargin)
+%       
+%       [sPrmAll,dataAugDir] = myparse(varargin,...
+%         'sPrmAll',[],'dataAugDir','' ...
+%         );
+%       
+%       if isempty(sPrmAll),
+%         sPrmAll = obj.sPrmAll;
 %       end
-            
-      trnBackEnd = lblObj.trackDLBackEnd;
-      fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
-      fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
-      fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');      
-
-      switch trnBackEnd.type
-        case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
-          [augims,dataAugDir] = obj.dataAugBsubDocker(ppdata,sPrmAll,...
-            trnBackEnd,'dataAugDir',dataAugDir);
-        case DLBackEnd.AWS
-          error('not implemented');
-          %obj.trnSpawnAWS(trnBackEnd,modelChain,'wbObj',wbObj);    
-        otherwise
-          assert(false);
-      end
-    end
+%       if isempty(sPrmAll)
+%         error('Tracking parameters not set.');
+%       end
+%       sPrmAll = obj.lObj.addExtraParams(sPrmAll,obj.trnNetMode);
+%       
+%       cacheDir = obj.lObj.DLCacheDir;
+%       if isempty(cacheDir)
+%         error('No cache directory has been set.');
+%       end
+%       
+%       lblObj = obj.lObj;
+% %       projname = lblObj.projname;
+% %       if isempty(projname)
+% %         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
+% %       end
+%             
+%       trnBackEnd = lblObj.trackDLBackEnd;
+%       fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
+%       fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
+%       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
+%       fprintf(1,'\n');      
+% 
+%       switch trnBackEnd.type
+%         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
+%           [augims,dataAugDir] = obj.dataAugBsubDocker(ppdata,sPrmAll,...
+%             trnBackEnd,'dataAugDir',dataAugDir);
+%         case DLBackEnd.AWS
+%           error('not implemented');
+%           %obj.trnSpawnAWS(trnBackEnd,modelChain,'wbObj',wbObj);    
+%         otherwise
+%           assert(false);
+%       end
+%     end
     
-    function dmc = restoreFromCacheDir(obj,cachedir)
-      % EXPERIMENTAL/DEV use at own risk
-      % uses stripped lbl files, which we are disabling 
-      
-      warningNoTrace('Development/experimental codepath!');
-      if ~DeepModelChainOnDisk.gen_strippedlblfile,
-        warningNoTrace('Stripped lbl file is not being generated! This might break');
-      end
-      fprintf(1,'Setting current tracking parameters; these are assumed to be the same as used to train.\n');
-      obj.setAllParams(obj.lObj.trackGetParams());
-      
-      assert(~obj.lObj.isMultiView,'Currently unsupported for multiview projects.');
-      
-      % Stuff from here on might be a DMC mirror meth
-      
-      dmc = DeepModelChainOnDisk(...
-        'rootDir',cachedir,...
-        'projID',obj.lObj.projname,...
-        'netType',char(obj.trnNetType),...
-        'netMode',obj.trnNetMode,...
-        'view',0,...
-        'modelChainID','',...  % tbd
-        'trainID','',... % tbd
-        'trainType',DLTrainType.New,...
-        'iterFinal','',... %tbd
-        'isMultiView',false,...
-        'reader',DeepModelChainReader.createFromBackEnd(obj.lObj.trackDLBackEnd),...
-        'filesep',obj.filesep...
-        );
-      
-      dd = dir(dmc.dirViewLnx);
-      dd = dd(3:end);
-      assert(isscalar(dd),'Multiple model chain IDs found in %s. Cannot restore.',dmc.dirModelChainLnx);
-      dmc.modelChainID = dd.name;
-      
-      dd = dir(fullfile(dmc.dirModelChainLnx,'deepnet-*.index'));
-      tfsucc = dmc.updateCurrInfo();
-      if tfsucc
-        fprintf(1,'Found latest trained model with iteration %d.\n',dmc.iterCurr);
-      else
-        error('Error finding trained model.');
-      end
-      
-      dd = dir(fullfile(dmc.dirProjLnx,'*.lbl'));
-      assert(isscalar(dd),'Could not find a unique stripped lblfile in %s',dmc.rootDir);
-      toks = regexp(dd.name,'(?<mcID>[0-9T]+)_(?<trnID>[0-9T]+).lbl','names');
-      if isempty(toks)
-        error('Could not find a unique stripped lblfile in %s',dmc.rootDir);
-      end
-      if ~strcmp(toks.mcID,dmc.modelChainID)
-        error('ModelChainID mismatch: %s vs %s.',toks.mcID,dmc.modelChainID);
-      end
-      
-      dmc.trainID = toks.trnID;
-      
-      fprintf('Loading stripped lbl %s...\n',dmc.lblStrippedLnx);
-      s = load(dmc.lblStrippedLnx,'-mat');
-      dmc.nLabels = s.nLabels;
-      fprintf('... success, %d labels.\n',s.nLabels);
-      
-      % ok we made it this far; copy the model into the current
-      % DLCacheDir, otherwise APT acts funny, prob due to save machinery
-      % expecting models to live under current cache etc.
-      dmc2 = dmc.copy();
-      dmc2.rootDir = obj.lObj.DLCacheDir;
-      assert(exist(dmc2.dirModelChainLnx,'dir')==0,'Dir %s already exists.',dmc2.dirModelChainLnx);
-      cmd = sprintf('mkdir -p %s',dmc2.dirModelChainLnx);
-      tfsucc = DeepTracker.syscmd(cmd,'dispcmd',true);
-      if ~tfsucc
-        error('Failed to create dir %s.',dmc2.dirModelChainLnx);
-      end
-      fprintf(1,'Copying trained model into current cache...\n');
-      [tfsucc,msg] = copyfile(dmc.dirModelChainLnx,dmc2.dirModelChainLnx);
-      if ~tfsucc
-        error('Failed to copy model: %s.',msg);
-      end
-      [tfsucc,msg] = copyfile(dmc.lblStrippedLnx,dmc2.lblStrippedLnx);
-      if ~tfsucc
-        error('Failed to copy model: %s.',msg);
-      end
-      
-      obj.trnLastDMC = dmc2;
-      obj.trainCleanup();
-    end
+    % obsolete, not called by anything
+%     function dmc = restoreFromCacheDir(obj,cachedir)
+%       % EXPERIMENTAL/DEV use at own risk
+%       % uses stripped lbl files, which we are disabling 
+%       
+%       warningNoTrace('Development/experimental codepath!');
+%       if ~DeepModelChainOnDisk.gen_strippedlblfile,
+%         warningNoTrace('Stripped lbl file is not being generated! This might break');
+%       end
+%       fprintf(1,'Setting current tracking parameters; these are assumed to be the same as used to train.\n');
+%       obj.setAllParams(obj.lObj.trackGetParams());
+%       
+%       assert(~obj.lObj.isMultiView,'Currently unsupported for multiview projects.');
+%       
+%       % Stuff from here on might be a DMC mirror meth
+%       
+%       dmc = DeepModelChainOnDisk(...
+%         'rootDir',cachedir,...
+%         'projID',obj.lObj.projname,...
+%         'netType',char(obj.trnNetType),...
+%         'netMode',obj.trnNetMode,...
+%         'view',0,...
+%         'modelChainID','',...  % tbd
+%         'trainID','',... % tbd
+%         'trainType',DLTrainType.New,...
+%         'iterFinal','',... %tbd
+%         'isMultiView',false,...
+%         'reader',DeepModelChainReader.createFromBackEnd(obj.lObj.trackDLBackEnd),...
+%         'filesep',obj.filesep...
+%         );
+%       
+%       dd = dir(dmc.dirViewLnx);
+%       dd = dd(3:end);
+%       assert(isscalar(dd),'Multiple model chain IDs found in %s. Cannot restore.',dmc.dirModelChainLnx);
+%       dmc.modelChainID = dd.name;
+%       
+%       dd = dir(fullfile(dmc.dirModelChainLnx,'deepnet-*.index'));
+%       tfsucc = dmc.updateCurrInfo();
+%       if tfsucc
+%         fprintf(1,'Found latest trained model with iteration %d.\n',dmc.iterCurr);
+%       else
+%         error('Error finding trained model.');
+%       end
+%       
+%       dd = dir(fullfile(dmc.dirProjLnx,'*.lbl'));
+%       assert(isscalar(dd),'Could not find a unique stripped lblfile in %s',dmc.rootDir);
+%       toks = regexp(dd.name,'(?<mcID>[0-9T]+)_(?<trnID>[0-9T]+).lbl','names');
+%       if isempty(toks)
+%         error('Could not find a unique stripped lblfile in %s',dmc.rootDir);
+%       end
+%       if ~strcmp(toks.mcID,dmc.modelChainID)
+%         error('ModelChainID mismatch: %s vs %s.',toks.mcID,dmc.modelChainID);
+%       end
+%       
+%       dmc.trainID = toks.trnID;
+%       
+%       fprintf('Loading stripped lbl %s...\n',dmc.lblStrippedLnx);
+%       s = load(dmc.lblStrippedLnx,'-mat');
+%       dmc.nLabels = s.nLabels;
+%       fprintf('... success, %d labels.\n',s.nLabels);
+%       
+%       % ok we made it this far; copy the model into the current
+%       % DLCacheDir, otherwise APT acts funny, prob due to save machinery
+%       % expecting models to live under current cache etc.
+%       dmc2 = dmc.copy();
+%       dmc2.rootDir = obj.lObj.DLCacheDir;
+%       assert(exist(dmc2.dirModelChainLnx,'dir')==0,'Dir %s already exists.',dmc2.dirModelChainLnx);
+%       cmd = sprintf('mkdir -p %s',dmc2.dirModelChainLnx);
+%       tfsucc = DeepTracker.syscmd(cmd,'dispcmd',true);
+%       if ~tfsucc
+%         error('Failed to create dir %s.',dmc2.dirModelChainLnx);
+%       end
+%       fprintf(1,'Copying trained model into current cache...\n');
+%       [tfsucc,msg] = copyfile(dmc.dirModelChainLnx,dmc2.dirModelChainLnx);
+%       if ~tfsucc
+%         error('Failed to copy model: %s.',msg);
+%       end
+%       [tfsucc,msg] = copyfile(dmc.lblStrippedLnx,dmc2.lblStrippedLnx);
+%       if ~tfsucc
+%         error('Failed to copy model: %s.',msg);
+%       end
+%       
+%       obj.trnLastDMC = dmc2;
+%       obj.trainCleanup();
+%     end
     
     function dmcs = trnGetDMCs(obj)
       % Return all DeepModelChainOnDisks for this obj
@@ -1251,8 +1264,8 @@ classdef DeepTracker < LabelTracker
   methods
     %% BSub Trainer
       
-    function ntgtstot = genStrippedLblTrnPack(obj,dmc)
-      % Generate/write a trnpack/stripped lbl; can be used for both stages.
+    function ntgtstot = genTrnPack(obj,dmc)
+      % Generate/write a trnpack; can be used for both stages.
       %
       
       dlConfigLclDir = dmc.dirProjLnx;
@@ -1385,7 +1398,7 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function tfSucc = trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
+    function tfSucc = trnSpawn(obj,backEnd,trnType,modelChainID,varargin)
       %
       % backEnd: scalar DLBackEndClass
       % trnType: scalar DLTrainType
@@ -1460,26 +1473,26 @@ classdef DeepTracker < LabelTracker
         
       elseif tfGenNewConfigFile
         
-        ntgtstot = obj.genStrippedLblTrnPack(dmc);
+        ntgtstot = obj.genTrnPack(dmc);
         dmc.setNLabels(ntgtstot);
         
       else % Restart
         % TODO: implement this. We should be using trnpacks now for
         % everything
         error('TODO Restarts not implemented.');
-        assert(all(cellfun(@(x) exist(x,'file')>0,dmc.trainConfigLnx)));
-        
-        dmc.setRestartTS(datestr(now,'yyyymmddTHHMMSS'));
-        % read nLabels from stripped lbl file
-        dmc.readNLabels();
-         
-        % if no training has actually happened, do not restart, just start
-        % anew
-        obj.updateLastDMCsCurrInfo();
-        isPartiallyTrained = obj.trnLastDMC.isPartiallyTrained();
-        if any(~isPartiallyTrained),
-          dmc.setTrnType(DLTrainType.New,find(~isPartiallyTrained));
-        end
+%         assert(all(cellfun(@(x) exist(x,'file')>0,dmc.trainConfigLnx)));
+%         
+%         dmc.setRestartTS(datestr(now,'yyyymmddTHHMMSS'));
+%         % read nLabels from stripped lbl file
+%         dmc.readNLabels();
+%          
+%         % if no training has actually happened, do not restart, just start
+%         % anew
+%         obj.updateLastDMCsCurrInfo();
+%         isPartiallyTrained = obj.trnLastDMC.isPartiallyTrained();
+%         if any(~isPartiallyTrained),
+%           dmc.setTrnType(DLTrainType.New,find(~isPartiallyTrained));
+%         end
         
       end
 
@@ -1533,30 +1546,31 @@ classdef DeepTracker < LabelTracker
       obj.trnLastDMC = dmc;
     end
     
-    function trnImgMatfiles = trainImageParseCmds(obj,syscmds)
-      trnImgMatfiles = cell(0,1);
-      for i=1:numel(syscmds)
-        c = string(syscmds{i});
-        toks = c.split(' ');
-        iAugOut = find(strcmp(toks,'-aug_out'));
-        if isempty(iAugOut)
-          warningNoTrace('View/stage %d: no -aug_out flag',i);
-          continue;
-        end
-        augOut = strip(toks{iAugOut+1},'''');
-        pat = [augOut '*.mat'];
-        dd = dir(pat);
-        if isempty(dd)
-          warningNoTrace('View/stage %d: no matches for training image file pattern: %s',...
-            i,pat);
-        else
-          for j=1:numel(dd)
-            matfile = fullfile(dd(j).folder,dd(j).name);
-            trnImgMatfiles{end+1,1} = matfile; %#ok<AGROW>
-          end
-        end
-      end
-    end
+    % not called by anything
+%     function trnImgMatfiles = trainImageParseCmds(obj,syscmds)
+%       trnImgMatfiles = cell(0,1);
+%       for i=1:numel(syscmds)
+%         c = string(syscmds{i});
+%         toks = c.split(' ');
+%         iAugOut = find(strcmp(toks,'-aug_out'));
+%         if isempty(iAugOut)
+%           warningNoTrace('View/stage %d: no -aug_out flag',i);
+%           continue;
+%         end
+%         augOut = strip(toks{iAugOut+1},'''');
+%         pat = [augOut '*.mat'];
+%         dd = dir(pat);
+%         if isempty(dd)
+%           warningNoTrace('View/stage %d: no matches for training image file pattern: %s',...
+%             i,pat);
+%         else
+%           for j=1:numel(dd)
+%             matfile = fullfile(dd(j).folder,dd(j).name);
+%             trnImgMatfiles{end+1,1} = matfile; %#ok<AGROW>
+%           end
+%         end
+%       end
+%     end
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
       % trnImgMats: cellstr, or could be loaded mats
@@ -1689,123 +1703,124 @@ classdef DeepTracker < LabelTracker
       set(h,'Name',tstr);      
     end
        
-    function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,...
-        sPrmAll,backEnd,varargin)
-      
-      error('This code is obsolete. Maybe reimplement it some day');
-
-      [dataAugDir] = myparse(varargin,'dataAugDir','');
-      
-      cacheDir = obj.lObj.DLCacheDir;
-
-      tfLblFileExists = false;
-      if ~isempty(dataAugDir) && exist(dataAugDir,'dir'),
-        dlLblFileLcl = fullfile(dataAugDir,'dataaug.lbl');
-        if exist(dlLblFileLcl,'file'),
-          tfLblFileExists = true;
-        end
-        [~,ID] = fileparts(dataAugDir);
-      end
-            
-      if tfLblFileExists,
-        s = load(dlLblFileLcl,'-mat','trackParams','trackerData');
-        s.trackParams = sPrmAll;
-        ITRKER_SLBL = 2;
-        s.trackerData{ITRKER_SLBL}.sPrmAll = sPrmAll;
-        fprintf(2,'Using .trackerData{2} for dataaug\n');
-        save(dlLblFileLcl,'-struct','s','-append');
-        fprintf('Reusing cached lbl file %s\n',dlLblFileLcl);
-      else
-        s = obj.trnCreateStrippedLbl('ppdata',ppdata,'sPrmAll',sPrmAll);
-        ID = datestr(now,'yyyymmddTHHMMSS');
-        dataAugDir = fullfile(cacheDir,'DataAug',ID);
-        if ~exist(dataAugDir,'dir'),
-          [succ,emsg] = mkdir(dataAugDir);
-          if ~succ
-            error('Failed to create dir %s: %s',dataAugDir,emsg);
-          end
-        end
-        % Write stripped lblfile to local cache
-        dlLblFileLcl = fullfile(dataAugDir,'dataaug.lbl');
-        save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
-      end
-      
-      errfile = fullfile(dataAugDir,'dataaug.err');
-      outfile = fullfile(dataAugDir,'dataaug');
-      
-      switch backEnd.type
-        case DLBackEnd.Bsub
-          aptroot = backEnd.bsubSetRootUpdateRepo(cacheDir,'copyptw',false);          
-        case DLBackEnd.Docker
-        case DLBackEnd.Conda
-      end
-      
-      switch backEnd.type
-        case {DLBackEnd.Bsub DLBackEnd.Docker}
-          mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
-        case DLBackEnd.Conda
-      end
-      
-      switch backEnd.type
-        case DLBackEnd.Bsub
-          singArgs = {'bindpath',mntPaths};
-          syscmd = DeepTracker.dataAugCodeGenSSHBsubSing(...
-            ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,obj.trnNetMode,...
-            outfile,'singArgs',singArgs);
-        case DLBackEnd.Docker
-          dockerargs = {'detach',false};
-          [syscmd] = ...
-            DeepTracker.dataAugCodeGenDocker(backEnd,...
-            ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,outfile,...
-            'mntPaths',mntPaths,'dockerargs',dockerargs);
-        case DLBackEnd.Conda
-          error('Not implemented'); % TODO
-        otherwise
-          assert(false);
-      end
-      
-      if backEnd.type==DLBackEnd.Docker,
-        
-        fprintf(1,'%s\n',syscmd);
-        [st,res] = system(syscmd);
-        
-        tfsucc = (st == 0) && ~isempty(regexp(res,'Augmented data saved to','once'));
-        if tfsucc,
-          [tfsucc,augims] = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
-          if ~tfsucc,
-            error('Error loading augmented data');
-          end
-        else
-          error('Error creating sample augmented images:\n%s',res);
-        end
-        
-      else
-        
-        fprintf(1,'%s\n',syscmd);
-        [st,res] = system(syscmd);
-        if st==0,
-          PAT = 'Job <(?<jobid>[0-9]+)>';
-          stoks = regexp(res,PAT,'names');
-          if ~isempty(stoks),
-            jobid = str2double(stoks.jobid);
-            
-            cmd =  @() DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
-            nout = 1;
-            maxWaitTime = 60; % seconds
-            [tfsucc,augims] = DeepTracker.waitForBsubComplete(jobid,cmd,nout,maxWaitTime,true);
-            if ~tfsucc,
-              error('Data augmentation did not complete within %d seconds',maxWaitTime);
-            end
-            augims = augims{1};
-          else
-            error('Failed to ascertain jobID.');
-          end
-        else
-          error('Error creating sample augmented images:\n%s',res);
-        end
-      end
-      
-    end
+    % not maintained/obsolete
+%     function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,...
+%         sPrmAll,backEnd,varargin)
+%       
+%       error('This code is obsolete. Maybe reimplement it some day');
+% 
+%       [dataAugDir] = myparse(varargin,'dataAugDir','');
+%       
+%       cacheDir = obj.lObj.DLCacheDir;
+% 
+%       tfLblFileExists = false;
+%       if ~isempty(dataAugDir) && exist(dataAugDir,'dir'),
+%         dlLblFileLcl = fullfile(dataAugDir,'dataaug.lbl');
+%         if exist(dlLblFileLcl,'file'),
+%           tfLblFileExists = true;
+%         end
+%         [~,ID] = fileparts(dataAugDir);
+%       end
+%             
+%       if tfLblFileExists,
+%         s = load(dlLblFileLcl,'-mat','trackParams','trackerData');
+%         s.trackParams = sPrmAll;
+%         ITRKER_SLBL = 2;
+%         s.trackerData{ITRKER_SLBL}.sPrmAll = sPrmAll;
+%         fprintf(2,'Using .trackerData{2} for dataaug\n');
+%         save(dlLblFileLcl,'-struct','s','-append');
+%         fprintf('Reusing cached lbl file %s\n',dlLblFileLcl);
+%       else
+%         s = obj.trnCreateStrippedLbl('ppdata',ppdata,'sPrmAll',sPrmAll);
+%         ID = datestr(now,'yyyymmddTHHMMSS');
+%         dataAugDir = fullfile(cacheDir,'DataAug',ID);
+%         if ~exist(dataAugDir,'dir'),
+%           [succ,emsg] = mkdir(dataAugDir);
+%           if ~succ
+%             error('Failed to create dir %s: %s',dataAugDir,emsg);
+%           end
+%         end
+%         % Write stripped lblfile to local cache
+%         dlLblFileLcl = fullfile(dataAugDir,'dataaug.lbl');
+%         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
+%       end
+%       
+%       errfile = fullfile(dataAugDir,'dataaug.err');
+%       outfile = fullfile(dataAugDir,'dataaug');
+%       
+%       switch backEnd.type
+%         case DLBackEnd.Bsub
+%           aptroot = backEnd.bsubSetRootUpdateRepo(cacheDir,'copyptw',false);          
+%         case DLBackEnd.Docker
+%         case DLBackEnd.Conda
+%       end
+%       
+%       switch backEnd.type
+%         case {DLBackEnd.Bsub DLBackEnd.Docker}
+%           mntPaths = obj.genContainerMountPathBsubDocker(backEnd);
+%         case DLBackEnd.Conda
+%       end
+%       
+%       switch backEnd.type
+%         case DLBackEnd.Bsub
+%           singArgs = {'bindpath',mntPaths};
+%           syscmd = DeepTracker.dataAugCodeGenSSHBsubSing(...
+%             ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,obj.trnNetMode,...
+%             outfile,'singArgs',singArgs);
+%         case DLBackEnd.Docker
+%           dockerargs = {'detach',false};
+%           [syscmd] = ...
+%             DeepTracker.dataAugCodeGenDocker(backEnd,...
+%             ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,outfile,...
+%             'mntPaths',mntPaths,'dockerargs',dockerargs);
+%         case DLBackEnd.Conda
+%           error('Not implemented'); % TODO
+%         otherwise
+%           assert(false);
+%       end
+%       
+%       if backEnd.type==DLBackEnd.Docker,
+%         
+%         fprintf(1,'%s\n',syscmd);
+%         [st,res] = system(syscmd);
+%         
+%         tfsucc = (st == 0) && ~isempty(regexp(res,'Augmented data saved to','once'));
+%         if tfsucc,
+%           [tfsucc,augims] = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+%           if ~tfsucc,
+%             error('Error loading augmented data');
+%           end
+%         else
+%           error('Error creating sample augmented images:\n%s',res);
+%         end
+%         
+%       else
+%         
+%         fprintf(1,'%s\n',syscmd);
+%         [st,res] = system(syscmd);
+%         if st==0,
+%           PAT = 'Job <(?<jobid>[0-9]+)>';
+%           stoks = regexp(res,PAT,'names');
+%           if ~isempty(stoks),
+%             jobid = str2double(stoks.jobid);
+%             
+%             cmd =  @() DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+%             nout = 1;
+%             maxWaitTime = 60; % seconds
+%             [tfsucc,augims] = DeepTracker.waitForBsubComplete(jobid,cmd,nout,maxWaitTime,true);
+%             if ~tfsucc,
+%               error('Data augmentation did not complete within %d seconds',maxWaitTime);
+%             end
+%             augims = augims{1};
+%           else
+%             error('Failed to ascertain jobID.');
+%           end
+%         else
+%           error('Error creating sample augmented images:\n%s',res);
+%         end
+%       end
+%       
+%     end
     
     function paths = genContainerMountPathBsubDocker(obj,backend,cmdtype,jobinfo,varargin)
       
@@ -1848,19 +1863,14 @@ classdef DeepTracker < LabelTracker
             %tfafgt = lObj.trxFilesAllGTFull;
           end
         else
-          global KBDEBUG;
-          if KBDEBUG,
-            projbps = jobinfo.getMovfiles();
-            projbps = projbps(:);
-            if lObj.hasTrx,
-              trxfiles = jobinfo.getTrxfiles();
-              trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
-              if ~isempty(trxfiles),
-                projbps = [projbps;trxfiles(:)];
-              end
+          projbps = jobinfo.getMovfiles();
+          projbps = projbps(:);
+          if lObj.hasTrx,
+            trxfiles = jobinfo.getTrxfiles();
+            trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
+            if ~isempty(trxfiles),
+              projbps = [projbps;trxfiles(:)];
             end
-          else
-            projbps = jobinfo;
           end
         end
         
@@ -1974,6 +1984,7 @@ classdef DeepTracker < LabelTracker
   %% AWS Trainer    
   methods
       
+    % not maintained/obsolete
     function trnSpawnAWS(obj,backend,trnType,modelChainID,varargin)
       %
       % backend: scalar DLBackEndClass
@@ -2149,6 +2160,7 @@ classdef DeepTracker < LabelTracker
         'computeOnly',true);
     end
         
+    % we should no longer be making stripped lbl files
     function s = trnCreateStrippedLbl(obj,varargin)
       % 
       % - Mutates .trnTblP
@@ -2345,7 +2357,7 @@ classdef DeepTracker < LabelTracker
       
       obj.bgTrnReset();      
 
-      % see trnSpawnBsubDocker
+      % see trnSpawn
       
       nvw = obj.lObj.nview;
       isMultiViewTrain = false;
@@ -4585,9 +4597,9 @@ classdef DeepTracker < LabelTracker
           obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
         end
       else
-        %obj.newLabelerFrame();
+        obj.newLabelerFrame(); % not sure what this does... 
+        %obj.lObj.setFrame(curfr); % this should result in call to .newLabelerFrame();
         sel = tv.iTrx2iTrxViz(active);
-        obj.lObj.setFrame(curfr); % this should result in call to .newLabelerFrame();
       end
 
       tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)

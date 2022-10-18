@@ -2548,7 +2548,7 @@ classdef Labeler < handle
               if dmc.isRemote
                 warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
               else
-                dmc.copyModelFiles(projtempdir,true);
+                dmc.copyModelFiles(obj.projTempDir,true);
               end
             catch ME
               warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
@@ -3844,12 +3844,17 @@ classdef Labeler < handle
       s.trkResViz = cell(0,1);
     end
     
-    function data = stcLoadLblFile(fname)
+    function [data,tname] = stcLoadLblFile(fname,dodelete)
+      if nargin < 2,
+        dodelete = true;
+      end
       tname = tempname;
       try
         untar(fname,tname);
         data = load(fullfile(tname,'label_file.lbl'),'-mat');
-        rmdir(tname,'s');
+        if dodelete,
+          rmdir(tname,'s');
+        end
       catch ME,
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile'),
           data = load(fname,'-mat');
@@ -3857,6 +3862,14 @@ classdef Labeler < handle
           throw(ME);
         end
       end
+    end
+
+    function stcSaveLblFile(data,tardir,outname)
+
+      save(fullfile(tardir,'label_file.lbl'),'-struct','data','-mat');
+      tar([outname,'.tar'],'*',tardir);
+      movefile([outname,'.tar'],outname);
+
     end
 
   end 

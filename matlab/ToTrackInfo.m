@@ -1324,8 +1324,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         idx = tblMFT.mov==mov;
         frm0(i) = min(tblMFT.frm(idx));
         frm1(i) = max(tblMFT.frm(idx));
-        trxids{i} = unique(tblMFT.iTgt(idx));
-        nextra(i) = (frm1(i)-frm0(i)+1)*numel(trxids{i}) - nnz(idx);
+        trxids{i} = unique(tblMFT.iTgt(idx&~isnan(tblMFT.iTgt)));
+        if isempty(trxids{i}),
+          ntgts = 1;
+        else
+          ntgts = numel(trxids{i});
+        end
+        nextra(i) = (frm1(i)-frm0(i)+1)*ntgts - nnz(idx);
       end
 
     end

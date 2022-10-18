@@ -280,7 +280,7 @@ classdef APTInterf
         if totrackinfo.hasTrxfiles,
           code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.trxfiles(movidx,:),filequote)}];
         elseif nstages > 1,
-          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.stage2trkfiles{1},filequote)}];
+          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getTrkfiles('stage',1),filequote)}];
         end
         if totrackinfo.hasTrxids,
           for i = 1:numel(totrackinfo.trxids(movidx)),

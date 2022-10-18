@@ -57,7 +57,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     % ```
     % to the file `APT/Manifest.txt`.
     % When the `DeepModelChainOnDisk` for a train/track job is defined,
-    % e.g. within `DeepTracker.trnSpawnBsubDocker`, `rootDir` is set. We
+    % e.g. within `DeepTracker.trnSpawn, `rootDir` is set. We
     % should probably encapsulate this code so that it is not copy-pasted
     % all over given that it is done very similarly everywhere.   
     % Example: `/groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5`
