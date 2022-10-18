@@ -267,6 +267,7 @@ class config(object):
         self.link_id_min_train_track_len = 10
         self.link_id_keep_all_preds = False
         self.link_id_batch_size = 16
+        self.link_id_ignore_far = False
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
