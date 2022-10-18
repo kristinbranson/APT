@@ -1372,6 +1372,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       iter = str2double(iter{1});
       
     end
+    function view = getModelFileView(filename)
+
+      view = regexp(filename,'view_(\d+)','once','tokens');
+      if isempty(view),
+        view = 0;
+        return;
+      end
+      view = str2double(view{1});
+
+    end
     function mcId = modelChainIDForSplit(mcIdBase,isplit)
       mcId = sprintf('%s_splt_%03d',mcIdBase,isplit);
     end

@@ -2716,7 +2716,7 @@ classdef DeepTracker < LabelTracker
     % - When tracking is done for all views, we stop the bgMonitor and we
     % are done.
     
-    function trackNew(obj,varargin)
+    function track(obj,varargin)
 
        if obj.bgTrkIsRunning
         error('Tracking is already in progress.');
@@ -2863,359 +2863,12 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-      tfSuccess = obj.trkSpawnNew(totrackinfo,backend,'do_linking',do_linking);
+      tfSuccess = obj.trkSpawn(totrackinfo,backend,'do_linking',do_linking);
       if ~tfSuccess,
         obj.bgTrkReset();
         return;
       end
 
-
-    end
-
-    function track(obj,tblMFT,varargin)
-      % Apply trained tracker to the specified frames.
-      % 
-      % tblMFT: MFTable with cols MFTable.FLDSID
-      
-      if obj.bgTrkIsRunning
-        error('Tracking is already in progress.');
-      end
-      if obj.bgTrnIsRunning && obj.lObj.trackDLBackEnd.type==DLBackEnd.AWS
-        % second clause is really, "only have 1 GPU avail"
-        % AWS, currently we are testing with p2.xlarge and p3.2xlarge which
-        % are single-GPU EC2 instances. multi-GPU instances are avail
-        % however.
-        error('Tracking while training is in progress is currently unsupported on AWS.');
-      end
-      
-      isexternal = iscell(tblMFT);
-
-      % check training & tracking parameters
-      sPrmLabeler = obj.lObj.trackGetParams();
-      sPrmSet = obj.massageParamsIfNec(sPrmLabeler);
-      [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-          obj.didParamsChange(sPrmSet); %#ok<ASGLU> 
-      if tfCommonChanged || tfPreProcChanged || tfSpecificChanged
-        warningNoTrace('Deep Learning parameters have changed since your last retrain.');
-        % Keep it simple for now. Note training might be in progress but
-        % even if not etc.
-      end
-      
-      obj.setPostProcParams(sPrmSet);
-      % Specifically allow/support case where tfPostProcChanged is true
-      % to enable turning off/on postproc or trying diff pp algos with a 
-      % given trained tracker   
-      
-      obj.bgTrkReset();
-      do_linking = myparse_nocheck(varargin,'do_linking',true);
-        
-      % track an external movie. See trackGPUAllocate for supported
-      % tracking modalities.
-      if isexternal
-        movfiles = tblMFT;
-        % cropRois: if tfexternal, cell array of [nviewx4]
-        [trxfiles,trkfiles,f0,f1,cropRois,targets,iview,...
-          calibrationfiles,calibrationdata] = myparse(varargin,...
-          'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{},...
-          'iview',nan,... % used only if tfSerialMultiMov; CURRENTLY UNSUPPORTED
-          'calibrationfiles',{},...
-          'calibrationdata',{}...
-          );
-        assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
-        [nmovies,nviews] = size(movfiles); 
-        
-        if obj.lObj.hasTrx,
-          assert(all(size(trxfiles)==size(movfiles)),...
-            'Trx files must be input and size(trxfiles) must match size(movfiles).');
-        end
-        if ~isequal(size(trkfiles),size(movfiles))
-          error('Output trkfile array must have exactly the same size as input movie array.');
-        end
-
-        if isempty(cropRois),
-          % Note this format differs from ~isexternal branch
-          cropRois = repmat({[]},nmovies,1);
-        end
-        
-        tfdefaulttgts = false;
-        if isempty(targets),
-          targets = repmat({[]},[nmovies,1]);
-          tfdefaulttgts = true;
-        end
-        
-        trkfilesexist = cellfun(@exist,trkfiles);
-        if any(trkfilesexist(:)),
-          trkfilesdelete = trkfiles(trkfilesexist>0);
-          trkfilesdelete = trkfilesdelete(:);
-          ndel = numel(trkfilesdelete);
-          MAXTRKFILESDEL = 8;
-          if ndel <= MAXTRKFILESDEL
-            qstr = [{'The following output trk files already exist. Delete them?'};trkfilesdelete];
-          else
-            qstr = sprintf('The following output trk files (%d total) already exist. Delete them?',ndel);
-            qstr = [{qstr}; trkfilesdelete(1:MAXTRKFILESDEL); {'...<snip>...'}];
-          end
-          res = questdlg(qstr,'Delete existing trk files?','Delete','Cancel','Cancel');
-          if strcmpi(res,'Delete'),
-            for i = 1:numel(trkfilesdelete),
-              delete(trkfilesdelete{i});
-            end
-          else
-            return;
-          end
-        end
-
-        % KB 20200504 Now supported!!
-%         if obj.lObj.nview>1 && ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
-%           msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. ';
-%           uiwait(msgbox(msg,'3D Reconciliation','modal'));
-%         end
-      end
-      
-      if ~isexternal && isempty(tblMFT)
-        warningNoTrace('Nothing to track.');
-        return;
-      end
-      
-      if obj.bgTrnIsRunning,
-        assert(obj.lObj.trackDLBackEnd.type~=DLBackEnd.AWS);
-        obj.updateLastDMCsCurrInfo();
-        iterCurr = obj.trnLastDMC.iterCurr;
-        iterCurr(isnan(iterCurr)) = 0;
-        if min(iterCurr) == 0,
-          % AL updated msg to be palatable for both single and multi-views
-          % (in the latter case you may have a tracker for one view but not
-          % another)
-          warndlg('Training in progress, and in-progress tracker(s) has not been saved yet. Please wait to track.','Tracker not ready','modal'); 
-          return;
-        end
-        res = questdlg(sprintf('Training in progress. Tracking will use in-progress tracker, which has been trained for %s iterations. When training completes, these frames will need to be retracked. Continue?',...
-          DeepTracker.printIter(iterCurr,obj.trnLastDMC.iterFinal)),'Use in-progress tracker?','Track','Cancel','Track');
-        if strcmpi(res,'Cancel'),
-          return;
-        end
-      end
-                    
-      % check trained tracker
-      if isempty(obj.trnName)
-        error('No trained tracker found.');
-      end
-
-      dmc = obj.trnLastDMC;
-      backend = obj.lObj.trackDLBackEnd;
-
-      if backend.type==DLBackEnd.AWS
-        setStatusFcn = @(varargin)obj.lObj.SetStatus(varargin{:});
-        backend.awsPretrack(dmc,setStatusFcn);
-      end
-      
-      obj.updateTrackerInfo();
-      
-      % are there tracking results from previous trackers? TODO This can be
-      % moved under bgTrnIsRunning at some point, but right now there can
-      % be mixed up tracking results, so let's always check. 
-      if ~isexternal,
-        isCurr = obj.checkTrackingResultsCurrent();
-        if ~isCurr,
-          
-          if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
-            res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Cancel','Delete');
-            if strcmpi(res,'Cancel'),
-              return;
-            end
-            if strcmpi(res,'Retrack'),
-              tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
-              ism = ismember(tblMFTRetrack,tblMFT);
-              tblMFT = [tblMFT;tblMFTRetrack(~ism,:)];
-            end
-          end
-          obj.cleanOutOfDateTrackingResults(isCurr);
-        end
-
-        % figure out what to track
-        tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true,'aliveonly',true);
-        tblMFT0 = tblMFT;
-        if obj.lObj.maIsMA
-          % 20210930: turn off creation of discontiguous tblMFT's.
-          % - list_file codepath may be non-operational in MA
-          % - conceptually difficult due to stitching etc
-          % tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked,'flds',{'mov' 'frm'});
-
-          tblMFT.iTgt(:) = 1;
-        else
-          tblMFT = MFTable.tblDiff(tblMFT0,tblMFTTracked);
-        end
-        if isempty(tblMFT),
-          msgbox(sprintf('All %d frames previously tracked',size(tblMFT0,1)),'Tracking done');
-          return;
-        end
-        
-        tblMFT = MFTable.sortCanonical(tblMFT);
-        mIdx = unique(tblMFT.mov);
-        if ~isscalar(mIdx)
-          error('Tracking only single movies is currently supported.');
-        end
-        tMFTConc = obj.lObj.mftTableConcretizeMov(tblMFT);
-        
-        fprintf(1,'\n');
-        
-        tftrx = obj.lObj.hasTrx;
-        if tftrx % can prob do away with this conditional
-          f0 = min(tblMFT.frm);
-          f1 = max(tblMFT.frm);
-          % More complex version of warning below would apply
-        else
-          f0 = tblMFT.frm(1);
-          f1 = tblMFT.frm(end);
-%           if ~isequal((f0:f1)',tblMFT.frm)
-%             warningNoTrace('Tracking additional frames to form continuous sequence.');
-%           end
-        end
-               
-        if obj.lObj.cropProjHasCrops
-          assert(~tftrx);
-          cropInfo = obj.lObj.getMovieFilesAllCropInfoMovIdx(mIdx);
-          cropRois = cat(1,cropInfo.roi);
-        else
-          cropRois = [];
-        end        
-      end
-
-      tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
-      if tfHeatMap
-        hmapArgs = {'hmaps' true};
-      else
-        hmapArgs = {};
-      end
-      hmapArgs = [hmapArgs 'do_linking' do_linking];
-      
-      % Could check here that for local dmcs, dmc.rootDir matches
-      % obj.lObj.DLCacheDir (as in canTrack()). However the assertion that
-      % the local config file exists probably suffices
-      
-      dmcLcl = dmc.copy();
-      dmcLcl.setRootDir(obj.lObj.DLCacheDir);
-      dlConfigLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.trainConfigLnx);
-      assert(exist(dlConfigLcl,'file')>0);
-      
-      switch backend.type
-        case DLBackEnd.Bsub,
-          if isexternal,
-            args = {};
-            if obj.lObj.hasTrx,
-              args = {'trxfiles',trxfiles,'targets',targets};
-            end
-            % this is not going to work for multiple movies. TODO: fix
-            tfSuccess = obj.trkSpawn(backend,[],[],...
-              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,...
-              'calibrationfiles',calibrationfiles,args{:});
-          else
-            tfSuccess = obj.trkSpawn(backend,mIdx,tMFTConc,...
-              cropRois,hmapArgs,f0,f1);
-          end
-          if ~tfSuccess,
-            obj.bgTrkReset();
-            return;
-          end
-          
-        case {DLBackEnd.Docker,DLBackEnd.Conda},
-
-          isMultiViewTrack = false;
-          isSerialMultiMovTrack = false;
-          if isexternal,
-            % TODO: see docker track other branch below
-            gpuidsall = backend.getFreeGPUs(nmovies*nviews);
-            if isempty(gpuidsall),
-              warning('No GPUs available with sufficient RAM available. Tracking using CPU which will be SLOW');
-            end
-            
-            [gpuids,isMultiViewTrack,isSerialMultiMovTrack] = ...
-                        DeepTracker.trackGPUAllocate(nmovies,nviews,gpuidsall);
-            
-            if isSerialMultiMovTrack && tfdefaulttgts
-              targets = []; % otherwise default val is a [nmovset] cell array
-            end
-          else
-            if obj.trkDockerCPU
-              gpuids = [];
-              isMultiViewTrack = true;
-            else
-              gpuids = backend.getFreeGPUs(obj.lObj.nview);
-              if isempty(gpuids)
-                warning('No GPUs found with sufficient RAM. Tracking on CPU. This might be SLOW.')
-                % On linux, we couldn't find GPUs
-                % On win, .getFreeGPUs probably didn't play well with Docker
-                % on Windows (ie didnt do the intended query) but anyway we
-                % currently don't support GPU tracking on this codepath
-
-                % don't ask, just do it
-                btn = 'Yes';
-%                 if ispc
-%                   qstr = 'GPU tracking on Windows currently unsupported. Perform tracking on CPU?';
-%                 else
-%                   qstr = 'No GPUs available with sufficient RAM locally. Perform tracking on CPU?';
-%                 end
-%                 tstr = 'GPU Tracking Unavailable';
-%                 btn = questdlg(qstr,tstr,'Yes','No/Cancel','Yes');
-%                 if isempty(btn)
-%                   btn = 'No/Cancel';
-%                 end
-                switch btn
-                  case 'Yes'
-                    isMultiViewTrack = true;
-                  case 'No/Cancel'
-                    %warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
-                    return;
-                end
-              elseif numel(gpuids) < obj.lObj.nview,
-                isMultiViewTrack = true;
-              else
-                isMultiViewTrack = false;
-              end
-            end
-          end
-          
-          args = {'isMultiView',isMultiViewTrack,...
-                  'isSerialMultiMov',isSerialMultiMovTrack};
-          if isempty(gpuids)
-            args = [args {'isgpu' false}];
-          end
-          
-          if isexternal,
-            if obj.lObj.hasTrx,
-              args = [args,{'trxfiles',trxfiles,'targets',targets}];
-            end
-            tfSuccess = obj.trkSpawn(backend,[],[],...
-              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,...
-              'trkfiles',trkfiles,'calibrationfiles',calibrationfiles,...
-              'gpuids',gpuids,args{:});
-          else
-            tfSuccess = obj.trkSpawn(backend,mIdx,tMFTConc,...
-              cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});
-          end
-          if ~tfSuccess,
-            obj.bgTrkReset();
-            return;
-          end
-
-        case DLBackEnd.AWS
-          % TODO: AWS gpu provisioning
-          %args = {'isMultiView',isMultiViewTrack,'isSerialMultiMov',true};
-          if isexternal,
-            args = {};
-            if obj.lObj.hasTrx,
-              args = [args,{'trxfiles',trxfiles,'targets',targets}];
-            end
-            tfSuccess = obj.trkSpawn(backend,[],[],...
-              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,...
-              'calibrationfiles',calibrationfiles,args{:});
-          else
-            obj.trkSpawn(backend,mIdx,tMFTConc,...
-              cropRois,hmapArgs,f0,f1,'isMultiView',true);
-          end
-        otherwise
-          assert(false);
-      end
     end
     
     % AL20191220 GT classification
@@ -3789,7 +3442,7 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = true;      
     end
     
-    function tfSuccess = trkSpawnNew(obj,totrackinfo,backend,varargin)
+    function tfSuccess = trkSpawn(obj,totrackinfo,backend,varargin)
 
       tfSuccess = false;
       [do_linking] = myparse(varargin,'do_linking',true);
@@ -3822,7 +3475,7 @@ classdef DeepTracker < LabelTracker
         totrackinfojob.setJobid(id);
         totrackinfojob.setDefaultFiles();
 
-        basecmd = APTInterf.trackCodeGenBaseNew(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_linking',do_linking);
+        basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_linking',do_linking);
         backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),totrackinfojob,aptroot,'track');
         syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile);
@@ -3884,432 +3537,6 @@ classdef DeepTracker < LabelTracker
       obj.trkSysInfo = totrackinfojobs;
     end
 
-    function tfSuccess = trkSpawn(obj,backend,mIdx,tMFTConc,...
-        cropRois,baseArgs,frm0,frm1,varargin)
-      % cropRois: if isexternal, [nmovset] cell of rois; 
-      %           each el is either [] or [nTotalView 4]
-      
-      tfSuccess = false;
-      
-      nView = obj.lObj.nview;
-      [movs,trxfiles,trxids,trkfiles,calibrationfiles,isgpu,gpuids,isMultiView,...
-        isSerialMultiMov,viewSerialMultiMovs] = ...
-        myparse(varargin,...
-        'movfiles',{},...
-        'trxfiles',{},...% used when tfexternal. Either {}, or a 
-                      ...% [nmovie x nview] cell array (right now 
-                      ...% multiview+trx projs unsupported generally in APT though.)
-        'targets',[],... % used when tfexternal. trxids to track. Either
-                     ... % [], a [ntargets] vector, or a [nmovie] cell array 
-        'trkfiles',{},... 
-        'calibrationfiles',{},... % cell array with one entry per movie, empty if no calibration
-        'isgpu',true,...
-        'gpuids',[],... % optional, but if supplied, precisely the right 
-                    ... % number of gpus must be specified ie nMovJobs*nViewJobs
-        'isMultiView',false,...
-        'isSerialMultiMov',false,... % track external movies serially with a 
-                                 ... % single DL call. if true, must have 
-                                 ... % (tfexternal && ~isMultiView)
-        'iviewSerialMultiMov',1:nView ... % used if isSerialMultiMov=true. view index (1b) to track
-        );
-      
-      isexternal = ~isempty(movs);
-
-      tftrx = obj.lObj.hasTrx;
-      
-      if isexternal,
-        nMovies = size(movs,1);
-      else
-        nMovies = 1;
-      end
-      
-      % whether we are tracking multiple views in the same job
-      if isMultiView,
-        nViewJobs = 1; % single job will track all views
-      else
-        nViewJobs = nView; % one job per view
-      end
-      
-      if isexternal
-        % "defaults"
-        if isSerialMultiMov
-          %assert(isnumeric(trxids)); % applies to all movies
-        else
-          % Conceptually trxids applies to all views
-          if isempty(trxids)
-            trxids = cell(nMovies,1);
-          else
-            assert(iscell(trxids) && numel(trxids)==nMovies);
-          end         
-        end
-        if tftrx
-          % Note APT only supports single-view with trx
-          szassert(trxfiles,[nMovies nView]);
-        else
-          trxfiles = cell(nMovies,nView);
-        end
-      end
-      
-      cacheDir = obj.lObj.DLCacheDir;
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
-      
-      % see CodeGen comment below, maybe dont need to massage baseArgs here
-      switch backend.type
-        case DLBackEnd.Bsub
-          aptroot = backend.bsubSetRootUpdateRepo(cacheDir); % ptw shouldnt be nec but ok
-          baseArgs = [baseArgs {'deepnetroot' [aptroot '/deepnet']}];
-        case DLBackEnd.Docker
-        case DLBackEnd.Conda
-          baseArgs = [baseArgs,{'filesep',obj.filesep}];
-      end
-      
-      %clear trksysinfo;
-  
-      % Maps to track2/stages 2-3, generation/customization of
-      % trksysinfo/TrackJob
-      if isSerialMultiMov
-        assert(isexternal && ~isMultiView);
-        for ivwjob = 1:numel(viewSerialMultiMovs),
-          ivw = viewSerialMultiMovs(ivwjob);
-          id = sprintf('%s_%dmovs_vw%d',nowstr,nMovies,ivw);
-%           if ~isempty(trxids)
-%             assert(isnumeric(trxids));
-%           end
-%           if ~isempty(frm0) || ~isempty(frm1),
-%             if ~(isscalar(frm0) && isscalar(frm1))
-%               error('''frm0'' and ''frm1'' specifications should be scalars that apply to all movies when tracking multiple movies serially.');
-%             end
-%           end
-          % this is dumb; cropRoi format conversion
-          if ~isempty(cropRois),%obj.lObj.cropProjHasCrops
-            cropRois_curr = nan(nMovies,4);
-            for imv = 1:nMovies,
-              if size(cropRois{imv},1) >= ivw,
-                cropRois_curr(imv,:) = cropRois{imv}(ivw,:);
-              end
-            end
-            %           assert(nView==1);
-            %           cropRois = cat(1,cropRois{:}); % size check done in TrackJob
-          else
-            assert(all(cellfun(@(x) isempty(x) || all(isnan(x)),cropRois)));
-            cropRois_curr = [];
-          end
-          movs_curr = movs(:,ivw);
-          if ~isempty(trxfiles),
-            trxfiles_curr = trxfiles(:,ivw);
-          else
-            trxfiles_curr = {};
-          end
-          trkfiles_curr = trkfiles(:,ivw);
-          trksysinfo(1,ivwjob) = TrackJob(obj,backend,...
-            'targets',trxids,...
-            'frm0',frm0,...
-            'frm1',frm1,...
-            'cropRoi',cropRois_curr,...
-            'movfileLcl',movs_curr,...
-            'trxfileLcl',trxfiles_curr,...
-            'trkfileLcl',trkfiles_curr,...
-            'calibrationfileLcl',calibrationfiles,...
-            'isMultiView',isMultiView,...
-            'isSerialMultiMov',true,...
-            'ivw',ivw,...
-            'rootdirLcl',cacheDir,...
-            'nowstr',id); %#ok<AGROW> % HERE
-          trksysinfo(1,ivwjob).prepareFiles();
-          obj.trkCreateConfig(trksysinfo(1,ivwjob).configfile);
-          fprintf('View %d: %d trkfiles to be written, first to %s\n',...
-            ivw,numel(trkfiles_curr),trksysinfo(1,ivwjob).trkfileLcl{1});
-        end
-        
-        baseArgs = [baseArgs,{'serialmode' true}]; 
-        % see CodeGen comment below, maybe dont need to massage baseArgs here
-
-      else
-        for imov = 1:nMovies,
-          for ivwjob = 1:nViewJobs,
-            
-            if isMultiView,
-              ivw = 1:nView;
-            else
-              ivw = ivwjob;
-            end
-            id = sprintf('%s_mov%d_vwj%d',nowstr,imov,ivwjob);
-            if isempty(frm0) && isempty(frm1),
-              frm0curr = 1;
-              frm1curr = inf;
-            elseif isscalar(frm0) && isscalar(frm1)
-              % scalar expand. could allow one empty
-              frm0curr = frm0;
-              frm1curr = frm1;
-            else
-              frm0curr = frm0(imov);
-              frm1curr = frm1(imov);
-            end
-            
-            if isempty(calibrationfiles),
-              calibrationfile_curr = '';
-            else
-              calibrationfile_curr = calibrationfiles{imov};
-            end
-            
-            if isexternal,
-              if isnumeric(trxids)
-                % scalar expand
-                trxidscurr = trxids;
-              else
-                trxidscurr = trxids{imov};
-              end
-              % for whatever reason, cropRoi is indexed by view within
-              % TrackJob, but rest of arguments are not
-              
-              trksysinfo(imov,ivwjob) = TrackJob(obj,backend,...
-                'targets',trxidscurr,...
-                'frm0',frm0curr,...
-                'frm1',frm1curr,...
-                'cropRoi',cropRois{imov},... 
-                'movfileLcl',movs(imov,ivw),...
-                'trxfileLcl',trxfiles(imov,ivw),...
-                'trkfileLcl',trkfiles(imov,ivw),...
-                'calibrationfileLcl',calibrationfile_curr,...
-                'isMultiView',isMultiView,...
-                'ivw',ivw,...
-                'rootdirLcl',cacheDir,...
-                'nowstr',id); %#ok<AGROW>
-            else
-              trksysinfo(imov,ivwjob) = TrackJob(obj,backend,...
-                'targets',trxids,...
-                'frm0',frm0,...
-                'frm1',frm1,...
-                'cropRoi',cropRois,...
-                'tMFTConc',tMFTConc,...
-                'isMultiView',isMultiView,...
-                'ivw',ivw,...
-                'rootdirLcl',cacheDir,...
-                'nowstr',id); %#ok<AGROW>
-            end
-            
-            trksysinfo(imov,ivwjob).prepareFiles();
-            
-            tj = trksysinfo(imov,ivwjob);
-
-            % create track json file
-            obj.trkCreateConfig(tj.configfile);
-
-            for i = 1:numel(tj.trkfileLcl),
-              if tj.tf2stg
-                stgstr = 'Stage';
-                istg = i;
-              else
-                stgstr = 'View';
-                istg = tj.ivw(i);
-              end              
-              fprintf('%s %d: trkfile will be written to %s\n',...
-                stgstr,istg,tj.trkfileLcl{i});
-            end
-          end
-        end
-      end
-      
-      % Maps to track2/stage 4, codegen
-      nMovJobs = size(trksysinfo,1); % might be 1 with multiple movies if isSerialMultiMov
-      assert(size(trksysinfo,2)==nViewJobs);
-      if ~isempty(gpuids)
-        assert(numel(gpuids) == nMovJobs*nViewJobs);
-        gpuids = reshape(gpuids,[nMovJobs,nViewJobs]);
-      end
-      % Each trksysinfo(imovjob,ivwjob) represents one job that will be run 
-      % on a single GPU
-      % AL: CodeGen is probably fully determined by a TrackJob+BackEnd?
-      % If so maybe details, need to specify baseArgs etc dont need to be 
-      % here
-      for ijob = 1:nMovJobs,
-        for ivwjob = 1:nViewJobs,
-          switch backend.type
-            case DLBackEnd.Bsub
-              bsubargs = {'nslots' obj.jrcnslotstrack 'gpuqueue' obj.jrcgpuqueue};
-
-              % make sure movie to be tracked is on path
-              extradirs = trksysinfo(ijob,ivwjob).getMountDirs();
-              singBind = obj.genContainerMountPathBsubDocker(backend,'extra',extradirs); % HERE
-              singargs = {'bindpath',singBind};
-              
-              repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
-              repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ijob,ivwjob).snapshotfile);
-              prefix = [backend.jrcprefix '; ' repoSScmd];
-              %sshargs = {'logfile' outfile2};
-              sshargs = {'prefix' prefix};
-              
-              trksysinfo(ijob,ivwjob).setCodeStr(...
-                'bsubargs',bsubargs,'sshargs',sshargs,...
-                'baseargs',baseArgs,'singargs',singargs);
-              
-            case DLBackEnd.Docker
-              % make sure movie to be tracked is on path
-              extradirs = trksysinfo(ijob,ivwjob).getMountDirs();
-              singBind = obj.genContainerMountPathBsubDocker(backend,'extra',extradirs);
-              if isgpu
-                dockerargs = {};
-                if isempty(gpuids),
-                  % none
-                else
-                  dockerargs = [dockerargs {'gpuid',gpuids(ijob,ivwjob)}]; %#ok<AGROW>
-                end
-              else
-                dockerargs = {'isgpu' false}; % 'dockerimg' 'bransonlabapt/apt_docker:latest_cpu'}; MK 20220411 We don't need a separate CPU image anymore
-              end
-              useLogFlag = ispc;
-              
-              trksysinfo(ijob,ivwjob).setCodeStr('baseargs',baseArgs,...
-                'dockerargs',dockerargs,'mntpaths',singBind,'useLogFlag',useLogFlag);
-              
-              if useLogFlag
-                trksysinfo(ijob,ivwjob).logcmd = []; 
-              else
-                trksysinfo(ijob,ivwjob).logcmd = sprintf('%s logs -f %s &> "%s" &',...
-                  backend.dockercmd,trksysinfo(ijob,ivwjob).containerName,...
-                  trksysinfo(ijob,ivwjob).logfile); 
-              end
-              
-            case DLBackEnd.AWS,
-              
-              trksysinfo(ijob,ivwjob).setCodeStr('baseargs',baseArgs);
-              
-            case DLBackEnd.Conda
-              condaargs = {'condaEnv',obj.condaEnv};
-              if ~isempty(gpuids),
-                condaargs(end+1:end+2) = {'gpuid',gpuids(ijob,ivwjob)};
-              end
-              trksysinfo(ijob,ivwjob).setCodeStr('baseargs',baseArgs,...
-                'condaargs',condaargs);
-              
-            otherwise
-              error('Not implemented back end %s',backend.type);
-          end
-        end
-      end
-      
-      % Maps to track2/stage5 early return
-      if obj.dryRunOnly
-        arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
-          trksysinfo);
-        tfSuccess = true;
-        return;
-      end
-      % start track monitor
-      assert(isempty(obj.bgTrkMonitor));
-      
-      % Maps to track2/stage6, bg monitor config/launch
-      % The philosophy is currently, there is a single monitor for all
-      % tracking jobs. 
-%       logfiles = reshape({trksysinfo.logfile},size(trksysinfo));
-%       errfiles = reshape({trksysinfo.errfile},size(trksysinfo));
-%       if isMultiView,
-%         assert(~isSerialMultiMov);
-%         outfiles = reshape(cat(1,trksysinfo.trkfileRem),[nMovies,nView]);
-%         partfiles = reshape(cat(1,trksysinfo.parttrkfileRem),[nMovies,nView]);
-%         movfiles = reshape(cat(1,trksysinfo.movfileLcl),[nMovies,nView]);
-%       elseif isSerialMultiMov
-%         outfiles = cell(nMovies,numel(trksysinfo));
-%         partfiles = cell(nMovies,numel(trksysinfo));
-%         movfiles = cell(nMovies,numel(trksysinfo));
-%         for ivwjob = 1:numel(trksysinfo),
-%           outfiles(:,ivwjob) = trksysinfo(ivwjob).trkfileRem(:);
-%           partfiles(:,ivwjob) = trksysinfo(ivwjob).parttrkfileRem(:);
-%           movfiles(:,ivwjob) = trksysinfo(ivwjob).movfileLcl(:);
-%         end
-%         %assert(nView==1,'Serial tracking supported for single-view only.');
-%       else
-%         outfiles = reshape([trksysinfo.trkfileRem],size(trksysinfo));
-%         partfiles = reshape([trksysinfo.parttrkfileRem],size(trksysinfo));
-%         movfiles = reshape([trksysinfo.movfileLcl],size(trksysinfo));
-%       end
-      [logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
-      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(nView,obj.trnLastDMC,backend);
-      % movfiles is nMovies x nViews
-      bgTrkWorkerObj.initFiles(movfiles,outfiles,logfiles,errfiles,...
-        partfiles,isexternal);
-      
-      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
-      if any(tfErrFileErr)
-        error('There is an existing error in an error file: ''%s''.',...
-          String.cellstr2CommaSepList(errfiles));
-      end
-      
-      bgTrkMonitorObj = BgTrackMonitor;
-      
-      % KB 20190115: adding trkviz
-      nFramesTrack = obj.getNFramesTrack(trksysinfo);
-      nFramesTrackSum = sum(nFramesTrack);
-      if isexternal,        
-        fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
-          numel(nFramesTrack));
-      else
-        fprintf('Requested to track %d frames, through interface will track %d frames.\n',...
-          size(tMFTConc,1),nFramesTrack)
-      end
-      
-      trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk);
-      
-      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
-      % AL partially dups stuff in .trkCompleteCbk
-      
-      %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
-      obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
-      
-      % Maps to track2/stage7, spawn jobs
-      tfSuccess = true;
-      for ijob=1:nMovJobs,
-        for ivwjob=1:nViewJobs,
-          
-          fprintf(1,'%s\n',trksysinfo(ijob,ivwjob).codestr);
-          if backend.type == DLBackEnd.Conda,
-            [job,st,res] = parfevalsystem(trksysinfo(ijob,ivwjob).codestr);
-          else
-            [st,res] = system(trksysinfo(ijob,ivwjob).codestr);
-          end
-          if st==0
-            switch backend.type,
-              case DLBackEnd.Conda,
-                bgTrkWorkerObj.parseJobID(job,ivwjob,ijob);
-              case DLBackEnd.Docker,
-                bgTrkWorkerObj.parseJobID(res,ivwjob,ijob);
-              case DLBackEnd.Bsub,
-                bgTrkWorkerObj.parseJobID(res,ivwjob,ijob);
-              case DLBackEnd.AWS
-                aws = backend.awsec2;
-                pause(5.0); % hack
-                aws.getRemotePythonPID();
-              otherwise
-                error('Not implemented: %s',backend.type);
-            end
-            fprintf('Tracking job (movie %d, job %d) spawned:\n%s\n',ijob,ivwjob,res);
-          else
-            fprintf(2,'Failed to spawn tracking job for movie %d, job %d: %s.\n\n',...
-              ijob,ivwjob,res);
-            tfSuccess = false;
-            return;
-          end
-          switch backend.type,
-            case DLBackEnd.Docker,
-              logcmd = trksysinfo(ijob,ivwjob).logcmd;
-              if ~isempty(logcmd)
-                [st,res] = system(logcmd);
-                if st~=0,
-                  fprintf(2,'Error logging docker job %s: %s\n',...
-                    trksysinfo(ijob,ivwjob).containerName,res);
-                  tfSuccess = false;
-                  return;
-                end
-              end
-          end
-        end
-      end
-      
-      obj.trkSysInfo = trksysinfo;
-    end
-        
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>
       % This returns a [nmovsettrk] array, the number of frames to be
       % tracked in each movieset.
@@ -5710,10 +4937,9 @@ classdef DeepTracker < LabelTracker
       tfsuccess = false;
       isold = false;
       [p,n,e] = fileparts(trkfile);
-      m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_iter(?<iter>\d+)_(?<trk_ts>\d{8}T\d{6}).*$','names','once');
-      if isempty(m),
-        m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_(?<trk_ts>.*)$','names','once');
-        if ~isempty(m),
+      m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>\d{8}T\d{6})_(view)?(?<view>\d+)?_?(iter)?(?<iter>\d+)?_?(?<trk_ts>\d{8}T\d{6}).*$','names','once');
+      if ~isempty(m),
+        if ~isfield(m,'iter')
           fprintf('trkfile %s does not have iteration name in it. parsing trkInfo.model_file to determine...\n',trkfile);
           try
             tmp = load(trkfile,'trkInfo','-mat');
@@ -5726,23 +4952,39 @@ classdef DeepTracker < LabelTracker
             return;
           end
         else
+          m.iter = str2double(m.iter);
+        end
+        if ~isfield(m,'view'),
+          fprintf('trkfile %s does not have view in it. parsing trkInfo.model_file to determine...\n',trkfile);
           try
-            tmp = load(trkfile,'trkInfo','expname','pTrkTS','-mat');
-            m = struct;
-            [~,m.base] = fileparts(tmp.expname);
-            m.trn_ts = tmp.trkInfo.name;
-            iter = DeepModelChainOnDisk.getModelFileIter(char(tmp.trkInfo.model_file));
-            m.iter = iter(1);
-            m.trk_ts = datestr(min(tmp.pTrkTS(:)),'yyyymmddTHHMMSS');
+            tmp = load(trkfile,'trkInfo','-mat');
+            view = DeepModelChainOnDisk.getModelFileView(char(tmp.trkInfo.model_file));
+            m.view = view(1);
+            isold = true;
           catch ME,
-            warning('Could not parse iteration from trkInfo.model_file');
+            warning('Could not parse view from trkInfo.model_file');
             disp(getReport(ME));
             return;
           end
+        else
+          m.view = str2double(m.view);
         end
+          
       else
-        m.iter = str2double(m.iter);
-        isold = false;
+        try
+          tmp = load(trkfile,'trkInfo','expname','pTrkTS','-mat');
+          m = struct;
+          [~,m.base] = fileparts(tmp.expname);
+          m.trn_ts = tmp.trkInfo.name;
+          iter = DeepModelChainOnDisk.getModelFileIter(char(tmp.trkInfo.model_file));
+          m.iter = iter(1);
+          m.trk_ts = datestr(min(tmp.pTrkTS(:)),'yyyymmddTHHMMSS');
+          isold = true;
+        catch ME,
+          warning('Could not parse iteration from trkInfo.model_file');
+          disp(getReport(ME));
+          return;
+        end
       end
       m.path = p;
       m.ext = e;
