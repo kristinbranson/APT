@@ -17,86 +17,60 @@
 
 function trackBatch(varargin)
 
-[lObj,jsonfile,toTrack,lblfile,net,movfiles,trxfiles,trkfiles,loargs] = ...
+[lObj,jsonfile,toTrack,loargs] = ...
   myparse_nocheck(varargin,...
   'lObj',[],... % one of 'lObj' or 'lblfile' must be spec'd
   'jsonfile','',...
-  'toTrack',[],...
-  'lblfile',[],... % args below only apply when 'lblfile' is spec'd
-  'net',[],...  % 'cpr' or char nettype
-  'movfiles',[],... % [nmov] cellstr 
-  'trxfiles',[],... % optional; [nmov] cellstr 
-  'trkfiles',[] ... % [nmov] cellstr
-  );
+  'toTrack',[]);
 
 tfAPTOpen = ~isempty(lObj);
-tfLbl = ~isempty(lblfile);
-if ~xor(tfAPTOpen,tfLbl)
-  error('Exactly one of ''lObj'' or ''lblfile'' must be specified.');
+assert(tfAPTOpen,'Headless tracking not implemented');
+
+if ~isempty(jsonfile),
+  % read what to track from json file
+  [toTrack] = parseToTrackJSON(jsonfile,lObj);
 end
+assert(~isempty(toTrack));
 
-if tfAPTOpen
-  if ~isempty(jsonfile),
-    % read what to track from json file
-    [toTrack] = parseToTrackJSON(jsonfile,lObj);
-  end
-  assert(~isempty(toTrack));
-
-  if iscell(toTrack.f0s),
-    f0s = ones(size(toTrack.f0s));
-    idx = ~cellfun(@isempty,toTrack.f0s);
-    f0s(idx) = cell2mat(toTrack.f0s(idx));
-  else
-    f0s = toTrack.f0s;
-  end
-  if iscell(toTrack.f1s),
-    f1s = inf(size(toTrack.f1s));
-    idx = ~cellfun(@isempty,toTrack.f1s);
-    f1s(idx) = cell2mat(toTrack.f1s(idx));
-  else
-    f1s = toTrack.f1s;
-  end
-  if size(toTrack.cropRois,2) > 1,
-    cropRois = cell(size(toTrack.cropRois,1),1);
-    for i = 1:size(toTrack.cropRois,1),
-      cropRois{i} = cat(1,toTrack.cropRois{i,:});
-    end
-  else
-    cropRois = toTrack.cropRois;
-  end
-  if ~iscell(toTrack.targets) && size(toTrack.movfiles,1) == 1,
-    toTrack.targets = {toTrack.targets};
-  end
-
-
-  % call tracker.track to do the real tracking
-  lObj.tracker.track(toTrack.movfiles,'trxfiles',toTrack.trxfiles,'trkfiles',toTrack.trkfiles,...
-    'cropRois',cropRois,'calibrationfiles',toTrack.calibrationfiles,...
-    'targets',toTrack.targets,'f0',f0s,'f1',f1s); %,'track_id',lObj.track_id);
+if iscell(toTrack.f0s),
+  f0s = ones(size(toTrack.f0s));
+  idx = ~cellfun(@isempty,toTrack.f0s);
+  f0s(idx) = cell2mat(toTrack.f0s(idx));
 else
-  if ~strcmp(net,'cpr')
-    error('Currently only supported for ''net''==''cpr''.');
-  end
-  nmov = numel(movfiles);
-  if ~(iscellstr(movfiles) || isstring(movfiles))
-    error('''movfiles'' must be a string array or cell array of strings.');
-  end
-  if ~isempty(trxfiles)
-    if numel(trxfiles)~=nmov
-      error('''movfiles'' and ''trxfiles'' must have the same number of elements.');
-    end
-    if ~(iscellstr(trxfiles) || isstring(trxfiles))
-      error('''trxfiles'' must be a string array or cell array of strings.');
-    end
-  end
-  if numel(trkfiles)~=nmov
-    error('''movfiles'' and ''trkfiles'' must have the same number of elements.');
-  end
-  if ~(iscellstr(trkfiles) || isstring(trkfiles))
-    error('''trkfiles'' must be a string array or cell array of strings.');
-  end
-  
-  APTCluster(lblfile,'track2',movfiles,trxfiles,trkfiles,loargs{:});
+  f0s = toTrack.f0s;
 end
-  
+if iscell(toTrack.f1s),
+  f1s = inf(size(toTrack.f1s));
+  idx = ~cellfun(@isempty,toTrack.f1s);
+  f1s(idx) = cell2mat(toTrack.f1s(idx));
+else
+  f1s = toTrack.f1s;
+end
+if size(toTrack.cropRois,2) > 1,
+  cropRois = cell(size(toTrack.cropRois,1),1);
+  for i = 1:size(toTrack.cropRois,1),
+    cropRois{i} = cat(1,toTrack.cropRois{i,:});
+  end
+else
+  cropRois = toTrack.cropRois;
+end
+if ~iscell(toTrack.targets) && size(toTrack.movfiles,1) == 1,
+  toTrack.targets = {toTrack.targets};
+end
+do_linking = ~strcmp(toTrack.track_type,'detect');
+
+totrackinfo = ToTrackInfo('movfiles',toTrack.movfiles,...
+  'trxfiles',toTrack.trxfiles,'views',1:lObj.nview,...
+  'stages',1:lObj.tracker.getNumStages(),'croprois',cropRois,...
+  'calibrationfiles',toTrack.calibrationfiles,...
+  'frm0',f0s,'frm1',f1s);
+% to do: figure out how to handle linking option
+
+% call tracker.track to do the real tracking
+lObj.tracker.track('totrackinfo',totrackinfo,'do_linking',do_linking,'isexternal',true,loargs{:});
+
+%   lObj.tracker.track(toTrack.movfiles,'trxfiles',toTrack.trxfiles,'trkfiles',toTrack.trkfiles,...
+%     'cropRois',cropRois,'calibrationfiles',toTrack.calibrationfiles,...
+%     'targets',toTrack.targets,'f0',f0s,'f1',f1s); %,'track_id',lObj.track_id);
+
   

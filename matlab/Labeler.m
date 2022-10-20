@@ -11510,7 +11510,7 @@ classdef Labeler < handle
       totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
         'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
         'calibrationdata',caldata);
-      tObj.track('totrackinfo',totrackinfo,varargin{:});
+      tObj.track('totrackinfo',totrackinfo,'isexternal',false,varargin{:});
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
       

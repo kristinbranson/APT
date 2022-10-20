@@ -809,50 +809,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function removeTblMFT(obj,tblMFTremove)
       if obj.tblMFTIsSet,
         obj.setTblMFT(MFTable.tblDiff(obj.tblMFT,tblMFTremove));
+        return;
       end
-      for i = 1:obj.nmovies,
-        if ~any(tblMFTremove.mov==i),
-          continue;
-        end
-        % do we have a specific interval?
-        if numel(obj.frm0) >= i && numel(obj.frm1) >= i,
-          frm0c = obj.frm0(i);
-          frm1c = obj.frm1(i);
-          if isinf(frm1c) || frm0c > frm1c,
-            continue;
-          end
-          tblFTremove = removevars(tblMFTremove(tblMFTremove.mov==i),'mov');
-
-          if numel(obj.trxids) >= i && ~isempty(obj.trxids{i}),
-            trxids1 = obj.trxids{i};
-            doremoveid = false(1,numel(trxids1));
-            for j = 1:numel(trxids1),
-              if all(ismember(frm0c:frm1c,tblFTremove.frm(tblFtremove.iTgt==trxids1(j)))),
-                doremoveid(j) = true;
-              end
-            end
-            if all(doremoveid),
-              obj.trxids{i} = [];
-              obj.frm0(i) = 1;
-              obj.frm1(i) = 0;
-            elseif any(doremoveid),
-              obj.trxids{i} = trxids1(~doremoveid);
-            end
-          else
-            % don't know how many targets there are -- maybe should include
-            % this?
-            if numel(unique(tblMFTremove.iTgt))>1,
-              continue;
-            end
-            if all(ismember(frm0c:frm1c,tblFTremove.frm)),
-              obj.frm0(i) = 1;
-              obj.frm1(i) = 0;
-            end
-          end
-
-        end
-      end
-
+      error('removing tblMFT from frm interval specification not implemented');
     end
 
     function addMovies(obj,varargin)

@@ -2734,13 +2734,10 @@ classdef DeepTracker < LabelTracker
       end
 
       % do_linking: when in multi-animal mode, should we train an id 
-      % recognizer to link trajectories. I suspect we don't need this
-      % anymore since this is in the tracking config?
-      % isexternal: whether we want to combine this with loaded-in tracking
-      % results (this is predicted vs imported)
-      [totrackinfo,do_linking,isexternal,wbObj] = ...
+      % recognizer to link trajectories. 
+      [totrackinfo,do_linking,wbObj,isexternal] = ...
         myparse(varargin,'totrackinfo',[],'do_linking',true,...
-        'isexternal',false,'wbObj',[]);
+        'wbObj',[],'isexternal',false);
       assert(~isempty(totrackinfo));
 
       % nothing to track?
@@ -2792,32 +2789,35 @@ classdef DeepTracker < LabelTracker
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
-      if ~isexternal,
-        isCurr = obj.checkTrackingResultsCurrent();
-        if ~isCurr,
+      willload = ~any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
+      isCurr = obj.checkTrackingResultsCurrent();
+      if willload && ~isCurr,
 
-          if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
-            res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Cancel','Delete');
-            if strcmpi(res,'Cancel'),
-              return;
-            end
-            if strcmpi(res,'Retrack'),
-              tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
-              totrackinfo.addTblMFT(tblMFTRetrack);
-            end
+        if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+          res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Cancel','Delete');
+          if strcmpi(res,'Cancel'),
+            return;
           end
-          obj.cleanOutOfDateTrackingResults(isCurr);
+          if strcmpi(res,'Retrack'),
+            tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
+            totrackinfo.addTblMFT(tblMFTRetrack);
+          end
         end
+        obj.cleanOutOfDateTrackingResults(isCurr);
+      end
+      if ~isexternal && isCurr, % saving somewhere
 
         % remove frames that are already tracked
         tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true,'aliveonly',true);
         if ~isempty(tblMFTTracked),
-          if obj.lObj.maIsMa && ~isempty(totrackinfo.tblMFT),
-            assert(all(totrackinfo.tblMFT.iTgt==1));
+          if obj.lObj.maIsMA,
+            if totrackinfo.tblMFTIsSet,
+              assert(all(MFTable.isTgtUnset(totrackinfo.tblMFT)));
+            end
+            tblMFTTracked = MFTable.unsetTgt(tblMFTTracked);
           end
           totrackinfo.removeTblMFT(tblMFTTracked);
         end
-
       end
 
       % nothing to track?
@@ -2825,7 +2825,7 @@ classdef DeepTracker < LabelTracker
         fprintf('All requested frames have been tracked already.\n');
         return;
       end
-
+      
       % check if we will overwrite any existing trkfiles, prompt user about
       % deleting
       % trkfiles could be empty if not set yet
@@ -3695,45 +3695,6 @@ classdef DeepTracker < LabelTracker
       trkMonitorObj.start();
       obj.bgTrkMonitor = trkMonitorObj;
       obj.bgTrkMonBGWorkerObj = trkWorkerObj;
-    end
-    
-    function trkCompleteCbkOld(obj,res)
-      
-      isexternal = iscell(res(1).mIdx) || ischar(res(1).mIdx);
-      if isexternal,
-        % AL: guessing here didn't test
-        for i=1:numel(res)
-          fprintf('Tracking complete for %s, results saved to %s.\n',...
-            res(i).movfile,res(i).trkfile);
-        end
-        return;
-      end
-      mIdx = [res.mIdx];
-      assert(all(mIdx==mIdx(1)));
-      mIdx = res(1).mIdx;
-      movsFull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
-      if all(strcmp(movsFull(:),{res.movfile}'))
-        % we perform this check b/c while tracking has been running in
-        % the bg, the project could have been updated, movies
-        % renamed/reordered etc.
-        
-        trkfiles = {res.trkfile}';
-        obj.trkPostProcIfNec(mIdx,trkfiles);
-        obj.trackResAddTrkfile(mIdx,trkfiles);
-        if mIdx==obj.lObj.currMovIdx
-          obj.trackCurrResUpdate();
-          obj.newLabelerFrame();
-          fprintf('Tracking complete for current movie at %s.\n',datestr(now));
-        else
-          iMov = mIdx.get();
-          fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
-        end
-      else
-        warningNoTrace('Tracking complete, but movieset %d has changed in current project.',...
-          int32(mIdx));
-        % conservative, take no action for now
-      end
-      
     end
     
     function trkCompleteCbk(obj,res)
