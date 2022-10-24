@@ -95,7 +95,7 @@ classdef SpecifyMovieToTrackGUI < handle
       if ~isempty(obj.defaultdetectpat)
         for ivw=1:obj.nview
           movI = obj.movdata.movfiles{ivw};
-          if ~isempty(movI) && isempty(obj.movdata.detectfiles{ivw})
+          if ~isempty(movI) && ~isempty(obj.movdata.detectfiles) && isempty(obj.movdata.detectfiles{ivw})
             obj.movdata.detectfiles{ivw} = obj.genTrkfile(movI,obj.defaultdetectpat);
           end
         end
@@ -678,14 +678,14 @@ classdef SpecifyMovieToTrackGUI < handle
         trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
         obj.movdata.trkfiles{i} = trkI;
         obj.isgood.trk(i) = obj.checkRowValue('trk',i);
-        set(obj.gdata.detect.rowedit(i),'String',trkI);
+        set(obj.gdata.trk.rowedit(i),'String',trkI);
       end
-      if strcmp(ri.movdatafield,'movfiles') && ~isempty(obj.defaultdetectpat)
+      if strcmp(ri.movdatafield,'movfiles') && ~isempty(obj.defaultdetectpat) && isfield(obj.gdata,'detect'),
         movI = obj.movdata.movfiles{i};
         trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
         obj.movdata.detectfiles{i} = trkI;
         obj.isgood.detect(i) = obj.checkRowValue('trk',i);
-        set(obj.gdata.trk.rowedit(i),'String',trkI);
+        set(obj.gdata.detect.rowedit(i),'String',trkI);
       end
       if strcmp(ri.movdatafield,'movfiles') && obj.hastrx && ~isempty(obj.defaulttrxpat)
         movI = obj.movdata.movfiles{i};

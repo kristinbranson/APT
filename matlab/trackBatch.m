@@ -17,11 +17,12 @@
 
 function trackBatch(varargin)
 
-[lObj,jsonfile,toTrack,loargs] = ...
+[lObj,jsonfile,toTrack,tracktype,loargs] = ...
   myparse_nocheck(varargin,...
   'lObj',[],... % one of 'lObj' or 'lblfile' must be spec'd
   'jsonfile','',...
-  'toTrack',[]);
+  'toTrack',[],...
+  'tracktype','track');
 
 tfAPTOpen = ~isempty(lObj);
 assert(tfAPTOpen,'Headless tracking not implemented');
@@ -46,24 +47,34 @@ if iscell(toTrack.f1s),
 else
   f1s = toTrack.f1s;
 end
-if size(toTrack.cropRois,2) > 1,
-  cropRois = cell(size(toTrack.cropRois,1),1);
-  for i = 1:size(toTrack.cropRois,1),
-    cropRois{i} = cat(1,toTrack.cropRois{i,:});
-  end
-else
+% if size(toTrack.cropRois,2) > 1,
+%   cropRois = cell(size(toTrack.cropRois,1),1);
+%   for i = 1:size(toTrack.cropRois,1),
+%     cropRois{i} = cat(1,toTrack.cropRois{i,:});
+%   end
+% else
   cropRois = toTrack.cropRois;
-end
+% end
 if ~iscell(toTrack.targets) && size(toTrack.movfiles,1) == 1,
   toTrack.targets = {toTrack.targets};
 end
-do_linking = ~strcmp(toTrack.track_type,'detect');
+if isempty(toTrack.calibrationfiles),
+  calibrationfiles = {};
+elseif ischar(toTrack.calibrationfiles),
+  calibrationfiles = {toTrack.calibrationfiles};
+else
+  calibrationfiles = toTrack.calibrationfiles;
+end
+assert(iscell(calibrationfiles));
+
+do_linking = lObj.maIsMA && ~strcmp(toTrack.track_type,'detect');
 
 totrackinfo = ToTrackInfo('movfiles',toTrack.movfiles,...
   'trxfiles',toTrack.trxfiles,'views',1:lObj.nview,...
   'stages',1:lObj.tracker.getNumStages(),'croprois',cropRois,...
-  'calibrationfiles',toTrack.calibrationfiles,...
-  'frm0',f0s,'frm1',f1s);
+  'calibrationfiles',calibrationfiles,...
+  'frm0',f0s,'frm1',f1s,...
+  'trxids',toTrack.targets);
 % to do: figure out how to handle linking option
 
 % call tracker.track to do the real tracking

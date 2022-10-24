@@ -333,7 +333,9 @@ classdef TrackBatchGUI < handle
         if moviei <= obj.nmovies,
           movfilecurr = obj.toTrack.movfiles{moviei,1};
           trkfilecurr = obj.toTrack.trkfiles{moviei,1};
-          detectfilecurr = obj.toTrack.detectfiles{moviei,1};
+          if obj.isma,
+            detectfilecurr = obj.toTrack.detectfiles{moviei,1};
+          end
           visible = 'on';
         else
           movfilecurr = '';
@@ -580,7 +582,8 @@ classdef TrackBatchGUI < handle
               end
             end
           end
-          trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack,'tracktype',tag);
+          obj.toTrack.track_type = tag;
+          trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack);
           delete(obj.gdata.fig);
         otherwise
           error('Callback for %s not implemented',tag);

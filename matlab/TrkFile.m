@@ -795,6 +795,9 @@ classdef TrkFile < dynamicprops
 
             % write trkflds
             for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
+              if ~isprop(objMerged,f),
+                objMerged.(f) = cell(1,numel(objMerged.pTrkiTgt));
+              end
               if any(strcmp(f,flds_ptrk_dim))
                 objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
               else

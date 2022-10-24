@@ -2789,7 +2789,7 @@ classdef DeepTracker < LabelTracker
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
-      willload = ~any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
+      willload = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
       isCurr = obj.checkTrackingResultsCurrent();
       if willload && ~isCurr,
 
@@ -3867,33 +3867,33 @@ classdef DeepTracker < LabelTracker
             warningNoTrace('Cannot perform 3D postprocessing; calibration data unset for %s.',moviestr);
             return;
           end
+        end
 
-          assert(numel(trkfiles)==nvw);
-          [trks,tfsucc] = ...
-            cellfun(@(x)DeepTracker.hlpLoadTrk(x,'rawload',true),trkfiles,'uni',0);
-          tfsucc = cell2mat(tfsucc);
-          if ~all(tfsucc)
-            ivwFailed = find(~tfsucc);
-            ivwFailedStr = num2str(ivwFailed(:)');
-            warningNoTrace('Cannot perform 3D postprocessing of %s; could not load trkfiles for views: %s.',moviestr,ivwFailedStr);
-            return;
-          end
-          trksave = cell(size(trks));
+        assert(numel(trkfiles)==nvw);
+        [trks,tfsucc] = ...
+          cellfun(@(x)DeepTracker.hlpLoadTrk(x,'rawload',true),trkfiles,'uni',0);
+        tfsucc = cell2mat(tfsucc);
+        if ~all(tfsucc)
+          ivwFailed = find(~tfsucc);
+          ivwFailedStr = num2str(ivwFailed(:)');
+          warningNoTrace('Cannot perform 3D postprocessing of %s; could not load trkfiles for views: %s.',moviestr,ivwFailedStr);
+          return;
+        end
+        trksave = cell(size(trks));
 
-          try
-            [trksave{:}] = PostProcess.triangulate(trks{:},...
-              rois,vcd,pp3dtype);
-          catch ME
-            warningNoTrace('3d postprocessing %s failed: %s',moviestr,ME.getReport());
-            return;
-          end
+        try
+          [trksave{:}] = PostProcess.triangulate(trks{:},...
+            rois,vcd,pp3dtype);
+        catch ME
+          warningNoTrace('3d postprocessing %s failed: %s',moviestr,ME.getReport());
+          return;
+        end
 
-          for i = 1:numel(trksave),
-            trksavecurr = trksave{i};
-            save(trkfiles{i},'-append','-struct','trksavecurr');
-            fprintf(1,'Saved/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
-              trkfiles{i});
-          end
+        for i = 1:numel(trksave),
+          trksavecurr = trksave{i};
+          save(trkfiles{i},'-append','-struct','trksavecurr');
+          fprintf(1,'Saved/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
+            trkfiles{i});
         end
       end
     end
@@ -3909,7 +3909,7 @@ classdef DeepTracker < LabelTracker
     end
 
     function trackCleanup(obj,varargin)
-      obj.trackCurrResUpdate();
+       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end
     

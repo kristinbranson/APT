@@ -1194,8 +1194,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       [movidx1,f0,f1,trxids1] = obj.getIntervals();
       idxlast = movidx1(f1 < 0);
       for movi = idxlast(:)',
-        movfile = obj.getMovfile('movie',movi,'view',1);
-        f1(movi) = lObj.getNFramesMovFile(movfile);
+        movfile = obj.getMovfiles('movie',movi,'view',1);
+        f1(movi) = lObj.getNFramesMovFile(movfile{1});
       end
 
       if ~lObj.hasTrx,
@@ -1209,11 +1209,11 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         trxinfo = lObj.GetTrxInfo(trxfile);
         ids = trxids1{i};
         if isempty(ids),
-          ids = 1:obj.ntgts;
+          ids = 1:trxinfo.ntgts;
         end
         ffs = max(f0(i),trxinfo.firstframes(ids));
         efs = min(f1(i),trxinfo.endframes(ids));
-        nframestrack(movi) = sum(efs-ffs);
+        nframestrack(movi) = sum(efs-ffs+1);
       end
 
     end

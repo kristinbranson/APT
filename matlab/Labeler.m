@@ -11482,12 +11482,12 @@ classdef Labeler < handle
       [movidx,~,newmov] = unique(tblMFT.mov);
       tblMFT.mov = newmov;
       movfiles = obj.movieFilesAllFullGTaware;
-      movfiles = movfiles(movidx);
+      movfiles = movfiles(movidx,:);
 
       % get data associated with those movies
       if obj.hasTrx,
         trxfiles = obj.trxFilesAllFullGTaware;
-        trxfiles = trxfiles(movidx);
+        trxfiles = trxfiles(movidx,:);
       else
         trxfiles = {};
       end
