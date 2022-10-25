@@ -410,7 +410,7 @@ classdef TrainMonitorViz < handle
       obj.SetBusy('Killing training jobs...',true);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
-      handles.pushbutton_startstop.Enable = 'off';
+      handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
       [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
       obj.isKilled = true;
@@ -579,12 +579,15 @@ classdef TrainMonitorViz < handle
       end
       
       if isDone,
-        set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
+        set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],...
+          'Enable','inactive','UserData','done');
       else
         if isStop,
           set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
         else
-          set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','on','UserData','start');
+          set(handles.pushbutton_startstop,'String','Training stopped',...
+            'Enable','inactive','UserData','start');
+          %set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','on','UserData','start');
         end
       end
       
