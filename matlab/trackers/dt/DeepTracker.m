@@ -3534,7 +3534,7 @@ classdef DeepTracker < LabelTracker
         jobID = cell2mat(jobID);
       end
       bgTrkWorkerObj.jobID = jobID;
-      obj.trkSysInfo = totrackinfojobs;
+      obj.trkSysInfo = totrackinfo;
     end
 
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>

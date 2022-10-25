@@ -85,6 +85,20 @@ classdef BgWorkerObj < handle
     function reset(obj)
       
     end
+
+    function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
+      nframes = 0;
+      if nargin < 3,
+        partFileIsTextStatus = false;
+      end
+      if ~exist(f,'file'),
+        return;
+      end
+      if partFileIsTextStatus,
+        s = obj.fileContents(f);
+        nframes = TrkFile.getNFramesTrackedPartFile(s);
+      end
+    end
        
     function printLogfiles(obj) % obj const
       logFiles = obj.getLogFiles();

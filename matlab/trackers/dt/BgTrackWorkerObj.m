@@ -175,21 +175,12 @@ classdef BgTrackWorkerObj < BgWorkerObj
         tmp = dir(parttrkfile);
         if ~isempty(tmp),
           partTrkFileTimestamps(i) = tmp.datenum;
-          if obj.partFileIsTextStatus
-            tmp = obj.fileContents(parttrkfile);
-            PAT = '(?<numfrmstrked>[0-9]+)';
-            toks = regexp(tmp,PAT,'names','once');
-            if ~isempty(toks)
-              if iscell(toks),
-                toks = toks{1};
-              end
-              parttrkfileNfrmtracked(i) = str2double(toks.numfrmstrked);
-            end
-          end
+          parttrkfileNfrmtracked(i) = obj.readTrkFileStatus(parttrkfile,obj.partFileIsTextStatus);
+          fprintf('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),parttrkfile);
+        else
+          fprintf('Part trk file does not exist %s\n',parttrkfile);
         end
       end
-
-
 
       isRunning = obj.replicateJobs(isRunning);
       killFileExists = cellfun(@obj.fileExists,killfiles);
@@ -216,15 +207,12 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'trkfile',trkfiles,...
         'parttrkfile',parttrkfiles,...
         'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
+        'parttrkfileNfrmtracked',num2cell(parttrkfileNfrmtracked),...
+        'trkfileNfrmtracked',num2cell(parttrkfileNfrmtracked),...
         'killFile',obj.replicateJobs(killfiles),...
         'killFileExists',num2cell(obj.replicateJobs(killFileExists)),...
         'isexternal',obj.isexternal... % scalar expansion
         );
-      if obj.partFileIsTextStatus
-        parttrkfileNfrmtracked = num2cell(parttrkfileNfrmtracked);
-        [sRes.parttrkfileNfrmtracked] = deal(parttrkfileNfrmtracked{:});
-        [sRes.trkfileNfrmtracked] = deal(parttrkfileNfrmtracked{:});
-      end
     end
     
     function reset(obj) %#ok<MANU> 

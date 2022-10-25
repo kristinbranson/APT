@@ -45,6 +45,25 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
         s = sprintf('%s\n',lines{:});
       end
     end
+
+    function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
+      if nargin < 2,
+        partFileIsTextStatus = false;
+      end
+      nframes = 0;
+      if ~exist(f,'file'),
+        return;
+      end
+      if partFileIsTextStatus,
+        nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);
+      else
+        try
+          nframes = TrkFile.getNFramesTrackedMatFile(f);
+        catch
+          fprintf('Could not read tracking progress from %s\n',f);
+        end
+      end
+    end
     
     function [tfsucc,warnings] = killProcess(obj)
       tfsucc = false;

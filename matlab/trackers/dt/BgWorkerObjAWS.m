@@ -51,7 +51,7 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
     function s = fileContents(obj,f)
       s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
     end
-    
+
     function tfsucc = lsdir(obj,dir)
       tfsucc = obj.awsEc2.remoteLs(dir);
     end

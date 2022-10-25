@@ -1821,9 +1821,14 @@ classdef TrkFile < dynamicprops
     
     function [nFramesTracked,didload] = getNFramesTrackedPartFile(tfile)
       
-      nFramesTracked = 0;
       didload = false;
       s = readtxtfile(tfile);
+      nFramesTracked = TrkFile.getNFramesTrackedString(s);
+    end
+
+    function nFramesTracked = getNFramesTrackedString(s)
+      
+      nFramesTracked = 0;
       PAT = '(?<numfrmstrked>[0-9]+)';
       toks = regexp(s,PAT,'names','once');
       if isempty(toks),
@@ -1831,6 +1836,7 @@ classdef TrkFile < dynamicprops
       end
       nFramesTracked = str2double(toks{1}.numfrmstrked);
     end
+
 
     function [nFramesTracked,didload] = getNFramesTrackedMatFile(tfile)
       
@@ -1846,7 +1852,7 @@ classdef TrkFile < dynamicprops
           if isempty(m.endframes)
             nFramesTracked = 0;
           else
-            nFramesTracked = max(m.endframes - m.startframes) + 1;
+            nFramesTracked = sum(max(0,m.endframes - m.startframes + 1));
           end
           didload = true;
         elseif ismember('pTrkFrm',fns)
