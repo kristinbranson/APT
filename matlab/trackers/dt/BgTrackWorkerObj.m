@@ -38,14 +38,14 @@ classdef BgTrackWorkerObj < BgWorkerObj
   end  
   methods
     function v = get.views(obj)
-      if isempty(obj.totrackinfos),
+      if numel(obj.totrackinfos) == 0,
         v = [];
       else
         v = unique(cat(2,obj.totrackinfos.views));
       end
     end
     function v = get.stages(obj)
-      if isempty(obj.totrackinfos),
+      if numel(obj.totrackinfos) == 0,
         v = [];
       else
         v = unique(cat(2,obj.totrackinfos.stages));
@@ -76,7 +76,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
 
     function initFiles(obj,totrackinfos)
       obj.totrackinfos = totrackinfos;
-      obj.nviews = numel(obj.totrackinfos);
+      obj.nviews = numel(obj.views);
     end
     
 %     function initFiles(obj,movfiles,trkfiles,logfiles,dlerrfiles,...
@@ -153,10 +153,11 @@ classdef BgTrackWorkerObj < BgWorkerObj
       % isRunning are probed.
       % isRunning does not seem to do anything right now!!
       isRunning = obj.getIsRunning();
+      isRunning = isRunning(:);
       if isempty(isRunning)
         isRunning = true(obj.njobs,1);
       else
-        szassert(isRunning,[obj.njobs,1]);
+        assert(numel(isRunning)==obj.njobs);
       end
       
       errfiles = obj.getErrFile(); % njobs x 1
