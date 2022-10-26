@@ -38,27 +38,19 @@ classdef BgTrackWorkerObj < BgWorkerObj
   end  
   methods
     function v = get.views(obj)
-      if numel(obj.totrackinfos) == 0,
-        v = [];
-      else
-        v = unique(cat(2,obj.totrackinfos.views));
-      end
+      v = obj.totrackinfos.views;
     end
     function v = get.stages(obj)
-      if numel(obj.totrackinfos) == 0,
-        v = [];
-      else
-        v = unique(cat(2,obj.totrackinfos.stages));
-      end
+      v = obj.totrackinfos.stages;
     end
     function v = get.nStages(obj)
       v = numel(obj.stages);
     end
     function v = get.njobs(obj)
-      v = numel(obj.totrackinfos);
+      v = obj.totrackinfos.n;
     end
     function v = get.movfiles(obj)
-      v = ToTrackInfo.mergeGetMovfiles(obj.totrackinfos);
+      v = obj.totrackinfos.getMovfiles();
     end
     function v = get.nMovies(obj)
       v = size(obj.movfiles,1);
@@ -136,10 +128,10 @@ classdef BgTrackWorkerObj < BgWorkerObj
     function vout = replicateJobs(obj,vin)
 
       vout = repmat(vin(1),[obj.nMovies,obj.nviews,obj.nStages]);
-      for i = 1:numel(obj.totrackinfos),
-        movidxcurr = obj.totrackinfos(i).getMovidx();
-        viewscurr = obj.totrackinfos(i).views();
-        stagescurr = obj.totrackinfos(i).stages();
+      for i = 1:obj.totrackinfos.n,
+        movidxcurr = obj.totrackinfos.ttis(i).getMovidx();
+        viewscurr = obj.totrackinfos.ttis(i).views();
+        stagescurr = obj.totrackinfos.ttis(i).stages();
         vout(movidxcurr,viewscurr,stagescurr) = vin(i,:);        
       end
 
@@ -171,20 +163,26 @@ classdef BgTrackWorkerObj < BgWorkerObj
       partTrkFileTimestamps = nan(size(parttrkfiles)); % nmovies x nviews x nstages
       parttrkfileNfrmtracked = nan(size(parttrkfiles)); % nmovies x nviews x nstages
       for i = 1:numel(parttrkfiles),
-        parttrkfile = parttrkfiles{i};
-        tmp = dir(parttrkfile);
+        trkfilecurr = parttrkfiles{i};
+        tmp = dir(trkfilecurr);
+        if isempty(tmp),
+          trkfilecurr = trkfiles{i};
+          tmp = dir(trkfiles{i});
+        end
         if ~isempty(tmp),
           partTrkFileTimestamps(i) = tmp.datenum;
-          parttrkfileNfrmtracked(i) = obj.readTrkFileStatus(parttrkfile,obj.partFileIsTextStatus);
-          fprintf('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),parttrkfile);
+          parttrkfileNfrmtracked(i) = obj.readTrkFileStatus(trkfilecurr,obj.partFileIsTextStatus);
+          fprintf('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),trkfilecurr);
+          assert(~isnan(parttrkfileNfrmtracked(i)));
         else
-          fprintf('Part trk file does not exist %s\n',parttrkfile);
+          fprintf('Part trk file %s and trk file %s do not exist\n',parttrkfiles{i},trkfiles{i});
         end
       end
 
       isRunning = obj.replicateJobs(isRunning);
       killFileExists = cellfun(@obj.fileExists,killfiles);
       tfComplete = cellfun(@obj.fileExists,trkfiles);
+      fprintf('tfComplete = %s\n',mat2str(tfComplete));
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
       logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
       bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
@@ -246,28 +244,19 @@ classdef BgTrackWorkerObj < BgWorkerObj
     end
     
     function logFiles = getLogFiles(obj)
-      logFiles = cell(numel(obj.totrackinfos),1);
-      for i = 1:numel(obj.totrackinfos),
-        logFiles{i} = obj.totrackinfos(i).getLogfile();
-      end
+      logFiles = obj.totrackinfos.getLogfiles();
     end
     function errFiles = getErrFile(obj)
-      errFiles = cell(numel(obj.totrackinfos),1);
-      for i = 1:numel(obj.totrackinfos),
-        errFiles{i} = obj.totrackinfos(i).getErrfile();
-      end
+      errFiles = obj.totrackinfos.getErrfiles();
     end
     function killFiles = getKillFiles(obj)
-      killFiles = cell(numel(obj.totrackinfos),1);
-      for i = 1:numel(obj.totrackinfos),
-        killFiles{i} = obj.totrackinfos(i).getKillfile();
-      end
+      killFiles = obj.totrackinfos.getKillfiles();
     end
     function v = getTrkFile(obj)
-      v = ToTrackInfo.mergeGetTrkfiles(obj.totrackinfos);
+      v = obj.totrackinfos.getTrkfiles();
     end
     function v = getPartTrkFile(obj)
-      v = ToTrackInfo.mergeGetParttrkfiles(obj.totrackinfos);
+      v = obj.totrackinfos.getParttrkfiles();
     end
   end
   

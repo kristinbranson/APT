@@ -1320,26 +1320,32 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
     end
 
-    function files = mergeGetFiles(ttis,propname)
+    function X = mergeGet(ttis,propname,varargin)
+
+      [movidx0,views0,stages0] = myparse(varargin,'movie',[],...
+        'view',[],'stage',[]);
 
       ndim = ToTrackInfo.getNdim(propname);
       nmovies = max(cat(1,ttis.movidx));
       nviews = max(cat(2,ttis.views));
       nstages = max(cat(2,ttis.stages));
-      sz = [nmovies,nviews,nstages];
+      sz0 = [nmovies,nviews,nstages];
       if ndim == 1,
-        files = cell(nmovies,1);
+        sz = [nmovies,1];
       else
-        files = cell(sz(1:ndim));
+        sz = sz0(1:ndim);
       end
+      isfirst = true;
+
 
       for i = 1:numel(ttis),
         movidx = ttis(i).getMovidx();
-        vws = ttis(i).views;
+        views = ttis(i).views;
         stages = ttis(i).stages;
-        idx = {movidx,vws,stages};
+
+        idx = {movidx,views,stages};
         idx = idx(1:ndim);            
-        assert(all(all(cellfun(@isempty,files(idx{:})))));
+        %assert(all(all(cellfun(@isempty,X(idx{:})))));
         switch propname,
           case 'movfiles',
             x = ttis(i).getMovfiles();
@@ -1350,24 +1356,64 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           otherwise
             x = ttis(i).(propname);
         end
-        files(idx{:}) = x;
+        if isfirst,
+          X = repmat(x,sz);
+          isfirst = false;
+        end
+        X(idx{:}) = x;
       end
       
+      if ~isempty(movidx0),
+        X = reshape(X(movidx0,:),[nnz(movidx0),sz(2:end)]);
+        sz = size(X);
+      end
+      if ~isempty(views0) && ndim > 1,
+        X = reshape(X(:,views0,:),[sz(1),nnz(views0),sz(2:end)]);
+        sz = size(X);
+      end
+      if ~isempty(stages0) && ndim > 2,
+        X = reshape(X(:,:,stages0),[sz(1:2),nnz(stages0)]);
+      end
 
     end
 
-    function files = mergeGetMovfiles(ttis)
-      files = ToTrackInfo.mergeGetFiles(ttis,'movfiles');
+    function files = mergeGetMovfiles(ttis,varargin)
+      files = ToTrackInfo.mergeGet(ttis,'movfiles',varargin{:});
     end
 
-    function files = mergeGetTrkfiles(ttis)
-      files = ToTrackInfo.mergeGetFiles(ttis,'trkfiles');
+    function files = mergeGetTrkfiles(ttis,varargin)
+      files = ToTrackInfo.mergeGet(ttis,'trkfiles',varargin{:});
     end
 
-    function files = mergeGetParttrkfiles(ttis)
-      files = ToTrackInfo.mergeGetFiles(ttis,'parttrkfiles');
+    function files = mergeGetParttrkfiles(ttis,varargin)
+      files = ToTrackInfo.mergeGet(ttis,'parttrkfiles',varargin{:});
     end
 
+    function v = mergeGetViews(ttis)
+      if numel(ttis) == 0,
+        v = [];
+      else
+        v = unique(cat(2,ttis.views));
+      end
+    end
+
+    function v = mergeGetStages(ttis)
+
+      if numel(ttis) == 0,
+        v = [];
+      else
+        v = unique(cat(2,ttis.stages));
+      end
+
+    end
+
+    function v = mergeGetNMovies(ttis)
+      if numel(ttis) == 0,
+        v = 0;
+      else
+        v = numel(unique(cat(2,ttis.movidx)));
+      end
+    end
 
   end
 end

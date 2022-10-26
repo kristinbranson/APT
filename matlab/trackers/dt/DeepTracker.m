@@ -3494,7 +3494,6 @@ classdef DeepTracker < LabelTracker
         else
           totrackinfojobs(imovjob,ivwjob) = totrackinfojob; %#ok<AGROW> 
         end
-
       end
 
       if obj.dryRunOnly
@@ -3509,7 +3508,8 @@ classdef DeepTracker < LabelTracker
       %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend);
       % movfiles is nMovies x nViews
-      bgTrkWorkerObj.initFiles(totrackinfojobs);
+      obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
+      bgTrkWorkerObj.initFiles(obj.trkSysInfo);
 
       % KB 20190115: adding trkviz
       nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
@@ -3534,7 +3534,6 @@ classdef DeepTracker < LabelTracker
         jobID = cell2mat(jobID);
       end
       bgTrkWorkerObj.jobID = jobID;
-      obj.trkSysInfo = totrackinfo;
     end
 
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>
@@ -3703,13 +3702,13 @@ classdef DeepTracker < LabelTracker
 
         %[nMovies,nViews,nStgs] = size(res);
         nMovies = obj.trkSysInfo.nmovies;
-        nStages = obj.trkSysInfo.nstages;
-        nViews = obj.trkSysInfo.nviews;
+        stages = obj.trkSysInfo.stages;
+        views = obj.trkSysInfo.views;
 
         for movi = 1:nMovies,
-          movfiles = obj.trkSysInfo.getMovfiles('movie',movi);
+          movfiles = obj.trkSysInfo.getMovfiles('movie',movi,'stage',stages(end));
           % seems to only be using the last stage of tracking
-          trkfiles = obj.trkSysInfo.getTrkfiles('movie',movi,'stage',nStages);
+          trkfiles = obj.trkSysInfo.getTrkfiles('movie',movi,'stage',stages(end));
           croproi = obj.trkSysInfo.getCroprois('movie',movi);
           calibrationfile = obj.trkSysInfo.getCalibrationfiles('movie',movi);
           if ~isempty(calibrationfile),
@@ -3721,8 +3720,8 @@ classdef DeepTracker < LabelTracker
           moviestr = String.cellstr2DelimList(movfiles,', ');
 
           fprintf('Tracking complete for %s, results saved to:\n',moviestr);
-          for vwi = 1:nViews,
-            for stgi = 1:nStages,
+          for vwi = views,
+            for stgi = stages,
               fprintf('  View %d, stage %d: %s\n',vwi,stgi,DeepModelChainOnDisk.getCheckSingle(obj.trkSysInfo.getTrkfiles('movie',movi,'view',vwi,'stage',stgi)));
             end
           end
