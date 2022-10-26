@@ -59,7 +59,7 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
           continue;
         end
         if isfirst,
-          X = repmat(x,sz);
+          X = repmat(x(1),sz);
           isfirst = false;
         end
         X(idx{:}) = x;
@@ -75,7 +75,7 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
         sz = size(X);
       end
       if ~isempty(views0) && ndim > 1,
-        X = reshape(X(:,views0,:),[sz(1),nnz(views0),sz(2:end)]);
+        X = reshape(X(:,views0,:),[sz(1),nnz(views0),sz(3:end)]);
         sz = size(X);
       end
       if ~isempty(stages0) && ndim > 2,
