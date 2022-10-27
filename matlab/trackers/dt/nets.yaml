@@ -98,8 +98,8 @@ openpose:
   displayString: OpenPose
   modelCheckpointPat: deepnet-%d
   modelGlobs: [deepnet-%d, traindata*]
-  trkAuxFields: [pTrkConf]
-  trkAuxLabels: [confidence]
+  trkAuxFields: []
+  trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 0
   docker: tf23_mmdetection

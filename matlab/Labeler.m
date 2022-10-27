@@ -10631,13 +10631,13 @@ classdef Labeler < handle
       % * fully-occ labels: .p is inf, .tfocc is false
 
       % For now we don't accept partially-labeled rows
-      tfnanrow = any(isnan(tblP.p),2);
-      nnanrow = nnz(tfnanrow);
-      if nnanrow>0
-        warningNoTrace('Labeler:nanData',...
-          'Not including %d partially-labeled rows.',nnanrow);
-      end
-      tblP = tblP(~tfnanrow,:);
+%       tfnanrow = any(isnan(tblP.p),2);
+%       nnanrow = nnz(tfnanrow);
+%       if nnanrow>0
+%         warningNoTrace('Labeler:nanData',...
+%           'Not including %d partially-labeled rows.',nnanrow);
+%       end
+%       tblP = tblP(~tfnanrow,:);
         
       % Deal with full-occ rows in tblP. Do this here as otherwise the call 
       % to preProcCropLabelsToRoiIfNec will consider inf labels as "OOB"

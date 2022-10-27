@@ -113,6 +113,7 @@ classdef FrameSetVariable < FrameSet
     AllFrm = FrameSetVariable(@(lo)'All frames',@(lo)'All fr',@FrameSetVariable.allFrmGetFrms);
     SelFrm = FrameSetVariable(@(lo)'Selected frames',@(lo)'Sel fr',@lclSelFrmGetFrms);
     WithinCurrFrm = FrameSetVariable(@lclWithinCurrFrmPrettyStr,@lclWithinCurrFrmPrettyCompactStr,@lclWithinCurrFrmGetFrms);
+    WithinCurrFrmLarge = FrameSetVariable(@lclWithinCurrFrmPrettyStrLarge,@lclWithinCurrFrmPrettyCompactStrLarge,@lclWithinCurrFrmGetFrmsLarge);
     LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@(lo)'Lab fr',@FrameSetVariable.labeledFrmGetFrms); % AL 20180125: using parameterized anon fcnhandle that directly calls lclLabeledFrmGetFrmsCore fails in 17a, suspect class init issue
     Labeled2Frm = FrameSetVariable(@(lo)'Labeled frames',@(lo)'Lab fr',@lclLabeledFrmGetFrms2);
   end
@@ -134,8 +135,18 @@ else
   str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear);
 end
 end
+function str = lclWithinCurrFrmPrettyStrLarge(lObj)
+if isunix && ~ismac
+  str = sprintf('Nearest %d frames',2*lObj.trackNFramesNear*5);
+else
+  str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear*5);
+end
+end
 function str = lclWithinCurrFrmPrettyCompactStr(lObj)
 str = sprintf('+/-%d fr',lObj.trackNFramesNear);
+end
+function str = lclWithinCurrFrmPrettyCompactStrLarge(lObj)
+str = sprintf('+/-%d fr',5*lObj.trackNFramesNear);
 end
 
 function frms = lclSelFrmGetFrms(lObj,mIdx,nfrm,iTgt)
@@ -147,6 +158,13 @@ end
 function frms = lclWithinCurrFrmGetFrms(lObj,mIdx,nfrm,iTgt)
 currFrm = lObj.currFrame; % Note currentMovie~=iMov in general
 df = lObj.trackNFramesNear;
+frm0 = max(currFrm-df,1);
+frm1 = min(currFrm+df,nfrm);
+frms = frm0:frm1;
+end
+function frms = lclWithinCurrFrmGetFrmsLarge(lObj,mIdx,nfrm,iTgt)
+currFrm = lObj.currFrame; % Note currentMovie~=iMov in general
+df = lObj.trackNFramesNear*5;
 frm0 = max(currFrm-df,1);
 frm1 = min(currFrm+df,nfrm);
 frms = frm0:frm1;

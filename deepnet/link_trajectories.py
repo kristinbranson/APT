@@ -522,8 +522,9 @@ def delete_short(ids, isdummy, params):
   t0s = -np.ones(nids, dtype=int)
   t1s = -np.ones(nids, dtype=int)
   nframes = np.zeros(nids, dtype=int)
+  idx_all = ids.where_all(nids)
   for id in range(nids):
-    idx = ids.where(id)
+    idx = [idx_all[0][id],idx_all[1][id]]
     if not np.any(idx[1]):
       continue
     t0s[id] = np.min(idx[1])
@@ -656,7 +657,7 @@ def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1)
     #   ix = all_ix[0]
     # ix = np.clip(ix, 5, 198) + 1
 
-    maxcost = mult * qq[ix]
+    maxcost = mult * qq[ix] * 2
 
     logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost' % (
     nframes_skip, ix / isz + 50, maxcost))
@@ -996,8 +997,9 @@ def link_pure(trk, conf, do_delete_short=False):
   # get starts and ends for each id
   t0s = np.zeros(nids, dtype=int)
   t1s = np.zeros(nids, dtype=int)
+  all_idx = ids.where_all(nids)
   for id in range(nids):
-    idx = ids.where(id)
+    idx = [all_idx[0][id],all_idx[1][id]]
     if idx[0].size==0: continue
     # idx = np.nonzero(id==ids)
     t0s[id] = np.min(idx[1])
@@ -1956,6 +1958,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   groups_only_id = []
   used_trks = []
 
+  ignore_far = conf.link_id_ignore_far
 
   # create id clusters iteratively by first finding the largest cluster and then adding the missing links. Most of the codes dirtiness is for keeping track of the id tracks and other tracks that have been used till now
   while True:
@@ -1978,13 +1981,15 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     # Ignore the tracklets that have been used already for the next round.
     for mov_ndx in range(len(linked_trks)):
       ids_ignore = []
-      for ff in far_ids:
-        if pred_map_orig[ff][0] == mov_ndx:
-          ids_ignore.append(pred_map_orig[ff][1])
+      if ignore_far:
+        for ff in far_ids:
+          if pred_map_orig[ff][0] == mov_ndx:
+            ids_ignore.append(pred_map_orig[ff][1])
       for uu in used_trks:
         if pred_map[uu][0] == mov_ndx:
           ids_ignore.append(pred_map[uu][1])
 
+      # we add the missing  links before grouping again. Consider the case where there is  missing link that perfectly fills the gap but doesn't match the identity because animal is doing weird stuff. In that case if we group before this tracklet will end up with its own group and we  wouldn't know whether to add it as part of missing link or not. We could set the minimum group size but that would not work with the case where animals move in or out.
       gr, pred_map = add_missing_links(linked_trks, [gr], conf, pred_map, mov_ndx, ids_ignore, maxcosts_all[mov_ndx],maxn_all[mov_ndx], bignumber, link_costs_arr)
       gr = gr[0]
 
@@ -2059,8 +2064,9 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     t0s = np.zeros(nids, dtype=int)
     t1s = np.zeros(nids, dtype=int)
     ids_remove = []
+    idx_all = cur_id.where_all(nids)
     for id in range(nids):
-      idx = cur_id.where(id)
+      idx = [idx_all[0][id],idx_all[1][id]]
       # idx = np.nonzero(id==ids)
       if idx[1].size>0:
         t0s[id] = np.min(idx[1])
@@ -2133,12 +2139,13 @@ def get_dist(p1, p2):
 def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, maxcosts_all, maxn, bignumber, link_costs_arr):
 
   params = get_default_params(conf)
-  mult = 3
-  max_link = 15*params['maxframes_missed']
+  mult = 5
+  max_link = 30*params['maxframes_missed']
 
   st, en = linked_trks[tndx].get_startendframes()
   link_costs = link_costs_arr[tndx]
 
+  # occ = occupied or filled frames
   occ = np.ones([len(groups), maxn], 'int') * -1
   for ndx, gr in enumerate(groups):
     for gg in gr:
