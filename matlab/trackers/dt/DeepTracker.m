@@ -3507,7 +3507,6 @@ classdef DeepTracker < LabelTracker
 
       %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend);
-      % movfiles is nMovies x nViews
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       bgTrkWorkerObj.initFiles(obj.trkSysInfo);
 
@@ -3545,38 +3544,9 @@ classdef DeepTracker < LabelTracker
       % be a scalar TrackJobs object with with tfserialmov=true which
       % represents [nmovsettrk] movies in a single object.
 
-      NMOVSET_WB_THRESH = 8;
-      
-      if isscalar(totrackinfo)
-        % could be a single regular TrackJob, or a single TrakcJob with
-        % tfserialmov=true
-        nframes = totrackinfo.getNFramesTrack();
-      else
-        [nmovsets,nvjobs] = size(totrackinfo); %#ok<ASGLU>
-        maxNSerialMov = max([totrackinfo.nmovsettrk]);      
-        
-        % AL202108 Don't understand this init or subsequent logic. What is
-        % defn/size of nframes to be returned?
-        nframes = nan(maxNSerialMov,nmovsets);
-        
-        % AL202101 This call can be *very* slow for batch tracking,
-        % depending on nmovsets, codecs, movlengths, etc.
-        tfWB = nmovsets>NMOVSET_WB_THRESH; 
-        if tfWB
-          hWB = WaitBarWithCancel('Tracking',...
-            'cancelDisabled',true);
-          hWB.startPeriod('Reading movie metadata...','shownumden',1,...
-            'denominator',nmovsets);
-        end
-        for i = 1:nmovsets,
-          if tfWB
-            hWB.updateFracWithNumDen(i);
-          end
-          % works if trksysinfo is multiview or not          
-          nframes(1:totrackinfo(i,1).nmovsettrk,i) = totrackinfo(i,1).getNFramesTrack();
-        end
-        nframes = nframes(:);
-      end
+      % could be a single regular TrackJob, or a single TrakcJob with
+      % tfserialmov=true
+      nframes = totrackinfo.getNFramesTrack();
     end
 
 
@@ -4932,16 +4902,21 @@ classdef DeepTracker < LabelTracker
           
       else
         try
-          tmp = load(trkfile,'trkInfo','expname','pTrkTS','-mat');
+          tmp = load(trkfile,'trkInfo','pTrkTS','-mat');
           m = struct;
-          [~,m.base] = fileparts(tmp.expname);
+          [~,m.base] = fileparts(tmp.trkInfo.mov_file);
           m.trn_ts = tmp.trkInfo.name;
           iter = DeepModelChainOnDisk.getModelFileIter(char(tmp.trkInfo.model_file));
           m.iter = iter(1);
-          m.trk_ts = datestr(min(tmp.pTrkTS(:)),'yyyymmddTHHMMSS');
+          if iscell(tmp.pTrkTS),
+            min_ts = min(cellfun(@(x) min([nan;x(:)]),tmp.pTrkTS(:)));
+          else
+            min_ts = min(tmp.pTrkTS(:));
+          end
+          m.trk_ts = datestr(min_ts,'yyyymmddTHHMMSS');
           isold = true;
         catch ME,
-          warning('Could not parse iteration from trkInfo.model_file');
+          warning('Could not parse trk file info from trkInfo');
           disp(getReport(ME));
           return;
         end

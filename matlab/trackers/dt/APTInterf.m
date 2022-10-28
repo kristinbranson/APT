@@ -148,6 +148,28 @@ classdef APTInterf
       % - croproi is unsupplied, or [xlo1 xhi1 ylo1 yhi1 xlo2 ... yhi_nmov] or row vec of [4*nmov]
       % - model_file is unsupplied, or [1] cellstr, or [nmov] cellstr      
 
+      stages = totrackinfo.stages;
+      views = totrackinfo.views;
+      nstages = numel(stages);
+      nviews = numel(views);
+
+      % construct and concatenate multiple commands if tracking both
+      % multiple views and multiple movies
+      if nviews > 1 && totrackinfo.nmovies > 1,
+        code = cell(totrackinfo.nmovies,1);
+        for i = 1:totrackinfo.nmovies,
+          tticurr = totrackinfo.selectSubset('movie',i);
+          tticurr.setJobid(totrackinfo.getJobid);
+          [codestrcurr,code{i}] = APTInterf.trackCodeGenBase(tticurr,varargin{:});
+          if i == 1,
+            codestr = codestrcurr;
+          else
+            codestr = [codestr,' && ',codestrcurr]; %#ok<AGROW> 
+          end
+        end
+        return;
+      end
+
       [filequote,frm0,frm1,...
         listfile,trxids,trxtrk,...
         croproi,do_linking,...
@@ -175,10 +197,6 @@ classdef APTInterf
       trainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
       cacheRootDir = dmc.getRootDir();
 
-      stages = totrackinfo.stages;
-      views = totrackinfo.views;
-      nstages = numel(stages);
-      nviews = numel(views);
       stage2models = cell(1,nstages);
       for istage = 1:nstages,
         stage = stages(istage);
@@ -273,23 +291,23 @@ classdef APTInterf
         if sum(nextra) > 0,
           warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
         end
-        code = [code {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.movfiles(movidx,:),filequote)}];
+        code = [code {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getMovfiles('movie',movidx),filequote)}];
         if ~all(frm0==1 & frm1==-1),
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
         if totrackinfo.hasTrxfiles,
-          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.trxfiles(movidx,:),filequote)}];
+          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getTrxfiles('movie',movidx),filequote)}];
         elseif nstages > 1,
           code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getTrkfiles('stage',1),filequote)}];
         end
         if totrackinfo.hasTrxids,
-          for i = 1:numel(totrackinfo.trxids(movidx)),
+          for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
             code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
           end
         end
       end
       if totrackinfo.hasCroprois,
-        croproi = round(totrackinfo.croprois);
+        croproi = round(totrackinfo.getCroprois('movie',movidx));
         if ~isempty(croproi) && ~all(any(isnan(croproi),2),1),
           croproirowvec = croproi';
           croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode

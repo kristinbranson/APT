@@ -261,14 +261,23 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         return;
       end
       ndim = ToTrackInfo.getNdim(prop);
-      sz = size(obj.(prop));
-      if numel(sz) < ndim,
-        sz = [sz,ones(1,ndim-numel(sz))];
+      nviews = obj.nviews;
+      nstages = obj.nstages;
+      isunset = isempty(obj.(prop)) && obj.nmovies > 0;
+      if isunset,
+        sz = [obj.nmovies,obj.nviews,obj.nstages];
+        sz = sz(1:ndim);
+        if ndim == 1,
+          sz = [sz,1];
+        end
+      else
+        sz = size(obj.(prop));
+        if numel(sz) < ndim,
+          sz = [sz,ones(1,ndim-numel(sz))];
+        end
       end
 
       idx = true(sz);
-      nviews = obj.nviews;
-      nstages = obj.nstages;
       assert(obj.nmovies == sz(1));
       if ndim >= 2,
         assert(nviews == sz(2));
@@ -353,6 +362,12 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if isempty(varargin),
         obj.frmlist = v;
         return;
+      end
+      if isempty(obj.frmlist)
+        if isempty(v),
+          return;
+        end
+        obj.frmlist = cell(obj.nmovies,1);
       end
       idx = obj.select('frmlist',varargin{:});
       obj.frmlist(idx) = ToTrackInfo.setCellStrHelper(idx,v);
@@ -577,26 +592,25 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         obj.trkfiles = repmat({''},[obj.nmovies,obj.nviews,obj.nstages]);
       end
 
-      if numel(stages1) == 1 || ~iscell(v),
-        if isempty(varargin),
-          obj.trkfiles = v;
-        else
-          idx = obj.select('trkfiles',varargin{:});
-          obj.trkfiles(idx) = ToTrackInfo.setCellStrHelper(idx,v);
-        end
+      if numel(stages1) == 1,
+        idx = obj.select('trkfiles',varargin{:});
+        obj.trkfiles(idx) = ToTrackInfo.setCellStrHelper(idx,v);
       else
         if isempty(varargin),
-          assert(iscell(v));
+          if ~iscell(v),
+            v = {v};
+          end
           if numel(v) == obj.nmovies*nviews*nstages,
-            obj.trkfiles = v;
+            obj.trkfiles = reshape(v,[obj.nmovies,nviews,nstages]);
           else
             assert(numel(v)==obj.nmovies*nviews);
+            v = reshape(v,[obj.nmovies,nviews]);
             obj.trkfiles = ToTrackInfo.addAutoStageNames(v,obj.stages);
           end
         else
           idx = obj.select('trkfiles',varargin{:});
           if nnz(idx) > numel(v),
-            newv = ToTrackInfo.addAutoStageNames(v,stages1);
+            newv = ToTrackInfo.addAutoStageNames(v,stages1);  
             assert(numel(newv) == nnz(idx));
             obj.trkfiles(idx) = newv;
           else
@@ -704,6 +718,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         obj.croprois = v;
         return;
       end
+      if isempty(obj.croprois),
+        obj.croprois = cell(obj.nmovies,obj.nviews);
+      end
       idx = obj.select('croprois',varargin{:});
       n = nnz(idx);
       if isnumeric(v),
@@ -748,6 +765,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         return;
       end
       if isempty(obj.calibrationdata),
+        if isempty(v),
+          return;
+        end
         obj.calibrationdata = repmat({[]},[obj.nmovies,1]);
       end
       idx = obj.select('calibrationdata',varargin{:});
@@ -1007,24 +1027,26 @@ classdef ToTrackInfo < matlab.mixin.Copyable
 
       [movieidx1,views1,stages1] = myparse(varargin,'movie',1:obj.nmovies,...
         'view',obj.views,'stage',obj.stages);
-      args = {'movie',movieidx1,'view',views1,'stage',stages1};
+      getargs = {'movie',movieidx1,'view',views1,'stage',stages1};
+      setargs = {'movie',1:numel(movieidx1),'view',views1,'stage',stages1};
       tti = ToTrackInfo('nmovies',numel(movieidx1),'views',views1,'stages',stages1);
-      tti.setFrm0(obj.getFrm0(args{:}));
-      tti.setFrm1(obj.getFrm1(args{:}));
-      tti.setFrmlist(obj.getFrmlist(args{:}));
+      tti.setTrainDMC(obj.trainDMC.copy());
+      tti.setFrm0(obj.getFrm0(getargs{:}),setargs{:});
+      tti.setFrm1(obj.getFrm1(getargs{:}),setargs{:});
+      tti.setFrmlist(obj.getFrmlist(getargs{:}),setargs{:});
       tti.setErrfile(obj.getErrfile());
       tti.setLogfile(obj.getLogfile());
       tti.setKillfile(obj.getKillfile());
       tti.setCmdfile(obj.getCmdfile());
-      tti.setTrkfiles(obj.getTrkfiles(args{:}));
+      tti.setTrkfiles(obj.getTrkfiles(getargs{:}),setargs{:});
       tti.setListfile(obj.getListfile());
-      tti.setMovfiles(obj.getMovfiles(args{:}));
-      tti.movidx = obj.getMovidx(args{:});
-      tti.setTrxfiles(obj.getTrxfiles(args{:}));
-      tti.setTrxids(obj.getTrxids(args{:}));
-      tti.setCroprois(obj.getCroprois(args{:}));
-      tti.setCalibrationfiles(obj.getCalibrationfiles(args{:}));
-      tti.setCalibrationdata(obj.getCalibrationdata(args{:}));
+      tti.setMovfiles(obj.getMovfiles(getargs{:}),setargs{:});
+      tti.movidx = obj.getMovidx(getargs{:});
+      tti.setTrxfiles(obj.getTrxfiles(getargs{:}),setargs{:});
+      tti.setTrxids(obj.getTrxids(getargs{:}),setargs{:});
+      tti.setCroprois(obj.getCroprois(getargs{:}),setargs{:});
+      tti.setCalibrationfiles(obj.getCalibrationfiles(getargs{:}),setargs{:});
+      tti.setCalibrationdata(obj.getCalibrationdata(getargs{:}),setargs{:});
       tti.setTrackid(obj.getTrackid());
       if obj.tblMFTIsSet(),
         [ism,idx] = ismember(obj.tblMFT.mov,movieidx1);
@@ -1213,7 +1235,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         end
         ffs = max(f0(i),trxinfo.firstframes(ids));
         efs = min(f1(i),trxinfo.endframes(ids));
-        nframestrack(movi) = sum(efs-ffs+1);
+        nframestrack(movi) = sum(efs(ffs<=efs)-ffs(ffs<=efs)+1);
       end
 
     end
@@ -1259,10 +1281,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
 
     function v = setCellStrHelper(idx,v)
       n = nnz(idx);
+
       if ischar(v),
         v = repmat({v},[n,1]);
       elseif numel(v) == 1,
-        v = repmat({v},[n,1]);
+        if ~iscell(v),
+          v = {v};
+        end
+        v = repmat(v,[n,1]);
       end      
     end
 
@@ -1317,101 +1343,6 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       vout = vin{1};
       for i = 2:numel(vin),
         vout = [vout;vin{i}(:)]; %#ok<AGROW> 
-      end
-    end
-
-    function X = mergeGet(ttis,propname,varargin)
-
-      [movidx0,views0,stages0] = myparse(varargin,'movie',[],...
-        'view',[],'stage',[]);
-
-      ndim = ToTrackInfo.getNdim(propname);
-      nmovies = max(cat(1,ttis.movidx));
-      nviews = max(cat(2,ttis.views));
-      nstages = max(cat(2,ttis.stages));
-      sz0 = [nmovies,nviews,nstages];
-      if ndim == 1,
-        sz = [nmovies,1];
-      else
-        sz = sz0(1:ndim);
-      end
-      isfirst = true;
-
-
-      for i = 1:numel(ttis),
-        movidx = ttis(i).getMovidx();
-        views = ttis(i).views;
-        stages = ttis(i).stages;
-
-        idx = {movidx,views,stages};
-        idx = idx(1:ndim);            
-        %assert(all(all(cellfun(@isempty,X(idx{:})))));
-        switch propname,
-          case 'movfiles',
-            x = ttis(i).getMovfiles();
-          case 'trkfiles',
-            x = ttis(i).getTrkfiles();
-          case 'parttrkfiles',
-            x = ttis(i).getParttrkfiles();
-          otherwise
-            x = ttis(i).(propname);
-        end
-        if isfirst,
-          X = repmat(x,sz);
-          isfirst = false;
-        end
-        X(idx{:}) = x;
-      end
-      
-      if ~isempty(movidx0),
-        X = reshape(X(movidx0,:),[nnz(movidx0),sz(2:end)]);
-        sz = size(X);
-      end
-      if ~isempty(views0) && ndim > 1,
-        X = reshape(X(:,views0,:),[sz(1),nnz(views0),sz(2:end)]);
-        sz = size(X);
-      end
-      if ~isempty(stages0) && ndim > 2,
-        X = reshape(X(:,:,stages0),[sz(1:2),nnz(stages0)]);
-      end
-
-    end
-
-    function files = mergeGetMovfiles(ttis,varargin)
-      files = ToTrackInfo.mergeGet(ttis,'movfiles',varargin{:});
-    end
-
-    function files = mergeGetTrkfiles(ttis,varargin)
-      files = ToTrackInfo.mergeGet(ttis,'trkfiles',varargin{:});
-    end
-
-    function files = mergeGetParttrkfiles(ttis,varargin)
-      files = ToTrackInfo.mergeGet(ttis,'parttrkfiles',varargin{:});
-    end
-
-    function v = mergeGetViews(ttis)
-      if numel(ttis) == 0,
-        v = [];
-      else
-        v = unique(cat(2,ttis.views));
-      end
-    end
-
-    function v = mergeGetStages(ttis)
-
-      if numel(ttis) == 0,
-        v = [];
-      else
-        v = unique(cat(2,ttis.stages));
-      end
-
-    end
-
-    function v = mergeGetNMovies(ttis)
-      if numel(ttis) == 0,
-        v = 0;
-      else
-        v = numel(unique(cat(2,ttis.movidx)));
       end
     end
 
