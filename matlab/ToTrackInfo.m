@@ -837,7 +837,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           return;
         end
       end
-      if ~obj.frm0IsSet,
+      if ~obj.frmIsSet,
         tf = false;
         return;
       end

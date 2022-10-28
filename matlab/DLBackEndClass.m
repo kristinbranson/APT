@@ -105,9 +105,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function cmd = logCommand(obj,containerName,logfile)
       assert(obj.type == DLBackEnd.Docker);
-      [cmdstart,cmdend] = obj.dockercmd();
-      cmd = sprintf('%s logs -f %s &> "%s" & %s',...
-        cmdstart,containerName,logfile,cmdend);
+      dockercmd = obj.dockercmd();
+      cmd = sprintf('%s logs -f %s &> "%s"',...
+        dockercmd,containerName,logfile);
+      if ~isempty(obj.dockerremotehost),
+        cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+      end
+      cmd = [cmd,' &'];
+
     end
 
     function v = ignore_local(obj)
@@ -748,20 +753,26 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   methods % Docker
 
-    function [cmd,cmdend] = dockercmd(obj)
-      apiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
-      remHost = obj.dockerremotehost;
-      if isempty(remHost),
-        cmd = sprintf('%s docker',apiVerExport);
-        cmdend = '';
-      else
-        cmd = sprintf('ssh -t %s "%s docker',remHost,apiVerExport);
-        cmdend = '"';        
-      end
-      if ispc
-        cmd = ['wsl ' cmd];
-      end
+%     function [cmd,cmdend] = dockercmd(obj)
+%       apiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
+%       remHost = obj.dockerremotehost;
+%       if isempty(remHost),
+%         cmd = sprintf('%s docker',apiVerExport);
+%         cmdend = '';
+%       else
+%         cmd = sprintf('ssh -t %s "%s docker',remHost,apiVerExport);
+%         cmdend = '"';        
+%       end
+%       if ispc
+%         cmd = ['wsl ' cmd];
+%       end
+%     end
+
+    function s = dockercmd(obj)
+      dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
+      s = sprintf('%s docker',dockerApiVerExport);
     end
+
 
     % KB 20191219: moved this to not be a static function so that we could
     % use this object's dockerremotehost
@@ -772,9 +783,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      [dockercmd,dockercmdend] = obj.dockercmd();      
+      dockercmd = obj.dockercmd();
       FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
-      cmd = sprintf('%s version --format ''%s''%s',dockercmd,FMTSPEC,dockercmdend);
+      cmd = sprintf('%s version --format "%s"',dockercmd,FMTSPEC);
+      if ~isempty(obj.dockerremotehost),
+        cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+      end
+
       
       tfsucc = false;
       clientver = '';
@@ -876,16 +891,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       homedir = getenv('HOME');
       user = getenv('USER');
       
-      dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
+      dockercmd = obj.dockercmd();
 
-      dockercmd = sprintf('%s docker',dockerApiVerExport);
-
-      if tfwin
-        dockercmd = ['wsl ' dockercmd];
-        %if ~isempty(obj.dockerremotehost),
-        %  error('Docker execution on remote host currently unsupported on Windows.');
-        %  % Might work fine, maybe issue with double-quotes
-      end
+%       if tfwin
+%         dockercmd = ['wsl ' dockercmd];
+%         %if ~isempty(obj.dockerremotehost),
+%         %  error('Docker execution on remote host currently unsupported on Windows.');
+%         %  % Might work fine, maybe issue with double-quotes
+%       end
       
       if tfDetach,
         detachstr = '-d';
@@ -933,6 +946,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ~isempty(obj.dockerremotehost),
         codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
+      if tfwin,
+        codestr = ['wsl ',codestr];
+      end
     end
     
     function [tfsucc,hedit] = testDockerConfig(obj)
@@ -946,14 +962,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
       
-      if isempty(obj.dockerremotehost),
-        dockercmd = 'docker';
-        dockercmdend = '';
-      else
-        dockercmd = sprintf('ssh -t %s "docker',obj.dockerremotehost);
-        dockercmdend = '"';
-      end      
-      cmd = sprintf('%s run hello-world%s',dockercmd,dockercmdend);
+      dockercmd = obj.dockercmd();
+      cmd = sprintf('%s run --rm hello-world',dockercmd);
+
+      if ~isempty(obj.dockerremotehost),
+        cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+      end
+
       fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;
       [st,res] = system(cmd);
