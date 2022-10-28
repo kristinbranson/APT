@@ -105,8 +105,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function cmd = logCommand(obj,containerName,logfile)
       assert(obj.type == DLBackEnd.Docker);
-      cmd = sprintf('%s logs -f %s &> "%s" &',...
-        obj.dockercmd,containerName,logfile);
+      [cmdstart,cmdend] = obj.dockercmd();
+      cmd = sprintf('%s logs -f %s &> "%s" & %s',...
+        cmdstart,containerName,logfile,cmdend);
     end
 
     function v = ignore_local(obj)

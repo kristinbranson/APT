@@ -95,6 +95,16 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       tf = ~isequal(obj.tblMFT,'unset');
     end
 
+    function tf = frmIsSet(obj)
+      frm0isset = any(~isnan(obj.frm0));
+      frm1isset = any(~isnan(obj.frm1));
+      tf = frm0isset || frm1isset;
+    end
+
+    function tf = trxidsIsSet(obj)
+      tf = ~isempty([obj.trxids{:}]);
+    end
+
     function n = nviews(obj)
       n = numel(obj.views);
     end
@@ -188,14 +198,12 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
 
       if obj.tblMFTIsSet(),
-        assert(isempty(obj.frm0) && isempty(obj.frm1) && isempty(obj.trxids));
+        assert(~obj.frmIsSet && ~obj.trxidsIsSet);
       end
 
-      if ~isempty(obj.frm0),
+      if obj.frmIsSet(),
         obj.frm0 = obj.frm0(:);
         szassert(obj.frm0,[obj.nmovies,1]);
-      end
-      if ~isempty(obj.frm1),
         obj.frm1 = obj.frm1(:);
         szassert(obj.frm1,[obj.nmovies,1]);
       end
@@ -221,7 +229,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if ~isempty(obj.trxfiles),
         szassert(obj.trxfiles,[obj.nmovies,nviews]);
       end
-      if ~isempty(obj.trxids),
+      if obj.trxidsIsSet(),
         obj.trxids = obj.trxids(:);
         szassert(obj.trxids,[obj.nmovies,1]);
       end
@@ -327,6 +335,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         obj.frm0 = nan(obj.nmovies,1);
       end
       idx = obj.select('frm0',varargin{:});
+      if isempty(v),
+        v = nan;
+      end
       obj.frm0(idx) = v;
     end
     function v = getFrm1(obj,varargin)
@@ -348,6 +359,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         obj.frm1 = nan(obj.nmovies,1);
       end
       idx = obj.select('frm1',varargin{:});
+      if isempty(v),
+        v = nan;
+      end
       obj.frm1(idx) = v;
     end
      function v = getFrmlist(obj,varargin)
@@ -696,6 +710,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       n = nnz(idx);
       if isnumeric(v),
         v = repmat({v},[n,1]);
+      elseif isempty(v),
+        v = repmat({[]},[n,1]);
       elseif numel(v) == 1,
         v = repmat(v,[n,1]);
       end
@@ -726,6 +742,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if isnumeric(v),
         assert(numel(v)==4);
         v = repmat({v},[n,1]);
+      elseif isempty(v),
+        v = repmat({[]},[n,1]);
       elseif numel(v) == 1,
         v = repmat(v,[n,1]);
       end
@@ -749,6 +767,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         obj.calibrationfiles = repmat({''},[obj.nmovies,1]);
       end
       idx = obj.select('calibrationfiles',varargin{:});
+      if isempty(v),
+        v = repmat({''},[nnz(idx),1]);
+      end
       obj.calibrationfiles(idx) = ToTrackInfo.setCellStrHelper(idx,v);
     end
     function v = getCalibrationdata(obj,varargin)
@@ -816,7 +837,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           return;
         end
       end
-      if isempty(obj.frm0),
+      if ~obj.frm0IsSet,
         tf = false;
         return;
       end
