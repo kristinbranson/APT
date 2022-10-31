@@ -49,6 +49,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
   methods
     function obj = ToTrackInfo(varargin)
       trainDMC = [];
+      trkfiles = {};
       %tblMFT = [];
       for i = 1:2:numel(varargin)-1,
         prop = varargin{i};
@@ -57,11 +58,16 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           trainDMC = val;
 %         elseif strcmp(prop,'tblMFT'),
 %           tblMFT = val;
+        elseif strcmp(prop,'trkfiles'),
+          trkfiles = val;
         else
           obj.(prop) = val;
         end
       end
       obj.checkFix();
+      if ~isempty(trkfiles),
+        obj.setTrkfiles(trkfiles);
+      end
       if ~isempty(trainDMC),
         obj.setTrainDMC(trainDMC);
       end
@@ -618,8 +624,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
             obj.trkfiles = reshape(v,[obj.nmovies,nviews,nstages]);
           else
             assert(numel(v)==obj.nmovies*nviews);
-            v = reshape(v,[obj.nmovies,nviews]);
-            obj.trkfiles = ToTrackInfo.addAutoStageNames(v,obj.stages);
+            v = repmat(reshape(v,[obj.nmovies,nviews]),[1,1,nstages]);
+            v(:,:,1:end-1) = ToTrackInfo.addAutoStageNames(v(:,:,1:end-1),obj.stages(1:end-1));
+            obj.trkfiles = v;
           end
         else
           idx = obj.select('trkfiles',varargin{:});

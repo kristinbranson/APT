@@ -110,7 +110,7 @@ classdef TrackBatchGUI < handle
       coltitley = 1-border-rowh;
       if obj.isma
         detecteditx = moveditx + colw + colborder;
-        trkeditx = detectitx+ colw + colborder;
+        trkeditx = detecteditx + colw + colborder;
       else
         trkeditx = moveditx + colw + colborder;
       end
@@ -463,7 +463,7 @@ classdef TrackBatchGUI < handle
       if obj.isma
         movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
           movdata,'defaulttrkpat',obj.defaulttrkpat,...
-          'defaultdetectpat',obj.defaultdetectpat);
+          'defaultdetectpat',obj.defaulttrkpat);
       else
       movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
         movdata,'defaulttrkpat',obj.defaulttrkpat,...
