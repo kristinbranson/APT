@@ -2786,6 +2786,10 @@ classdef DeepTracker < LabelTracker
         backend.awsPretrack(dmc,setStatusFcn);
       end
       obj.updateTrackerInfo();
+      if ~dmc.canTrack(),
+        warndlg('Tracker is invalid.','Tracker invalid','modal');
+        return;
+      end
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked

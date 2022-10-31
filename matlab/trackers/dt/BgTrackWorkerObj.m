@@ -182,7 +182,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       isRunning = obj.replicateJobs(isRunning);
       killFileExists = cellfun(@obj.fileExists,killfiles);
       tfComplete = cellfun(@obj.fileExists,trkfiles);
-      fprintf('tfComplete = %s\n',mat2str(tfComplete));
+      fprintf('tfComplete = %s\n',mat2str(tfComplete(:)'));
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
       logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
       bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1

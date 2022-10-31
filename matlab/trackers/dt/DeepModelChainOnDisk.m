@@ -1185,6 +1185,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
            DeepTracker.printIter(maxiter,obj.iterFinal));
       end
     end
+
+    function tf = canTrack(obj)
+      tf = ~isempty(obj.iterCurr) && all(obj.iterCurr >= 0);
+    end
     
     % read nLabels from config file
     function readNLabels(obj)

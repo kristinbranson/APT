@@ -2917,6 +2917,11 @@ end
 SetStatus(handles,'Tracking...');
 tm = getTrackMode(handles);
 tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
+if isempty(tblMFT),
+  msgbox('All frames tracked.','Track');
+  ClearStatus(handles);
+  return;
+end
 [tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
 if ~tfCanTrack,
   errordlg(['Error tracking: ',reason],'Error tracking');

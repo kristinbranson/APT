@@ -685,9 +685,15 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         return;
       end
       if isempty(obj.trxfiles),
+        if isempty(v),
+          return;
+        end
         obj.trxfiles = repmat({''},[obj.nmovies,obj.nviews]);
       end
       idx = obj.select('trxfiles',varargin{:});
+      if isempty(v),
+        v = repmat({''},nnz(idx),1);
+      end
       obj.trxfiles(idx) = ToTrackInfo.setCellStrHelper(idx,v);
     end
     function v = getTrxids(obj,varargin)
