@@ -25,8 +25,8 @@ mdn_joint_fpn:
   displayString: GRONe
   modelCheckpointPat: deepnet-%d  
   modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*]
-  trkAuxFields: [pTrkConf, pTrkocc]
-  trkAuxLabels: [confidence, scr_occ]
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
   doesOccPred: 1
   isMultiAnimal: 0
   docker: tf23_mmdetection
@@ -38,8 +38,8 @@ mdn:
   displayString: MDN (Deprecated)
   modelCheckpointPat: deepnet-%d.index  
   modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*]  # matching files are considered important and saved to Lbl
-  trkAuxFields: [pTrkConf, pTrkConf_unet, pTrkocc]
-  trkAuxLabels: [conf_mdn, conf_unet, scr_occ]
+  trkAuxFields: [pTrkConf] #, pTrkConf_unet]
+  trkAuxLabels: [conf_mdn] #, conf_unet]
   doesOccPred: 1
   isMultiAnimal: 0
   docker: tf23_mmdetection
@@ -62,8 +62,8 @@ mmpose:
   displayString: MSPN
   modelCheckpointPat: deepnet-%d
   modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
-  trkAuxFields: [pTrkConf, pTrkocc]
-  trkAuxLabels: [confidence, scr_occ]
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
   doesOccPred: 1
   isMultiAnimal: 0
   docker: tf23_mmdetection
@@ -98,8 +98,8 @@ openpose:
   displayString: OpenPose
   modelCheckpointPat: deepnet-%d
   modelGlobs: [deepnet-%d, traindata*]
-  trkAuxFields: [pTrkConf]
-  trkAuxLabels: [confidence]
+  trkAuxFields: []
+  trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 0
   docker: tf23_mmdetection

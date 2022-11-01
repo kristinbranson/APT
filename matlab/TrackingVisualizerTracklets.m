@@ -132,17 +132,24 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       
       tvtrx = obj.tvtrx; %#ok<*PROPLC>
       tfUpdateIDs = trxMappingChanged;
+      tvtrx_primary = find(iTrx2Viz2iTrxNew==obj.currTrklet);
+      if isempty(tvtrx_primary)
+        tvtrx_primary = 0;
+      end
+      tvtrx.updatePrimaryTrx(tvtrx_primary);
       tvtrx.updateLiveTrx(ptrx(iTrx),frm,tfUpdateIDs);
     end
     function iTrxViz = iTrx2iTrxViz(obj,iTrx)
        [~,iTrxViz] = ismember(iTrx,obj.iTrxViz2iTrx);
     end
-    function trxSelected(obj,iTrx,tfforce)
+    function trxSelected(obj,iTrxViz,tfforce)
+      % ITrxViz is the index of the active trx. To use actual trx index use
+      % the function below
       if nargin < 3
         tfforce = false;
       end
       
-      iTrklet = obj.iTrxViz2iTrx(iTrx);
+      iTrklet = obj.iTrxViz2iTrx(iTrxViz);
       if iTrklet~=obj.currTrklet || tfforce
         trkletID = obj.ptrx(iTrklet).id;
   %       nTrkletLive = nnz(obj.iTrxViz2iTrx>0);
@@ -151,6 +158,55 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         obj.currTrklet = iTrklet;
         obj.lObj.gdata.labelTLInfo.newTarget();
       end
+    end
+    function trxSelectedTrxID(obj,iTrklet,tfforce)
+      % This uses actual trx id. compare with the above fn
+      if nargin < 3
+        tfforce = false;
+      end      
+      
+      if iTrklet~=obj.currTrklet || tfforce
+        trkletID = obj.ptrx(iTrklet).id;
+  %       nTrkletLive = nnz(obj.iTrxViz2iTrx>0);
+        nTrkletTot = numel(obj.ptrx);
+        obj.hud.updateTrklet(trkletID,nTrkletTot);        
+        obj.currTrklet = iTrklet;
+        obj.lObj.gdata.labelTLInfo.newTarget();
+        iviz=find(obj.iTrxViz2iTrx==iTrklet);
+        if isempty(iviz)
+          warning('This should not happen. Not setting primary trx');
+        else
+          obj.tvtrx.updatePrimaryTrx(iviz);
+        end
+      end
+    end    
+    function centerPrimary(obj)
+      %use whatever the current zoom to center on the primary target if it
+      %is outside current video
+      lobj = obj.lObj;
+      currframe = lobj.currFrame;
+      trx_curr = obj.ptrx(obj.currTrklet);
+      if (currframe<trx_curr.firstframe)|| (currframe>trx_curr.endframe)
+        warning('Frame is outside current tracklets range. Not centering on the animal');
+        return;
+      end
+      
+      ndx_fr = currframe + trx_curr.off;
+      pts_curr = trx_curr.p(:,:,ndx_fr);      
+      if all(isnan(pts_curr(:)))
+        warning('No data for primary animal for current frame. Not centering on the animal');
+        return; 
+      end
+      minx=nanmin(pts_curr(:,1)); maxx=nanmax(pts_curr(:,1));
+      miny=nanmin(pts_curr(:,2)); maxy=nanmax(pts_curr(:,2));      
+
+      v = lobj.videoCurrentAxis();
+      x_ok = (minx>= (v(1)-1))&(maxx<=(v(2)+1));
+      y_ok = (miny>= (v(3)-1))&(maxy<=(v(4)+1));
+      if x_ok && y_ok
+        return;
+      end
+      lobj.videoCenterOn(trx_curr.x(ndx_fr),trx_curr.y(ndx_fr));      
     end
     function updatePrimary(obj,iTgtPrimary) %#ok<INUSD>
       % currently unused. this API is used by Labeler. currently 

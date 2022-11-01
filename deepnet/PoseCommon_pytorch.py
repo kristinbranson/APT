@@ -135,25 +135,26 @@ class coco_loader(torch.utils.data.Dataset):
             locs = np.array(a['keypoints'])
             if a['num_keypoints']>0:
                 locs = np.reshape(locs, [conf.n_classes, 3])
-                if np.all(locs[:,2]>0.5):
-                    curl[lndx,...] = locs
-                    lndx += 1
+                # if np.all(locs[:,2]>0.5):
+                curl[lndx,...] = locs
+                lndx += 1
             annos.append(a)
 
         curl = np.array(curl)
         occ = curl[...,2] < 1.5
         locs = curl[...,:2]
         mask = self.get_mask(annos,im.shape[:2])
-        im,locs, mask = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...])
+        im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...],occ=occ[None])
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
         if not self.conf.is_multi:
             locs = locs[:,0]
+            occ = occ[:,0]
 
         features = {'images':im,
-                    'locs':locs[0,...],
+                    'locs':locs[0],
                     'info':info,
-                    'occ': occ,
+                    'occ': occ[0],
                     'mask':mask,
                     'item':item
                     }

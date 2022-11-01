@@ -258,15 +258,16 @@ class config(object):
         self.link_strict_match_thres = 2.
 
         self.link_id = False
-        self.link_id_cropsz = []
+        self.link_id_cropsz = -1
         self.link_id_training_iters = 40000
-        self.link_id_tracklet_samples = 50
+        self.link_id_tracklet_samples = 25
         self.link_id_rescale = 1
         self.link_id_min_tracklet_len = 5
         self.link_id_mining_steps = 10
         self.link_id_min_train_track_len = 10
         self.link_id_keep_all_preds = False
         self.link_id_batch_size = 16
+        self.link_id_ignore_far = False
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'

@@ -1174,7 +1174,7 @@ switch lower(state),
     handles.pbTrack.Enable = onOff;
     handles.menu_view_hide_predictions.Enable = onOff;    
     
-    tfGoTgts = ~lObj.maIsMA && ~lObj.gtIsGTMode;
+    tfGoTgts = ~lObj.gtIsGTMode;
     set(handles.menu_go_targets_summary,'Enable',onIff(tfGoTgts));
     
     if lObj.nview == 1,
@@ -2282,7 +2282,7 @@ menuTrks = cell(nTrker,1);
 for i=1:nTrker  
   algName = tObjs{i}.algorithmName;
   algLabel = tObjs{i}.algorithmNamePretty;
-  enable = onIff(~strcmp(algName,'openpose'));
+  enable = onIff(~strcmp(algName,'dpk'));
   mnu = uimenu( ...
     'Parent',handles.menu_track_tracking_algorithm,...
     'Label',algLabel,...
@@ -2373,6 +2373,13 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','(JRC) Set number of slots for training...',...
     'Callback',@cbkTrackerBackendSetJRCNSlots,...
     'Tag','menu_track_backend_config_jrc_setconfig');  
+
+  handles.menu_track_backend_config_jrc_setconfig_track = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','off',...
+    'Label','(JRC) Set number of slots for tracking...',...
+    'Callback',@cbkTrackerBackendSetJRCNSlotsTrack,...
+    'Tag','menu_track_backend_config_jrc_setconfig_track');  
 end
 
 function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
@@ -2472,6 +2479,7 @@ set(handles.menu_track_backend_config_aws_setinstance,'visible',oiAWS);
 set(handles.menu_track_backend_config_aws_configure,'visible',oiAWS);
 set(handles.menu_track_backend_config_setdockerssh,'visible',oiDckr);
 set(handles.menu_track_backend_config_jrc_setconfig,'visible',oiBsub);
+set(handles.menu_track_backend_config_jrc_setconfig_track,'visible',oiBsub);
 
 m = handles.menu_track_backend_config;
 % Menu item ordering seems very buggy. Setting .Position on menu items
@@ -2488,6 +2496,7 @@ m.Children = [ ...
   handles.menu_track_backend_config_aws_configure...
   handles.menu_track_backend_config_setdockerssh...
   handles.menu_track_backend_config_jrc_setconfig...
+  handles.menu_track_backend_config_jrc_setconfig_track...
   handles.menu_track_backend_config_test...
   ];
 m.Children = m.Children(end:-1:1);
@@ -2610,6 +2619,19 @@ if isnan(n)
   return;
 end
 lObj.tracker.setJrcnslots(n);
+
+function cbkTrackerBackendSetJRCNSlotsTrack(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+n = inputdlg('Number of cluster slots for tracking','a',1,{num2str(lObj.tracker.jrcnslotstrack)});
+if isempty(n)
+  return;
+end
+n = str2double(n{1});
+if isnan(n)
+  return;
+end
+lObj.tracker.setJrcnslotstrack(n);
 
 
 
@@ -4256,7 +4278,11 @@ function menu_track_trainincremental_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
 
 function menu_go_targets_summary_Callback(hObject, eventdata, handles)
-handles.labelerObj.targetsTableUI();
+if handles.labelerObj.maIsMA
+  TrkInfoUI(handles.labelerObj);
+else
+  handles.labelerObj.targetsTableUI();
+end
 
 function menu_go_nav_prefs_Callback(hObject, eventdata, handles)
 handles.labelerObj.navPrefsUI();
@@ -4721,6 +4747,7 @@ if hlpSave(handles.labelerObj)
       && isvalid(handles.movieMgr)
     delete(handles.movieMgr);
   end  
+  delete(findall(0,'tag','TrkInfoUI'));
   delete(handles.figure);
   delete(handles.labelerObj);
 end

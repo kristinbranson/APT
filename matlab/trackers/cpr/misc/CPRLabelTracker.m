@@ -2079,6 +2079,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
 
+    % 20220919: Not updated to new API
     function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
       iTgt = obj.lObj.currTarget;
       tpos = obj.xyPrdCurrMovie(:,:,:,iTgt);

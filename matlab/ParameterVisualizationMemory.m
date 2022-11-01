@@ -34,16 +34,18 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.is2stage = lObj.trackerIsTwoStage;
       obj.is_ma_net = false;
 
-      if obj.is_ma && obj.is2stage
-        if startsWith(prop,'Deep Learning (pose)')
-          obj.stage = 2;
+      if obj.is_ma 
+        if obj.is2stage
+          if startsWith(prop,'Deep Learning (pose)')
+            obj.stage = 2;
+          else
+            obj.stage = 1;
+            obj.is_ma_net = true;
+          end
         else
           obj.stage = 1;
           obj.is_ma_net = true;
         end
-      else
-        obj.stage = 1;
-        obj.is_ma_net = true;
       end
     end
     

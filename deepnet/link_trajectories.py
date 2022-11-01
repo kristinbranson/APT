@@ -32,7 +32,7 @@ import cv2
 import time
 import scipy.spatial.distance as ssd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
-
+from torch.utils.data import Dataset,DataLoader
 
 def angle_span(pcurr,pnext):
   z = pcurr-pnext
@@ -94,7 +94,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   # construct the cost matrix
   # C[i,j] is the cost of matching curr[i] and next[j]
   C = np.zeros((ncurr+nnext, ncurr+nnext))
-  C[:] = maxcost / 2.
+  C[:] = maxcost/2
   C[ncurr:, nnext:] = 0
   pcurr = np.reshape(pcurr, (d * nlandmarks, ncurr, 1))
   pnext = np.reshape(pnext, (d * nlandmarks, 1, nnext))
@@ -109,38 +109,34 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
     # If a current detection has 2 matches then break the tracklet
     for x1 in range(ncurr):
       if np.all(np.isnan(C1[x1, :])): continue
-      x1_curr = np.nanargmin(C1[x1, :])
-      curc = C1.copy()
-      c1 = curc[x1, x1_curr]
-      curc[x1, x1_curr] = np.nan
-      curc[np.isnan(curc)] = np.inf
-      c2 = np.min(curc[x1, :])
-      if (c2 / (c1 + 0.0001)) < strict_match_thres:
+      x1_min = np.nanargmin(C1[x1, :])
+      c1 = C1[x1,x1_min]+0.0001
+      x2 = np.where(C1[x1,:]< c1*strict_match_thres)[0]
+      if x2.size>1:
         C[x1, :nnext] = maxcost*2
+        C[:ncurr,x2] = maxcost*2
 
     # If a next detection has 2 matches then break the tracklet
     for x1 in range(nnext):
       if np.all(np.isnan(C1[:,x1])): continue
-      x1_curr = np.nanargmin(C1[:,x1])
-      curc = C1.copy()
-      c1 = curc[x1_curr,x1]
-      curc[x1_curr,x1] = np.nan
-      curc[np.isnan(curc)] = np.inf
-      c2 = np.min(curc[:,x1])
-      if (c2/(c1+0.0001)) < strict_match_thres:
+      x1_min = np.nanargmin(C1[:,x1])
+      c1 = C1[x1_min,x1] + 0.0001
+      x2 = np.where(C1[:,x1]< c1*strict_match_thres)[0]
+      if x2.size>1:
         C[:ncurr,x1] = maxcost*2
+        C[x2,:nnext] = maxcost*2
 
-    for x1 in range(ncurr):
-      for x2 in range(nnext):
-        has_match = np.any(C[x1,:nnext] < maxcost) or np.any(C[:ncurr,x2]<maxcost)
-        if has_match: continue
-        if maxcost<C[x1,x2]<maxcost*1.95:
-          p1 = np.reshape(pcurr[:,x1,0],[nlandmarks,d])
-          p2 = np.reshape(pnext[:,0,x2],[nlandmarks,d])
-          a_span = angle_span(p1,p2)
-          if a_span<=180:
-            red_factor = max(a_span,90)/180
-            C[x1,x2] = C[x1,x2]*red_factor
+    # for x1 in range(ncurr):
+    #   for x2 in range(nnext):
+    #     has_match = np.any(C[x1,:nnext] < maxcost) or np.any(C[:ncurr,x2]<maxcost)
+    #     if has_match: continue
+    #     if maxcost<C[x1,x2]<maxcost*1.95:
+    #       p1 = np.reshape(pcurr[:,x1,0],[nlandmarks,d])
+    #       p2 = np.reshape(pnext[:,0,x2],[nlandmarks,d])
+    #       a_span = angle_span(p1,p2)
+    #       if a_span<=180:
+    #         red_factor = max(a_span,90)/180
+    #         C[x1,x2] = C[x1,x2]*red_factor
 
 
   # match
@@ -522,8 +518,9 @@ def delete_short(ids, isdummy, params):
   t0s = -np.ones(nids, dtype=int)
   t1s = -np.ones(nids, dtype=int)
   nframes = np.zeros(nids, dtype=int)
+  idx_all = ids.where_all(nids)
   for id in range(nids):
-    idx = ids.where(id)
+    idx = [idx_all[0][id],idx_all[1][id]]
     if not np.any(idx[1]):
       continue
     t0s[id] = np.min(idx[1])
@@ -656,7 +653,7 @@ def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1)
     #   ix = all_ix[0]
     # ix = np.clip(ix, 5, 198) + 1
 
-    maxcost = mult * qq[ix]
+    maxcost = mult * qq[ix] * 2
 
     logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost' % (
     nframes_skip, ix / isz + 50, maxcost))
@@ -996,8 +993,9 @@ def link_pure(trk, conf, do_delete_short=False):
   # get starts and ends for each id
   t0s = np.zeros(nids, dtype=int)
   t1s = np.zeros(nids, dtype=int)
+  all_idx = ids.where_all(nids)
   for id in range(nids):
-    idx = ids.where(id)
+    idx = [all_idx[0][id],all_idx[1][id]]
     if idx[0].size==0: continue
     # idx = np.nonzero(id==ids)
     t0s[id] = np.min(idx[1])
@@ -1036,7 +1034,10 @@ def link_trklets(trk_files, conf, movs, out_files):
 
   if conf.link_id:
     conf1 = copy.deepcopy(conf)
-    ww = conf1.multi_animal_crop_sz
+    if conf1.link_id_cropsz<0:
+      ww = conf1.multi_animal_crop_sz
+    else:
+      ww = conf1.link_id_cropsz
     conf1.imsz = [ww,ww]
 
     if len(conf1.ht_pts)>0 and conf1.ht_pts[0]>=0:
@@ -1321,11 +1322,16 @@ class id_dset(torch.utils.data.IterableDataset):
       curims = curims.astype('float32')
       yield curims, info
 
-def process_id_ims_par(im_arr,conf,distort,rescale):
+def process_id_ims_par(im_arr,conf,distort,rescale,n,idx):
   res_arr = []
+  tot_size = 0
   for ims in im_arr:
-    res_arr.append(process_id_ims(ims,conf,distort,rescale))
-  return res_arr
+    cur_ims = process_id_ims(ims,conf,distort,rescale)
+    res_arr.append(cur_ims)
+    tot_size += cur_ims.size*cur_ims.itemsize
+  tot_size = tot_size/1024/1024/1024
+  print(f'Total size for {n} is {tot_size}')
+  return idx, res_arr
 
 def process_id_ims(curims, conf, distort, rescale):
   """
@@ -1343,7 +1349,7 @@ def process_id_ims(curims, conf, distort, rescale):
   zz = zz / im_std
   return zz
 
-def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
+def read_ims_par(trx, trk_info, mov_file, conf):
   '''
   Read images in parallel because otherwise it is really slow particularly for avis
   :param trx:
@@ -1360,23 +1366,31 @@ def read_ims_par(trx, trk_info, mov_file, conf,n_ex=50):
   :rtype:
   '''
 
+  n_ex = conf.link_id_tracklet_samples
   n_trk = len(trk_info)
-  if n_trk < mp.cpu_count():
-    n_threads = n_trk
+  max_pool = 20
+  if n_trk < max_pool:
+    n_pool = n_trk
+    n_batches = n_trk
   else:
-    bytes_per_trk = n_ex*conf.imsz[0]*conf.imsz[1]*3
+    bytes_per_trk = n_ex*conf.imsz[0]*conf.imsz[1]*3*8*1.1
+    # 1.1 is sort of extra buffer
     max_pkl_bytes = 1024*1024*1024
     n_trk_per_thrd = max_pkl_bytes//bytes_per_trk
-    n_threads = int(np.ceil(n_trk/n_trk_per_thrd))
-    n_threads = max( mp.cpu_count(),n_threads)
+    n_trk_per_thrd = int(max(1,n_trk_per_thrd))
+    n_batches = int(np.ceil(n_trk/n_trk_per_thrd))
+    if n_batches <max_pool:
+      n_pool = n_batches
+    else:
+      n_pool = max_pool
 
-  with mp.get_context('spawn').Pool(n_threads) as pool:
-
-    trk_info_split = split_parallel(trk_info,n_threads)
-    data = pool.starmap(read_tracklet_ims, [(trx, trk_info_split[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_threads)])
-
+  # for debugging
+  # out = read_tracklet_ims(trx, trk_info[::n_jobs], mov_file, conf, n_ex, np.random.randint(100000))
+  trk_info_batches = split_parallel(trk_info,n_batches)
+  with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
+    args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
+    data = pool.starmap(read_tracklet_ims,args,chunksize=1)
   data = merge_parallel(data)
-
   return data
 
 def read_data_files(data_files):
@@ -1456,50 +1470,119 @@ def merge_parallel(data):
   data = [i for sublist in data for i in sublist]
   return data
 
+def do_pred(zz1,net):
+  # zz2 = zz1.astype('float32')
+  # zz = torch.tensor(zz2).cuda()
+  with torch.no_grad():
+    oo = net(zz1.cuda()).cpu().numpy()
+  # del zz2,zz
+  return oo
+
+
+class tracklet_pred_dataset(Dataset):
+    def __init__(self, ims,conf,rescale,distort):
+        self.ims = ims
+        self.conf = conf
+        self.distort = distort
+        self.rescale = rescale
+
+    def __len__(self):
+        return len(self.ims)
+
+    def __getitem__(self, idx):
+      cur_ims = process_id_ims(self.ims[idx], self.conf, self.distort, self.rescale)
+      return cur_ims.astype('float32')
+
 def tracklet_pred(ims, net, conf, rescale):
-    '''
-    Do prediction over a set of images (typically generated using read_tracklet_ims
-    :param ims:
-    :type ims:
-    :param net:
-    :type net:
-    :param conf:
-    :type conf:
-    :param rescale:
-    :type rescale:
-    :return:
-    :rtype:
-    '''
+    dataset = tracklet_pred_dataset(ims, conf, rescale, False)
+    loader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=20, worker_init_fn=lambda id: np.random.seed(id * 8999))
     preds = []
-    n_threads = min(24, mp.cpu_count())
-    n_batches = max(1,len(ims)//(3*n_threads))
-    n_tr = len(ims)
-    with mp.get_context('spawn').Pool(n_threads) as pool:
-      processed_ims = pool.starmap(process_id_ims_par, [(ims[n:n+1],conf,False,rescale) for n in range(len(ims))])
-      processed_ims = merge_parallel(processed_ims)
-      for ix in range(len(processed_ims)):
-          zz = processed_ims[ix]
-          zz = zz.astype('float32')
-          zz = torch.tensor(zz).cuda()
-          with torch.no_grad():
-              oo = net(zz).cpu().numpy()
-          preds.append(oo)
+    for pims in loader:
+      preds.append(do_pred(pims[0],net))
 
-      # for curb in range(n_batches):
-      #   cur_set = ims[(curb*n_tr)//n_batches:( (curb+1)*n_tr)//n_batches]
-      #   split_set = split_parallel(cur_set,n_threads)
-      #   processed_ims = pool.starmap(process_id_ims_par, [(split_set[n],conf,False,rescale) for n in range(n_threads)])
-      #   processed_ims = merge_parallel(processed_ims)
-      #   for ix in range(len(processed_ims)):
-      #       zz = processed_ims[ix]
-      #       zz = zz.astype('float32')
-      #       zz = torch.tensor(zz).cuda()
-      #       with torch.no_grad():
-      #           oo = net(zz).cpu().numpy()
-      #       preds.append(oo)
+    del loader
+    preds = np.array(preds)
+    return preds
 
-    rr = np.array(preds)
-    return rr
+    # preds = []
+    # n_threads = min(24, mp.cpu_count())
+    # n_batches = max(1,len(ims)//(3*n_threads))
+    # n_tr = len(ims)
+    # import time
+    # a = time.time()
+    # im_sz_in = ims[0].size * ims[0].itemsize
+    #
+    # im_sz_out = im_sz_in * 3 if (ims[0].shape[3] == 1) else im_sz_in
+    # im_sz_out = im_sz_out / rescale / rescale
+    # im_sz = max(im_sz_in,im_sz_out)
+    #
+    # # max size of data that can be sent or recieved to multiprocess threads is 1GB because of pickle limit in py 3.7. So set the chunksize accounting for that, capping it at max 10. The 1GB probably will get increased when updating python versions
+    # chunksize = max(1, int(np.floor(1024 * 1024 * 1024 / im_sz)))
+    # chunksize = min(10, chunksize)
+    # # chunksize = 1
+    # print(f'chunksize {chunksize}')
+    #
+    # # if images are bigger than 200mb then don't use multiprcoessing because it'll need huge amount of memory
+    # im_small = im_sz_out/1024/1024 < 200
+    #
+    # ims_split = split_parallel(ims, n_tr//chunksize+1)
+    # idx_split = split_parallel(range(n_tr), n_tr//chunksize+1)
+    #
+    # preds = [[] for i in range(n_tr)]
+    # done = []
+    #
+    # if im_small:
+    #   def cbk(res):
+    #
+    #     ndx,zz_all = res
+    #     for idx,zz1 in zip(ndx,zz_all):
+    #       oo = do_pred(zz1, net)
+    #       preds[idx] = oo
+    #       done.append(idx)
+    #       print(f'Adding data for {idx}')
+    #       del zz1
+    #
+    #   print('Using multi process for smaller images')
+    #   with mp.get_context('spawn').Pool(n_threads,maxtasksperchild=10) as pool:
+    #     args = [(ims[n:n+1], conf, False, rescale, n,range(n,n+1)) for n in range(n_tr)]
+    #     res = []
+    #     for ndx in range(n_tr):
+    #       cur_res  = pool.apply_async(process_id_ims_par,args[ndx],callback=cbk)
+    #       res.append(cur_res)
+    #     for cur_res in res:
+    #       cur_res.wait()
+    #
+    #     # for curims in res_pool.get():
+    #     #   ndx,zz1 = curims
+    #     #   oo = do_pred(zz1,net)
+    #     #   preds[ndx] = oo
+    #     #   done.append(ndx)
+    #     #   del zz1
+    #   assert(len(done)==len(preds))
+    # else:
+    #   for zz in ims:
+    #     zz1 = process_id_ims(zz, conf, False, rescale)
+    #     oo = do_pred(zz1,net)
+    #     preds.append(oo)
+    #     del zz1
+    #
+    #   # for curb in range(n_batches):
+    #   #   cur_set = ims[(curb*n_tr)//n_batches:( (curb+1)*n_tr)//n_batches]
+    #   #   split_set = split_parallel(cur_set,n_threads)
+    #   #   processed_ims = pool.starmap(process_id_ims_par, [(split_set[n],conf,False,rescale) for n in range(n_threads)])
+    #   #   processed_ims = merge_parallel(processed_ims)
+    #   #   for ix in range(len(processed_ims)):
+    #   #       zz = processed_ims[ix]
+    #   #       zz = zz.astype('float32')
+    #   #       zz = torch.tensor(zz).cuda()
+    #   #       with torch.no_grad():
+    #   #           oo = net(zz).cpu().numpy()
+    #   #       preds.append(oo)
+    #
+    # b = time.time()
+    # print(f'Time to compute {b-a}, chunksize {chunksize}')
+    # rr = np.array(preds)
+    # return rr
 
 def compute_mining_data(net, data, trk_data, rescale, confd):
   '''
@@ -1730,7 +1813,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   return net, loss_history
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,rescale=1, min_len_select=5, debug=False, keep_all_preds=False):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False):
   '''
   Links the pure tracklets using identity
 
@@ -1739,7 +1822,6 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   :param mov_files: movie files
   :param conf: poseconfig object
   :param all_trx: pure linked tracks loaded in the trx format for apt.create_batch_ims
-  :param n_per_trk: number of samples to use per trk to designate an id.
   :param rescale:
   :param min_len_select:
   :param debug:
@@ -1771,7 +1853,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
     logging.info(f'Sampling images from {len(sel_ss)} tracklets to assign identity to the tracklets ...')
     start_t = time.time()
-    cur_data = read_ims_par(trx, trk_info, mov_file, conf, n_ex=n_per_trk)
+    cur_data = read_ims_par(trx, trk_info, mov_file, conf)
     end_t = time.time()
     logging.info(f'Sampling images took {round((end_t-start_t)/60)} minutes')
 
@@ -1856,7 +1938,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   overlap = np.zeros([ns,ns])
   for ndx in range(ns):
     aa, bb = get_overlap(st_sel, en_sel, st_sel[ndx], en_sel[ndx], ndx)
-    overlap[ndx, aa] = bb
+    if aa.size > 0:
+      overlap[ndx, aa] = bb
   mov1_dist = dist_mat[np.ix_(mov1_sel,mov1_sel)]
   overlap_dist = mov1_dist[overlap>0.1]
   far_thresh = np.percentile(overlap_dist,thresh_perc)
@@ -1871,6 +1954,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
   groups_only_id = []
   used_trks = []
 
+  ignore_far = conf.link_id_ignore_far
 
   # create id clusters iteratively by first finding the largest cluster and then adding the missing links. Most of the codes dirtiness is for keeping track of the id tracks and other tracks that have been used till now
   while True:
@@ -1893,13 +1977,15 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     # Ignore the tracklets that have been used already for the next round.
     for mov_ndx in range(len(linked_trks)):
       ids_ignore = []
-      for ff in far_ids:
-        if pred_map_orig[ff][0] == mov_ndx:
-          ids_ignore.append(pred_map_orig[ff][1])
+      if ignore_far:
+        for ff in far_ids:
+          if pred_map_orig[ff][0] == mov_ndx:
+            ids_ignore.append(pred_map_orig[ff][1])
       for uu in used_trks:
         if pred_map[uu][0] == mov_ndx:
           ids_ignore.append(pred_map[uu][1])
 
+      # we add the missing  links before grouping again. Consider the case where there is  missing link that perfectly fills the gap but doesn't match the identity because animal is doing weird stuff. In that case if we group before filling in the gaps, this tracklet will end up with its own group and we  wouldn't know whether ungroup it to add it as part of missing link or not. We could set the minimum group size but that would not work with the case where animals move in or out.
       gr, pred_map = add_missing_links(linked_trks, [gr], conf, pred_map, mov_ndx, ids_ignore, maxcosts_all[mov_ndx],maxn_all[mov_ndx], bignumber, link_costs_arr)
       gr = gr[0]
 
@@ -1974,8 +2060,9 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, n_per_trk=50,resc
     t0s = np.zeros(nids, dtype=int)
     t1s = np.zeros(nids, dtype=int)
     ids_remove = []
+    idx_all = cur_id.where_all(nids)
     for id in range(nids):
-      idx = cur_id.where(id)
+      idx = [idx_all[0][id],idx_all[1][id]]
       # idx = np.nonzero(id==ids)
       if idx[1].size>0:
         t0s[id] = np.min(idx[1])
@@ -2048,12 +2135,13 @@ def get_dist(p1, p2):
 def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, maxcosts_all, maxn, bignumber, link_costs_arr):
 
   params = get_default_params(conf)
-  mult = 3
-  max_link = 15*params['maxframes_missed']
+  mult = 5
+  max_link = 30*params['maxframes_missed']
 
   st, en = linked_trks[tndx].get_startendframes()
   link_costs = link_costs_arr[tndx]
 
+  # occ = occupied or filled frames
   occ = np.ones([len(groups), maxn], 'int') * -1
   for ndx, gr in enumerate(groups):
     for gg in gr:
@@ -2070,9 +2158,9 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
 
     qq1 = np.where(qq[:-2] & (~qq[1:-1]))[0]
     qq2 = np.where((~qq[1:-1]) & qq[2:])[0]
-    to_rem = (qq1==0) | (qq2==maxn-1)
-    qq1 = qq1[~to_rem]
-    qq2 = qq2[~to_rem]
+    # to_rem = (qq1==0) | (qq2==maxn-1)
+    # qq1 = qq1[~to_rem]
+    # qq2 = qq2[~to_rem]
     breaks.append(np.array(list(zip(qq1, qq2))))
 
   if ignore_idx is None:
@@ -2087,18 +2175,28 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
     for bx in range(breaks[ndx].shape[0]):
       b_st, b_en = breaks[ndx][bx, :]
 
-      if (b_st > 0) & (b_en<maxn) &( (b_en-b_st)<=max_link):
+      if b_st > 0 and b_en<maxn-1:
         st_trk = occ[ndx][b_st - 1]
         en_trk = occ[ndx][b_en + 1]
-        trk2add = find_path(link_costs, st_trk, en_trk, b_en + 1, st, en, maxcosts_all, taken, mult, bignumber)
-        for tid in trk2add:
-          match_pred = np.where((pred_map==[tndx,tid]).all(axis=1))[0]
-          if len(match_pred)>0:
-            linked_groups[ndx].append(match_pred[0])
-          else:
-            new_pred_map.append([tndx,tid])
-            linked_groups[ndx].append(len(pred_map)+len(new_pred_map)-1)
-          taken.append(tid)
+      elif b_st<=0 and b_en<maxn-1:
+        st_trk = -1
+        en_trk = occ[ndx][b_en+1]
+      elif b_st>0 and b_en>=maxn-1:
+        st_trk = occ[ndx][b_st-1]
+        en_trk = -1
+      else:
+        logging.warning('Weird stuff in linking')
+        continue
+
+      trk2add = find_path(link_costs, st_trk, en_trk, b_en + 1, st, en, maxcosts_all, taken, mult, bignumber)
+      for tid in trk2add:
+        match_pred = np.where((pred_map==[tndx,tid]).all(axis=1))[0]
+        if len(match_pred)>0:
+          linked_groups[ndx].append(match_pred[0])
+        else:
+          new_pred_map.append([tndx,tid])
+          linked_groups[ndx].append(len(pred_map)+len(new_pred_map)-1)
+        taken.append(tid)
 
   if len(new_pred_map)>0:
     new_pred_map = np.concatenate([pred_map, new_pred_map],axis=0)
@@ -2126,8 +2224,17 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
   This function uses the shorteset path algorithm. Cost of linking tracklets tr1 that ends at t and tr2 that starts at t+n is maxcosts_all[n-1]/2. This is because we only want to mildly penalize the missing frame, as otherwise the algorithm will try to fill in some other tracklet tr3 that could be far from both tr1 and tr2.
   '''
 
-  link_st = en[st_idx] + 1
-  link_en = st[en_idx] - 1
+
+  MAX_D = 20
+  if st_idx>=0:
+    link_st = en[st_idx] + 1
+  else:
+    link_st = 0
+  if en_idx>=0:
+    link_en = st[en_idx] - 1
+  else:
+    link_en = max(en)
+
   taken_arr = np.zeros(len(st)) > 0.5
   taken_arr[taken] = True
 
@@ -2147,36 +2254,43 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
     else:
       connect = True
 
+
     if n_miss>0:
+      # if there are gaps then adjust the cost. The adjusting factor  is (n_miss+1)*maxcosts_all[0]/maxcosts_all[n_miss]. maxcosts_all[0]/maxcosts_all[n_miss] is the sort of to counter the curvature. It seems the adjusting factor usually ends up being close to 1. So maybe it could be removed entirely.
+      # To understand the adjusting factor, think there is a gap of 1 between S and E and there is a detection M in the in-between frame that has a distance of maxcosts_all[0] to both the start and the end. If cost(S,E) = maxcosts_all[1], then very likely detection M will get skipped. However, if we adjust using the adjusting factor then the detection M will get used when diong the shortest path. We bump it by 1.5 just to be safe.
       cur_cost = cost * (n_miss + 1) * maxcosts_all[0] / maxcosts_all[n_miss] * 1.5
     else:
       cur_cost = cost
 
     return connect, cur_cost
 
-  if link_costs[st_idx][1].size > 0:
-    en_ix = np.where(link_costs[st_idx][1][:,0]==en_idx)[0]
-    if en_ix.size>0:
-      connect, cost =  get_link_cost(link_costs[st_idx][1][en_ix[0]])
-      edge_mat[0,-1] =  cost
+  if st_idx>=0 and en_idx>=0:
+    # direct cost between the start and the end tracklets if they can be connected
+    if link_costs[st_idx][1].size > 0:
+      en_ix = np.where(link_costs[st_idx][1][:,0]==en_idx)[0]
+      if en_ix.size>0:
+        connect, cost =  get_link_cost(link_costs[st_idx][1][en_ix[0]])
+        edge_mat[0,-1] =  cost
 
-  # Costs from start tracklet
-  for ix in range(link_costs[st_idx][1].shape[0]):
-    lix = int(link_costs[st_idx][1][ix, 0])
-    if lix not in int_trks: continue
-    lix_id = np.where(int_trks==lix)[0][0]
-    connect, cost = get_link_cost(link_costs[st_idx][1][ix])
-    if connect:
-        edge_mat[0,lix_id+1] = cost
+  if st_idx>=0:
+    # Costs from the start tracklet
+    for ix in range(link_costs[st_idx][1].shape[0]):
+      lix = int(link_costs[st_idx][1][ix, 0])
+      if lix not in int_trks: continue
+      lix_id = np.where(int_trks==lix)[0][0]
+      connect, cost = get_link_cost(link_costs[st_idx][1][ix])
+      if connect:
+          edge_mat[0,lix_id+1] = cost
 
-  # Costs to end tracklet
-  for ix in range(link_costs[en_idx][0].shape[0]):
-    lix = int(link_costs[en_idx][0][ix, 0])
-    if lix not in int_trks: continue
-    lix_id = np.where(int_trks==lix)[0][0]
-    connect, cost = get_link_cost(link_costs[en_idx][0][ix])
-    if connect:
-        edge_mat[lix_id+1,-1] = cost
+  if en_idx>=0:
+    # Costs to the end tracklet
+    for ix in range(link_costs[en_idx][0].shape[0]):
+      lix = int(link_costs[en_idx][0][ix, 0])
+      if lix not in int_trks: continue
+      lix_id = np.where(int_trks==lix)[0][0]
+      connect, cost = get_link_cost(link_costs[en_idx][0][ix])
+      if connect:
+          edge_mat[lix_id+1,-1] = cost
 
   # For all other tracklets
   for ix1 in range(n_trks):
@@ -2189,25 +2303,38 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
       if connect:
         edge_mat[ix1+1,lix_id + 1] = cost
 
-  dmat, conn_mat = scipy.sparse.csgraph.shortest_path(edge_mat,return_predecessors=True,indices=0)
+
+  if st_idx<0:
+    broken = True
+    plen = np.array([0])
+  else:
+    conn_nodes, pred = scipy.sparse.csgraph.breadth_first_order(edge_mat<bignumber,0)
+    plen = get_path_len(pred)
+    if (pred[-1] < 0) or (plen[-1]>MAX_D):
+      broken = True
+    else:
+      broken = False
+
+  # do shortest path only on nodes that can be connected by less than MAX_D nodes
+  sel_nodes = np.where( (plen<=MAX_D)&(plen>=0))[0]
+  sel_edge_mat = edge_mat[sel_nodes][:,sel_nodes]
+  dmat, conn_mat = scipy.sparse.csgraph.shortest_path(sel_edge_mat,return_predecessors=True,indices=0)
 
   path = []
 
-  if dmat[-1]>=bignumber:
+  if broken:
     # This happens if thre is no path. In this case connect as much as possible to the st_idx tracklet and en_idx tracklet
-    broken = True
-    possible_end = np.where(dmat[1:-1]<bignumber)[0]
-    if possible_end.size > 0:
-      possible_end_trks = int_trks[possible_end]
+    if sel_nodes.size > 1:
+      sel_int = sel_nodes[1:]
+      possible_end_trks = int_trks[sel_int-1]
       lengths = en[possible_end_trks] - en[st_idx]
       max_length_idx = np.argmax(lengths)
-      p_end = possible_end[max_length_idx] + 1
+      p_end = max_length_idx + 1
       path.append(p_end)
     else:
       p_end = 0
   else:
-    broken = False
-    p_end = n_trks + 1
+    p_end = len(sel_nodes) - 1
 
   p_start = 0
   while p_end!=p_start:
@@ -2216,26 +2343,63 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
 
   # remove the first tracklet which corresponds to st_idx
   path = path[:-1] if len(path)>0 else path
+  path_sel = path
+  path = [(sel_nodes[p]-1) for p in path_sel]
 
-  if broken:
+  if broken and en_idx>=0:
     # connect the longest possible path to en_idx
-    dmat_e, conn_mat = scipy.sparse.csgraph.shortest_path(edge_mat.T, return_predecessors=True, indices=-1)
-    possible_st = np.where(dmat_e[1:-1]<bignumber)[0]
-    if possible_st.size > 0:
-      possible_st_trks = int_trks[possible_st]
+
+    conn_nodes, pred = scipy.sparse.csgraph.breadth_first_order(edge_mat.T < bignumber, edge_mat.shape[0]-1)
+    plen_en = get_path_len(pred,len(pred)-1)
+
+    # do shortest path only on nodes that can be connected by less than MAX_D nodes
+    sel_nodes = np.where( (plen_en <= MAX_D) & (plen_en>=0))[0]
+    if sel_nodes.size>1:
+      sel_edge_mat = edge_mat[sel_nodes][:, sel_nodes]
+      dmat_e, conn_mat = scipy.sparse.csgraph.shortest_path(sel_edge_mat.T, return_predecessors=True, indices=-1)
+
+      sel_int = sel_nodes[:-1]-1
+      assert np.all(sel_int>=0), 'Some weird stuff'
+      possible_st_trks = int_trks[sel_int]
       lengths =  st[en_idx] - st[possible_st_trks]
       max_length_idx = np.argmax(lengths)
-      p_start = possible_st[max_length_idx] + 1
-      p_end = n_trks+1
+      p_start = max_length_idx
+      p_end = len(sel_nodes)-1
 
       while p_start!=p_end:
-        path.append(p_start)
+        path.append(sel_nodes[p_start]-1)
         p_start = conn_mat[p_start]
 
   # reconstruct the path in terms of tracklets
-  path = [int_trks[ix-1] for ix in path]
+  path = [int_trks[ix] for ix in path]
 
   return path
+
+def get_path_len(pred,end_pt=0):
+  # pred is predecessors for graphs
+  n = len(pred)
+  plen = np.zeros(n)
+  update = [[] for i in range(n)]
+  cur_pred = pred.copy()
+
+  def do_update(ix):
+    for uix in update[ix]:
+      plen[uix] = plen[ix] + 1
+      do_update(uix)
+
+  for ix in range(n):
+    if cur_pred[ix]<0:
+      plen[ix] = -1
+      continue
+    pp = cur_pred[ix]
+    update[pp].append(ix)
+  plen[end_pt] = 0
+  do_update(end_pt)
+
+  return plen
+
+
+
 
 
 def get_link_costs(tt, st, en, params):

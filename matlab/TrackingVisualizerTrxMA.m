@@ -235,10 +235,16 @@ classdef TrackingVisualizerTrxMA < handle
       set(obj.hTraj(~tfShowTrx),'Visible','off');
       set(obj.hTrx(tfShowTrx),'Visible','on');
       set(obj.hTrx(~tfShowTrx),'Visible','off');
+      set(obj.hTraj(tfShowTrx),'HitTest','on');
+      set(obj.hTraj(~tfShowTrx),'HitTest','off');
+      set(obj.hTrx(tfShowTrx),'HitTest','on');
+      set(obj.hTrx(~tfShowTrx),'HitTest','off');
       
       if obj.lObj.showTrxIDLbl
         set(obj.hTrxTxt(tfShowTrx),'Visible','on');
         set(obj.hTrxTxt(~tfShowTrx),'Visible','off');
+        set(obj.hTrxTxt(tfShowTrx),'HitTest','on');
+        set(obj.hTrxTxt(~tfShowTrx),'HitTest','off');
       else
         set(obj.hTrxTxt,'Visible','off');
       end

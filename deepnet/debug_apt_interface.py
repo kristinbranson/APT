@@ -6,15 +6,20 @@
 
 #cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_mask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask True link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageBBox_nocrop_second_23022022/deepnet-100000 -conf_params2  -type2 mdn_joint_fpn -name2 2stageBBox_nocrop_second_23022022 -type detect_mmdetect track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_1_bbox.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/aa.trk -track_type only_predict -start_frame 48800 -end_frame 49000'
 
-cmd = ['-name', '20210322T043242', '-view', '1', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tp7a56c159_eec9_4b1e_a1a2_2c5f5aeca941', '-err_file', '/groups/branson/home/kabram/.apt/tp7a56c159_eec9_4b1e_a1a2_2c5f5aeca941/alice_ma/multi_mdn_joint_torch/view_0/20210322T043242/trk/movie_trn20210322T043242_iter20000_20220920T014220_mov1_vwj1.err', '-model_files', '/groups/branson/home/kabram/.apt/tp7a56c159_eec9_4b1e_a1a2_2c5f5aeca941/alice_ma/multi_mdn_joint_torch/view_0/20210322T043242/deepnet-20000', '-type', 'multi_mdn_joint_torch', '/groups/branson/home/kabram/.apt/tp7a56c159_eec9_4b1e_a1a2_2c5f5aeca941/alice_ma/20210322T043242_20210322T043244.json', 'track', '-out', '/groups/branson/home/kabram/.apt/tp7a56c159_eec9_4b1e_a1a2_2c5f5aeca941/alice_ma/multi_mdn_joint_torch/view_0/20210322T043242/trk/movie_trn20210322T043242_iter20000_20220920T014220_mov1_vwj1.trk', '-config_file', '/groups/branson/home/kabram/.apt/tp7a56c159_eec9_4b1e_a1a2_2c5f5aeca941/alice_ma/multi_mdn_joint_torch/view_0/20210322T043242/trk/trkconfig_movie_trn20210322T043242_iter20000_20220920T014220_mov1_vwj1.json', '-track_type', 'only_predict', '-mov', '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00038_CsChr_RigB_20150729T150617/movie.ufmf', '-start_frame', '12056', '-end_frame', '12256']
+cmd = '/groups/branson/home/bransonk/.apt/tpa14468fa_1d15_47eb_aae6_695a2613d39e/jumperTestTrack_JAK/20220815T192934_20220815T192934.json -name 20220815T192934 -type deeplabcut -model_files /groups/branson/home/bransonk/.apt/tpa14468fa_1d15_47eb_aae6_695a2613d39e/jumperTestTrack_JAK/deeplabcut/view_0/20220815T192934/deepnet-1000 /groups/branson/home/bransonk/.apt/tpa14468fa_1d15_47eb_aae6_695a2613d39e/jumperTestTrack_JAK/deeplabcut/view_1/20220815T192934/deepnet-1000 -ignore_local 0 -cache /groups/branson/home/bransonk/.apt/tpa14468fa_1d15_47eb_aae6_695a2613d39e track -config_file /groups/branson/home/bransonk/.apt/tpa14468fa_1d15_47eb_aae6_695a2613d39e/jumperTestTrack_JAK/deeplabcut/view_0/20220815T192934/trk/trkconfig_day2_stm5_2022_04_26_10_57_30-015_0_trn20220815T192934_view0_iter1000_20221020T145752.json -track_type only_predict -out /groups/branson/home/bransonk/.apt/tpa14468fa_1d15_47eb_aae6_695a2613d39e/jumperTestTrack_JAK/deeplabcut/view_0/20220815T192934/trk/day2_stm5_2022_04_26_10_57_30-015_0_trn20220815T192934_view0_iter1000_20221020T145752.trk /groups/branson/home/bransonk/.apt/tpa14468fa_1d15_47eb_aae6_695a2613d39e/jumperTestTrack_JAK/deeplabcut/view_1/20220815T192934/trk/day2_stm5_2022_04_26_10_57_30-015_2_trn20220815T192934_view1_iter1000_20221020T145752.trk -mov /nrs/branson/kwaki/jumping_data/202210_set1/2022_04_VglutStGtacr1_thal_stm3to5/day2_stm5_2022_04_26_10_57_30-015_0.avi /nrs/branson/kwaki/jumping_data/202210_set1/2022_04_VglutStGtacr1_thal_stm3to5/day2_stm5_2022_04_26_10_57_30-015_2.avi -start_frame 1 -end_frame 10'
+
+if type(cmd)!=list:
+    cmd = cmd.replace('"','')
 from reuse import *
 # cmd = cmd.replace('"/','/')
 # cmd = cmd.replace('" ',' ')
-if type(cmd) == list:
-    apt.main(cmd)
-else:
-    cmd = cmd.replace('\\', '')
-    apt.main(cmd.split())
+if __name__ == '__main__':
+    if type(cmd) == list:
+        apt.main(cmd)
+    else:
+        cmd = cmd.replace('\\', '')
+        apt.main(cmd.split())
+
 
 ##
 cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
@@ -2268,4 +2273,3 @@ self.create_db(split_file = '/home/mayank/temp/apt_cache/multitarget_bubble/mdn/
 ##
 import APT_interface as apt
 apt.main(cmd.split())
-```

@@ -220,18 +220,21 @@ def crop_images(frame_in, conf):
     return frame_in[start[0]:end[0], start[1]:end[1], :]
 
 
-def randomly_flip_lr(img, in_locs, conf, group_sz = 1, mask=None):
+def randomly_flip_lr(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
     locs = in_locs.copy()
+    occ = in_occ.copy() if in_occ is not None else np.ones_like(locs[...,0])
 
     if locs.ndim == 3:
         reduce_dim = True
-        locs = locs[:,np.newaxis,...]
+        locs = locs[:,None,...]
+        occ = occ[:,None]
     else:
         reduce_dim = False
 
     num = img.shape[0]
     n_groups = num//group_sz
     orig_locs = locs.copy()
+    orig_occ = occ.copy()
     pairs = conf.flipLandmarkMatches
     wd = img.shape[2]
     for ndx in range(n_groups):
@@ -257,23 +260,31 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1, mask=None):
                             locs[sndx,curn, ll, 0] = wd - 1 - orig_locs[sndx,curn, match, 0]
 
                 locs[st:en, :, ll, 1] = orig_locs[st:en, :, match, 1]
+                occ[st:en,:,ll] = orig_occ[st:en,:,match]
+
+    if reduce_dim:
+        locs = locs[:, 0]
+        occ = occ[:,0]
+    if in_occ is None:
+        occ = None
+    return img, locs, mask, occ
 
 
-    locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs, mask
-
-
-def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None):
+def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
     locs = in_locs.copy()
+    occ = in_occ.copy() if in_occ is not None else np.ones_like(locs[...,0])
+
     if locs.ndim == 3:
         reduce_dim = True
-        locs = locs[:,np.newaxis,...]
+        locs = locs[:,None,...]
+        occ = occ[:,None]
     else:
         reduce_dim = False
 
     num = img.shape[0]
     n_groups = num//group_sz
     orig_locs = locs.copy()
+    orig_occ = occ.copy()
     pairs = conf.flipLandmarkMatches
     ht = img.shape[1]
     for ndx in range(n_groups):
@@ -299,9 +310,14 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None):
                             locs[sndx,curn, ll, 1] = ht - 1 - orig_locs[sndx,curn, match, 1]
 
                 locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
+                occ[st:en,:,ll] = orig_occ[st:en,:,match]
 
-    locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs, mask
+    if reduce_dim:
+        locs = locs[:, 0]
+        occ = occ[:,0]
+    if in_occ is None:
+        occ = None
+    return img, locs, mask, occ
 
 
 def randomly_translate(img, locs, conf, group_sz = 1):
@@ -1396,7 +1412,7 @@ def crop_to_size(img, sz):
     return out_img, dx, dy
 
 
-def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,interp_method=cv2.INTER_LINEAR):
+def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,occ=None,interp_method=cv2.INTER_LINEAR):
     '''
 
     :param ims: Input image. It is converted to uint8 before applying the transformations. Size: B x H x W x C
@@ -1421,9 +1437,9 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,in
     stime = time.time()
     if distort:
         if conf.horz_flip:
-            xs, locs, mask = randomly_flip_lr(xs, locs, conf, group_sz=group_sz,mask=mask)
+            xs, locs, mask, occ = randomly_flip_lr(xs, locs, conf, group_sz=group_sz,mask=mask,in_occ=occ)
         if conf.vert_flip:
-            xs, locs, mask = randomly_flip_ud(xs, locs, conf, group_sz=group_sz,mask=mask)
+            xs, locs, mask, occ = randomly_flip_ud(xs, locs, conf, group_sz=group_sz,mask=mask,in_occ=occ)
         ftime = time.time()
         xs, locs, mask = randomly_affine(xs, locs, conf, group_sz=group_sz,mask=mask,interp_method=interp_method)
         rtime = time.time()
@@ -1432,10 +1448,12 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,in
     xs = normalize_mean(xs, conf)
     etime = time.time()
     # print('Time for aug {}, {}, {}, {}, {}'.format(stime-start,ftime-stime,rtime-ftime,ctime-rtime,etime-ctime))
-    if mask is None:
-        return xs, locs
-    else:
-        return xs, locs, mask
+    ret = [xs,locs]
+    if mask is not None:
+        ret.append(mask)
+    if occ is not None:
+        ret.append(occ)
+    return ret
 
 
 def pad_ims(ims, locs, pady, padx):

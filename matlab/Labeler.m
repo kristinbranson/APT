@@ -10632,13 +10632,13 @@ classdef Labeler < handle
       % * fully-occ labels: .p is inf, .tfocc is false
 
       % For now we don't accept partially-labeled rows
-      tfnanrow = any(isnan(tblP.p),2);
-      nnanrow = nnz(tfnanrow);
-      if nnanrow>0
-        warningNoTrace('Labeler:nanData',...
-          'Not including %d partially-labeled rows.',nnanrow);
-      end
-      tblP = tblP(~tfnanrow,:);
+%       tfnanrow = any(isnan(tblP.p),2);
+%       nnanrow = nnz(tfnanrow);
+%       if nnanrow>0
+%         warningNoTrace('Labeler:nanData',...
+%           'Not including %d partially-labeled rows.',nnanrow);
+%       end
+%       tblP = tblP(~tfnanrow,:);
         
       % Deal with full-occ rows in tblP. Do this here as otherwise the call 
       % to preProcCropLabelsToRoiIfNec will consider inf labels as "OOB"
@@ -13085,6 +13085,14 @@ classdef Labeler < handle
       %v = axis(obj.gdata.axes_curr);
       x0 = mean(get(obj.gdata.axes_curr,'XLim'));
       y0 = mean(get(obj.gdata.axes_curr,'YLim'));
+    end
+    function v = videoCurrentAxis(obj)
+      v = axis(obj.gdata.axes_curr);
+    end
+    function videoCenterOn(obj,x,y)
+      [xsz,ysz] = obj.videoCurrentSize();
+      lims = [x-xsz/2,x+xsz/2,y-ysz/2,y+ysz/2];
+      axis(obj.gdata.axes_curr,lims);      
     end
     
     function xy = videoClipToVideo(obj,xy)

@@ -20,7 +20,7 @@ Trx:
   TrxMarker: 'x'
   TrxMarkerSize: 10
   TrxLineWidth: 3
-  TrxIDLblFontSize: 10
+  TrxIDLblFontSize: 15
   TrxIDLblFontWeight: bold
   TrxIDLblOffset: 2.5 # in pixels, dx/dy offset of text ID lbl
   ShowTrx: 1

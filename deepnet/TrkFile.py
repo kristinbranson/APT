@@ -4,6 +4,7 @@ import copy
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import h5py
+import logging
 
 def convert(in_data,to_python):
   """
@@ -995,6 +996,26 @@ class Tracklet:
       tidx = np.concatenate((tidx,tidxcurr),axis=0)
 
     return tidx,fidx
+
+  def where_all(self,nids):
+    nt = self.ntargets
+    fidx = [np.zeros(0,dtype=int) for n in range(nids)]
+    tidx = [np.zeros(0,dtype=int) for n in range(nids)]
+    if nt>0:
+      axis_rest = self.axis_rest()
+      ss = self.data[0].shape
+      zz = np.array([ss[z] for z in axis_rest])
+      assert np.all(zz==1), 'This is available only for single dim tracklets'
+    for itgt in range(self.ntargets):
+      [a,b] = np.unique(self.data[itgt],return_inverse=True)
+      for n in range(len(a)):
+        curid = a[n]
+        if np.all(equals_nan(curid,self.defaultval)): continue
+        fidxcurr = np.where(b==n)[0]+self.startframes[itgt]
+        tidxcurr =np.zeros(fidxcurr.shape,dtype=int) + itgt
+        fidx[curid] = np.concatenate((fidx[curid],fidxcurr),axis=0)
+        tidx[curid] = np.concatenate((tidx[curid],tidxcurr),axis=0)
+    return tidx,fidx
   
   def unique(self):
     axis_rest = self.axis_rest()
@@ -1042,9 +1063,12 @@ class Tracklet:
     newdata = [None,]*nids
     newstartframes = np.zeros(nids,dtype=int)
     newendframes = np.zeros(nids,dtype=int)
+    idx_all = ids.where_all(nids)
+    assert len(idx_all) == 2
     for id in range(nids):
-      idx = ids.where(id)
-      assert len(idx) == 2
+      # idx = ids.where(id)
+      # assert len(idx) == 2
+      idx = [idx_all[0][id],idx_all[1][id]]
       if idx[1].size == 0:
         print('target %d has no data, cleaning not run (correctly)'%id)
         continue
@@ -1054,10 +1078,9 @@ class Tracklet:
       newdata[id][:] = self.defaultval
       newstartframes[id] = t0+T0
       newendframes[id] = t1+T0
-      for itgt in range(self.ntargets):
-        idx1 = idx[0] == itgt
-        if not np.any(idx1):
-          continue
+      aa,bb = np.unique(idx[0],return_inverse=True)
+      for ndx,itgt in enumerate(aa):
+        idx1 = bb==ndx
         fs = idx[1][idx1]
         newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
         

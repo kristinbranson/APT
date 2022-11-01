@@ -29,7 +29,7 @@ ROOT:
           - imax: ['Max pixel value',float,true,'Maximum pixel value in the video.',255.,'','Advanced','isTopDown',true]
         - GradientDescent:
           - ['Gradient Descent','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
-          - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. ',40000,'','Important','ma',true]
+          - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. ',40000,'','Important','isTopDown',true]
           - batch_size: ['Training batch size',unsigned,true,'Number of training examples used in each iteration of gradient descent. Too large of values may cause the GPU to run out of memory. Too small of values may make training slower and result in poor optimization. When changed to 8/x, it is suggested to increase the number of training iterations by x for better performance. Does not apply to DeepLabCut where batch size is always 1.',8,'ParameterVisualizationMemory','Important','isTopDown',true]
           - learning_rate_multiplier: ['Learning Rate Multiplier',float,true,'Learning rate multplier for networks other than deeplabcut. If the multiplier is m, and base learning rate is 0.0001 then then learning rate used will be 0.0001*m. Does not apply to LEAP and DeepLabCut.',1.,'','Beginner','isTopDown',true]
           - lr_drop_step: ['Learning Rate Drop',float,true,'At the end of training, the fraction of training steps to train at lower learning rate.',0.15,'','Advanced','isTopDown',true]
@@ -79,9 +79,10 @@ ROOT:
           - link_maxframes_delete: ['Minimum Trajectory Length',unsigned,true,'Delete trajectories of length shorter than this.',10,'','Beginner',['ma'],true]
           - link_maxframes_missed: ['Max gap length to link',unsigned,true,'Maximum gap length in trajectory across which to link trajectory.',10,'','Advanced',['ma'],true]
           - link_strict_match_thres: ['Matching Threshold',float,true,'Match a prediction only if the distance to closest match is smaller than the distance to the next closest match by this factor.',2,'','Advanced',['ma'],true]
-          - link_id_training_iters: ['Identity Tracker Training iterations',unsigned,true,'Number of steps to training the identity tracker for.',40000,'','Important',['ma'],true]
+          - link_id_training_iters: ['Identity Tracker Training iterations',unsigned,true,'Number of steps to training the identity tracker for.',40000,'','Beginner',['ma'],true]
           - link_id_tracklet_samples: ['Tracklet Samples',unsigned,true,'Number of examples to sample from a tracklet when assigning identity.',25,'','Advanced',['ma'],true]
           - link_id_rescale: ['Identity tracker downsampling factor',float,true,'Amount to downsample the cropped animal images for identity tracking.',1,'','Important',['ma'],true]
-          - link_id_batch_size: ['Identity tracker batch size',unsigned,true,'Batch size to use for training identity network.',16,'','Important',['ma'],true]
+          - link_id_batch_size: ['Identity tracker batch size',unsigned,true,'Batch size to use for training identity network.',16,'','Beginner',['ma'],true]
           - link_id_mining_steps: ['Identity tracker mining steps',unsigned,true,'Number of times to do hard triplet mining during identity tracking.',10,'','Advanced',['ma'],true]
+          - link_id_cropsz: ['Crop size to use for ID Linking',signed,true,'Crop size to use ID linking. If less than 0, the automatically computed crop size is used',-1,'','Beginner',['ma'],true]
 
