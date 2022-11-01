@@ -3640,7 +3640,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
         locs_conf = None
 
     if 'occ' in extra_dict:
-        pred_occ = extra_dict['occ']
+        pred_occ = extra_dict['occ']>0.5
         tag = np.transpose(pred_occ, [2, 0, 1])
 
     trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf,T0=start)

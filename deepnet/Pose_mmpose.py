@@ -171,10 +171,12 @@ class APTtransform:
             jlen = len(joints)
             joints_in = joints[0][...,:2]
             occ_in = joints[0][...,2]
-            joints_in[occ_in<1,:] = -100000
-            image,joints_out,mask_out = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,mask=mask[0][None,...])
+            joints_in[occ_in<0.5,:] = -100000
+            image,joints_out,mask_out,occ = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,mask=mask[0][None,...],occ=occ_in)
             image = image.astype('float32')
-            joints_out_occ = np.isnan(joints_out[0, ..., 0:1]) | (joints_out[0, ..., 0:1] < -1000)
+            joints_out_occ1 = np.isnan(joints_out[0, ..., 0:1]) | (joints_out[0, ..., 0:1] < -1000)
+            joints_out_occ = occ<0.5
+            assert np.array_equal(joints_out_occ1,joints_out_occ), 'Occlusion from processing and from joints should be equal'
             joints_out = np.concatenate([joints_out[0,...],(~joints_out_occ)*2],axis=-1)
             in_sz = results['ann_info']['image_size']
             out_sz = results['ann_info']['heatmap_size']
@@ -190,9 +192,11 @@ class APTtransform:
             joints_in = joints[:,:2]
             joints_in[occ_in<0.5,:] = -100000
 
-            image,joints_out = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale)
+            image,joints_out, occ = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,occ=occ_in)
             image = image.astype('float32')
-            joints_out_occ = np.isnan(joints_out[0,...,0:1]) | (joints_out[0,...,0:1]<-1000)
+            joints_out_occ1 = np.isnan(joints_out[0,...,0:1]) | (joints_out[0,...,0:1]<-1000)
+            joints_out_occ = occ<0.5
+            assert np.array_equal(joints_out_occ1,joints_out_occ), 'Occlusion from processing and from joints should be equal'
 
             results['joints_3d'] = np.concatenate([joints_out[0,...],np.zeros_like(joints_out[0,:,:1])],1)
             results['joints_3d_visible'] = np.concatenate([1-joints_out_occ,1-joints_out_occ,np.zeros_like(joints_out_occ)],1)

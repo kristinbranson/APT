@@ -4,6 +4,7 @@ import copy
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import h5py
+import logging
 
 def convert(in_data,to_python):
   """
@@ -1077,10 +1078,9 @@ class Tracklet:
       newdata[id][:] = self.defaultval
       newstartframes[id] = t0+T0
       newendframes[id] = t1+T0
-      for itgt in range(self.ntargets):
-        idx1 = idx[0] == itgt
-        if not np.any(idx1):
-          continue
+      aa,bb = np.unique(idx[0],return_inverse=True)
+      for ndx,itgt in enumerate(aa):
+        idx1 = bb==ndx
         fs = idx[1][idx1]
         newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
         

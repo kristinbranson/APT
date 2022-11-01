@@ -38,8 +38,8 @@ mdn:
   displayString: MDN (Deprecated)
   modelCheckpointPat: deepnet-%d.index  
   modelGlobs: [deepnet-%d.*, deepnet_ckpt, traindata*]  # matching files are considered important and saved to Lbl
-  trkAuxFields: [pTrkConf, pTrkConf_unet]
-  trkAuxLabels: [conf_mdn, conf_unet]
+  trkAuxFields: [pTrkConf] #, pTrkConf_unet]
+  trkAuxLabels: [conf_mdn] #, conf_unet]
   doesOccPred: 1
   isMultiAnimal: 0
   docker: tf23_mmdetection

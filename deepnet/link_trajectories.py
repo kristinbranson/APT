@@ -94,7 +94,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   # construct the cost matrix
   # C[i,j] is the cost of matching curr[i] and next[j]
   C = np.zeros((ncurr+nnext, ncurr+nnext))
-  C[:] = maxcost / 2.
+  C[:] = maxcost/2
   C[ncurr:, nnext:] = 0
   pcurr = np.reshape(pcurr, (d * nlandmarks, ncurr, 1))
   pnext = np.reshape(pnext, (d * nlandmarks, 1, nnext))
@@ -109,26 +109,22 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
     # If a current detection has 2 matches then break the tracklet
     for x1 in range(ncurr):
       if np.all(np.isnan(C1[x1, :])): continue
-      x1_curr = np.nanargmin(C1[x1, :])
-      curc = C1.copy()
-      c1 = curc[x1, x1_curr]
-      curc[x1, x1_curr] = np.nan
-      curc[np.isnan(curc)] = np.inf
-      c2 = np.min(curc[x1, :])
-      if (c2 / (c1 + 0.0001)) < strict_match_thres:
+      x1_min = np.nanargmin(C1[x1, :])
+      c1 = C1[x1,x1_min]+0.0001
+      x2 = np.where(C1[x1,:]< c1*strict_match_thres)[0]
+      if x2.size>1:
         C[x1, :nnext] = maxcost*2
+        C[:ncurr,x2] = maxcost*2
 
     # If a next detection has 2 matches then break the tracklet
     for x1 in range(nnext):
       if np.all(np.isnan(C1[:,x1])): continue
-      x1_curr = np.nanargmin(C1[:,x1])
-      curc = C1.copy()
-      c1 = curc[x1_curr,x1]
-      curc[x1_curr,x1] = np.nan
-      curc[np.isnan(curc)] = np.inf
-      c2 = np.min(curc[:,x1])
-      if (c2/(c1+0.0001)) < strict_match_thres:
+      x1_min = np.nanargmin(C1[:,x1])
+      c1 = C1[x1_min,x1] + 0.0001
+      x2 = np.where(C1[:,x1]< c1*strict_match_thres)[0]
+      if x2.size>1:
         C[:ncurr,x1] = maxcost*2
+        C[x2,:nnext] = maxcost*2
 
     # for x1 in range(ncurr):
     #   for x2 in range(nnext):
@@ -1989,7 +1985,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
         if pred_map[uu][0] == mov_ndx:
           ids_ignore.append(pred_map[uu][1])
 
-      # we add the missing  links before grouping again. Consider the case where there is  missing link that perfectly fills the gap but doesn't match the identity because animal is doing weird stuff. In that case if we group before this tracklet will end up with its own group and we  wouldn't know whether to add it as part of missing link or not. We could set the minimum group size but that would not work with the case where animals move in or out.
+      # we add the missing  links before grouping again. Consider the case where there is  missing link that perfectly fills the gap but doesn't match the identity because animal is doing weird stuff. In that case if we group before filling in the gaps, this tracklet will end up with its own group and we  wouldn't know whether ungroup it to add it as part of missing link or not. We could set the minimum group size but that would not work with the case where animals move in or out.
       gr, pred_map = add_missing_links(linked_trks, [gr], conf, pred_map, mov_ndx, ids_ignore, maxcosts_all[mov_ndx],maxn_all[mov_ndx], bignumber, link_costs_arr)
       gr = gr[0]
 
@@ -2162,9 +2158,9 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
 
     qq1 = np.where(qq[:-2] & (~qq[1:-1]))[0]
     qq2 = np.where((~qq[1:-1]) & qq[2:])[0]
-    to_rem = (qq1==0) | (qq2==maxn-1)
-    qq1 = qq1[~to_rem]
-    qq2 = qq2[~to_rem]
+    # to_rem = (qq1==0) | (qq2==maxn-1)
+    # qq1 = qq1[~to_rem]
+    # qq2 = qq2[~to_rem]
     breaks.append(np.array(list(zip(qq1, qq2))))
 
   if ignore_idx is None:
@@ -2179,18 +2175,28 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
     for bx in range(breaks[ndx].shape[0]):
       b_st, b_en = breaks[ndx][bx, :]
 
-      if (b_st > 0) & (b_en<maxn) &( (b_en-b_st)<=max_link):
+      if b_st > 0 and b_en<maxn-1:
         st_trk = occ[ndx][b_st - 1]
         en_trk = occ[ndx][b_en + 1]
-        trk2add = find_path(link_costs, st_trk, en_trk, b_en + 1, st, en, maxcosts_all, taken, mult, bignumber)
-        for tid in trk2add:
-          match_pred = np.where((pred_map==[tndx,tid]).all(axis=1))[0]
-          if len(match_pred)>0:
-            linked_groups[ndx].append(match_pred[0])
-          else:
-            new_pred_map.append([tndx,tid])
-            linked_groups[ndx].append(len(pred_map)+len(new_pred_map)-1)
-          taken.append(tid)
+      elif b_st<=0 and b_en<maxn-1:
+        st_trk = -1
+        en_trk = occ[ndx][b_en+1]
+      elif b_st>0 and b_en>=maxn-1:
+        st_trk = occ[ndx][b_st-1]
+        en_trk = -1
+      else:
+        logging.warning('Weird stuff in linking')
+        continue
+
+      trk2add = find_path(link_costs, st_trk, en_trk, b_en + 1, st, en, maxcosts_all, taken, mult, bignumber)
+      for tid in trk2add:
+        match_pred = np.where((pred_map==[tndx,tid]).all(axis=1))[0]
+        if len(match_pred)>0:
+          linked_groups[ndx].append(match_pred[0])
+        else:
+          new_pred_map.append([tndx,tid])
+          linked_groups[ndx].append(len(pred_map)+len(new_pred_map)-1)
+        taken.append(tid)
 
   if len(new_pred_map)>0:
     new_pred_map = np.concatenate([pred_map, new_pred_map],axis=0)
@@ -2218,8 +2224,17 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
   This function uses the shorteset path algorithm. Cost of linking tracklets tr1 that ends at t and tr2 that starts at t+n is maxcosts_all[n-1]/2. This is because we only want to mildly penalize the missing frame, as otherwise the algorithm will try to fill in some other tracklet tr3 that could be far from both tr1 and tr2.
   '''
 
-  link_st = en[st_idx] + 1
-  link_en = st[en_idx] - 1
+
+  MAX_D = 20
+  if st_idx>=0:
+    link_st = en[st_idx] + 1
+  else:
+    link_st = 0
+  if en_idx>=0:
+    link_en = st[en_idx] - 1
+  else:
+    link_en = max(en)
+
   taken_arr = np.zeros(len(st)) > 0.5
   taken_arr[taken] = True
 
@@ -2239,36 +2254,43 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
     else:
       connect = True
 
+
     if n_miss>0:
+      # if there are gaps then adjust the cost. The adjusting factor  is (n_miss+1)*maxcosts_all[0]/maxcosts_all[n_miss]. maxcosts_all[0]/maxcosts_all[n_miss] is the sort of to counter the curvature. It seems the adjusting factor usually ends up being close to 1. So maybe it could be removed entirely.
+      # To understand the adjusting factor, think there is a gap of 1 between S and E and there is a detection M in the in-between frame that has a distance of maxcosts_all[0] to both the start and the end. If cost(S,E) = maxcosts_all[1], then very likely detection M will get skipped. However, if we adjust using the adjusting factor then the detection M will get used when diong the shortest path. We bump it by 1.5 just to be safe.
       cur_cost = cost * (n_miss + 1) * maxcosts_all[0] / maxcosts_all[n_miss] * 1.5
     else:
       cur_cost = cost
 
     return connect, cur_cost
 
-  if link_costs[st_idx][1].size > 0:
-    en_ix = np.where(link_costs[st_idx][1][:,0]==en_idx)[0]
-    if en_ix.size>0:
-      connect, cost =  get_link_cost(link_costs[st_idx][1][en_ix[0]])
-      edge_mat[0,-1] =  cost
+  if st_idx>=0 and en_idx>=0:
+    # direct cost between the start and the end tracklets if they can be connected
+    if link_costs[st_idx][1].size > 0:
+      en_ix = np.where(link_costs[st_idx][1][:,0]==en_idx)[0]
+      if en_ix.size>0:
+        connect, cost =  get_link_cost(link_costs[st_idx][1][en_ix[0]])
+        edge_mat[0,-1] =  cost
 
-  # Costs from start tracklet
-  for ix in range(link_costs[st_idx][1].shape[0]):
-    lix = int(link_costs[st_idx][1][ix, 0])
-    if lix not in int_trks: continue
-    lix_id = np.where(int_trks==lix)[0][0]
-    connect, cost = get_link_cost(link_costs[st_idx][1][ix])
-    if connect:
-        edge_mat[0,lix_id+1] = cost
+  if st_idx>=0:
+    # Costs from the start tracklet
+    for ix in range(link_costs[st_idx][1].shape[0]):
+      lix = int(link_costs[st_idx][1][ix, 0])
+      if lix not in int_trks: continue
+      lix_id = np.where(int_trks==lix)[0][0]
+      connect, cost = get_link_cost(link_costs[st_idx][1][ix])
+      if connect:
+          edge_mat[0,lix_id+1] = cost
 
-  # Costs to end tracklet
-  for ix in range(link_costs[en_idx][0].shape[0]):
-    lix = int(link_costs[en_idx][0][ix, 0])
-    if lix not in int_trks: continue
-    lix_id = np.where(int_trks==lix)[0][0]
-    connect, cost = get_link_cost(link_costs[en_idx][0][ix])
-    if connect:
-        edge_mat[lix_id+1,-1] = cost
+  if en_idx>=0:
+    # Costs to the end tracklet
+    for ix in range(link_costs[en_idx][0].shape[0]):
+      lix = int(link_costs[en_idx][0][ix, 0])
+      if lix not in int_trks: continue
+      lix_id = np.where(int_trks==lix)[0][0]
+      connect, cost = get_link_cost(link_costs[en_idx][0][ix])
+      if connect:
+          edge_mat[lix_id+1,-1] = cost
 
   # For all other tracklets
   for ix1 in range(n_trks):
@@ -2281,25 +2303,38 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
       if connect:
         edge_mat[ix1+1,lix_id + 1] = cost
 
-  dmat, conn_mat = scipy.sparse.csgraph.shortest_path(edge_mat,return_predecessors=True,indices=0)
+
+  if st_idx<0:
+    broken = True
+    plen = np.array([0])
+  else:
+    conn_nodes, pred = scipy.sparse.csgraph.breadth_first_order(edge_mat<bignumber,0)
+    plen = get_path_len(pred)
+    if (pred[-1] < 0) or (plen[-1]>MAX_D):
+      broken = True
+    else:
+      broken = False
+
+  # do shortest path only on nodes that can be connected by less than MAX_D nodes
+  sel_nodes = np.where( (plen<=MAX_D)&(plen>=0))[0]
+  sel_edge_mat = edge_mat[sel_nodes][:,sel_nodes]
+  dmat, conn_mat = scipy.sparse.csgraph.shortest_path(sel_edge_mat,return_predecessors=True,indices=0)
 
   path = []
 
-  if dmat[-1]>=bignumber:
+  if broken:
     # This happens if thre is no path. In this case connect as much as possible to the st_idx tracklet and en_idx tracklet
-    broken = True
-    possible_end = np.where(dmat[1:-1]<bignumber)[0]
-    if possible_end.size > 0:
-      possible_end_trks = int_trks[possible_end]
+    if sel_nodes.size > 1:
+      sel_int = sel_nodes[1:]
+      possible_end_trks = int_trks[sel_int-1]
       lengths = en[possible_end_trks] - en[st_idx]
       max_length_idx = np.argmax(lengths)
-      p_end = possible_end[max_length_idx] + 1
+      p_end = max_length_idx + 1
       path.append(p_end)
     else:
       p_end = 0
   else:
-    broken = False
-    p_end = n_trks + 1
+    p_end = len(sel_nodes) - 1
 
   p_start = 0
   while p_end!=p_start:
@@ -2308,26 +2343,63 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
 
   # remove the first tracklet which corresponds to st_idx
   path = path[:-1] if len(path)>0 else path
+  path_sel = path
+  path = [(sel_nodes[p]-1) for p in path_sel]
 
-  if broken:
+  if broken and en_idx>=0:
     # connect the longest possible path to en_idx
-    dmat_e, conn_mat = scipy.sparse.csgraph.shortest_path(edge_mat.T, return_predecessors=True, indices=-1)
-    possible_st = np.where(dmat_e[1:-1]<bignumber)[0]
-    if possible_st.size > 0:
-      possible_st_trks = int_trks[possible_st]
+
+    conn_nodes, pred = scipy.sparse.csgraph.breadth_first_order(edge_mat.T < bignumber, edge_mat.shape[0]-1)
+    plen_en = get_path_len(pred,len(pred)-1)
+
+    # do shortest path only on nodes that can be connected by less than MAX_D nodes
+    sel_nodes = np.where( (plen_en <= MAX_D) & (plen_en>=0))[0]
+    if sel_nodes.size>1:
+      sel_edge_mat = edge_mat[sel_nodes][:, sel_nodes]
+      dmat_e, conn_mat = scipy.sparse.csgraph.shortest_path(sel_edge_mat.T, return_predecessors=True, indices=-1)
+
+      sel_int = sel_nodes[:-1]-1
+      assert np.all(sel_int>=0), 'Some weird stuff'
+      possible_st_trks = int_trks[sel_int]
       lengths =  st[en_idx] - st[possible_st_trks]
       max_length_idx = np.argmax(lengths)
-      p_start = possible_st[max_length_idx] + 1
-      p_end = n_trks+1
+      p_start = max_length_idx
+      p_end = len(sel_nodes)-1
 
       while p_start!=p_end:
-        path.append(p_start)
+        path.append(sel_nodes[p_start]-1)
         p_start = conn_mat[p_start]
 
   # reconstruct the path in terms of tracklets
-  path = [int_trks[ix-1] for ix in path]
+  path = [int_trks[ix] for ix in path]
 
   return path
+
+def get_path_len(pred,end_pt=0):
+  # pred is predecessors for graphs
+  n = len(pred)
+  plen = np.zeros(n)
+  update = [[] for i in range(n)]
+  cur_pred = pred.copy()
+
+  def do_update(ix):
+    for uix in update[ix]:
+      plen[uix] = plen[ix] + 1
+      do_update(uix)
+
+  for ix in range(n):
+    if cur_pred[ix]<0:
+      plen[ix] = -1
+      continue
+    pp = cur_pred[ix]
+    update[pp].append(ix)
+  plen[end_pt] = 0
+  do_update(end_pt)
+
+  return plen
+
+
+
 
 
 def get_link_costs(tt, st, en, params):

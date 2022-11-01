@@ -119,7 +119,9 @@ classdef LabelTracker < handle
       obj.sPrmAll = sPrm;
     end
     function setTrackParams(obj,sPrmTrack)
-      obj.sPrmAll = APTParameters.setTrackParams(obj.sPrmAll,sPrmTrack);
+      if ~isempty(obj.sPrmAll)
+        obj.sPrmAll = APTParameters.setTrackParams(obj.sPrmAll,sPrmTrack);
+      end
     end
        
     function ppdata = fetchPreProcData(obj,tblP,ppPrms)
