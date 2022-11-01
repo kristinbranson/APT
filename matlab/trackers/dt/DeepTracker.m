@@ -5061,7 +5061,8 @@ classdef DeepTracker < LabelTracker
         obj.movIdx2trkfile(id) = trkfiles(tfexists);
       end
     end
-    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
+    function [tfhasdata,xy,occ,sf,ef,aux,auxlbl] = ...
+                            getTrackingResultsCurrMovieTgt(obj)
       lo = obj.lObj;
       if lo.maIsMA
         if ~isempty(obj.trkVizer)
@@ -5074,16 +5075,21 @@ classdef DeepTracker < LabelTracker
       end
       trk = obj.trkP;
       if ~isempty(iTgt) && ~isnan(iTgt) && ~isempty(trk)
-        tpos = trk.getPTrkTgt(iTgt);
         nt = obj.trnNetType;
-        taux = arrayfun(@(x)trk.getPAuxTgt(iTgt,x,'missingok',true),...
-          nt.trkAuxFields(:),'uni',0);
-        taux = cat(3,taux{:});
-        tauxlbl = nt.trkAuxLabels(:);
+        auxflds = nt.trkAuxFields;
+        ispropcurr = cellfun(@(x) isprop(trk,x),auxflds);
+        auxlbl = nt.trkAuxLabels(:);
+        auxflds = auxflds(ispropcurr);
+        auxlbl = auxlbl(ispropcurr);
+        [tfhasdata,xy,occ,sf,ef,aux] = trk.getPTrkTgt2(iTgt,'auxflds',auxflds);
       else
-        tpos = [];
-        taux = [];
-        tauxlbl = [];
+        tfhasdata = false;
+        xy = [];
+        occ = [];
+        sf = nan;
+        ef = nan;
+        aux = [];
+        auxlbl = cell(0,1);
       end      
     end
     function [trkfileObjs,tfHasRes] = getTrackingResults(obj,mIdx)
