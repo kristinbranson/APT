@@ -133,7 +133,7 @@ class coco_loader(torch.utils.data.Dataset):
             if not (a['image_id']==item):
                 continue
             locs = np.array(a['keypoints'])
-            if a['num_keypoints']>0:
+            if a['num_keypoints']>0 and a['area']>1:
                 locs = np.reshape(locs, [conf.n_classes, 3])
                 # if np.all(locs[:,2]>0.5):
                 curl[lndx,...] = locs

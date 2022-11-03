@@ -232,6 +232,7 @@ class mdn_joint(nn.Module):
 
         if self.pred_occluded:
             pred_occ = self.p_occ(x_j)
+            pred_occ = pred_occ.reshape(js[0:1]+(self.npts,self.k_j)+js[2:])
         else:
             pred_occ = None
 
@@ -404,7 +405,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         if self.conf.predict_occluded:
             occ_flat = occ_pred.reshape([occ_pred.shape[0], 1, n_classes, self.k_j * ls[-2] * ls[-1]]).permute(
                 [0, 1, 3, 2])
-            dd_occ = (occ_flat - occ[:,None,None]) ** 2
+            dd_occ = (occ_flat - occ[:,:,None]) ** 2
             dd_occ = torch.where(valid[:, :, None, None], dd_occ, torch.zeros_like(dd_occ))
             # Set the loss 0 where labels are missing
             dd_occ = dd_occ.sum(-1)
@@ -520,7 +521,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     continue
                 preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
                 if self.conf.predict_occluded:
-                    pred_occ[ndx,done_count,...] = occ_out[ndx,...,idx[1],idx[2]]
+                    pred_occ[ndx,done_count,...] = occ_out[ndx,...,idx[0],idx[1],idx[2]]
                 conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]]
                 for cls in range(n_classes):
                     rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale

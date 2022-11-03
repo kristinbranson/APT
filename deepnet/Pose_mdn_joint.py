@@ -489,7 +489,7 @@ class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch
         target_dict = {'locs':inputs['locs'][:,None,...]}
         if 'mask' in inputs.keys():
             target_dict['mask'] = inputs['mask']
-        target_dict['occ'] = inputs['occ']
+        target_dict['occ'] = inputs['occ'][:,None,...]
         return target_dict
 
 

@@ -111,16 +111,20 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       
       % get landmarks
       xy = nan(npts,2,nTrx);
+      tfeo = false(npts,nTrx);
+      has_occ = isfield(ptrx,'pocc');
       for j=1:nTrx
         ptrxJ = ptrx(iTrx(j));
         if ~isempty(ptrxJ.p)
           idx = frm + ptrxJ.off;
           xy(:,:,j) = ptrxJ.p(:,:,idx);
+          if has_occ
+            tfeo(:,j) = ptrxJ.pocc(:,idx);
+          end
         end
       end
       
       % update tvmt
-      tfeo = false(npts,nTrx);
       obj.tvmt.updateTrackRes(xy,tfeo);
       
       % update tvtrx; call setShow
