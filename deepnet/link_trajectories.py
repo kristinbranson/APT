@@ -1049,7 +1049,28 @@ def link_trklets(trk_files, conf, movs, out_files):
       conf1.use_bbox_trx = True
       conf1.use_ht_trx = False
       conf1.trx_align_theta = False
-    return link_id(in_trks, trk_files, movs, conf1, out_files)
+
+    single_animals = [is_single_animal_trk(trk) for trk in in_trks]
+    trks2link = []
+    trk_files2link = []
+    movs2link = []
+    out_files2link = []
+    for n in range(len(in_trks)):
+      if single_animals[n]: continue
+      trks2link.append(in_trks[n])
+      trk_files2link.append(trk_files[n])
+      movs2link.append(movs[n])
+      out_files2link.append(out_files[n])
+    trk_files2link = [trk_files[n]]
+    linked_trks = link_id(trks2link, trk_files2link, movs2link, conf1, out_files2link)
+    out_trks= in_trks
+    count = 0
+    for n in range(len(in_trks)):
+      if single_animals[n]: continue
+      out_trks[n] = linked_trks[count]
+      count +=1
+
+    return out_trks
 
   else:
     params = get_default_params(conf)
@@ -1071,6 +1092,17 @@ def link_trklets(trk_files, conf, movs, out_files):
     out_trks = [link(trk,params) for trk in in_trks]
     return out_trks
 
+def is_single_animal_trk(trk):
+  st,en = trk.get_startendframes()
+  maxn = max(en)
+  minn = min(st)
+  overlap = np.zeros(maxn-minn+1)
+  for ndx in range(len(st)):
+    curst = st[ndx]-minn
+    curen = en[ndx]-maxn
+    overlap[curst:curen] +=1
+  more_than1 = np.count_nonzero(overlap>1)/(maxn-minn+1)<0.2
+  return more_than1
 
 def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   '''
@@ -1142,6 +1174,8 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
   :rtype:
   '''
 
+  if len(trks)<1:
+    return
 
   all_trx = []
 
