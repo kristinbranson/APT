@@ -1051,46 +1051,59 @@ def link_trklets(trk_files, conf, movs, out_files):
       conf1.trx_align_theta = False
 
     single_animals = [is_single_animal_trk(trk) for trk in in_trks]
-    trks2link = []
+    trks2link_id = []
+    trks2link_simple = []
     trk_files2link = []
     movs2link = []
     out_files2link = []
     for n in range(len(in_trks)):
-      if single_animals[n]: continue
-      trks2link.append(in_trks[n])
-      trk_files2link.append(trk_files[n])
-      movs2link.append(movs[n])
-      out_files2link.append(out_files[n])
+      if single_animals[n]:
+        trks2link_simple.append(in_trks[n])
+      else:
+        trks2link_id.append(in_trks[n])
+        trk_files2link.append(trk_files[n])
+        movs2link.append(movs[n])
+        out_files2link.append(out_files[n])
     trk_files2link = [trk_files[n]]
-    linked_trks = link_id(trks2link, trk_files2link, movs2link, conf1, out_files2link)
-    out_trks= in_trks
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link)
+    linked_trks_simple = simple_linking(trks2link_simple,conf)
+
+    out_trks= []
     count = 0
+    count1 = 0
     for n in range(len(in_trks)):
-      if single_animals[n]: continue
-      out_trks[n] = linked_trks[count]
-      count +=1
+      if single_animals[n]:
+        out_trks.append(linked_trks_simple[count1])
+        count1+=1
+      else:
+        out_trks.append(linked_trks[count])
+        count +=1
 
     return out_trks
 
   else:
-    params = get_default_params(conf)
+    return simple_linking(in_trks,conf)
 
-    if 'maxcost' not in params:
-      params['maxcost'] = estimate_maxcost(in_trks, params)
-    logging.info('maxcost set to %f' % params['maxcost'])
+def simple_linking(in_trks,conf):
+  params = get_default_params(conf)
 
-    if 'maxcost_missed' not in params:
-      params['maxcost_missed'] = estimate_maxcost_missed(in_trks, params)
-      logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
+  if 'maxcost' not in params:
+    params['maxcost'] = estimate_maxcost(in_trks, params)
+  logging.info('maxcost set to %f' % params['maxcost'])
 
-    params['maxframes_delete'] = conf.link_id_min_tracklet_len
+  if 'maxcost_missed' not in params:
+    params['maxcost_missed'] = estimate_maxcost_missed(in_trks, params)
+    logging.info('maxcost_missed set to ' + str(params['maxcost_missed']))
 
-    # if 'nms_max' not in params:
-    # params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
+  params['maxframes_delete'] = conf.link_id_min_tracklet_len
 
-    #  nonmax_supp(trk, params)
-    out_trks = [link(trk,params) for trk in in_trks]
-    return out_trks
+  # if 'nms_max' not in params:
+  # params['nms_max'] = estimate_maxcost(trk, prctile=params['nms_prctile'], mult=1, heuristic='prctile')
+
+  #  nonmax_supp(trk, params)
+  out_trks = [link(trk, params) for trk in in_trks]
+  return out_trks
+
 
 def is_single_animal_trk(trk):
   st,en = trk.get_startendframes()
