@@ -27,11 +27,14 @@ def convert(in_data,to_python):
     out_data=in_data+offset
   return out_data
 
-def to_py(in_data):
+def to_py(in_data,dtype=None):
   """
   Convert from matlab to python data by decrementing various things by 1.
   """
-  return convert(in_data,to_python=True)
+  if dtype==bool:
+    return in_data
+  else:
+    return convert(in_data,to_python=True)
 
 def to_mat(in_data):
   """
@@ -600,7 +603,7 @@ class Tracklet:
       endframes = endframes.flatten()
 
     if ismatlab:
-      self.data = to_py(data)
+      self.data = to_py(data,dtype=self.dtype)
       self.startframes = to_py(startframes)
       self.endframes = to_py(endframes)
     elif docopy:
@@ -618,6 +621,8 @@ class Tracklet:
      self.size_rest = self.data[0].shape[:-1]
     else:
       self.size_rest = (0,0)
+    if len(self.data)>1 and self.data[0].dtype != self.dtype:
+      self.data = [d.astype(self.dtype) for d in self.data]
   
   def getframe(self,fs):
     """

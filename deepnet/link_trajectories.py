@@ -653,7 +653,7 @@ def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1)
     #   ix = all_ix[0]
     # ix = np.clip(ix, 5, 198) + 1
 
-    maxcost = mult * qq[ix] * 2
+    maxcost = mult * qq[ix]
 
     logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost' % (
     nframes_skip, ix / isz + 50, maxcost))
@@ -2183,7 +2183,6 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
 
   params = get_default_params(conf)
   mult = 5
-  max_link = 30*params['maxframes_missed']
 
   st, en = linked_trks[tndx].get_startendframes()
   link_costs = link_costs_arr[tndx]
@@ -2367,29 +2366,29 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
   sel_edge_mat = edge_mat[sel_nodes][:,sel_nodes]
   dmat, conn_mat = scipy.sparse.csgraph.shortest_path(sel_edge_mat,return_predecessors=True,indices=0)
 
-  path = []
 
   if broken:
     # This happens if thre is no path. In this case connect as much as possible to the st_idx tracklet and en_idx tracklet
     if sel_nodes.size > 1:
-      sel_int = sel_nodes[1:]
-      possible_end_trks = int_trks[sel_int-1]
-      lengths = en[possible_end_trks] - en[st_idx]
-      max_length_idx = np.argmax(lengths)
-      p_end = max_length_idx + 1
-      path.append(p_end)
+      path = greedy_longest_path(sel_edge_mat,0,bignumber)
+      # sel_int = sel_nodes[1:]
+      # possible_end_trks = int_trks[sel_int-1]
+      # lengths = en[possible_end_trks] - en[st_idx]
+      # max_length_idx = np.argmax(lengths)
+      # p_end = max_length_idx + 1
+      # path.append(p_end)
     else:
-      p_end = 0
+      path = []
   else:
+    path = []
     p_end = len(sel_nodes) - 1
+    p_start = 0
+    while p_end!=p_start:
+      p_end = conn_mat[p_end]
+      path.append(p_end)
+    # remove the first tracklet which corresponds to st_idx
+    path = path[:-1] if len(path)>0 else path
 
-  p_start = 0
-  while p_end!=p_start:
-    p_end = conn_mat[p_end]
-    path.append(p_end)
-
-  # remove the first tracklet which corresponds to st_idx
-  path = path[:-1] if len(path)>0 else path
   path_sel = path
   path = [(sel_nodes[p]-1) for p in path_sel]
 
@@ -2403,24 +2402,37 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
     sel_nodes = np.where( (plen_en <= MAX_D) & (plen_en>=0))[0]
     if sel_nodes.size>1:
       sel_edge_mat = edge_mat[sel_nodes][:, sel_nodes]
-      dmat_e, conn_mat = scipy.sparse.csgraph.shortest_path(sel_edge_mat.T, return_predecessors=True, indices=-1)
+      en_path = greedy_longest_path(sel_edge_mat.T,-1,bignumber)
+      for p in en_path:
+        path.append(sel_nodes[p]-1)
 
-      sel_int = sel_nodes[:-1]-1
-      assert np.all(sel_int>=0), 'Some weird stuff'
-      possible_st_trks = int_trks[sel_int]
-      lengths =  st[en_idx] - st[possible_st_trks]
-      max_length_idx = np.argmax(lengths)
-      p_start = max_length_idx
-      p_end = len(sel_nodes)-1
-
-      while p_start!=p_end:
-        path.append(sel_nodes[p_start]-1)
-        p_start = conn_mat[p_start]
+      # dmat_e, conn_mat = scipy.sparse.csgraph.shortest_path(sel_edge_mat.T, return_predecessors=True, indices=-1)
+      #
+      # sel_int = sel_nodes[:-1]-1
+      # assert np.all(sel_int>=0), 'Some weird stuff'
+      # possible_st_trks = int_trks[sel_int]
+      # lengths =  st[en_idx] - st[possible_st_trks]
+      # max_length_idx = np.argmax(lengths)
+      # p_start = max_length_idx
+      # p_end = len(sel_nodes)-1
+      #
+      # while p_start!=p_end:
+      #   path.append(sel_nodes[p_start]-1)
+      #   p_start = conn_mat[p_start]
 
   # reconstruct the path in terms of tracklets
   path = [int_trks[ix] for ix in path]
 
   return path
+
+def greedy_longest_path(edge_mat,st_pt,max_val):
+  path = []
+  if edge_mat.shape[0]<2: return path
+  while True:
+    nextp = np.argmin(edge_mat[st_pt])
+    if edge_mat[st_pt,nextp]>max_val: return path
+    path.append(nextp)
+    st_pt = nextp
 
 def get_path_len(pred,end_pt=0):
   # pred is predecessors for graphs
