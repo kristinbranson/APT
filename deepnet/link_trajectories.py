@@ -2140,7 +2140,7 @@ def interpolate_gaps(trk):
   :return:
   '''
 
-  thresh = 0.5
+  thresh = 1.
   # If the radio of (distance of the pose across the gap) and
   # (the size of the animal) is less than this thresh than interpolate
 
@@ -2182,7 +2182,7 @@ def get_dist(p1, p2):
 def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, maxcosts_all, maxn, bignumber, link_costs_arr):
 
   params = get_default_params(conf)
-  mult = 5
+  mult = 15
 
   st, en = linked_trks[tndx].get_startendframes()
   link_costs = link_costs_arr[tndx]
@@ -2304,7 +2304,7 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
     if n_miss>0:
       # if there are gaps then adjust the cost. The adjusting factor  is (n_miss+1)*maxcosts_all[0]/maxcosts_all[n_miss]. maxcosts_all[0]/maxcosts_all[n_miss] is the sort of to counter the curvature. It seems the adjusting factor usually ends up being close to 1. So maybe it could be removed entirely.
       # To understand the adjusting factor, think there is a gap of 1 between S and E and there is a detection M in the in-between frame that has a distance of maxcosts_all[0] to both the start and the end. If cost(S,E) = maxcosts_all[1], then very likely detection M will get skipped. However, if we adjust using the adjusting factor then the detection M will get used when diong the shortest path. We bump it by 1.5 just to be safe.
-      cur_cost = cost * (n_miss + 1) * maxcosts_all[0] / maxcosts_all[n_miss] * 1.5
+      cur_cost = cost * 1.5 * (n_miss + 1) * maxcosts_all[0] / maxcosts_all[n_miss]
     else:
       cur_cost = cost
 
