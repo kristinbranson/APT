@@ -13694,7 +13694,7 @@ classdef Labeler < handle
       % (full/completed) setFrame() call should fix things up. We could
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
-      debugtiming = true;
+      debugtiming = false;
       if debugtiming,
         setframetic = tic;
         starttime = setframetic;   

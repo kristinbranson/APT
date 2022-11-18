@@ -2817,7 +2817,7 @@ function slider_frame_Callback(hObject,evt,varargin)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
-debugtiming = true;
+debugtiming = false;
 if debugtiming,
   starttime = tic;
 end
@@ -2976,7 +2976,7 @@ handles.labelerObj.lblCore.clearLabels();
 handles.labelerObj.CheckPrevAxesTemplate();
 
 function tbAccept_Callback(hObject, eventdata, handles)
-debugtiming = true;
+debugtiming = false;
 if debugtiming,
   starttime = tic;
 end
