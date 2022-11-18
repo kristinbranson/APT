@@ -2817,7 +2817,11 @@ function slider_frame_Callback(hObject,evt,varargin)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
-starttime = tic;
+debugtiming = true;
+if debugtiming,
+  starttime = tic;
+end
+
 handles = guidata(hObject);
 lObj = handles.labelerObj;
 
@@ -2853,7 +2857,9 @@ if ~tfSetOccurred
   set(hObject,'Value',sldval);
 end
 
-%fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+if debugtiming,
+  fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+end
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -2970,6 +2976,11 @@ handles.labelerObj.lblCore.clearLabels();
 handles.labelerObj.CheckPrevAxesTemplate();
 
 function tbAccept_Callback(hObject, eventdata, handles)
+debugtiming = true;
+if debugtiming,
+  starttime = tic;
+end
+
 if ~checkProjAndMovieExist(handles)
   return;
 end
@@ -2983,6 +2994,10 @@ switch lc.state
     %handles.labelerObj.CheckPrevAxesTemplate();
   otherwise
     assert(false);
+end
+
+if debugtiming,
+  fprintf('toggleAccept took %f seconds\n',toc(starttime));
 end
 
 function cbkTblTrxCellSelection(src,evt) %#ok<*DEFNU>

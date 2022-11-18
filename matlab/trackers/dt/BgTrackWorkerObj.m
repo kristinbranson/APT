@@ -181,7 +181,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
 
       isRunning = obj.replicateJobs(isRunning);
       killFileExists = cellfun(@obj.fileExists,killfiles);
-      tfComplete = cellfun(@obj.fileExists,trkfiles);
+      tfComplete = cellfun(@obj.fileExists,trkfiles); % nmovies x njobs x nstages
       fprintf('tfComplete = %s\n',mat2str(tfComplete(:)'));
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
       logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
@@ -193,8 +193,8 @@ classdef BgTrackWorkerObj < BgWorkerObj
       % this way the monitor can track/viz the progress of each movie/view.
       
       sRes = struct(...
-        'tfComplete',num2cell(obj.replicateJobs(tfComplete)),...
-        'isRunning',num2cell(obj.replicateJobs(isRunning)),...
+        'tfComplete',num2cell(tfComplete),...
+        'isRunning',num2cell(isRunning),...
         'errFile',obj.replicateJobs(errfiles),... % char, full path to DL err file
         'errFileExists',num2cell(obj.replicateJobs(tfErrFileErr)),... % true of errFile exists and has size>0
         'logFile',obj.replicateJobs(logfiles),... % char, full path to Bsub logfile

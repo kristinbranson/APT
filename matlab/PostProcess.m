@@ -934,11 +934,11 @@ classdef PostProcess < handle
         [gridx,gridy] = meshgrid(minx(viewi):maxx(viewi),miny(viewi):maxy(viewi));
         scoreim = zeros([maxy(viewi)-miny(viewi)+1,maxx(viewi)-minx(viewi)+1,3]);
         for pti = 1:obj.npts,
-          if w_npts == 1,
+%           if w_npts == 1,
             w_pti = 1;
-          else
-            w_pti = 1;
-          end
+%           else
+%             w_pti = 1;
+%           end
           score = zeros(maxy(viewi)-miny(viewi)+1,maxx(viewi)-minx(viewi)+1);
                     
           for samplei = 1:nsamples_total,
@@ -975,11 +975,11 @@ classdef PostProcess < handle
       end
       subplot(1,obj.nviews+1,obj.nviews+1);
       for pti = 1:obj.npts,
-        if w_npts == 1,
+%         if w_npts == 1,
+%           w_pti = 1;
+%         else
           w_pti = 1;
-        else
-          w_pti = 1;
-        end
+%         end
 
         doplot = w(n,:,w_pti) > 0;
         h = scatter3(obj.sampledata.x(n,doplot,pti,1),obj.sampledata.x(n,doplot,pti,2),obj.sampledata.x(n,doplot,pti,3),w(n,doplot,w_pti)*100,'o');

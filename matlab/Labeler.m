@@ -6487,7 +6487,7 @@ classdef Labeler < handle
 %             
 %       x = rand;
 %       if x > 0.5
-%         obj.labelPosSet_Old(xy);
+%         obj.labelPosprofoi_Old(xy);
 %         obj.labelPosSet_New(xy);
 %       else
 %         obj.labelPosSet_New(xy);
@@ -13694,9 +13694,11 @@ classdef Labeler < handle
       % (full/completed) setFrame() call should fix things up. We could
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
-      setframetic = tic;
-      starttime = setframetic;
-            
+      debugtiming = true;
+      if debugtiming,
+        setframetic = tic;
+        starttime = setframetic;   
+      end
       [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
         updateTrajs,changeTgtsIfNec] = myparse(varargin,...
         'tfforcereadmovie',false,...
@@ -13706,8 +13708,10 @@ classdef Labeler < handle
         'updateTrajs',true,...
         'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
         );
-            
-      %fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      
+      if debugtiming,
+        fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
@@ -13736,7 +13740,9 @@ classdef Labeler < handle
         
       end
       
-      %fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       % Remainder nearly identical to setFrameAndTarget()
       try
@@ -13745,7 +13751,9 @@ classdef Labeler < handle
         warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
       end
       
-      %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         assert(~obj.isMultiView);
@@ -13754,14 +13762,18 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTargetPoint();
       end
       
-      %fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
 
       
       if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
       end
       
-      %fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       if updateTables
         obj.updateTrxTable();
@@ -13775,10 +13787,13 @@ classdef Labeler < handle
         obj.updateTrx(false);
       end
       
-      %fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
+      if debugtiming,
+        fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
+      end
 
-      
-      %fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
+      if debugtiming,
+        fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
+      end
       
     end
     
