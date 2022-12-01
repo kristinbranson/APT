@@ -163,6 +163,10 @@ classdef TrackingVisualizerTrxMA < handle
       % use iTrxPrimary==0 for "no current"
       obj.currTrx = iTrxPrimary;
       obj.updateColors();
+      if obj.showOnlyPrimary
+        tfShowTrx = obj.computeTfShowTrx();
+        obj.setShowTrx(tfShowTrx);        
+      end
     end
     
     function updateLiveTrx(obj,trxLive,frm,tfUpdateIDs)
@@ -279,6 +283,11 @@ classdef TrackingVisualizerTrxMA < handle
       obj.tfHideViz = tfHideOverall;
       obj.showOnlyPrimary = tfShowCurrTgtOnly;
       obj.updateShowHideAll();
+    end
+
+    function setShowOnlyPrimary(obj,tf)
+      obj.showOnlyPrimary = tf;
+      obj.updateShowHideAll();      
     end
     
     function set_hittest(obj,onoff)
