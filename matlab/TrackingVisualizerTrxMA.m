@@ -170,7 +170,8 @@ classdef TrackingVisualizerTrxMA < handle
     end
     
     function updateLiveTrx(obj,trxLive,frm,tfUpdateIDs)
-      % 
+      % Set/update positions of all live trx/trajs
+      %
       % trxAll: [ntrxlive] trx struct array; ntrxlivemust be <= obj.nTrx
       % frm: current frame
       % tfUpdateIDs: if true, trxAll must have IDs set and hTrxTxt are
@@ -188,17 +189,22 @@ classdef TrackingVisualizerTrxMA < handle
       
       tfShowTrx = obj.computeTfShowTrx();
       obj.setShowTrx(tfShowTrx);
-      iShowTrx = find(tfShowTrx);
-      
-      for iTrx = iShowTrx(:)'
-%         if ~tfShowTrx(iTrx)
-%           % should already be hidden          
-%           continue;
-%         end
+
+%     20221201 we update all positions here even for visible='off' gfx
+%     handles. Otherwise, toggling visibility would reveal incorrect
+%     positions. Notes:
+%     * The performance hit does not seem significant so far. This update
+%       is not a bottleneck eg when Playing a tracked movie.
+%     * Alternative would be to lazy-update on any toggling of visibility/
+%       primariness. 
+%
+%       iShowTrx = find(tfShowTrx);      
+%       for iTrx = iShowTrx(:)'
+      for iTrx=1:ntrxlive
         
         trxCurr = trxLive(iTrx);
         t0 = trxCurr.firstframe;
-        t1 = trxCurr.endframe;        
+        t1 = trxCurr.endframe;      
         if t0<=frm && frm<=t1 && ~isempty(trxCurr.x)
           idx = frm+trxCurr.off;
           xTrx = trxCurr.x(idx);
@@ -270,6 +276,8 @@ classdef TrackingVisualizerTrxMA < handle
     end
     
     function updateShowHideAll(obj)
+      % sets visibility of .hTraj, .hTrx, .hTrxTxt based on .tfHideViz, 
+      % .showOnlyPrimary etc 
       tfShow = obj.computeTfShowTrx();
       obj.setShowTrx(tfShow);      
     end    
