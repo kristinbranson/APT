@@ -383,7 +383,13 @@ classdef Labeler < handle
     labels2Hide;          % scalar logical
     labels2ShowCurrTargetOnly;  % scalar logical, transient    
     skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
-    skelHead = []; % [], or scalar pt index for head
+                                %
+                                % Multiview: currently, els of skeletonEdges
+                                % are expected to be in (1..nPhysPts), ie 
+                                % edges defined wrt 3d/physical pts with 
+                                % pts identified across views
+    skelHead = []; % [], or scalar pt index for head. 
+                   % Multiview: indices currently expected to be in (1..nPhysPts)
     skelTail = [];
     skelNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
                  % NOTE: arguably the "point names" should be. init: C
