@@ -1245,7 +1245,80 @@ def create_incremental_dbs(do_split=False):
                 else:
                     apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
 
-   
+def create_incremental_dbs_ma(pkl_file,ma_loc, do_split=False):
+    # incremental dbs to match MA incremental
+    import json
+    import os
+    import PoseTools as pt
+    import multiResData
+
+    exp_name = 'db_sz'
+    lbl = h5py.File(lbl_file,'r')
+    m_ndx = apt.to_py(lbl['preProcData_MD_mov'].value[0, :].astype('int'))
+    t_ndx = apt.to_py(lbl['preProcData_MD_iTgt'].value[0, :].astype('int'))
+    f_ndx = apt.to_py(lbl['preProcData_MD_frm'].value[0, :].astype('int'))
+
+    n_mov = lbl['movieFilesAll'].shape[1]
+    mov_files = multiResData.find_local_dirs(lbl_file,0)
+    n_labels = m_ndx.shape[0]
+    lbl.close()
+
+    T = pt.json_load(ma_loc)
+
+    inc_info = pt.pickle_load(pkl_file)
+    sel = inc_info['sel']
+    perm_lbls = inc_info['perm_lbls']
+    n_samples = inc_info['n_samples']
+
+    for ndx, cur_s in enumerate(n_samples):
+        cur = sel[ndx]
+        valt = []
+        traint = []
+        for ndx,curt in enumerate(T['locdata']):
+            single_mov_ndx = mov_files.index(curt['mov'])
+            if ndx in cur:
+                traint.append([single_mov_ndx,curt['frm']-1])
+            else:
+                valt.append([single_mov_ndx,curt['frm']-1])
+
+        splits = [[], []]
+        for ex in range(n_labels):
+            cur_m = m_ndx[ex]
+            cur_t = t_ndx[ex]
+            cur_f = f_ndx[ex]
+            cur_info = [cur_m,cur_f, cur_t]
+            if [cur_m,cur_f] in traint:
+                splits[0].append(cur_info)
+            else:
+                splits[1].append(cur_info)
+
+        exp_name = '{}_randsplit_round_{}'.format(data_type,ndx)
+        for view in range(nviews):
+            for tndx in range(len(all_models)):
+                train_type = all_models[tndx]
+                #conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                conf = create_conf_help(train_type, view, exp_name)
+                mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
+                split_file= os.path.join(mdn_conf.cachedir,'randsplitinfo.json')
+                if do_split and not os.path.exists(split_file):
+                    def convert(o):
+                        if isinstance(o, np.int64): return int(o)
+                        raise TypeError
+                    with open(split_file,'w') as f:
+                        json.dump(splits,f,default=convert)
+                        print("Wrote split file {}".format(split_file))
+
+                conf.splitType = 'predefined'
+                if 'deeplabcut' in train_type:
+                    apt.create_deepcut_db(conf, split=True, split_file=split_file,use_cache=True)
+                elif 'leap' in train_type:
+                    apt.create_leap_db(conf, split=True, split_file=split_file, use_cache=True)
+                elif train_type in ['mmpose','mdn_joint_fpn']:
+                    apt.create_coco_db(conf,split=True,split_file=split_file,use_cache=True)
+                else:
+                    apt.create_tfrecord(conf, split=True, split_file=split_file, use_cache=True)
+
+
 ## create invidual animals dbs
 
 def create_individual_animal_db_alice():
