@@ -11385,7 +11385,7 @@ classdef Labeler < handle
       silent = myparse(varargin,'silent',false) | obj.silent;
       dotrain = true;
       sPrm = obj.trackGetParams();
-      [is_ma,is2stage,stage,is_ma_net] = ParameterVisualizationMemory.getStage(obj,'');
+      [is_ma,is2stage,is_ma_net,stage] = ParameterVisualizationMemory.getStage(obj,'');
       imsz = ParameterVisualizationMemory.getProjImsz(...
         obj,sPrm,is_ma,is2stage,1);
       [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...

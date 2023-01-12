@@ -90,6 +90,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       is_ma = lObj.maIsMA;
       is2stage = lObj.trackerIsTwoStage;
       is_ma_net = false;
+      stage = 1;
 
       if is_ma 
         if is2stage

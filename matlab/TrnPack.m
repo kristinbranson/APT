@@ -283,8 +283,8 @@ classdef TrnPack
       tObj = lObj.tracker;
       tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
 
-      slbl = tObj.trnCreateStrippedLbl();
-      slbl = Lbl.compressStrippedLbl(slbl,'ma',true);
+      slbl_orig = tObj.trnCreateStrippedLbl();
+      slbl = Lbl.compressStrippedLbl(slbl_orig,'ma',true);
       [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
 
       if strcmp(DeepModelChainOnDisk.configFileExt,'.lbl') || DeepModelChainOnDisk.gen_strippedlblfile,
@@ -379,13 +379,13 @@ classdef TrnPack
           TrnPack.writeims(locg(writeimsidx),packdir);
         end
       else
-        locg = TrnPack.genLocsSA(slbl,tblsplit);
+        locg = TrnPack.genLocsSA(slbl_orig,tblsplit);
         if writeims
           if isempty(writeimsidx)
             writeimsidx = 1:numel(locg);
           end
 
-          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl.preProcData_I);
+          TrnPack.writeimsSA(locg(writeimsidx),packdir,slbl_orig.preProcData_I);
         end
       end
         
