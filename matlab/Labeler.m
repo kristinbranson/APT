@@ -383,7 +383,13 @@ classdef Labeler < handle
     labels2Hide;          % scalar logical
     labels2ShowCurrTargetOnly;  % scalar logical, transient    
     skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
-    skelHead = []; % [], or scalar pt index for head
+                                %
+                                % Multiview: currently, els of skeletonEdges
+                                % are expected to be in (1..nPhysPts), ie 
+                                % edges defined wrt 3d/physical pts with 
+                                % pts identified across views
+    skelHead = []; % [], or scalar pt index for head. 
+                   % Multiview: indices currently expected to be in (1..nPhysPts)
     skelTail = [];
     skelNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
                  % NOTE: arguably the "point names" should be. init: C
@@ -11357,6 +11363,9 @@ classdef Labeler < handle
       end
       
       obj.trackSetAutoParams();
+      if ~obj.trackCheckGPUMem()
+        return;
+      end
       
       if ~isempty(tblMFTtrn)
         assert(strcmp(tObj.algorithmName,'cpr'));
@@ -11371,6 +11380,49 @@ classdef Labeler < handle
         obj.preProcUpdateH0IfNec();
       end
       tObj.retrain(retrainArgs{:});
+    end
+
+    function dotrain = trackCheckGPUMem(obj,varargin)
+      silent = myparse(varargin,'silent',false) | obj.silent;
+      dotrain = true;
+      sPrm = obj.trackGetParams();
+      [is_ma,is2stage,is_ma_net,stage] = ParameterVisualizationMemory.getStage(obj,'');
+      imsz = ParameterVisualizationMemory.getProjImsz(...
+        obj,sPrm,is_ma,is2stage,1);
+      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
+        obj,sPrm,is_ma,is2stage,1);
+      imsz = imsz/ds;
+      mem_need = get_network_size(nettype,imsz,bsz,is_ma_net);
+      try
+        [gpuid,freemem,gpuInfo] = obj.trackDLBackEnd.getFreeGPUs(1);
+      catch
+        return
+      end
+      if (mem_need>0.9*freemem) && ~silent;
+        qstr = sprintf('The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB). It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling to prevent training from crashing. Do you still want to train?',freemem,round(mem_need));
+        res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+        if ~strcmpi(res,'Yes')
+          dotrain = false;
+        end
+      end
+
+      if ~is2stage || ~dotrain, return; end
+
+       % check for 2nd stage
+      imsz = ParameterVisualizationMemory.getProjImsz(...
+        obj,sPrm,is_ma,is2stage,2);
+      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
+        obj,sPrm,is_ma,is2stage,2);
+      imsz = imsz/ds;
+      mem_need = get_network_size(nettype,imsz,bsz,false);
+
+      if (mem_need>0.9*freemem) && ~silent;
+        qstr = sprintf('The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB). It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling to prevent training from crashing. Do you still want to train?',freemem,round(mem_need));
+        res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+        if ~strcmpi(res,'Yes')
+          dotrain = false;
+        end
+      end
     end
     
     function [bgTrnIsRunning] = trackBGTrnIsRunning(obj)
@@ -13088,6 +13140,21 @@ classdef Labeler < handle
     end
     function v = videoCurrentAxis(obj)
       v = axis(obj.gdata.axes_curr);
+    end
+    function videoSetAxis(obj,lims,resetcamera)
+      if nargin<3
+        resetcamera = true;
+      end
+      % resets camera view too
+      ax = obj.gdata.axes_curr;
+      if resetcamera
+        ax.CameraUpVector = [0, -1,0];
+        ax.CameraUpVectorMode = 'auto';
+        ax.CameraViewAngleMode = 'auto';
+        ax.CameraPositionMode = 'auto';
+        ax.CameraTargetMode = 'auto';
+      end
+      axis(ax,lims);
     end
     function videoCenterOn(obj,x,y)
       [xsz,ysz] = obj.videoCurrentSize();

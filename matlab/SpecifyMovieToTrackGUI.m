@@ -23,19 +23,22 @@ classdef SpecifyMovieToTrackGUI < handle
     defaulttrxpat = [];
     defaultdetectpat = [];
     track_type = 'track';
+    detailed_options = true;
   end
   methods
     function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
       
-      [defaulttrkpat,defaulttrxpat,defaultdetectpat] = myparse(varargin,...
+      [defaulttrkpat,defaulttrxpat,defaultdetectpat,detailed_options] = myparse(varargin,...
         'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
+        'defaulttrxpat',[], ...
         'defaultdetectpat',[], ...
-        'defaulttrxpat',[] ...
+        'detailed_options', false ...
         );
 
       obj.lObj = lObj;
       obj.isma = lObj.maIsMA;
       obj.hParent = hParent;
+      obj.detailed_options = detailed_options;
 
       obj.nview = obj.lObj.nview;
       obj.hastrx = obj.lObj.hasTrx;
@@ -284,7 +287,7 @@ classdef SpecifyMovieToTrackGUI < handle
       % rowh
       % border
       
-      if obj.isma
+      if obj.isma && obj.detailed_options
         controlbuttonstrs = {'Detect','Link','Track','Cancel'};
         controlbuttontags = {'detect','link','track','cancel'};
         controlbuttoncolors = ...
@@ -684,7 +687,7 @@ classdef SpecifyMovieToTrackGUI < handle
         movI = obj.movdata.movfiles{i};
         trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
         obj.movdata.detectfiles{i} = trkI;
-        obj.isgood.detect(i) = obj.checkRowValue('trk',i);
+        obj.isgood.detect(i) = obj.checkRowValue('detect',i);
         set(obj.gdata.detect.rowedit(i),'String',trkI);
       end
       if strcmp(ri.movdatafield,'movfiles') && obj.hastrx && ~isempty(obj.defaulttrxpat)

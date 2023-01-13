@@ -2748,8 +2748,8 @@ classdef DeepTracker < LabelTracker
 
       % do_linking: when in multi-animal mode, should we train an id 
       % recognizer to link trajectories. 
-      [totrackinfo,do_linking,wbObj,isexternal] = ...
-        myparse(varargin,'totrackinfo',[],'do_linking',true,...
+      [totrackinfo,track_type,wbObj,isexternal] = ...
+        myparse(varargin,'totrackinfo',[],'track_type','track',...
         'wbObj',[],'isexternal',false);
       assert(~isempty(totrackinfo));
 
@@ -2880,7 +2880,7 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-      tfSuccess = obj.trkSpawn(totrackinfo,backend,'do_linking',do_linking);
+      tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type);
       if ~tfSuccess,
         obj.bgTrkReset();
         return;
@@ -3462,7 +3462,7 @@ classdef DeepTracker < LabelTracker
     function tfSuccess = trkSpawn(obj,totrackinfo,backend,varargin)
 
       tfSuccess = false;
-      [do_linking] = myparse(varargin,'do_linking',true);
+      [track_type] = myparse(varargin,'track_type','track');
 
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
@@ -3492,7 +3492,7 @@ classdef DeepTracker < LabelTracker
         totrackinfojob.setJobid(id);
         totrackinfojob.setDefaultFiles();
 
-        basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_linking',do_linking);
+        basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
         backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),totrackinfojob,aptroot,'track');
         syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile);
@@ -3721,13 +3721,6 @@ classdef DeepTracker < LabelTracker
                 obj.jumpToNearestTracking();
                 % Jumping to the firstframe was super annoying!!
                 % changing so that we don't MK 20220729
-
-                % For MA, for now we automatically jump to the startframe for
-                % the first tracklet; and we select it. This enables the
-                % Tracklet HUD and timeline.
-                %
-                % bit of a hack here as special-casing and end-running
-                % TrackingVisualizerBase api.
               end
               obj.newLabelerFrame();
             end
@@ -5082,7 +5075,11 @@ classdef DeepTracker < LabelTracker
       if ~isempty(iTgt) && ~isnan(iTgt) && ~isempty(trk)
         nt = obj.trnNetType;
         auxflds = nt.trkAuxFields;
+        if isempty(auxflds)
+          ispropcurr = [];
+        else
         ispropcurr = cellfun(@(x) isprop(trk,x),auxflds);
+        end
         auxlbl = nt.trkAuxLabels(:);
         auxflds = auxflds(ispropcurr);
         auxlbl = auxlbl(ispropcurr);

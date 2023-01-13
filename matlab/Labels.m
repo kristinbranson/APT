@@ -653,7 +653,7 @@ classdef Labels
       tf = any(predicateFcn(s.p),1);
       nrm = nnz(tf);
       if nrm>0
-        warningNoTrace('Labeler:nanData','Not including %d %s rows.',nrm,rmDispStr);
+%        warningNoTrace('Labeler:nanData','Not including %d %s rows.',nrm,rmDispStr);
         s.p(:,tf) = [];
         s.ts(:,tf) = [];
         s.occ(:,tf) = [];

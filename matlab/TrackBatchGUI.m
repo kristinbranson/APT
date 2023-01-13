@@ -17,6 +17,7 @@ classdef TrackBatchGUI < handle
     
     defaulttrkpat;
     defaulttrxpat = '$movdir/trx.mat';
+    defaultdetectkpat;
   end
   
   methods
@@ -27,6 +28,7 @@ classdef TrackBatchGUI < handle
       toTrack = myparse(varargin,'toTrack',struct);
       
       obj.defaulttrkpat = lObj.defaultExportTrkRawname();
+      obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
       obj.initData(toTrack);      
       obj.createGUI();
     end
@@ -144,7 +146,7 @@ classdef TrackBatchGUI < handle
       % save, track, cancel
       controlbuttonw = .15;
       if obj.isma
-        controlbuttonstrs = {'Save','Load','Detect','Link','Detect and Link','Cancel'};
+        controlbuttonstrs = {'Save','Load','Detect','Link','Track','Cancel'};
         controlbuttontags = {'save','load','detect','link','track','cancel'};
         controlbuttoncolors = ...
           [0,0,.8
@@ -463,9 +465,10 @@ classdef TrackBatchGUI < handle
       if obj.isma
         movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
           movdata,'defaulttrkpat',obj.defaulttrkpat,...
-          'defaultdetectpat',obj.defaulttrkpat);
+          'defaultdetectpat',obj.defaultdetectkpat,...
+          'detailed_options',false);
       else
-      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
         movdata,'defaulttrkpat',obj.defaulttrkpat,...
         'defaulttrxpat',obj.defaulttrxpat);
       end
@@ -582,8 +585,7 @@ classdef TrackBatchGUI < handle
               end
             end
           end
-          obj.toTrack.track_type = tag;
-          trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack);
+          trackBatch('lObj',obj.lObj,'toTrack',obj.toTrack,'track_type',tag);
           delete(obj.gdata.fig);
         otherwise
           error('Callback for %s not implemented',tag);
@@ -764,15 +766,19 @@ classdef TrackBatchGUI < handle
         switch btn
           case 'Yes'
             obj.defaulttrkpat = trkpatnew;
+            obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
             obj.apply_macro_allmovies();
           case 'No'
             obj.defaulttrkpat = trkpatnew;
+            obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
           case 'Cancel'
             % revert
             h.String = obj.defaulttrkpat;            
         end
       else
         obj.defaulttrkpat = trkpatnew;
+        obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
+
       end
     end
     function apply_macro_allmovies(obj)
@@ -782,6 +788,10 @@ classdef TrackBatchGUI < handle
           cur_m = obj.toTrack.movfiles{moviei,view};
           trk = obj.genTrkfile(cur_m,defaulttrk);
           obj.toTrack.trkfiles{moviei,view} = trk;
+          if obj.lObj.maIsMA
+            trk = obj.genTrkfile(cur_m,obj.defaultdetectkpat);
+            obj.toTrack.detectfiles{moviei,view} = trk;
+          end
         end
       end
       obj.updateMovieList();

@@ -71,6 +71,7 @@ classdef LabelCoreSeqMA < LabelCore
     tcHpts % [1] line handle for tc pts
     tcHptsPV = struct('Color','r','marker','+','markersize',10,'linewidth',2);
     tcShow = false; % scalar logical. true => leave tc points showing during lbl    
+    tc_prev_axis = []; % to reset to prev view once the 2 click labeling is over
   end
   
   methods
@@ -284,6 +285,7 @@ classdef LabelCoreSeqMA < LabelCore
           dy = y0-xy(2);
           th = atan2(dy,dx);
           lObj = obj.labeler;
+          obj.tc_prev_axis = lObj.videoCurrentAxis;
           lObj.videoCenterOnCurrTarget(xc,yc,th)
           rad = 2*sqrt(dx.^2+dy.^2);
           lObj.videoZoom(rad);
@@ -790,9 +792,12 @@ classdef LabelCoreSeqMA < LabelCore
 
       obj.iPtMove = nan;
       obj.clearSelected();
-      obj.tcInit();
+      obj.tcInit();      
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
+      if obj.tcOn && ~isempty(obj.tc_prev_axis)
+        lObj.videoSetAxis(obj.tc_prev_axis);
+      end
       obj.state = LabelState.ACCEPTED;
       obj.enableControls();
     end    

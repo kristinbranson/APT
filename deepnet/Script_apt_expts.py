@@ -71,7 +71,13 @@ rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 # alice_incr_dstr = '20200716' #'20200608'
 # rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
 dstr = '20210708' #'20210629'
-# rae.create_incremental_dbs()
+import run_apt_ma_expts as rae_ma
+import os
+robj = rae_ma.ma_expt('alice')
+ma_inc_file = os.path.join(robj.trnp_dir,'inc_data.pkl')
+ma_loc = os.path.join(robj.trnp_dir, 'grone', rae_ma.loc_file_str)
+
+rae.create_incremental_dbs_ma(ma_inc_file, ma_loc)
 rae.run_incremental_training(dstr=dstr) #run_type = 'submit'
 
 
