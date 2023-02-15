@@ -6,27 +6,18 @@ import PoseTools
 import sys
 import os
 import contextlib
+# Assume TF==2.x.x
 import tensorflow
-import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if (vv[0]==1 and vv[1]>12) or vv[0]==2:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
-# from batch_norm import batch_norm_mine_old as batch_norm
-if vv[0]==1:
-    from tensorflow.contrib.layers import batch_norm
-    from tensorflow.contrib.layers import xavier_initializer
-    import tensorflow.contrib.slim as slim
-    from tensorflow.contrib.slim.nets import resnet_v1
-else:
-    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
-    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
-        return batch_norm_temp(inp,momentum=decay,training=is_training)
-    import tf_slim as slim
-    from tf_slim.nets import resnet_v1
+tf = tensorflow.compat.v1
+#from tensorflow.compat.v1.layers import BatchNormalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+    return batch_norm_temp(inp,momentum=decay,training=is_training)
+import tf_slim as slim
+from tf_slim.nets import resnet_v1
 
-    from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+#from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+xavier_initializer = tensorflow.keras.initializers.GlorotUniform
 import imageio
 import localSetup
 from scipy.ndimage.interpolation import zoom

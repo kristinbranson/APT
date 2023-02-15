@@ -5,9 +5,10 @@ from __future__ import print_function
 
 # In[ ]:
 
-from past.builtins import cmp
+#from past.builtins import cmp
 from builtins import range
-from past.utils import old_div
+#from past.utils import old_div
+from operator import floordiv as old_div
 import numpy as np
 import scipy, re
 import math, h5py
@@ -15,11 +16,9 @@ import math, h5py
 from scipy import misc
 from scipy import ndimage
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if (vv[0]==1 and vv[1]>12) or vv[0]==2:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+# Assume TensorFlow 2.x.x
+tf = tensorflow.compat.v1
+
 
 import multiResData
 import tempfile

@@ -1,12 +1,16 @@
-from __future__ import division
-from __future__ import print_function
+#from __future__ import division
+#from __future__ import print_function
+
+import logging
+logging.basicConfig(
+    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s")
+logging.warning('Entered APT_interface.py')
 
 import os
 
 os.environ['DLClight'] = 'False'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-import logging
 
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logging.getLogger('shapely.geos').setLevel(logging.WARNING)
@@ -24,32 +28,29 @@ from random import sample
 
 # suppress tensorflow warnings cuz there are a lot of them!
 # hopefully they don't matter??
-import warnings
-warnings.filterwarnings('ignore')
+#import warnings
+#warnings.filterwarnings('ignore')
 
 import tensorflow
-tensorflow.get_logger().setLevel('ERROR')
+#tensorflow.get_logger().setLevel('ERROR')
 
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0] == 1 and vv[1] > 12:
-    tf = tensorflow.compat.v1
-elif vv[0] == 2:
-    tf = tensorflow.compat.v1
-    tf.disable_v2_behavior()
-    tf.logging.set_verbosity(tf.logging.ERROR)
-    try:
-        gpu_devices = tensorflow.config.list_physical_devices('GPU')[0]
-        tensorflow.config.experimental.set_memory_growth(gpu_devices,True)
-    except:
-        pass
-else:
-    tf = tensorflow
+tf = tensorflow.compat.v1
+tf.disable_v2_behavior()
+tf.logging.set_verbosity(tf.logging.ERROR)
+try:
+    gpu_devices = tensorflow.config.list_physical_devices('GPU')[0]
+    tensorflow.config.experimental.set_memory_growth(gpu_devices,True)
+except:
+    pass
+
+logging.warning('Got to APT_interface.py point 1')
 
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
 import PoseUNet_resnet as PoseURes
 import hdf5storage
 import imageio
+logging.warning('Got to APT_interface.py point 1.5')
 import multiResData
 from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, check_fnum
 # from multiResData import *
@@ -61,11 +62,16 @@ from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, c
 ISOPENPOSE = True
 ISSB = False
 
+logging.warning('Got to APT_interface.py point 1.75')
+
 if ISOPENPOSE:
     import open_pose4 as op
+logging.warning('Got to APT_interface.py point 1.8')
 if ISSB:
     import sb1 as sb
 
+logging.warning('Got to APT_interface.py point 2')
+    
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
@@ -100,6 +106,8 @@ import multiprocessing
 import poseConfig
 import torch
 
+logging.warning('Got to APT_interface.py point 3')
+
 torch.autograd.set_detect_anomaly(False)
 torch.autograd.profiler.profile(False)
 torch.autograd.profiler.emit_nvtx(False)
@@ -116,18 +124,20 @@ try:
     user = getpass.getuser()
 except KeyError:
     user = 'err'
-if ISPY3 and user != 'ubuntu' and vv[0] == 1:  # AL 20201111 exception for AWS; running on older AMI
-    try:
-        import apt_dpk
-        ISDPK = True
-    except:
-        print('deepposekit not available.')
+# if ISPY3 and user != 'ubuntu' and vv[0] == 1:  # AL 20201111 exception for AWS; running on older AMI
+#     try:
+#         import apt_dpk
+#         ISDPK = True
+#     except:
+#         print('deepposekit not available.')
 
 
 try:
     tf.logging.set_verbosity(tf.logging.ERROR)
 except:
     pass
+
+logging.warning('Got past imports in APT_interface.py')
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
@@ -954,7 +964,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         if bb:
             bb = bb.split(',')
             for b in bb:
-                mm = re.search('(\d+)\s+(\d+)', b)
+                mm = re.search(r'(\d+)\s+(\d+)', b)
                 n1 = int(mm.groups()[0]) - 1
                 n2 = int(mm.groups()[1]) - 1
                 graph['{}'.format(n1)] = n2
@@ -4386,10 +4396,12 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
                 logging.info(f'Importing pose module {module_name}')
                 pose_module = __import__(module_name)
                 tf.reset_default_graph()
-                self = getattr(pose_module, module_name)(conf, name=args.train_name)
+                foo = getattr(pose_module, module_name)
+                self = foo(conf, name=args.train_name)
                 # self.name = args.train_name
                 logging.info('Starting training...')
                 self.train_wrapper(restore=restore, model_file=model_file)
+                logging.info('Finished training.')
 
         except tf.errors.InternalError as e:
             logging.exception(

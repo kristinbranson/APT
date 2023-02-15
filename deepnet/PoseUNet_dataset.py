@@ -20,14 +20,12 @@ from scipy import io as sio
 import re
 import json
 import logging
-if vv[0]==1:
-    from tensorflow.contrib.layers import batch_norm
-    from tensorflow.contrib.layers import xavier_initializer
-else:
-    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
-    def batch_norm(inp, decay, is_training, renorm=False, data_format=None):
-        return batch_norm_temp(inp, momentum=decay, training=is_training)
-    from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+#from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp, decay, is_training, renorm=False, data_format=None):
+    return batch_norm_temp(inp, momentum=decay, training=is_training)
+#from tensorflow.keras.initializers import GlorotUniform as xavier_initializer
+xavier_initializer = tensorflow.keras.initializers.GlorotUniform
 
 from upsamp import upsample_init_value
 

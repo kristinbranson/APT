@@ -1,8 +1,9 @@
 import pathlib
 import os
 import sys
-sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(),'mmpose'))
+#sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(),'mmpose'))
 from mmcv import Config
+import mmpose
 from mmpose.models import build_posenet
 import poseConfig
 import copy
@@ -42,9 +43,10 @@ class TopDownAPTDataset(TopDownCocoDataset):
                  img_prefix,
                  data_cfg,
                  pipeline,
-                 test_mode=False):
+                 test_mode=False,
+                 dataset_info=None):
         # Overriding topdowncoocodataset init code because it is bad and awful with hardcoded values.
-        super(TopDownCocoDataset, self).__init__(ann_file, img_prefix, data_cfg, pipeline, test_mode=test_mode)
+        super(TopDownCocoDataset, self).__init__(ann_file, img_prefix, data_cfg, pipeline, test_mode=test_mode, dataset_info=dataset_info)
         self.use_gt_bbox = data_cfg['use_gt_bbox']
         self.bbox_file = data_cfg['bbox_file']
         self.det_bbox_thr = data_cfg.get('det_bbox_thr', 0.0)
@@ -208,11 +210,13 @@ class APTtransform:
 
 def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     curdir = pathlib.Path(__file__).parent.absolute()
-    mmdir = os.path.join(curdir,'mmpose')
-    mmpose_config = os.path.join(mmdir,mmpose_config_file)
+    mmpose_init_file_path = mmpose.__file__
+    mmpose_dir = os.path.dirname(mmpose_init_file_path)
+    dot_mim_folder_path = os.path.join(mmpose_dir, '.mim')  # this feels not-robust
+    mmpose_config_file_path = os.path.join(dot_mim_folder_path, mmpose_config_file)
     data_bdir = conf.cachedir
 
-    cfg = Config.fromfile(mmpose_config)
+    cfg = Config.fromfile(mmpose_config_file_path)
     default_im_sz = cfg.data_cfg.image_size
     default_hm_sz = cfg.data_cfg.heatmap_size
     cfg.data_cfg.image_size = [int(c / conf.rescale) for c in conf.imsz[::-1]]  # conf.imsz[0]
@@ -236,7 +240,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     cfg.data_cfg.num_output_channels = conf.n_classes
 
     for ttype in ['train', 'val', 'test']:
-        name = ttype if ttype is not 'test' else 'val'
+        #name = ttype if ttype is not 'test' else 'val'
+        name = 'val' if ttype=='test' else ttype  # avoids warning about 'is not' with literal
         fname = conf.trainfilename if ttype == 'train' else conf.valfilename
         cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
         file = os.path.join(data_bdir, f'{fname}.json')
@@ -387,7 +392,8 @@ class Pose_mmpose(PoseCommon_pytorch):
         elif mmpose_net == 'higherhrnet_2x':
             self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512_2xdeconv.py'
         elif mmpose_net =='mspn':
-            self.cfg_file = 'configs/top_down/mspn/coco/mspn50_coco_256x192.py'
+            #self.cfg_file = 'configs/top_down/mspn/coco/mspn50_coco_256x192.py'
+            self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/mspn50_coco_256x192.py'
 
         else:
             assert False, 'Unknown mmpose net type'
@@ -404,7 +410,7 @@ class Pose_mmpose(PoseCommon_pytorch):
         return td_name
 
 
-    def train_wrapper(self,restore=False, model_file=None):
+    def train_wrapper(self, restore=False, model_file=None):
 
         # From mmpose/tools/train.py
         cfg = self.cfg
@@ -542,7 +548,9 @@ class Pose_mmpose(PoseCommon_pytorch):
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
+        logging.info("Running the runner...")
         runner.run(data_loaders, cfg.workflow, steps)
+        logging.info("Runner is finished running.")
 
 
     def get_latest_model_file(self):

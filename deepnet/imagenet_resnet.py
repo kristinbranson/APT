@@ -22,9 +22,9 @@
 # Adapted by Allen Lee @ Branson Lab, JRC/HHMI Oct 2019
 
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+#from __future__ import absolute_import
+#from __future__ import division
+#from __future__ import print_function
 
 import os
 import tensorflow.keras as keras
@@ -32,16 +32,9 @@ from tensorflow.keras.layers import Layer
 import logging
 
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if (vv[0]==1 and vv[1]>12) or vv[0]==2:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+tf = tensorflow.compat.v1
 
-if vv[0] ==1:
-    from tensorflow.python.keras.applications.imagenet_utils import imagenet_utils
-else:
-    from keras_applications import imagenet_utils
+from keras_applications import imagenet_utils
 
 _obtain_input_shape = imagenet_utils._obtain_input_shape
 

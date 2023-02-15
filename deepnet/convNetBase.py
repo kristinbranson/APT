@@ -12,14 +12,13 @@ from __future__ import division
 
 from builtins import str
 from builtins import range
-from past.utils import old_div
+from operator import floordiv as old_div
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if (vv[0]==1 and vv[1]>12) or vv[0]==2:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
-import os,sys
+# Assume TensorFlow 2.x.x
+tf = tensorflow.compat.v1
+
+import os
+import sys
 # import caffe
 # import lmdb
 # import caffe.proto.caffe_pb2
@@ -31,12 +30,10 @@ import cv2
 import tempfile
 import copy
 
-if vv[0]==1:
-    from tensorflow.contrib.layers import batch_norm
-else:
-    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
-    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
-        return batch_norm_temp(inp,momentum=decay,training=is_training)
+#from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+    return batch_norm_temp(inp,momentum=decay,training=is_training)
 
 
 # from batch_norm import batch_norm

@@ -35,7 +35,8 @@ import tensorflow.keras.backend as K
 import logging
 from time import time
 import cv2
-from past.utils import old_div
+#from past.utils import old_div
+from operator import floordiv as old_div
 import matplotlib.pyplot as plt
 
 import tfdatagen
