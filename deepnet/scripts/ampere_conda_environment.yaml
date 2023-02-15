@@ -1,0 +1,28 @@
+name: ampere
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - pyyaml
+  - scikit-image
+  - cudatoolkit
+  - pytorch
+  - torchvision
+  - tensorflow=2.*.*
+#  - tf_slim  # including this causes python, TF to be quite old versions
+  - mmdet
+  - hdf5storage
+  - keras-applications
+  - easydict
+  - pandas
+  - tqdm
+  - ruamel.yaml
+  - shapely
+  - pip
+  - pip:
+    - chumpy
+    - xtcocotools
+    - mmpose
+    - tf_slim
+    
