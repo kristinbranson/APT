@@ -2,9 +2,9 @@
 #from __future__ import print_function
 
 import logging
-logging.basicConfig(
-    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s")
-logging.warning('Entered APT_interface.py')
+#logging.basicConfig(
+#    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s")
+#logging.warning('Entered APT_interface.py')
 
 import os
 
@@ -43,14 +43,12 @@ try:
 except:
     pass
 
-logging.warning('Got to APT_interface.py point 1')
-
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
 import PoseUNet_resnet as PoseURes
 import hdf5storage
 import imageio
-logging.warning('Got to APT_interface.py point 1.5')
+#logging.warning('Got to APT_interface.py point 1.5')
 import multiResData
 from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, check_fnum
 # from multiResData import *
@@ -62,15 +60,10 @@ from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, c
 ISOPENPOSE = True
 ISSB = False
 
-logging.warning('Got to APT_interface.py point 1.75')
-
 if ISOPENPOSE:
     import open_pose4 as op
-logging.warning('Got to APT_interface.py point 1.8')
 if ISSB:
     import sb1 as sb
-
-logging.warning('Got to APT_interface.py point 2')
     
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
@@ -105,8 +98,9 @@ from scipy.ndimage import uniform_filter
 import multiprocessing
 import poseConfig
 import torch
-
-logging.warning('Got to APT_interface.py point 3')
+import copy
+import PoseCommon_pytorch
+import gc
 
 torch.autograd.set_detect_anomaly(False)
 torch.autograd.profiler.profile(False)
@@ -119,6 +113,7 @@ ISDPK = False
 KBDEBUG = False
 # control how often / whether tqdm displays info
 TQDM_PARAMS = {'mininterval': 5}
+IS_APT_IN_DEBUG_MODE = False
 
 try:
     user = getpass.getuser()
@@ -137,7 +132,6 @@ try:
 except:
     pass
 
-logging.warning('Got past imports in APT_interface.py')
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
@@ -1247,7 +1241,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     if f_str:
         f_str = f_str.split(',')
         for b in f_str:
-            mm = re.search('(\d+)\s+(\d+)', b)
+            mm = re.search(r'(\d+)\s+(\d+)', b)
             n1 = int(mm.groups()[0]) - 1
             n2 = int(mm.groups()[1]) - 1
             graph['{}'.format(n1)] = n2
@@ -3973,24 +3967,26 @@ def classify_movie_all(model_type, **kwargs):
 
 
 def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
-                           distort=True,debug=KBDEBUG):
+                      distort=True,debug=KBDEBUG):
     # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
-    if not ISWINDOWS and not debug:
-        logging.info('launching sample training data generation')
+    #if not ISWINDOWS and not debug:
+    if False:
+        logging.info('launching sample training data generation (in separate process)')
         p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort,False,True))
         p.start()
         p.join()
     else:
-        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort,debug=debug)
+        logging.info('launching sample training data generation (in same process)')
+        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug)
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True,debug=False,silent=False):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, silent=False):
     # Create image of sample training samples with data augmentation
 
     # if silent:
     #     sys.stdout = open("/dev/null", 'w')
 
-    import gc
+    #import gc
     if out_file is None:
         out_file = os.path.join(conf.cachedir,train_name+'_training_samples.mat')
     elif not out_file.endswith('.mat'):
@@ -4010,13 +4006,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             info.append(next_db[2])
         ims,locs,info = map(np.array,[ims,locs,info])
         ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
-
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1}
-
     else:
-        import copy
-        import PoseCommon_pytorch
-        import torch
         tconf = copy.deepcopy(conf)
         tconf.batch_size = 1
         if not conf.is_multi:
@@ -4514,7 +4505,7 @@ def parse_args(argv):
     parser_test = subparsers.add_parser('test', help='Perform tests')
     parser_test.add_argument('testrun', choices=['hello'], help="Test to run")
 
-    print(argv)
+    #print(argv)
     args = parser.parse_args(argv)
     if args.view is not None:
         args.view = convert(args.view, to_python=True)
@@ -4922,7 +4913,7 @@ def set_up_logging(args):
     Returns handles to error (errh) and basic info loggers (logh). 
     """
     
-    log_formatter = logging.Formatter('%(asctime)s %(pathname)s %(funcName)s [%(levelname)-5.5s] %(message)s')
+    log_formatter = logging.Formatter('%(asctime)s %(pathname)s:%(lineno)d %(funcName)s() [%(levelname)-5.5s] %(message)s')
 
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers
@@ -4936,7 +4927,8 @@ def set_up_logging(args):
     errh = logging.FileHandler(err_file, 'w')
     errh.setLevel(logging.ERROR)
     errh.setFormatter(log_formatter)
-
+    errh.name = "err"
+    
     if args.log_file is None:
         # output to console if no log file is specified
         logh = logging.StreamHandler()
@@ -4947,7 +4939,9 @@ def set_up_logging(args):
         logh.setLevel(logging.DEBUG)
     else:
         logh.setLevel(logging.INFO)
+    IS_APT_IN_DEBUG_MODE = args.debug
     logh.setFormatter(log_formatter)
+    logh.name = "log"
 
     log.addHandler(errh)
     log.addHandler(logh)

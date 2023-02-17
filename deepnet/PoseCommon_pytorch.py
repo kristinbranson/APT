@@ -199,7 +199,8 @@ class PoseCommon_pytorch(object):
             self.device = "cuda"
         else:
             self.device = "cpu"
-            print('CUDA Device not available. Using CPU!')
+            logging.warning('CUDA Device not available. Using CPU!')
+            #print('CUDA Device not available. Using CPU!')
 
         if conf.db_format == 'coco':
             self.use_hard_mining = conf.get('use_hard_mining', False)

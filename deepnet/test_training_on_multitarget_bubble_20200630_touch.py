@@ -29,7 +29,7 @@ def test_training_on_multitarget_bubble_20200630_touch() :
     read_only_folder_path = os.path.join(project_folder_path, "read_only_multitarget_bubble_20200630_touch_training_test_input_folder")
     working_folder_path = os.path.join(project_folder_path, "ampere_multitarget_bubble_20200630_touch_training_test_working_folder")
 
-    logging.warning('Point 1')
+    #logging.warning('Point 1')
 
     # Make sure the read-only test folder path exists
     if not os.path.exists(read_only_folder_path) :
@@ -42,32 +42,35 @@ def test_training_on_multitarget_bubble_20200630_touch() :
     subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
                    check=True)
 
-    logging.warning('Point 2')
+    #logging.warning('Point 2')
 
     # Set some CUDA-related envars
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # Want the CUDA ID #s for the GPUs to match those used by nvidia-smi and nvtop
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-    logging.warning('Point 3')
+    #logging.warning('Point 3')
 
     #deepnet_folder_path = os.path.join(script_folder_path, 'APT/deepnet') 
     deepnet_folder_path = script_folder_path
     with cd(deepnet_folder_path) :
-        APT_interface.main(['-name', '20221204T230902', 
-                       '-view', '1', 
-                       '-cache', working_folder_path,
-                       '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20221204T230902view0_20221204T231014_tdptrx.err'),
-                       '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
-                       '-conf_params', 'dl_steps', '1000', 
-                       '-type', 'mmpose',
-                       os.path.join(working_folder_path,'multitarget_bubble/20221204T230902_20221204T231014.json'),
-                       'train', 
-                       '-use_cache'])
+        APT_interface.main(
+            ['-name', '20221204T230902', 
+             '-view', '1', 
+             '-cache', working_folder_path,
+             '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20221204T230902view0_20221204T231014_tdptrx.err'),
+             '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
+             '-conf_params', 'dl_steps', '1000', 
+             '-type', 'mmpose',
+             os.path.join(working_folder_path,'multitarget_bubble/20221204T230902_20221204T231014.json'),
+             'train', 
+             '-use_cache'])
 
 
 
 # For calling from command line
 if __name__ == "__main__":
-    logging.warning('Point 0')
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    logging.info('About to call test_training_on_multitarget_bubble_20200630_touch()')
     test_training_on_multitarget_bubble_20200630_touch()
-    logging.warning('Point 10')
+    logging.info('Finished test_training_on_multitarget_bubble_20200630_touch()')

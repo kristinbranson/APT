@@ -1,14 +1,15 @@
 import pathlib
 import os
-import sys
+#import sys
 #sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(),'mmpose'))
-from mmcv import Config
+import mmcv
+#from mmcv import Config
 import mmpose
-from mmpose.models import build_posenet
+#from mmpose.models import build_posenet
 import poseConfig
 import copy
-from mmpose import __version__
-from mmcv.utils import get_git_hash
+#from mmpose import __version__
+#from mmcv.utils import get_git_hash
 from mmpose.datasets import build_dataloader, build_dataset
 import torch
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
@@ -17,18 +18,20 @@ from mmpose.core.distributed_wrapper import DistributedDataParallelWrapper
 from mmpose.core import (DistEvalHook, EvalHook, Fp16OptimizerHook, build_optimizers)
 import logging
 import time
-from PoseCommon_pytorch import PoseCommon_pytorch
-from mmcv.runner import init_dist, set_random_seed
+import PoseCommon_pytorch
+#from PoseCommon_pytorch import PoseCommon_pytorch
+#from mmcv.runner import init_dist, set_random_seed
 import pickle
 import json
-from mmpose.core import wrap_fp16_model
-from mmpose.datasets.pipelines import Compose
-from mmcv.parallel import collate, scatter
+#from mmpose.core import wrap_fp16_model
+#from mmpose.datasets.pipelines import Compose
+#from mmcv.parallel import collate, scatter
 import glob
 from mmcv.utils.config import ConfigDict
 import PoseTools
 from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
 import numpy as np
+import APT_interface
 
 
 ## Topdown dataset
@@ -216,7 +219,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     mmpose_config_file_path = os.path.join(dot_mim_folder_path, mmpose_config_file)
     data_bdir = conf.cachedir
 
-    cfg = Config.fromfile(mmpose_config_file_path)
+    cfg = mmcv.Config.fromfile(mmpose_config_file_path)
     default_im_sz = cfg.data_cfg.image_size
     default_hm_sz = cfg.data_cfg.heatmap_size
     cfg.data_cfg.image_size = [int(c / conf.rescale) for c in conf.imsz[::-1]]  # conf.imsz[0]
@@ -376,7 +379,32 @@ class TraindataHook(Hook):
             json.dump(json_data, json_file)
 
 
-class Pose_mmpose(PoseCommon_pytorch):
+def get_handler_by_name(logger, name):
+    '''
+    Find the named handler in the given logger.
+    Returns None if no such handler.
+    '''
+    did_find_it = False
+    for handler in logger.handlers:
+        if handler.name == name:
+            return handler
+    return None
+                    
+    
+def rectify_log_level_bang(logger):
+    '''
+    Reset the log level for the "log" handler of the root logger to DEBUG or INFO, depending
+    mmpose.models.build_posenet() seems to bork this, so this function fixes it.
+    '''
+    handler = get_handler_by_name(logger, 'log')
+    if handler:
+        if APT_interface.IS_APT_IN_DEBUG_MODE:
+            handler.setLevel(logging.DEBUG)
+        else:
+            handler.setLevel(logging.INFO)            
+        
+
+class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,name,**kwargs):
         super().__init__(conf,name)
@@ -411,10 +439,11 @@ class Pose_mmpose(PoseCommon_pytorch):
 
 
     def train_wrapper(self, restore=False, model_file=None):
-
         # From mmpose/tools/train.py
+        logger = logging.getLogger()  # the root logger
         cfg = self.cfg
-        model = build_posenet(cfg.model)
+        model = mmpose.models.build_posenet(cfg.model)  # messes up logging!
+        rectify_log_level_bang(logger)
         dataset = [build_dataset(cfg.data.train)]
 
         if len(cfg.workflow) == 2:
@@ -426,7 +455,7 @@ class Pose_mmpose(PoseCommon_pytorch):
             # save mmpose version, config file content
             # checkpoints as meta data
             cfg.checkpoint_config.meta = dict(
-                mmpose_version=__version__ + get_git_hash(digits=7),
+                mmpose_version=mmpose.__version__ + mmcv.utils.get_git_hash(digits=7),
                 config=cfg.pretty_text,
             )
 
@@ -436,10 +465,9 @@ class Pose_mmpose(PoseCommon_pytorch):
         validate = False
         distributed = len(cfg.gpu_ids)>1
         if distributed:
-            init_dist('pytorch', **cfg.dist_params)
+            mmcv.runner.init_dist('pytorch', **cfg.dist_params)
 
         meta = None
-        logger = logging.getLogger()
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
         if model_file is not None:
             cfg.load_from = model_file
@@ -499,7 +527,8 @@ class Pose_mmpose(PoseCommon_pytorch):
             optimizer=optimizer,
             work_dir=cfg.work_dir,
             logger=logger,
-            meta=meta)
+            meta=meta, 
+            max_iters=steps)
         # an ugly workaround to make .log and .log.json filenames the same
         runner.timestamp = timestamp
 
@@ -548,8 +577,9 @@ class Pose_mmpose(PoseCommon_pytorch):
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
+        #runner.max_iters = steps    
         logging.info("Running the runner...")
-        runner.run(data_loaders, cfg.workflow, steps)
+        runner.run(data_loaders, cfg.workflow)
         logging.info("Runner is finished running.")
 
 
@@ -572,11 +602,11 @@ class Pose_mmpose(PoseCommon_pytorch):
 
         cfg.model.pretrained = None
         cfg.data.test.test_mode = True
-        model = build_posenet(cfg.model)
+        model = mmpose.models.build_posenet(cfg.model)
         fp16_cfg = cfg.get('fp16', None)
         model_file = self.get_latest_model_file() if model_file is None else model_file
         if fp16_cfg is not None:
-            wrap_fp16_model(model)
+            mmpose.core.wrap_fp16_model(model)
 
         _ = load_checkpoint(model, model_file, map_location='cpu')
         logging.info(f'Loaded model from {model_file}')
@@ -584,7 +614,7 @@ class Pose_mmpose(PoseCommon_pytorch):
             model = MMDataParallel(model,device_ids=[0])
         # build part of the pipeline to do the same preprocessing as training
         test_pipeline = cfg.test_pipeline[2:]
-        test_pipeline = Compose(test_pipeline)
+        test_pipeline = mmpose.datasets.pipelines.Compose(test_pipeline)
         device = next(model.parameters()).device
 
         pairs = []
