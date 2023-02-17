@@ -16,3 +16,4 @@ gt/figs*
 deepnet/.idea*
 deepnet/pretrained/*
 deepnet/log/
+.vscode/
