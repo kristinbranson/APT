@@ -207,7 +207,7 @@ def net_multi_conv(X0,X1,X2,_dropout,conf,doBatchNorm,trainPhase):
     #     conv5_0,base_dict_0 = net_multi_base(X0,_weights['base0'])
     #     conv5_1,base_dict_1 = net_multi_base(X1,_weights['base1'])
     #     conv5_2,base_dict_2 = net_multi_base(X2,_weights['base2'])
-    if conf.dilation_rate is 4:
+    if conf.dilation_rate == 4:
         net_to_use = net_multi_base_named_dilated
     else:
         net_to_use = net_multi_base_named

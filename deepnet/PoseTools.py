@@ -1063,7 +1063,7 @@ def db_info(self, dbType='val',train_type=0):
     self.pred = self.create_network()
     self.create_saver()
     val_info = []
-    if train_type is 1:
+    if train_type == 1:
         fname = os.path.join(self.conf.cachedir, self.conf.fulltrainfilename + '.tfrecords')
     else:
         if dbType == 'val':
@@ -1235,7 +1235,7 @@ def tfrecord_to_coco(db_file, n_classes, img_dir, out_file, scale=1,skeleton=Non
             cur_im = np.pad(cur_im, [[0, out_size[0]-cur_im.shape[0]], [0, out_size[1]-cur_im.shape[1]], [0, 0]])
         if cur_im.shape[2] == 1:
             cur_im = cur_im[:, :, 0]
-        if scale is not 1:
+        if scale != 1:
             cur_im = transform.resize(cur_im, np.array(cur_im.shape[:2]) * scale, preserve_range=True)
             cur_locs = scale * cur_locs
         im_name = '{:012d}.png'.format(ndx)
@@ -1286,7 +1286,7 @@ def tfrecord_to_coco_old(db_file, img_dir, out_file, conf,scale = 1):
             cur_im, cur_locs, cur_info = sess.run(data)
             if cur_im.shape[2] == 1:
                 cur_im = cur_im[:,:,0]
-            if scale is not 1:
+            if scale != 1:
                 cur_im = transform.resize(cur_im, cur_im.shape[:2]*scale, preserve_range= True)
                 cur_locs = scale*cur_locs
             im_name = '{:012d}.png'.format(ndx)
@@ -1324,7 +1324,7 @@ def tfrecord_to_coco_multi(db_file, n_classes, img_dir, out_file, scale=1,skelet
         cur_im, cur_locs, cur_info, cur_occ, cur_mask = [d[ndx] for  d in data]
         if cur_im.shape[2] == 1:
             cur_im = cur_im[:, :, 0]
-        if scale is not 1:
+        if scale != 1:
             cur_im = transform.resize(cur_im, cur_im.shape[:2] * scale, preserve_range=True)
             cur_locs = scale * cur_locs
         im_name = '{:012d}.png'.format(ndx)

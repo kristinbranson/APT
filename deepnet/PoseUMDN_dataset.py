@@ -650,7 +650,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             sel_comp = tf.stack(sel_comp, 1)
             pp = ll[:,:, ndx] * \
                        tf.reduce_prod(sel_comp, axis=1) + 1e-30
-            if ndx is 0:
+            if ndx == 0:
                 cur_loss = -tf.log(tf.reduce_sum(pp,axis=1))
             else:
                 cur_loss = cur_loss - tf.log(tf.reduce_sum(pp,axis=1))

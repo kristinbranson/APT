@@ -1091,7 +1091,7 @@ def read_and_decode_without_session(filename, conf, indices=(0,), skip_ims=False
     all_info = []
     all_occ = []
     for ndx, record in enumerate(xx):
-        if (len(indices) > 0) and (indices.count(ndx) is 0):
+        if (len(indices) > 0) and (indices.count(ndx) == 0):
             continue
 
         example = tf.train.Example()

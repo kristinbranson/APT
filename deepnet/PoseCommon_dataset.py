@@ -844,7 +844,7 @@ class PoseCommon(object):
 
     def classify_val(self,train_type=0, at_step=-1):
 
-        if train_type is 0:
+        if train_type == 0:
             val_file = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
         else:
             val_file = os.path.join(self.conf.cachedir, self.conf.fulltrainfilename + '.tfrecords')

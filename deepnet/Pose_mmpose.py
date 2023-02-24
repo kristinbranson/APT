@@ -177,7 +177,13 @@ class APTtransform:
             joints_in = joints[0][...,:2]
             occ_in = joints[0][...,2]
             joints_in[occ_in<0.5,:] = -100000
-            image,joints_out,mask_out,occ = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,mask=mask[0][None,...],occ=occ_in)
+            image,joints_out,mask_out,occ = pt.preprocess_ims(image[np.newaxis,...],
+                                                              joints_in[np.newaxis,...],
+                                                              conf,
+                                                              self.distort,
+                                                              conf.rescale,
+                                                              mask=mask[0][None,...],
+                                                              occ=occ_in)
             image = image.astype('float32')
             joints_out_occ1 = np.isnan(joints_out[0, ..., 0:1]) | (joints_out[0, ..., 0:1] < -1000)
             joints_out_occ = occ<0.5
@@ -270,11 +276,18 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         if conf.get('mmpose_use_apt_augmentation',False):
             if ttype =='train':
                 if conf.is_multi:
-                    assert (cfg.data[ttype].pipeline[1].type == 'BottomUpRandomAffine') and (cfg.data[ttype].pipeline[2].type == 'BottomUpRandomFlip'), 'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
+                    assert \
+                        (cfg.data[ttype].pipeline[1].type == 'BottomUpRandomAffine') and \
+                        (cfg.data[ttype].pipeline[2].type == 'BottomUpRandomFlip'), \
+                        'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:3] = []
                     cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
                 else:
-                    assert (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip') and (cfg.data[ttype].pipeline[2].type =='TopDownGetRandomScaleRotation') and (cfg.data[ttype].pipeline[3].type =='TopDownAffine'), 'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
+                    assert \
+                        (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip') and \
+                        (cfg.data[ttype].pipeline[2].type =='TopDownGetRandomScaleRotation') and \
+                        (cfg.data[ttype].pipeline[3].type =='TopDownAffine'), \
+                        'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:4] = []
                     cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
         # else:
@@ -335,7 +348,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         push_fac_mul = nims/(10+nims-rr.count(1))
         for sidx in range(len(cfg.model.keypoint_head.loss_keypoint.with_ae_loss)):
             if cfg.model.keypoint_head.loss_keypoint.with_ae_loss[sidx]:
-                cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] = cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx]* push_fac_mul
+                cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] = \
+                    cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] * push_fac_mul
 
 
     if 'keypoint_head' in cfg.model:
@@ -412,13 +426,17 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         self.name = name
         mmpose_net = conf.mmpose_net
         if mmpose_net == 'hrnet':
-            self.cfg_file = 'configs/top_down/hrnet/coco/hrnet_w32_coco_256x192.py'
+            #self.cfg_file = 'configs/top_down/hrnet/coco/hrnet_w32_coco_256x192.py'
+            self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w32_coco_256x192.py'
         elif mmpose_net == 'multi_hrnet':
-            self.cfg_file = 'configs/bottom_up/hrnet/coco/hrnet_w32_coco_512x512.py'
+            #self.cfg_file = 'configs/bottom_up/hrnet/coco/hrnet_w32_coco_512x512.py'
+            self.cfg_file = 'configs/wholebody/2d_kpt_sview_rgb_img/associative_embedding/coco-wholebody/hrnet_w32_coco_wholebody_512x512.py'
         elif mmpose_net == 'higherhrnet':
-            self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512.py'
+            #self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512.py'
+            self.cfg_file = 'configs/wholebody/2d_kpt_sview_rgb_img/associative_embedding/coco-wholebody/higherhrnet_w32_coco_wholebody_512x512.py'
         elif mmpose_net == 'higherhrnet_2x':
-            self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512_2xdeconv.py'
+            #self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512_2xdeconv.py'
+            raise RuntimeError("MMPose network %s does not seem to be supported in this version of MMPose (%s)" % (mmpose_net, mmpose.__version__) )
         elif mmpose_net =='mspn':
             #self.cfg_file = 'configs/top_down/mspn/coco/mspn50_coco_256x192.py'
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/mspn50_coco_256x192.py'
@@ -548,7 +566,11 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                 optimizer_config = cfg.optimizer_config
 
         # register hooks
-        runner.register_training_hooks(cfg.lr_config, optimizer_config, cfg.checkpoint_config, cfg.log_config, cfg.get('momentum_config', None))
+        runner.register_training_hooks(cfg.lr_config,
+                                       optimizer_config,
+                                       cfg.checkpoint_config,
+                                       cfg.log_config,
+                                       cfg.get('momentum_config', None))
         if distributed:
             runner.register_hook(DistSamplerSeedHook())
 
@@ -578,9 +600,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
         #runner.max_iters = steps    
-        logging.info("Running the runner...")
+        logging.debug("Running the runner...")
         runner.run(data_loaders, cfg.workflow)
-        logging.info("Runner is finished running.")
+        logging.debug("Runner is finished running.")
 
 
     def get_latest_model_file(self):

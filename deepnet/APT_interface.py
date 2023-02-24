@@ -4506,7 +4506,8 @@ def parse_args(argv):
     parser_test = subparsers.add_parser('test', help='Perform tests')
     parser_test.add_argument('testrun', choices=['hello'], help="Test to run")
 
-    #print(argv)
+    logging.info("APT_interface arguments, as parsed:\n" + str(argv))
+    
     args = parser.parse_args(argv)
     if args.view is not None:
         args.view = convert(args.view, to_python=True)

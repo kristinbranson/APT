@@ -1166,11 +1166,11 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
         # downsample
         for ndx in range(n_layers):
-            if ndx is 0:
+            if ndx == 0:
                 n_filt = 64
-            elif ndx is 1:
+            elif ndx == 1:
                 n_filt = 128
-            elif ndx is 2:
+            elif ndx == 2:
                 n_filt = 256
             else:
                 n_filt = 512
@@ -1194,11 +1194,11 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
         # upsample
         for ndx in reversed(range(n_layers)):
-            if ndx is 0:
+            if ndx == 0:
                 n_filt = 64
-            elif ndx is 1:
+            elif ndx == 1:
                 n_filt = 128
-            elif ndx is 2:
+            elif ndx == 2:
                 n_filt = 256
             else:
                 n_filt = 512
@@ -1326,11 +1326,11 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
             n_filt = 128
             # downsample
             for ndx in range(n_layers):
-                # if ndx is 0:
+                # if ndx == 0:
                 #     n_filt = 64
-                # elif ndx is 1:
+                # elif ndx == 1:
                 #     n_filt = 128
-                # elif ndx is 2:
+                # elif ndx == 2:
                 #     n_filt = 256
                 # else:
                 #     n_filt = 512
@@ -1356,11 +1356,11 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
             # upsample
         with tf.variable_scope(self.net_unet_name):
             for ndx in reversed(range(n_layers)):
-                # if ndx is 0:
+                # if ndx == 0:
                 #     n_filt = 64
-                # elif ndx is 1:
+                # elif ndx == 1:
                 #     n_filt = 128
-                # elif ndx is 2:
+                # elif ndx == 2:
                 #     n_filt = 256
                 # else:
                 #     n_filt = 512
