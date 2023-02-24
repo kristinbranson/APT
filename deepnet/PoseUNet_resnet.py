@@ -134,7 +134,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 with tf.variable_scope(sc_name):
                     X = conv(X, n_filts[ndx])
 
-                if ndx is not 0:
+                if ndx != 0:
                     sc_name = 'layerup_{}_1'.format(ndx)
                     with tf.variable_scope(sc_name):
                         X = conv(X, n_filts[ndx])
@@ -723,7 +723,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             sel_comp = tf.stack(sel_comp, 1)
             pp = ll[:,:, ndx] * \
                        tf.reduce_prod(sel_comp, axis=1) + 1e-30
-            if ndx is 0:
+            if ndx == 0:
                 cur_loss = -tf.log(tf.reduce_sum(pp,axis=1))
             else:
                 cur_loss = cur_loss - tf.log(tf.reduce_sum(pp,axis=1))
