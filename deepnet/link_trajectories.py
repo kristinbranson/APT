@@ -111,6 +111,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
       if np.all(np.isnan(C1[x1, :])): continue
       x1_min = np.nanargmin(C1[x1, :])
       c1 = C1[x1,x1_min]+0.0001
+      c1 = min(c1,maxcost/2)
       x2 = np.where(C1[x1,:]< c1*strict_match_thres)[0]
       if x2.size>1:
         C[x1, :nnext] = maxcost*2
@@ -121,6 +122,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
       if np.all(np.isnan(C1[:,x1])): continue
       x1_min = np.nanargmin(C1[:,x1])
       c1 = C1[x1_min,x1] + 0.0001
+      c1 = min(c1,maxcost/2)
       x2 = np.where(C1[:,x1]< c1*strict_match_thres)[0]
       if x2.size>1:
         C[:ncurr,x1] = maxcost*2
@@ -642,6 +644,10 @@ def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1)
     # The knee isn't too far from the diagonal, then don't use knee
     if knee_val<0.2:
       ix = 198
+      maxcost = qq[ix]
+    else:
+      maxcost = qq[ix]
+      maxcost = min(maxcost/knee_val,qq[198])
 
     # dd1 = qq[1:] - qq[:-1]
     # dd2 = dd1[1:] - dd1[:-1]
@@ -653,7 +659,7 @@ def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1)
     #   ix = all_ix[0]
     # ix = np.clip(ix, 5, 198) + 1
 
-    maxcost = mult * qq[ix]
+    maxcost = mult * maxcost
 
     logging.info('nframes_skip = %d, choosing %f percentile of link costs with a value of %f to decide the maxcost' % (
     nframes_skip, ix / isz + 50, maxcost))
@@ -1039,6 +1045,8 @@ def link_trklets(trk_files, conf, movs, out_files):
     else:
       ww = conf1.link_id_cropsz
     conf1.imsz = [ww,ww]
+    conf1.vert_flip = False
+    conf1.horz_flip = False
 
     if len(conf1.ht_pts)>0 and conf1.ht_pts[0]>=0:
       conf1.use_ht_trx = True
@@ -1065,8 +1073,8 @@ def link_trklets(trk_files, conf, movs, out_files):
         movs2link.append(movs[n])
         out_files2link.append(out_files[n])
     trk_files2link = [trk_files[n]]
-    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link)
     linked_trks_simple = simple_linking(trks2link_simple,conf)
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link)
 
     out_trks= []
     count = 0
@@ -1085,6 +1093,7 @@ def link_trklets(trk_files, conf, movs, out_files):
     return simple_linking(in_trks,conf)
 
 def simple_linking(in_trks,conf):
+  if len(in_trks)<1: return []
   params = get_default_params(conf)
 
   if 'maxcost' not in params:
@@ -1710,7 +1719,7 @@ def load_id_wts(id_wts):
 
 def get_id_net():
   # model to use. we embed the animal images into 32 dim space
-  net = models.resnet.resnet18(pretrained=True)
+  net = models.resnet.resnet34(pretrained=True)
   net.fc = torch.nn.Linear(in_features=512, out_features=32, bias=True)
 
   net = net.cuda()
@@ -2001,7 +2010,15 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   groups_only_id = []
   used_trks = []
 
-  ignore_far = conf.link_id_ignore_far
+  # ignore_far = conf.link_id_ignore_far
+  ignore_far = False
+  min_group_frac = 0.1
+  mov_len = max(en_sel)
+  st_all = np.concatenate([a[-2] for a in all_data],0)
+  en_all = np.concatenate([a[-1] for a in all_data], 0)
+  sel_len = en_all-st_all+1
+  max_group_sz_for_filling = mov_len*min_group_frac
+
 
   # create id clusters iteratively by first finding the largest cluster and then adding the missing links. Most of the codes dirtiness is for keeping track of the id tracks and other tracks that have been used till now
   while True:
@@ -2010,13 +2027,25 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
       break
     elif len(rem_id_idx)==1:
       gr = rem_id_idx
+      far_ids = np.array([])
     else:
       dist_mat_cur = dist_mat[rem_id_trks, :][:,rem_id_trks]
       pred_map_cluster = pred_map_orig[rem_id_trks]
-      gr_cur = get_largest_cluster(dist_mat_cur, close_thresh, t_info, pred_map_cluster)
-      far_ids = dist_mat_cur[gr_cur].mean(axis=0) > far_thresh
-      far_ids = rem_id_idx[far_ids]
+      gr_cur, gr_sz = get_largest_cluster(dist_mat_cur, close_thresh, t_info, pred_map_cluster)
       gr = rem_id_idx[gr_cur]
+
+      close_trk_sz = np.zeros(dist_mat_cur.shape[0])
+      close_trk_count = np.zeros(dist_mat_cur.shape[0])
+      sel_len_cur = sel_len[rem_id_idx]
+      for ix in range(dist_mat_cur.shape[0]):
+        ff = np.where(dist_mat_cur[ix] < close_thresh)[0]
+        close_trk_sz[ix] = sum(sel_len_cur[ff])
+        close_trk_count[ix] = len(ff)
+      far_trks = (close_trk_sz > max_group_sz_for_filling) & ( close_trk_count>3)
+      far_ids = np.where(far_trks)[0]
+      # far_ids = dist_mat_cur[gr_cur].mean(axis=0) > far_thresh
+      far_ids = rem_id_idx[far_ids]
+      far_ids = np.array(list(set(far_ids) - set(gr)))
 
     gr = gr.tolist()
     groups_only_id.append(gr.copy())
@@ -2032,7 +2061,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
         if pred_map[uu][0] == mov_ndx:
           ids_ignore.append(pred_map[uu][1])
 
-      # we add the missing  links before grouping again. Consider the case where there is  missing link that perfectly fills the gap but doesn't match the identity because animal is doing weird stuff. In that case if we group before filling in the gaps, this tracklet will end up with its own group and we  wouldn't know whether ungroup it to add it as part of missing link or not. We could set the minimum group size but that would not work with the case where animals move in or out.
+      # we add the missing  links before grouping. Consider the case where there is  missing link that perfectly fills the gap but doesn't match the identity because animal is doing weird stuff. In that case if we group before filling in the gaps, this tracklet will end up with its own group and we  wouldn't know whether ungroup it to add it as part of missing link or not. We could set the minimum group size but that would not work with the case where animals move in or out.
       gr, pred_map = add_missing_links(linked_trks, [gr], conf, pred_map, mov_ndx, ids_ignore, maxcosts_all[mov_ndx],maxn_all[mov_ndx], bignumber, link_costs_arr)
       gr = gr[0]
 
@@ -2147,6 +2176,10 @@ def interpolate_gaps(trk):
   max_gap = 3
   ss,ee = trk.get_startendframes()
   for xx in range(trk.ntargets):
+#      if (ee[xx]==0) and (ss[xx]==0):
+#        continue
+      if (ee[xx]<0) or (ss[xx]<0):
+        continue
       pp = trk.gettargetframe(xx,np.arange(ss[xx],ee[xx]+1))
       jj = pp[0, 0, :, 0]
       qq = np.ones(jj.shape[0]+2)>0
@@ -2230,6 +2263,9 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
       elif b_st>0 and b_en>=maxn-1:
         st_trk = occ[ndx][b_st-1]
         en_trk = -1
+      elif b_st==0 and b_en>=maxn-1:
+        # covers the whole movie
+        continue
       else:
         logging.warning('Weird stuff in linking')
         continue
@@ -2544,7 +2580,8 @@ def get_largest_cluster(dist_mat, thresh, t_info, pred_map):
       cur_group.append(cc)
       ctline[mov_ndx][sel_ss:sel_ee + 1] += 1
 
-  return cur_group
+  sz = [np.count_nonzero(ct) for ct in ctline]
+  return cur_group,sz
 
 
 
