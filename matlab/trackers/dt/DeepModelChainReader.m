@@ -1,9 +1,9 @@
 classdef DeepModelChainReader < matlab.mixin.Copyable
   methods (Abstract)
     tf = getModelIsRemote(obj)
-    maxiter = getMostRecentModel(obj,dmc)
-    lsProjDir(obj,dmc)
-    lsModelChainDir(obj,dmc)
+    [maxiter,idx] = getMostRecentModel(obj,dmc,varargin)
+    lsProjDir(obj,dmc,idx)
+    lsModelChainDir(obj,dmc,varargin)
   end
   methods
     function prepareBg(obj) %#ok<MANU>

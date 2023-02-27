@@ -789,6 +789,13 @@ classdef Labeler < handle
 %       v = all(tf);
 %       assert(v || ~any(tf));
     end
+    function v = getMovieFilesAllCropInfoGTAware(obj)
+      if obj.gtIsGTMode,
+        v = obj.movieFilesAllGTCropInfo;
+      else
+        v = obj.movieFilesAllCropInfo;
+      end
+    end
     function v = getMovieFilesAllCropInfoMovIdx(obj,mIdx)
       % mIdx: scalar MovieIndex 
       % v: empty, or [nview] CropInfo array 
@@ -959,11 +966,12 @@ classdef Labeler < handle
       
       movfilefull = obj.projLocalizePath(movFile);
       assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
-      
-      mr = MovieReader;
-      mr.open(movfilefull);
-      v = mr.nframes;
-      mr.close();
+      v = MovieReader.getNFrames(movfilefull);
+
+%       mr = MovieReader;
+%       mr.open(movfilefull);
+%       v = mr.nframes;
+%       mr.close();
     end
     
     
@@ -2069,7 +2077,7 @@ classdef Labeler < handle
         catch ME
           save(fname,'-mat','-struct','s');
           msg = ME.getReport();
-          warningNoTrace('Saved raw project file %s. Error caught during bundled project save: %s\n',...
+          warningNoTrace('Saved raw project file %s. Error caught during bundled project save:\n%s\n',...
             fname,msg);          
         end
       else
@@ -2541,39 +2549,16 @@ classdef Labeler < handle
         for iTrker = 1:numel(obj.trackersAll)
           tObj = obj.trackersAll{iTrker};
           if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
-            dmc = tObj.trnLastDMC;            
-            for ivw = 1:numel(dmc)
-              dm = dmc(ivw);
-              try                
-                if dm.isRemote
-                  warningNoTrace('Net %s, view %d. Remote Model detected. This will not migrated/preserved.',dm.netType,ivw);
-                  continue;
-                end
-                
-                if ivw==1
-                  fprintf(1,'Detected model for nettype ''%s'' in %s.\n',...
-                    dm.netType,dm.rootDir);
-                end
-                
-                tfsucc = dm.updateCurrInfo();
-                if ~tfsucc
-                  warningNoTrace('Failed to update model iteration for model with net type %s.',...
-                    char(dm.netType));
-                end
-                
-                modelFiles = dm.findModelGlobsLocal();
-                assert(~strcmp(dm.rootDir,obj.projTempDir)); % Possible filesep issues
-                modelFilesDst = strrep(modelFiles,dm.rootDir,obj.projTempDir);
-                for mndx = 1:numel(modelFiles)
-                  copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-                  % for a given tracker, multiple DMCs this could re-copy
-                  % proj-level artifacts like stripped lbls
-                  fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
-                end                
-              catch ME
-                warningNoTrace('Nettype ''%s'' (view %d): error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
-                  dm.netType,ivw,ME.getReport());
+            dmc = tObj.trnLastDMC;
+            try
+              if dmc.isRemote
+                warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
+              else
+                dmc.copyModelFiles(obj.projTempDir,true);
               end
+            catch ME
+              warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
+                tObj.trnNetType,ME.getReport());
             end
           end
         end
@@ -3040,61 +3025,35 @@ classdef Labeler < handle
       % but since there isn't much in way of relative path support in
       % matlabs tar/zip functions, we will also have to copy them first the
       % temp directory. sigh.
-      
+
       for iTrker = 1:numel(obj.trackersAll)
         tObj = obj.trackersAll{iTrker};
         if isa(tObj,'DeepTracker')
           % a lot of unnecessary moving around is to maintain the directory
           % structure - MK 20190204
-          
+
           dmc = tObj.trnGetDMCs();
-          for ndx = 1:numel(dmc)
-            dm = dmc(ndx);
-            
-            try
-              tfsucc = dm.updateCurrInfo();
-              if ~tfsucc
-                warningNoTrace('Failed to update model iteration for model with net type %s.',...
-                  char(dm.netType));
+          if isempty(dmc),
+            continue;
+          end
+          try
+            if dmc.isRemote
+              try
+                dm.mirrorFromRemoteAws(projtempdir);
+              catch
+                warningNoTrace('Could not check if trackers had been downloaded from AWS.');
               end
-
-              if dm.isRemote
-                try
-                  dm.mirrorFromRemoteAws(projtempdir);
-                catch
-                  warningNoTrace('Could not check if trackers had been downloaded from AWS.');
-                end
-              end
-
-              if verbose>0 && ndx==1
-                fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
-                  dm.netType,dm.rootDir);
-              end
-
-              modelFiles = dm.findModelGlobsLocal();
-              if strcmp(dm.rootDir,projtempdir) % Possible filesep issues 
-                % DMC already lives in the right place
-                if verbose>1
-                  cellfun(@(x)fprintf(1,'%s\n',x),modelFiles);
-                end
-                modelFilesDst = modelFiles;
-              else
-                % eg legacy projects (raw/unbundled)
-                modelFilesDst = strrep(modelFiles,dm.rootDir,projtempdir);
-                for mndx = 1:numel(modelFiles)
-                  copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-                  % for a given tracker, multiple DMCs this could re-copy
-                  % proj-level artifacts like stripped lbls
-                  if verbose>1                    
-                    fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
-                  end
-                end
-              end
-              allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
-            catch ME
-              warningNoTrace('Nettype ''%s'' (view %d): obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
-                dm.netType,ndx,ME.getReport());
             end
+
+            if verbose,
+              fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
+                tObj.trnNetType,dmc.getRootDir);
+            end
+            modelFilesDst = dmc.copyModelFiles(projtempdir,verbose);
+            allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
+          catch ME
+            warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
+              tObj.trnNetType,ndx,ME.getReport());
           end
         end
       end
@@ -3459,11 +3418,19 @@ classdef Labeler < handle
         if ~isprop(tObj,'trnLastDMC') || isempty(tObj.trnLastDMC),
           continue;
         end
-        fprintf('Tracker %d: %s, view %d, mode %s\n',i,tObj.trnLastDMC.netType,tObj.trnLastDMC.view,char(tObj.trnNetMode));
-        fprintf('  Trained %s for %d iterations on %d labels\n',tObj.trnLastDMC.trainID,tObj.trnLastDMC.iterCurr,tObj.trnLastDMC.nLabels);
-        if fileinfo,
-          fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx);
-          fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx);
+        for j = 1:numel(tObj.trnLastDMC.n),
+          nettype = tObj.trnLastDMC.getType(j);
+          nettype = char(nettype{1});
+          netmode = tObj.trnLastDMC.getNetMode(j);
+          netmode = char(netmode{1});
+          trainid = tObj.trnLastDMC.getTrainID(j);
+          trainid = trainid{1};
+          fprintf('Tracker %d: %s, view %d, stage %d, mode %s\n',i,nettype,tObj.trnLastDMC.getView(j),tObj.trnLastDMC.getStages(j),netmode);
+          fprintf('  Trained %s for %d iterations on %d labels\n',trainid,tObj.trnLastDMC.getIterCurr(j),tObj.trnLastDMC.getNLabels(j));
+          if fileinfo,
+            fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx(j));
+            fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx(j));
+          end
         end
       end
       
@@ -3617,17 +3584,28 @@ classdef Labeler < handle
 %           end
 %         end
 
+        % KB 20220804 refactor DMC
+        if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
+          try
+            s.trackerData{i}.trnLastDMC = DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
+              'netmode',[s.trackerData{1}.trnNetMode]);
+          catch ME
+            warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
+            s.trackerData{i}.trnLastDMC = [];
+          end
+        end
+
         if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
           if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
             assert(all(strcmp(s.trackerData{i}.trnName,...
-                              {s.trackerData{i}.trnLastDMC.modelChainID})));
+                              s.trackerData{i}.trnLastDMC.getModelChainID())));
           end
           s.trackerData{i} = rmfield(s.trackerData{i},'trnName');
         end
         if isfield(s.trackerData{i},'trnNameLbl') && ~isempty(s.trackerData{i}.trnNameLbl)
           if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
             assert(all(strcmp(s.trackerData{i}.trnNameLbl,...
-                              {s.trackerData{i}.trnLastDMC.trainID})));
+                              s.trackerData{i}.trnLastDMC.getTrainID())));
           end
           s.trackerData{i} = rmfield(s.trackerData{i},'trnNameLbl');
         end
@@ -3872,12 +3850,17 @@ classdef Labeler < handle
       s.trkResViz = cell(0,1);
     end
     
-    function data = stcLoadLblFile(fname)
+    function [data,tname] = stcLoadLblFile(fname,dodelete)
+      if nargin < 2,
+        dodelete = true;
+      end
       tname = tempname;
       try
         untar(fname,tname);
         data = load(fullfile(tname,'label_file.lbl'),'-mat');
-        rmdir(tname,'s');
+        if dodelete,
+          rmdir(tname,'s');
+        end
       catch ME,
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile'),
           data = load(fname,'-mat');
@@ -3885,6 +3868,14 @@ classdef Labeler < handle
           throw(ME);
         end
       end
+    end
+
+    function stcSaveLblFile(data,tardir,outname)
+
+      save(fullfile(tardir,'label_file.lbl'),'-struct','data','-mat');
+      tar([outname,'.tar'],'*',tardir);
+      movefile([outname,'.tar'],outname);
+
     end
 
   end 
@@ -5832,6 +5823,9 @@ classdef Labeler < handle
       
       trxinfo = struct;
       if ~isempty(tFileFull)
+        if nargin < 3,
+          nframes = [];
+        end
         tmptrx = obj.getTrx(tFileFull,nframes);
         nTgt = numel(tmptrx);
         trxinfo.ntgts = nTgt;
@@ -6499,7 +6493,7 @@ classdef Labeler < handle
 %             
 %       x = rand;
 %       if x > 0.5
-%         obj.labelPosSet_Old(xy);
+%         obj.labelPosprofoi_Old(xy);
 %         obj.labelPosSet_New(xy);
 %       else
 %         obj.labelPosSet_New(xy);
@@ -7796,6 +7790,12 @@ classdef Labeler < handle
   end
   
   methods (Static)
+    function sMacro = movTrkFileMacroDescs()
+      sMacro = struct;
+      sMacro.movdir = '<full path to movie>';
+      sMacro.movfile = '<base name of movie>';
+      sMacro.expname = '<name of movie parent directory>';
+    end
     function trkfile = genTrkFileName(rawname,sMacro,movfile,varargin)      
       % Generate a trkfilename from rawname by macro-replacing.      
       
@@ -7804,6 +7804,7 @@ classdef Labeler < handle
         );
       
       [sMacro.movdir,sMacro.movfile] = fileparts(movfile);
+      [~,sMacro.expname] = fileparts(sMacro.movdir);
       trkfile = FSPath.macroReplace(rawname,sMacro);
       if enforceExt
         if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))
@@ -11528,9 +11529,40 @@ classdef Labeler < handle
         assert(isa(mftset,'MFTSet'));
         tblMFT = mftset.getMFTable(obj,'istrack',true);
       end
-      
-      tObj.track(tblMFT,varargin{:});
-      
+
+      % which movies are we tracking?
+      [movidx,~,newmov] = unique(tblMFT.mov);
+      tblMFT.mov = newmov;
+      movfiles = obj.movieFilesAllFullGTaware;
+      movfiles = movfiles(movidx,:);
+
+      % get data associated with those movies
+      if obj.hasTrx,
+        trxfiles = obj.trxFilesAllFullGTaware;
+        trxfiles = trxfiles(movidx,:);
+      else
+        trxfiles = {};
+      end
+
+      if obj.cropProjHasCrops,
+        cropInfo = obj.getMovieFilesAllCropInfoGTAware();
+        croprois = cell([numel(movfiles),obj.nview]);
+        for i = 1:numel(movfiles),
+          for j = 1:obj.nview,
+            croprois{i,j} = cropInfo{movidx(i)}(j).roi;
+          end
+        end
+      else
+        croprois = {};
+      end
+      caldata = obj.viewCalibrationDataGTaware;
+      if ~isempty(caldata),
+        caldata = caldata(movidx);
+      end
+      totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
+        'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
+        'calibrationdata',caldata);
+      tObj.track('totrackinfo',totrackinfo,'isexternal',false,varargin{:});
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
       
@@ -13729,9 +13761,11 @@ classdef Labeler < handle
       % (full/completed) setFrame() call should fix things up. We could
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
-      setframetic = tic;
-      starttime = setframetic;
-            
+      debugtiming = false;
+      if debugtiming,
+        setframetic = tic;
+        starttime = setframetic;   
+      end
       [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
         updateTrajs,changeTgtsIfNec] = myparse(varargin,...
         'tfforcereadmovie',false,...
@@ -13741,8 +13775,10 @@ classdef Labeler < handle
         'updateTrajs',true,...
         'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
         );
-            
-      %fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      
+      if debugtiming,
+        fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
@@ -13771,7 +13807,9 @@ classdef Labeler < handle
         
       end
       
-      %fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       % Remainder nearly identical to setFrameAndTarget()
       try
@@ -13780,7 +13818,9 @@ classdef Labeler < handle
         warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
       end
       
-      %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         assert(~obj.isMultiView);
@@ -13789,14 +13829,18 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTargetPoint();
       end
       
-      %fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
 
       
       if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
       end
       
-      %fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      if debugtiming,
+        fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      end
       
       if updateTables
         obj.updateTrxTable();
@@ -13810,10 +13854,13 @@ classdef Labeler < handle
         obj.updateTrx(false);
       end
       
-      %fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
+      if debugtiming,
+        fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
+      end
 
-      
-      %fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
+      if debugtiming,
+        fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
+      end
       
     end
     
@@ -15601,6 +15648,7 @@ classdef Labeler < handle
       toTrack = struct(...
         'movfiles', {cell(nget,obj.nview)},...
         'trkfiles', {cell(nget,obj.nview)},...
+        'detectfiles', {cell(nget,obj.nview)},...
         'trxfiles', {cell(nget,obj.nview)},...
         'cropRois', {cell(nget,obj.nview)},...
         'calibrationfiles', {cell(nget,1)},... %        'calibrationdata',{cell(nget,1)},...
@@ -15629,6 +15677,9 @@ classdef Labeler < handle
       [tfok,trkfiles] = obj.getTrkFileNamesForExportUI(toTrack.movfiles,rawname,'noUI',true);
       if tfok,
         toTrack.trkfiles = trkfiles;
+        if obj.maIsMA
+          toTrack.detectfiles = strrep(trkfiles,'.trk','_tracklet.trk');
+        end
       end
 
     end

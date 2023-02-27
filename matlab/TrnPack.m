@@ -296,7 +296,7 @@ classdef TrnPack
       end
       
       if strcmp(DeepModelChainOnDisk.configFileExt,'.json'),
-        TrnPack.hlpSaveJson(jslbl,dmc.trainConfigLnx);
+        TrnPack.hlpSaveJson(jslbl,DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx));
       end
 
       % use stripped lbl trackerData instead of tObj, as we have called

@@ -46,7 +46,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   
   methods
     function obj = TrackingVisualizerTracklets(lObj,ptsPlotInfoFld,handleTagPfix)
-      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix);
+      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix,'skel_linestyle',':');
       obj.tvtrx = TrackingVisualizerTrxMA(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
@@ -62,7 +62,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         'ntgtmax',20 ...
         );
       
-      obj.ntrxmax = ntgtmax;
+      obj.ntrxmax = ntgtmax*2;
       obj.iTrxViz2iTrx = zeros(obj.ntrxmax,1);
       obj.tvmt.vizInit('ntgts',ntgtmax);
       obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgtmax);
@@ -99,10 +99,22 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       
       nTrx = numel(iTrx);
       if nTrx>obj.ntrxmax
-        warningNoTrace('Too many targets to display (%d); showing first %d targets.',...
-          nTrx,obj.ntrxmax);
-        nTrx = obj.ntrxmax;
-        iTrx = iTrx(1:nTrx);
+        isalive = false(1,nTrx);
+        for n=1:nTrx
+          trxn = iTrx(n);
+          isalive(n) = ~isnan(ptrx(trxn).x(frm+ptrx(trxn).off));
+        end
+        isalive = find(isalive);
+        if numel(isalive)>nTrx
+          warningNoTrace('Number of targets to display (%d) is much more than max number of animals (%d). Showing first %d targets.',...
+            nTrx,obj.ntrxmax,obj.ntrxmax);
+
+          nTrx = obj.ntrxmax;
+          iTrx = iTrx(isalive(1:nTrx));
+        else
+          iTrx = iTrx(isalive);
+          nTrx = numel(isalive);
+        end
       end
       npts = obj.npts;
       
@@ -141,6 +153,9 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       % update tvtrx; call setShow
       tvtrx.updatePrimaryTrx(tvtrx_primary);
       tvtrx.updateLiveTrx(ptrx(iTrx),frm,trxMappingChanged);
+    end
+    function iTrxViz = iTrx2iTrxViz(obj,iTrx)
+       [~,iTrxViz] = ismember(iTrx,obj.iTrxViz2iTrx);
     end
     function trxSelected(obj,iTrxViz,tfforce)
       % This method is passed to .tvtrx and used as a callback

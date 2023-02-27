@@ -66,7 +66,7 @@ classdef TrackMonitorViz < handle
   end
   
   properties (Constant)
-    DEBUG = false;
+    DEBUG = true;
     COLOR_AXSWAIT_KILLED = [0.5 0.5 0.5];
     COLOR_AXSWAIT_BULK_UNTRACKED = [0.1 0.1 0.1];
     % could have diff colors for diff views done would be fun
@@ -264,6 +264,7 @@ classdef TrackMonitorViz < handle
             
       TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
       TrackMonitorViz.debugfprintf('N. frames tracked: ');
+      TrackMonitorViz.debugfprintf('tfcompete: %s\n',mat2str([res.tfComplete]));
       nJobs = numel(res); 
       
       % It is assumed that there is a correspondence between res and .hline
@@ -300,6 +301,7 @@ classdef TrackMonitorViz < handle
                 % for AWS and any worker that figures this out on its own
                 obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
                   res(ijob).trkfileNfrmtracked);
+                assert(~isnan(obj.nFramesTracked(ijob)));
               else
                 if isdone,
                   tfile = res(ijob).trkfile;

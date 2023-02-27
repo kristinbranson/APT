@@ -130,7 +130,7 @@ end
 clf;
 
 set(hfig,'Units','pixels','Position',figpos);
-hax = createsubplots(nlabeltypes,ndatatypes,[[.025,.005];[.1,.005]]);
+hax = createsubplots(nlabeltypes,ndatatypes,[[.1,.005];[.15,.005]]);
 hax = reshape(hax,[nlabeltypes,ndatatypes]);
   
 maxprc = min(maxprc,(1-1/maxn)*100);
@@ -185,12 +185,15 @@ for datai = ndatatypes:-1:1,
       title(sprintf('%s',datatypes{datai,1}),'FontWeight','normal');
     end
     if isempty(prcs),
-      prcs = 100-get(gca,'YTick');
+      prcs = get(gca,'YTick');
     end
-    set(gca,'YTick',100-flipud(prcs(:)),'YTickLabel',num2str(flipud(prcs(:))));
-    set(gca,'XLim',[minerr,maxerr],'YLim',[100-maxprc,100],'XTick',10:10:maxerr);
+    prcs = prcs(:);
+    set(gca,'YTick',100-flipud(prcs),'YTickLabel',num2str(flipud(prcs(:))));
+    set(gca,'XLim',[minerr,maxerr],'YLim',[100-maxprc,100]);%,'XTick',10:10:maxerr);
     set(gca,'XScale','linear','YScale','log','YDir','reverse');
-    set(gca,'XTick',APthresh,'XTickLabel',{},'XGrid','on');
+    if ~isempty(APthresh),
+      set(gca,'XTick',APthresh,'XTickLabel',{},'XGrid','on');
+    end
 
     drawnow;
   end

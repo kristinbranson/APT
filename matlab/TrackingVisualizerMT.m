@@ -58,7 +58,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     hXYPrdRedTxt; % [nPts x ntgt] handle vec, text labels for hXYPrdRed
     hSkel   % [1 x nview]  skeleton line handle (all edges/tgts)
             % format of .XData, .YData: see setSkelCoords
-            
+    skel_linestyle = '-'
     hPch  % [1 x ntgt] handle vec
     hPchTxt % [1 x ntgt] text/lbl for pch
     doPch % if false, don't draw pches at all
@@ -370,7 +370,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         xy = xy(:,:,itgtshow);
       end
       
-      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,se,npts,xy);
+      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,se,npts,xy,obj.skel_linestyle);
     end
     function setShowSkeleton(obj,tf)
       obj.tfShowSkel = tf;
@@ -731,14 +731,15 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     % the .hXYPrdRed line handles. In this way, serialized TVs can keep
     % arbitrary customized cosmetics.
     
-    function obj = TrackingVisualizerMT(lObj,ptsPlotInfoField,handleTagPfix)
+    function obj = TrackingVisualizerMT(lObj,ptsPlotInfoField,handleTagPfix,varargin)
       obj.tfHideTxt = false;
       obj.tfHideViz = false;         
 
       if nargin==0
         return;
       end
-      
+ 
+      [skel_linestyle] = myparse(varargin,'skel_linestyle','-');
       obj.lObj = lObj;
       gd = lObj.gdata;
       obj.hAxs = gd.axes_all;
@@ -747,6 +748,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       
       obj.ptsPlotInfoFld = ptsPlotInfoField;
       obj.handleTagPfix = handleTagPfix;
+      obj.skel_linestyle = skel_linestyle;
     end
     function postLoadInit(obj,lObj)
       obj.lObj = lObj;
