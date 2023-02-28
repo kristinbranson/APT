@@ -162,9 +162,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         if ~tfSucc(ijob),
           warning('Failed to spawn %s %d: %s',jobdesc,ijob,res{ijob});
         else
-          jobidstr = jobID{ijob};
-          if isnumeric(jobidstr),
-            jobidstr = num2str(jobidstr);
+          jobid = jobID{ijob};
+          if isnumeric(jobid),
+            jobidstr = num2str(jobid);
+          elseif isa(jobid, 'parallel.FevalFuture') ,
+            jobidstr = num2str(jobid.ID) ;
+          else
+            % hopefully the jobid is a string
+            jobidstr = jobid ;
           end
           fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
         end
