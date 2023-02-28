@@ -578,18 +578,13 @@ def get_matlab_ts(filename):
 
 
 def convert_unicode(data):
-    if (not ISPY3) and isinstance(data, basestring):
-        return unicode(data)
-    elif ISPY3 and isinstance(data, str):
+    if isinstance(data, str):
         return data
-    elif isinstance(data, collections.Mapping):
-        if ISPY3:
-            return dict(map(convert_unicode, data.items()))
-        else:
-            return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data, collections.abc.Mapping):
+        return dict(map(convert_unicode, data.items()))
     elif isinstance(data, np.ndarray):
         return data
-    elif isinstance(data, collections.Iterable):
+    elif isinstance(data, collections.abc.Iterable):
         return type(data)(map(convert_unicode, data))
     else:
         return data

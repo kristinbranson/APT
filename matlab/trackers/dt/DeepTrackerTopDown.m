@@ -279,7 +279,7 @@ classdef DeepTrackerTopDown < DeepTracker
               containerNames(:),logfiles(:),'uni',0);
           end
         case DLBackEnd.Conda
-          assert(false,'Unsupported'); % XXX TODO
+          %assert(false,'Unsupported'); % XXX TODO
           condaargs = {'condaEnv',obj.condaEnv};
           for ivw=1:nvw,
             if ivw>1

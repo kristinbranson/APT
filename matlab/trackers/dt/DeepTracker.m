@@ -4764,7 +4764,7 @@ classdef DeepTracker < LabelTracker
       [condaEnv,gpuid] = myparse(varargin,...
         'condaEnv','APT',...
         'gpuid',0);
-      codestr = ['activate ',condaEnv];
+      codestr = synthesize_conda_command(['activate ',condaEnv]);
       if ~isnan(gpuid),
         if ispc,
           envcmd = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);

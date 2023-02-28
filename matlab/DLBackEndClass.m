@@ -294,7 +294,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Conda
           basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',...
             aptdeepnet,obj.filesep);
-          codestr = sprintf('activate %s && %s',condaEnv,basecmd);
+          conda_activation_command = synthesize_conda_command(sprintf('activate %s', condaEnv)) ;  %#ok<PROPLC> 
+          codestr = sprintf('%s && %s', conda_activation_command, basecmd);
           [st,res] = system(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s',res);
@@ -786,7 +787,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % make sure conda is installed
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking for conda...'; drawnow;
-      cmd = 'conda -V';
+      cmd = synthesize_conda_command('-V');
       hedit.String{end+1} = cmd; drawnow;
       [st,res] = system(cmd);
       reslines = splitlines(res);
@@ -801,7 +802,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing activate APT...'; drawnow;
 
-      cmd = 'activate APT';
+      cmd = synthesize_conda_command('activate APT');
       %fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;
       [st,res] = system(cmd);
