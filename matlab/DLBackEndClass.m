@@ -542,8 +542,23 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function cmd = wrapCommandConda(basecmd,varargin) %#ok<INUSD,STOUT> 
-      error('Not implemented');
+    function cmdout = wrapCommandConda(cmdin, varargin)
+      % Take a base command and run it in a sing img
+      [condaEnv,gpuid] = myparse(varargin,...
+        'condaEnv','APT',...
+        'gpuid',0);
+      conda_activate_command = synthesize_conda_command(['activate ',condaEnv]);
+      if isnan(gpuid),
+        conda_activate_and_cuda_set_command = conda_activate_command ;
+      else
+        if ispc,
+          cuda_set_command = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
+        else
+          cuda_set_command = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID&& export CUDA_VISIBLE_DEVICES=%d',gpuid);
+        end
+        conda_activate_and_cuda_set_command = [conda_activate_command,' && ',cuda_set_command];
+      end
+      cmdout = [conda_activate_and_cuda_set_command,' && ',cmdin];
     end
 
     function cmd = wrapCommandAWS(basecmd,varargin) %#ok<STOUT,INUSD> 
