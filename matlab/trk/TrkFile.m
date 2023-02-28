@@ -795,6 +795,9 @@ classdef TrkFile < dynamicprops
 
             % write trkflds
             for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
+              if ~isprop(objMerged,f),
+                objMerged.(f) = cell(1,numel(objMerged.pTrkiTgt));
+              end
               if any(strcmp(f,flds_ptrk_dim))
                 objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
               else
@@ -885,7 +888,7 @@ classdef TrkFile < dynamicprops
         v = cellfun(@(x)permute(x,[nd 1:nd-1]),v,'uni',0); % put 'frame' dim first
         % convert to 2d arrays (in particular for pTrk)
         for i=1:numel(v)
-          if isalive,
+          if aliveonly && isalive,
             v{i} = v{i}(isalive{i},:);
           else
             szv = size(v{i});
@@ -1889,9 +1892,14 @@ classdef TrkFile < dynamicprops
     
     function [nFramesTracked,didload] = getNFramesTrackedPartFile(tfile)
       
-      nFramesTracked = 0;
       didload = false;
       s = readtxtfile(tfile);
+      nFramesTracked = TrkFile.getNFramesTrackedString(s);
+    end
+
+    function nFramesTracked = getNFramesTrackedString(s)
+      
+      nFramesTracked = 0;
       PAT = '(?<numfrmstrked>[0-9]+)';
       toks = regexp(s,PAT,'names','once');
       if isempty(toks),
@@ -1899,6 +1907,7 @@ classdef TrkFile < dynamicprops
       end
       nFramesTracked = str2double(toks{1}.numfrmstrked);
     end
+
 
     function [nFramesTracked,didload] = getNFramesTrackedMatFile(tfile)
       
@@ -1914,7 +1923,7 @@ classdef TrkFile < dynamicprops
           if isempty(m.endframes)
             nFramesTracked = 0;
           else
-            nFramesTracked = max(m.endframes - m.startframes) + 1;
+            nFramesTracked = sum(max(0,m.endframes - m.startframes + 1));
           end
           didload = true;
         elseif ismember('pTrkFrm',fns)

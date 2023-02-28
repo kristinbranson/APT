@@ -29,20 +29,25 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
       end
     end
     
-    function  tf = getModelIsRemote(obj)
+    function  tf = getModelIsRemote(obj) %#ok<MANU> 
       tf = true;
     end
     
-    function maxiter = getMostRecentModel(obj,dmc)
+    function [maxiter,idx] = getMostRecentModel(obj,dmc,varargin)
       % maxiter is nan if something bad happened or if DNE
       
+      % TODO allow polling for multiple models at once
       aws = obj.awsec2;
-      fspollargs = {'mostrecentmodel' dmc.dirModelChainLnx};
+      [dirModelChainLnx,idx] = dmc.dirModelChainLnx(varargin{:});
+      fspollargs = {};
+      for i = 1:numel(idx),
+        fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW> 
+      end
       [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
       if tfsucc
-        maxiter = str2double(res{1}); % includes 'DNE'->nan
+        maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
       else
-        maxiter = nan;
+        maxiter = nan(1,numel(idx));
       end
     end
     
@@ -50,10 +55,18 @@ classdef DeepModelChainReaderAWS < DeepModelChainReader
       obj.awsec2.remoteLS(dmc.dirProjLnx);
     end
     function lsModelChainDir(obj,dmc)
-      obj.awsec2.remoteLS(dmc.dirModelChainLnx);
+      for i = 1:dmc.n,
+        dir = dmc.dirModelChainLnx(i);
+        dir = dir{1};
+        obj.awsec2.remoteLS(dir);
+      end
     end
     function lsTrkDir(obj,dmc)
-      obj.awsec2.remoteLS(dmc.dirTrkOutLnx);
+       for i = 1:dmc.n,
+        dir = dmc.dirTrkOutLnx(i);
+        dir = dir{1};
+        obj.awsec2.remoteLS(dir);
+       end
     end
   end
 end

@@ -7,11 +7,12 @@ classdef TrainMonitorViz < handle
     hfig % scalar fig
     haxs % [2xnset] axis handle, viz training loss, dist
     hannlastupdated % [1] textbox/annotation handle
-    hline % [nviewx2xnset] line handle, one loss curve per view
-    hlinekill % [nviewx2xnset] line handle, killed marker per view
+    hline % [nmodel x 2] line handle, one loss curve per view
+    hlinekill % [nmodel x 2] line handle, killed marker per view
     trainMontageFigs = []; % figure handles for showing training image montages
+    setidx % [1 x nmodel], which set each line belongs to
     
-    isKilled = false; % scalar, whether training has been halted
+    isKilled = []; % scalar, whether any training has been halted
     lastTrainIter; % [nset x nview] last iteration of training
     
     axisXRange = 2e3; % [nset] show last (this many) iterations along x-axis
@@ -60,7 +61,7 @@ classdef TrainMonitorViz < handle
         'Show error messages'}});
   end
   properties (Dependent)
-    nview
+    nmodels
     nset
   end
   
@@ -76,24 +77,32 @@ classdef TrainMonitorViz < handle
     end
   end
   methods
-    function v = get.nview(obj)
+    function v = get.nmodels(obj)
       v = size(obj.hline,1);
     end
     function v = get.nset(obj)
-      v = size(obj.hline,3);
+      v = size(obj.haxs,2);
     end
   end
   
   methods
     
-    function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd,...
+    function obj = TrainMonitorViz(dmc,dtObj,trainWorkerObj,backEnd,...
         varargin)
-      
-      [trainSplits,nsets] = myparse(varargin,...
-        'trainSplits',false, ...
-        'nsets',1 ...
-        );
-      
+            
+      stage = dmc.getStages();
+      view = dmc.getViews();
+      splitidx = dmc.getSplits();
+      nmodels = dmc.n;
+      % sets currently correspond to stages
+      [unique_stages,~,obj.setidx] = unique(stage);
+      nsets = numel(unique_stages);
+      if nsets > 1,
+        set_names = arrayfun(@(x) sprintf(', Stage %d',x),unique_stages,'Uni',0);
+      else
+        set_names = {''};
+      end
+
       lObj = dtObj.lObj;
       obj.dtObj = dtObj;
       obj.trainWorkerObj = trainWorkerObj;
@@ -109,9 +118,8 @@ classdef TrainMonitorViz < handle
       obj.hannlastupdated = handles.text_clusterstatus;
       tfMultiSet = nsets>1;
       if tfMultiSet
-        assert(nsets==2,'Only two sets supported');
-        obj.splitaxs();
-      end      
+        obj.splitaxs(nsets);
+      end
       
       % reset
       arrayfun(@(x)cla(x),obj.haxs);
@@ -123,11 +131,8 @@ classdef TrainMonitorViz < handle
       arrayfun(@(x)grid(x,'on'),obj.haxs);
       arrayfun(@(x)hold(x,'on'),obj.haxs);
       %title(obj.haxs(1),'Training Monitor','fontweight','bold');
-      if tfMultiSet
-        xlabel(obj.haxs(2,1),'Iteration -- Detect');
-        xlabel(obj.haxs(2,2),'Iteration -- Pose');
-      else
-        xlabel(obj.haxs(2),'Iteration');
+      for j = 1:nsets,
+        xlabel(obj.haxs(2,j),['Iteration',set_names{j}]);
       end
       ylabel(obj.haxs(1),'Loss');
       ylabel(obj.haxs(2),'Dist');
@@ -138,24 +143,30 @@ classdef TrainMonitorViz < handle
       
       %obj.hannlastupdated = TrainMonitorViz.createAnnUpdate(obj.haxs(1));
       
-      clrs = lines(nview)*.9+.1;
-      h = gobjects(nview,2,nsets);
-      hkill = gobjects(nview,2,nsets);
-      for ivw=1:nview
-        for j=1:2
-          for iset=1:nsets
-            h(ivw,j,iset) = plot(obj.haxs(j,iset),nan,nan,...
-                                 '.-','color',clrs(ivw,:),'LineWidth',2);
-            hkill(ivw,j,iset) = plot(obj.haxs(j,iset),nan,nan,...
-                                     'rx','markersize',12,'linewidth',2);
-          end
+      clrs = lines(nmodels)*.9+.1;
+      h = gobjects(nmodels,2);
+      hkill = gobjects(nmodels,2);
+      for i=1:nmodels,
+        iset = obj.setidx(i);
+        for j=1:2,
+          h(i,j) = plot(obj.haxs(j,iset),nan,nan,'.-','color',clrs(i,:),'LineWidth',2);
+          hkill(i,j) = plot(obj.haxs(j,iset),nan,nan,'rx','markersize',12,'linewidth',2);
         end
       end
-      if nview > 1,
-        if trainSplits
-          legstrs = arrayfun(@(x)sprintf('split%d',x),(1:nview)','uni',0);
-        else
-          legstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
+      ismultiview = numel(unique(view)) > 1;
+      ismultisplit = numel(unique(splitidx(splitidx>0))) > 1;
+      islegend = ismultiview || ismultisplit;
+      if islegend,
+        legstrs = repmat({''},[1,nmodels]);
+        if ismultisplit,
+          for i = 1:nmodels,
+            legstrs{i} = [legstrs{i},sprintf('split %d ',splitidx(i))];
+          end
+        end
+        if ismultiview,
+          for i = 1:nmodels,
+            legstrs{i} = [legstrs{i},sprintf('view %d ',view(i))];
+          end
         end
         legend(obj.haxs(2,nsets),h(:,nsets),legstrs,'TextColor','w');
       end
@@ -163,8 +174,8 @@ classdef TrainMonitorViz < handle
       obj.hline = h;
       obj.hlinekill = hkill;
       obj.resLast = [];
-      obj.isKilled = false;
-      obj.lastTrainIter = zeros(nsets,nview);
+      obj.isKilled = false(1,nmodels);
+      obj.lastTrainIter = zeros(1,nmodels);
       obj.axisXRange = repmat(obj.axisXRange,[1 nsets]);
 
       obj.jobStoppedRepeatsReqd = 2; 
@@ -175,23 +186,33 @@ classdef TrainMonitorViz < handle
       obj.hfig = [];
     end
     
-    function splitaxs(obj)
-      h = obj.haxs;
-      szassert(h,[2 1]);
+    function splitaxs(obj,nsets)
+      hax = obj.haxs;
+      szassert(hax,[2 1]);
+      haxnew = gobjects(2,nsets);
       SPACERFAC = 0.98;
-      for i=1:numel(h)
-        posn = h(i).Position;
+      for i=1:numel(hax)
+        posn = hax(i).Position;
+        w0 = posn(3);
+        h = posn(4);
         x0 = posn(1);
-        %y0 = posn(2);
-        w = posn(3);
-        %h = posn(4);
-        h(i).Position(3) = w/2;
-        h(i).Position(3:4) = h(1).Position(3:4)*SPACERFAC;        
-        hnew = copyobj(h(i),h(i).Parent);
-        hnew.Position(1) = x0+w/2;
-        h(i,2) = hnew;
+        y = posn(2);
+        w = w0/nsets*SPACERFAC;
+        gap = w0/nsets*(1-SPACERFAC);
+        x = x0;
+        for j=1:nsets,
+          if j == 1,
+            hnew = hax(i);
+          else
+            hnew = copyobj(hax(i),hax(i).Parent);
+          end
+          hnew.Position = [x,y,w,h];
+          haxnew(i,j) = hnew;
+          x = x + w+gap;
+        end
+
       end
-      obj.haxs = h;
+      obj.haxs = haxnew;
     end
         
     function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
@@ -200,8 +221,12 @@ classdef TrainMonitorViz < handle
       %
       % trnComplete: scalar logical, true when all views done
       
+      if nargin < 3,
+        forceupdate = false;
+      end
+
       tfSucc = false;
-      msg = ''; %#ok<NASGU>
+      msg = '';
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
@@ -210,91 +235,65 @@ classdef TrainMonitorViz < handle
       end
       
       res = sRes.result;
-      % for each set, record if any line got updated and max xlim
-      tfAnyLineUpdate = false(1,obj.nset);
-      lineUpdateMaxStep = zeros(1,obj.nset);
-      
-      h = obj.hline; % [nview x 2 x nset]
-      hkill = obj.hlinekill;
-      nres = numel(res);
-      assert(nres==numel(h)/2);
-      
-      %tfIResAreSets = false; % if true, res indexes sets; otherwise, views      
-      if nres==1
-        ires2set = 1;
-      elseif size(h,1)==nres
-        % multiview case
-        ires2set = ones(nres,1); % every res is a different view in one set
-      elseif size(h,3)==nres
-        % multiset case
-        assert(size(h,1)==1);
-        h = reshape(h,2,[])';
-        hkill = reshape(hkill,2,[])';
-        ires2set = (1:nres)'; % every res is view 1 in a different set
-        %tfIResAreSets = true;
-      else
-        assert(false);
+      if ~res.pollsuccess,
+        return;
       end
-      % h/hkill are now [nres 2] where the first dim is either a view or 
-      % set idx for view indices, h(:,1) are plotted on same axes as are 
-      % h(:,2) for set indices, h(:,1) are plotted on diff axes
-      
-      if nargin < 3,
-        forceupdate = false;
-      end
-            
-      for ires=1:numel(res)
-        if res(ires).pollsuccess
-          if res(ires).jsonPresent && (forceupdate || res(ires).tfUpdate)
-            contents = res(ires).contents;
-            set(h(ires,1),'XData',contents.step,'YData',contents.train_loss);
-            set(h(ires,2),'XData',contents.step,'YData',contents.train_dist);
-            
-            iset = ires2set(ires);
-            tfAnyLineUpdate(iset) = true;
-            lineUpdateMaxStep(iset) = max(lineUpdateMaxStep(iset),contents.step(end));
-          end
+      nres = numel(res.contents);
+      assert(nres==obj.nmodels);
 
-          if res(ires).killFileExists, 
-            obj.isKilled = true;
-            if res(ires).jsonPresent,
-              contents = res(ires).contents;
-              % hmm really want to mark the last 2k interval when model is
-              % actually saved
-              set(hkill(ires,1),'XData',contents.step(end),'YData',contents.train_loss(end));
-              set(hkill(ires,2),'XData',contents.step(end),'YData',contents.train_dist(end));
-            end
-            handles = guidata(obj.hfig);
-            handles.pushbutton_startstop.Enable = 'on';
+      % for each axes, record if any line got updated and max xlim
+      tfAnyLineUpdate = false(1,obj.nset);
+      lineUpdateMaxStep = zeros(1,obj.nmodels);
+
+      for i = 1:obj.nmodels,
+        if res.jsonPresent(i) && (forceupdate || res.tfUpdate(i)),
+          contents = res.contents{i};
+          set(obj.hline(i,1),'XData',contents.step,'YData',contents.train_loss);
+          set(obj.hline(i,2),'XData',contents.step,'YData',contents.train_dist);
+          iset = obj.setidx(i);
+          tfAnyLineUpdate(iset) = true;
+          lineUpdateMaxStep(i) = max(lineUpdateMaxStep(i),contents.step(end));
+        end
+
+        if res.killFileExists(i),
+          obj.isKilled(i) = true;
+          if res.jsonPresent,
+            contents = res.contents{i};
+            % hmm really want to mark the last 2k interval when model is
+            % actually saved
+            set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end));
+            set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end));
           end
+          handles = guidata(obj.hfig);
+          handles.pushbutton_startstop.Enable = 'on';
+        end
         
-          if res(ires).tfComplete
-            contents = res(ires).contents;
-            if ~isempty(contents)
-              % re-use kill marker 
-              set(hkill(ires,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
-                'color',[0 0.5 0],'marker','o');
-              set(hkill(ires,2),'XData',contents.step(end),'YData',contents.train_dist(end),...
-                'color',[0 0.5 0],'marker','o');
-            end
+        if res.tfComplete(i)
+          contents = res.contents{i};
+          if ~isempty(contents)
+            % re-use kill marker
+            set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
+              'color',[0 0.5 0],'marker','o');
+            set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end),...
+              'color',[0 0.5 0],'marker','o');
           end
         end
       end
       
-      if any([res.errFileExists]),
+      if any(res.errFileExists),
         handles = guidata(obj.hfig);
         i = find(strcmp(handles.popupmenu_actions.String,'Show error messages'));
         if ~isempty(i),
           handles.popupmenu_actions.Value = i;
         end
       end
-      
-      for iset=1:obj.nset
-        if tfAnyLineUpdate(iset)
-          obj.lastTrainIter(iset,:) = ...
-                max(obj.lastTrainIter(iset,:),lineUpdateMaxStep(iset));
-          obj.adjustAxes(max(obj.lastTrainIter(iset,:)),iset);
-          %obj.dtObj.setTrackerInfo('iterCurr',obj.lastTrainIter);
+
+      for i = 1:obj.nmodels,
+        obj.lastTrainIter(i) = max(obj.lastTrainIter(i),lineUpdateMaxStep(i));
+      end
+      for iset = 1:obj.nset,
+        if tfAnyLineUpdate(iset),
+          obj.adjustAxes(max(obj.lastTrainIter(obj.setidx==iset)),iset);
         end
       end
       
@@ -311,7 +310,7 @@ classdef TrainMonitorViz < handle
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      pollsuccess = [res.pollsuccess];
+      pollsuccess = res.pollsuccess;
       
       clusterstr = 'Cluster';
       switch obj.backEnd        
@@ -326,17 +325,17 @@ classdef TrainMonitorViz < handle
         otherwise
           warning('Unknown back end type');
       end
-            
-      isTrainComplete = false;
-      isErr = false;
-      isLogFile = false;
+                  
       if ~isempty(res),
-        isTrainComplete = all([res.tfComplete]);
-        isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
-        % to-do: figure out how to make this robust to different file
-        % systems
-        isLogFile = cellfun(@(x) exist(x,'file'),{res.logFile});
-        isJsonFile = [res.jsonPresent]>0;
+        isTrainComplete = res.tfComplete;
+        isErr = res.errFileExists | res.logFileErrLikely;
+        isLogFile = res.logFileExists;
+        isJsonFile = res.jsonPresent;
+      else
+        isTrainComplete = false(1,obj.nmodels);
+        isErr = false(1,obj.nmodels);
+        isLogFile = false(1,obj.nmodels);
+        isJsonFile = false(1,obj.nmodels);
       end
       
       isRunning0 = obj.trainWorkerObj.getIsRunning();
@@ -352,15 +351,16 @@ classdef TrainMonitorViz < handle
         end
       end
 
-      TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d, isErr = %d, isKilled = %d\n',isRunning,isTrainComplete,isErr,obj.isKilled);
+      TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
+        isRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
       
-      if obj.isKilled,
-        status = 'Training process killed.';
+      if any(obj.isKilled),
+        status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
         tfSucc = false;
       elseif isErr,
-        status = sprintf('Error while training after %s iterations',mat2str(obj.lastTrainIter));
+        status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter));
         tfSucc = false;
-      elseif isTrainComplete,
+      elseif all(isTrainComplete),
         status = 'Training complete.';
         handles = guidata(obj.hfig);
         TrainMonitorViz.updateStartStopButton(handles,false,true);
@@ -368,7 +368,7 @@ classdef TrainMonitorViz < handle
         status = 'No training jobs running.';
         tfSucc = false;
       elseif any(isLogFile) && all(~isJsonFile),
-        status = 'Training in progress. Building training image database.';
+        status = 'Training in progress. Preprocessing.';
       elseif any(isLogFile) && any(isJsonFile),
         status = sprintf('Training in progress. %s iterations completed.',mat2str(obj.lastTrainIter));
       else
@@ -379,8 +379,8 @@ classdef TrainMonitorViz < handle
       hAnn = obj.hannlastupdated;
       hAnn.String = str;
       
-      tfsucc = all(pollsuccess);
-      if all(tfsucc)
+      tfsucc = pollsuccess;
+      if tfsucc,
         hAnn.ForegroundColor = [0 1 0];
       else
         hAnn.ForegroundColor = [1 0 0];
@@ -413,7 +413,8 @@ classdef TrainMonitorViz < handle
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
       [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
-      obj.isKilled = true;
+      obj.isKilled(:) = tfsucc;
+      obj.SetBusy('Checking that training jobs are killed...',true);
       if tfsucc,
         
         startTime = tic;

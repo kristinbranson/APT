@@ -369,7 +369,7 @@ classdef LabelTracker < handle
       end
       iMov = labeler.currMovie;
             
-      %[tpos,taux,tauxlbl] = obj.getTrack$movdir/$movfile_$projfile_$trackertypeingResultsCurrMovieTgt();      
+      %[tpos,taux,tauxlbl] = obj.getTrackingResultsCurrMovieTgt();      
       [tfhasdata,xy,occ,sf,ef,aux,auxlbl] = obj.getTrackingResultsCurrMovieTgt();
       if ~tfhasdata
         data = nan(npts,nfrms);

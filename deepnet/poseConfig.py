@@ -249,7 +249,7 @@ class config(object):
         # ============== LINKING ===============
         self.link_stage = 'second'
         self.link_maxcost_heuristic = 'secondorder'
-        self.link_maxcost_framesfit = 3
+        self.link_maxcost_framesfit = 5
         self.link_maxcost_mult = 2.0
         self.link_maxcost_prctile = 95.
         self.link_maxframes_delete = 10

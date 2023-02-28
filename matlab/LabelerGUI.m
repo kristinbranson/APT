@@ -2821,7 +2821,11 @@ function slider_frame_Callback(hObject,evt,varargin)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
-starttime = tic;
+debugtiming = false;
+if debugtiming,
+  starttime = tic;
+end
+
 handles = guidata(hObject);
 lObj = handles.labelerObj;
 
@@ -2857,7 +2861,9 @@ if ~tfSetOccurred
   set(hObject,'Value',sldval);
 end
 
-%fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+if debugtiming,
+  fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+end
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -2943,6 +2949,11 @@ end
 SetStatus(handles,'Tracking...');
 tm = getTrackMode(handles);
 tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
+if isempty(tblMFT),
+  msgbox('All frames tracked.','Track');
+  ClearStatus(handles);
+  return;
+end
 [tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
 if ~tfCanTrack,
   errordlg(['Error tracking: ',reason],'Error tracking');
@@ -2953,7 +2964,11 @@ fprintf('Tracking started at %s...\n',datestr(now));
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);
 oc = onCleanup(@()delete(wbObj));
-handles.labelerObj.track(tblMFT,'wbObj',wbObj,'do_linking',false);
+if handles.labelerObj.maIsMA
+  handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
+else
+  handles.labelerObj.track(tblMFT,'wbObj',wbObj);
+end
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Tracking canceled');
   msgbox(msg,'Track');
@@ -2969,6 +2984,11 @@ handles.labelerObj.lblCore.clearLabels();
 handles.labelerObj.CheckPrevAxesTemplate();
 
 function tbAccept_Callback(hObject, eventdata, handles)
+debugtiming = false;
+if debugtiming,
+  starttime = tic;
+end
+
 if ~checkProjAndMovieExist(handles)
   return;
 end
@@ -2982,6 +3002,10 @@ switch lc.state
     %handles.labelerObj.CheckPrevAxesTemplate();
   otherwise
     assert(false);
+end
+
+if debugtiming,
+  fprintf('toggleAccept took %f seconds\n',toc(starttime));
 end
 
 function cbkTblTrxCellSelection(src,evt) %#ok<*DEFNU>

@@ -28,6 +28,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     iTrxViz2iTrx % [ntrxmax] Mapping from trx in .tvtrx -> ptrx.
                  % iTrxViz2Trx(iTrxTV) gives index into .ptrx for live trx,
                  % and 0 for unused trx.
+                 % Also applies to .tvmt, ie iTrxViz2Trx are trklet (.ptrx)
+                 % labels for .tvmt.hXYPrdRed(1,:)
                  
     tfShowTrxTraj = true;
                  
@@ -44,7 +46,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   
   methods
     function obj = TrackingVisualizerTracklets(lObj,ptsPlotInfoFld,handleTagPfix)
-      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix);
+      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix,'skel_linestyle',':');
       obj.tvtrx = TrackingVisualizerTrxMA(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
@@ -60,7 +62,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         'ntgtmax',20 ...
         );
       
-      obj.ntrxmax = ntgtmax;
+      obj.ntrxmax = ntgtmax*2;
       obj.iTrxViz2iTrx = zeros(obj.ntrxmax,1);
       obj.tvmt.vizInit('ntgts',ntgtmax);
       obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgtmax);
@@ -93,19 +95,26 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         return;
       end
       
-%       if isempty(obj.frm2trx)
-%         iTrx = [];
-%       else
-%         iTrx = find(obj.frm2trx(frm,:));
-%       end
-      iTrx = obj.frm2trx(frm); % remove refs to frm2trx
+      iTrx = obj.frm2trx(frm);
       
       nTrx = numel(iTrx);
       if nTrx>obj.ntrxmax
-        warningNoTrace('Too many targets to display (%d); showing first %d targets.',...
-          nTrx,obj.ntrxmax);
-        nTrx = obj.ntrxmax;
-        iTrx = iTrx(1:nTrx);
+        isalive = false(1,nTrx);
+        for n=1:nTrx
+          trxn = iTrx(n);
+          isalive(n) = ~isnan(ptrx(trxn).x(frm+ptrx(trxn).off));
+        end
+        isalive = find(isalive);
+        if numel(isalive)>nTrx
+          warningNoTrace('Number of targets to display (%d) is much more than max number of animals (%d). Showing first %d targets.',...
+            nTrx,obj.ntrxmax,obj.ntrxmax);
+
+          nTrx = obj.ntrxmax;
+          iTrx = iTrx(isalive(1:nTrx));
+        else
+          iTrx = iTrx(isalive);
+          nTrx = numel(isalive);
+        end
       end
       npts = obj.npts;
       
@@ -123,11 +132,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
           end
         end
       end
-      
-      % update tvmt
-      obj.tvmt.updateTrackRes(xy,tfeo);
-      
-      % update tvtrx; call setShow
+
       nLive = numel(iTrx);
       iTrx2Viz2iTrxNew = zeros(obj.ntrxmax,1);
       iTrx2Viz2iTrxNew(1:nLive) = iTrx;
@@ -135,17 +140,29 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.iTrxViz2iTrx = iTrx2Viz2iTrxNew;
       
       tvtrx = obj.tvtrx; %#ok<*PROPLC>
-      tfUpdateIDs = trxMappingChanged;
       tvtrx_primary = find(iTrx2Viz2iTrxNew==obj.currTrklet);
+      tvmt_primary = tvtrx_primary; % could be empty
       if isempty(tvtrx_primary)
         tvtrx_primary = 0;
       end
+
+      % update tvmt
+      obj.tvmt.updateTrackRes(xy,tfeo);
+      obj.tvmt.updatePrimary(tvmt_primary);
+      
+      % update tvtrx; call setShow
       tvtrx.updatePrimaryTrx(tvtrx_primary);
-      tvtrx.updateLiveTrx(ptrx(iTrx),frm,tfUpdateIDs);
+      tvtrx.updateLiveTrx(ptrx(iTrx),frm,trxMappingChanged);
+    end
+    function iTrxViz = iTrx2iTrxViz(obj,iTrx)
+       [~,iTrxViz] = ismember(iTrx,obj.iTrxViz2iTrx);
     end
     function trxSelected(obj,iTrxViz,tfforce)
-      % ITrxViz is the index of the active trx. To use actual trx index use
-      % the function below
+      % This method is passed to .tvtrx and used as a callback
+      % iTrxViz: scalar (1..obj.tvtrx.nTrx) index of the active trx in .tvtrx. 
+      %          will not be 0, will not be empty
+      % If selecting from an external client with a tracklet ID (index into
+      % .ptrx), use trxSelectedTrxID below
       if nargin < 3
         tfforce = false;
       end
@@ -157,6 +174,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         nTrkletTot = numel(obj.ptrx);
         obj.hud.updateTrklet(trkletID,nTrkletTot);        
         obj.currTrklet = iTrklet;
+        % obj.tvtrx.updatePrimary() already called
+        obj.tvmt.updatePrimary(iTrxViz);
         obj.lObj.gdata.labelTLInfo.newTarget();
       end
     end
@@ -173,11 +192,12 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         obj.hud.updateTrklet(trkletID,nTrkletTot);        
         obj.currTrklet = iTrklet;
         obj.lObj.gdata.labelTLInfo.newTarget();
-        iviz=find(obj.iTrxViz2iTrx==iTrklet);
+        iviz = find(obj.iTrxViz2iTrx==iTrklet);
         if isempty(iviz)
           warning('This should not happen. Not setting primary trx');
         else
           obj.tvtrx.updatePrimaryTrx(iviz);
+          obj.tvmt.updatePrimary(iviz);
         end
       end
     end    
@@ -216,7 +236,14 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       % .currTrklet etc.
     end
     function setShowOnlyPrimary(obj,tf)
-      % none
+      % * "primary" <-> currTrklet; maintained internally (eg selected by
+      % .tvtrx click) and not by Labeler. primary index is concurrently
+      % maintained in .tvmt, .tvtrx
+
+      obj.tvmt.setShowOnlyPrimary(tf); 
+      obj.tvtrx.setShowOnlyPrimary(tf);
+      % Note, this hides trx as well; so to change tracklets, must use
+      % Switch Targets UI
     end
     function setShowSkeleton(obj,tf)
       obj.tvmt.setShowSkeleton(tf);

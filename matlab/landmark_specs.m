@@ -26,7 +26,7 @@ classdef landmark_specs < handle
   properties (Access = private)
     lObj
     pts % [npt x 2] xy coords for viz purposes
-    ptNames % [npt] cellstr; working model/data for UI, to be written to lObj
+    ptNames % [nphyspts] cellstr; working model/data for UI, to be written to lObj
     
     anyChangeMade = false;
     
@@ -135,6 +135,8 @@ classdef landmark_specs < handle
       end
       s.im = im;
       s.pts = pts;
+      s.nview = lObj.nview;
+      s.nPhysPoints = lObj.nPhysPoints;
       s.imagescArgs = imagescArgs;
       s.labelCM = labelCM;
       s.axesProps = axesProps;
@@ -316,13 +318,15 @@ classdef landmark_specs < handle
       ht.ColumnWidth = {pos(3)*.8};
     end
     function updateTableHT(obj)
-      npts = size(obj.pts,1);
-      htmat = false(npts,2);
-      if ~isnan(obj.htHead)
-        htmat(obj.htHead,1) = true;
+      nphyspts = numel(obj.ptNames); 
+      htmat = false(nphyspts,2);
+      ipthead = obj.htHead;
+      ipttail = obj.htTail;
+      if ~isempty(ipthead) && ~isnan(ipthead)
+        htmat(ipthead,1) = true;
       end
-      if ~isnan(obj.htTail)
-        htmat(obj.htTail,2) = true;
+      if ~isempty(ipttail) && ~isnan(ipttail)
+        htmat(ipttail,2) = true;
       end
       
       tbl = obj.UITable;      
@@ -406,10 +410,16 @@ classdef landmark_specs < handle
       obj.unselectedMarker = unselMarker;
       obj.unselectedMarkerSize = unselMarkerSize;
       obj.unselectedLineWidth = unselLineWidth;
+      
+      if ~lblObj.isPrevAxesModeInfoSet
+        errordlg('Please freeze a labeled reference image for use with this UI.',...
+          'No Reference Image');
+        return;
+      end
 
       slbl = obj.parseLabelerState(obj.lObj);
-      obj.pts = slbl.pts;
-      obj.ptNames = slbl.skelNames;
+      obj.pts = slbl.pts; 
+      obj.ptNames = slbl.skelNames; 
 
       % align axes
       obj.axHT.Position = obj.axSkel.Position;
@@ -434,12 +444,13 @@ classdef landmark_specs < handle
       unselMarker = obj.unselectedMarker;
       unselMarkerSize = obj.unselectedMarkerSize;
       
-      npts = size(obj.pts,1);
-      ptnames = slbl.skelNames;
+      %npts = size(obj.pts,1);
+      nphyspts = slbl.nPhysPoints; % dont want to plot all views' points on hAx
+      %ptnames = slbl.skelNames;
 
-      hpts = gobjects(npts,1);
-      htxt = gobjects(npts,1);
-      for i = 1:npts
+      hpts = gobjects(nphyspts,1);
+      htxt = gobjects(nphyspts,1);
+      for i = 1:nphyspts
         hpts(i) = plot(hAx,slbl.pts(i,1),slbl.pts(i,2),unselMarker,...
           'Color',slbl.labelCM(i,:),'MarkerFaceColor',slbl.labelCM(i,:),...
           'UserData',i,'MarkerSize',unselMarkerSize,plotptsArgs{:});

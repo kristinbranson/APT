@@ -6,8 +6,8 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
 
   methods
     
-    function obj = BgWorkerObjDocker(nviews,dmcs,backend,varargin)
-      obj@BgWorkerObjLocalFilesys(nviews,dmcs,varargin{:});
+    function obj = BgWorkerObjDocker(dmcs,backend,varargin)
+      obj@BgWorkerObjLocalFilesys(dmcs,varargin{:});
       obj.dockerremotehost = backend.dockerremotehost;
     end
     
@@ -17,7 +17,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       if nargin < 4,
         imov = 1;
       end
-      containerID = BgWorkerObjDocker.parseJobIDStatic(res);
+      containerID = DLBackEndClass.parseJobIDDocker(res);
       fprintf('Process job (movie %d, view %d) spawned, docker containerID=%s.\n\n',...
         imov,iview,containerID);
       
@@ -173,27 +173,6 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
         tfsucc = true;
       end
-    end
-    
-  end
-  
-  methods (Static)
-    
-    function containerID = parseJobIDStatic(res)
-      
-      res = regexp(res,'\n','split');
-      res = regexp(res,'^[0-9a-f]+$','once','match');
-      l = cellfun(@numel,res);
-      try
-        res = res{find(l==64,1)};
-        assert(~isempty(res));
-        containerID = strtrim(res);
-      catch ME,
-        warning('Could not parse job id from:\n%s\',res);
-        disp(getReport(ME));
-        containerID = '';
-      end
-      
     end
     
   end
