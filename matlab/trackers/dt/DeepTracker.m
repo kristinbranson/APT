@@ -3920,10 +3920,11 @@ classdef DeepTracker < LabelTracker
         obj.newLabelerFrame();
         
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
-          res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
+%           res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
+          res = 'Delete';
           if strcmpi(res,'Retrack'),
             tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
-            obj.track(tblMFTRetrack);
+            obj.track('totrackinfo',tblMFTRetrack);
           end
         end
 
