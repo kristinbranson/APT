@@ -1455,7 +1455,7 @@ classdef TrkFile < dynamicprops
         % pTrk now has col order [x1v1 x2v1 .. xkv1 y1v1 .. ykv1 x1v2 ...]
         % fix this up to standard [ <all x> <all y> ]
         n = height(t0);
-        npt = size(t0.pTrk,2)/2;
+        npt = size(t0.pTrk,2)/2/ntbl;
         ptrk = reshape(t0.pTrk,n,npt,2,ntbl); 
         ptrk = permute(ptrk,[1 2 4 3]);
         ptrk = reshape(ptrk,n,[]);

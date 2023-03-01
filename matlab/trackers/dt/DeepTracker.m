@@ -907,7 +907,7 @@ classdef DeepTracker < LabelTracker
       lblObj = obj.lObj;
       trnBackEnd = lblObj.trackDLBackEnd;
       
-      if obj.isTrkFiles(),        
+      if obj.isTrkFiles(),
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
           res = questdlg('Tracking results exist for previous deep trackers. When training stops, these will be deleted. Continue training?','Continue training?','Yes','No','Cancel','Yes');
           if ~strcmpi(res,'Yes'),
@@ -3913,20 +3913,23 @@ classdef DeepTracker < LabelTracker
       % moved under bgTrnIsRunning at some point, but right now there can
       % be mixed up tracking results, so let's always check. 
       isCurr = obj.checkTrackingResultsCurrent();
-      if ~isCurr,
-        
+      if ~isCurr
         obj.cleanOutOfDateTrackingResults(isCurr);
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
-        
-        if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+
+        %MK 20230301 -- tried to make it work for single animal projects
+        %but couldn't create tinfo properly enough after a few feeble
+        %attempts. Abandoing it for someone more valorous
+%         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
 %           res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
-          res = 'Delete';
-          if strcmpi(res,'Retrack'),
-            tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
-            obj.track('totrackinfo',tblMFTRetrack);
-          end
-        end
+%           if strcmpi(res,'Retrack'),
+%             tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
+%             tinfo = ToTrackInfo('tblMFT',tblMFTRetrack,'trainDMC',obj.trnLastDMC,...
+%               'moviefiles',obj.lObj.movieFilesAll,'trxfiles',obj.lObj.trxF);
+%             obj.track('totrackinfo',tinfo);
+%           end
+%         end
 
       end
       
