@@ -11558,8 +11558,10 @@ classdef Labeler < handle
         croprois = {};
       end
       caldata = obj.viewCalibrationDataGTaware;
-      if ~isempty(caldata),
-        caldata = caldata(movidx);
+      if ~isempty(caldata)
+        if ~obj.viewCalProjWide
+          caldata = caldata(movidx);
+        end
       end
       totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
         'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...

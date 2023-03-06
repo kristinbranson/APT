@@ -799,18 +799,18 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         return;
       end
       if isempty(obj.calibrationdata),
-        if isempty(v),
-          return;
-        end
         obj.calibrationdata = repmat({[]},[obj.nmovies,1]);
       end
       idx = obj.select('calibrationdata',varargin{:});
+      if isempty(v),
+        return;
+      end
 
       n = nnz(idx);
       if ~iscell(v),
         v = repmat({v},[n,1]);
       end
-      obj.calibrationfiles(idx) = v;
+      obj.calibrationdata(idx) = v;
     end
     function addTblMFT(obj,tblMFTadd,movfilesnew,movidxnew)
 
