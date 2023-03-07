@@ -4153,7 +4153,7 @@ def train_deepcut(conf, args, split_file=None, model_file=None):
     out_file = args.aug_out
     if out_file is not None:
         out_file = args.aug_out + f'_{conf.view}'
-    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=out_file)
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=out_file)
     if args.only_aug: return
 
     cfg_dict = create_dlc_cfg_dict(conf, args.train_name)
@@ -4292,7 +4292,7 @@ def train_multi_stage(args, nviews, conf_raw=None):
         train(lbl_file, nviews, name, args)
 
 
-def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
+def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
     ''' Creates training db and calls the appropriate network's training function '''
 
     view = args.view
@@ -4307,7 +4307,15 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
 
     for view_ndx, cur_view in enumerate(views):
         logging.info('Configuring...')
-        conf = create_conf(lbl_file, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
+        conf = create_conf(lbl_file, 
+                           cur_view, 
+                           name, 
+                           net_type=net_type, 
+                           cache_dir=args.cache,
+                           conf_params=args.conf_params, 
+                           json_trn_file=args.json_trn_file,
+                           first_stage=first_stage,
+                           second_stage=second_stage)
 
         conf.view = cur_view
         model_file = args.model_file[view_ndx]
