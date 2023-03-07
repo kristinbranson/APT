@@ -1,3 +1,8 @@
-function apt = StartAPT
+function apt = StartAPT(varargin)
 APT.setpathsmart;
-apt = Labeler();
+if isscalar(varargin) ,
+  args = horzcat({'projfile'}, varargin) ;
+else
+  args = varargin ;
+end
+apt = Labeler(args{:});
