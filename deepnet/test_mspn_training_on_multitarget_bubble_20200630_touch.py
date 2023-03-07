@@ -21,13 +21,13 @@ class cd :
 
 
 
-def test_training_on_multitarget_bubble_20200630_touch() :
+def test_mspn_training_on_multitarget_bubble_20200630_touch() :
     this_script_path = os.path.realpath(__file__)
     script_folder_path = os.path.dirname(this_script_path)
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt-refactoring
 
-    read_only_folder_path = os.path.join(project_folder_path, "read_only_multitarget_bubble_20200630_touch_training_test_input_folder")
-    working_folder_path = os.path.join(project_folder_path, "ampere_multitarget_bubble_20200630_touch_training_test_working_folder")
+    read_only_folder_path = os.path.join(project_folder_path, "read_only_mspn_multitarget_bubble_20200630_touch_training_test_input_folder")
+    working_folder_path = os.path.join(project_folder_path, "ampere_mspn_multitarget_bubble_20200630_touch_training_test_working_folder")
 
     #logging.warning('Point 1')
 
@@ -71,6 +71,6 @@ def test_training_on_multitarget_bubble_20200630_touch() :
 if __name__ == "__main__":
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    logging.info('About to call test_training_on_multitarget_bubble_20200630_touch()')
-    test_training_on_multitarget_bubble_20200630_touch()
-    logging.info('Finished test_training_on_multitarget_bubble_20200630_touch()')
+    logging.info('About to call test_mspn_training_on_multitarget_bubble_20200630_touch()')
+    test_mspn_training_on_multitarget_bubble_20200630_touch()
+    logging.info('Finished test_mspn_training_on_multitarget_bubble_20200630_touch()')
