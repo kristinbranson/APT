@@ -17,7 +17,7 @@ classdef TrackBatchGUI < handle
     
     defaulttrkpat;
     defaulttrxpat = '$movdir/trx.mat';
-    defaultdetectkpat;
+    defaultdetectpat;
   end
   
   methods
@@ -28,7 +28,7 @@ classdef TrackBatchGUI < handle
       toTrack = myparse(varargin,'toTrack',struct);
       
       obj.defaulttrkpat = lObj.defaultExportTrkRawname();
-      obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
+      obj.defaultdetectpat = [obj.defaulttrkpat '_tracklet'];
       obj.initData(toTrack);      
       obj.createGUI();
     end
@@ -465,7 +465,7 @@ classdef TrackBatchGUI < handle
       if obj.isma
         movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
           movdata,'defaulttrkpat',obj.defaulttrkpat,...
-          'defaultdetectpat',obj.defaultdetectkpat,...
+          'defaultdetectpat',obj.defaultdetectpat,...
           'detailed_options',false);
       else
         movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
@@ -766,18 +766,18 @@ classdef TrackBatchGUI < handle
         switch btn
           case 'Yes'
             obj.defaulttrkpat = trkpatnew;
-            obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
+            obj.defaultdetectpat = [obj.defaulttrkpat '_tracklet'];
             obj.apply_macro_allmovies();
           case 'No'
             obj.defaulttrkpat = trkpatnew;
-            obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
+            obj.defaultdetectpat = [obj.defaulttrkpat '_tracklet'];
           case 'Cancel'
             % revert
             h.String = obj.defaulttrkpat;            
         end
       else
         obj.defaulttrkpat = trkpatnew;
-        obj.defaultdetectkpat = [obj.defaulttrkpat '_tracklet'];
+        obj.defaultdetectpat = [obj.defaulttrkpat '_tracklet'];
 
       end
     end
@@ -789,7 +789,7 @@ classdef TrackBatchGUI < handle
           trk = obj.genTrkfile(cur_m,defaulttrk);
           obj.toTrack.trkfiles{moviei,view} = trk;
           if obj.lObj.maIsMA
-            trk = obj.genTrkfile(cur_m,obj.defaultdetectkpat);
+            trk = obj.genTrkfile(cur_m,obj.defaultdetectpat);
             obj.toTrack.detectfiles{moviei,view} = trk;
           end
         end
