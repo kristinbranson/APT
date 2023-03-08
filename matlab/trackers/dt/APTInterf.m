@@ -304,10 +304,13 @@ classdef APTInterf
         elseif nstages > 1,
           code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getTrkfiles('stage',1),filequote)}];
         end
-        if totrackinfo.hasTrxids,
-          for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
-            code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
-          end
+%         if totrackinfo.hasTrxids,
+%           for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
+%             code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
+        if ~all(cellfun(@isempty,trxids))
+           for i = 1:numel(trxids)
+              code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
+           end
         end
       end
       if totrackinfo.hasCroprois,

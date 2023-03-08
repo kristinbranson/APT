@@ -139,7 +139,7 @@ classdef TrackBatchGUI < handle
       
 %      macroedity = pagebuttony + rowh + 2*rowborder;
       
-      addbuttonw = .15;
+      addbuttonw = .30;
       addbuttonx = .5 - addbuttonw/2;
       addbuttony = pagebuttony - rowh - border;
       
