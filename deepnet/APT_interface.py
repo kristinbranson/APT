@@ -26,22 +26,9 @@ import itertools
 from os.path import expanduser
 from random import sample
 
-# suppress tensorflow warnings cuz there are a lot of them!
-# hopefully they don't matter??
-#import warnings
-#warnings.filterwarnings('ignore')
-
-import tensorflow
-#tensorflow.get_logger().setLevel('ERROR')
-
-tf = tensorflow.compat.v1
-tf.disable_v2_behavior()
-tf.logging.set_verbosity(tf.logging.ERROR)
-try:
-    gpu_devices = tensorflow.config.list_physical_devices('GPU')[0]
-    tensorflow.config.experimental.set_memory_growth(gpu_devices,True)
-except:
-    pass
+# Import TensorFlow
+import tensorflow as tf
+tf1 = tf.compat.v1
 
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
@@ -125,12 +112,6 @@ except KeyError:
 #         ISDPK = True
 #     except:
 #         print('deepposekit not available.')
-
-
-try:
-    tf.logging.set_verbosity(tf.logging.ERROR)
-except:
-    pass
 
 
 def savemat_with_catch_and_pickle(filename, out_dict):
@@ -323,7 +304,7 @@ def tf_serialize(data):
     if rois is not None:
         mask = create_mask(rois, frame_in.shape[:2])
         feature['mask'] = bytes_feature(mask.tobytes())
-    example = tf.train.Example(features=tf.train.Features(feature=feature))
+    example = tf1.train.Example(features=tf1.train.Features(feature=feature))
 
     return example.SerializeToString()
 
@@ -336,19 +317,19 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
     if on_gt:
         train_filename = db_files[0]
         os.makedirs(os.path.dirname(db_files[0]), exist_ok=True)
-        env = tf.python_io.TFRecordWriter(train_filename)
+        env = tf1.python_io.TFRecordWriter(train_filename)
         val_env = None
         envs = [env, val_env]
     elif len(db_files) > 1:
         train_filename = db_files[0]
-        env = tf.python_io.TFRecordWriter(train_filename)
+        env = tf1.python_io.TFRecordWriter(train_filename)
         val_filename = db_files[1]
-        val_env = tf.python_io.TFRecordWriter(val_filename)
+        val_env = tf1.python_io.TFRecordWriter(val_filename)
         envs = [env, val_env]
     elif len(db_files)==1:
         train_filename = db_files[0]
-        env = tf.python_io.TFRecordWriter(train_filename)
-        venv = tf.python.io.TFRecordWriter(tempfile.mkstemp()[1])
+        env = tf1.python_io.TFRecordWriter(train_filename)
+        venv = tf1.python.io.TFRecordWriter(tempfile.mkstemp()[1])
         envs = [env,venv]
     else:
         try:
@@ -2623,7 +2604,7 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
         try:
             module_name = 'Pose_{}'.format(model_type)
             pose_module = __import__(module_name)
-            tf.reset_default_graph()
+            tf1.reset_default_graph()
             self = getattr(pose_module, module_name)(conf, name=name)
             pred_fn, close_fn, model_file = self.get_pred_fn(model_file)
         except ImportError:
@@ -3855,7 +3836,7 @@ def classify_movie(conf, pred_fn, model_type,
     if os.path.exists(part_file):
         os.remove(part_file)
     cap.close()
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     return trk
 
 def raw_predict_file(predict_trk_file, out_file):
@@ -3890,7 +3871,7 @@ def link(args, view, view_ndx):
 
 def get_unet_pred_fn(conf, model_file=None, name='deepnet'):
     ''' Prediction function for UNet network'''
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name=name)
     if name == 'deepnet':
         self.train_data_name = 'traindata'
@@ -3898,7 +3879,7 @@ def get_unet_pred_fn(conf, model_file=None, name='deepnet'):
 
 
 def get_mdn_pred_fn(conf, model_file=None, name='deepnet', distort=False, **kwargs):
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=name)
     if name == 'deepnet':
         self.train_data_name = 'traindata'
@@ -4056,7 +4037,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
 def train_unet(conf, args, restore, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
         self.train_data_name = 'traindata'
@@ -4075,14 +4056,14 @@ def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
     gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=out_file)
     if args.only_aug: return
 
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
         self.train_data_name = 'traindata'
     else:
         self.train_data_name = None
     self.train_umdn(restore=restore, model_file=model_file)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_leap(conf, args, split, split_file=None):
@@ -4119,7 +4100,7 @@ def train_leap(conf, args, split, split_file=None):
                upsampling_layers=conf.leap_upsampling,
                conf=conf)
 
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_openpose(conf, args, split, split_file=None):
@@ -4137,14 +4118,14 @@ def train_openpose(conf, args, split, split_file=None):
     # set(nodes)) == conf.n_classes, 'Affinity Graph for open pose is not a complete tree'
 
     op.training(conf, name=args.train_name)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_sb(conf, args, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
     sb.training(conf, name=args.train_name)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_deepcut(conf, args, split_file=None, model_file=None):
@@ -4165,7 +4146,7 @@ def train_deepcut(conf, args, split_file=None, model_file=None):
                   saveiters=conf.save_step,
                   maxiters=dlc_steps,
                   max_to_keep=conf.maxckpt)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_dpk(conf, args, split, split_file=None):
@@ -4177,7 +4158,7 @@ def train_dpk(conf, args, split, split_file=None):
 
     gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
     if args.only_aug: return
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     apt_dpk.train(conf)
 
 
@@ -4390,7 +4371,7 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 module_name = 'Pose_{}'.format(net_type)
                 logging.info(f'Importing pose module {module_name}')
                 pose_module = __import__(module_name)
-                tf.reset_default_graph()
+                tf1.reset_default_graph()
                 foo = getattr(pose_module, module_name)
                 self = foo(conf, name=args.train_name)
                 # self.name = args.train_name
@@ -4398,11 +4379,11 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 self.train_wrapper(restore=restore, model_file=model_file)
                 logging.info('Finished training.')
 
-        except tf.errors.InternalError as e:
+        except tf1.errors.InternalError as e:
             logging.exception(
                 'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')
             exit(1)
-        except tf.errors.ResourceExhaustedError as e:
+        except tf1.errors.ResourceExhaustedError as e:
             logging.exception('Out of GPU Memory. Either reduce the batch size or scale down the image')
             exit(1)
 
@@ -4963,8 +4944,23 @@ def main(argv):
     Main function for running APT. Parses command line parameters, sets up logging, then calls "run" function to do most of the work.
     """
 
+    # Do some TF setup stuff (we do it here, not duing the import of
+    # APT_interface.py, so that any CUDA_* envars set before the call to
+    # APT_interface.main() will be honored)
+    # Could probably wait to do it until after we're sure we're going to be using TF...
+    tf1.disable_v2_behavior()
+    tf1.logging.set_verbosity(tf1.logging.ERROR)
+    try:    
+        gpu_devices = tf.config.list_physical_devices('GPU')  # this takes into account CUDA_VISIBLE_DEVICES
+        print("len(gpu_devices): ", len(gpu_devices))
+        tf.config.experimental.set_memory_growth(gpu_devices,True)
+            # seems like passing this is a single GPU, instead of a singleton list, fails when there are multiple GPUs?
+    except:
+        pass
+    
+    # Parse the arguments
     args = parse_args(argv)
-
+    
     if args.sub_name == 'test':
         print("Hello this is APT!")
         return
