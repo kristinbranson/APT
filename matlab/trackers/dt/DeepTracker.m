@@ -5382,7 +5382,11 @@ classdef DeepTracker < LabelTracker
     end
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
-      mIdx = obj.lObj.currMovIdx;
+      labeler = obj.lObj ;
+      if ~isvalid(labeler) ,
+          return
+      end
+      mIdx = labeler.currMovIdx;
       if isempty(mIdx) || mIdx==0 || obj.lObj.isinit
         % proj load etc
         return;

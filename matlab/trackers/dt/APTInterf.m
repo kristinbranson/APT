@@ -97,7 +97,13 @@ classdef APTInterf
 
       % type for the first stage trained in this job
       code = [code,{'-type',stage2netType{1}}];
-      if ~isempty(stage2prevModels{1}),
+      if ~isempty(stage2prevModels{1}{1})
+        % MK 202300310. Stage2prevmodels is
+        % repmat({repmat({''},[1,nviews]),[1,nstages]) for single animal
+        % projects when no model is present. So  instead of checking
+        % stage2prevModels{1}, I'm checking stage2prevModels{1}{1}. Not
+        % tested for multi-animal. If it errors fix accordingly. Check line
+        % 869 in DeepModelChainOnDisk.m
         code = [code {'-model_files'} String.quoteCellStr(stage2prevModels{1},filequote)];
       end
 
@@ -109,7 +115,8 @@ classdef APTInterf
           code = [code {'use_bbox_trx' 'True'}];
         end
         code = [code,{'-type2',stage2netType{2}}];
-        if ~isempty(stage2prevModels{2}),
+        if ~isempty(stage2prevModels{2}{1})
+          % check the comment for model_files
           code = [code {'-model_files2'} String.quoteCellStr(stage2prevModels{2},filequote)];
         end
       end
@@ -304,10 +311,13 @@ classdef APTInterf
         elseif nstages > 1,
           code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getTrkfiles('stage',1),filequote)}];
         end
-        if totrackinfo.hasTrxids,
-          for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
-            code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
-          end
+%         if totrackinfo.hasTrxids,
+%           for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
+%             code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
+        if ~all(cellfun(@isempty,trxids))
+           for i = 1:numel(trxids)
+              code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
+           end
         end
       end
       if totrackinfo.hasCroprois,

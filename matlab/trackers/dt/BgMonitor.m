@@ -215,7 +215,7 @@ classdef BgMonitor < handle
           else
             error('errFile is a non-scalar cell array')
           end
-        end
+        end        
         fprintf(1,'\n### %s\n\n',errFile);
         errContents = obj.bgWorkerObj.fileContents(errFile);
         disp(errContents);

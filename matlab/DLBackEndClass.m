@@ -160,7 +160,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
         end
         if ~tfSucc(ijob),
-          warning('Failed to spawn %s %d: %s',jobdesc,ijob,res{ijob});
+          warning('Failed to spawn %s %d: %s',jobdesc,ijob,res);
         else
           jobid = jobID{ijob};
           if isnumeric(jobid),
