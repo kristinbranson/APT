@@ -7,9 +7,9 @@ dependencies:
   - pyyaml
   - scikit-image
   - cudatoolkit
-  - pytorch
-  - torchvision
-  - tensorflow=2.*.*
+  - pytorch=*=cuda*
+  - torchvision=*=cuda*
+  - tensorflow=2.*.*=cuda*
 #  - tf_slim  # including this causes python, TF to be quite old versions
   - mmdet
   - hdf5storage

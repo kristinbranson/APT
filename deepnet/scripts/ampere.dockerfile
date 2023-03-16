@@ -21,7 +21,7 @@ RUN apt -y install bzip2
 RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
 
 # Create the conda env from the environment .yaml file
-RUN micromamba env create -f /tmp/ampere_conda_environment.yaml --prefix /tmp/ampere-env
+RUN CONDA_OVERRIDE_CUDA="11.8" micromamba env create -f /tmp/ampere_conda_environment.yaml --prefix /tmp/ampere-env
 
 # "Manually" activate the environment
 # This seems like it might be fragile...
