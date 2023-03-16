@@ -14,8 +14,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-    currentDockerImgTag = 'tf23_mmdetection';
-    currentDockerImgRoot = 'bransonlabapt/apt_docker';
+%     currentDockerImgTag = 'tf23_mmdetection';
+%     currentDockerImgRoot = 'bransonlabapt/apt_docker';
+ 
+    % HACK ALERT:
+    currentDockerImgTag = 'latest';
+    currentDockerImgRoot = 'ampere';
     
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
 
@@ -251,10 +255,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
       end
       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
+        currentImgRoot = DLBackEndClass.currentDockerImgRoot;
         currentTag = DLBackEndClass.currentDockerImgTag;
-        if ~strcmp(obj.dockerimgtag,currentTag)
-          warningNoTrace('Updating backend to latest APT Docker image tag: %s\n',...
+        if ~strcmp(obj.dockerimgtag,currentTag) || ~strcmp(obj.dockerimgroot, currentImgRoot) ,
+          warningNoTrace('Updating backend to latest APT Docker image root+tag: %s:%s\n',...
+            currentImgRoot, ...
             currentTag);
+          obj.dockerimgroot = currentImgRoot;
           obj.dockerimgtag = currentTag;
         end
       end

@@ -11400,7 +11400,7 @@ classdef Labeler < handle
       catch
         return
       end
-      if (mem_need>0.9*freemem) && ~silent;
+      if (mem_need>0.9*freemem) && ~silent ,
         qstr = sprintf('The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB). It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling to prevent training from crashing. Do you still want to train?',freemem,round(mem_need));
         res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
         if ~strcmpi(res,'Yes')
