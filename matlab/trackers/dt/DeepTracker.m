@@ -3467,6 +3467,10 @@ classdef DeepTracker < LabelTracker
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
       njobs = numel(jobs);
+      if njobs > length(gpuids) ,
+        warning('Not enough GPUs with enough available memory for the tracking jobs.') ;
+        return 
+      end
 
       cacheDir = obj.lObj.DLCacheDir;
       aptroot = obj.setupBackEndTrain(backend,cacheDir);
