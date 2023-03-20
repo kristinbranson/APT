@@ -1,4 +1,4 @@
-name: ampere
+name: ampere-env
 channels:
   - conda-forge
   - defaults
@@ -12,6 +12,7 @@ dependencies:
   - tensorflow=2.*.*=cuda*
 #  - tf_slim  # including this causes python, TF to be quite old versions
   - mmdet
+  - mmcv-full<=1.7.0
   - hdf5storage
   - keras-applications
   - easydict
