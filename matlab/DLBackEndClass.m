@@ -14,13 +14,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-%     currentDockerImgTag = 'tf23_mmdetection';
-%     currentDockerImgRoot = 'bransonlabapt/apt_docker';
+    defaultDockerImgTag = 'tf23_mmdetection';
+    defaultDockerImgRoot = 'bransonlabapt/apt_docker';
  
-    % HACK ALERT:
-    currentDockerImgTag = 'latest';
-    currentDockerImgRoot = 'ampere';
-    
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
 
     jrchost = 'login1.int.janelia.org';
@@ -44,10 +40,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     awsgitbranch
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
-    dockerimgroot = DLBackEndClass.currentDockerImgRoot;
+    dockerimgroot = DLBackEndClass.defaultDockerImgRoot;
     % We have an instance prop for this to support running on older/custom
     % docker images.
-    dockerimgtag = DLBackEndClass.currentDockerImgTag;
+    dockerimgtag = DLBackEndClass.defaultDockerImgTag;
     dockerremotehost = '';
     gpuids = []; % for now used by docker/conda
     dockercontainername = []; % transient
@@ -281,8 +277,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
       end
       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
-        currentImgRoot = DLBackEndClass.currentDockerImgRoot;
-        currentTag = DLBackEndClass.currentDockerImgTag;
+        currentImgRoot = DLBackEndClass.defaultDockerImgRoot;
+        currentTag = DLBackEndClass.defaultDockerImgTag;
         if ~strcmp(obj.dockerimgtag,currentTag) || ~strcmp(obj.dockerimgroot, currentImgRoot) ,
           warningNoTrace('Updating backend to latest APT Docker image root+tag: %s:%s\n',...
             currentImgRoot, ...
