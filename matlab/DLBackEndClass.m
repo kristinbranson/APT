@@ -16,6 +16,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     minFreeMem = 9000; % in MiB
     defaultDockerImgTag = 'tf23_mmdetection';
     defaultDockerImgRoot = 'bransonlabapt/apt_docker';
+    defaultDockerFullImageSpec = 'bransonlabapt/apt_docker:tf23_mmdetection';  % Need to be consistent with two above
  
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
 
@@ -270,21 +271,23 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % 20220728 Win/Conda migration to WSL2/Docker
       if obj.type==DLBackEnd.Conda
         if ispc
-          warningNoTrace('Updating Windows backend from Conda -> Docker. If you have not already, please see the documentation for Windows/WSL2 setup instructions.');
+          warningNoTrace(...
+            ['Updating Windows backend from Conda -> Docker. ' ...
+             'If you have not already, please see the documentation for Windows/WSL2 setup instructions.']);
           obj.type = DLBackEnd.Docker;
         else
           warningNoTrace('Unexpected Conda backend on %s. APT may not work correctly.');
         end
       end
       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
-        currentImgRoot = DLBackEndClass.defaultDockerImgRoot;
-        currentTag = DLBackEndClass.defaultDockerImgTag;
-        if ~strcmp(obj.dockerimgtag,currentTag) || ~strcmp(obj.dockerimgroot, currentImgRoot) ,
-          warningNoTrace('Updating backend to latest APT Docker image root+tag: %s:%s\n',...
-            currentImgRoot, ...
-            currentTag);
-          obj.dockerimgroot = currentImgRoot;
-          obj.dockerimgtag = currentTag;
+        defaultDockerFullImageSpec = DLBackEndClass.defaultDockerFullImageSpec ;  %#ok<PROP> 
+        fullImageSpec = obj.dockerimgfull ;
+        if ~strcmp(DLBackEndClass.defaultDockerFullImageSpec, fullImageSpec),
+          message = ...
+            sprintf('The Docker image spec (%s) differs from the default (%s).', ...
+                    fullImageSpec, ...
+                    defaultDockerFullImageSpec) ;  %#ok<PROP> 
+          warningNoTrace(message) ;
         end
       end
       % 20211101 turn on by default
