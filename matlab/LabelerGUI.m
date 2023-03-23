@@ -2384,6 +2384,12 @@ if ~isfield(handles,'menu_track_backend_config')
     'Callback',@cbkTrackerBackendSetDockerSSH,...
     'Tag','menu_track_backend_config_setdockerssh');  
 
+  handles.menu_track_backend_config_docker_image_spec = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(Docker) Set image spec...',...
+    'Callback',@cbkTrackerBackendSetDockerImageSpec,...
+    'Tag','menu_track_backend_config_docker_image_spec');  
+
 end
 
 function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
@@ -2482,6 +2488,7 @@ set(handles.menu_track_backend_config_aws,'checked',oiAWS);
 set(handles.menu_track_backend_config_aws_setinstance,'Enable',oiAWS);
 set(handles.menu_track_backend_config_aws_configure,'Enable',oiAWS);
 set(handles.menu_track_backend_config_setdockerssh,'Enable',oiDckr);
+set(handles.menu_track_backend_config_docker_image_spec,'Enable',oiDckr);
 set(handles.menu_track_backend_config_jrc_setconfig,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_setconfig_track,'Enable',oiBsub);
 
@@ -2685,6 +2692,29 @@ if ischange,
     end
   end
 end
+
+
+function cbkTrackerBackendSetDockerImageSpec(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+backend = lObj.trackDLBackEnd;
+assert(backend.type==DLBackEnd.Docker);
+original_full_image_spec = backend.dockerimgfull ;
+dialog_result = inputdlg({'Docker Image Spec:'},'Set image spec...',1,{original_full_image_spec});
+if isempty(dialog_result)
+  return
+end
+new_full_image_spec = dialog_result{1};
+try
+  backend.dockerimgfull = new_full_image_spec;
+catch exception
+  if strcmp(exception.identifier, 'APT:invalidvalue') ,
+    uiwait(errordlg(exception.message));
+  else
+    rethrow(exception);
+  end
+end
+
 
 function cbkTrackersAllChanged(src,evt)
 lObj = evt.AffectedObject;

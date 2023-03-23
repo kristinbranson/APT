@@ -63,7 +63,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   methods % Prop access
     function v = get.filesep(obj)
       if obj.type == DLBackEnd.Conda,
-        v = filesep;
+        v = filesep();  %#ok<CPROP> 
       else
         v = '/';
       end
@@ -74,6 +74,32 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         v = [v ':' obj.dockerimgtag];
       end
     end
+    function set.dockerimgfull(obj, new_value)
+      % Check for crazy values
+      if ischar(new_value) && ~isempty(new_value) ,
+        % all is well
+      else
+        error('APT:invalidvalue', 'Invalid value for the Docker image specification');
+      end        
+      % The full image spec should be of the form '<root>:<tag>' or just '<root>'
+      % Parse the given string to find the parts
+      parts = strsplit(new_value, ':');
+      part_count = length(parts) ;      
+      if part_count==0 ,
+        error('APT:internalerror', 'Internal APT error.  Please notify the APT developers.');
+      elseif part_count==1 ,
+        root = parts{1} ;
+        tag = '' ;
+      elseif part_count==2 ,
+        root = parts{1} ;
+        tag = parts{2} ;
+      else
+        error('APT:invalidvalue', '"%s" is a not valid value for the Docker image specification', new_value);
+      end
+      % Actually set the values
+      obj.dockerimgroot = root ;
+      obj.dockerimgtag = tag ;
+    end    
   end
  
   methods
@@ -189,7 +215,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     end
 
-    function delete(obj)
+    function delete(obj)  %#ok<INUSD> 
       % AL 20191218
       % DLBackEndClass can now be deep-copied (see copyAndDetach below) as 
       % sometimes this is necessary for serialization eg to disk.
