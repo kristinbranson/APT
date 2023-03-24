@@ -50,6 +50,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     dockercontainername = []; % transient
     %dockershmsize = 512; % in m; passed in --shm-size
     
+    jrcAdditionalBsubArgs = ''
+
     condaEnv = 'APT'; % used only for Conda
   end
   properties (Dependent)
@@ -96,6 +98,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Actually set the values
       obj.dockerimgroot = root ;
       obj.dockerimgtag = tag ;
+    end    
+    function setJRCAdditionalBsubArgs(obj, new_value)
+      % Check for crazy values
+      if ischar(new_value) ,
+        % all is well
+      else
+        error('APT:invalidvalue', 'Invalid value for the JRC addition bsub arguments');
+      end        
+      % Actually set the value
+      obj.jrcAdditionalBsubArgs = new_value ;
     end    
   end
  
@@ -622,19 +634,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function cmdout = wrapCommandBsub(cmdin,varargin)
-      [nslots,gpuqueue,logfile,jobname] = myparse(varargin,...
+      [nslots,gpuqueue,logfile,jobname,additionalArgs] = myparse(varargin,...
         'nslots',DeepTracker.default_jrcnslots_train,...
         'gpuqueue',DeepTracker.default_jrcgpuqueue,...
         'logfile','/dev/null',...
-        'jobname','');
+        'jobname','', ...
+        'additionalArgs','');
       esccmd = String.escapeQuotes(cmdin);
       if isempty(jobname),
         jobnamestr = '';
       else
         jobnamestr = [' -J ',jobname];
       end
-      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s "%s"',...
-        nslots,gpuqueue,logfile,jobnamestr,esccmd);
+      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s %s "%s"',...
+        nslots,gpuqueue,logfile,jobnamestr,additionalArgs,esccmd);
     end
 
     function cmdout = wrapCommandSSH(remotecmd,varargin)

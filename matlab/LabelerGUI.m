@@ -2362,6 +2362,12 @@ if ~isfield(handles,'menu_track_backend_config')
     'Callback',@cbkTrackerBackendSetJRCNSlotsTrack,...
     'Tag','menu_track_backend_config_jrc_setconfig_track');  
 
+  handles.menu_track_backend_config_jrc_additional_bsub_args = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(JRC) Additional bsub arguments...',...
+    'Callback',@cbkTrackerBackendAdditionalBsubArgs,...
+    'Tag','menu_track_backend_config_jrc_additional_bsub_args');  
+
   % AWS submenu (enabled when backend==AWS)
   handles.menu_track_backend_config_aws_setinstance = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
@@ -2491,6 +2497,7 @@ set(handles.menu_track_backend_config_setdockerssh,'Enable',oiDckr);
 set(handles.menu_track_backend_config_docker_image_spec,'Enable',oiDckr);
 set(handles.menu_track_backend_config_jrc_setconfig,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_setconfig_track,'Enable',oiBsub);
+set(handles.menu_track_backend_config_jrc_additional_bsub_args,'Enable',oiBsub);
 
 % m = handles.menu_track_backend_config;
 % % Menu item ordering seems very buggy. Setting .Position on menu items
@@ -2644,6 +2651,26 @@ if isnan(n)
 end
 lObj.tracker.setJrcnslotstrack(n);
 
+
+function cbkTrackerBackendAdditionalBsubArgs(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+backend = lObj.trackDLBackEnd;
+original_value = backend.jrcAdditionalBsubArgs;
+dialog_result = inputdlg({'Addtional bsub arguments:'},'Additional bsub arguments...',1,{original_value});
+if isempty(dialog_result)
+  return
+end
+new_value = dialog_result{1};
+try
+  backend.setJRCAdditionalBsubArgs(new_value);
+catch exception
+  if strcmp(exception.identifier, 'APT:invalidvalue') ,
+    uiwait(errordlg(exception.message));
+  else
+    rethrow(exception);
+  end
+end
 
 
 function cbkTrackerBackendSetDockerSSH(src,evt)
