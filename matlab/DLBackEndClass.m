@@ -23,6 +23,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     jrchost = 'login1.int.janelia.org';
     jrcprefix = ':'; % 'source /etc/profile';
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
+
+    default_conda_env = 'APT'
   end
   properties
     type  % scalar DLBackEnd
@@ -52,7 +54,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     jrcAdditionalBsubArgs = ''
 
-    condaEnv = 'APT'; % used only for Conda
+    condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
   end
   properties (Dependent)
     filesep
@@ -99,7 +101,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.dockerimgroot = root ;
       obj.dockerimgtag = tag ;
     end    
-    function setJRCAdditionalBsubArgs(obj, new_value)
+    function set.jrcAdditionalBsubArgs(obj, new_value)
       % Check for crazy values
       if ischar(new_value) ,
         % all is well
@@ -108,6 +110,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end        
       % Actually set the value
       obj.jrcAdditionalBsubArgs = new_value ;
+    end    
+    function set.condaEnv(obj, new_value)
+      % Check for crazy values
+      if ischar(new_value) && ~isempty(new_value) ,
+        % all is well
+      else
+        error('APT:invalidvalue', '"%s" is a not valid value for the conda environment', new_value);
+      end        
+      % Actually set the value
+      obj.condaEnv = new_value ;
     end    
   end
  
@@ -134,7 +146,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Docker
           cmd = obj.codeGenDockerGeneral(basecmd,varargin{:});
         case DLBackEnd.Conda
-          cmd = obj.wrapCommandConda(basecmd);
+          cmd = obj.wrapCommandConda(basecmd, varargin{:});
         case DLBackEnd.AWS
           cmd = obj.wrapCommandAWS(basecmd);
         otherwise
@@ -288,7 +300,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
              'If you have not already, please see the documentation for Windows/WSL2 setup instructions.']);
           obj.type = DLBackEnd.Docker;
         else
-          warningNoTrace('Unexpected Conda backend on %s. APT may not work correctly.');
+          warningNoTrace('Unexpected Conda backend. APT may not work correctly.');
         end
       end
       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
@@ -594,7 +606,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function cmdout = wrapCommandConda(cmdin, varargin)
       % Take a base command and run it in a sing img
       [condaEnv,gpuid] = myparse(varargin,...
-        'condaEnv','APT',...
+        'condaEnv',DLBackEndClass.default_conda_env,...
         'gpuid',0);
       conda_activate_command = synthesize_conda_command(['activate ',condaEnv]);
       if isnan(gpuid),

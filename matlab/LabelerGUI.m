@@ -2396,6 +2396,14 @@ if ~isfield(handles,'menu_track_backend_config')
     'Callback',@cbkTrackerBackendSetDockerImageSpec,...
     'Tag','menu_track_backend_config_docker_image_spec');  
 
+  % Conda submenu
+  handles.menu_track_backend_set_conda_env = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','on', ...
+    'Label','(Conda) Set environment...',...
+    'Callback',@cbkTrackerBackendSetCondaEnv,...
+    'Tag','menu_track_backend_set_conda_env');  
+
 end
 
 function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
@@ -2498,6 +2506,7 @@ set(handles.menu_track_backend_config_docker_image_spec,'Enable',oiDckr);
 set(handles.menu_track_backend_config_jrc_setconfig,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_setconfig_track,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_additional_bsub_args,'Enable',oiBsub);
+set(handles.menu_track_backend_set_conda_env,'Enable',oiCnda);
 
 % m = handles.menu_track_backend_config;
 % % Menu item ordering seems very buggy. Setting .Position on menu items
@@ -2663,7 +2672,7 @@ if isempty(dialog_result)
 end
 new_value = dialog_result{1};
 try
-  backend.setJRCAdditionalBsubArgs(new_value);
+  backend.jrcAdditionalBsubArgs = new_value ;
 catch exception
   if strcmp(exception.identifier, 'APT:invalidvalue') ,
     uiwait(errordlg(exception.message));
@@ -2734,6 +2743,28 @@ end
 new_full_image_spec = dialog_result{1};
 try
   backend.dockerimgfull = new_full_image_spec;
+catch exception
+  if strcmp(exception.identifier, 'APT:invalidvalue') ,
+    uiwait(errordlg(exception.message));
+  else
+    rethrow(exception);
+  end
+end
+
+
+function cbkTrackerBackendSetCondaEnv(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+backend = lObj.trackDLBackEnd;
+assert(backend.type==DLBackEnd.Conda);
+original_value = backend.condaEnv ;
+dialog_result = inputdlg({'Conda environment:'},'Set environment...',1,{original_value});
+if isempty(dialog_result)
+  return
+end
+new_value = dialog_result{1};
+try
+  backend.condaEnv = new_value;
 catch exception
   if strcmp(exception.identifier, 'APT:invalidvalue') ,
     uiwait(errordlg(exception.message));
