@@ -21,13 +21,13 @@ class cd :
 
 
 
-def test_mspn_tracking_on_multitarget_bubble_20200630_touch() :
+def test_deeplabcut_tracking_on_multitarget_bubble_20200630_touch() :
     this_script_path = os.path.realpath(__file__)
     script_folder_path = os.path.dirname(this_script_path)
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt-refactoring
 
-    read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_mspn_tracking_test_input_folder_read_only")
-    working_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_mspn_tracking_test_working_folder")
+    read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_deeplabcut_tracking_test_input_folder_read_only")
+    working_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_deeplabcut_tracking_test_working_folder")
 
     #logging.warning('Point 1')
 
@@ -54,38 +54,38 @@ def test_mspn_tracking_on_multitarget_bubble_20200630_touch() :
     deepnet_folder_path = script_folder_path
     with cd(deepnet_folder_path) :
         APT_interface.main(
-            [os.path.join(working_folder_path,'multitarget_bubble/20230328T145538_20230328T145538.json'),
-             '-name', '20230328T145538', 
-             '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/mmpose/view_0/20230328T145538/trk/track_20230328T154416_mov1_vw1.err'),
-             '-type', 'mmpose',
-             '-model_files', os.path.join(working_folder_path, "multitarget_bubble/mmpose/view_0/20230328T145538/deepnet-20000"),
+            [os.path.join(working_folder_path,'multitarget_bubble/20230327T203619_20230327T203619.json'),
+             '-name', '20230327T203619', 
+             '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/deeplabcut/view_0/20230327T203619/trk/track_20230327T210247_mov1_vw1.err'),
+             '-type', 'deeplabcut',
+             '-model_files', os.path.join(working_folder_path, "multitarget_bubble/deeplabcut/view_0/20230327T203619/deepnet-67000"),
              '-ignore_local', '0', 
              '-cache', working_folder_path,
              'track',
-             '-config_file', os.path.join(working_folder_path, "multitarget_bubble/mmpose/view_0/20230328T145538/trk/trkconfig_movie_trn20230328T145538_view0_iter20000_20230328T154416.json"),
-             '-out', os.path.join(working_folder_path, "multitarget_bubble/mmpose/view_0/20230328T145538/trk/movie_trn20230328T145538_view0_iter20000_20230328T154416.trk"),
+             '-config_file', os.path.join(working_folder_path, "multitarget_bubble/deeplabcut/view_0/20230327T203619/trk/trkconfig_movie_trn20230327T203619_view0_iter67000_20230327T210247.json"),
+             '-out', os.path.join(working_folder_path, "multitarget_bubble/deeplabcut/view_0/20230327T203619/trk/movie_trn20230327T203619_view0_iter67000_20230327T210247.trk"),
              '-mov', "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf",
-             '-start_frame', '15971',
-             '-end_frame', '16171',
+             '-start_frame', '16271',
+             '-end_frame', '16471',
              '-trx', "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/registered_trx.mat",
              '-trx_ids', '1', '3', '4', '5', '6', '7', '8', '9', '10'])
 
 
 # python \
 #   "/groups/branson/bransonlab/taylora/apt-refactoring/apt-ampere/deepnet/APT_interface.py" \
-#   "/groups/scicompsoft/home/taylora/tp33c12f59_bc12_467e_a5ed_9e4b1af80a53/multitarget_bubble/20230328T145538_20230328T145538.json" \
-#   -name 20230328T145538 \
-#   -err_file "/groups/scicompsoft/home/taylora/tp33c12f59_bc12_467e_a5ed_9e4b1af80a53/multitarget_bubble/mmpose/view_0/20230328T145538/trk/track_20230328T154416_mov1_vw1.err" \
-#   -type mmpose \
-#   -model_files "/groups/scicompsoft/home/taylora/tp33c12f59_bc12_467e_a5ed_9e4b1af80a53/multitarget_bubble/mmpose/view_0/20230328T145538/deepnet-20000" \
+#   "/groups/scicompsoft/home/taylora/tp5e6097bb_e699_43df_89d5_66367c680eb0/multitarget_bubble/20230327T203619_20230327T203619.json" \
+#   -name 20230327T203619 \
+#   -err_file "/groups/scicompsoft/home/taylora/tp5e6097bb_e699_43df_89d5_66367c680eb0/multitarget_bubble/deeplabcut/view_0/20230327T203619/trk/track_20230327T210247_mov1_vw1.err" \
+#   -type deeplabcut \
+#   -model_files "/groups/scicompsoft/home/taylora/tp5e6097bb_e699_43df_89d5_66367c680eb0/multitarget_bubble/deeplabcut/view_0/20230327T203619/deepnet-67000" \
 #   -ignore_local 0 \
-#   -cache "/groups/scicompsoft/home/taylora/tp33c12f59_bc12_467e_a5ed_9e4b1af80a53" \
+#   -cache "/groups/scicompsoft/home/taylora/tp5e6097bb_e699_43df_89d5_66367c680eb0" \
 #   track \
-#   -config_file "/groups/scicompsoft/home/taylora/tp33c12f59_bc12_467e_a5ed_9e4b1af80a53/multitarget_bubble/mmpose/view_0/20230328T145538/trk/trkconfig_movie_trn20230328T145538_view0_iter20000_20230328T154416.json" \
-#   -out "/groups/scicompsoft/home/taylora/tp33c12f59_bc12_467e_a5ed_9e4b1af80a53/multitarget_bubble/mmpose/view_0/20230328T145538/trk/movie_trn20230328T145538_view0_iter20000_20230328T154416.trk" \
+#   -config_file "/groups/scicompsoft/home/taylora/tp5e6097bb_e699_43df_89d5_66367c680eb0/multitarget_bubble/deeplabcut/view_0/20230327T203619/trk/trkconfig_movie_trn20230327T203619_view0_iter67000_20230327T210247.json" \
+#   -out "/groups/scicompsoft/home/taylora/tp5e6097bb_e699_43df_89d5_66367c680eb0/multitarget_bubble/deeplabcut/view_0/20230327T203619/trk/movie_trn20230327T203619_view0_iter67000_20230327T210247.trk" \
 #   -mov "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf" \
-#   -start_frame 15971 \
-#   -end_frame 16171 \
+#   -start_frame 16271 \
+#   -end_frame 16471 \
 #   -trx "/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/registered_trx.mat" \
 #   -trx_ids 1   3   4   5   6   7   8   9  10
 
@@ -95,6 +95,6 @@ def test_mspn_tracking_on_multitarget_bubble_20200630_touch() :
 if __name__ == "__main__":
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    logging.info('About to call test_mspn_tracking_on_multitarget_bubble_20200630_touch()')
-    test_mspn_tracking_on_multitarget_bubble_20200630_touch()
-    logging.info('Finished test_mspn_tracking_on_multitarget_bubble_20200630_touch()')
+    logging.info('About to call test_deeplabcut_tracking_on_multitarget_bubble_20200630_touch()')
+    test_deeplabcut_tracking_on_multitarget_bubble_20200630_touch()
+    logging.info('Finished test_deeplabcut_tracking_on_multitarget_bubble_20200630_touch()')

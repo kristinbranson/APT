@@ -21,13 +21,13 @@ class cd :
 
 
 
-def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
+def test_openpose_training_on_multitarget_bubble_20200630_touch() :
     this_script_path = os.path.realpath(__file__)
     script_folder_path = os.path.dirname(this_script_path)
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt-refactoring
 
-    read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_deeplabcut_training_test_input_folder_read_only")
-    working_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_deeplabcut_training_test_working_folder")
+    read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_openpose_training_test_input_folder_read_only")
+    working_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_openpose_training_test_working_folder")
 
     #logging.warning('Point 1')
 
@@ -54,30 +54,31 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
     deepnet_folder_path = script_folder_path
     with cd(deepnet_folder_path) :
         APT_interface.main(
-            [os.path.join(working_folder_path,'multitarget_bubble/20230324T164448_20230324T164448.json'),
-             '-name', '20230324T164448', 
-             '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20230324T164448view0_20230324T164448_tdptrx.err'),
+            [os.path.join(working_folder_path, 'multitarget_bubble/20230328T184036_20230328T184037.json'),
+             '-name', '20230328T184036', 
+             '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20230328T184036view0_20230328T184037_tdptrx.err'),
              '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
              '-conf_params', 'dl_steps', '1000', 
-             '-type', 'deeplabcut',
-             '-ignore_local', '0', 
+             '-type', 'openpose',
+             '-ignore_local', '0',
              '-cache', working_folder_path,
              'train', 
              '-use_cache'])
 
 
+
 # python \
-# "/groups/branson/bransonlab/taylora/apt-refactoring/apt-ampere/deepnet/APT_interface.py" \
-# "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/20230324T164448_20230324T164448.json" \
-# -name 20230324T164448 \
-# -err_file "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/20230324T164448view0_20230324T164448_tdptrx.err" \
-# -json_trn_file "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/loc.json" \
-# -conf_params \
-# -type deeplabcut \
-# -ignore_local 0 \
-# -cache "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586" \
-# train \
-# -use_cache
+#   "/groups/branson/bransonlab/taylora/apt-refactoring/apt-ampere/deepnet/APT_interface.py" \
+#   "/groups/scicompsoft/home/taylora/tpf212cd4c_0593_4c5c_ba65_da462af36ddf/multitarget_bubble/20230328T184036_20230328T184037.json" \
+#   -name 20230328T184036 \
+#   -err_file "/groups/scicompsoft/home/taylora/tpf212cd4c_0593_4c5c_ba65_da462af36ddf/multitarget_bubble/20230328T184036view0_20230328T184037_tdptrx.err" \
+#   -json_trn_file "/groups/scicompsoft/home/taylora/tpf212cd4c_0593_4c5c_ba65_da462af36ddf/multitarget_bubble/loc.json" \
+#   -conf_params \
+#   -type openpose \
+#   -ignore_local 0 \
+#   -cache "/groups/scicompsoft/home/taylora/tpf212cd4c_0593_4c5c_ba65_da462af36ddf" \
+#   train \
+#   -use_cache
 
 
 
@@ -85,6 +86,6 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
 if __name__ == "__main__":
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    logging.info('About to call test_deeplabcut_training_on_multitarget_bubble_20200630_touch()')
-    test_deeplabcut_training_on_multitarget_bubble_20200630_touch()
-    logging.info('Finished test_deeplabcut_training_on_multitarget_bubble_20200630_touch()')
+    logging.info('About to call test_openpose_training_on_multitarget_bubble_20200630_touch()')
+    test_openpose_training_on_multitarget_bubble_20200630_touch()
+    logging.info('Finished test_openpose_training_on_multitarget_bubble_20200630_touch()')
