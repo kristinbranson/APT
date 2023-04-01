@@ -26,8 +26,8 @@ def test_mspn_training_on_multitarget_bubble_20200630_touch() :
     script_folder_path = os.path.dirname(this_script_path)
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt-refactoring
 
-    read_only_folder_path = os.path.join(project_folder_path, "read_only_mspn_multitarget_bubble_20200630_touch_training_test_input_folder")
-    working_folder_path = os.path.join(project_folder_path, "ampere_mspn_multitarget_bubble_20200630_touch_training_test_working_folder")
+    read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_mspn_training_test_input_folder_read_only")
+    working_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_mspn_training_test_working_folder")
 
     #logging.warning('Point 1')
 
@@ -59,7 +59,7 @@ def test_mspn_training_on_multitarget_bubble_20200630_touch() :
              '-cache', working_folder_path,
              '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20221204T230902view0_20221204T231014_tdptrx.err'),
              '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
-             '-conf_params', 'dl_steps', '1000', 
+             '-conf_params', 'dl_steps', '200',  # 1000 takes too long
              '-type', 'mmpose',
              os.path.join(working_folder_path,'multitarget_bubble/20221204T230902_20221204T231014.json'),
              'train', 
