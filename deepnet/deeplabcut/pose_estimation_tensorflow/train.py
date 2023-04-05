@@ -76,14 +76,19 @@ def setup_preloading(batch_spec):
     for idx, name in enumerate(names):
         batch[name] = batch_list[idx]
         batch[name].set_shape(batch_spec[name])
-    return batch, enqueue_op, placeholders
+    return batch, enqueue_op, placeholders, q
 
 
 def load_and_enqueue(sess, enqueue_op, coord, dataset, placeholders):
     while not coord.should_stop():
         batch_np = dataset.next_batch()
         food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
-        sess.run(enqueue_op, feed_dict=food)
+        try:
+            sess.run(enqueue_op, feed_dict=food)
+        except tf.errors.CancelledError:
+            # Just ignore this error
+            logging.debug("Ignoring tf.errors.CancelledError in load_and_enqueue()")
+            pass
 
 
 def start_preloading(sess, enqueue_op, dataset, placeholders):
@@ -178,7 +183,7 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         kk = dataset.next_batch() # for debugging
     logging.info('Time for inputting {}'.format( (time.time()-start)/1000))
     batch_spec = get_batch_spec(cfg)
-    batch, enqueue_op, placeholders = setup_preloading(batch_spec)
+    batch, enqueue_op, placeholders, q = setup_preloading(batch_spec)
     net = pose_net(cfg)
     losses = net.train(batch)
     total_loss = losses['total_loss']
@@ -306,6 +311,7 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
 
     lrf.close()
     coord.request_stop()
+    sess.run(q.close(cancel_pending_enqueues=True))
     coord.join([thread],stop_grace_period_secs=60,ignore_live_threads=True)
     sess.close()
 

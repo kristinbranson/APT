@@ -58,7 +58,7 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
              '-name', '20230324T164448', 
              '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20230324T164448view0_20230324T164448_tdptrx.err'),
              '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
-             '-conf_params', 'dl_steps', '1000', 'dlc_override_dlsteps', 'True',
+             '-conf_params', 'dl_steps', '2000', 'dlc_override_dlsteps', 'True',
              '-type', 'deeplabcut',
              '-ignore_local', '0', 
              '-cache', working_folder_path,
