@@ -3838,8 +3838,7 @@ classdef DeepTracker < LabelTracker
       moviestr = String.cellstr2DelimList(movfiles,', ');
       %npts = obj.lObj.nPhysPoints;
 
-
-      if do3dreconcile % TODO change this to work for > 2 views
+      if do3dreconcile && nvw >= 2
         if isempty(vcd),
           if ~isempty(calibrationfile),
             vcd = CalRig.loadCreateCalRigObjFromFile(calibrationfile);
@@ -3859,7 +3858,6 @@ classdef DeepTracker < LabelTracker
           warningNoTrace('Cannot perform 3D postprocessing of %s; could not load trkfiles for views: %s.',moviestr,ivwFailedStr);
           return;
         end
-        %trksave = cell(size(trks));
 
         try
           trksave = PostProcess.triangulate(trks,...
