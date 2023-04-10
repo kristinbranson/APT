@@ -8,7 +8,7 @@ classdef DeepTracker < LabelTracker
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrmAll' 'containerBindPaths' ...
       'trnNetType' 'trnNetMode' 'trnLastDMC' 'movIdx2trkfile' 'hideViz' ...
-      'jrcgpuqueue' 'jrcnslots'}; 
+      'jrcgpuqueue' 'jrcnslots' 'jrcnslotstrack'}; 
     
     pretrained_weights_urls = {...
       'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
@@ -5378,7 +5378,11 @@ classdef DeepTracker < LabelTracker
     end
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
-      mIdx = obj.lObj.currMovIdx;
+      labeler = obj.lObj ;
+      if ~isvalid(labeler) ,
+          return
+      end
+      mIdx = labeler.currMovIdx;
       if isempty(mIdx) || mIdx==0 || obj.lObj.isinit
         % proj load etc
         return;

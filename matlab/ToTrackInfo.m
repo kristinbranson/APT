@@ -1185,7 +1185,16 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function v = hasCroprois(obj)
-      v = obj.propSet('croprois') && ~all(any(isnan(obj.croprois),2),1);
+      if iscell(obj.croprois)
+        % MK: 20230307 For ma projects, this is a cell. Not test for single 
+        % animal project because I didn't have one at hand. Use 
+        % /groups/branson/home/kabram/APT_projects/unmarkedMice_round7_trained.lbl
+        % for testing MA.
+        croprois = obj.croprois{1};
+      else
+        croprois = obj.croprois;
+      end
+      v = obj.propSet('croprois') && ~all(any(isnan(croprois),2),1);
     end
 
     function v = hasCalibrationfiles(obj)
