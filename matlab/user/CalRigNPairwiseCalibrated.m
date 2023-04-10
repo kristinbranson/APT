@@ -29,24 +29,21 @@ classdef CalRigNPairwiseCalibrated < CalRig & matlab.mixin.Copyable
           s = varargin{1};
         end
       end
-        
-      ncam = s.nviews;
-      obj.nviews = ncam;
-      obj.crigStros = cell(ncam);
-      crigs = s.calibrations;
-      c = 1;
-      % ordering of stereo crigs assumed
-      for icam=1:ncam
-      for jcam=icam+1:ncam
-        obj.crigStros{icam,jcam} = crigs{c};
-        c = c+1;
-      end
-      end
+
+      obj.nviews = s.nviews;
+      obj.crigStros = s.calibrations;
+      % c = 1;
+      % % ordering of stereo crigs assumed
+      % for icam=1:ncam
+      % for jcam=icam+1:ncam
+      %   obj.crigStros{icam,jcam} = crigs{c};
+      %   c = c+1;
+      % end
+      % end
+      %assert(c==numel(crigs)+1);
       
-      assert(c==numel(crigs)+1);
-      
-      obj.viewNames = arrayfun(@(x)sprintf('view%d',x),(1:ncam)','uni',0);
-    end     
+      obj.viewNames = arrayfun(@(x)sprintf('view%d',x),(1:obj.nviews)','uni',0);
+    end
     
   end
   
@@ -78,7 +75,105 @@ classdef CalRigNPairwiseCalibrated < CalRig & matlab.mixin.Copyable
       [crigstro,ivwLstro,ivwRstro] = obj.getStroCalRig(iView1,iViewEpi);
       [xEPL,yEPL] = crigstro.computeEpiPolarLine(ivwLstro,xy1,ivwRstro,imroi);      
     end
-    
+
+    function [X,xprp,rpe] = triangulate(obj,xp,withFmin)
+      [~, num_points, num_views] = size(xp);
+      assert(obj.ncams == num_views);
+      if nargin < 3
+        withFmin = false;
+      end
+
+      % construct projection matricies between the cameras.
+      % use the first camera as source/world frame of reference.
+      all_projections = cell(obj.nviews,1);
+      all_projections{1} = [eye(3), zeros(3, 1)];
+
+      fc_s = cell(obj.nviews,1);
+      cc_s = cell(obj.nviews,1);
+      kc_s = cell(obj.nviews,1);
+      alpha_cs = cell(obj.nviews,1);
+
+      fc_s{1} = obj.crigStros{1,2}.int.L.fc;
+      cc_s{1} = obj.crigStros{1,2}.int.L.cc;
+      kc_s{1} = obj.crigStros{1,2}.int.L.kc;
+      alpha_cs{1} = obj.crigStros{1,2}.int.L.alpha_c;
+
+      for i=2:obj.nviews
+        all_projections{i} = [obj.crigStros{1,i}.R.LR,obj.crigStros{1,i}.TLR];
+        fc_s{i} = obj.crigStros{1,i}.int.R.fc;
+        cc_s{i} = obj.crigStros{1,i}.int.R.cc;
+        kc_s{i} = obj.crigStros{1,i}.int.R.kc;
+        alpha_cs{i} = obj.crigStros{1,i}.int.R.alpha_c;
+      end
+
+      X = multiDLT(xp, all_projections, fc_s, cc_s, kc_s, alpha_cs);
+      % create the transformations between each view.
+      Rs = cell(obj.nviews, 1);
+      Ts = cell(obj.nviews, 1);
+      for i = 1:num_views
+        if i == 1
+          Rs{i} = eye(3);
+          Ts{i} = zeros(3, 1);
+        else
+          Rs{i} = obj.crigStros{1, i}.R.LR;
+          Ts{i} = obj.crigStros{1, i}.T.LR;
+        end
+      end
+
+      % does it make sense to do the optimization at a per point level?
+      if withFmin
+        opt_func = @(X_tri) projection_loss(X_tri, xp, Rs, Ts, fc_s, cc_s, kc_s, alpha_cs);
+        %options = optimset('MaxFunEvals', 50000);
+        [X_min, fval] = fminsearch(opt_func, X);
+        % X_min = zeros(size(X));
+        % for i = 1:num_points
+        %   opt_func = @(X_tri) projection_loss(X_tri, xp(:, i, :), Rs, Ts, fc_s, cc_s, kc_s, alpha_cs);
+        %   X_min(:, i) = fminsearch(opt_func, X(:, i));
+        % end
+      else
+        X_min = X;
+      end
+
+      % create the reprojections and rpe
+      xprp = zeros(size(xp));
+      for i = 1:num_views
+        if i == 1
+          R = eye(3);
+          T = zeros(3, 1);
+          fc = obj.crigStros{1, 2}.int.L.fc;
+          cc = obj.crigStros{1, 2}.int.L.cc;
+          kc = obj.crigStros{1, 2}.int.L.kc;
+          alpha_c = obj.crigStros{1, 2}.int.L.alpha_c;
+        else
+          R = obj.crigStros{1, i}.R.LR;
+          T = obj.crigStros{1, i}.T.LR;
+          fc = obj.crigStros{1, i}.int.R.fc;
+          cc = obj.crigStros{1, i}.int.R.cc;
+          kc = obj.crigStros{1, i}.int.R.kc;
+          alpha_c = obj.crigStros{1, i}.int.R.alpha_c;
+        end
+        xprp(:, :, i) = project_points2(X_min, rodrigues(R), T, fc, cc, kc, alpha_c);
+      end
+
+      rpe = zeros(num_views, 1);
+      sumsq = reshape(sum((xp - xprp) .* (xp - xprp), 1), num_points, num_views);
+      for i = 1:num_views
+        rpe(i) = mean(sqrt(sumsq(~isnan(sumsq(:, i)), i)));
+      end
+      % %rpe = mean(sum((xp - xprp) .* (xp - xprp), 1));
+      % xp_temp = reshape(xp, 2, num_points * num_views);
+      % xprp_temp = reshape(xprp, 2, num_points * num_views);
+      
+      % % create the non nan indexing
+      % nan_idxing = ~(isnan(xp_temp(1, :)) | isnan(xp_temp(2, :)));
+      % %keyboard
+      % %rpe = mean((xp_temp(:, nan_idxing) - xprp_temp(:, nan_idxing)) .* (xp_temp(:, nan_idxing) - xprp_temp(:, nan_idxing), 1);
+      % %rpe = mean(sqrt(sum(, 1)));
+      % if any(isnan(rpe))
+      %   keyboard
+      % end
+    end
+
     %CalRig
     function [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)
       
