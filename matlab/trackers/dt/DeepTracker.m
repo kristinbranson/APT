@@ -4136,13 +4136,22 @@ classdef DeepTracker < LabelTracker
     
     function plnx = codeGenPathUpdateWin2LnxContainer(pwin,mntloc)
       PAT1 = '^(?<drivelet>[a-zA-Z]):\\';
-      REP1 = sprintf('%s/$<drivelet>/',mntloc);
+      match_struct = regexp(pwin, PAT1, 'names') ;
+      if isempty(match_struct) ,
+        plnx = pwin ;
+      else
+        % We need to lowercase the drive letter for recent (as of April 2023) versions of WSL
+        drive_letter = match_struct.drivelet ;
+        REP1 = sprintf('%s/%s/', mntloc, lower(drive_letter)) ;
+        plnx = regexprep(pwin,PAT1,REP1);
+      end
+      
       PAT2 = '^\\\\(?<server>[^/\\]+)[/\\]';
       REP2 = sprintf('%s/$<server>/',mntloc);
+      plnx = regexprep(plnx,PAT2,REP2);
+      
       PAT3 = '\\';
       REP3 = '/';
-      plnx = regexprep(pwin,PAT1,REP1);
-      plnx = regexprep(plnx,PAT2,REP2);
       plnx = regexprep(plnx,PAT3,REP3);
     end
     

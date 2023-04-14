@@ -847,10 +847,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %     end
 
     function s = dockercmd(obj)
-      dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
-      s = sprintf('%s docker',dockerApiVerExport);
+%       if ispc() ,
+%         s = sprintf('set "DOCKER_API_VERSION=%s" & docker',obj.dockerapiver);
+%       else
+      s = sprintf('export DOCKER_API_VERSION=%s ; docker',obj.dockerapiver);
     end
-
 
     % KB 20191219: moved this to not be a static function so that we could
     % use this object's dockerremotehost
@@ -861,13 +862,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      dockercmd = obj.dockercmd();
+      dockercmd = obj.dockercmd();      
       FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
       cmd = sprintf('%s version --format "%s"',dockercmd,FMTSPEC);
       if ~isempty(obj.dockerremotehost),
         cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
-
+      if ispc() ,
+        cmd = sprintf('wsl %s', cmd) ;
+      end
       
       tfsucc = false;
       clientver = '';
@@ -1047,8 +1050,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
 
+      if ispc() ,
+        cmd = sprintf('wsl %s', cmd) ;
+      end
+      
       fprintf(1,'%s\n',cmd);
-      hedit.String{end+1} = cmd; drawnow;
+      hedit.String{end+1} = cmd; 
+      drawnow;
       [st,res] = system(cmd);
       reslines = splitlines(res);
       reslinesdisp = reslines(1:min(4,end));
@@ -1063,7 +1071,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking docker API version...'; drawnow;
       
-      [tfsucc,clientver,clientapiver] = obj.getDockerVers;
+      [tfsucc,clientver,clientapiver] = obj.getDockerVers();
       if ~tfsucc        
         hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
         return;
