@@ -4,6 +4,7 @@ classdef APTInterf
   properties (Constant)
     pymodule = 'APT_interface.py';
     pymoduleparentdir = 'deepnet';
+    drive_letter_parent = '/mnt'  % For when Windows paths are translated to Linux   
   end
   
   methods (Static)
@@ -24,9 +25,12 @@ classdef APTInterf
       aptintrf = APTInterf.aptInterfacePath(aptroot,filesep0);
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
-      trainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
-      cacheRootDir = dmc.getRootDir();
-      errfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
+      nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
+      trainConfig = linux_path(nativeTrainConfig, APTInterf.drive_letter_parent) ;
+      nativeCacheRootDir = dmc.getRootDir();
+      cacheRootDir = linux_path(nativeCacheRootDir, APTInterf.drive_letter_parent) ;
+      nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
+      errFile = linux_path(nativeErrfile, APTInterf.drive_letter_parent) ;
       tfFollowsObjDet = dmc.getFollowsObjDet();
       stages = unique(dmc.getStages());
       views = unique(dmc.getViews());
@@ -38,7 +42,8 @@ classdef APTInterf
         stage = stages(istage);
         stage2netType{istage} = char(DeepModelChainOnDisk.getCheckSingle(dmc.getNetType('stage',stage)));
       end
-      trainLocFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLocLnx());
+      nativeTrainLocFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLocLnx());
+      trainLocFile = linux_path(nativeTrainLocFile, APTInterf.drive_letter_parent) ;
       stage2prevModels = cell(1,nstages);
       for istage = 1:nstages,
         stage = stages(istage);
@@ -56,16 +61,16 @@ classdef APTInterf
 %         confparamsextra{:} ...
 %         };
       confParams = confparamsextra;
-      filequote = '"';
+      %filequote = '"';
       
       code = { ...
-        APTInterf.getTorchHomeCode(torchhome,filequote) ...
+        APTInterf.getTorchHomeCode(torchhome) ...
         'python' ...
-        [filequote aptintrf filequote] ...
-        [filequote trainConfig filequote] ...
+        escape_string_for_bash(aptintrf) ...
+        escape_string_for_bash(trainConfig) ...
         '-name' modelChainID ...
-        '-err_file' [filequote errfile filequote] ... 
-        '-json_trn_file' [filequote trainLocFile filequote]...
+        '-err_file' escape_string_for_bash(errFile) ... 
+        '-json_trn_file' escape_string_for_bash(trainLocFile) ...
         };
 
       if dmc.isMultiStageTracker,
@@ -104,7 +109,7 @@ classdef APTInterf
         % stage2prevModels{1}, I'm checking stage2prevModels{1}{1}. Not
         % tested for multi-animal. If it errors fix accordingly. Check line
         % 869 in DeepModelChainOnDisk.m
-        code = [code {'-model_files'} String.quoteCellStr(stage2prevModels{1},filequote)];
+        code = [code {'-model_files'} escape_cellstring_for_bash(stage2prevModels{1})];
       end
 
       % conf params for the second stage trained in this job
@@ -117,7 +122,7 @@ classdef APTInterf
         code = [code,{'-type2',stage2netType{2}}];
         if ~isempty(stage2prevModels{2}{1})
           % check the comment for model_files
-          code = [code {'-model_files2'} String.quoteCellStr(stage2prevModels{2},filequote)];
+          code = [code {'-model_files2'} escape_cellstring_for_bash(stage2prevModels{2})];
         end
       end
 
@@ -125,7 +130,7 @@ classdef APTInterf
         code = [code, {'-ignore_local',num2str(ignore_local)}];
       end
       
-      code = [code {'-cache' [filequote cacheRootDir filequote]}];
+      code = [code {'-cache' escape_string_for_bash(cacheRootDir)}];
       code = [code {'train' '-use_cache'}];
 
       if trainType == DLTrainType.Restart,
@@ -141,8 +146,9 @@ classdef APTInterf
 
     end
 
-    function aptintrf = aptInterfacePath(aptroot,filesep0)
+    function result = aptInterfacePath(aptroot,filesep0)
       aptintrf = [aptroot filesep0 APTInterf.pymoduleparentdir filesep0 APTInterf.pymodule];
+      result = linux_path(aptintrf, APTInterf.drive_letter_parent) ;
     end
 
     function [codestr,code] = trackCodeGenBase(totrackinfo,varargin)
@@ -250,7 +256,7 @@ classdef APTInterf
 %       end      
 
       code = { ...
-        APTInterf.getTorchHomeCode(torchhome,filequote) ...
+        APTInterf.getTorchHomeCode(torchhome) ...
         'python' [filequote aptintrf filequote] ...
         [filequote trainConfig filequote] ...
         '-name' modelChainID ...
@@ -429,7 +435,7 @@ classdef APTInterf
       confParams = confparamsextra;
       
       code = cat(2,{ ...
-        APTInterf.getTorchHomeCode(torchhome,filequote) ...
+        APTInterf.getTorchHomeCode(torchhome) ...
         'python' ...
         [filequote aptintrf filequote] ...
         dlconfig ...
@@ -469,14 +475,9 @@ classdef APTInterf
       codestr = String.cellstr2DelimList(code,' ');
     end
 
-    function torchhomecmd = getTorchHomeCode(torchhome,filequote)
-
-      if ispc,
-        torchhomecmd = '';
-      else
-        torchhomecmd = ['TORCH_HOME=' filequote torchhome filequote];
-      end
-
+    function torchhomecmd = getTorchHomeCode(native_torch_home)
+      torch_home = linux_path(native_torch_home, APTInterf.drive_letter_parent) ;      
+      torchhomecmd = ['TORCH_HOME=' escape_string_for_bash(torch_home)] ;
     end
             
     function [codestr,code] = matdTrainCodeGen(fileinfo,...
@@ -524,7 +525,7 @@ classdef APTInterf
       STAGEFLAGS = {'multi' 'first' 'second'};
       
       code = { ...
-        APTInterf.getTorchHomeCode(torchhome,filequote) ...
+        APTInterf.getTorchHomeCode(torchhome) ...
         'python' ...
         [filequote aptintrf filequote] ...
         dlconfigfile ...
@@ -665,7 +666,7 @@ classdef APTInterf
       end
       
       code = { ...
-        APTInterf.getTorchHomeCode(torchhome,filequote) ...
+        APTInterf.getTorchHomeCode(torchhome) ...
         'python' ...
         [filequote aptintrf filequote] ...
         '-name' ...

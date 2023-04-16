@@ -154,16 +154,22 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function cmd = logCommand(obj,containerName,logfile)
+    function cmd = logCommand(obj,containerName,native_log_file_name)
       assert(obj.type == DLBackEnd.Docker);
       dockercmd = obj.dockercmd();
-      cmd = sprintf('%s logs -f %s &> "%s"',...
-        dockercmd,containerName,logfile);
+      log_file_name = linux_path(native_log_file_name, APTInterf.drive_letter_parent) ;
+      cmd = ...
+        sprintf('%s logs -f %s &> %s', ... 
+                dockercmd, ...
+                containerName, ...
+                escape_string_for_bash(log_file_name)) ;
       if ~isempty(obj.dockerremotehost),
         cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
       cmd = [cmd,' &'];
-
+      if ispc() ,        
+        cmd = wrap_linux_command_line_for_wsl(cmd) ;
+      end
     end
 
     function v = ignore_local(obj)
@@ -869,7 +875,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
       if ispc() ,
-        cmd = sprintf('wsl %s', cmd) ;
+        cmd = wrap_linux_command_line_for_wsl(cmd) ;
       end
       
       tfsucc = false;
@@ -913,13 +919,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % basecmd: currently assumed to have any filenames/paths protected by
       %   filequote as returned by obj.getFileQuoteDockerCodeGen
       
-      DFLTBINDPATH = {};
-      [containerName,bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,...
+      default_bindpath = {};
+      [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,...
         tty,shmSize] = ...
         myparse(varargin,...
         'containername','',...
-        'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
-        'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
+        'bindpath',default_bindpath,... % paths on local filesystem that must be mounted/bound within container
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
@@ -948,7 +953,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
           srcbindpath,dstbindpath,'uni',0);
         deepnetrootContainer = ...
-          DeepTracker.codeGenPathUpdateWin2LnxContainer(aptdeepnet,bindMntLocInContainer);
+          linux_path(aptdeepnet, APTInterf.drive_letter_parent) ;
         userArgs = {};
        else
         mountArgsFcn = @(x)sprintf('--mount "type=bind,src=%s,dst=%s"',x,x);
@@ -969,8 +974,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         % MK 20220411 We need to explicitly set devices for pytorch when not using GPUS
       end
       
-      homedir = getenv('HOME');
-      user = getenv('USER');
+      native_home_dir = get_home_dir_name() ;      
+      user = get_user_name() ;
       
       dockercmd = obj.dockercmd();
 
@@ -996,7 +1001,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherargs{end+1,1} = sprintf('--shm-size=%dG',shmSize);
       end
 
-      codestr = [
+      code = [
         {
         dockercmd
         'run'
@@ -1012,23 +1017,28 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherargs(:);
         {
         '-w'
-        ['"' deepnetrootContainer '"']
+        escape_string_for_bash(deepnetrootContainer)
         '-e'
         ['USER=' user]
         dockerimg
         }
         ];
-      bashcmd = sprintf('export HOME="%s"; %s cd "%s"; %s',...
-        homedir,cudaEnv,deepnetrootContainer,basecmd);
-      escbashcmd = sprintf('bash -c "%s"',String.escapeQuotes(bashcmd));
-      codestr{end+1} = escbashcmd;      
-      codestr = sprintf('%s ',codestr{:});
+      home_dir = linux_path(native_home_dir, APTInterf.drive_letter_parent) ;
+      bashcmd = ...
+        sprintf('export HOME=%s ; %s cd %s ; %s',...
+                escape_string_for_bash(home_dir), ...
+                cudaEnv, ...
+                escape_string_for_bash(deepnetrootContainer), ...
+                basecmd) ;
+      escbashcmd = ['bash -c ' escape_string_for_bash(bashcmd)] ;
+      code{end+1} = escbashcmd;      
+      codestr = sprintf('%s ',code{:});
       codestr = codestr(1:end-1);
       if ~isempty(obj.dockerremotehost),
         codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
       if tfwin,
-        codestr = ['wsl ',codestr];
+        codestr = wrap_linux_command_line_for_wsl(codestr) ;
       end
     end
     
@@ -1051,7 +1061,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
 
       if ispc() ,
-        cmd = sprintf('wsl %s', cmd) ;
+        cmd = wrap_linux_command_line_for_wsl(cmd) ;
       end
       
       fprintf(1,'%s\n',cmd);

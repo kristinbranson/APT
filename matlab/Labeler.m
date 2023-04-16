@@ -11388,7 +11388,7 @@ classdef Labeler < handle
       silent = myparse(varargin,'silent',false) | obj.silent;
       dotrain = true;
       sPrm = obj.trackGetParams();
-      [is_ma,is2stage,is_ma_net,stage] = ParameterVisualizationMemory.getStage(obj,'');
+      [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(obj,'');
       imsz = ParameterVisualizationMemory.getProjImsz(...
         obj,sPrm,is_ma,is2stage,1);
       [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
@@ -11396,33 +11396,69 @@ classdef Labeler < handle
       imsz = imsz/ds;
       mem_need = get_network_size(nettype,imsz,bsz,is_ma_net);
       try
-        [gpuid,freemem,gpuInfo] = obj.trackDLBackEnd.getFreeGPUs(1);
+        [~, freemem] = obj.trackDLBackEnd.getFreeGPUs(1);
       catch
-        return
+        if ~silent ,
+          qstr = [ 'Unable to get information about free GPUs.  ' ....
+                   'Training will be done on the CPU, which will likely be slow.  ' ...
+                   'Do you still want to train?' ] ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
+        end
+        return          
       end
-      if (mem_need>0.9*freemem) && ~silent ,
-        qstr = sprintf('The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB). It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling to prevent training from crashing. Do you still want to train?',freemem,round(mem_need));
-        res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-        if ~strcmpi(res,'Yes')
-          dotrain = false;
+      if ~silent ,
+        if isempty(freemem) ,
+          qstr = [ 'There do not seem to be any GPUs available.  ' ....
+                   'Training will be done on the CPU, which will likely be slow.  ' ...
+                   'Do you still want to train?' ] ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end          
+        elseif (mem_need>0.9*freemem) ,
+          qstr = ...
+            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
+                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
+                     'to prevent training from crashing. Do you still want to train?'], ...
+                    freemem, ...
+                    round(mem_need)) ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
         end
       end
-
-      if ~is2stage || ~dotrain, return; end
-
-       % check for 2nd stage
+      
+      if ~is2stage || ~dotrain, 
+        return
+      end
+      
+      % check for 2nd stage
       imsz = ParameterVisualizationMemory.getProjImsz(...
         obj,sPrm,is_ma,is2stage,2);
       [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
         obj,sPrm,is_ma,is2stage,2);
       imsz = imsz/ds;
       mem_need = get_network_size(nettype,imsz,bsz,false);
-
-      if (mem_need>0.9*freemem) && ~silent;
-        qstr = sprintf('The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB). It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling to prevent training from crashing. Do you still want to train?',freemem,round(mem_need));
-        res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-        if ~strcmpi(res,'Yes')
-          dotrain = false;
+      if ~silent ,
+        if isempty(freemem) ,
+          % If we get here, we must have already told the user above that there are
+          % not GPUs available, and they must have said to proceed.  So no need to
+          % ask again.
+        elseif (mem_need>0.9*freemem) ,
+          qstr = ...
+            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
+                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
+                     'to prevent training from crashing. Do you still want to train?'], ...
+            freemem, ...
+            round(mem_need)) ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
         end
       end
     end
