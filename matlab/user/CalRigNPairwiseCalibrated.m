@@ -122,20 +122,19 @@ classdef CalRigNPairwiseCalibrated < CalRig & matlab.mixin.Copyable
 
       % does it make sense to do the optimization at a per point level?
       if withFmin
-        opt_func = @(X_tri) projection_loss(X_tri, xp, Rs, Ts, fc_s, cc_s, kc_s, alpha_cs);
         %options = optimset('MaxFunEvals', 50000);
-        [X_min, fval] = fminsearch(opt_func, X);
-        % X_min = zeros(size(X));
-        % for i = 1:num_points
-        %   opt_func = @(X_tri) projection_loss(X_tri, xp(:, i, :), Rs, Ts, fc_s, cc_s, kc_s, alpha_cs);
-        %   X_min(:, i) = fminsearch(opt_func, X(:, i));
-        % end
+        X_min = zeros(size(X));
+        for i = 1:num_points
+          opt_func = @(X_tri) projection_loss(X_tri, xp(:, i, :), Rs, Ts, fc_s, cc_s, kc_s, alpha_cs);
+          X_min(:, i) = fminsearch(opt_func, X(:, i));
+        end
       else
         X_min = X;
       end
 
       % create the reprojections and rpe
       xprp = zeros(size(xp));
+      xprp_dlt = zeros(size(xp));
       for i = 1:num_views
         if i == 1
           R = eye(3);
@@ -153,6 +152,7 @@ classdef CalRigNPairwiseCalibrated < CalRig & matlab.mixin.Copyable
           alpha_c = obj.crigStros{1, i}.int.R.alpha_c;
         end
         xprp(:, :, i) = project_points2(X_min, rodrigues(R), T, fc, cc, kc, alpha_c);
+        xprp_dlt(:, :, i) = project_points2(X, rodrigues(R), T, fc, cc, kc, alpha_c);
       end
 
       rpe = zeros(num_views, 1);
