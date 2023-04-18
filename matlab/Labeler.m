@@ -3516,10 +3516,10 @@ classdef Labeler < handle
       % update interim/dev MA-BU projs
       for i=1:numel(s.trackerClass)
         if numel(s.trackerClass{i})==3 && ...
-           strcmp(s.trackerClass{i}{1},'DeepTracker') && ...
-           s.trackerClass{i}{3}==DLNetType.multi_mdn_joint_torch         
-           s.trackerClass{i}([1 4 5]) = ...
-             {'DeepTrackerBottomUp' 'trnNetMode' DLNetMode.multiAnimalBU};
+            strcmp(s.trackerClass{i}{1},'DeepTracker') && ...
+            (~isempty(s.trackerClass{i}{3}) && s.trackerClass{i}{3}==DLNetType.multi_mdn_joint_torch) ,
+          s.trackerClass{i}([1 4 5]) = ...
+            {'DeepTrackerBottomUp' 'trnNetMode' DLNetMode.multiAnimalBU};
         end
       end
       [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),...
@@ -3616,7 +3616,7 @@ classdef Labeler < handle
 %         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       % 20181215 factor dlbackend out of DeepTrackers into single/common
       % prop on Labeler
-      if ~isfield(s,'trackDLBackEnd')
+      if ~isfield(s,'trackDLBackEnd') || ~isa(s.trackDLBackEnd, 'DLBackEndClass') ,
         % maybe change this by looking thru existing trackerDatas
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       end
