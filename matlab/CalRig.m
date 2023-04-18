@@ -142,7 +142,8 @@ classdef CalRig < handle
         %obj = CalRig2CamCaltech(fname);
         caltech2cam = CalRig2CamCaltech(fname);
         s.nviews = 2;
-        s.calibrations = {caltech2cam};
+        s.calibrations = cell(2, 2);
+        s.calibrations{1, 2} = caltech2cam;
         obj = CalRigNPairwiseCalibrated(s);
 %         tfSetViewRois = true;
       else
