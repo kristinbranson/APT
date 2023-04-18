@@ -157,7 +157,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function cmd = logCommand(obj,containerName,native_log_file_name)
       assert(obj.type == DLBackEnd.Docker);
       dockercmd = obj.dockercmd();
-      log_file_name = linux_path(native_log_file_name, APTInterf.drive_letter_parent) ;
+      log_file_name = linux_path(native_log_file_name) ;
       cmd = ...
         sprintf('%s logs -f %s &> %s', ... 
                 dockercmd, ...
@@ -953,7 +953,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
           srcbindpath,dstbindpath,'uni',0);
         deepnetrootContainer = ...
-          linux_path(aptdeepnet, APTInterf.drive_letter_parent) ;
+          linux_path(aptdeepnet) ;
         userArgs = {};
        else
         mountArgsFcn = @(x)sprintf('--mount "type=bind,src=%s,dst=%s"',x,x);
@@ -1023,7 +1023,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         dockerimg
         }
         ];
-      home_dir = linux_path(native_home_dir, APTInterf.drive_letter_parent) ;
+      home_dir = linux_path(native_home_dir) ;
       bashcmd = ...
         sprintf('export HOME=%s ; %s cd %s ; %s',...
                 escape_string_for_bash(home_dir), ...

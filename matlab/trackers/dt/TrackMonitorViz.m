@@ -66,7 +66,7 @@ classdef TrackMonitorViz < handle
   end
   
   properties (Constant)
-    DEBUG = true;
+    DEBUG = false;
     COLOR_AXSWAIT_KILLED = [0.5 0.5 0.5];
     COLOR_AXSWAIT_BULK_UNTRACKED = [0.1 0.1 0.1];
     % could have diff colors for diff views done would be fun

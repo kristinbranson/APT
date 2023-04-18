@@ -4,7 +4,6 @@ classdef APTInterf
   properties (Constant)
     pymodule = 'APT_interface.py';
     pymoduleparentdir = 'deepnet';
-    drive_letter_parent = '/mnt'  % For when Windows paths are translated to Linux   
   end
   
   methods (Static)
@@ -22,15 +21,15 @@ classdef APTInterf
         'val_split',[],...
         'ignore_local',[]... % whether to remove local python modules from the path
         );
-      aptintrf = APTInterf.aptInterfacePath(aptroot,filesep0);
+      aptintrf = APTInterf.aptInterfacePath(aptroot);
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
-      trainConfig = linux_path(nativeTrainConfig, APTInterf.drive_letter_parent) ;
+      trainConfig = linux_path(nativeTrainConfig) ;
       nativeCacheRootDir = dmc.getRootDir();
-      cacheRootDir = linux_path(nativeCacheRootDir, APTInterf.drive_letter_parent) ;
+      cacheRootDir = linux_path(nativeCacheRootDir) ;
       nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
-      errFile = linux_path(nativeErrfile, APTInterf.drive_letter_parent) ;
+      errFile = linux_path(nativeErrfile) ;
       tfFollowsObjDet = dmc.getFollowsObjDet();
       stages = unique(dmc.getStages());
       views = unique(dmc.getViews());
@@ -43,7 +42,7 @@ classdef APTInterf
         stage2netType{istage} = char(DeepModelChainOnDisk.getCheckSingle(dmc.getNetType('stage',stage)));
       end
       nativeTrainLocFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLocLnx());
-      trainLocFile = linux_path(nativeTrainLocFile, APTInterf.drive_letter_parent) ;
+      trainLocFile = linux_path(nativeTrainLocFile) ;
       stage2prevModels = cell(1,nstages);
       for istage = 1:nstages,
         stage = stages(istage);
@@ -142,13 +141,13 @@ classdef APTInterf
         code = [code {'-val_split' num2str(val_split)}];
       end      
 
-      codestr = String.cellstr2DelimList(code,' ');
+      codestr = space_out(code);
 
     end
 
-    function result = aptInterfacePath(aptroot,filesep0)
-      aptintrf = [aptroot filesep0 APTInterf.pymoduleparentdir filesep0 APTInterf.pymodule];
-      result = linux_path(aptintrf, APTInterf.drive_letter_parent) ;
+    function result = aptInterfacePath(aptroot)
+      aptintrf = fullfile(aptroot, APTInterf.pymoduleparentdir, APTInterf.pymodule) ;  % this is a native path
+      result = linux_path(aptintrf) ;
     end
 
     function [codestr,code] = trackCodeGenBase(totrackinfo,varargin)
@@ -204,17 +203,21 @@ classdef APTInterf
 
       dmc = totrackinfo.trainDMC;
 
-      aptintrf = APTInterf.aptInterfacePath(aptroot,filesep0);
+      aptintrf = APTInterf.aptInterfacePath(aptroot);
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
-      trainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
-      cacheRootDir = dmc.getRootDir();
+      nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
+      trainConfig = linux_path(nativeTrainConfig) ;
+      nativeCacheRootDir = dmc.getRootDir();  % native path
+      cacheRootDir = linux_path(nativeCacheRootDir) ;      
 
       stage2models = cell(1,nstages);
       for istage = 1:nstages,
         stage = stages(istage);
         % cell of length nviews or empty
-        stage2models{istage} = dmc.trainCurrModelSuffixlessLnx('stage',stage);
+        nativeModelPath = dmc.trainCurrModelSuffixlessLnx('stage',stage) ;  % native path
+        modelPath = linux_path(nativeModelPath) ;
+        stage2models{istage} = modelPath ;
         assert(numel(stage2models{istage}) == nviews);
       end
 
@@ -231,7 +234,8 @@ classdef APTInterf
       %movtrk = fileinfo.movtrk; 
       % save as movtrk, except for 2 stage, this will be [nviewx2] or [nmovx2]
       %outtrk = fileinfo.outtrk; 
-      configfile = totrackinfo.trackconfigfile;
+      nativeConfigFile = totrackinfo.trackconfigfile;  % native path
+      configfile = linux_path(nativeConfigFile) ;
 
       % this should happen outside
 %       if updateWinPaths2LnxContainer
@@ -257,10 +261,10 @@ classdef APTInterf
 
       code = { ...
         APTInterf.getTorchHomeCode(torchhome) ...
-        'python' [filequote aptintrf filequote] ...
-        [filequote trainConfig filequote] ...
+        'python' escape_string_for_bash(aptintrf) ...
+        escape_string_for_bash(trainConfig) ...
         '-name' modelChainID ...
-        '-err_file' [filequote totrackinfo.errfile filequote] ...
+        '-err_file' escape_string_for_bash(linux_path(totrackinfo.errfile)) ...
         };
       if dmc.isMultiStageTracker,
         code = [code {'-stage' 'multi'}];
@@ -271,21 +275,21 @@ classdef APTInterf
         end
       end
       code = [code {'-type', stage2netType{1}} ...
-        {'-model_files'}, String.quoteCellStr(stage2models{1},filequote)];
+        {'-model_files'}, escape_cellstring_for_bash(linux_path(stage2models{1}))];
       if nstages > 1,
         assert(nstages==2);
         code = [code {'-type2', stage2netType{2}} ...
-          {'-model_files2'}, String.quoteCellStr(stage2models{2},filequote)];
+          {'-model_files2'}, escape_cellstring_for_bash(linux_path(stage2models{2}))];
       end
 
       if ~isempty(ignore_local),
         code = [code, {'-ignore_local',num2str(ignore_local)}];
       end
-      code = [code {'-cache' [filequote cacheRootDir filequote]}];
+      code = [code {'-cache' escape_string_for_bash(cacheRootDir)}];
 
       code = [code {'track'}];
 
-      code = [code {'-config_file' [filequote configfile filequote]}];
+      code = [code {'-config_file' escape_string_for_bash(configfile)}];
       
       switch track_type
         case 'link'
@@ -299,23 +303,23 @@ classdef APTInterf
 
       % output is the final stage trk file
       trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
-      code = [code {'-out'} String.quoteCellStr(trkfiles(movidx,:,:),filequote)];
+      code = [code {'-out'} escape_cellstring_for_bash(linux_path(trkfiles(movidx,:,:)))];
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile),
-        code = [code {'-list_file' [filequote totrackinfo.listfile filequote]}];
+        code = [code {'-list_file' escape_string_for_bash(totrackinfo.listfile)}];
       else
         if sum(nextra) > 0,
           warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
         end
-        code = [code {'-mov' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getMovfiles('movie',movidx),filequote)}];
+        code = [code {'-mov' space_out(escape_cellstring_for_bash(totrackinfo.getMovfiles('movie',movidx)))}];
         if ~all(frm0==1 & frm1==-1),
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
         if totrackinfo.hasTrxfiles,
-          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getTrxfiles('movie',movidx),filequote)}];
+          code = [code {'-trx' space_out(escape_cellstring_for_bash(totrackinfo.getTrxfiles('movie',movidx)))}];
         elseif nstages > 1,
-          code = [code {'-trx' DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.getTrkfiles('stage',1),filequote)}];
+          code = [code {'-trx' space_out(escape_cellstring_for_bash(totrackinfo.getTrkfiles('stage',1)))}];
         end
 %         if totrackinfo.hasTrxids,
 %           for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
@@ -336,7 +340,7 @@ classdef APTInterf
       end
 
       
-      codestr = String.cellstr2DelimList(code,' ');
+      codestr = space_out(code);
     end
 
     function basecmd = trainCodeGen(fileinfo,varargin)
@@ -476,7 +480,7 @@ classdef APTInterf
     end
 
     function torchhomecmd = getTorchHomeCode(native_torch_home)
-      torch_home = linux_path(native_torch_home, APTInterf.drive_letter_parent) ;      
+      torch_home = linux_path(native_torch_home) ;      
       torchhomecmd = ['TORCH_HOME=' escape_string_for_bash(torch_home)] ;
     end
             
