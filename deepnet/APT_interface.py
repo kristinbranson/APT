@@ -1933,7 +1933,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
 
         if 'extra_roi' in cur_t.keys() and np.size(cur_t['extra_roi']) > 0:
-            extra_roi = np.array(cur_t['extra_roi'],dtype=np.float).reshape([conf.nviews, 2, 4, -1])
+            extra_roi = np.array(cur_t['extra_roi'],dtype=float).reshape([conf.nviews, 2, 4, -1])
             extra_roi = np.transpose(extra_roi[conf.view, ...], [2, 1, 0])
         else:
             extra_roi = None
