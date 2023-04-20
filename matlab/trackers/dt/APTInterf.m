@@ -312,14 +312,20 @@ classdef APTInterf
         if sum(nextra) > 0,
           warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
         end
-        code = [code {'-mov' space_out(escape_cellstring_for_bash(totrackinfo.getMovfiles('movie',movidx)))}];
+        nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths
+        movFiles = linux_path(nativeMovFiles) ;
+        code = [code {'-mov' space_out(escape_cellstring_for_bash(movFiles))}];
         if ~all(frm0==1 & frm1==-1),
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
         if totrackinfo.hasTrxfiles,
-          code = [code {'-trx' space_out(escape_cellstring_for_bash(totrackinfo.getTrxfiles('movie',movidx)))}];
+          nativeTrxFiles = totrackinfo.getTrxfiles('movie',movidx) ;
+          trxFiles = linux_path(nativeTrxFiles) ;
+          code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         elseif nstages > 1,
-          code = [code {'-trx' space_out(escape_cellstring_for_bash(totrackinfo.getTrkfiles('stage',1)))}];
+          nativeTrxFiles = totrackinfo.getTrxfiles('stage',1) ;
+          trxFiles = linux_path(nativeTrxFiles) ;
+          code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         end
 %         if totrackinfo.hasTrxids,
 %           for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
