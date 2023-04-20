@@ -57,14 +57,16 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
     % core/root calibration params;
     % X_R = R_RL*X_L + T_RL
     % When X_L=0, X_R=T_RL => T_RL is position of left cam wrt right
-    omRL;
-    TRL;
+    % omRL;
+    % TRL;
+    omLR;
+    TLR;
   end
   properties (Dependent,Hidden)
     % extrinsic props all derived from .om_RL, .T_RL
     RLR
     RRL
-    TLR
+    TRL
   end
   properties (Dependent)
     R
@@ -72,14 +74,14 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   end
   
   methods
-    function R = get.RLR(obj)
-      R = obj.RRL';
+    function RLR = get.RLR(obj)
+      RLR = rodrigues(obj.omLR);
     end
-    function R = get.RRL(obj)
-      R = rodrigues(obj.omRL);
+    function RRL = get.RRL(obj)
+      RRL = obj.RLR';
     end
-    function T = get.TLR(obj)
-      T = -obj.RRL'*obj.TRL;
+    function TRL = get.TRL(obj)
+      TRL = -obj.RRL*obj.TLR;
     end
     function s = get.R(obj)
       s = struct(...
@@ -109,10 +111,10 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       obj.viewNames = {'L' 'R'}; % For now all props expect these viewNames
       obj.stroInfo = ifo;
       obj.int = struct('L',int.l,'R',int.r);
-      obj.omRL = ext.om;
-      obj.TRL = ext.T;
+      obj.omLR = ext.om;
+      obj.TLR = ext.T;
     end
-    
+
   end
   
   methods
@@ -121,24 +123,11 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       % See CalRig
       
       assert(numel(xy1)==2);
-      %fprintf(1,'Cam %d: croppedcoords: %s\n',iAx,mat2str(round(pos(:)')));
 
       if iView1 == 1
-        view_R = rodrigues(obj.omRL);
-        view_T = obj.TRL;
-        view_fc = obj.int.R.fc;
-        view_cc = obj.int.R.cc;
-        view_kc = obj.int.R.kc;
-        view_alpha_c = obj.int.R.alpha_c;
+        view_R = obj.RLR;
+        view_T = obj.TLR;
 
-        target_fc = obj.int.L.fc;
-        target_cc = obj.int.L.cc;
-        target_kc = obj.int.L.kc;
-        target_alpha_c = obj.int.L.alpha_c;
-      else
-        % view_R = inv(obj.org_R);
-        view_R = rodrigues(-obj.omRL);
-        view_T = -view_R * obj.TRL;
         view_fc = obj.int.L.fc;
         view_cc = obj.int.L.cc;
         view_kc = obj.int.L.kc;
@@ -148,6 +137,19 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         target_cc = obj.int.R.cc;
         target_kc = obj.int.R.kc;
         target_alpha_c = obj.int.R.alpha_c;
+      else
+        view_R = obj.RRL;
+        view_T = obj.TRL;
+
+        view_fc = obj.int.R.fc;
+        view_cc = obj.int.R.cc;
+        view_kc = obj.int.R.kc;
+        view_alpha_c = obj.int.R.alpha_c;
+
+        target_fc = obj.int.L.fc;
+        target_cc = obj.int.L.cc;
+        target_kc = obj.int.L.kc;
+        target_alpha_c = obj.int.L.alpha_c;
       end
 
       xLp = [xy1(1), xy1(2)] - 1;
@@ -157,7 +159,8 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       % what this does is to compute 1000 points on the epipolar line. This
       % isn't great, the correct solution would probably to figure out the
       % the bounds of the image space before computing points.
-      epipole = compute_epipole(xLp, view_R, view_T, view_fc, view_cc, view_kc, view_alpha_c, target_fc, target_cc, target_kc, target_alpha_c, 1000);
+      %epipole = compute_epipole(xLp, view_R, view_T, view_fc, view_cc, view_kc, view_alpha_c, target_fc, target_cc, target_kc, target_alpha_c, 1000);
+      epipole = compute_epipole(xLp, view_R, view_T, target_fc, target_cc, target_kc, target_alpha_c, view_fc, view_cc, view_kc, view_alpha_c, 1000);
       xEPL = epipole(1, :) + 1;
       yEPL = epipole(2, :) + 1;
       
@@ -373,7 +376,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       intL = obj.int.L;
       intR = obj.int.R;
       [XL,XR] = stereo_triangulation(xL,xB,...
-        obj.omRL,obj.TRL,...
+        obj.omLR,obj.TLR,...
         intL.fc,intL.cc,intL.kc,intL.alpha_c,...
         intR.fc,intR.cc,intR.kc,intR.alpha_c);
     end

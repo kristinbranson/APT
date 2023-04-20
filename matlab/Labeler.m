@@ -6805,7 +6805,7 @@ classdef Labeler < handle
       
       movs = tblMFT.mov;
       mfaf1 = obj.movieFilesAllFullGTaware(:,1);
-      [tf,iMov] = ismember(movs,mfaf1); % iMov are movie indices
+      [tf,iMov] = ismember(movs(:,1),mfaf1); % iMov are movie indices
       if ~all(tf)
         movsbad = unique(movs(~tf));
         obj.lerror('Movies not found in project: %s',...
