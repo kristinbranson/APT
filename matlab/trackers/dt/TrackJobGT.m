@@ -23,28 +23,22 @@ classdef TrackJobGT < handle
   end
   methods 
     function v = get.mntrLogfile(obj)
-      dmc1 = obj.dmcsrem(1);
-      v = dmc1.trkLogLnx;
+      v = DeepModelChainOnDisk.getCheckSingle(obj.dmcsrem.trkLogLnx);
     end
     function v = get.mntrErrfile(obj)
-      dmc1 = obj.dmcsrem(1);
-      v = dmc1.trkErrfileLnx;
+      v = DeepModelChainOnDisk.getCheckSingle(obj.dmcsrem.trkErrfileLnx);
     end
     function v = get.mntrOutfile(obj)
-      dmc1 = obj.dmcsrem(1);
-      v = dmc1.gtOutfileLnx;
+      v = DeepModelChainOnDisk.getCheckSingle(obj.dmcsrem.gtOutfileLnx);
     end
     function v = get.mntrPrtfile(obj)
-      dmc1 = obj.dmcsrem(1);
-      v = dmc1.gtOutfilePartLnx;
+      v = DeepModelChainOnDisk.getCheckSingle(obj.dmcsrem.gtOutfilePartLnx);
     end
     function v = get.trkOutdirLcl(obj)
-      dmc1 = obj.dmcslcl(1);
-      v = dmc1.dirTrkOutLnx;
+      v = DeepModelChainOnDisk.getCheckSingle(obj.dmcslcl.dirTrkOutLnx);
     end
     function v = get.trkOutdirRem(obj)
-      dmc1 = obj.dmcsrem(1);
-      v = dmc1.dirTrkOutLnx;
+      v = DeepModelChainOnDisk.getCheckSingle(obj.dmcsrem.dirTrkOutLnx);
     end
   end
   
@@ -61,7 +55,7 @@ classdef TrackJobGT < handle
       % Similar to TrackJob
 
       TrackJob.checkCreateDir({obj.trkOutdirLcl},'trk cache dir');
-      if obj.dmcsrem(1).isRemote
+      if obj.dmcsrem.isRemote
         be = obj.backend;
         assert(be.type==DLBackEnd.AWS);
         % Should prob be backend meth
@@ -91,21 +85,21 @@ classdef TrackJobGT < handle
       end
     end
     function codebase = codegenBase(obj,baseargs)
-      dmc1 = obj.dmcsrem(1);
-      cache = dmc1.rootDir;
-      dlconfig = dmc1.trainConfigLnx;
-      errfile = dmc1.trkErrfileLnx;
-      gtoutfile = dmc1.gtOutfileLnx;
-      trnID = dmc1.modelChainID;
+      dmc1 = obj.dmcsrem;
+      cache = dmc1.getRootDir;
+      dlconfig = DeepModelChainOnDisk.getCheckSingle(dmc1.trainConfigLnx);
+      errfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkErrfileLnx);
+      gtoutfile = DeepModelChainOnDisk.getCheckSingle(dmc1.gtOutfileLnx);
+      trnID = DeepModelChainOnDisk.getCheckSingle(dmc1.modelChainID);
 
       codebase = DeepTracker.trackCodeGenBaseGTClassify(trnID,cache,dlconfig,...
         gtoutfile,errfile,obj.nettype,baseargs{:});
     end
     function baseargs = codegenBaseArgs(obj)
-      assert(numel(obj.dmcslcl)==1,'TODO: mv');
+      %assert(numel(obj.dmcslcl)==1,'TODO: mv');
       
-      dmc1 = obj.dmcsrem(1);
-      mdl = regexprep(dmc1.trainCurrModelLnx,'\.index$','');
+      dmc1 = obj.dmcsrem;
+      mdl = regexprep(DeepModelChainOnDisk.getCheckSingle(dmc1.trainCurrModelLnx),'\.index$','');
       baseargs = {...
         'deepnetroot' obj.backend.getAPTDeepnetRoot ...
         'model_file' mdl ...
@@ -114,15 +108,15 @@ classdef TrackJobGT < handle
     function codestr = codegenSSHBsubSing(obj)
       % no -view arg; gtcompute serially across views
             
-      dmc1 = obj.dmcsrem(1);
-      logfile = dmc1.trkLogLnx;
-      ssfile = dmc1.trkSnapshotLnx;
+      dmc1 = obj.dmcsrem;
+      logfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkLogLnx);
+      ssfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkSnapshotLnx);
       aptroot = obj.backend.getAPTRoot;
       
       baseargs = obj.codegenBaseArgs();
       bsubargs = {'outfile' logfile};
       %sshargs = {};
-      bindpaths = {dmc1.rootDir; [aptroot '/deepnet']};
+      bindpaths = {dmc1.getRootDir; [aptroot '/deepnet']};
       %singBind = obj.genContainerMountPath('aptroot',aptroot);
       singargs = {'bindpath',bindpaths};
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
@@ -143,20 +137,20 @@ classdef TrackJobGT < handle
       %baseargs = [{'cache' cache} baseargs];
       %filequote = bed.getFileQuoteDockerCodeGen;
       
-      dmc1 = obj.dmcsrem(1);
-      logfile = dmc1.trkLogLnx;
+      dmc1 = obj.dmcsrem;
+      logfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkLogLnx);
       be = obj.backend;
       aptroot = be.getAPTRoot;
       baseargs = obj.codegenBaseArgs();
       baseargs = [baseargs {'filequote' '"'}];
-      bindpaths = {dmc1.rootDir; [aptroot '/deepnet']};
+      bindpaths = {dmc1.getRootDir(); [aptroot '/deepnet']};
 
       gpuids = be.gpuids;
 %       if useLogFlag
 %         baseargs = [baseargs {'log_file' obj.logfile}];
 %       end
       codebase = obj.codegenBase(baseargs);   
-      containerName = sprintf('gt_%s',dmc1.trkTSstr);
+      containerName = sprintf('gt_%s',dmc1.getTrkTSstr());
       codestr = be.codeGenDockerGeneral(codebase,containerName,...
         'bindpath',bindpaths,'gpuid',gpuids);      
       logcmd = sprintf('%s logs -f %s &> "%s" &',...

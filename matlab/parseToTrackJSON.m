@@ -13,6 +13,7 @@ elseif isstruct(res),
 end
 
 nviews = lObj.nview;
+isma = lObj.maIsMA;
 nmovies = numel(toTrack);
 
 assert(all(isfield(toTrack,{'movie_files','output_files'})),'movie_files and output_files must be specified');
@@ -27,6 +28,10 @@ if needTrx,
   assert(isfield(toTrack,'trx_files'),'trx_files must be specified');
 end
 hasCrop = isfield(toTrack,'crop_rois');
+if isma
+  assert(isfield(toTrack,'detect_files'),'Detect files must be specified');
+end
+
 % 
 % movfiles:  nmovies x nviews
 % % cropRois: if tfexternal, cell array of [nviewx4]
@@ -43,6 +48,7 @@ calibrationfiles = cell(nmovies,1);
 targets = cell(nmovies,1);
 f0s = cell(nmovies,1);
 f1s = cell(nmovies,1);
+detectfiles = cell(nmovies,nviews);
 
 for i = 1:nmovies,
   
@@ -87,6 +93,10 @@ for i = 1:nmovies,
   if isfield(toTrack(i),'frame1') && ~isempty(toTrack(i).frame1),
     f1s{i} = toTrack(i).frame1;
   end
+
+  if isma
+    detectfiles(i,:) = parseViews(toTrack(i).detect_files,nviews,true);
+  end
   
   % AL: looks like should be moved outside loop
   toTrackOut = struct;
@@ -98,6 +108,7 @@ for i = 1:nmovies,
   toTrackOut.targets = targets;
   toTrackOut.f0s = f0s;
   toTrackOut.f1s = f1s;
+  toTrackOut.detectfiles = detectfiles;
   
 end
 

@@ -1066,8 +1066,8 @@ class Tracklet:
     _,maxv = ids.get_min_max_val()
     nids = np.max(maxv)+1
     newdata = [None,]*nids
-    newstartframes = np.zeros(nids,dtype=int)
-    newendframes = np.zeros(nids,dtype=int)
+    newstartframes = np.ones(nids,dtype=int)*-1
+    newendframes = np.ones(nids,dtype=int)*-2
     idx_all = ids.where_all(nids)
     assert len(idx_all) == 2
     for id in range(nids):

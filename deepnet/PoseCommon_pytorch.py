@@ -187,7 +187,7 @@ class coco_loader(torch.utils.data.Dataset):
 
 class PoseCommon_pytorch(object):
 
-    def __init__(self,conf,name='deepnet'):
+    def __init__(self,conf,name='deepnet',usegpu=True):
         self.conf = conf
         self.name = name
         self.prev_models = []
@@ -195,11 +195,12 @@ class PoseCommon_pytorch(object):
         self.train_epoch = 1
         # conf.is_multi = is_multi
 
-        if torch.cuda.is_available():
+        if usegpu and torch.cuda.is_available():
             self.device = "cuda"
         else:
             self.device = "cpu"
-            print('CUDA Device not available. Using CPU!')
+            if usegpu:
+                logging.warning("CUDA Device not available. Using CPU!")
 
         if conf.db_format == 'coco':
             self.use_hard_mining = conf.get('use_hard_mining', False)

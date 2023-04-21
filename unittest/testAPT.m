@@ -18,7 +18,8 @@ classdef testAPT < handle
   
   % MA/roian, Kristin's suggestion:
   % testObj = testAPT('name','roianma');  
-  % testObj.test_full('nets',{},'setup_params',{'simpleprojload',1,'jrcgpuqueue','gpu_tesla','jrcnslots',4},'backend','bsub');
+  % testObj.test_full('nets',{},'setup_params',{'simpleprojload',1,'jrcgpuqueue','gpu_rtx8000','jrcnslots',4},'backend','bsub');
+  % testObj.test_full('nets',{'Stg1tddobj_Stg2tdpobj','magrone','Stg1tddht_Stg2tdpht','maopenpose'},'setup_params',{'simpleprojload',1,'jrcgpuqueue','gpu_rtx8000','jrcnslots',4},'backend','docker');
   % empty nets means test all nets
   
   % Carmen/GT workflow (proj on JRC/dm11)

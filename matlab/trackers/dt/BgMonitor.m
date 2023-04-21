@@ -209,6 +209,13 @@ classdef BgMonitor < handle
 
         fprintf(1,'Error occurred during %s:\n',obj.processName);
         errFile = obj.getErrFile(sRes); % currently, errFiles same for all views
+        if iscell(errFile) ,
+          if isscalar(errFile) ,
+            errFile = errFile{1} ;
+          else
+            error('errFile is a non-scalar cell array')
+          end
+        end        
         fprintf(1,'\n### %s\n\n',errFile);
         errContents = obj.bgWorkerObj.fileContents(errFile);
         disp(errContents);

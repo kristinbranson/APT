@@ -45,6 +45,25 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
         s = sprintf('%s\n',lines{:});
       end
     end
+
+    function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
+      if nargin < 2,
+        partFileIsTextStatus = false;
+      end
+      nframes = 0;
+      if ~exist(f,'file'),
+        return;
+      end
+      if partFileIsTextStatus,
+        nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);
+      else
+        try
+          nframes = TrkFile.getNFramesTrackedMatFile(f);
+        catch
+          fprintf('Could not read tracking progress from %s\n',f);
+        end
+      end
+    end
     
     function [tfsucc,warnings] = killProcess(obj)
       tfsucc = false;
@@ -142,13 +161,20 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
     end
     
     function trnImgIfo = loadTrainingImages(obj)
-      dm = obj.dmcs;
-      trnImgIfo = cell(size(dm));
-      for i=1:numel(dm)
-        f = dm(i).trainImagesNameLnx;
+      trnImgIfo = cell(1,obj.dmcs.n);
+      necfields = {'idx','ims','locs'};
+      for i=1:obj.dmcs.n,
+        f = obj.dmcs.trainImagesNameLnx(i);
+        f = f{1};
         if exist(f,'file')>0
-          trnImgIfo{i} = load(f,'-mat');
-          trnImgIfo{i}.name = dm(i).getNetDescriptor();
+          infocurr = load(f,'-mat');
+          if ~all(isfield(infocurr,necfields)),
+            warningNoTrace('Training image file ''%s'' exists, but not all fields (yet) saved in it.',f);
+            continue;
+          end
+          trnImgIfo{i} = infocurr;          
+          trnImgIfo{i}.name = obj.dmcs.getNetDescriptor(i);
+          trnImgIfo{i}.name = trnImgIfo{i}.name{1};
         else
           warningNoTrace('Training image file ''%s'' does not exist yet.',f);
         end
