@@ -1584,7 +1584,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     end
 
-    function s = getCheckSingle(s)
+    function result = getCheckSingle(s)
+      % Checks that all elements of s are the same, in some class-appropriate sense,
+      % and returns the common element.  If s is a cell array, unwraps the common
+      % element before returning it.
       if isempty(s),
         error('input is empty');
       end
@@ -1599,9 +1602,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
             assert(numel(unique(schar))==1);
           end
         end
-        s = s{1};
+        result = s{1};
       elseif ischar(s) || numel(s) == 1,
         % nothing to do
+        result =s ;
       else
         if isnumeric(s),
           assert(numel(unique(s))==1);
@@ -1612,7 +1616,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
             assert(numel(unique(schar))==1);
           end
         end
-        s = s(1);
+        result = s(1);
       end
     end
 
