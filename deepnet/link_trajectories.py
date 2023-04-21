@@ -98,7 +98,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   C[ncurr:, nnext:] = 0
   pcurr = np.reshape(pcurr, (d * nlandmarks, ncurr, 1))
   pnext = np.reshape(pnext, (d * nlandmarks, 1, nnext))
-  C1 = np.sum(np.abs(pcurr-pnext), axis=0)/nlandmarks
+  C1 = np.nanmean(np.abs(pcurr-pnext), axis=0)*2
   C[:ncurr, :nnext] = np.reshape(C1, (ncurr, nnext))
 
   strict_match_thres = params['strict_match_thres']
