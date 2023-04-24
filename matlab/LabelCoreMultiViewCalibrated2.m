@@ -392,6 +392,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       if ~obj.labeler.isReady,
         return;
       end
+      if obj.isPanZoom(),
+        return;
+      end
+
       
       if evt.Button~=1
         % eg, Button==3 for pan
@@ -475,7 +479,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       if ~obj.labeler.isReady,
         return;
       end
-      
+      if obj.isPanZoom(),
+        return;
+      end
+
       %#%CALOK
       iPt = src.UserData;
       switch evt.Button

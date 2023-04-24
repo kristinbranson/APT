@@ -1777,6 +1777,8 @@ if lObj.hasMovie
   % actually added) should be properly initted...
   for ivw=1:lObj.nview
     set(figs(ivw),'WindowScrollWheelFcn',@(src,evt)scroll_callback(src,evt,lObj));
+    set(figs(ivw),'WindowButtonMotionFcn',wbmf,'WindowButtonUpFcn',wbuf);
+
     imgzoompan(figs(ivw),'wbmf',wbmf,'wbuf',wbuf,...
       'ImgWidth',movnc(ivw),'ImgHeight',movnr(ivw),'PanMouseButton',2);
   end

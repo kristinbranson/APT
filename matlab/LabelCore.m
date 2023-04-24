@@ -56,6 +56,7 @@ classdef LabelCore < handle
 
     nexttbl = [];         % table with which frames, targets, and movies to advance to after completing a label
     nexti = 1;            % which row of the table we are on
+    panZoomMod = 'control'; % which button is used for pan-zooming and should be ignored in callbacks
 
     % Optional logical "decorator" flags 
     % 
@@ -340,7 +341,14 @@ classdef LabelCore < handle
     function axBDF(obj,src,evt) %#ok<INUSD>
     end
     
-    function ptBDF(obj,src,evt) %#ok<INUSD>
+    function v = isPanZoom(obj) %#ok<INUSD>
+
+      % control is used for pan-zooming
+      if ishandle(obj.hFig) && ismember(obj.panZoomMod,obj.hFig.CurrentModifier),
+        v = true;
+      else
+        v = false;
+      end
     end
     
     function wbmf(obj,src,evt) %#ok<INUSD>

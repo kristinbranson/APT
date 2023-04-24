@@ -154,6 +154,17 @@ function imgzoompan(hfig, varargin)
     end %zoom_fcn
 
     %% Mouse Button Callbacks
+
+    function clickType = buttonNumToName(bt)
+      if bt == 1
+        clickType = 'normal';
+      elseif bt == 2
+        clickType = 'alt';
+      elseif bt == 3,
+        clickType = 'extend';
+      end
+    end
+
     function down_fcn(hObj, evt)
         %disp('down_fcn');
         
@@ -163,21 +174,16 @@ function imgzoompan(hfig, varargin)
 
         % Panning action
         panBt = opt.PanMouseButton;
-        if (panBt > 0)
-            if (panBt == 1 && strcmp(clickType, 'normal')) || ...
-                (panBt == 2 && strcmp(clickType, 'alt')) || ...
-                (panBt == 3 && strcmp(clickType, 'extend'))
+        if (panBt > 0) && strcmp(buttonNumToName(panBt),clickType),
+          guiArea = hittest(hObj);
+          parentAxes = ancestor(guiArea,'axes');
 
-                guiArea = hittest(hObj);
-                parentAxes = ancestor(guiArea,'axes');
-
-                % if the mouse is over the desired axis, trigger the pan fcn
-                if ~isempty(parentAxes)
-                    startPan(parentAxes)
-                else
-                    setptr(evt.Source,'forbidden')
-                end
-            end
+          % if the mouse is over the desired axis, trigger the pan fcn
+          if ~isempty(parentAxes)
+            startPan(parentAxes)
+          else
+            setptr(evt.Source,'forbidden')
+          end
         end
     end %down_fcn
 
@@ -188,19 +194,18 @@ function imgzoompan(hfig, varargin)
         % Reset action
         clickType = evt.Source.SelectionType;
         resBt = opt.ResetMouseButton;
-        if (resBt > 0 && ~isempty(orig.XLim))
-            if (resBt == 1 && strcmp(clickType, 'normal')) || ...
-                (resBt == 2 && strcmp(clickType, 'alt')) || ...
-                (resBt == 3 && strcmp(clickType, 'extend'))
 
-                guiArea = hittest(hObj);
-                parentAxes = ancestor(guiArea,'axes');
-                parentAxes.XLim=orig.XLim;
-                parentAxes.YLim=orig.YLim;
-            end
+        if (resBt > 0 && ~isempty(orig.XLim))
+          if strcmp(buttonNumToName(resBt),clickType),
+            guiArea = hittest(hObj);
+            parentAxes = ancestor(guiArea,'axes');
+            parentAxes.XLim=orig.XLim;
+            parentAxes.YLim=orig.YLim;
+          end
         end
 
         stopPan
+
     end %up_fcn
 
 

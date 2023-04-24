@@ -197,6 +197,10 @@ classdef LabelCoreSeqMA < LabelCore
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
+      if obj.isPanZoom(),
+        return;
+      end
+
       
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
@@ -235,6 +239,9 @@ classdef LabelCoreSeqMA < LabelCore
     
     function axOccBDF(obj,~,~)
       if ~obj.labeler.isReady,
+        return;
+      end
+      if obj.isPanZoom(),
         return;
       end
       
@@ -344,6 +351,10 @@ classdef LabelCoreSeqMA < LabelCore
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
+      if obj.isPanZoom(),
+        return;
+      end
+
       tf = obj.anyPointSelected();
       obj.labeler.unsetdrag();
       iPt = get(src,'UserData');

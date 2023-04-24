@@ -95,6 +95,10 @@ classdef LabelCoreSeq < LabelCore
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
+
+      if obj.isPanZoom(),
+        return;
+      end
       
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
@@ -128,7 +132,10 @@ classdef LabelCoreSeq < LabelCore
       if ~obj.labeler.isReady,
         return;
       end
-      
+      if obj.isPanZoom(),
+        return;
+      end
+
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
 
@@ -211,11 +218,19 @@ classdef LabelCoreSeq < LabelCore
     end
         
     function ptBDF(obj,src,evt)
+      if obj.isPanZoom()
+        return;
+      end
+
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
         switch obj.state
-          case {LabelState.ADJUST LabelState.ACCEPTED}          
+          case {LabelState.ADJUST LabelState.ACCEPTED}
+            if ismember('control',obj.hFig.CurrentModifier),
+              return;
+            end
+
             iPt = get(src,'UserData');
             obj.toggleSelectPoint(iPt);
             % KB 20181029: removing adjust state
@@ -226,7 +241,7 @@ classdef LabelCoreSeq < LabelCore
         end
     end
     
-    function wbmf(obj,~,~)
+    function wbmf(obj,src,evt)
       % KB 20181029: removing adjust state
       if isempty(obj.state) || ~obj.labeler.isReady,
         return;
