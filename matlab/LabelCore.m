@@ -341,10 +341,13 @@ classdef LabelCore < handle
     function axBDF(obj,src,evt) %#ok<INUSD>
     end
     
-    function v = isPanZoom(obj) %#ok<INUSD>
-
+    function v = isPanZoom(obj,figi) 
+      
+      if nargin < 2,
+        figi = 1;
+      end
       % control is used for pan-zooming
-      if ishandle(obj.hFig(1)) && ismember(obj.panZoomMod,obj.hFig(1).CurrentModifier),
+      if ishandle(obj.hFig(figi)) && ismember(obj.panZoomMod,obj.hFig(figi).CurrentModifier),
         v = true;
       else
         v = false;

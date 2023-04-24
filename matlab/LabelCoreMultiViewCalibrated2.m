@@ -387,15 +387,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.enterAdjust(false,false);
     end 
     
-    function axBDF(obj,src,evt) %#ok<INUSD>
+    function axBDF(obj,src,evt) 
       
       if ~obj.labeler.isReady,
         return;
       end
-      if obj.isPanZoom(),
-        return;
-      end
-
       
       if evt.Button~=1
         % eg, Button==3 for pan
@@ -403,6 +399,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end      
       
       iAx = find(src==obj.hAx);
+
+      if obj.isPanZoom(iAx),
+        return;
+      end
+
       iWS = obj.iSetWorking;
       if ~isnan(iWS)
         iPt = obj.iSet2iPt(iWS,iAx);
@@ -445,6 +446,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       iAx = find(src==obj.hAxOcc);
+      if obj.isPanZoom(iAx),
+        return;
+      end
+
       assert(isscalar(iAx));
       iWS = obj.iSetWorking;
       if ~isnan(iWS)
@@ -476,10 +481,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function ptBDF(obj,src,evt)
       
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady,5
         return;
       end
-      if obj.isPanZoom(),
+      ax = get(src,'Parent');
+      iAx = find(ax==obj.hAx);
+      if obj.isPanZoom(iAx),
         return;
       end
 
