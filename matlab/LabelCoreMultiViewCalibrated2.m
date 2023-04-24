@@ -481,7 +481,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function ptBDF(obj,src,evt)
       
-      if ~obj.labeler.isReady,5
+      if ~obj.labeler.isReady,
         return;
       end
       ax = get(src,'Parent');
