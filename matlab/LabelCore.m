@@ -344,7 +344,7 @@ classdef LabelCore < handle
     function v = isPanZoom(obj) %#ok<INUSD>
 
       % control is used for pan-zooming
-      if ishandle(obj.hFig) && ismember(obj.panZoomMod,obj.hFig.CurrentModifier),
+      if ishandle(obj.hFig(1)) && ismember(obj.panZoomMod,obj.hFig(1).CurrentModifier),
         v = true;
       else
         v = false;
