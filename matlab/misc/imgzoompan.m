@@ -69,6 +69,9 @@ function imgzoompan(hfig, varargin)
     p.addOptional('MaxZoomScrollCount', 30, @isnumeric);
 
     % Pan configuration options
+    % adding xmin and ymin for when images are cropped. MK 20230425
+    p.addOptional('ImgXMin', 0, @isnumeric);
+    p.addOptional('ImgYMin', 0, @isnumeric);
     p.addOptional('ImgWidth', 0, @isnumeric);
     p.addOptional('ImgHeight', 0, @isnumeric);
 
@@ -135,7 +138,7 @@ function imgzoompan(hfig, varargin)
             newYLim = floor(newYLim);
             % only check for image border location if user provided ImgWidth
             if (opt.ImgWidth > 0)
-                if (newXLim(1) >= 0 && newXLim(2) <= opt.ImgWidth && newYLim(1) >= 0 && newYLim(2) <= opt.ImgHeight)
+                if (newXLim(1) >= opt.ImgXMin && newXLim(2) <= opt.ImgWidth && newYLim(1) >= opt.ImgYMin && newYLim(2) <= opt.ImgHeight)
                     axish.XLim = newXLim;
                     axish.YLim = newYLim;
                     zoomScrollCount = zoomScrollCount - scrollChange;
@@ -270,10 +273,10 @@ function imgzoompan(hfig, varargin)
         newYLims = round(newYLims);
 
         % Update Axes limits
-        if (newXLims(1) > 0.0 && newXLims(2) < opt.ImgWidth)
+        if (newXLims(1) > opt.ImgXMin && newXLims(2) < opt.ImgWidth)
             set(hAx,'Xlim',newXLims);
         end
-        if (newYLims(1) > 0.0 && newYLims(2) < opt.ImgHeight)
+        if (newYLims(1) > opt.ImgYMin && newYLims(2) < opt.ImgHeight)
             set(hAx,'Ylim',newYLims);
         end
     end %panningFcn
