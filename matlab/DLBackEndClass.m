@@ -14,7 +14,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-    defaultDockerImgTag = 'tf23_mmdetection';
+    defaultDockerImgTag = '20230427_tf211_pytorch113_ampere';
     defaultDockerImgRoot = 'bransonlabapt/apt_docker';
  
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
