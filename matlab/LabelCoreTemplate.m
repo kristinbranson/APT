@@ -303,7 +303,10 @@ classdef LabelCoreTemplate < LabelCore
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
-      
+      if obj.isPanZoom(),
+        return;
+      end
+
       [tf,iSel] = obj.anyPointSelected();
       if tf
         pos = get(obj.hAx,'CurrentPoint');
@@ -330,6 +333,10 @@ classdef LabelCoreTemplate < LabelCore
     function ptBDF(obj,src,evt)
       
       if ~obj.labeler.isReady || evt.Button>1
+        return;
+      end
+
+      if obj.isPanZoom(),
         return;
       end
       
@@ -487,6 +494,10 @@ classdef LabelCoreTemplate < LabelCore
       if ~obj.labeler.isReady,
         return;
       end
+      if obj.isPanZoom(),
+        return;
+      end
+
       
       [tf,iSel] = obj.anyPointSelected();
       if tf

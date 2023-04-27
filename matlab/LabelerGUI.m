@@ -1777,8 +1777,19 @@ if lObj.hasMovie
   % actually added) should be properly initted...
   for ivw=1:lObj.nview
     set(figs(ivw),'WindowScrollWheelFcn',@(src,evt)scroll_callback(src,evt,lObj));
+    set(figs(ivw),'WindowButtonMotionFcn',wbmf,'WindowButtonUpFcn',wbuf);
+
+    [hascrop,cropInfo] = lObj.cropGetCropCurrMovie();
+    if hascrop
+      xmax = cropInfo(2); xmin = cropInfo(1);
+      ymax = cropInfo(4); ymin = cropInfo(3);
+    else
+      xmax = movnc(ivw); xmin = 0;
+      ymax = movnr(ivw); ymin = 0;
+    end
     imgzoompan(figs(ivw),'wbmf',wbmf,'wbuf',wbuf,...
-      'ImgWidth',movnc(ivw),'ImgHeight',movnr(ivw),'PanMouseButton',2);
+      'ImgWidth',xmax,'ImgHeight',ymax,'PanMouseButton',2,...
+      'ImgXMin',xmin,'ImgYMin',ymin);
   end
 end
 

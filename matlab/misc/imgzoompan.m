@@ -69,6 +69,9 @@ function imgzoompan(hfig, varargin)
     p.addOptional('MaxZoomScrollCount', 30, @isnumeric);
 
     % Pan configuration options
+    % adding xmin and ymin for when images are cropped. MK 20230425
+    p.addOptional('ImgXMin', 0, @isnumeric);
+    p.addOptional('ImgYMin', 0, @isnumeric);
     p.addOptional('ImgWidth', 0, @isnumeric);
     p.addOptional('ImgHeight', 0, @isnumeric);
 
@@ -135,7 +138,7 @@ function imgzoompan(hfig, varargin)
             newYLim = floor(newYLim);
             % only check for image border location if user provided ImgWidth
             if (opt.ImgWidth > 0)
-                if (newXLim(1) >= 0 && newXLim(2) <= opt.ImgWidth && newYLim(1) >= 0 && newYLim(2) <= opt.ImgHeight)
+                if (newXLim(1) >= opt.ImgXMin && newXLim(2) <= opt.ImgWidth && newYLim(1) >= opt.ImgYMin && newYLim(2) <= opt.ImgHeight)
                     axish.XLim = newXLim;
                     axish.YLim = newYLim;
                     zoomScrollCount = zoomScrollCount - scrollChange;
@@ -154,6 +157,17 @@ function imgzoompan(hfig, varargin)
     end %zoom_fcn
 
     %% Mouse Button Callbacks
+
+    function clickType = buttonNumToName(bt)
+      if bt == 1
+        clickType = 'normal';
+      elseif bt == 2
+        clickType = 'alt';
+      elseif bt == 3,
+        clickType = 'extend';
+      end
+    end
+
     function down_fcn(hObj, evt)
         %disp('down_fcn');
         
@@ -163,21 +177,16 @@ function imgzoompan(hfig, varargin)
 
         % Panning action
         panBt = opt.PanMouseButton;
-        if (panBt > 0)
-            if (panBt == 1 && strcmp(clickType, 'normal')) || ...
-                (panBt == 2 && strcmp(clickType, 'alt')) || ...
-                (panBt == 3 && strcmp(clickType, 'extend'))
+        if (panBt > 0) && strcmp(buttonNumToName(panBt),clickType),
+          guiArea = hittest(hObj);
+          parentAxes = ancestor(guiArea,'axes');
 
-                guiArea = hittest(hObj);
-                parentAxes = ancestor(guiArea,'axes');
-
-                % if the mouse is over the desired axis, trigger the pan fcn
-                if ~isempty(parentAxes)
-                    startPan(parentAxes)
-                else
-                    setptr(evt.Source,'forbidden')
-                end
-            end
+          % if the mouse is over the desired axis, trigger the pan fcn
+          if ~isempty(parentAxes)
+            startPan(parentAxes)
+          else
+            setptr(evt.Source,'forbidden')
+          end
         end
     end %down_fcn
 
@@ -188,19 +197,18 @@ function imgzoompan(hfig, varargin)
         % Reset action
         clickType = evt.Source.SelectionType;
         resBt = opt.ResetMouseButton;
-        if (resBt > 0 && ~isempty(orig.XLim))
-            if (resBt == 1 && strcmp(clickType, 'normal')) || ...
-                (resBt == 2 && strcmp(clickType, 'alt')) || ...
-                (resBt == 3 && strcmp(clickType, 'extend'))
 
-                guiArea = hittest(hObj);
-                parentAxes = ancestor(guiArea,'axes');
-                parentAxes.XLim=orig.XLim;
-                parentAxes.YLim=orig.YLim;
-            end
+        if (resBt > 0 && ~isempty(orig.XLim))
+          if strcmp(buttonNumToName(resBt),clickType),
+            guiArea = hittest(hObj);
+            parentAxes = ancestor(guiArea,'axes');
+            parentAxes.XLim=orig.XLim;
+            parentAxes.YLim=orig.YLim;
+          end
         end
 
         stopPan
+
     end %up_fcn
 
 
@@ -265,10 +273,10 @@ function imgzoompan(hfig, varargin)
         newYLims = round(newYLims);
 
         % Update Axes limits
-        if (newXLims(1) > 0.0 && newXLims(2) < opt.ImgWidth)
+        if (newXLims(1) > opt.ImgXMin && newXLims(2) < opt.ImgWidth)
             set(hAx,'Xlim',newXLims);
         end
-        if (newYLims(1) > 0.0 && newYLims(2) < opt.ImgHeight)
+        if (newYLims(1) > opt.ImgYMin && newYLims(2) < opt.ImgHeight)
             set(hAx,'Ylim',newYLims);
         end
     end %panningFcn
