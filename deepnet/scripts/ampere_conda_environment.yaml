@@ -3,27 +3,27 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python
-  - pyyaml
-  - scikit-image
-  - cudatoolkit
-  - pytorch=*=cuda*
-  - torchvision=*=cuda*
-  - tensorflow=2.*.*=cuda*
+  - python=3.10
+  - pyyaml=6.0
+  - scikit-image=0.19
+  - cudatoolkit=11.8
+  - pytorch=1.13.*=cuda*
+  - torchvision=0.14.*=cuda*
+  - tensorflow=2.11.*=cuda*
 #  - tf_slim  # including this causes python, TF to be quite old versions
-  - mmdet
-  - mmcv-full<=1.7.0
-  - hdf5storage
-  - keras-applications
-  - easydict
-  - pandas
-  - tqdm
-  - ruamel.yaml
-  - shapely
-  - pip
+  - mmdet=2.28
+  - mmcv-full=1.7.0
+  - hdf5storage=0.1
+  - keras=2.11
+  - keras-applications=1.0
+  - easydict=1.9
+  - pandas=1.5
+  - tqdm=4.65
+  - ruamel.yaml=0.17
+  - shapely=2.0
+  - pip=23.0
   - pip:
-    - chumpy
-    - xtcocotools
-    - mmpose==0.29.0
-    - tf_slim
-    
+    - chumpy==0.70
+    - xtcocotools==1.13
+    - mmpose==0.29
+    - tf_slim==1.1

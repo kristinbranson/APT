@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 
 # Copy the conda env .yaml file into the image
-COPY ampere_conda_environment.yaml /tmp/ampere_conda_environment.yaml
+COPY pinned_ampere_conda_environment.yaml /tmp/pinned_ampere_conda_environment.yaml
 
 # Want to use bash instead of sh for RUN commands
 SHELL ["/bin/bash", "-c"]
@@ -21,12 +21,12 @@ RUN apt -y install bzip2
 RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
 
 # Create the conda env from the environment .yaml file
-RUN CONDA_OVERRIDE_CUDA="11.8" micromamba env create -f /tmp/ampere_conda_environment.yaml --prefix /tmp/ampere-env
+RUN CONDA_OVERRIDE_CUDA="11.8" micromamba env create -f /tmp/pinned_ampere_conda_environment.yaml --prefix /tmp/pinned-ampere-env
 
 # "Manually" activate the environment
 # This seems like it might be fragile...
-ENV PATH /tmp/ampere-env/bin:$PATH
-ENV GSETTINGS_SCHEMA_DIR /tmp/ampere-env/share/glib-2.0/schemas
+ENV PATH /tmp/pinned-ampere-env/bin:$PATH
+ENV GSETTINGS_SCHEMA_DIR /tmp/pinned-ampere-env/share/glib-2.0/schemas
 
 # Old stuff
 #RUN micromamba shell init -s bash -p ~/micromamba  # modifies ~/.bashrc
