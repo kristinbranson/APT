@@ -467,8 +467,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
             warning('Error getting GPU info: %s',res);
             return;
           end
+        case DLBackEnd.Bsub
+          % We basically want to skip all the checks etc, so return values that will
+          % make that happen.
+          gpuid = 1 ;
+          freemem = inf ;
+          gpuInfo = [] ;
+          obj.gpuids = 1 ;
+          return
         otherwise
-          error('Not implemented');
+          error('APT:notImplemented', 'Not implemented');
       end
       
       res0 = res;

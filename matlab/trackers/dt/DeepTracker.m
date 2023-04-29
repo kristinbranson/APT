@@ -27,8 +27,8 @@ classdef DeepTracker < LabelTracker
     MDN_OCCLUDED_THRESH = 0.5;
   end
   properties (Constant)
-    SINGULARITY_IMG_PATH = '/groups/branson/bransonlab/apt/sif/prod.sif';
-    SINGULARITY_IMG_PATH_DETECT = '/groups/branson/bransonlab/apt/sif/det.sif';
+    SINGULARITY_IMG_PATH = '/groups/branson/bransonlab/apt/sif/20230427_tf211_pytorch113_ampere.sif';
+    SINGULARITY_IMG_PATH_DETECT = '/groups/branson/bransonlab/apt/sif/20230427_tf211_pytorch113_ampere.sif';
   end
   properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
     jrcgpuqueue = '';
