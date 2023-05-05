@@ -26,10 +26,6 @@ classdef DeepTracker < LabelTracker
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
-  properties (Constant)
-    SINGULARITY_IMG_PATH = '/groups/branson/bransonlab/apt/sif/20230427_tf211_pytorch113_ampere.sif';
-    SINGULARITY_IMG_PATH_DETECT = '/groups/branson/bransonlab/apt/sif/20230427_tf211_pytorch113_ampere.sif';
-  end
   properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
     jrcgpuqueue = '';
     jrcnslots = 4;
@@ -48,6 +44,7 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     condaEnv; % = 'APT'; % name of conda environment
     configFileExt;
+    backend
   end
       
     %% train
@@ -247,6 +244,14 @@ classdef DeepTracker < LabelTracker
     end
     function v = get.condaEnv(obj)
       v = obj.lObj.trackDLBackEnd.condaEnv;
+    end
+    function result = get.backend(obj)
+      labeler = obj.lObj ; 
+      if ~isempty(labeler) && isa(labeler, 'handle') && isvalid(labeler) ,
+        result = labeler.trackDLBackEnd ;
+      else
+        result = [] ;
+      end
     end
     function v = get.configFileExt(obj) %#ok<MANU> 
       v = DeepModelChainOnDisk.configFileExt;
@@ -5563,8 +5568,8 @@ classdef DeepTracker < LabelTracker
   
   methods
     function result = singularityImgPath(obj)
-      backend = obj.backend ;
-      result = backend.singularity_image_path ;
+      backend = obj.backend ;  %#ok<PROP> 
+      result = backend.singularity_image_path ;  %#ok<PROP> 
     end
   end    
 
