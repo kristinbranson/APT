@@ -5,9 +5,10 @@ from __future__ import print_function
 
 # In[ ]:
 
-from past.builtins import cmp
+#from past.builtins import cmp
 from builtins import range
-from past.utils import old_div
+#from past.utils import old_div
+from operator import floordiv as old_div
 import numpy as np
 import scipy, re
 import math, h5py
@@ -15,11 +16,9 @@ import math, h5py
 from scipy import misc
 from scipy import ndimage
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if (vv[0]==1 and vv[1]>12) or vv[0]==2:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+# Assume TensorFlow 2.x.x
+tf = tensorflow.compat.v1
+
 
 import multiResData
 import tempfile
@@ -1064,7 +1063,7 @@ def db_info(self, dbType='val',train_type=0):
     self.pred = self.create_network()
     self.create_saver()
     val_info = []
-    if train_type is 1:
+    if train_type == 1:
         fname = os.path.join(self.conf.cachedir, self.conf.fulltrainfilename + '.tfrecords')
     else:
         if dbType == 'val':
@@ -1236,7 +1235,7 @@ def tfrecord_to_coco(db_file, n_classes, img_dir, out_file, scale=1,skeleton=Non
             cur_im = np.pad(cur_im, [[0, out_size[0]-cur_im.shape[0]], [0, out_size[1]-cur_im.shape[1]], [0, 0]])
         if cur_im.shape[2] == 1:
             cur_im = cur_im[:, :, 0]
-        if scale is not 1:
+        if scale != 1:
             cur_im = transform.resize(cur_im, np.array(cur_im.shape[:2]) * scale, preserve_range=True)
             cur_locs = scale * cur_locs
         im_name = '{:012d}.png'.format(ndx)
@@ -1287,7 +1286,7 @@ def tfrecord_to_coco_old(db_file, img_dir, out_file, conf,scale = 1):
             cur_im, cur_locs, cur_info = sess.run(data)
             if cur_im.shape[2] == 1:
                 cur_im = cur_im[:,:,0]
-            if scale is not 1:
+            if scale != 1:
                 cur_im = transform.resize(cur_im, cur_im.shape[:2]*scale, preserve_range= True)
                 cur_locs = scale*cur_locs
             im_name = '{:012d}.png'.format(ndx)
@@ -1325,7 +1324,7 @@ def tfrecord_to_coco_multi(db_file, n_classes, img_dir, out_file, scale=1,skelet
         cur_im, cur_locs, cur_info, cur_occ, cur_mask = [d[ndx] for  d in data]
         if cur_im.shape[2] == 1:
             cur_im = cur_im[:, :, 0]
-        if scale is not 1:
+        if scale != 1:
             cur_im = transform.resize(cur_im, cur_im.shape[:2] * scale, preserve_range=True)
             cur_locs = scale * cur_locs
         im_name = '{:012d}.png'.format(ndx)

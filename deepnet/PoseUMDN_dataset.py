@@ -1,18 +1,12 @@
 import PoseCommon_dataset as PoseCommon
 import PoseTools
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if (vv[0]==1 and vv[1]>12) or vv[0]==2:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+tf = tensorflow.compat.v1
 # from batch_norm import batch_norm_mine_old as batch_norm
-if vv[0]==1:
-    from tensorflow.contrib.layers import batch_norm
-else:
-    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
-    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
-        return batch_norm_temp(inp,momentum=decay,training=is_training)
+# from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+    return batch_norm_temp(inp,momentum=decay,training=is_training)    
 import PoseUNet_dataset as PoseUNet
 import os
 import sys
@@ -656,7 +650,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             sel_comp = tf.stack(sel_comp, 1)
             pp = ll[:,:, ndx] * \
                        tf.reduce_prod(sel_comp, axis=1) + 1e-30
-            if ndx is 0:
+            if ndx == 0:
                 cur_loss = -tf.log(tf.reduce_sum(pp,axis=1))
             else:
                 cur_loss = cur_loss - tf.log(tf.reduce_sum(pp,axis=1))

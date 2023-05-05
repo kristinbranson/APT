@@ -27,7 +27,7 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt-refactoring
 
     read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_deeplabcut_training_test_input_folder_read_only")
-    working_folder_path = os.path.join(os.getcwd(), "multitarget_bubble_20200630_touch_deeplabcut_training_test_working_folder")
+    working_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_deeplabcut_training_test_working_folder")
 
     #logging.warning('Point 1')
 
@@ -58,7 +58,7 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
              '-name', '20230324T164448', 
              '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20230324T164448view0_20230324T164448_tdptrx.err'),
              '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
-             '-conf_params', 'dl_steps', '1000', 'dlc_override_dlsteps', 'True',
+             '-conf_params', 'dl_steps', '2000', 'dlc_override_dlsteps', 'True',
              '-type', 'deeplabcut',
              '-ignore_local', '0', 
              '-cache', working_folder_path,

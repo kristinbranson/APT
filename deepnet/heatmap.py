@@ -1,11 +1,10 @@
-from __future__ import print_function
-
 import sys
 import time
 import timeit
-import distutils  # prefer packaging in future
+#import distutils  # prefer packaging in future
+import packaging
 import h5py
-from scipy import stats
+#from scipy import stats
 import scipy.io as sio
 import skimage.measure
 import numpy as np
@@ -18,30 +17,30 @@ import PoseTools
 # assert distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"), \
 #     "Unexpected version of skimage; needed for r/c coord conventions"
 
-def compactify_hmap_gaussian_test():
-    sig = np.array([[10,4],[4,7]])
-    mu = np.array([33,44])
-    mvn = multivariate_normal(mu, sig)
+# def compactify_hmap_gaussian_test():
+#     sig = np.array([[10,4],[4,7]])
+#     mu = np.array([33,44])
+#     mvn = multivariate_normal(mu, sig)
 
-    xgv = range(1,101)
-    ygv = range(1,81)
-    xg, yg = np.meshgrid(xgv, ygv)
-    xy = np.concatenate((xg[:, :, np.newaxis], yg[:, :, np.newaxis]), axis=2)
-    hm = mvn.pdf(xy)
+#     xgv = range(1,101)
+#     ygv = range(1,81)
+#     xg, yg = np.meshgrid(xgv, ygv)
+#     xy = np.concatenate((xg[:, :, np.newaxis], yg[:, :, np.newaxis]), axis=2)
+#     hm = mvn.pdf(xy)
 
-    print("hm max is {}".format(np.max(hm)))
+#     print("hm max is {}".format(np.max(hm)))
 
 
-    jitterthresh = .01
-    tf = hm<jitterthresh
-    jitter = .001*np.random.rand(*np.shape(hm))
-    jitter[tf] = 0
-    hmnoise = hm + jitter
+#     jitterthresh = .01
+#     tf = hm<jitterthresh
+#     jitter = .001*np.random.rand(*np.shape(hm))
+#     jitter[tf] = 0
+#     hmnoise = hm + jitter
 
-    muobs,sigobs,A,err = compactify_hmap_gaussian(hm)
-    muobs2,sigobs2,A2,err2 = compactify_hmap_gaussian(hmnoise)
-    muobs3,sigobs3,A3,err3 = compactify_hmap_gaussian(hmnoise,meanismax=True)
-    return ((muobs,sigobs,A,err),(muobs2,sigobs2,A2,err2),(muobs3,sigobs3,A3,err3))
+#     muobs,sigobs,A,err = compactify_hmap_gaussian(hm)
+#     muobs2,sigobs2,A2,err2 = compactify_hmap_gaussian(hmnoise)
+#     muobs3,sigobs3,A3,err3 = compactify_hmap_gaussian(hmnoise,meanismax=True)
+#     return ((muobs,sigobs,A,err),(muobs2,sigobs2,A2,err2),(muobs3,sigobs3,A3,err3))
 
 def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
     '''
@@ -66,7 +65,7 @@ def compactify_hmap(hm_in, floor=0.0, nclustermax=5):
 
     hmbw = hm > 0.
     lbls = skimage.measure.label(hmbw, connectivity=1)
-    if distutils.version.LooseVersion(skimage.__version__) < distutils.version.LooseVersion("0.16.0"):
+    if packaging.version.Version(skimage.__version__) < packaging.version.Version("0.16.0"):
         rp = skimage.measure.regionprops(lbls, intensity_image=hm, coordinates='rc')
     else:
         rp = skimage.measure.regionprops(lbls, intensity_image=hm)

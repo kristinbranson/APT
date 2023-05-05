@@ -20,14 +20,12 @@ from scipy import io as sio
 import re
 import json
 import logging
-if vv[0]==1:
-    from tensorflow.contrib.layers import batch_norm
-    from tensorflow.contrib.layers import xavier_initializer
-else:
-    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
-    def batch_norm(inp, decay, is_training, renorm=False, data_format=None):
-        return batch_norm_temp(inp, momentum=decay, training=is_training)
-    from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+#from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp, decay, is_training, renorm=False, data_format=None):
+    return batch_norm_temp(inp, momentum=decay, training=is_training)
+#from tensorflow.keras.initializers import GlorotUniform as xavier_initializer
+xavier_initializer = tensorflow.keras.initializers.GlorotUniform
 
 from upsamp import upsample_init_value
 
@@ -1168,11 +1166,11 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
         # downsample
         for ndx in range(n_layers):
-            if ndx is 0:
+            if ndx == 0:
                 n_filt = 64
-            elif ndx is 1:
+            elif ndx == 1:
                 n_filt = 128
-            elif ndx is 2:
+            elif ndx == 2:
                 n_filt = 256
             else:
                 n_filt = 512
@@ -1196,11 +1194,11 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
         # upsample
         for ndx in reversed(range(n_layers)):
-            if ndx is 0:
+            if ndx == 0:
                 n_filt = 64
-            elif ndx is 1:
+            elif ndx == 1:
                 n_filt = 128
-            elif ndx is 2:
+            elif ndx == 2:
                 n_filt = 256
             else:
                 n_filt = 512
@@ -1328,11 +1326,11 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
             n_filt = 128
             # downsample
             for ndx in range(n_layers):
-                # if ndx is 0:
+                # if ndx == 0:
                 #     n_filt = 64
-                # elif ndx is 1:
+                # elif ndx == 1:
                 #     n_filt = 128
-                # elif ndx is 2:
+                # elif ndx == 2:
                 #     n_filt = 256
                 # else:
                 #     n_filt = 512
@@ -1358,11 +1356,11 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
             # upsample
         with tf.variable_scope(self.net_unet_name):
             for ndx in reversed(range(n_layers)):
-                # if ndx is 0:
+                # if ndx == 0:
                 #     n_filt = 64
-                # elif ndx is 1:
+                # elif ndx == 1:
                 #     n_filt = 128
-                # elif ndx is 2:
+                # elif ndx == 2:
                 #     n_filt = 256
                 # else:
                 #     n_filt = 512

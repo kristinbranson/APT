@@ -1,12 +1,16 @@
-from __future__ import division
-from __future__ import print_function
+#from __future__ import division
+#from __future__ import print_function
+
+import logging
+#logging.basicConfig(
+#    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s")
+#logging.warning('Entered APT_interface.py')
 
 import os
 
 os.environ['DLClight'] = 'False'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-import logging
 
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logging.getLogger('shapely.geos').setLevel(logging.WARNING)
@@ -22,34 +26,16 @@ import itertools
 from os.path import expanduser
 from random import sample
 
-# suppress tensorflow warnings cuz there are a lot of them!
-# hopefully they don't matter??
-import warnings
-warnings.filterwarnings('ignore')
-
-import tensorflow
-tensorflow.get_logger().setLevel('ERROR')
-
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0] == 1 and vv[1] > 12:
-    tf = tensorflow.compat.v1
-elif vv[0] == 2:
-    tf = tensorflow.compat.v1
-    tf.disable_v2_behavior()
-    tf.logging.set_verbosity(tf.logging.ERROR)
-    try:
-        gpu_devices = tensorflow.config.list_physical_devices('GPU')[0]
-        tensorflow.config.experimental.set_memory_growth(gpu_devices,True)
-    except:
-        pass
-else:
-    tf = tensorflow
+# Import TensorFlow
+import tensorflow as tf
+tf1 = tf.compat.v1
 
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
 import PoseUNet_resnet as PoseURes
 import hdf5storage
 import imageio
+#logging.warning('Got to APT_interface.py point 1.5')
 import multiResData
 from multiResData import float_feature, int64_feature, bytes_feature, trx_pts, check_fnum
 # from multiResData import *
@@ -65,7 +51,7 @@ if ISOPENPOSE:
     import open_pose4 as op
 if ISSB:
     import sb1 as sb
-
+    
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
@@ -99,6 +85,9 @@ from scipy.ndimage import uniform_filter
 import multiprocessing
 import poseConfig
 import torch
+import copy
+import PoseCommon_pytorch
+import gc
 
 torch.autograd.set_detect_anomaly(False)
 torch.autograd.profiler.profile(False)
@@ -111,23 +100,19 @@ ISDPK = False
 KBDEBUG = False
 # control how often / whether tqdm displays info
 TQDM_PARAMS = {'mininterval': 5}
+IS_APT_IN_DEBUG_MODE = False
 
 try:
     user = getpass.getuser()
 except KeyError:
     user = 'err'
-if ISPY3 and user != 'ubuntu' and vv[0] == 1:  # AL 20201111 exception for AWS; running on older AMI
-    try:
-        import apt_dpk
-        ISDPK = True
-    except:
-        print('deepposekit not available.')
+# if ISPY3 and user != 'ubuntu' and vv[0] == 1:  # AL 20201111 exception for AWS; running on older AMI
+#     try:
+#         import apt_dpk
+#         ISDPK = True
+#     except:
+#         print('deepposekit not available.')
 
-
-try:
-    tf.logging.set_verbosity(tf.logging.ERROR)
-except:
-    pass
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
@@ -319,7 +304,7 @@ def tf_serialize(data):
     if rois is not None:
         mask = create_mask(rois, frame_in.shape[:2])
         feature['mask'] = bytes_feature(mask.tobytes())
-    example = tf.train.Example(features=tf.train.Features(feature=feature))
+    example = tf1.train.Example(features=tf1.train.Features(feature=feature))
 
     return example.SerializeToString()
 
@@ -332,19 +317,19 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
     if on_gt:
         train_filename = db_files[0]
         os.makedirs(os.path.dirname(db_files[0]), exist_ok=True)
-        env = tf.python_io.TFRecordWriter(train_filename)
+        env = tf1.python_io.TFRecordWriter(train_filename)
         val_env = None
         envs = [env, val_env]
     elif len(db_files) > 1:
         train_filename = db_files[0]
-        env = tf.python_io.TFRecordWriter(train_filename)
+        env = tf1.python_io.TFRecordWriter(train_filename)
         val_filename = db_files[1]
-        val_env = tf.python_io.TFRecordWriter(val_filename)
+        val_env = tf1.python_io.TFRecordWriter(val_filename)
         envs = [env, val_env]
     elif len(db_files)==1:
         train_filename = db_files[0]
-        env = tf.python_io.TFRecordWriter(train_filename)
-        venv = tf.python.io.TFRecordWriter(tempfile.mkstemp()[1])
+        env = tf1.python_io.TFRecordWriter(train_filename)
+        venv = tf1.python.io.TFRecordWriter(tempfile.mkstemp()[1])
         envs = [env,venv]
     else:
         try:
@@ -574,18 +559,13 @@ def get_matlab_ts(filename):
 
 
 def convert_unicode(data):
-    if (not ISPY3) and isinstance(data, basestring):
-        return unicode(data)
-    elif ISPY3 and isinstance(data, str):
+    if isinstance(data, str):
         return data
-    elif isinstance(data, collections.Mapping):
-        if ISPY3:
-            return dict(map(convert_unicode, data.items()))
-        else:
-            return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data, collections.abc.Mapping):
+        return dict(map(convert_unicode, data.items()))
     elif isinstance(data, np.ndarray):
         return data
-    elif isinstance(data, collections.Iterable):
+    elif isinstance(data, collections.abc.Iterable):
         return type(data)(map(convert_unicode, data))
     else:
         return data
@@ -954,7 +934,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         if bb:
             bb = bb.split(',')
             for b in bb:
-                mm = re.search('(\d+)\s+(\d+)', b)
+                mm = re.search(r'(\d+)\s+(\d+)', b)
                 n1 = int(mm.groups()[0]) - 1
                 n2 = int(mm.groups()[1]) - 1
                 graph['{}'.format(n1)] = n2
@@ -1237,7 +1217,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     if f_str:
         f_str = f_str.split(',')
         for b in f_str:
-            mm = re.search('(\d+)\s+(\d+)', b)
+            mm = re.search(r'(\d+)\s+(\d+)', b)
             n1 = int(mm.groups()[0]) - 1
             n2 = int(mm.groups()[1]) - 1
             graph['{}'.format(n1)] = n2
@@ -1953,7 +1933,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
         cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
 
         if 'extra_roi' in cur_t.keys() and np.size(cur_t['extra_roi']) > 0:
-            extra_roi = np.array(cur_t['extra_roi'],dtype=np.float).reshape([conf.nviews, 2, 4, -1])
+            extra_roi = np.array(cur_t['extra_roi'],dtype=float).reshape([conf.nviews, 2, 4, -1])
             extra_roi = np.transpose(extra_roi[conf.view, ...], [2, 1, 0])
         else:
             extra_roi = None
@@ -2624,7 +2604,7 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
         try:
             module_name = 'Pose_{}'.format(model_type)
             pose_module = __import__(module_name)
-            tf.reset_default_graph()
+            tf1.reset_default_graph()
             self = getattr(pose_module, module_name)(conf, name=name)
             pred_fn, close_fn, model_file = self.get_pred_fn(model_file)
         except ImportError:
@@ -3856,7 +3836,7 @@ def classify_movie(conf, pred_fn, model_type,
     if os.path.exists(part_file):
         os.remove(part_file)
     cap.close()
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     return trk
 
 def raw_predict_file(predict_trk_file, out_file):
@@ -3891,7 +3871,7 @@ def link(args, view, view_ndx):
 
 def get_unet_pred_fn(conf, model_file=None, name='deepnet'):
     ''' Prediction function for UNet network'''
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name=name)
     if name == 'deepnet':
         self.train_data_name = 'traindata'
@@ -3899,7 +3879,7 @@ def get_unet_pred_fn(conf, model_file=None, name='deepnet'):
 
 
 def get_mdn_pred_fn(conf, model_file=None, name='deepnet', distort=False, **kwargs):
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=name)
     if name == 'deepnet':
         self.train_data_name = 'traindata'
@@ -3963,24 +3943,27 @@ def classify_movie_all(model_type, **kwargs):
 
 
 def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
-                           distort=True,debug=KBDEBUG):
+                      distort=True,debug=KBDEBUG):
     # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
+    #if False:
     if not ISWINDOWS and not debug:
-        logging.info('launching sample training data generation')
+        logging.info('Launching sample training data generation (in separate process)')
         p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort,False,True))
         p.start()
         p.join()
     else:
-        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort,debug=debug)
+        logging.info('Launching sample training data generation (in same process)')
+        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug)
+    logging.info('Finished sample training data generation')
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,distort=True,debug=False,silent=False):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, silent=False):
     # Create image of sample training samples with data augmentation
 
     # if silent:
     #     sys.stdout = open("/dev/null", 'w')
 
-    import gc
+    #import gc
     if out_file is None:
         out_file = os.path.join(conf.cachedir,train_name+'_training_samples.mat')
     elif not out_file.endswith('.mat'):
@@ -4000,13 +3983,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             info.append(next_db[2])
         ims,locs,info = map(np.array,[ims,locs,info])
         ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
-
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1}
-
     else:
-        import copy
-        import PoseCommon_pytorch
-        import torch
         tconf = copy.deepcopy(conf)
         tconf.batch_size = 1
         if not conf.is_multi:
@@ -4059,7 +4037,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
 def train_unet(conf, args, restore, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
         self.train_data_name = 'traindata'
@@ -4078,14 +4056,14 @@ def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
     gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=out_file)
     if args.only_aug: return
 
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
         self.train_data_name = 'traindata'
     else:
         self.train_data_name = None
     self.train_umdn(restore=restore, model_file=model_file)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_leap(conf, args, split, split_file=None):
@@ -4122,7 +4100,7 @@ def train_leap(conf, args, split, split_file=None):
                upsampling_layers=conf.leap_upsampling,
                conf=conf)
 
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_openpose(conf, args, split, split_file=None):
@@ -4140,14 +4118,14 @@ def train_openpose(conf, args, split, split_file=None):
     # set(nodes)) == conf.n_classes, 'Affinity Graph for open pose is not a complete tree'
 
     op.training(conf, name=args.train_name)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_sb(conf, args, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
     sb.training(conf, name=args.train_name)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_deepcut(conf, args, split_file=None, model_file=None):
@@ -4156,7 +4134,7 @@ def train_deepcut(conf, args, split_file=None, model_file=None):
     out_file = args.aug_out
     if out_file is not None:
         out_file = args.aug_out + f'_{conf.view}'
-    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=out_file)
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=out_file)
     if args.only_aug: return
 
     cfg_dict = create_dlc_cfg_dict(conf, args.train_name)
@@ -4168,7 +4146,7 @@ def train_deepcut(conf, args, split_file=None, model_file=None):
                   saveiters=conf.save_step,
                   maxiters=dlc_steps,
                   max_to_keep=conf.maxckpt)
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
 
 
 def train_dpk(conf, args, split, split_file=None):
@@ -4180,7 +4158,7 @@ def train_dpk(conf, args, split, split_file=None):
 
     gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
     if args.only_aug: return
-    tf.reset_default_graph()
+    tf1.reset_default_graph()
     apt_dpk.train(conf)
 
 
@@ -4295,7 +4273,7 @@ def train_multi_stage(args, nviews, conf_raw=None):
         train(lbl_file, nviews, name, args)
 
 
-def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
+def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
     ''' Creates training db and calls the appropriate network's training function '''
 
     view = args.view
@@ -4310,7 +4288,15 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
 
     for view_ndx, cur_view in enumerate(views):
         logging.info('Configuring...')
-        conf = create_conf(lbl_file, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params, json_trn_file=args.json_trn_file,first_stage=first_stage,second_stage=second_stage)
+        conf = create_conf(lbl_file, 
+                           cur_view, 
+                           name, 
+                           net_type=net_type, 
+                           cache_dir=args.cache,
+                           conf_params=args.conf_params, 
+                           json_trn_file=args.json_trn_file,
+                           first_stage=first_stage,
+                           second_stage=second_stage)
 
         conf.view = cur_view
         model_file = args.model_file[view_ndx]
@@ -4385,17 +4371,19 @@ def train(lbl_file, nviews, name, args,first_stage=False,second_stage=False):
                 module_name = 'Pose_{}'.format(net_type)
                 logging.info(f'Importing pose module {module_name}')
                 pose_module = __import__(module_name)
-                tf.reset_default_graph()
-                self = getattr(pose_module, module_name)(conf, name=args.train_name)
+                tf1.reset_default_graph()
+                foo = getattr(pose_module, module_name)
+                self = foo(conf, name=args.train_name)
                 # self.name = args.train_name
                 logging.info('Starting training...')
                 self.train_wrapper(restore=restore, model_file=model_file)
+                logging.info('Finished training.')
 
-        except tf.errors.InternalError as e:
+        except tf1.errors.InternalError as e:
             logging.exception(
                 'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')
             exit(1)
-        except tf.errors.ResourceExhaustedError as e:
+        except tf1.errors.ResourceExhaustedError as e:
             logging.exception('Out of GPU Memory. Either reduce the batch size or scale down the image')
             exit(1)
 
@@ -4502,7 +4490,8 @@ def parse_args(argv):
     parser_test = subparsers.add_parser('test', help='Perform tests')
     parser_test.add_argument('testrun', choices=['hello'], help="Test to run")
 
-    print(argv)
+    logging.info("APT_interface arguments, as parsed:\n" + str(argv))
+    
     args = parser.parse_args(argv)
     if args.view is not None:
         args.view = convert(args.view, to_python=True)
@@ -4910,7 +4899,7 @@ def set_up_logging(args):
     Returns handles to error (errh) and basic info loggers (logh). 
     """
     
-    log_formatter = logging.Formatter('%(asctime)s %(pathname)s %(funcName)s [%(levelname)-5.5s] %(message)s')
+    log_formatter = logging.Formatter('%(asctime)s %(pathname)s:%(lineno)d %(funcName)s() [%(levelname)-5.5s] %(message)s')
 
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers
@@ -4924,7 +4913,8 @@ def set_up_logging(args):
     errh = logging.FileHandler(err_file, 'w')
     errh.setLevel(logging.ERROR)
     errh.setFormatter(log_formatter)
-
+    errh.name = "err"
+    
     if args.log_file is None:
         # output to console if no log file is specified
         logh = logging.StreamHandler()
@@ -4935,7 +4925,9 @@ def set_up_logging(args):
         logh.setLevel(logging.DEBUG)
     else:
         logh.setLevel(logging.INFO)
+    IS_APT_IN_DEBUG_MODE = args.debug
     logh.setFormatter(log_formatter)
+    logh.name = "log"
 
     log.addHandler(errh)
     log.addHandler(logh)
@@ -4952,8 +4944,23 @@ def main(argv):
     Main function for running APT. Parses command line parameters, sets up logging, then calls "run" function to do most of the work.
     """
 
+    # Do some TF setup stuff (we do it here, not duing the import of
+    # APT_interface.py, so that any CUDA_* envars set before the call to
+    # APT_interface.main() will be honored)
+    # Could probably wait to do it until after we're sure we're going to be using TF...
+    tf1.disable_v2_behavior()
+    tf1.logging.set_verbosity(tf1.logging.ERROR)
+    try:    
+        gpu_devices = tf.config.list_physical_devices('GPU')  # this takes into account CUDA_VISIBLE_DEVICES
+        print("len(gpu_devices): ", len(gpu_devices))
+        tf.config.experimental.set_memory_growth(gpu_devices,True)
+            # seems like passing this is a single GPU, instead of a singleton list, fails when there are multiple GPUs?
+    except:
+        pass
+    
+    # Parse the arguments
     args = parse_args(argv)
-
+    
     if args.sub_name == 'test':
         print("Hello this is APT!")
         return

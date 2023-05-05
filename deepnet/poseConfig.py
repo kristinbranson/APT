@@ -2,7 +2,8 @@ from __future__ import division
 
 import logging
 from builtins import object
-from past.utils import old_div
+#from past.utils import old_div
+from operator import floordiv as old_div
 import os
 import re
 # import localSetup

@@ -21,13 +21,13 @@ class cd :
 
 
 
-def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
+def test_mspn_training_on_multitarget_bubble_20200630_touch() :
     this_script_path = os.path.realpath(__file__)
     script_folder_path = os.path.dirname(this_script_path)
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt-refactoring
 
-    read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_deeplabcut_training_test_input_folder_read_only")
-    working_folder_path = os.path.join(os.getcwd(), "multitarget_bubble_20200630_touch_deeplabcut_training_test_working_folder")
+    read_only_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_mspn_training_test_input_folder_read_only")
+    working_folder_path = os.path.join(project_folder_path, "multitarget_bubble_20200630_touch_mspn_training_test_working_folder")
 
     #logging.warning('Point 1')
 
@@ -46,7 +46,7 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
 
     # Set some CUDA-related envars
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # Want the CUDA ID #s for the GPUs to match those used by nvidia-smi and nvtop
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
     #logging.warning('Point 3')
 
@@ -54,30 +54,16 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
     deepnet_folder_path = script_folder_path
     with cd(deepnet_folder_path) :
         APT_interface.main(
-            [os.path.join(working_folder_path,'multitarget_bubble/20230324T164448_20230324T164448.json'),
-             '-name', '20230324T164448', 
-             '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20230324T164448view0_20230324T164448_tdptrx.err'),
-             '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
-             '-conf_params', 'dl_steps', '1000',
-             '-type', 'deeplabcut',
-             '-ignore_local', '0', 
+            ['-name', '20221204T230902', 
+             '-view', '1', 
              '-cache', working_folder_path,
+             '-err_file', os.path.join(working_folder_path, 'multitarget_bubble/20221204T230902view0_20221204T231014_tdptrx.err'),
+             '-json_trn_file', os.path.join(working_folder_path, 'multitarget_bubble/loc.json'), 
+             '-conf_params', 'dl_steps', '200',  # 1000 takes too long
+             '-type', 'mmpose',
+             os.path.join(working_folder_path,'multitarget_bubble/20221204T230902_20221204T231014.json'),
              'train', 
              '-use_cache'])
-
-
-# python \
-# "/groups/branson/bransonlab/taylora/apt-refactoring/apt-ampere/deepnet/APT_interface.py" \
-# "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/20230324T164448_20230324T164448.json" \
-# -name 20230324T164448 \
-# -err_file "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/20230324T164448view0_20230324T164448_tdptrx.err" \
-# -json_trn_file "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/loc.json" \
-# -conf_params \
-# -type deeplabcut \
-# -ignore_local 0 \
-# -cache "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586" \
-# train \
-# -use_cache
 
 
 
@@ -85,6 +71,6 @@ def test_deeplabcut_training_on_multitarget_bubble_20200630_touch() :
 if __name__ == "__main__":
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    logging.info('About to call test_deeplabcut_training_on_multitarget_bubble_20200630_touch()')
-    test_deeplabcut_training_on_multitarget_bubble_20200630_touch()
-    logging.info('Finished test_deeplabcut_training_on_multitarget_bubble_20200630_touch()')
+    logging.info('About to call test_mspn_training_on_multitarget_bubble_20200630_touch()')
+    test_mspn_training_on_multitarget_bubble_20200630_touch()
+    logging.info('Finished test_mspn_training_on_multitarget_bubble_20200630_touch()')

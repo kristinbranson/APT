@@ -15,4 +15,7 @@ gt/TrackingResults*
 gt/figs*
 deepnet/.idea*
 deepnet/pretrained/*
+deepnet/log/
+.vscode/
+.DS_Store
 log/

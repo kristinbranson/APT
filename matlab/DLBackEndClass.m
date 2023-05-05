@@ -14,15 +14,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-    currentDockerImgTag = 'tf23_mmdetection';
-    currentDockerImgRoot = 'bransonlabapt/apt_docker';
-    
+    defaultDockerImgTag = '20230427_tf211_pytorch113_ampere';
+    defaultDockerImgRoot = 'bransonlabapt/apt_docker';
+ 
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
 
     jrchost = 'login1.int.janelia.org';
     jrcprefix = ':'; % 'source /etc/profile';
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
+
+    default_conda_env = 'APT'
+    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/20230427_tf211_pytorch113_ampere.sif' ;
+    legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
+    legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
   end
+
   properties
     type  % scalar DLBackEnd
     
@@ -33,33 +39,71 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     %
     % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
     deepnetrunlocal = true; 
-    bsubaptroot = []; % root of APT repo for bsub backend running     
+    bsubaptroot = [];  % root of APT repo for bsub backend running     
     jrcsimplebindpaths = 1; 
         
-    awsec2 % used only for type==AWS
+    % used only for type==AWS
+    awsec2  % empty, or a scalar AWSec2 object (a handle class)
     awsgitbranch
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
-    dockerimgroot = DLBackEndClass.currentDockerImgRoot;
+    dockerimgroot = DLBackEndClass.defaultDockerImgRoot
     % We have an instance prop for this to support running on older/custom
     % docker images.
-    dockerimgtag = DLBackEndClass.currentDockerImgTag;
-    dockerremotehost = '';
-    gpuids = []; % for now used by docker/conda
-    dockercontainername = []; % transient
+    dockerimgtag = DLBackEndClass.defaultDockerImgTag
+    dockerremotehost = ''
+    gpuids = []  % for now used by docker/conda
+    dockercontainername = []  % transient
     %dockershmsize = 512; % in m; passed in --shm-size
     
-    condaEnv = 'APT'; % used only for Conda
+    jrcAdditionalBsubArgs = ''
+
+    condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
+
+    % We set these the string 'invalid' so we can catch them in loadobj()
+    % They are set properly in the constructor.
+    singularity_image_path_ = '<invalid>'
+    does_have_special_singularity_detection_image_path_ = '<invalid>'
+    singularity_detection_image_path_ = '<invalid>'
   end
+
   properties (Dependent)
     filesep
     dockerimgfull % full docker img spec (with tag if specified)
+    singularity_image_path
+    singularity_detection_image_path
+  end
+  
+  methods
+    function obj = DLBackEndClass(ty, oldbe)
+      if ~exist('ty', 'var') || isempty(ty) ,
+        ty = DLBackEnd.Docker ;
+      end
+      assert(isa(ty, 'DLBackEnd')) ;
+      obj.type = ty ;
+      % Set the singularity fields to valid values
+      obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
+      obj.does_have_special_singularity_detection_image_path_ = false ;
+      obj.singularity_detection_image_path_ = '' ;
+      % Copy over stuff from the old backend
+      if exist('oldbe', 'var') && ~isempty(oldbe) ,
+        % save state
+        obj.deepnetrunlocal = oldbe.deepnetrunlocal;
+        obj.awsec2 = oldbe.awsec2;
+        obj.dockerimgroot = oldbe.dockerimgroot;
+        obj.dockerimgtag = oldbe.dockerimgtag;
+        obj.condaEnv = oldbe.condaEnv;
+        obj.singularity_image_path_ = oldbe.singularity_image_path_ ;
+        obj.does_have_special_singularity_detection_image_path_ = oldbe.does_have_special_singularity_detection_image_path_ ;
+        obj.singularity_detection_image_path_ = oldbe.singularity_detection_image_path_ ;
+      end
+    end
   end
   
   methods % Prop access
     function v = get.filesep(obj)
       if obj.type == DLBackEnd.Conda,
-        v = filesep;
+        v = filesep();  %#ok<CPROP> 
       else
         v = '/';
       end
@@ -70,23 +114,77 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         v = [v ':' obj.dockerimgtag];
       end
     end
+    function set.dockerimgfull(obj, new_value)
+      % Check for crazy values
+      if ischar(new_value) && ~isempty(new_value) ,
+        % all is well
+      else
+        error('APT:invalid_value', 'Invalid value for the Docker image specification');
+      end        
+      % The full image spec should be of the form '<root>:<tag>' or just '<root>'
+      % Parse the given string to find the parts
+      parts = strsplit(new_value, ':');
+      part_count = length(parts) ;      
+      if part_count==0 ,
+        error('APT:internalerror', 'Internal APT error.  Please notify the APT developers.');
+      elseif part_count==1 ,
+        root = parts{1} ;
+        tag = '' ;
+      elseif part_count==2 ,
+        root = parts{1} ;
+        tag = parts{2} ;
+      else
+        error('APT:invalid_value', '"%s" is a not valid value for the Docker image specification', new_value);
+      end
+      % Actually set the values
+      obj.dockerimgroot = root ;
+      obj.dockerimgtag = tag ;
+    end    
+    function result = get.singularity_detection_image_path(obj)
+      if obj.does_have_special_singularity_detection_image_path_ ,
+        result = obj.singularity_detection_image_path_ ;
+      else
+        result = obj.singularity_image_path_ ;
+      end
+    end
+
+    function set.singularity_image_path(obj, new_value)
+      if ischar(new_value) && exist(new_value, 'file') ,
+        obj.singularity_image_path_ = new_value ;
+        obj.does_have_special_singularity_detection_image_path_ = false ;
+        obj.singularity_detection_image_path_ = '' ;
+      else
+        error('APT:invalid_value', 'Invalid value for the Singularity image path');
+      end        
+    end
+
+    function result = get.singularity_image_path(obj)
+      result = obj.singularity_image_path_ ;
+    end
+
+    function set.jrcAdditionalBsubArgs(obj, new_value)
+      % Check for crazy values
+      if ischar(new_value) ,
+        % all is well
+      else
+        error('APT:invalid_value', 'Invalid value for the JRC addition bsub arguments');
+      end        
+      % Actually set the value
+      obj.jrcAdditionalBsubArgs = new_value ;
+    end    
+    function set.condaEnv(obj, new_value)
+      % Check for crazy values
+      if ischar(new_value) && ~isempty(new_value) ,
+        % all is well
+      else
+        error('APT:invalid_value', '"%s" is a not valid value for the conda environment', new_value);
+      end        
+      % Actually set the value
+      obj.condaEnv = new_value ;
+    end    
   end
  
   methods
-    
-    function obj = DLBackEndClass(ty,oldbe)
-      if nargin > 1,
-        % save state
-        obj.deepnetrunlocal = oldbe.deepnetrunlocal;
-        obj.awsec2 = oldbe.awsec2;
-        obj.dockerimgroot = oldbe.dockerimgroot;
-        obj.dockerimgtag = oldbe.dockerimgtag;
-        obj.condaEnv = oldbe.condaEnv;
-      end
-      
-      obj.type = ty;
-    end
-    
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
 
       switch obj.type,
@@ -95,7 +193,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Docker
           cmd = obj.codeGenDockerGeneral(basecmd,varargin{:});
         case DLBackEnd.Conda
-          cmd = obj.wrapCommandConda(basecmd);
+          cmd = obj.wrapCommandConda(basecmd, varargin{:});
         case DLBackEnd.AWS
           cmd = obj.wrapCommandAWS(basecmd);
         otherwise
@@ -103,16 +201,22 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function cmd = logCommand(obj,containerName,logfile)
+    function cmd = logCommand(obj,containerName,native_log_file_name)
       assert(obj.type == DLBackEnd.Docker);
       dockercmd = obj.dockercmd();
-      cmd = sprintf('%s logs -f %s &> "%s"',...
-        dockercmd,containerName,logfile);
+      log_file_name = linux_path(native_log_file_name) ;
+      cmd = ...
+        sprintf('%s logs -f %s &> %s', ... 
+                dockercmd, ...
+                containerName, ...
+                escape_string_for_bash(log_file_name)) ;
       if ~isempty(obj.dockerremotehost),
         cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
       cmd = [cmd,' &'];
-
+      if ispc() ,        
+        cmd = wrap_linux_command_line_for_wsl(cmd) ;
+      end
     end
 
     function v = ignore_local(obj)
@@ -162,9 +266,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         if ~tfSucc(ijob),
           warning('Failed to spawn %s %d: %s',jobdesc,ijob,res);
         else
-          jobidstr = jobID{ijob};
-          if isnumeric(jobidstr),
-            jobidstr = num2str(jobidstr);
+          jobid = jobID{ijob};
+          if isnumeric(jobid),
+            jobidstr = num2str(jobid);
+          elseif isa(jobid, 'parallel.FevalFuture') ,
+            jobidstr = num2str(jobid.ID) ;
+          else
+            % hopefully the jobid is a string
+            jobidstr = jobid ;
           end
           fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
         end
@@ -180,7 +289,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     end
 
-    function delete(obj)
+    function delete(obj)  %#ok<INUSD> 
       % AL 20191218
       % DLBackEndClass can now be deep-copied (see copyAndDetach below) as 
       % sometimes this is necessary for serialization eg to disk.
@@ -238,21 +347,27 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function modernize(obj)
       % 20220728 Win/Conda migration to WSL2/Docker
       if obj.type==DLBackEnd.Conda
-        if ispc
-          warningNoTrace('Updating Windows backend from Conda -> Docker. If you have not already, please see the documentation for Windows/WSL2 setup instructions.');
+        if ispc() ,
+          warningNoTrace(...
+            ['Updating Windows backend from Conda -> Docker. ' ...
+             'If you have not already, please see the documentation for Windows/WSL2 setup instructions.']);
           obj.type = DLBackEnd.Docker;
         else
-          warningNoTrace('Unexpected Conda backend on %s. APT may not work correctly.');
+          warningNoTrace('Current backend is Conda.  This is only intended for developers.  Be careful.');
         end
       end
-      if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
-        currentTag = DLBackEndClass.currentDockerImgTag;
-        if ~strcmp(obj.dockerimgtag,currentTag)
-          warningNoTrace('Updating backend to latest APT Docker image tag: %s\n',...
-            currentTag);
-          obj.dockerimgtag = currentTag;
-        end
-      end
+%       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
+%         defaultDockerFullImageSpec = ...
+%           horzcat(DLBackEndClass.defaultDockerImgRoot, ':', DLBackEndClass.defaultDockerImgTag) ;
+%         fullImageSpec = obj.dockerimgfull ;
+%         if ~strcmp(fullImageSpec, defaultDockerFullImageSpec) ,
+%           message = ...
+%             sprintf('The Docker image spec (%s) differs from the default (%s).', ...
+%                     fullImageSpec, ...
+%                     defaultDockerFullImageSpec) ;
+%           warningNoTrace(message) ;
+%         end
+%       end
       % 20211101 turn on by default
       obj.jrcsimplebindpaths = 1;
     end
@@ -393,14 +508,23 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Conda
           basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',...
             aptdeepnet,obj.filesep);
-          codestr = sprintf('activate %s && %s',condaEnv,basecmd);
+          conda_activation_command = synthesize_conda_command(sprintf('activate %s', condaEnv)) ;  %#ok<PROPLC> 
+          codestr = sprintf('%s && %s', conda_activation_command, basecmd);
           [st,res] = system(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s',res);
             return;
           end
+        case DLBackEnd.Bsub
+          % We basically want to skip all the checks etc, so return values that will
+          % make that happen.
+          gpuid = 1 ;
+          freemem = inf ;
+          gpuInfo = [] ;
+          obj.gpuids = 1 ;
+          return
         otherwise
-          error('Not implemented');
+          error('APT:notImplemented', 'Not implemented');
       end
       
       res0 = res;
@@ -541,15 +665,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function cmd = wrapCommandConda(basecmd,varargin) %#ok<INUSD,STOUT> 
-      error('Not implemented');
+    function cmdout = wrapCommandConda(cmdin, varargin)
+      % Take a base command and run it in a sing img
+      [condaEnv,gpuid] = myparse(varargin,...
+        'condaEnv',DLBackEndClass.default_conda_env,...
+        'gpuid',0);
+      conda_activate_command = synthesize_conda_command(['activate ',condaEnv]);
+      if isnan(gpuid),
+        conda_activate_and_cuda_set_command = conda_activate_command ;
+      else
+        if ispc,
+          cuda_set_command = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
+        else
+          cuda_set_command = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID&& export CUDA_VISIBLE_DEVICES=%d',gpuid);
+        end
+        conda_activate_and_cuda_set_command = [conda_activate_command,' && ',cuda_set_command];
+      end
+      cmdout = [conda_activate_and_cuda_set_command,' && ',cmdin];
     end
 
     function cmd = wrapCommandAWS(basecmd,varargin) %#ok<STOUT,INUSD> 
       error('Not implemented');
     end
 
-    function cmdout = wrapCommandSing(cmdin,varargin)
+    function cmdout = wrapCommandSing(cmdin, varargin)
 
       DFLTBINDPATH = {
         '/groups'
@@ -557,8 +696,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         '/scratch'};
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg',DeepTracker.SINGULARITY_IMG_PATH...
+        'singimg',''...
         );
+      assert(~isempty(singimg)) ;
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
@@ -569,19 +709,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function cmdout = wrapCommandBsub(cmdin,varargin)
-      [nslots,gpuqueue,logfile,jobname] = myparse(varargin,...
+      [nslots,gpuqueue,logfile,jobname,additionalArgs] = myparse(varargin,...
         'nslots',DeepTracker.default_jrcnslots_train,...
         'gpuqueue',DeepTracker.default_jrcgpuqueue,...
         'logfile','/dev/null',...
-        'jobname','');
+        'jobname','', ...
+        'additionalArgs','');
       esccmd = String.escapeQuotes(cmdin);
       if isempty(jobname),
         jobnamestr = '';
       else
         jobnamestr = [' -J ',jobname];
       end
-      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s "%s"',...
-        nslots,gpuqueue,logfile,jobnamestr,esccmd);
+      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s %s "%s"',...
+        nslots,gpuqueue,logfile,jobnamestr,additionalArgs,esccmd);
     end
 
     function cmdout = wrapCommandSSH(remotecmd,varargin)
@@ -769,10 +910,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %     end
 
     function s = dockercmd(obj)
-      dockerApiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
-      s = sprintf('%s docker',dockerApiVerExport);
+%       if ispc() ,
+%         s = sprintf('set "DOCKER_API_VERSION=%s" & docker',obj.dockerapiver);
+%       else
+      s = sprintf('export DOCKER_API_VERSION=%s ; docker',obj.dockerapiver);
     end
-
 
     % KB 20191219: moved this to not be a static function so that we could
     % use this object's dockerremotehost
@@ -783,13 +925,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      dockercmd = obj.dockercmd();
+      dockercmd = obj.dockercmd();      
       FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
       cmd = sprintf('%s version --format "%s"',dockercmd,FMTSPEC);
       if ~isempty(obj.dockerremotehost),
         cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
-
+      if ispc() ,
+        cmd = wrap_linux_command_line_for_wsl(cmd) ;
+      end
       
       tfsucc = false;
       clientver = '';
@@ -832,13 +976,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % basecmd: currently assumed to have any filenames/paths protected by
       %   filequote as returned by obj.getFileQuoteDockerCodeGen
       
-      DFLTBINDPATH = {};
-      [containerName,bindpath,bindMntLocInContainer,dockerimg,isgpu,gpuid,tfDetach,...
+      default_bindpath = {};
+      [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,...
         tty,shmSize] = ...
         myparse(varargin,...
         'containername','',...
-        'bindpath',DFLTBINDPATH,... % paths on local filesystem that must be mounted/bound within container
-        'binbMntLocInContainer','/mnt', ... % mount loc for 'external' filesys, needed if ispc+linux dockerim
+        'bindpath',default_bindpath,... % paths on local filesystem that must be mounted/bound within container
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
@@ -867,7 +1010,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
           srcbindpath,dstbindpath,'uni',0);
         deepnetrootContainer = ...
-          DeepTracker.codeGenPathUpdateWin2LnxContainer(aptdeepnet,bindMntLocInContainer);
+          linux_path(aptdeepnet) ;
         userArgs = {};
        else
         mountArgsFcn = @(x)sprintf('--mount "type=bind,src=%s,dst=%s"',x,x);
@@ -888,8 +1031,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         % MK 20220411 We need to explicitly set devices for pytorch when not using GPUS
       end
       
-      homedir = getenv('HOME');
-      user = getenv('USER');
+      native_home_dir = get_home_dir_name() ;      
+      user = get_user_name() ;
       
       dockercmd = obj.dockercmd();
 
@@ -915,7 +1058,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherargs{end+1,1} = sprintf('--shm-size=%dG',shmSize);
       end
 
-      codestr = [
+      code = [
         {
         dockercmd
         'run'
@@ -931,23 +1074,28 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherargs(:);
         {
         '-w'
-        ['"' deepnetrootContainer '"']
+        escape_string_for_bash(deepnetrootContainer)
         '-e'
         ['USER=' user]
         dockerimg
         }
         ];
-      bashcmd = sprintf('export HOME="%s"; %s cd "%s"; %s',...
-        homedir,cudaEnv,deepnetrootContainer,basecmd);
-      escbashcmd = sprintf('bash -c "%s"',String.escapeQuotes(bashcmd));
-      codestr{end+1} = escbashcmd;      
-      codestr = sprintf('%s ',codestr{:});
+      home_dir = linux_path(native_home_dir) ;
+      bashcmd = ...
+        sprintf('export HOME=%s ; %s cd %s ; %s',...
+                escape_string_for_bash(home_dir), ...
+                cudaEnv, ...
+                escape_string_for_bash(deepnetrootContainer), ...
+                basecmd) ;
+      escbashcmd = ['bash -c ' escape_string_for_bash(bashcmd)] ;
+      code{end+1} = escbashcmd;      
+      codestr = sprintf('%s ',code{:});
       codestr = codestr(1:end-1);
       if ~isempty(obj.dockerremotehost),
         codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
       if tfwin,
-        codestr = ['wsl ',codestr];
+        codestr = wrap_linux_command_line_for_wsl(codestr) ;
       end
     end
     
@@ -969,8 +1117,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
 
+      if ispc() ,
+        cmd = wrap_linux_command_line_for_wsl(cmd) ;
+      end
+      
       fprintf(1,'%s\n',cmd);
-      hedit.String{end+1} = cmd; drawnow;
+      hedit.String{end+1} = cmd; 
+      drawnow;
       [st,res] = system(cmd);
       reslines = splitlines(res);
       reslinesdisp = reslines(1:min(4,end));
@@ -985,7 +1138,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking docker API version...'; drawnow;
       
-      [tfsucc,clientver,clientapiver] = obj.getDockerVers;
+      [tfsucc,clientver,clientapiver] = obj.getDockerVers();
       if ~tfsucc        
         hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
         return;
@@ -1063,7 +1216,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % make sure conda is installed
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking for conda...'; drawnow;
-      cmd = 'conda -V';
+      cmd = synthesize_conda_command('-V');
       hedit.String{end+1} = cmd; drawnow;
       [st,res] = system(cmd);
       reslines = splitlines(res);
@@ -1078,7 +1231,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing activate APT...'; drawnow;
 
-      cmd = 'activate APT';
+      cmd = synthesize_conda_command('activate APT');
       %fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;
       [st,res] = system(cmd);
@@ -1305,6 +1458,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
   end
-  
-end
+
+  % These next two methods allow access to private and protected variables,
+  % intended to be used for encoding/decoding.  The trailing underscore is there
+  % to remind you that these methods are only intended for "special case" uses.
+  methods
+    function result = get_property_value_(self, name)
+      result = self.(name) ;
+    end  % function
     
+    function set_property_value_(self, name, value)
+      self.(name) = value ;
+    end  % function
+  end
+
+  methods (Static)
+    function obj = loadobj(larva)
+      % We implement this to provide backwards-compatibility with older .mat files
+      obj = larva ;
+      if strcmp(larva.singularity_image_path_, '<invalid>') ,
+        % This must come from an older .mat file, so we use the legacy values
+        obj.singularity_image_path_ = DLBackEndClass.legacy_default_singularity_image_path ;
+        obj.does_have_special_singularity_detection_image_path_ = true ;
+        obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
+      end  
+    end
+  end
+end

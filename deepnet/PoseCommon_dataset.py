@@ -8,28 +8,23 @@ MK 20200505
 
 '''
 
-from __future__ import division
-from __future__ import print_function
+#from __future__ import division
+#from __future__ import print_function
 
 from builtins import str
 from builtins import range
 from builtins import object
 
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if (vv[0]==1 and vv[1]>12) or vv[0]==2:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+# Assume TensorFlow 2.x.x
+tf = tensorflow.compat.v1
 # from batch_norm import batch_norm_mine_old as batch_norm
-if vv[0]==1:
-    from tensorflow.contrib.layers import batch_norm
-    from tensorflow.contrib.layers import xavier_initializer
-else:
-    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
-    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
-        return batch_norm_temp(inp,momentum=decay,training=is_training)
-    from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+#from tensorflow.compat.v1.layers import BatchNormalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+    return batch_norm_temp(inp,momentum=decay,training=is_training)
+#from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+xavier_initializer = tensorflow.keras.initializers.GlorotUniform
 import os
 import PoseTools
 import multiResData
@@ -39,7 +34,7 @@ import re
 import pickle
 import sys
 import math
-from past.utils import old_div
+#from past.utils import old_div
 import copy
 import cv2
 import gc
@@ -849,7 +844,7 @@ class PoseCommon(object):
 
     def classify_val(self,train_type=0, at_step=-1):
 
-        if train_type is 0:
+        if train_type == 0:
             val_file = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
         else:
             val_file = os.path.join(self.conf.cachedir, self.conf.fulltrainfilename + '.tfrecords')
