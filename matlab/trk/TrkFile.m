@@ -26,6 +26,7 @@ classdef TrkFile < dynamicprops
                                  % this is NOT used for indexing, e.g.
                                  % getPTrkTgt(i) just gives pTrk(:,:,:,i)
 
+    pTrkSingleView = TrkFile.unsetVal; % For multi-view stuff                           
     % CPR-specific
     pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
     pTrkFullFT = TrkFile.unsetVal; % [nTrkFull x ncol] Frame-Target table labeling 4th dim of pTrkFull

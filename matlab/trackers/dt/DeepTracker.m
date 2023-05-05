@@ -3851,7 +3851,7 @@ classdef DeepTracker < LabelTracker
       %npts = obj.lObj.nPhysPoints;
 
       if do3dreconcile && nvw >= 2
-        if isempty(vcd),
+        if isempty(vcd) || (iscell(vcd)&&isempty(vcd{1}))
           if ~isempty(calibrationfile),
             vcd = CalRig.loadCreateCalRigObjFromFile(calibrationfile);
           else

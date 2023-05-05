@@ -3235,6 +3235,9 @@ classdef PostProcess < handle
         );
       
       nvw = length(trks);
+      if iscell(crig)
+        crig = crig{1};
+      end
       
       for i = 2:length(trks)
         if ~isequal(trks{i-1}.pTrkFrm, trks{i}.pTrkFrm) || ~isequal(trks{i-1}.pTrkiTgt,trks{i}.pTrkiTgt)
@@ -3291,7 +3294,7 @@ classdef PostProcess < handle
             % if mod(i,wbObjFrmShow)==0
             %   wbObj.updateFracWithNumDen(i);
             % end
-            [X(:, i), ptrkrp(:, i, :)] = crig{1}.triangulate(all_ptrks(:, i, :));
+            [X(:, i), ptrkrp(:, i, :)] = crig.triangulate(all_ptrks(:, i, :));
           end
           % wbObj.endPeriod();
           X = permute(reshape(X,[3 nfrm npt]),[3 1 2]); % npt x 3 x nfrm
