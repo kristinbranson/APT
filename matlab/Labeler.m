@@ -2229,7 +2229,10 @@ classdef Labeler < handle
       % objects need sanitation and ii) conceptually the serialized object
       % does not share handle identity with other 'live' handles to obj.
       if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd)
-        s.trackDLBackEnd = s.trackDLBackEnd.copyAndDetach();
+        backend = s.trackDLBackEnd.copyAndDetach();
+        % And now replace it with a structure, b/c saving custom objects is fraught.
+        container = encode_for_persistence(backend) ;
+        s.trackDLBackEnd = container ;
       end
       
       switch obj.labelMode
@@ -2374,6 +2377,23 @@ classdef Labeler < handle
       warnst1 = warning('off','MATLAB:class:EnumerationNameMissing'); 
       s = load(tlbl,'-mat');
       warning([warnst0 warnst1]);
+
+      % ALT 2023-05-02
+      
+      % Sometimes trackDLBackEnd is a DLBackEndClass object, because history.  
+      % If that's the case, we just pass it through.  It will get rectified when the
+      % project is next saved.
+      if isfield(s, 'trackDLBackEnd') ,
+        backend_thang = s.trackDLBackEnd ;
+        if is_an_encoding_container(backend_thang) ,
+          backend = decode_encoding_container(backend_thang) ;
+        elseif isa(backend_thang, 'DLBackEndClass') ,
+          backend = backend_thang ;
+        else
+          error('Don''t know how to decode something of class %s', class(baackend_thang)) ;
+        end
+        s.trackDLBackEnd = backend ;
+      end
 
       if ~all(isfield(s,{'VERSION' 'movieFilesAll'}))
         obj.lerror('Labeler:load','Unexpected contents in Label file.');

@@ -113,19 +113,21 @@ classdef TrackJobGT < handle
       ssfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkSnapshotLnx);
       aptroot = obj.backend.getAPTRoot;
       
+      singimg = pick_singularity_image(obj.backend, obj.netmode) ;
+      
       baseargs = obj.codegenBaseArgs();
       bsubargs = {'outfile' logfile};
       %sshargs = {};
       bindpaths = {dmc1.getRootDir; [aptroot '/deepnet']};
       %singBind = obj.genContainerMountPath('aptroot',aptroot);
-      singargs = {'bindpath',bindpaths};
+      singargs = {'bindpath',bindpaths, 'singimg', singimg};
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,ssfile);
       prefix = [DLBackEndClass.jrcprefix '; ' repoSScmd];
       sshargs = {'prefix' prefix};
         
       codebase = obj.codegenBase(baseargs);
-      codesing = DeepTracker.codeGenSingGeneral(codebase,obj.netmode,singargs{:});
+      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
       codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end

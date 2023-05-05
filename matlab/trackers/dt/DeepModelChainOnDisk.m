@@ -751,23 +751,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{ii} = sprintf('%s_%s.aptsnapshot',obj.modelChainID{icurr},obj.trainID{icurr});
       end
     end
-    function v = singularityImgPath(obj) %#ok<MANU> 
-      % to do: make this a property of each network type
-      v = DeepTracker.SINGULARITY_IMG_PATH;
-%       netModes1 = obj.getNetMode();
-%       isObjDet = false;
-%       for i = 1:numel(netModes1),
-%         if netModes1{i}.isObjDet,
-%           isObjDet = true;
-%           break;
-%         end
-%       end
-%       if isObjDet,
-%         v = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
-%       else
-%         v = DeepTracker.SINGULARITY_IMG_PATH;
-%       end
-    end
     function v = dockerImgPath(obj,backend) %#ok<INUSL> 
       % todo: this should depend on what type of tracker
       v = backend.dockerimgroot;

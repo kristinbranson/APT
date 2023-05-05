@@ -24,7 +24,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
 
     default_conda_env = 'APT'
+    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/20230427_tf211_pytorch113_ampere.sif' ;
+    legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
+    legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
   end
+
   properties
     type  % scalar DLBackEnd
     
@@ -35,29 +39,64 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     %
     % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
     deepnetrunlocal = true; 
-    bsubaptroot = []; % root of APT repo for bsub backend running     
+    bsubaptroot = [];  % root of APT repo for bsub backend running     
     jrcsimplebindpaths = 1; 
         
-    awsec2 % used only for type==AWS
+    % used only for type==AWS
+    awsec2  % empty, or a scalar AWSec2 object (a handle class)
     awsgitbranch
     
     dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
-    dockerimgroot = DLBackEndClass.defaultDockerImgRoot;
+    dockerimgroot = DLBackEndClass.defaultDockerImgRoot
     % We have an instance prop for this to support running on older/custom
     % docker images.
-    dockerimgtag = DLBackEndClass.defaultDockerImgTag;
-    dockerremotehost = '';
-    gpuids = []; % for now used by docker/conda
-    dockercontainername = []; % transient
+    dockerimgtag = DLBackEndClass.defaultDockerImgTag
+    dockerremotehost = ''
+    gpuids = []  % for now used by docker/conda
+    dockercontainername = []  % transient
     %dockershmsize = 512; % in m; passed in --shm-size
     
     jrcAdditionalBsubArgs = ''
 
     condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
+
+    % We set these the string 'invalid' so we can catch them in loadobj()
+    % They are set properly in the constructor.
+    singularity_image_path = '<invalid>'
+    does_have_special_singularity_detection_image_path_ = '<invalid>'
+    singularity_detection_image_path_ = '<invalid>'
   end
+
   properties (Dependent)
     filesep
     dockerimgfull % full docker img spec (with tag if specified)
+    singularity_detection_image_path
+  end
+  
+  methods
+    function obj = DLBackEndClass(ty, oldbe)
+      if ~exist('ty', 'var') || isempty(ty) ,
+        ty = DLBackEnd.Docker ;
+      end
+      assert(isa(ty, 'DLBackEnd')) ;
+      obj.type = ty ;
+      % Set the singularity fields to valid values
+      obj.singularity_image_path = DLBackEndClass.default_singularity_image_path ;
+      obj.does_have_special_singularity_detection_image_path_ = false ;
+      obj.singularity_detection_image_path_ = '' ;
+      % Copy over stuff from the old backend
+      if exist('oldbe', 'var') && ~isempty(oldbe) ,
+        % save state
+        obj.deepnetrunlocal = oldbe.deepnetrunlocal;
+        obj.awsec2 = oldbe.awsec2;
+        obj.dockerimgroot = oldbe.dockerimgroot;
+        obj.dockerimgtag = oldbe.dockerimgtag;
+        obj.condaEnv = oldbe.condaEnv;
+        obj.singularity_image_path = oldbe.singularity_image_path ;
+        obj.does_have_special_singularity_detection_image_path_ = oldbe.does_have_special_singularity_detection_image_path_ ;
+        obj.singularity_detection_image_path_ = oldbe.singularity_detection_image_path_ ;
+      end
+    end
   end
   
   methods % Prop access
@@ -100,6 +139,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.dockerimgroot = root ;
       obj.dockerimgtag = tag ;
     end    
+    function result = get.singularity_detection_image_path(obj)
+      if obj.does_have_special_singularity_detection_image_path_ ,
+        result = obj.singularity_detection_image_path_ ;
+      else
+        result = obj.singularity_image_path ;
+      end
+    end
     function set.jrcAdditionalBsubArgs(obj, new_value)
       % Check for crazy values
       if ischar(new_value) ,
@@ -123,20 +169,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end
  
   methods
-    
-    function obj = DLBackEndClass(ty,oldbe)
-      if nargin > 1,
-        % save state
-        obj.deepnetrunlocal = oldbe.deepnetrunlocal;
-        obj.awsec2 = oldbe.awsec2;
-        obj.dockerimgroot = oldbe.dockerimgroot;
-        obj.dockerimgtag = oldbe.dockerimgtag;
-        obj.condaEnv = oldbe.condaEnv;
-      end
-      
-      obj.type = ty;
-    end
-    
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
 
       switch obj.type,
@@ -640,7 +672,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       error('Not implemented');
     end
 
-    function cmdout = wrapCommandSing(cmdin,varargin)
+    function cmdout = wrapCommandSing(cmdin, varargin)
 
       DFLTBINDPATH = {
         '/groups'
@@ -648,8 +680,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         '/scratch'};
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg',DeepTracker.SINGULARITY_IMG_PATH...
+        'singimg',''...
         );
+      assert(~isempty(singimg)) ;
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
@@ -1409,6 +1442,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
   end
-  
-end
+
+  % These next two methods allow access to private and protected variables,
+  % intended to be used for encoding/decoding.  The trailing underscore is there
+  % to remind you that these methods are only intended for "special case" uses.
+  methods
+    function result = get_property_value_(self, name)
+      result = self.(name) ;
+    end  % function
     
+    function set_property_value_(self, name, value)
+      self.(name) = value ;
+    end  % function
+  end
+
+  methods (Static)
+    function obj = loadobj(larva)
+      % We implement this to provide backwards-compatibility with older .mat files
+      obj = larva ;
+      if strcmp(larva.singularity_image_path, '<invalid>') ,
+        % This must come from an older .mat file, so we use the legacy values
+        obj.singularity_image_path = DLBackEndClass.legacy_default_singularity_image_path ;
+        obj.does_have_special_singularity_detection_image_path_ = true ;
+        obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
+      end  
+    end
+  end
+end

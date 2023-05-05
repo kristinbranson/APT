@@ -1279,4 +1279,17 @@ classdef AWSec2 < matlab.mixin.Copyable
     
   end
   
+  % These next two methods allow access to private and protected variables,
+  % intended to be used for encoding/decoding.  The trailing underscore is there
+  % to remind you that these methods are only intended for "special case" uses.
+  methods
+    function result = get_property_value_(self, name)
+      result = self.(name) ;
+    end  % function
+    
+    function set_property_value_(self, name, value)
+      self.(name) = value ;
+    end  % function
+  end
+  
 end
