@@ -271,6 +271,22 @@ function imgzoompan(hfig, varargin)
         % MATLAB lack of anti-aliasing deforms the image if XLims & YLims are not integers
         newXLims = round(newXLims);
         newYLims = round(newYLims);
+        if newXLims(1) <= opt.ImgXMin
+          newXLims(2) = (newXLims(2)-newXLims(1))+opt.ImgXMin;
+          newXLims(1) = opt.ImgXMin;
+        elseif newXLims(2) >= opt.ImgWidth
+          newXLims(1) = opt.ImgWidth - (newXLims(2)-newXLims(1));
+          newXLims(2) = opt.ImgWidth;
+        end
+        if newYLims(1) <= opt.ImgYMin
+          newYLims(2) = (newYLims(2)-newYLims(1))+opt.ImgYMin;
+          newYLims(1) = opt.ImgYMin;
+        elseif newYLims(2) >= opt.ImgHeight
+          newYLims(1) = opt.ImgHeight- (newYLims(2)-newYLims(1));
+          newYLims(2) = opt.ImgHeight;
+        end
+%         set(hAx,'Xlim',newXLims);
+%         set(hAx,'Ylim',newYLims);
 
         % Update Axes limits
         if (newXLims(1) > opt.ImgXMin && newXLims(2) < opt.ImgWidth)
