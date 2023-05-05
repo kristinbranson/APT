@@ -2379,6 +2379,13 @@ if ~isfield(handles,'menu_track_backend_config')
     'Callback',@cbkTrackerBackendAdditionalBsubArgs,...
     'Tag','menu_track_backend_config_jrc_additional_bsub_args');  
 
+  handles.menu_track_backend_config_jrc_set_singularity_image = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','off',...
+    'Label','(JRC) Set Singularity image...',...
+    'Callback',@cbkTrackerBackendSetSingularityImage,...
+    'Tag','menu_track_backend_config_jrc_set_singularity_image');  
+
   % AWS submenu (enabled when backend==AWS)
   handles.menu_track_backend_config_aws_setinstance = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
@@ -2517,6 +2524,7 @@ set(handles.menu_track_backend_config_docker_image_spec,'Enable',oiDckr);
 set(handles.menu_track_backend_config_jrc_setconfig,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_setconfig_track,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_additional_bsub_args,'Enable',oiBsub);
+set(handles.menu_track_backend_config_jrc_set_singularity_image,'Enable',oiBsub);
 set(handles.menu_track_backend_set_conda_env,'Enable',oiCnda);
 
 % m = handles.menu_track_backend_config;
@@ -2685,7 +2693,7 @@ new_value = dialog_result{1};
 try
   backend.jrcAdditionalBsubArgs = new_value ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalidvalue') ,
+  if strcmp(exception.identifier, 'APT:invalid_value') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2755,7 +2763,7 @@ new_full_image_spec = dialog_result{1};
 try
   backend.dockerimgfull = new_full_image_spec;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalidvalue') ,
+  if strcmp(exception.identifier, 'APT:invalid_value') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2777,7 +2785,31 @@ new_value = dialog_result{1};
 try
   backend.condaEnv = new_value;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalidvalue') ,
+  if strcmp(exception.identifier, 'APT:invalid_value') ,
+    uiwait(errordlg(exception.message));
+  else
+    rethrow(exception);
+  end
+end
+
+
+function cbkTrackerBackendSetSingularityImage(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+backend = lObj.trackDLBackEnd;
+assert(backend.type==DLBackEnd.Bsub);
+original_value = backend.singularity_image_path ;
+filter_spec = {'*.sif','Singularity Images (*.sif)'; ...
+              '*',  'All Files (*)'} ;
+[file_name, path_name] = uigetfile(filter_spec, 'Set Singularity Image...', original_value) ;
+if isnumeric(file_name)
+  return
+end
+new_value = fullfile(path_name, file_name) ;
+try
+  backend.singularity_image_path = new_value ;
+catch exception
+  if strcmp(exception.identifier, 'APT:invalid_value') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);

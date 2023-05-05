@@ -62,7 +62,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     % We set these the string 'invalid' so we can catch them in loadobj()
     % They are set properly in the constructor.
-    singularity_image_path = '<invalid>'
+    singularity_image_path_ = '<invalid>'
     does_have_special_singularity_detection_image_path_ = '<invalid>'
     singularity_detection_image_path_ = '<invalid>'
   end
@@ -70,6 +70,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   properties (Dependent)
     filesep
     dockerimgfull % full docker img spec (with tag if specified)
+    singularity_image_path
     singularity_detection_image_path
   end
   
@@ -81,7 +82,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       assert(isa(ty, 'DLBackEnd')) ;
       obj.type = ty ;
       % Set the singularity fields to valid values
-      obj.singularity_image_path = DLBackEndClass.default_singularity_image_path ;
+      obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
       obj.does_have_special_singularity_detection_image_path_ = false ;
       obj.singularity_detection_image_path_ = '' ;
       % Copy over stuff from the old backend
@@ -92,7 +93,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         obj.dockerimgroot = oldbe.dockerimgroot;
         obj.dockerimgtag = oldbe.dockerimgtag;
         obj.condaEnv = oldbe.condaEnv;
-        obj.singularity_image_path = oldbe.singularity_image_path ;
+        obj.singularity_image_path_ = oldbe.singularity_image_path_ ;
         obj.does_have_special_singularity_detection_image_path_ = oldbe.does_have_special_singularity_detection_image_path_ ;
         obj.singularity_detection_image_path_ = oldbe.singularity_detection_image_path_ ;
       end
@@ -118,7 +119,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ischar(new_value) && ~isempty(new_value) ,
         % all is well
       else
-        error('APT:invalidvalue', 'Invalid value for the Docker image specification');
+        error('APT:invalid_value', 'Invalid value for the Docker image specification');
       end        
       % The full image spec should be of the form '<root>:<tag>' or just '<root>'
       % Parse the given string to find the parts
@@ -133,7 +134,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         root = parts{1} ;
         tag = parts{2} ;
       else
-        error('APT:invalidvalue', '"%s" is a not valid value for the Docker image specification', new_value);
+        error('APT:invalid_value', '"%s" is a not valid value for the Docker image specification', new_value);
       end
       % Actually set the values
       obj.dockerimgroot = root ;
@@ -143,15 +144,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if obj.does_have_special_singularity_detection_image_path_ ,
         result = obj.singularity_detection_image_path_ ;
       else
-        result = obj.singularity_image_path ;
+        result = obj.singularity_image_path_ ;
       end
     end
+
+    function set.singularity_image_path(obj, new_value)
+      if ischar(new_value) && exist(new_value, 'file') ,
+        obj.singularity_image_path_ = new_value ;
+        obj.does_have_special_singularity_detection_image_path_ = false ;
+        obj.singularity_detection_image_path_ = '' ;
+      else
+        error('APT:invalid_value', 'Invalid value for the Singularity image path');
+      end        
+    end
+
+    function result = get.singularity_image_path(obj)
+      result = obj.singularity_image_path_ ;
+    end
+
     function set.jrcAdditionalBsubArgs(obj, new_value)
       % Check for crazy values
       if ischar(new_value) ,
         % all is well
       else
-        error('APT:invalidvalue', 'Invalid value for the JRC addition bsub arguments');
+        error('APT:invalid_value', 'Invalid value for the JRC addition bsub arguments');
       end        
       % Actually set the value
       obj.jrcAdditionalBsubArgs = new_value ;
@@ -161,7 +177,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ischar(new_value) && ~isempty(new_value) ,
         % all is well
       else
-        error('APT:invalidvalue', '"%s" is a not valid value for the conda environment', new_value);
+        error('APT:invalid_value', '"%s" is a not valid value for the conda environment', new_value);
       end        
       % Actually set the value
       obj.condaEnv = new_value ;
@@ -337,21 +353,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
              'If you have not already, please see the documentation for Windows/WSL2 setup instructions.']);
           obj.type = DLBackEnd.Docker;
         else
-          warningNoTrace('Unexpected Conda backend. APT may not work correctly.');
+          warningNoTrace('Current backend is Conda.  This is only intended for developers.  Be careful.');
         end
       end
-      if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
-        defaultDockerFullImageSpec = ...
-          horzcat(DLBackEndClass.defaultDockerImgRoot, ':', DLBackEndClass.defaultDockerImgTag) ;
-        fullImageSpec = obj.dockerimgfull ;
-        if ~strcmp(fullImageSpec, defaultDockerFullImageSpec) ,
-          message = ...
-            sprintf('The Docker image spec (%s) differs from the default (%s).', ...
-                    fullImageSpec, ...
-                    defaultDockerFullImageSpec) ;
-          warningNoTrace(message) ;
-        end
-      end
+%       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
+%         defaultDockerFullImageSpec = ...
+%           horzcat(DLBackEndClass.defaultDockerImgRoot, ':', DLBackEndClass.defaultDockerImgTag) ;
+%         fullImageSpec = obj.dockerimgfull ;
+%         if ~strcmp(fullImageSpec, defaultDockerFullImageSpec) ,
+%           message = ...
+%             sprintf('The Docker image spec (%s) differs from the default (%s).', ...
+%                     fullImageSpec, ...
+%                     defaultDockerFullImageSpec) ;
+%           warningNoTrace(message) ;
+%         end
+%       end
       % 20211101 turn on by default
       obj.jrcsimplebindpaths = 1;
     end
@@ -1460,9 +1476,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function obj = loadobj(larva)
       % We implement this to provide backwards-compatibility with older .mat files
       obj = larva ;
-      if strcmp(larva.singularity_image_path, '<invalid>') ,
+      if strcmp(larva.singularity_image_path_, '<invalid>') ,
         % This must come from an older .mat file, so we use the legacy values
-        obj.singularity_image_path = DLBackEndClass.legacy_default_singularity_image_path ;
+        obj.singularity_image_path_ = DLBackEndClass.legacy_default_singularity_image_path ;
         obj.does_have_special_singularity_detection_image_path_ = true ;
         obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
       end  

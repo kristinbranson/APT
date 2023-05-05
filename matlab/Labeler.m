@@ -2378,8 +2378,7 @@ classdef Labeler < handle
       s = load(tlbl,'-mat');
       warning([warnst0 warnst1]);
 
-      % ALT 2023-05-02
-      
+      % ALT 2023-05-02      
       % Sometimes trackDLBackEnd is a DLBackEndClass object, because history.  
       % If that's the case, we just pass it through.  It will get rectified when the
       % project is next saved.
