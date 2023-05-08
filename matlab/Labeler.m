@@ -131,6 +131,7 @@ classdef Labeler < handle
     moviesReordered
     
     dataImported
+    update_does_need_save
   end
       
   
@@ -187,7 +188,7 @@ classdef Labeler < handle
     
     projVerbose = 0; % transient, unmanaged
     
-    isgui = true; % whether there is a GUI
+    isgui = false; % whether there is a GUI
     unTarLoc = ''; % location that project has most recently been untarred to
     
     projRngSeed = 17;
@@ -307,6 +308,8 @@ classdef Labeler < handle
     nmoviesGT;
     nmoviesGTaware;
     moviesSelected; % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
+    does_need_save
+    why_does_need_save
   end
   
   %% Crop
@@ -416,7 +419,10 @@ classdef Labeler < handle
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
     lastLabelChangeTS     % last time training labels were changed
-    needsSave; 
+  end
+  properties (Transient)  % private by convention
+    does_need_save_ = false
+    why_does_need_save_ = ''  % a string describing the reason for the latest setting of does_need_save to true
   end
   properties (Dependent,Hidden)
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
@@ -1486,38 +1492,38 @@ classdef Labeler < handle
   methods 
   
     function obj = Labeler(varargin)
-      % lObj = Labeler();
-      
-      %APT.setpathsmart;
-
-      [obj.isgui, projfile, replace_path] = ...
+      isgui = ...
         myparse_nocheck(varargin, ...
-                        'isgui',true, ...
-                        'projfile',[], ...
-                        'replace_path',{'',''});
-      starttime = tic;
+                        'isgui',false);
+      obj.isgui = isgui ;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
-      obj.hFig = LabelerGUI(obj);
-      obj.tvTrx = TrackingVisualizerTrx(obj);
-      fprintf('Opening GUI took %f s\n',toc(starttime));
-      if projfile
-        obj.projLoad(projfile,'replace_path',replace_path);
+      if ~isgui , 
+        self.handle_creation_time_additional_arguments(varargin{:}) ;
       end
     end
-     
+
+    function register_figure(self, hFig)
+      % This function is a temporary hack.  The long-term goal is to get rid of both
+      % the hFig and the the txTrx properties, b/c the model shouldn't need to
+      % directly talk to either of those.
+      self.isgui = true ;
+      self.hFig = hFig ;
+      self.tvTrx = TrackingVisualizerTrx(self);
+    end
+
+    function handle_creation_time_additional_arguments(self, varargin)
+      [projfile, replace_path] = ...
+        myparse_nocheck(varargin, ...
+                        'projfile',[], ...
+                        'replace_path',{'',''}) ;
+      if projfile ,
+        self.projLoad(projfile, 'replace_path', replace_path) ;
+      end      
+    end
+
     function delete(obj)
-% re: 180730        
-%       if isvalid(obj.hFig)  % isvalid will fail if obj.hFig is empty
-%         close(obj.hFig);
-%         obj.hFig = [];
-%       end     
-      if ~isempty(obj.hFig) && isvalid(obj.hFig)
-        gd = obj.gdata;
-        deleteValidHandles(gd.depHandles);      
-        deleteValidHandles(obj.hFig);
-        obj.hFig = [];
-      end
+      obj.hFig = [] ;  % controller will delete
       be = obj.trackDLBackEnd;
       if ~isempty(be)
         be.shutdown();
@@ -2026,7 +2032,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
-      obj.needsSave = false;
+      obj.does_need_save_ = false;
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
@@ -2086,7 +2092,7 @@ classdef Labeler < handle
         save(fname,'-mat','-struct','s');
       end
       obj.labeledposNeedsSave = false;
-      obj.needsSave = false;
+      obj.does_need_save_ = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
       RC.saveprop('lastLblFile',fname);      
@@ -2529,7 +2535,7 @@ classdef Labeler < handle
 %       obj.labelingInit();
 
       obj.labeledposNeedsSave = false;
-      obj.needsSave = false;
+      obj.does_need_save_ = false;
 %       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
@@ -2758,7 +2764,7 @@ classdef Labeler < handle
       %obj.trackParams = [];
       
       obj.labeledposNeedsSave = true;
-      obj.needsSave = true;     
+      obj.does_need_save_ = true;     
       
       obj.lblCore.init(newnphyspts,obj.labelPointsPlotInfo);
 %       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
@@ -15790,4 +15796,42 @@ classdef Labeler < handle
     
   end
 
+  methods
+    function value = get.does_need_save(self)
+      value = self.does_need_save_ ;
+    end
+
+    function set_does_need_save(self, new_value, why)
+      % Can't have a normal setter b/c of the why string.
+      if islogical(new_value) && isscalar(new_value) ,
+        self.does_need_save_ = new_value ;
+        if ~exist('why', 'var') || isempty(why) ,
+          why = 'Save needed' ;
+        end
+        if new_value ,
+          self.why_does_need_save_ = why ;
+        else
+          self.why_does_need_save_ = '' ;
+        end
+      else
+        raise('APT:invalid_value', 'Illegal value for does_need_save') ;
+      end
+      self.notify('update_does_need_save') ;
+    end
+
+    function value = get.why_does_need_save(self)
+      value = self.why_does_need_save_ ;
+    end
+
+    function value = get_backend_property(self, property_name)
+      backend = self.trackDLBackEnd ;
+      value = backend.(property_name) ;
+    end
+
+    function set_backend_property(self, property_name, new_value)
+      backend = self.trackDLBackEnd ;
+      backend.(property_name) = new_value ;  % this can throw if value is invalid
+      self.set_does_need_save(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
+    end
+  end
 end
