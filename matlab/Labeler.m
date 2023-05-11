@@ -1441,7 +1441,7 @@ classdef Labeler < handle
       end
       obj.movieViewBGsubbed = v;
       obj.hlpSetCurrPrevFrame(obj.currFrame,true); %#ok<MCSUP>
-      caxis(obj.gdata.axes_curr,'auto'); %#ok<MCSUP>
+      clim(obj.gdata.axes_curr,'auto'); %#ok<MCSUP>
     end
     function set.movieCenterOnTarget(obj,v)
       obj.movieCenterOnTarget = v;
@@ -1772,7 +1772,7 @@ classdef Labeler < handle
       cfg.LabelMode = char(obj.labelMode);
       % View stuff: read off current state of axes
       gd = obj.gdata;
-      viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
+      viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all);
       for i=1:obj.nview
         viewCfg(i).InvertMovie = obj.movieInvert(i);
         viewCfg(i).CenterOnTarget = obj.movieCenterOnTarget;
@@ -2088,19 +2088,15 @@ classdef Labeler < handle
       
       s = obj.projGetSaveStruct();
       
-      if 1
-        try
-          rawLblFile = obj.projGetRawLblFile();
-          save(rawLblFile,'-mat','-struct','s');
-          obj.projBundleSave(fname);
-        catch ME
-          save(fname,'-mat','-struct','s');
-          msg = ME.getReport();
-          warningNoTrace('Saved raw project file %s. Error caught during bundled project save:\n%s\n',...
-            fname,msg);          
-        end
-      else
+      try
+        rawLblFile = obj.projGetRawLblFile();
+        save(rawLblFile,'-mat','-struct','s');
+        obj.projBundleSave(fname);
+      catch ME
         save(fname,'-mat','-struct','s');
+        msg = ME.getReport();
+        warningNoTrace('Saved raw project file %s. Error caught during bundled project save:\n%s\n',...
+                       fname,msg);
       end
       obj.labeledposNeedsSave = false;
       obj.does_need_save_ = false;
