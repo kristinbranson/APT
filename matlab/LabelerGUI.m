@@ -2918,10 +2918,10 @@ function slider_frame_Callback(hObject,evt,varargin)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
-% debugtiming = false;
-% if debugtiming,
-%   starttime = tic;
-% end
+debugtiming = false;
+if debugtiming,
+  starttime = tic() ;
+end
 
 handles = guidata(hObject);
 lObj = handles.labelerObj;
@@ -3043,7 +3043,7 @@ function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-lObj.set_status('Tracking...');
+handles.labelerObj.set_status('Tracking...');
 tm = getTrackMode(handles);
 tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
 if isempty(tblMFT),

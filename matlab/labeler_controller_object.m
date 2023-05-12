@@ -57,22 +57,6 @@ classdef labeler_controller_object < handle
       else
         set(hTx,'Visible','off');
       end
-      if does_need_save,
-        info = labeler.projFSInfo ;
-        why = labeler.why_does_need_save ;
-        if isempty(info) ,
-          display_string = sprintf('%s since $PROJECTNAME saved.', why) ;
-        else
-          display_string = sprintf('%s since $PROJECTNAME %s at %s', why, info.action,datestr(info.timestamp,16)) ;
-        end
-        is_busy = false ;
-        SetStatus = LabelerGUI('get_local_fn', 'SetStatus') ;
-        feval(SetStatus, handles, display_string, is_busy) ;  
-          % This causes the status sting in the figure to be set, and the cursor to be
-          % changed to reflect the busy status.
-        % Really think display_string and is_busy belong in the model, 
-        % but we'll leave that for another day.  -- ALT, 2023-05-08
-      end
     end
 
     function update_status(self, ~, ~)
@@ -129,7 +113,7 @@ classdef labeler_controller_object < handle
       end
     end
 
-    function did_set_trx(self)
+    function did_set_trx(self, ~, ~)
       trx = self.labeler_.trx ;
       self.tvTrx_.init(true, numel(trx)) ;
     end
@@ -170,7 +154,7 @@ classdef labeler_controller_object < handle
       end
     end
 
-    function update_trx_set_show_true(self)
+    function update_trx_set_show_true(self, ~, ~)
       % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       labeler = self.labeler_ ;
       if ~labeler.hasTrx,
@@ -182,7 +166,7 @@ classdef labeler_controller_object < handle
       tv.updateTrx(tfShow);
     end
     
-    function update_trx_set_show_false(self)
+    function update_trx_set_show_false(self, ~, ~)
       % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       labeler = self.labeler_ ;
       if ~labeler.hasTrx,

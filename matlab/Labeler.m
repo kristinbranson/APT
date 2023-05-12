@@ -312,7 +312,6 @@ classdef Labeler < handle
     nmoviesGTaware;
     moviesSelected; % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
     does_need_save
-    why_does_need_save
   end
   
   %% Crop
@@ -428,7 +427,6 @@ classdef Labeler < handle
   end
   properties (Transient)  % private by convention
     does_need_save_ = false
-    why_does_need_save_ = ''  % a string describing the reason for the latest setting of does_need_save to true
   end
   properties (Transient)  % private by convention
     is_status_busy_ = false
@@ -1542,7 +1540,7 @@ classdef Labeler < handle
     end
 
     function delete(obj)
-      obj.hFig = [] ;  % controller will delete
+      obj.controller_ = [] ;  % this is a weak reference (by convention), so don't delete
       be = obj.trackDLBackEnd;
       if ~isempty(be)
         be.shutdown();
@@ -15844,22 +15842,24 @@ classdef Labeler < handle
       % Can't have a normal setter b/c of the why string.
       if islogical(new_value) && isscalar(new_value) ,
         self.does_need_save_ = new_value ;
-        if ~exist('why', 'var') || isempty(why) ,
-          why = 'Save needed' ;
-        end
         if new_value ,
-          self.why_does_need_save_ = why ;
-        else
-          self.why_does_need_save_ = '' ;
-        end
+          if ~exist('why', 'var') || isempty(why) ,
+            why = 'Save needed' ;
+          end
+          info = self.projFSInfo ;
+          if isempty(info) ,
+            raw_status_string = sprintf('%s since $PROJECTNAME saved.', why) ;
+          else
+            raw_status_string = sprintf('%s since $PROJECTNAME %s at %s', why, info.action, datestr(info.timestamp,16)) ;
+          end
+          is_busy = false ;
+          self.set_status(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
+        end        
       else
         raise('APT:invalid_value', 'Illegal value for does_need_save') ;
       end
-      self.notify('update_does_need_save') ;
-    end
 
-    function value = get.why_does_need_save(self)
-      value = self.why_does_need_save_ ;
+      self.notify('update_does_need_save') ;
     end
 
     function value = get_backend_property(self, property_name)
