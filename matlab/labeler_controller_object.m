@@ -4,19 +4,29 @@ classdef labeler_controller_object < handle
     main_figure_  % the GH to the main figure
     listeners_
   end
+  properties  % private/protected by convention
+    tvTrx_  % scalar TrackingVisualizerTrx
+  end
 
   methods
     function self = labeler_controller_object(varargin)
       labeler = Labeler('isgui', true) ;  % Create the labeler, tell it  there's a GUI attached
       self.labeler_ = labeler ;
       self.main_figure_ = LabelerGUI(labeler, self) ;
-      self.labeler_.register_figure(self.main_figure_) ;  % hack
+      self.labeler_.register_controller_(self) ;  % hack
+      self.tvTrx_ = TrackingVisualizerTrx(labeler) ;
       self.labeler_.handle_creation_time_additional_arguments(varargin{:}) ;
       self.listeners_ = cell(1,0) ;
       self.listeners_{end+1} = ...
         addlistener(labeler, 'update_does_need_save', @(source,event)(self.update_does_need_save(source, event))) ;      
       self.listeners_{end+1} = ...
         addlistener(labeler, 'update_status', @(source,event)(self.update_status(source, event))) ;      
+      self.listeners_{end+1} = ...
+        addlistener(labeler, 'did_set_trx', @(source,event)(self.did_set_trx(source, event))) ;      
+      self.listeners_{end+1} = ...
+        addlistener(labeler, 'update_trx_set_show_true', @(source,event)(self.update_trx_set_show_true(source, event))) ;      
+      self.listeners_{end+1} = ...
+        addlistener(labeler, 'update_trx_set_show_false', @(source,event)(self.update_trx_set_show_false(source, event))) ;      
     end
 
     function delete(self)
@@ -119,6 +129,11 @@ classdef labeler_controller_object < handle
       end
     end
 
+    function did_set_trx(self)
+      trx = self.labeler_.trx ;
+      self.tvTrx_.init(true, numel(trx)) ;
+    end
+
     function quit_requested(self)
       is_ok_to_quit = self.raise_unsaved_changes_dialog_if_needed() ;
       if is_ok_to_quit ,
@@ -154,5 +169,29 @@ classdef labeler_controller_object < handle
         is_ok_to_proceed = true;        
       end
     end
+
+    function update_trx_set_show_true(self)
+      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
+      labeler = self.labeler_ ;
+      if ~labeler.hasTrx,
+        return
+      end           
+      tfShow = labeler.which_trx_are_showing() ;      
+      tv = self.tvTrx_ ;
+      tv.setShow(tfShow);
+      tv.updateTrx(tfShow);
+    end
+    
+    function update_trx_set_show_false(self)
+      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
+      labeler = self.labeler_ ;
+      if ~labeler.hasTrx,
+        return
+      end            
+      tfShow = labeler.which_trx_are_showing() ;      
+      tv = self.tvTrx_ ;
+      tv.updateTrx(tfShow);
+    end
+    
   end
 end

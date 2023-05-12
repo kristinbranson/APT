@@ -133,9 +133,11 @@ classdef Labeler < handle
     dataImported
     update_does_need_save
     update_status
+    did_set_trx
+    update_trx_set_show_true
+    update_trx_set_show_false
   end
-      
-  
+
   %% Project
   properties (SetObservable)
     projname              % init: PN
@@ -367,9 +369,6 @@ classdef Labeler < handle
     showMaRoi;
     showMaRoiAux
   end 
-  properties
-    tvTrx; % scalar TrackingVisualizerTrx
-  end
   
   %% Labeling
   properties (SetObservable)
@@ -420,6 +419,12 @@ classdef Labeler < handle
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
     lastLabelChangeTS     % last time training labels were changed
+  end
+  properties (Dependent)
+    hFig
+  end
+  properties (Transient)  % private by convention
+    controller_  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
   end
   properties (Transient)  % private by convention
     does_need_save_ = false
@@ -622,7 +627,7 @@ classdef Labeler < handle
     currFrame = 1; % current frame
     currIm = [];            % [nview] cell vec of image data. init: C
     selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
-    hFig; % handle to main LabelerGUI figure
+    %hFig; % handle to main LabelerGUI figure
     drag = false;
     drag_pt = [];
     silent = false; % Don't open dialogs. Use defaults. For testing and debugging
@@ -1306,6 +1311,9 @@ classdef Labeler < handle
     function v = get.gdata(obj)
       v = guidata(obj.hFig);
     end
+    function v = get.hFig(obj)
+      v = obj.controller_.main_figure_ ;
+    end
     function v = get.gtNumSugg(obj)
       v = height(obj.gtSuggMFTable);
     end
@@ -1514,13 +1522,13 @@ classdef Labeler < handle
       end
     end
 
-    function register_figure(self, hFig)
-      % This function is a temporary hack.  The long-term goal is to get rid of both
-      % the hFig and the the txTrx properties, b/c the model shouldn't need to
-      % directly talk to either of those.
+    function register_controller_(self, controller)
+      % This function is a temporary hack.  The long-term goal is to get rid of
+      % labeller_controller_ property b/c the model shouldn't need to talk directly
+      % to it.  It's here now as a crutch until we eliminate reliance on it, then we
+      % get rid of it. directly talk to either of those.
       self.isgui = true ;
-      self.hFig = hFig ;
-      self.tvTrx = TrackingVisualizerTrx(self);
+      self.controller_ = controller ;
     end
 
     function handle_creation_time_additional_arguments(self, varargin)
@@ -5695,7 +5703,7 @@ classdef Labeler < handle
       
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx || obj.maIsMA);
       
-      obj.tvTrx.init(true,numel(trx));
+      obj.notify('did_set_trx') ;
     end
        
     function [sf,ef] = trxGetFrameLimits(obj)
@@ -5982,17 +5990,12 @@ classdef Labeler < handle
         % flag controlling display of trx/traj; tv.tvtrx would only show
         % viz when both tfHideViz==false and tfShowTraj==true.
       elseif obj.hasTrx
-        obj.updateTrx(true);      
+        obj.notify('update_trx_set_show_true') ;
+        %obj.updateTrxSetShowTrue() ;      
       end
     end
-    
-    function updateTrx(obj,tfSetShow)
-      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
-      
-      if ~obj.hasTrx,
-        return;
-      end      
-      
+            
+    function tfShow = which_trx_are_showing(obj)
       ntgts = obj.nTrx;
       if obj.showTrx
         if obj.showTrxCurrTargetOnly
@@ -6004,17 +6007,9 @@ classdef Labeler < handle
         end
       else
         tfShow = false(ntgts,1);
-      end
-      
-      tv = obj.tvTrx;
-      if tfSetShow
-        tv.setShow(tfShow);
-      end
-      tv.updateTrx(tfShow);
-%       tfShowEll = isscalar(obj.showTrxEll) && obj.showTrxEll ...
-%         && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
+      end      
     end
-        
+
     function setSkeletonEdges(obj,se)
       obj.skeletonEdges = se;
       obj.lblCore.updateSkeletonEdges();
@@ -13923,7 +13918,8 @@ classdef Labeler < handle
 
       
       if updateTrajs
-        obj.updateTrx(false);
+        %obj.updateTrxSetShowFalse();
+        obj.notify('update_trx_set_show_false') ;
       end
       
       if debugtiming,
