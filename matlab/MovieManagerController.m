@@ -166,7 +166,7 @@ classdef MovieManagerController < handle
       mIdx = MovieIndex(iMovs,obj.gtTabSelected);
     end
     
-    function cbkTabGrpSelChanged(obj,src,evt)
+    function cbkTabGrpSelChanged(obj,src,~)
       % When ~obj.labeler.gtIsGTMode, only tab1 can be selected
       % When obj.labeler.gtIsGTMode, both tabs can be selected
       
@@ -242,24 +242,24 @@ classdef MovieManagerController < handle
       end
     end   
   
-    function lblerLstnCbkUpdateTable(obj,src,evt)
+    function lblerLstnCbkUpdateTable(obj,~,~)
       obj.hlpLblerLstnCbkUpdateTable(false);
     end
     
-    function lblerLstnCbkUpdateTableGT(obj,src,evt)
+    function lblerLstnCbkUpdateTableGT(obj,~,~)
       obj.hlpLblerLstnCbkUpdateTable(true);      
     end
     
-    function lblerLstnCbkProjLoaded(obj,src,evt)
+    function lblerLstnCbkProjLoaded(obj,~,~)
       obj.hlpLblerLstnCbkUpdateTable(false);
       obj.hlpLblerLstnCbkUpdateTable(true);
     end
     
-    function lblerLstnCbkNewMovie(obj,src,evt)
+    function lblerLstnCbkNewMovie(obj,~,~)
       obj.updateMMTblRowSelection();
     end
     
-    function lblerLstnCbkGTMode(obj,src,evt)
+    function lblerLstnCbkGTMode(obj,~,~)
       lObj = obj.labeler;
       if lObj.isinit
         return;

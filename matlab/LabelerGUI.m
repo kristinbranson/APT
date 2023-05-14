@@ -2131,7 +2131,7 @@ end
 % hTX.String = str;
 
 function cbkProjNameChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 %handles = lObj.gdata;
 %pname = lObj.projname;
 str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now,16));
@@ -2143,7 +2143,7 @@ lObj.set_raw_status_string_when_clear_(str) ;
 setGUIMainFigureName(lObj);
 
 function cbkProjFSInfoChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 info = lObj.projFSInfo;
 if ~isempty(info)  
   str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
