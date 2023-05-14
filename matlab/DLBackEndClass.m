@@ -1464,12 +1464,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % intended to be used for encoding/decoding.  The trailing underscore is there
   % to remind you that these methods are only intended for "special case" uses.
   methods
-    function result = get_property_value_(self, name)
-      result = self.(name) ;
+    function result = get_property_value_(obj, name)
+      result = obj.(name) ;
     end  % function
     
-    function set_property_value_(self, name, value)
-      self.(name) = value ;
+    function set_property_value_(obj, name, value)
+      obj.(name) = value ;
     end  % function
   end
 

@@ -66,11 +66,11 @@ classdef Labeler < handle
     NEIGHBORING_FRAME_MAXRADIUS = 10;
     DEFAULT_RAW_LABEL_FILENAME = 'label_file.lbl';
   end
-  properties (Hidden)
-    % Don't compute as a Constant prop, requires APT path initialization
-    % before loading class
-    NEIGHBORING_FRAME_OFFSETS;    
-  end
+%   properties (Hidden)
+%     % Don't compute as a Constant prop, requires APT path initialization
+%     % before loading class
+%     NEIGHBORING_FRAME_OFFSETS;    
+%   end
   properties (Constant,Hidden)
     PROPS_GTSHARED = struct('reg',...
       struct('MFA','movieFilesAll',...
@@ -1513,29 +1513,32 @@ classdef Labeler < handle
         myparse_nocheck(varargin, ...
                         'isgui',false);
       obj.isgui = isgui ;
-      obj.NEIGHBORING_FRAME_OFFSETS = ...
-                  neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
-      if ~isgui , 
-        self.handle_creation_time_additional_arguments(varargin{:}) ;
+%       obj.NEIGHBORING_FRAME_OFFSETS = ...
+%                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
+      if ~isgui ,
+        % If a GUI is attached, this is done by the controller, after it has
+        % registered itself with the Labeler.
+        % If no GUI attached, we do it ourselves.
+        obj.handleCreationTimeAdditionalArguments_(varargin{:}) ;
       end
     end
 
-    function register_controller_(self, controller)
+    function registerController(obj, controller)
       % This function is a temporary hack.  The long-term goal is to get rid of
       % labeller_controller_ property b/c the model shouldn't need to talk directly
       % to it.  It's here now as a crutch until we eliminate reliance on it, then we
       % get rid of it. directly talk to either of those.
-      self.isgui = true ;
-      self.controller_ = controller ;
+      obj.isgui = true ;
+      obj.controller_ = controller ;
     end
 
-    function handle_creation_time_additional_arguments(self, varargin)
+    function handleCreationTimeAdditionalArguments_(obj, varargin)
       [projfile, replace_path] = ...
         myparse_nocheck(varargin, ...
                         'projfile',[], ...
                         'replace_path',{'',''}) ;
       if projfile ,
-        self.projLoad(projfile, 'replace_path', replace_path) ;
+        obj.projLoad(projfile, 'replace_path', replace_path) ;
       end      
     end
 
@@ -15686,40 +15689,40 @@ classdef Labeler < handle
 %       
 %     end
     
-    function set_status(self, new_raw_status_string, is_busy)
+    function set_status(obj, new_raw_status_string, is_busy)
       if nargin<3 ,
         is_busy = true;
       end
-      self.is_status_busy_ = is_busy ;
-      self.raw_status_string_ = new_raw_status_string ;
+      obj.is_status_busy_ = is_busy ;
+      obj.raw_status_string_ = new_raw_status_string ;
       if ~is_busy ,
-        self.raw_status_string_when_clear_ = new_raw_status_string ;
+        obj.raw_status_string_when_clear_ = new_raw_status_string ;
       end
-      self.notify('updateStatus') ;      
+      obj.notify('updateStatus') ;      
     end
 
-    function clear_status(self)
-      self.is_status_busy_ = false ;
-      self.raw_status_string_ = self.raw_status_string_when_clear_ ;
-      self.notify('updateStatus') ;      
+    function clear_status(obj)
+      obj.is_status_busy_ = false ;
+      obj.raw_status_string_ = obj.raw_status_string_when_clear_ ;
+      obj.notify('updateStatus') ;      
     end
 
-    function result = get.is_status_busy(self)
-      result = self.is_status_busy_ ;
+    function result = get.is_status_busy(obj)
+      result = obj.is_status_busy_ ;
     end
 
-    function result = get.raw_status_string(self)
-      result = self.raw_status_string_ ;
+    function result = get.raw_status_string(obj)
+      result = obj.raw_status_string_ ;
     end
 
-    function result = get.raw_status_string_when_clear(self)
-      result = self.raw_status_string_when_clear_ ;
+    function result = get.raw_status_string_when_clear(obj)
+      result = obj.raw_status_string_when_clear_ ;
     end
 
-    function set_raw_status_string_when_clear_(self, new_value)
+    function set_raw_status_string_when_clear_(obj, new_value)
       % This should go away eventually, once a few more functions in LabelerGUI get
       % folded into Labeler.
-      self.raw_status_string_when_clear_ = new_value ;
+      obj.raw_status_string_when_clear_ = new_value ;
     end
 
     function raiseAllFigs(obj)
@@ -15834,43 +15837,43 @@ classdef Labeler < handle
   end
 
   methods
-    function value = get.doesNeedSave(self)
-      value = self.doesNeedSave_ ;
+    function value = get.doesNeedSave(obj)
+      value = obj.doesNeedSave_ ;
     end
 
-    function setDoesNeedSave(self, new_value, why)
+    function setDoesNeedSave(obj, new_value, why)
       % Can't have a normal setter b/c of the why string.
       if islogical(new_value) && isscalar(new_value) ,
-        self.doesNeedSave_ = new_value ;
+        obj.doesNeedSave_ = new_value ;
         if new_value ,
           if ~exist('why', 'var') || isempty(why) ,
             why = 'Save needed' ;
           end
-          info = self.projFSInfo ;
+          info = obj.projFSInfo ;
           if isempty(info) ,
             raw_status_string = sprintf('%s since $PROJECTNAME saved.', why) ;
           else
             raw_status_string = sprintf('%s since $PROJECTNAME %s at %s', why, info.action, datestr(info.timestamp,16)) ;
           end
           is_busy = false ;
-          self.set_status(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
+          obj.set_status(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
         end        
       else
         raise('APT:invalidValue', 'Illegal value for doesNeedSave') ;
       end
 
-      self.notify('updateDoesNeedSave') ;
+      obj.notify('updateDoesNeedSave') ;
     end
 
-    function value = get_backend_property(self, property_name)
-      backend = self.trackDLBackEnd ;
+    function value = get_backend_property(obj, property_name)
+      backend = obj.trackDLBackEnd ;
       value = backend.(property_name) ;
     end
 
-    function set_backend_property(self, property_name, new_value)
-      backend = self.trackDLBackEnd ;
+    function set_backend_property(obj, property_name, new_value)
+      backend = obj.trackDLBackEnd ;
       backend.(property_name) = new_value ;  % this can throw if value is invalid
-      self.setDoesNeedSave(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
+      obj.setDoesNeedSave(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
     end
   end
 end
