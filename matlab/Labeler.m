@@ -136,6 +136,13 @@ classdef Labeler < handle
     didSetTrx
     updateTrxSetShowTrue
     updateTrxSetShowFalse
+
+    didSetProjname
+    didSetProjFSInfo
+    didSetMovieFilesAll
+    didSetMovieFilesAllGT
+    didSetMovieFilesAllHaveLbls
+    didSetMovieFilesAllGTHaveLbls    
   end
 
   %% Project
