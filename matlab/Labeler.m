@@ -274,10 +274,10 @@ classdef Labeler < handle
     movieFilesAllGTHaveLbls = false(0,1); % etc
   end
   properties
-    moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
+    moviename  % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
+    movieCenterOnTarget = false  % scalar logical.
   end
   properties (SetObservable)
-    movieCenterOnTarget = false; % scalar logical.
     movieRotateTargetUp = false;
     movieCenterOnTargetLandmark = false; % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
     movieCenterOnTargetIpt = []; % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
