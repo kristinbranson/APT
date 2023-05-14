@@ -56,7 +56,7 @@ classdef APTResize < handle
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
       if isfield(handles,'controller'),
-        handles.controller.update_status() ;
+        handles.controller.updateStatus() ;
       end
       
 %       tfDoPUMTrack = ~ispc && ~ismac;

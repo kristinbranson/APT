@@ -1,7 +1,7 @@
-classdef labeler_controller_object < handle
+classdef LabelerController < handle
   properties  % private/protected by convention
     labeler_  % the controlled Labeler object
-    main_figure_  % the GH to the main figure
+    mainFigure_  % the GH to the main figure
     listeners_
   end
   properties  % private/protected by convention
@@ -9,31 +9,31 @@ classdef labeler_controller_object < handle
   end
 
   methods
-    function self = labeler_controller_object(varargin)
+    function self = LabelerController(varargin)
       labeler = Labeler('isgui', true) ;  % Create the labeler, tell it  there's a GUI attached
       self.labeler_ = labeler ;
-      self.main_figure_ = LabelerGUI(labeler, self) ;
+      self.mainFigure_ = LabelerGUI(labeler, self) ;
       self.labeler_.register_controller_(self) ;  % hack
       self.tvTrx_ = TrackingVisualizerTrx(labeler) ;
       self.labeler_.handle_creation_time_additional_arguments(varargin{:}) ;
       self.listeners_ = cell(1,0) ;
       self.listeners_{end+1} = ...
-        addlistener(labeler, 'update_does_need_save', @(source,event)(self.update_does_need_save(source, event))) ;      
+        addlistener(labeler, 'updateDoesNeedSave', @(source,event)(self.updateDoesNeedSave(source, event))) ;      
       self.listeners_{end+1} = ...
-        addlistener(labeler, 'update_status', @(source,event)(self.update_status(source, event))) ;      
+        addlistener(labeler, 'updateStatus', @(source,event)(self.updateStatus(source, event))) ;      
       self.listeners_{end+1} = ...
-        addlistener(labeler, 'did_set_trx', @(source,event)(self.did_set_trx(source, event))) ;      
+        addlistener(labeler, 'didSetTrx', @(source,event)(self.didSetTrx(source, event))) ;      
       self.listeners_{end+1} = ...
-        addlistener(labeler, 'update_trx_set_show_true', @(source,event)(self.update_trx_set_show_true(source, event))) ;      
+        addlistener(labeler, 'updateTrxSetShowTrue', @(source,event)(self.updateTrxSetShowTrue(source, event))) ;      
       self.listeners_{end+1} = ...
-        addlistener(labeler, 'update_trx_set_show_false', @(source,event)(self.update_trx_set_show_false(source, event))) ;      
+        addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(self.updateTrxSetShowFalse(source, event))) ;      
     end
 
     function delete(self)
       % Having the figure without a controller would be bad, so we make sure to
       % delete the figure (and subfigures) in our destructor.
       % We also delete the model.
-      main_figure = self.main_figure_ ;
+      main_figure = self.mainFigure_ ;
       if ~isempty(main_figure) && isvalid(main_figure)
         handles = guidata(main_figure) ;
         deleteValidHandles(handles.depHandles);
@@ -47,22 +47,22 @@ classdef labeler_controller_object < handle
       end
     end
     
-    function update_does_need_save(self, ~, ~)      
+    function updateDoesNeedSave(self, ~, ~)      
       labeler = self.labeler_ ;
-      does_need_save = labeler.does_need_save ;
-      handles = guidata(self.main_figure_) ;
+      doesNeedSave = labeler.doesNeedSave ;
+      handles = guidata(self.mainFigure_) ;
       hTx = handles.txUnsavedChanges ;
-      if does_need_save
+      if doesNeedSave
         set(hTx,'Visible','on');
       else
         set(hTx,'Visible','off');
       end
     end
 
-    function update_status(self, ~, ~)
+    function updateStatus(self, ~, ~)
       % Update the status text box to reflect the current model state.
       labeler = self.labeler_ ;
-      handles = guidata(self.main_figure_) ;
+      handles = guidata(self.mainFigure_) ;
       is_busy = labeler.is_status_busy ;
       if is_busy
         color = handles.busystatuscolor;
@@ -80,15 +80,9 @@ classdef labeler_controller_object < handle
         end
       end
       set(handles.txStatus,'ForegroundColor',color);
-      self.update_status_text_() ;
-      drawnow('limitrate', 'nocallbacks');
-    end
 
-    function update_status_text_(self)
       % Actually update the String in the status text box.  Use the shorter status
       % string from the labeler if the normal one is too long for the text box.
-      labeler = self.labeler_ ;
-      handles = guidata(self.main_figure_) ;      
       raw_status_string = labeler.raw_status_string;
       has_project = labeler.hasProject ;
       project_file_path = labeler.projectfile ;
@@ -111,21 +105,24 @@ classdef labeler_controller_object < handle
           set(handles.txStatus,'String',shorter_status_string) ;
         end
       end
+
+      % Make sure to update graphics now-ish
+      drawnow('limitrate', 'nocallbacks');
     end
 
-    function did_set_trx(self, ~, ~)
+    function didSetTrx(self, ~, ~)
       trx = self.labeler_.trx ;
       self.tvTrx_.init(true, numel(trx)) ;
     end
 
-    function quit_requested(self)
-      is_ok_to_quit = self.raise_unsaved_changes_dialog_if_needed() ;
+    function quitRequested(self)
+      is_ok_to_quit = self.raiseUnsavedChangesDialogIfNeeded() ;
       if is_ok_to_quit ,
         delete(self) ;
       end      
     end
 
-    function is_ok_to_proceed = raise_unsaved_changes_dialog_if_needed(self)
+    function is_ok_to_proceed = raiseUnsavedChangesDialogIfNeeded(self)
       labeler = self.labeler_ ;
       
       if ~verLessThan('matlab','9.6') && batchStartupOptionUsed
@@ -135,7 +132,7 @@ classdef labeler_controller_object < handle
       OPTION_SAVE = 'Save first';
       OPTION_PROC = 'Proceed without saving';
       OPTION_CANC = 'Cancel';
-      if labeler.does_need_save ,
+      if labeler.doesNeedSave ,
         res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
           'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
         switch res
@@ -154,7 +151,7 @@ classdef labeler_controller_object < handle
       end
     end
 
-    function update_trx_set_show_true(self, ~, ~)
+    function updateTrxSetShowTrue(self, ~, ~)
       % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       labeler = self.labeler_ ;
       if ~labeler.hasTrx,
@@ -166,7 +163,7 @@ classdef labeler_controller_object < handle
       tv.updateTrx(tfShow);
     end
     
-    function update_trx_set_show_false(self, ~, ~)
+    function updateTrxSetShowFalse(self, ~, ~)
       % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       labeler = self.labeler_ ;
       if ~labeler.hasTrx,

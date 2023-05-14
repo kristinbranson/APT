@@ -131,11 +131,11 @@ classdef Labeler < handle
     moviesReordered
     
     dataImported
-    update_does_need_save
-    update_status
-    did_set_trx
-    update_trx_set_show_true
-    update_trx_set_show_false
+    updateDoesNeedSave
+    updateStatus
+    didSetTrx
+    updateTrxSetShowTrue
+    updateTrxSetShowFalse
   end
 
   %% Project
@@ -311,7 +311,7 @@ classdef Labeler < handle
     nmoviesGT;
     nmoviesGTaware;
     moviesSelected; % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
-    does_need_save
+    doesNeedSave
   end
   
   %% Crop
@@ -426,7 +426,7 @@ classdef Labeler < handle
     controller_  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
   end
   properties (Transient)  % private by convention
-    does_need_save_ = false
+    doesNeedSave_ = false
   end
   properties (Transient)  % private by convention
     is_status_busy_ = false
@@ -1310,7 +1310,7 @@ classdef Labeler < handle
       v = guidata(obj.hFig);
     end
     function v = get.hFig(obj)
-      v = obj.controller_.main_figure_ ;
+      v = obj.controller_.mainFigure_ ;
     end
     function v = get.gtNumSugg(obj)
       v = height(obj.gtSuggMFTable);
@@ -2049,7 +2049,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
-      obj.does_need_save_ = false;
+      obj.doesNeedSave_ = false;
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
@@ -2105,7 +2105,7 @@ classdef Labeler < handle
                        fname,msg);
       end
       obj.labeledposNeedsSave = false;
-      obj.does_need_save_ = false;
+      obj.doesNeedSave_ = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
       RC.saveprop('lastLblFile',fname);      
@@ -2548,7 +2548,7 @@ classdef Labeler < handle
 %       obj.labelingInit();
 
       obj.labeledposNeedsSave = false;
-      obj.does_need_save_ = false;
+      obj.doesNeedSave_ = false;
 %       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
@@ -2777,7 +2777,7 @@ classdef Labeler < handle
       %obj.trackParams = [];
       
       obj.labeledposNeedsSave = true;
-      obj.does_need_save_ = true;     
+      obj.doesNeedSave_ = true;     
       
       obj.lblCore.init(newnphyspts,obj.labelPointsPlotInfo);
 %       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
@@ -5701,7 +5701,7 @@ classdef Labeler < handle
       
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx || obj.maIsMA);
       
-      obj.notify('did_set_trx') ;
+      obj.notify('didSetTrx') ;
     end
        
     function [sf,ef] = trxGetFrameLimits(obj)
@@ -5988,7 +5988,7 @@ classdef Labeler < handle
         % flag controlling display of trx/traj; tv.tvtrx would only show
         % viz when both tfHideViz==false and tfShowTraj==true.
       elseif obj.hasTrx
-        obj.notify('update_trx_set_show_true') ;
+        obj.notify('updateTrxSetShowTrue') ;
         %obj.updateTrxSetShowTrue() ;      
       end
     end
@@ -13917,7 +13917,7 @@ classdef Labeler < handle
       
       if updateTrajs
         %obj.updateTrxSetShowFalse();
-        obj.notify('update_trx_set_show_false') ;
+        obj.notify('updateTrxSetShowFalse') ;
       end
       
       if debugtiming,
@@ -15695,13 +15695,13 @@ classdef Labeler < handle
       if ~is_busy ,
         self.raw_status_string_when_clear_ = new_raw_status_string ;
       end
-      self.notify('update_status') ;      
+      self.notify('updateStatus') ;      
     end
 
     function clear_status(self)
       self.is_status_busy_ = false ;
       self.raw_status_string_ = self.raw_status_string_when_clear_ ;
-      self.notify('update_status') ;      
+      self.notify('updateStatus') ;      
     end
 
     function result = get.is_status_busy(self)
@@ -15834,14 +15834,14 @@ classdef Labeler < handle
   end
 
   methods
-    function value = get.does_need_save(self)
-      value = self.does_need_save_ ;
+    function value = get.doesNeedSave(self)
+      value = self.doesNeedSave_ ;
     end
 
-    function set_does_need_save(self, new_value, why)
+    function setDoesNeedSave(self, new_value, why)
       % Can't have a normal setter b/c of the why string.
       if islogical(new_value) && isscalar(new_value) ,
-        self.does_need_save_ = new_value ;
+        self.doesNeedSave_ = new_value ;
         if new_value ,
           if ~exist('why', 'var') || isempty(why) ,
             why = 'Save needed' ;
@@ -15856,10 +15856,10 @@ classdef Labeler < handle
           self.set_status(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
         end        
       else
-        raise('APT:invalid_value', 'Illegal value for does_need_save') ;
+        raise('APT:invalidValue', 'Illegal value for doesNeedSave') ;
       end
 
-      self.notify('update_does_need_save') ;
+      self.notify('updateDoesNeedSave') ;
     end
 
     function value = get_backend_property(self, property_name)
@@ -15870,7 +15870,7 @@ classdef Labeler < handle
     function set_backend_property(self, property_name, new_value)
       backend = self.trackDLBackEnd ;
       backend.(property_name) = new_value ;  % this can throw if value is invalid
-      self.set_does_need_save(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
+      self.setDoesNeedSave(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
     end
   end
 end

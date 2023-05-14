@@ -1985,7 +1985,7 @@ function cbkLabeledPosNeedsSaveChanged(src,evt)
 lObj = evt.AffectedObject;
 val = lObj.labeledposNeedsSave;
 %cbkSaveNeeded(lObj,val,'Unsaved labels');
-lObj.set_does_need_save(val, 'Unsaved labels') ;
+lObj.setDoesNeedSave(val, 'Unsaved labels') ;
 
 
 % function cbkSaveNeeded(lObj,val,str)
@@ -2665,7 +2665,7 @@ new_value = dialog_result{1};
 try
   lObj.set_backend_property('jrcAdditionalBsubArgs', new_value) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2733,7 +2733,7 @@ new_full_image_spec = dialog_result{1};
 try
   lObj.set_backend_property('dockerimgfull', new_full_image_spec) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2753,7 +2753,7 @@ new_value = dialog_result{1};
 try
   lObj.set_backend_property('condaEnv', new_value) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2775,7 +2775,7 @@ new_value = fullfile(path_name, file_name) ;
 try
   lObj.set_backend_property('singularity_image_path', new_value) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -3002,7 +3002,7 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-if handles.labelerObj.does_need_save ,
+if handles.labelerObj.doesNeedSave ,
   res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
   if strcmp(res,'Cancel')
     return
@@ -3398,7 +3398,7 @@ handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 controller = handles.controller ;
-if controller.raise_unsaved_changes_dialog_if_needed() ,
+if controller.raiseUnsavedChangesDialogIfNeeded() ,
   [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
   if ~tfsucc
     return;
@@ -3431,7 +3431,7 @@ function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.set_status('Starting New Project');
 controller = handles.controller ;
-if controller.raise_unsaved_changes_dialog_if_needed() ,
+if controller.raiseUnsavedChangesDialogIfNeeded() ,
   cfg = ProjectSetup(handles.figure);
   if ~isempty(cfg)    
     lObj.set_status('Configuring New Project') ;
@@ -3463,7 +3463,7 @@ handles.labelerObj.set_status('Loading Project...') ;
 %EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 controller = handles.controller ;
-if controller.raise_unsaved_changes_dialog_if_needed() ,
+if controller.raiseUnsavedChangesDialogIfNeeded() ,
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
     handles = lObj.gdata; % projLoad updated stuff
@@ -3485,7 +3485,7 @@ end
 OPTION_SAVE = 'Save first';
 OPTION_PROC = 'Proceed without saving';
 OPTION_CANC = 'Cancel';
-if labelerObj.does_need_save ,
+if labelerObj.doesNeedSave ,
   res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
@@ -3906,7 +3906,7 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
 		
 function menu_file_quit_Callback(hObject, eventdata, handles)
 controller = handles.controller ;
-controller.quit_requested() ;
+controller.quitRequested() ;
 %CloseGUI(handles);
 
 % function cbkShowPredTxtLblChanged(src,evt)
@@ -4089,7 +4089,7 @@ val = true;
 str = 'Tracker trained';
 %lObj.needsSave = true;
 %cbkSaveNeeded(lObj,val,str);
-lObj.set_does_need_save(val, str) ;
+lObj.setDoesNeedSave(val, str) ;
 
 function cbkTrackerStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -4111,7 +4111,7 @@ val = true;
 str = 'New frames tracked';
 %lObj.needsSave = true;
 %cbkSaveNeeded(lObj,val,str);
-lObj.set_does_need_save(val, str) ;
+lObj.setDoesNeedSave(val, str) ;
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
 lObj = eventdata.AffectedObject;
@@ -4311,14 +4311,14 @@ if isempty(sPrmNew)
   if do_update
     RC.saveprop('lastCPRAPTParams',sPrmNew);
     %cbkSaveNeeded(lObj,true,'Parameters changed');
-    lObj.set_does_need_save(true,'Parameters changed') ;
+    lObj.setDoesNeedSave(true,'Parameters changed') ;
   end
   % user canceled; none
 else
   lObj.trackSetParams(sPrmNew);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
   %cbkSaveNeeded(lObj,true,'Parameters changed');
-  lObj.set_does_need_save(true,'Parameters changed') ;
+  lObj.setDoesNeedSave(true,'Parameters changed') ;
 end
 
 handles.labelerObj.clear_status();
@@ -4336,7 +4336,7 @@ if ~isempty(sPrmTrack),
   sPrmNew = lObj.trackSetTrackParams(sPrmTrack);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
   %cbkSaveNeeded(lObj,true,'Parameters changed');
-  lObj.set_does_need_save(true,'Parameters changed') ;
+  lObj.setDoesNeedSave(true,'Parameters changed') ;
 end
 
 handles.labelerObj.clear_status();
@@ -4871,7 +4871,7 @@ hlpGTUpdateAxHilite(lObj);
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 %CloseGUI(handles);
 controller = handles.controller ;
-controller.quit_requested() ;
+controller.quitRequested() ;
 
 % function CloseGUI(handles)
 % if hlpSave(handles.labelerObj)
