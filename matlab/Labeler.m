@@ -279,9 +279,12 @@ classdef Labeler < handle
     movieCenterOnTarget = false  % scalar logical.
     movieRotateTargetUp = false
   end
+  properties (Transient)
+    % I don't see where either of these are ever changed -- ALT, 2023-05-14
+    movieCenterOnTargetLandmark = false  % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
+    movieCenterOnTargetIpt = []  % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
+  end
   properties (SetObservable)
-    movieCenterOnTargetLandmark = false; % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
-    movieCenterOnTargetIpt = []; % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieShiftArrowNavMode; % scalar ShiftArrowMovieNavMode
