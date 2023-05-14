@@ -139,10 +139,10 @@ classdef Labeler < handle
   end
 
   %% Project
-  properties (SetObservable)
+  properties
     projname              % init: PN
-    projFSInfo;           % filesystem info
-    projTempDir;          % temp dir name to save the raw label file
+    projFSInfo            % filesystem info
+    projTempDir           % temp dir name to save the raw label file
   end
   properties
     projTempDirDontClearOnDestructor = false; % transient. set to true for eg CI testing
@@ -235,7 +235,7 @@ classdef Labeler < handle
     viewCalibrationDataGTaware % Either viewCalData or viewCalDataGT
     viewCalibrationDataCurrent % view calibration data applicable to current movie (gt aware)
   end
-  properties (SetObservable)
+  properties
     movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
     movieFilesAllGT = {}; % same as .movieFilesAll but for GT mode
   end
@@ -250,7 +250,7 @@ classdef Labeler < handle
     cmax_auto = nan(0,1);
     clim_manual = zeros(0,2);
   end
-  properties (SetObservable,AbortSet)
+  properties
     movieFilesAllHaveLbls = zeros(0,1); % [nmovsetx1] double; actually, "numLbledTgts"
         % How MFAHL is maintained
         % - At project load, it is updated fully.
@@ -262,7 +262,6 @@ classdef Labeler < handle
         %
         % For MultiView, MFAHL is true if any movie in a movieset has
         % labels.
-        
     movieFilesAllGTHaveLbls = false(0,1); % etc
   end
   properties (SetObservable)
@@ -15874,6 +15873,40 @@ classdef Labeler < handle
       backend = obj.trackDLBackEnd ;
       backend.(property_name) = new_value ;  % this can throw if value is invalid
       obj.setDoesNeedSave(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
+    end
+
+    function set.projname(obj, newValue)
+      obj.projname = newValue ;
+      obj.notify('didSetProjname') ;
+    end
+
+    function set.projFSInfo(obj, newValue)
+      obj.projFSInfo = newValue ;
+      obj.notify('didSetProjFSInfo') ;
+    end
+
+    function set.movieFilesAll(obj, newValue)
+      obj.movieFilesAll = newValue ;
+      obj.notify('didSetMovieFilesAll') ;
+    end
+
+    function set.movieFilesAllGT(obj, newValue)
+      obj.movieFilesAllGT = newValue ;
+      obj.notify('didSetMovieFilesAllGT') ;
+    end
+
+    function set.movieFilesAllHaveLbls(obj, newValue)
+      if ~isequal(newValue, obj.movieFilesAllHaveLbls) ,
+        obj.movieFilesAllHaveLbls = newValue ;
+        obj.notify('didSetMovieFilesAllHaveLbls') ;
+      end
+    end
+
+    function set.movieFilesAllGTHaveLbls(obj, newValue)
+      if ~isequal(newValue, obj.movieFilesAllGTHaveLbls) ,
+        obj.movieFilesAllGTHaveLbls = newValue ;
+        obj.notify('didSetMovieFilesAllGTHaveLbls') ;
+      end
     end
   end
 end
