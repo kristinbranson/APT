@@ -143,6 +143,8 @@ classdef Labeler < handle
     didSetMovieFilesAllGT
     didSetMovieFilesAllHaveLbls
     didSetMovieFilesAllGTHaveLbls    
+
+    didSetMovieCenterOnTarget
   end
 
   %% Project
@@ -271,8 +273,10 @@ classdef Labeler < handle
         % labels.
     movieFilesAllGTHaveLbls = false(0,1); % etc
   end
-  properties (SetObservable)
+  properties
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
+  end
+  properties (SetObservable)
     movieCenterOnTarget = false; % scalar logical.
     movieRotateTargetUp = false;
     movieCenterOnTargetLandmark = false; % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
@@ -1455,23 +1459,25 @@ classdef Labeler < handle
       obj.hlpSetCurrPrevFrame(obj.currFrame,true); %#ok<MCSUP>
       clim(obj.gdata.axes_curr,'auto'); %#ok<MCSUP>
     end
+
     function set.movieCenterOnTarget(obj,v)
       obj.movieCenterOnTarget = v;
       if ~v && obj.movieRotateTargetUp %#ok<MCSUP>
         obj.movieRotateTargetUp = false; %#ok<MCSUP>
       end
-      if obj.isinit
-        return;
-      end
-      if v
-        if obj.hasTrx || obj.maIsMA %#ok<MCSUP>
-          obj.videoCenterOnCurrTarget();
-        elseif ~obj.isinit %#ok<MCSUP>
-          warningNoTrace('Labeler:trx',...
-            'The current movie does not have an associated trx file. Property ''movieCenterOnTarget'' will have no effect.');
+      if ~obj.isinit ,
+        if v
+          if obj.hasTrx || obj.maIsMA %#ok<MCSUP>
+            obj.videoCenterOnCurrTarget();
+          elseif ~obj.isinit %#ok<MCSUP>
+            warningNoTrace('Labeler:trx',...
+              'The current movie does not have an associated trx file. Property ''movieCenterOnTarget'' will have no effect.');
+          end
         end
       end
+      obj.notify('didSetMovieCenterOnTarget') ;
     end
+
     function set.movieRotateTargetUp(obj,v)
       if obj.maIsMA && (obj.currTarget==0)
         warningNoTrace('Labeler:MA', 'No labeled target selected. Not rotating');
