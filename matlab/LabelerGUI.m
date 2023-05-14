@@ -836,7 +836,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerN
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieCenterOnTarget',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieRotateTargetUp',@cbkMovieRotateTargetUpChanged);
-listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieForceGrayscale',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'movieViewBGsubbed','PostSet',@cbkMovieViewBGsubbedChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
@@ -2156,7 +2156,7 @@ end
 setGUIMainFigureName(lObj);
 
 function cbkMovieForceGrayscaleChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 tf = lObj.movieForceGrayscale;
 mnu = lObj.gdata.menu_view_converttograyscale;
 mnu.Checked = onIff(tf);

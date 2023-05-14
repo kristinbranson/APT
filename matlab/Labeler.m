@@ -146,6 +146,7 @@ classdef Labeler < handle
 
     didSetMovieCenterOnTarget
     didSetMovieRotateTargetUp
+    didSetMovieForceGrayscale
   end
 
   %% Project
@@ -284,8 +285,10 @@ classdef Labeler < handle
     movieCenterOnTargetLandmark = false  % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
     movieCenterOnTargetIpt = []  % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
   end
+  properties
+    movieForceGrayscale = false  % scalar logical. In future could make [1xnview].
+  end
   properties (SetObservable)
-    movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieShiftArrowNavMode; % scalar ShiftArrowMovieNavMode
   end
@@ -1432,6 +1435,7 @@ classdef Labeler < handle
       assert(isscalar(v) && islogical(v));
       [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
       obj.movieForceGrayscale = v;
+      obj.notify('didSetMovieForceGrayscale') ;
     end
     function set.movieInvert(obj,v)
       assert(islogical(v) && numel(v)==obj.nview); %#ok<MCSUP>
