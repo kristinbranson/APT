@@ -835,7 +835,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerN
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieCenterOnTarget',@cbkMovieCenterOnTargetChanged);
-listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieRotateTargetUpChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieRotateTargetUp',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'movieViewBGsubbed','PostSet',@cbkMovieViewBGsubbedChanged);
@@ -2892,7 +2892,7 @@ if tf,
 end
 
 function cbkMovieRotateTargetUpChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 tf = lObj.movieRotateTargetUp;
 if tf
   ax = lObj.gdata.axes_curr;

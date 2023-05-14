@@ -145,6 +145,7 @@ classdef Labeler < handle
     didSetMovieFilesAllGTHaveLbls    
 
     didSetMovieCenterOnTarget
+    didSetMovieRotateTargetUp
   end
 
   %% Project
@@ -276,9 +277,9 @@ classdef Labeler < handle
   properties
     moviename  % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false  % scalar logical.
+    movieRotateTargetUp = false
   end
   properties (SetObservable)
-    movieRotateTargetUp = false;
     movieCenterOnTargetLandmark = false; % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
     movieCenterOnTargetIpt = []; % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
@@ -1488,19 +1489,20 @@ classdef Labeler < handle
         obj.movieCenterOnTarget = true; %#ok<MCSUP>
       end
       obj.movieRotateTargetUp = v;
-      if obj.isinit
-        return;
-      end
-      if (obj.hasTrx || obj.maIsMA) && obj.movieCenterOnTarget %#ok<MCSUP>
-        obj.videoCenterOnCurrTarget();
-      end
-      if v
-        if ~(obj.hasTrx || obj.maIsMA) && ~obj.isinit %#ok<MCSUP>
-          warningNoTrace('Labeler:trx',...
-            'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
+      if ~obj.isinit ,
+        if (obj.hasTrx || obj.maIsMA) && obj.movieCenterOnTarget %#ok<MCSUP>
+          obj.videoCenterOnCurrTarget();
+        end
+        if v
+          if ~(obj.hasTrx || obj.maIsMA) && ~obj.isinit %#ok<MCSUP>
+            warningNoTrace('Labeler:trx',...
+              'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
+          end
         end
       end
+      obj.notify('didSetMovieRotateTargetUp') ;
     end
+
     function set.targetZoomRadiusDefault(obj,v)
       obj.projPrefs.Trx.ZoomFactorDefault = v;
     end
