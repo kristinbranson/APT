@@ -362,8 +362,8 @@ classdef Labeler < handle
     frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
     tblTrxData = [];          % last-used data in tblTrx
   end
-  properties (Dependent,SetObservable)
-    targetZoomRadiusDefault;
+  properties (Dependent)
+    targetZoomRadiusDefault
   end
   properties (Dependent)
     trxFilesAllFull % like .movieFilesAllFull, but for .trxFilesAll
