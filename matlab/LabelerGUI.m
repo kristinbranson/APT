@@ -3009,7 +3009,7 @@ if handles.labelerObj.doesNeedSave ,
   end    
 end
 
-lObj.set_status('Training...');
+handles.labelerObj.set_status('Training...');
 drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
 if ~tfCanTrain,
