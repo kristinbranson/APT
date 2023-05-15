@@ -172,8 +172,7 @@ classdef InfoTimeline < handle
 %          'labeledpostagGT'},... 
 %         'PostSet',@obj.cbkLabelUpdated);
       
-      listeners{end+1,1} = addlistener(labeler,...
-        {'labels'},'PostSet',@obj.cbkLabelUpdated);
+      listeners{end+1,1} = addlistener(labeler, 'didSetLabels', @obj.cbkLabelUpdated) ;
       listeners{end+1,1} = addlistener(labeler,...
         'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated);
       listeners{end+1,1} = addlistener(labeler,...
@@ -880,17 +879,17 @@ classdef InfoTimeline < handle
     end
 
     
-    function cbkLabelUpdated(obj,src,~) %#ok<INUSD>
-      if ~obj.lObj.isinit
-        obj.setLabelsFull;
+    function cbkLabelUpdated(obj, ~, ~)
+      if ~obj.lObj.isinit ,
+        obj.setLabelsFull() ;
       end
     end
     
-    function cbkNewTrackingResults(obj,src,~)
-      if obj.isDefaultProp() && obj.hasPrediction(),
-        obj.setCurPropTypePredictionDefault();
+    function cbkNewTrackingResults(obj, ~, ~)
+      if obj.isDefaultProp() && obj.hasPrediction() ,
+        obj.setCurPropTypePredictionDefault() ;
       end
-      obj.cbkLabelUpdated(src);
+      obj.cbkLabelUpdated() ;
     end
     
     function cbkSetNumFramesShown(obj,src,evt) %#ok<INUSD>

@@ -114,7 +114,7 @@ classdef TrackingVisualizerTrx < handle
       end
     end
     
-    function bdfTrx(obj,src,evt)
+    function bdfTrx(obj,src,~)
       iTrx = src.UserData;
       obj.trxSelectCbk(iTrx);
     end
@@ -209,7 +209,7 @@ classdef TrackingVisualizerTrx < handle
       end
     end
     
-    function updatePrimary(obj,iTgtPrimary)
+    function updatePrimary(~, ~)
       % none    
     end
     

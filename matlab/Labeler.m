@@ -148,7 +148,8 @@ classdef Labeler < handle
     didSetMovieRotateTargetUp
     didSetMovieForceGrayscale
     didSetMovieInvert
-
+    didSetMovieViewBGsubbed
+    
     didSetTrxFilesAll
     didSetTrxFilesAllGT
 
@@ -159,6 +160,7 @@ classdef Labeler < handle
     didSetShowMaRoi 
     didSetShowMaRoiAux
 
+    didSetLabels
     didSetLabelMode
     didSetLabels2Hide
   end
@@ -1420,13 +1422,13 @@ classdef Labeler < handle
   end
   
   methods % prop access
-    % CONSIDER get rid of setter, use listeners
     function set.labels(obj,v)
       obj.labels = v;
       if ~obj.isinit %#ok<MCSUP> 
         obj.updateTrxTable();
         obj.updateFrameTableIncremental(); 
       end
+      obj.notify('didSetLabels') ;
     end
     function set.labelsGT(obj,v)
       obj.labelsGT = v;
