@@ -836,7 +836,7 @@ listeners{end+1,1} = addlistener(lObj,'didSetMovieRotateTargetUp',@cbkMovieRotat
 listeners{end+1,1} = addlistener(lObj,'didSetMovieForceGrayscale',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieInvert',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieViewBGsubbed',@cbkMovieViewBGsubbedChanged);
-listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLblCore',@(src,evt)(handles.controller.didSetLblCore()));
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'cropIsCropModeChanged',@cbkCropIsCropModeChanged);
 listeners{end+1,1} = addlistener(lObj,'cropUpdateCropGUITools',@cbkUpdateCropGUITools);
@@ -1341,28 +1341,6 @@ switch sel
   case CLOSESTR
     delete(gcf)
 end
-
-function cbkLblCoreChanged(src,evt)
-lObj = evt.AffectedObject;
-lblCore = lObj.lblCore;
-if ~isempty(lblCore)
-  lblCore.addlistener('hideLabels','PostSet',@cbkLblCoreHideLabelsChanged);
-  cbkLblCoreHideLabelsChanged([],struct('AffectedObject',lblCore));
-  if isprop(lblCore,'streamlined')
-    lblCore.addlistener('streamlined','PostSet',@cbkLblCoreStreamlinedChanged);
-    cbkLblCoreStreamlinedChanged([],struct('AffectedObject',lblCore));
-  end
-end
-
-function cbkLblCoreHideLabelsChanged(src,evt)
-lblCore = evt.AffectedObject;
-handles = lblCore.labeler.gdata;
-handles.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
-
-function cbkLblCoreStreamlinedChanged(src,evt)
-lblCore = evt.AffectedObject;
-handles = lblCore.labeler.gdata;
-handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined);
 
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
 tracker = evt.AffectedObject;

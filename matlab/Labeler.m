@@ -166,6 +166,7 @@ classdef Labeler < handle
 
     didSetLabels2ShowCurrTargetOnly
     didSetLastLabelChangeTS
+    didSetLblCore
   end
 
   %% Project
@@ -495,8 +496,8 @@ classdef Labeler < handle
     
     nPhysPoints; % number of physical/3D points
   end
-  properties (SetObservable)
-    lblCore; % init: L
+  properties
+    lblCore  % init: L
   end
   properties
     labeledpos2trkViz % scalar TrackingVisualizer*, or [] if no imported results for currMovie
@@ -15998,6 +15999,11 @@ classdef Labeler < handle
     function set.lastLabelChangeTS(obj, newValue)
       obj.lastLabelChangeTS = newValue ;
       obj.notify('didSetLastLabelChangeTS') ;
+    end
+
+    function set.lblCore(obj, newValue)
+      obj.lblCore = newValue ;
+      obj.notify('didSetLblCore') ;
     end
 
   end
