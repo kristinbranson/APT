@@ -197,7 +197,7 @@ classdef TrkFile < dynamicprops
 
     function add3dpts(obj)
       nfs = obj.endframes-obj.startframes+1;
-      obj.pTrkSingleView = arrayfun(@(x)nan(obj.npts,3,x),nfs,'uni',0);
+      obj.pTrkSingleView = arrayfun(@(x)nan(obj.npts,2,x),nfs,'uni',0);
     end
     
     function initFromArraysFull(obj,ptrk,varargin)

@@ -1499,7 +1499,7 @@ classdef Labeler < handle
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui , 
-        self.handle_creation_time_additional_arguments(varargin{:}) ;
+        obj.handle_creation_time_additional_arguments(varargin{:}) ;
       end
     end
 
