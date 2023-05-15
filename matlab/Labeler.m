@@ -420,15 +420,12 @@ classdef Labeler < handle
                                 % are expected to be in (1..nPhysPts), ie 
                                 % edges defined wrt 3d/physical pts with 
                                 % pts identified across views
-  end
-  properties (SetObservable)
     skelHead = []  % [], or scalar pt index for head. 
                    % Multiview: indices currently expected to be in (1..nPhysPts)
     skelTail = []
     skelNames    % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
                  % NOTE: arguably the "point names" should be. init: C
                  % used to be labeledposSetNames
-
     flipLandmarkMatches = zeros(0,2)  % nPairs x 2 matrix containing indices of vertex landmarks    
   end
   properties % make public setaccess
