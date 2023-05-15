@@ -160,6 +160,7 @@ classdef Labeler < handle
     didSetShowMaRoiAux
 
     didSetLabelMode
+    didSetLabels2Hide
   end
 
   %% Project
@@ -399,8 +400,6 @@ classdef Labeler < handle
   %% Labeling
   properties
     labelMode             % scalar LabelMode. init: C
-  end
-  properties (SetObservable)
     % Multiview. Right now all 3d pts must live in all views, eg
     % .nLabelPoints=nView*NumLabelPoints. first dim of labeledpos is
     % ordered as {pt1vw1,pt2vw1,...ptNvw1,pt1vw2,...ptNvwK}
@@ -408,10 +407,10 @@ classdef Labeler < handle
     labels2  % [nmov] cell array of TrkFile. See notes in %% Labels2 section
     labelsGT 
     labels2GT 
-    
     labelsRoi 
-    
     labels2Hide           % scalar logical
+  end
+  properties (SetObservable)
     labels2ShowCurrTargetOnly   % scalar logical, transient    
     skeletonEdges = zeros(0,2)  % nEdges x 2 matrix containing indices of vertex landmarks
                                 %
@@ -16006,6 +16005,11 @@ classdef Labeler < handle
     function set.labelMode(obj, newValue)
       obj.labelMode = newValue ;
       obj.notify('didSetLabelMode') ;
+    end
+
+    function set.labels2Hide(obj, newValue)
+      obj.labels2Hide = newValue ;
+      obj.notify('didSetLabels2Hide') ;
     end
 
   end
