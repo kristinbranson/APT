@@ -26,6 +26,7 @@ classdef TrkFile < dynamicprops
                                  % this is NOT used for indexing, e.g.
                                  % getPTrkTgt(i) just gives pTrk(:,:,:,i)
 
+%     pTrkSingleView = TrkFile.unsetVal; % For multi-view stuff                           
     % CPR-specific
     pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
     pTrkFullFT = TrkFile.unsetVal; % [nTrkFull x ncol] Frame-Target table labeling 4th dim of pTrkFull
@@ -193,6 +194,11 @@ classdef TrkFile < dynamicprops
       
       obj.isfull = false;
     end
+
+%     function add3dpts(obj)
+%       nfs = obj.endframes-obj.startframes+1;
+%       obj.pTrkSingleView = arrayfun(@(x)nan(obj.npts,2,x),nfs,'uni',0);
+%     end
     
     function initFromArraysFull(obj,ptrk,varargin)
       % 
@@ -510,7 +516,13 @@ classdef TrkFile < dynamicprops
       flds = obj.trkflds();
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         v = obj.(f);
-        if ~iscell(v),
+%         if strcmp(f,'pTrkSingleView') && ~TrkFile.has3Dpts(obj)
+%           % mainly for pTrkSingleView because we don't want to set it
+%           % unless the trkfile has it. The logic is not foolproof or rather completely tested. So if it
+%           % breaks this should be updated. MK 20230515
+%           continue
+%         end
+        if ~iscell(v)
           warning('%s is not a cell',f);
           continue;
         end
@@ -822,7 +834,11 @@ classdef TrkFile < dynamicprops
       
       % 2. initialize new TrkFile with empty trkflds of right size
       % (nan-filled)
+
       objMerged = TrkFile(obj.npts,itgtsun,sfsNew,efsNew,obj.trkflds);
+%       if TrkFile.has3Dpts(obj)
+%         objMerged.add3dpts();
+%       end
      
       % 3. init logical "isset" flag [nrms] indiciating whether frames set
       nfsNew = efsNew-sfsNew+1;      
@@ -862,9 +878,12 @@ classdef TrkFile < dynamicprops
 
             % write trkflds
             for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
-              if ~isprop(objMerged,f),
+              if ~isprop(objMerged,f)
                 objMerged.(f) = cell(1,numel(objMerged.pTrkiTgt));
               end
+%               if strcmp(f,'pTrkSingleView') && ~TrkFile.has3Dpts(o)
+%                 continue;
+%               end
               if any(strcmp(f,flds_ptrk_dim))
                 objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
               else
@@ -1531,7 +1550,12 @@ classdef TrkFile < dynamicprops
       
       t = t0;
     end
+%     function res = has3Dpts(trk)
+%       res = ~(ischar(trk.pTrkSingleView) && strcmp(trk.pTrkSingleView,TrkFile.unsetVal));
+%     end
+
   end
+
   
   methods % table/full utils
     

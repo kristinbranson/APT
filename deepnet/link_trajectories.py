@@ -49,9 +49,9 @@ def angle_span(pcurr,pnext):
   ang_span = min(sp) if len(sp)>1 else 0
   return ang_span
 
-def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force_match=False,t=0):
+def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None, force_match=False):
   """
-  match_frame(pcurr,pnext,idscurr,params,lastid=np.nan)
+  match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None, force_match=False)
   Uses the Hungarian algorithm to match targets tracked in the current
   frame with targets detected in the next frame. The cost of
   assigning target i to detection j is the L1 error between the
@@ -60,7 +60,9 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   it is preferable to kill one trajectory and create another if
   the matching error is > params['maxcost']
   Inputs:
-  nlandmarks x d x ncurr positions of landmarks of nnext animals
+  pcurr: nlandmarks x d x ncurr positions of landmarks of ncurr animals
+  detected in the current frame
+  pnext: nlandmarks x d x nnext positions of landmarks of nnext animals
   detected in the next frame
   idscurr: ncurr array, integer ids of the animals tracked in the
   current frame
@@ -76,9 +78,11 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   params['verbose']: Whether to print out information
   """
   
-  # pcurr: nlandmarks x d x ncurr
-  # pnext: nlandmarks x d x nnext
-  
+  # print('pcurr:', pcurr)
+  # print('pnext:', pnext)
+  # print('params:', params)
+  # print('maxcost:', maxcost)
+
   # check sizes
   nlandmarks = pcurr.shape[0]
   d = pcurr.shape[1]
@@ -91,6 +95,9 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   if maxcost is None:
     maxcost = params['maxcost']
   
+  #print('params:', params)
+  #print('maxcost:', maxcost)
+
   # construct the cost matrix
   # C[i,j] is the cost of matching curr[i] and next[j]
   C = np.zeros((ncurr+nnext, ncurr+nnext))
@@ -98,7 +105,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
   C[ncurr:, nnext:] = 0
   pcurr = np.reshape(pcurr, (d * nlandmarks, ncurr, 1))
   pnext = np.reshape(pnext, (d * nlandmarks, 1, nnext))
-  C1 = np.sum(np.abs(pcurr-pnext), axis=0)/nlandmarks
+  C1 = np.nanmean(np.abs(pcurr-pnext), axis=0)*2
   C[:ncurr, :nnext] = np.reshape(C1, (ncurr, nnext))
 
   strict_match_thres = params['strict_match_thres']
@@ -142,6 +149,7 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None,force
 
 
   # match
+  #print('C:', C)
   idxcurr, idxnext = opt.linear_sum_assignment(C)
 
   costs = C[idxcurr, idxnext]

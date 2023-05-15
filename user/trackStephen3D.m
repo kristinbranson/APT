@@ -47,7 +47,8 @@ for ndx = 1:size(toTrack.movfiles,1)
       baseCmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; %s',...
       gpu_id, baseCmd);
     end
-    cmd_str = DeepTracker.codeGenSingGeneral(baseCmd,net_mode,'bindpath',bindpath);
+    singimg = pick_singularity_image(backend, net_mode) ;    
+    cmd_str = DeepTracker.codeGenSingGeneral(baseCmd,'bindpath',bindpath,'singimg',singimg);
   else
     backend = DLBackEndClass(DLBackEnd.Docker);
     cmd_str = backend.codeGenDockerGeneral(baseCmd,'run1','bindpath',bindpath,...

@@ -1,7 +1,0 @@
-[submodule "deepnet/mmpose"]
-	path = deepnet/mmpose
-	url = https://github.com/open-mmlab/mmpose.git
-[submodule "deepnet/mmdetection"]
-	path = deepnet/mmdetection
-	url = https://github.com/open-mmlab/mmdetection.git
-	ignore = dirty

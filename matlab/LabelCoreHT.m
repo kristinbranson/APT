@@ -210,7 +210,11 @@ classdef LabelCoreHT < LabelCore
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end      
-      
+      if obj.isPanZoom(),
+        return;
+      end
+
+
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
       
@@ -237,6 +241,9 @@ classdef LabelCoreHT < LabelCore
     
     function ptBDF(obj,src,evt) 
       if ~obj.labeler.isReady || evt.Button>1
+        return;
+      end
+      if obj.isPanZoom(),
         return;
       end
 
@@ -273,6 +280,10 @@ classdef LabelCoreHT < LabelCore
       if ~obj.labeler.isReady,
         return;
       end
+      if obj.isPanZoom(),
+        return;
+      end
+
       iPt = obj.iPoint;
       obj.tfOcc(iPt) = true;
       set(obj.hPtsOcc(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));

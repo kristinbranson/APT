@@ -139,7 +139,12 @@ classdef CalRig < handle
       elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
         % Bouget Calib_Results_stereo.mat file
         % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
-        obj = CalRig2CamCaltech(fname);
+        %obj = CalRig2CamCaltech(fname);
+        caltech2cam = CalRig2CamCaltech(fname);
+        s.nviews = 2;
+        s.calibrations = cell(2, 2);
+        s.calibrations{1, 2} = caltech2cam;
+        obj = CalRigNPairwiseCalibrated(s);
 %         tfSetViewRois = true;
       else
         error('CalRig:load',...

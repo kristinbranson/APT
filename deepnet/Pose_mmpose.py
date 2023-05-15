@@ -1,13 +1,15 @@
 import pathlib
 import os
-import sys
-sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(),'mmpose'))
-from mmcv import Config
-from mmpose.models import build_posenet
+#import sys
+#sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(),'mmpose'))
+import mmcv
+#from mmcv import Config
+import mmpose
+#from mmpose.models import build_posenet
 import poseConfig
 import copy
-from mmpose import __version__
-from mmcv.utils import get_git_hash
+#from mmpose import __version__
+#from mmcv.utils import get_git_hash
 from mmpose.datasets import build_dataloader, build_dataset
 import torch
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
@@ -16,18 +18,20 @@ from mmpose.core.distributed_wrapper import DistributedDataParallelWrapper
 from mmpose.core import (DistEvalHook, EvalHook, Fp16OptimizerHook, build_optimizers)
 import logging
 import time
-from PoseCommon_pytorch import PoseCommon_pytorch
-from mmcv.runner import init_dist, set_random_seed
+import PoseCommon_pytorch
+#from PoseCommon_pytorch import PoseCommon_pytorch
+#from mmcv.runner import init_dist, set_random_seed
 import pickle
 import json
-from mmpose.core import wrap_fp16_model
-from mmpose.datasets.pipelines import Compose
-from mmcv.parallel import collate, scatter
+#from mmpose.core import wrap_fp16_model
+#from mmpose.datasets.pipelines import Compose
+#from mmcv.parallel import collate, scatter
 import glob
 from mmcv.utils.config import ConfigDict
 import PoseTools
 from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
 import numpy as np
+import APT_interface
 
 
 ## Topdown dataset
@@ -42,9 +46,10 @@ class TopDownAPTDataset(TopDownCocoDataset):
                  img_prefix,
                  data_cfg,
                  pipeline,
-                 test_mode=False):
+                 test_mode=False,
+                 dataset_info=None):
         # Overriding topdowncoocodataset init code because it is bad and awful with hardcoded values.
-        super(TopDownCocoDataset, self).__init__(ann_file, img_prefix, data_cfg, pipeline, test_mode=test_mode)
+        super(TopDownCocoDataset, self).__init__(ann_file, img_prefix, data_cfg, pipeline, test_mode=test_mode, dataset_info=dataset_info)
         self.use_gt_bbox = data_cfg['use_gt_bbox']
         self.bbox_file = data_cfg['bbox_file']
         self.det_bbox_thr = data_cfg.get('det_bbox_thr', 0.0)
@@ -172,7 +177,13 @@ class APTtransform:
             joints_in = joints[0][...,:2]
             occ_in = joints[0][...,2]
             joints_in[occ_in<0.5,:] = -100000
-            image,joints_out,mask_out,occ = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,mask=mask[0][None,...],occ=occ_in)
+            image,joints_out,mask_out,occ = pt.preprocess_ims(image[np.newaxis,...],
+                                                              joints_in[np.newaxis,...],
+                                                              conf,
+                                                              self.distort,
+                                                              conf.rescale,
+                                                              mask=mask[0][None,...],
+                                                              occ=occ_in)
             image = image.astype('float32')
             joints_out_occ1 = np.isnan(joints_out[0, ..., 0:1]) | (joints_out[0, ..., 0:1] < -1000)
             joints_out_occ = occ<0.5
@@ -208,11 +219,13 @@ class APTtransform:
 
 def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     curdir = pathlib.Path(__file__).parent.absolute()
-    mmdir = os.path.join(curdir,'mmpose')
-    mmpose_config = os.path.join(mmdir,mmpose_config_file)
+    mmpose_init_file_path = mmpose.__file__
+    mmpose_dir = os.path.dirname(mmpose_init_file_path)
+    dot_mim_folder_path = os.path.join(mmpose_dir, '.mim')  # this feels not-robust
+    mmpose_config_file_path = os.path.join(dot_mim_folder_path, mmpose_config_file)
     data_bdir = conf.cachedir
 
-    cfg = Config.fromfile(mmpose_config)
+    cfg = mmcv.Config.fromfile(mmpose_config_file_path)
     default_im_sz = cfg.data_cfg.image_size
     default_hm_sz = cfg.data_cfg.heatmap_size
     cfg.data_cfg.image_size = [int(c / conf.rescale) for c in conf.imsz[::-1]]  # conf.imsz[0]
@@ -236,7 +249,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     cfg.data_cfg.num_output_channels = conf.n_classes
 
     for ttype in ['train', 'val', 'test']:
-        name = ttype if ttype is not 'test' else 'val'
+        #name = ttype if ttype is not 'test' else 'val'
+        name = 'val' if ttype=='test' else ttype  # avoids warning about 'is not' with literal
         fname = conf.trainfilename if ttype == 'train' else conf.valfilename
         cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
         file = os.path.join(data_bdir, f'{fname}.json')
@@ -262,11 +276,18 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         if conf.get('mmpose_use_apt_augmentation',False):
             if ttype =='train':
                 if conf.is_multi:
-                    assert (cfg.data[ttype].pipeline[1].type == 'BottomUpRandomAffine') and (cfg.data[ttype].pipeline[2].type == 'BottomUpRandomFlip'), 'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
+                    assert \
+                        (cfg.data[ttype].pipeline[1].type == 'BottomUpRandomAffine') and \
+                        (cfg.data[ttype].pipeline[2].type == 'BottomUpRandomFlip'), \
+                        'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:3] = []
                     cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
                 else:
-                    assert (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip') and (cfg.data[ttype].pipeline[2].type =='TopDownGetRandomScaleRotation') and (cfg.data[ttype].pipeline[3].type =='TopDownAffine'), 'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
+                    assert \
+                        (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip') and \
+                        (cfg.data[ttype].pipeline[2].type =='TopDownGetRandomScaleRotation') and \
+                        (cfg.data[ttype].pipeline[3].type =='TopDownAffine'), \
+                        'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:4] = []
                     cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
         # else:
@@ -327,7 +348,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         push_fac_mul = nims/(10+nims-rr.count(1))
         for sidx in range(len(cfg.model.keypoint_head.loss_keypoint.with_ae_loss)):
             if cfg.model.keypoint_head.loss_keypoint.with_ae_loss[sidx]:
-                cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] = cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx]* push_fac_mul
+                cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] = \
+                    cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] * push_fac_mul
 
 
     if 'keypoint_head' in cfg.model:
@@ -371,7 +393,32 @@ class TraindataHook(Hook):
             json.dump(json_data, json_file)
 
 
-class Pose_mmpose(PoseCommon_pytorch):
+def get_handler_by_name(logger, name):
+    '''
+    Find the named handler in the given logger.
+    Returns None if no such handler.
+    '''
+    did_find_it = False
+    for handler in logger.handlers:
+        if handler.name == name:
+            return handler
+    return None
+                    
+    
+def rectify_log_level_bang(logger):
+    '''
+    Reset the log level for the "log" handler of the root logger to DEBUG or INFO, depending
+    mmpose.models.build_posenet() seems to bork this, so this function fixes it.
+    '''
+    handler = get_handler_by_name(logger, 'log')
+    if handler:
+        if APT_interface.IS_APT_IN_DEBUG_MODE:
+            handler.setLevel(logging.DEBUG)
+        else:
+            handler.setLevel(logging.INFO)            
+        
+
+class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,name,**kwargs):
         super().__init__(conf,name)
@@ -379,15 +426,20 @@ class Pose_mmpose(PoseCommon_pytorch):
         self.name = name
         mmpose_net = conf.mmpose_net
         if mmpose_net == 'hrnet':
-            self.cfg_file = 'configs/top_down/hrnet/coco/hrnet_w32_coco_256x192.py'
+            #self.cfg_file = 'configs/top_down/hrnet/coco/hrnet_w32_coco_256x192.py'
+            self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w32_coco_256x192.py'
         elif mmpose_net == 'multi_hrnet':
-            self.cfg_file = 'configs/bottom_up/hrnet/coco/hrnet_w32_coco_512x512.py'
+            #self.cfg_file = 'configs/bottom_up/hrnet/coco/hrnet_w32_coco_512x512.py'
+            self.cfg_file = 'configs/wholebody/2d_kpt_sview_rgb_img/associative_embedding/coco-wholebody/hrnet_w32_coco_wholebody_512x512.py'
         elif mmpose_net == 'higherhrnet':
-            self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512.py'
+            #self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512.py'
+            self.cfg_file = 'configs/wholebody/2d_kpt_sview_rgb_img/associative_embedding/coco-wholebody/higherhrnet_w32_coco_wholebody_512x512.py'
         elif mmpose_net == 'higherhrnet_2x':
-            self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512_2xdeconv.py'
+            #self.cfg_file = 'configs/bottom_up/higherhrnet/coco/higher_hrnet32_coco_512x512_2xdeconv.py'
+            raise RuntimeError("MMPose network %s does not seem to be supported in this version of MMPose (%s)" % (mmpose_net, mmpose.__version__) )
         elif mmpose_net =='mspn':
-            self.cfg_file = 'configs/top_down/mspn/coco/mspn50_coco_256x192.py'
+            #self.cfg_file = 'configs/top_down/mspn/coco/mspn50_coco_256x192.py'
+            self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/mspn50_coco_256x192.py'
 
         else:
             assert False, 'Unknown mmpose net type'
@@ -404,11 +456,12 @@ class Pose_mmpose(PoseCommon_pytorch):
         return td_name
 
 
-    def train_wrapper(self,restore=False, model_file=None):
-
+    def train_wrapper(self, restore=False, model_file=None):
         # From mmpose/tools/train.py
+        logger = logging.getLogger()  # the root logger
         cfg = self.cfg
-        model = build_posenet(cfg.model)
+        model = mmpose.models.build_posenet(cfg.model)  # messes up logging!
+        rectify_log_level_bang(logger)
         dataset = [build_dataset(cfg.data.train)]
 
         if len(cfg.workflow) == 2:
@@ -420,7 +473,7 @@ class Pose_mmpose(PoseCommon_pytorch):
             # save mmpose version, config file content
             # checkpoints as meta data
             cfg.checkpoint_config.meta = dict(
-                mmpose_version=__version__ + get_git_hash(digits=7),
+                mmpose_version=mmpose.__version__ + mmcv.utils.get_git_hash(digits=7),
                 config=cfg.pretty_text,
             )
 
@@ -430,10 +483,9 @@ class Pose_mmpose(PoseCommon_pytorch):
         validate = False
         distributed = len(cfg.gpu_ids)>1
         if distributed:
-            init_dist('pytorch', **cfg.dist_params)
+            mmcv.runner.init_dist('pytorch', **cfg.dist_params)
 
         meta = None
-        logger = logging.getLogger()
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
         if model_file is not None:
             cfg.load_from = model_file
@@ -493,7 +545,8 @@ class Pose_mmpose(PoseCommon_pytorch):
             optimizer=optimizer,
             work_dir=cfg.work_dir,
             logger=logger,
-            meta=meta)
+            meta=meta, 
+            max_iters=steps)
         # an ugly workaround to make .log and .log.json filenames the same
         runner.timestamp = timestamp
 
@@ -513,7 +566,11 @@ class Pose_mmpose(PoseCommon_pytorch):
                 optimizer_config = cfg.optimizer_config
 
         # register hooks
-        runner.register_training_hooks(cfg.lr_config, optimizer_config, cfg.checkpoint_config, cfg.log_config, cfg.get('momentum_config', None))
+        runner.register_training_hooks(cfg.lr_config,
+                                       optimizer_config,
+                                       cfg.checkpoint_config,
+                                       cfg.log_config,
+                                       cfg.get('momentum_config', None))
         if distributed:
             runner.register_hook(DistSamplerSeedHook())
 
@@ -542,7 +599,10 @@ class Pose_mmpose(PoseCommon_pytorch):
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
-        runner.run(data_loaders, cfg.workflow, steps)
+        #runner.max_iters = steps    
+        logging.debug("Running the runner...")
+        runner.run(data_loaders, cfg.workflow)
+        logging.debug("Runner is finished running.")
 
 
     def get_latest_model_file(self):
@@ -564,11 +624,11 @@ class Pose_mmpose(PoseCommon_pytorch):
 
         cfg.model.pretrained = None
         cfg.data.test.test_mode = True
-        model = build_posenet(cfg.model)
+        model = mmpose.models.build_posenet(cfg.model)
         fp16_cfg = cfg.get('fp16', None)
         model_file = self.get_latest_model_file() if model_file is None else model_file
         if fp16_cfg is not None:
-            wrap_fp16_model(model)
+            mmpose.core.wrap_fp16_model(model)
 
         _ = load_checkpoint(model, model_file, map_location='cpu')
         logging.info(f'Loaded model from {model_file}')
@@ -576,7 +636,7 @@ class Pose_mmpose(PoseCommon_pytorch):
             model = MMDataParallel(model,device_ids=[0])
         # build part of the pipeline to do the same preprocessing as training
         test_pipeline = cfg.test_pipeline[2:]
-        test_pipeline = Compose(test_pipeline)
+        test_pipeline = mmpose.datasets.pipelines.Compose(test_pipeline)
         device = next(model.parameters()).device
 
         pairs = []

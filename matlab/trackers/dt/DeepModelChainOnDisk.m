@@ -751,23 +751,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{ii} = sprintf('%s_%s.aptsnapshot',obj.modelChainID{icurr},obj.trainID{icurr});
       end
     end
-    function v = singularityImgPath(obj) %#ok<MANU> 
-      % to do: make this a property of each network type
-      v = DeepTracker.SINGULARITY_IMG_PATH;
-%       netModes1 = obj.getNetMode();
-%       isObjDet = false;
-%       for i = 1:numel(netModes1),
-%         if netModes1{i}.isObjDet,
-%           isObjDet = true;
-%           break;
-%         end
-%       end
-%       if isObjDet,
-%         v = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
-%       else
-%         v = DeepTracker.SINGULARITY_IMG_PATH;
-%       end
-    end
     function v = dockerImgPath(obj,backend) %#ok<INUSL> 
       % todo: this should depend on what type of tracker
       v = backend.dockerimgroot;
@@ -1584,7 +1567,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     end
 
-    function s = getCheckSingle(s)
+    function result = getCheckSingle(s)
+      % Checks that all elements of s are the same, in some class-appropriate sense,
+      % and returns the common element.  If s is a cell array, unwraps the common
+      % element before returning it.
       if isempty(s),
         error('input is empty');
       end
@@ -1599,9 +1585,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
             assert(numel(unique(schar))==1);
           end
         end
-        s = s{1};
+        result = s{1};
       elseif ischar(s) || numel(s) == 1,
         % nothing to do
+        result =s ;
       else
         if isnumeric(s),
           assert(numel(unique(s))==1);
@@ -1612,7 +1599,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
             assert(numel(unique(schar))==1);
           end
         end
-        s = s(1);
+        result = s(1);
       end
     end
 

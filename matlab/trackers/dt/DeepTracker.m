@@ -26,10 +26,6 @@ classdef DeepTracker < LabelTracker
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
-  properties (Constant)
-    SINGULARITY_IMG_PATH = '/groups/branson/bransonlab/apt/sif/prod.sif';
-    SINGULARITY_IMG_PATH_DETECT = '/groups/branson/bransonlab/apt/sif/det.sif';
-  end
   properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
     jrcgpuqueue = '';
     jrcnslots = 4;
@@ -48,6 +44,7 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     condaEnv; % = 'APT'; % name of conda environment
     configFileExt;
+    backend
   end
       
     %% train
@@ -247,6 +244,14 @@ classdef DeepTracker < LabelTracker
     end
     function v = get.condaEnv(obj)
       v = obj.lObj.trackDLBackEnd.condaEnv;
+    end
+    function result = get.backend(obj)
+      labeler = obj.lObj ; 
+      if ~isempty(labeler) && isa(labeler, 'handle') && isvalid(labeler) ,
+        result = labeler.trackDLBackEnd ;
+      else
+        result = [] ;
+      end
     end
     function v = get.configFileExt(obj) %#ok<MANU> 
       v = DeepModelChainOnDisk.configFileExt;
@@ -1877,7 +1882,7 @@ classdef DeepTracker < LabelTracker
         [projbps2,ischange] = GetLinkSources(projbps);
         projbps(end+1:end+nnz(ischange)) = projbps2(ischange);
 
-	if backend.type==DLBackEnd.Docker
+      	if backend.type==DLBackEnd.Docker
           % docker writes to ~/.cache. So we need home directory. MK
           % 20220922
           % add in home directory and their ancestors
@@ -1927,11 +1932,13 @@ classdef DeepTracker < LabelTracker
           % not others. 
           aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx);
           extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
-          singimg = dmc.singularityImgPath();
+          singimg = obj.singularityImgPath();
 
+          additionalBsubArgs = backEnd.jrcAdditionalBsubArgs ;
           backEndArgs = {...
             'singargs',{'bindpath',mntPaths,'singimg',singimg},...
-            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName},...
+            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
+                        'additionalArgs', additionalBsubArgs},...
             'sshargs',{'extraprefix',extraprefix}...
             };
 %           singArgs = {'bindpath',mntPaths};
@@ -2455,12 +2462,13 @@ classdef DeepTracker < LabelTracker
 
             % "Outer" codegen
             mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
-            singargs = {'bindpath',mntPaths};
+            singimg = pick_singularity_image(trnBackEnd, netMode) ;
+            singargs = {'bindpath',mntPaths, 'singimg', singimg};
             bsubargs = {'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots ...
-              'outfile' dmcI.trainLogLnx};
+              'outfile' dmcI.trainLogLnx, 'additionalargs', trnBackend.jrcAdditionalBsubArgs};
             sshargs = {};
             codeOuter = dmcI.cmdfileLnx;
-            codeOuter = DeepTracker.codeGenSingGeneral(codeOuter,obj.trnNetMode,singargs{:});
+            codeOuter = DeepTracker.codeGenSingGeneral(codeOuter,singargs{:});
             codeOuter = DeepTracker.codeGenBsubGeneral(codeOuter,bsubargs{:});
             codeOuter = DeepTracker.codeGenSSHGeneral(codeOuter,sshargs{:})
             syscmds{isplit} = codeOuter;            
@@ -3163,7 +3171,7 @@ classdef DeepTracker < LabelTracker
         sshargsuse = [sshargs {'prefix' prefix}];
         
         trksysinfo(ivw).codestr = DeepTracker.trackCodeGenListFileSSHBsubSing(...
-          trksysinfo(ivw),modelChainID,obj.trnNetType,obj.trnNetMode,ivw,...          
+          obj.backend, trksysinfo(ivw),modelChainID,obj.trnNetType,obj.trnNetMode,ivw,...          
           'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargsuse);
       end
@@ -3484,6 +3492,10 @@ classdef DeepTracker < LabelTracker
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
       njobs = numel(jobs);
+      if njobs > length(gpuids) ,
+        warning('Not enough GPUs with enough available memory for the tracking jobs.') ;
+        return 
+      end
 
       cacheDir = obj.lObj.DLCacheDir;
       aptroot = obj.setupBackEndTrain(backend,cacheDir);
@@ -3901,13 +3913,8 @@ classdef DeepTracker < LabelTracker
       moviestr = String.cellstr2DelimList(movfiles,', ');
       %npts = obj.lObj.nPhysPoints;
 
-      if do3dreconcile && nvw>2
-        warning('Triangulation not implemented for > 2 views');
-      end
-
-
-      if do3dreconcile && nvw==2, % TODO change this to work for > 2 views
-        if isempty(vcd),
+      if do3dreconcile && nvw >= 2
+        if isempty(vcd) || (iscell(vcd)&&isempty(vcd{1}))
           if ~isempty(calibrationfile),
             vcd = CalRig.loadCreateCalRigObjFromFile(calibrationfile);
           else
@@ -3926,10 +3933,9 @@ classdef DeepTracker < LabelTracker
           warningNoTrace('Cannot perform 3D postprocessing of %s; could not load trkfiles for views: %s.',moviestr,ivwFailedStr);
           return;
         end
-        trksave = cell(size(trks));
 
         try
-          [trksave{:}] = PostProcess.triangulate(trks{:},...
+          trksave = PostProcess.triangulate(trks,...
             rois,vcd,pp3dtype);
         catch ME
           warningNoTrace('3d postprocessing %s failed: %s',moviestr,ME.getReport());
@@ -4165,7 +4171,7 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
-    function codestr = codeGenSingGeneral(basecmd,netMode,varargin)
+    function codestr = codeGenSingGeneral(basecmd,varargin)
       % Take a base command and run it in a sing img
       DFLTBINDPATH = {
         '/groups/branson/bransonlab'
@@ -4175,14 +4181,9 @@ classdef DeepTracker < LabelTracker
       dobj = DLBackEndClass(1);
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg',DeepTracker.SINGULARITY_IMG_PATH...
+        'singimg',''...
         );
-      if iscell(netMode),
-        netMode = netMode{end};
-      end
-      if netMode.isObjDet
-        singimg = DeepTracker.SINGULARITY_IMG_PATH_DETECT;
-      end
+      assert(~isempty(singimg)) ;
       delete(dobj);
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
@@ -4193,13 +4194,22 @@ classdef DeepTracker < LabelTracker
     
     function plnx = codeGenPathUpdateWin2LnxContainer(pwin,mntloc)
       PAT1 = '^(?<drivelet>[a-zA-Z]):\\';
-      REP1 = sprintf('%s/$<drivelet>/',mntloc);
+      match_struct = regexp(pwin, PAT1, 'names') ;
+      if isempty(match_struct) ,
+        plnx = pwin ;
+      else
+        % We need to lowercase the drive letter for recent (as of April 2023) versions of WSL
+        drive_letter = match_struct.drivelet ;
+        REP1 = sprintf('%s/%s/', mntloc, lower(drive_letter)) ;
+        plnx = regexprep(pwin,PAT1,REP1);
+      end
+      
       PAT2 = '^\\\\(?<server>[^/\\]+)[/\\]';
       REP2 = sprintf('%s/$<server>/',mntloc);
+      plnx = regexprep(plnx,PAT2,REP2);
+      
       PAT3 = '\\';
       REP3 = '/';
-      plnx = regexprep(pwin,PAT1,REP1);
-      plnx = regexprep(plnx,PAT2,REP2);
       plnx = regexprep(plnx,PAT3,REP3);
     end
     
@@ -4208,7 +4218,7 @@ classdef DeepTracker < LabelTracker
       [condaEnv,gpuid] = myparse(varargin,...
         'condaEnv','APT',...
         'gpuid',0);
-      codestr = ['activate ',condaEnv];
+      codestr = synthesize_conda_command(['activate ',condaEnv]);
       if ~isnan(gpuid),
         if ispc,
           envcmd = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
@@ -4220,12 +4230,13 @@ classdef DeepTracker < LabelTracker
       codestr = [codestr,' && ',basecmd];
     end
     function codestr = codeGenBsubGeneral(basecmd,varargin)
-      [nslots,gpuqueue,outfile] = myparse(varargin,...
+      [nslots,gpuqueue,outfile,additionalargs] = myparse(varargin,...
         'nslots',1,...
         'gpuqueue',DeepTracker.default_jrcgpuqueue,...
-        'outfile','/dev/null');
-      codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s',...
-        nslots,gpuqueue,outfile,basecmd);      
+        'outfile','/dev/null', ...
+        'additionalargs', '');
+      codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s %s',...
+        nslots,gpuqueue,outfile,additionalargs,basecmd);      
     end
     function [codestr,containerName] = trainCodeGenDocker(backend,...
         fileinfo,trainType,...
@@ -4382,10 +4393,12 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      
+      backend = obj.lObj.trackDLBackEnd ;
+      singimg = pick_singularity_image(backend, fileinfo.netMode) ;
+      singimg = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;
       baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trainCodeGen(fileinfo,baseargs{:});      
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netMode,singargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
     function codestr = trainCodeGenBsubSing(fileinfo,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
@@ -4715,45 +4728,6 @@ classdef DeepTracker < LabelTracker
       
     end
     
-    function codestr = dataAugCodeGenSSHBsubSing(ID,dlconfigfile,cache,errfile,...
-        netType,netMode,outfile,varargin)
-
-      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{},...
-        'bsubargs',{},...
-        'sshargs',{});
-      remotecmd = DeepTracker.dataAugCodeGenBsubSing(ID,dlconfigfile,cache,...
-        errfile,netType,netMode,outfile,...
-        'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
-      codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
-    end
-    
-    function codestr = dataAugCodeGenBsubSing(ID,dlconfigfile,cache,errfile,...
-        netType,netMode,outfile,varargin)
-     
-      [baseargs,singargs,bsubargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{},...
-        'bsubargs',{});
-      basecmd = DeepTracker.dataAugCodeGenSing(ID,dlconfigfile,cache,errfile,...
-        netType,netMode,outfile,'baseargs',baseargs,'singargs',singargs);
-      codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
-      
-    end
-    
-    function codestr = dataAugCodeGenSing(ID,dlconfigfile,cache,errfile,...
-        netType,netMode,outfile,varargin)
-      [baseargs,singargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{});
-      baseargs = [baseargs {'ignore_local',1}];
-
-      basecmd = DeepTracker.dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-        netType,outfile,baseargs{:});
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,netMode,singargs{:});
-    end
-    
     function [codestr] = dataAugCodeGenDocker(backend,...
         ID,dlconfigfile,cache,errfile,netType,outfile,varargin)
       
@@ -4877,24 +4851,27 @@ classdef DeepTracker < LabelTracker
         'host',venvHost,'logfile',logFile);
     end
     
-    function codestr = trackCodeGenSing(fileinfo,frm0,frm1,varargin)
+    function codestr = trackCodeGenSing(backend, fileinfo,frm0,frm1,varargin)
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
       baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,fileinfo.netMode,singargs{:});
+      singimg = pick_singularity_image(backend, fileinfo.netMode) ;
+      singargs2 = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;
+      codestr = DeepTracker.codeGenSingGeneral(basecmd, singargs2{:});
     end
-    function codestr = trackCodeGenBsubSing(fileinfo,frm0,frm1,varargin)
+
+    function codestr = trackCodeGenBsubSing(backend, fileinfo,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{});
-      basecmd = DeepTracker.trackCodeGenSing(fileinfo,frm0,frm1,'baseargs',baseargs,'singargs',singargs);
+      basecmd = DeepTracker.trackCodeGenSing(backend, fileinfo,frm0,frm1,'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end
     
-    function codestr = trackCodeGenSSHBsubSing(fileinfo,frm0,frm1,varargin)
+    function codestr = trackCodeGenSSHBsubSing(backend, fileinfo,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
@@ -4903,12 +4880,12 @@ classdef DeepTracker < LabelTracker
         );
       baseargs = [baseargs {'cache' fileinfo.cache}];      
             
-      remotecmd = DeepTracker.trackCodeGenBsubSing(fileinfo,frm0,frm1,...
+      remotecmd = DeepTracker.trackCodeGenBsubSing(backend, fileinfo,frm0,frm1,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
     
-    function codestr = trackCodeGenListFileSSHBsubSing(trksysinfo,...
+    function codestr = trackCodeGenListFileSSHBsubSing(backend, trksysinfo,...
         trnID,nettype,netmode,view,varargin)
       
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
@@ -4926,7 +4903,9 @@ classdef DeepTracker < LabelTracker
 
       codebase = DeepTracker.trackCodeGenBaseListFile(trnID,cache,dlconfigfile,...
         outfile,errfile,nettype,view,listfile,baseargs{:});
-      codesing = DeepTracker.codeGenSingGeneral(codebase,netmode,singargs{:});
+      singimg = pick_singularity_image(backend, netmode) ;
+      singargs2 = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;      
+      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs2{:});
       codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end    
@@ -5657,4 +5636,11 @@ classdef DeepTracker < LabelTracker
     end
   end  
   
+  methods
+    function result = singularityImgPath(obj)
+      backend = obj.backend ;  %#ok<PROP> 
+      result = backend.singularity_image_path ;  %#ok<PROP> 
+    end
+  end    
+
 end

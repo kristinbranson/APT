@@ -131,6 +131,7 @@ classdef Labeler < handle
     moviesReordered
     
     dataImported
+    update_does_need_save
   end
       
   
@@ -187,7 +188,7 @@ classdef Labeler < handle
     
     projVerbose = 0; % transient, unmanaged
     
-    isgui = true; % whether there is a GUI
+    isgui = false; % whether there is a GUI
     unTarLoc = ''; % location that project has most recently been untarred to
     
     projRngSeed = 17;
@@ -307,6 +308,8 @@ classdef Labeler < handle
     nmoviesGT;
     nmoviesGTaware;
     moviesSelected; % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
+    does_need_save
+    why_does_need_save
   end
   
   %% Crop
@@ -416,7 +419,10 @@ classdef Labeler < handle
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
     lastLabelChangeTS     % last time training labels were changed
-    needsSave; 
+  end
+  properties (Transient)  % private by convention
+    does_need_save_ = false
+    why_does_need_save_ = ''  % a string describing the reason for the latest setting of does_need_save to true
   end
   properties (Dependent,Hidden)
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
@@ -1486,36 +1492,38 @@ classdef Labeler < handle
   methods 
   
     function obj = Labeler(varargin)
-      % lObj = Labeler();
-      
-      %APT.setpathsmart;
-
-      [obj.isgui,projfile, replace_path] = myparse_nocheck(varargin,...
-        'isgui',true,'projfile',[],...
-        'replace_path',{'',''});
-      starttime = tic;
+      isgui = ...
+        myparse_nocheck(varargin, ...
+                        'isgui',false);
+      obj.isgui = isgui ;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
-      obj.hFig = LabelerGUI(obj);
-      obj.tvTrx = TrackingVisualizerTrx(obj);
-      fprintf('Opening GUI took %f s\n',toc(starttime));
-      if projfile
-        obj.projLoad(projfile,'replace_path',replace_path);
+      if ~isgui , 
+        obj.handle_creation_time_additional_arguments(varargin{:}) ;
       end
     end
-     
+
+    function register_figure(self, hFig)
+      % This function is a temporary hack.  The long-term goal is to get rid of both
+      % the hFig and the the txTrx properties, b/c the model shouldn't need to
+      % directly talk to either of those.
+      self.isgui = true ;
+      self.hFig = hFig ;
+      self.tvTrx = TrackingVisualizerTrx(self);
+    end
+
+    function handle_creation_time_additional_arguments(self, varargin)
+      [projfile, replace_path] = ...
+        myparse_nocheck(varargin, ...
+                        'projfile',[], ...
+                        'replace_path',{'',''}) ;
+      if projfile ,
+        self.projLoad(projfile, 'replace_path', replace_path) ;
+      end      
+    end
+
     function delete(obj)
-% re: 180730        
-%       if isvalid(obj.hFig)  % isvalid will fail if obj.hFig is empty
-%         close(obj.hFig);
-%         obj.hFig = [];
-%       end     
-      if ~isempty(obj.hFig) && isvalid(obj.hFig)
-        gd = obj.gdata;
-        deleteValidHandles(gd.depHandles);      
-        deleteValidHandles(obj.hFig);
-        obj.hFig = [];
-      end
+      obj.hFig = [] ;  % controller will delete
       be = obj.trackDLBackEnd;
       if ~isempty(be)
         be.shutdown();
@@ -2024,7 +2032,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
-      obj.needsSave = false;
+      obj.does_need_save_ = false;
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
@@ -2084,7 +2092,7 @@ classdef Labeler < handle
         save(fname,'-mat','-struct','s');
       end
       obj.labeledposNeedsSave = false;
-      obj.needsSave = false;
+      obj.does_need_save_ = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
       RC.saveprop('lastLblFile',fname);      
@@ -2227,7 +2235,10 @@ classdef Labeler < handle
       % objects need sanitation and ii) conceptually the serialized object
       % does not share handle identity with other 'live' handles to obj.
       if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd)
-        s.trackDLBackEnd = s.trackDLBackEnd.copyAndDetach();
+        backend = s.trackDLBackEnd.copyAndDetach();
+        % And now replace it with a structure, b/c saving custom objects is fraught.
+        container = encode_for_persistence(backend) ;
+        s.trackDLBackEnd = container ;
       end
       
       switch obj.labelMode
@@ -2373,6 +2384,22 @@ classdef Labeler < handle
       s = load(tlbl,'-mat');
       warning([warnst0 warnst1]);
 
+      % ALT 2023-05-02      
+      % Sometimes trackDLBackEnd is a DLBackEndClass object, because history.  
+      % If that's the case, we just pass it through.  It will get rectified when the
+      % project is next saved.
+      if isfield(s, 'trackDLBackEnd') ,
+        backend_thang = s.trackDLBackEnd ;
+        if is_an_encoding_container(backend_thang) ,
+          backend = decode_encoding_container(backend_thang) ;
+        elseif isa(backend_thang, 'DLBackEndClass') ,
+          backend = backend_thang ;
+        else
+          error('Don''t know how to decode something of class %s', class(baackend_thang)) ;
+        end
+        s.trackDLBackEnd = backend ;
+      end
+
       if ~all(isfield(s,{'VERSION' 'movieFilesAll'}))
         obj.lerror('Labeler:load','Unexpected contents in Label file.');
       end
@@ -2508,7 +2535,7 @@ classdef Labeler < handle
 %       obj.labelingInit();
 
       obj.labeledposNeedsSave = false;
-      obj.needsSave = false;
+      obj.does_need_save_ = false;
 %       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
@@ -2737,7 +2764,7 @@ classdef Labeler < handle
       %obj.trackParams = [];
       
       obj.labeledposNeedsSave = true;
-      obj.needsSave = true;     
+      obj.does_need_save_ = true;     
       
       obj.lblCore.init(newnphyspts,obj.labelPointsPlotInfo);
 %       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
@@ -3514,10 +3541,10 @@ classdef Labeler < handle
       % update interim/dev MA-BU projs
       for i=1:numel(s.trackerClass)
         if numel(s.trackerClass{i})==3 && ...
-           strcmp(s.trackerClass{i}{1},'DeepTracker') && ...
-           s.trackerClass{i}{3}==DLNetType.multi_mdn_joint_torch         
-           s.trackerClass{i}([1 4 5]) = ...
-             {'DeepTrackerBottomUp' 'trnNetMode' DLNetMode.multiAnimalBU};
+            strcmp(s.trackerClass{i}{1},'DeepTracker') && ...
+            (~isempty(s.trackerClass{i}{3}) && s.trackerClass{i}{3}==DLNetType.multi_mdn_joint_torch) ,
+          s.trackerClass{i}([1 4 5]) = ...
+            {'DeepTrackerBottomUp' 'trnNetMode' DLNetMode.multiAnimalBU};
         end
       end
       [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),...
@@ -3614,7 +3641,7 @@ classdef Labeler < handle
 %         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       % 20181215 factor dlbackend out of DeepTrackers into single/common
       % prop on Labeler
-      if ~isfield(s,'trackDLBackEnd')
+      if ~isfield(s,'trackDLBackEnd') || ~isa(s.trackDLBackEnd, 'DLBackEndClass') ,
         % maybe change this by looking thru existing trackerDatas
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       end
@@ -6805,7 +6832,7 @@ classdef Labeler < handle
       
       movs = tblMFT.mov;
       mfaf1 = obj.movieFilesAllFullGTaware(:,1);
-      [tf,iMov] = ismember(movs,mfaf1); % iMov are movie indices
+      [tf,iMov] = ismember(movs(:,1),mfaf1); % iMov are movie indices
       if ~all(tf)
         movsbad = unique(movs(~tf));
         obj.lerror('Movies not found in project: %s',...
@@ -11443,7 +11470,7 @@ classdef Labeler < handle
       silent = myparse(varargin,'silent',false) | obj.silent;
       dotrain = true;
       sPrm = obj.trackGetParams();
-      [is_ma,is2stage,is_ma_net,stage] = ParameterVisualizationMemory.getStage(obj,'');
+      [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(obj,'');
       imsz = ParameterVisualizationMemory.getProjImsz(...
         obj,sPrm,is_ma,is2stage,1);
       [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
@@ -11451,33 +11478,69 @@ classdef Labeler < handle
       imsz = imsz/ds;
       mem_need = get_network_size(nettype,imsz,bsz,is_ma_net);
       try
-        [gpuid,freemem,gpuInfo] = obj.trackDLBackEnd.getFreeGPUs(1);
+        [~, freemem] = obj.trackDLBackEnd.getFreeGPUs(1);
       catch
-        return
+        if ~silent ,
+          qstr = [ 'Unable to get information about free GPUs.  ' ....
+                   'Training will be done on the CPU, which will likely be slow.  ' ...
+                   'Do you still want to train?' ] ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
+        end
+        return          
       end
-      if (mem_need>0.9*freemem) && ~silent;
-        qstr = sprintf('The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB). It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling to prevent training from crashing. Do you still want to train?',freemem,round(mem_need));
-        res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-        if ~strcmpi(res,'Yes')
-          dotrain = false;
+      if ~silent ,
+        if isempty(freemem) ,
+          qstr = [ 'There do not seem to be any GPUs available.  ' ....
+                   'Training will be done on the CPU, which will likely be slow.  ' ...
+                   'Do you still want to train?' ] ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end          
+        elseif (mem_need>0.9*freemem) ,
+          qstr = ...
+            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
+                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
+                     'to prevent training from crashing. Do you still want to train?'], ...
+                    freemem, ...
+                    round(mem_need)) ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
         end
       end
-
-      if ~is2stage || ~dotrain, return; end
-
-       % check for 2nd stage
+      
+      if ~is2stage || ~dotrain, 
+        return
+      end
+      
+      % check for 2nd stage
       imsz = ParameterVisualizationMemory.getProjImsz(...
         obj,sPrm,is_ma,is2stage,2);
       [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
         obj,sPrm,is_ma,is2stage,2);
       imsz = imsz/ds;
       mem_need = get_network_size(nettype,imsz,bsz,false);
-
-      if (mem_need>0.9*freemem) && ~silent;
-        qstr = sprintf('The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB). It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling to prevent training from crashing. Do you still want to train?',freemem,round(mem_need));
-        res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-        if ~strcmpi(res,'Yes')
-          dotrain = false;
+      if ~silent ,
+        if isempty(freemem) ,
+          % If we get here, we must have already told the user above that there are
+          % not GPUs available, and they must have said to proceed.  So no need to
+          % ask again.
+        elseif (mem_need>0.9*freemem) ,
+          qstr = ...
+            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
+                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
+                     'to prevent training from crashing. Do you still want to train?'], ...
+            freemem, ...
+            round(mem_need)) ;
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
         end
       end
     end
@@ -15817,4 +15880,42 @@ classdef Labeler < handle
     
   end
 
+  methods
+    function value = get.does_need_save(self)
+      value = self.does_need_save_ ;
+    end
+
+    function set_does_need_save(self, new_value, why)
+      % Can't have a normal setter b/c of the why string.
+      if islogical(new_value) && isscalar(new_value) ,
+        self.does_need_save_ = new_value ;
+        if ~exist('why', 'var') || isempty(why) ,
+          why = 'Save needed' ;
+        end
+        if new_value ,
+          self.why_does_need_save_ = why ;
+        else
+          self.why_does_need_save_ = '' ;
+        end
+      else
+        raise('APT:invalid_value', 'Illegal value for does_need_save') ;
+      end
+      self.notify('update_does_need_save') ;
+    end
+
+    function value = get.why_does_need_save(self)
+      value = self.why_does_need_save_ ;
+    end
+
+    function value = get_backend_property(self, property_name)
+      backend = self.trackDLBackEnd ;
+      value = backend.(property_name) ;
+    end
+
+    function set_backend_property(self, property_name, new_value)
+      backend = self.trackDLBackEnd ;
+      backend.(property_name) = new_value ;  % this can throw if value is invalid
+      self.set_does_need_save(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
+    end
+  end
 end
