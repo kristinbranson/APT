@@ -303,21 +303,13 @@ classdef APTInterf
 
       % output is the final stage trk file
       trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
-<<<<<<< HEAD
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile)
-        code = [code {'-list_file' [filequote totrackinfo.listfile filequote]}];
-        code = [code {'-out'} DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.listoutfiles,filequote)];
-=======
-      code = [code {'-out'} escape_cellstring_for_bash(linux_path(trkfiles(movidx,:,:)))];
-
-      % convert to frms, trxids
-      if ~isempty(totrackinfo.listfile),
         code = [code {'-list_file' escape_string_for_bash(totrackinfo.listfile)}];
->>>>>>> 33c2a86d6697501652aedbcb99c39b0ef549bc8e
+        code = [code {'-out'} escape_cellstring_for_bash(linux_path(totrackinfo.listoutfiles))];
       else
-        code = [code {'-out'} DeepTracker.cellstr2SpaceDelimWithQuote(trkfiles(movidx,:,:),filequote)];
+        code = [code {'-out'} escape_cellstring_for_bash(linux_path(trkfiles(movidx,:,:)))];
         if sum(nextra) > 0,
           warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
         end
