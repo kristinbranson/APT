@@ -147,6 +147,7 @@ classdef Labeler < handle
     didSetMovieCenterOnTarget
     didSetMovieRotateTargetUp
     didSetMovieForceGrayscale
+    didSetMovieInvert
   end
 
   %% Project
@@ -291,21 +292,21 @@ classdef Labeler < handle
     movieShiftArrowNavMode  % scalar ShiftArrowMovieNavMode
   end
   properties (SetAccess=private)
-    movieShiftArrowNavModeThresh; % scalar double. This is separate prop from the ShiftArrowMode so it persists even if the ShiftArrowMode changes.
+    movieShiftArrowNavModeThresh  % scalar double. This is separate prop from the ShiftArrowMode so it persists even if the ShiftArrowMode changes.
   end
-  properties (SetObservable)
-    movieShiftArrowNavModeThreshCmp; % char, eg '<' or '>='
-    moviePlaySegRadius; % scalar int
-    moviePlayFPS; 
-    movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted 
+  properties
+    movieShiftArrowNavModeThreshCmp  % char, eg '<' or '>='
+    moviePlaySegRadius  % scalar int
+    moviePlayFPS  
+    movieInvert  % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted 
                  % on platform A wrt platform B
       % Not much care is taken wrt interactions with cropInfo. If you 
       % change your .movieInvert, then your crops will likely be wrong.
       % A warning is thrown but nothing else
-    
-    movieViewBGsubbed = false; % transient
-    
-    movieIsPlaying = false;
+  end
+  properties (SetObservable)    
+    movieViewBGsubbed = false  % transient    
+    movieIsPlaying = false
   end
   properties (Dependent)
     isMultiView;
@@ -1431,28 +1432,39 @@ classdef Labeler < handle
       end
     end
     function set.movieForceGrayscale(obj,v)
-      assert(isscalar(v) && islogical(v));
-      [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
-      obj.movieForceGrayscale = v;
-      obj.notify('didSetMovieForceGrayscale') ;
-    end
-    function set.movieInvert(obj,v)
-      assert(islogical(v) && numel(v)==obj.nview); %#ok<MCSUP>
-      movieInvert0 = obj.movieInvert;
-      if ~isequal(movieInvert0,v)
-        mrs = obj.movieReader; %#ok<MCSUP>
-        for i=1:obj.nview %#ok<MCSUP>
-          mrs(i).flipVert = v(i);
-        end
-        if ~obj.isinit %#ok<MCSUP>
-          obj.preProcNonstandardParamChanged();
-          if obj.cropProjHasCrops %#ok<MCSUP>
-            warningNoTrace('Project cropping will NOT be inverted/updated. Please check your crops.')
-          end
-        end
-        obj.movieInvert = v;
+      if isscalar(v) && islogical(v) ,
+        [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
+        obj.movieForceGrayscale = v;
+        obj.notify('didSetMovieForceGrayscale') ;
+      else
+        obj.notify('didSetMovieForceGrayscale') ;
+        error('APT:invalidValue', 'Invalid value for movieForceGrayscale') ;
       end
     end
+
+    function set.movieInvert(obj,v)
+      if islogical(v) && numel(v)==obj.nview , %#ok<MCSUP>
+        movieInvert0 = obj.movieInvert;
+        if ~isequal(movieInvert0,v)
+          mrs = obj.movieReader; %#ok<MCSUP>
+          for i=1:obj.nview %#ok<MCSUP>
+            mrs(i).flipVert = v(i);
+          end
+          if ~obj.isinit %#ok<MCSUP>
+            obj.preProcNonstandardParamChanged();
+            if obj.cropProjHasCrops %#ok<MCSUP>
+              warningNoTrace('Project cropping will NOT be inverted/updated. Please check your crops.')
+            end
+          end
+          obj.movieInvert = v;
+        end
+        obj.notify('didSetMovieInvert') ;
+      else        
+        obj.notify('didSetMovieInvert') ;
+        error('APT:invalidValue', 'Invalid value for movieInvert') ;
+      end
+    end
+
     function set.movieViewBGsubbed(obj,v)
       assert(isscalar(v) && islogical(v));
       if v

@@ -837,7 +837,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNF
 listeners{end+1,1} = addlistener(lObj,'didSetMovieCenterOnTarget',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieRotateTargetUp',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieForceGrayscale',@cbkMovieForceGrayscaleChanged);
-listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieInvert',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'movieViewBGsubbed','PostSet',@cbkMovieViewBGsubbedChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
@@ -2162,7 +2162,7 @@ mnu = lObj.gdata.menu_view_converttograyscale;
 mnu.Checked = onIff(tf);
 
 function cbkMovieInvertChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 figs = lObj.gdata.figs_all;
 setGUIFigureNames(lObj.gdata,lObj,figs);
 setMainAxesName(lObj.gdata,lObj);
