@@ -606,6 +606,23 @@ def merge_close(trk, params):
 
   logging.info(f'Removing {rm_count} out of {orig_count} trajectories by merging them into other trajectories that are close')
 
+def estimate_motion_stats(trk,st,en):
+  mpred_stats = []
+  for ndx in range(500):
+    while True:
+      it = np.random.randint(trk.ntargets)
+      if st[it]<=(en[it]-3): break
+    ix = np.random.randint(st[it],en[it]-2)
+    sp = trk.gettargetframe(it,np.arange(ix, ix + 3))[...,0]
+    vmag = np.linalg.norm(sp[..., 0] - sp[..., 1], axis=1).mean(axis=0)
+    mpred = 2 * sp[..., 1] - sp[..., 0]
+    merror = np.linalg.norm(sp[..., 2] - mpred, axis=1).mean(axis=0)
+    mpred_stats.append([vmag, merror, ix, it])
+
+  mpred_stats = np.array(mpred_stats)
+  vel_mag_eps = np.percentile(mpred_stats[:, 0], 90)
+  return vel_mag_eps
+
 
 def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1):
   if type(trks) not in [list,tuple]:
@@ -956,6 +973,132 @@ def nonmax_supp(trk, params):
       pcurr[...,0,to_remove] = np.nan
       trk.setframe(pcurr,t)
 
+def check_motion_link(p1, p2, p3, vel_mag_eps, pred_error_thresh):
+  vmag = np.linalg.norm(p1 - p2, axis=1).mean(axis=0)
+  mpred = 2 * p1 - p2
+  d2pred = np.linalg.norm(mpred[..., None] - p3, axis=1).mean(axis=0)
+  match_ndx = None
+  if d2pred.min() / (vmag + vel_mag_eps) < pred_error_thresh:
+    if d2pred.size == 1:
+      # if there is only one, then link
+      match_ndx = 0
+    else:
+      zx = d2pred.copy()
+      zx.sort()
+      if (zx[1] / zx[0]) > 2:
+        # link only if the next closest match is more than 2x away
+        match_ndx = np.argmin(d2pred)
+  return match_ndx, d2pred/(vmag+vel_mag_eps)
+
+def merge_ids(id1, id2, t0s, t1s, ids):
+  use_ndx, overwrite_ndx = [id1, id2] if id1 > id2 else [id2, id1]
+  idx_m = ids.where(overwrite_ndx)
+  for mx in zip(*idx_m):
+    ids.settargetframe(use_ndx, mx[0], mx[1])
+  t0s[overwrite_ndx] = -100
+  t1s[overwrite_ndx] = -100
+  t0s[use_ndx] = min(t0s[overwrite_ndx], t0s[use_ndx])
+  t1s[use_ndx] = max(t1s[overwrite_ndx], t1s[use_ndx])
+  return use_ndx
+
+
+def motion_link(trk,ids,T,t0s,t1s,params):
+
+  mpred_stats = []
+  for ndx in range(200):
+    ix = np.random.randint(int(T) - 3)
+    pp = trk.getframe(np.arange(ix, ix + 3))
+    ii = ids.getframe(np.arange(ix, ix + 3))[0]
+    for i in ii[0]:
+      if i == -1: continue
+      ixx = np.where(ii == i)
+      if len(ixx[0]) < 3: continue
+      sp = pp[..., ixx[0], ixx[1]]
+      vmag = np.linalg.norm(sp[..., 0] - sp[..., 1], axis=1).mean(axis=0)
+      mpred = 2 * sp[..., 1] - sp[..., 0]
+      merror = np.linalg.norm(sp[..., 2] - mpred, axis=1).mean(axis=0)
+      mpred_stats.append([vmag, merror, ix, i])
+
+  mpred_stats = np.array(mpred_stats)
+  vel_mag_eps = np.percentile(mpred_stats[:, 0], 90)
+  pred_error_thresh = np.percentile(mpred_stats[:, 1] / (mpred_stats[:, 0] + vel_mag_eps), 90)
+
+  cur_ndx = 0
+  mcount = 0
+  zcount = 0
+  fcount = 0
+  rcount = 0
+  pqq = []
+  zqqf = []
+  zqqr = []
+  nids = len(t0s)
+  while cur_ndx < nids:
+    pqq.append(cur_ndx)
+    use_ndx = cur_ndx
+    matched = False
+    if (t0s[use_ndx] == t1s[use_ndx]) or (t0s[use_ndx] < 0):
+      cur_ndx += 1
+      continue
+    idx = ids.where(use_ndx)
+    if not np.all(np.diff(idx[1]) == 1):
+      idx = list(idx)
+      ff = np.argsort(idx[1])
+      idx[1] = idx[1][ff]
+      idx[0] = idx[0][ff]
+    assert (np.all(np.diff(idx[1]) == 1))
+    assert (np.min(idx[1]) == t0s[cur_ndx])
+    assert (np.max(idx[1]) == t1s[cur_ndx])
+    etrks = np.where(t1s == (t0s[use_ndx] - 1))[0]
+    strks = np.where(t0s == (t1s[use_ndx] + 1))[0]
+    if len(etrks) == 0 and len(strks) == 0:
+      zcount += 1
+    if len(etrks) > 0:
+      p1 = trk.gettargetframe(idx[0][0], idx[1][0])[..., 0, 0]
+      p2 = trk.gettargetframe(idx[0][1], idx[1][1])[..., 0, 0]
+      p3 = trk.getframe(t0s[cur_ndx] - 1)[..., 0, :]
+      ids_prev = ids.getframe(t0s[cur_ndx] - 1)[0, 0]
+      sel_prev = [ndx for ndx, ii in enumerate(ids_prev) if ii in etrks]
+      assert (len(sel_prev) == len(etrks))
+      p3 = p3[..., sel_prev]
+
+      match_idx, z = check_motion_link(p1, p2, p3, vel_mag_eps, pred_error_thresh)
+      zqqf.append([cur_ndx,z.min()])
+      if match_idx is not None:
+        match_ndx = ids_prev[sel_prev[match_idx]]
+        use_ndx = merge_ids(use_ndx, match_ndx, t0s, t1s, ids)
+        matched = True
+        mcount += 1
+      else:
+        fcount += 1
+    if len(strks) > 0:
+      p1 = trk.gettargetframe(idx[0][-1], idx[1][-1])[..., 0, 0]
+      p2 = trk.gettargetframe(idx[0][-2], idx[1][-2])[..., 0, 0]
+      p3 = trk.getframe(t1s[cur_ndx] + 1)[..., 0, :]
+      ids_prev = ids.getframe(t1s[cur_ndx] + 1)[0, 0]
+      sel_prev = [ndx for ndx, ii in enumerate(ids_prev) if ii in strks]
+      assert (len(sel_prev) == len(strks))
+      p3 = p3[..., sel_prev]
+
+      match_idx, z = check_motion_link(p1, p2, p3, vel_mag_eps, pred_error_thresh)
+      zqqr.append(z.min())
+      if match_idx is not None:
+        match_ndx = ids_prev[sel_prev[match_idx]]
+        use_ndx = merge_ids(use_ndx, match_ndx, t0s, t1s, ids)
+        matched = True
+        mcount += 1
+      else:
+        rcount += 1
+
+    if matched:
+      assert (use_ndx >= cur_ndx)
+      if use_ndx > cur_ndx:
+        cur_ndx += 1
+        # print(f'{cur_ndx}')
+    else:
+      cur_ndx += 1
+
+  a = 3
+
 
 def link_pure(trk, conf, do_delete_short=False):
   """
@@ -1007,6 +1150,8 @@ def link_pure(trk, conf, do_delete_short=False):
     t0s[id] = np.min(idx[1])
     t1s[id] = np.max(idx[1])
 
+  motion_link(trk,ids,T,t0s,t1s,params)
+
   # isdummy = np.zeros((ids.ntargets,ids.T),dtype=bool)
   isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, ids.T))
   isdummy.allocate((1,), t0s, t1s)
@@ -1041,7 +1186,7 @@ def link_trklets(trk_files, conf, movs, out_files):
   if conf.link_id:
     conf1 = copy.deepcopy(conf)
     if conf1.link_id_cropsz<0:
-      ww = conf1.multi_animal_crop_sz
+      ww = int(conf1.multi_animal_crop_sz/2*1.2)
     else:
       ww = conf1.link_id_cropsz
     conf1.imsz = [ww,ww]
@@ -1179,7 +1324,7 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   return trk
 
 
-def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
+def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method='motion',save_debug_data=False):
   '''
   Link traj. based on identity
   :param trks:
@@ -1213,14 +1358,21 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None):
     id_classifier = load_id_wts(id_wts)
   else:
   # generate the training images
-    train_data = get_id_train_images(trks, all_trx, mov_files, conf)
+    train_data_args = [trks, all_trx, mov_files, conf]
+    # train_data = get_id_train_images(trks, all_trx, mov_files, conf)
     wt_out_file = out_files[0].replace('.trk','_idwts.p')
     # train the identity model
-    id_classifier, loss_history = train_id_classifier(train_data,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size)
+    id_classifier, loss_history = train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size)
 
   # link using id model
   def_params = get_default_params(conf)
-  trk_out = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds)
+  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method)
+
+  if save_debug_data:
+    debug_out_file = out_files[0].replace('.trk','_link_data.p')
+    with open(debug_out_file,'wb') as f:
+      pickle.dump(debug_data,f)
+
   return trk_out
 
 
@@ -1725,7 +1877,7 @@ def get_id_net():
   net = net.cuda()
   return net
 
-def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16):
+def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, bsz=16):
   """
   Trains the identity classifier/embedder
   :param all_data:
@@ -1794,6 +1946,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   net.eval()
   net = net.cuda()
 
+  all_data = get_id_train_images(*train_data_args)
   # Set mining distances to identical dummy values initially
   trk_data = []
   mining_dists = []
@@ -1829,6 +1982,15 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
       # compute the mining data and recreate datasets and dataloaders with updated mining data
       net = net.eval()
       mining_dists = []
+      all_data = get_id_train_images(*train_data_args)
+      trk_data = []
+      for data, trk in zip(all_data, trks):
+        ss, ee = trk.get_startendframes()
+        tgt_id = np.array([r[1] for r in data])
+        ss_t = ss[tgt_id]
+        ee_t = ee[tgt_id]
+        trk_data.append([ss_t, ee_t, tgt_id])
+
       for data, cur_trk_data in zip(all_data,trk_data):
         cur_dists = compute_mining_data(net, data, cur_trk_data, rescale, confd)
         mining_dists.append(cur_dists)
@@ -1837,7 +1999,7 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
       net =net.eval()
       del train_iter, train_loader, train_dset
       train_dset =  id_dset(all_data,mining_dists,trk_data,confd,rescale,valid=True, distort=distort, debug=debug)
-      train_loader = torch.utils.data.DataLoader(train_dset,batch_size=bsz,pin_memory=True,num_workers=10,worker_init_fn=lambda id: np.random.seed(id*epoch))
+      train_loader = torch.utils.data.DataLoader(train_dset,batch_size=bsz,pin_memory=True,num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id*epoch))
       train_iter = iter(train_loader)
 
 
@@ -1869,27 +2031,12 @@ def train_id_classifier(all_data, conf, trks, save=False,save_file=None, bsz=16)
   return net, loss_history
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False):
-  '''
-  Links the pure tracklets using identity
+def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug):
 
-  :param linked_trks: pure linked tracks
-  :param net: id network
-  :param mov_files: movie files
-  :param conf: poseconfig object
-  :param all_trx: pure linked tracks loaded in the trx format for apt.create_batch_ims
-  :param rescale:
-  :param min_len_select:
-  :param debug:
-  :return: list of id linked tracklets
-  '''
-
-  thresh_perc = 5 # percentile to use for thresholds
 
   net.eval()
   all_data = []
   preds = None
-  maxn_all = []
   pred_map = []
   # pred_map keeps track of which sample belongs to which trajectory
 
@@ -1901,7 +2048,6 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     mov_file = mov_files[ndx]
     trx = all_trx[ndx]
     ss, ee = trk.get_startendframes()
-    maxn_all.append(max(ee))
 
     # For each tracklet chose n_per_trk random examples and the find their embedding. Ignore short tracklets
     sel_tgt = np.where((ee-ss+1)>=min_len_select)[0]
@@ -1952,31 +2098,13 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
 
   pred_map = np.array(pred_map)
 
-  maxcosts_all = []
-  params = get_default_params(conf)
-  link_costs_arr = []
-  for tndx in range(len(linked_trks)):
-    maxcost_missed = estimate_maxcost_missed(linked_trks[tndx], params)
-    maxcost = estimate_maxcost(linked_trks[tndx], params)
-    maxcosts_all.append(np.array([maxcost, ] + maxcost_missed.tolist()))
-    # FInd the linkinking costs between the tracklets
-    st, en = linked_trks[tndx].get_startendframes()
-    link_costs = get_link_costs(linked_trks[tndx], st, en, params)
-    link_costs_arr.append(link_costs)
-
-
-  minv, maxv = linked_trks[0].get_min_max_val()
-  minv = np.min(minv, axis=0)
-  maxv = np.max(maxv, axis=0)
-  bignumber = np.sum(maxv - minv) * 2000
-
-  # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
-  logging.info('Stitching tracklets based on identity ...')
-  t_info = [d[3:5] for d in all_data]
-
   dist_mat = get_id_dist_mat(preds)
-  diag_mat = np.diag(dist_mat)
+  return dist_mat, pred_map,all_data
 
+
+def get_id_thresh(dist_mat, pred_map, all_data):
+  thresh_perc = 5 # percentile to use for thresholds
+  diag_mat = np.diag(dist_mat)
 
   # Find thresholds for close and far
 
@@ -1999,28 +2127,48 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   mov1_dist = dist_mat[np.ix_(mov1_sel,mov1_sel)]
   overlap_dist = mov1_dist[overlap>0.1]
   far_thresh = np.percentile(overlap_dist,thresh_perc)
+  return close_thresh, far_thresh
 
 
+def group_tracklets(dist_mat_orig,pred_map_orig,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select):
+  '''Groups the tracklets by *first* clustering the tracklets based on id embeddings and then filling in the gaps in the group using the linking distances'''
+
+  ignore_far = False
+  min_group_frac = 0.1
+
+  dist_mat = dist_mat_orig.copy()
   n_tr = dist_mat.shape[0]
   dist_mat[range(n_tr),range(n_tr)] = 0.
 
-  pred_map_orig = pred_map.copy()
-  rem_id_trks = np.zeros(dist_mat.shape[0]) < 0.5
-  groups = []
-  groups_only_id = []
-  used_trks = []
+  minv, maxv = linked_trks[0].get_min_max_val()
+  minv = np.min(minv, axis=0)
+  maxv = np.max(maxv, axis=0)
+  bignumber = np.sum(maxv - minv) * 2000
 
-  # ignore_far = conf.link_id_ignore_far
-  ignore_far = False
-  min_group_frac = 0.1
+  st_sel = all_data[0][-2]
+  en_sel = all_data[0][-1]
+
   mov_len = max(en_sel)
   st_all = np.concatenate([a[-2] for a in all_data],0)
   en_all = np.concatenate([a[-1] for a in all_data], 0)
   sel_len = en_all-st_all+1
   max_group_sz_for_filling = mov_len*min_group_frac
 
+  maxn_all = []
+  for trk in linked_trks:
+    ss, ee = trk.get_startendframes()
+    maxn_all.append(max(ee))
+
+  t_info = [d[3:5] for d in all_data]
+
+  pred_map = pred_map_orig.copy()
+  rem_id_trks = np.zeros(dist_mat.shape[0]) < 0.5
+  groups = []
+  groups_only_id = []
+  used_trks = []
 
   # create id clusters iteratively by first finding the largest cluster and then adding the missing links. Most of the codes dirtiness is for keeping track of the id tracks and other tracks that have been used till now
+  all_gr_sz = []
   while True:
     rem_id_idx = np.where(rem_id_trks)[0]
     if len(rem_id_idx)==0:
@@ -2032,6 +2180,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
       dist_mat_cur = dist_mat[rem_id_trks, :][:,rem_id_trks]
       pred_map_cluster = pred_map_orig[rem_id_trks]
       gr_cur, gr_sz = get_largest_cluster(dist_mat_cur, close_thresh, t_info, pred_map_cluster)
+      all_gr_sz.append(gr_sz)
       gr = rem_id_idx[gr_cur]
 
       close_trk_sz = np.zeros(dist_mat_cur.shape[0])
@@ -2072,8 +2221,465 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     used_trks.extend(gr)
     groups.append(gr)
 
+  return groups,pred_map,[groups_only_id,groups]
+
+
+def match_motion_id(link_costs, jj, sel_tgt, close_thresh,dist_mat):
+  sjj = sel_tgt[jj]
+  curl = link_costs[sjj][1]
+  lls = []
+  match = False
+  ns = []
+  while True:
+    if len(curl) < 1: break
+    miix = np.argmin(curl[:, 3])
+    nextl = int(curl[miix, 0])
+    ns = np.where(sel_tgt == nextl)[0]
+    lls.append(curl[miix])
+    if len(ns) > 0:
+      if dist_mat[jj, ns] < close_thresh:
+        match = True
+      else:
+        match = False
+      break
+    curl = link_costs[nextl][1]
+  ns = ns[0] if len(ns) > 0 else ns
+  if match:
+    bmatch = False
+    curl = link_costs[sel_tgt[ns]][0]
+    while True:
+      if len(curl) < 1: break
+      miix = np.argmin(curl[:, 3])
+      nextl = int(curl[miix, 0])
+      bs = np.where(sel_tgt == nextl)[0]
+      if len(bs) > 0:
+        if bs == jj:
+          bmatch = True
+        else:
+          bmatch = False
+        break
+      curl = link_costs[nextl][0]
+
+    match = match & bmatch
+
+  return match,ns,sel_tgt[ns], lls
+
+def find_fwd_path(curl, link_costs, sel_tgt, depth):
+  if depth > 20:
+    return []
+  if len(curl)<1:
+    return []
+  all_rr = []
+  jx = np.argsort(curl[:,-1])
+  jx = jx[:2] if len(jx)> 2 else jx
+  for ndx in jx:
+    if curl[ndx][0] in sel_tgt:
+      all_rr.append([curl[ndx]])
+    else:
+      rr = find_fwd_path(link_costs[int(curl[ndx][0])][1], link_costs, sel_tgt, depth + 1)
+      for r in rr:
+        r.insert(0, curl[ndx])
+      all_rr.extend(rr)
+  return all_rr
+
+
+def find_bck_path(curl, link_costs, sel_tgt, depth):
+  if depth > 20:
+    return []
+  if len(curl)<1:
+    return []
+  all_rr = []
+  jx = np.argsort(curl[:,-1])
+  jx = jx[:2] if len(jx)> 2 else jx
+  for ndx in jx:
+    if curl[ndx][0] in sel_tgt:
+      all_rr.append([curl[ndx]])
+    else:
+      rr = find_bck_path(link_costs[int(curl[ndx][0])][0], link_costs, sel_tgt, depth + 1)
+      for r in rr:
+        r.insert(0, curl[ndx])
+      all_rr.extend(rr)
+  return all_rr
+
+
+def get_path_link_cost(cur_link):
+  q = np.array(cur_link)
+  dist_cost = max(q[:, 1])
+  motion_cost = max(q[:, 3])
+  return dist_cost,motion_cost
+
+
+def conn_bck(idx_end,idx_start,link_costs,sel_tgt,mthresh,conn_ratio=2):
+  # checks if non unique path from start_idx to end_idx also is the lowest cost path backwards from idx_end to idx_start and
+  back_links = find_bck_path(link_costs[idx_end][0],link_costs,sel_tgt,0)
+  all_starts = np.unique([int(qr[-1][0]) for qr in back_links])
+  i1 = np.where(idx_start==all_starts)[0]
+  if len(i1)==0:
+    return False
+
+  min_cost_i1 = 1000000
+  min_cost_rest = 1000000
+  for cur_p in back_links:
+    dc,mc = get_path_link_cost(cur_p)
+    if cur_p[-1][0]==idx_start:
+      min_cost_i1 = min(min_cost_i1,mc)
+    else:
+      min_cost_rest = min(min_cost_rest,mc)
+
+  if ((min_cost_rest/min_cost_i1)>conn_ratio) and (min_cost_i1<mthresh):
+    return True
+  else:
+    return False
+
+
+def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_select):
+  '''
+  Groups tracklets based on motion estimate errors. It has 3 steps when starting from a selected tracklet
+  1) If the lowest cost motion tracklet going forward in time also is close in ID embedding space, then link them. Using all the linking that we do in this step, we find what is a reasonable motion estimate error "mtresh"
+  2) The tracklets for which we couldn't find a match in step 1), we then find the number of lowest cost matching tracklets that we can link to. If there is only 1 tracklet we can link to and the cost to linking to it is less than mthresh, then link them -- these are unique (unq) pairs.
+  3) If we can link to multiple tracklets then we find the tracklet with lowest cost and the tracklet with second lowest cost. If the cost of linking to the lowest cost tracklet is less than "mthresh" and the ratio of the lowest costs and second lowest costs > 2,  then we link them
+      '''
+
+  ss, ee = linked_trk.get_startendframes()
+  sel_tgt = np.where((ee - ss + 1) >= min_len_select)[0]
+  lc = []
+  for jj in range(len(sel_tgt)):
+    lc.append(list(match_motion_id(link_costs,jj,sel_tgt,close_thresh,dist_mat)))
+
+  match_m = np.array([max(np.array(l[3])[:, 3]) for l in lc if (len(l[3]) > 0) and l[0] and len(l) > 0])
+  mthresh = np.percentile(match_m, 95)
+
+  # break links where the linking cost is ridiculously high
+  for ll in lc:
+    if ll[0] and max(np.array(ll[3])[:,3])>mthresh*3:
+      ll[0] = False
+
+  taken = np.zeros(len(ss))
+  for l in lc:
+    if l[0]:
+      taken[l[2]] = 1.
+
+  link_type = np.zeros([len(ss),2])
+  links = []
+  for jj in range(len(sel_tgt)):
+    if lc[jj][0]:
+      link_type[sel_tgt[jj],0] = 1
+      link_type[sel_tgt[jj],1] = lc[jj][2]
+      continue
+
+    sjj = sel_tgt[jj]
+    curl = link_costs[sjj][1]
+    links.append([jj, find_fwd_path(curl, link_costs, sel_tgt, 0)])
+
+  non_unq = []
+  unq = []
+  for ix, li in enumerate(links):
+    jr = [int(l[-1][0]) for l in li[1]]
+    ur = np.unique(jr)
+    kl = [[100000, 100000, ijj] for ijj in ur]
+    if len(ur) > 1:
+      # for each non-unique end tracklet find the minimum cost of the connection
+      for l in li[1]:
+        cur_end = np.where(ur == l[-1][0])[0][0]
+        dc,mc = get_path_link_cost(l)
+        kl[cur_end][0] = min(kl[cur_end][0], dc)
+        kl[cur_end][1] = min(kl[cur_end][1], mc)
+      non_unq.append([ix, li[0], kl, li])
+
+    elif len(ur) == 1:
+      for l in li[1]:
+        dc,mc = get_path_link_cost(l)
+        kl[0][0] = min(kl[0][0], dc)
+        kl[0][1] = min(kl[0][1], mc)
+      unq.append([ix, li[0], kl[0], li])
+
+  mu = np.array([gq[2][1] for gq in unq])
+  mn = np.array([np.sort(np.array(gq[2])[:, 1])[0] for gq in non_unq])
+  mn1 = np.array([np.sort(np.array(gq[2])[:, 1])[1] for gq in non_unq])
+
+  mux = [l[1] for l in unq]
+  mnux = [l[1] for l in non_unq]
+  mu_sel = mu < mthresh
+  mn_sel = (mn < mthresh) & ((mn1 / mn) > 2)
+
+  mgrs = []
+  mgrs_startndx = []
+
+  gr_ids = np.ones(len(ss)).astype('int')*-1
+  for jj in np.argsort(ss[sel_tgt]):
+    ojj = sel_tgt[jj]
+
+    path = []
+    if lc[jj][0]:
+      path = [int(l[0]) for l in lc[jj][3]]
+    elif jj in mux:
+      muxj = mux.index(jj)
+      if mu_sel[muxj] and (taken[unq[muxj][1]]<0.5):
+        idx = int(unq[muxj][3][1][0][-1][0])
+        if conn_bck(idx,ojj,link_costs,sel_tgt,mthresh):
+          paths = [l for l in unq[muxj][3][1] if np.all(np.array(l)[:, 3] < mthresh)]
+          pl = [len(l) for l in paths]
+          plsel = paths[np.argmax(pl)]
+          # from multiple paths select the path with most intermediate links but where each link is still < mthresh
+          path = [int(l[0]) for l in plsel]
+          link_type[ojj,0] = 2
+          link_type[ojj,1] = path[-1]
+        else:
+          logging.info(f'A unique path from {ojj} to {idx} does not link back!')
+
+    elif jj in mnux:
+      mnuxj = mnux.index(jj)
+      if mn_sel[mnuxj]:
+        idx = non_unq[mnuxj][2][np.argmin(np.array(non_unq[mnuxj][2])[:, 1])][-1]
+        cback = conn_bck(idx,ojj,link_costs,sel_tgt,mthresh)
+        if (taken[idx]>0.5) and cback:
+          logging.info(f'End of a non-unique path from {ojj} to {idx} is already linked')
+
+        if (taken[idx]<0.5) and cback:
+          # Find the end tracklet with lowest motion cost
+          plen = -1
+          path = []
+          ps = non_unq[mnuxj][-1][1]
+          # ps has all the paths starting from tracklet ojj
+          link_type[ojj, 0] = 3
+          link_type[ojj, 1] = idx
+          for pp in ps:
+            # for non unique paths, choose the path with the most number of intermediate tracklets to the matching end tracklet
+            if pp[-1][0] == idx and (len(pp) > plen) and (np.all(np.array(pp)[:, 3] < mthresh)):
+              plen = len(pp)
+              path = [int(p[0]) for p in pp]
+
+    path.insert(0,ojj)
+    prev_grs = gr_ids[path]
+    prev_grs = prev_grs[prev_grs>=0]
+    if len(prev_grs)==0:
+      mgrs.append(path)
+      mgx = len(mgrs)-1
+      mgrs_startndx.append([jj,])
+    else:
+      mgx = np.unique(prev_grs)
+      if len(mgx)>1:
+        logging.warning('!!!')
+        logging.warning('Something very wrong in grouping tracklets with motion!!!')
+        logging.warning('!!!')
+      mgx = mgx[0]
+      mgrs[mgx].extend(path)
+      mgrs_startndx[mgx].append(jj)
+    gr_ids[path] = mgx
+
+  mgrs = [list(set(m)) for m in mgrs]
+  return mgrs, link_type
+
+def overlap_dist(dmat, c1, c2, overlap,mgr_lens):
+  l1 = np.sum(mgr_lens[c1])
+  l2 = np.sum(mgr_lens[c2])
+  overl = np.sum(overlap[c1][:,c2])
+  ov = overl/min(l1,l2)
+  if ov > 0.1:
+    return 2.
+  else:
+    return np.mean(dmat)
+
+
+def weighted_linkage(xmat, overlap, mgr_lens, thresh):
+  ymat = xmat.copy()
+  clusters = [[i] for i in range(xmat.shape[0])]
+  while True:
+    min_d = np.inf
+    for i in range(len(clusters)):
+      for j in range(i + 1, len(clusters)):
+        dcur = ymat[i, j]
+        if dcur < min_d:
+          min_d = dcur
+          min_i, min_j = i, j
+
+    if min_d > thresh:
+      break
+
+    clusters[min_i] += clusters[min_j]
+    del clusters[min_j]
+
+    ymat[min_j:-1, :] = ymat[min_j + 1:]
+    ymat[:, min_j:-1] = ymat[:, min_j + 1:]
+    for i in range(len(clusters)):
+      if i != min_i:
+        c1 = clusters[i]
+        c2 = clusters[min_i]
+        ymat[i, min_i] = overlap_dist(xmat[c1][:, c2], c1, c2, overlap, mgr_lens)
+        ymat[min_i, i] = ymat[i, min_i]
+
+  return clusters
+
+
+def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select):
+
+  pred_map = pred_map_orig.copy()
+  motion_grs_all = []
+  sel_ids = []
+  tr_len = []
+  maxn = 0
+  ss_all = []
+  ee_all = []
+
+  link_data = []
+  for ndx in range(len(linked_trks)):
+    trk = linked_trks[ndx]
+    cur_ss, cur_ee = trk.get_startendframes()
+    ss_all.append(cur_ss)
+    ee_all.append(cur_ee)
+    maxn = max(maxn,max(cur_ee))
+    tr_len.append(cur_ee-cur_ss+1)
+    link_cost =link_costs_arr[ndx]
+    cur_sel = np.array([ix for ix in range(len(pred_map)) if pred_map[ix,0]==ndx])
+    sel_tgt = pred_map[cur_sel,1]
+    cur_dist_mat = dist_mat[cur_sel][:,cur_sel]
+    motion_grs,link_type = group_tracklets_motion(cur_dist_mat,trk,link_cost,close_thresh,min_len_select)
+    link_data.append(link_type)
+    for m in motion_grs:
+      motion_grs_all.append([ndx,m])
+      cur_sel_ids = []
+      for mm in m:
+        gndx = np.where(np.all(pred_map==np.array([ndx,mm]),axis=1))[0]
+        if len(gndx)>0:
+          cur_sel_ids.append(gndx[0])
+      sel_ids.append(cur_sel_ids)
+
+  tlen = []
+  for pp in pred_map:
+    tlen.append(tr_len[pp[0]][pp[1]])
+  tlen = np.array(tlen)
+
+  nsel = len(sel_ids)
+  xmat = np.zeros([nsel, nsel])
+  for x1, s1 in enumerate(sel_ids):
+    for x2, s2 in enumerate(sel_ids):
+      cmat = dist_mat[s1][:, s2].copy()
+      if x1 == x2:
+        if len(s1) == 1:
+          cmat[range(len(s1)), range(len(s1))] = np.nan
+        else:
+          cmat[range(len(s1)), range(len(s1))] = 2.
+      mx1 = np.average(np.min(cmat,axis=0),weights=tlen[s2])
+      mx2 = np.average(np.min(cmat,axis=1),weights=tlen[s1])
+      xmat[x1,x2] = (mx1+mx2)/2
+      # mxx = np.concatenate([np.min(cmat, axis=0), np.min(cmat, axis=1)])
+      # wxx = np.concatenate([tlen[s2], tlen[s1]]).astype('float')
+      # xmat[x1, x2] = np.average(mxx, weights=wxx)
+      # xmat[x1,x2] = np.median(mxx)
+
+  xthresh = np.nanpercentile(np.diag(xmat), 90)
+  xthresh = max(close_thresh,xthresh)
+
+
+  xmat[range(nsel), range(nsel)] = 0.
+
+  overlaps = np.zeros([nsel,nsel])
+  mgr_lens = np.zeros(nsel)
+  mov_ndx = np.array([p[0] for p in motion_grs_all])
+  for ndx in range(len(linked_trks)):
+    cur_mgrs = np.where(mov_ndx==ndx)[0]
+    lenso = np.zeros([len(cur_mgrs), maxn])
+    for nxx, gndx in enumerate(cur_mgrs):
+      gi = motion_grs_all[gndx][1]
+      for gii in gi:
+        lenso[nxx, ss_all[ndx][gii]:ee_all[ndx][gii] + 1] = 1
+
+    for x1 in range(len(lenso)):
+        mgr_lens[cur_mgrs[x1]] = np.sum(lenso[x1]>0)
+    for x1 in range(len(lenso)):
+      for x2 in range(len(lenso)):
+        if x1 >= x2: continue
+        ll = np.sum((lenso[x1] * lenso[x2]) > 0)
+        overlaps[cur_mgrs[x1],cur_mgrs[x2]] = ll
+        overlaps[cur_mgrs[x2],cur_mgrs[x1]] = ll
+
+  F1 = weighted_linkage(xmat,overlaps,mgr_lens,xthresh)
+  F = np.zeros(nsel).astype('int')
+  for ndx, c in enumerate(F1):
+    for cc in c:
+      F[cc] = ndx+1
+
+  grs = []
+  ggv = []
+  gv_len = []
+  new_pred_map = []
+  gr_data = []
+  for gi in range(max(F)):
+    gv = np.where(F == (gi + 1))[0]
+    ggv.append(gv)
+    curg = []
+    clen = 0
+    for gvv in gv:
+      curmov = motion_grs_all[gvv][0]
+      for g in motion_grs_all[gvv][1]:
+        curg.append(len(new_pred_map))
+        new_pred_map.append([curmov,g])
+        clen += ee_all[curmov][g] - ss_all[curmov][g]+1
+    grs.append(curg)
+    gv_len.append(clen)
+    gr_data.append([motion_grs_all[gvv] for gvv in gv])
+
+  new_pred_map = np.array(new_pred_map)
+  minv, maxv = linked_trks[0].get_min_max_val()
+  minv = np.min(minv, axis=0)
+  maxv = np.max(maxv, axis=0)
+  bignumber = np.sum(maxv - minv) * 2000
+
+  for mov_ndx in range(len(linked_trks)):
+    grs, new_pred_map = add_missing_links(linked_trks, grs, conf, new_pred_map, mov_ndx, None, maxcosts_all[mov_ndx], maxn, bignumber, link_costs_arr)
+
+  debug_data = [link_data,motion_grs_all,gr_data,gv_len,xmat]
+  return grs, new_pred_map, debug_data
+
+
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion'):
+  '''
+  Links the pure tracklets using identity
+
+  :param linked_trks: pure linked tracks
+  :param net: id network
+  :param mov_files: movie files
+  :param conf: poseconfig object
+  :param all_trx: pure linked tracks loaded in the trx format for apt.create_batch_ims
+  :param rescale:
+  :param min_len_select:
+  :param debug:
+  :return: list of id linked tracklets
+  '''
+
+
+  dist_mat, pred_map, all_data = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
+  close_thresh, far_thresh = get_id_thresh(dist_mat,pred_map,all_data)
+
+
+  maxcosts_all = []
+  params = get_default_params(conf)
+  link_costs_arr = []
+  for tndx in range(len(linked_trks)):
+    maxcost_missed = estimate_maxcost_missed(linked_trks[tndx], params)
+    maxcost = estimate_maxcost(linked_trks[tndx], params)
+    maxcosts_all.append(np.array([maxcost, ] + maxcost_missed.tolist()))
+    # FInd the linkinking costs between the tracklets
+    st, en = linked_trks[tndx].get_startendframes()
+    link_costs = get_link_costs(linked_trks[tndx], st, en, params)
+    link_costs_arr.append(link_costs)
+
+  # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
+  logging.info('Stitching tracklets based on identity ...')
+
+
+  pred_map_orig = pred_map.copy()
+  if link_method=='motion':
+    groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
+  else:
+    groups,pred_map,debug_data = group_tracklets(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
+
   # If we want to keep all the predictions, then we need to add the remaining tracklets to the groups
   if keep_all_preds:
+    used_trks = []
+    for g in groups:
+      used_trks.extend(g)
+
     for mov_ndx in range(len(linked_trks)):
       cur_used_ids = [pred_map[uu][1] for uu in used_trks if pred_map[uu][0] == mov_ndx]
       for ids in range(linked_trks[mov_ndx].ntargets):
@@ -2159,7 +2765,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     cur_trk.pTrkiTgt = np.array(ids_left)
     interpolate_gaps(cur_trk)
 
-  return linked_trks
+  return linked_trks,debug_data
 
 
 def interpolate_gaps(trk):
@@ -2210,11 +2816,12 @@ def interpolate_gaps(trk):
 
 def get_dist(p1, p2):
   return np.sum(np.abs(p1 - p2), axis=(0, 1)) / p2.shape[0]
+  # return np.sum(np.abs(p1 - p2), axis=(0, 1)) / p2.shape[0]
 
 
 def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, maxcosts_all, maxn, bignumber, link_costs_arr):
 
-  params = get_default_params(conf)
+  # params = get_default_params(conf)
   mult = 15
 
   st, en = linked_trks[tndx].get_startendframes()
@@ -2307,7 +2914,7 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
   '''
 
 
-  MAX_D = 20
+  MAX_D = 100
   if st_idx>=0:
     link_st = en[st_idx] + 1
   else:
@@ -2495,40 +3102,65 @@ def get_path_len(pred,end_pt=0):
 
 
 
-
-
 def get_link_costs(tt, st, en, params):
   maxn = max(en)
   n_missed = params['maxcost_framesfit']
+  motion_eps = estimate_motion_stats(tt,st,en)
   link_costs = []
   for curt in range(tt.ntargets):
 
     cur_st = st[curt]
     cur_en = en[curt]
     start_matches = []
-    p_cur = tt.gettargetframe(curt, cur_st)[..., 0]
+    p_cur = tt.gettargetframe(curt, cur_st)[...,0, 0]
+    if (cur_en==cur_st) or (cur_st==maxn):
+      p_next = p_cur
+    else:
+      p_next = tt.gettargetframe(curt,cur_st+1)[...,0,0]
+    vmag = np.linalg.norm(p_cur-p_next,axis=-1).mean(axis=0)
     for tends in range(n_missed + 1):
+      mpred = p_cur + (tends+1)*(p_cur-p_next)
       stfr = cur_st - tends - 1
       if stfr < 0:
         continue
       trk_sts = np.where(en == stfr)[0]
       for idx in trk_sts:
-        p_en = tt.gettargetframe(idx, stfr)[..., 0]
-        cur_cost = get_dist(p_cur, p_en)[0]
-        start_matches.append([idx, cur_cost, tends])
+        p_en = tt.gettargetframe(idx, stfr)[...,0, 0]
+        cur_cost = get_dist(p_cur, p_en)
+        if st[idx]==en[idx]:
+          p_en1 = p_en
+        else:
+          p_en1 = tt.gettargetframe(idx, stfr-1)[...,0, 0]
+        mpred1 = p_en + (tends+1)*(p_en-p_en1)
+        vmag1 = np.linalg.norm(p_en-p_en1,axis=-1).mean(axis=0)
+        cur_mcost = np.linalg.norm(mpred-mpred1,axis=-1).mean(axis=0)/(vmag+vmag1+motion_eps)
+        start_matches.append([idx, cur_cost, tends, cur_mcost])
     start_matches = np.array(start_matches)
 
     end_matches = []
-    p_cur = tt.gettargetframe(curt, cur_en)[..., 0]
+    p_cur = tt.gettargetframe(curt, cur_en)[..., 0,0]
+    if (cur_en==cur_st) or (cur_en==0):
+      p_prev = p_cur
+    else:
+      p_prev = tt.gettargetframe(curt,cur_en-1)[...,0,0]
+    vmag = np.linalg.norm(p_cur-p_prev,axis=-1).mean(axis=0)
     for tends in range(n_missed + 1):
       enfr = cur_en + tends + 1
       if enfr > maxn:
         continue
+      mpred = p_cur + (tends+1)*(p_cur-p_prev)
       trk_ends = np.where(st == enfr)[0]
       for idx in trk_ends:
-        p_st = tt.gettargetframe(idx, enfr)[..., 0]
-        cur_cost = get_dist(p_cur, p_st)[0]
-        end_matches.append([idx, cur_cost, tends])
+        p_st = tt.gettargetframe(idx, enfr)[..., 0,0]
+        cur_cost = get_dist(p_cur, p_st)
+        if st[idx]==en[idx]:
+          p_st1 = p_st
+        else:
+          p_st1 = tt.gettargetframe(idx, enfr+1)[...,0, 0]
+        mpred1 = p_st + (tends+1)*(p_st-p_st1)
+        vmag1 = np.linalg.norm(p_st-p_st1,axis=-1).mean(axis=0)
+        cur_mcost = np.linalg.norm(mpred-mpred1,axis=-1).mean(axis=0)/(vmag+vmag1+motion_eps)
+        end_matches.append([idx, cur_cost, tends, cur_mcost])
     end_matches = np.array(end_matches)
     link_costs.append([start_matches, end_matches])
   return link_costs

@@ -4944,7 +4944,9 @@ classdef Labeler < handle
       obj.prevIm = struct('CData',0,'XData',0,'YData',0);
       imprev = gd.image_prev;
       set(imprev,'CData',0);     
-      obj.clearPrevAxesModeInfo();
+      if ~obj.gtIsGTMode
+        obj.clearPrevAxesModeInfo();
+      end
       obj.currTarget = 1;
       obj.currFrame = 1;
       obj.prevFrame = 1;
@@ -6368,8 +6370,8 @@ classdef Labeler < handle
       % tf: scalar logical
       % lpos: [nptsx2] xy coords for iFrm/iTrx
       % lpostag: [npts] logical array 
-      iMov = myparse(varargin,'iMov',obj.currMovie);
-      PROPS = obj.gtGetSharedProps();
+      [iMov,gtmode] = myparse(varargin,'iMov',obj.currMovie,'gtmode',obj.gtIsGTMode);
+      PROPS = obj.gtGetSharedPropsStc(gtmode);
       s = obj.(PROPS.LBL){iMov};
       [tf,p,occ] = Labels.isLabeledFT(s,iFrm,iTrx);
       lpos = reshape(p,[numel(p)/2 2]);
@@ -9972,14 +9974,61 @@ classdef Labeler < handle
         'useLabels2',false, ... % if true, use labels2 "imported preds" instead of tracking
         'doui',true ... % if true, msgbox when done
         );
-      
+
+      backend = obj.trackDLBackEnd;
+      if backend.type == DLBackEnd.AWS
+        warning('Cannot use AWS cloud to do GT computation, using Docker backend on local computer. If no GPUs are available locally, CPUs will be used.')
+        backend = DLBackEndClass(DLBackEnd.Docker);
+      end
+
       tObj = obj.tracker;
       if ~useLabels2 && isa(tObj,'DeepTracker')
         % Separate codepath here. DeepTrackers run in a separate async
         % process spawned by shell; trackGT in this process and then
         % remaining GT computations are done at callback time (in
         % DeepTracker.m)
-        [tfsucc,msg] = tObj.trackGT();
+        tblMFT = obj.gtGetTblSuggAndLbled();
+        [movidx,~,newmov] = unique(tblMFT.mov);
+        movidx_new = [];
+        for ndx = 1:numel(movidx)
+          mn = movidx(ndx).get();
+          movidx_new(end+1) = mn;
+        end
+        movidx = movidx_new;
+        tblMFT.mov = newmov;
+
+        movfiles = obj.movieFilesAllFullGTaware(movidx);
+        if obj.hasTrx
+          trxfiles = obj.trxFilesAllFullGTaware;
+          trxfiles = trxfiles(movidx,:);
+        else
+          trxfiles = {};
+        end
+        if obj.cropProjHasCrops
+          cropInfo = obj.getMovieFilesAllCropInfoGTAware();
+          croprois = cell([numel(movfiles),obj.nview]);
+          for i = 1:numel(movfiles)
+            for j = 1:obj.nview
+              croprois{i,j} = cropInfo{movidx(i)}(j).roi;
+            end
+          end
+        else
+          croprois = {};
+        end
+        caldata = obj.viewCalibrationDataGTaware;
+        if ~isempty(caldata)
+          if ~obj.viewCalProjWide
+            caldata = caldata(movidx);
+          end
+        end
+
+        totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
+        'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
+        'calibrationdata',caldata,'isma',obj.maIsMA);
+        
+        tfsucc = tObj.trackList('totrackinfo',totrackinfo,'backend',backend,...
+          varargin{:});
+%         [tfsucc] = tObj.trackGT();
         DIALOGTTL = 'GT Tracking';
         if tfsucc
           msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
@@ -10061,22 +10110,28 @@ classdef Labeler < handle
       tblTrkRes = tblTrkRes(loc,:);
       
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled);
-      pTrk = tblTrkRes.pTrk; % absolute coords
-      pLbl = tblMFT_SuggAndLbled.p; % absolute coords
-      nrow = size(pTrk,1);
-      npts = obj.nLabelPoints;
-      szassert(pTrk,[nrow 2*npts]);
-      szassert(pLbl,[nrow 2*npts]);
+
+      if obj.maIsMA
+        err = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled);
+      else
+        pTrk = tblTrkRes.pTrk; % absolute coords
+        pLbl = tblMFT_SuggAndLbled.p; % absolute coords
+        nrow = size(pTrk,1);
+        npts = obj.nLabelPoints;
+        szassert(pTrk,[nrow 2*npts]);
+        szassert(pLbl,[nrow 2*npts]);
+        
+        % L2 err matrix: [nrow x npt]
+        pTrk = reshape(pTrk,[nrow npts 2]);
+        pLbl = reshape(pLbl,[nrow npts 2]);
+        err = sqrt(sum((pTrk-pLbl).^2,3));
       
-      % L2 err matrix: [nrow x npt]
-      pTrk = reshape(pTrk,[nrow npts 2]);
-      pLbl = reshape(pLbl,[nrow npts 2]);
-      err = sqrt(sum((pTrk-pLbl).^2,3));
-      
-      tflblinf = any(isinf(pLbl),3); % [nrow x npts] fully-occ indicator mat; lbls currently coded as inf
-      err(tflblinf) = nan; % treat fully-occ err as nan here
-      muerr = nanmean(err,2); % and ignore in meanL2err
-      
+        tflblinf = any(isinf(pLbl),3); % [nrow x npts] fully-occ indicator mat; lbls currently coded as inf
+        err(tflblinf) = nan; % treat fully-occ err as nan here
+      end
+
+      muerr = mean(err,2,'omitnan'); % and ignore in meanL2err
+          
       % ctab for occlusion pred
 %       % this is not adding value yet
 %       tfTrkHasOcc = isfield(tblTrkRes,'pTrkocc');
@@ -10088,7 +10143,9 @@ classdef Labeler < handle
       tblTmp = tblMFT_SuggAndLbled(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
       if tblfldscontains(tblTrkRes,'pTrx')
-        assert(isequal(tblTrkRes.pTrx,tblTmp.pTrx),'Mismatch in .pTrx fields.');
+        if ~obj.maIsMA
+           assert(isequal(tblTrkRes.pTrx,tblTmp.pTrx),'Mismatch in .pTrx fields.');
+        end
         tblTrkRes(:,'pTrx') = [];
       end
       tblGTres = [tblTrkRes tblTmp table(err,muerr,'VariableNames',{'L2err' 'meanL2err'})];
@@ -11532,6 +11589,12 @@ classdef Labeler < handle
 
       % which movies are we tracking?
       [movidx,~,newmov] = unique(tblMFT.mov);
+      movidx_new = [];
+      for ndx = 1:numel(movidx)
+        mn = movidx.get();
+        movidx_new(end+1) = mn;
+      end
+      movidx = movidx_new;
       tblMFT.mov = newmov;
       movfiles = obj.movieFilesAllFullGTaware;
       movfiles = movfiles(movidx,:);
@@ -11572,6 +11635,7 @@ classdef Labeler < handle
     end
     
     function trackTbl(obj,tblMFT,varargin)
+      assert(false,'This is not supported')
       tObj = obj.tracker;
       if isempty(tObj)
         obj.lerror('Labeler:track','No tracker set.');
@@ -14503,13 +14567,16 @@ classdef Labeler < handle
           'frm',obj.currFrame,...
           'iTgt',obj.currTarget,...
           'im',obj.currIm{1},...
-          'isrotated',false);
+          'isrotated',false,...
+          'gtmode',obj.gtIsGTMode);
         if isfield(obj.prevAxesModeInfo,'dxlim'),
           freezeInfo.dxlim = obj.prevAxesModeInfo.dxlim;
           freezeInfo.dylim = obj.prevAxesModeInfo.dylim;
         end
         freezeInfo = obj.SetPrevMovieInfo(freezeInfo);
         freezeInfo = obj.GetDefaultPrevAxes(freezeInfo);
+      elseif ~isfield(freezeInfo,'gtmode')
+        freezeInfo.gtmode = obj.gtIsGTMode;
       end
       
       success = true;
@@ -14522,6 +14589,7 @@ classdef Labeler < handle
         freezeInfo.iTgt = [];
         freezeInfo.im = [];
         freezeInfo.isrotated = false;
+        freezeInfo.gtmode = false;
         gd.image_prev.CData = 0;
         gd.txPrevIm.String = '';
       else
@@ -14668,7 +14736,11 @@ classdef Labeler < handle
         
       % make sure the previous frame is labeled
       success = false;
-      lpos = obj.labelsGTaware;
+%       lpos = obj.labelsGTaware;
+      lpos = obj.labels;
+      if (numel(lpos)<1) && (lobj.gtIsGTMode) && numel(obj.labelsGT)>0
+        lpos = obj.labelsGT;
+      end
       if obj.isPrevAxesModeInfoSet(paModeInfo),
         if numel(lpos) >= paModeInfo.iMov,
           if isfield(paModeInfo,'iTgt'),
@@ -14700,6 +14772,7 @@ classdef Labeler < handle
         paModeInfo.frm = [];
         paModeInfo.iTgt = [];
         paModeInfo.iMov = [];
+        paModeInfo.gtmode = false;
         if nargin < 2,
           obj.prevAxesModeInfo = paModeInfo;
         end
@@ -14708,6 +14781,7 @@ classdef Labeler < handle
       paModeInfo.frm = frm;
       paModeInfo.iTgt = iTgt;
       paModeInfo.iMov = iMov;
+      paModeInfo.gtmode = obj.gtIsGTMode;
       
       paModeInfo = obj.SetPrevMovieInfo(paModeInfo);
       paModeInfo = obj.GetDefaultPrevAxes(paModeInfo);
@@ -14726,7 +14800,12 @@ classdef Labeler < handle
       try
         
         viewi = 1;
-        if ModeInfo.iMov == obj.currMovie,
+%         if isfield(ModeInfo,'gtmode')
+%           gtmode = ModeInfo.gtmode;
+%         else
+%           gtmode = false;
+%         end
+        if (ModeInfo.iMov == obj.currMovie) && (ModeInfo.gtmode==obj.gtIsGTMode)
           [im,~,imRoi] = ...
             obj.movieReader(viewi).readframe(ModeInfo.frm,...
             'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
@@ -14994,7 +15073,12 @@ classdef Labeler < handle
 %         lpostag = obj.labeledpostagGTaware;
 %         lpos = lpos{iMov}(:,:,frm,iTgt);
 %         lpostag = lpostag{iMov}(:,frm,iTgt);
-        [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);      
+%         if isfield(info,'gtmode')
+%           gtmode = info.gtmode;
+%         else
+%           gtmode = obj.gtIsGTMode;
+%         end
+        [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',info.gtmode);      
         if isrotated,
           lpos = [lpos,ones(size(lpos,1),1)]*info.A;
           lpos = lpos(:,1:2);

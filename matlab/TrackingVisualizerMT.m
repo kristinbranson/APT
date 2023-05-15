@@ -354,6 +354,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         xy = nan(npts,2,ntgtshow);
         c = 1;
         for itgt=itgtshow
+          if isempty(itgt) continue; end
           x = get(h(:,itgt),{'XData'});
           y = get(h(:,itgt),{'YData'});
           xytgt = [cell2mat(x) cell2mat(y)];

@@ -293,12 +293,13 @@ classdef APTInterf
 
       % output is the final stage trk file
       trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
-      code = [code {'-out'} String.quoteCellStr(trkfiles(movidx,:,:),filequote)];
 
       % convert to frms, trxids
-      if ~isempty(totrackinfo.listfile),
+      if ~isempty(totrackinfo.listfile)
         code = [code {'-list_file' [filequote totrackinfo.listfile filequote]}];
+        code = [code {'-out'} DeepTracker.cellstr2SpaceDelimWithQuote(totrackinfo.listoutfiles,filequote)];
       else
+        code = [code {'-out'} DeepTracker.cellstr2SpaceDelimWithQuote(trkfiles(movidx,:,:),filequote)];
         if sum(nextra) > 0,
           warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
         end

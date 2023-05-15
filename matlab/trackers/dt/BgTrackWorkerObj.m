@@ -152,6 +152,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         assert(numel(isRunning)==obj.njobs);
       end
       
+      fprintf('in bg track worker\n');
       errfiles = obj.getErrFile(); % njobs x 1
       logfiles = obj.getErrFile(); % njobs x 1
       killfiles = obj.getKillFiles(); % njobs x 1
@@ -212,7 +213,74 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'isexternal',obj.isexternal... % scalar expansion
         );
     end
-    
+
+    function sRes = computeList(obj)
+      % sRes struct
+
+      % Order important, check if job is running first. If we check after
+      % looking at artifacts, job may stop in between time artifacts and 
+      % isRunning are probed.
+      % isRunning does not seem to do anything right now!!
+      isRunning = obj.getIsRunning();
+      isRunning = isRunning(:);
+      if isempty(isRunning)
+        isRunning = true(obj.njobs,1);
+      else
+        assert(numel(isRunning)==obj.njobs);
+      end
+      
+      fprintf('in bg track worker\n');
+      errfiles = obj.getErrFile(); % njobs x 1
+      logfiles = obj.getErrFile(); % njobs x 1
+      killfiles = obj.getKillFiles(); % njobs x 1
+      outfiles = obj.getListOutFile(); % nmovies x nviews x nstages
+      
+      outTrkFileTimestamps = nan(size(outfiles)); % nmovies x nviews x nstages
+      for i = 1:numel(outfiles),
+        trkfilecurr = outfiles{i};
+        tmp = dir(trkfilecurr);
+        if isempty(tmp),
+          trkfilecurr = outfiles{i};
+          tmp = dir(outfiles{i});
+        end
+        if ~isempty(tmp),
+          outTrkFileTimestamps(i) = tmp.datenum;
+        else
+          fprintf('Out file %s do not exist\n',outfiles{i});
+        end
+      end
+
+%       isRunning = obj.replicateJobs(isRunning);
+      killFileExists = cellfun(@obj.fileExists,killfiles);
+      tfComplete = cellfun(@obj.fileExists,outfiles); % nmovies x njobs x nstages
+      fprintf('tfComplete = %s\n',mat2str(tfComplete(:)'));
+      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
+      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
+      bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
+      
+      % nMovies x nviews x nStages
+      % We return/report a results structure for every movie/trkfile, even
+      % if views/movs are tracked serially (nMovJobs>1 or nViewJobs>1). In
+      % this way the monitor can track/viz the progress of each movie/view.
+      
+      sRes = struct(...
+        'tfComplete',num2cell(tfComplete),...
+        'isRunning',num2cell(isRunning),...
+        'errFile',errfiles,... % char, full path to DL err file
+        'errFileExists',num2cell(tfErrFileErr),... % true of errFile exists and has size>0
+        'logFile',logfiles,... % char, full path to Bsub logfile
+        'logFileExists',num2cell(logFilesExist),...
+        'logFileErrLikely',num2cell(bsuberrlikely),... % true if bsub logfile looks like err
+        'iview',num2cell(1:obj.nviews),...
+        'movfile','',...
+        'outfile',outfiles,...
+        'outfileTimestamp',num2cell(outTrkFileTimestamps),...
+        'killFile',killfiles,...
+        'killFileExists',num2cell(killFileExists),...
+        'isexternal',obj.isexternal... % scalar expansion
+        );
+    end
+
     function reset(obj) %#ok<MANU> 
       % For BgTrackWorkerObjs, this appears to only be called at 
       % BgWorkerObj-construction time. So not a useful meth currently.
@@ -257,6 +325,9 @@ classdef BgTrackWorkerObj < BgWorkerObj
     end
     function v = getPartTrkFile(obj)
       v = obj.totrackinfos.getParttrkfiles();
+    end
+    function v = getListOutFile(obj)
+      v = obj.totrackinfos.getListOutfiles();
     end
   end
   

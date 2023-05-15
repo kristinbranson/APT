@@ -1311,3 +1311,68 @@ class coco_loader(torch.utils.data.Dataset):
         # im = np.transpose(im[0,...] / 255., [2, 0, 1])
         features = [im, locs, info, occ]
         return features
+
+
+class list_loader(torch.utils.data.Dataset):
+    # list is in matlab indexing!!
+
+    def __init__(self, conf, list_file, augment):
+        self.list = PoseTools.json_load(list_file)
+        self.conf = conf
+        self.augment = augment
+        self.prev_item = None
+        self.movs = self.list['movieFiles']
+        self.toTrack = self.list['toTrack']
+        self.cropLocs = self.list['cropLocs']
+        self.trx_files = self.list['trxFiles']
+        self.cap = None
+        self.has_crop = (len(self.cropLocs)>0) and len(self.cropLocs[0])>0 and ~np.all(np.isnan(self.cropLocs[0]))
+        self.trx = None
+
+    def __len__(self):
+        return len(self.toTrack)
+
+    def __getitem__(self, item):
+        import APT_interface as apt
+        conf = self.conf
+        cur_i = self.toTrack[item]
+        mov = self.movs[cur_i[0]-1]
+        if isinstance(mov,list) or isinstance(mov,tuple):
+            mov = mov[conf.view]
+
+        cur_f = cur_i[2]-1
+        tgt_id = cur_i[1]-1
+        if self.prev_item is None or cur_i[0]!=self.prev_item[0]:
+            cap = movies.Movie(mov)
+            n_frames = cap.get_n_frames()
+            self.cap = cap
+            self.prev_item = cur_i
+            if conf.has_trx_file:
+                trx_file = self.trx_files[mov]
+                trx = apt.get_trx_info(trx_file,conf,n_frames)['trx']
+            else:
+                trx = None
+            self.trx = trx
+        else:
+            cap = self.cap
+
+        if self.has_crop:
+            crop_loc = self.cropLocs[mov][conf.view]
+        else:
+            crop_loc = None
+        if conf.has_trx_file:
+            cur_trx = self.trx[tgt_id]
+        else:
+            cur_trx = None
+
+        im, locs = get_patch(cap, cur_f, conf,  np.zeros([conf.n_classes, 2]), cur_trx=cur_trx,crop_loc=crop_loc,flipud=conf.flipud)
+
+        if conf.is_multi:
+            locs = np.ones([conf.max_n_animals,conf.n_classes,2])*conf.imsz[0]/2
+        else:
+            locs = np.ones([conf.n_classes,2])*conf.imsz[0]/2
+
+        info = [cur_i[0]-1,cur_f,tgt_id]
+        occ = np.zeros_like(locs[...,0])
+        features = [im, locs, info, occ]
+        return features

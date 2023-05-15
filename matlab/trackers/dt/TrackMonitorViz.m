@@ -261,9 +261,11 @@ classdef TrackMonitorViz < handle
       
       TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now));
       res = sRes.result;      
-            
-      TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
-      TrackMonitorViz.debugfprintf('N. frames tracked: ');
+       
+      if isfield(res(1),'parttrkfile')
+        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
+        TrackMonitorViz.debugfprintf('N. frames tracked: ');
+      end
       TrackMonitorViz.debugfprintf('tfcompete: %s\n',mat2str([res.tfComplete]));
       nJobs = numel(res); 
       
@@ -280,10 +282,15 @@ classdef TrackMonitorViz < handle
       tic;
       for ijob=1:nJobs,
         isdone = res(ijob).tfComplete;
-        partFileExists = ~isnan(res(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
-        isupdate = ...
+        if isfield(res(ijob),'parttrkfileTimestamp'),
+          partFileExists = ~isnan(res(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+          isupdate = ...
           (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
            || isdone;
+        else
+          partFileExists = false;
+          isupdate =false;
+        end
 
         if isupdate,
           if obj.bulkAxsIsBulkMode

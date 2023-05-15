@@ -65,7 +65,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.ntrxmax = ntgtmax*2;
       obj.iTrxViz2iTrx = zeros(obj.ntrxmax,1);
       obj.tvmt.vizInit('ntgts',ntgtmax);
-      obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgtmax);
+      obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),obj.ntrxmax);
       obj.hud.updateReadoutFields('hasTrklet',true);
     end
     function trkInit(obj,trk)

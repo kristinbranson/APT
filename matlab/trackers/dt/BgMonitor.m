@@ -104,7 +104,7 @@ classdef BgMonitor < handle
       obj.monitorObj = [];
     end
     
-    function prepare(obj,monVizObj,bgWorkerObj,cbkComplete)
+    function prepare(obj,monVizObj,bgWorkerObj,cbkComplete,varargin)
       % bgWorkerObj knows how to poll the state of the process. 
       % monVizObj knows how to vizualize this state. 
       % bgResultsReceivedHook performs custom actions after receiving
@@ -118,7 +118,13 @@ classdef BgMonitor < handle
       % bgResultsReceivedHook method. These work in concert and the 
       % custom actions taken by bgResultsReceivedHook depends on custom 
       % info supplied by bgWorkerObj.
-      
+      [track_type] = myparse(varargin,'track_type','movie');
+      if strcmp(track_type,'movie')
+        compute_fcn = 'compute';
+      else
+        compute_fcn = 'computeList';
+      end
+
       obj.reset();
       
       [tfEFE,errFile] = bgWorkerObj.errFileExists;
@@ -130,7 +136,7 @@ classdef BgMonitor < handle
 
       bgc = BGClient;
       fprintf(1,'Configuring background worker...\n');
-      bgc.configure(cbkResult,bgWorkerObj,'compute');
+      bgc.configure(cbkResult,bgWorkerObj,compute_fcn);
       
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;

@@ -1012,7 +1012,7 @@ class ma_expt(object):
             job_name = self.name + '_' + train_name + '_' + trk_name
 
             conf_str = ' '.join([f'{k} {v}' for k, v in params.items()])
-            conf_str += ' link_id True'
+            conf_str += ' link_id True link_id_training_iters 100000'
 
             cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} {stg2_str} -type {net_type} track -mov {mov_file} -out {trk_file} {stg2_str_track}'
             precmd = 'export CUDA_VISIBLE_DEVICES=0'

@@ -950,7 +950,8 @@ classdef InfoTimeline < handle
       end
       onOff = onIff(gt);
       obj.hSegLineGT.setVisible(onOff);
-      obj.hSegLineGTLbled.setVisible(onOff);
+      obj.hSegLineGTLbled.setVisible(onOff);   
+      set(obj.hPtsL,'Visible',onIff(~gt));
     end
     function cbkGTSuggUpdated(obj,src,evt) %#ok<INUSD>
       % full update to any change to labeler.gtSuggMFTable*

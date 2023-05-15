@@ -34,6 +34,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     trainDMC = [];
     trackid = ''; % for a particular track time
     jobid = ''; % for a particular job
+    isma = false;
 
     % outputs
     % this will correspond to one job if these are set
@@ -43,6 +44,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     killfile = ''; % char
     trackconfigfile = ''; % char
     trkfiles = {}; % nmovies x nviews x nstages
+    listoutfiles = {}; % nviews . Output of list classifications
+    islistjob = false; % whether we are tracking list or not
     
   end
 
@@ -647,6 +650,47 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setListfile(obj,v)
       obj.listfile = v;
     end
+    function makeListFile(obj,isgt)
+      assert(~isequal(obj.tblMFT,'unset'),'No table has been set')
+      if nargin<2
+        isgt = false;
+      end
+      if obj.isma
+        obj.tblMFT = MFTable.unsetTgt(obj.tblMFT);
+      end
+
+      trnstr = obj.trainDMC.getTrainID{1};
+      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      if isgt
+        extrastr = '_gt';
+      else
+        extrastr = '';
+      end
+      listfilestr = [ 'TrackList_' trnstr '_' nowstr  extrastr '.json'];
+      listfile = fullfile(obj.trainDMC.rootDir,listfilestr);
+      obj.setListfile(listfile);
+      listoutfiles = cell(1,numel(obj.views));
+      for ndx = 1:numel(obj.views)
+        outlistfilestr = sprintf('preds_%s_%s%s_view%d.mat', trnstr, nowstr,extrastr,ndx);
+        listoutfiles{ndx} = fullfile(obj.trainDMC.rootDir,outlistfilestr);
+      end
+      obj.listoutfiles = listoutfiles;
+
+      if ~isempty(obj.trxfiles)
+        args = {'trxFiles',obj.trxfiles};
+      else
+        args = {};
+      end
+      if ~isempty(obj.croprois)
+        args = [args {'croprois',obj,croprois}];
+      end
+      mov_rem = obj.movfiles;
+      % this should be changed if we want to do it on AWS or other remote
+      % backends
+      DeepTracker.trackWriteListFile(...
+        mov_rem,obj.movidx,obj.tblMFT,obj.listfile,args{:});
+      obj.islistjob = true;
+    end
     function v = getMovidx(obj,varargin)
       if isempty(varargin),
         v = obj.movidx;
@@ -1186,11 +1230,15 @@ classdef ToTrackInfo < matlab.mixin.Copyable
 
     function v = hasCroprois(obj)
       if iscell(obj.croprois)
-        % MK: 20230307 For ma projects, this is a cell. Not test for single 
+        if ~isempty(obj.croprois)
+        % MK: 20230307 For ma projects, this is a cell. Not tested for single 
         % animal project because I didn't have one at hand. Use 
         % /groups/branson/home/kabram/APT_projects/unmarkedMice_round7_trained.lbl
         % for testing MA.
-        croprois = obj.croprois{1};
+          croprois = obj.croprois{1};
+        else
+          croprois = [];
+        end
       else
         croprois = obj.croprois;
       end
@@ -1237,6 +1285,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function [v,idx] = getParttrkfiles(obj,varargin)
       [trkfs,idx] = obj.getTrkfiles(varargin{:});
       v = cellfun(@(x) [x,'.part'],trkfs,'Uni',0);
+    end
+
+    function v = getListOutfiles(obj,varargin)
+      v = obj.listoutfiles;
     end
 
     function deletePartTrkFiles(obj)
@@ -1366,7 +1418,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function ndim = getNdim(prop)
 
       switch prop,
-        case {'frm0','frm1','frmlist','trxids','calibrationfiles','calibrationdata','movidx'},
+        case {'frm0','frm1','frmlist','trxids','calibrationfiles','calibrationdata','movidx','listoutfiles'},
           ndim = 1;
         case {'movfiles','trxfiles','croprois'}
           ndim = 2;

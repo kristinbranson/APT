@@ -259,10 +259,10 @@ class config(object):
 
         self.link_id = False
         self.link_id_cropsz = -1
-        self.link_id_training_iters = 40000
+        self.link_id_training_iters = 100000
         self.link_id_tracklet_samples = 25
         self.link_id_rescale = 1
-        self.link_id_min_tracklet_len = 5
+        self.link_id_min_tracklet_len = 6 # should be greater than link_maxcost_framesfit
         self.link_id_mining_steps = 10
         self.link_id_min_train_track_len = 10
         self.link_id_keep_all_preds = False
