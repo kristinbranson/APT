@@ -163,6 +163,8 @@ classdef Labeler < handle
     didSetLabels
     didSetLabelMode
     didSetLabels2Hide
+
+    didSetLabels2ShowCurrTargetOnly
   end
 
   %% Project
@@ -411,8 +413,6 @@ classdef Labeler < handle
     labels2GT 
     labelsRoi 
     labels2Hide           % scalar logical
-  end
-  properties (SetObservable)
     labels2ShowCurrTargetOnly   % scalar logical, transient    
     skeletonEdges = zeros(0,2)  % nEdges x 2 matrix containing indices of vertex landmarks
                                 %
@@ -420,6 +420,8 @@ classdef Labeler < handle
                                 % are expected to be in (1..nPhysPts), ie 
                                 % edges defined wrt 3d/physical pts with 
                                 % pts identified across views
+  end
+  properties (SetObservable)
     skelHead = []  % [], or scalar pt index for head. 
                    % Multiview: indices currently expected to be in (1..nPhysPts)
     skelTail = []
@@ -3602,7 +3604,7 @@ classdef Labeler < handle
       trkersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
       nDfltTrkers = numel(trkersInfo);
       assert(iscell(s.trackerClass));
-      nExistingTrkers = numel(s.trackerClass);
+      %nExistingTrkers = numel(s.trackerClass);
 
       % update interim/dev MA-BU projs
       for i=1:numel(s.trackerClass)
@@ -15975,6 +15977,11 @@ classdef Labeler < handle
     function set.labels2Hide(obj, newValue)
       obj.labels2Hide = newValue ;
       obj.notify('didSetLabels2Hide') ;
+    end
+
+    function set.labels2ShowCurrTargetOnly(obj, newValue)
+      obj.labels2ShowCurrTargetOnly = newValue ;
+      obj.notify('didSetLabels2ShowCurrTargetOnly') ;
     end
 
   end

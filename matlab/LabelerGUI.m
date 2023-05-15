@@ -820,7 +820,7 @@ listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabe
 listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLabels2Hide',@cbkLabels2HideChanged);
-listeners{end+1,1} = addlistener(lObj,'labels2ShowCurrTargetOnly','PostSet',@cbkLabels2ShowCurrTargetOnlyChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLabels2ShowCurrTargetOnly',@cbkLabels2ShowCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetProjFSInfo',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowTrx',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowOccludedBox',@cbkShowOccludedBoxChanged);
@@ -4132,7 +4132,7 @@ handles = lObj.gdata;
 handles.menu_view_hide_imported_predictions.Checked = onIff(lObj.labels2Hide);
 
 function cbkLabels2ShowCurrTargetOnlyChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 handles.menu_view_show_imported_preds_curr_target_only.Checked = ...
     onIff(lObj.labels2ShowCurrTargetOnly);
