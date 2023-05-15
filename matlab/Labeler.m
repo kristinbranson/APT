@@ -459,14 +459,14 @@ classdef Labeler < handle
     doesNeedSave_ = false
   end
   properties (Transient)  % private by convention
-    is_status_busy_ = false
-    raw_status_string_  = 'Ready.'
-    raw_status_string_when_clear_ = 'Ready.'
+    isStatusBusy_ = false
+    rawStatusString_  = 'Ready.'
+    rawStatusStringWhenClear_ = 'Ready.'
   end
   properties (Dependent)
-    is_status_busy
-    raw_status_string
-    raw_status_string_when_clear
+    isStatusBusy
+    rawStatusString
+    %rawStatusStringWhenClear
   end
   properties (Dependent,Hidden)
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
@@ -11276,7 +11276,7 @@ classdef Labeler < handle
       
       [tPrm,canceled, do_update] = APTParameters.autosetparams(tPrm,obj,'silent',silent);
       if canceled
-        obj.clear_status();
+        obj.clearStatus();
         return
       elseif do_update
         sPrmNew = tPrm.structize;
@@ -13994,10 +13994,10 @@ classdef Labeler < handle
     function clickTarget(obj,h,evt,iTgt)
       
       if strcmpi(obj.gdata.figure.SelectionType,'open'),
-        obj.set_status(sprintf('Switching to target %d...',iTgt));
+        obj.setStatus(sprintf('Switching to target %d...',iTgt));
         %fprintf('Switching to target %d\n',iTgt);
         obj.setTarget(iTgt);
-        obj.clear_status();
+        obj.clearStatus();
       end
       
     end
@@ -15635,7 +15635,7 @@ classdef Labeler < handle
         msg = sprintf(varargin{2:end});
       end
       errordlg(msg,'APT Error');
-      obj.clear_status();
+      obj.clearStatus();
       error(varargin{:});
     end
     
@@ -15702,77 +15702,40 @@ classdef Labeler < handle
       end      
     end
    
-%     function SetStatus(obj,s,varargin)
-%       
-%       try
-%         if isfield(obj.gdata,'SetStatusFun'),
-%           obj.gdata.SetStatusFun(obj.gdata,s,varargin{:});
-%         else
-%           fprintf(['Status: ',s,'...\n']);
-%         end
-%       catch
-%         fprintf(['Status: ',s,'...\n']);
-%       end
-%       
-%     end
-
-%     function ClearStatus(obj,varargin)
-%       
-%       try
-%         if isfield(obj.gdata,'ClearStatusFun'),
-%           obj.gdata.ClearStatusFun(obj.gdata,varargin{:});
-%         else
-%           fprintf('Done.\n');
-%         end
-%       catch
-%         fprintf('Done.\n');
-%       end
-%     end
-%     
-%     function setStatusBarTextWhenClear(obj,s,varargin)
-%       
-%       if isfield(obj.gdata,'SetStatusBarTextWhenClearFun'),
-%         obj.gdata.SetStatusBarTextWhenClearFun(obj.gdata,s,varargin{:});
-%       else
-%         fprintf(['Ready status: ',s,'...\n']);
-%       end
-%       
-%     end
-    
-    function set_status(obj, new_raw_status_string, is_busy)
+    function setStatus(obj, new_raw_status_string, is_busy)
       if nargin<3 ,
         is_busy = true;
       end
-      obj.is_status_busy_ = is_busy ;
-      obj.raw_status_string_ = new_raw_status_string ;
+      obj.isStatusBusy_ = is_busy ;
+      obj.rawStatusString_ = new_raw_status_string ;
       if ~is_busy ,
-        obj.raw_status_string_when_clear_ = new_raw_status_string ;
+        obj.rawStatusStringWhenClear_ = new_raw_status_string ;
       end
       obj.notify('updateStatus') ;      
     end
 
-    function clear_status(obj)
-      obj.is_status_busy_ = false ;
-      obj.raw_status_string_ = obj.raw_status_string_when_clear_ ;
+    function clearStatus(obj)
+      obj.isStatusBusy_ = false ;
+      obj.rawStatusString_ = obj.rawStatusStringWhenClear_ ;
       obj.notify('updateStatus') ;      
     end
 
-    function result = get.is_status_busy(obj)
-      result = obj.is_status_busy_ ;
+    function result = get.isStatusBusy(obj)
+      result = obj.isStatusBusy_ ;
     end
 
-    function result = get.raw_status_string(obj)
-      result = obj.raw_status_string_ ;
+    function result = get.rawStatusString(obj)
+      result = obj.rawStatusString_ ;
     end
 
-    function result = get.raw_status_string_when_clear(obj)
-      result = obj.raw_status_string_when_clear_ ;
-    end
+%     function result = get.rawStatusStringWhenClear(obj)
+%       result = obj.rawStatusStringWhenClear_ ;
+%     end
 
-    function set_raw_status_string_when_clear_(obj, new_value)
+    function setRawStatusStringWhenClear_(obj, new_value)
       % This should go away eventually, once a few more functions in LabelerGUI get
       % folded into Labeler.
-      obj.raw_status_string_when_clear_ = new_value ;
+      obj.rawStatusStringWhenClear_ = new_value ;
     end
 
     function raiseAllFigs(obj)
@@ -15906,7 +15869,7 @@ classdef Labeler < handle
             raw_status_string = sprintf('%s since $PROJECTNAME %s at %s', why, info.action, datestr(info.timestamp,16)) ;
           end
           is_busy = false ;
-          obj.set_status(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
+          obj.setStatus(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
         end        
       else
         raise('APT:invalidValue', 'Illegal value for doesNeedSave') ;

@@ -117,7 +117,7 @@ handles.txBGTrain.Position = pos2;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.FontSize = handles.txStatus.FontSize;
 
-handles.labelerObj.set_status('Initializing APT...');
+handles.labelerObj.setStatus('Initializing APT...');
 % handles.SetStatusFun = @SetStatus;
 % handles.ClearStatusFun = @ClearStatus;
 % handles.SetStatusBarTextWhenClearFun = @setStatusBarTextWhenClear;
@@ -976,7 +976,7 @@ for i = 1:numel(h),
   end
 end
 
-lObj.clear_status();
+lObj.clearStatus();
 EnableControls(handles,'noproject');
 
 if ismac % Change color of buttons 
@@ -1641,7 +1641,7 @@ handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
 
-%handles.labelerObj.clear_status();
+%handles.labelerObj.clearStatus();
 
 function setGUIMainFigureName(lObj)
 
@@ -1874,7 +1874,7 @@ function cbkAddMovie(src,evt)
 % if strcmp(evt.EventName,'startAddMovie')
 %     %SetStatus(handles,'Adding movie',true); 
 % elseif strcmp(evt.EventName,'finishAddMovie')
-%     %handles.labelerObj.clear_status();        
+%     %handles.labelerObj.clearStatus();        
 % end
 
 function cbkSetMovie(src,evt)
@@ -1884,7 +1884,7 @@ function cbkSetMovie(src,evt)
 % if strcmp(evt.EventName,'startSetMovie')
 %     %SetStatus(handles,'Setting first movie',true); 
 % elseif strcmp(evt.EventName,'finishSetMovie')
-%     %handles.labelerObj.clear_status();        
+%     %handles.labelerObj.clearStatus();        
 % end
 
 function cbkProjLoaded(src,evt)
@@ -2134,7 +2134,7 @@ lObj = src ;
 %pname = lObj.projname;
 str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now,16));
 %setStatusBarTextWhenClear(handles,str);
-lObj.set_raw_status_string_when_clear_(str) ;
+lObj.setRawStatusStringWhenClear_(str) ;
 %SetStatus(handles,str,false);
 % set(handles.txStatus,'String',str);
 %hlpUpdateTxProjectName(lObj);
@@ -2147,7 +2147,7 @@ if ~isempty(info)
   str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
   %set(lObj.gdata.txStatus,'String',str);
   %setStatusBarTextWhenClear(lObj.gdata,str);
-  lObj.set_raw_status_string_when_clear_(str) ;
+  lObj.setRawStatusStringWhenClear_(str) ;
   %SetStatus(lObj.gdata,str,false);
 end
 %hlpUpdateTxProjectName(lObj);
@@ -3009,19 +3009,19 @@ if handles.labelerObj.doesNeedSave ,
   end    
 end
 
-handles.labelerObj.set_status('Training...');
+handles.labelerObj.setStatus('Training...');
 drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
 if ~tfCanTrain,
   errordlg(['Error training tracker: ',reason],'Error training tracker');
-  lObj.clear_status();
+  lObj.clearStatus();
   return;
 end
 
 %handles.labelerObj.trackSetAutoParams();
 
 fprintf('Training started at %s...\n',datestr(now));
-oc1 = onCleanup(@()(handles.labelerObj.clear_status()));
+oc1 = onCleanup(@()(handles.labelerObj.clearStatus()));
 wbObj = WaitBarWithCancel('Training');
 oc2 = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
@@ -3041,18 +3041,18 @@ function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-handles.labelerObj.set_status('Tracking...');
+handles.labelerObj.setStatus('Tracking...');
 tm = getTrackMode(handles);
 tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
 if isempty(tblMFT),
   msgbox('All frames tracked.','Track');
-  handles.labelerObj.clear_status() ;
+  handles.labelerObj.clearStatus() ;
   return;
 end
 [tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
 if ~tfCanTrack,
   errordlg(['Error tracking: ',reason],'Error tracking');
-  handles.labelerObj.clear_status();
+  handles.labelerObj.clearStatus();
   return;
 end
 fprintf('Tracking started at %s...\n',datestr(now));
@@ -3068,7 +3068,7 @@ if wbObj.isCancel
   msg = wbObj.cancelMessage('Tracking canceled');
   msgbox(msg,'Track');
 end
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function pbClear_Callback(hObject, eventdata, handles)
 
@@ -3427,37 +3427,37 @@ end
 % 
 function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-lObj.set_status('Starting New Project');
+lObj.setStatus('Starting New Project');
 controller = handles.controller ;
 if controller.raiseUnsavedChangesDialogIfNeeded() ,
   cfg = ProjectSetup(handles.figure);
   if ~isempty(cfg)    
-    lObj.set_status('Configuring New Project') ;
+    lObj.setStatus('Configuring New Project') ;
     lObj.initFromConfig(cfg);
     lObj.projNew(cfg.ProjectName);
-    lObj.set_status('Adding Movies') ;
+    lObj.setStatus('Adding Movies') ;
     handles = lObj.gdata; % initFromConfig, projNew have updated handles
     menu_file_managemovies_Callback([],[],handles);  %all this does is make the movie manager visible
   end  
 end
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_file_save_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj ;
-lObj.set_status('Saving project...');
+lObj.setStatus('Saving project...');
 handles.labelerObj.projSaveSmart();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
-handles.labelerObj.clear_status()
+handles.labelerObj.clearStatus()
 
 function menu_file_saveas_Callback(hObject, eventdata, handles)
-handles.labelerObj.set_status('Saving project...');
+handles.labelerObj.setStatus('Saving project...');
 handles.labelerObj.projSaveAs();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
-handles.labelerObj.clear_status()
+handles.labelerObj.clearStatus()
 
 function menu_file_load_Callback(hObject, eventdata, handles)
 
-handles.labelerObj.set_status('Loading Project...') ;
+handles.labelerObj.setStatus('Loading Project...') ;
 %EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 controller = handles.controller ;
@@ -3471,7 +3471,7 @@ if controller.raiseUnsavedChangesDialogIfNeeded() ,
     warndlg(wstr,'Movie not found','modal');
   end
 end
-handles.labelerObj.clear_status()
+handles.labelerObj.clearStatus()
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
@@ -3538,9 +3538,9 @@ if ~lObj.hasMovie
   handles.labelerObj.lerror('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie; % gt-aware
-handles.labelerObj.set_status('Importing tracking results...');
+handles.labelerObj.setStatus('Importing tracking results...');
 lObj.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3548,9 +3548,9 @@ lObj = handles.labelerObj;
 if ~tfok
   return;
 end
-handles.labelerObj.set_status('Exporting tracking results...');
+handles.labelerObj.setStatus('Exporting tracking results...');
 lObj.labelExportTrk(1:lObj.nmoviesGTaware,'rawtrkname',rawtrkname);
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_file_export_labels_table_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3589,10 +3589,10 @@ if isequal(f,0)
   return;
 end
 fname = fullfile(p,f);
-handles.labelerObj.set_status(sprintf('Exporting training data to %s',fname));
+handles.labelerObj.setStatus(sprintf('Exporting training data to %s',fname));
 lObj.projExportTrainData(fname)
 fprintf('Saved training data to file ''%s''.\n',fname);
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
 
@@ -3605,20 +3605,20 @@ if ~isempty(lObj.tracker) && ~lObj.gtIsGTMode && lObj.labelPosMovieHasLabels(lOb
   end
 end
 
-handles.labelerObj.set_status('Switching crop mode...');
+handles.labelerObj.setStatus('Switching crop mode...');
 lObj.cropSetCropMode(~lObj.cropIsCropMode);
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_file_clean_tempdir_Callback(hObject,evtdata,handles)
 
-handles.labelerObj.set_status('Deleting temp directories...');
+handles.labelerObj.setStatus('Deleting temp directories...');
 handles.labelerObj.projRemoveOtherTempDirs();
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_file_bundle_tempdir_Callback(hObject,evtdata,handles)
-handles.labelerObj.set_status('Bundling the temp directory...');
+handles.labelerObj.setStatus('Bundling the temp directory...');
 handles.labelerObj.projBundleTempDir();
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 
 function menu_help_Callback(hObject, eventdata, handles)
@@ -3652,7 +3652,7 @@ lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
 
 function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
-handles.labelerObj.set_status('Plotting all labels on one axes to visualize label distribution...');
+handles.labelerObj.setStatus('Plotting all labels on one axes to visualize label distribution...');
 lObj = handles.labelerObj;
 if lObj.hasTrx
   lObj.labelOverlayMontage();
@@ -3671,11 +3671,11 @@ else % lObj.maIsMA, or SA-non-trx
     end
   end
 end
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 % function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
 % 
-% handles.labelerObj.set_status('Plotting all labels on one axes to visualize label distribution...');
+% handles.labelerObj.setStatus('Plotting all labels on one axes to visualize label distribution...');
 % lObj = handles.labelerObj;
 % hFig(1) = lObj.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','none'); 
 % try
@@ -3687,7 +3687,7 @@ handles.labelerObj.clear_status();
 % end
 % hFig(3) = lObj.labelOverlayMontage('ctrMeth','trx',...
 %   'rotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
-% handles.labelerObj.clear_status();
+% handles.labelerObj.clearStatus();
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -4284,7 +4284,7 @@ if any(lObj.trackBGTrnIsRunning),
   warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
   return;
 end
-handles.labelerObj.set_status('Setting training parameters...');
+handles.labelerObj.setStatus('Setting training parameters...');
 
 
 % tObj = lObj.tracker;
@@ -4319,12 +4319,12 @@ else
   lObj.setDoesNeedSave(true,'Parameters changed') ;
 end
 
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_track_settrackparams_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
-handles.labelerObj.set_status('Setting tracking parameters...');
+handles.labelerObj.setStatus('Setting tracking parameters...');
 
 [tPrm] = lObj.trackGetTrackParams();
 
@@ -4337,7 +4337,7 @@ if ~isempty(sPrmTrack),
   lObj.setDoesNeedSave(true,'Parameters changed') ;
 end
 
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 
 function menu_track_auto_params_update_Callback(hObject,eventdata,handles)
@@ -4385,7 +4385,7 @@ tObj.trnDataUseAll();
 % tObj.trnDataSelect();
 
 % function menu_track_set_landmark_matches_Callback(hObject,eventdata,handles)
-% handles.labelerObj.set_status('Defining landmark matches...');
+% handles.labelerObj.setStatus('Defining landmark matches...');
 % lObj = handles.labelerObj;
 % instructions = ['These part matches are used for data augmentation when training using deep learning. ' ...
 %                 'To create more training data, we can flip the original images. This requires knowing ' ...
@@ -4395,13 +4395,13 @@ tObj.trnDataUseAll();
 %                 'mid-line of the animal should not have a mate.'];
 % matches = defineLandmarkMatches(lObj,'edges',lObj.flipLandmarkMatches,'instructions',instructions);
 % lObj.setFlipLandmarkMatches(matches);
-% handles.labelerObj.clear_status();
+% handles.labelerObj.clearStatus();
 
 function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
-handles.labelerObj.set_status('Plotting training examples...');
+handles.labelerObj.setStatus('Plotting training examples...');
 lObj = handles.labelerObj;
 lObj.tracker.trainingDataMontage();
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_track_trainincremental_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
@@ -4480,10 +4480,10 @@ res = questdlg('Are you sure you want to clear tracking results?');
 if ~strcmpi(res,'yes'),
   return;
 end
-handles.labelerObj.set_status('Clearing tracking results...');
+handles.labelerObj.setStatus('Clearing tracking results...');
 tObj = lObj.tracker;
 tObj.clearTrackingResults();
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 %msgbox('Tracking results cleared.','Done');
 
 function menu_track_clear_tracker_Callback(hObject, eventdata, handles)
@@ -4493,13 +4493,13 @@ res = questdlg('Clear current tracker or all trackers? This will clear your trai
 if strcmpi(res,'Cancel'),
   return;
 elseif strcmpi(res,'Current only'),
-  handles.labelerObj.set_status('Clearing current trained tracker and all tracking results...');
+  handles.labelerObj.setStatus('Clearing current trained tracker and all tracking results...');
   lObj.clearCurrentTracker();
-  handles.labelerObj.clear_status();
+  handles.labelerObj.clearStatus();
 elseif strcmpi(res,'All'),
-  handles.labelerObj.set_status('Clearing trained trackers and all tracking results...');
+  handles.labelerObj.setStatus('Clearing trained trackers and all tracking results...');
   lObj.clearAllTrackers();
-  handles.labelerObj.clear_status();
+  handles.labelerObj.clearStatus();
 end
 
 
@@ -4558,9 +4558,9 @@ tm = getTrackMode(handles);
 if ~tfok
   return;
 end
-handles.labelerObj.set_status('Tracking...');
+handles.labelerObj.setStatus('Tracking...');
 handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_track_batch_track_Callback(hObject,eventdata,handles)
 
@@ -4584,9 +4584,9 @@ tbobj.run();
 %   return;
 % end
 % jsonfile = jsonfile1;
-% handles.labelerObj.set_status('Tracking a batch of videos...');
+% handles.labelerObj.setStatus('Tracking a batch of videos...');
 % trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
-% handles.labelerObj.clear_status();
+% handles.labelerObj.clearStatus();
 
 function menu_track_all_movies_Callback(hObject,eventdata,handles)
 
@@ -4795,7 +4795,7 @@ end
 function menu_evaluate_gtmode_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 
-handles.labelerObj.set_status('Switching between Labeling and Ground Truth Mode...');
+handles.labelerObj.setStatus('Switching between Labeling and Ground Truth Mode...');
 
 gt = lObj.gtIsGTMode;
 gtNew = ~gt;
@@ -4806,7 +4806,7 @@ if gtNew
   hMovMgr.setVisible(true);
   figure(hMovMgr.hFig);
 end
-handles.labelerObj.clear_status();
+handles.labelerObj.clearStatus();
 
 function menu_evaluate_gtloadsuggestions_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -4955,12 +4955,12 @@ end
 
 function cbkCropIsCropModeChanged(src,evt)
 lObj = src;
-lObj.set_status('Switching crop mode...');
+lObj.setStatus('Switching crop mode...');
 cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
 if lObj.hasMovie
   lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
-lObj.clear_status();
+lObj.clearStatus();
 
 function cbkUpdateCropGUITools(src,evt)
 lObj = src;

@@ -63,7 +63,7 @@ classdef LabelerController < handle
       % Update the status text box to reflect the current model state.
       labeler = obj.labeler_ ;
       handles = guidata(obj.mainFigure_) ;
-      is_busy = labeler.is_status_busy ;
+      is_busy = labeler.isStatusBusy ;
       if is_busy
         color = handles.busystatuscolor;
         if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
@@ -83,7 +83,7 @@ classdef LabelerController < handle
 
       % Actually update the String in the status text box.  Use the shorter status
       % string from the labeler if the normal one is too long for the text box.
-      raw_status_string = labeler.raw_status_string;
+      raw_status_string = labeler.rawStatusString;
       has_project = labeler.hasProject ;
       project_file_path = labeler.projectfile ;
       status_string = ...

@@ -2803,7 +2803,7 @@ classdef DeepTracker < LabelTracker
       dmc = obj.trnLastDMC;
       be = obj.lObj.trackDLBackEnd;
       if be.type==DLBackEnd.AWS
-        setStatusFcn = @(varargin)(obj.lObj.set_status(varargin{:}));
+        setStatusFcn = @(varargin)(obj.lObj.setStatus(varargin{:}));
         be.awsPretrack(dmc,setStatusFcn);
       end
       obj.updateTrackerInfo();
@@ -2963,7 +2963,7 @@ classdef DeepTracker < LabelTracker
       be = obj.lObj.trackDLBackEnd;
       cchdir = obj.lObj.DLCacheDir;
       dmc = obj.trnLastDMC;
-      setStatusFcn = @(str, is_busy)(obj.lObj.set_status(str, is_busy)) ;
+      setStatusFcn = @(str, is_busy)(obj.lObj.setStatus(str, is_busy)) ;
       be.pretrack(cchdir,dmc,setStatusFcn);
 
       % why not; done in track()

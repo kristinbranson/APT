@@ -202,7 +202,7 @@ classdef MovieManagerController < handle
         end
         warningNoTrace('MovieManagerController:nav',warnstr);
       end
-      lObj.clear_status();
+      lObj.clearStatus();
     end
     
     function cbkPushButton(obj,src,evt)
@@ -214,13 +214,13 @@ classdef MovieManagerController < handle
       switch src.Tag
         case 'pbAdd'
           lObj.set_status('Adding new movie...');
-          oc = onCleanup(@()lObj.clear_status());
+          oc = onCleanup(@()(lObj.clearStatus()));
           obj.addLabelerMovie(); % can throw
           %lObj.ClearStatus();
         case 'pbRm'
           lObj.set_status('Removing movie...');
           obj.rmLabelerMovie();
-          lObj.clear_status();
+          lObj.clearStatus();
         case 'pbSwitch' 
           iMov = obj.mmTblCurr.getSelectedMovies();
           if ~isempty(iMov)
@@ -235,7 +235,7 @@ classdef MovieManagerController < handle
           else
             lObj.set_status(sprintf('Switching to unlabeled movie %d',iMov));
             lObj.movieSet(iMov);
-            lObj.clear_status();
+            lObj.clearStatus();
           end
         case 'pbGTFrames'
           lObj.gtShowGTManager();
@@ -309,7 +309,7 @@ classdef MovieManagerController < handle
         lObj.set_status('Switching to movie 1...');
         lObj.movieSet(1);
       end
-      lObj.clear_status();
+      lObj.clearStatus();
     end
   end
   

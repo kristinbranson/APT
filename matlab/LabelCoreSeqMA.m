@@ -583,7 +583,7 @@ classdef LabelCoreSeqMA < LabelCore
     end
     function cbkRoiNew(obj)
       assert(obj.roiShow);
-      obj.labeler.set_status('Click and drag to add a box of pixels considered labeled. Hit Esc to cancel',false);
+      obj.labeler.setStatus('Click and drag to add a box of pixels considered labeled. Hit Esc to cancel',false);
       set(obj.pbNewTgt,'Enable','off');
       set(obj.pbDelTgt,'Enable','off');
       set(obj.pbRoiNew,'Enable','off');
@@ -591,7 +591,7 @@ classdef LabelCoreSeqMA < LabelCore
       obj.roiRectDrawer.newRoiDraw();
       v = obj.roiRectDrawer.getRoisVerts();
       obj.labeler.labelroiSet(v);
-      obj.labeler.clear_status();
+      obj.labeler.clearStatus();
       set(obj.pbNewTgt,'Enable','on');
       set(obj.pbDelTgt,'Enable','on');
       set(obj.pbRoiNew,'Enable','on');
@@ -601,9 +601,9 @@ classdef LabelCoreSeqMA < LabelCore
     function cbkRoiEdit(obj)
       tfEditingNew = obj.pbRoiEdit.Value;
       if tfEditingNew,
-        obj.labeler.set_status('Drag corners to move label boxes. Right click and select "Delete Rectangle" to delete.',false);
+        obj.labeler.setStatus('Drag corners to move label boxes. Right click and select "Delete Rectangle" to delete.',false);
       else
-        obj.labeler.clear_status();
+        obj.labeler.clearStatus();
       end
       rrd = obj.roiRectDrawer;
       rrd.setEdit(tfEditingNew);
