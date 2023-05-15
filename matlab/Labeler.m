@@ -148,6 +148,9 @@ classdef Labeler < handle
     didSetMovieRotateTargetUp
     didSetMovieForceGrayscale
     didSetMovieInvert
+
+    didSetTrxFilesAll
+    didSetTrxFilesAllGT
   end
 
   %% Project
@@ -347,11 +350,11 @@ classdef Labeler < handle
   end
   
   %% Trx
-  properties (SetObservable)
-    trxFilesAll = {};  % column cellstr, full paths to trxs. Same size as movieFilesAll.
-    trxInfoAll = {};
-    trxFilesAllGT = {}; % etc. Same size as movieFilesAllGT.
-    trxInfoAllGT = {};
+  properties
+    trxFilesAll = {}  % column cellstr, full paths to trxs. Same size as movieFilesAll.
+    trxInfoAll = {}
+    trxFilesAllGT = {}  % etc. Same size as movieFilesAllGT.
+    trxInfoAllGT = {}
   end
   properties (SetAccess=private)
     trxCache = [];            % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
@@ -15944,6 +15947,16 @@ classdef Labeler < handle
         obj.movieFilesAllGTHaveLbls = newValue ;
         obj.notify('didSetMovieFilesAllGTHaveLbls') ;
       end
+    end
+
+    function set.trxFilesAll(obj, newValue)
+      obj.trxFilesAll = newValue ;
+      obj.notify('didSetTrxFilesAll') ;
+    end
+
+    function set.trxFilesAllGT(obj, newValue)
+      obj.trxFilesAllGT = newValue ;
+      obj.notify('didSetTrxFilesAllGT') ;
     end
   end
 end
