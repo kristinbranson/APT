@@ -6064,13 +6064,22 @@ classdef Labeler < handle
     end
 
     function setSkeletonEdges(obj,se)
-      obj.skeletonEdges = se;
+      old_se = obj.skeletonEdges ;
+      obj.skeletonEdges = se;    
+      % If the skeleton is going from nonempty to empty, un-show the skeleton
+      % If the skeleton is going from empty to nonempty, show the skeleton
+      if isempty(se) && ~isempty(old_se) && obj.showSkeleton ,
+        obj.showSkeleton = false ;
+      elseif ~isempty(se) && isempty(old_se) && ~obj.showSkeleton ,
+        obj.showSkeleton = true ;
+      end
       obj.lblCore.updateSkeletonEdges();
       tv = obj.labeledpos2trkViz;
       if ~isempty(tv)
         tv.initAndUpdateSkeletonEdges(se);
       end
     end
+
     function setShowSkeleton(obj,tf)
       tf = logical(tf);
       obj.showSkeleton = tf;
@@ -6084,8 +6093,8 @@ classdef Labeler < handle
       if ~isempty(tv)
         tv.setShowSkeleton(tf);
       end
-
     end
+
     function setShowMaRoi(obj,tf)
       obj.showMaRoi = logical(tf);
       if obj.labelMode==LabelMode.MULTIANIMAL

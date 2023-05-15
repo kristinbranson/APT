@@ -3916,8 +3916,9 @@ controller.quitRequested() ;
 function cbkShowSkeletonChanged(src,evt)
 lObj = src ;
 handles = lObj.gdata;
-onOff = onIff(lObj.showSkeleton);
-handles.menu_view_showhide_skeleton.Checked = onOff;
+hasSkeleton = ~isempty(lObj.skeletonEdges) ;
+isChecked = onIff(hasSkeleton && lObj.showSkeleton) ;
+set(handles.menu_view_showhide_skeleton, 'Enable', hasSkeleton, 'Checked', isChecked) ;
 
 function cbkShowMaRoiChanged(src,evt)
 lObj = src ;
@@ -5257,31 +5258,10 @@ lObj.updateLandmarkCosmetics(mrkrSpecs);
 lObj.updateSkeletonCosmetics(skelSpecs);
 
 function menu_track_edit_skeleton_Callback(hObject, eventdata, handles)
-
-% persistent viewSelected;
-% 
-% if handles.labelerObj.nview > 1,
-%   if isempty(viewSelected) || viewSelected > handles.labelerObj.nview,
-%     viewSelected = 1;
-%   end
-%   views = cellstr(num2str((1:handles.labelerObj.nview)'));
-%   res = questdlg('View in which to label skeleton:','Select view',...
-%     views{:},num2str(viewSelected));
-%   if isempty(res),
-%     return;
-%   end
-%   viewSelected = str2double(res);
-% end
-% template only for view 1... 
-
 lObj = handles.labelerObj;
 landmark_specs('lObj',lObj);
-if isempty(lObj.skeletonEdges),
-  set(handles.menu_view_showhide_skeleton,'Enable','off','Checked','off');
-else
-  set(handles.menu_view_showhide_skeleton,'Enable','on','Checked','on');
-  lObj.setShowSkeleton(true);
-end
+%hasSkeleton = ~isempty(lObj.skeletonEdges) ;
+%lObj.setShowSkeleton(hasSkeleton) ;
 
 function menu_track_viz_dataaug_Callback(hObject,evtdata,handles)
 lObj = handles.labelerObj;
