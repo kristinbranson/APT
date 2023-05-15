@@ -304,9 +304,8 @@ classdef Labeler < handle
       % change your .movieInvert, then your crops will likely be wrong.
       % A warning is thrown but nothing else
   end
-  properties (SetObservable)    
-    movieViewBGsubbed = false  % transient    
-    movieIsPlaying = false
+  properties (Transient)
+    movieViewBGsubbed = false
   end
   properties (Dependent)
     isMultiView;
@@ -1466,17 +1465,22 @@ classdef Labeler < handle
     end
 
     function set.movieViewBGsubbed(obj,v)
-      assert(isscalar(v) && islogical(v));
-      if v
-        ppPrms = obj.preProcParams; %#ok<MCSUP>
-        if isempty(ppPrms) || ...
-           isempty(ppPrms.BackSub.BGType) || isempty(ppPrms.BackSub.BGReadFcn)
+      if isscalar(v) && islogical(v) ,
+        if v
+          ppPrms = obj.preProcParams; 
+          if isempty(ppPrms) || ...
+              isempty(ppPrms.BackSub.BGType) || isempty(ppPrms.BackSub.BGReadFcn)
             obj.lerror('Background type and/or background read function are not set in tracking parameters.');
+          end
         end
+        obj.movieViewBGsubbed = v;
+        obj.hlpSetCurrPrevFrame(obj.currFrame,true);
+        clim(obj.gdata.axes_curr,'auto');
+        obj.notify('didSetMovieViewBGsubbed') ;
+      else        
+        obj.notify('didSetMovieViewBGsubbed') ;
+        error('APT:invalidValue', 'Invalid value for movieViewBGsubbed') ;
       end
-      obj.movieViewBGsubbed = v;
-      obj.hlpSetCurrPrevFrame(obj.currFrame,true); %#ok<MCSUP>
-      clim(obj.gdata.axes_curr,'auto'); %#ok<MCSUP>
     end
 
     function set.movieCenterOnTarget(obj,v)
