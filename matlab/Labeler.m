@@ -158,6 +158,8 @@ classdef Labeler < handle
     didSetShowSkeleton
     didSetShowMaRoi 
     didSetShowMaRoiAux
+
+    didSetLabelMode
   end
 
   %% Project
@@ -395,34 +397,36 @@ classdef Labeler < handle
   end 
   
   %% Labeling
+  properties
+    labelMode             % scalar LabelMode. init: C
+  end
   properties (SetObservable)
-    labelMode;            % scalar LabelMode. init: C
     % Multiview. Right now all 3d pts must live in all views, eg
     % .nLabelPoints=nView*NumLabelPoints. first dim of labeledpos is
     % ordered as {pt1vw1,pt2vw1,...ptNvw1,pt1vw2,...ptNvwK}
-    labels;
-    labels2; % [nmov] cell array of TrkFile. See notes in %% Labels2 section
-    labelsGT;
-    labels2GT;
+    labels 
+    labels2  % [nmov] cell array of TrkFile. See notes in %% Labels2 section
+    labelsGT 
+    labels2GT 
     
-    labelsRoi;
+    labelsRoi 
     
-    labels2Hide;          % scalar logical
-    labels2ShowCurrTargetOnly;  % scalar logical, transient    
-    skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
+    labels2Hide           % scalar logical
+    labels2ShowCurrTargetOnly   % scalar logical, transient    
+    skeletonEdges = zeros(0,2)  % nEdges x 2 matrix containing indices of vertex landmarks
                                 %
                                 % Multiview: currently, els of skeletonEdges
                                 % are expected to be in (1..nPhysPts), ie 
                                 % edges defined wrt 3d/physical pts with 
                                 % pts identified across views
-    skelHead = []; % [], or scalar pt index for head. 
+    skelHead = []  % [], or scalar pt index for head. 
                    % Multiview: indices currently expected to be in (1..nPhysPts)
-    skelTail = [];
-    skelNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
+    skelTail = []
+    skelNames    % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
                  % NOTE: arguably the "point names" should be. init: C
                  % used to be labeledposSetNames
 
-    flipLandmarkMatches = zeros(0,2); % nPairs x 2 matrix containing indices of vertex landmarks    
+    flipLandmarkMatches = zeros(0,2)  % nPairs x 2 matrix containing indices of vertex landmarks    
   end
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
@@ -511,7 +515,7 @@ classdef Labeler < handle
   end
   
   %% GT mode
-  properties (SetObservable,SetAccess=private)
+  properties (SetObservable, SetAccess=private)
     gtIsGTMode % scalar logical
   end
   properties
@@ -540,7 +544,7 @@ classdef Labeler < handle
   
   
   %% Suspiciousness
-  properties (SetObservable,SetAccess=private)
+  properties (SetObservable, SetAccess=private)
     suspScore; % column cell vec same size as labeledpos. suspScore{iMov} is nFrm(iMov) x nTrx(iMov)
     suspSelectedMFT; % MFT table of selected suspicous frames.
     suspComputeFcn; 
@@ -15997,6 +16001,11 @@ classdef Labeler < handle
     function set.showMaRoiAux(obj, newValue)
       obj.showMaRoiAux = newValue ;
       obj.notify('didSetShowMaRoiAux') ;
+    end
+
+    function set.labelMode(obj, newValue)
+      obj.labelMode = newValue ;
+      obj.notify('didSetLabelMode') ;
     end
 
   end

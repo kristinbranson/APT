@@ -818,7 +818,7 @@ listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChang
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
 listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
-listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2ShowCurrTargetOnly','PostSet',@cbkLabels2ShowCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetProjFSInfo',@cbkProjFSInfoChanged);
@@ -2024,7 +2024,7 @@ hMenu = handles.labelMode2SetupMenu.(char(labelMode));
 hMenu.Checked = 'on';
 
 function cbkLabelModeChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 lblMode = lObj.labelMode;
 menuSetupLabelModeHelp(handles,lblMode);
