@@ -151,6 +151,13 @@ classdef Labeler < handle
 
     didSetTrxFilesAll
     didSetTrxFilesAllGT
+
+    didSetShowTrx
+    didSetShowTrxCurrTargetOnly
+    didSetShowOccludedBox
+    didSetShowSkeleton
+    didSetShowMaRoi 
+    didSetShowMaRoiAux
   end
 
   %% Project
@@ -377,14 +384,13 @@ classdef Labeler < handle
   end
   
   %% ShowTrx
-  properties (SetObservable)
-    showTrx;                  % true to show trajectories
-    showTrxCurrTargetOnly;    % if true, plot only current target
-    showTrxIDLbl;             % true to show id label. relevant if .hasTrx or .maIsMa
-    showOccludedBox;          % whether to show the occluded box
-    
-    showSkeleton;             % true to plot skeleton 
-    showMaRoi;
+  properties
+    showTrx                   % true to show trajectories
+    showTrxCurrTargetOnly     % if true, plot only current target
+    showTrxIDLbl              % true to show id label. relevant if .hasTrx or .maIsMa
+    showOccludedBox           % whether to show the occluded box    
+    showSkeleton              % true to plot skeleton 
+    showMaRoi 
     showMaRoiAux
   end 
   
@@ -15958,5 +15964,40 @@ classdef Labeler < handle
       obj.trxFilesAllGT = newValue ;
       obj.notify('didSetTrxFilesAllGT') ;
     end
+
+    function set.showTrx(obj, newValue)
+      % Note that setShowTrx() also exists, seems like maybe what clients are
+      % intended to call?  -- ALT, 2023-05-15
+      obj.showTrx = newValue ;
+      obj.notify('didSetShowTrx') ;
+    end
+    
+    function set.showTrxCurrTargetOnly(obj, newValue)
+      % Note that setShowTrxCurrTargetOnly() also exists, seems like maybe what clients are
+      % intended to call?  -- ALT, 2023-05-15
+      obj.showTrxCurrTargetOnly = newValue ;
+      obj.notify('didSetShowTrxCurrTargetOnly') ;
+    end
+    
+    function set.showOccludedBox(obj, newValue)
+      obj.showOccludedBox = newValue ;
+      obj.notify('didSetShowOccludedBox') ;
+    end
+
+    function set.showSkeleton(obj, newValue)
+      obj.showSkeleton = newValue ;
+      obj.notify('didSetShowSkeleton') ;
+    end
+
+    function set.showMaRoi(obj, newValue)
+      obj.showMaRoi = newValue ;
+      obj.notify('didSetShowMaRoi') ;
+    end
+
+    function set.showMaRoiAux(obj, newValue)
+      obj.showMaRoiAux = newValue ;
+      obj.notify('didSetShowMaRoiAux') ;
+    end
+
   end
 end

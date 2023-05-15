@@ -822,9 +822,9 @@ listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2ShowCurrTargetOnly','PostSet',@cbkLabels2ShowCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetProjFSInfo',@cbkProjFSInfoChanged);
-listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
-listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
-listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowTrx',@cbkShowTrxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowOccludedBox',@cbkShowOccludedBoxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowTrxCurrTargetOnly',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PreSet',@cbkCurrTrackerPreChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
@@ -854,9 +854,9 @@ listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 listeners{end+1,1} = addlistener(lObj,'dataImported',@cbkDataImported);
-listeners{end+1,1} = addlistener(lObj,'showSkeleton','PostSet',@cbkShowSkeletonChanged);
-listeners{end+1,1} = addlistener(lObj,'showMaRoi','PostSet',@cbkShowMaRoiChanged);
-listeners{end+1,1} = addlistener(lObj,'showMaRoiAux','PostSet',@cbkShowMaRoiAuxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowSkeleton',@cbkShowSkeletonChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoi',@cbkShowMaRoiChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoiAux'@cbkShowMaRoiAuxChanged);
 
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
@@ -3914,38 +3914,38 @@ controller.quitRequested() ;
 % handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
 
 function cbkShowSkeletonChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showSkeleton);
 handles.menu_view_showhide_skeleton.Checked = onOff;
 
 function cbkShowMaRoiChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showMaRoi);
 handles.menu_view_showhide_maroi.Checked = onOff;
 
 function cbkShowMaRoiAuxChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showMaRoiAux);
 handles.menu_view_showhide_maroiaux.Checked = onOff;
 
 function cbkShowTrxChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(~lObj.showTrx);
 handles.menu_view_hide_trajectories.Checked = onOff;
 
 function cbkShowOccludedBoxChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showOccludedBox);
 handles.menu_view_occluded_points_box.Checked = onOff;
 set([handles.text_occludedpoints,handles.axes_occ],'Visible',onOff);
 
 function cbkShowTrxCurrTargetOnlyChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showTrxCurrTargetOnly);
 handles.menu_view_plot_trajectories_current_target_only.Checked = onOff;
