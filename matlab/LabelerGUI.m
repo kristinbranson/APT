@@ -815,7 +815,6 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'didSetProjname',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
-listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
 listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
@@ -1978,12 +1977,11 @@ if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
   %hlpUpdateTblTrxHilite(lObj);
 end
 
-function cbkLabeledPosNeedsSaveChanged(src,evt)
-
-lObj = evt.AffectedObject;
-val = lObj.labeledposNeedsSave;
-%cbkSaveNeeded(lObj,val,'Unsaved labels');
-lObj.setDoesNeedSave(val, 'Unsaved labels') ;
+% function cbkLabeledPosNeedsSaveChanged(src,evt)
+% 
+% lObj = src ;
+% val = lObj.labeledposNeedsSave ;
+% lObj.setDoesNeedSave(val, 'Unsaved labels') ;
 
 
 % function cbkSaveNeeded(lObj,val,str)

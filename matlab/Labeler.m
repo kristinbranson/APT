@@ -199,8 +199,7 @@ classdef Labeler < handle
     % A small subset of more important configuration (legacy) params are
     % Dependent and forward (both set and get) to a subprop of projPrefs.
     % This gives the user explicit property access while still storing the
-    % property within the cfg structure. Since the user-facing prop is
-    % SetObservable, UI changes can be triggered immediately.
+    % property within the cfg structure.
     %
     % Finally, a small subset of the most important configuration params 
     % (eg labelMode, nview) have their own nonDependent properties.
@@ -444,8 +443,10 @@ classdef Labeler < handle
     labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap. init: C
     labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop. init: C
   end
+  properties
+    labeledposNeedsSave   % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
+  end
   properties (SetObservable)
-    labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
     lastLabelChangeTS     % last time training labels were changed
   end
   properties (Dependent)
@@ -15988,6 +15989,11 @@ classdef Labeler < handle
     function set.labels2ShowCurrTargetOnly(obj, newValue)
       obj.labels2ShowCurrTargetOnly = newValue ;
       obj.notify('didSetLabels2ShowCurrTargetOnly') ;
+    end
+
+    function set.labeledposNeedsSave(obj, newValue)
+      obj.labeledposNeedsSave = newValue ;
+      obj.setDoesNeedSave(newValue, 'Unsaved labels') ;
     end
 
   end
