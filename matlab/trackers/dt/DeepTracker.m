@@ -2892,14 +2892,8 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-<<<<<<< HEAD
       tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type);
-
       if ~tfSuccess
-=======
-      tfSuccess = obj.trkSpawn(totrackinfo,be,'track_type',track_type);
-      if ~tfSuccess,
->>>>>>> 531c4f2ea1ef17cf1cc94a097b157b6b0c7ee416
         obj.bgTrkReset();
         return;
       end
