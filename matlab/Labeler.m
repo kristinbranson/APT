@@ -165,6 +165,7 @@ classdef Labeler < handle
     didSetLabels2Hide
 
     didSetLabels2ShowCurrTargetOnly
+    didSetLastLabelChangeTS
   end
 
   %% Project
@@ -445,8 +446,6 @@ classdef Labeler < handle
   end
   properties
     labeledposNeedsSave   % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
-  end
-  properties (SetObservable)
     lastLabelChangeTS     % last time training labels were changed
   end
   properties (Dependent)
@@ -15994,6 +15993,11 @@ classdef Labeler < handle
     function set.labeledposNeedsSave(obj, newValue)
       obj.labeledposNeedsSave = newValue ;
       obj.setDoesNeedSave(newValue, 'Unsaved labels') ;
+    end
+
+    function set.lastLabelChangeTS(obj, newValue)
+      obj.lastLabelChangeTS = newValue ;
+      obj.notify('didSetLastLabelChangeTS') ;
     end
 
   end

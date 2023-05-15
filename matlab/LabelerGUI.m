@@ -815,7 +815,7 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'didSetProjname',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
-listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
+listeners{end+1,1} = addlistener(lObj,'didSetLastLabelChangeTS',@cbkLastLabelChangeTS);
 listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLabels2Hide',@cbkLabels2HideChanged);
@@ -4143,13 +4143,11 @@ tObj = evt.AffectedObject;
 tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
 
 % when lastLabelChangeTS is updated, update the tracker info text in the main APT window
-function cbkLastLabelChangeTS(src,evt)
-
-lObj = evt.AffectedObject;
-if isempty(lObj.trackersAll) || isempty(lObj.tracker),
-  return;
+function cbkLastLabelChangeTS(src, evt)
+lObj = src ;
+if ~isempty(lObj.trackersAll) && ~isempty(lObj.tracker),
+  lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
 end
-lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
 
 function cbkParameterChange(src,evt)
 
