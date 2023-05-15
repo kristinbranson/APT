@@ -1516,21 +1516,21 @@ classdef Labeler < handle
     function set.movieRotateTargetUp(obj,v)
       if obj.maIsMA && (obj.currTarget==0)
         warningNoTrace('Labeler:MA', 'No labeled target selected. Not rotating');
-        return
-      end
-      if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
-        %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
-        obj.movieCenterOnTarget = true; %#ok<MCSUP>
-      end
-      obj.movieRotateTargetUp = v;
-      if ~obj.isinit ,
-        if (obj.hasTrx || obj.maIsMA) && obj.movieCenterOnTarget %#ok<MCSUP>
-          obj.videoCenterOnCurrTarget();
+      else
+        if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
+          %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
+          obj.movieCenterOnTarget = true; %#ok<MCSUP>
         end
-        if v
-          if ~(obj.hasTrx || obj.maIsMA) && ~obj.isinit %#ok<MCSUP>
-            warningNoTrace('Labeler:trx',...
-              'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
+        obj.movieRotateTargetUp = v;
+        if ~obj.isinit ,
+          if (obj.hasTrx || obj.maIsMA) && obj.movieCenterOnTarget %#ok<MCSUP>
+            obj.videoCenterOnCurrTarget();
+          end
+          if v
+            if ~(obj.hasTrx || obj.maIsMA) && ~obj.isinit %#ok<MCSUP>
+              warningNoTrace('Labeler:trx',...
+                'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
+            end
           end
         end
       end
