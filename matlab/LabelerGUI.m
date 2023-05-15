@@ -29,7 +29,7 @@ gui_State = struct('gui_Name',       gui_Name, ...
 % since our gui_Name doesn't match the name of this file this doesn't work
 % anymore.
 if nargin==2 && ischar(varargin{1}) && ischar(varargin{2}) && strcmp(varargin{1},'get_local_fn') 
-    if exist(varargin{2})
+    if exist(varargin{2}, 'file')
         fn = str2func(varargin{2});
     else
         fn = 0;
@@ -51,11 +51,12 @@ end
 
 function LabelerGUI_OpeningFcn(hObject,eventdata,handles,varargin) 
 
+handles.labelerObj = varargin{1} ;
+handles.controller = varargin{2} ;
+
 if verLessThan('matlab','8.4')
   handles.labelerObj.lerror('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
-
-handles.labelerObj = varargin{1};
 
 if handles.labelerObj.isgui,
   hfigsplash = splashScreen(handles);
@@ -2014,36 +2015,37 @@ function cbkLabeledPosNeedsSaveChanged(src,evt)
 
 lObj = evt.AffectedObject;
 val = lObj.labeledposNeedsSave;
-cbkSaveNeeded(lObj,val,'Unsaved labels');
+%cbkSaveNeeded(lObj,val,'Unsaved labels');
+lObj.set_does_need_save(val, 'Unsaved labels') ;
 
 
-function cbkSaveNeeded(lObj,val,str)
-
-if nargin < 2 || isempty(val),
-  val = true;
-end
-
-hTx = lObj.gdata.txUnsavedChanges;
-if val
-  set(hTx,'Visible','on');
-else
-  set(hTx,'Visible','off');
-end
-
-if val,
-  info = lObj.projFSInfo;
-  if nargin < 3 || ~ischar(str),
-    str = 'Save needed ';
-  end
-  if isempty(info),
-    str = sprintf('%s since $PROJECTNAME saved.',str);
-  else
-    str = sprintf('%s since $PROJECTNAME %s at %s',str,info.action,datestr(info.timestamp,16));
-  end
-  SetStatus(lObj.gdata,str,false);
-end
-
-lObj.needsSave = val;
+% function cbkSaveNeeded(lObj,val,str)
+% 
+% if nargin < 2 || isempty(val),
+%   val = true;
+% end
+% 
+% hTx = lObj.gdata.txUnsavedChanges;
+% if val
+%   set(hTx,'Visible','on');
+% else
+%   set(hTx,'Visible','off');
+% end
+% 
+% if val,
+%   info = lObj.projFSInfo;
+%   if nargin < 3 || ~ischar(str),
+%     str = 'Save needed ';
+%   end
+%   if isempty(info),
+%     str = sprintf('%s since $PROJECTNAME saved.',str);
+%   else
+%     str = sprintf('%s since $PROJECTNAME %s at %s',str,info.action,datestr(info.timestamp,16));
+%   end
+%   SetStatus(lObj.gdata,str,false);
+% end
+% 
+% lObj.needsSave = val;
 
 function menuSetupLabelModeHelp(handles,labelMode)
 % Set .Checked for menu_setup_<variousLabelModes> based on labelMode
@@ -2683,15 +2685,14 @@ lObj.tracker.setJrcnslotstrack(n);
 function cbkTrackerBackendAdditionalBsubArgs(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-backend = lObj.trackDLBackEnd;
-original_value = backend.jrcAdditionalBsubArgs;
+original_value = lObj.get_backend_property('jrcAdditionalBsubArgs') ;
 dialog_result = inputdlg({'Addtional bsub arguments:'},'Additional bsub arguments...',1,{original_value});
 if isempty(dialog_result)
   return
 end
 new_value = dialog_result{1};
 try
-  backend.jrcAdditionalBsubArgs = new_value ;
+  lObj.set_backend_property('jrcAdditionalBsubArgs', new_value) ;
 catch exception
   if strcmp(exception.identifier, 'APT:invalid_value') ,
     uiwait(errordlg(exception.message));
@@ -2752,16 +2753,14 @@ end
 function cbkTrackerBackendSetDockerImageSpec(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-backend = lObj.trackDLBackEnd;
-assert(backend.type==DLBackEnd.Docker);
-original_full_image_spec = backend.dockerimgfull ;
+original_full_image_spec = lObj.get_backend_property('dockerimgfull') ;
 dialog_result = inputdlg({'Docker Image Spec:'},'Set image spec...',1,{original_full_image_spec});
 if isempty(dialog_result)
   return
 end
 new_full_image_spec = dialog_result{1};
 try
-  backend.dockerimgfull = new_full_image_spec;
+  lObj.set_backend_property('dockerimgfull', new_full_image_spec) ;
 catch exception
   if strcmp(exception.identifier, 'APT:invalid_value') ,
     uiwait(errordlg(exception.message));
@@ -2774,16 +2773,14 @@ end
 function cbkTrackerBackendSetCondaEnv(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-backend = lObj.trackDLBackEnd;
-assert(backend.type==DLBackEnd.Conda);
-original_value = backend.condaEnv ;
+original_value = lObj.get_backend_property('condaEnv') ;
 dialog_result = inputdlg({'Conda environment:'},'Set environment...',1,{original_value});
 if isempty(dialog_result)
   return
 end
 new_value = dialog_result{1};
 try
-  backend.condaEnv = new_value;
+  lObj.set_backend_property('condaEnv', new_value) ;
 catch exception
   if strcmp(exception.identifier, 'APT:invalid_value') ,
     uiwait(errordlg(exception.message));
@@ -2796,9 +2793,7 @@ end
 function cbkTrackerBackendSetSingularityImage(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-backend = lObj.trackDLBackEnd;
-assert(backend.type==DLBackEnd.Bsub);
-original_value = backend.singularity_image_path ;
+original_value = lObj.get_backend_property('singularity_image_path') ;
 filter_spec = {'*.sif','Singularity Images (*.sif)'; ...
               '*',  'All Files (*)'} ;
 [file_name, path_name] = uigetfile(filter_spec, 'Set Singularity Image...', original_value) ;
@@ -2807,7 +2802,7 @@ if isnumeric(file_name)
 end
 new_value = fullfile(path_name, file_name) ;
 try
-  backend.singularity_image_path = new_value ;
+  lObj.set_backend_property('singularity_image_path', new_value) ;
 catch exception
   if strcmp(exception.identifier, 'APT:invalid_value') ,
     uiwait(errordlg(exception.message));
@@ -3036,7 +3031,7 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-if handles.labelerObj.needsSave
+if handles.labelerObj.does_need_save ,
   res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
   if strcmp(res,'Cancel')
     return
@@ -3431,7 +3426,8 @@ handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
 %% menu
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-if hlpSave(lObj)
+controller = handles.controller ;
+if controller.raise_unsaved_changes_dialog_if_needed() ,
   [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
   if ~tfsucc
     return;
@@ -3463,7 +3459,8 @@ end
 function menu_file_new_Callback(hObject, eventdata, handles)
 SetStatus(handles,'Starting New Project',true);
 lObj = handles.labelerObj;
-if hlpSave(lObj)
+controller = handles.controller ;
+if controller.raise_unsaved_changes_dialog_if_needed() ,
   cfg = ProjectSetup(handles.figure);
   if ~isempty(cfg)    
     SetStatus(handles,'Configuring New Project',true)
@@ -3493,7 +3490,8 @@ function menu_file_load_Callback(hObject, eventdata, handles)
 SetStatus(handles,'Loading Project...',true);
 %EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
-if hlpSave(lObj)
+controller = handles.controller ;
+if controller.raise_unsaved_changes_dialog_if_needed() ,
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
     handles = lObj.gdata; % projLoad updated stuff
@@ -3515,7 +3513,7 @@ end
 OPTION_SAVE = 'Save first';
 OPTION_PROC = 'Proceed without saving';
 OPTION_CANC = 'Cancel';
-if labelerObj.needsSave
+if labelerObj.does_need_save ,
   res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
@@ -3935,7 +3933,9 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
   handles.axes_prev,iAxApply,gamma);
 		
 function menu_file_quit_Callback(hObject, eventdata, handles)
-CloseGUI(handles);
+controller = handles.controller ;
+controller.quit_requested() ;
+%CloseGUI(handles);
 
 % function cbkShowPredTxtLblChanged(src,evt)
 % lObj = evt.AffectedObject;
@@ -4102,7 +4102,7 @@ lObj = handles.labelerObj;
 algName = lObj.tracker.algorithmName;
 %algLabel = lObj.tracker.algorithmNamePretty;
 backend = lObj.trackDLBackEnd.prettyName;
-handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend,datestr(now,'HH:MM'));
+handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend,datestr(now(),'HH:MM'));
 handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.Visible = 'on';
@@ -4115,8 +4115,9 @@ handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 lObj = handles.labelerObj;
 val = true;
 str = 'Tracker trained';
-lObj.needsSave = true;
-cbkSaveNeeded(lObj,val,str);
+%lObj.needsSave = true;
+%cbkSaveNeeded(lObj,val,str);
+lObj.set_does_need_save(val, str) ;
 
 function cbkTrackerStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -4136,8 +4137,9 @@ handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 lObj = handles.labelerObj;
 val = true;
 str = 'New frames tracked';
-lObj.needsSave = true;
-cbkSaveNeeded(lObj,val,str);
+%lObj.needsSave = true;
+%cbkSaveNeeded(lObj,val,str);
+lObj.set_does_need_save(val, str) ;
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
 lObj = eventdata.AffectedObject;
@@ -4336,13 +4338,15 @@ sPrmNew = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
 if isempty(sPrmNew)
   if do_update
     RC.saveprop('lastCPRAPTParams',sPrmNew);
-    cbkSaveNeeded(lObj,true,'Parameters changed');
+    %cbkSaveNeeded(lObj,true,'Parameters changed');
+    lObj.set_does_need_save(true,'Parameters changed') ;
   end
   % user canceled; none
 else
   lObj.trackSetParams(sPrmNew);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
-  cbkSaveNeeded(lObj,true,'Parameters changed');
+  %cbkSaveNeeded(lObj,true,'Parameters changed');
+  lObj.set_does_need_save(true,'Parameters changed') ;
 end
 
 ClearStatus(handles);
@@ -4359,7 +4363,8 @@ sPrmTrack = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
 if ~isempty(sPrmTrack),
   sPrmNew = lObj.trackSetTrackParams(sPrmTrack);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
-  cbkSaveNeeded(lObj,true,'Parameters changed');
+  %cbkSaveNeeded(lObj,true,'Parameters changed');
+  lObj.set_does_need_save(true,'Parameters changed') ;
 end
 
 ClearStatus(handles);
@@ -4892,19 +4897,21 @@ handles.GTMgr.Visible = onIffGT;
 hlpGTUpdateAxHilite(lObj);
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
-CloseGUI(handles);
+%CloseGUI(handles);
+controller = handles.controller ;
+controller.quit_requested() ;
 
-function CloseGUI(handles)
-if hlpSave(handles.labelerObj)
-  handles = clearDepHandles(handles);
-  if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) ...
-      && isvalid(handles.movieMgr)
-    delete(handles.movieMgr);
-  end  
-  delete(findall(0,'tag','TrkInfoUI'));
-  delete(handles.figure);
-  delete(handles.labelerObj);
-end
+% function CloseGUI(handles)
+% if hlpSave(handles.labelerObj)
+%   handles = clearDepHandles(handles);
+%   if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) ...
+%       && isvalid(handles.movieMgr)
+%     delete(handles.movieMgr);
+%   end  
+%   delete(findall(0,'tag','TrkInfoUI'));
+%   delete(handles.figure);
+%   delete(handles.labelerObj);
+% end
 
 function pumInfo_Callback(hObject, eventdata, handles)
 cprop = get(hObject,'Value');
@@ -5116,7 +5123,7 @@ function pbClearAllCrops_Callback(hObject, eventdata, handles)
 handles.labelerObj.cropClearAllCrops();
 
 % -------------------------------------------------------------------------
-function SetStatus(handles,s,isbusy,istemp)
+function SetStatus(handles,str,isbusy,istemp)
 
 if nargin < 3
   isbusy = true;
@@ -5142,7 +5149,7 @@ else
   end
 end
 set(handles.txStatus,'ForegroundColor',color);
-SetStatusText(handles,s);
+SetStatusText(handles,str);
 drawnow('limitrate');
 if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
 end

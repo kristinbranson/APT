@@ -96,6 +96,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         obj.singularity_image_path_ = oldbe.singularity_image_path_ ;
         obj.does_have_special_singularity_detection_image_path_ = oldbe.does_have_special_singularity_detection_image_path_ ;
         obj.singularity_detection_image_path_ = oldbe.singularity_detection_image_path_ ;
+        obj.jrcAdditionalBsubArgs = oldbe.jrcAdditionalBsubArgs ;
       end
     end
   end

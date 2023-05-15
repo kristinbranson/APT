@@ -1,8 +1,9 @@
-function apt = StartAPT(varargin)
+function [labeler, labeler_controller] = StartAPT(varargin)
 APT.setpathsmart;
 if isscalar(varargin) ,
   args = horzcat({'projfile'}, varargin) ;
 else
   args = varargin ;
 end
-apt = Labeler(args{:});
+labeler_controller = labeler_controller_object(args{:}) ;
+labeler = labeler_controller.labeler_ ;
